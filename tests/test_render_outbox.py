@@ -5,7 +5,7 @@ import math
 import re
 
 import pytest
-from interact_support import add_test_widget, append_command
+from interact_support import add_test_widget, append_carried_log_record, append_command
 from leaf import event_log as events_model
 from leaf import projection as projection_model
 from leaf import schema as schema_model
@@ -134,7 +134,7 @@ def test_z_takes_back_the_thread_the_user_just_resolved(browser, serve):
     comment = comments[0]
     # The user has done nothing, so there is nothing to take back — a thread the
     # agent closed with `leaf thread resolve` is not theirs to reopen by pressing undo.
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {"kind": "resolve", "author": "agent", "agent": "A", "parent": comments[1]},
     )
@@ -220,7 +220,7 @@ def test_z_stops_at_a_newer_gesture_it_cannot_take_back(browser, serve):
     round_trip(page)
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("undo")
 
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {"kind": "reply", "author": "user", "parent": second, "text": "And this?"},
     )
@@ -1296,7 +1296,7 @@ def test_accounting_an_action_also_applies_the_undo_that_arrived_with_it(
         for event in accepted_answer.json()["state"]["events"]
         if event.get("attempt") == attempt
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {"kind": "undo", "author": "user", "undoes": accepted["id"]},
     )
@@ -1341,7 +1341,7 @@ def test_a_first_complete_read_restores_its_own_already_undone_action(browser, s
         for event in accepted_answer.json()["state"]["events"]
         if event.get("attempt") == attempt
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {"kind": "undo", "author": "user", "undoes": accepted["id"]},
     )
@@ -1384,7 +1384,7 @@ def test_a_first_complete_read_does_not_repaint_an_already_undone_settlement(
         for event in accepted_answer.json()["state"]["events"]
         if event.get("attempt") == attempt
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {"kind": "undo", "author": "user", "undoes": accepted["id"]},
     )
@@ -1649,7 +1649,7 @@ def test_a_refused_draft_keeps_newer_authoritative_words_under_its_editor(
     draft = page.locator("#note-cli")
     with page.expect_request("**/api/event"):
         draft_control(page, "edit", "note-cli").click()
-        draft.locator("textarea").fill("Local C")
+        write(draft.locator("leaf-text"), "Local C")
         page.keyboard.press("Meta+Enter")
     holding(page, held, 1, "the refused draft")
     expect(draft.locator(".lf-draft-body")).to_have_text("Local C")
@@ -1682,10 +1682,10 @@ def test_a_refused_draft_keeps_newer_authoritative_words_under_its_editor(
         )
     round_trip(page)
 
-    expect(draft.locator("textarea")).to_have_value("Local C")
+    expect(draft.locator("leaf-text")).to_have_js_property("value", "Local C")
     expect(draft.locator(".lf-draft-body")).to_have_text("Remote B")
     page.keyboard.press("Escape")
-    expect(draft.locator("textarea")).to_have_count(0)
+    expect(draft.locator("leaf-text")).to_have_count(0)
     expect(draft.locator(".lf-draft-body")).to_have_text("Remote B")
     assert [event["detail"]["text"] for event in actions(serve.page_dir)] == [
         "Remote B"
@@ -1706,7 +1706,7 @@ def test_a_draft_commit_stages_before_deferred_projection_retries(browser, serve
     page.route("**/api/event", lambda route: held.append(route))
     draft = page.locator("#note-cli")
     draft_control(page, "edit", "note-cli").click()
-    draft.locator("textarea").fill("Local C")
+    write(draft.locator("leaf-text"), "Local C")
 
     append_command(
         serve.page_dir,
@@ -1720,7 +1720,7 @@ def test_a_draft_commit_stages_before_deferred_projection_retries(browser, serve
         },
     )
     told(page)
-    expect(draft.locator("textarea")).to_have_value("Local C")
+    expect(draft.locator("leaf-text")).to_have_js_property("value", "Local C")
 
     page.keyboard.press("Meta+Enter")
     holding(page, held, 1, "the draft commit")
@@ -1748,7 +1748,7 @@ def test_z_walks_back_through_gestures_rather_than_toggling_one(browser, serve):
     assert "\n\n" in authored
 
     draft_control(page, "edit", "note-cli").click()
-    page.locator("lf-draft textarea").fill("Rewritten.")
+    write(page.locator("lf-draft leaf-text"), "Rewritten.")
     page.keyboard.press("Meta+Enter")
     round_trip(page)
     expect(body).to_have_text("Rewritten.")
@@ -1843,7 +1843,7 @@ def test_undo_preserves_the_place_and_restores_passage_marks(browser, serve):
     """Undo restores a suggestion's passages and their anchored comment marks, and returns focus to the available decision control."""
     url = serve(SUGGESTION_PAGE)
     page = open_page(browser, url)
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -1920,14 +1920,14 @@ def test_a_withdrawal_waits_for_a_widget_that_cannot_take_it_yet(browser, serve)
     authored = one.locator(body).inner_text()
 
     draft_control(one, "edit", "note-cli").click()
-    one.locator("lf-draft textarea").fill("Rewritten.")
+    write(one.locator("lf-draft leaf-text"), "Rewritten.")
     one.keyboard.press("Meta+Enter")
     round_trip(one)
     expect(two.locator(body)).to_have_text("Rewritten.")
 
     # The second tab is now holding words of its own, so the log may not write over it.
     draft_control(two, "edit", "note-cli").click()
-    expect(two.locator("lf-draft textarea")).to_be_focused()
+    expect(two.locator("lf-draft leaf-text")).to_be_focused()
     undo(one)
     expect(one.locator(body)).to_have_text(authored)
     expect(one.locator("lf-draft .lf-draft-history > summary")).to_have_text(
@@ -1942,7 +1942,7 @@ def test_a_withdrawal_waits_for_a_widget_that_cannot_take_it_yet(browser, serve)
 
     # Let go, and the withdrawal it could not take yet lands from the editor's close.
     two.keyboard.press("Escape")
-    expect(two.locator("lf-draft textarea")).to_have_count(0)
+    expect(two.locator("lf-draft leaf-text")).to_have_count(0)
     assert two.locator(body).inner_text() == authored
     expect(two.locator("lf-draft .lf-draft-history > summary")).to_have_text(
         "Changes · 1 edit"
@@ -2193,7 +2193,7 @@ def test_the_composer_never_stands_on_its_own_mark(browser, serve):
 
     page.reload()
     page.wait_for_function(
-        "() => document.querySelector('.lf-composer').style.display === 'contents'"
+        "() => document.querySelector('.lf-composer')?.style.display === 'contents'"
     )
     page.wait_for_function("() => (CSS.highlights.get('lf-pending')?.size ?? 0) > 0")
     assert mark_shows_beside_composer(page), (
@@ -2205,11 +2205,10 @@ def test_the_composer_never_stands_on_its_own_mark(browser, serve):
     )
 
 
-def test_the_comment_field_scrolls_with_the_passage_it_is_about(browser, serve):
-    """Floating UI's scroll observer keeps the field attached to its passage, and the
-    viewport holds the field in only while the passage is there: once the passage has
-    scrolled away the field goes with it, rather than staying pinned under the banner over
-    whatever the user scrolled to."""
+def test_the_comment_field_follows_its_passage_then_stays_with_the_writer(
+    browser, serve
+):
+    """The field follows a visible passage and stays in the window when it leaves."""
     page = open_page(browser, serve(LONG_PAGE))
     page.locator("#p30").scroll_into_view_if_needed()
     page.locator("#p30").click(click_count=3)
@@ -2221,7 +2220,7 @@ def test_the_comment_field_scrolls_with_the_passage_it_is_about(browser, serve):
         const composer = document.querySelector('.lf-fab-bar');
         const passage = document.getElementById('p30');
         const before = { composer: top(composer), passage: top(passage) };
-        document.scrollingElement.scrollTop += 240;
+        document.scrollingElement.scrollTop += 80;
         return before;
     }""")
     page.wait_for_function(
@@ -2234,11 +2233,12 @@ def test_the_comment_field_scrolls_with_the_passage_it_is_about(browser, serve):
         arg=before,
     )
     page.evaluate("document.scrollingElement.scrollTop += 2 * innerHeight")
-    page.wait_for_function("""() => {
-      const passage = document.getElementById('p30').getBoundingClientRect();
-      const composer = document.querySelector('.lf-fab-bar').getBoundingClientRect();
-      return passage.bottom < 0 && composer.bottom < 0;
-    }""")
+    page.wait_for_function(
+        "() => document.getElementById('p30').getBoundingClientRect().bottom < 0"
+    )
+    rendered(page)
+    expect(page.locator(".lf-fab-bar")).to_have_attribute("data-lf-plane", "window")
+    expect(page.locator(".lf-fab-input")).to_be_focused()
 
 
 PANED_LONG_PAGE = leaf_page(
@@ -2264,9 +2264,8 @@ def test_a_comment_field_scrolled_away_and_back_is_still_there(
     it: standing beside its target, with their words and their caret in it. Geometry
     says where the field stands, never whether: an item's field used to read "the
     target is off screen" as "the target is gone" and put the field away, words and
-    all, the moment its item left the window. A pane scrolled past the target leaves
-    the field nowhere to stand, so it waits out of view and takes the user back when
-    the target returns."""
+    all, the moment its item left the window. While the target is away, the focused
+    field stays in the window with the draft; on return it stands beside the target."""
     page = open_page(
         browser, serve(LONG_PAGE if scroller == "page" else PANED_LONG_PAGE)
     )
@@ -2297,6 +2296,10 @@ def test_a_comment_field_scrolled_away_and_back_is_still_there(
     )
     scroll_settled(page)
     rendered(page)
+    expect(box).to_be_visible()
+    expect(box).to_have_attribute("data-lf-plane", "window")
+    expect(field).to_be_focused()
+    expect(field).to_have_js_property("value", "Half a thought")
     page.evaluate(f"{away}.scrollTo({{top: {start}, behavior: 'instant'}})")
     scroll_settled(page)
     rendered(page)
@@ -2310,13 +2313,10 @@ def test_a_comment_field_scrolled_away_and_back_is_still_there(
     expect(field).to_have_js_property("value", "Half a thought more")
 
 
-def test_a_comment_field_waiting_out_of_view_takes_no_keys_and_c_brings_it_back(
+def test_a_comment_field_stays_in_view_when_its_pane_scrolls_past_the_target(
     browser, serve
 ):
-    """While a pane scrolled past its item leaves the field nowhere to stand, the field
-    waits out of view, and the keys it would answer are not the user's: Escape does not
-    close a box the user cannot see, and Tab does not open its choices. `c` is the way
-    back: it brings the item and the field into view with the words and the focus."""
+    """A bounded pane can move the target away without taking the draft or caret."""
     page = open_page(browser, serve(PANED_LONG_PAGE))
     resized(page, 1440, 900)
     pane_posture(page, page.locator("#reading"), "bounded")
@@ -2333,17 +2333,13 @@ def test_a_comment_field_waiting_out_of_view_takes_no_keys_and_c_brings_it_back(
     )
     scroll_settled(page, "#reading-body")
     rendered(page)
-    expect(box).to_be_hidden()
-    page.keyboard.press("Tab")
-    page.keyboard.press("Escape")
-    rendered(page)
-    page.keyboard.press("c")
     expect(box).to_be_visible()
     expect(field).to_be_focused()
     expect(field).to_have_js_property("value", "Half a thought")
-    assert box.bounding_box()["width"] == pytest.approx(width, abs=1), (
-        "Tab opened the choices of a field the user could not see"
-    )
+    expect(box).to_have_attribute("data-lf-plane", "window")
+    assert box.bounding_box()["width"] == pytest.approx(width, abs=1)
+    page.keyboard.type(" more")
+    expect(field).to_have_js_property("value", "Half a thought more")
 
 
 def test_the_comment_field_stands_in_the_margin_beside_the_passage(browser, serve):
@@ -2544,7 +2540,7 @@ def test_pending_gestures_survive_an_accepted_view_waiting_for_a_thread_widget(
     page.route("**/api/state*", refuse)
     preparations = []
     page.route("**/preparation-content", lambda route: preparations.append(route))
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -2554,7 +2550,7 @@ def test_pending_gestures_survive_an_accepted_view_waiting_for_a_thread_widget(
             "text": "Please add the supporting detail.",
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -2659,7 +2655,7 @@ def test_a_failed_candidate_presentation_keeps_version_approval(browser, serve):
     preparations = []
     page.route("**/preparation-content", lambda route: preparations.append(route))
 
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -2669,7 +2665,7 @@ def test_a_failed_candidate_presentation_keeps_version_approval(browser, serve):
             "text": "Please add the supporting detail.",
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -2680,7 +2676,7 @@ def test_a_failed_candidate_presentation_keeps_version_approval(browser, serve):
             "markup": '<lf-preparation id="approval-detail"><p>Detail</p></lf-preparation>',
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "done",
@@ -2751,7 +2747,7 @@ def test_undo_waits_while_the_candidate_is_applying_then_reads_accepted_truth(
         route.continue_()
 
     page.route("**/api/event", record_post)
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -2761,7 +2757,7 @@ def test_undo_waits_while_the_candidate_is_applying_then_reads_accepted_truth(
             "text": "Please add the supporting detail.",
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -2930,7 +2926,7 @@ def test_an_async_projection_wake_cannot_commit_a_fallible_candidate(browser, se
     page.route("**/api/state*", lambda route: held_states.append(route))
     preparations = []
     page.route("**/preparation-content", lambda route: preparations.append(route))
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -2940,7 +2936,7 @@ def test_an_async_projection_wake_cannot_commit_a_fallible_candidate(browser, se
             "text": "Please show the deferred projection race.",
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",

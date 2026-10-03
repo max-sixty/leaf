@@ -1,9 +1,11 @@
 """Preview and offline export tests."""
 
+import base64
 import json
 import os
 import re
 import signal
+import socket
 import subprocess
 import sys
 import time
@@ -16,19 +18,25 @@ from typing import NamedTuple
 import pytest
 from click.testing import CliRunner
 from conftest import LEAF_COMMAND
-from interact_support import install_payload, wait_for
+from interact_support import (
+    append_carried_log_record,
+    consume_pending_input,
+    install_payload,
+    wait_for,
+)
 from leaf import cli as cli_model
 from leaf import data as data_model
-from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import exporting as exporting_model
 from leaf import files as files_model
 from leaf import hooks as hooks_model
+from leaf import host as host_model
 from leaf import leases as leases_model
 from leaf import media as media_model
 from leaf import server as server_model
 from leaf import service as service_model
-from leaf import session_cleanup as cleanup_model
+from leaf import state as cleanup_model
+from leaf.render_checks import wait_until_ready
 from leaf.schema import ELEMENT_ID
 from leaf.structure import UTF8_BOM
 from leaf_dev import preview as preview_model
@@ -145,6 +153,76 @@ def test_interrupting_a_live_preview_exits_without_a_traceback(preview_slot, spa
     assert preview.returncode == 130, output
     assert server_model.running_server(page) is None
     assert (page / "events.jsonl").is_file()
+    assert "Traceback" not in output
+
+
+@pytest.mark.parametrize("first_signal", [signal.SIGINT, signal.SIGTERM])
+@pytest.mark.parametrize("next_signal", [signal.SIGINT, signal.SIGTERM])
+def test_a_second_stop_signal_leaves_preview_cleanup_running(
+    tmp_path, preview_slot, spawn, first_signal, next_signal
+):
+    """A forwarded or repeated stop cannot abandon the server's cleanup.
+
+    Hold the real worker at service cleanup, then deliver another signal before
+    releasing it. The ordinary launcher test covers uv's forwarding; this gate
+    establishes the ordering without depending on when uv forwards a signal.
+    """
+    worker = tmp_path / "worker.py"
+    worker.write_text(
+        """import sys
+from leaf_dev import preview
+
+stop = preview.PreviewService.stop
+
+def gated_stop(self):
+    print("Cleanup started", flush=True)
+    assert sys.stdin.readline() == "release\\n"
+    stop(self)
+    print("Cleanup finished", flush=True)
+
+preview.PreviewService.stop = gated_stop
+preview.preview.main(args=sys.argv[1:])
+""",
+        encoding="utf-8",
+    )
+    slot, page = preview_slot
+    log = tmp_path / "preview.log"
+    process, url = start_preview(
+        spawn,
+        [
+            sys.executable,
+            str(worker),
+            "--source",
+            str(ROOT / "examples" / "heat-loss.html"),
+            "--slot",
+            slot,
+            "--user",
+            "--worker",
+        ],
+        log,
+        stdin=subprocess.PIPE,
+    )
+    events = (page / "events.jsonl").read_bytes()
+    process.send_signal(first_signal)
+    try:
+        wait_for(
+            log.read_text,
+            lambda output: "Cleanup started" in output,
+            failure="the stop signal never reached service cleanup",
+            timeout=10,
+        )
+        process.send_signal(next_signal)
+    finally:
+        process.stdin.write("release\n")
+        process.stdin.flush()
+    process.wait(timeout=30)
+
+    output = log.read_text()
+    assert "Cleanup finished" in output, output
+    assert process.returncode in (130, 128 + first_signal), output
+    assert server_model.running_server(page) is None
+    assert not _reachable(url)
+    assert (page / "events.jsonl").read_bytes() == events
     assert "Traceback" not in output
 
 
@@ -491,7 +569,7 @@ def test_an_unclaimed_preview_keeps_its_gestures_out_of_the_stop_hook(
     session = os.environ["CLAUDE_CODE_SESSION_ID"]
     assert service_model.page_claim(page_dir) is None
     assert page_dir not in service_model.owned_pages(session)
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "text": "probe"},
     )
@@ -546,7 +624,7 @@ def served_preview(tmp_path, preview_slot, spawn):
 
 
 def test_a_user_preview_restarts_under_its_original_codex_claim(
-    tmp_path, preview_slot, codex_program, codex_env, spawn
+    tmp_path, preview_slot, codex_program, codex_env, codex_queue, spawn
 ):
     """The claim names the Codex task above the preview, and survives each restart.
 
@@ -578,6 +656,7 @@ def test_a_user_preview_restarts_under_its_original_codex_claim(
             "--user",
         ],
         env=codex_env
+        | codex_queue
         | {
             "CODEX_THREAD_ID": "preview-codex",
             "PYTHONHOME": sys.base_prefix,
@@ -1040,7 +1119,7 @@ def test_a_user_preview_update_keeps_the_sessions_wait_watching(
     assert server_model.running_server(directory)
     assert waiter.poll() is None, waited.read_text()
 
-    events_model.append_event(
+    append_carried_log_record(
         directory,
         {
             "kind": "comment",
@@ -1051,7 +1130,7 @@ def test_a_user_preview_update_keeps_the_sessions_wait_watching(
     )
     assert waiter.wait(timeout=30) == 0, waited.read_text()
     assert "has new input" in waited.read_text()
-    [batch] = delivery_model.take_input(session)["batches"]
+    [batch] = consume_pending_input(session)["batches"]
     assert [event["text"] for event in batch["events"]] == ["still there?"]
 
 
@@ -1059,32 +1138,84 @@ def test_a_user_preview_brings_back_a_service_that_is_down_but_wanted(
     served_preview,
 ):
     """A `--user` service still enabled with no server is the preview's to bring
-    back on its next update, and does not end it: that is a server that died, or
+    back without an edit, and does not end it: that is a server that died, or
     one a re-vendor could not start again (its recorded port taken), which is left
     enabled and down in just this way. Only a stop, or the claim leaving this
     session, ends the preview."""
-    source, _, directory, process, _, log = served_preview
+    _, _, directory, process, url, log = served_preview
     port = server_model.running_server(directory)["port"]
-    killed = subprocess.run(
-        ["pkill", "-KILL", "-f", f"server _serve {directory}"], check=False
-    )
-    assert killed.returncode == 0
+    claim = service_model.page_claim(directory)
+    events = (directory / "events.jsonl").read_bytes()
+    # Hold the watcher while taking the stopped server's port. The first revival
+    # must refuse, then recover after that condition clears without a source edit.
+    with socket.socket() as occupied:
+        occupied.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        os.killpg(process.pid, signal.SIGSTOP)
+        try:
+            killed = subprocess.run(
+                ["pkill", "-KILL", "-f", f"server _serve {directory}"], check=False
+            )
+            assert killed.returncode == 0
+            wait_for(
+                lambda: server_model.running_server(directory),
+                lambda running: running is None,
+                failure="the killed server still held its lease",
+            )
+            occupied.bind(("127.0.0.1", port))
+            occupied.listen()
+        finally:
+            os.killpg(process.pid, signal.SIGCONT)
+        wait_for(
+            log.read_text,
+            lambda output: "can't serve" in output,
+            failure="the occupied preview address was not reported",
+            timeout=10,
+        )
+        assert files_model.read_json(directory / "service.json")["enabled"]
+
     wait_for(
         lambda: server_model.running_server(directory),
-        lambda running: running is None,
-        failure="the killed server still held its lease",
-    )
-    assert files_model.read_json(directory / "service.json")["enabled"]
-
-    source.write_text(source.read_text().replace("Rollout", "Back up", 1))
-    wait_for(
-        log.read_text,
-        lambda output: "Reloaded watched" in output,
+        bool,
         failure="the preview did not bring its server back",
-        timeout=60,
+        timeout=10,
     )
     assert process.poll() is None, log.read_text()
     assert server_model.running_server(directory)["port"] == port
+    wait_for(
+        lambda: _reachable(url),
+        bool,
+        failure="the restored preview did not answer at its original keyed URL",
+    )
+    assert service_model.page_claim(directory) == claim
+    assert (directory / "events.jsonl").read_bytes() == events
+
+
+@pytest.mark.parametrize("unclaimed", [False, True])
+def test_a_preview_relinquishes_a_service_another_session_claims(
+    served_preview, monkeypatch, unclaimed
+):
+    """The old author's watcher ends without disabling the successor's service."""
+    _, _, directory, process, url, log = served_preview
+    if unclaimed:
+        # A plain-terminal --user preview has no host session. Exercise its same
+        # cleanup boundary directly; the subprocess owns the serving resource.
+        monkeypatch.delenv("CLAUDE_CODE_SESSION_ID", raising=False)
+        cleanup = preview_model.PreviewService(directory, user=True)
+    with service_model.PageTransaction(directory) as transaction:
+        transaction.take_claim(host_model.ClaudeCodeHarness("successor", "Claude"))
+    if unclaimed:
+        assert cleanup.ended
+        cleanup.stop()
+    wait_for(
+        lambda: process.poll(),
+        lambda status: status is not None,
+        failure="the former owner's preview kept following the successor's page",
+        timeout=10,
+    )
+    assert process.returncode == 0, log.read_text()
+    assert service_model.page_claim(directory)["id"] == "successor"
+    assert server_model.running_server(directory)
+    assert _reachable(url)
 
 
 # ---------- export: the page as one file ----------
@@ -1172,6 +1303,114 @@ OFFLINE_REGISTRY = {
         ),
     },
 }
+
+
+def test_authored_video_and_audio_play_seek_and_export_offline(
+    browser, serve, tmp_path
+):
+    """Actual MP4 and MP3 decoders cross capture, HTTP ranges, CSP and offline URLs."""
+    content = leaf_page(
+        "Recorded media",
+        """
+        <h1>Recorded media</h1>
+        <video id="video" controls playsinline width="320" height="180"
+          aria-label="Test pattern" poster="/media/d7cf2b4e22c063dd.png"
+          src="/media/2930ad3df7819c50.mp4"></video>
+        <audio id="audio" controls aria-label="Test tone">
+          <source src="/media/b5eb956d4548b3b0.mp3" type="audio/mpeg">
+        </audio>
+    """,
+    )
+    content = content.replace(
+        "</main>",
+        '<video id="repeated" controls preload="none" aria-label="Repeated recording" src="/media/2930ad3df7819c50.mp4?ignored=1#t=2"></video><video id="from-api" controls preload="none" aria-label="API recording"></video></main>',
+    ).replace("</head>", '<script type="module" src="/page/media.js"></script></head>')
+    url = serve(
+        content,
+        page_files={
+            "media.js": "import { scopedMediaUrl } from '/runtime/widget-api.js'; document.querySelector('#from-api').src = scopedMediaUrl('/media/2930ad3df7819c50.mp4?ignored=1');"
+        },
+    )
+    page = open_page(browser, url)
+    media_responses = []
+    page.on(
+        "response",
+        lambda response: (
+            media_responses.append(response)
+            if response.url.endswith((".mp4", ".mp3"))
+            else None
+        ),
+    )
+    exported = tmp_path / "recordings.html"
+    exporting_model.cmd_export(serve.page_dir, exported, None)
+    exported_source = exported.read_text()
+    for filename in ("2930ad3df7819c50.mp4", "b5eb956d4548b3b0.mp3"):
+        encoded = base64.b64encode(
+            (serve.page_dir / "media" / filename).read_bytes()
+        ).decode()
+        assert exported_source.count(encoded) == 1
+    for location in (url, exported.as_uri()):
+        page.goto(location, wait_until="load")
+        wait_until_ready(page)
+        for selector in ("#video", "#audio"):
+            player = page.locator(selector)
+            page.wait_for_function(
+                "selector => document.querySelector(selector).readyState >= 2",
+                arg=selector,
+            )
+            assert player.evaluate("el => el.duration") == pytest.approx(8, abs=0.2)
+            # Reach the browser's player controls through ordinary sequential focus.
+            for _ in range(20):
+                page.keyboard.press("Tab")
+                if player.evaluate("el => document.activeElement === el"):
+                    break
+            assert player.evaluate("el => document.activeElement === el")
+            page.keyboard.press("Space")
+            page.wait_for_function(
+                "selector => document.querySelector(selector).currentTime > 0",
+                arg=selector,
+            )
+            page.keyboard.press("Space")
+            assert player.evaluate("el => el.paused")
+            player.evaluate("el => { el.pause(); el.currentTime = 6; }")
+            page.wait_for_function(
+                "selector => { const el = document.querySelector(selector); return !el.seeking && Math.abs(el.currentTime - 6) < 0.1; }",
+                arg=selector,
+            )
+            assert player.evaluate("el => el.error") is None
+        touch = browser.new_page(has_touch=True, viewport={"width": 390, "height": 844})
+        touch.goto(location, wait_until="load")
+        wait_until_ready(touch)
+        for selector in ("#video", "#audio"):
+            player = touch.locator(selector)
+            bounds = player.bounding_box()
+            player.tap(
+                position={
+                    "x": 24,
+                    "y": bounds["height"] - 48 if selector == "#video" else 27,
+                }
+            )
+            touch.wait_for_function(
+                "selector => !document.querySelector(selector).paused", arg=selector
+            )
+            player.tap(
+                position={
+                    "x": 24,
+                    "y": bounds["height"] - 48 if selector == "#video" else 27,
+                }
+            )
+            assert player.evaluate("el => el.paused")
+        touch.close()
+    assert media_responses
+    assert all(response.status == 206 for response in media_responses)
+    assert all(
+        response.headers["accept-ranges"] == "bytes" for response in media_responses
+    )
+    video_url = page.locator("#video").get_attribute("src")
+    assert video_url.startswith("blob:")
+    assert page.locator("#repeated").get_attribute("src") == video_url + "#t=2"
+    assert page.locator("#from-api").get_attribute("src") == video_url
+    assert page.locator("#audio source").get_attribute("src").startswith("blob:")
 
 
 def test_interactive_export_with_an_ask_reaches_application_presentation(
@@ -1465,7 +1704,6 @@ def test_the_example_preview_command_exports_a_file_that_opens_on_its_own(
     browser,
 ):
     """The handoff command names one file whose page draws with no live server."""
-    out = ROOT / ".tmp" / "example-pr-walkthrough.html"
     result = subprocess.run(
         [
             *PREVIEW,
@@ -1479,7 +1717,9 @@ def test_the_example_preview_command_exports_a_file_that_opens_on_its_own(
         timeout=90,
     )
     assert result.returncode == 0, f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
-    assert result.stdout.splitlines()[-1] == str(out.resolve())
+    out = Path(result.stdout.splitlines()[-1])
+    assert out.is_absolute()
+    assert out.name == "example-pr-walkthrough.html"
 
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     page.on(
@@ -1542,15 +1782,79 @@ def test_export_refuses_server_dependent_samples(serve, tmp_path):
 
 
 def test_an_export_keeps_utf8(browser, serve, tmp_path):
-    serve(leaf_page("Café handoff", "<h1>Café handoff</h1>"))
+    literal = "urn:leaf-resource:" + "a" * 64
+    source = leaf_page(
+        "Café handoff",
+        f'<h1>Café handoff</h1><p id="literal">{literal}</p><section id="native-shadow"><template shadowrootmode="open"><p id="shadow-text">Captured shadow text</p></template></section><script id="body-probe" type="module">window.order.push("body");</script>',
+        head='<style>#literal::after {content:"</noscript>";}</style><meta name="parser-probe" content="head"><script id="head-probe" type="module">window.order = [document.querySelector("#head-probe").parentElement.tagName.toLowerCase()];</script>',
+    )
+    serve(source)
     out = tmp_path / "cafe.html"
     exporting_model.cmd_export(serve.page_dir, out, None)
     assert out.read_text(encoding="utf-8").startswith(UTF8_BOM)
 
     page = browser.new_page()
     page.goto(out.as_uri(), wait_until="load")
+    wait_until_ready(page)
     assert page.evaluate("document.characterSet") == "UTF-8"
+    assert page.evaluate("window.order") == ["head", "body"]
+    assert page.evaluate("document.doctype.name") == "html"
+    assert page.locator("head > meta[charset]").count() == 1
+    expect(page.locator("#native-shadow #shadow-text")).to_have_text(
+        "Captured shadow text"
+    )
+    expect(page.locator("#literal")).to_have_text(literal)
+    expect(page.get_by_role("heading", name="Café handoff")).to_have_count(1)
     expect(page.get_by_role("heading", name="Café handoff")).to_be_visible()
+    disabled = browser.new_page(java_script_enabled=False)
+    disabled.goto(out.as_uri(), wait_until="load")
+    expect(disabled.get_by_role("heading", name="Café handoff")).to_have_count(1)
+    expect(disabled.locator("#literal")).to_have_text(literal)
+    expect(disabled.locator("#literal")).to_have_css(
+        "content", '"</noscript>"', pseudo="after"
+    )
+
+
+def test_an_export_without_scripts_keeps_text_layout_and_alt_text(
+    browser, serve, tmp_path
+):
+    source = (
+        leaf_page(
+            "Readable record",
+            '<h1>Readable record</h1><p id="words">The recording compares two routes.</p>'
+            '<img id="poster" src="/media/d7cf2b4e22c063dd.png?ignored=1#frame" alt="First frame: two routes">'
+            '<video controls src="/media/2930ad3df7819c50.mp4#t=2"></video>'
+            '<div id="layout" style="display:grid;grid-template-columns:1fr 1fr;background:url(/media/d7cf2b4e22c063dd.png)"><p>Before</p><p>After</p></div>',
+            head="<style>@media screen { #words { color: rgb(12, 34, 56); background:url(/media/d7cf2b4e22c063dd.png); } }</style>",
+        )
+        .replace("<html ", '<html data-author="record" ')
+        .replace("<body>", '<body class="authored">')
+    )
+    serve(source)
+    out = tmp_path / "readable.html"
+    exporting_model.cmd_export(serve.page_dir, out, None)
+    page = browser.new_page(
+        java_script_enabled=False, viewport={"width": 390, "height": 844}
+    )
+    requests = []
+    failures = []
+    page.on("request", lambda request: requests.append(request.url))
+    page.on("requestfailed", lambda request: failures.append(request.url))
+    page.goto(out.as_uri(), wait_until="load")
+    expect(page.get_by_role("heading", name="Readable record")).to_be_visible()
+    expect(page.get_by_role("note")).to_contain_text("JavaScript")
+    expect(page.locator("#words")).to_have_css("color", "rgb(12, 34, 56)")
+    expect(page.locator("#layout")).to_have_css("display", "grid")
+    assert page.locator("#poster").get_attribute("alt") == "First frame: two routes"
+    assert page.locator("#poster").get_attribute("src") is None
+    assert page.locator("video").get_attribute("src") is None
+    assert page.locator("#poster").get_attribute("data-lf-media-width") == "320"
+    assert page.locator("html").get_attribute("data-author") == "record"
+    assert page.locator("body").get_attribute("class") == "authored"
+    assert page.locator("script[src]").count() == 0
+    assert failures == []
+    assert requests == [out.as_uri()]
+    assert page.locator("body").bounding_box()["width"] <= 390
 
 
 def test_an_export_draws_a_chart_whose_body_is_plot_code(browser, serve, tmp_path):
@@ -1616,11 +1920,11 @@ def test_an_export_embeds_only_the_widgets_its_markup_names(browser, serve, tmp_
             "<pre>print('hi')</pre></lf-code>",
         )
     )
-    root = events_model.append_event(
+    root = append_carried_log_record(
         serve.page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "text": "Sketch it?"},
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -1636,8 +1940,17 @@ def test_an_export_embeds_only_the_widgets_its_markup_names(browser, serve, tmp_
     out = tmp_path / "reachable.html"
     exporting_model.cmd_export(serve.page_dir, out, None)
     html = out.read_text(encoding="utf-8")
+    composed = json.loads(
+        re.search(
+            r'<script type="application/json" data-lf-export>(.*?)</script>',
+            html,
+            re.DOTALL,
+        )[1]
+    )["document"]
     imports = json.loads(
-        re.search(r'<script type="importmap"[^>]*>(.*?)</script>', html, re.DOTALL)[1]
+        re.search(r'<script type="importmap"[^>]*>(.*?)</script>', composed, re.DOTALL)[
+            1
+        ]
     )["imports"]
     assert {"leaf:/widgets/lf-code.js", "leaf:/widgets/lf-diagram.js"} <= set(imports)
     assert not {
@@ -1721,25 +2034,18 @@ body { --export-tone: rgb(12, 34, 56); }
     expect(page.get_by_role("img", name="Captured badge")).to_have_js_property(
         "naturalWidth", 24
     )
-    assert (
-        page.locator("#vector image")
-        .get_attribute("href")
-        .startswith("data:image/svg+xml;base64,")
-    )
-    assert (
-        page.locator("#responsive")
-        .get_attribute("srcset")
-        .count("data:image/svg+xml;base64,")
-        == 2
-    )
+    assert page.locator("#vector image").get_attribute("href").startswith("blob:")
+    assert page.locator("#responsive").get_attribute("srcset").count("blob:") == 2
     expect(page.locator("#quoted")).to_have_text("url('/page/icon.svg')")
     for selector in ("#badge", "#inline"):
         assert (
             page.locator(selector)
             .evaluate("el => getComputedStyle(el).backgroundImage")
-            .startswith('url("data:image/svg+xml;base64,')
+            .startswith('url("blob:')
         )
-    assert [url for url in requests if not url.startswith("data:")] == [out.as_uri()]
+    assert [url for url in requests if not url.startswith(("data:", "blob:"))] == [
+        out.as_uri()
+    ]
 
 
 def test_a_gloss_keeps_its_explanation_in_print(browser, serve):
@@ -1789,7 +2095,7 @@ def test_inline_threads_keep_their_words_without_live_controls_in_print(
         '<rect width="24" height="24" fill="navy"/></svg>'
     )
     _, image_url = media_model.cmd_media(serve.page_dir, [image])[0]
-    root = events_model.append_event(
+    root = append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -1819,7 +2125,7 @@ def test_inline_threads_keep_their_words_without_live_controls_in_print(
         )
         assert result.exit_code == 0, result.output
     if resolved:
-        events_model.append_event(
+        append_carried_log_record(
             serve.page_dir,
             {"kind": "resolve", "author": "user", "parent": root["id"]},
         )
@@ -1846,7 +2152,7 @@ def test_inline_threads_keep_their_words_without_live_controls_in_print(
             workflow_face
         )
     live.emulate_media(media="print")
-    expect(thread.locator(".lf-page-thread-body")).to_be_visible()
+    expect(thread.locator(".lf-msg-body")).to_be_visible()
     assert (
         thread.locator(
             "button:visible, leaf-text:visible, .lf-msg-sending:visible"

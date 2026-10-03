@@ -2,12 +2,15 @@
 # sidebar as its own grid to keep the track beside the body at 900px (0 of 3); the
 # change 3 of 3. Later made to fail a sticky track: base at eee4a2d6d stuck the
 # `aside` itself (0 of 3), the change 3 of 3.
-schema_version: '1.0'
-name: sidebar-page-at-900px
-description: "A sidebar page read at 900px: the Layout already keeps its track beside the body there, so the page leaves the Layout's widths alone, and a short track that stays in view sticks at `--lf-top`, below the banner, inside a track stretched to the body's height, so it never sticks over the body where the two stack."
-tags:
-- layout
-execution:
+description: sidebar-page-at-900px
+metadata:
+  purpose: 'A sidebar page read at 900px: the Layout already keeps its track beside the body there, so
+    the page leaves the Layout''s widths alone, and a short track that stays in view sticks at `--lf-top`,
+    below the banner, inside a track stretched to the body''s height, so it never sticks over the body
+    where the two stack.'
+  tags:
+  - layout
+vars:
   prompt: |
     Write a Leaf page for the user: the rollout of release 4.12. The body is a long event
     log (40 entries, newest last) and a chart of the error rate; beside it, a short
@@ -18,18 +21,20 @@ execution:
 
     The page directory is not reachable from here, so reply with the complete
     `index.html`, rather than writing a file.
-graders:
-- name: loads-leaf
-  type: tool_used
-  tool: Skill
-  input_match: leaf
-- name: reads-page-authoring
-  type: tool_used
-  tool: Read
-  input_match: skills/leaf/references/page-authoring\.md
-- name: judgment
-  type: llm
-  criteria: |
+assert:
+- type: javascript
+  metric: loads-leaf
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/SKILL\.md
+- type: javascript
+  metric: reads-page-authoring
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/references/page-authoring\.md
+- type: llm-rubric
+  metric: judgment
+  value: |
     Read the HTML and its `<style>`. Pass only if all of these hold. `main` has class
     `layout-sidebar` and the checklist is in its track. The page's own CSS leaves the
     Layout's widths alone: fail if it sets `flex`, `flex-basis`, `grid-template-columns`

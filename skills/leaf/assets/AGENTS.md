@@ -37,8 +37,8 @@ toggle left under the press, and moves nothing else.
 
 The rail and a pin are different kinds. The rail is room: a strip right of `main`
 that sits wherever the window has room for it. It never moves, narrows, or indents
-the column, and `data-rail` on `body` withholds or reserves it (`margin-layout.js`).
-Only the left resident and the notes move the column over (`settleResidency`). A pin,
+the column, and `data-rail` on `body` withholds or reserves it (`content-layout.js`).
+Only the left resident and the notes move the column over (`settleResidency` there). A pin,
 a passage mark, and everything else in the annotation layer is an overlay: it covers
 what lies under it and takes no room. No rule pads, indents,
 widens, or reflows a block, heading, or line to clear a pin, and nothing moves when a
@@ -70,18 +70,37 @@ inspection layer.
 
 The page holds still under the user's aim. A state change may repaint any box but
 must not move controls next to the gesture that caused it. Without a gesture, a box
-may grow or shrink into free room, but reading content and controls stay put. Passive
-message metadata may rearrange inside a stationary header when it moves no neighbour
-and stays inside the header. Its age and receipt need no reserved-width slots;
-controls and ordinary reading text never take this exception. News grows where the
-reader isn't looking: above the screen, where scroll anchoring takes the growth into
-what they scrolled past, or below it. So a thread's reply box stands at the foot of the
+may grow or shrink into free room, but reading content and controls stay put.
+Runtime regions declare bounded internal reflow with `data-lf-reflow`. A `text`
+region, such as a conversation header, declares its own stationary box: labels may
+repack inside it while every contained control stays put. A `controls` region,
+such as the adaptive shortcut bar, permits its hints and controls to repack inside
+its stationary box. Declare the box that owns the available room, rather than an
+auto-sized inner label group or a boxless wrapper. A nested region must hold its own
+boundary and every enclosing declaration's guarantees; it never borrows an outer
+declaration or relaxes one, including across a shadow root. Both painted positions stay inside
+that boundary, and neighbours and ordinary page reading content stay put. Typing
+still cannot carry its field.
+News grows where the reader isn't looking: above the screen, where scroll anchoring
+takes the growth into what they scrolled past, or below it. So a thread's reply box stands at the foot of the
 scroller that shows the thread, in the Threads panel as in the margin card, and a
 reply grows the thread above it without moving the box or its caret. Where news would
 move what the reader is reading, it waits behind a control of fixed size until they
 open it: in a seat in the page's flow, an agent's reply, the reopening it brings, and a
-thread the agent starts wait behind a notice in a row the seat already draws
-(`thread/held-news.js`). A change the user requested may reflow the
+thread the agent starts wait behind a notice in a row the seat already draws, and a
+thread that would open a seat of its own, as on a diff line with no thread, waits in
+the margin behind its marker (`thread/held-news.js`). In the Threads panel, a card
+news takes out of the view, as another actor resolving its thread under Open does,
+stays where it stands, drawn as the news left it in the shape it stood in, until its
+going would move nothing the user sees or they change the view
+(`thread/thread-list-view.js`, `keeping`). A region whose rows only the
+log or the clock decides, so no first paint can size it, shows none of them until the
+reader opens them through a control of fixed size the widget already draws, as a
+command's counts open its lists; after that a change to its rows waits the same way
+while its growth would be seen (`HeldReading`, command-hub's `lf-command.js`). A
+fixed-height box that scrolls them is no answer: nothing tells the reader a row is
+cut off, since a scroller shows no edge until it is scrolled.
+A change the user requested may reflow the
 content it replaces, shown as motion the eye can follow. A hover, focus, or
 keyboard reveal never changes the space given to its ancestors or siblings. Typing
 may grow its field at the edge its layout grows, but never carries the field. The
@@ -145,11 +164,15 @@ one-sided borders and reflexive cards, tints, gradients, or soft shadows.
 Each Thread's `unread` and `attention` are single readings that every surface
 painting them consumes, so the Threads toggle, filters, panel, margin entry, and
 Page Map change together. Workflow state rides the existing semantic control
-rather than a colored edge: pickup colors its icon green, and working also colors
-the interior and pulses once on arrival, which a repaint never replays. User attention wears
-the same two channels in blue. Reading is bookkeeping and never moves the user.
+rather than competing with attention for color. Green marks a move the user owes;
+other thread controls stay blue. Pickup and work use status words, with one brief
+pulse when work begins that a repaint never replays. Reading is bookkeeping and
+never moves the user.
 
 ### Motion
+
+Use restrained, finite animations to acknowledge state changes. Do not animate
+continuously while a state remains unchanged.
 
 Nothing the user must read, press, or decide waits on a clock. Motion runs from a
 state that is already true, and motion that must finish before the result can be
@@ -194,7 +217,7 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Vocabulary and public helpers | `registry.js`, `widget-api.js`, `widget-elements.js` |
 | External data | `data.js`, `projection/data.js`, `projection/authored.js` |
 | Revision installs and continuity | `version.js`, `version-picker.js`, `carry.js`, `dom-children.js`, `root-state.js`, `restore-state.js` |
-| Repaint and geometry | `rendering.js`, `repaint.js`, `standing.js`, `page-geometry.js`, `geometry.js`, `rect.js`, `pointer.js`, `floating.js` |
+| Repaint and geometry | `rendering.js`, `repaint.js`, `standing.js`, `page-geometry.js`, `geometry.js`, `rect.js`, `pointer.js` |
 | Chrome and available room | `chrome.js`, `chrome-layout.js`, `auxiliary-surfaces.js`, `drawn-edge.js` |
 | Reading regions and scrolling | `reading-regions.js`, `reading-place.js`, `bounds.js`, `scrolling.js`, `reach.js`, `user-place.js` |
 | Keyboard | `keyboard/AGENTS.md` |
@@ -202,10 +225,11 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Asks | `asks/` |
 | Comment capture | `composing/`, `drafts.js`, `media.js` |
 | Threads | `thread/`, `thread-panel.js` |
-| Margin and Page Map | `margin-*.js`, `page-map-dialog.js`, `pointed-place.js` |
-| Comment box and thread card placement | `comment-placement.js`, `floating.js` |
+| Annotation inventory and controls | `annotation-inventory.js`, `annotation-view.js`, `contributions.js`, `contribution-controls.js`, `inline-contributions.js` |
+| Annotation records and Page Map | `margin-model.js`, `margin-map-model.js`, `page-map-dialog.js`, `pointed-place.js` |
+| Physical annotation presentation | `../packages/default/runtime/annotation-overlay/` |
 | Passages and target identity | `passages.js`, `text-alignment.js`, `anchor-coordinate.js`, `target-references.js`, `resolved-target.js`, `anchor-resolution.js` |
-| Anchor paint and travel | `anchor-paint.js`, `anchor-note-view.js`, `anchor-controls.js`, `anchor-travel.js`, `target-paint.js`, `visual-parts.js`, `indication.js` |
+| Anchor placement, decoration and travel | `anchor-placement.js`, `anchor-note-view.js`, `anchor-controls.js`, `anchor-travel.js`, `target-paint.js`, `target-paint-geometry.js`, `visual-parts.js`, `indication.js` |
 | Banner and approvals | `banner*.js` |
 | Drawers and neighboring pages | `drawers.js`, `live-leaves*.js` |
 | Activity and updates | `presence.js`, `updates.js` |
@@ -216,6 +240,14 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Shadow trees and styles | `shadow.js`, `shadow-stage.js`, `stylesheets.js` |
 | Elements a paint belongs to while they stand, and the stages they stand in | `arrivals.js` |
 | Utilities | `icons.js`, `markdown.js`, `syntax.js`, `motion.js`, `storage.js`, `interaction-log.js` |
+
+The executable body declaration `data-annotations` selects the default physical
+renderer or page-owned presentation. `leaf.js` imports the default package's
+`runtime/annotation-overlay/index.js` only for overlay presentation; core owners
+cannot reach that graph. Core retains target readings, inventory, native controls,
+Thread/composer lifetimes and active/draft drawing ink. The selected package owns
+pins, contextual floating placement, posted drawing paint, marks and annotation
+visibility. Page-owned views consume the same owners through `widget-api.js`.
 
 `runtime/rendering.js` runs every rendering callback in one pass per frame; schedule
 through its `nextRender`, `nextFrame`, `cancelRender`, and `sizeObserver`, since
@@ -250,7 +282,11 @@ idioms, and CSS-only widgets, and each package theme follows it; shared shadow
 rules compose into `/shadow.css`, whose shared `.lf-ui` face comes before
 component rules. In the document all of these, and each widget module's adopted
 sheet, share the `lf-base` cascade layer; `layouts.css` is `lf-layouts` above it,
-and the page's own CSS is unlayered above both (`layer.py`, `CASCADE_LAYERS`). Each
+and `state.css` is `lf-state` above both so semantic retirement wins over package
+defaults and Layouts. The page's own CSS stays unlayered above those tiers,
+and inline widget motion outranks them (`layer.py`, `CASCADE_LAYERS`). Shared
+shadow rules use `lf-shadow` above adopted widget defaults in `lf-base`, and
+`state.css` reaches every declared shadow stage above both. Each
 package's rules reach only its own widgets (`layer.py`, `widget_confinement`), so a rule
 several packages' widgets need is the kernel's. The page's rules skip the chrome and
 every `.lf-ui` control unless they name a widget or the layer's vocabulary
@@ -283,8 +319,8 @@ selects from:
 | thread, workflow, attention, Asks, activity, unread | the server's folds; the browser adds only its own unresolved sends and the versions it is marking read |
 | what the DOM represents | controller presentation tickets and projection commits |
 | when a document-wide renderer paints | the publication that opened the epoch, in the order `runtime/semantic-state.js` declares |
-| where each thread's passage lands | anchor paint's resolution of its anchor in this version |
-| the row inside a target a comment stands by | `pointed-place.js`: the line a pointing gesture landed on, held by the composer until sent, then under the thread's key with the words that find it again; where it stands now is anchor paint's placement record (`point`, `pointRow`), written in its pass, the only writer, which takes in what a send hands over; presentation only, and only the pointed threads' row, card and travel follow it |
+| where each thread's passage lands | `anchor-placement.js`'s resolution of its anchor in this version |
+| the row inside a target a comment stands by | `pointed-place.js`: the line a pointing gesture landed on, held by the composer until sent, then under the thread's key with the words that find it again; where it stands now is `anchor-placement.js`'s placement record (`point`, `pointRow`), written in its read, the only writer, which takes in what a send hands over; presentation only, and only the pointed threads' row, card and travel follow it |
 | geometry readings: what a scroller shows, what a surface hides, what sticky headers stand over, how much of the window the page shows | `geometry.js` (`visibleBand`, `declareOccluder`, `headerInset`, `shownWindow`, `seenRect`), so being on screen has one answer |
 
 Do not add a second cache, pending map, widget-specific replay list, or DOM
@@ -314,7 +350,8 @@ Startup order is load-bearing:
 6. Publish that document contract once.
 7. Import the modules `x-upgrade` declares for the tags present, and no others.
 8. Run the dressing passes and wait for the coordinator publication.
-9. Present the optional runtime-owned page-interface region.
+9. Join optional runtime-owned page-interface imports and installation. Their contained
+   sample documents are deferred arrivals, separate from this document's semantic proof.
 10. Land a fresh URL's fragment, then stamp `data-lf-upgraded="1"`.
 11. Start the state feed; its first answer presents the page, or after a bounded
     wait the page presents offline and applies the answer when it lands.

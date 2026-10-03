@@ -1,0 +1,10 @@
+/* Semantic presentation above widget defaults and Layouts (layer.py, CASCADE_LAYERS).
+ * A standing decision retires the slots its registry relation names, regardless of
+ * their package's default display. Inline widget motion may keep a slot visible
+ * until it settles; authored unlayered styles retain the page's final say. */
+@layer lf-state {
+  [data-lf-retired] { display: none; }
+
+  /* Retiring the only slot leaves its wrapper empty. Keep that wrapper in the
+     layout tree so Undo can restore the text in the same place. */
+}

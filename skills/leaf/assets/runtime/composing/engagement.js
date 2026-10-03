@@ -1,5 +1,5 @@
 /* User gestures and drafts that a document replacement would discard. */
-import { TEXT_BOX } from "../focus.js";
+import { TEXT_BOX } from "../control-selectors.js";
 import { runtime } from "../context.js";
 import { dragHeld } from "../widget-elements.js";
 import { focused } from "../keyboard/scopes.js";

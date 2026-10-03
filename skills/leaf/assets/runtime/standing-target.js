@@ -1,10 +1,10 @@
 /* Where the user stands: the page node a focused node stands at, one reading every
    feature takes (glossary, Standing target).
 
-   A node on the page stands at itself. So does a node inside any Ask of the inventory,
+   An ordinary node on the page stands at itself. So does a node inside any Ask of the inventory,
    answered or not, wherever it is drawn: an Ask frozen into a reply is where a user
-   working it is, never the page Ask its thread is about. Other chrome stands at the page
-   target it shows, as each side's owner declares (`declareSide`): the margin for its
+   working it is, never the page Ask its thread is about. A presentation can stand at the
+   source target it shows in authored flow or chrome, as its owner declares (`declareSide`): the margin for its
    cluster controls, the thread card, and a thread in the Threads panel; the Asks drawer
    for its rows; the details shelf for the elements that name its notes. A side's answer
    drawn in the chrome itself, such as a margin control on a widget frozen into a reply,
@@ -27,11 +27,12 @@ import { allAsks } from "./asks/model.js";
 import { hostIn, under } from "./shadow.js";
 import { readingBlock } from "./reading-place.js";
 
-const sides = [];
+const sides = new Set();
 
-// A chrome owner's reading of the page target a node inside its chrome shows, or null.
+// A presentation owner's reading of the source target one of its nodes shows, or null.
 export function declareSide(bridge) {
-  sides.push(bridge);
+  sides.add(bridge);
+  return () => sides.delete(bridge);
 }
 
 // The innermost of `asks` whose element is or holds `node`. The list is in document
@@ -47,12 +48,14 @@ export const askHolding = (asks, node) =>
 export function placeOf(node) {
   const at = node?.nodeType === 1 ? node : node?.parentElement;
   if (!at || at === document.body) return null;
-  if (!inChrome(at) || askHolding(allAsks(), at)) return at;
+  // An Ask is the user's current action wherever it is rendered. A source-linked
+  // presentation may otherwise stand in authored flow as well as fixed chrome.
+  if (askHolding(allAsks(), at)) return at;
   for (const side of sides) {
     const place = side(at);
     if (place) return inChrome(place) && !askHolding(allAsks(), place) ? null : place;
   }
-  return null;
+  return inChrome(at) ? null : at;
 }
 
 // Where the user stands now: where focus stands, or else the end of the selection, a

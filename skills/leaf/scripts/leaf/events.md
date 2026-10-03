@@ -14,13 +14,14 @@ page and is not a global identifier. The kinds:
 | `edit` | agent | `leaf thread edit` | `message`, `text` | replaces one message's visible text; the original stays in the log |
 | `read` | user | `POST /api/event` | `messages: [{message, version}]` | records that this page's one user has read exact current or historical agent-content versions; `$events` declares it bookkeeping, so it adds no thread turn or agent work |
 | `thread_title` | agent | `--title` on `leaf thread open`, `reply` or `edit` | `thread`, `title` | names a thread in the panel; latest title wins without adding a turn or settling work |
+| `reanchor` | page | revision activation | `thread`, `revision`, `anchor: {section}` | a quoted passage no longer resolves; retains the open thread at its surviving section without adding a message, answering work or changing attention |
 | `summary` | agent | `leaf thread summarize` | `thread`, `from`, `through`, `text` | replaces one contiguous range with Markdown in the thread panel; originals stay in the log and remain revealable |
 | `resolve` | user or agent | `POST /api/event`, `leaf thread resolve` | `parent` | closes a thread |
 | `unresolve` | user | `POST /api/event` | `parent` | the user reopens a resolved thread |
 | `done` | user | the banner, only on a page declaring `<meta name="lf-review" content="sign-off">` | `version`, the stamp approved | approval of the declared sign-off; a page that asks nothing gets no terminal control |
 | `action` | user | `POST /api/event` from a widget | `widget`, `action`, `detail`; server-stamped `meaning` | the user edited the document through the widget |
 | `report` | agent or worker | `leaf page report` | as `action`, validated by an `x-state` verb declaring `writer: "agent"` | provisional state that stands until a stamped revision answers it |
-| `pickup` | page | the delivery carrier; a host failure receipt | `events`, `phase` (`queued`, `opened`, or `failed`), `session`, `turn`; `failure` with `failed` | the named user events reached the durable Codex queue or entered an exact agent turn, or the host gave up on them with no answer coming; idempotent per event, phase, session, and turn; never a work claim |
+| `pickup` | page | the delivery carrier; a host failure receipt | `events`, `phase` (`queued`, `opened`, or `failed`), `session`, `turn`; `failure` with `failed` | the named attention-bearing inputs reached the durable Codex queue or entered an exact agent turn, or the host gave up on them with no answer coming; includes page errors and reports; idempotent per event, phase, session, and turn; never a work claim |
 | `note` | agent | `leaf page stamp` | `version`, `revision`, changelog `text`, `restated`, `settles` | one public version mapped to an immutable revision, naming the decisions it took back and the reports or work it answered |
 | `error` | page | the runtime | | the page reported a failure in front of the user; heard like a report, never counted against the user |
 | `undo` | user | `POST /api/event` | `undoes` | withdraws one gesture of the user's own (`UNDOABLE_KINDS`: resolve, unresolve, action, done) |
@@ -34,6 +35,13 @@ subject the emitter knows persists across source replacements, independently of 
 `visual` names a declared part of a picture and `part` the control a design comment
 landed on.
 
+Activation records a `reanchor` for every affected open thread, even when no reply
+addresses it. The original message retains its quote; `build_threads` reads the
+latest explicit reply transition or automatic reanchor as the current location.
+Quoted text that the predecessor's file reading cannot resolve, such as words a
+data projection generates, stays with its runtime owner. An automatic transition
+cannot invent a replacement passage or detach a thread: a reply makes those choices.
+
 A `drawing` is up to 32 freehand strokes (`strokes`, each a list of points) attached to
 an ordinary comment, and may be that comment's only content. Its first stroke decides
 whether it anchors on an element or on the page, and with it the browser records `box`
@@ -44,6 +52,17 @@ reading can produce, so the door bounds their shape, the stroke count and 500
 characters of `says`, and does not re-read them. Leaf derives the drawing's frame and
 owns ink, weight, SVG construction, and replay. A drawing is immutable once sent,
 follows the thread's resolution state.
+
+
+A publishing note, replacement reply, or the first automatic `reanchor` may carry
+`publication`, the exact immutable bundle name (`r<revision>-<digest>`). The
+checked source publisher alone supplies it; browser commands and sample fixtures
+cannot. The bundle is staged before this prerequisite is admitted, and its HTML
+revision marker is published after every dependent anchor move. A transaction
+first finishes any prerequisite whose marker is absent from that exact bundle,
+including its remaining anchor moves. It never reads mutable source to recover.
+Copying a thread into a sample retains `reanchor` transitions but drops this
+parent publication coordinate along with the log sequence.
 
 ## Undo
 
@@ -84,12 +103,20 @@ through `schema.agent_name`, which gives such an event the name `Agent`. Every
 agent-authored thread message, closing event, margin update, and activity row the
 browser receives carries that name as `agent`, and the browser shows it as served.
 
-`service.requires_agent_attention` decides what needs the agent, from `author` and
-the kind's `$events` declaration: a user event of a kind not declared bookkeeping, or
-any `report` or `error`. `leaf wait` prints those, and the banner counts only the
-user events among them, so a `read`, declared bookkeeping, neither wakes the watcher
-nor reads as unanswered. An agent's own comment does neither. Either
-side can open a thread and either side can close one.
+Admission stamps `attention`: whether the input changes the agent's pending
+Asks and textual prompts, pending answers, effective subject claims and their
+standing inputs, or sign-off approval.
+`workflows.obligation_reading` compares those canonical readings before and after
+the gesture under the active revision's vocabulary, while the append transaction
+still holds the current claims. The
+decision survives later replies, versions and status writes: a cancellation
+already delivered to the carrier stays input even after the work it withdrew ends.
+Reports and errors always carry attention; agent messages do not. `leaf wait`,
+delivery selection, pickup, the unpicked-input Stop guard and the idle gate read
+that one field through `service.requires_agent_attention`. The pending transport
+count includes only user input among those events. Read marks, unclaimed edits
+that answer no Ask, and closing or reopening an answered thread without claimed
+work stay quiet. Either side can open a thread and either side can close one.
 A note's purpose is discharged by being read, and only the user knows that
 happened, so the user ordinarily closes a thread; `leaf thread resolve` is the agent's
 door onto closing, and a thread the agent closed is named as such in the panel
@@ -100,8 +127,9 @@ and the transcript.
 `event_contracts.append_admitted` admits every writer's event under the page
 transaction's lease. It returns an accepted retry without repeating the gesture;
 otherwise it reads the named revision's vocabulary, checks that the kind is
-declared, runs its gates against the page and standing log, derives server-owned
-meaning, and validates the finished record against its stored-record contract.
+declared, allocates the event's unique identity, runs its gates against the page
+and standing log, derives server-owned
+meaning and `attention`, and validates the record against its stored-record contract.
 Using the event's revision keeps re-vendoring from reinterpreting an open document.
 A refusal returns a command error or a final HTTP 400. A fault raises instead, since
 it may land either side of the append; the HTTP transport's one fault boundary
@@ -161,7 +189,7 @@ seq it printed misses nothing and repeats nothing. SIGINT, SIGTERM, and a closed
 stdout end it with exit 0. A log that is removed, replaced by another file, or
 shorter than what the feed has read ends it with exit 1 and `<log> is gone` on
 stderr, since its positions no longer name that log's lines. The feed wakes on the
-log's file stamp at the browser news stream's `LOOK_S` cadence, so an event any
+log's file stamp at `LOOK_S` cadence, so an event any
 process appends reaches it the same way.
 
 The feed carries the log only. External data under `data/` is replaced in place

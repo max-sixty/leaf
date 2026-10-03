@@ -77,8 +77,8 @@ function drawerFurniture(panel, name, list = el("div", "lf-drawer-list")) {
 // completed/total (sayAsks); a/A still walks only the open worklist.
 export const asksBtn = el("button", "lf-btn lf-asks", "");
 // The machine's live leaves and what each is doing: a left panel of rows, each a
-// link opening that page in its own tab, judged by the same `presented` the banner
-// answers with, from the same facts — `others` on /api/state carries them for every
+// link opening that page in its own tab, saying what that page's agent last declared
+// in the shape of the banner's activity — `others` on /api/state carries it for every
 // live page, and every URL in the list carries only the key this user already
 // holds, since there is one key for the machine (`host_key`). The current page heads
 // the list as a marked, unlinked row, so the panel reads as the whole machine. A
@@ -158,7 +158,7 @@ export function createDrawers({
       arrival: "presentation",
       show({ phase }) {
         dismissBannerControls();
-        closePreview();
+        closePreview?.();
         keeps(btn, "aria-expanded", "true");
         // Filled before it is shown, so the drawer is its own list from the first frame of
         // the slide rather than a blank card that populates a moment later. The way down
@@ -230,8 +230,8 @@ export function createDrawers({
     currentDrawer()
       ? {
           root: drawers.get(currentDrawer()).panel,
-          says: `close ${currentDrawer()}`,
-          does: `Close the ${currentDrawer()} drawer`,
+          title: `close ${currentDrawer()}`,
+          description: `Close the ${currentDrawer()} drawer`,
           // A drawer's parent is the document, so its step lands the user there rather
           // than on the edge button that reopens it.
           out: () => {

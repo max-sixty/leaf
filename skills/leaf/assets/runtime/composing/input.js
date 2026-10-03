@@ -20,6 +20,9 @@ import { followBoxGrowth, readBoxPlace } from "../thread/reply-landing.js";
 // accepts images, a paste uploads bytes to page media; one that does not says so in a
 // notice, so no box answers a pasted picture with silence. The draft keeps the resulting
 // Markdown, while the field shows only the user's words and a thumbnail projection.
+// An upload completion changes that draft; it is not another typing or focus gesture.
+// The field retains focus while read-only, and completion preserves wherever the user
+// has moved since the paste.
 // So the box holds more than its .value, and wire() returns the seam that says so:
 // sync.value() reads the complete draft, sync.load() replaces it — a stored record, a
 // draft mirrored from another tab, or the emptiness a send leaves — and sync() says the
@@ -181,7 +184,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     const removeMedia = (index) => {
       pastedMedia.splice(index, 1);
       renderMedia();
-      ta.dispatchEvent(new Event("input", { bubbles: true }));
+      draftChanged();
       ta.focus({ preventScroll: true });
     };
     const renderMedia = () => {
@@ -258,6 +261,10 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       stale.add(ta);
       repaint();
     };
+    const draftChanged = () => {
+      save(draftValue());
+      refresh();
+    };
     // sync() asks for the paint of what the box holds. It is not how a draft gets in:
     // what the user would miss is the words and the pasted images together, and the
     // images show only in the shelf, so a caller writing .value states half a draft.
@@ -298,8 +305,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       }
     };
     ta.addEventListener("input", () => {
-      save(draftValue());
-      refresh();
+      draftChanged();
       // A box a thread or seat holds keeps its controls in view as it grows
       // (`followBoxGrowth`). On the user's own keystrokes and nothing else: a send settling
       // after they scrolled away, or a draft mirrored from another tab, must not pull the
@@ -309,48 +315,56 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     });
     ta.addEventListener("focus", () => readBoxPlace(ta));
     ta.addEventListener("beforeinput", () => readBoxPlace(ta), { capture: true });
-    ta.addEventListener("paste", async (event) => {
-      const images = [...(event.clipboardData?.items ?? [])]
-        .filter((item) => item.kind === "file" && item.type.startsWith("image/"))
-        .map((item) => item.getAsFile())
-        .filter(Boolean);
-      if (!images.length) return;
-      event.preventDefault();
-      // A refusal is a sentence, so every box that will not take a picture says why it
-      // will not. A silent one reads as a paste that worked — the same failure the empty
-      // send below is written against — and the box that stayed silent was the one whose
-      // caller declined images outright rather than the one that declines them in a mode.
-      const allowed = allowsMedia();
-      if (allowed !== true) {
-        notice(allowed);
-        return;
-      }
+    // The composer owns picture admission. Capture declines the field's ordinary text
+    // paste before CodeMirror handles it; a direct editor without this owner keeps the
+    // clipboard's text even when the payload also contains a picture.
+    ta.addEventListener(
+      "paste",
+      async (event) => {
+        const images = [...(event.clipboardData?.items ?? [])]
+          .filter((item) => item.kind === "file" && item.type.startsWith("image/"))
+          .map((item) => item.getAsFile())
+          .filter(Boolean);
+        if (!images.length) return;
+        event.preventDefault();
+        // A refusal is a sentence, so every box that will not take a picture says why it
+        // will not. A silent one reads as a paste that worked — the same failure the empty
+        // send below is written against — and the box that stayed silent was the one whose
+        // caller declined images outright rather than the one that declines them in a mode.
+        const allowed = allowsMedia();
+        if (allowed !== true) {
+          notice(allowed);
+          return;
+        }
 
-      // Keep the current words visible while the bounded local upload runs. Send remains
-      // reachable but inert and exposes the same busy state through aria-disabled.
-      const wasReadOnly = ta.readOnly;
-      uploading = true;
-      ta.readOnly = true;
-      ta.setAttribute("aria-busy", "true");
-      refresh();
-      notice(images.length === 1 ? "Adding image…" : `Adding ${images.length} images…`);
-      try {
-        const paths = await Promise.all(images.map((image) => uploadMedia(image)));
-        if (paths.some((path) => path === null)) return;
-        pastedMedia.push(...paths);
-        renderMedia();
-        ta.dispatchEvent(new Event("input", { bubbles: true }));
-        notice(images.length === 1 ? "Image added" : `${images.length} images added`);
-      } catch (error) {
-        notice(`Could not add image — ${error?.message ?? error}`);
-      } finally {
-        uploading = false;
-        ta.readOnly = wasReadOnly;
-        ta.removeAttribute("aria-busy");
+        // Keep the current words visible while the bounded local upload runs. Send remains
+        // reachable but inert and exposes the same busy state through aria-disabled.
+        const wasReadOnly = ta.readOnly;
+        uploading = true;
+        ta.readOnly = true;
+        ta.setAttribute("aria-busy", "true");
         refresh();
-        if (ta.isConnected) ta.focus();
-      }
-    });
+        notice(
+          images.length === 1 ? "Adding image…" : `Adding ${images.length} images…`,
+        );
+        try {
+          const paths = await Promise.all(images.map((image) => uploadMedia(image)));
+          if (paths.some((path) => path === null)) return;
+          pastedMedia.push(...paths);
+          renderMedia();
+          draftChanged();
+          notice(images.length === 1 ? "Image added" : `${images.length} images added`);
+        } catch (error) {
+          notice(`Could not add image — ${error?.message ?? error}`);
+        } finally {
+          uploading = false;
+          ta.readOnly = wasReadOnly;
+          ta.removeAttribute("aria-busy");
+          refresh();
+        }
+      },
+      { capture: true },
+    );
     // The box's own scope: one row, so the shortcut bar's word, the command reference dialog's sentence and
     // the press are the same object. Every box the runtime wires gets it — the general box,
     // each thread's reply, the selection composer, a widget thread — where the reference
@@ -365,8 +379,8 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         id: "text.send",
         keys: submitBindings,
         label: submitLabel,
-        does: "Submit what you have typed",
-        line: sends,
+        description: "Submit what you have typed",
+        title: sends,
         run: () => sendBtn.click(),
       },
     ]);

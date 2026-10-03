@@ -8,8 +8,9 @@ opens offline.
 
 A plain preview takes no claim: its comments settle in the page's log and nowhere
 else, so a session can drive it. `--user` claims the page for this session, so presses
-arrive through `leaf wait` and the Stop hook, and serves it from the page's durable
-service, which the preview stops on the way out.
+arrive through the host's feedback path, and serves it from the page's durable
+service, which the preview stops on the way out. In Codex it also starts or joins
+the task's delivery adapter, so comments can start a new turn after this one ends.
 
 A preview is a foreground process, like any dev server; SIGTERM takes the same cleanup
 path as Ctrl-C. Each start discards what an earlier one left in its slot, claim
@@ -41,6 +42,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import time
 from datetime import datetime, timezone
 from functools import partial
 from pathlib import Path
@@ -73,6 +75,10 @@ WATCHER_PACKAGE = "watchfiles>=1.1.0"
 # The quiet gap that closes an editor's save batch (`step`), and the idle wake-up at
 # which the watcher re-reads the server's liveness (`rust_timeout`).
 WATCH_INTERVAL_MS = 250
+# A refused bind is retried without requiring the author to edit the page. Keep
+# starts apart while the port is occupied; repeat diagnostics only when they change.
+REVIVE_INTERVAL_SECS = 1
+STOP_SIGNALS = (signal.SIGINT, signal.SIGTERM)
 
 
 class LeafFailed(RuntimeError):
@@ -145,7 +151,7 @@ def mark_preview(source: Path, page: Path, runtime: Path, user: bool) -> None:
     Every field written here reaches the browser: the server hands the file to
     the page whole. It serves neither the file itself nor an absolute checkout path.
     """
-    from leaf.session_cleanup import write_json
+    from leaf.state import write_json
 
     layer = json.loads((page / "registry.json").read_text(encoding="utf-8"))["$layer"]
     producer = layer.get("producer", {})
@@ -244,6 +250,9 @@ class PreviewService:
         self.user = user
         self.temporary = None
         self.address: dict = {}
+        self.revive_at = 0.0
+        self.revive_refusal: str | None = None
+        self.claim: dict | None = None
 
     def start(self) -> tuple[str, str]:
         """Put the server up for the first time and report its URL and lifetime
@@ -251,23 +260,36 @@ class PreviewService:
         gives the claim back if the start does not commit."""
         from leaf.hosting import claim_and_start
 
-        return claim_and_start(self.page) if self.user else self._serve_temporary()
+        if not self.user:
+            return self._serve_temporary()
+        with claim_and_start(self.page) as started:
+            self.claim = started.claim
+        return started.url, started.note
 
     def serve_again(self) -> None:
-        """Put a `--user` service that is down but still wanted back up, or say
-        why not.
+        """Put a `--user` service that is down but still wanted back up.
 
         A revival: it claims nothing, since the claim the first start took is
         still this session's and taking it again would reopen a turn the Stop hook
         closed, and it starts only a service still enabled, so a stop that lands
-        first is kept."""
+        first is kept. A refused start is retried on later watcher polls; the same
+        refusal is printed once while it stands."""
         from leaf.detached import StartRefused
         from leaf.hosting import start_server
 
+        if time.monotonic() < self.revive_at:
+            return
         try:
             start_server(self.page, revive=True)
         except StartRefused as error:
-            print(error, file=sys.stderr, flush=True)
+            refusal = str(error)
+            if refusal != self.revive_refusal:
+                print(refusal, file=sys.stderr, flush=True)
+            self.revive_refusal = refusal
+            self.revive_at = time.monotonic() + REVIVE_INTERVAL_SECS
+        else:
+            self.revive_refusal = None
+            self.revive_at = 0.0
 
     @contextlib.contextmanager
     def replacing(self):
@@ -305,7 +327,7 @@ class PreviewService:
         from leaf.hosting import cmd_stop
 
         if self.user:
-            cmd_stop(self.page)
+            cmd_stop(self.page, owner=self.claim)
         else:
             self._close_temporary()
 
@@ -326,18 +348,19 @@ class PreviewService:
 
         A `--user` service still enabled but down is not ended. That is a server
         that died, or one `page init` re-vendored but could not start again (the
-        recorded port was taken), and the next update tries it again."""
+        recorded port was taken), and the watcher tries it again."""
         from leaf.files import read_json
-        from leaf.host import session_harness
-        from leaf.service import PageTransaction
+        from leaf.service import claim_is_active, page_claim, same_claim
 
         if not self.user:
             return not self.running
         service = read_json(self.page / "service.json")
         if not service or not service["enabled"]:
             return True
-        with PageTransaction(self.page) as transaction:
-            return not transaction.owned_by(session_harness())
+        claim = page_claim(self.page)
+        return not same_claim(claim, self.claim) or (
+            claim is not None and not claim_is_active(claim)
+        )
 
 
 def refresh_preview(
@@ -594,8 +617,10 @@ def serve_preview(
         print(f"Watching {source} and {runtime}; feedback stays in {page}", flush=True)
         while True:
             reported = {path for _, path in next(changes)}
-            if not service.running and service.ended:
+            if service.ended:
                 return  # the service was stopped, or the owning session ended
+            if service.user and not service.running:
+                service.serve_again()
             if not reported:
                 continue  # the idle wake-up that carried the check above
             # An added input is only in the reading taken after it arrived, and a
@@ -624,7 +649,7 @@ def serve_preview(
             watched = rebuilt
             if service.user and not service.running:
                 # A server that died, or that a re-vendor could not start again,
-                # which said why. Each later update is another try.
+                # which said why. The next watcher poll is another try.
                 service.serve_again()
             if refreshed and service.running:
                 print(f"Reloaded {source.stem}", flush=True)
@@ -678,13 +703,13 @@ def start_preview_worker(source: Path, page: Path, runtime: Path, user: bool) ->
 
 
 def terminated(signum, _frame) -> None:
-    """End on SIGTERM the way Ctrl-C ends: through the cleanup it skips by default.
+    """Begin shutdown once and let its cleanup finish despite later stop signals.
 
-    A runner that signals the whole process group reaches this process twice, once
-    directly and once through `uv run`'s forwarding, and a second exit raised inside
-    the first one's cleanup would abandon it. So the first is the only one heard.
+    Ignore both SIGINT and SIGTERM before unwinding so another stop cannot
+    interrupt the watcher or service cleanup.
     """
-    signal.signal(signal.SIGTERM, signal.SIG_IGN)
+    for stop_signal in STOP_SIGNALS:
+        signal.signal(stop_signal, signal.SIG_IGN)
     raise SystemExit(128 + signum)
 
 
@@ -735,7 +760,8 @@ def preview(
         raise click.UsageError("--user serves a page; omit --export")
     try:
         if worker:
-            signal.signal(signal.SIGTERM, terminated)
+            for stop_signal in STOP_SIGNALS:
+                signal.signal(stop_signal, terminated)
             source = source.resolve()
             runtime = runtime.resolve()
             run_preview(
@@ -765,7 +791,9 @@ def export_preview(
     runtime: Path, launcher: Path, source: Path, slot: str | None
 ) -> None:
     """Write the page as one offline file under `.tmp/`, and print its path."""
-    TMP.mkdir(exist_ok=True)
+    from leaf_dev.harness import run_directory
+
+    out_dir = run_directory(TMP / "exports")
     with tempfile.TemporaryDirectory(prefix="preview-export-", dir=TMP) as staging:
         page = Path(staging) / "page"
         prepared = prepare_page(
@@ -774,8 +802,7 @@ def export_preview(
             partial(leaf, launcher, runtime),
         )
         suffix = f"-{slot}" if slot else ""
-        out = TMP / f"example-{source.stem}{suffix}.html"
-        out.unlink(missing_ok=True)
+        out = out_dir / f"example-{source.stem}{suffix}.html"
         leaf(launcher, runtime, "page", "export", str(page), "-o", str(out))
     print(
         preparation_note(source, prepared.data_sources, prepared.versions),

@@ -46,7 +46,7 @@ const COLOR = /^#[0-9a-f]{6}$/i;
 const KINDS = new Set(["range", "toggle", "choice", "color", "text"]);
 const CHANGE = "lf-playground-change";
 // What one pointer press operates: a preset, Reset, and the controls whose press or
-// drag is the whole gesture.
+// drag is the whole gesture. Their readable labels remain ordinary selection targets.
 const ONE_PRESS = [
   ".lf-playground-preset",
   ".lf-playground-reset",
@@ -249,9 +249,17 @@ customElements.define(
         const actions = this.#buildActions();
         this.#buildLayout({ panel, presetBar, preview: previews[0], actions });
         this.addEventListener("mousedown", (event) => {
+          if (event.target.closest(".lf-playground-control-label")) return;
           const pressed = event.target.closest(ONE_PRESS);
-          if (pressed?.closest("lf-playground") === this && this.#standsInPreview())
+          if (pressed?.closest("lf-playground") === this && this.#standsInPreview()) {
+            // Cancel the focus transfer, not the ordinary collapse of a selection
+            // outside the preview. Keeping that selection would make the next click
+            // look like the end of its drag to the shared control activation guard.
+            const selection = getSelection();
+            if (selection && !this.#preview.contains(selection.focusNode))
+              selection.removeAllRanges();
             event.preventDefault();
+          }
         });
       }
 
@@ -426,14 +434,15 @@ customElements.define(
         input.size = "s";
         input.append(heading);
         input.addEventListener("change", () => this.#takeInputs());
-        // A press's mousedown decides where focus goes, and the switch's label would
-        // then focus the switch as it passes the press on, so the switch toggles the
-        // way a script's click does. That click reaches the switch's own input, which a
-        // pointer never does, and passes through.
+        // The label is readable text, not an activation surface. The switch face
+        // toggles through a script click so its native label does not take focus
+        // after mousedown kept it in the preview. That click, and a keyboard's,
+        // reaches the native input and passes through.
         input.addEventListener("click", (event) => {
-          if (event.composedPath()[0].localName === "input") return;
+          const path = event.composedPath();
+          if (path[0].localName === "input") return;
           event.preventDefault();
-          input.click();
+          if (!path.includes(heading)) input.click();
         });
         control.append(input);
         return;
@@ -610,11 +619,12 @@ customElements.define(
     }
 
     // Whether the user stands in the preview, where a candidate can draw on the element
-    // they stand at: a sample child's focus treatment, for one. A pointer press on a
-    // control that changes the candidate in one gesture leaves them standing there, since
-    // taking focus to the control would put that state away as the candidate changed.
-    // Text and colour controls take focus to be operated, and a key reaches any control
-    // by moving focus onto it first, so the keyboard still acts where it stands.
+    // they stand at: a sample child's focus treatment, for one. Pressing a control face
+    // that changes the candidate in one gesture leaves them standing there: taking focus
+    // to the control would put that state away as the candidate changed.
+    // Readable labels allow the browser's selection gesture. Text and colour controls
+    // take focus to be operated, and a key reaches any control by moving focus onto it
+    // first, so the keyboard still acts where it stands.
     #standsInPreview() {
       let at = document.activeElement;
       if (!this.#preview.contains(at)) return false;
@@ -639,10 +649,11 @@ customElements.define(
         [
           {
             id: "playground.choose",
+            contextKeys: ["1"],
+            bindingBadge: null,
             control: this.#submit,
-            decision: () => this.#submit.textContent,
-            does: () => this.#submit.textContent,
-            line: () => this.#submit.textContent.toLowerCase(),
+            decision: true,
+            title: () => this.#submit.textContent,
             when: () => this.#available(),
             run: () => this.#submit.click(),
           },
@@ -650,8 +661,7 @@ customElements.define(
             id: "playground.reset",
             keys: ["Alt+0"],
             control: this.#reset,
-            does: "Reset the playground",
-            line: "reset controls",
+            title: "reset controls",
             run: () => this.#reset.click(),
           },
         ],

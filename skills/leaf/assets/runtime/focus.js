@@ -2,25 +2,12 @@
    keyboard can stand on, where a closing layer hands the user back, and how a change
    that moves or replaces the node they stand on keeps them there.
 
-   Nearly every owner imports this module, and several spell their selectors from
-   `TEXT_BOX` as they evaluate, so it imports only rendering.js, which imports nothing:
-   an import that reached back into one of them would have it read `TEXT_BOX` before
-   this module had defined it. That is why the hand-back and the hold read a later focus
-   move off `focusin` rather than from user-intent.js. */
+   The selector vocabulary lives in control-selectors.js, which imports nothing.
+   This module imports only that vocabulary and rendering.js: importing a gesture
+   owner would cycle through its focus dependency. The hand-back and the hold therefore
+   read a later focus move off `focusin` rather than from user-intent.js. */
 import { nextRender } from "./rendering.js";
-
-// The runtime's text field (`composing/text-field.js`): every box the runtime builds
-// for the user to write in is one. Code that looks for such a box names it by this, and
-// code asking whether something takes typed paragraphs asks `TEXT_BOX`, since a native
-// textarea still does: `lf-draft` edits plain text in one, and an author's page may hold one. One spelling of each, so the field's
-// element can change without a lookup somewhere silently finding nothing.
-export const TEXT_FIELD = "leaf-text";
-export const TEXT_BOX = `textarea, ${TEXT_FIELD}`;
-
-// What the platform puts in the tab order without being asked, which is what a layout
-// keeps clear of and what "does this box already hold a stop" asks about. A disclosure's
-// `summary` is one, and so is an editable region.
-export const TAB_STOP = `a[href], button, input, select, ${TEXT_BOX}, summary, [contenteditable]:not([contenteditable="false"]), [tabindex]:not([tabindex="-1"])`;
+import { TEXT_BOX, TAB_STOP } from "./control-selectors.js";
 
 // The stops Tab walks inside `root` right now, in document order: the candidates above
 // that are in the order, enabled, and drawn. A modal's own Tab loop reads this.
@@ -120,6 +107,8 @@ export const deepFocus = (at = document.activeElement) => {
 // to, is the caller's own landing: it puts the user there its own way, takes no caret,
 // and returns `true` where it did. Restoring answers whether the user now stands on one
 // of them.
+// An asynchronous stand-in returns its actual landed element. Only that still-focused
+// destination can receive the held caret; its owner retains permission across the wait.
 //
 // Nothing is owed while the user still stands on the held node and it is drawn, and
 // nothing once focus has been placed anywhere since the hold began: a user who moved on
@@ -215,7 +204,7 @@ for (const type of ["keydown", "pointerdown", "wheel", "touchstart"])
   );
 // Drawn counts `visibility: hidden` as hidden: a node under it keeps focus for a frame
 // and then the browser blurs it to the body, as it does a node under `display: none`.
-const drawn = (node) =>
+export const drawn = (node) =>
   node?.isConnected && node.checkVisibility({ visibilityProperty: true });
 // The node a change took out from under a user who now stands nowhere: where they last
 // stood, while it is no longer drawn.
@@ -250,6 +239,22 @@ function holdOn(held) {
       // A function runs as the owner's own act, so whatever it does with focus counts
       // as a placement to every other hold; only the move back to the held place does not.
       const place = typeof standIn === "function" ? standIn() : standIn;
+      // An asynchronous owner lands under its original input intent before returning
+      // the destination. Continue its caret only while that exact editor still holds
+      // focus; a Promise is never permission to find or focus another stand-in.
+      if (place?.then)
+        return place.then((destination) => {
+          if (
+            !(destination instanceof Element) ||
+            !drawn(destination) ||
+            deepFocus() !== destination
+          )
+            return false;
+          return land(() => {
+            focusDestination(destination, caret);
+            return destination.matches(":focus");
+          });
+        });
       if (place === true) return true;
       if (!(place instanceof Element) || !drawn(place)) continue;
       if (place === held && deepFocus() === held) return true;

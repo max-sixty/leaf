@@ -14,7 +14,7 @@ action at or before the gesture, since an undone add frees its id for another.
 Two readings of an element come out of that document. `says` is its whole words.
 `name` is what the authoring contract calls it away from itself: the attribute its
 entry declares with `x-name`, else a leading `<summary>`, heading, or `<strong>`,
-inside a leading `<header>` too — the rule the browser's `addressableName` reads off
+inside a leading `<header>` or `<hgroup>` too — the rule the browser's `addressableName` reads off
 the live page, read here off the document the gesture was made in.
 """
 
@@ -52,7 +52,7 @@ def _leading_title(node: dict) -> str:
             continue
         if child["tag"] in TITLES:
             return collapse(_text(child))
-        if child["tag"] == "header":
+        if child["tag"] in {"header", "hgroup"}:
             return _leading_title(child)
     return ""
 

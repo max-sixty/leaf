@@ -15,13 +15,9 @@ from leaf.schema import (
     INSTRUCTIONS_SCHEMA,
 )
 
-from .contract import (
-    RegistryError,
-    json_validator,
-    unresolved_schema_reference,
-)
+from .contract import RegistryError, stamp_decisions
 from .kernel import kernel_event_kinds
-from .state import stamp_decisions
+from .schema import json_validator, unresolved_schema_reference
 
 
 def merge_layer_declarations(merged: dict, declarations: dict) -> None:
@@ -69,7 +65,7 @@ def merge_layer_declarations(merged: dict, declarations: dict) -> None:
 
 def stamp_composition(registry: dict) -> dict:
     """Write into a validated vocabulary what the browser reads rather than derives:
-    `$decisions` (`registry.state.stamp_decisions`) and `$marks`, the declared marks
+    `$decisions` (`registry.contract.stamp_decisions`) and `$marks`, the declared marks
     (`schema.DECLARED_MARKS`) it paints on a message it renders.
 
     Each composition that ends in a vocabulary stamps it, `page init`'s layer and a

@@ -7,7 +7,7 @@ from pathlib import Path
 import click
 
 from leaf.schema import SKILL_ROOT, WAIT_BATCH_OUTPUT_INSTRUCTION
-from leaf.session_cleanup import EVENTS_FILE
+from leaf.state import EVENTS_FILE
 
 
 def resolve_dir(dir_arg: str, must_exist: bool = True) -> Path:
@@ -281,26 +281,27 @@ def check(dir: str, render: bool) -> None:
     Runs deterministic markup checks. --render also checks the drawn page in the
     host's browser: whichever executable LEAF_BROWSER_EXECUTABLE, CHROME_PATH, or
     CHROME_BIN names, else the installed Chrome, else the first browser on PATH.
+    A host with no browser gets a note in place of each browser check.
     """
     from leaf.validation.command import cmd_check
 
     sys.exit(cmd_check(resolve_dir(dir), render))
 
 
-@page.command(short_help="Add images and print their page paths.")
+@page.command()
 @click.argument("dir", metavar="PAGE")
 @click.argument(
     "files",
     nargs=-1,
     required=True,
     type=click.Path(exists=True, dir_okay=False),
-    metavar="IMAGE...",
+    metavar="FILE...",
 )
 def media(dir: str, files) -> None:
-    """Add images and print their page paths.
+    """Add images, video, or audio and print their page paths.
 
-    Copies each image into the page under a content-addressed name and prints
-    one JSON line per image: its page `path` and its `source` file.
+    Copies each file into the page under a content-addressed name and prints
+    one JSON line per file: its page `path` and its `source` file.
     """
     from leaf.media import cmd_media
 
@@ -446,7 +447,7 @@ def events(dir: str, after: int, follow: bool) -> None:
     resumes from the last one a reader saw. This is read-only and does not
     acknowledge user events. `page state PAGE ID` reads one thread or widget.
     """
-    from leaf.transcript import cmd_events
+    from leaf.event_log import cmd_events
 
     cmd_events(resolve_dir(dir), after, follow=follow)
 
@@ -606,20 +607,21 @@ def serve_flags(command):
 def start(dir: str, host: str | None, standing: bool) -> None:
     """Start a page's server and print its URL.
 
-    Returns as soon as the server is up; the server itself keeps running in a
+    Returns once the server and this host's feedback route are ready; the server itself keeps running in a
     session of its own. `leaf server stop` takes one down, and a session server
     goes down with the session that claimed it besides. A page already served
-    prints that server's URL and is left alone.
+    reconnects delivery and prints that server's URL. `--standing` claims no
+    page and prepares no agent delivery.
     """
-    from leaf.detached import StartRefused
     from leaf.hosting import claim_and_start
 
     try:
-        url, note = claim_and_start(resolve_dir(dir), host, standing)
-    except StartRefused as error:
+        with claim_and_start(resolve_dir(dir), host, standing) as started:
+            pass
+    except RuntimeError as error:
         raise SystemExit(str(error)) from None
-    print(json.dumps({"url": url}))
-    print(note, file=sys.stderr)
+    print(json.dumps({"url": started.url}))
+    print(started.note, file=sys.stderr)
 
 
 @server.command(short_help="Serve a page in the foreground until stopped.")
@@ -638,7 +640,6 @@ def run(dir: str, host: str | None, standing: bool, temporary: bool) -> None:
     `server start`. A page already served prints that server's URL and exits.
     """
     from leaf.hosting import cmd_serve, cmd_serve_temporary
-    from leaf.service import starting_claim
 
     page_dir = resolve_dir(dir)
     if temporary:
@@ -648,24 +649,42 @@ def run(dir: str, host: str | None, standing: bool, temporary: bool) -> None:
             raise click.UsageError("--temporary is loopback-only; omit --host")
         cmd_serve_temporary(page_dir)
         return
-    with starting_claim(page_dir, standing=standing):
-        cmd_serve(page_dir, host, standing)
+    try:
+        cmd_serve(page_dir, host, standing, acquire=True)
+    except RuntimeError as error:
+        raise SystemExit(str(error)) from None
 
 
 @server.command("_serve", hidden=True)
 @click.argument("dir", metavar="PAGE")
 @serve_flags
 @click.option("--revive", is_flag=True, hidden=True)
+@click.option("--acquire", is_flag=True, hidden=True)
+@click.option("--claim", hidden=True)
 @click.option("--handshake", type=int, required=True, hidden=True)
 def _serve(
-    dir: str, host: str | None, standing: bool, revive: bool, handshake: int
+    dir: str,
+    host: str | None,
+    standing: bool,
+    revive: bool,
+    acquire: bool,
+    claim: str | None,
+    handshake: int,
 ) -> None:
     """Private child process spawned by server start and Watch revival."""
     from leaf.detached import Handshake
     from leaf.hosting import cmd_serve
 
     with Handshake(handshake) as answer:
-        cmd_serve(resolve_dir(dir), host, standing, revive, handshake=answer)
+        cmd_serve(
+            resolve_dir(dir),
+            host,
+            standing,
+            revive,
+            handshake=answer,
+            acquire=acquire,
+            prepared_claim=json.loads(claim) if claim is not None else None,
+        )
 
 
 @server.command(short_help="Stop a page's server.")
@@ -947,6 +966,6 @@ def hook(watch: bool) -> None:
 @cli.command(hidden=True)
 def session_end() -> None:
     """Release ownership for the host's SessionEnd payload on stdin."""
-    from leaf.session_cleanup import main
+    from leaf.state import main
 
     main()

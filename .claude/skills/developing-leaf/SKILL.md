@@ -61,17 +61,21 @@ its playground when it owns the same decision.
 A playground is one HTML file, like a standalone sketch. Write it under `.tmp/`
 and serve it with `uv run leaf-dev preview --source <file> --user` ("Preview a
 page"), which builds the page from that file alone. Its CSS reads the live
-theme's tokens, and the `playground` package's elements
-(`<root>/skills/leaf/packages/playground/instructions/author.md`) wrap the
-candidates: the controls and presets the user explores them with, the
-candidates in its preview, and an output saying what to build.
+theme's tokens. Follow
+`<root>/skills/leaf/packages/playground/instructions/author.md` to choose the
+selection and exploration elements, present the candidates, and submit a task
+saying what to build.
 
 When the subject already exists and the candidates are to be implemented,
 implement each in the runtime and theme that own the surface and present it
 through a shipped example or fixture. A sketch without implementation is
 page-local markup derived from the current surface's controls, copy, and
-styling, shown beside that surface as the baseline, which a live `lf-sample`
-(`skills/leaf/references/page-authoring.md`) embeds operable.
+styling, shown beside that surface as the baseline. For a live Leaf interface,
+embed the baseline and candidates as `lf-sample window` children in the playground.
+The outer page carries the configuration and feedback; the children carry practice
+interactions. Start their fictional histories with `data-sample-events`, sharing
+one parent-local JSON fixture when the candidates need the same conversation
+(`skills/leaf/references/page-authoring.md`, "Live samples").
 
 ## Prove and hand off a visible change
 
@@ -120,7 +124,8 @@ URL; each start rebuilds the page from the fixture, and `--slot <name>` runs ano
 
 A plain preview takes no task claim, so its presses reach only the page's log;
 use it for screenshots and browser checks. `--user` claims the page at
-`.tmp/previews/<example>-user` so the user's comments reach `leaf wait`, which
+the directory printed at startup (`.tmp/previews/<example>-user` by default;
+`--slot` chooses the directory name) so the user's comments reach the host, which
 also makes every click this session drives there read as an unanswered user
 move. So drive only claimless previews, start any `--user` preview from the
 session the user talks to, and answer the user's feedback before restarting
@@ -129,24 +134,28 @@ idle a preview to quiet the loop; `idle` closes the page in the browser.
 
 ### In Codex
 
-1. Start the preview with `--user` as a long-running command. A restarted
-   preview is a new page and needs step 3 again.
-2. Call `mcp__codex_app__open_in_codex` with the fragment URL as a browser
-   target and `placement: "right"`.
-3. Run `<root>/bin/leaf codex start <root>/.tmp/previews/<example>-user` so Leaf
-   comments return to the current task.
-4. Tell the user to select page text or use Leaf's comment affordance for a Leaf
-   thread. Codex Annotation mode sends visual comments with their next chat
-   message; the review pane is for feedback on a source line.
+1. Start the preview with `--user` as a long-running command from the current
+   chat. It connects Leaf feedback to this Codex chat before printing the URL;
+   each restart reconnects the rebuilt page automatically.
+2. Call `mcp__codex_app__open_in_codex` with the printed keyed URL and the semantic
+   block's fragment, as a browser target with `placement: "right"`.
+3. Tell the user to comment on the surrounding review page to steer this chat.
+   Comments inside a live sample are practice interactions in that child. Codex
+   Annotation mode sends visual comments with the next chat message; Leaf's text
+   selection and comment affordance send an anchored thread directly.
 
 ## Test the hosted website agent
 
 `uv run --project <root> leaf-dev verify-site local` builds the site, starts the
 website adapter against the host's Codex login, asks for one heading edit, and
 verifies the publication, reply, and changed page in Chrome. It bypasses the
-Cloudflare Worker, container limits, and credential proxy. When a change touches
-those and `OPENAI_API_KEY` is exported, run the same check through Wrangler's local
-container:
+Cloudflare Worker, container limits, and credential proxy, and needs no Docker.
+
+Use CI for Linux-specific evidence and the complete Worker/container boundary:
+pull requests run the site build, dry-run deploy, and `verify-site wrangler`, and
+`publish-site` verifies that boundary before deployment. Start Docker locally
+only to reproduce a concrete failure at that boundary. When debugging hosted-agent
+delivery through it and `OPENAI_API_KEY` is exported, run:
 
 ```bash
 npm ci --prefix <root>/worker
@@ -160,13 +169,18 @@ production reading.
 ## Test a terminal Codex task
 
 `uv run --project <root> leaf-dev verify-codex-task` runs real Codex tasks, with
-this working tree installed as their plugin, through both transports of `leaf codex
-start`. It checks each comment is answered once, a comment during queue-backed
+this working tree installed as their plugin, through both transports of automatic
+server handoff. It checks each comment is answered once, a comment during queue-backed
 work is picked up and answered in that same turn, and each turn is closed under
 App Server's id. Run it after a change to `codex.py`,
 `codex_adapter.py`, `hooks.py`, `hook_carrier.py`, or the claim's turn in
 `service.py`; the suite scripts App Server, and only this run shows what Codex
 itself sends. It spends a few turns on the host's Codex login, and CI has none.
+
+For a change to preview startup or lifetime, add `--preview`. It starts the
+canonical user preview in each task, checks the keyed URL across those turns,
+and interrupts its isolated server between turns to prove that the preview
+restores both the address and working feedback without a source edit.
 
 ## Compare checkout versions
 
@@ -214,50 +228,58 @@ A page that explains how a Leaf interface behaves lets the user operate it
 
 ## Score an instruction change
 
-Each `evals/<case>/case.yaml` is a moment in a session that `claude plugin eval`
-hands a headless Claude Code, with this checkout as its only plugin, so the child
-loads `leaf:leaf` and reads the references as a real session does. Score a change to
-`skills/leaf/` on the cases it bears on:
+Each `evals/<case>/case.yaml` is a native Promptfoo test. The runner gives Claude
+Code and Codex the same task, the same assertions, and a staged copy of Leaf's
+instructions. Install the separate eval dependencies once, then select the cases
+that bear on an instruction change:
 
 ```bash
-uv run leaf-dev instructions-eval [CASE]... [--base REF] [--runs N]
+npm ci --prefix evals
+uv run leaf-dev eval [CASE]... [--base REF] [--host cc|codex|both] [--runs N]
 ```
 
-It runs the cases on the base's instructions (the merge base with `main` by
-default) and the working tree's at once, and prints each case's passes per arm and the
-cost. It passes `--allow-tools Skill Read`, without which the child's `dontAsk` mode denies
-the skill and the references and every run answers with no instructions, while
-`loads-leaf` still passes on the attempt. So every case also grades that the child
-read the reference it tests, and a run that fails that check measured nothing. The
-grant covers only the leaf skill's base directory, and a `tool_used` grader counts a
-refused call too, so its `input_match` names the file's whole path from `skills/leaf/`.
+The defaults are both hosts, one run, and the merge base with `main`. Each sample
+has a fresh workspace and home with the host's account login. Promptfoo owns the
+assertions, judgments, traces, and HTML report under `.tmp/eval/`;
+the runner prints passes separately for each host and base/candidate arm. Read
+`evals/README.md` for the provider models and case format.
+
+A reference-read assertion requires successful tool output, rather than counting
+a denied attempt. Claude exposes Read/Skill results; Codex shell evidence requires
+a completed successful command naming the file and returning text. Shell matching
+is a heuristic, so inspect traces before treating a reference-read pass as proof.
+These static cases test instruction use, while `leaf-dev verify-codex-task` owns
+plugin installation, discovery, and hooks.
 
 The suite is a library that grows with the instructions, so a later edit, whether a fix
 or a cut, is scored against the behaviors earlier edits had to produce. Add to it
 where a change's behavior gives the library breadth, a behavior or kind of situation
-no case yet covers. First try to extend an existing case, with a grader, a
+no case yet covers. First try to extend an existing case, with an assertion, a
 criterion, or context in its prompt, so coverage grows without the cases
 proliferating; add a new case only where no existing one can carry the behavior.
 Keep a case small: one prompt carrying only the context the behavior needs, and a
-few graders. Measure with whatever scenarios and guardrails the change needs, and
-keep what you add whether or not it separated the arms. The comment above
-`schema_version` says where the case came from and what it measured, so a reader can
-tell a case that told two wordings apart from one that has only guarded;
-`description` names the clause it pins, and `tags` its area.
+few assertions. Measure with whatever scenarios and guardrails the change needs, and
+keep what you add whether or not it separated the arms. The leading comment says where the case came from and what it measured, so a
+reader can tell a case that told two wordings apart from one that has only guarded;
+`metadata.purpose` names the clause it pins, and `metadata.tags` its area.
 
 A prompt ends by asking for the HTML in the reply, since the child has no page
-directory. It cannot search the plugin either, so it answers from the references
-without the registry, and a prompt that points it at a file beyond the references
-names that file from the skill's base directory. The prompt never states the behavior under test.
-Grade a fixed form with a `regex` grader, and a judgment with an `llm` grader whose
-`criteria` state the passing reading without requiring particular wording.
+directory. It can read the staged skill and its references. A prompt pointing at
+a file beyond the references names that file from the skill's base directory. The
+prompt never states the behavior under test. Grade a fixed form with a `regex`
+assertion, and a judgment with an `llm-rubric` assertion whose `value` states the
+passing reading without requiring particular wording.
 
 Run cold, a case that states the situation plainly usually passes on both arms: the
 failing session had its own earlier turns or a competing instruction pulling the
 other way, so paste those into the prompt. A rule that loses only to a long
 session's context needs a replay of that session instead.
-`notes/usability-eval/harness.py` runs cases that need a page directory and `leaf`.
-No grader has been checked against a person's judgment, so a pass is weak evidence.
+Complete workflows use the same catalog and command. `leaf-dev eval document`
+authors and revises a document; `document/resume`
+selects a controlled state-reading context. `--condition both` compares the authored example with
+ordinary HTML. `evals/README.md` owns selection, conditions and evidence limits.
+Keep focused contexts until a combined workflow detects their original failures.
+No grader has been calibrated against human judgments, so a pass is weak evidence.
 
 ## Refresh the public catalog stills
 
@@ -272,6 +294,10 @@ if Worktrunk asks to approve the project commands, ask the user to run
 `wt config approvals add`.
 
 ## Land a change
+
+Thread appearance changes run `tests/test_render_thread_snapshots.py` through the
+ordinary gate. Review the failure's captured images before accepting an intentional
+change; `dev/leaf_dev/thread_snapshots.py` owns the pinned-image capture and acceptance workflow.
 
 A red gate is the branch's to fix. A pull request's `test` job and the local
 pre-merge `tests` run the broad selection and the nightly tests the branch edits;

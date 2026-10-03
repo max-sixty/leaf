@@ -87,6 +87,11 @@ function rowTemplate() {
   // update can retire the last visible item while the user is inside it; closing then
   // lets paint remove the empty door.
   return html`
+    ${repeat(
+      row,
+      (entry) => entry.key,
+      (entry) => entry.control,
+    )}
     <button
       class="lf-btn lf-banner-more"
       type="button"
@@ -98,11 +103,6 @@ function rowTemplate() {
     >
       ⋯
     </button>
-    ${repeat(
-      row,
-      (entry) => entry.key,
-      (entry) => entry.control,
-    )}
   `;
 }
 

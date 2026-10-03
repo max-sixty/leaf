@@ -35,15 +35,18 @@ export { inUi, uiInside, upFrom } from "./shadow.js";
 // Holding the user's place, caret included, across a move or re-render of the node they
 // stand on. TEXT_FIELD is the tag of the box a widget offers for the user to write
 // Markdown in; TEXT_BOX matches it and any native textarea.
-export { focusDestination, holdFocus, TEXT_BOX, TEXT_FIELD } from "./focus.js";
+export { focusDestination, holdFocus } from "./focus.js";
+export { TEXT_BOX, TEXT_FIELD } from "./control-selectors.js";
 // Making an element's children a list, moving only what is out of place and keeping the
 // user standing in a node it moves.
-export { setChildren } from "./dom-children.js";
+export { setChildren, setRenderedChildren } from "./dom-children.js";
 export { openAsks, watchAsks } from "./application.js";
 export { registerVisualParts } from "./visual-parts.js";
 export {
   threadBox,
   consumeThreads,
+  consumePageThreads,
+  consumeAnnotations,
   mountThreadViews,
   threadActions,
 } from "./application.js";
@@ -51,6 +54,9 @@ export { readThreads } from "./thread/state.js";
 export { watchThreads } from "./thread/watch.js";
 export { turns as threadTurns, threadSummary } from "./thread/model.js";
 export { threadInput } from "./thread/landing.js";
+// Holding a region's rows the log or the clock decides while their growth would be seen
+// (assets/AGENTS.md, "Stability").
+export { HeldReading } from "./thread/held-news.js";
 export { landInThread, openThread } from "./application.js";
 export { wireInput } from "./application.js";
 export { DISCLOSE } from "./keyboard/disclosure.js";
@@ -63,14 +69,23 @@ export {
   saying,
 } from "./keyboard/scopes.js";
 export { repaint } from "./repaint.js";
-export { cancelRender, nextFrame, nextRender, sizeObserver } from "./rendering.js";
+export {
+  afterScript,
+  cancelRender,
+  nextFrame,
+  nextRender,
+  sizeObserver,
+} from "./rendering.js";
 export { beginWalk, listWalkPosition, rowWalk } from "./walk-position.js";
 export {
-  MARGIN_ENTRY_SCHEMA,
-  marginEntry,
-  presentMarginEntry,
-  registerMarginContribution,
-} from "./margin-entries.js";
+  CONTRIBUTION_ENTRY_SCHEMA,
+  contributionItemKey,
+} from "./contribution-model.js";
+export {
+  contributionEntry,
+  presentContributionEntry,
+} from "./contribution-controls.js";
+export { registerContribution } from "./contributions.js";
 export {
   inlineMarkdownFragment,
   loadMarkdown,
@@ -88,6 +103,7 @@ export {
   differenceKind,
 } from "./image-difference.js";
 export { pageScroller } from "./scrolling.js";
+export { scrollIntoReadingBand } from "./landing-scroll.js";
 // The user's place as a landmark, and the history entries a widget adds.
 export { capturePlace, restorePlace } from "./reading-place.js";
 export { claimTraversals, pushEntry, replaceEntry } from "./history.js";
@@ -120,7 +136,8 @@ export {
 export { ago, clocked, clockValue, quietSince, shortAgo } from "./presence.js";
 export { shallowSigs } from "./application.js";
 export { shadowStage } from "./shadow-stage.js";
-export { revisionLabel } from "./context.js";
+export { inBaseLayer } from "./stylesheets.js";
+export { revisionLabel, annotationMode } from "./context.js";
 export { loadDeferred, watchData } from "./data.js";
 export { clearDraft, loadDraft, saveDraft, sendDraft, watchDraft } from "./drafts.js";
 export {
@@ -138,7 +155,12 @@ export {
 } from "./motion.js";
 // `afterPresentation` is the package's whole route past presentation: it waits and
 // declares the arrival in one call, so a widget cannot defer without the page knowing.
-export { PRESENTATION, afterPresentation, quietWord } from "./presentation.js";
+export {
+  PAGE_INTERFACE,
+  PRESENTATION,
+  afterPresentation,
+  quietWord,
+} from "./presentation.js";
 export {
   captureTargetReference,
   resolveTargetReference,

@@ -3,8 +3,10 @@
    A module defines its custom element once and makes `connectedCallback` safe to run
    after reconnection, using `once(el)` for generated chrome so reconnecting does not
    duplicate it. A failed upgrade becomes a visible error box (`failSoft`) rather than
-   a blank page; widgetController owns asynchronous presentation. */
-import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
+   a blank page, and reaches the agent as the page's error; widgetController owns
+   asynchronous presentation. */
+import { reportPageError } from "./layer-client.js";
+import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 
 // One-shot guard for connectedCallback: re-connection (a parent wrapping or moving an
 // already-upgraded child) must be harmless, so upgrade order can't matter.
@@ -32,13 +34,37 @@ export const dataBody = (el) => el.querySelector(":scope > pre").textContent;
 export const bodyText = (el) => dataBody(el).replace(/^\n+/, "").trimEnd();
 
 // A failed upgrade becomes a visible error box rather than a blank page. A widget failure
-// may failSoft its own element so the rest of the page and Threads remain usable, but it
-// does not convert a partial state read into a committed one (reportPageError,
-// layer-client.js, is the page-level evidence every failure reports through).
+// may failSoft its own element, or a part of it, so the rest of the page and Threads
+// remain usable, but it does not convert a partial state read into a committed one. The
+// box is where the user is looking; the agent that wrote the widget hears the same
+// failure as the page's error, through reportPageError, which is also what `page check`
+// fails on wherever it runs the page. Both name the widget the failing element belongs to, and the report adds its
+// id, since that is how the agent finds it.
 export function failSoft(el, err, source) {
+  const owner = widgetOf(el);
+  const tag = owner.localName;
+  const message = err?.message || err;
+  reportPageError(`<${tag}${owner.id ? ` id="${owner.id}"` : ""}> failed: ${message}`);
+  showFailure(el, `<${tag}> failed: ${message}`, source);
+}
+
+// The box alone, for the presentation coordinator's fallback: the coordinator reports
+// every failure it falls back from itself, so this path must not report it again.
+export function failSoftUnreported(el, err) {
+  showFailure(el, `<${widgetOf(el).localName}> failed: ${err?.message || err}`);
+}
+
+const widgetOf = (el) => {
+  let owner = el;
+  while (owner.parentElement && !owner.localName.includes("-"))
+    owner = owner.parentElement;
+  return owner.localName.includes("-") ? owner : el;
+};
+
+function showFailure(el, text, source) {
   const box = document.createElement("div");
   box.className = "lf-error";
-  box.textContent = `<${el.tagName.toLowerCase()}> failed: ${err?.message || err}`;
+  box.textContent = text;
   if (source) {
     const pre = document.createElement("pre");
     pre.textContent = source;

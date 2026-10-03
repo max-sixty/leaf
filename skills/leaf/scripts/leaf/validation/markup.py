@@ -1,6 +1,7 @@
 """Shared structural and authored-markup validation rules."""
 
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from markdown_it import MarkdownIt
 
@@ -305,12 +306,13 @@ def _unanswered_media(refs, page_dir: Path) -> list:
     one the directory has not got."""
     errors = []
     for ref in sorted(refs):
-        if not SERVED_PATH.fullmatch(ref):
+        path = urlsplit(ref).path
+        if not SERVED_PATH.fullmatch(path):
             errors.append(
                 f"{ref} isn't a name `leaf page media` gives, so the page never "
                 "serves it"
             )
-        elif not (page_dir / ref.lstrip("/")).is_file():
+        elif not (page_dir / path.lstrip("/")).is_file():
             errors.append(
                 f"{ref} isn't in the page directory; `leaf page media` puts it there"
             )

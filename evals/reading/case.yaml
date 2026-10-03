@@ -1,0 +1,40 @@
+# Complete task; diagnostic contexts retain the original fixed checks.
+description: Reading
+metadata:
+  purpose: Read current content, decisions and hidden surfaces; distinguish unavailable
+    viewer state.
+  tags:
+  - workflow
+  conditions:
+  - leaf
+  executor: leaf_dev.usability_eval
+  case: reading
+variants:
+  plain:
+    metadata:
+      case: reading-plain
+      purpose: Read the isolated plain surface.
+  collapsed:
+    metadata:
+      case: reading-collapsed
+      purpose: Read the isolated collapsed surface.
+  inactive-tab:
+    metadata:
+      case: reading-inactive-tab
+      purpose: Read the isolated inactive-tab surface.
+  widget-data:
+    metadata:
+      case: reading-widget-data
+      purpose: Read the isolated widget-data surface.
+  external-data:
+    metadata:
+      case: reading-external-data
+      purpose: Read the isolated external-data surface.
+  standing-action:
+    metadata:
+      case: reading-standing-action
+      purpose: Read the isolated standing-action surface.
+  view:
+    metadata:
+      case: reading-view
+      purpose: Read the isolated view surface.

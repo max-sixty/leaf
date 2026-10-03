@@ -43,10 +43,10 @@ import {
   isCanonicalMediaUrl,
   commands,
   keeps,
-  marginEntry,
+  contributionEntry,
   paintKeys,
   relabel,
-  registerMarginContribution,
+  registerContribution,
   scopedMediaUrl,
   selectableOffer,
   widgetController,
@@ -132,8 +132,8 @@ customElements.define(
           {
             id: `screenshot.${state}`,
             keys: PRESS,
-            does: `Show the ${state} frame`,
-            line: `show ${state}`,
+            title: `show ${state}`,
+
             // The frame already shown has nothing for this press to do, so the line
             // does not name it there.
             when: () =>
@@ -156,8 +156,7 @@ customElements.define(
         {
           id: "screenshot.toggle",
           keys: [" "],
-          does: () => `Show the ${this.#nextState()} frame`,
-          line: () => `show ${this.#nextState()}`,
+          title: () => `show ${this.#nextState()}`,
           when: () => this.dataset.lfShotControls !== "off",
           run: () => this.#margin?.activate("toggle"),
         },
@@ -251,15 +250,13 @@ customElements.define(
           {
             id: "screenshot.adjust",
             keys: ["ArrowLeft", "ArrowRight"],
-            does: "Adjust the before and after divider",
-            line: "adjust the comparison",
+            title: "adjust the comparison",
             repeat: true,
           },
           {
             id: "screenshot.edge",
             keys: ["Home", "End"],
-            does: "Show only before or after",
-            line: "jump to an endpoint",
+            title: "show before or after",
           },
         ]);
         this.insertBefore(comparison, this.#box);
@@ -390,7 +387,7 @@ customElements.define(
         return;
       }
       if (!this.#box || this.#margin) return;
-      this.#margin = registerMarginContribution({
+      this.#margin = registerContribution({
         key: `shot:${this.id}`,
         target: () => this,
         read: () => {
@@ -403,7 +400,7 @@ customElements.define(
             side: "before",
             notice: null,
             entries: [
-              marginEntry({
+              contributionEntry({
                 key: "toggle",
                 icon: position > 50 ? "compare-after" : "compare-before",
                 label,

@@ -3,7 +3,7 @@
 The transport is starlette over uvicorn (`hosting.py` owns the server). This file
 owns what a page means at that boundary: where a page and its revisions answer
 (`revision_delivery` addresses what they name), the key, the layer gate, the `Leaf-*`
-headers, and the news stream a tab listens on.
+headers, and the finite freshness reading a visible tab asks for.
 """
 
 import html
@@ -22,7 +22,7 @@ from urllib.parse import parse_qs
 import anyio
 from starlette.concurrency import run_in_threadpool
 from starlette.requests import Request
-from starlette.responses import Response, StreamingResponse
+from starlette.responses import Response
 
 from . import presence as presence_model
 from .data import (
@@ -36,11 +36,11 @@ from .data import (
 from .event_endpoint import accept_event, event_fault, event_rejection
 from .event_log import read_events
 from .files import (
-    LOOK_S,
     latest_revision,
     list_revisions,
     missing_revision,
     published_versions,
+    read_json,
     revision_num,
     revision_path,
     stamped_version,
@@ -65,6 +65,7 @@ from .revision_delivery import (
     DeliveryAddress,
     compose_document,
     deliver_resource,
+    delivered_resource,
     layer_import_map,
     rebase_document,
 )
@@ -73,7 +74,6 @@ from .samples import Samples
 from .schema import (
     BINARY_TYPES,
     CONTENT_TYPES,
-    KEY_COOKIE,
     KEY_COOKIE_MAX_AGE,
     NO_KEY,
     REVISION_NAME,
@@ -84,23 +84,39 @@ from .served_state import reading as served_reading
 from .served_state.service import PageStateService
 from .server import preview_metadata
 from .service import PageTransaction
-from .session_cleanup import write_json
+from .state import write_json
 from .structure import FRAME_ANCESTORS_CSP
+from .user_views import FRESH_FOR_S, observe_user_view, read_user_views
 
-# How long an open news stream, which re-reads the page every `LOOK_S`, may go without
-# a word before saying it is still there.
-ALIVE_S = 5.0
-# How often the stream re-reads what no stamp shows. Three facts in a state come from
-# somewhere other than the page's files: whether a wait lease is held is a lock, whether
-# the claimant lives is a pid, and the neighbours are other pages' directories and
-# servers. Each is cheap to read once and dear to read twenty times a second, and two
-# seconds is the staleness the poll gave every fact, so it is the staleness these keep.
-PRESENCE_S = presence_model.PRESENCE_CACHE_S
+# How deeply a POSTed body may nest its arrays and objects. What reads a body after the
+# parse recurses: schema validation runs into the interpreter's recursion limit a few
+# hundred levels down, and a log line is parsed again by every later reader, on
+# whatever stack that reader has. Past the bound one of them would raise rather than
+# answer, which the browser reads as a retryable fault and re-posts for the life of the
+# tab. Leaf's own events nest a handful of levels.
+MAX_POSTED_DEPTH = 64
+TOO_DEEP = f"event nests deeper than {MAX_POSTED_DEPTH} levels"
 
 
 def reject_json_constant(value: str) -> None:
     """Reject Python's non-standard NaN and infinity JSON extensions."""
     raise ValueError(f"invalid JSON constant {value}")
+
+
+def nests_deeper_than(value, limit: int) -> bool:
+    """Whether parsed JSON holds an array or object more than `limit` levels down.
+
+    Read a level at a time rather than by recursion, since the value has not been
+    bounded yet."""
+    level = [value]
+    for _ in range(limit):
+        level = [
+            child
+            for held in level
+            if isinstance(held, (dict, list))
+            for child in (held.values() if isinstance(held, dict) else held)
+        ]
+    return any(isinstance(held, (dict, list)) for held in level)
 
 
 def _query_int(raw, name: str, minimum: int) -> int:
@@ -197,9 +213,6 @@ class PageEndpoint:
     banner has to be able to show.
     """
 
-    # A page refuses every frame; `SampleEndpoint` answers into its parent page's.
-    frame_ancestors_policy = FRAME_ANCESTORS_CSP
-
     def __init__(
         self,
         request: Request,
@@ -262,16 +275,24 @@ class PageEndpoint:
     def respond(self) -> Response:
         """Answer this request, on a worker thread of the serving loop's own pool."""
         started = time.monotonic()
-        if self.method == "GET":
+        if self.method in {"GET", "HEAD"}:
             answer = self._answer(self._get)
         elif self.method == "POST":
             answer = self._answer(self._post, prepare=self._read_posted)
         else:
             answer = self._json({"error": f"unsupported method {self.method}"}, 501)
+        if self.method == "HEAD":
+            answer.body = b""
         answer.headers.update(self._delivery_headers())
         # The request boundary sees successful answers and refusals alike. Keep
         # query strings (including the access key) and request bodies out of it.
-        if self.page_dir is not None and getattr(self, "parent", None) is None:
+        # Successful attention checks are housekeeping, not interaction history;
+        # recording every look would make an untouched page append four times a second.
+        if (
+            self.page_dir is not None
+            and getattr(self, "parent", None) is None
+            and (self.path != "/api/news" or answer.status_code != 200)
+        ):
             try:
                 append_interactions(
                     self.page_dir,
@@ -331,7 +352,7 @@ class PageEndpoint:
         The reading is taken after the activation this response performs and
         before any file the state is built from is read, and that order is the whole
         of its correctness. Taken after the reads, it could name a write this response
-        does not carry, and a tab comparing it with what the stream says would never
+        does not carry, and a tab comparing it with the freshness answer would never
         ask for that write — the one way a reading like this loses an update rather
         than merely repeating one. Taken before the activation, it would miss the
         write this response itself made, and the tab would be told to ask again for
@@ -398,74 +419,41 @@ class PageEndpoint:
             reading, registry, source=source, revision=revision, key=key
         )
 
-    def _news(self) -> StreamingResponse:
-        """The page's reading, named on an open stream each time it changes.
+    def _news(self) -> Response:
+        """A finite reading of the files and presence a visible page is watching.
 
-        What a tab listens on instead of asking on a timer. The stream carries no
-        state: it says the page has a new reading, and the tab then asks
-        `/api/state` the way it always did — so everything that reads, stubs, or
-        counts a state request, in the page or in a test standing outside it, keeps
-        its meaning, and a caller that never learns this door reads the page as
-        before. A look is `LOOK_S` of stat calls per open tab. The reading is said
-        again every `ALIVE_S` whether or not it moved: that keeps a quiet page
-        distinguishable from a dead stream, and it puts right a tab whose reading came
-        to differ from what this stream last said — an answer that crossed another,
-        a presence that moved between a word here and the read it prompted.
+        The browser compares this cheap token with the state it has applied, then
+        asks for state only when they differ. Each request releases its HTTP slot,
+        so live child pages cannot hold the origin's connections away from modules,
+        gestures or revisions. Presence caches its process and lease observations;
+        page files are read anew, including external data and authored dependencies.
 
-        The stream is also the one proof a browser has the page visible, and before
-        it the poll was: a page nobody ever viewed and one the user studied and left
-        looked identical from the agent's side. A hidden tab releases its stream and
-        a visible tab whose page has no news never asks again, so presence is written
-        from here, throttled — it needs a recency, not a request log — and never from
-        a preview, whose browser is the render gate's rather than the user's.
-
-        Ends on the server stopping; a tab that closes cancels the response, which the
-        transport reports without this loop watching the socket for it. `ALIVE_S` is
-        the whole of the keepalive, so the stream carries no comment frames beside it.
+        This explicit attention door renews the user lease, throttled to a recency.
+        Ordinary state reads and captured previews do not prove a user is looking.
         """
-        return StreamingResponse(
-            self._readings(),
-            media_type="text/event-stream",
-            headers={"Cache-Control": "no-store"},
-        )
+        if self.page_snapshot is not None:
+            reading = self.page_snapshot.reading
+        else:
+            reading = served_reading.join_reading(
+                served_reading.page_reading(self.page_dir),
+                presence_model.presence_reading(self.page_dir),
+            )
+            viewed = (read_json(self.page_dir / VIEWED_FILE) or {"t": 0})["t"]
+            now = time.time()
+            if now - viewed > 30:
+                write_json(self.page_dir / VIEWED_FILE, {"t": now})
+        return self._content(200, "text/plain; charset=utf-8", reading.encode())
 
-    async def _readings(self):
-        """Every reading this stream owes its listener, as each becomes true."""
-        said = files_said = presence = None
-        looked = spoke = 0.0
-        try:
-            while not self.server.stopping:
-                now = time.monotonic()
-                if self.page_snapshot is not None:
-                    reading = self.page_snapshot.reading
-                    files = served_reading.reading_files(reading)
-                else:
-                    files = served_reading.page_reading(self.page_dir)
-                    # Presence is re-read on its own clock, and again whenever the files
-                    # move. The state answer and this token must describe the same view.
-                    if files != files_said or now - looked >= PRESENCE_S:
-                        presence = presence_model.presence_reading(self.page_dir)
-                        looked = now
-                    reading = served_reading.join_reading(files, presence)
-                # Before the word goes out, so a listener that has heard the first
-                # one is a browser the page already counts as holding it open.
-                if (
-                    self.page_snapshot is None
-                    and time.time() - self.server.viewed_at > 30
-                ):
-                    self.server.viewed_at = time.time()
-                    write_json(
-                        self.page_dir / VIEWED_FILE, {"t": self.server.viewed_at}
-                    )
-                if reading != said or now - spoke >= ALIVE_S:
-                    yield f"data: {reading}\n\n"
-                    said, files_said, spoke = reading, files, now
-                await anyio.sleep(LOOK_S)
-        except (FileNotFoundError, NotADirectoryError):
-            # The page directory going away under an open tab ends the stream, as a
-            # peer going away does. The response has already begun, so there is no
-            # status left to say it with.
-            return
+    @property
+    def key_cookie(self) -> str:
+        """One cookie per served origin, using the bound port rather than Host.
+
+        Cookies already distinguish hosts, but ignore ports and schemes. Naming
+        those here keeps independent listeners' keys from overwriting each other;
+        every same-host server still receives the cookies, so this is no access
+        boundary against a malicious server on another port.
+        """
+        return f"lf_key_{self.request.url.scheme}_{self.server.server_address[1]}"
 
     def authorized(self) -> bool:
         """The key, from the handover URL or from the cookie an earlier request
@@ -478,8 +466,8 @@ class PageEndpoint:
             self.set_cookie = True
         else:
             jar = SimpleCookie(self.headers.get("Cookie", ""))
-            if KEY_COOKIE not in jar or not secrets.compare_digest(
-                jar[KEY_COOKIE].value, self.token
+            if self.key_cookie not in jar or not secrets.compare_digest(
+                jar[self.key_cookie].value, self.token
             ):
                 return False
         return True
@@ -501,7 +489,7 @@ class PageEndpoint:
                 headers["Leaf-Release"] = self.release
         if self.set_cookie:
             headers["Set-Cookie"] = (
-                f"{KEY_COOKIE}={self.token}; Path=/; Max-Age={KEY_COOKIE_MAX_AGE}; "
+                f"{self.key_cookie}={self.token}; Path=/; Max-Age={KEY_COOKIE_MAX_AGE}; "
                 "HttpOnly; SameSite=Strict"
             )
         if self.body_unread:
@@ -517,8 +505,62 @@ class PageEndpoint:
         is_html = ctype.startswith("text/html")
         headers = {"Content-Type": ctype, "Cache-Control": "no-store"}
         if is_html:
-            headers["Content-Security-Policy"] = self.frame_ancestors_policy
+            headers["Content-Security-Policy"] = FRAME_ANCESTORS_CSP
         return Response(body, status_code=status, headers=headers)
+
+    def _resource_content(self, resource: Resource) -> Response:
+        """Serve exact resource bytes, with single byte ranges for native playback.
+
+        The resource owner retains exact bytes or an immutable file. Both live and
+        captured routes derive size and read only the selected span here; HEAD reads
+        no body. RFC 9110 permits ignoring Range; unsupported
+        units, malformed or multiple ranges, and If-Range without a validator get the
+        complete representation. A valid unsatisfiable range earns 416.
+        """
+        ctype = resource.mime
+        if ctype not in BINARY_TYPES:
+            ctype += "; charset=utf-8"
+        size = resource.size
+        status = 200
+        window = slice(0, size)
+        headers = (
+            {"Accept-Ranges": "bytes"}
+            if resource.mime.startswith(("video/", "audio/"))
+            else {}
+        )
+        requested = self.headers.get("Range", "")
+        match = re.fullmatch(r"bytes=([0-9]*)-([0-9]*)", requested)
+        if (
+            self.method == "GET"
+            and "Accept-Ranges" in headers
+            and not self.headers.get("If-Range")
+            and match is not None
+            and any(match.groups())
+        ):
+            first, last = (
+                part.lstrip("0") or "0" if part else "" for part in match.groups()
+            )
+
+            # Bound decimal parsing by the representation's length; an arbitrarily
+            # long numeral is still simply beyond that length.
+            def offset(raw: str) -> int:
+                return size + 1 if len(raw) > len(str(size)) else int(raw)
+
+            start = offset(first) if first else max(0, size - offset(last))
+            end = min(size, offset(last) + 1) if first and last else size
+            if first and last and (len(last), last) < (len(first), first):
+                pass  # An invalid range is ignored, rather than unsatisfiable.
+            elif start >= end:
+                status, window = 416, slice(0, 0)
+                headers["Content-Range"] = f"bytes */{size}"
+            else:
+                status, window = 206, slice(start, end)
+                headers["Content-Range"] = f"bytes {start}-{end - 1}/{size}"
+        body = b"" if self.method == "HEAD" else resource.read(window)
+        response = self._content(status, ctype, body)
+        headers["Content-Length"] = str(size if self.method == "HEAD" else len(body))
+        response.headers.update(headers)
+        return response
 
     def _json(self, obj, status: int = 200) -> Response:
         return self._content(
@@ -566,8 +608,13 @@ class PageEndpoint:
             return {}, "event exceeds the 10 MiB limit"
         try:
             posted = json.loads(body, parse_constant=reject_json_constant)
-        except (ValueError, RecursionError):
+        except RecursionError:
+            # The parser's own stack ran out, far deeper than the bound.
+            return {}, TOO_DEEP
+        except ValueError:
             return {}, "invalid JSON"
+        if nests_deeper_than(posted, MAX_POSTED_DEPTH):
+            return {}, TOO_DEEP
         if not isinstance(posted, dict):
             return {}, "event must be a JSON object"
         return posted, None
@@ -694,13 +741,12 @@ class PageEndpoint:
             version = self.page_snapshot.context.active["version"]
         else:
             with PageTransaction(self.page_dir) as page:
-                activate_source(self.page_dir)
-                events = page.events
-            revision = latest_revision(self.page_dir)
-            if revision is None:
-                return self._json({"error": missing_revision(self.page_dir)}, 404)
-            artifact = read_artifact(self.page_dir, revision)
-            version = stamped_version(events, revision)
+                activate_source(self.page_dir, transaction=page)
+                revision = latest_revision(self.page_dir)
+                if revision is None:
+                    return self._json({"error": missing_revision(self.page_dir)}, 404)
+                artifact = read_artifact(self.page_dir, revision)
+                version = stamped_version(page.events, revision)
         return self._serve_document(artifact, revision, version)
 
     def _revision_name(self, revision: int) -> str:
@@ -784,35 +830,14 @@ class PageEndpoint:
         artifact = self._artifact(revision)
         self.response_layer = artifact.registry["$layer"]["generation"]
         logical = "/" + match.group("resource")
-        if probe_source := PROBE_SOURCES.get(logical):
-            return self._content(
-                200, "text/javascript; charset=utf-8", probe_source.read_bytes()
-            )
-        source = logical
-        widget = re.fullmatch(r"/widgets/(?P<tag>lf-[a-z0-9-]+)\.js", logical)
-        if widget is not None:
-            implementation = artifact.implementations.get(widget.group("tag"))
-            if implementation is not None:
-                source = implementation["path"]
-        if source != logical:
-            target = json.dumps(self._artifact_root(revision) + source)
-            return self._content(
-                200,
-                "application/javascript; charset=utf-8",
-                f"export * from {target};\n".encode(),
-            )
-        resource = artifact.resources.get(source)
-        if resource is None:
-            return None
-        body = deliver_resource(
-            resource,
-            source,
+        resource = delivered_resource(
+            artifact,
+            logical,
             DeliveryAddress(self.page_root, self._artifact_root(revision)),
         )
-        ctype = resource.mime
-        if ctype not in BINARY_TYPES:
-            ctype += "; charset=utf-8"
-        return self._content(200, ctype, body)
+        if resource is None:
+            return None
+        return self._resource_content(resource)
 
     def _serve_page_path(self) -> Response | None:
         path = self.path
@@ -883,16 +908,12 @@ class PageEndpoint:
         # boundary for a page directory edited or symlinked after vendoring.
         if file.is_file() and path_is_within(file, self.page_dir):
             ctype = CONTENT_TYPES.get(Path(path).suffix, "application/octet-stream")
-            # charset describes an encoding, so it rides on the types that
-            # have one. On a PNG it is noise.
-            if ctype not in BINARY_TYPES:
-                ctype += "; charset=utf-8"
-            body = deliver_resource(
-                Resource(file.read_bytes(), ctype.partition(";")[0]),
+            resource = deliver_resource(
+                Resource(file, ctype),
                 path,
                 DeliveryAddress(self.page_root, self.page_root),
             )
-            return self._content(200, ctype, body)
+            return self._resource_content(resource)
         return None
 
     def _get(self) -> Response:
@@ -905,6 +926,12 @@ class PageEndpoint:
             return self._serve_root()
         if path == "/api/news":
             return self._news()
+        if path == "/api/user-view":
+            return self._json(
+                read_user_views(self.page_dir, latest_revision(self.page_dir))
+                if self.page_snapshot is None
+                else {"fresh_for_s": FRESH_FOR_S, "sessions": []}
+            )
         if path == "/api/state":
             # Versions pass through the endpoint's own view, so a preview state
             # agrees with the version it serves.
@@ -954,8 +981,27 @@ class PageEndpoint:
             "/api/media",
             "/api/samples",
             "/api/interaction",
+            "/api/user-view",
         }:
             return self._json({"error": "not found"}, 404)
+        if path == "/api/user-view":
+            if self.posted_error:
+                return self._refuse(self.posted_error)
+            # Captured render previews are instruments, not the user's reading.
+            if self.page_snapshot is not None:
+                return self._content(204, "text/plain", b"")
+            revision = self.posted.get("revision")
+            revisions = list_revisions(self.page_dir)
+            if type(revision) is not int or revision not in revisions:
+                return self._refuse("unknown user view revision")
+            checks = self.posted.get("checks")
+            if isinstance(checks, dict) and checks.get("revision") not in revisions:
+                return self._refuse("unknown user view checks revision")
+            try:
+                observe_user_view(self.page_dir, self.posted)
+            except ValueError as error:
+                return self._refuse(str(error))
+            return self._content(204, "text/plain", b"")
         if path == "/api/interaction":
             if self.posted_error:
                 return self._refuse(self.posted_error)
@@ -1073,9 +1119,6 @@ class PageEndpoint:
 class SampleEndpoint(PageEndpoint):
     """A normal child page whose parent route already checked access."""
 
-    # Drawn in a frame on its parent page, which is the same origin.
-    frame_ancestors_policy = "frame-ancestors 'self'"
-
     def authorized(self) -> bool:
         return True
 
@@ -1143,8 +1186,8 @@ def page_app(endpoint, server):
 
     Every request becomes its own `PageEndpoint` and nothing else: no state crosses
     between two of them. The routes are ordinary blocking code — page transactions,
-    log reads, atomic writes — so they run on the serving loop's worker threads, and
-    an open news stream is the one response that stays on the loop itself.
+    log reads, atomic writes — so they run on the serving loop's worker threads.
+    Each answer completes rather than keeping a per-document HTTP connection open.
     """
 
     server.samples = Samples()

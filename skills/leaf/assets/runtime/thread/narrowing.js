@@ -25,9 +25,11 @@
    filtered so reply widgets keep their identity and the rest of the runtime can still
    read them by id. The list captures one immutable user intent and checkpoints the
    resulting summary and facets with its rows; repainting that reading does not change
-   native editing or disclosure state. */
+   native editing or disclosure state. An explicit narrowing resets the list after its
+   presentation only while no newer user gesture has chosen another reading place. */
 import { anchorLabel } from "./messages.js";
 import { awaitsAgent, awaitsUser } from "./model.js";
+import { retainUserIntent } from "../user-intent.js";
 
 const choice = (kind, value, label, className = "") =>
   Object.freeze({ kind, value, label, className });
@@ -289,11 +291,14 @@ export function createThreadNarrowing({ view, listRoot, readThreads, ready, repa
 
   function renarrow() {
     if (!ready()) return;
+    const mayReset = retainUserIntent();
     const ticket = repaint();
     // Reset after the keyed list commits. The coordinator reports rejection; observe
     // either outcome because event listeners can discard this ticket.
     void ticket.then(
-      () => (listRoot.scrollTop = 0),
+      () => {
+        if (mayReset()) listRoot.scrollTop = 0;
+      },
       () => {},
     );
     return ticket;
@@ -374,6 +379,14 @@ export function createThreadNarrowing({ view, listRoot, readThreads, ready, repa
     return true;
   }
 
+  // An authored sample selects a complete view, rather than toggling whatever the
+  // controls happened to show. Use the same transitions as the facet controls.
+  function select({ status = "open", waiting = "all" } = {}) {
+    clearNarrowing(status);
+    intent = transition(intent, "waiting", waiting);
+    return renarrow();
+  }
+
   // A direct destination selects the lifecycle that contains the requested thread.
   function revealThread(id) {
     const thread = readThreads().find(
@@ -393,6 +406,7 @@ export function createThreadNarrowing({ view, listRoot, readThreads, ready, repa
     listedInPageOrder,
     threadSearchActive,
     retainNarrowing,
+    select,
     revealThread,
     widen,
   });

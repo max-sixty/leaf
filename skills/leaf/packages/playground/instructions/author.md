@@ -1,6 +1,8 @@
-Use `lf-playground` when several values or behaviors need to be explored together before
-the user chooses one configuration. Put it inside `lf-ask`, declare controls and
-optional presets, then include exactly one preview and one output.
+Give each design decision one selection surface. For a choice among visible, fixed
+candidates, put the candidates in `lf-options` inside `lf-ask` so the user selects
+the example they want. Use `lf-playground` when the user needs to tune a configuration
+before choosing it, and include exactly one preview and one output. Use `lf-ask`
+to frame the question and context when they live outside the playground.
 
 Interactive behavior does not by itself justify a package; `references/packages.md`
 says where page-only and reused behavior belong. A page module can define custom
@@ -15,16 +17,21 @@ body is the playground's Ask, where the stage grows to the window's height. Draw
 candidates on the stage without a card of their own; the stage is their surface.
 
 The preview is the surface the user operates. An A/B comparison keeps both candidates
-mounted in that preview and renders both from one interaction state, so each control
-edit or custom gesture reaches both. The user should not have to reproduce a drag,
-scroll, reorder, or input sequence in two separate previews. Put measurements that
-affect the decision beside their candidates and derive them from that same state.
+mounted there with the same configuration and starting content. When the candidates
+render one custom input model, apply each drag, scroll, reorder, or edit once and draw
+both from that state; derive their measurements beside them. Live Leaf samples share
+the configuration and authored starting history, while practice gestures belong to
+each child's independent log. Reset brings a sample back to that starting history.
 
 Start from the real artifact. Wrap the existing component, document, or generated output
 instead of rebuilding its appearance in page-local markup. A companion package may carry
 browser-ready code and fixtures under `vendor/`; page images go through `leaf page media`
 (`references/authoring-evidence.md`). Load those assets from the page's same origin,
 and keep imports from Leaf's runtime to `/runtime/widget-api.js`.
+
+Keep candidates realistic so the user can judge the interface as they would use it.
+Use product copy for their visible and accessible text. Describe them as prototypes
+only in the surrounding playground, and only if necessary.
 
 When exploring changes to an existing interface, include its current state as a labeled
 baseline. Derive each candidate from that baseline and change only the behavior or
@@ -37,13 +44,21 @@ the key in the complete typed value map sent by the final `choose` action. A ran
 attribute and public `values` entry stay numeric. A range requires `max`; `min` defaults
 to zero and `step` defaults to one.
 
-Controls and presets do different jobs. Controls span the space the user explores: give
-each part or parameter they might want to vary a control of its own, even when that
-makes many, and put candidates that differ only as wholes in one `choice`. Presets are
-the candidates you put forward: one for each proposal you would build, commonly three to
-six, none a variant of another. Design each preset as one look, composing its parts so
-they read together on every surface they change, rather than taking each control's best
-value on its own. Free combinations of controls may clash; a preset may not, because the
+Separate the configuration the user is choosing from the cases used to inspect it.
+Configuration controls and presets describe what to build. Give preview cases and
+inspection settings their own labeled controls and page-local state, outside the
+playground's submitted values. Style these controls with the layer's control idioms
+(`references/page-authoring.md`, "Theme and vocabulary"). Changing a case preserves
+the configuration; applying a preset preserves the case; all compared candidates use
+the same case. When editing
+the data is itself the task, that data belongs in the configuration.
+
+Controls expose parameters the user can vary independently. Offer presets when
+combining several such parameters gives the user useful starting points for further
+tuning. Choose presets that differ across several parameters, and compose each
+as one look so its parts read together on every surface they change, rather than
+taking each control's best value on its own. Free combinations of controls may clash;
+a preset may not, because the
 user judges its idea by how it looks. Before handoff, look at each preset where the user
 will see it, on every surface it changes and in both themes, and rework or drop any you
 would not ship. A preset sets every control its look depends on, since a control it
@@ -114,15 +129,26 @@ custom property is a quoted CSS string; its data attribute contains the unquoted
   [data-candidate="status strip"] { outline: 2px solid var(--accent); }
 ```
 
-A candidate that restyles a whole page, such as Leaf's own Asks, focus rings, or chrome,
-or a library whose stylesheet is global, needs a page of its own: put an `lf-sample` in
-the preview (`references/page-authoring.md`, "Live samples"), a `window` one when the
-candidate reaches Leaf's chrome, and the candidate's CSS in a `<style>` inside its
-template, keyed on the child's root
-(`:root[data-playground-format="status strip"]`). Each child the sample presents,
-including after Reset, wears the same properties and attributes on its root from its
-first paint. The surrounding page holds the playground the user is operating, so its
-root and stylesheets never carry a candidate.
+When a playground studies Leaf's live interface, embed each candidate in an
+`lf-sample window` inside the preview. The surrounding page owns the design controls,
+the implementation request, and feedback to the author; each child owns its product
+content and practice interactions. Comments and decisions inside a candidate stay
+there, and Reset returns it to the same starting state. Keep comparison labels and
+host controls outside the samples.
+
+Start fictional threads or decisions with `data-sample-events`, naming one inert JSON
+history in the parent; samples can share it without sharing subsequent gestures.
+`references/page-authoring.md`, "Live samples", owns this declaration and its event
+commands. Keep fixture anchors in the child template. Do not copy fictional history
+into the outer page's log or post it with a setup script.
+
+A candidate that restyles a whole page or uses a global stylesheet also needs a
+live sample; `window` includes Leaf's chrome, while an ordinary live sample grows
+with its content. Put each candidate's CSS in a `<style>` inside its template, keyed
+on the child's root (`:root[data-playground-format="status strip"]`). Every child,
+including after Reset, wears the playground's properties and attributes from its
+first paint. The outer root and stylesheet belong to the review page. A static
+sketch or snippet can stay directly in the preview.
 
 The output is the instruction the user copies and the host receives. Write a complete
 task with an object, destination, and requested evidence. Use `lf-playground-value` only
@@ -166,7 +192,8 @@ Before handoff, manually operate every custom gesture the page claims. Check tha
 candidates reach the same input state, the measurements update, the complete typed value
 map is still present, and the copied instruction can be acted on without the preview.
 Operate every control and preset, then reset, restore, copy, and submit. Check wide,
-narrow, and short viewports plus the exported file.
+narrow, and short viewports. Check an exported file too when the page has no live
+samples; live samples need a server.
 
 ## Task-shaped recipes
 

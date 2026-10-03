@@ -1,5 +1,5 @@
-/* Shared visibility for addressable targets and placement for predictable numeric Ask
-   binding badges. The banner clips every target's usable box. An Ask face hangs off its
+/* Shared visibility for addressable targets and placement for command
+   binding badges. The banner clips every target's usable box. A binding face hangs off its
    control's upper-left corner, and off another of its corners where that one would cover
    a different control: a digit laid over a neighbour's corner reads as that neighbour's.
    It may move back inside the viewport, but it yields wherever that move would cover
@@ -20,7 +20,7 @@
    element of its own and is the one reading that does subtract the chrome at the foot,
    because what it measures is drawn where it stands rather than moved somewhere legible. */
 import { closestAcross, elementFromPointAcross, inChrome } from "../passages.js";
-import { PRESSES } from "../widget-elements.js";
+import { PRESSES } from "../control-selectors.js";
 import { bottomChromeBoxes } from "./shortcut-bar.js";
 import {
   bannerFoot,
@@ -217,7 +217,7 @@ export function keyBadgePlacement() {
     });
   }
 
-  // Attach every Ask chip in one write and measure them before moving or hiding any.
+  // Attach every binding chip in one write and measure them before moving or hiding any.
   // Each seat names its chip, the control it labels, the corner box the chip hangs off,
   // and the place `at` in the layer that hangs it there; a chip moves to the first corner
   // of that box whose place, pulled back inside the window, covers no other control and

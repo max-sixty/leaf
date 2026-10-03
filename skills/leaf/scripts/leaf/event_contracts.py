@@ -10,7 +10,7 @@ domains: undo in `events` and widget meaning in `event_meaning`.
 
 from leaf.asks import asking, projected_action_holders, quoted_in
 from leaf.document_reading import read_document
-from leaf.event_log import EventRefused, Refusal
+from leaf.event_log import EventRefused, Refusal, new_event_id
 from leaf.event_meaning import (
     AdmissionReadings,
     admit_widget_event,
@@ -18,7 +18,7 @@ from leaf.event_meaning import (
 )
 from leaf.events import build_threads, spoken_turns, taken_back, undo_error
 from leaf.files import version_revisions
-from leaf.page_view import PageView
+from leaf.page_view import CandidatePageView, PageView
 from leaf.projection import (
     RANK,
     authored_positions,
@@ -30,27 +30,48 @@ from leaf.registry.contract import (
     WRITERS,
     created_child,
     event_spec,
-    schema_error,
     state_specs,
     verb_writer,
     visual_parts,
 )
 from leaf.registry.reactions import reaction_tokens
+from leaf.registry.schema import schema_error
 from leaf.schema import MESSAGE_KINDS, WIDGET_KINDS
 from leaf.served_state.thread import browser_thread
 from leaf.structure import review_mode
+from leaf.workflows import obligation_reading
 
 # The envelope the append lease itself assigns. Admission validates the complete
-# record, so it supplies placeholders for the three fields that cannot exist
-# until the write: an id proved unique against this log, the moment it landed,
-# and its line number. A caller that supplies one of them is held to the
-# contract's own reading of it.
+# record, so pre-admission shape checks supply representative envelope fields.
+# Semantic admission allocates the real identity before folding the candidate.
+# A caller supplying an envelope field is held to the contract's reading of it.
 APPEND_STAMPED = {"id": "pending", "ts": "pending", "seq": 1}
 
 
 def event_record_error(contract: dict, event: dict):
     """The first complaint from one event kind's stored-record contract."""
     return schema_error(contract["record"], event)
+
+
+def command_record_schema(contract: dict) -> dict:
+    """The stored record's shape before admission derives its meaning.
+
+    A command may name its envelope where its writer owns it, but meaning always
+    comes from admission. Both browser ingress and sample construction check
+    this shape before any gate reads kind-specific fields.
+    """
+    schema = contract["record"]
+    return {
+        **schema,
+        "properties": {
+            key: value
+            for key, value in schema["properties"].items()
+            if key not in {"meaning", "attention"}
+        },
+        "required": [
+            key for key in schema["required"] if key not in {"meaning", "attention"}
+        ],
+    }
 
 
 def browser_command_error(contract: dict, event: dict):
@@ -61,18 +82,8 @@ def browser_command_error(contract: dict, event: dict):
     fields supplied or lifted, beside the kind's own browser assertions — which
     are narrower than the record, because the fields a reply carries from the
     CLI are not a tab's to send."""
-    schema = contract["record"]
-    schema = {
-        **schema,
-        "properties": {
-            key: value
-            for key, value in schema["properties"].items()
-            if key != "meaning"
-        },
-        "required": [key for key in schema["required"] if key != "meaning"],
-    }
     return schema_error(
-        {"allOf": [schema, contract["browser"]]},
+        {"allOf": [command_record_schema(contract), contract["browser"]]},
         {
             **event,
             **APPEND_STAMPED,
@@ -586,7 +597,8 @@ def admission_error(
     than a routing table per transport.
     """
     return (
-        _revision_error(view, event)
+        _publication_error(view, event)
+        or _revision_error(view, event)
         or _approval_error(view, event, events, registry)
         or _action_error(view, event, readings)
         or _report_error(view, event, registry)
@@ -594,9 +606,40 @@ def admission_error(
         or _anchored_comment_error(view, event, registry)
         or _parent_error(event, events)
         or _thread_presentation_error(view, event, events)
+        or _reanchor_error(view, event, events)
         or read_contract_error(event, events)
         or _withdrawal_error(view, event, events, readings)
     )
+
+
+def _publication_error(view, event: dict) -> str | None:
+    if "publication" not in event:
+        return None
+    if (
+        not isinstance(view, CandidatePageView)
+        or event["publication"] != view.publication
+    ):
+        return "publication is owned by the checked source publisher"
+    if event.get("revision") != view.revisions[-1] or not event[
+        "publication"
+    ].startswith(f"r{event['revision']}-"):
+        return "publication must name its checked candidate revision"
+    return None
+
+
+def _reanchor_error(view, event: dict, events: list) -> str | None:
+    """A revision's automatic fallback changes a live quote to its own section."""
+    if event["kind"] != "reanchor":
+        return None
+    thread = build_threads(events, view.within).get(event["thread"])
+    if thread is None or thread["resolved"] or not thread["anchor"]:
+        return "reanchor needs an open anchored thread"
+    anchor = thread["anchor"]
+    if not anchor.get("quote") or event["anchor"] != {"section": anchor.get("section")}:
+        return "reanchor must retain the quoted thread's own section"
+    if anchor.get("section") not in view.document(event["revision"]).ids:
+        return "reanchor section must survive in its revision"
+    return None
 
 
 def admitted_event(view, events: list, event: dict) -> dict:
@@ -612,17 +655,45 @@ def admitted_event(view, events: list, event: dict) -> dict:
     kind = event.get("kind")
     if kind not in contracts:
         raise EventRefused(f"kind must be one of {sorted(contracts)}")
+    if "id" not in event:
+        event = {**event, "id": new_event_id(events)}
     readings = AdmissionReadings(view, events, registry)
     if error := admission_error(view, events, event, registry, readings):
         raise EventRefused(error)
     if kind in WIDGET_KINDS:
         event = admit_widget_event(view.document(event["revision"]), event, readings)
-    if error := event_record_error(contracts[kind], {**APPEND_STAMPED, **event}):
+    # Fold only a validated event. Attention is server-owned and boolean by
+    # construction; the placeholder completes the stored shape before that fold.
+    if error := event_record_error(
+        contracts[kind], {**APPEND_STAMPED, **event, "attention": False}
+    ):
         raise EventRefused(f"{kind} event is invalid: {error}")
+    attention = kind in {"report", "error"}
+    if (
+        not attention
+        and event["author"] == "user"
+        and not contracts[kind].get("bookkeeping")
+    ):
+        candidate = {
+            **APPEND_STAMPED,
+            **event,
+            "seq": events[-1]["seq"] + 1 if events else 1,
+        }
+        claims = view.claims
+        # The sender's vocabulary validates its command; the active vocabulary
+        # decides what that command changes for the page the agent owes now.
+        revisions = view.revisions
+        active_registry = view.registry(revisions[-1] if revisions else None)
+        before = AdmissionReadings(view, events, active_registry)
+        after = AdmissionReadings(view, [*events, candidate], active_registry)
+        attention = obligation_reading(before, claims) != obligation_reading(
+            after, claims
+        )
+    event = {**event, "attention": attention}
     return event
 
 
-def append_admitted(page, event: dict) -> dict:
+def append_admitted(page, event: dict, *, view=None) -> dict:
     """Admit one event and append it, under the page transaction's log lease.
 
     The one door. `page` is an open `service.PageTransaction`, whose lease makes
@@ -637,5 +708,7 @@ def append_admitted(page, event: dict) -> dict:
     if accepted := page.matching_attempt(event):
         return accepted
     return page._append_record(
-        admitted_event(PageView(page.page_dir), page.events, event)
+        admitted_event(
+            view if view is not None else PageView(page.page_dir), page.events, event
+        )
     )

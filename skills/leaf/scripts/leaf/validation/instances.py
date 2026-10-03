@@ -5,8 +5,8 @@ import re
 from leaf.asks import asking, local_ask_entry, quoted_in
 from leaf.passages import COLLAPSE_CHARS
 from leaf.projection import enclosing_widgets
-from leaf.registry.contract import json_validator, registry_path, visual_parts
-from leaf.registry.state import retirement_slots
+from leaf.registry.contract import registry_path, retirement_slots, visual_parts
+from leaf.registry.schema import json_validator
 from leaf.structure import AUTHORED_ALLOCATIONS, SourceDocument
 
 from .markup import at, structure_errors
@@ -195,22 +195,6 @@ def ask_surface_errors(lf_elements: list, registry: dict) -> list:
             sources.setdefault(id(holder), []).append(rec)
 
     errors = []
-    for rec in lf_elements:
-        entry = registry.get(rec["tag"], {})
-        awaits = entry.get("x-awaits") or {}
-        requires_region = awaits.get("region") and asking(
-            rec["attrs"], awaits.get("when")
-        )
-        if not requires_region or quoted_in(rec, registry):
-            continue
-        holder = rec.get("holder")
-        while holder and not registry.get(holder["tag"], {}).get("x-ask-surface"):
-            holder = holder.get("holder")
-        if not holder:
-            errors.append(
-                f"{at(rec)}: this declared Ask source must be inside an Ask "
-                "with a heading"
-            )
     for region in regions:
         headings = [
             child
@@ -293,10 +277,18 @@ def reference_errors(lf_elements: list, registry: dict, ids: set, by_id: dict) -
     nowhere and the markup around it is perfectly well-formed — visible to them and to
     nobody else. Asked of the version rather than of a fragment: a reply's markup
     carries no page to check against, and one of its widgets pointing at the version
-    beside it is exactly right."""
+    beside it is exactly right.
+
+    An `owns` reference is narrower, since its referrer fills the target and the
+    browser looks for that target in the referrer's own document: each names an
+    element of `lf_elements`' own document, and each element there that the
+    contract's predicate selects is named by exactly one referrer, as each readings
+    seat is filled by one command."""
     errors = []
+    own = {rec["attrs"].get("id") for rec in lf_elements}
+    owners = {}
     for rec in lf_elements:
-        for attr in registry.get(rec["tag"], {}).get("x-refers", {}):
+        for attr, reference in registry.get(rec["tag"], {}).get("x-refers", {}).items():
             target = rec["attrs"].get(attr)
             if not target:
                 continue
@@ -308,6 +300,35 @@ def reference_errors(lf_elements: list, registry: dict, ids: set, by_id: dict) -
                 rec, attr, by_id.get(target), registry
             ):
                 errors.append(error)
+            elif reference.get("owns") and target not in own:
+                errors.append(
+                    f'{at(rec)}: {attr}="{target}" names an element outside its own '
+                    "document, which it fills"
+                )
+            elif reference.get("owns"):
+                owners.setdefault((rec["tag"], attr, target), []).append(rec)
+    owned = [
+        (tag, attr, reference)
+        for tag, entry in registry.items()
+        if not tag.startswith("$")
+        for attr, reference in entry.get("x-refers", {}).items()
+        if reference.get("owns")
+    ]
+    for rec in lf_elements:
+        for tag, attr, reference in owned:
+            if target_reference_contract_error(reference, rec, registry):
+                continue
+            target = rec["attrs"].get("id")
+            named = owners.get((tag, attr, target), [])
+            if not named:
+                errors.append(f"{at(rec)}: no <{tag}> names it in `{attr}`")
+            if len(named) > 1:
+                first = at(named[0], f"id={named[0]['attrs'].get('id')!r}")
+                errors.extend(
+                    f'{at(extra)}: {attr}="{target}" is already named by {first}; '
+                    "only one element may name it"
+                    for extra in named[1:]
+                )
     return errors
 
 

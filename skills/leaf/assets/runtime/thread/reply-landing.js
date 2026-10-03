@@ -15,12 +15,16 @@
 
    A send lands the turn it adds, around the box it was sent from even once the user
    stands outside it, and a box growing under the user's keystrokes keeps its controls in
-   the band and the words just above it beside it. Every box a thread or a
+   the band and the words just above it beside it. Growth reveals the writing area
+   alone; earlier turns the reader has passed stay out of view. Every box a thread or a
    seat holds answers both, whichever owner built it. The climbs cross shadow roots,
    since a widget may draw a thread inside its own tree and still be scrolled by the
    page, and the box that scrolls a thread is the reading region's (`scrollerFor`). A
    thread in a surface fixed over the page, the margin card, is shown by bringing that
-   surface back first (`off-flow.js`). */
+   surface back first (`off-flow.js`). These landings serve thread navigation,
+   sending, and editor growth. Merely entering a reply reveals its writing area
+   instead (`landing.js`): a visible pinned row or a separate transcript keeps
+   the turn the user was reading, even when it is not the latest one. */
 import { landingBand, seenRect, shownBox } from "../geometry.js";
 import { focused } from "../keyboard/scopes.js";
 import { scrollBehavior } from "../motion.js";
@@ -29,13 +33,15 @@ import { scrollerFor, scrollersOf } from "../reading-regions.js";
 import { renderedParent } from "../shadow.js";
 import { bringBackSurfaceOf } from "../off-flow.js";
 import { retainUserIntent } from "../user-intent.js";
+import { scrollIntoReadingBand } from "../landing-scroll.js";
+import { atScrollEnd, scrollToEnd } from "../scrolling.js";
 import { SAYS_IN } from "./selectors.js";
 
-const REPLY_ROW = ".lf-compose, .lf-say";
+const REPLY_ROW = ".lf-thread-reply, .lf-say";
 const replyRowOf = (held, control) => {
   const reply =
     control === held
-      ? held.querySelector(":scope > .lf-compose, :scope > .lf-say")
+      ? held.querySelector(":scope > .lf-thread-reply, :scope > .lf-say")
       : control.closest(REPLY_ROW);
   return reply?.parentElement === held ? reply : null;
 };
@@ -43,8 +49,13 @@ const replyRowOf = (held, control) => {
 // while the thread's end lies below it, so aiming a scroll at it moves nothing: its place
 // in the transcript is the thread's end.
 const pinned = (reply) => reply && getComputedStyle(reply).position === "sticky";
-const separateTranscript = (held) =>
-  held.querySelector(":scope > .lf-thread-transcript");
+// The common transcript is a separate reading region only when its container bounds it.
+const separateTranscript = (held) => {
+  const transcript = held.querySelector(":scope > .lf-thread-transcript");
+  return transcript && /^(auto|scroll)$/.test(getComputedStyle(transcript).overflowY)
+    ? transcript
+    : null;
+};
 
 const ancestors = function* (node) {
   for (let parent = renderedParent(node); parent; parent = renderedParent(parent))
@@ -89,7 +100,7 @@ export function scrollThreadIntoView(
   bringBackSurfaceOf(held, behavior);
   const transcript = separateTranscript(held);
   if (transcript && control !== held && replyRowOf(held, control)) {
-    transcript.scrollTo({ top: transcript.scrollHeight, behavior });
+    scrollToEnd(transcript, behavior);
     return;
   }
   if (transcript?.contains(control)) {
@@ -106,6 +117,9 @@ export function scrollThreadIntoView(
 // them: the thread or seat holding the box by default, or the page element a reply in
 // the margin card hands them to (`landSent`). A box the send removed has handed the user
 // on already.
+// The sent turn lands without animation: fitting can change the transcript's room in
+// the next update, and an in-flight pixel destination would outlive the room it named.
+// The geometry owner then preserves the landed end while it fits that room.
 export function sendLanding(input, standing = input.closest(SAYS_IN)) {
   const held = input.closest(SAYS_IN);
   if (!held) return () => {};
@@ -116,7 +130,8 @@ export function sendLanding(input, standing = input.closest(SAYS_IN)) {
   return () =>
     void whenDocumentPresented()
       .then(() => {
-        if (mayLand() && input.isConnected) scrollThreadIntoView(held, input);
+        if (mayLand() && input.isConnected)
+          scrollThreadIntoView(held, input, "instant");
       })
       .catch(() => {});
 }
@@ -136,6 +151,13 @@ const transcriptPlaces = new WeakMap();
 const covered = (reply) =>
   (reply.previousElementSibling?.getBoundingClientRect().bottom ?? -Infinity) -
   reply.getBoundingClientRect().top;
+// Editing reveals only the writing area. Revealing the whole thread here would pull
+// earlier turns back into view on the first keystroke in an already-visible reply.
+const revealWritingArea = (held, input, reply) => {
+  bringBackSurfaceOf(held, "instant");
+  const target = reply && shownBox(reply).height <= landingRoom(held) ? reply : input;
+  scrollIntoReadingBand(target, target, "nearest", "instant");
+};
 export function followBoxGrowth(input) {
   const held = input.closest(SAYS_IN);
   if (!held) return;
@@ -151,19 +173,19 @@ export function followBoxGrowth(input) {
       place.atTail &&
       transcript.clientHeight < place.height
     )
-      transcript.scrollTo({ top: transcript.scrollHeight, behavior: "instant" });
+      scrollToEnd(transcript);
     transcriptPlaces.delete(input);
-    if (!onScreen(reply)) scrollThreadIntoView(held, input, "instant");
+    if (!onScreen(reply)) revealWritingArea(held, input, reply);
     return;
   }
-  if (!pinned(reply)) return scrollThreadIntoView(held, input, "instant");
+  if (!pinned(reply)) return revealWritingArea(held, input, reply);
   const height = reply.getBoundingClientRect().height;
   const grew = height - (rowHeights.get(input) ?? height);
   rowHeights.set(input, height);
   const by = Math.max(0, Math.min(grew, covered(reply)));
   if (by) scrollerFor(reply).scrollBy({ top: by, behavior: "instant" });
   // A row pins only at its scroller's foot, so one the user scrolled past is brought back.
-  if (!onScreen(reply)) scrollThreadIntoView(held, input, "instant");
+  if (!onScreen(reply)) revealWritingArea(held, input, reply);
 }
 // The editor's place before its own edit, and on arrival for a first edit delivered
 // without beforeinput: a pinned row's height, or a separate transcript's tail and room.
@@ -176,8 +198,7 @@ export function readBoxPlace(input) {
     transcriptPlaces.set(input, {
       transcript,
       height: transcript.clientHeight,
-      atTail:
-        transcript.scrollHeight - transcript.clientHeight - transcript.scrollTop <= 2,
+      atTail: atScrollEnd(transcript),
     });
 }
 

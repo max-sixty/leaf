@@ -23,7 +23,6 @@
     "x-content": "members",
     "x-upgrade": true,
     "x-awaits": {
-      "region": true,
       "answered": {
         "choose": {}
       }

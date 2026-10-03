@@ -3,7 +3,7 @@
 import re
 from pathlib import Path
 
-from .session_cleanup import EVENTS_FILE
+from .state import EVENTS_FILE
 
 # A session-managed server gives a replacement session one short poll window to
 # claim the page before it closes. The external claim record is the ownership
@@ -158,6 +158,8 @@ ACTION_CREATES = {
 # One package-neutral relation shape for authored attributes. An empty object accepts
 # any authored element. A typed relation selects a package registry map
 # and an equality predicate within that map; the names and values remain vocabulary.
+# `owns` makes the relation one-to-one within a document: the referrer fills its
+# target (`validation.instances.reference_errors`).
 REFERENCE_SCHEMA = {
     "type": "object",
     "minProperties": 1,
@@ -176,8 +178,9 @@ REFERENCE_SCHEMA = {
                     "type": ["string", "number", "boolean", "null"]
                 },
             },
+            "owns": {"const": True},
         },
-        "dependentRequired": {"via": ["where"], "where": ["via"]},
+        "dependentRequired": {"via": ["where"], "where": ["via"], "owns": ["via"]},
         "additionalProperties": False,
     },
 }
@@ -235,10 +238,6 @@ AWAITS_SCHEMA = {
     "properties": {
         "when": AWAITING_CONDITION,
         "answered": ANSWERED_SCHEMA,
-        # This widget supplies the answer control but not its own question title.
-        # A matching instance therefore stands inside an x-ask-surface region, whose direct
-        # heading owns the reading and arrival.
-        "region": {"const": True},
         "all": {"type": "string", "pattern": f"^{HTML_NAME}$"},
     },
     "additionalProperties": False,
@@ -474,7 +473,7 @@ PACKAGE_DIRS = (*BROWSER_DIRS, INSTRUCTIONS_DIR)
 SCRIPTS_DIR = "scripts"
 INSTRUCTIONS_FILE = re.compile(rf"{HTML_NAME}\.md")
 LAYER_PLACEHOLDER = b'"__LEAF_LAYER_GENERATION__"'
-# Images the page shows, named by the hash of their bytes (`page media`). Not vendored
+# Media the page shows, named by the hash of their bytes (`page media`). Not vendored
 # — they are the page's content, not the layer's — but served like it, and the
 # naming is what keeps the directory's promise: same name, same bytes, so a
 # version the user approved cannot show them something else later.
@@ -486,6 +485,12 @@ MEDIA_TYPES = {
     ".gif": "image/gif",
     ".webp": "image/webp",
     ".svg": "image/svg+xml",
+    ".mp4": "video/mp4",
+    ".webm": "video/webm",
+    ".mp3": "audio/mpeg",
+    ".m4a": "audio/mp4",
+    ".ogg": "audio/ogg",
+    ".wav": "audio/wav",
 }
 # A media file's name is the first MEDIA_DIGEST hex characters of its bytes' SHA-256
 # and a lowercase MEDIA_TYPES suffix: `media.media_name` mints it, `DIR_FILES` serves
@@ -499,10 +504,9 @@ DATA_DIR = "data"
 INTERACTIONS_FILE = "interactions.jsonl"
 PREVIEW_FILE = "preview.json"
 VIEWED_FILE = "viewed.json"
-# One name, because there is one key (`host_key`). Cookies are scoped by host and
-# blind to the port, so every page this machine serves shares a jar — on 127.0.0.1,
-# with every other server the user has running, which is what the prefix is for.
-KEY_COOKIE = "lf_key"
+USER_VIEWS_FILE = "user-views.json"
+USER_VIEWS_LOCK = "user-views.lock"
+RENDER_CHECKS_DIR = "checks"
 # How long a bare address stays authorized after the last handover link (`host_key`),
 # the lifetime Jupyter gives its login cookie.
 KEY_COOKIE_MAX_AGE = 30 * 24 * 60 * 60
@@ -520,6 +524,8 @@ SESSION_FILES = (
     WAITER_LOCK,
     CURSOR_FILE,
     VIEWED_FILE,
+    USER_VIEWS_FILE,
+    USER_VIEWS_LOCK,
     SERVICE_FILE,
     SERVER_LOCK,
     PREVIEW_FILE,
@@ -540,7 +546,7 @@ VERSION_NAME = r"v(?P<version>[1-9][0-9]*)"
 # `leaf-dev site` writes: a static miss under a session directory is a file the
 # page's container has. `api` is the page server's protocol prefix, which the Worker
 # names with the endpoints under it.
-SESSION_ROUTE_DIRS = (MEDIA_DIR, "revisions", "versions")
+SESSION_ROUTE_DIRS = (MEDIA_DIR, "revisions", "versions", RENDER_CHECKS_DIR)
 PAGE_ROUTE_DIRS = ("api", *BROWSER_DIRS, *SESSION_ROUTE_DIRS)
 # What the server exposes from a page: the browser layer, media, immutable revisions,
 # and event-backed version addresses. Agent-side instructions stay vendored but are read

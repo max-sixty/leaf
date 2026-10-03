@@ -1,6 +1,6 @@
 /* This module owns page-seated first-message boxes: the thread a widget declares
  * through `x-thread-seat`, built by `threadBox`. */
-import { TEXT_FIELD } from "../focus.js";
+import { TEXT_FIELD } from "../control-selectors.js";
 import { loadDraft, saveDraft, sendMessage, watchDraft } from "../drafts.js";
 import { inChrome } from "../passages.js";
 import { matchesWhen, registry } from "../registry.js";
@@ -18,6 +18,7 @@ export const threadBox = (el, hint, { createComment, onDraftChanged, wireInput }
     );
   if (!el.id) throw new TypeError(`<${el.localName}> needs an id to own a thread`);
   const box = offer("div", "lf-thread-seat");
+  box.dataset.lfRuntime = "";
   box.dataset.lfThreadSeat = el.id;
   const row = offer("div", "lf-say");
   const ta = offer(TEXT_FIELD);
@@ -66,11 +67,15 @@ export const threadBox = (el, hint, { createComment, onDraftChanged, wireInput }
   });
   sync();
   box.lfFirstMessage = row;
-  const off = watchDraft(ctx, (value) => {
-    if (!box.isConnected) return off();
-    sync.load(value ?? "");
-    onDraftChanged();
-  });
+  const off = watchDraft(
+    ctx,
+    (value) => {
+      if (!box.isConnected) return off();
+      sync.load(value ?? "");
+      onDraftChanged();
+    },
+    { input: ta },
+  );
   mountFirstMessage(box, row);
   return box;
 };

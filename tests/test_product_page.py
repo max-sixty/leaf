@@ -11,12 +11,15 @@ from pathlib import Path
 import click
 import pytest
 from click.testing import CliRunner
+from interact_support import append_carried_log_record
 from jsonschema import Draft202012Validator
 from leaf import cli as cli_model
 from leaf import delivery as delivery_model
 from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
+from leaf import files as files_model
 from leaf import service as service_model
+from leaf.hook_carrier import hook_acknowledgement
 from leaf.registry import validation as registry_validation
 from leaf.registry.contract import event_clauses
 from leaf.registry.storage import active_registry
@@ -189,7 +192,8 @@ def test_how_it_works_quotes_the_real_check_and_stamp_lines(page_dir):
     A shown line is a promise about what the user will see. The changelog is the
     page's own, so the stamp record is generated here with the transcript's text and
     compared field by field: a renamed or added field has to be written into the page
-    before this passes again. Only the record's identity and time differ per run.
+    before this passes again. Record, voice and captured artifact identities differ
+    per page; the artifact coordinate must match its committed revision marker.
     """
     checked = CliRunner().invoke(cli_model.cli, ["page", "check", str(page_dir)])
     assert checked.exit_code == 0, checked.output
@@ -210,7 +214,12 @@ def test_how_it_works_quotes_the_real_check_and_stamp_lines(page_dir):
     shown = json.loads(lines[command + 1])
     record = json.loads(stamped.output)
     assert shown.keys() == record.keys()
-    per_run = {"id", "ts", "session", "agent"}
+    assert (
+        record["publication"]
+        == files_model.revision_path(page_dir, record["revision"]).stem
+    )
+    assert re.fullmatch(r"r1-[0-9a-f]{16}", shown["publication"])
+    per_run = {"id", "ts", "session", "agent", "publication"}
     assert {k: v for k, v in shown.items() if k not in per_run} == {
         k: v for k, v in record.items() if k not in per_run
     }
@@ -230,19 +239,22 @@ def test_how_it_works_delivery_has_the_shape_a_real_delivery_has(page_dir):
     # The page indents the envelope for reading, so it opens on a line of its own.
     shown, _ = json.JSONDecoder().raw_decode(transcript, transcript.index("\n{\n") + 1)
     assert shown["format"] == delivery_model.DELIVERY_FORMAT
-    comment = events_model.append_event(
+    comment = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "Please answer"}
     )
     with service_model.PageTransaction(page_dir) as page:
         stored = next(event for event in page.events if event["id"] == comment["id"])
         real = delivery_model.freeze_delivery(
-            [delivery_model.batch_data(page_dir, page, [stored])], carrier="hook"
+            [delivery_model.batch_data(page_dir, page, [stored])],
+            carrier="hook",
+            acknowledge=hook_acknowledgement,
         )
     # The transcript is Claude Code's loop, whose prompt hook carries the delivery
     # and confirms it, so nothing is left for the agent to acknowledge.
     assert shown.keys() == real.keys()
-    assert (shown["carrier"], shown["acknowledge"]) == ("hook", None)
-    assert real["acknowledge"] is None
+    assert shown["carrier"] == "hook"
+    assert f"leaf delivery ack {shown['id']}" in shown["acknowledge"]
+    assert f"leaf delivery ack {real['id']}" in real["acknowledge"]
     [real_batch] = real["batches"]
     (real_thread,) = real_batch["threads"]
     registry = active_registry(page_dir)
@@ -396,12 +408,12 @@ def test_the_event_log_page_shows_the_records_the_door_writes(page_dir):
         n for n, record in enumerate(shown) if "answer" in record.get("meaning", {})
     )
     undo = next(n for n, record in enumerate(shown) if record["kind"] == "undo")
-    # `id` opens the line after the group `meaning` closes.
+    # `attention` opens the line after the group `meaning` closes.
     expected = [
         starts[0],  # what the browser sent, from the record's first line
-        line_of(0, "id") - 1,  # the stamped meaning, under its last line
+        line_of(0, "attention") - 1,  # stamped meaning, under its last line
         line_of(0, "id"),  # the minted id and seq
-        line_of(answered, "id") - 1,  # the answer, which closes that record's meaning
+        line_of(answered, "attention") - 1,  # the answer closes that record's meaning
         last_line(undo),  # an undo, under its last line
     ]
     notes = re.search(

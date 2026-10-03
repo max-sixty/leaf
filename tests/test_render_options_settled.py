@@ -3,7 +3,7 @@
 import re
 
 import pytest
-from leaf import event_log as events_model
+from interact_support import append_carried_log_record
 from leaf import render_checks as render_checks_model
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -81,16 +81,14 @@ def test_settled_options_collapse_without_going_out_of_reach(browser, serve):
     page.keyboard.press("?")
     page.keyboard.press("?")
     settled_help = command_reference_rows(page, "In a settled ask")
-    expect(
-        settled_help.get_by_text("Open or close the settled ask", exact=True)
-    ).to_have_count(1)
+    expect(settled_help.get_by_text("open", exact=True)).to_have_count(1)
     expect(
         settled_help.get_by_text(re.compile(r"decision", re.IGNORECASE))
     ).to_have_count(0)
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")
 
-    row.click()
+    row.press("ArrowRight")
     opened = group.evaluate(height)
     assert page.locator("#transport lf-option:visible").count() == 3
     assert opened > collapsed * 3, (
@@ -239,7 +237,7 @@ def test_a_printed_page_says_which_option_carries_the_pick(browser, serve):
 def test_a_settled_ask_keeps_its_heading_above_the_answer(browser, serve):
     """A settled answer still follows the authored question, on-page and in a reply."""
     url = serve(ASK_SHAPES_PAGE)
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",

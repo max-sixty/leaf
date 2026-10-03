@@ -1,8 +1,13 @@
 /* Synchronous Lit message presentation and frozen authored message islands.
 
-   Generated metadata, prose, workflow and reaction placement have one owner. An
+   Every surface uses the same message, header and body vocabulary. Generated
+   metadata, prose, workflow and reaction placement have one owner. Message headers
+   declare their stationary text-reflow boundary; a hoisted root header leaves that
+   declaration to the thread's complete metadata row. An
    immutable descriptor changes prose without reconnecting the validated authored
-   fragment. The fragment is captured inertly before its first upgrade; panel
+   fragment. A locally sent message cues its own words once on first presentation,
+   in every surface; admission and later descriptor paints never replay the cue.
+   The fragment is captured inertly before its first upgrade; panel
    presentation waits for preparation before capturing typed authored state. */
 import { html, render, nothing } from "../../vendor/browser-runtime.js";
 import {
@@ -33,6 +38,7 @@ import {
 import { rememberPassageParts } from "../widget-loader.js";
 import { ReactionStripView } from "./reaction-strips.js";
 import { keeps } from "../keeps.js";
+import { motion } from "../motion.js";
 
 export const loadMarked = () =>
   loadMarkdown((error) =>
@@ -176,6 +182,7 @@ export class MessageView {
   #reaction = null;
   #authored = null;
   #dressed = false;
+  #sendMotion = null;
   #header = document.createElement("div");
 
   constructor(commands) {
@@ -190,8 +197,8 @@ export class MessageView {
     // A view presents messages of one surface for its whole life, so what the surface
     // makes of the node is written once, on the first presentation.
     if (!prior) {
-      this.node.classList.add(panel ? "lf-msg" : "lf-page-thread-msg");
-      this.#header.className = panel ? "lf-msg-head" : "lf-page-thread-head";
+      this.node.classList.add("lf-msg");
+      this.#header.className = "lf-msg-head";
       if (panel) this.node.tabIndex = -1;
       else {
         this.node.classList.add("lf-ui");
@@ -199,6 +206,7 @@ export class MessageView {
         this.node.dataset.lfOffer = "";
       }
     }
+    keeps(this.#header, "data-lf-reflow", externalHeader ? null : "text");
     if (prior && prior.author !== model.author)
       this.node.classList.toggle(prior.author, false);
     this.node.classList.toggle(model.author, true);
@@ -235,7 +243,7 @@ export class MessageView {
               : nothing
           }
           ${
-            model.body.kind === "suggestion" && panel
+            model.body.kind === "suggestion"
               ? html`<span class="lf-suggest-label">Suggestion</span>`
               : nothing
           }
@@ -251,23 +259,17 @@ export class MessageView {
     render(
       html`
         ${externalHeader ? nothing : this.#header}
-        ${
-          panel
-            ? html`<div
-                class=${`lf-msg-body${model.body.kind === "suggestion" ? " lf-suggest-body" : ""}`}
-              >
-                ${this.#body(model.body)}
-                ${
-                  model.body.drawing
-                    ? html`<span class="lf-drawing-reference">Drawing comment</span>`
-                    : nothing
-                }
-                ${
-                  model.nativeAuthored && model.body.authored ? this.#authored : nothing
-                }
-              </div>`
-            : this.#inlineBody(model.body)
-        }
+        <div
+          class=${`lf-msg-body${model.body.kind === "suggestion" ? " lf-suggest-body" : ""}`}
+        >
+          ${this.#body(model.body)}
+          ${
+            model.body.drawing
+              ? html`<span class="lf-drawing-reference">Drawing comment</span>`
+              : nothing
+          }
+          ${model.nativeAuthored && model.body.authored ? this.#authored : nothing}
+        </div>
         ${
           model.body.authored && !model.nativeAuthored
             ? html`<button
@@ -295,11 +297,19 @@ export class MessageView {
     highlightBlocks(this.node);
     this.#commands.read.observeBody(
       this.node,
-      this.node.querySelector(
-        panel ? ":scope > .lf-msg-body" : ":scope > .lf-page-thread-body",
-      ),
+      this.node.querySelector(":scope > .lf-msg-body"),
       model,
     );
+    if (!prior && model.pending) {
+      // A background cue can finish while the message remains unconfirmed. The
+      // shared motion gate answers for restoration and reduced motion; opacity
+      // continues to describe delivery independently (marks.css).
+      this.#sendMotion = motion(
+        this.node,
+        [{ backgroundColor: "var(--hi-tint)" }, { backgroundColor: "transparent" }],
+        1200,
+      );
+    }
     return this.node;
   }
 
@@ -319,26 +329,6 @@ export class MessageView {
     return html`<div class="lf-msg-text" .innerHTML=${body.html}></div>`;
   }
 
-  #inlineBody(body) {
-    if (body.kind === "suggestion")
-      return html`<div class="lf-page-thread-body" .textContent=${body.text}></div>`;
-    if (body.kind === "reaction")
-      return html`<div class="lf-page-thread-body">
-        <span class="lf-react-said" title=${body.meaning ?? nothing}
-          >${`${body.glyph} ${body.token}`.trim()}</span
-        >
-      </div>`;
-    return html`<div
-      class="lf-page-thread-body"
-      .innerHTML=${
-        body.html +
-        (body.drawing
-          ? '<span class="lf-drawing-reference">Drawing comment</span>'
-          : "")
-      }
-    ></div>`;
-  }
-
   commit() {
     if (!this.#model.reactions && this.#reaction) {
       this.#reaction.retire();
@@ -347,6 +337,7 @@ export class MessageView {
   }
 
   retire() {
+    this.#sendMotion?.cancel();
     this.#reaction?.retire();
     this.#commands.read.forgetBody(this.node);
   }

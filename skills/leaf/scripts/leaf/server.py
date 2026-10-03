@@ -18,15 +18,29 @@ from .schema import (
     SERVICE_FILE,
 )
 from .service import PageTransaction, claim_is_active, page_claim
-from .session_cleanup import json_bytes
+from .state import json_bytes
 
 
 def running_server(page_dir: Path):
-    """The desired service, while a process holds its live-server lease."""
+    """The desired service, while its exact serving incarnation holds the lease.
+
+    A preparation clears old lease metadata before taking an exclusive lock, then
+    names its privately bound HTTP server. Only a matching committed service can
+    appear live, so a retained desired record cannot lend its identity to revival.
+    """
     if not lock_is_held(page_dir / SERVER_LOCK):
         return None
     service = read_json(page_dir / SERVICE_FILE)
     if not service or not service["enabled"]:
+        return None
+    incarnation = service.get("server_id")
+    if not isinstance(incarnation, str) or not incarnation:
+        return None
+    try:
+        held_incarnation = (page_dir / SERVER_LOCK).read_bytes()
+    except FileNotFoundError:
+        return None
+    if held_incarnation != incarnation.encode():
         return None
     return {
         **service,
@@ -196,8 +210,10 @@ def host_key() -> str:
     One key for the machine rather than one per page, because every page here
     goes to the same user — the one person the agent is working with. A page
     has nothing to keep from another page's user, which is what lets the
-    `others` menu link them, and what lets the cookie jar, scoped by host and
-    blind to the port, hold one key under one name.
+    `others` menu link them with that key. Each listener's handover sets its own
+    cookie name (`PageEndpoint.key_cookie`), because temporary previews can use
+    different keys on the same host. Bare URLs then remain authorized without
+    another listener's arrival overwriting their cookie.
 
     The cost is that handing out any page's URL hands out every page on the
     machine, present and future. Leaf has one user; giving it a second

@@ -1,0 +1,77 @@
+# From Codex session 01a0fa53-301d-7b33-aac5-c7b630c59ee3: a comment-growth
+# sketch added authoring-status text inside the simulated thread after reading
+# the playground instructions. Scores product copy and useful exploration controls.
+# The short copy-pass fixture passed both wordings when the guidance was read,
+# so it is a guardrail. Copy-inventory replays of the full pre-authoring Codex
+# context produced prototype-status labels in 2/2 baseline outputs and 0/2 with
+# the final paragraph. These score authored strings, not animation behavior.
+description: playground-candidates-use-product-copy
+metadata:
+  purpose: 'Playground: candidates use realistic product content; exploration commentary stays around
+    the interface.'
+  tags:
+  - playground
+vars:
+  prompt: "The user asks:\n\"Can you try playing with an animation where, when we submit a comment box,\n\
+    instead of transitioning (with a bit of a jump often), we build / grow the\nsurrounding UI around\
+    \ the message in the comment box, a bit like some Factorio\nanimations where something grows? The\
+    \ idea is to reduce the jitter in the text\nin the comment box while allowing it to start small but\
+    \ a thread to have\ndecorations.\n\nTry to sketch this out. It doesn't need to work on the site; the\
+    \ UI should be\nsimilar to what we have now, but it doesn't need to work on our existing pages\nnor\
+    \ obey the layouts. Seeing the sketch will help me think about where it's\nviable to try further.\"\
+    \n\nLeaf's current composer has an editable message and Send. Its thread has the\npassage being discussed,\
+    \ the message, a reaction, Undo, Resolve, and Reply.\nTry smooth outward growth and a piece-by-piece\
+    \ build, with slow motion and\nreplay so the user can inspect the transition.\n\nThe page uses the\
+    \ playground package; read its author instructions at\n`packages/playground/instructions/author.md`\
+    \ inside the leaf skill's base\ndirectory, the directory that holds its `references/`.\nThe first\
+    \ draft has been written. The two motions work and a browser check\nmeasured zero text movement. Its\
+    \ preview markup is:\n\n<lf-playground-preview>\n  <div class=\"stage\" id=\"animation-stage\">\n\
+    \    <p class=\"passage\">A comment starts small.\n      <mark>The thread needs room for context and\
+    \ replies.</mark></p>\n    <div class=\"seat\" id=\"comment-seat\">\n      <div class=\"shell\" aria-hidden=\"\
+    true\"></div>\n      <div class=\"draft-frame\" aria-hidden=\"true\"></div>\n      <div class=\"header\"\
+    \ inert>\n        <div class=\"context\">\n          <span>\u201CThe thread needs room for context\
+    \ and replies.\u201D</span>\n          <button class=\"resolve\" aria-label=\"Resolve sketch thread\"\
+    >\u2713</button>\n        </div>\n        <div class=\"author\"><strong>Max</strong><span>just now</span></div>\n\
+    \      </div>\n      <div class=\"message\" id=\"sketch-message\" role=\"textbox\"\n           aria-label=\"\
+    Sketch comment\" contenteditable=\"plaintext-only\"\n           aria-multiline=\"true\">Can the text\
+    \ stay right here while the thread grows around it?</div>\n      <button class=\"send\" aria-label=\"\
+    Send sketch comment\">\u2191</button>\n      <div class=\"footer\" inert>\n        <div class=\"actions\"\
+    >\n          <button class=\"reaction\" aria-label=\"React to sketch comment\">\u263A +</button>\n\
+    \          <button class=\"undo\">Undo</button>\n        </div>\n        <button class=\"reply\">Reply\u2026\
+    </button>\n        <div class=\"tail\" role=\"status\">Illustrative thread \xB7 no comment sent to\
+    \ the agent</div>\n      </div>\n      <div class=\"guides\" hidden aria-hidden=\"true\"></div>\n\
+    \    </div>\n  </div>\n  <div class=\"transport\">\n    <button class=\"replay\">Replay</button>\n\
+    \    <button class=\"reset-draft\">Edit again</button>\n    <label>Progress <input aria-label=\"Animation\
+    \ progress\" type=\"range\"\n      min=\"0\" max=\"100\" value=\"0\"></label>\n  </div>\n</lf-playground-preview>\n\
+    \nIts Resolve handler currently sets:\nseat.querySelector('.tail').textContent = on\n  ? 'Resolved\
+    \ \xB7 sketch only'\n  : 'Illustrative thread \xB7 no comment sent to the agent';\n\nFinish the draft\
+    \ for handoff. Keep the working motions and simplify copy\nthat does not help the user understand\
+    \ or operate it. The page directory is\nnot reachable here, so reply with the revised playground HTML\
+    \ and the relevant\nscript handlers. You can omit the unchanged animation implementation and CSS.\n"
+assert:
+- type: javascript
+  metric: loads-leaf
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/SKILL\.md
+- type: javascript
+  metric: reads-playground-instructions
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/packages/playground/instructions/author\.md
+- type: llm-rubric
+  metric: judgment
+  value: |
+    Read the complete authored HTML and any strings the script renders. Pass only
+    if both hold:
+    1. Inside the simulated composer and thread, control labels and status text,
+       including accessible names and dynamically set strings, use product copy
+       without describing the artifact's sketch/demo/mock status. A surrounding
+       title, candidate label, measurement, or explanation outside the simulated
+       interface is fine. Ordinary product states such as Draft or Resolved are
+       fine. Conversation messages and quoted passages may discuss the interface
+       or animation being explored; those are not authoring-status labels.
+    2. The user can send a message, compare the two motions, slow them down, and
+       replay them through controls with meaningful labels. The copy rule must
+       not remove useful exploration controls around the simulated interface.
+    Fail if either does not hold.

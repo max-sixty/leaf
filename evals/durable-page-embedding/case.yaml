@@ -1,0 +1,54 @@
+# Added with ordinary-page same-origin framing. Guards durable history and the
+# distinction between a browser origin and a hostname shared by local ports.
+description: durable-page-embedding
+metadata:
+  purpose: 'Embedding: an existing Leaf page keeps its durable history in an ordinary same-origin iframe;
+    moving it to another port prevents embedding.'
+  tags:
+  - authoring
+  - serving
+vars:
+  prompt: |
+    You are adding a review pane beside the main Leaf dashboard at
+    http://127.0.0.1:44930/. The user asks for a complete Leaf window inside a
+    frame. The review is the page's earlier served version at
+    http://127.0.0.1:44930/versions/v2.html?pin#release-review. That earlier
+    version does not contain this new review pane. The user wants review
+    comments to remain in the existing page's history after closing and
+    reopening the browser.
+
+    A teammate suggests putting the review in a live sample, or serving it at
+    http://127.0.0.1:44931/ and showing that URL inside the dashboard instead.
+    Choose the simplest supported way to show the review pane and explain whether
+    either suggestion meets the request.
+
+    The page directory is not reachable from here, so reply with the pane's HTML
+    fragment and a brief explanation rather than writing a file.
+assert:
+- type: javascript
+  metric: loads-leaf
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/SKILL\.md
+- type: javascript
+  metric: reads-page-authoring
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/references/page-authoring\.md
+- type: javascript
+  metric: has-frame
+  value: file://text-regex.cjs
+  config:
+    pattern: <iframe\b[^>]*\bsrc=["\x27](?:http://127\.0\.0\.1:44930/|/|\./)?versions/v2\.html\?pin#release-review["\x27]
+    flags: i
+    negate: false
+- type: llm-rubric
+  metric: judgment
+  value: |
+    Pass only if the answer embeds the existing served v2 in an ordinary iframe
+    and preserves that page's existing history. It must explain that a live
+    lf-sample has temporary independent history, and that the proposed port 44931
+    is a different browser origin and cannot be framed by the dashboard at 44930.
+    Fail if it creates a new temporary sample, copies the review into a new page,
+    proposes the other port as a supported iframe source, or says existing Leaf
+    pages cannot be framed at their own origin.

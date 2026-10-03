@@ -1,0 +1,55 @@
+# Complete task; diagnostic contexts retain the original fixed checks.
+description: Document
+metadata:
+  purpose: Compose and revise a document; inspect its rendered output against the
+    request and, on Leaf, read and preserve a user choice on that page.
+  tags:
+  - workflow
+  conditions:
+  - leaf
+  - html
+  executor: leaf_dev.arrangement_eval
+  case: document
+variants:
+  resume:
+    metadata:
+      executor: leaf_dev.usability_eval
+      case: resume
+      purpose: Resume a document with standing decisions.
+      conditions:
+      - leaf
+  decision:
+    metadata:
+      executor: leaf_dev.usability_eval
+      case: cold-decision
+      purpose: Offer one evidence-backed decision.
+      conditions:
+      - leaf
+  handoff:
+    metadata:
+      executor: leaf_dev.usability_eval
+      case: handoff
+      purpose: Hand off and answer successive user rounds.
+      conditions:
+      - leaf
+  elided:
+    metadata:
+      executor: leaf_dev.usability_eval
+      case: elided
+      purpose: Recover the premise of an elided thread.
+      conditions:
+      - leaf
+  idle:
+    metadata:
+      executor: leaf_dev.delivery_eval
+      case: idle
+      purpose: Answer feedback arriving between turns.
+      conditions:
+      - leaf
+  mid-turn:
+    metadata:
+      executor: leaf_dev.delivery_eval
+      case: mid-turn
+      purpose: Answer feedback arriving during work.
+      conditions:
+      - leaf

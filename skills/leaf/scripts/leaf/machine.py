@@ -18,7 +18,7 @@ psutil does not own `pid_alive`, whose comment records why."""
 import os
 from pathlib import Path
 
-from .session_cleanup import state_home_path
+from .state import state_home_path
 
 
 def pid_alive(pid: int) -> bool:

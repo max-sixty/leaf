@@ -3,17 +3,15 @@
 The public gallery shows a real first viewport for each example, but the site build
 deliberately needs no browser. These JPEGs live under `examples/` in
 max-sixty/leaf-assets (`leaf_dev.leaf_assets`). This command captures them through the
-website's Leaf server with an isolated state home, publishes the asset commit, updates
-Leaf's exact pin and catalog links, then rebuilds the site from the pinned bytes. Host
-pages are not part of the captured scene.
+website's Leaf server with an isolated state home, validates the draft's catalog and
+assets together, then publishes the asset commit and updates Leaf's exact pin and
+catalog links. Host pages are not part of the captured scene.
 
     uv run leaf-dev refresh-previews    (or `wt refresh-previews`)
 """
 
-import hashlib
 import io
 import os
-import re
 import shutil
 import tempfile
 import threading
@@ -28,12 +26,10 @@ from leaf.render_checks import wait_until_ready
 from PIL import Image
 from playwright.sync_api import Page, sync_playwright
 
-from leaf_dev import ROOT
 from leaf_dev import site as site_build
 from leaf_dev.example_data import catalog_sources
-from leaf_dev.leaf_assets import pinned_assets, publish, stage
+from leaf_dev.leaf_assets import catalog_updates, pinned_assets, publish, stage
 
-DOCS = ROOT / "docs"
 VIEWPORT = {"width": 1120, "height": 700}
 # docs/index.html and docs/examples.html reserve this 8:5 box before a preview loads.
 OUTPUT_SIZE = (896, 560)
@@ -53,7 +49,6 @@ def serve_examples(site: Path) -> Iterator[str]:
     with tempfile.TemporaryDirectory(prefix="leaf-preview-state-") as state_home:
         os.environ["XDG_STATE_HOME"] = state_home
         try:
-            leaf_website.page_binding.cache_clear()
             server = LeafHTTPServer(("127.0.0.1", 0), leaf_website.site_endpoint(site))
             thread = threading.Thread(target=server.serve_forever, daemon=True)
             thread.start()
@@ -97,32 +92,6 @@ def require_capture_fonts(page: Page) -> None:
             "catalog previews require the macOS Charter and San Francisco fonts; "
             f"rendered fonts were {missing}"
         )
-
-
-def update_catalog(previews: set[Path]) -> None:
-    """Point every linked example image at the content address of its new still."""
-    pages = {
-        path: path.read_text(encoding="utf-8") for path in sorted(DOCS.glob("*.html"))
-    }
-    updated = dict.fromkeys(previews, 0)
-    for preview in sorted(previews):
-        stem = preview.stem.removeprefix("example-")
-        address = hashlib.sha256(preview.read_bytes()).hexdigest()[:16]
-        pattern = re.compile(
-            rf'(<a\b[^>]*\bhref="/examples/{re.escape(stem)}/"[^>]*>'
-            rf'(?:(?!</a>).)*?<img\b[^>]*\bsrc=")'
-            rf'/media/[0-9a-f]{{16}}\.jpg(")',
-            re.DOTALL,
-        )
-        for page, markup in pages.items():
-            pages[page], count = pattern.subn(
-                rf"\g<1>/media/{address}.jpg\g<2>", markup
-            )
-            updated[preview] += count
-        if updated[preview] == 0:
-            raise RuntimeError(f"{stem}: expected one catalog preview")
-    for page, markup in pages.items():
-        page.write_text(markup, encoding="utf-8")
 
 
 def bootstrap_assets(target: Path) -> Path:
@@ -181,8 +150,9 @@ def refresh_previews() -> None:
 
     with tempfile.TemporaryDirectory(prefix="leaf-assets-") as raw:
         checkout = stage("examples", captures, Path(raw))
-        update_catalog(set((checkout / "examples").glob("example-*.jpg")))
-        site_build.build(site_build.OUT, assets=checkout)
+        site_build.build(
+            site_build.OUT, assets=checkout, source_markup=catalog_updates(checkout)
+        )
         revision = publish(checkout, "Refresh generated example previews")
         click.echo(f"  max-sixty/leaf-assets@{revision}")
     click.echo(f"✓ {len(catalog_sources())} previews")

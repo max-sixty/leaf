@@ -1,0 +1,75 @@
+# From Codex chat 01a0fb4e-e32b-7eb2-9099-0fd0b49ecc8f: a thread-panel
+# playground copied demonstration history into the review page and duplicated
+# fixture anchors there. Measures independent authored sample histories against
+# that tempting parent-log import; static sketch cases remain guardrails.
+# With successful reference reads, baseline passed 0/3 and candidate 3/3; both
+# static sketch guardrails passed before and after. An earlier path-confused run
+# could not read the package guidance in either arm and measured nothing.
+# View selection was added from Codex chat 01a0fb64-3cdf-75c3-8166-64cc3b60273a:
+# outer case controls automated private thread chrome. Native Promptfoo runs on
+# Claude Code and Codex each passed 0/1 on c9b8dd33c and 1/1 on the candidate.
+# All four runs successfully read the references and preserved fixture isolation;
+# the view-selection assertion alone separated them. The earlier CC-only run hit
+# the old harness's turn limit on both baseline samples and measured no baseline.
+description: playground-isolates-fixture-history
+metadata:
+  purpose: 'Playground: live Leaf candidates own fictional history and practice interactions; the outer
+    page owns feedback.'
+  tags:
+  - playground
+vars:
+  prompt: |
+    We are studying two thread-panel treatments in Leaf. The user says:
+    "Put both in a playground in Codex so I can try replies and resolve a thread.
+    Start both with the same workshop conversation: I asked whether Sunday keeps
+    the hourly service, and the agent confirmed that it does. Let me switch each
+    conversation between its page card and the Threads panel using outer controls.
+    I want Reset to bring that exchange back. Comments about which design to build should reach our chat."
+
+    An earlier study used `data-sample-threads` and a companion JSONL copied from
+    the thread gallery. The review page has no log yet. We need one HTML source
+    which the repository's preview command can build by itself.
+
+    The page was initialized with the `playground` package, whose author
+    instructions `page init` copied into the page; the same file is
+    `packages/playground/instructions/author.md` inside the leaf skill's base
+    directory, the directory that holds its `references/`. Read that file and
+    `references/page-authoring.md` from that same skill directory.
+    Write the playground HTML with real operable Leaf candidates, including their
+    initial exchange. The page directory is not reachable, so reply with the HTML.
+assert:
+- type: javascript
+  metric: loads-leaf
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/SKILL\.md
+- type: javascript
+  metric: reads-playground-instructions
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/packages/playground/instructions/author\.md
+- type: javascript
+  metric: reads-live-samples
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/references/page-authoring\.md
+- type: llm-rubric
+  metric: authored-isolation
+  value: |
+    Pass only if the HTML uses two lf-sample window elements with data-sample
+    templates inside an lf-playground-preview, and each template names the same
+    inline application/json script through data-sample-events. The script holds
+    a comment command and a reply command linked to it by explicit id and parent,
+    with kind and text fields, and the comment's anchor names content inside each
+    child template. Comparison controls and the implementation Ask stay outside
+    the child templates. Fail if it relies on data-sample-threads, a companion
+    JSONL or posting fixture events from JavaScript, or duplicates fixture anchor
+    paragraphs outside the templates to attach fictional parent threads.
+- type: llm-rubric
+  metric: selects-live-conversation-view
+  value: |
+    Pass only if outer controls call the lf-sample element's showThread method
+    with a fixture root id and select page versus panel with its surface option,
+    and lf-sample-ready reapplies the chosen view after Reset. Fail if controls
+    query private thread chrome, click its buttons, observe its DOM to finish
+    selecting a view, or import a child window's runtime themselves.

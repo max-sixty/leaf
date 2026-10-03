@@ -3,7 +3,7 @@
    A behavior module builds injected controls with `offer`, and uses `relabel` when a
    control's label is also one of the page's words. It reserves a control's room from
    inside `measure`: a widget upgrades wherever the runtime connects it, and a shut
-   panel is `display: none`, where every word measures zero and the floor the press
+   panel is `display: none`, where every word measures zero and the reservation the press
    needs is nothing at all. It calls `layoutChanged(el)` after view state rearranges
    descendants without resizing its outer box — `ResizeObserver` already covers size
    changes, and geometry consumers listen to this signal instead of watching every DOM
@@ -36,7 +36,7 @@
    caller names that apparatus, which is the container's to press. The answer otherwise
    fails closed: declining one ambiguous container gesture is safer than recording a
    choice while the user operates nested evidence. */
-import { TEXT_BOX } from "./focus.js";
+import { WORKS } from "./control-selectors.js";
 import { sizeObserver } from "./rendering.js";
 import { tagsDeclaring } from "./registry.js";
 import { paintKeys } from "./keyboard/scopes.js";
@@ -217,66 +217,6 @@ export function quoted(el) {
   const exhibits = tagsDeclaring((entry) => entry["x-exhibit"]);
   return exhibits.length > 0 && el.closest(exhibits.join(",")) !== null;
 }
-
-// What a page's own markup works: a link to follow, a control to set, a disclosure to
-// open, a player to start. Browser-native interactive content, the ARIA widget roles,
-// and the platform's explicit focus/edit/drag markers are one boundary shared by every
-// gesture owner. `summary` stands for `details`, because only the summary is the press and
-// the body under it is prose the user may point at like any other. Nothing embedded
-// (`iframe`, `embed`, `object`): a click inside one never crosses into this document, so
-// listing them would guard a gesture no listener out here can see.
-// Two kinds, read apart where the question is whether a picture is a control's
-// rendering. A press is one control whose whole box is the gesture: what it holds, an
-// icon or a thumbnail, is how the control looks. A region is somewhere a gesture can
-// land that holds content of its own: a tab stop focus rests on, a composite widget
-// whose items are the presses, an editing surface, a drag source.
-const PRESS_SELECTORS = [
-  "a",
-  "audio[controls]",
-  "button",
-  "img[usemap]",
-  "input:not([type='hidden'])",
-  "label",
-  "select",
-  "summary",
-  TEXT_BOX,
-  "video[controls]",
-  "[role='button']",
-  "[role='checkbox']",
-  "[role='combobox']",
-  "[role='link']",
-  "[role='menuitem']",
-  "[role='menuitemcheckbox']",
-  "[role='menuitemradio']",
-  "[role='option']",
-  "[role='radio']",
-  "[role='scrollbar']",
-  "[role='searchbox']",
-  "[role='separator'][tabindex]",
-  "[role='slider']",
-  "[role='spinbutton']",
-  "[role='switch']",
-  "[role='tab']",
-  "[role='textbox']",
-  "[role='treeitem']",
-];
-const REGION_SELECTORS = [
-  "[tabindex]:not([tabindex='-1'])",
-  "[contenteditable]:not([contenteditable='false'])",
-  "[draggable='true']",
-  "[role='application']",
-  "[role='grid']",
-  "[role='gridcell']",
-  "[role='listbox']",
-  "[role='menu']",
-  "[role='menubar']",
-  "[role='radiogroup']",
-  "[role='tablist']",
-  "[role='tree']",
-  "[role='treegrid']",
-];
-export const PRESSES = PRESS_SELECTORS.join(",");
-export const WORKS = [...PRESS_SELECTORS, ...REGION_SELECTORS].join(",");
 
 // A container that takes a gesture on its whole box has to tell one aimed at itself from
 // one aimed at what it holds. This is the second: the nearest thing between `node` and
@@ -482,45 +422,23 @@ export function relabel(node, label, { says } = {}) {
   node.toggleAttribute("data-lf-echo", says === "echo");
 }
 
-// Room for a word not yet said, taken from the words themselves. A control that will
-// rewrite its own label ("Approve version" to "✓ Version approved", a count gaining a digit) must
-// hold the widest word's room from the start, or the press rewrites the one line a
-// press may not move. Stating that room as a number is a measurement that stops
-// being true silently when the words or the font change, so the control measures the
-// words instead — in its own box and its own computed face, at load — and floors
-// itself there. The two sweeps (a press, and the poll) stay the check that the words
-// listed here are the words the writers actually write.
+// A changing label reserves its widest words in its actual computed face. The shared
+// button rule reads --lf-reserved-width as a preferred size; the containing layout may
+// stretch it to a menu row or shrink it to available room. CSS owns the minimum hit
+// target, and the label's owner owns truncation. The press and poll sweeps check that
+// the labels supplied here are the labels the writers actually use.
 //
-// Measured beside itself: a shallow copy of the control, wearing its classes and
-// attributes, stands next to it for the measurement and leaves in the same task, so the
-// control the user may be holding is never rewritten and keeps its focus, and no frame
-// paints the copy. The copy stands out of flow — absolute, hidden — so a control whose
-// news hasn't arrived yet (display: none) measures all the same and its neighbours
-// don't feel the measurement. Sized by its words alone while it stands
-// there, its own width cleared along with its place: a stated width can mean "and grow
-// past this" in flow — a table cell laid out at `width: 0` takes what its content
-// needs — where out of flow it is simply obeyed, and the widest word then measures as
-// whatever padding the control has.
-//
-// The floor holds the words and the face they were measured in, the control's padding
-// and border among it, and a face can change without the words doing so: the banner's
-// primary controls take a narrower inset in the phone band than on a desk, and a floor
-// measured on one side of that line held the other side's room. So each reservation
-// keeps its words and the face it was taken in, and when the window's size changes a
-// control whose face has changed since measures its words again.
-//
-// What it cannot stand out of is an ancestor that isn't drawn: display: none upward is
-// nobody's box, and every word measures zero there. A floor of zero is not a missing
-// measurement to look at; it is the control holding no room at all. So the floor is
-// taken inside `measure`, which takes it now where the control has a box and otherwise
-// the first time it has one. Any control may be undrawn when it reserves: a widget
-// upgrades wherever the runtime connects it, and a shut panel, or a tab set's later
-// panels before it upgrades, is display: none.
+// A hidden, absolute shallow copy measures intrinsic words beside the control, with
+// its imposed width cleared. It leaves in the same task, so no frame paints it and
+// neither the control's focus nor its neighbours move. Reservation waits through
+// `measure` until the control's ancestors draw a box; a shut panel measures nothing.
+// It retains its labels and measured face so a viewport change that alters typography
+// or padding, such as the banner's narrower phone inset, remeasures the reservation.
 export function reserve(control, labels) {
-  measure(control, () => floor(control, labels));
+  measure(control, () => sizeReservation(control, labels));
 }
 
-function floor(control, labels) {
+function sizeReservation(control, labels) {
   const copy = control.cloneNode(false);
   copy.removeAttribute("id");
   Object.assign(copy.style, {
@@ -537,12 +455,12 @@ function floor(control, labels) {
     widest = Math.max(widest, copy.getBoundingClientRect().width);
   }
   copy.remove();
-  control.style.minWidth = Math.ceil(widest) + "px";
+  control.style.setProperty("--lf-reserved-width", Math.ceil(widest) + "px");
   forgetDetached();
   reservations.set(control, { labels, face: reservedFace(control) });
 }
 
-// What of a control's computed face a reserved floor was measured in.
+// What of a control's computed face a reservation was measured in.
 const reservedFace = (control) => {
   const style = getComputedStyle(control);
   return [

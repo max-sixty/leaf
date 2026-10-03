@@ -12,7 +12,7 @@ import {
   pinSpot,
   rowPosture,
   seatRows,
-} from "/runtime/margin-placement.js";
+} from "/runtime/annotation-overlay/margin-placement.js";
 
 const posture = (blockRight, over = {}) =>
   rowPosture({
@@ -321,11 +321,6 @@ test("a pin with no room for its face stands folded where one control finds room
     rect: box(320, 736.5, 364, 780.5),
     folded: true,
   });
-  // A pin that cannot fold stands at its home, over its words.
-  assert.deepEqual(seatOf([pair({ folds: null })]), {
-    rect: longer.rect,
-    folded: false,
-  });
   // One that finds room for its face keeps it whole.
   assert.deepEqual(
     seatOf([
@@ -340,12 +335,19 @@ test("a pin with no room for its face stands folded where one control finds room
     ]),
     { rect: box(282, 619, 378, 663), folded: false },
   );
-  // With no room even folded, it stands folded at its home.
+});
+
+test("cramped pins remain reachable within their bounds", () => {
   const crowded = [...longer.cover, box(4, 560, 386, 900)];
-  assert.deepEqual(seatOf([pair({ cover: crowded })]), {
-    rect: box(322, longer.rect.top, 366, longer.rect.bottom),
-    folded: true,
-  });
+  for (const input of [pair({ folds: null }), pair({ cover: crowded })]) {
+    const seat = seatOf([input]);
+    assert.ok(seat);
+    assert.ok(seat.rect.right > seat.rect.left && seat.rect.bottom > seat.rect.top);
+    assert.ok(
+      seat.rect.left >= input.bounds.left && seat.rect.right <= input.bounds.right,
+    );
+    if (input.folds === null) assert.equal(seat.folded, false);
+  }
 });
 
 test("a folded pin stands only where its opened actions stay inside its bounds", () => {

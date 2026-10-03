@@ -17,12 +17,13 @@ from tempfile import TemporaryDirectory
 from threading import Lock
 
 from .data import source_file
+from .page_memory import PageMemory, memory_of
 from .revision_artifact import RevisionArtifact
 from .revisioning import activate_source
+from .sample_content import initial_sample_events
 from .schema import DATA_DIR, DATA_FILE
-from .session_cleanup import now_iso, write_json
+from .state import now_iso, write_json
 from .structure import SourceDocument
-from .thread_context import sample_events
 
 
 @dataclass
@@ -32,6 +33,9 @@ class Sample:
     layer: dict
     passive: bool
     asset_root: str
+    # Held for the sample's life, so the sample keeps its readings however many
+    # sibling samples push it out of the process's recent pages (`page_memory`).
+    memory: PageMemory
     lock: Lock = field(default_factory=Lock)
     closed: bool = False
 
@@ -73,8 +77,14 @@ class Samples:
         )
         if template is None:
             raise ValueError(f"unknown sample template {template_id!r}")
-        selected = set(template["attrs"].get("data-sample-threads", "").split())
-        seeded = sample_events(document, events, selected)
+        seeded = initial_sample_events(
+            parent,
+            document,
+            events,
+            template,
+            artifact.registry,
+            {name: reading["contract"] for name, reading in data["sources"].items()},
+        )
         source = template["document"].data
         temporary = TemporaryDirectory(prefix="leaf-sample-")
         child = Path(temporary.name)
@@ -125,7 +135,12 @@ class Samples:
         identity = secrets.token_hex(16)
         with self.lock:
             self.pages[identity] = Sample(
-                temporary, parent, artifact.registry["$layer"], passive, asset_root
+                temporary,
+                parent,
+                artifact.registry["$layer"],
+                passive,
+                asset_root,
+                memory_of(child),
             )
         return identity
 

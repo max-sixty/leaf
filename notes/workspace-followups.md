@@ -28,10 +28,15 @@ Max's real tasks.
   revision on each result. Give comparable agents the same content and acceptance
   criteria, and counterbalance task order.
 
-  The [arrangement evaluation](arrangement-eval/README.md) measures Layout vocabulary
-  against page CSS. The [agent-usability baseline](agent-usability-evals.md#current-observations)
+  The [catalog](../evals/README.md) now compares document, dashboard and queue
+  authoring and width revision with actual plain HTML controls. The [agent-usability baseline](agent-usability-evals.md#current-observations)
   measures reading, revision and the live loop. Neither establishes the advantage of
   Leaf's complete authoring and feedback cycle over plain HTML.
+
+  The common quality judge reads the original request and screenshots. Leaf-only
+  choice reading and preservation run after the shared comparison. Extend the
+  comparison with equivalent comment/feedback cycles before claiming the whole
+  loop saves author effort; then use repeated paired results to choose improvements.
 
   Assess usable output independently and retain failures, time/tokens, custom CSS
   and repair iterations. Use those results to choose which instructions or primitive to

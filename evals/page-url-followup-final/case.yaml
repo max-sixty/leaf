@@ -1,0 +1,35 @@
+# Guardrail for the 2026-10-01 repeated-link repair. Both 78f9fc8cd and the
+# repair kept the exact URL in 2/2 runs, guarding the final handoff.
+description: page-url-followup-final
+metadata:
+  purpose: 'Handoff: a later turn''s final response keeps the exact existing page URL.'
+  tags:
+  - handoff
+vars:
+  prompt: |
+    You are a Codex desktop task. You previously handed over a Leaf playground at
+    http://127.0.0.1:42041/?t=abc#comment-growth, now open beside the chat.
+    The user asked you to fix selection on 'Plan room for the whole thread'.
+    You have completed the fix and verified drag and double-click selection,
+    switch clicks, and keyboard activation. All required checks passed.
+    The refreshed page is running at the same URL and its status is waiting.
+    Write this turn's final response. The user can select label text and use the
+    switch itself to toggle the setting.
+
+    Use the leaf skill for the page workflow. Read whatever instructions you need.
+    Only Skill and Read run here; write the requested chat message itself in your reply.
+assert:
+- type: javascript
+  metric: loads-leaf
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/SKILL\.md
+- type: regex
+  metric: page-url
+  value: http://127\.0\.0\.1:42041/\?t=abc#comment-growth
+- type: llm-rubric
+  metric: closing-message
+  value: |
+    Pass only if the reply closes the completed selection fix and tells the
+    user how to select the label text or operate the switch. It must not refuse
+    the task or replace the handoff with an explanation of the instructions.

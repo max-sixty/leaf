@@ -29,6 +29,13 @@ attribute sits in the runtime's `lf-` and `data-lf-` namespaces, named today or
 not, no id takes the shape of the event ids the log mints (`schema.EVENT_ID`), since
 a command's ID names a widget or a message in one address space, and ids needed by anchored unresolved threads, standing user actions, or
 effective standing reports survive from the previous revision. A
+quoted passage is compared using the same unique-context or unique-occurrence rule
+as browser resolution. The check lists every open thread whose authored quote no
+longer resolves, and activation records its fallback to its own surviving section.
+The page transaction holds validation, revision publication and those anchor
+transitions together. With no surviving section the check requires an explicit
+replacement reply or detachment; it never guesses a replacement or the loss of a
+thread's subject. A
 declared visual part survives on the same terms as an id: while a live
 thread's current anchor names it, and no longer once every thread on it
 has moved, detached, or closed. That release is final — a revision the part has
@@ -41,35 +48,59 @@ check that way; anything needing a browser belongs in the command's browser half
 The effective registry is validated where it differs from the active revision's
 captured copy, which was validated when that revision activated; vendored sheets are
 validated when `page init` composes them, not on each check.
+The publisher additionally preflights the admitted reply or stamp's complete
+prospective log, so every thread it reopens is covered, and reads candidate
+passages at the candidate revision's cutoff. Required transitions journal the
+exact staged bundle before its marker appears. Every transaction completes
+interrupted publication from that bundle before it exposes page readings.
+
 
 That half has one piece plain `page check` runs too. A page that runs code of its
-own, a module script or a page widget the document places, is served and run once at
-the render viewport through upgrade, presentation, and one frame after it, and fails on
-each `error` event its runtime posts in that time: the event `leaf wait` would deliver,
-intercepted rather than read off the browser's own error channels, so the check and the
-watcher fail on one set in one wording. A quick page never reaches `--render`, and no
-static reading says whether a module throws. `render_gate/page_code.py` owns the run.
+own, a module script or a page widget the document places, or places a data widget
+(`x-content: data`), is served and run once at the render viewport through upgrade,
+presentation, and one frame after it, and fails on each `error` event its runtime posts
+in that time: the event `leaf wait` would deliver, intercepted rather than read off the
+browser's own error channels, so the check and the watcher fail on one set in one
+wording. A widget that fails soft posts one too. A quick page never reaches `--render`,
+and no static reading says whether a module throws or whether a data body is one its
+module can read. Message markup that places a data or page widget is run the same way,
+as a page of its own, before the thread command that carries it takes the log: the log
+freezes it, and a chart in a shut thread has no room to draw in any later run. A run
+serves the page's log, so what earlier messages place runs in it too; the post-time run
+is what keeps those clean. Leaf runs without a browser, so where the host has none,
+every browser gate (these runs, `--render`, and `package check --render`) is skipped
+with a note and leaves the status alone: the page posts the same `error` events
+whenever a browser draws it, so a browserless host such as leaf.page's container loses
+the early reading, not the report.
+`render_gate/page_code.py` owns the run.
 
 An ordinary document's thread namespace is the thread ids its log holds,
 including a thread whose opening comment the log lost. A sample template's
-namespace is its `data-sample-threads` declaration, so a first version may name
-threads whose seed log has not been written yet. Static validation applies the same
-child-document checks using the selected history currently available. Sample
-allocation copies that same available history and no more, so a thread the log does
-not hold leaves the child without it rather than refusing the page. Corpus
-generation selects against the shipped log it is composing from, where a declared
-thread the log lacks is a mistake in the declaration, and refuses it.
+namespace comes from its initial history. `sample_content.initial_sample_events`
+constructs it once for both static validation and allocation. `data-sample-events`
+names an inline inert JSON script in the captured parent document: its ordinary event
+commands are admitted against the child, including file-side anchor capture and the
+shared message-markup gate. The resulting history defines the child's thread namespace
+before presentation and never writes the parent's log.
+
+Alternatively, `data-sample-threads` selects from the parent's available history.
+A first version may name threads whose seed log has not been written yet; a thread
+the log does not hold leaves the child without it rather than refusing the page.
+Corpus generation selects against the shipped log it is composing from, where a
+declared thread the log lacks is a mistake in the declaration, and refuses it.
+The two history declarations are mutually exclusive.
 
 ## Delivery policy
 
 A page carries no content policy of its own: its code is its author's, and may load,
-fetch, and compile what it likes. Every ordinary served HTML response adds one header,
-`frame-ancestors 'none'` (`structure.FRAME_ANCESTORS_CSP`), so no other site can frame
-a live page and take a click meant for one of its decisions. Historical version routes
-receive the same header. The published site's Worker adds the same header
-to the HTML it serves from its own assets, reading it from the site manifest. A standalone
-file has no response header and cannot make this framing guarantee. A sample child
-permits its same-origin parent with `frame-ancestors 'self'`. Every response carries
+fetch, and compile what it likes. Every served HTML response adds one header,
+`frame-ancestors 'self'` (`structure.FRAME_ANCESTORS_CSP`). Same-origin parents may
+embed a live page: they already share its DOM and request authority. A different
+origin cannot disguise its decisions under another interface, even when same-site
+cookies authorize the framed request. Historical versions and sample children
+receive the same header. The published site's Worker reads it from the site
+manifest for HTML served from its own assets. A standalone file has no response
+header and cannot make this framing guarantee. Every response carries
 `X-Content-Type-Options: nosniff`; typed data is available only through its JSON
 API, and media routes serve only admitted image types, so neither input surface
 can become a script module.
@@ -83,7 +114,8 @@ Playwright's `channel="chrome"`, else the first browser `PATH` answers with) and
 render invariants the static lint cannot reach run against it in both color schemes:
 no console or page errors, no issue Chrome's DevTools raises (an unsized lazy
 image, a blocked or mixed-content request, a deprecated API) outside a form control's
-shadow tree, one in an embedded frame placed at that frame, and no fail-soft box;
+shadow tree, one in an embedded frame placed at that frame (a widget failing soft
+is a console error, since the page reports it);
 every widget upgraded, painted with values that resolve, and given real space;
 words a user can mark, reach, and select, with the registry's verbatim and shadow
 declarations honored; no sideways scroll, clipped control, squeezed table, or
@@ -176,9 +208,10 @@ revision's capture resolves them (`RevisionArtifact.page_stylesheets`). A new qu
 than a pattern over the file's text, because a pattern answers something adjacent to
 the question asked.
 
-Immutable inputs are read once per process. A stored revision's document, captured
-vocabulary, and passage readings live on its one `RevisionReading`
-(`revision_artifact.read_revision`); a candidate's live on the one `SourceReading`
-its check takes, which the revision activation writes from it adopts. Each logged
-markup fragment is parsed once (`thread_context.logged_fragment`), while markup a
-writer hands in is parsed afresh at its gate.
+Immutable inputs are read once for as long as the process keeps the page's memory
+(`page_memory`). A stored revision's document, captured vocabulary, and passage
+readings live on its one `RevisionReading` (`revision_artifact.read_revision`); a
+candidate's live on the one `SourceReading` its check takes, which the revision
+activation writes from it adopts. Each logged markup fragment is parsed once
+(`thread_context.logged_fragment`), while markup a writer hands in is parsed afresh at
+its gate.

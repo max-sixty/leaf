@@ -9,7 +9,7 @@
  * preview's own well, and each rail pane is a panel as a wide page draws its regions
  * (theme.css, section.panel), so a candidate the page draws on the stage is the only
  * surface inside the well rather than a card in a well in a card. */
-lf-playground {
+:scope:is(lf-playground) {
   --lf-block-frame: 1;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -22,7 +22,7 @@ lf-playground {
 
 /* Built, the playground holds its grid of regions alone, which takes the height it is
  * given in a bounded workspace and its content's anywhere else. */
-lf-playground:has(> .lf-playground-split) {
+:scope:is(lf-playground):has(> .lf-playground-split) {
   grid-template-rows: minmax(0, 1fr);
 }
 
@@ -60,7 +60,7 @@ lf-playground:has(> .lf-playground-split) {
  * its body scrolls instead of running past the window. */
 @media screen {
   @container style(--lf-full-height: 1) {
-    lf-playground {
+    :scope:is(lf-playground) {
       min-block-size: 0;
       margin-block: 0;
     }
@@ -70,11 +70,11 @@ lf-playground:has(> .lf-playground-split) {
     }
 
     @container (min-width: 43.5rem) {
-      html:root .lf-playground-split {
+      .lf-playground-split{
         grid-template-rows: minmax(12rem, 1fr) auto;
       }
 
-      html:root .lf-playground-instruction-region {
+      .lf-playground-instruction-region{
         align-self: stretch;
       }
     }
@@ -86,29 +86,31 @@ lf-playground:has(> .lf-playground-split) {
  * or on the wide split's two thirds beside the rail, the whole held height. The rail's
  * controls, readings and actions are the module's to build, and its members stand in
  * the rail's column until then. A quoted playground builds no regions. */
-html[data-lf-interactive]
-  lf-playground:not(:where([data-lf-exhibit]) *):not(:has(> .lf-playground-split)) {
-  position: relative;
-  align-content: start;
+@scope (html[data-lf-interactive] :scope) {
+  :scope:is(lf-playground):not(:where([data-lf-exhibit]) *):not(:has(> .lf-playground-split)){
+    position: relative;
+    align-content: start;
 
-  & > lf-playground-preview {
-    order: -1;
+    & > lf-playground-preview {
+      order: -1;
+    }
   }
 }
 
 @container (min-width: 43.5rem) {
-  html[data-lf-interactive]
-    lf-playground:not(:where([data-lf-exhibit]) *):not(:has(> .lf-playground-split)) {
-    & > lf-playground-preview {
-      position: absolute;
-      inset-block: 0;
-      inset-inline-start: 0;
-      box-sizing: border-box;
-      inline-size: calc((100% - var(--sp-4)) * 2 / 3);
-    }
+  @scope (html[data-lf-interactive] :scope) {
+    :scope:is(lf-playground):not(:where([data-lf-exhibit]) *):not(:has(> .lf-playground-split)){
+      & > lf-playground-preview {
+        position: absolute;
+        inset-block: 0;
+        inset-inline-start: 0;
+        box-sizing: border-box;
+        inline-size: calc((100% - var(--sp-4)) * 2 / 3);
+      }
 
-    & > :is(lf-playground-control, lf-playground-preset, lf-playground-output) {
-      margin-inline-start: calc((100% - var(--sp-4)) * 2 / 3 + var(--sp-4));
+      & > :is(lf-playground-control, lf-playground-preset, lf-playground-output) {
+        margin-inline-start: calc((100% - var(--sp-4)) * 2 / 3 + var(--sp-4));
+      }
     }
   }
 }
@@ -120,7 +122,7 @@ html[data-lf-interactive]
   background: transparent;
 }
 
-lf-playground .lf-playground-preview-region > .lf-playground-preview-body {
+:scope:is(lf-playground) .lf-playground-preview-region > .lf-playground-preview-body {
   display: flex;
   flex-direction: column;
   --lf-pane-top: 0px;
@@ -140,23 +142,23 @@ lf-playground .lf-playground-preview-region > .lf-playground-preview-body {
   background: var(--card);
 }
 
-lf-playground
+:scope:is(lf-playground)
   :is(.lf-playground-controls-region, .lf-playground-instruction-region)
-  > header {
+> header {
   padding: 14px 18px 0;
   border: 0;
 }
 
-lf-playground
+:scope:is(lf-playground)
   :is(.lf-playground-controls-region, .lf-playground-instruction-region)
-  > :not(header, footer) {
+> :not(header, footer) {
   --lf-pane-top: 12px;
   padding: var(--lf-pane-top) 18px 16px;
 }
 
-lf-playground
+:scope:is(lf-playground)
   :is(.lf-playground-controls-region, .lf-playground-instruction-region)
-  > footer {
+> footer {
   padding: 12px 18px;
 }
 
@@ -187,7 +189,7 @@ lf-playground
   text-transform: uppercase;
 }
 
-lf-playground-control {
+:scope:is(lf-playground-control) {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
@@ -202,20 +204,20 @@ lf-playground-control {
   font-weight: 600;
 }
 
-lf-playground-control > :is(wa-slider, wa-input, wa-radio-group) {
+:scope:is(lf-playground-control) > :is(wa-slider, wa-input, wa-radio-group) {
   grid-column: 1 / -1;
   width: 100%;
 }
 
-lf-playground-control > wa-slider {
+:scope:is(lf-playground-control) > wa-slider {
   --track-size: 0.35rem;
   --thumb-width: 1rem;
   --thumb-height: 1rem;
 }
 
-lf-playground-control > wa-slider::part(label),
-lf-playground-control > wa-input::part(label),
-lf-playground-control > wa-radio-group::part(form-control-label) {
+:scope:is(lf-playground-control) > wa-slider::part(label),
+:scope:is(lf-playground-control) > wa-input::part(label),
+:scope:is(lf-playground-control) > wa-radio-group::part(form-control-label) {
   display: none;
 }
 
@@ -231,7 +233,7 @@ lf-playground-control > wa-radio-group::part(form-control-label) {
 /* The switch and the radio buttons below state their aim floor as padding: a flex or
    grid track squeezes a min-height down to itself, and a label that wraps would be
    drawn over the next control. */
-lf-playground-control > wa-switch::part(switch) {
+:scope:is(lf-playground-control) > wa-switch::part(switch) {
   width: 100%;
   padding-block: max(0px, (var(--aim-floor) - 1lh) / 2);
   flex-direction: row-reverse;
@@ -239,13 +241,16 @@ lf-playground-control > wa-switch::part(switch) {
   gap: var(--sp-2);
 }
 
-lf-playground-control > wa-switch::part(label) {
+:scope:is(lf-playground-control) > wa-switch::part(label) {
   margin: 0;
   line-height: 1.35;
+  cursor: text;
+  user-select: text;
+  -webkit-user-select: text;
 }
 
-lf-playground-control > wa-switch::part(control),
-lf-playground-control > wa-switch::part(thumb) {
+:scope:is(lf-playground-control) > wa-switch::part(control),
+:scope:is(lf-playground-control) > wa-switch::part(thumb) {
   transition: none;
 }
 
@@ -256,20 +261,20 @@ lf-playground-control > wa-switch::part(thumb) {
   font: var(--t-6)/1.3 var(--mono);
 }
 
-lf-playground-control > wa-radio-group::part(form-control-input) {
+:scope:is(lf-playground-control) > wa-radio-group::part(form-control-input) {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(6rem, 1fr));
   gap: var(--sp-1);
 }
 
-lf-playground-choice {
+:scope:is(lf-playground-choice) {
   display: contents;
 }
 
 /* 2rem, or the aim floor where a finger raises it past that, less the line and the 1px
    border. Web Awesome's own minimum for a button radio, its form-control height, goes
    with it, as the 2rem this states in its place always took it. */
-lf-playground-choice > wa-radio {
+:scope:is(lf-playground-choice) > wa-radio {
   min-height: auto;
   padding-block: max(0px, (max(var(--aim-floor), 2rem) - 1lh) / 2 - 1px);
   justify-content: center;
@@ -289,18 +294,18 @@ lf-playground-choice > wa-radio {
   font: 600 var(--t-6)/1.3 var(--sans);
 }
 
-lf-playground-preset {
+:scope:is(lf-playground-preset) {
   display: contents;
 }
 
-lf-playground-setting {
+:scope:is(lf-playground-setting) {
   display: none;
 }
 
 /* The stage: one well the preview's artifacts stand on. A stage the rail beside it holds
  * taller than the artifacts sets them in its middle rather than leaving its lower half
  * bare, and one they overflow starts them at its top. */
-lf-playground-preview {
+:scope:is(lf-playground-preview) {
   --lf-block-frame: 1;
   display: grid;
   align-content: safe center;
@@ -314,7 +319,7 @@ lf-playground-preview {
 
 /* The instruction is the task the agent receives, read at the size of the controls
  * that wrote it rather than as a caption under them. */
-lf-playground-output {
+:scope:is(lf-playground-output) {
   --lf-block-frame: 1;
   display: block;
   margin: 0;
@@ -322,7 +327,7 @@ lf-playground-output {
   font: var(--t-5)/1.55 var(--sans);
 }
 
-lf-playground-value {
+:scope:is(lf-playground-value) {
   display: inline;
   color: var(--ink);
   font-weight: 600;
@@ -368,17 +373,17 @@ lf-playground-value {
 }
 
 /* A quoted playground is its preview and instruction as authored. */
-lf-playground.lf-playground-quoted > lf-playground-control,
-lf-playground.lf-playground-quoted > lf-playground-preset {
+:scope:is(lf-playground).lf-playground-quoted > lf-playground-control,
+:scope:is(lf-playground).lf-playground-quoted > lf-playground-preset {
   display: none;
 }
 
 @container (max-width: 38rem) {
-  lf-playground-preview {
+  :scope:is(lf-playground-preview) {
     min-height: 14rem;
   }
 }
 
-lf-playground-control > wa-color-picker::part(form-control-label) {
+:scope:is(lf-playground-control) > wa-color-picker::part(form-control-label) {
   display: none;
 }

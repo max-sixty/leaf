@@ -1,6 +1,5 @@
 """The website route adapter preserves Leaf's canonical served-page contract."""
 
-import hashlib
 import itertools
 import json
 import os
@@ -33,23 +32,26 @@ from interact_support import (
     take_stream_activity,
     yaml_document,
 )
+from interact_support import (
+    append_carried_log_record as append_event,
+)
 from leaf import codex as leaf_codex
 from leaf.codex import AppServerRequestRejected, accept_codex_delivery, delivery_records
 from leaf.codex_state import delivery_lock_path
 from leaf.delivery import current_responses
-from leaf.event_log import append_event, read_events
+from leaf.event_log import read_events
 from leaf.files import revision_path
 from leaf.hosting import LeafHTTPServer
 from leaf.http import page_delivery
 from leaf.machine import pid_alive
-from leaf.revision_artifact import Resource
+from leaf.revision_artifact import capture_artifact
 from leaf.revision_delivery import compose_document
-from leaf.schema import ASSETS
 from leaf.served_state import page as served_page
-from leaf.service import delivery_reply_attempt, open_session_turn
-from leaf.session_cleanup import flocked
+from leaf.service import delivery_reply_attempt
+from leaf.state import flocked, open_session_turn, session_record, start_session_turn
+from leaf.structure import SourceDocument
 from leaf.thread import cmd_reply, cmd_resolve
-from leaf_dev import example_previews, verify_site
+from leaf_dev import example_previews, startup, verify_site
 from playwright.sync_api import expect
 from render_harness import LONG_PAGE, consume_browser_errors, open_page, told, write
 from websockets.exceptions import ConnectionClosedError
@@ -60,7 +62,8 @@ ROOT = Path(__file__).parent.parent
 def accept_in_turn(thread_id: str, turn: str = "app-server-turn") -> None:
     """Open the provider turn and accept the offered delivery into it, as
     `HostedTurn.begin` does."""
-    open_session_turn(thread_id, turn)
+    assert start_session_turn(thread_id, turn, session_record(thread_id))
+    assert open_session_turn(thread_id, turn)
     with flocked(delivery_lock_path(thread_id)):
         [(path, _)] = [
             (path, record)
@@ -150,6 +153,8 @@ def hosted_follower(
     turn App Server named for it, and the connection that named it. Opening the
     Leaf turn stays the follower's own first step.
     """
+    admitted = start_session_turn(thread_id, turn_id, session_record(thread_id))
+    assert admitted is not None
     return website_server.HostedTurn(
         host,
         page_dir,
@@ -167,6 +172,7 @@ def hosted_follower(
             if reply_target is None
             else reply_target
         ),
+        lifecycle=admitted,
     )
 
 
@@ -178,7 +184,13 @@ def unfollowed_turn(host, page_dir, *, following=None, event_ids=("first-event",
     and the default is a turn that ended without incident.
     """
     turn = website_server.HostedTurn(
-        host, page_dir, "hosted-thread", "delivery-1", event_ids, "provider-turn"
+        host,
+        page_dir,
+        "hosted-thread",
+        "delivery-1",
+        event_ids,
+        "provider-turn",
+        lifecycle=session_record("hosted-thread"),
     )
     turn.follow = following if following is not None else lambda: None
     return turn
@@ -189,9 +201,10 @@ class FakeCodexHost:
         self.attached = []
 
     def attach(self, page_dir: Path, event_id: str) -> str | None:
-        if not website_server.agent_event_pending(page_dir, event_id):
+        inputs = website_server.pending_agent_inputs(page_dir)
+        if event_id not in inputs:
             return None
-        thread_id = website_server.agent_event_thread(page_dir, event_id)
+        thread_id = inputs[event_id]
         if thread_id is not None:
             return thread_id
         self.attached.append(page_dir)
@@ -225,7 +238,9 @@ PAGE_SOURCE = """<!doctype html>
         ("/examples/decision", "example", "https://leaf.page/examples/decision/"),
     ),
 )
-def test_a_published_document_names_its_page_to_a_crawler(page_root, kind, url):
+def test_a_published_document_names_its_page_to_a_crawler(
+    page_dir, page_root, kind, url
+):
     """An unfurler reads absolute URLs, and reads them from inside the head.
 
     Leaf owns the canonical address; publication adds what needs the site's origin.
@@ -237,15 +252,11 @@ def test_a_published_document_names_its_page_to_a_crawler(page_root, kind, url):
         "image": "/media/card.png",
     }
     addition = website_server.site_metadata(page_root, page)
-    resources = {
-        path: Resource((ASSETS / path.lstrip("/")).read_bytes(), mime)
-        for path, mime in (
-            ("/runtime/bootstrap.js", "application/javascript"),
-            ("/runtime/prepaint.js", "application/javascript"),
-            ("/runtime/chrome.css", "text/css"),
-            ("/runtime/marks.css", "text/css"),
-        )
-    }
+    resources = capture_artifact(
+        page_dir,
+        SourceDocument(PAGE_SOURCE),
+        json.loads((page_dir / "registry.json").read_text()),
+    ).resources
     delivery = page_delivery(
         resources, server_id="server", layer_id="layer", page_root=page_root
     )
@@ -328,7 +339,6 @@ def test_the_website_host_delivers_into_the_existing_codex_thread(
         tmp_path / "app-server.log",
     )
     process = type("Process", (), {"pid": 41})()
-    monkeypatch.setattr(website_server, "agent_event_pending", lambda *_: True)
     monkeypatch.setattr(host, "_ensure_server", lambda: process)
     monkeypatch.setattr(
         website_server,
@@ -402,8 +412,8 @@ def test_the_website_host_delivers_into_the_existing_codex_thread(
     )
     monkeypatch.setattr(
         website_server,
-        "agent_event_thread",
-        lambda *_: "hosted-thread" if follows or started else None,
+        "pending_agent_inputs",
+        lambda *_: {"user-event": "hosted-thread" if follows or started else None},
     )
     interrupted = []
     monkeypatch.setattr(
@@ -551,7 +561,44 @@ def test_attach_accepts_its_named_event_after_an_older_reply_slice(
 
     assert host.attach(page_dir, second["id"]) == "hosted-thread"
     assert deliveries == [[first["id"]], [second["id"]]]
-    assert website_server.agent_event_thread(page_dir, second["id"]) == "hosted-thread"
+    assert (
+        website_server.pending_agent_inputs(page_dir)[second["id"]] == "hosted-thread"
+    )
+
+
+@pytest.mark.parametrize("existing_claim", [False, True], ids=["unclaimed", "claimed"])
+def test_attach_rechecks_a_move_answered_while_the_provider_starts(
+    page_dir, monkeypatch, existing_claim
+):
+    """Provider startup releases the page lock; an answer there needs no new turn."""
+    comment = append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "edit the page"},
+    )
+    host = website_server.WebsiteCodexHost("codex")
+    if existing_claim:
+        with website_server.PageTransaction(page_dir) as page:
+            page.take_claim(
+                website_server.website_harness("previous-thread", os.getpid())
+            )
+
+    def ensure_server():
+        website_server.write_failure_receipt(page_dir, comment["id"], "startup_failed")
+        return SimpleNamespace(pid=os.getpid())
+
+    monkeypatch.setattr(host, "_ensure_server", ensure_server)
+    monkeypatch.setattr(
+        host,
+        "_start_thread",
+        lambda *_: pytest.fail("the answered move started a turn"),
+    )
+    monkeypatch.setattr(
+        host,
+        "_resume_and_start",
+        lambda *_: pytest.fail("the answered move resumed a turn"),
+    )
+    assert host.attach(page_dir, comment["id"]) is None
+    assert website_server.pending_agent_inputs(page_dir) == {}
 
 
 def test_attach_leaves_an_uncertain_delivery_to_its_reconciliation_follower(
@@ -609,6 +656,42 @@ def test_a_turn_follower_releases_its_seat_before_continuing(page_dir, monkeypat
 
     assert rescans == [(page_dir, ("first-event",))]
     assert continued == [(page_dir, "next-event")]
+
+
+def test_continuation_reaches_the_next_move_when_the_named_one_settles(
+    page_dir, monkeypatch
+):
+    """A scan names a candidate, not a handoff; settlement there owes the next scan."""
+    first, second = [
+        append_event(page_dir, {"kind": "comment", "author": "user", "text": text})
+        for text in ("first", "second")
+    ]
+    host = website_server.WebsiteCodexHost("codex")
+    scan = website_server.next_unaccepted_agent_event
+
+    def settling_scan(target, *, excluding):
+        named = scan(target, excluding=excluding)
+        if named == first["id"]:
+            cmd_resolve(target, first["id"])
+        return named
+
+    starts = []
+
+    def start(target, process, event_id):
+        starts.append(event_id)
+        host.following_threads.add("hosted-thread")
+        return "hosted-thread"
+
+    monkeypatch.setattr(website_server, "next_unaccepted_agent_event", settling_scan)
+    monkeypatch.setattr(
+        host, "_ensure_server", lambda: SimpleNamespace(pid=os.getpid())
+    )
+    monkeypatch.setattr(host, "_start_thread", start)
+    host._continue_page(page_dir, ())
+
+    assert first["id"] not in website_server.pending_agent_inputs(page_dir)
+    assert second["id"] in website_server.pending_agent_inputs(page_dir)
+    assert starts == [second["id"]]
 
 
 @pytest.mark.parametrize(
@@ -938,11 +1021,12 @@ def test_the_local_adapter_owns_its_process_and_disposable_codex_home(
     host_home.mkdir()
     (host_home / "auth.json").write_text('{"test": "login"}')
     (root / "worker" / "codex-config.toml").write_text('model = "test"')
-    # The build is its own process, run from the checkout, writing `.tmp/site` there.
+    # Each invocation builds directly into its private site destination.
     build_site = tmp_path / "build_site.py"
     build_site.write_text(
+        "import sys\n"
         "from pathlib import Path\n"
-        "site = Path('.tmp/site/_leaf')\n"
+        "site = Path(sys.argv[sys.argv.index('--output') + 1]) / '_leaf'\n"
         "site.mkdir(parents=True)\n"
         "(site / 'site.json').write_text('{\"release\": \"' + 'a' * 40 + '\"}')\n"
         "print('built the site')\n"
@@ -950,39 +1034,38 @@ def test_the_local_adapter_owns_its_process_and_disposable_codex_home(
     serve_site = tmp_path / "serve_site.py"
     serve_site.write_text(
         "import json, os\n"
-        "from pathlib import Path\n"
         "from http.server import BaseHTTPRequestHandler, HTTPServer\n"
         "class Handler(BaseHTTPRequestHandler):\n"
         "    def do_GET(self):\n"
         "        self.send_response(200)\n"
         "        self.end_headers()\n"
-        "        self.wfile.write(json.dumps(dict(pid=os.getpid(), home=os.environ['CODEX_HOME'], site=os.environ['LEAF_SITE_ROOT'])).encode())\n"
+        "        self.wfile.write(json.dumps(dict(pid=os.getpid(), home=os.environ['CODEX_HOME'], site=os.environ['LEAF_SITE_ROOT'], endpoint=os.environ.get('LEAF_CODEX_APP_SERVER'))).encode())\n"
         "server = HTTPServer(('127.0.0.1', 0), Handler)\n"
-        "Path('port').write_text(str(server.server_port))\n"
+        "print(json.dumps(dict(event='container_http_ready', port=server.server_port)), flush=True)\n"
         "server.serve_forever()\n"
     )
     monkeypatch.setattr(verify_site, "ROOT", root)
     monkeypatch.setattr(verify_site, "BUILD_SITE", [sys.executable, str(build_site)])
     monkeypatch.setattr(verify_site, "SERVE_SITE", [sys.executable, str(serve_site)])
     monkeypatch.setenv("CODEX_HOME", str(host_home))
-    urlopen = urllib.request.urlopen
-
-    def local_health(url, **kwargs):
-        assert url == "http://127.0.0.1:8080/health"
-        try:
-            port = (root / "port").read_text()
-        except FileNotFoundError:
-            raise urllib.error.URLError("not listening yet") from None
-        return urlopen(f"http://127.0.0.1:{port}/health", **kwargs)
-
-    monkeypatch.setattr(verify_site.urllib.request, "urlopen", local_health)
+    monkeypatch.setenv("LEAF_CODEX_APP_SERVER", "unix:///another-session.sock")
     with (
         pytest.raises(RuntimeError, match="journey failed"),
         verify_site.local_adapter() as (origin, release),
+        verify_site.local_adapter() as (other_origin, other_release),
     ):
         assert release == "a" * 40
+        assert other_release == release
+        assert origin != other_origin
         body, _ = get(f"{origin}/health")
         running = json.loads(body)
+        other_body, _ = get(f"{other_origin}/health")
+        other = json.loads(other_body)
+        assert running["endpoint"] is None
+        assert other["endpoint"] is None
+        assert other["pid"] != running["pid"]
+        assert other["home"] != running["home"]
+        assert other["site"] != running["site"]
         private_home = Path(running["home"])
         private_site = Path(running["site"])
         assert private_home != host_home
@@ -996,6 +1079,12 @@ def test_the_local_adapter_owns_its_process_and_disposable_codex_home(
         raise RuntimeError("journey failed")
     assert not private_home.exists()
     assert not private_site.exists()
+    assert not Path(other["home"]).exists()
+    assert not Path(other["site"]).exists()
+    assert (
+        len(list((root / ".tmp" / "verify-site").glob("run-*/website-agent-local.log")))
+        == 2
+    )
     assert (host_home / "auth.json").read_text() == '{"test": "login"}'
     with pytest.raises(ProcessLookupError):
         os.kill(running["pid"], 0)
@@ -1054,10 +1143,10 @@ def test_the_agent_pass_emits_one_json_sample_for_local_and_remote_targets(
     @contextmanager
     def worker():
         lifecycle.append("worker")
-        yield "http://127.0.0.1:8787"
+        yield "http://127.0.0.1:8787", "b" * 40
 
     manifest = tmp_path / "site.json"
-    manifest.write_text(json.dumps({"release": "b" * 40}))
+    manifest.write_text(json.dumps({"release": "a later build"}))
     monkeypatch.setattr(verify_site, "MANIFEST", manifest)
     monkeypatch.setattr(verify_site, "local_worker", worker)
     wrangler_result = runner.invoke(verify_site.verify_site, ["wrangler", "--agent"])
@@ -1176,7 +1265,6 @@ def test_an_attach_waiting_on_failed_prewarm_retries_startup(page_dir, monkeypat
     fail_prewarm = threading.Event()
     calls = []
     process = type("Process", (), {"pid": 41})()
-    monkeypatch.setattr(website_server, "agent_event_pending", lambda *_: True)
 
     def ensure_server():
         calls.append(None)
@@ -1197,8 +1285,8 @@ def test_an_attach_waiting_on_failed_prewarm_retries_startup(page_dir, monkeypat
     )
     monkeypatch.setattr(
         website_server,
-        "agent_event_thread",
-        lambda *_: "hosted-thread" if delivered else None,
+        "pending_agent_inputs",
+        lambda *_: {"user-event": "hosted-thread" if delivered else None},
     )
 
     prewarm = host.prewarm()
@@ -1226,11 +1314,10 @@ def test_duplicate_attaches_share_one_delivery_start(page_dir, monkeypatch):
     accepted = []
     start_calls = []
 
-    monkeypatch.setattr(website_server, "agent_event_pending", lambda *_: True)
     monkeypatch.setattr(
         website_server,
-        "agent_event_thread",
-        lambda *_: accepted[0] if accepted else None,
+        "pending_agent_inputs",
+        lambda *_: {"user-event": accepted[0] if accepted else None},
     )
     monkeypatch.setattr(host, "_ensure_server", lambda: process)
     monkeypatch.setattr(website_server, "page_claim", lambda page: None)
@@ -1399,12 +1486,11 @@ from pathlib import Path
 
 import leaf_website as module
 
-module.PORT = 0
 module._agent_host = module.WebsiteCodexHost(
     {str(codex)!r}, Path({str(socket_dir / "app-server.sock")!r}),
     Path({str(tmp_path / "app-server.log")!r}),
 )
-module.main()
+module.main(["--port", "0"])
 """,
         ],
         env=os.environ | {"LEAF_SITE_ROOT": str(site)},
@@ -1968,6 +2054,9 @@ def test_a_host_failure_receipt_answers_a_gesture_on_its_thread(page_dir):
     # read carries a `seq` the freshly appended record does not.
     assert repeated is not None and repeated["id"] == reply["id"]
     assert repeated["parent"] == asked["id"]
+    assert (
+        website_server.WebsiteCodexHost("codex").attach(page_dir, chose["id"]) is None
+    )
     assert [
         event["id"] for event in read_events(page_dir) if event["kind"] == "reply"
     ] == [reply["id"]]
@@ -2158,7 +2247,7 @@ def test_notifications_before_start_response_reach_the_turn_follower(
     finished = []
     completed = threading.Event()
 
-    def finish(*args):
+    def finish(*args, expected):
         finished.append(args)
         completed.set()
 
@@ -2219,6 +2308,7 @@ def test_the_website_host_keeps_its_claim_listening_through_the_agent_turn(
             "hosted-thread",
             "app-server-turn",
             {"kind": "tool", "detail": "Editing index.html"},
+            expected=session_record("hosted-thread"),
         )
         working = website_server.full_state(page_dir, read_events(page_dir))
         assert working["activity"]["kind"] == "working"
@@ -2364,7 +2454,9 @@ def test_the_starting_connection_projects_codex_activity(page_dir, monkeypatch, 
 
     host = website_server.WebsiteCodexHost("codex")
     finished = []
-    monkeypatch.setattr(host, "_finish_turn", lambda *args: finished.append(args))
+    monkeypatch.setattr(
+        host, "_finish_turn", lambda *args, expected: finished.append(args)
+    )
     hosted_follower(host, page_dir, prepared, socket, turn_id="initial-turn").follow()
 
     assert updates == [
@@ -2629,6 +2721,7 @@ def test_a_native_final_message_never_becomes_a_leaf_reply(page_dir):
         page_dir,
         "hosted-thread",
         {"id": "app-server-turn", "status": "completed", "error": None},
+        expected=session_record("hosted-thread"),
     )
 
     events = read_events(page_dir)
@@ -2661,6 +2754,7 @@ def test_an_invalid_source_still_releases_a_finished_website_turn(page_dir):
             page_dir,
             "hosted-thread",
             {"id": "app-server-turn", "status": "completed", "error": None},
+            expected=session_record("hosted-thread"),
         )
 
     claim = website_server.page_claim(page_dir)
@@ -2768,10 +2862,12 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     turn.begin()
     cmd_resolve(page_dir, comment["id"])
     told(page)
-    # Let resolution finish filtering the card out; racing its fold can conceal a
-    # disclosure reset that would hide an answer arriving later in a real turn.
-    thread = page.locator(f'.lf-thread[data-id="{comment["id"]}"]')
-    expect(thread).to_be_hidden()
+    # The agent's resolution is news, so the card the user is looking at stays in
+    # Open Threads, drawn resolved, rather than folding out from in front of them.
+    thread = page.locator(f'.lf-threads > [data-id="{comment["id"]}"]')
+    expect(thread).to_have_count(1)
+    expect(thread).to_have_attribute("data-resolved", "true")
+    expect(thread).to_be_visible()
     if read_elsewhere:
         write(box, "A separate thread")
         box.press("ControlOrMeta+Enter")
@@ -2890,6 +2986,7 @@ def test_a_finished_website_turn_does_not_overwrite_an_agent_reply(page_dir):
         page_dir,
         "hosted-thread",
         {"id": "app-server-turn", "status": "completed", "error": None},
+        expected=session_record("hosted-thread"),
     )
 
     assert read_events(page_dir) == before
@@ -3008,6 +3105,7 @@ def test_an_old_website_completion_does_not_close_the_new_leaf_turn(page_dir):
         page_dir,
         "hosted-thread",
         {"id": "old-app-turn", "status": "failed", "error": None},
+        expected=session_record("hosted-thread"),
     )
 
     claim = website_server.page_claim(page_dir)
@@ -3198,6 +3296,27 @@ def test_website_samples_serve_private_pages_without_starting_an_agent(
         assert host.attached == []
 
 
+def test_attention_is_recorded_for_each_page_on_a_shared_server(page_dir, tmp_path):
+    """One visible page cannot throttle another page's canonical user recency."""
+    site = tmp_path / "site"
+    pages = {}
+    for name in ("first", "second"):
+        published = site / "examples" / name
+        published.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(page_dir, published)
+        pages[f"/examples/{name}"] = (f"examples/{name}", "example")
+    write_manifest(site, pages)
+    httpd = LeafHTTPServer(("127.0.0.1", 0), website_server.site_endpoint(site, None))
+    root = f"http://127.0.0.1:{httpd.server_address[1]}"
+    with running_http_server(httpd):
+        for name in ("first", "second"):
+            get(f"{root}/examples/{name}/api/news")
+            assert (
+                json.loads((site / "examples" / name / "viewed.json").read_text())["t"]
+                > 0
+            )
+
+
 def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeypatch):
     site = tmp_path / "site"
     published = site / "examples" / "decision"
@@ -3220,7 +3339,7 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
             f'data-lf-entry="/examples/decision/revisions/{artifact}/leaf.js"'.encode()
             in document
         )
-        assert headers["Content-Security-Policy"] == "frame-ancestors 'none'"
+        assert headers["Content-Security-Policy"] == "frame-ancestors 'self'"
         assert headers["Leaf-Session"] == "active"
 
         # A released document sends the public startup beacon, which the deployed site
@@ -3349,6 +3468,7 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
             "text": website_server.FAILURE_RECEIPTS["startup_failed"],
             "failure": "startup_failed",
             "attempt": f"website-agent-{comment['id']}",
+            "attention": False,
             "id": reply["id"],
             "ts": reply["ts"],
             "seq": reply["seq"],
@@ -3390,7 +3510,14 @@ def test_a_turn_that_never_answered_is_reported_before_the_threads_panel():
     collected, because that reading is the only account of why the turn stopped.
     """
     stalled = verify_site.TurnReading(
-        {"active": {"revision": 1}, "activity": {"kind": "answering"}}, None, [], None
+        {
+            "active": {"revision": 1},
+            "activity": {"kind": "answering"},
+            "source_error": None,
+        },
+        None,
+        [],
+        None,
     )
     with pytest.raises(RuntimeError) as stopped:
         verify_site.check_turn_answered(
@@ -3403,11 +3530,15 @@ def test_a_turn_that_never_answered_is_reported_before_the_threads_panel():
     assert str(stopped.value) == (
         "https://leaf.page/examples/triage-board/ agent did not publish "
         "‘Deployment 446b8fe9 verified’; it reached revision 1 from 1 "
-        "with the page reading answering and did not reply"
+        "with the page reading answering and did not reply; source validation: no error"
     )
 
     answered = verify_site.TurnReading(
-        {"active": {"revision": 2}, "activity": {"kind": "listening"}},
+        {
+            "active": {"revision": 2},
+            "activity": {"kind": "listening"},
+            "source_error": None,
+        },
         {"revision": 2},
         [{"text": "deployment verified"}],
         {"text": "deployment verified"},
@@ -3418,6 +3549,47 @@ def test_a_turn_that_never_answered_is_reported_before_the_threads_panel():
         answered,
         1,
         1,
+    )
+
+
+@pytest.mark.parametrize("invalid_source", [False, True])
+def test_a_missing_publication_reports_the_real_source_validation_reading(
+    page_dir, invalid_source
+):
+    """A success reply cannot hide a rejected source or an unchanged valid one."""
+    state_service = website_server.PageStateService(page_dir)
+    revision = state_service.page_state()["active"]["revision"]
+    comment = append_event(
+        page_dir, {"kind": "comment", "author": "user", "text": "Change the heading"}
+    )
+    reply = append_event(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "parent": comment["id"],
+            "text": "deployment verified",
+        },
+    )
+    if invalid_source:
+        (page_dir / "index.html").write_text(PAGE.replace("</section>", ""))
+    state = state_service.page_state()
+    assert state["active"]["revision"] == revision
+    assert (state["source_error"] is not None) == invalid_source
+
+    with pytest.raises(RuntimeError) as stopped:
+        verify_site.check_turn_answered(
+            "https://leaf.page/examples/triage-board/",
+            "Deployment 446b8fe9 verified",
+            verify_site.TurnReading(state, None, [reply], reply),
+            1,
+            revision,
+        )
+    assert str(stopped.value) == (
+        "https://leaf.page/examples/triage-board/ agent did not publish "
+        f"‘Deployment 446b8fe9 verified’; it reached revision {revision} from {revision} "
+        f"with the page reading {state['activity']['kind']}; it replied: deployment verified"
+        f"; source validation: {state['source_error'] or 'no error'}"
     )
 
 
@@ -3635,37 +3807,6 @@ def test_the_preview_generator_bootstraps_a_new_catalog_entry(tmp_path, monkeypa
     assert state["publication"]["kind"] == "example"
 
 
-def test_the_preview_generator_updates_every_linked_example_image(
-    tmp_path, monkeypatch
-):
-    docs = tmp_path / "docs"
-    docs.mkdir()
-    preview = tmp_path / "example-decision.jpg"
-    preview.write_bytes(b"new decision preview")
-    old = "/media/0123456789abcdef.jpg"
-    expected = hashlib.sha256(preview.read_bytes()).hexdigest()[:16]
-    (docs / "examples.html").write_text(
-        f'<a class="example-link" href="/examples/decision/">\n'
-        f'  <span><img src="{old}"></span>\n'
-        "</a>\n",
-        encoding="utf-8",
-    )
-    (docs / "index.html").write_text(
-        f'<a href="/examples/decision/"><img src="{old}" loading="lazy"></a>\n'
-        f'<img src="{old}" alt="unlinked">\n',
-        encoding="utf-8",
-    )
-    monkeypatch.setattr(example_previews, "DOCS", docs)
-
-    example_previews.update_catalog({preview})
-
-    replacement = f"/media/{expected}.jpg"
-    assert replacement in (docs / "examples.html").read_text()
-    home = (docs / "index.html").read_text()
-    assert replacement in home
-    assert f'<img src="{old}" alt="unlinked">' in home
-
-
 def test_a_failed_verifier_page_reports_its_browser_errors(browser):
     page = browser.new_page()
     failures = verify_site.observe_startup(page)
@@ -3696,7 +3837,7 @@ def test_a_failed_verifier_page_reports_its_browser_errors(browser):
 def test_local_verification_settles_host_network_only_for_release(monkeypatch, agent):
     @contextmanager
     def worker():
-        yield "http://127.0.0.1:8787"
+        yield "http://127.0.0.1:8787", "release"
 
     attempts = []
 
@@ -3804,6 +3945,7 @@ def test_the_deploy_gate_waits_on_the_page_rather_than_its_own_clock(page_dir):
         page_dir,
         "hosted-thread",
         {"id": "app-server-turn", "status": "completed", "error": None},
+        expected=session_record("hosted-thread"),
     )
 
     stopped = website_server.full_state(page_dir, read_events(page_dir))
@@ -3854,6 +3996,7 @@ def test_the_deploy_gate_reads_a_durable_host_failure(page_dir, failure):
     assert verify_site.startup_failed(replies) == (failure == "startup_failed")
     assert verify_site.deployment_answer(replies) is None
     assert not state["activity"]["obligations"]
+    assert host.attach(page_dir, comment["id"]) is None
 
 
 class _Read:
@@ -4056,6 +4199,7 @@ def test_startup_line_distinguishes_an_unobserved_state_request():
         "first_byte": 20,
         "document": 30,
         "paint": {"first-contentful-paint": 40},
+        "shifts": [],
         "upgraded": {"at": 50},
         "presented": {
             "at": 60,
@@ -4082,6 +4226,7 @@ def test_startup_line_distinguishes_an_unobserved_first_paint():
         "first_byte": 20,
         "document": 30,
         "paint": {},
+        "shifts": [],
         "upgraded": {"at": 50},
         "presented": {
             "at": 60,
@@ -4131,14 +4276,79 @@ def test_startup_resources_outlive_the_browser_timing_buffer(browser):
     httpd = ThreadingHTTPServer(("127.0.0.1", 0), Resources)
     with running_http_server(httpd):
         page = browser.new_page()
-        page.add_init_script(path=verify_site.VERIFIER_SCRIPT)
+        verify_site.observe_startup(page)
         page.goto(f"http://127.0.0.1:{httpd.server_address[1]}/")
-        reading = page.evaluate("window.__leafVerifier.startupReading")
+        reading = page.evaluate("window.__leafStartup.reading")
         for milestone in ("upgraded", "presented"):
             assert reading[milestone]["code_requests"] == count
             assert reading[milestone]["code_bytes"] == count * len(script)
-        names = page.evaluate("window.__leafVerifier.resourceNames")
+        names = page.evaluate("window.__leafStartup.resourceNames")
         assert sum("/resource-" in name for name in names) == count
+
+
+def test_startup_shifts_are_attributed_diagnostics_not_failures(browser):
+    """A painted startup move is recorded, while quiet and later frames add none."""
+    page = browser.unwatched.new_page()
+    failures = verify_site.observe_startup(page)
+    page.route(
+        "http://startup.test/",
+        lambda route: route.fulfill(
+            content_type="text/html",
+            body="<!doctype html><title>Startup shifts</title><body style='display:flow-root;margin:0'>"
+            "<p id='moving'>A passage painted before widgets upgrade.</p>"
+            "<p id='quiet' style='position:fixed;right:0;top:0'>A fixed control.</p>",
+        ),
+    )
+    page.goto("http://startup.test/")
+    page.wait_for_function(
+        "performance.getEntriesByType('paint').some(e => e.name === 'first-contentful-paint')"
+    )
+    page.evaluate("document.querySelector('#moving').style.marginTop = '80px'")
+    page.evaluate(
+        "() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r))))"
+    )
+    first = startup.startup_reading(page)
+    assert first["shifts"], first
+    assert {shift["phase"] for shift in first["shifts"]} == {"before-upgrade"}
+    page.evaluate("document.body.setAttribute('data-lf-upgraded', '')")
+    page.evaluate("document.querySelector('#moving').style.marginTop = '140px'")
+    page.evaluate(
+        "() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r))))"
+    )
+    upgraded = startup.startup_reading(page)
+    assert any(shift["phase"] == "before-presentation" for shift in upgraded["shifts"])
+    page.evaluate("document.body.setAttribute('data-lf-presented', '')")
+    reading = startup.startup_reading(page)
+    moved = [
+        (shift, source)
+        for shift in reading["shifts"]
+        for source in shift["sources"]
+        if source["node"] and "#moving" in source["node"]
+    ]
+    assert {shift["phase"] for shift, _ in moved} == {
+        "before-upgrade",
+        "before-presentation",
+    }, reading["shifts"]
+    assert all(shift["value"] > 0 for shift, _ in moved)
+    assert all(not shift["hadRecentInput"] for shift, _ in moved)
+    assert all(
+        source["currentRect"]["y"] > source["previousRect"]["y"] for _, source in moved
+    )
+    assert not any(
+        source["node"] and "#quiet" in source["node"]
+        for shift in reading["shifts"]
+        for source in shift["sources"]
+    )
+    page.evaluate("document.querySelector('#moving').style.marginTop = '220px'")
+    page.evaluate(
+        "() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))"
+    )
+    assert startup.startup_reading(page)["shifts"] == reading["shifts"]
+    assert "initial layout shifts (diagnostic)" in verify_site.startup_line(
+        "page", reading
+    )
+    assert "#moving" in verify_site.startup_line("page", reading)
+    assert failures == []
 
 
 @pytest.mark.parametrize(
@@ -4290,7 +4500,7 @@ class _DeployedPage:
             return 100.0
         if script == "window.__leafVerifier.visibleReplyAt":
             return 12_600.0
-        if script == "window.__leafVerifier.startupReading":
+        if script == "window.__leafStartup.reading":
             presented_at = (
                 self.presented_at
                 if len(self.presentation_waits) > 1
@@ -4300,6 +4510,7 @@ class _DeployedPage:
                 "first_byte": 100.0,
                 "document": 200.0,
                 "paint": {"first-contentful-paint": 250.0},
+                "shifts": [],
                 "upgraded": {"at": 300.0},
                 "presented": {
                     "at": presented_at,
@@ -4582,7 +4793,11 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
         "ask_until_answered",
         lambda *args, **kwargs: verify_site.AgentAsks(
             verify_site.TurnReading(
-                {"active": {"revision": 2}, "activity": {"kind": "away"}},
+                {
+                    "active": {"revision": 2},
+                    "activity": {"kind": "away"},
+                    "source_error": None,
+                },
                 published,
                 [{"kind": "reply", "text": "deployment verified"}],
                 {"kind": "reply", "text": "deployment verified"},
@@ -4614,7 +4829,7 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
     # The stamps the message needs to say which stall it was. Without them a page that
     # upgraded and stalled on its first state read reports the same "no startup
     # milestone" as one whose modules never arrived.
-    assert page.init_scripts == [verify_site.VERIFIER_SCRIPT]
+    assert page.init_scripts == [startup.SCRIPT, verify_site.VERIFIER_SCRIPT]
     # A green run reports startup and the post-presentation revision follow separately.
     reported = capsys.readouterr().err
     assert "followed it 2500 ms after presentation" in reported
@@ -4636,6 +4851,7 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
             "javascriptBytesAtPresentation": 150 * 1024,
             "codeRequestsAtPresentation": 20,
             "codeBytesAtPresentation": 330 * 1024,
+            "layoutShifts": [],
         },
         "comment": {
             "sessionReference": None,
@@ -4676,6 +4892,7 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
             "javascriptBytesAtPresentation": 150 * 1024,
             "codeRequestsAtPresentation": 20,
             "codeBytesAtPresentation": 330 * 1024,
+            "layoutShifts": [],
             "followedRevisionMs": 2500.0,
         },
     }
@@ -4717,7 +4934,11 @@ def test_a_reload_that_presented_offline_reports_the_banner_it_presented_under(
         "ask_until_answered",
         lambda *args, **kwargs: verify_site.AgentAsks(
             verify_site.TurnReading(
-                {"active": {"revision": 2}, "activity": {"kind": "away"}},
+                {
+                    "active": {"revision": 2},
+                    "activity": {"kind": "away"},
+                    "source_error": None,
+                },
                 published,
                 [{"kind": "reply", "text": "deployment verified"}],
                 {"kind": "reply", "text": "deployment verified"},
@@ -4766,3 +4987,80 @@ def test_a_reload_that_presented_offline_reports_the_banner_it_presented_under(
     assert "Claude is handling 1 update" in str(named.value)
     assert "Server offline" not in str(named.value)
     assert told.revision_waits == [(2, verify_site.TURN_PRESENTATION)]
+
+
+def test_hosted_completion_cannot_borrow_a_reused_session_generation(page_dir):
+    from leaf.state import end_session, prompt_turn
+
+    append_event(
+        page_dir, {"kind": "comment", "author": "user", "text": "An old request"}
+    )
+    prepared = website_server.prepare_codex_delivery(
+        page_dir, website_server.website_harness("hosted-thread", os.getpid())
+    )
+    host = website_server.WebsiteCodexHost("codex")
+    old = hosted_follower(host, page_dir, prepared, turn_id="same-turn")
+    end_session("hosted-thread")
+    prompt_turn("hosted-thread", "same-turn")
+    with website_server.PageTransaction(page_dir) as page:
+        page.take_claim(website_server.website_harness("hosted-thread", os.getpid()))
+        page.set_status("working", "New generation")
+    leaf_codex.set_stream_activity(
+        "hosted-thread",
+        "same-turn",
+        {"kind": "tool", "detail": "New activity"},
+        expected=session_record("hosted-thread"),
+    )
+    winner = session_record("hosted-thread")
+    status = website_server.PageTransaction(page_dir).status
+    old.close({"id": "same-turn", "status": "completed", "items": []}, None)
+    assert session_record("hosted-thread") == winner
+    assert website_server.PageTransaction(page_dir).status == status
+
+
+@pytest.mark.parametrize("replacement", ["generation", "prompt"])
+def test_hosted_start_retains_its_admitted_epoch_across_title_work(
+    page_dir, monkeypatch, replacement
+):
+    from leaf.state import end_session, prompt_turn
+
+    append_event(
+        page_dir, {"kind": "comment", "author": "user", "text": "An old request"}
+    )
+    host = website_server.WebsiteCodexHost("codex")
+    monkeypatch.setattr(host, "_send", lambda *args: {"turn": {"id": "started-turn"}})
+    winner = {}
+
+    def competing_title_work(*args):
+        if replacement == "generation":
+            end_session("hosted-thread")
+            prompt_turn("hosted-thread", "started-turn")
+        else:
+            prompt_turn("hosted-thread", "new-turn")
+        with website_server.PageTransaction(page_dir) as page:
+            page.take_claim(
+                website_server.website_harness("hosted-thread", os.getpid())
+            )
+            page.set_status("working", "New epoch")
+        current = session_record("hosted-thread")
+        leaf_codex.set_stream_activity(
+            "hosted-thread",
+            current["turn"],
+            {"kind": "tool", "detail": "New activity"},
+            expected=current,
+        )
+        winner["epoch"] = current
+        winner["status"] = website_server.PageTransaction(page_dir).status
+
+    monkeypatch.setattr(website_server, "name_untitled_threads", competing_title_work)
+    try:
+        old = host._start_turn(
+            "socket", page_dir, "hosted-thread", SimpleNamespace(pid=os.getpid())
+        )
+        with pytest.raises(RuntimeError, match="no longer owns"):
+            old.begin()
+        old.close({"id": "started-turn", "status": "completed", "items": []}, None)
+        assert session_record("hosted-thread") == winner["epoch"]
+        assert website_server.PageTransaction(page_dir).status == winner["status"]
+    finally:
+        host.close()

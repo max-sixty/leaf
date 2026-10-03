@@ -1,87 +1,15 @@
-/* Shared annotation paint: passage marks, element indications, and message delivery.
-   Stated once and adopted twice: by the document (leaf.js) and by every
-   shadow root a widget renders into (shadow.js, shadowStage). A rule in the document
-   styles no glyph inside a shadow tree, so a widget that renders the page's words into
-   one (x-shadow) would otherwise show words the user can select and no mark could
-   ever paint. Two copies of these declarations would be two chances for a mark to mean
-   one thing in the document and another inside a diff, which is why this is a file
-   both import rather than a block each spells.
+/* Shared message delivery, version insertion and element indication.
+ * The document and every declared shadow stage adopt this sheet. Passage annotation
+ * highlights belong to the optional annotation-marks.css sheet. */
 
-   A marked passage is painted, not wrapped (see paintAnchors), so its rules reach it
-   through the highlight registry — which styles glyphs, so the underline stands in for
-   a border and the pointer's cursor comes from a class the hit-test puts on body. A
-   posted thread's mark wears the comment layer's own violet (--mark-ink and the wash
-   beside it); the open composer's draft wears the accent, and outranks it where they
-   overlap. The rail stays solid so the annotation reads as one continuous contour.
-
-   The wash and the ink answer two questions, so they are moved by two things. The wash
-   says how near the user's attention is, in three steps of one hue: --mark for a mark
-   the page merely holds, --mark-hover for the one the pointer is indicating, and
-   --mark-strong for the one the user is standing in. The ink turns accent for hover
-   and standing, the two moments a mark is about, and the wash still distinguishes
-   "near here" from "you are here."
-
-   Three steps and not two, because the hover is no longer a thing the user does only by
-   pointing at the prose. A card in the panel indicates its thread the same way (paintHover
-   reads both surfaces), and the pointer is over the panel by construction in the moment
-   after a user presses a card — so a hover sharing the standing wash left the two lit
-   identically whenever a hand rested where it had just clicked, with a 2px underline hue
-   the only thing between them and, on a page of one mark, nothing to compare it against.
-
-   What moved is the hover, downward. The constraint on the standing wash binds in one
-   direction only — it cannot go past --mark-strong without spending what code read
-   through a mark still has to clear — so the room was below rather than above, and taking
-   it raises what a hovered passage's code reads at instead of spending any (theme.css
-   states the numbers). The promise the hover's old strength was making is in any case
-   already the cursor's (lf-over-mark). The draft's accent wash cannot be confused with the
-   standing mark's accent ink, because one focus decides both and an open composer holds
-   it.
-
-   Every name here carries an ink line, and the wash alone is never the mark. The washes
-   are what the hue affords rather than what a floor asks: --mark composites to 1.13:1
-   over the light paper and 1.34:1 over the dark, and --dfd1ed cannot reach 1.5:1 against
-   --paper at any alpha at all — opaque it stands at 1.38:1. So what the user sees a
-   mark by is the line, at 9.0:1 light and 6.2:1 dark. The wash then only has to
-   separate one mark from another, which is a job it can do at 1.1:1. An element holding
-   threads wears neither at rest (.lf-mark-el, chrome.css): its box is its own, so the
-   margin entry beside it is enough, where a passage has no edge but the mark's.
-
-   lf-react was the one name with no line, and it was the faintest wash of the set: a
-   reacted passage stood at 1.08:1 over the light paper, which is a mark nobody sees.
-   It now shares the comment's solid line because the line locates feedback; the reaction
-   glyph in the margin says what kind. */
 /* A newly inserted message starts unconfirmed, so delivery paint is immediate.
    This sheet reaches every annotation surface, including inline threads inside
    declared shadow roots. Existing controls keep chrome.css's delayed busy feedback. */
-:is(.lf-msg, .lf-page-thread-msg)[aria-busy="true"] {
+.lf-msg[aria-busy="true"] {
   animation: none;
   opacity: .5;
   cursor: progress;
 }
-/* The highlights rank `lf-mark`, `lf-mark-hover`, `lf-mark-here`, `lf-pending`, and a
-   higher one supplies only the properties it states. Hover and the current thread share
-   an accent line; their washes remain distinct on text, and pointing at one comment
-   while standing in another still says both. */
-::highlight(lf-mark) { background-color: var(--lf-annotation-wash, var(--mark));
-  text-decoration: underline 2px solid var(--lf-annotation-line, var(--mark-ink));
-  text-underline-offset: 3px; }
-::highlight(lf-mark-hover) { background-color: var(--mark-hover);
-  text-decoration: underline 2px solid var(--accent); text-underline-offset: 3px; }
-::highlight(lf-mark-here) {
-  background-color: var(--mark-strong);
-  text-decoration: underline 2px solid var(--accent); text-underline-offset: 3px; }
-::highlight(lf-pending) { background-color: var(--mark-pending);
-  text-decoration: underline 2px solid var(--accent); text-underline-offset: 3px; }
-::highlight(lf-react) { background-color: var(--lf-annotation-wash, var(--react));
-  text-decoration: underline 2px solid var(--lf-annotation-line, var(--mark-ink));
-  text-underline-offset: 3px; }
-/* The durable marks are the annotation layer's, and hiding it (`o`) clears them while
-   the marks of a gesture — the thread the user opened, their draft, hover — stay. Stated
-   as properties on the root rather than as a selector on the highlights, because a
-   shadow stage adopting this sheet cannot see the root, while what the root sets is
-   inherited into it. */
-:root[data-lf-annotations="hidden"] {
-  --lf-annotation-wash: transparent; --lf-annotation-line: transparent; }
 ::highlight(lf-version-insert) { background-color: var(--add-tint); }
 .lf-action-target { outline: 1px solid var(--accent); outline-offset: -1px;
   cursor: pointer; }

@@ -16,7 +16,7 @@ from pathlib import Path
 
 from .event_log import jsonl_line
 from .schema import INTERACTIONS_FILE
-from .session_cleanup import require_cross_process_locking
+from .state import require_cross_process_locking
 
 try:
     import fcntl

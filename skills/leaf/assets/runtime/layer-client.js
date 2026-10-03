@@ -3,8 +3,9 @@
 
    A vendored runtime and registry are one generation. This module carries the
    `__LEAF_LAYER_GENERATION__` placeholder (quoted, once) and the registry carries the same epoch
-   after `page init`. `sameDelivery` checks every successful state read and POST response
-   against the document's layer and website release. A foreign answer is always refused;
+   after `page init`. `admitResponse` observes every response's session metadata and
+   checks every successful payload against the document's layer and website release,
+   including a freshness token whose body has not changed. A foreign answer is always refused;
    whether the page also reloads is the document source's to answer, through the same
    probe startup recovery uses, because only a source that has moved on has a different
    document to give and a page that reloads without one never stops. Active responses
@@ -15,8 +16,8 @@
    `reportPageError` is the common runtime error surface. A widget failure may `failSoft`
    its own element so the rest of the page and Threads remain usable, but a presentation
    failure neither rolls back accepted semantic state nor proves pending receipts were
-   shown. The window error listener, module load failures, and render gate all report
-   through the same page-level evidence. Do not catch an error merely to stamp readiness
+   shown. The window error listener, module load failures, a widget's `failSoft`, and the
+   render gate all report through the same page-level evidence. Do not catch an error merely to stamp readiness
    or continue accounting for pending attempts. */
 
 import { countTraffic } from "./traffic.js";
@@ -74,8 +75,8 @@ async function sourceMovedOn() {
 }
 
 let layerReloading = false;
-// A replaced server incarnation is not a question about generations: its log starts
-// again, so the old DOM has to go whatever the source says.
+// A replaced private incarnation is not a question about generations: its record
+// is gone, so the old DOM has to go whatever the document source says.
 function reloadNow(message) {
   if (layerReloading) return;
   layerReloading = true;
@@ -135,7 +136,11 @@ export function sameLayer(generation) {
   return false;
 }
 
-export function sameDelivery(response) {
+export function admitResponse(response) {
+  observeSession(response);
+  // Failure responses still name session activation and its public reference. Their
+  // status and error body belong to the caller, not to successful-payload admission.
+  if (!response.ok) return true;
   if (layerReloading) return false;
   const generation = response.headers.get("Leaf-Layer");
   const responseRelease = response.headers.get("Leaf-Release");
@@ -148,6 +153,8 @@ export function sameDelivery(response) {
 }
 
 let sessionMode = release ? "unknown" : "active";
+// Only an active private-session response establishes an ephemeral incarnation.
+// An ordinary server can restart while its durable page and log remain current.
 let sessionServer = null;
 const sessionChannel =
   release && typeof window.BroadcastChannel !== "undefined"
@@ -159,24 +166,26 @@ function activateSession(broadcast, server = null) {
     reloadNow("This Leaf session restarted — reloading the page.");
     return;
   }
+  const learnedServer = server && !sessionServer;
   if (server) sessionServer = server;
   const activated = sessionMode !== "active";
   sessionMode = "active";
   if (activated) document.dispatchEvent(new Event("lf-session-active"));
-  if (broadcast) sessionChannel?.postMessage({ active: true, server });
+  if (broadcast && (activated || learnedServer))
+    sessionChannel?.postMessage({ active: true, server });
 }
 
 sessionChannel?.addEventListener("message", (event) => {
   if (event.data?.active === true) activateSession(false, event.data.server);
 });
 
-export function observeSession(response) {
+function observeSession(response) {
   const reference = response.headers.get("Leaf-Session-Reference");
   if (/^\d{12}$/.test(reference)) runtime.sessionReference = reference;
   const mode = response.headers.get("Leaf-Session");
-  if (mode !== "active" && mode !== "passive") return;
-  if (mode === "active") activateSession(true, response.headers.get("Leaf-Server"));
-  else if (sessionMode !== "active") sessionMode = "passive";
+  const server = response.headers.get("Leaf-Server");
+  if (mode === "active") activateSession(true, server);
+  else if (mode === "passive" && sessionMode !== "active") sessionMode = "passive";
 }
 
 export const sessionIsActive = () => sessionMode === "active";
@@ -219,8 +228,7 @@ export const postEvent = async (event) => {
   } finally {
     countTraffic("acked");
   }
-  observeSession(response);
-  if (response.ok && !sameDelivery(response)) return null;
+  if (!admitResponse(response)) return null;
   return response;
 };
 
@@ -245,8 +253,7 @@ export const uploadMedia = async (file) => {
   } finally {
     countTraffic("acked");
   }
-  observeSession(response);
-  if (response.ok && !sameDelivery(response)) return null;
+  if (!admitResponse(response)) return null;
   let answer;
   try {
     answer = await response.json();
@@ -271,7 +278,7 @@ export const uploadMedia = async (file) => {
 // itself through the poll would recurse, and nothing here needs the answer.
 // Not part of the helper surface a module gets: an upgrade that throws is already on
 // this path through window.error, and a widget that wants to say so itself has
-// failSoft, which puts the message where the user is looking.
+// failSoft, which puts the message where the user is looking and reports it here.
 const reportedErrors = new Set();
 export function reportPageError(text) {
   console.error(`leaf: ${text}`);

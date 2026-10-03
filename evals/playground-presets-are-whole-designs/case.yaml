@@ -8,12 +8,20 @@
 # refused call; it now matches the path inside the skill, so it counts only a read
 # that succeeded. Named from inside the skill, as the prompt now does, the file was
 # read in 6 of 6 runs of the change, which passed 4.
-schema_version: '1.0'
-name: playground-presets-are-whole-designs
-description: "Playground: controls span every part the user may vary, and each preset is one composed design that sets every control, not a tuple of per-part picks."
-tags:
-- playground
-execution:
+# Also guards realistic candidate copy for the comment-growth guidance repair:
+# comparison labels belong around the diff, while the diff retains product text.
+# A later grader called a gutter sign and code-edge bar a collision despite a
+# rendered 4px gap. The rubric now judges physical placement, including separation
+# inherited from the base layout, rather than both marks being near the left edge.
+# Regrading accepted that output and rejected mutations that overlapped the gutter
+# paint or gave the line and word fills identical hue and strength.
+description: playground-presets-are-whole-designs
+metadata:
+  purpose: 'Playground: controls span every part the user may vary, and each preset is one composed design
+    that sets every control, not a tuple of per-part picks.'
+  tags:
+  - playground
+vars:
   prompt: |
     You are in a Leaf design session for a code-review tool. Its diff view marks a
     changed line in four places at once: a `+`/`-` sign in the gutter, a tint on the
@@ -32,22 +40,35 @@ execution:
     element with the candidates' CSS. The preview can be a short static diff of about
     six lines. The page directory is not reachable from here, so reply with the HTML
     rather than writing a file.
-graders:
-- name: loads-leaf
-  type: tool_used
-  tool: Skill
-  input_match: leaf
-- name: reads-playground-instructions
-  type: tool_used
-  tool: Read
-  input_match: skills/leaf/packages/playground/instructions/author\.md
-- name: has-presets
-  type: regex
-  pattern: <lf-playground-preset\b
-  flags: i
-- name: judgment
-  type: llm
-  criteria: |
+assert:
+- type: javascript
+  metric: loads-leaf
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/SKILL\.md
+- type: javascript
+  metric: reads-playground-instructions
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/packages/playground/instructions/author\.md
+- type: javascript
+  metric: has-presets
+  value: file://text-regex.cjs
+  config:
+    pattern: <lf-playground-preset\b
+    flags: i
+    negate: false
+- type: llm-rubric
+  metric: realistic-product-copy
+  value: |
+    Pass if the simulated diff uses plausible product content and copy,
+    without text describing its demo/mock/sketch status or the design
+    exercise. Comparison labels, tuning controls, and explanations outside the
+    simulated diff are fine. Example code and ordinary code comments are fine.
+    Fail if authoring commentary replaces or augments the simulated product UI.
+- type: llm-rubric
+  metric: judgment
+  value: |
     Read the playground's controls, its presets, and the CSS they switch. Pass only
     if all of these hold:
     1. There are at least three controls, and together they let the user vary at
@@ -57,10 +78,12 @@ graders:
        `lf-playground-setting` for every control the playground declares.
     3. Apart from a preset that reproduces today's diff as the baseline, no preset
        turns on two marks that the CSS draws in the same place for the same line,
-       such as the gutter sign and the left bar both at the line's left edge, or a
-       line tint and a word highlight in the same hue and strength, unless the CSS
-       gives that preset rules of its own that merge them into one mark or visibly
-       separate them.
+       or a line tint and word highlight in the same hue and strength, unless
+       the CSS merges them into one mark or visibly separates them. Judge the
+       actual geometry: a sign in a gutter column and a bar in a separate code
+       column with space between their paint are visibly separated, even when
+       both are near the line's left edge. Separation can come from shared base
+       layout rules as well as rules specific to a preset.
     4. The presets other than the baseline differ from each other in more than one
        control's value, so none is a slight variant of another.
     Fail if any one of these does not hold.

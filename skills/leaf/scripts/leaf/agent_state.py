@@ -21,6 +21,7 @@ from .served_state.context import read_page
 from .served_state.page import read_served_page
 from .server import running_server
 from .service import PageTransaction, unacknowledged
+from .user_views import read_user_views
 from .validation.admission import logged_id
 from .work import page_subject
 
@@ -58,7 +59,7 @@ def cmd_page_state(
     page's, or the part `target` names — a thread with a page of its history, or a
     widget."""
     with PageTransaction(page_dir) as page:
-        activation = activate_source(page_dir)
+        activation = activate_source(page_dir, transaction=page)
         _write_page_state(
             page_dir,
             page.events,
@@ -338,6 +339,9 @@ def _write_page_state(
     # stage, subject and `answer` — the operation that settles it — are canonical,
     # while `response` carries provisional response progress.
     state["workflows"] = served["workflows"]
+    state["user_views"] = read_user_views(
+        page_dir, active["revision"] if active is not None else None
+    )
     # Before a first revision there is no document, so no thread, Ask, widget, or
     # claim subject either: every reading below keeps its empty default.
     if reading is not None:

@@ -23,6 +23,7 @@ export function createPageGeometry({
   pointer,
   designMode,
   targetPaint,
+  visualMarkPaint,
   shiftDrawings,
   queueLegend,
   activeActionAnchor,
@@ -96,9 +97,10 @@ export function createPageGeometry({
   }
 
   function pageShifted() {
-    refreshAnchorHover();
+    refreshAnchorHover?.();
     refreshAim();
     targetPaint.shifted();
+    visualMarkPaint?.shifted();
     shiftDrawings();
     // Sideways widget scrolling changes which item lies under a stationary overlay,
     // while page scrolling may bring previously unpaintable items into view.
@@ -106,10 +108,13 @@ export function createPageGeometry({
     if (activeActionAnchor()) queueActionPlacement();
   }
 
-  const invalidate = () => targetPaint.geometryChanged();
+  function invalidate() {
+    targetPaint.geometryChanged();
+    visualMarkPaint?.geometryChanged();
+  }
 
   const onResize = () => {
-    targetPaint.geometryChanged();
+    invalidate();
     pageShifted();
   };
 

@@ -15,7 +15,7 @@
 // final layout. A live drag defers the whole correction.
 
 import { runtime } from "./context.js";
-import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
+import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { LEAVING } from "./geometry.js";
 
 // The theme's reduced-motion guard covers CSS animation and transitions; motion

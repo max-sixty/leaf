@@ -68,7 +68,8 @@ that work uses. "Package contract" in `packages.md` defines the command.
 
 Write a complete HTML document. The authored head names and describes the page;
 Leaf adds the encoding, identity, theme, runtime, and canonical address when it
-delivers the document. Put page-specific CSS in `<style>` and JavaScript in
+delivers the document. Omit `<meta charset>`: delivery declares UTF-8 before
+authored head content. Put page-specific CSS in `<style>` and JavaScript in
 `<script>` ("Page behavior"). Every `lf-*` element has an explicit end tag.
 
 Delivery also supplies `width=device-width, initial-scale=1, viewport-fit=cover`
@@ -266,9 +267,8 @@ wider window still share its one height, and `page check --render` refuses them.
 
 A queue whose items open one at a time beside it, such as tickets, cases or findings to
 decide, is one `lf-tabs list="side"` as the body: its list is the queue and each item an
-`lf-tab`, so one opens beside the list, a link or an Ask opens its own, and each tab counts
-the Asks its item still holds. Write no script to select, hide or mark an item; the tab
-set does all three.
+`lf-tab`, so one opens beside the list and a link or an Ask opens its own. Write no
+script to select or hide an item; the tab set does both.
 
 The page itself does not scroll; a region does, where what it holds runs past it. Each
 pane's body scrolls on its own, and a widget that fills the body, such as a playground's
@@ -371,6 +371,28 @@ gives a column page's right margin to something of the page's own. A marker leve
 with a hanging `aside.sidenote` stands as a pin on its block, so a page with notes needs
 neither.
 
+### Page-owned annotations
+
+Leaf's default draws markers, passage marks and contextual replies over the page.
+For an arrangement that places annotations in the document instead, select
+`data-annotations="page"` on `body`. This choice omits the overlay's modules,
+styles and geometry. Exact comments, Asks, decisions, Undo, live revisions and
+drawing capture still use the shared Leaf mechanisms. Changing the selection
+replaces the document through the ordinary revision lifetime.
+
+Place one empty `<lf-annotation-rail id="annotations"></lf-annotation-rail>`
+where the reader should find conversations and actions. Allocate its width and
+height in the page's CSS; it scrolls inside that box. At narrow widths, give it a
+place the user can reach by touch and keyboard. Leaf supplies native disclosures,
+reply editors, action controls and retained reading; the page supplies their layout.
+Widget-local conversations keep their exact seats before the page rail takes
+remaining targets. The Threads panel remains the complete conversation index.
+
+Omitting the rail is valid. Comments open in Threads, and selection offers the
+banner's Comment on selection control. A custom package can supply the same
+page presentation through "Page annotation presentation" in `packages.md`;
+do not reconstruct the event log or annotation inventory in page code.
+
 ## Draw the subject
 
 Decide what each view draws before writing its words. Most of what a page explains
@@ -392,8 +414,8 @@ interface with a screenshot, and a visual change with an `lf-shot` before-and-af
 capture. A proposal or a mechanism has nothing to capture yet, so draw it. A process
 that unfolds over time is a diagram that moves: draw it in a page module from its
 state and the moment, with controls to pause and scrub, so every moment stays
-readable and its parts stay commentable. A recorded video is flat and heavy, and
-belongs only where the explanation leaves the page. When the shape of numbers is
+readable and its parts stay commentable. For fixed recordings and screen captures,
+follow `authoring-evidence.md`, "Source files and media". When the shape of numbers is
 the point — a trend, ranking, groups on one scale, or series moving together —
 lead with an `lf-chart`, even if the numbers compare the same dimensions across
 items. Put a table below it in `<details>` when readers also need exact values.
@@ -434,6 +456,15 @@ Widget attributes carry scalars; children carry prose; a titled compound member 
 leading `<strong>`. A data-bodied widget such as `lf-code` holds escaped
 notation in `<pre>`, because its whitespace is part of the data. Escape `&`
 first, then `<` and `>`; any other order can silently decode entity text.
+
+Display source snippets as `<pre><code class="language-javascript">…</code></pre>`,
+or `lf-code language="javascript"` for a line-numbered walkthrough, naming the actual
+language from `$languages.names`. Format illustrative code with the language's usual
+indentation and line breaks, preserving its behavior when you reformat an example.
+Keep brevity in the surrounding prose rather than packing distinct statements or
+fields onto a line. The runtime colors the declared language and preserves authored
+whitespace. Verbatim source quotations keep their exact text; logs and transcripts
+stay literal and uncolored when they are not source code.
 
 The runtime injects the status banner, thread panel, Versions menu, keyboard
 shortcuts, live-leaves drawer, and active-asks drawer, which lists the page's open Asks.
@@ -479,12 +510,16 @@ particular, its `once()`, `quoted()`, `offer()`, `layoutChanged()`, and durable-
 rules keep authored controls correct after reconnection and thread quoting.
 
 `leaf page check` runs a page's own code, a script or a page widget the
-document places, once in the host's browser: through upgrade, presentation, and one
-frame after it. It fails on every error the page would report to you through the
-watcher, an uncaught exception or a rejected promise with the source location it came
-from, so a module that throws on its first paint is found before the URL goes out.
-Code that runs only after a gesture or a timer is not reached; operate it in the
-pre-handover review. A page with no code of its own is checked without a browser.
+document places, once in the host's browser, and a page with a data widget such as a
+chart or a diagram, whose body only its module can read: through upgrade,
+presentation, and one frame after it. It fails on every error the page would report to
+you through the watcher, an uncaught exception or a rejected promise with the source
+location it came from, or a widget that could not draw its body, so a module that
+throws on its first paint or a chart that does not parse is found before the URL goes
+out. Code that runs only after a gesture or a timer is
+not reached; operate it in the pre-handover review. A page with neither is checked
+without a browser. On a host with no browser the run is skipped with a note; the page
+still reports those errors to you once a browser draws it.
 
 `page/registry.json` may contribute declarations using the package registry language.
 Its element entry replaces the selected layer's complete entry; shared `$` declarations
@@ -514,8 +549,8 @@ do not turn their contents into source code or markup.
 
 Use `lf-sample` with one direct `template[data-sample]` to let the user
 operate a complete Leaf page inside the surrounding document. Give both the
-element and template stable ids, and put the child page's main content in the
-template:
+element and template stable ids. Put the child's content and styles directly in
+the template; Leaf supplies the document and its `main`:
 
 ```html
 <lf-sample id="practice" label="practice release note">
@@ -539,9 +574,41 @@ A click or Tab reaches the child directly; its normal widget controls, keyboard
 routes, comments, and replies work there. Escape closes the child's open controls
 before returning to the surrounding page. Reset creates a fresh page from the template.
 Child decisions and comments do not change the parent's log or Ask inventory.
+Set a page-wide body declaration, such as `data-annotations="page"`, on the sample
+template when the child needs it. Leaf carries that declaration onto the child's
+body; the surrounding page keeps its own choice.
 The child is temporary: use an ordinary Leaf page when its history must outlive
 the sample. A live sample needs a server, so a page declaring one cannot be
 exported (`references/serving-pages.md`, "Exported files").
+
+To start with fictional conversations or decisions, author an inert JSON script
+in the parent and name its id in the template's `data-sample-events`:
+
+```html
+<script id="service-history" type="application/json">
+[
+  {"id":"service-question","kind":"comment","author":"user",
+   "anchor":{"section":"service-note"},"text":"Does Sunday keep the same timetable?"},
+  {"kind":"reply","author":"agent","parent":"service-question",
+   "text":"Yes, both weekend days use this timetable."}
+]
+</script>
+<lf-sample id="service-window" label="weekend service" window>
+  <template id="service-page" data-sample data-sample-events="service-history">
+    <h1>Weekend service</h1>
+    <p id="service-note">The shuttle runs every hour.</p>
+  </template>
+</lf-sample>
+```
+
+The array contains ordinary event commands, checked against the child document
+at `page check` and admitted before its first presentation. Give an event an explicit
+`id` when a later command references it; omitted ids and timestamps are supplied,
+and the history belongs to revision 1. Several samples can name the same script;
+each gets an independent copy. Reset restores that authored history. The script
+must be inline `application/json` in the template's parent document. Its events
+never appear in the outer log: leave fictional fixture anchors inside the template,
+and use this declaration rather than posting setup events from a page module.
 
 To begin with threads from the parent, set `data-sample-threads` on the
 template to their space-separated thread ids. The declaration selects from the
@@ -549,22 +616,46 @@ parent's standing log rather than requiring it: a page whose log does not hold o
 of those threads yet — a first version, or a copy made from the source alone — opens
 the sample without that thread. Their anchored content must exist in the
 child. Reset copies those threads again from the parent; subsequent child
-replies remain independent.
+replies remain independent. A template chooses either `data-sample-events` or
+`data-sample-threads`, never both.
 
 The child is a document of its own: a `<style>` or module script in the template
 applies to the child alone, and the surrounding page's styles and scripts do not
 reach it. A page module can await the element's `ready` promise to receive the child
-`Document`, and await `reset()` to replace it. Author child content in the
+`Document`, and await `reset()` to replace it. The bubbling `lf-sample-ready`
+event carries `detail.document` after each child presents, including Reset, so
+host controls can reapply a selected view without inspecting the Reset button.
+To select a conversation, call `await sample.showThread(id)` with its root event id;
+this shows the same page destination as its marker. To inspect it in Threads,
+call `await sample.showThread(id, {surface: "panel"})`. The panel view accepts
+`status: "open" | "resolved" | "all"` and `waiting: "user" | "agent" | "all"`;
+omitted values restore Open and unrestricted waiting. A panel view may omit the
+id to show its list. Completion means the selected view has presented; it returns
+false when a newer selection or Reset supersedes it. Outer controls keep keyboard
+focus. Use this method instead of clicking the child's private chrome or observing
+its DOM. Reapply the selected view on `lf-sample-ready` after Reset.
+Author child content in the
 template rather than copying rendered controls from the parent. Ordinary
 `lf-sample` children, without a template, remain static quoted material.
+
+An ordinary served Leaf page can appear in a plain `<iframe src="…">`, keeping
+that page's durable history. Use its existing served URL. The parent and child
+must share the browser origin: scheme, hostname, and port. Another local port
+is a different origin. Leaf blocks cross-origin parents so another site cannot
+place an authenticated Leaf control beneath a misleading interface. Framing
+does not copy or reset the page.
 
 ## Stable anchors
 
 Give each section, major block, and Leaf element a stable, meaningful `id` at the
 tightest semantic boundary a user can distinguish. Where a sole child fills a
 transparent wrapper, let the child carry the pair's one id.
-Put a titled section's id on the `<section>`, not on its heading, so a link to it
-arrives at the whole title, eyebrow included. An id a heading needs for an internal
+Group a heading with its eyebrow or subtitle in `<hgroup>` so the complete title
+has one box. Put its stable address on the group; the heading supplies the contents
+label, while the group supplies the destination and position. When the title leads
+an identified section, that section owns the public address instead: put its id on
+the `<section>`, so a link arrives at the whole section, eyebrow included.
+An id a heading needs for an internal
 relationship such as `aria-labelledby` is not the section's public address.
 Threads and reading position attach to those ids across versions, and so does a
 user comparing this version with an earlier one: the id is how the comparison
@@ -657,7 +748,6 @@ Without a way to inspect the rendered page, read `leaf page state <page>`'s
 `state` and `asks` alongside the active HTML to review the words, evidence, and
 available choices. Report the render command's result separately from the visual
 and keyboard review you could not perform. If the command cannot launch a browser,
-run `leaf page check <page>` for the markup and report the render check as
-unfinished; for a page with code of its own, that check needs the browser too, so
-report the run of its code as unfinished as well. A text reading does not establish
+it says so and goes on: report the render check as unfinished, and, where it also
+says the page's code was not run, that run as well. A text reading does not establish
 layout or interaction quality.

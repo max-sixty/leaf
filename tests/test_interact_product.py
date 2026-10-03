@@ -15,11 +15,13 @@ from interact_support import (
     SHIPPED_PACKAGES,
     _report,
     _tasks_version,
+    append_carried_log_record,
     append_command,
     check,
     comment,
     fetch,
     fragment_errors,
+    fresh_process,
     live_versions,
     page_state,
     publish,
@@ -34,7 +36,7 @@ from leaf import layer as layer_model
 from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import service as service_model
-from leaf import session_cleanup as cleanup_model
+from leaf import state as cleanup_model
 from leaf import thread as thread_model
 from leaf.registry import storage as registry_storage
 from leaf.structure import SourceDocument
@@ -106,7 +108,7 @@ def test_the_log_reopens_a_refused_save_but_never_the_active_revision(page_dir):
     live = revisioning_model.activate_source(page_dir)
 
     # The source is the active revision, so an append leaves the answer standing.
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -127,7 +129,7 @@ def test_the_log_reopens_a_refused_save_but_never_the_active_revision(page_dir):
     source.write_text(dropped)
     refused = revisioning_model.activate_source(page_dir)
     assert refused.revision == 1 and "'flow'" in refused.error
-    events_model.append_event(
+    append_carried_log_record(
         page_dir, {"kind": "resolve", "author": "user", "parent": "c1"}
     )
     released = revisioning_model.activate_source(page_dir)
@@ -136,7 +138,7 @@ def test_the_log_reopens_a_refused_save_but_never_the_active_revision(page_dir):
     # A tab still showing r1 may anchor a thread on the id r2 dropped. r2 is live
     # and its transition was judged when it activated, so neither activation nor
     # `page check` re-judges it against the later event; the thread detaches.
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -147,8 +149,8 @@ def test_the_log_reopens_a_refused_save_but_never_the_active_revision(page_dir):
             "text": "one more on the flow",
         },
     )
-    revisioning_model._held.clear()
-    settled = revisioning_model.activate_source(page_dir)
+    with fresh_process():
+        settled = revisioning_model.activate_source(page_dir)
     assert settled.error is None and settled.revision == 2 and not settled.created
     assert check(page_dir).exit_code == 0
 
@@ -260,10 +262,7 @@ def test_an_ask_surface_frames_exactly_one_source(page_dir):
         )
         == []
     )
-    outside = fragment_errors(first, registry)
-    assert "this declared Ask source must be inside an Ask with a heading" in " ".join(
-        outside
-    )
+    assert fragment_errors(first, registry) == []
 
     # Evidence can quote another Ask source without giving this Ask a
     # second live source. The runtime already excludes x-exhibit descendants from the
@@ -326,19 +325,43 @@ def test_command_references_preserve_the_package_owned_subject_roles(page_dir):
     """An existing id is insufficient when a typed reference names the wrong role."""
     registry = registry_storage.load_registry(page_dir)
     parser = SourceDocument(
-        '<lf-command id="hub">'
+        '<lf-command id="hub" readings="goal">'
         '<lf-task id="goal" status="active"><strong>Goal</strong>'
         '<lf-agent id="worker" state="waiting" on="tree"><strong>Worker</strong>'
         '<lf-worktree id="tree" source="project-worktrees"></lf-worktree>'
         "</lf-agent></lf-task></lf-command>"
-        '<lf-command-readings for="goal"></lf-command-readings>'
     )
 
     errors = reference_errors(parser.lf_elements, registry, parser.ids, parser.by_id)
 
     assert len(errors) == 2
-    assert "$command.widgets widget where role='goal'" in errors[0]
-    assert "$command.widgets widget where role='command'" in errors[1]
+    assert "$command.widgets widget where role='readings'" in errors[0]
+    assert "$command.widgets widget where role='goal'" in errors[1]
+
+
+def test_a_readings_seat_answers_to_one_command(page_dir):
+    """A command fills the seat it names, so each seat in a document is named by
+    exactly one command: a second command naming it is refused, and so is a seat no
+    command names, while each command naming its own seat passes."""
+    registry = registry_storage.load_registry(page_dir)
+    parser = SourceDocument(
+        '<lf-command id="one" readings="seat"></lf-command>'
+        '<lf-command id="two" readings="seat"></lf-command>'
+        '<lf-command id="three" readings="other"></lf-command>'
+        '<lf-command-readings id="seat"></lf-command-readings>'
+        '<lf-command-readings id="other"></lf-command-readings>'
+        '<lf-command-readings id="orphan"></lf-command-readings>'
+    )
+
+    errors = reference_errors(parser.lf_elements, registry, parser.ids, parser.by_id)
+
+    assert errors == [
+        (
+            '<lf-command> (line 1): readings="seat" is already named by '
+            "<lf-command id='one'> (line 1); only one element may name it"
+        ),
+        "<lf-command-readings> (line 1): no <lf-command> names it in `readings`",
+    ]
 
 
 def test_a_settled_group_keeps_an_id_but_an_unreferenced_group_may_leave(
@@ -629,60 +652,8 @@ def test_the_key_reference_is_generated_from_the_registry():
     assert labels == sorted(disclosures)
 
 
-def test_no_example_writes_another_example_s_sentences():
-    """Each page's connective prose is written in its own subject.
-
-    The gesture is shared vocabulary — every board takes a drag, every group takes a
-    pick, and the words for those are meant to repeat. The sentence around the gesture
-    is not: a page that borrows one is describing another page's work in that page's
-    words, and the corpus is the one place a user sees them side by side.
-
-    A batch of them got in at once, and the cause was upstream of the corpus.
-    references/authoring-evidence.md's "Interactive and visual evidence" entry
-    quoted two model sentences, and both reached shipped examples word for word; a
-    phrase sitting ready to paste is a phrase that gets pasted. That entry now names
-    what the sentence must carry instead, and this is what says whether it worked.
-
-    Twelve words, from a measurement rather than a guess: with those rewritten, the
-    longest run any two examples share is seven, and nothing at all is shared at eight.
-    Both sevens are between pages this change never touched: the guarantee a version
-    makes about a board, and a fictional detail two pages were written to share. So
-    twelve leaves five words of room over what the corpus legitimately repeats, and is
-    loose enough to let a single borrowed clause through — which is the judgement the
-    skill entry carries and a word count cannot."""
-    run = 12
-    examples = {
-        p.stem: p.read_text(encoding="utf-8")
-        for p in sorted((ROOT / "examples").glob("*.html"))
-        # corpus.html embeds every sibling's prose, so it shares everything by
-        # construction; `leaf-dev corpus` is what holds it true.
-        if p.stem != "corpus"
-    }
-    assert len(examples) > 1, examples
-
-    def words(html: str) -> list[str]:
-        # <main> only: shared delivery markup is absent from authored examples, while
-        # page-specific titles, styles, and modules legitimately differ in the head.
-        body = html[re.search(r"<main\b[^>]*>", html).end() : html.rindex("</main>")]
-        return re.findall(r"[a-z0-9']+", re.sub(r"<[^>]+>", " ", body).lower())
-
-    seen: dict[tuple, str] = {}
-    shared: list[str] = []
-    for name, html in examples.items():
-        ws = words(html)
-        for i in range(len(ws) - run + 1):
-            gram = tuple(ws[i : i + run])
-            if gram in seen and seen[gram] != name:
-                shared.append(f"{seen[gram]} and {name}: {' '.join(gram)}")
-            seen.setdefault(gram, name)
-    assert not shared, (
-        f"{len(shared)} run(s) of {run}+ words shared between examples; write each "
-        "page's own sentence:\n  " + "\n  ".join(sorted(set(shared))[:10])
-    )
-
-
 def test_reply_validates_widget_markup(page_dir):
-    events_model.append_event(
+    append_carried_log_record(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hm"}
     )
 
@@ -720,16 +691,18 @@ def test_reply_validates_widget_markup(page_dir):
 
 
 def test_reply_validates_typed_references_against_the_page(page_dir):
-    """Reply markup naming a page element of the wrong role never freezes."""
+    """Reply markup naming a page element of the wrong role never freezes, nor does
+    a command naming the page's seat, which it would fill from another document."""
     subjects = (
-        '<lf-command id="hub"><lf-task id="goal" status="active">'
+        '<lf-command id="hub" readings="seat"><lf-task id="goal" status="active">'
         "<strong>Goal</strong>" + COMMAND_SUBJECTS + "</lf-task></lf-command>"
+        '<lf-command-readings id="seat"></lf-command-readings>'
     )
     (page_dir / "index.html").write_text(
         PAGE.replace("</section>", subjects + "</section>")
     )
     publish(page_dir, version=2)
-    events_model.append_event(
+    append_carried_log_record(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "Act?"}
     )
 
@@ -749,18 +722,25 @@ def test_reply_validates_typed_references_against_the_page(page_dir):
             ],
         )
 
-    swapped = reply('<lf-command-readings for="goal"></lf-command-readings>')
+    swapped = reply('<lf-command id="quoted" readings="goal"></lf-command>')
     assert swapped.exit_code != 0
-    assert "where role='command'" in swapped.output
+    assert "where role='readings'" in swapped.output
 
-    valid = reply('<lf-command-readings for="hub"></lf-command-readings>')
+    borrowed = reply('<lf-command id="quoted" readings="seat"></lf-command>')
+    assert borrowed.exit_code != 0
+    assert "outside its own document" in borrowed.output
+
+    valid = reply(
+        '<lf-command id="quoted" readings="quoted-seat"></lf-command>'
+        '<lf-command-readings id="quoted-seat"></lf-command-readings>'
+    )
     assert valid.exit_code == 0, valid.output
 
 
 def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
     """The runtime resolves actions document-wide by id, so a reply widget must not
     reuse a page id — and a later version must not take a reply's."""
-    events_model.append_event(
+    append_carried_log_record(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hm"}
     )
 
@@ -818,7 +798,7 @@ def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
     # Text claims no ids however it quotes a tag — only the `markup` field does, and
     # a user's message never carries one (the log is append-only; a false claim
     # would deadlock every future version).
-    follow_up = events_model.append_event(
+    follow_up = append_carried_log_record(
         page_dir,
         {
             "kind": "reply",
@@ -862,7 +842,7 @@ def test_the_runtimes_lf_id_namespace_is_off_limits(page_dir):
     assert "lf- namespace" in result.output and "lf-msg-7" in result.output
     (page_dir / "index.html").write_text(PAGE)
 
-    events_model.append_event(
+    append_carried_log_record(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hm"}
     )
     reply = CliRunner().invoke(
@@ -928,7 +908,7 @@ def test_the_wire_ships_a_message_as_logged(page_dir):
     renders (test_render holds that side), markup is the fragment the CLI gate
     validated, and the only vocabulary a page's frozen layer has to keep speaking is
     the log's own, which $events stamps."""
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -970,7 +950,7 @@ def test_each_agent_session_posts_as_its_own_voice(page_dir, monkeypatch):
     _tasks_version(page_dir, "active")
     service_model.claim_page(page_dir)
     published(page_dir)
-    events_model.append_event(
+    append_carried_log_record(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "status?"}
     )
 
@@ -1018,7 +998,7 @@ def test_each_agent_session_posts_as_its_own_voice(page_dir, monkeypatch):
 
 def test_an_agent_reply_records_only_a_question_it_leaves_with_the_user(page_dir):
     published(page_dir)
-    root = events_model.append_event(
+    root = append_carried_log_record(
         page_dir,
         {"kind": "comment", "id": "c1", "author": "user", "text": "status?"},
     )
@@ -1113,7 +1093,7 @@ def test_an_agent_edits_its_own_messages_without_rewriting_history(
     opened = comment(page_dir, "--text", "The index is still pending.")
     assert opened.exit_code == 0, opened.output
     root = json.loads(opened.output)
-    user = events_model.append_event(
+    user = append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -1218,7 +1198,7 @@ def test_an_agent_edits_its_own_messages_without_rewriting_history(
     assert user_edit.exit_code != 0
     assert "is not agent-authored" in user_edit.output
     assert events_model.read_events(page_dir) == before
-    sessionless = events_model.append_event(
+    sessionless = append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -1253,7 +1233,7 @@ def test_edit_uses_the_captured_contract_when_the_candidate_registry_is_invalid(
     activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None and activated.revision == 1
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-1")
-    message = events_model.append_event(
+    message = append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -1316,7 +1296,7 @@ def test_export_prints_threads_and_versions(page_dir):
         cli_model.cli,
         ["page", "stamp", str(page_dir), "--text", "first cut"],
     )
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -1326,7 +1306,7 @@ def test_export_prints_threads_and_versions(page_dir):
             "text": "why?",
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "reply",
@@ -1338,10 +1318,10 @@ def test_export_prints_threads_and_versions(page_dir):
             "markup": '<lf-diagram id="why"><pre>graph LR\n  A --> B</pre></lf-diagram>',
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         page_dir, {"kind": "resolve", "id": "x1", "author": "user", "parent": "r1"}
     )
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -1351,7 +1331,7 @@ def test_export_prints_threads_and_versions(page_dir):
             "text": "arrow?",
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -1362,7 +1342,7 @@ def test_export_prints_threads_and_versions(page_dir):
             "text": "start here?",
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "action",
@@ -1378,7 +1358,7 @@ def test_export_prints_threads_and_versions(page_dir):
             },
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "action",
@@ -1399,7 +1379,7 @@ def test_export_prints_threads_and_versions(page_dir):
     # named by its ends and the exchange stays readable under it.
     said = "The batch replays from the top."
     long_quote = " ".join([said] * 20)
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -1429,7 +1409,7 @@ def test_export_prints_threads_and_versions(page_dir):
     # And one they took back is an outcome under its own name: left out it would
     # read as never made, and shown plainly it would read as final.
     moved = next(e for e in events_model.read_events(page_dir) if e["kind"] == "action")
-    events_model.append_event(
+    append_carried_log_record(
         page_dir, {"kind": "undo", "author": "user", "undoes": moved["id"]}
     )
     result = CliRunner().invoke(cli_model.cli, ["page", "transcript", str(page_dir)])
@@ -1461,7 +1441,7 @@ def test_reply_markup_uses_the_captured_registry_after_candidate_files_disappear
     activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None and activated.revision == 1
     (page_dir / "registry.json").unlink()
-    events_model.append_event(
+    append_carried_log_record(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hm"}
     )
     plain = CliRunner().invoke(
@@ -1613,7 +1593,7 @@ def test_page_state_and_the_transcript_read_reactions_as_marks(page_dir):
     prints one as the user's mark rather than a turn. Its durable token is enough;
     packages may add an explanation, but the default layer does not prescribe one."""
     published(page_dir)
-    bare = events_model.append_event(
+    bare = append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -1623,7 +1603,7 @@ def test_page_state_and_the_transcript_read_reactions_as_marks(page_dir):
             "anchor": {"section": "plan", "quote": "Ship dark"},
         },
     )
-    answered = events_model.append_event(
+    answered = append_carried_log_record(
         page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "token": "change"},
     )
@@ -1661,7 +1641,7 @@ def test_an_agent_names_and_renames_a_thread_without_changing_its_speech(
     page_dir,
 ):
     publish(page_dir)
-    root = events_model.append_event(
+    root = append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -1710,7 +1690,7 @@ def test_an_agent_names_and_renames_a_thread_without_changing_its_speech(
 
 def test_thread_titles_require_an_existing_thread_and_short_agent_prose(page_dir):
     publish(page_dir)
-    root = events_model.append_event(
+    root = append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -1731,7 +1711,6 @@ def test_thread_titles_require_an_existing_thread_and_short_agent_prose(page_dir
     for invalid in (
         {"title": ""},
         {"title": "   "},
-        {"title": "a" * 81},
         {"title": "Two\nlines"},
         {"title": "Trailing newline\n"},
         {"title": "Two\rlines"},

@@ -8,7 +8,7 @@ are dated evidence, not a certification of the current runtime.
 
 ### First baseline, 2026-09-27
 
-`usability-eval/harness.py` ran the first executable slice below and three cases of
+The original usability harness ran the first executable slice below and three cases of
 the inspection comparison, at 387dfed45 with Opus 5.5, three scored runs per case and arm
 after one pilot run that fixed each fixture and scorer. Every run's model call
 completed. Per-run scores are in [baseline.json](usability-eval/results/baseline.json),
@@ -138,8 +138,10 @@ reading interface.
 
 ## First executable slice
 
-[usability-eval/harness.py](usability-eval/harness.py) owns the case definitions,
-runner, model, isolation, fixture builder, trace format and scoring. Its cases cover:
+[`leaf_dev.usability_eval`](../dev/leaf_dev/usability_eval.py) owns the case definitions,
+fixture builder, controlled trajectories, and semantic scoring. The shared host
+interface runs these on Claude Code or Codex and retains each native trace.
+Promptfoo owns arms, repetition, concurrency, assertions, and reports. The cases cover:
 
 - Cold authoring and discovery: `cold-report`, `cold-decision`, `near-miss`.
 - Reading from different page surfaces: `reading` and `reading-<surface>`, scored
@@ -148,38 +150,42 @@ runner, model, isolation, fixture builder, trace format and scoring. Its cases c
 - Live delivery and handoff: `handoff`, `mixed`, `elided`.
 - Unfamiliar vocabulary and external data: `package`, `shared-source`.
 
-The [arrangement harness](arrangement-eval/README.md) compares Layout vocabulary with
-page CSS. The broader plain-HTML authoring and feedback comparison remains
-[#19](workspace-followups.md#item-19).
+Active fixtures live in [`evals/usability/fixtures`](../evals/usability/fixtures).
+The retained `usability-eval/results/` files document the earlier experiments.
+
+The [catalog](../evals/README.md) also runs document, dashboard and queue authoring
+and width revision with actual plain HTML controls. Broader conclusions about the
+complete authoring and feedback cycle remain [#19](workspace-followups.md#item-19).
 
 ## Running
 
-Build each arm from a git ref, then run selected cases. With no cases, `run` uses the
-baseline defined in the harness.
+Run selected whole scenarios through Promptfoo:
 
 ```sh
-uv run notes/usability-eval/harness.py arm <ref> <arm>
-uv run notes/usability-eval/harness.py run <arm>[,<arm>] <batch> <rounds> [case ...]
-uv run notes/usability-eval/harness.py score <batch>
-uv run notes/usability-eval/harness.py summarize <batch>
-uv run notes/usability-eval/harness.py show <batch> [case]
-uv run notes/usability-eval/harness.py fixture <case> <arm> <dest>
+npm ci --prefix evals
+uv run leaf-dev eval short-chat-answer reading document/resume
 ```
 
-Traces and fixture pages stay under `.tmp/usability-eval/runs/<batch>/`. `score`
-writes per-run scores to `usability-eval/results/<batch>.json`; commit that file
-with the experiment. `summarize` reads the retained file, while `show` needs the
-original traces. A new
-case's pilot checks its fixture and scorer before scored runs. Read the replies as
-well as the score: a failed regex can reject a correct answer, as the second slice
-shows.
+The default runs each selected case once against the merge base and working tree.
+Each sample includes all resumed phases or live feedback rounds, with a fresh selected-host
+session and isolated state. Every declared check stays in the report, including
+missing rounds and incomplete phases, which fail instead of disappearing.
+Traces and fixture pages stay under `.tmp/eval/`; read the replies alongside
+the score, since a regex can reject a correct answer. The retained JSON results above
+remain historical evidence, not a second runner.
+
+The `elided` fixture now admits its answered history only after initial handover,
+under one append/receipt transaction, so the setup cannot preload the premise. Its
+`middle_read` check requires the premise to reach the agent after the new question;
+reading it during setup no longer passes as recovery.
 
 ## Remaining evaluation gaps
 
 The current cases leave these questions unmeasured:
 
-- Recovery after the agent has lost a long thread's middle. The `elided` runs read
-  the complete thread before the question arrived, so they did not test recovery.
+- General recovery after the agent has lost a long thread's middle. Historical
+  `elided` runs preloaded the premise. The current context prevents that preload,
+  but the earlier measurements do not establish reliability of the stronger check.
 - Reading cost with large data manifests and conflicts beyond the rejected source
   candidate in `resume`.
 - Revision after implementation lands: current conclusions and remaining work,
@@ -189,7 +195,7 @@ The current cases leave these questions unmeasured:
   preview cannot establish the user's view. Add browser observation when a task
   needs it.
 
-Extend the harness when a real failure or the #19 comparison supplies a useful case.
+Extend the scenario cases when a real failure or the #19 comparison supplies a useful case.
 State the expected answer and edit owner before running it. Compare correctness and
 context cost, and classify a miss as missing information, inaccessible information
 or information misread. The measured results below do not call for another page

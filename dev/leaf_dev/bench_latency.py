@@ -16,7 +16,8 @@ the first frame that paints the result (an init script samples after each frame'
 paint), and a gesture's "Sent" receipt is timed the same way. Requests and bytes, the
 primary comparison, are the resource entries the page started from then until it has
 stayed quiet for SETTLE_MS, or the whole new document after a reload; request bodies
-and the `api/news` stream carry no entry. Compare the numbers with the objectives in
+carry no entry. Completed finite freshness reads do, while an open SSE connection does
+not. Compare the numbers with the objectives in
 `notes/user-feedback-responsiveness.md`, and read the spread and load average before
 a median. `leaf-dev profile` drives the same transitions (`served`) under a profiler.
 """
@@ -43,6 +44,7 @@ from leaf_dev.harness import (
     build_source,
     environment,
     load_average,
+    run_directory,
     run_leaf,
     serving,
 )
@@ -68,160 +70,7 @@ MOVES = (
 )
 TRANSITIONS = ("comment", "move", "reply", "status", "revision")
 
-# Installed before every document. `arm` stores the goals in sessionStorage, so a
-# revision that reloads the page goes on being sampled in the document that replaces it.
-PROBE = """
-(() => {
-  const WATCH = "leaf-bench-watch";
-  performance.setResourceTimingBufferSize(1000000);
-  const documentId = crypto.randomUUID();
-  const clock = () => performance.timeOrigin + performance.now();
-  let input = null;
-  addEventListener(
-    "keydown",
-    (event) => {
-      if (event.key === "Enter") input = performance.timeOrigin + event.timeStamp;
-    },
-    true,
-  );
-  const shown = (node) => Boolean(node?.checkVisibility());
-  const messages = (words) =>
-    [...document.querySelectorAll(".lf-msg, .lf-page-thread-msg")].filter(
-      (node) => node.textContent.includes(words) && shown(node),
-    );
-  const saysSent = (node) => node.textContent.trim() === "Sent" && shown(node);
-  const facts = {
-    message: (words) => messages(words).length > 0,
-    sent: (words) =>
-      messages(words).some((message) =>
-        [
-          ...(message.closest(".lf-thread, .lf-page-thread") ?? message)
-            .querySelectorAll(".lf-msg-sending"),
-        ].some(saysSent),
-      ),
-    card: ({ card, to }) => {
-      const node = document.getElementById(card);
-      return node?.parentElement?.id === to && !node.classList.contains("lf-lift") &&
-        shown(node);
-    },
-    cardSent: (card) =>
-      [
-        ...document.querySelectorAll(
-          `leaf-margin-cluster[data-lf-margin-for="${card}"] .lf-margin-entry-label-word`,
-        ),
-      ].some(saysSent),
-    status: (detail) => {
-      const node = document.querySelector(".lf-status-text");
-      return shown(node) && node.textContent.includes(detail);
-    },
-    revision: ({ revision, id, words }) => {
-      const node = document.getElementById(id);
-      return (
-        Number(document.querySelector('meta[name="lf-revision"]')?.content) >= revision &&
-        document.body.hasAttribute("data-lf-presented") &&
-        shown(node) &&
-        node.textContent.includes(words)
-      );
-    },
-  };
-  const watched = () => JSON.parse(sessionStorage.getItem(WATCH) ?? "null");
-  let sampling = false;
-  function sample() {
-    if (sampling) return;
-    sampling = true;
-    const frame = () =>
-      requestAnimationFrame(() => {
-        const channel = new MessageChannel();
-        channel.port1.onmessage = () => {
-          const watch = watched();
-          if (!watch) return (sampling = false);
-          const at = clock();
-          let open = false;
-          for (const goal of watch.goals) {
-            if (goal.at !== null) continue;
-            let met = false;
-            try {
-              met = facts[goal.fact](goal.arg);
-            } catch {}
-            if (met) {
-              goal.at = at;
-              // Where a trace of the page finds this frame (`leaf-dev profile`).
-              performance.mark(`lf-bench:${goal.name}`);
-            } else open = true;
-          }
-          sessionStorage.setItem(WATCH, JSON.stringify(watch));
-          if (open) frame();
-          else sampling = false;
-        };
-        channel.port2.postMessage(null);
-      });
-    frame();
-  }
-  const ledger = () =>
-    JSON.parse(document.documentElement.dataset.lfTraffic ?? '{"sends":0,"asked":0}');
-  const resources = (entries) => ({
-    requests: entries.length,
-    bytes: entries.reduce((total, entry) => total + entry.transferSize, 0),
-  });
-  Object.defineProperty(window, "__leafBench", {
-    value: Object.freeze({
-      arm(goals) {
-        input = null;
-        const watch = {
-          goals: goals.map((goal) => ({ ...goal, at: null })),
-          document: documentId,
-          since: performance.now(),
-          ledger: ledger(),
-        };
-        sessionStorage.setItem(WATCH, JSON.stringify(watch));
-        sample();
-      },
-      watch: watched,
-      disarm: () => sessionStorage.removeItem(WATCH),
-      input: () => input,
-      revision: () => Number(document.querySelector('meta[name="lf-revision"]')?.content),
-      quiet() {
-        const ready =
-          document.querySelector("script[data-lf-entry]")?.lfReadiness?.() === null;
-        const trips = ledger();
-        return (
-          ready &&
-          trips.acked === trips.sends &&
-          trips.heard === trips.asked &&
-          !trips.pending?.length
-        );
-      },
-      // What the page did since `arm`: in this document the resource entries started
-      // since then, and after a reload everything the new document loaded.
-      traffic() {
-        const watch = watched();
-        const now = ledger();
-        if (watch.document === documentId)
-          return {
-            install: "in place",
-            sends: now.sends - watch.ledger.sends,
-            asked: now.asked - watch.ledger.asked,
-            ...resources(
-              performance
-                .getEntriesByType("resource")
-                .filter((entry) => entry.startTime >= watch.since),
-            ),
-          };
-        return {
-          install: "reload",
-          sends: now.sends,
-          asked: now.asked,
-          ...resources([
-            ...performance.getEntriesByType("navigation"),
-            ...performance.getEntriesByType("resource"),
-          ]),
-        };
-      },
-    }),
-  });
-  if (watched()) sample();
-})();
-"""
+PROBE = Path(__file__).with_suffix(".js")
 
 
 def until(page: Page, script: str, what: str, arg=None):
@@ -399,10 +248,11 @@ class Session:
         messages of the thread the user has open and one row for each other."""
         words = f"Bench reply {run + 1}."
         thread = f'.lf-thread[data-id="{self.thread}"]'
-        opened = f"() => document.querySelector('{thread} .lf-msg')?.checkVisibility()"
-        if not self.page.evaluate(opened):
+        message = f"{thread} .lf-msg"
+        opened = "selector => document.querySelector(selector)?.checkVisibility()"
+        if not self.page.evaluate(opened, message):
             self.page.locator(f"{thread} .lf-thread-summary").click()
-            until(self.page, opened, "the agent thread never opened")
+            until(self.page, opened, "the agent thread never opened", message)
         self.settle()
         act = self.written(
             "events.jsonl",
@@ -455,7 +305,7 @@ def served(browser: Browser, arm: str, arm_dir: Path, source: str, scratch: Path
             viewport={"width": DESKTOP[0], "height": DESKTOP[1]}
         )
         try:
-            context.add_init_script(script=PROBE)
+            context.add_init_script(path=PROBE)
             page = context.new_page()
             page.goto(address)  # The token sets the page cookie; later loads drop it.
             origin = address.split("?", 1)[0]
@@ -494,6 +344,7 @@ def bench_latency(base_ref: str | None) -> None:
     to the painted frame, with the requests and bytes each caused; every run lands
     in .tmp/bench-latency/.
     """
+    out = run_directory(OUT)
     load_before = load_average()
     results = []
     with tempfile.TemporaryDirectory(prefix="leaf-bench-") as built:
@@ -522,8 +373,7 @@ def bench_latency(base_ref: str | None) -> None:
                                     err=True,
                                 )
             version = browser.version
-    OUT.mkdir(parents=True, exist_ok=True)
-    (OUT / "results.json").write_text(
+    (out / "results.json").write_text(
         json.dumps({"commits": commits, "results": results}, indent=1)
     )
     click.echo(
@@ -544,4 +394,4 @@ def bench_latency(base_ref: str | None) -> None:
                     == (source, transition, arm)
                 ]
                 click.echo(row(source, transition, arm, runs))
-    click.echo(f"details: {OUT / 'results.json'}")
+    click.echo(f"details: {out / 'results.json'}")

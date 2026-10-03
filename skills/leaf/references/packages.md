@@ -100,20 +100,24 @@ package/
 ```
 
 No individual file is required. The kernel supplies the files every complete layer
-needs. Theme files concatenate into one cascade layer, `lf-base`, so a package's rule
-beats the kernel's by specificity and order as it would unlayered, while the Layouts
-and the page's own stylesheet rank above every package rule whatever its specificity.
-A package that declares widgets styles only those widgets: composition narrows each
-rule in its `theme.css` and `shadow.css` to elements that are one of its widgets or
-stand inside one, and in the shadow sheet every declared tree receives, to trees one of
-its widgets hosts. A rule for `p` dresses the paragraphs in its widgets and no other,
-and a rule for the box that holds a widget matches nothing. Composition refuses a rule
-whose subject is `:root`, `html` or `body`, which no widget contains; state a widget's
-tokens on its own element. What several packages' widgets share, such as the pane role
-or a chip row, is the kernel's, and a package without widgets is a theme that reaches
-the whole page as the kernel's does. A widget module's adopted sheet joins the same
-layer. Shadow files concatenate too: a
-declared `x-shadow` root built with `shadowStage` receives every package's `shadow.css`
+needs. Theme files concatenate into one cascade layer, `lf-base`; specificity,
+native scope proximity, then source order decide between its rules. Layouts and
+semantic state rank above package defaults; the page's unlayered stylesheet ranks
+above all of them. In declared shadow trees, shared `shadow.css` rules rank above
+widget defaults and below semantic state. A behavior module placing third-party
+CSS in a `<style>` uses `inBaseLayer(text)` from `/runtime/widget-api.js`: it puts
+the vendor's rules, including any nested layers, in the widget-default tier.
+Composition wraps each widget package's sheets in native `@scope`: the document
+roots are its declared widget tags, and shadow roots are their `:host`. Matching
+stays inside those roots automatically. Ordinary selectors name descendants;
+`:scope` names a root, with `:scope:is(lf-tag)` selecting one kind in a package.
+In shadow CSS, `:scope:host(.state)` reads the host's state. Outside conditions
+belong in nested scopes, such as `@scope (html[data-lf-interactive] :scope)`.
+A rule for `p` styles only paragraphs inside the package's widgets. A rule for
+`html`, `body`, or a widget's containing box matches nothing. Put shared page
+vocabulary in the kernel; a package without widgets is an unscoped page theme.
+A widget module's adopted sheet joins the same layer. Shadow files concatenate:
+a declared `x-shadow` root built with `shadowStage` receives every package's `shadow.css`
 in layer order, and the document reads each package's `shadow.css` just ahead of its
 `theme.css`. Runtime, icon, widget,
 and vendor files replace by path. A later package replaces a tag's complete element
@@ -299,6 +303,15 @@ query private chrome, or duplicate a runtime helper inside itself. Resolve canon
 generated images or links. It uses the page's public root across ordinary and
 published pages while the source retains its canonical path.
 
+For a vertical navigation that must retain sideways reading, use
+`scrollIntoReadingBand(target, holder, block, behavior)`: `target` is an element or
+Range, and `holder` is the element whose reading regions contain it. Element targets
+support `start`, `center`, or `nearest` for `block`; a Range is always centered. It places the
+target in the innermost reading band and reveals it in enclosing regions, across
+shadow roots, without changing horizontal offsets.
+Use it for an explicit arrival; entering visible controls and ordinary repainting
+preserve their current reading position.
+
 Registry-declared inline Markdown formats authored text, not strings a module assigns
 with `textContent`. For changing Markdown prose, load the renderer with `loadMarkdown()`
 and paint the current value with `inlineMarkdownFragment()`; repaint that value when
@@ -314,15 +327,20 @@ detail matching the declared browser schema; `says()` over `textContent`; `offer
 scroll against the resulting layout); asynchronous visible preparation is registered
 through `controller.present(promise)`; box-derived apparatus takes its first visible
 reading synchronously from `PRESENTATION` and observes later changes through the normal
-layout signals (each helper's header under `runtime/` says why), scheduling a paint with
-`nextRender`/`cancelRender` and watching a size with `sizeObserver` rather than the
-browser's own, so that a reader waiting for the page to settle after a gesture — a
+layout signals. Apparatus derived from the authored structure reconciles at
+`PAGE_INTERFACE`, which runs at startup and each in-place revision activation;
+it retains surviving nodes with `setChildren` so focus and native view state survive.
+Each helper's header under `runtime/` says why. Use `nextRender`/`cancelRender` for
+paints and `sizeObserver` for size observation, so that a reader waiting for the
+page to settle after a gesture — a
 check, a test — waits for that work too (`nextRender` asked for from another rendering
 callback runs in that callback's frame, and otherwise in the next frame; a step that
 must not run in the frame that asked for it, such as an animation tick, asks for
 `nextFrame`; a playback loop that runs until
 the user stops it stays on `requestAnimationFrame`, or the page never settles while it
 plays);
+`afterScript(callback)` coalesces a stable callback at the current script's microtask
+checkpoint when several synchronous updates produce one final mechanical reading;
 `keeps(node, name,
 value)` for any name or state a reactive render writes, handed the boolean or count raw,
 since an unconditional `setAttribute` restates itself on every publication and
@@ -491,8 +509,25 @@ outside `scope`.
 A module that takes the user to a thread calls `openThread(id, {focus})`
 with the Thread's `id`. It opens the thread where the page shows it, inline beside
 its passage or widget, and in Threads when it has no place on the page, the same choice a
-mark and `t` make; `focus: "thread"` lands on the thread and the default `"reply"` lands in
-its reply box. A place on the page is an ordinary fragment link; Leaf follows it the
+mark and `t` make. `focus: "thread"` lands on the card or native summary;
+`focus: "reply"` reveals its available reply editor. Omitting `focus` follows the
+surface's ordinary route: a compact passage card starts at the card, while a widget
+conversation or Threads starts at its reply. The call returns a `Promise<Element|null>`:
+the actual destination after reveal and placement, or `null` when the Thread no longer
+stands or newer input has superseded the move. Leaf owns the original gesture's
+continuity inside this route. The returned, still-focused destination is the capability
+for a continuation: a separate predicate captured on the button would reject the
+route's own move to that editor. A continuation uses the returned element only while
+it still holds focus:
+
+```js
+const editor = await openThread(thread.id, {focus: "reply"});
+if (editor?.matches(":focus") && editor.setSelectionRange) {
+  editor.setSelectionRange(0, editor.value.length);
+}
+```
+
+A place on the page is an ordinary fragment link; Leaf follows it the
 way it travels to a thread, clearing a panel that covers the page and opening whatever
 holds the element.
 
@@ -500,7 +535,7 @@ A module that names an element away from it, in a feed row or a summary, reads t
 shared names rather than its own. `addressableLabel(element)` is what the chrome calls
 it: first the name the authoring contract gives it (the attribute its entry declares
 with `x-name`, else a leading `<summary>`, heading, or titled member's `<strong>`,
-inside a leading `<header>` too), else its caption or `aria-label`. An element whose
+inside a leading `<header>` or `<hgroup>` too), else its caption or `aria-label`. An element whose
 words are its own, such as a paragraph or a list item, is otherwise named by those
 words cut short; any other element takes the name of the nearest element holding it
 that has one, so a question's options are named by the question. Past that, plain
@@ -528,7 +563,8 @@ to leave, so a widget retiring one uses that constant rather than choosing a num
 a duration only on letting the eye follow a box from where it was to where it is. A result
 the module can already draw is drawn in the gesture rather than after a wait.
 
-A navigation captures `retainUserIntent()` in the gesture that starts it, before its
+A module implementing its own navigation captures `retainUserIntent()` in the gesture
+that starts it, before its
 first wait, and checks the returned predicate after every wait before moving focus or
 scroll: loading a file, a deferred value, or a renderer is a wait, and a user who pressed on
 in the meantime is not moved back. A predicate taken after a wait would carry a newer
@@ -538,7 +574,9 @@ transfer without renewing the original input generation. After a wait, check the
 predicate before starting that synchronous handoff. If the synchronous work already
 moved focus, the handoff keeps and adopts that destination instead of running the old
 focus move. A skipped move returns false, so a caller that requires the surface change
-can decline; adoption alone does not report that the move ran.
+can decline; adoption alone does not report that the move ran. Leaf's navigation
+primitives own that retention already; `openThread` returns its completed destination
+as described above.
 
 When Leaf travels to a target, such as a comment anchor or an Ask, it first dispatches
 `lf-reveal` on each ancestor of the target and the target itself, outermost first, with
@@ -548,9 +586,9 @@ asynchronous listener checks it after each wait. A listener whose opening settle
 asynchronously passes that promise to `present(promise)`, so the travel waits for the
 target's geometry. `lf-tabs` is the worked example.
 
-`registerMarginContribution({key, target, source?, read, activate})` is the package boundary for
-page-edge actions. `read()` returns the contribution's complete current reading,
-including immutable `marginEntry({...})` records; it never returns controls. Leaf renders
+`registerContribution({key, target, source?, read, activate})` is the package boundary for
+shared page actions and statuses. `read()` returns the contribution's complete current reading,
+including immutable `contributionEntry({...})` records; it never returns controls. Leaf renders
 those same records independently in the target's Margin cluster and in Page Map.
 Reading items in `readings` have nonempty `id` strings, unique within that contribution;
 other contributions may reuse an ID. `kind` names what the contribution is, as one of the
@@ -567,11 +605,50 @@ to move to a surviving ancestor.
 surface, input kind, current entry, and a focus capability. That capability moves the
 current surface only when activation owned keyboard standing and otherwise returns
 false. The returned registration
-exposes `entry`, `control`, `contains`, `activate`, `focus`, `update`, and `unregister`;
-`update()` replaces the whole reading and may synchronously lay it out or focus a
+exposes `entry`, `control`, `contains`, `activate`, `activateReading`, `focus`,
+`update`, and `unregister`. Auxiliary reading activation callbacks stay with the live
+registration; projected readings contain data, and `activateReading(id)` invokes the
+current capability for that reading.
+
+`update()` replaces the whole reading and may synchronously present it or focus a
 surviving key. Keep text fields, history, and other mechanical editing state in the
 widget. Publish only action and status records to the margin, with explicit `element` or
 `entries` relations when a disclosure owns another surface or entry.
+
+An entry needs `key`, `label`, and exactly one of `glyph` (text) or `icon` (a Leaf
+icon name). `kind` belongs to the whole reading, never an entry. Entries default to
+`behavior: "action"`, `tone: "neutral"`, `rank: "primary"`, and `state: "idle"`;
+`activation` defaults to their key. `CONTRIBUTION_ENTRY_SCHEMA`, exported by
+`/runtime/widget-api.js`, gives the accepted values for those four fields.
+For example, inside an existing widget whose `saveDraft()` owns the effect:
+
+```js
+import { contributionEntry, registerContribution } from "/runtime/widget-api.js";
+
+connectedCallback() {
+  this.actions = registerContribution({
+    key: this.id,
+    target: this,
+    read: () => ({
+      kind: "action",
+      subject: this.getAttribute("aria-label"),
+      entries: [contributionEntry({
+        key: "save", glyph: "✓", label: "Save", disabled: this.disabled,
+      })],
+    }),
+    activate: () => this.saveDraft(),
+  });
+}
+
+syncActions() { this.actions.update(); }
+disconnectedCallback() { this.actions.unregister(); }
+```
+
+Call `syncActions()` when the widget's state changes. Return the actions available
+in that state from `read()`; every surface receives the same current records.
+Leaf's native controls and Page Map provide keyboard routes. A widget adding its
+own commands calls `actions.activate(key)` from those rows, so keyboard and pointer
+input reach the same effect.
 
 A contribution stands in its target's cluster wherever that cluster stands: in the rail
 beside a column page, or as a pin over the page by the target, where an unfolding
@@ -621,29 +698,60 @@ again.
 ### Commands and keyboard routes
 
 A widget contributes each command once with `commands(source, title, rows, options)`.
-The dispatcher, shortcut bar, command reference, `aria-keyshortcuts`, and Ask projection all
-consume those same live rows. Set a row or route's `decision` to its concise, non-empty
-action-name string—or a function returning one—and give it `control` for the visible
-element that performs the action. A Decision action begins an answer, answers, advances,
-or revises the Ask containing `source`. The action name is separate from `label`, which
-remains the command register's own-scope keycap override. A row with no bindings when
-`commands()` registers it must provide a non-empty string `label`, a `label` function, or
-a Decision action name. This also applies when computed `keys` is initially empty and
-gains bindings later. The command reference uses a keyless Decision command's action name
-rather than a blank keycap.
-Every ordered Decision receives one of the Ask's contextual `1` through `9` routes while
-capacity remains, independently of any intrinsic widget binding. The Ask digit and the
-widget binding share one command id and source-scoped command reference. Invoking either
-therefore rechecks the original scope and liveness and calls the original `run` (or
-clicks a run-less native control). A focused widget declaration
-wins when it collides with an Ask digit; undeclared digits continue to the Ask.
+The dispatcher, shortcut bar, command reference, `aria-keyshortcuts`, and inline hints
+consume those same declarations. Every row and route has a stable dotted `id` and a
+required concise `title`, such as `"Pass"`; the title may be a function when state changes
+the action name. An optional `description` supplies extra detail in the reference.
+The bar defaults to the title; `line` overrides its short wording and `line: false`
+keeps a reference-only command out of the bar. `label` overrides the keycap, not the
+action name. A keyless command still has its title in the reference.
 
-`bindingBadge` may name an empty face a widget already positions. Each supplied face
-belongs to one action; core writes the reachable Ask digit there while the whole face is
-connected, visible, and uncovered. Otherwise core paints its own binding badge at the
-visible control. Routes let one parameterized row contribute distinct controls and
-intrinsic bindings. Do not maintain a second Ask-control list or declare the Ask's
-contextual digits in the package.
+Declare ordinary local bindings in `keys` and explicitly forwardable aliases in
+`contextKeys`. Both arrays work inside the widget. Only context aliases are exposed at
+the enclosing Ask's opening and its associated margin controls and threads. A route can
+declare its own `contextKeys`; an ordinary key on another route is never forwarded.
+Numbers are widget choices, not an Ask allocation: options own their stable numeric
+assignments, and a swipe deck declares Pass as `1` and Keep as `2`. The page owns `a`
+and `Shift+a` navigation between Asks. Do not assign numbers based on currently available
+actions: disabling `1` must not turn `2` into a different action.
+
+```javascript
+const actions = commandScope("In a swipe deck", [
+  {
+    id: "swipe.pass",
+    title: "Pass",
+    keys: ["ArrowLeft"],
+    contextKeys: ["1"],
+    decision: true,
+    control: passButton,
+    bindingBadge: passHint,
+    when: canSwipe,
+    run: () => passButton.click(),
+  },
+]);
+commands(deck, actions);
+```
+
+Set `decision: true` and provide `control` when a command starts, advances, answers, or
+revises the Ask containing `source`. This semantic role neither assigns a binding nor
+makes ordinary keys forwardable. A numeric command need not be a Decision. Forwarding
+retains the original source, scope, row, and route identity, rechecks their current
+availability, and invokes the original callback or native control. Replacing or removing
+the source attachment withdraws its old routes. A nearer widget owns its declared keys;
+an unavailable implemented binding reserves its key against a different outer meaning.
+
+Declare `bindingBadge` on a row or route to request an inline shortcut hint, whether or
+not the command is a Decision. An element names an empty face the widget positions;
+`null` requests a badge at the control's corner. Each supplied face belongs to one
+action. The shared keyboard presenter writes its first reachable binding while the
+whole face is connected, visible, and uncovered; a reachable Ask alias takes precedence
+over an intrinsic binding for the same command. Otherwise it paints a corner badge at
+the visible control. Commands without `bindingBadge` do not request an inline hint.
+The presenter reads the dispatcher's effective bindings, so hints withdraw outside the
+scope, during native text entry, or when the command is unavailable. A widget owns the
+face's placement, not its text or active state. Routes let one parameterized row
+contribute distinct controls and intrinsic bindings. Do not maintain a second
+Ask-control list or paint binding text in the package.
 
 Command scopes compose by focused ancestry. The exact control scope is nearest, followed
 by containing widget scopes and Leaf's outer page scopes. A scope owns only the bindings
@@ -655,7 +763,8 @@ different meaning, and a dead inner Escape declaration passes the key to the nex
 return rather than stranding it. A row without
 `run` only presents native behavior or a shared outer handler and does not shadow it. Text
 fields and other native interactions retain their editing keys ahead of ancestor widget
-scopes.
+scopes and all context aliases, including aliases attached directly to an editor. Ordinary
+exact-control keys keep their existing precedence for Save, Escape, or submit.
 
 Use `commandScope(title, rows, options)` when Leaf, rather than the widget, creates the
 focusable control. Put the returned capability on a margin-entry record's `scope`; each
@@ -697,7 +806,7 @@ controller.
 Every row passed to `commands()` has a stable dotted `id`, such as `draft.save`. Keep that
 identity when its key or wording changes: the command browser and repeated widget
 instances use it instead of display prose. If one compact row binds keys with different
-meanings, add `routes` with an `id`, `binding`, and action sentence for each meaning. The
+meanings, add `routes` with an `id`, `title`, and ordinary `binding` or explicit `contextKeys` for each meaning. The
 shortcut bar stays compact, while the command reference lists and runs each route on its own.
 Use `runFromCommandReference: false` only for a parameterized step that cannot be run without a
 choice the command reference does not have, such as a generated hint tied to the live viewport. An
@@ -721,6 +830,10 @@ projections. A direct editor that needs more commands, such as Save and Cancel,
 registers those rows on its box with the same text-entry meanings. `TEXT_BOX` matches
 the text field and any native textarea, for code asking whether an element takes typed
 paragraphs.
+
+A field has `:state(ready)` once its editor view exists. When it replaces a reading
+surface, keep that surface in flow until the field is ready: measuring a connecting
+empty field must not shrink the scrollport and lose the user's reading position.
 
 The call returns the box's one seam onto its draft, and a box holds more than its
 `.value`: an image pasted into one is kept as Markdown and shown as a thumbnail beside
@@ -762,7 +875,6 @@ declares one verb on `lf-swipe-deck` and the condition that answers its Ask, and
     }
   },
   "x-awaits": {
-    "region": true,
     "answered": {
       "swipe": { "empty": { "within": "lf-swipe-pile", "when": { "verdict": ["unseen"] } } }
     }
@@ -834,6 +946,11 @@ match a declaration there:
   }
 }
 ```
+
+Add `"owns": true` to a typed contract whose referrer fills its target, as a command
+fills the readings seat it names. `page check` then requires the target in the
+referrer's own document, and every element there that the predicate selects named by
+exactly one referrer, so no seat stands empty or holds two commands' readings.
 
 Leaf validates the generic relation; the package owns the map, roles, and participating
 widget tags. A later package can therefore add another goal or worker widget by merging
@@ -1051,7 +1168,11 @@ rather than authored prose and reconciles their order by key. A renderer
 that owns a nested layout passes `{nested: true}` and returns its existing descendants;
 Leaf labels those nodes without moving them, and the module orders each container with
 `setChildren(parent, nodes)`, which moves only what is out of place and keeps the user
-in a node it moves. Add `labelOf(record, index)` when a thread
+in a node it moves. For a subtree whose entire contents and descendant attributes
+belong to the renderer, use `setRenderedChildren(parent, nodes)`: it matches unchanged
+nodes and edits only changed text, preserving native selections in text the source kept.
+Keep independently stateful controls outside that subtree. Add `labelOf(record, index)`
+when a thread
 should name a projected datum with a human coordinate; the rendering key remains opaque to
 the runtime. A widget declaring `x-data` passes `{snapshot}` with the delivery from
 `watchData`, including `null` when no current value exists. Leaf stamps the projection
@@ -1173,7 +1294,11 @@ this.threadSurface = consumeThreads(this, (collection, surfaces) => {
 ```
 
 `target(key)` returns `{anchor, placement}` only for an exact datum belonging to the
-widget, otherwise `null`; `placement.datumElement` is the rendered datum.
+widget, otherwise `null`; `placement.datumElement` is the rendered datum. It also
+returns `null` for a thread the agent starts at an on-screen datum where the widget
+draws no thread yet, since the outlet it opened would move what the user is reading:
+the thread waits in the margin until the user presses its marker, adds a turn of their
+own, or scrolls the datum out of the window.
 `composition` supplies the equivalent placement for the active composer, which may
 precede any Thread. The widget owns outlet creation, removal, and layout.
 Leaf validates target ownership and outlet containment before committing placements.
@@ -1201,6 +1326,49 @@ revision, opens the ordinary anchored draft, and seats the response bar in the c
 outlet when the datum still resolves exactly. `origin` is the widget control to which
 Escape may return focus. Widgets do not receive draft, submission, or event APIs.
 
+## Page annotation presentation
+
+With `data-annotations="page"` on `body`, one connected Element may register
+`consumePageThreads(owner, render)` to nominate page-owned conversation outlets.
+Its callback receives the current immutable Thread collection and the same
+`target`, `place`, `composition` and `placeComposition` capabilities as a
+widget-local surface. Page targets include exact passages and visual details,
+as well as projected data. `target(key)` expresses candidacy: widget-local
+outlets that survive final validation take priority. A held widget arrival stays
+with its existing notice until the user opens it. Source-target coverage and
+outlet containment are separate: the source may be elsewhere in the document,
+but the outlet must stay inside its registered owner. Core validates both again
+at the sole conversation/composer commit. Failure of this selected page callback
+fails presentation instead of claiming an empty successful view.
+
+The same owner can register `consumeAnnotations(owner, render)` for Asks,
+updates, status and contributed actions. It receives the current immutable
+inventory after the conversation cohort commits, plus these capabilities:
+
+- `view.items(entry)` gives generated items not already represented by an owner's
+  visible native contribution controls. `view.activate(item)` uses the current
+  canonical action; a view never sends an event itself. Retain items by the
+  exported `contributionItemKey(item)`: each contribution owns its reading IDs.
+- `view.controls(entry)` returns the retained native contribution controls in
+  canonical order. Seat those actual nodes; their registration owns activation,
+  command scopes, disabled state and focus. `view.controlKey(control)` identifies
+  that current control by its contribution owner and entry key;
+  `view.controlRecord(control)` reads its canonical immutable contribution entry,
+  including its owner. Do not copy markup.
+- `view.arriving` says an explicit contribution focus is arriving at this view.
+  Release held layout before seating that current reading so its control is reachable.
+- `view.place(entry, row)` associates a contained row with its current source for
+  commenting, standing and Escape. `view.target(entry)` reads that exact target.
+
+Annotation paint is synchronous and joins the existing conversation presentation
+proof. `controls` and `place` accept only entries in that paint's current reading;
+holding layout never authorizes old actions. Both handles provide `read()`,
+`update()` and `unregister()`. Unregister on disconnect. Retain keyed rows and
+hold visible size changes with the shared `HeldReading` mechanism. Hold only layout
+identities and allocations, while updating surviving records and controls immediately;
+retired slots retain space with no interactive descendants. The bundled `lf-annotation-rail` is the worked
+implementation. Omitting either consumer retains the core Threads and Asks routes.
+
 ## Seeing it
 
 Before a page uses the package, `leaf package check PACKAGE --render` draws the worked
@@ -1208,7 +1376,8 @@ examples of the widgets the package's own `registry.json` declares, in the brows
 `page check --render` uses, and prints one line per finding: the widget, the check,
 and what the check measured. A finding is advice for the widget's author: it refuses
 nothing, and the exit status ignores it. The command fails only where the package
-check does, no browser launches, or the examples cannot be drawn. Examples share a
+check does or the examples cannot be drawn; where no browser launches, it says the
+examples were not drawn. Examples share a
 page where their ids allow, so one example may point at an element another declares,
 and a blank image stands in for any media an example names. The checks:
 

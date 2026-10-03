@@ -23,7 +23,8 @@
  * Modules restore their own stored state, such as tabs and drafts, through their own
  * lifecycles. `version.js` owns when capture and restoration run for each install.
  */
-import { TEXT_BOX, focusDestination, readCaret } from "./focus.js";
+import { focusDestination, readCaret } from "./focus.js";
+import { TEXT_BOX } from "./control-selectors.js";
 import { skipped } from "./geometry.js";
 import { readingRegions } from "./reading-regions.js";
 

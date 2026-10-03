@@ -15,23 +15,48 @@
      Reopen once resolved, and a folded outlet's summary;
    - a new thread in the control row of the thread it would follow, or, where the seat
      draws no thread, in place of its first-message row, at that row's height, unless the
-     user stands in that box, which `holdBox` (reply-landing.js) keeps still instead.
+     user stands in that box, which `holdBox` (reply-landing.js) keeps still instead;
+   - a new thread at a widget's datum that has no seat yet, such as a diff line with no
+     thread, behind the margin marker it gets. Its seat would be a new outlet the widget
+     opens in the flow, with no row in it to say what waits, so the widget is not handed
+     the thread to place (surfaces.js), and the margin draws it as it draws any thread
+     no widget places, out of the flow.
 
-   `HeldNews` is that one owner for a seat. It reads each reading the seat is handed
-   against the one it drew last, holds what is news, and returns the reading to draw,
-   each thread carrying `news` where something waits behind it. What it holds shows when
-   the user opens the notice, when they add a turn of their own here (a reply in the
-   thread, or a thread they start in the seat, which answers what came before it and so
-   follows it), or when none of the seat shows in the window, where the growth moves
-   nothing they see. Anything held is not drawn, so it stays unread until it shows. */
-import { shownBand } from "../geometry.js";
+   `HeldNews` is that one owner for a seat, and `HeldArrivals` for the seats a widget has
+   not opened. Each reads every reading against the one it drew last and holds what is
+   news. What it holds shows when the user opens the notice, when they add a turn of
+   their own here (a reply in the thread, or a thread they start in the seat, which
+   answers what came before it and so follows it), or when none of the seat shows in the
+   window, where the growth moves nothing they see. Anything held in a seat is not
+   drawn, so it stays unread until it shows.
+
+   `HeldReading` is the same rule for a widget's region whose rows only the log or the
+   clock decides, such as a command's lists of stopped goals and live workers: a reading
+   that would change its size waits, the region standing as it was, while its growth
+   would be seen, and a control of fixed size the widget already draws says so and
+   shows it. */
+import { shownBand, whenOffScreen } from "../geometry.js";
 import { scrollersOf } from "../reading-regions.js";
 import { offer } from "../widget-elements.js";
 import { keepsText, layoutPx } from "../keeps.js";
 import { keys, focused } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
 import { focusThread } from "./focus.js";
+import { turns } from "./model.js";
+import { THREAD } from "./selectors.js";
+import { closestAcross } from "../passages.js";
 import { readApplication } from "../semantic-state.js";
+
+// Whether a turn is the user's gesture: one this page's ledger still holds the attempt
+// of, as it does in the turn they send it. Their words from another tab, or a turn a
+// seat first draws after the log answered it, as a package mirror whose render waited
+// on work of its own does, arrive like the agent's.
+function ownTurn() {
+  const ledger = new Set(
+    readApplication().unresolved.map(({ event }) => event.attempt),
+  );
+  return ({ author, attempt }) => author === "user" && ledger.has(attempt);
+}
 
 // Whether growth after `node` would move what the user sees: the node's foot stands
 // inside every box that scrolls it. A node not drawn has no foot to grow from.
@@ -45,15 +70,18 @@ function growthAfterIsSeen(node) {
   return true;
 }
 
-// Calls `leave` once none of `node` shows in the window, and returns the step that stops
-// watching. Waiting for all of the seat to go keeps news held a little longer than it
-// needs, never shorter.
-function whenOffScreen(node, leave) {
-  const observer = new IntersectionObserver((entries) => {
-    if (!entries.at(-1).isIntersecting) leave();
+// Whether growth inside `nodes`, wherever in them it starts, would move what the user
+// sees: some of them stands inside every box that scrolls it. Growth wholly above the
+// screen goes into what scroll anchoring holds, and wholly below it moves nothing seen.
+function growthInsideIsSeen(nodes) {
+  return nodes.some((node) => {
+    const { top, bottom, height } = node.getBoundingClientRect();
+    if (!height) return false;
+    return scrollersOf(node).every((box) => {
+      const band = shownBand(box);
+      return band && bottom > band.top && top < band.bottom;
+    });
   });
-  observer.observe(node);
-  return () => observer.disconnect();
 }
 
 const counted = (count, one, many) => count && `${count} ${count === 1 ? one : many}`;
@@ -84,8 +112,8 @@ export function newsNotice() {
     {
       id: "thread.news",
       keys: PRESS,
-      does: "Show what is waiting",
-      line: "show it",
+      description: "Show what is waiting",
+      title: "show it",
       run: () => node.click(),
     },
   ]);
@@ -164,20 +192,15 @@ export class HeldNews {
     );
     const shown = this.#draw(prior, reading);
     this.#shown = read ? shown : null;
-    if (this.#holding()) this.#stopWatching ??= whenOffScreen(this.#seat, this.#all);
+    // Waiting for all of the seat to go keeps news held a little longer than it needs,
+    // never shorter.
+    if (this.#holding()) this.#stopWatching ??= whenOffScreen([this.#seat], this.#all);
     else this.#stop();
     return shown;
   }
 
   #take(prior, reading, row) {
-    // A turn is the user's gesture while this page's ledger still holds its attempt, as
-    // it does in the turn they send it. Their words from another tab, or a turn a seat
-    // first draws after the log answered it, as a package mirror whose render waited
-    // on work of its own does, arrive like the agent's.
-    const ledger = new Set(
-      readApplication().unresolved.map(({ event }) => event.attempt),
-    );
-    const own = ({ author, attempt }) => author === "user" && ledger.has(attempt);
+    const own = ownTurn();
     const arrived = reading.threads.filter(({ key }) => !this.#known.has(key));
     // A thread the user starts is their gesture, and the threads before it show with it.
     if (arrived.some(({ messages }) => messages[0] && own(messages[0])))
@@ -291,5 +314,192 @@ export class HeldNews {
 
   dispose() {
     this.#stop();
+  }
+}
+
+/** One region's reading, held while drawing it would move what the reader sees.
+ *  `region()` gives the nodes the reading draws, and `changed()` draws the widget again.
+ *  A reading is a value equal to the one drawn last exactly when it draws at the same
+ *  size, such as the keys of its rows. `hold(reading)` returns the reading to draw:
+ *  `reading` where it is the first, where it equals the one drawn last, or where none
+ *  of the region shows in the window, since a row may change anywhere in it; otherwise
+ *  the reading drawn last. What it holds shows when the user opens it
+ *  (`release` or `show`), or once none of the region shows in the window. */
+export class HeldReading {
+  #region;
+  #changed;
+  #shown = null;
+  #released = false;
+  #watch = null;
+
+  constructor(region, changed) {
+    this.#region = region;
+    this.#changed = changed;
+  }
+
+  hold(reading) {
+    // Preparation can draw partial authored contributions before the complete log
+    // arrives. That is no baseline for news: the first ready reading stands whole.
+    if (readApplication().phase !== "ready") {
+      this.#shown = null;
+      this.#stop();
+      return reading;
+    }
+    const nodes = this.#region();
+    if (
+      this.#released ||
+      this.#shown === null ||
+      this.#shown === reading ||
+      !growthInsideIsSeen(nodes)
+    ) {
+      this.#released = false;
+      this.#shown = reading;
+      this.#stop();
+    } else if (
+      !this.#watch ||
+      this.#watch.nodes.length !== nodes.length ||
+      this.#watch.nodes.some((node, at) => node !== nodes[at])
+    ) {
+      this.#stop();
+      this.#watch = { nodes, stop: whenOffScreen(nodes, this.show) };
+    }
+    return this.#shown;
+  }
+
+  // The next reading draws whatever it moves: the user asked, or nobody can see.
+  // `release` leaves the drawing to the caller, which may release several readings
+  // for one paint; `show` draws now.
+  release() {
+    this.#released = true;
+  }
+
+  show = () => {
+    this.release();
+    this.#changed();
+  };
+
+  #stop() {
+    this.#watch?.stop();
+    this.#watch = null;
+  }
+
+  dispose() {
+    this.#stop();
+  }
+}
+
+/** The threads one widget holds out of its flow: each thread the agent starts at a datum
+ *  where the widget draws no thread, while the datum's foot is on screen. `hold` says
+ *  which threads the widget is not handed to place. The margin draws each as it draws
+ *  a thread no widget places, and pressing its marker is opening the notice, which
+ *  `show` answers. The margin draws a held thread's marker though the agent settled it,
+ *  since the marker is its notice. A thread also shows when the user adds a turn to it,
+ *  settles or reopens it, or starts a thread at its datum, and when none of the datum
+ *  shows in the window. */
+export class HeldArrivals {
+  #changed;
+  // The keys of the page's threads at the last reading, or null before a reading drawn
+  // from the read log, which is what the page shows on arrival and so no baseline for
+  // news; each held thread's id and datum, by key; and the watch on each holding datum's
+  // node. A thread the widget is first handed because the user opened its datum, as a
+  // collapsed file, is no news.
+  #known = null;
+  #held = new Map();
+  #watching = new Map();
+
+  // `changed()` hands the widget its threads again.
+  constructor(changed) {
+    this.#changed = changed;
+  }
+
+  // The keys to keep out of what the widget places. `threads` holds each thread record
+  // the widget has an exact target for, with the `datum` it stands at and that datum's
+  // `node`; `drawn` holds the datums where the widget drew a thread last, and `all` is
+  // every thread record on the page.
+  hold(threads, { drawn, all }) {
+    const read = readApplication().phase === "ready";
+    if (!read) this.#held.clear();
+    else if (this.#known) this.#take(threads, drawn);
+    this.#known = read ? new Set(all.map(({ key }) => key)) : null;
+    this.#watch(threads);
+    return new Set(this.#held.keys());
+  }
+
+  #take(threads, drawn) {
+    const own = ownTurn();
+    const keys = new Set(threads.map(({ thread }) => thread.key));
+    this.#release(({ key }) => !keys.has(key));
+    // Settling a thread or reopening it is the user's gesture in it, as a turn is. A
+    // thread the agent moves follows its datum, and one moved to a datum with a thread
+    // drawn joins that seat, whose HeldNews holds what arrives in it.
+    for (const { thread, datum } of threads) {
+      const held = this.#held.get(thread.key);
+      if (!held) continue;
+      held.datum = datum;
+      if (thread.settling || turns(thread).some(own)) this.#held.delete(thread.key);
+      else if (drawn.has(datum)) this.#lapse((each) => each === held);
+    }
+    const arrived = threads.filter(({ thread }) => !this.#known.has(thread.key));
+    // A thread the user starts at a datum is their gesture, and the threads held there
+    // show before it.
+    const started = new Set(
+      arrived.filter(({ thread }) => own(thread.root)).map(({ datum }) => datum),
+    );
+    for (const { thread, datum, node } of arrived) {
+      // A datum with a thread drawn has a seat, and one whose growth would not be seen
+      // draws its threads together.
+      if (started.has(datum)) this.#release((held) => held.datum === datum);
+      else if (drawn.has(datum) || !growthAfterIsSeen(node))
+        this.#lapse((held) => held.datum === datum);
+      else this.#held.set(thread.key, { key: thread.key, id: thread.id, datum });
+    }
+  }
+
+  // Releases what `which` picks for a reason other than a gesture of the user's. A
+  // thread the user stands in, in the margin's card, stays there with them, since its
+  // release would take the card, and the reply they may be writing, away; it shows
+  // when they press its marker, or the next time its datum leaves the window.
+  #lapse(which) {
+    const standing = closestAcross(focused(), THREAD)?.dataset.thread;
+    return this.#release((held) => which(held) && held.id !== standing);
+  }
+
+  // One watch for each datum holding a thread, on the node it stands at now.
+  #watch(threads) {
+    const nodes = new Map(threads.map(({ datum, node }) => [datum, node]));
+    const holding = new Set([...this.#held.values()].map(({ datum }) => datum));
+    for (const [datum, watch] of this.#watching)
+      if (!holding.has(datum) || watch.node !== nodes.get(datum)) {
+        watch.stop();
+        this.#watching.delete(datum);
+      }
+    for (const datum of holding) {
+      if (this.#watching.has(datum)) continue;
+      const node = nodes.get(datum);
+      const leave = () => {
+        if (this.#lapse((held) => held.datum === datum)) this.#changed();
+      };
+      this.#watching.set(datum, { node, stop: whenOffScreen([node], leave) });
+    }
+  }
+
+  holds(id) {
+    return [...this.#held.values()].some((held) => held.id === id);
+  }
+
+  // Shows the held threads `ids` names, and returns the ones it held, in `ids`' order.
+  show(ids) {
+    return ids.filter((id) => this.#release((held) => held.id === id));
+  }
+
+  #release(which) {
+    const released = [...this.#held.values()].filter(which);
+    for (const { key } of released) this.#held.delete(key);
+    return released.length > 0;
+  }
+
+  dispose() {
+    for (const watch of this.#watching.values()) watch.stop();
+    this.#watching.clear();
   }
 }

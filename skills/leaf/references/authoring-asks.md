@@ -1,10 +1,11 @@
 # Asks and sign-off
 
 The user answers an Ask from what is on screen when they reach it, and `a`
-brings its heading to the top with everything above it out of view. So the
-`lf-ask` holds what answering takes: its question heading, then the short shared
-premise and the evidence that tells the alternatives apart, then the control.
-Backing detail and reproductions of the current behavior follow the Ask.
+brings its start to the top with everything above it out of view. Keep its question,
+short shared premise, and evidence together with the answering control. Use `lf-ask`
+to frame that material when it lives outside the answering widget: a question heading,
+then context and evidence, then one answering widget. Backing detail and reproductions
+of the current behavior follow the Ask.
 
 On a quick-answer page, open with the Ask and put its backing in a disclosure
 after it. The first viewport should show the objective, current state, and
@@ -16,11 +17,11 @@ that item, and an Ask that turns on a claim holds the claim and its evidence
 rather than following them. Only an Ask that turns on the whole record comes
 last.
 
-Every Ask is an `lf-ask`: `page check` refuses a widget that takes an answer
-anywhere else. Write related, independently answerable Asks as separate `lf-ask`
-elements in page order. They remain visible as one complete page. The user can press
-`a` to reach the next open Ask and use its displayed `1`–`9` actions. If a later
-Ask depends on an earlier answer, publish it in the next turn instead of authoring
+Write related, independently answerable Asks in page order. A widget can carry its
+own question and context, or an `lf-ask` can frame them around it. They remain visible
+as one complete page. The user can press `a` to reach the next open Ask and use its
+displayed `1`–`9` actions. If a later Ask depends on an earlier answer, publish it in
+the next turn instead of authoring
 every possible branch.
 
 For independent proposals, make progress visible as each one is decided: give

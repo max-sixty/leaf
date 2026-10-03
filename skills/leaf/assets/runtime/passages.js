@@ -117,7 +117,7 @@ import {
   upFrom,
 } from "./shadow.js";
 import { decisionFor, registry } from "./registry.js";
-import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
+import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { COLLAPSE } from "./collapse.js";
 
 // Opaque widgets and their original direct children: each is a passage cell of its own.
@@ -153,7 +153,7 @@ export const verbatimBoundaryIdentity = new WeakMap();
 // Which slots retire is the registry's to say, so this and passages.py's reading of the
 // same page follow one declaration: x-retired-when names the decision that removes the
 // element, x-owners the wrapper the decision is recorded on. Composition stamps that
-// relation, owner by owner, into `$decisions` (Python's `registry.state.stamp_decisions`),
+// relation, owner by owner, into `$decisions` (Python's `registry.contract.stamp_decisions`),
 // and this reads it: one selector per owner and member.
 // Computed once — but only once the registry has loaded: the aim listeners are
 // live from module evaluation, and a pointer move in the upgrade window would
@@ -178,18 +178,17 @@ function retiredSlots() {
 // The rendering of a settlement, in one place for the two occasions that paint it —
 // replay and a module saying its own gesture (lf-suggestion's #settle). The semantic
 // outcome is passed in from the application reading; the owner's data-lf-state is only
-// corresponding paint and is never read back. One static theme rule hides the marked
-// slots, so a family a project declares hides what a settlement removes the day it
-// declares it — by-name rules in theme.css were the closed list wearing CSS's
-// clothes.
+// corresponding paint and is never read back. The shared state.css tier hides marked
+// slots in the document and declared shadow stages, above package display defaults.
 export function renderRetired(el, outcome) {
   const outcomes = decisionFor(el.localName)?.retires;
   if (!outcomes) return;
   for (const [candidate, tags] of Object.entries(outcomes))
     for (const tag of tags)
       for (const root of [el, ...(el.shadowRoot ? [el.shadowRoot] : [])])
-        for (const slot of root.querySelectorAll(`:scope > ${tag}`))
-          slot.toggleAttribute(PAGE_PAINT_ATTRIBUTE.retired, candidate === outcome);
+        for (const slot of root.children)
+          if (slot.localName === tag)
+            slot.toggleAttribute(PAGE_PAINT_ATTRIBUTE.retired, candidate === outcome);
 }
 
 // An element the user's decision took off the page, asked of an element rather

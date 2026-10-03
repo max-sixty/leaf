@@ -75,3 +75,91 @@ class PageView:
         from .delivery import current_responses
 
         return current_responses(self._page_dir, events)
+
+    @property
+    def claims(self) -> list:
+        """The subject work present when this command is admitted."""
+        from .service import claim_update_sources, read_status
+
+        return claim_update_sources(read_status(self._page_dir))
+
+
+class CandidatePageView(PageView):
+    """Admission against checked immutable inputs before their revision is exposed."""
+
+    def __init__(
+        self, page_dir: Path, revision: int, reading: SourceReading, publication: str
+    ):
+        super().__init__(page_dir)
+        self._revision = revision
+        self._reading = reading
+        self.publication = publication
+
+    @property
+    def revisions(self) -> list[int]:
+        return [*super().revisions, self._revision]
+
+    def document(self, revision: int) -> SourceDocument:
+        return (
+            self._reading.document
+            if revision == self._revision
+            else super().document(revision)
+        )
+
+    def reading(self, revision: int, registry: dict) -> SourceReading:
+        if revision == self._revision:
+            return SourceReading(self._reading.document, registry)
+        return super().reading(revision, registry)
+
+    def registry(self, revision: int | None) -> dict | None:
+        return (
+            self._reading.registry
+            if revision == self._revision
+            else super().registry(revision)
+        )
+
+    @property
+    def within(self) -> dict:
+        return self._reading.within
+
+
+class InitialPageView:
+    """A fresh single-revision page, before its directory is allocated.
+
+    Sample source validation and allocation put the same literal document and
+    captured vocabulary to ordinary admission. No claim or delivery exists yet,
+    so no response obligation can have been delivered.
+    """
+
+    def __init__(self, document: SourceDocument, registry: dict, contracts: dict):
+        self._document = document
+        self._registry = registry
+        self._contracts = contracts
+
+    @property
+    def revisions(self) -> list[int]:
+        return [1]
+
+    def document(self, revision: int) -> SourceDocument:
+        return self._document
+
+    def reading(self, revision: int, registry: dict) -> SourceReading:
+        return SourceReading(self._document, registry)
+
+    def registry(self, revision: int | None) -> dict:
+        return self._registry
+
+    @property
+    def within(self) -> dict:
+        return self._document.within
+
+    @property
+    def contracts(self) -> dict:
+        return self._contracts
+
+    def responses(self, events: list) -> dict:
+        return {}
+
+    @property
+    def claims(self) -> list:
+        return []

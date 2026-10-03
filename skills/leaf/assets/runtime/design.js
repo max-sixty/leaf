@@ -1,7 +1,8 @@
 /* This module owns Design mode, its targets, and legend geometry. */
 import { cancelRender, nextRender, sizeObserver } from "./rendering.js";
 import { bannerFoot, documentPoint, shownRect } from "./geometry.js";
-import { el, WORKS } from "./widget-elements.js";
+import { el } from "./widget-elements.js";
+import { WORKS } from "./control-selectors.js";
 import { tabStore } from "./storage.js";
 import { isAddressable, ADDRESSABLE, addressableAt } from "./anchor-resolution.js";
 import { closestAcross, inChrome, leafSurface } from "./passages.js";
@@ -341,13 +342,14 @@ export function createDesignMode({
         id: "design.mode.comment",
         keys: [],
         label: "click",
-        does: "Comment on what the click lands on — a widget, a control, a picture; prose still selects",
+        title: "Comment on appearance",
+        description: "Click a widget, control, or picture; prose still selects",
+        line: false,
       },
       {
         id: "design.mode.exit",
         keys: ["l"],
-        does: "Exit Design mode",
-        line: "exit Design mode",
+        title: "exit Design mode",
         touch: "Exit Design mode",
         run: () => setDesignMode(false),
       },
@@ -361,8 +363,8 @@ export function createDesignMode({
   pageRung("design mode", () =>
     designModeOn
       ? {
-          says: "exit Design mode",
-          does: "Exit Design mode",
+          title: "exit Design mode",
+
           out: () => setDesignMode(false),
         }
       : null,
@@ -372,8 +374,9 @@ export function createDesignMode({
   pageCommand({
     id: "design.mode.enter",
     keys: ["l"],
-    does: "Enter Design mode: comment on how the page looks and works — a widget, a control, a picture — rather than its words",
-    line: "design mode",
+    description:
+      "Enter Design mode: comment on how the page looks and works — a widget, a control, a picture — rather than its words",
+    title: "design mode",
     touch: "Design mode",
     when: () => !designModeOn,
     run: () => setDesignMode(true),

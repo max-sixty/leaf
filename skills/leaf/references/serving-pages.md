@@ -27,7 +27,9 @@ leaf page export <page> -o <file>
 
 Hand back the `file://` URL. Do not start a server or wait. The file opens
 offline and runs the page's own runtime against the captured revision and its
-state: widgets, local controls, and page-owned computation work as served. No host
+state: widgets, local controls, and page-owned computation work as served. Embedded
+images, fonts, and recordings need JavaScript; with scripts disabled, the file keeps
+authored text, layout, and image alt text and explains the unavailable graphics. No host
 stands behind it, so threads and any action that needs an agent or server are
 unavailable. A page that declares a live sample needs a server and
 cannot be exported. Write the file where the project keeps user-facing artifacts.
@@ -103,6 +105,12 @@ reporting the server not running.
 
 ## Page lifetime
 
+Serving from an agent session claims the page and prepares the host's feedback
+route before returning its URL. In Codex, this starts or joins the task's delivery
+adapter, or honors a direct wait already running. Re-serving restores delivery
+even when the existing server needs no restart. The host-specific references
+describe how incoming comments reach your turn.
+
 On a page with no recorded lifetime, a normal `server start` from an agent
 session chooses a session lifetime. Its process retires when no live session
 claims the page, but desired service remains enabled: a `leaf wait` watching any
@@ -112,7 +120,7 @@ process dies, and ends if that revival does not hold. Only `leaf server stop
 it is idle.
 
 `server start --standing`, or a serve started from the user's own shell, chooses
-a standing lifetime. Its process ignores session claims and remains live between
+a standing lifetime and prepares no agent delivery. Its process ignores session claims and remains live between
 sessions. Tell the user when starting one because they inherit a process only
 `server stop` ends, and do not stop it because a session's work is over: ending
 the session releases the claim and leaves the service enabled.

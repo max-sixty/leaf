@@ -63,13 +63,12 @@ Use `lf-chart` rather than Mermaid's XY or pie charts for quantities: its body i
 Observable Plot code, the options `Plot.plot` takes, so any chart Plot draws is
 available in Plot's own API. `lf-chart` needs no package. A handful of numbers the
 sentence beside them can carry is prose; a chart is for when the shape of the
-numbers is the point. Use `<pre><code class="language-…">` for selectable literal
-source and `lf-code` for a line-numbered walkthrough; its `lines` attribute quotes an excerpt
+numbers is the point.
+
+For source snippets and code walkthroughs, follow `page-authoring.md`, "Theme and
+vocabulary". An `lf-code` block's `lines` attribute quotes an excerpt
 of a longer file under the file's own line numbers, with elided rows where it skips;
 a note placed at a skipped line captions that row with what was left out.
-The registry's `$languages.names` lists
-accepted language names. Keep logs and transcripts plain when they are not source
-code.
 
 A user can comment on a drawing as a whole and quote the words in it, but a part
 of it takes a comment of its own only when the author named that part. In an
@@ -130,7 +129,18 @@ element, supplies its text. Add `collapsed` to a large diff so each file starts 
 a comment or navigation target still opens the file that owns its line.
 
 Run `leaf page media <page> <file>…` and use each printed `/media/…` `path` for
-images. Never inline image bytes. Put invented examples inside `lf-sample` and
+images, video, and audio. Never inline media bytes. Use a recording for a fixed
+demo or screen capture; keep a live widget where the user should manipulate the
+subject. Give native `<video>` and `<audio>` elements `controls`, label their
+content, and give a video a `poster` image. MP4 and WebM video, and MP3, M4A,
+Ogg, and WAV audio are admitted; codec playback is the browser's. Export embeds
+the complete recording for offline playback with no size cap or omissions: base64
+stores each recording once and adds about a third to its bytes, so trim recordings
+to what the reader needs. Offline embedded images, fonts, and recordings need
+JavaScript; the scripts-off export preserves authored text, layout, and alt text.
+Browser paste and upload still accept raster images only.
+
+Put invented examples inside `lf-sample` and
 make them visibly fictional. Render tickets, source locations, and URLs as real
 links.
 

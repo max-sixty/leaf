@@ -1,7 +1,7 @@
 /* The complete searchable Page Map dialog.
 
-   The margin projection supplies its current target entries and activates core reading
-   items. One keyed Lit projection renders its groups and contributed records, filters
+   The neutral annotation inventory supplies current target entries and live activation.
+   One keyed Lit projection renders its groups and contributed records, filters
    them, and returns focus through the route that opened it. Retained nodes keep a state
    refresh from cancelling a held pointer or moving focus.
    Compact clusters use this same complete dialog for overflow.
@@ -16,14 +16,16 @@
    in the search enters the list at the first match, and a row's Enter is its own press.
    A finger opens the map on its first row rather than in the search, since focusing the
    search raises a soft keyboard over the list the finger came to tap.
+   A disclosure's deferred child arrival yields to newer input while its revealed
+   choices stay available.
 
-   Boot supplies margin commands and readings to one constructed map owner. Its
+   Boot supplies the inventory and current annotation focus capabilities. Its
    mount attaches the dialog and binds controls; importing the module does not
    install application callbacks or activate the map. */
 
 import { nextRender } from "./rendering.js";
 import { blockAt, says } from "./passages.js";
-import { handBack, holdFocus, letGo } from "./focus.js";
+import { focusDestination, handBack, holdFocus, letGo } from "./focus.js";
 import { html, nothing, render, repeat } from "../vendor/browser-runtime.js";
 import { iconTemplate } from "./icons.js";
 import { keys, paintKeys } from "./keyboard/scopes.js";
@@ -32,6 +34,7 @@ import { rowWalk } from "./walk-position.js";
 import { closeControl, el, offer } from "./widget-elements.js";
 import { keepsHidden, keepsText } from "./keeps.js";
 import { placeKeeper } from "./user-place.js";
+import { retainUserIntent } from "./user-intent.js";
 import {
   BANNER_CONTROL_RANK,
   bannerControlDoor,
@@ -39,15 +42,16 @@ import {
   showBannerControl,
 } from "./banner-toolbar.js";
 import {
-  clearMarginEntryControls,
-  marginContributionSource,
-  presentMarginEntryHost,
-  syncMarginAgentWorkflow,
-  syncMarginTurn,
-  trackMarginEntryControl,
-} from "./margin-entries.js";
+  clearContributionControls,
+  presentContributionHost,
+  syncContributionAgentWorkflow,
+  syncContributionTurn,
+  trackContributionControl,
+} from "./contribution-controls.js";
+import { contributionSource } from "./contributions.js";
 
-import { marginItemKey } from "./margin-entry-model.js";
+import { contributionItemKey, KINDS } from "./contribution-model.js";
+import { versionBtn } from "./version-picker.js";
 import { marginMapGroups } from "./margin-map-model.js";
 
 export const mapButton = el("button", "lf-btn lf-page-map-toggle", "Map");
@@ -102,19 +106,31 @@ const mapRows = () =>
   );
 
 export function createPageMapDialog({
-  activeInMargin,
-  activateItem,
-  faceFor,
-  mapControlPlaces,
-  targetFor,
+  inventory,
+  activeInAnnotations,
+  releaseAnnotations,
+  annotationFocus,
 }) {
+  const { targetFor } = inventory;
   let entries = [];
   let closeOwnsFocus = false;
   let from = null;
   let target = null;
   let trackedOffers = new Set();
 
-  const pageMapIsActive = () => dialog.open || activeInMargin();
+  const pageMapIsActive = () => dialog.open || Boolean(activeInAnnotations?.());
+
+  function activateItem(item, entry) {
+    releaseAnnotations?.(entry);
+    const destination = annotationFocus?.(entry);
+    leavePageMap();
+    handBack(destination, pageMapInvoker(), bannerControlDoor(versionBtn));
+    // A location without a presented annotation lands on its exact authored target.
+    // Commands that open a Thread or Ask retain their own navigation capability.
+    if (!destination && targetFor(entry)?.isConnected)
+      focusDestination(targetFor(entry));
+    inventory.activate(item);
+  }
 
   function pageMapDialogContains(candidate, node) {
     return dialog.open && target === candidate && dialog.contains(node);
@@ -142,15 +158,17 @@ export function createPageMapDialog({
     // The first press can then reveal the exact second action without closing the
     // only surface where a spilled contribution is reachable.
     if (relation?.kind === "entries") {
-      marginContributionSource(offered).registration.activate(record.key, {
+      const currentIntent = retainUserIntent({ available: () => dialog.open });
+      contributionSource(offered).registration.activate(record.key, {
         origin: control,
         surface: "map",
         input: event.detail === 0 ? "keyboard" : "pointer",
       });
       nextRender(() => {
+        if (!currentIntent()) return;
         const revealed = relation.keys
           .map((key) =>
-            marginContributionSource(offered).registration.control(key, "map", true),
+            contributionSource(offered).registration.control(key, "map", true),
           )
           .find((candidate) => candidate?.checkVisibility());
         (revealed ?? control).focus({ preventScroll: true });
@@ -161,7 +179,7 @@ export function createPageMapDialog({
     closeOwnsFocus = true;
     dialog.close();
     handBack(returnTo);
-    marginContributionSource(offered).registration.activate(record.key, {
+    contributionSource(offered).registration.activate(record.key, {
       origin: control,
       surface: "map",
       input: event.detail === 0 ? "keyboard" : "pointer",
@@ -171,7 +189,7 @@ export function createPageMapDialog({
   function presentSheetControl(control, action, actions) {
     if (!control) return;
     const { entry, offered, record } = action;
-    presentMarginEntryHost(control, record, {
+    presentContributionHost(control, record, {
       accessibleLabel: [record.accessibleLabel, record.context]
         .filter(Boolean)
         .join(", "),
@@ -182,13 +200,8 @@ export function createPageMapDialog({
       workflow?.key === record.key && workflow.owner === record.owner
         ? workflow.receipt
         : record.workflowReceipt;
-    syncMarginAgentWorkflow(control, receipt);
-    trackMarginEntryControl(
-      marginContributionSource(offered),
-      "map",
-      record.key,
-      control,
-    );
+    syncContributionAgentWorkflow(control, receipt);
+    trackContributionControl(contributionSource(offered), "map", record.key, control);
   }
 
   const sheetItemTemplate = (action) => html`
@@ -278,7 +291,11 @@ export function createPageMapDialog({
         return [entry.key, passage ? says(passage) : ""];
       }),
     );
-    const groups = marginMapGroups(entries, faceFor, searchTextByKey);
+    const groups = marginMapGroups(
+      entries,
+      (item) => KINDS[item.kind],
+      searchTextByKey,
+    );
     render(
       html`${repeat(
         groups,
@@ -288,23 +305,24 @@ export function createPageMapDialog({
       dialogList,
     );
     const liveOffers = new Set(
-      groups.flatMap(({ entry }) => entry.offers.map(marginContributionSource)),
+      groups.flatMap(({ entry }) => entry.offers.map(contributionSource)),
     );
     for (const offered of trackedOffers)
-      if (!liveOffers.has(offered)) clearMarginEntryControls(offered, "map", new Set());
+      if (!liveOffers.has(offered))
+        clearContributionControls(offered, "map", new Set());
     const groupsByKey = new Map(groups.map((group) => [group.key, group]));
     for (const control of dialogList.querySelectorAll(".lf-page-map-action")) {
       const action = control.lfMapAction;
       if (action.kind === "item") {
-        syncMarginAgentWorkflow(control, action.item.workflowReceipt);
-        syncMarginTurn(control, Boolean(action.item.userAttention));
+        syncContributionAgentWorkflow(control, action.item.workflowReceipt);
+        syncContributionTurn(control, Boolean(action.item.userAttention));
       } else
         presentSheetControl(control, action, groupsByKey.get(action.entry.key).actions);
     }
     for (const group of groups) {
       for (const offered of group.entry.offers)
-        clearMarginEntryControls(
-          marginContributionSource(offered),
+        clearContributionControls(
+          contributionSource(offered),
           "map",
           new Set(
             group.controls
@@ -369,7 +387,8 @@ export function createPageMapDialog({
             spilled?.choice?.items.some(
               (item) =>
                 button.lfMapAction?.item &&
-                marginItemKey(button.lfMapAction.item) === marginItemKey(item),
+                contributionItemKey(button.lfMapAction.item) ===
+                  contributionItemKey(item),
             ),
         )
       : group?.querySelector(".lf-page-map-action");
@@ -425,7 +444,12 @@ export function createPageMapDialog({
       target = null;
       paintKeys();
       if (focusOwned) return;
-      handBack(returnTo, ...mapControlPlaces());
+      handBack(
+        returnTo,
+        pageMapInvoker(),
+        annotationFocus?.(null),
+        bannerControlDoor(versionBtn),
+      );
     });
     dialogClose.onclick = () => dialog.close();
     root.append(dialog);
@@ -444,16 +468,16 @@ export function createPageMapDialog({
         {
           id: "map.search.enter",
           keys: ["ArrowDown"],
-          does: "Go from the search to the first entry",
-          line: "to the entries",
+          description: "Go from the search to the first entry",
+          title: "to the entries",
           when: hasRows,
           run: () => mapRows()[0].focus(),
         },
         {
           id: "map.search.open",
           keys: ["Enter"],
-          does: "Open the first matching entry",
-          line: "open first",
+          description: "Open the first matching entry",
+          title: "open first",
           when: hasRows,
           run: () => mapRows()[0].click(),
         },

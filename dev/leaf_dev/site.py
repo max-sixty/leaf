@@ -34,6 +34,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from dataclasses import replace
 from functools import partial
 from html.parser import HTMLParser
 from pathlib import Path
@@ -53,7 +54,7 @@ from leaf.schema import (
 from leaf.structure import FRAME_ANCESTORS_CSP, SourceDocument
 from leaf_website import SITE_MANIFEST, SITE_ORIGIN, initial_state, site_metadata
 
-from leaf_dev import ROOT
+from leaf_dev import LEAF_COMMAND, ROOT
 from leaf_dev.example_data import catalog_sources
 from leaf_dev.harness import environment
 from leaf_dev.leaf_assets import pinned_assets
@@ -63,7 +64,6 @@ from leaf_dev.page_fixtures import (
     read_fixture,
 )
 
-LEAF = ROOT / "bin" / "leaf"
 DOCS = ROOT / "docs"
 EXAMPLES = ROOT / "examples"
 INTERNAL_EXAMPLES = {"corpus"}
@@ -194,7 +194,7 @@ def check_links(out: Path) -> None:
 def leaf(env: dict, *args: str, input_text: str | None = None) -> None:
     """A leaf command, quiet unless it fails, and then exiting with what it said."""
     done = subprocess.run(
-        [str(LEAF), *args],
+        [*LEAF_COMMAND, *args],
         cwd=ROOT,
         env=env,
         capture_output=True,
@@ -335,8 +335,14 @@ def publish_examples(out: Path, env: dict) -> None:
         print(f"  {source.stem}")
 
 
-def publish_pages(out: Path, env: dict, assets: Path) -> None:
-    """Canonical interactive product documents and worked examples."""
+def publish_pages(
+    out: Path, env: dict, assets: Path, source_markup: dict[Path, str]
+) -> None:
+    """Publish product documents with build-local markup and authored companions.
+
+    Overrides are private source files, consumed by validation and the final stamp;
+    their versions, data, media and history still come from the authored source.
+    """
     with tempfile.TemporaryDirectory() as tmp:
         template = Path(tmp) / "product-page"
         packages = json.loads((EXAMPLES / "layer.json").read_text(encoding="utf-8"))
@@ -354,12 +360,30 @@ def publish_pages(out: Path, env: dict, assets: Path) -> None:
         leaf(env, "page", "media", str(template), *map(str, product_media))
         # Each product document is checked in the template, then published as a copy.
         for source in product_sources():
-            shutil.copyfile(source, template / "index.html")
+            fixture = read_fixture(source)
+            if source in source_markup:
+                private_source = Path(tmp) / source.name
+                private_source.write_text(source_markup[source], encoding="utf-8")
+                fixture = replace(
+                    fixture,
+                    source=private_source,
+                    versions=tuple(
+                        private_source if version == source else version
+                        for version in fixture.versions
+                    ),
+                )
+            shutil.copyfile(fixture.source, template / "index.html")
             leaf(env, "page", "check", str(template))
             target = product_page(out, source.name)
             shutil.copytree(template, target)
-            leaf(env, "page", "stamp", str(target), "--text", "As published")
-            leaf(env, "status", str(target), "idle")
+            prepare_page(
+                target,
+                fixture,
+                partial(leaf, env),
+                initialize=False,
+                final_status="idle",
+                current_note="As published",
+            )
     publish_examples(out, env)
 
 
@@ -462,11 +486,17 @@ def build_examples(out: Path, *, assets: Path) -> None:
     publish_live_shells(out, assets, include_products=False)
 
 
-def build(out: Path, *, assets: Path | None = None) -> None:
+def build(
+    out: Path,
+    *,
+    assets: Path | None = None,
+    source_markup: dict[Path, str] | None = None,
+) -> None:
+    """Build one site, optionally validating draft markup without editing its sources."""
     assets = assets or pinned_assets()
     shutil.rmtree(out, ignore_errors=True)
     out.mkdir(parents=True)
-    publish_pages(out, environment(), assets)
+    publish_pages(out, environment(), assets, source_markup or {})
     publish_live_shells(out, assets)
     check_links(out)
 
@@ -486,10 +516,22 @@ def bundle_published_runtime(out: Path) -> None:
 
 
 @click.command("site")
-def site() -> None:
-    """Build leaf.page into .tmp/site."""
-    build(OUT)
-    bundle_published_runtime(OUT)
+@click.option(
+    "--output",
+    type=click.Path(path_type=Path),
+    default=OUT,
+    help="Build destination (default: .tmp/site).",
+)
+def site(output: Path) -> None:
+    """Build leaf.page and its edge assets."""
+    from leaf.state import flocked
+
+    output = output.resolve()
+    output.parent.mkdir(parents=True, exist_ok=True)
+    # One destination is one publication; independent builds use separate outputs.
+    with flocked(output.with_name(f"{output.name}.lock")):
+        build(output)
+        bundle_published_runtime(output)
     click.echo(
-        f"✓ {len(list(OUT.rglob('*.html')))} pages → {OUT} and {asset_site(OUT)}"
+        f"✓ {len(list(output.rglob('*.html')))} pages → {output} and {asset_site(output)}"
     )

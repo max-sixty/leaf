@@ -1,5 +1,7 @@
 /* Focus readings shared by thread paint and commands. */
 import { holdStanding } from "../focus.js";
+import { shownBox } from "../geometry.js";
+import { restrictUserIntent, retainUserIntent } from "../user-intent.js";
 import { focused } from "../keyboard/scopes.js";
 import { closestAcross } from "../passages.js";
 import { nextRender } from "../rendering.js";
@@ -10,8 +12,27 @@ import { replyHasWords } from "./replies.js";
 
 // Native disclosure owns the panel thread's focus stop. Inline divs have no summary,
 // so their established root remains the destination.
+export const threadFocusStop = (thread) =>
+  thread.querySelector(":scope > summary:not([hidden])") ?? thread;
 export function focusThread(thread, options) {
-  (thread.querySelector(":scope > summary:not([hidden])") ?? thread).focus(options);
+  threadFocusStop(thread).focus(options);
+}
+
+export const threadReplyInput = (thread) => {
+  const input = thread?.querySelector(SAY_BOX);
+  return input && (shownBox(input).height || input.lfRevealReply) ? input : null;
+};
+
+// A closed native disclosure is its own first stop. An explicit reply can name a
+// compact editor before it has height: the editor's reveal owns opening it on focus.
+export function threadFocusDestination(thread, { focus = "reply" } = {}) {
+  const summary = thread?.querySelector(":scope > summary");
+  return (
+    (focus === "thread" ? threadFocusStop(thread) : null) ??
+    (summary && !thread.hasAttribute("open") ? summary : null) ??
+    threadReplyInput(thread) ??
+    threadFocusStop(thread)
+  );
 }
 
 // An inline thread root may itself hold focus. A control inside it keeps its own
@@ -90,6 +111,23 @@ export const standingThreadId = () => heldThreadId() ?? pressed;
 // still holds and whose editor lifetime continues: an open conversation, or a resolved
 // one with an unfinished draft. Nothing is put up for a thread that has none, and one that
 // comes back later does not pull the user to it.
+// Replacement resolves through the current route, never another visible mirror of
+// the same draft. Both in-document paint and executable replacement use this admission.
+export async function replyDestination(id, open, intent) {
+  const mayReply = restrictUserIntent(intent, () => {
+    const standing = allThreads().find((candidate) => candidate.id === id);
+    return Boolean(standing && (!standing.resolved || replyHasWords(standing.key)));
+  });
+  if (!mayReply()) return null;
+  const shown = await open(id, { focus: "reply", intent: mayReply });
+  const input =
+    shown instanceof Element
+      ? closestAcross(shown, THREAD)?.querySelector(SAY_BOX)
+      : null;
+  if (!input || shown !== input || focused() !== input || !mayReply()) return null;
+  return input;
+}
+
 const carried = new WeakSet();
 export function holdReply(open) {
   const held = holdStanding();
@@ -97,14 +135,10 @@ export function holdReply(open) {
   const thread = box && closestAcross(box, THREAD);
   if (!thread || thread.querySelector(SAY_BOX) !== box || carried.has(box)) return null;
   const id = thread.dataset.id ?? thread.dataset.thread;
+  const intent = retainUserIntent({ source: box });
   return () =>
     held.restore(() => {
       carried.add(box);
-      const standing = allThreads().find((candidate) => candidate.id === id);
-      if (!standing || (standing.resolved && !replyHasWords(standing.key))) return null;
-      const shown = open(id);
-      return shown instanceof Element
-        ? closestAcross(shown, THREAD)?.querySelector(SAY_BOX)
-        : null;
+      return replyDestination(id, open, intent);
     });
 }

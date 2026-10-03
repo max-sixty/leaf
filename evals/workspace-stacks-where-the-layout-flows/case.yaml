@@ -1,11 +1,12 @@
 # Added with the stacked-panes rule. Base at 01665ed97, whose workspace snippet stacked
 # its panes below 900px, 1 of 3; the change 3 of 3.
-schema_version: '1.0'
-name: workspace-stacks-where-the-layout-flows
-description: "Writing a workspace of panes: the page's own grid stacks them where the Layout stops holding the window, never in a wider window where stacked panes share its height."
-tags:
-- layout
-execution:
+description: workspace-stacks-where-the-layout-flows
+metadata:
+  purpose: 'Writing a workspace of panes: the page''s own grid stacks them where the Layout stops holding
+    the window, never in a wider window where stacked panes share its height.'
+  tags:
+  - layout
+vars:
   prompt: |
     Write a Leaf page for the user as a workspace for reviewing a pull request that
     adds a retry to the payments client. It has three regions: a short summary of what
@@ -16,18 +17,20 @@ execution:
 
     The page directory is not reachable from here, so reply with the complete
     `index.html`, rather than writing a file.
-graders:
-- name: loads-leaf
-  type: tool_used
-  tool: Skill
-  input_match: leaf
-- name: reads-page-authoring
-  type: tool_used
-  tool: Read
-  input_match: skills/leaf/references/page-authoring\.md
-- name: judgment
-  type: llm
-  criteria: |
+assert:
+- type: javascript
+  metric: loads-leaf
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/SKILL\.md
+- type: javascript
+  metric: reads-page-authoring
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/references/page-authoring\.md
+- type: llm-rubric
+  metric: judgment
+  value: |
     Read the HTML. Pass only if `main` has class `layout-workspace` and the page's own
     stylesheet never puts all of its panes into one column at a window width of 720px
     or more: any media or container query that stacks the panes applies only below

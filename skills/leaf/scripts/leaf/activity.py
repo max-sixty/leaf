@@ -536,9 +536,8 @@ def canonical_activity(
         )
     ]
 
-    # The page's `kind` reads this wherever it asks whether anyone is there, in the
-    # banner and in neighbouring pages' rows; a watch question such as the Stop
-    # hook's still asks for the lease.
+    # The page's `kind` reads this wherever it asks whether anyone is there; a watch
+    # question such as the Stop hook's still asks for the lease.
     taking_input = takes_input(present, turn)
     kind = "away"
     detail = ""

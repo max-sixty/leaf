@@ -1,9 +1,10 @@
 /* Keyboard reachability and continuation paint for scrollable page and shadow content. */
 
-import { TAB_STOP, TEXT_BOX, wearsLentStop } from "./focus.js";
+import { wearsLentStop } from "./focus.js";
+import { TAB_STOP, TEXT_BOX } from "./control-selectors.js";
 import { skipped } from "./geometry.js";
 import { afterScript, sizeObserver } from "./rendering.js";
-import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
+import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { shadowRootsIn, upFrom } from "./shadow.js";
 import { LAYOUT } from "./widget-elements.js";
 import { keeps } from "./keeps.js";

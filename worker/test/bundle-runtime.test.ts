@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { execFileSync } from "node:child_process";
 
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -87,17 +88,24 @@ describe("published runtime bundle", () => {
   it("collapses the production runtime's static modules", async () => {
     const directory = await mkdtemp(join(tmpdir(), "leaf-runtime-"));
     temporary.push(directory);
-    const runtime = fileURLToPath(new URL("../../skills/leaf/assets", import.meta.url));
+    // The production layer is the kernel composed with its bundled packages.
+    const runtime = join(directory, "layer");
+    execFileSync(
+      fileURLToPath(new URL("../../bin/leaf", import.meta.url)),
+      ["page", "init", runtime],
+      { env: { ...process.env, XDG_STATE_HOME: join(directory, "state") } },
+    );
 
-    await bundleLayer(runtime, "/published/layer", directory);
-    const bundled = await readFile(join(directory, "leaf.js"), "utf8");
-    expect(await readFile(join(directory, "runtime", "media.js"), "utf8")).toBeTruthy();
+    const output = join(directory, "bundled");
+    await bundleLayer(runtime, "/published/layer", output);
+    const bundled = await readFile(join(output, "leaf.js"), "utf8");
+    expect(await readFile(join(output, "runtime", "media.js"), "utf8")).toBeTruthy();
     expect(
-      await readFile(join(directory, "runtime", "layer-client.js"), "utf8"),
+      await readFile(join(output, "runtime", "layer-client.js"), "utf8"),
     ).toBeTruthy();
     expect(bundled).not.toMatch(/from"\.\/runtime\/(?!bundle-)/);
     expect(
-      await readFile(join(directory, "widgets", "lf-suggestion.js"), "utf8"),
+      await readFile(join(output, "widgets", "lf-suggestion.js"), "utf8"),
     ).not.toContain("/runtime/widget-api.js");
   });
 });

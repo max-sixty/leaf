@@ -8,6 +8,7 @@ import shutil
 import textwrap
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 from pathlib import Path
 
@@ -42,14 +43,17 @@ from interact_support import (
     _report_without_upgrade,
     _tasks_version,
     _user_verb_update,
+    append_carried_log_record,
     append_command,
     assert_revendor_serializes_writer,
     check,
     comment,
+    consume_pending_input,
     decide,
     declare_data_input,
     element_declaration,
     fetch,
+    fresh_process,
     live_versions,
     publish,
     published,
@@ -57,6 +61,7 @@ from interact_support import (
     stamp_activation,
     styled,
     trial_version,
+    wait_for,
     yaml_block,
     yaml_document,
 )
@@ -84,6 +89,7 @@ from leaf import vendoring as vendoring_model
 from leaf.registry import contract as registry_contract
 from leaf.registry import layer as registry_layer
 from leaf.registry import page as registry_page
+from leaf.registry import schema as registry_schema
 from leaf.registry import storage as registry_storage
 from leaf.registry import validation as registry_validation
 from leaf.render_gate import preview as render_gate_model
@@ -93,7 +99,7 @@ from leaf_dev.page_fixtures import package_selection_args
 def test_new_words_reopen_a_thread_without_settling_a_newer_user_turn(page_dir):
     """Late answers keep their exact scope; marks and failure receipts stay closed."""
     publish(page_dir)
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {"kind": "comment", "id": "question", "author": "user", "text": "Why?"},
     )
@@ -107,7 +113,7 @@ def test_new_words_reopen_a_thread_without_settling_a_newer_user_turn(page_dir):
             "responds": "question",
         },
     ):
-        events_model.append_event(
+        append_carried_log_record(
             page_dir, {"kind": "reply", "parent": "question", **message}
         )
         threads = event_folds_model.build_threads(
@@ -133,7 +139,7 @@ def test_new_words_reopen_a_thread_without_settling_a_newer_user_turn(page_dir):
     )
 
     thread_model.cmd_resolve(page_dir, answer["id"])
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "reply",
@@ -314,18 +320,30 @@ def test_a_pick_names_only_options_its_group_holds():
     assert admit([*STATED_LOG, added], pick)["detail"] == {"options": ["live-mine"]}
 
 
-def test_history_reaches_only_a_page_that_renders_it_and_keeps_a_pick_as_made():
+@pytest.mark.parametrize(
+    "option_title",
+    [
+        "<strong>Fast path</strong>",
+        '<hgroup><p class="eyebrow">Quick delivery</p><h2>Fast path</h2></hgroup>',
+        '<header><hgroup><p class="eyebrow">Quick delivery</p><h2>Fast path</h2></hgroup></header>',
+    ],
+    ids=["strong", "hgroup", "header-hgroup"],
+)
+def test_history_reaches_only_a_page_that_renders_it_and_keeps_a_pick_as_made(
+    option_title,
+):
     """The served history words a pick from the document it was made in.
 
     A later version that removes the question leaves the row naming the option the
-    user picked, by its title, and a withdrawn pick stays a row marked undone. A page
-    whose markup holds no widget declaring `x-history` is not served the reading.
+    user picked, by its title rather than its eyebrow or description, and a withdrawn
+    pick stays a row marked undone. A page whose markup holds no widget declaring
+    `x-history` is not served the reading.
     """
     question = model.leaf_page(
         "Route",
-        """<h1>Route</h1>
+        f"""<h1>Route</h1>
 <lf-options id="route" choose>
-  <lf-option id="fast"><strong>Fast path</strong> ships on Friday.</lf-option>
+  <lf-option id="fast">{option_title} ships on Friday.</lf-option>
   <lf-option id="slow">Slow path</lf-option>
 </lf-options>
 <lf-activity id="feed"></lf-activity>""",
@@ -585,11 +603,11 @@ def test_an_answer_the_user_took_back_leaves_its_thread_open(page_dir):
     same widget are the others — and the thread reading owes all three the same
     reply, or a question would read as answered by a gesture the log itself records
     as taken back."""
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {"kind": "comment", "id": "c1", "author": "user", "text": "which mounts?"},
     )
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "action",
@@ -618,7 +636,7 @@ def test_an_answer_the_user_took_back_leaves_its_thread_open(page_dir):
     )
     assert threads["c1"]["resolved"]["id"] == "a1"
 
-    events_model.append_event(
+    append_carried_log_record(
         page_dir, {"kind": "undo", "author": "user", "undoes": "a1"}
     )
     threads = event_folds_model.build_threads(
@@ -647,7 +665,7 @@ def test_server_takes_back_only_a_standing_gesture_of_the_users_own(server, page
             data=json.dumps({"kind": "resolve", "parent": posted["id"]}).encode(),
         )[1]
     )["state"]["events"][-1]
-    agent_closed = events_model.append_event(
+    agent_closed = append_carried_log_record(
         page_dir, {"kind": "resolve", "author": "agent", "parent": posted["id"]}
     )
 
@@ -844,7 +862,7 @@ def test_init_refuses_a_log_the_incoming_layer_no_longer_speaks(page_dir):
         )
     )
     publish(page_dir)
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "action",
@@ -875,7 +893,7 @@ def test_init_refuses_a_log_holding_a_token_the_incoming_layer_dropped(
     retired verb is: the standing mark would have no glyph and no pill to take it
     back by. A token the layer keeps re-vendors as before."""
     publish(page_dir)
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "token": "shorten"},
     )
@@ -909,7 +927,7 @@ def test_init_revendors_over_a_record_the_running_contract_would_not_admit(
     retired verb above: admission is the schema's only reader, and the logged event
     replays the same either way."""
     publish(page_dir)
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -1144,7 +1162,7 @@ def test_init_refuses_to_orphan_a_logged_visual_anchor(page_dir):
         )
     )
     publish(page_dir)
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -1177,72 +1195,6 @@ def test_init_refuses_to_orphan_a_logged_visual_anchor(page_dir):
     assert "visual anchor 'node:A'" in result.output
 
 
-def test_report_validation_and_append_cannot_straddle_revendoring(
-    page_dir, monkeypatch
-):
-    _tasks_version(page_dir, "active")
-    publish(page_dir)
-    registry = json.loads((page_dir / "registry.json").read_text())
-    task = registry["lf-task"]
-    task.pop("x-state")
-    overlay = page_dir.parent / ".leaf"
-    overlay.mkdir(parents=True)
-    (overlay / "registry.json").write_text(json.dumps({"lf-task": task}))
-
-    report_validated = threading.Event()
-    release_report = threading.Event()
-    init_waiting = threading.Event()
-    real_append = service_model.PageTransaction._append_record
-    real_page_locked = vendoring_model.page_locked
-
-    def paused_append(page, event):
-        if event["kind"] == "report":
-            report_validated.set()
-            assert release_report.wait(5)
-        return real_append(page, event)
-
-    @contextlib.contextmanager
-    def observed_page_locked(locked):
-        if locked == page_dir and threading.current_thread().name == "re-vendor":
-            init_waiting.set()
-        with real_page_locked(locked) as held:
-            yield held
-
-    monkeypatch.setattr(service_model.PageTransaction, "_append_record", paused_append)
-    monkeypatch.setattr(vendoring_model, "page_locked", observed_page_locked)
-    outcomes, errors = [], []
-
-    def report():
-        try:
-            thread_model.cmd_report(page_dir, "t-parser", "status", ("status=done",))
-            outcomes.append("reported")
-        except BaseException as error:  # noqa: BLE001 - carried to the assertion
-            errors.append(error)
-
-    def revendoring():
-        try:
-            vendoring_model.cmd_init(page_dir, selected=(*PAGE_PACKAGES, "./.leaf"))
-            outcomes.append("revendored")
-        except BaseException as error:  # noqa: BLE001 - carried to the assertion
-            errors.append(error)
-
-    reporting = threading.Thread(target=report, name="report")
-    reporting.start()
-    assert report_validated.wait(5)
-    initing = threading.Thread(target=revendoring, name="re-vendor")
-    initing.start()
-    assert init_waiting.wait(5)
-    release_report.set()
-    reporting.join(timeout=5)
-    initing.join(timeout=5)
-
-    assert not reporting.is_alive() and not initing.is_alive()
-    assert outcomes == ["reported"]
-    assert len(errors) == 1 and "report contract" in str(errors[0])
-    assert events_model.read_events(page_dir)[-1]["kind"] == "report"
-    assert "x-state" in json.loads((page_dir / "registry.json").read_text())["lf-task"]
-
-
 def test_a_bare_re_vendor_replaces_a_broken_vendored_registry(page_dir):
     """Re-vendoring is the remedy for a broken vendored layer, so the selection a bare
     `page init` repeats is read on its own: a malformed entry or a missing layer
@@ -1263,39 +1215,36 @@ def test_a_bare_re_vendor_replaces_a_broken_vendored_registry(page_dir):
 
 
 def test_a_preview_holds_one_contract_until_it_closes(page_dir, monkeypatch):
+    """The preview holds replacement back; its writer finishes before the test
+    releases the page, including when a preview assertion fails."""
     before = registry_storage.layer_generation(page_dir)
     init_waiting = threading.Event()
     real_page_locked = vendoring_model.page_locked
 
     @contextlib.contextmanager
     def observed_page_locked(locked):
-        if locked == page_dir and threading.current_thread().name == "re-vendor":
+        if locked == page_dir and threading.current_thread().name.startswith(
+            "re-vendor"
+        ):
             init_waiting.set()
         with real_page_locked(locked) as held:
             yield held
 
     monkeypatch.setattr(vendoring_model, "page_locked", observed_page_locked)
-    errors = []
-
-    def revendoring():
-        try:
-            vendoring_model.cmd_init(page_dir)
-        except BaseException as error:  # noqa: BLE001 - carried to the assertion
-            errors.append(error)
-
-    with render_gate_model.preview_server(
-        page_dir,
-        structure_model.SourceDocument((page_dir / "index.html").read_text()),
-        1,
-    ):
-        initing = threading.Thread(target=revendoring, name="re-vendor")
-        initing.start()
-        assert init_waiting.wait(5)
-        assert registry_storage.layer_generation(page_dir) == before
-
-    initing.join(timeout=5)
-    assert not initing.is_alive()
-    assert errors == []
+    with ThreadPoolExecutor(max_workers=1, thread_name_prefix="re-vendor") as workers:
+        with render_gate_model.preview_server(
+            page_dir,
+            structure_model.SourceDocument((page_dir / "index.html").read_text()),
+            1,
+        ):
+            initing = workers.submit(vendoring_model.cmd_init, page_dir)
+            wait_for(
+                init_waiting.is_set,
+                bool,
+                failure="Re-vendoring did not attempt the preview lock",
+            )
+            assert registry_storage.layer_generation(page_dir) == before
+        initing.result()
     assert registry_storage.layer_generation(page_dir) != before
 
 
@@ -1353,6 +1302,8 @@ def test_revendoring_cannot_pass_a_worker_report_still_entering_the_log(
     )
 
     assert "no longer speaks" in refusal and "status" in refusal
+    assert events_model.read_events(page_dir)[-1]["kind"] == "report"
+    assert "x-state" in json.loads((page_dir / "registry.json").read_text())["lf-task"]
 
 
 def test_revendoring_cannot_pass_thread_markup_still_entering_the_log(
@@ -1364,7 +1315,7 @@ def test_revendoring_cannot_pass_thread_markup_still_entering_the_log(
     (overlay / "registry.json").write_text(json.dumps({"lf-local-thread": local}))
     vendoring_model.cmd_init(page_dir, selected=(*PAGE_PACKAGES, "./.leaf"))
     publish(page_dir)
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {"kind": "comment", "id": "c1", "author": "user", "text": "choose"},
     )
@@ -1388,7 +1339,7 @@ def test_revendoring_cannot_turn_logged_thread_markup_into_a_settlement(
     """Frozen thread markup keeps the admission rules of its vendored vocabulary."""
     activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None and activated.revision == 1
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {"kind": "comment", "id": "c1", "author": "user", "text": "choose"},
     )
@@ -1594,42 +1545,76 @@ def test_a_page_with_no_revision_reads_its_candidate_vocabulary(page_dir):
         assert vocabulary["lf-local"] == declaration
 
 
-def test_thread_markup_must_render_in_every_pinned_revision(page_dir):
-    """A current thread remains usable in every immutable document showing it."""
+@pytest.mark.parametrize("active_ask", [True, False])
+def test_late_gesture_wakes_for_the_active_vocabulary(page_dir, active_ask):
+    """An old tab validates under its capture and changes the current page's debt."""
+    from leaf.state import write_json
+
+    layer = deepcopy(registry_storage.load_registry(page_dir))
+    awaits = layer["lf-options"].pop("x-awaits")
+
+    def publish_choice(has_ask, version):
+        vocabulary = deepcopy(layer)
+        if has_ask:
+            vocabulary["lf-options"]["x-awaits"] = awaits
+        write_json(page_dir / "registry.json", vocabulary)
+        group = (
+            '<lf-options id="choice" choose>'
+            '<lf-option id="first">First</lf-option>'
+            '<lf-option id="second">Second</lf-option></lf-options>'
+        )
+        if has_ask:
+            group = '<lf-ask id="ask"><h2>Which one?</h2>' + group + "</lf-ask>"
+        (page_dir / "index.html").write_text(model.leaf_page("Choice", group))
+        publish(page_dir, version=version)
+
+    publish_choice(not active_ask, 1)
+    original = files_model.latest_revision(page_dir)
+    publish_choice(active_ask, 2)
+    assert files_model.latest_revision(page_dir) > original
+
+    action = append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": original,
+            "widget": "choice",
+            "action": "choose",
+            "detail": {"options": ["first"]},
+        },
+    )
+    assert action["attention"] is active_ask
+    assert ("answer" in action["meaning"]) is not active_ask
+    assert service_model.unacknowledged(events_model.read_events(page_dir), 0) == (
+        [action] if active_ask else []
+    )
+
+
+def test_wakeup_uses_the_recorded_identity_after_an_undo(page_dir):
     publish(page_dir)
-    authored = page_dir / "page"
-    (authored / "registry.json").write_text(
-        json.dumps({"lf-local": element_declaration("lf-local", upgrade=True)})
+    reaction = append_command(
+        page_dir,
+        {
+            "id": "pending",
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "token": "shorten",
+        },
     )
-    widgets = authored / "widgets"
-    widgets.mkdir(exist_ok=True)
-    (widgets / "lf-local.js").write_text(
-        "export function upgrade(element) { element.textContent = 'Loaded'; }\n"
+    append_command(
+        page_dir, {"kind": "undo", "author": "user", "undoes": reaction["id"]}
     )
-    (page_dir / "index.html").write_text(PAGE)
-    publish(page_dir, version=2)
-
-    posted = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "thread",
-            "open",
-            str(page_dir),
-            "--text",
-            "A later widget",
-            "--markup",
-            '<lf-local id="later-widget"></lf-local>',
-        ],
+    fresh = append_command(
+        page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "Fresh input"},
     )
-
-    assert posted.exit_code == 1, posted.output
-    assert "pinned revision r1 cannot render this thread markup" in posted.output
-    assert "<lf-local>" in posted.output
-    assert (
-        "use vocabulary shared by the active registry and every pinned revision; "
-        "otherwise ask with --text" in posted.output
-    )
-    assert not events_model.read_events(page_dir)[-1].get("markup")
+    assert fresh["id"] != reaction["id"]
+    assert fresh["attention"]
+    assert service_model.unacknowledged(
+        events_model.read_events(page_dir), fresh["seq"] - 1
+    ) == [fresh]
 
 
 def test_page_registry_cache_follows_layer_and_widget_files(page_dir):
@@ -1797,7 +1782,7 @@ def test_candidate_vocabulary_leaves_removed_page_widgets_to_captured_history(pa
     (page_dir / "index.html").write_text(restated)
     second = stamp_activation(page_dir)
     assert second.error is None and second.created
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "note",
@@ -1867,7 +1852,7 @@ def test_candidate_vocabulary_preserves_commands_in_frozen_thread_markup(page_di
     authored.write_text(json.dumps({"lf-thread-local": declaration}))
     publish(page_dir)
     revision = files_model.latest_revision(page_dir)
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {"kind": "comment", "id": "c1", "author": "user", "text": "Choose."},
     )
@@ -2419,9 +2404,9 @@ def test_a_thread_answer_reads_the_same_wherever_it_is_folded(page_dir):
     green result cannot come from a floor that never reached this fold."""
     html = SUGGESTION_HOLDING_A_NAMESAKE
     document = structure_model.SourceDocument(html)
-    events_model.append_event(page_dir, dict(COMMENT))
-    events_model.append_event(page_dir, dict(ACCEPT))
-    events_model.append_event(
+    append_carried_log_record(page_dir, dict(COMMENT))
+    append_carried_log_record(page_dir, dict(ACCEPT))
+    append_carried_log_record(
         page_dir,
         {
             "kind": "note",
@@ -2443,7 +2428,7 @@ def test_a_thread_answer_reads_the_same_wherever_it_is_folded(page_dir):
             "detail"
         ] == {"outcome": "accept"}
 
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "note",
@@ -2987,7 +2972,7 @@ def test_independent_state_does_not_reopen_an_answer_even_after_retirement(
     snippet = '<lf-suggestion id="proposal" resolves="c1"><lf-new><p id="proposed">Ship after validation.</p></lf-new></lf-suggestion>'
     source = PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + snippet)
     (page_dir / "index.html").write_text(source)
-    events_model.append_event(page_dir, dict(COMMENT))
+    append_carried_log_record(page_dir, dict(COMMENT))
     publish(page_dir)
     from leaf.files import latest_revision
 
@@ -3625,10 +3610,10 @@ How this text reaches the agent, by example
 
 @LOGGED@
 
-3. Earlier, the agent started `leaf wait` in the background and went idle. The
-   agent does nothing in this step: `leaf wait`, a leaf process, notices the new
-   line, prints one line naming the page, and exits, which opens a turn. Leaf's
-   prompt hook runs as that turn begins and builds a delivery for the comment.
+3. Earlier, the agent ended its turn and Leaf's Stop hook went on watching.
+   The watch notices the new input and wakes the session. Leaf's prompt hook
+   runs as that turn begins and builds a delivery for the comment. This test
+   drives the same watch and complete reader delivery through `leaf wait`.
    The comment is owed a reply, which the delivery records as its `answer` (step
    4): a `reply` for `leaf thread reply` here, where the Codex App Server route
    would record a `turn`, which the turn's own messages write. For the
@@ -3648,14 +3633,14 @@ How this text reaches the agent, by example
    @ADDED@.
    The batch's `handling` maps clause ids to their text, each distinct text
    appearing once. The event's `handling` names its applicable clauses in order.
-   The envelope's `acknowledge` is null: the hook confirmed the delivery as it
-   handed it over, so the comment already reads Picked up. The whole delivery,
+   The envelope's `acknowledge` tells the reader to confirm the complete delivery
+   with `leaf delivery ack`. Hook output alone confirms nothing. The whole delivery,
    indented here (the hook writes it on one line):
 
 @DELIVERY@
 
-5. The agent starts `leaf wait` again so later input wakes it, and follows
-   `handling`: it names any work the comment asks for with `leaf status`, does it,
+5. The agent confirms the complete delivery, then follows `handling`: it names
+   any work the comment asks for with `leaf status`, does it,
    and replies in the thread with `leaf thread reply`.
 
 What this file records
@@ -3845,7 +3830,7 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
     capsys.readouterr()
     assert session_model.cmd_wait(page_dir) == 0
     assert "has new input" in capsys.readouterr().out
-    envelope = delivery_model.take_input(host_model.session_harness().session)
+    envelope = consume_pending_input(host_model.session_harness().session)
     record = json.loads(logged)
     [batch] = envelope["batches"]
     [delivered] = batch["events"]
@@ -3872,7 +3857,7 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
     pinned = {
         record["id"]: "1946b466",
         record["ts"]: "2026-09-21T20:12:30-07:00",
-        envelope["id"]: "e8417b8a-6e03-45ad-b7bd-c0f0eceb1a92",
+        envelope["id"]: "e8417b8a",
         str(page_dir): "/path/to/page",
     }
     envelope["created_at"] = 1790046750.29
@@ -4013,7 +3998,7 @@ def test_each_carrier_hands_the_agent_what_the_snapshot_shows(
     """The snapshot is the page a developer reads to compare what one comment puts
     in front of the agent on each carrier: `leaf wait`, Claude Code's hooks, the
     Codex queue's pointer and the delivery it names, and the Codex App Server
-    turn. None but the hook confirms the delivery, so it goes last. Each
+    turn. These captures confirm nothing, so each sees the same pending input. Each
     is taken from the code that carrier runs, after one real POST, so a change to
     any carrier's framing or to a delivery's contents shows up as a diff under the
     carrier it reaches."""
@@ -4453,10 +4438,6 @@ def test_a_fresh_server_does_not_revalidate_the_active_revisions_inputs(
     from leaf.validation import source as source_model
 
     assert revisioning_model.activate_source(page_dir).error is None
-    # What a newly started server holds: none of this process's readings.
-    registry_storage._registries.clear()
-    registry_storage._read_page_registry_stamped.cache_clear()
-    revisioning_model._held.clear()
     validated, linted = [], []
     real_validate = registry_page.validate_registry
     real_lint = source_model.css_syntax_errors
@@ -4473,7 +4454,9 @@ def test_a_fresh_server_does_not_revalidate_the_active_revisions_inputs(
         lambda css, where, **kw: linted.append(where) or real_lint(css, where, **kw),
     )
 
-    assert revisioning_model.activate_source(page_dir).error is None
+    # What a newly started server holds: none of this test's readings.
+    with fresh_process():
+        assert revisioning_model.activate_source(page_dir).error is None
     assert validated == []
     assert linted == ["page <style>"]
 
@@ -4589,6 +4572,41 @@ def test_source_reading_keeps_a_sample_out_of_its_parent_identity_space():
     assert sample["document"].main_elements == [(1, True)]
 
 
+def test_sample_body_declarations_use_the_child_document_boundary(page_dir):
+    """A practice page selects its own mode; invalid values stay child diagnostics."""
+    for declarations, valid, mode in (
+        ('data-annotations="page" data-rail="none"', True, "page"),
+        ("", True, "overlay"),
+        ('data-annotations="unknown"', False, None),
+    ):
+        source = PAGE.replace(
+            "</main>",
+            f'<template id="practice" data-sample {declarations}>'
+            "<h1>Child page</h1></template></main>",
+        )
+        (page_dir / "index.html").write_text(source)
+        parser = structure_model.SourceDocument(source)
+        [sample] = parser.samples
+        result = check(page_dir)
+        assert (result.exit_code == 0) is valid, result.output
+        if valid:
+            assert structure_model.annotation_mode(sample["document"]) == mode
+            assert structure_model.annotation_mode(parser) == "overlay"
+        else:
+            assert "sample 'practice'" in result.output
+            assert "invalid value" in result.output
+
+    # The declaration is not allowed on arbitrary templates or content blocks.
+    (page_dir / "index.html").write_text(
+        PAGE.replace(
+            "</main>", '<template data-annotations="page">Static</template></main>'
+        )
+    )
+    result = check(page_dir)
+    assert result.exit_code != 0
+    assert "belongs on <body>" in result.output
+
+
 @pytest.mark.parametrize(
     ("markup", "error"),
     [
@@ -4685,7 +4703,7 @@ def test_sample_references_see_only_selected_threads(
     page_dir, seeded, available, nested
 ):
     if available:
-        events_model.append_event(
+        append_carried_log_record(
             page_dir,
             {
                 "kind": "comment",
@@ -4713,11 +4731,11 @@ def test_sample_references_see_only_selected_threads(
 def test_sample_checks_available_history_beside_forward_thread_references(
     page_dir,
 ):
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {"kind": "comment", "id": "aabb0011", "author": "user", "text": "A question"},
     )
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "reply",
@@ -4819,7 +4837,7 @@ def test_an_ask_role_declares_an_addressable_instance(page_dir):
 def test_date_time_format_is_an_absolute_rfc3339_instant(value, valid):
     schema = {"type": "string", "format": "date-time"}
 
-    assert registry_contract.json_validator(schema).is_valid(value) is valid
+    assert registry_schema.json_validator(schema).is_valid(value) is valid
 
 
 def test_init_refuses_to_drop_the_contract_of_a_held_comment(page_dir):
@@ -4850,7 +4868,7 @@ def test_init_refuses_to_drop_the_contract_of_a_held_comment(page_dir):
         )
     )
     publish(page_dir)
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -5220,11 +5238,18 @@ def test_admission_names_dependencies_and_revendoring_preserves_their_meaning(
             "annotation": "plan-choice-decision",
         },
         "attempt": "named-dependencies",
+        "attention": False,
     }
     status, body = fetch(f"{server}/api/event", data=json.dumps(command).encode())
     assert status == 200, body
     events = json.loads(body)["state"]["events"]
     accepted = events[-1]
+    assert accepted["attention"] is True
+    retried_status, retried = fetch(
+        f"{server}/api/event", data=json.dumps(command).encode()
+    )
+    assert retried_status == 200
+    assert json.loads(retried)["state"]["events"][-1]["id"] == accepted["id"]
     assert set(accepted["meaning"]["depends"]) == {"picks", "flag-first"}
     within = passages_model.enclosing_ids(structure_model.SourceDocument(source))
     assert event_folds_model.action_retracted(
@@ -5294,3 +5319,202 @@ def test_an_independent_verb_leaves_a_decisions_thread_resolved(page_dir):
     assert threads["c1"]["resolved"]["id"] == "accept1"
     memberships = thread_memberships(events, {"c1": "c1"}, {}, {})
     assert memberships["label1"] == []
+
+
+@pytest.mark.parametrize(
+    ("history", "script_attrs", "template_attrs", "complaint"),
+    [
+        (
+            "[]",
+            'type="application/json"',
+            'data-sample-events="missing"',
+            "must name one script",
+        ),
+        (
+            "[]",
+            'type="text/plain"',
+            'data-sample-events="fixture"',
+            "inline application/json",
+        ),
+        (
+            "[]",
+            'type="application/json" src="/page/history.json"',
+            'data-sample-events="fixture"',
+            "inline application/json",
+        ),
+        (
+            '[{"kind":"comment","text":NaN}]',
+            'type="application/json"',
+            'data-sample-events="fixture"',
+            "invalid JSON",
+        ),
+        (
+            "{",
+            'type="application/json"',
+            'data-sample-events="fixture"',
+            "invalid JSON",
+        ),
+        (
+            "{}",
+            'type="application/json"',
+            'data-sample-events="fixture"',
+            "array of event objects",
+        ),
+        (
+            "[1]",
+            'type="application/json"',
+            'data-sample-events="fixture"',
+            "array of event objects",
+        ),
+        (
+            '[{"kind": []}]',
+            'type="application/json"',
+            'data-sample-events="fixture"',
+            "kind must be one of",
+        ),
+        (
+            '[{"kind":"reply","parent":"absent","text":"Reply"}]',
+            'type="application/json"',
+            'data-sample-events="fixture"',
+            "unknown parent",
+        ),
+        (
+            '[{"kind":"comment","id":"aabb0011","text":"One"},{"kind":"comment","id":"aabb0011","text":"Two"}]',
+            'type="application/json"',
+            'data-sample-events="fixture"',
+            "already exists",
+        ),
+        (
+            '[{"kind":"comment","id":"child","text":"Collision"}]',
+            'type="application/json"',
+            'data-sample-events="fixture"',
+            "document or message widget id",
+        ),
+        (
+            '[{"kind":"action","widget":"absent","action":"choose","detail":{"options":[]}}]',
+            'type="application/json"',
+            'data-sample-events="fixture"',
+            "unknown action widget",
+        ),
+        (
+            '[{"kind":"action"}]',
+            'type="application/json"',
+            'data-sample-events="fixture"',
+            "event is invalid",
+        ),
+        (
+            '[{"kind":"comment","text":"Bad clock","ts":"yesterday"}]',
+            'type="application/json"',
+            'data-sample-events="fixture"',
+            "ISO timestamp",
+        ),
+        (
+            "[]",
+            'type="application/json"',
+            'data-sample-events="fixture" data-sample-threads="aabb0011"',
+            "not both",
+        ),
+    ],
+)
+def test_sample_fixture_refusals_reach_page_check(
+    page_dir, history, script_attrs, template_attrs, complaint
+):
+    source = (
+        f'<script id="fixture" {script_attrs}>{history}</script>'
+        f'<template id="practice" data-sample {template_attrs}>'
+        '<h1 id="child">Child</h1></template>'
+    )
+    (page_dir / "index.html").write_text(PAGE.replace("</main>", source + "</main>"))
+    result = check(page_dir)
+    assert result.exit_code != 0, result.output
+    assert "sample 'practice'" in result.output
+    assert complaint in result.output
+
+
+@pytest.mark.parametrize(
+    ("markup", "complaint"),
+    [
+        ('<lf-unknown id="widget">Unknown</lf-unknown>', "unknown widget"),
+        (
+            '<lf-code id="child" language="python"><pre>1</pre></lf-code>',
+            "already taken",
+        ),
+        ("<p>Just prose</p>", "carries no widget"),
+        (
+            '<lf-code id="code" language="python"><pre>1</pre></lf-code><style>p {color:red}</style>',
+            "stylesheet of the whole document",
+        ),
+    ],
+)
+def test_sample_fixture_message_markup_uses_the_message_gate(
+    page_dir, markup, complaint
+):
+    history = json.dumps(
+        [{"kind": "comment", "author": "agent", "text": "Example", "markup": markup}]
+    )
+    source = (
+        f'<script id="fixture" type="application/json">{history}</script>'
+        '<template id="practice" data-sample data-sample-events="fixture">'
+        '<h1 id="child">Child</h1></template>'
+    )
+    (page_dir / "index.html").write_text(PAGE.replace("</main>", source + "</main>"))
+    result = check(page_dir)
+    assert result.exit_code != 0, result.output
+    assert "sample 'practice'" in result.output
+    assert complaint in result.output
+
+
+@pytest.mark.parametrize(
+    ("anchor", "valid", "complaint"),
+    [
+        ({"section": "outer-only"}, False, "no element id 'outer-only'"),
+        ({"section": "missing"}, False, "no element id 'missing'"),
+        (
+            {"section": "child", "quote": "Words only in the parent"},
+            False,
+            "doesn't say",
+        ),
+        ({"section": "child", "quote": "Child passage"}, True, ""),
+        ({"section": "generated-option", "quote": "Generated passage"}, True, ""),
+        ({"section": "message-widget"}, True, ""),
+        (None, True, ""),
+    ],
+)
+def test_sample_fixture_anchors_are_captured_in_the_child_reading(
+    page_dir, anchor, valid, complaint
+):
+    history = [
+        {
+            "kind": "comment",
+            "author": "agent",
+            "text": "A widget example",
+            "markup": '<lf-ask id="message-ask"><h2>Route</h2><lf-options id="message-widget" choose><lf-option id="message-option">Existing</lf-option></lf-options></lf-ask>',
+        },
+        {
+            "kind": "comment",
+            "text": "A fixture question",
+            **({"anchor": anchor} if anchor is not None else {}),
+        },
+    ]
+    if anchor and anchor.get("section") == "generated-option":
+        history.insert(
+            1,
+            {
+                "kind": "action",
+                "widget": "message-widget",
+                "action": "add",
+                "detail": {"option": "generated-option", "text": "Generated passage"},
+            },
+        )
+    source = (
+        '<p id="outer-only">Words only in the parent</p>'
+        f'<script id="fixture" type="application/json">{json.dumps(history)}</script>'
+        '<template id="practice" data-sample data-sample-events="fixture">'
+        '<h1>Sample</h1><p id="child">Child passage</p></template>'
+    )
+    (page_dir / "index.html").write_text(PAGE.replace("</main>", source + "</main>"))
+    result = check(page_dir)
+    assert (result.exit_code == 0) == valid, result.output
+    if not valid:
+        assert "sample 'practice'" in result.output
+        assert complaint in result.output

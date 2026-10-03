@@ -20,7 +20,7 @@ from leaf.projection import (
     retirement_outcomes,
     rewritten_bodies,
 )
-from leaf.registry.state import retirement_slots
+from leaf.registry.contract import retirement_slots
 from leaf.render_checks import evaluate_probe, one_frame, rendered
 from leaf.structure import SourceDocument
 
@@ -236,7 +236,6 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
     errors = context.errors
     resize_notices = context.resize_notices
     unsettled = context.unsettled
-    failsoft = evaluate_probe(page, "failSoftErrors")
     invalid_paints = evaluate_probe(page, "invalidPaints")
     missing_upgrades = evaluate_probe(page, "missingUpgrades", declarations)
     tiny = evaluate_probe(page, "tinyBoxes", declarations)
@@ -351,11 +350,6 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
     # would call an attempt complete before its last error channel had spoken.
     one_frame(page)
     found = [f"[{scheme}] console: {e}" for e in errors]
-    for failure in failsoft:
-        owner = f"<{failure['tag']}" + (
-            f" id={failure['id']!r}>" if failure["id"] else ">"
-        )
-        found.append(f"[{scheme}] {owner} failed soft: {failure['message']}")
     for paint in invalid_paints:
         owner = f"<{paint['tag']}" + (f" id={paint['id']!r}>" if paint["id"] else ">")
         part = f" for data-id={paint['part']!r}" if paint["part"] else ""
@@ -583,13 +577,6 @@ def swept_overflow(readings, viewports) -> list[str]:
     return found
 
 
-# The drawn size below which a shrunk label is advised about. The theme's drawing idiom
-# sets its labels at 10–12px in the viewBox's units (theme.css, `svg.drawing`; its 9px
-# step glyph is one bold numeral on a dot), so an idiom drawing shown at its own width
-# stays clear of it, and one shrunk by a fifth does not.
-LEGIBLE_LABEL_PX = 10
-
-
 def shrunk_label_advice(page) -> list[str]:
     """Advice naming each drawing whose fit to its box draws labels too small to read.
 
@@ -599,14 +586,16 @@ def shrunk_label_advice(page) -> list[str]:
     labels, fewer of them, a narrower drawing, more room — that only the author can make,
     and a page that makes none of them still says everything it says."""
     width = page.viewport_size["width"]
+    reading = evaluate_probe(page, "shrunkLabelReading")
+    threshold = reading["threshold_px"]
     return [
         f"at {width}px wide {d['at']} draws {d['labels']} label(s) below "
-        f"{LEGIBLE_LABEL_PX}px, the smallest ({d['words']!r}) at {d['drawn']:g}px from "
+        f"{threshold}px, the smallest ({d['words']!r}) at {d['drawn']:g}px from "
         f"the {d['set']:g}px it was set at: the drawing is scaled to fit its box and its "
         "labels with it, so set them larger in the viewBox's units, draw the viewBox "
         "nearer the width it is shown at, or give it more room "
         "(authoring-evidence.md, Interactive and visual evidence)"
-        for d in evaluate_probe(page, "shrunkLabels", LEGIBLE_LABEL_PX)
+        for d in reading["drawings"]
     ]
 
 

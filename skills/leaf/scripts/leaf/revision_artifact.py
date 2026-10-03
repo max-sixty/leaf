@@ -12,12 +12,18 @@ manifest determines its digest, and carries a second ``executable`` digest over
 the inputs an already-open document cannot re-evaluate in place. The HTML
 revision file is the commit marker: the complete bundle is made durable before
 that file appears. Users never discover a staged or incomplete revision,
-including after a process crash.
+including after a process crash. A publication that also changes the log stages
+its bundle, records the exact bundle name in its first admitted prerequisite,
+and publishes this marker only after all dependent transitions are durable.
+`revisioning.finish_publications` completes that sequence before transaction
+consumers read the page.
 
 Every reader of a stored revision takes `read_revision`: one held reading per
-revision owning its manifest, captured vocabulary, parsed document, and passage
-readings. `read_artifact` materializes the complete bundle under a bound of its own;
-delivery parses the document it rewrites for serving, which is other text.
+revision, owning its manifest, captured vocabulary, parsed document, and passage
+readings. `read_artifact` holds immutable resource files without loading their
+bodies; delivery parses the document it rewrites for serving, which is other text.
+Each is kept in the memory of the page it was read from, for as long as the process
+keeps that page (`page_memory`).
 """
 
 import hashlib
@@ -40,11 +46,14 @@ from tinycss2.serializer import serialize_string_value
 from tree_sitter import Language, Parser
 
 from leaf.files import file_stamp, latest_revision, list_revisions, revision_path
+from leaf.page_memory import Slot, memo
 from leaf.passages import SourceReading, enclosing_ids
+from leaf.render_checks import PROBE_SOURCES
 from leaf.schema import BROWSER_DIRS, CONTENT_TYPES, SERVED_PATH, VENDORED_FILES
-from leaf.session_cleanup import fsync_parents
+from leaf.state import fsync_parents
 from leaf.structure import (
     SourceDocument,
+    annotation_mode,
     links_with_rel,
     remote_reference,
     script_kind,
@@ -78,21 +87,39 @@ def _canonical_json(value) -> bytes:
     return json.dumps(value, sort_keys=True, separators=(",", ":")).encode("utf-8")
 
 
-def _read(path: Path) -> bytes:
-    return _read_stamped(path, file_stamp(path))
-
-
-@lru_cache(maxsize=512)
-def _read_stamped(path: Path, stamp: tuple | None) -> bytes:
-    """Cache stable payload reads without retaining every page ever inspected."""
-    return path.read_bytes()
-
-
 @dataclass(frozen=True)
 class Resource:
-    data: bytes
+    """Exact bytes or an immutable backing file, read only when a consumer needs them.
+
+    Captured files belong to the revision bundle; callers never replace them with a
+    mutable page path. A full read is explicit in `data`, while transports use `size`
+    and `read` to answer HEAD and byte ranges without materializing the whole file.
+    """
+
+    content: bytes | Path
     mime: str
     dependencies: tuple[str, ...] = ()
+
+    @property
+    def size(self) -> int:
+        return (
+            len(self.content)
+            if isinstance(self.content, bytes)
+            else self.content.stat().st_size
+        )
+
+    def read(self, window: slice = slice(0, None)) -> bytes:
+        if isinstance(self.content, bytes):
+            return self.content[window]
+        with self.content.open("rb") as stream:
+            stream.seek(window.start or 0)
+            return stream.read(
+                -1 if window.stop is None else window.stop - (window.start or 0)
+            )
+
+    @property
+    def data(self) -> bytes:
+        return self.read()
 
     @property
     def digest(self) -> str:
@@ -143,6 +170,19 @@ class RevisionArtifact:
         return json.loads(self.manifest)["implementations"]
 
     @cached_property
+    def widget_aliases(self) -> dict[str, str]:
+        """The loader's widget module paths, mapped to their captured implementations.
+
+        A page-owned implementation lives under `/page/`, but every widget is
+        loaded through `/widgets/<tag>.js`. HTTP, publication and offline export
+        read these aliases from the same captured provenance.
+        """
+        return {
+            f"/widgets/{tag}.js": implementation["path"]
+            for tag, implementation in self.implementations.items()
+        }
+
+    @cached_property
     def executable(self) -> str | None:
         """What this revision is as executable code, or nothing where it predates the field.
 
@@ -179,13 +219,12 @@ def resolve_dependency(specifier: str, importer: str, *, module=False) -> str | 
         not specifier
         or parsed.scheme
         or parsed.netloc
-        or parsed.query
-        or (module and parsed.fragment)
+        or (module and (parsed.query or parsed.fragment))
         or "\\" in specifier
         or any(ord(char) < 33 for char in specifier)
     ):
         raise ArtifactError(
-            f"{where}: dependency must be a local URL without a query, or an "
+            f"{where}: dependency must be a local URL (module URLs have no query or fragment), or an "
             "http(s) URL"
         )
     path = unquote(parsed.path)
@@ -346,15 +385,39 @@ def _css_dependencies(source: str, declarations: bool = False) -> tuple[str, ...
 def rewrite_css(source: str, address, *, declarations: bool = False) -> str:
     """Re-address every URL `source` loads through `address`, the rest byte-for-byte.
 
-    `address` takes a URL as written and returns the one to write in its place.
+    `address` takes a URL as written and returns its replacement, or None when
+    unavailable: the containing declaration or import is then omitted. Other
+    declarations, including the enclosing layout rules, remain.
     Delivery and export re-address through this, and capture collects its
     dependencies from the same `_css_references`, so all three agree on which URLs a
     sheet has.
     """
     tokens = _parse_css(source, declarations)
-    changed = False
+    references = list(_css_references(tokens))
+    targets = {token.value: address(token.value) for token in references}
+    omitted = {reference for reference, value in targets.items() if value is None}
+
+    def available(entries):
+        kept = []
+        for entry in entries:
+            if entry.type == "declaration" or (
+                entry.type == "at-rule" and entry.lower_at_keyword == "import"
+            ):
+                if any(token.value in omitted for token in _css_references([entry])):
+                    continue
+            elif getattr(entry, "content", None) is not None:
+                children = available(tinycss2.parse_blocks_contents(entry.content))
+                entry.content = tinycss2.parse_component_value_list(
+                    tinycss2.serialize(children)
+                )
+            kept.append(entry)
+        return kept
+
+    if omitted:
+        tokens = available(tokens)
+    changed = bool(omitted)
     for token in list(_css_references(tokens)):
-        value = address(token.value)
+        value = targets[token.value]
         if value == token.value:
             continue
         changed = True
@@ -386,7 +449,7 @@ def _capture_input_stamps(page_dir: Path) -> tuple[tuple[str, tuple], ...]:
     return tuple(
         (path.relative_to(page_dir).as_posix(), _path_stamp(path))
         for path in sorted(set(paths))
-    )
+    ) + tuple((logical, _path_stamp(path)) for logical, path in PROBE_SOURCES.items())
 
 
 def capture_artifact(
@@ -399,41 +462,32 @@ def capture_artifact(
 ) -> RevisionArtifact:
     """Capture the candidate's complete inputs without executing authored code.
 
-    One complete capture is retained while every input is the same: the document's
+    The page keeps its last capture while every input is the same: the document's
     bytes, the vocabulary and declarations, and the stamp of every mutable file a
     capture may read. A capture that must be built is built from the caller's own
     document, which the check that asks has already parsed."""
     page_dir = page_dir.absolute()
     key = (
-        page_dir,
         document.data,
         _json(registry),
         _json(dict(declaration_sources or {})),
         _json(dict(widget_sources or {})) if widget_sources is not None else None,
         _capture_input_stamps(page_dir),
     )
-    with _captures_lock:
-        if (held := _captures.pop(key, None)) is not None:
-            _captures[key] = held
-            return held
-    artifact = _capture_artifact(
-        page_dir,
-        document,
-        registry,
-        declaration_sources=declaration_sources,
-        widget_sources=widget_sources,
+    return memo(page_dir, _Capture).get(
+        key,
+        lambda: _capture_artifact(
+            page_dir,
+            document,
+            registry,
+            declaration_sources=declaration_sources,
+            widget_sources=widget_sources,
+        ),
     )
-    with _captures_lock:
-        _captures[key] = artifact
-        while len(_captures) > _CAPTURES_LIMIT:
-            _captures.pop(next(iter(_captures)))
-    return artifact
 
 
-_CAPTURES_LIMIT = 8
-# capture inputs → the capture, least recently asked first.
-_captures: dict[tuple, RevisionArtifact] = {}
-_captures_lock = threading.Lock()
+class _Capture(Slot):
+    """A page's last capture, by every input it was built from."""
 
 
 def _capture_artifact(
@@ -460,7 +514,7 @@ def _capture_artifact(
                 f"{path}: dependency escapes its source directory through a symlink"
             )
         try:
-            data = _read(source)
+            data = source.read_bytes()
         except OSError as error:
             raise ArtifactError(
                 f"{path}: cannot capture dependency: {error.strerror}"
@@ -513,6 +567,16 @@ def _capture_artifact(
         }
     for source in widget_sources.values():
         capture("/" + source.lstrip("/"))
+
+    # Live observations and headless checks are browser code too. Capture their
+    # source beside the runtime it reads, so a revision and an export have one
+    # complete module graph, even when the serving checkout later changes.
+    resources.update(
+        {
+            logical: Resource(source.read_bytes(), "application/javascript")
+            for logical, source in PROBE_SOURCES.items()
+        }
+    )
 
     entries = []
     documents = [document]
@@ -584,6 +648,7 @@ def _capture_artifact(
     executable = _digest(
         _canonical_json(
             {
+                "annotations": annotation_mode(document),
                 "vocabulary": _digest(
                     _canonical_json(
                         {
@@ -642,6 +707,7 @@ def _capture_artifact(
     manifest = _canonical_json(
         {
             "html": _digest(document.data),
+            "title": document.title.strip(),
             "entries": sorted(set(entries)),
             "executable": executable,
             "widgets": widgets,
@@ -666,23 +732,14 @@ def artifact_name(revision: int, artifact: RevisionArtifact) -> str:
     return f"r{revision}-{artifact.digest.removeprefix('sha256:')[:16]}"
 
 
-def write_artifact(
-    page_dir: Path,
-    revision: int,
-    artifact: RevisionArtifact,
-    reading: SourceReading,
-) -> Path:
-    """Publish a complete immutable bundle, then its discoverable HTML marker.
-
-    `reading` is the checked candidate's document under the vocabulary the artifact
-    captured; the new revision's held reading adopts it (`read_revision`)."""
+def stage_artifact(page_dir: Path, revision: int, artifact: RevisionArtifact) -> str:
+    """Make exact immutable inputs durable, without making a revision discoverable."""
     revisions = page_dir / "revisions"
     revisions.mkdir(exist_ok=True)
     if revision in list_revisions(page_dir):
         raise ArtifactError(f"revision r{revision} already exists")
     name = artifact_name(revision, artifact)
     destination = revisions / name
-    marker = revisions / f"{name}.html"
     if not destination.exists():
         with tempfile.TemporaryDirectory(
             prefix=".capture-", dir=revisions
@@ -710,30 +767,91 @@ def write_artifact(
             fsync_parents([destination])
     elif (destination / "manifest.json").read_bytes() != artifact.manifest:
         raise ArtifactError(f"{destination}: immutable artifact digest collision")
-    os.link(destination / "index.html", marker)
-    fsync_parents([marker])
-    marker = marker.absolute()
-    _hold(marker, file_stamp(marker), RevisionReading(marker, reading))
-    return marker
+    return name
 
 
-def read_artifact(page_dir: Path, revision: int) -> RevisionArtifact:
-    """Read exact captured inputs, never substituting a mutable page file."""
-    path = revision_path(page_dir, revision).absolute()
-    bundle = path.with_suffix("")
-    manifest_path = bundle / "manifest.json"
-    manifest_stamp = file_stamp(manifest_path)
-    return _read_artifact_stamped(
-        path,
-        bundle,
-        file_stamp(path),
-        file_stamp(bundle),
-        manifest_stamp,
+def staged_reading(page_dir: Path, name: str) -> SourceReading:
+    """Read the exact durable bundle named by an admitted publication prerequisite."""
+    bundle = page_dir / "revisions" / name
+    return SourceReading(
+        SourceDocument((bundle / "index.html").read_bytes().decode("utf-8")),
+        _shared_registry((bundle / "resources" / "registry.json").read_bytes()),
     )
 
 
+def publish_artifact(page_dir: Path, name: str, reading: SourceReading) -> Path:
+    """Commit a staged bundle only after its dependent log transitions are durable."""
+    destination = page_dir / "revisions" / name
+    marker = destination.with_name(f"{name}.html")
+    os.link(destination / "index.html", marker)
+    fsync_parents([marker])
+    marker = marker.absolute()
+    memo(page_dir, _Readings).hold(
+        marker, file_stamp(marker), RevisionReading(marker, reading)
+    )
+    return marker
+
+
+def write_artifact(
+    page_dir: Path, revision: int, artifact: RevisionArtifact, reading: SourceReading
+) -> Path:
+    """Publish a complete bundle whose revision has no prerequisite log transitions."""
+    return publish_artifact(
+        page_dir, stage_artifact(page_dir, revision, artifact), reading
+    )
+
+
+def read_artifact(page_dir: Path, revision: int) -> RevisionArtifact:
+    """Read exact captured inputs, never substituting a mutable page file.
+
+    The page keeps the last few bundle descriptors (`_Artifacts`), until any file they
+    were read from changes."""
+    path = revision_path(page_dir, revision).absolute()
+    bundle = path.with_suffix("")
+    stamps = (
+        file_stamp(path),
+        file_stamp(bundle),
+        file_stamp(bundle / "manifest.json"),
+    )
+    held = memo(page_dir, _Artifacts)
+    if (artifact := held.get(path, stamps)) is None:
+        artifact = _materialize(path, bundle)
+        held.hold(path, stamps, artifact)
+    return artifact
+
+
+class _Artifacts:
+    """A page's last immutable bundle descriptors, least recently read first.
+
+    A bundle is a couple of hundred files and several megabytes. A server answers
+    each resource request from the revision a tab shows, which is the active one and
+    a few others at most, while a snapshot or a live shell walks every revision
+    once."""
+
+    LIMIT = 4
+
+    def __init__(self) -> None:
+        self.held: dict[Path, tuple[tuple, RevisionArtifact]] = {}
+        self.lock = threading.Lock()
+
+    def get(self, path: Path, stamps: tuple) -> RevisionArtifact | None:
+        with self.lock:
+            held = self.held.pop(path, None)
+            if held is None or held[0] != stamps or None in stamps:
+                return None
+            self.held[path] = held
+            return held[1]
+
+    def hold(self, path: Path, stamps: tuple, artifact: RevisionArtifact) -> None:
+        with self.lock:
+            self.held.pop(path, None)
+            self.held[path] = (stamps, artifact)
+            while len(self.held) > self.LIMIT:
+                self.held.pop(next(iter(self.held)))
+
+
 class RevisionReading(SourceReading):
-    """One stored revision, read once for every caller in the process.
+    """One stored revision, read once for every caller its page's memory serves.
 
     A revision's files never change after its HTML marker appears (`write_artifact`),
     so everything read from it — the manifest, the captured vocabulary, the parsed
@@ -746,7 +864,8 @@ class RevisionReading(SourceReading):
 
     The complete bundle is not held here. It is a couple of hundred files, several
     megabytes, and a snapshot or a live shell asks for every revision's, so
-    `read_artifact` materializes it under its own small bound. What the bundle's
+    `read_artifact` holds its manifest and immutable resource paths under its own
+    small bound. What the bundle's
     identity answers, its `digest`, is the manifest's and needs none of it.
 
     `document` and `registry` are what `SourceReading` reads: here they are read from
@@ -809,52 +928,56 @@ class RevisionReading(SourceReading):
         return _digest(self.manifest_bytes)
 
 
-# How much authored source the held readings may stand for. An entry's weight is
-# its document's parse, which scales with the source: the corpus example's 323 KB
-# parses to about 9 MB, and its passage and word readings add about 3 MB more.
-# So entries are charged their source size, whether or not their document has been
-# parsed yet, and this budget keeps resident parses to a few hundred megabytes.
-# A normal history fits whole: some 180 revisions of the largest shipped example
-# page (44 KB), about 700 of the median one (11 KB). A history past it re-parses
-# the revisions a whole-history scan (`validation.admission.version_ids`) reaches
-# after the budget is spent, which is the price of not holding every parse ever
-# made in a long-lived server.
-_READINGS_BUDGET = 8 * 1024 * 1024
-# revision marker → (its stamp, the reading), least recently read first. Endpoints
-# read from a thread pool, so every change to this map and its total is under the
-# lock.
-_readings: dict[Path, tuple[tuple, RevisionReading]] = {}
-_readings_bytes = 0
-_readings_lock = threading.Lock()
-
-
 def read_revision(page_dir: Path, revision: int) -> RevisionReading:
     """The one held reading of an immutable revision."""
     marker = revision_path(page_dir, revision).absolute()
     stamp = file_stamp(marker)
-    with _readings_lock:
-        held = _readings.get(marker)
-    if held and held[0] == stamp:
-        reading = held[1]
-    else:
-        reading = RevisionReading(marker)
-    return _hold(marker, stamp, reading)
+    readings = memo(page_dir, _Readings)
+    reading = readings.get(marker, stamp) or RevisionReading(marker)
+    return readings.hold(marker, stamp, reading)
 
 
-def _hold(marker: Path, stamp, reading: RevisionReading) -> RevisionReading:
-    """Hold `reading` as the newest read, within the budget."""
-    global _readings_bytes
-    with _readings_lock:
-        held = _readings.pop(marker, None)
-        if held:
-            _readings_bytes -= held[0][2]
-        if stamp:
-            _readings[marker] = (stamp, reading)
-            _readings_bytes += stamp[2]
-            while _readings_bytes > _READINGS_BUDGET and len(_readings) > 1:
-                evicted_stamp, _evicted = _readings.pop(next(iter(_readings)))
-                _readings_bytes -= evicted_stamp[2]
-    return reading
+class _Readings:
+    """A page's held revision readings, least recently read first, within a budget.
+
+    The budget is in authored source, since that is what a marker's stamp tells
+    without a parse, and a reading's weight scales with it: a document, its passages
+    and its words come to about twenty times the source (the corpus example's 336 KB
+    to 8 MB, a median example's 11 KB to 0.2 MB). Entries are charged their source
+    whether or not their document has been parsed yet, so 8 MB of source keeps one
+    page's readings under about 160 MB. A normal history fits whole: some 180
+    revisions of the largest shipped example page (44 KB), about 700 of the median
+    one. A longer one re-parses what a whole-history scan
+    (`validation.admission.version_ids`) reaches after the budget is spent.
+
+    Endpoints read from a thread pool, so every change is under the lock."""
+
+    BUDGET = 8 * 1024 * 1024
+
+    def __init__(self) -> None:
+        # revision marker → (its stamp, the reading)
+        self.held: dict[Path, tuple[tuple, RevisionReading]] = {}
+        self.size = 0
+        self.lock = threading.Lock()
+
+    def get(self, marker: Path, stamp) -> RevisionReading | None:
+        with self.lock:
+            held = self.held.get(marker)
+        return held[1] if held and held[0] == stamp else None
+
+    def hold(self, marker: Path, stamp, reading: RevisionReading) -> RevisionReading:
+        """Hold `reading` as the newest read, within the budget."""
+        with self.lock:
+            held = self.held.pop(marker, None)
+            if held:
+                self.size -= held[0][2]
+            if stamp:
+                self.held[marker] = (stamp, reading)
+                self.size += stamp[2]
+                while self.size > self.BUDGET and len(self.held) > 1:
+                    evicted_stamp, _evicted = self.held.pop(next(iter(self.held)))
+                    self.size -= evicted_stamp[2]
+        return reading
 
 
 def active_enclosing(page_dir: Path) -> dict:
@@ -881,27 +1004,19 @@ def _shared_registry(data: bytes) -> dict:
     return json.loads(data)
 
 
-@lru_cache(maxsize=8)
-def _read_artifact_stamped(
-    path: Path,
-    bundle: Path,
-    marker_stamp: tuple | None,
-    bundle_stamp: tuple | None,
-    manifest_stamp: tuple | None,
-) -> RevisionArtifact:
-    """Materialize one immutable revision until any captured file changes."""
-    manifest_path = bundle / "manifest.json"
-    manifest_bytes = _read_stamped(manifest_path, manifest_stamp)
+def _materialize(path: Path, bundle: Path) -> RevisionArtifact:
+    """Read one immutable revision's manifest and retain its exact resource paths."""
+    manifest_bytes = (bundle / "manifest.json").read_bytes()
     manifest = json.loads(manifest_bytes)
     resources = {
         logical: Resource(
-            _read(bundle / ("resources" + logical)),
+            (bundle / ("resources" + logical)),
             record["mime"],
             tuple(record["dependencies"]),
         )
         for logical, record in manifest["resources"].items()
     }
-    html = _read_stamped(path, marker_stamp)
+    html = path.read_bytes()
     artifact = RevisionArtifact(html, MappingProxyType(resources), manifest_bytes)
     if not path.stem.endswith(artifact.digest.removeprefix("sha256:")[:16]):
         raise ArtifactError(

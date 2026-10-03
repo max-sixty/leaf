@@ -1,15 +1,23 @@
 """A stamped version as one HTML file that opens offline.
 
 The export packages the captured revision, its resources, and the page's authoritative
-state reading into one file, and Leaf's normal runtime boots from them. There is no
-second rendering: whatever the page draws when served, the file draws.
+state reading into one file. Its resource owner allocates one object URL per embedded
+body before handing the composed document to the native HTML parser; Leaf's normal
+runtime then boots from that document. The normal composer also supplies the
+scripts-off record: authored text, layout and alt text, with an explanation that
+embedded graphics, fonts and recordings require JavaScript. Media is
+embedded in full, including recordings: no size cap silently removes content, and
+the reported output byte count includes the base64 expansion.
 """
 
 import base64
+import hashlib
 import json
 import sys
+import uuid
 from collections.abc import Callable
 from pathlib import Path
+from urllib.parse import unquote, urlsplit
 
 from leaf.event_log import read_events
 from leaf.files import (
@@ -33,7 +41,7 @@ from leaf.revision_delivery import (
     rebase_css,
 )
 from leaf.served_state.service import PageStateService
-from leaf.structure import SourceDocument
+from leaf.structure import UTF8_BOM, SourceDocument
 from leaf.thread_context import logged_fragment
 
 ResourceReader = Callable[[str], Resource]
@@ -44,7 +52,7 @@ def _data_url(resource: Resource) -> str:
 
 
 class AssetInliner:
-    """Embed a resource graph as `data:` URLs, each with its captured MIME type.
+    """Give a resource graph one embedded body and one document-lifetime URL per resource.
 
     Imports remain CSS imports with embedded stylesheet URLs: their namespaces,
     cascade layers, supports clauses, and media conditions retain browser semantics.
@@ -55,13 +63,30 @@ class AssetInliner:
     def __init__(self, read: ResourceReader):
         self.read = read
         self.resources: dict[str, Resource] = {}
+        self.embedded: dict[str, Resource] = {}
+        self.prefix = f"urn:leaf-resource:{uuid.uuid4().hex}:"
+
+    def embed(self, resource: Resource) -> str:
+        """One document-lifetime address for exact bytes and their MIME type."""
+        data = resource.data
+        token = (
+            self.prefix
+            + hashlib.sha256(resource.mime.encode() + b"\0" + data).hexdigest()
+        )
+        self.embedded[token] = Resource(data, resource.mime)
+        return token
 
     def resource(self, path: str) -> Resource:
         if path not in self.resources:
-            self.resources[path] = self.read(path)
+            resource = self.read(path)
+            self.resources[path] = Resource(
+                resource.data, resource.mime, resource.dependencies
+            )
         return self.resources[path]
 
-    def address(self, path: str, ancestors: tuple[str, ...] = ()) -> str:
+    def address(self, path: str, ancestors: tuple[str, ...] = ()) -> str | None:
+        located = urlsplit(path)
+        path = unquote(located.path)
         resource = self.resource(path)
         if resource.mime == "text/css":
             css = (
@@ -70,7 +95,12 @@ class AssetInliner:
                 else self.css(resource.data.decode("utf-8"), path, (*ancestors, path))
             )
             resource = Resource(css.encode("utf-8"), "text/css")
-        return _data_url(resource)
+        embedded = self.embed(resource)
+        return (
+            embedded + ("#" + located.fragment if located.fragment else "")
+            if embedded is not None
+            else None
+        )
 
     def css(
         self,
@@ -95,6 +125,18 @@ class AssetInliner:
         return self.css(resource.data.decode("utf-8"), path, (path,))
 
 
+class ReadableAssets(AssetInliner):
+    """The same CSS graph with unavailable binary declarations omitted.
+
+    Native authored text, alt text and CSS layout work without scripts. Captured
+    images, fonts and recordings belong to the interactive allocator, so their
+    attributes and CSS declarations have no fallback address and make no requests.
+    """
+
+    def embed(self, resource: Resource) -> str | None:
+        return _data_url(resource) if resource.mime == "text/css" else None
+
+
 def _module_urls(
     artifact: RevisionArtifact, markup: list[SourceDocument]
 ) -> dict[str, str]:
@@ -109,10 +151,11 @@ def _module_urls(
     that draws no diff carries no diff renderer.
     """
     tags = {record["tag"] for document in markup for record in document.lf_elements}
+    required = {f"/widgets/{tag}.js" for tag in tags}
     widgets = {
-        f"/widgets/{tag}.js": implementation["path"]
-        for tag, implementation in artifact.implementations.items()
-        if tag in tags
+        alias: source
+        for alias, source in artifact.widget_aliases.items()
+        if alias in required
     }
     pending = [
         "/leaf.js",
@@ -149,7 +192,7 @@ def export_document(
     `document` is that revision's parsed markup (`read_revision`); a page declaring a
     live sample is refused before this, by `cmd_export`.
 
-    The import map is an address table, not another runtime: every module is the exact
+    The import map is an address table: every module is the exact
     captured module with only its parsed local imports rebound to an in-file ``data:``
     URL. The normal application publisher, widgets, and presentation coordinator boot
     against the embedded authoritative reading, so the file opens offline wherever the
@@ -167,21 +210,32 @@ def export_document(
         ],
     )
     inliner = AssetInliner(artifact.resources.__getitem__)
+    # Replacement markers belong to delivery, never to authored prose, state, data or
+    # CSS strings. Reserve a fresh namespace absent from every text it will rewrite.
+    authored_text = [
+        artifact.html.decode(),
+        json_script({"state": state, "data": data}),
+        *(
+            resource.data.decode()
+            for resource in artifact.resources.values()
+            if resource.mime == "text/css"
+        ),
+    ]
+    while any(inliner.prefix in text for text in authored_text):
+        inliner.prefix = f"urn:leaf-resource:{uuid.uuid4().hex}:"
     embedded_resources = {
-        path: _data_url(resource)
+        path: inliner.address(path)
         for path, resource in artifact.resources.items()
         if resource.mime not in {"application/javascript", "text/css"}
     }
     embedded_resources["/shadow.css"] = inliner.address("/shadow.css")
-    embedded_resources["/registry.json"] = _data_url(
-        artifact.resources["/registry.json"]
-    )
+    embedded_resources["/registry.json"] = inliner.address("/registry.json")
     payload = json_script(
         {"state": state, "data": data, "resources": embedded_resources}
     )
     # An authored module is addressed at the same embedded URL the import map gives
     # its `leaf:` name, so a page module is one instance however it is reached.
-    return compose_document(
+    composed = compose_document(
         artifact.html.decode("utf-8"),
         revision,
         version,
@@ -206,6 +260,52 @@ def export_document(
             ),
         ),
     )
+    # Native attributes, inline styles, CSS imports and the runtime address table all
+    # name the same tokens. Allocate their object URLs before this composed document
+    # enters the HTML parser, so no consumer can fetch an unresolved reference.
+    package = json_script(
+        {
+            "document": composed.removeprefix(UTF8_BOM),
+            "prefix": inliner.prefix,
+            "resources": {
+                token: {
+                    "mime": resource.mime,
+                    "base64": base64.b64encode(resource.data).decode(),
+                }
+                for token, resource in inliner.embedded.items()
+            },
+        }
+    )
+    readable = ReadableAssets(inliner.resource)
+    bootstrap = artifact.resources["/runtime/offline-delivery.js"].data.decode()
+    fallback = compose_document(
+        artifact.html.decode("utf-8"),
+        revision,
+        version,
+        executable=artifact.executable,
+        widgets=artifact.widgets,
+        resources=artifact.resources,
+        registry=artifact.registry,
+        delivery=Delivery(
+            address=readable.address,
+            inline_stylesheet=readable.stylesheet,
+            html_attributes={"data-lf-export-pending": ""},
+            head=(
+                "<style>[data-lf-export-pending] body {visibility:hidden}</style>"
+                "<noscript><style>[data-lf-export-pending] body {visibility:visible}</style></noscript>"
+                f'<script type="application/json" data-lf-export>{package}</script>'
+                f"<script>{bootstrap}</script>"
+            ),
+        ),
+    )
+    # The readable record is the outer document, not raw text inside a noscript
+    # wrapper: authored noscript elements keep native semantics in both parser modes.
+    body = SourceDocument(fallback).wrapper_tags["body"][1]
+    note = (
+        '<noscript><p role="note">This file needs JavaScript to display embedded '
+        "images, fonts, and recordings. The captured text is shown below.</p></noscript>"
+    )
+    return fallback[:body] + note + fallback[body:]
 
 
 def cmd_export(page_dir: Path, out: Path, version) -> int:

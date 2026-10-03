@@ -1,0 +1,39 @@
+# Sibling of the 2026-10-01 repeated-link complaint. Against 78f9fc8cd,
+# the old instructions repeated the URL in 2/2 runs; the repair omitted it in 2/2.
+description: page-url-midwork-progress
+metadata:
+  purpose: 'Handoff: a progress update while checks run does not repeat the page URL.'
+  tags:
+  - handoff
+vars:
+  prompt: |
+    You are a Claude Code session fixing an interaction in a handed-over Leaf page.
+    The page is http://127.0.0.1:8123/?t=abc#controls. The user already has the URL.
+    Your earlier update was:
+    "I found the label's selection blocker. I am fixing the shared control.
+    [Page](http://127.0.0.1:8123/?t=abc#controls)."
+
+    The fix now lets users drag-select both switch and slider labels without
+    changing their values. Mouse clicks and keyboard activation still work.
+    The regression passed; broader checks are running and you will refresh the
+    same preview when they finish. Write the next intermediate progress update.
+    The checks and final response will follow later.
+
+    Use the leaf skill for the page workflow. Read whatever instructions you need.
+    Only Skill and Read run here; write the requested chat message itself in your reply.
+assert:
+- type: javascript
+  metric: loads-leaf
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/SKILL\.md
+- type: not-regex
+  metric: page-url
+  value: http://127\.0\.0\.1:8123/
+- type: llm-rubric
+  metric: progress-message
+  value: |
+    Pass only if the reply gives an intermediate update about the selection fix
+    and the checks that are still running. It must not claim all work is
+    complete, refuse the task, or replace the update with an explanation of the
+    instructions.

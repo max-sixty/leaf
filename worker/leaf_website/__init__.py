@@ -20,13 +20,11 @@ import tempfile
 import threading
 import time
 from dataclasses import replace
-from functools import cache, partial
+from functools import partial
 from html import escape
 from pathlib import Path
 
-# The stream-activity writers are called as `codex.<name>`, so `leaf.codex` holds their
-# one binding: whatever takes a turn's readings there takes the host's too.
-from leaf import codex
+import click
 from leaf.codex import (
     LEAF_THREAD_CONFIG,
     CarriedTurn,
@@ -46,6 +44,7 @@ from leaf.host import EmbeddedHarness
 from leaf.hosting import LeafHTTPServer
 from leaf.http import PageEndpoint, scope_page_urls
 from leaf.leases import release_lease, take_lease, waiter_lease_path
+from leaf.page_memory import Slot, memo
 from leaf.registry.storage import layer_metadata
 from leaf.revision_delivery import Delivery
 from leaf.revisioning import activate_source
@@ -55,9 +54,15 @@ from leaf.served_state.service import PageStateService
 from leaf.server import preview_metadata
 from leaf.service import (
     PageTransaction,
-    close_session_turn,
     page_claim,
     restore_page_claim,
+)
+from leaf.state import (
+    advance_turn,
+    close_session_turn,
+    flocked,
+    session_lock_path,
+    session_record,
 )
 from leaf.thread import (
     fail_answer,
@@ -143,10 +148,6 @@ WORKER_FAILURES = tuple(code for code in FAILURE_RECEIPTS if code != CONTAINER_F
 AGENT_START_PATH = "/_leaf/agent/start"
 AGENT_FAIL_PATH = "/_leaf/agent/fail"
 STARTUP_REPORT_PATH = "/api/performance"
-RUNTIME_DIRECTORY = Path(tempfile.gettempdir()).resolve()
-CODEX_SOCKET = RUNTIME_DIRECTORY / "leaf-website-codex.sock"
-CODEX_LOG = RUNTIME_DIRECTORY / "leaf-website-codex.log"
-CODEX_ENDPOINT = f"unix://{CODEX_SOCKET}"
 LEAF_COMMAND = str(Path(sys.executable).with_name("leaf"))
 # The hosted agent reads the same App Server contract a terminal task does, whole, and
 # leaf.page's own terms follow it as additions. The agent may not read outside its page
@@ -243,10 +244,16 @@ def agent_event_fields(event_ids: tuple[str, ...]) -> dict:
     return {"eventIds": event_ids}
 
 
-@cache
+class _Binding(Slot):
+    """A published page's immutable delivery metadata."""
+
+
 def page_binding(page_dir: Path) -> tuple[dict, dict | None]:
-    """Read immutable delivery metadata once per published page and process."""
-    return layer_metadata(page_dir), preview_metadata(page_dir)
+    """Read immutable delivery metadata once while this process keeps the page
+    (`leaf.page_memory`)."""
+    return memo(page_dir, _Binding).get(
+        None, lambda: (layer_metadata(page_dir), preview_metadata(page_dir))
+    )
 
 
 def site_metadata(page_root: str, page: dict) -> str:
@@ -327,37 +334,22 @@ def write_failure_receipt(
     return accepted
 
 
-def agent_event_pending(page_dir: Path, event_id: str) -> bool:
-    """Whether one accepted user event still belongs to the agent's next turn."""
+def pending_agent_inputs(page_dir: Path) -> dict[str, str | None]:
+    """Admit a hosted dispatch against the source and one page snapshot.
+
+    Membership says a move still needs an answer. Its value names an existing
+    provider delivery, or None where the host may start one. The host re-reads
+    after a start that did not leave a follower, because an older reply slice can
+    have taken another input first.
+    """
     with PageTransaction(page_dir) as page:
-        activation = activate_source(page_dir)
+        activation = activate_source(page_dir, transaction=page)
         if activation.error:
             raise ValueError(activation.error)
-        events = page.events
-        if any(event.get("attempt") == agent_attempt(event_id) for event in events):
-            return False
-        return any(
-            obligation.get("input") == event_id
-            for obligation in full_state(page_dir, events)["activity"]["obligations"]
-        )
-
-
-def agent_event_thread(page_dir: Path, event_id: str) -> str | None:
-    """Return the Codex task that has already accepted one pending event."""
-    with PageTransaction(page_dir) as page:
-        activation = activate_source(page_dir)
-        if activation.error:
-            raise ValueError(activation.error)
-        workflow = next(
-            (
-                item
-                for item in full_state(page_dir, page.events)["workflows"]
-                if item.get("input") == event_id
-            ),
-            None,
-        )
-        session = workflow.get("delivery_session") if workflow else None
-        return session if isinstance(session, str) and session else None
+        # Obligations already are canonical workflows, including their delivery
+        # session. Joining a second workflow list would repeat the owner’s reading.
+        obligations = full_state(page_dir, page.events)["activity"]["obligations"]
+        return {item["input"]: item["delivery_session"] for item in obligations}
 
 
 def next_unaccepted_agent_event(
@@ -371,7 +363,7 @@ def next_unaccepted_agent_event(
     the source first and refuse a page whose `index.html` no longer opens, which put a
     start-door condition in front of a reading that does not need one: obligations and
     workflows come out of the log either way. The refusing belongs at the door, and
-    the door already holds it — `attach` reaches `agent_event_pending`, which raises on
+    the door already holds it — `attach` reaches `pending_agent_inputs`, which raises on
     such a page — so a start there throws to a caller that receipts the move. Held here
     instead, the refusal came before any move was named, which is the one shape that
     answers none of them: a turn whose own work left the page unopenable faults while
@@ -379,18 +371,12 @@ def next_unaccepted_agent_event(
     who to tell.
     """
     with PageTransaction(page_dir) as page:
-        state = full_state(page_dir, page.events)
-        activity = state["activity"]
-        sessions = {
-            workflow.get("input"): workflow.get("delivery_session")
-            for workflow in state["workflows"]
-        }
+        obligations = full_state(page_dir, page.events)["activity"]["obligations"]
         return next(
             (
-                obligation["input"]
-                for obligation in activity["obligations"]
-                if obligation.get("input") not in excluding
-                and not sessions.get(obligation.get("input"))
+                item["input"]
+                for item in obligations
+                if item["input"] not in excluding and item["delivery_session"] is None
             ),
             None,
         )
@@ -422,11 +408,18 @@ class HostedTurn(CarriedTurn):
         turn_id: str,
         socket=None,
         *,
+        lifecycle: dict,
         reply_target: dict | None = None,
         buffered=(),
     ):
         super().__init__(
-            thread_id, socket, turn_id, delivery_id, reply_target, buffered
+            thread_id,
+            socket,
+            turn_id,
+            delivery_id,
+            reply_target,
+            buffered,
+            lifecycle=lifecycle,
         )
         self.host = host
         self.page_dir = page_dir
@@ -462,7 +455,8 @@ class HostedTurn(CarriedTurn):
         delivery's without anything having to read it back off the stream.
         """
         self.record("turn_following_started")
-        self.open()
+        if not self.open():
+            raise RuntimeError("the hosted turn no longer owns its session epoch")
         open_app_server_delivery(
             self.page_dir,
             self.session_id,
@@ -472,7 +466,7 @@ class HostedTurn(CarriedTurn):
         )
         self.record("turn_delivery_bound", deliveryId=self.delivery_id)
         self.open_reply()
-        codex.set_stream_activity(self.session_id, self.turn_id, {"kind": "working"})
+        self.set_activity({"kind": "working"})
 
     def observe(self, message: dict, update: dict | None) -> None:
         """Record what one notification said, before its readings reach the page."""
@@ -567,9 +561,11 @@ class HostedTurn(CarriedTurn):
         try:
             if reply_error is not None:
                 self.record("turn_reply_commit_failed", **fault_fields(reply_error))
-            self.host._finish_turn(self.page_dir, self.session_id, terminal)
+            self.host._finish_turn(
+                self.page_dir, self.session_id, terminal, expected=self.activity_epoch()
+            )
         finally:
-            codex.clear_stream_activity(self.session_id, self.turn_id)
+            self.clear_activity()
             self._receipt_unanswered()
 
     def _receipt_unanswered(self) -> None:
@@ -618,13 +614,17 @@ class WebsiteCodexHost:
     def __init__(
         self,
         codex_path: str | None = None,
-        socket_path: Path = CODEX_SOCKET,
-        log_path: Path = CODEX_LOG,
+        socket_path: Path | None = None,
+        log_path: Path | None = None,
     ):
         self.codex_path = codex_path or shutil.which("codex")
-        self.socket_path = socket_path
-        self.log_path = log_path
-        self.endpoint = f"unix://{socket_path}"
+        # App Server's Unix socket is short and private to this host, even when
+        # multiple website versions run in the same machine's temporary directory.
+        self.runtime = tempfile.TemporaryDirectory(prefix="lwh.", dir="/tmp")
+        runtime = Path(self.runtime.name)
+        self.socket_path = socket_path or runtime / "codex.sock"
+        self.log_path = log_path or runtime / "codex.log"
+        self.endpoint = f"unix://{self.socket_path}"
         self.process: subprocess.Popen | None = None
         self.lock = threading.Lock()
         self.next_request_id = 0
@@ -711,12 +711,15 @@ class WebsiteCodexHost:
             self.process = None
         if process is not None:
             self._stop_server(process)
+        self.runtime.cleanup()
 
     def _stop_server(self, process: subprocess.Popen) -> None:
         stop_app_server(process)
         self.socket_path.unlink(missing_ok=True)
 
     def _ensure_server(self) -> subprocess.Popen:
+        if self.stop_event.is_set():
+            raise RuntimeError("the website host is closed")
         if self.codex_path is None:
             raise RuntimeError("cannot find the `codex` executable on PATH")
         if self.process is not None:
@@ -821,11 +824,12 @@ class WebsiteCodexHost:
         `startup_failed` receipt — nobody else can write one, because the user's
         request for it was answered `started` on the turn that was already running,
         which ended the Worker's dispatch — and the scan runs again for the next
-        move. Each receipted move joins `excluding`, since one that does not settle
-        would otherwise be handed back forever.
+        move. A candidate that settled before attachment also leaves no handoff,
+        so it joins `excluding` with failed starts and the scan continues.
 
-        The first start that succeeds ends the loop. Its own follower ends here too,
-        so the rest of the page's moves are that turn's to carry.
+        An accepted delivery or live follower is the handoff that ends this loop:
+        that owner will continue the page when its turn ends. Merely naming a
+        candidate or finding an old page claim hands nothing on.
         """
         while not self.stop_event.is_set():
             with self.lock:
@@ -835,8 +839,8 @@ class WebsiteCodexHost:
             if continuation is None:
                 return
             try:
-                self.attach(page_dir, continuation)
-                return
+                if self.attach(page_dir, continuation) is not None:
+                    return
             except Exception:  # noqa: BLE001 - receipted, never raised
                 # `attach` has already recorded the fault; what this adds is which of
                 # the two owners answered for it. Every class, because what the user
@@ -858,6 +862,8 @@ class WebsiteCodexHost:
         page_dir: Path,
         thread_id: str,
         turn: dict,
+        *,
+        expected: dict | None,
     ) -> None:
         """Close one observed provider turn without inventing a Leaf response."""
         status = turn.get("status")
@@ -872,16 +878,19 @@ class WebsiteCodexHost:
             )
 
         with PageTransaction(page_dir) as page:
-            activation = activate_source(page_dir)
-            claim = page.claim
-            if (
-                claim
-                and claim.get("released") is None
-                and claim.get("id") == thread_id
-                and claim.get("turn") == turn["id"]
-            ):
-                page.set_status("waiting", "")
-                page.close_turn(thread_id)
+            activation = activate_source(page_dir, transaction=page)
+            with flocked(session_lock_path(thread_id)):
+                current = session_record(thread_id)
+                claim = page.active_claim
+                if (
+                    expected is not None
+                    and current == expected
+                    and claim
+                    and claim["id"] == thread_id
+                    and claim["turn"] == turn["id"]
+                ):
+                    page.set_status("waiting", "")
+                    advance_turn(thread_id, turn["id"], running=False)
         if activation.error:
             raise ValueError(activation.error)
 
@@ -972,7 +981,7 @@ class WebsiteCodexHost:
         log_agent("turn_start_started", **agent_event_fields(prepared_events))
         reply_target = stream_reply_target(prepared.payload)
         try:
-            turn_id = start_app_server_delivery(
+            admitted = start_app_server_delivery(
                 lambda method, params: self._send(socket, method, params, pending),
                 thread_id,
                 prepared.payload,
@@ -992,6 +1001,7 @@ class WebsiteCodexHost:
             raise RuntimeError(f"Codex App Server did not start a turn: {error}") from (
                 error
             )
+        turn_id = admitted["turn"]
         log_agent(
             "turn_start_acknowledged",
             **agent_event_fields(prepared_events),
@@ -1018,6 +1028,7 @@ class WebsiteCodexHost:
             prepared_events,
             turn_id,
             socket,
+            lifecycle=admitted,
             reply_target=reply_target,
             buffered=tuple(pending or ()),
         )
@@ -1160,44 +1171,53 @@ class WebsiteCodexHost:
             return False
 
     def attach(self, page_dir: Path, event_id: str) -> str | None:
-        """Create or resume the page's task and deliver its pending user input."""
+        """Deliver a pending move, returning the owner that takes the page on.
+
+        An accepted delivery or a live follower owns the continuation, including
+        an uncertain start whose pickup is not admitted yet. A source recheck that
+        finds the move settled returns None when no such owner took it; an old
+        page claim names only a candidate provider task, never a handoff.
+        """
         started = time.monotonic()
         log_agent("container_start_received", eventId=event_id)
         try:
             with self.lock:
-                if not agent_event_pending(page_dir, event_id):
-                    thread_id = None
-                else:
-                    thread_id = agent_event_thread(page_dir, event_id)
-                    if thread_id is None:
-                        server_started = time.monotonic()
-                        process = self._ensure_server()
-                        log_agent(
-                            "app_server_available",
-                            eventId=event_id,
-                            durationMs=round(
-                                (time.monotonic() - server_started) * 1000
-                            ),
-                        )
-                        claim = page_claim(page_dir)
-                        thread_id = (
-                            claim["id"]
-                            if claim and claim["harness"] == EmbeddedHarness.name
-                            else None
-                        )
+                inputs = pending_agent_inputs(page_dir)
+                thread_id = inputs.get(event_id)
+                if event_id in inputs and thread_id is None:
+                    server_started = time.monotonic()
+                    process = self._ensure_server()
+                    log_agent(
+                        "app_server_available",
+                        eventId=event_id,
+                        durationMs=round((time.monotonic() - server_started) * 1000),
+                    )
+                    claim = page_claim(page_dir)
+                    thread_id = (
+                        claim["id"]
+                        if claim and claim["harness"] == EmbeddedHarness.name
+                        else None
+                    )
+                    # Startup can wait while another writer answers or withdraws the
+                    # named input. Re-read after that boundary before taking a turn.
+                    if thread_id not in self.following_threads:
+                        inputs = pending_agent_inputs(page_dir)
+                    while (
+                        thread_id not in self.following_threads
+                        and event_id in inputs
+                        and inputs[event_id] is None
+                    ):
+                        if thread_id is None or not self._resume_and_start(
+                            page_dir, thread_id, process, event_id
+                        ):
+                            thread_id = self._start_thread(page_dir, process, event_id)
                         if thread_id not in self.following_threads:
-                            while (
-                                agent_event_pending(page_dir, event_id)
-                                and agent_event_thread(page_dir, event_id) is None
-                            ):
-                                if thread_id is None or not self._resume_and_start(
-                                    page_dir, thread_id, process, event_id
-                                ):
-                                    thread_id = self._start_thread(
-                                        page_dir, process, event_id
-                                    )
-                                if thread_id in self.following_threads:
-                                    break
+                            inputs = pending_agent_inputs(page_dir)
+                attached = (
+                    thread_id
+                    if thread_id in self.following_threads
+                    else inputs.get(event_id)
+                )
         # Every class, because this only records and re-raises: the caller still meets
         # the exception it would have met, and a start that fails in a class nobody
         # listed is exactly the one worth having a record of. The three it used to name
@@ -1217,7 +1237,7 @@ class WebsiteCodexHost:
             eventId=event_id,
             durationMs=round((time.monotonic() - started) * 1000),
         )
-        return thread_id
+        return attached
 
     def failure_receipt(
         self, page_dir: Path, event_id: str, failure: str
@@ -1472,12 +1492,19 @@ def close_on_signal(agent_host: WebsiteCodexHost) -> None:
     signal.signal(signal.SIGINT, stop)
 
 
-def main() -> None:
+@click.command()
+@click.option(
+    "--port",
+    type=click.IntRange(0, 65535),
+    default=PORT,
+    help="HTTP port; 0 lets the OS choose a private local listener.",
+)
+def main(port: int) -> None:
     os.environ.setdefault("LEAF_AGENT", WEBSITE_AGENT)
     site_root = Path(os.environ.get("LEAF_SITE_ROOT", "/app/site"))
     agent_host = website_codex_host()
-    httpd = LeafHTTPServer(("0.0.0.0", PORT), site_endpoint(site_root, agent_host))
-    log_agent("container_http_ready")
+    httpd = LeafHTTPServer(("0.0.0.0", port), site_endpoint(site_root, agent_host))
+    log_agent("container_http_ready", port=httpd.server_address[1])
     close_on_signal(agent_host)
     agent_host.prewarm()
     try:

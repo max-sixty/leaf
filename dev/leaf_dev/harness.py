@@ -1,4 +1,4 @@
-"""Arms, served pages, and isolated `claude -p` children for the commands and eval
+"""Arms, served pages, and isolated CC and Codex sessions for the commands and eval
 harnesses that run a version of Leaf.
 
 An arm is the plugin payload (`PAYLOAD`) at one ref, or as the working tree has it, and
@@ -10,8 +10,9 @@ A child runs from a scratch cwd outside any repository, so no project instructio
 load, under a home of its own beside that cwd, so its bypassed permissions write to
 that home rather than the user's `~` (children given the user's home once appended to
 the user's `~/.claude/CLAUDE.md`). The home carries only the login. A trace is the
-child's stream-json; it counts when it reached a `result` that is not an error
-(`completed`). A `LiveChild` keeps its session open across turns, so a driver can post
+child's normalized tool/turn evidence; it counts when its actual host turn
+completed without error (`completed`). Codex raw notifications are retained too.
+A `LiveChild` keeps its session open across turns, so a driver can post
 user moves to a served page (`PageClient`) as a tab would.
 """
 
@@ -34,6 +35,7 @@ from pathlib import Path
 from typing import Self
 
 import click
+from leaf.codex_adapter import APP_SERVER_ENV
 from leaf.host import IDENTITY_VARIABLES
 
 from leaf_dev import ROOT
@@ -56,17 +58,24 @@ PAYLOAD = (
 )
 
 
+def run_directory(parent: Path) -> Path:
+    """Allocate one invocation's evidence without replacing another run's files."""
+    parent.mkdir(parents=True, exist_ok=True)
+    return Path(tempfile.mkdtemp(prefix="run-", dir=parent))
+
+
 def environment(**extra: str) -> dict[str, str]:
     """This process's environment without the agent session it may be running in.
 
     A harness run from a Claude Code or Codex session inherits that session's
-    identity: its id, job directory and effort level. A `leaf` command would sign
-    events as that session, and a child would take its settings. `CLAUDE_CONFIG_DIR`
+    identity: its id, job directory, effort level and App Server endpoint. A `leaf`
+    command would sign events as that session, and a child would use its transport
+    and settings. `CLAUDE_CONFIG_DIR`
     stays, since it names where the login lives."""
     env = {
         key: value
         for key, value in os.environ.items()
-        if key not in IDENTITY_VARIABLES
+        if key not in (*IDENTITY_VARIABLES, APP_SERVER_ENV)
         and not (key.startswith("CLAUDE") and key != "CLAUDE_CONFIG_DIR")
     }
     return {**env, **extra}
@@ -257,7 +266,10 @@ def claude_child(
     if keychains.is_dir() and not (home / "Library/Keychains").is_symlink():
         (home / "Library").mkdir(parents=True, exist_ok=True)
         (home / "Library/Keychains").symlink_to(keychains)
-    credentials = Path.home() / ".claude/.credentials.json"
+    credentials = (
+        Path(os.environ.get("CLAUDE_CONFIG_DIR", Path.home() / ".claude"))
+        / ".credentials.json"
+    )
     if credentials.is_file():
         (home / ".claude").mkdir(parents=True, exist_ok=True)
         shutil.copy(credentials, home / ".claude/.credentials.json")
@@ -277,36 +289,80 @@ def claude_child(
     return {"args": command, "cwd": cwd, "env": child_env}
 
 
-def run_claude(
+TURN_LIMIT = 1200
+
+
+def run_agent(
     cwd: Path,
     *args: str,
     out: Path,
     err: Path,
     dirs: Iterable[Path] = (),
     env: dict | None = None,
+    host: str = "cc",
 ) -> list[dict]:
-    """Run one `claude_child` to its end; return its trace.
+    """Run an isolated host turn, optionally resuming its preceding session.
 
-    `out` receives the stream-json trace and `err` the child's stderr."""
+    `out` is normalized evidence; `err` is stderr. Codex's complete App Server
+    notifications live beside `err` with a `.codex.jsonl` suffix. Both hosts
+    have the same TURN_LIMIT; a timeout retains their partial native evidence and
+    marks `out.with_suffix(".timed-out")` without fabricating completion.
+    """
+    if host == "codex":
+        with (
+            LiveChild(
+                cwd,
+                args[0],
+                *args[1:],
+                host=host,
+                stderr=err,
+                limit=TURN_LIMIT,
+                timed_out=out.with_suffix(".timed-out"),
+                dirs=dirs,
+                env=env,
+            ) as child,
+            out.open("w") as stream,
+        ):
+            for record in child.records():
+                stream.write(json.dumps(record) + "\n")
+                if record.get("type") == "result":
+                    break
+        return read_trace(out)
+    if host != "cc":
+        raise ValueError(f"unknown eval host: {host}")
     with out.open("w") as stdout, err.open("w") as stderr:
-        subprocess.run(
-            **claude_child(cwd, *args, dirs=dirs, env=env),
-            stdin=subprocess.DEVNULL,
-            stdout=stdout,
-            stderr=stderr,
-            check=False,
-        )
+        try:
+            subprocess.run(
+                **claude_child(cwd, *args, dirs=dirs, env=env),
+                stdin=subprocess.DEVNULL,
+                stdout=stdout,
+                stderr=stderr,
+                check=False,
+                timeout=TURN_LIMIT,
+            )
+        except subprocess.TimeoutExpired:
+            out.with_suffix(".timed-out").touch()
     return read_trace(out)
 
 
 class LiveChild:
-    """A `claude_child` whose session stays open for later turns, as a context
-    manager: `prompt` is its first message, and `records` yields its stream-json,
-    hook events included, each stamped `received_at`.
+    """An isolated host session kept open for delivery and later turns.
+
+    `prompt` is its first message. `records` yields actual tool, hook and turn
+    evidence stamped `received_at`; Codex retains its raw notifications too.
 
     `claude -p` terminates its background shells, such as a `leaf wait`, once stdin
     closes, so stdin stays open until the caller calls `close`. A session still
     running `limit` seconds after it started is killed and `timed_out` touched."""
+
+    def __new__(cls, *args, host="cc", **kwargs):
+        if host == "codex":
+            from leaf_dev.eval_codex import CodexChild
+
+            return CodexChild(*args, **kwargs)
+        if host != "cc":
+            raise ValueError(f"unknown eval host: {host}")
+        return super().__new__(cls)
 
     def __init__(
         self,
@@ -318,6 +374,7 @@ class LiveChild:
         timed_out: Path,
         dirs: Iterable[Path] = (),
         env: dict | None = None,
+        host: str = "cc",
     ) -> None:
         self.prompt, self.stderr, self.timed_out = prompt, stderr, timed_out
         self.popen = claude_child(
@@ -439,6 +496,29 @@ def hook_delivered(record: dict) -> bool:
     )
 
 
+def inputs_received(events: list[dict], attempts: set[str]) -> bool:
+    """Whether a posted round is admitted and its attention inputs are received.
+
+    Inline context, pointer reads, and attempted ACK commands are presentations,
+    not acceptance. Every attempt must be admitted; only attention-marked inputs
+    require the opened pickups that name exactly what the reader received.
+    Page-authored errors carry no user attempt and do not advance user rounds.
+    """
+    posted = [e for e in events if e.get("attempt") in attempts]
+    inputs = {e["id"] for e in posted if e["attention"]}
+    return len(posted) == len(attempts) and inputs <= opened_input_ids(events)
+
+
+def opened_input_ids(events: list[dict]) -> set[str]:
+    """The admitted attention inputs whose reader recorded an opened pickup."""
+    return {
+        ident
+        for e in events
+        if e["kind"] == "pickup" and e["phase"] == "opened"
+        for ident in e["events"]
+    }
+
+
 def read_trace(stream: Path) -> list[dict]:
     return [json.loads(line) for line in stream.read_text().splitlines()]
 
@@ -460,3 +540,84 @@ def completed(trace: list[dict]) -> bool:
     """Whether a trace counts: its model call reached a result that is not an
     error."""
     return trace_result(trace).get("is_error") is False
+
+
+def observed_sum(values: Iterable[int | float | None]) -> int | float | None:
+    """Sum complete measurements; absent or incomplete evidence stays unknown."""
+    observed = list(values)
+    return sum(observed) if observed and all(v is not None for v in observed) else None
+
+
+def token_counts(trace: list[dict]) -> dict[str, int | None]:
+    """Count observed completed turns, preserving unknown counters independently.
+
+    CC reports cache input separately; Codex includes it in input_tokens. Optional
+    cache subdivisions add to a reported input counter, never stand in for one.
+    A missing result or missing usage cannot establish zero consumption.
+    """
+    usage = [
+        record.get("usage") or {} for record in trace if record.get("type") == "result"
+    ]
+    return {
+        "input_tokens": observed_sum(
+            observed_sum(
+                [
+                    counts.get("input_tokens"),
+                    counts.get("cache_creation_input_tokens", 0),
+                    counts.get("cache_read_input_tokens", 0),
+                ]
+            )
+            for counts in usage
+        ),
+        "output_tokens": observed_sum(counts.get("output_tokens") for counts in usage),
+    }
+
+
+def accepted_thread_claims(trace: list[dict], thread: str) -> dict[str, int]:
+    """Bash call ids whose successful status result declares work on THREAD.
+
+    Status writes one JSON line. Compound Bash output may contain other lines;
+    only its canonical `work` subjects count, never an attempted command or a
+    page-wide declaration. Values are the result's trace index.
+    """
+    calls = {
+        block["id"]
+        for block in blocks(trace)
+        if block.get("type") == "tool_use"
+        and block["name"] == "Bash"
+        and re.search(
+            r"\bstatus\b[^|;&]*\bworking\b", block["input"].get("command", "")
+        )
+    }
+    accepted = {}
+    for index, record in enumerate(trace):
+        for block in blocks([record]):
+            if (
+                block.get("type") != "tool_result"
+                or block.get("is_error") is not False
+                or block["tool_use_id"] not in calls
+            ):
+                continue
+            content = block["content"]
+            text = (
+                content
+                if isinstance(content, str)
+                else "\n".join(
+                    part["text"] for part in content if part.get("type") == "text"
+                )
+            )
+            for line in text.splitlines():
+                try:
+                    status = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if (
+                    isinstance(status, dict)
+                    and status.get("state") == "working"
+                    and any(
+                        work["subject"] == {"kind": "thread", "id": thread}
+                        for work in status.get("work", [])
+                    )
+                ):
+                    accepted[block["tool_use_id"]] = index
+    return accepted

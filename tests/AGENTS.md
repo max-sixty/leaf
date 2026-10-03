@@ -11,6 +11,17 @@ move its contract to the lower boundary.
 
 Each helper's docstring owns its contract, and code cites sections here by heading.
 
+Message delivery has one shared journey in `leaf_dev.thread_journey`, whose held
+checkpoints supply the appearance gate in `test_render_thread_snapshots.py`.
+`leaf_dev.thread_snapshots` owns capture, review and acceptance; reviewed PNG images and
+geometry live in `max-sixty/leaf-assets`, governed by `leaf-assets.json`. Run evidence
+stays in `.tmp/`.
+
+Linux browser tests use `tests/fonts.conf` and `fonts-dejavu` for their native
+UI, serif and mono faces, including bold and italic styles. Install that package before `wt setup`; CI installs it
+explicitly. The PNG rendering profile binds the fontconfig and installed font bytes,
+and an actual Chromium font reading verifies those faces. Mac uses its native fonts.
+
 ## Run the narrowest useful surface
 
 The host supplies `wt`, `uv`, `jq` 1.6 or newer, Node 22 or newer, and Docker for the
@@ -105,8 +116,9 @@ linked carrier may draw it.
 
 ## Fixtures own the world they create
 
-Every test runs under `isolated_session`, which moves only the XDG state home and
-claims pages under the worker's pid; do not move `HOME`. Declare other process
+Every test runs under `isolated_session`, which moves the XDG state and Codex homes,
+clears an inherited App Server endpoint, and claims pages under the worker's pid;
+do not move `HOME`. Declare other process
 conditions through fixtures (`sessionless`, `codex_env`) rather than editing the
 environment in a test body.
 
@@ -168,15 +180,14 @@ A layout shift the "Stability" rule in `skills/leaf/assets/AGENTS.md` forbids is
 of those problems (`shift_watch.js`): a box that moves on screen without input, and
 typing that carries the field it types in, so every test in the broad selection checks
 both. Surveyed nightly tests opt in with `watch_shifts`; the rest await a fresh survey
-after the widget prepaint fixes (`known_faults.watches_shifts`). The watcher still
+after the widget prepaint fixes (`render_harness.watches_shifts`). The watcher still
 exempts first presentation, whose remaining defects the widget quality check records
 in `known_widget_findings.py`. Playwright's clicks and keys are input, as is a
 viewport resize; a script's `click()`, a `value` written by script, and the server's
-news are not, even in the half second after a click, so a test delivers news whenever
-its story does. Fix what moved rather than consuming
-the report. `known_faults.py` names the tests whose pages still shift without input,
-each with the region its known shift moves: a defect waiting on its fix, whose entry
-goes when it is fixed.
+news are not. Chrome's recent-input window can nevertheless mask a shift for half a
+second after a click, so a test proving a news update's stability delivers it after
+that window. Fix what moved rather than consuming the report; shift reports have no
+per-test allowances.
 
 Typed words leaving the screen without a key or press, which the "Words stay where
 they were typed" rule forbids, is one too (`words_watch.js`), in every test, nightly
@@ -264,8 +275,8 @@ Chromium opened, observe the browser's record (`opened_tab`).
   `holding` before reading its list, since the ledger counts a send before the handler
   runs. Release it mid-journey only when later behavior is asserted; context closure
   cancels the rest, and a teardown release could reach a stopped server.
-- `route.fetch()` lets the server answer and withholds the response. The news stream
-  still names the append, so arm listeners before the fetch, and call
+- `route.fetch()` lets the server answer and withholds the response. Freshness reads
+  still name the append, so arm listeners before the fetch, and call
   `page.unroute_all(behavior="wait")` before teardown even when the test fails.
 - `refuse` cancels without a console error; use a plain abort only when the error is
   the subject. A standing refusal of `**/api/state*` keeps producing retries, and
@@ -313,7 +324,9 @@ The corpus has these matrices. Return state is anchored on a first visit
 standing actions or reports twice and checking the visible state and idempotence; a
 scroll's writes (`scroll_writes`, read by `scroll_followers`) fail where a place is
 written on every step; a page left alone (`at_rest`) fails anything it does; a
-surface's round trips fail where one leaves a different `page_state` than the first,
+surface's round trips fail where one leaves a different `reader_state` than the first
+(accessible content and element geometry, control values, focus, caret, and native
+keyboard affordances),
 or `live_counts` climb on every trip; a resize fails where a width says something
 other than it said on the way out; and a box the user types in fails where sending
 every scroller to either end and back loses its words. The last four read a

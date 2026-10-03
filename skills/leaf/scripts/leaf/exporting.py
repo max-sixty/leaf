@@ -11,8 +11,8 @@ the reported output byte count includes the base64 expansion.
 """
 
 import base64
-import json
 import hashlib
+import json
 import sys
 import uuid
 from collections.abc import Callable
@@ -41,7 +41,7 @@ from leaf.revision_delivery import (
     rebase_css,
 )
 from leaf.served_state.service import PageStateService
-from leaf.structure import SourceDocument, UTF8_BOM
+from leaf.structure import UTF8_BOM, SourceDocument
 from leaf.thread_context import logged_fragment
 
 ResourceReader = Callable[[str], Resource]

@@ -3107,8 +3107,10 @@ def test_a_resized_page_comes_back_as_it_was(browser, serve, source):
     """What a page says at a width depends on the width, not on the widths it passed
     through: a page taken through a resize and back says at each width on the way back
     what it said there on the way out, including accessible controls and their layout,
-    read from the same document scroll position. Native scroll anchoring can move the
-    viewpoint during a resize; this journey holds that independent input fixed.
+    after asking the document and every reading region to scroll to their start.
+    Resize continuity can move each region's viewpoint independently; this journey
+    resets those inputs after the resize has rendered and compares their actual
+    positions too, since native scroll snapping can settle away from zero.
     Both ends are tried: a state written on the way down and one written on the
     way up are cleared by different widths.
 
@@ -3120,10 +3122,36 @@ def test_a_resized_page_comes_back_as_it_was(browser, serve, source):
 
     def at_width(page, width):
         resized(page, width, 900)
-        page.evaluate("() => window.scrollTo({left: 0, top: 0, behavior: 'instant'})")
-        scroll_settled(page)
         rendered(page)
-        return reader_state(page)
+        page.wait_for_function(
+            """async () => {
+            const {readingRegions} = await window.__lfRuntimeImport('/runtime/reading-regions.js');
+            const boxes = new Set([document.scrollingElement, ...readingRegions().map(region => region.body)]);
+            for (const box of boxes) box.scrollTo({left: 0, top: 0, behavior: 'instant'});
+            return true;
+        }""",
+            timeout=render_checks_model.SERVED_TIMEOUT_MS,
+        ).dispose()
+        rendered(page)
+        reading = page.wait_for_function(
+            """async () => {
+            const {readingRegions} = await window.__lfRuntimeImport('/runtime/reading-regions.js');
+            const position = box => [box.scrollLeft, box.scrollTop];
+            return Object.fromEntries([
+                ['$page', position(document.scrollingElement)],
+                ...readingRegions().map(region => [region.id, position(region.body)]),
+            ]);
+        }""",
+            timeout=render_checks_model.SERVED_TIMEOUT_MS,
+        )
+        try:
+            positions = reading.json_value()
+        finally:
+            reading.dispose()
+        return [
+            *reader_state(page),
+            "scroll positions: " + json.dumps(positions, sort_keys=True),
+        ]
 
     for path in (RESIZE_PATH, RESIZE_PATH[::-1]):
         page = still_page(browser, url, width=path[0])
@@ -3184,10 +3212,16 @@ SCROLL_ALL_BACK = """() => {
 
 
 def into_the_page(page):
-    """Tab to the first stop inside the page's content, where `c` names its item."""
+    """Tab to a page control where `c` names its item rather than edits its text."""
     for _ in range(12):
         page.keyboard.press("Tab")
-        if page.evaluate("() => Boolean(document.activeElement?.closest('main'))"):
+        if page.evaluate("""async () => {
+            const {focused} = await window.__lfRuntimeImport('/runtime/keyboard/scopes.js');
+            const {takesLetters} = await window.__lfRuntimeImport('/runtime/focus.js');
+            const {closestAcross} = await window.__lfRuntimeImport('/runtime/passages.js');
+            const at = focused();
+            return Boolean(at && closestAcross(at, 'main') && !takesLetters(at));
+        }"""):
             return True
     return False
 
@@ -4420,8 +4454,8 @@ def test_the_render_gate_reports_a_box_its_container_clips_away(browser, serve):
     assert not [f for f in failures if "id=hung>" in f and "id=holding>" in f], (
         "a placed box was laid at the door of a static box that never held it"
     )
-    assert not [f for f in failures if "id=told>" in f], (
-        "a box that marks its own cut was refused for making it"
+    assert not [f for f in failures if "<span id=told> is drawn" in f], (
+        f"a box that marks its own cut was refused for making it: {failures}"
     )
     assert not [f for f in failures if "foreignobject" in f], (
         "a drawing's own accounting inside its svg read as the page losing words"

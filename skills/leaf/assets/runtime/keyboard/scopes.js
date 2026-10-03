@@ -37,7 +37,6 @@ import { nativeClaimAt } from "./text-entry.js";
 import { deepFocus } from "../focus.js";
 import { hostIn, upFrom } from "../shadow.js";
 import { repaint } from "../repaint.js";
-import { afterScript } from "../rendering.js";
 
 // The scopes still owed a first paint. A declaration joins here and `reflectShortcuts`
 // takes it out again, so one reading is owed per declaration whether that reading stands
@@ -503,12 +502,14 @@ export function reflectFirstScopes() {
     reflectElementShortcuts(scope.el);
   }
 }
-// The keys are painted once per script, when its synchronous work is done (`afterScript`).
-// A render that replaces the control the user stood on and the focus that lands on its
-// successor each ask for a paint; painted at once, the first would reflect the moment
-// between them, when the user stands nowhere, and the second put back what it took off.
-// A scope refused there is reported, and the elements after it still paint.
-function reflectKeys() {
+// Reflect after standing content has projected all of its scopes in the current
+// repaint frame. A focus move and a replacement can each ask for a paint, but the
+// shortcut attribute should represent only the final standing of that frame.
+// A scope refused here is reported, and the elements after it still paint.
+let keysDirty = true;
+export function reflectKeys() {
+  if (!keysDirty) return;
+  keysDirty = false;
   pruneScopedElements();
   for (const ref of scopeRefs) {
     const scoped = ref.deref();
@@ -521,7 +522,7 @@ function reflectKeys() {
   }
 }
 export const paintKeys = () => {
-  afterScript(reflectKeys);
+  keysDirty = true;
   repaint();
 };
 /** What a scope answers right now, as a listener hears it read out — key names rather than

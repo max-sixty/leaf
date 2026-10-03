@@ -168,15 +168,31 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   /* Only the turns scroll: the metadata and reply keep their own rows, so the
      scrollbar describes the content it moves. The card grows to its content until
      placement exhausts the room; every intervening holder can then shrink. */
-  .lf-margin-preview-list, .lf-margin-thread, .lf-margin-thread-body,
-  .lf-margin-thread .lf-page-thread { display: flex; flex-direction: column;
+  .lf-margin-preview-list, .lf-margin-thread, .lf-margin-thread-body {
+    display: flex; flex-direction: column;
     min-height: 0; min-width: 0; }
-  .lf-margin-thread .lf-thread-transcript { min-height: 0; overflow-y: auto;
+  /* Transcript and editor grow to their words. The shared continuity spacer
+     keeps a removed turn's room before the reply and yields it to later writing.
+     A spanning sizing item supplies the retained intrinsic extent while allowing
+     every track to shrink into the card's outer bound. */
+  .lf-margin-thread .lf-page-thread { display: grid;
+    grid-template-rows: auto minmax(auto, max-content) minmax(0, 1fr)
+      minmax(auto, max-content);
+    min-height: 0; min-width: 0; }
+  .lf-margin-thread .lf-page-thread::before { content: "";
+    grid-area: 1 / 1 / 5 / 2;
+    block-size: var(--lf-thread-body-extent, 0px);
+    min-block-size: 0; max-block-size: 100%; pointer-events: none; }
+  .lf-margin-thread .lf-page-thread > * { grid-column: 1; }
+  .lf-margin-thread .lf-thread-root-meta { grid-row: 1; }
+  .lf-margin-thread .lf-thread-transcript { grid-row: 2; }
+  .lf-margin-thread .lf-reply-space { grid-row: 3; }
+  .lf-margin-thread .lf-thread-reply { grid-row: 4; }
+  .lf-margin-thread .lf-thread-transcript { min-height: 1lh; overflow-y: auto;
     overscroll-behavior: contain;
     scroll-padding-block: var(--focus-ring-room); }
   /* The field stands at the card's inset; words stand one inset inside it. */
-  .lf-margin-thread .lf-page-thread { padding: 0; background: var(--paper);
-    min-height: min(var(--lf-thread-body-extent, 0px), var(--lf-thread-list-room)); }
+  .lf-margin-thread .lf-page-thread { padding: 0; background: var(--paper); }
   .lf-margin-thread .lf-page-thread::after { content: none; }
   @media (forced-colors: active) {
     .lf-margin-thread .lf-page-thread:is(:focus-within, .lf-focus-within) { outline: none; }
@@ -184,11 +200,17 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   /* The row's ring has room in the card's common inset. Its inline containment keeps
      a draft from widening the card. */
   .lf-margin-thread .lf-thread-reply { contain: inline-size;
-    flex: none; align-items: stretch; margin: 0;
+    display: grid; grid-template-rows: auto minmax(0, max-content);
+    box-sizing: border-box;
+    min-height: calc(var(--lf-compose-h) + var(--lf-comment-foot-gap) + 2px);
+    align-items: stretch; margin: 0;
     padding-block: var(--lf-comment-foot-gap) 0;
     background: inherit; }
+  .lf-margin-thread .lf-thread-reply .lf-composer-media { grid-row: 1; }
+  .lf-margin-thread .lf-thread-reply .lf-compose-field { grid-row: 2; min-height: 0;
+    grid-template-rows: minmax(0, max-content); }
   .lf-margin-thread .lf-thread-reply leaf-text { min-width: 0;
-    max-height: var(--lf-thread-editor-room, 50vh); }
+    max-height: none; }
   .lf-margin-preview .lf-thread-root-meta { flex: none;
     align-items: center; gap: 4px; min-height: var(--lf-comment-head); }
   @media (forced-colors: active) {

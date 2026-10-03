@@ -1,0 +1,27 @@
+# Complete task; diagnostic contexts retain the original fixed checks.
+description: Queue
+metadata:
+  purpose: Compose and revise a queue; inspect its rendered output against the
+    request and, on Leaf, read and preserve a user choice on that page.
+  tags:
+  - workflow
+  conditions:
+  - leaf
+  - html
+  executor: leaf_dev.arrangement_eval
+  case: queue
+variants:
+  board:
+    metadata:
+      executor: leaf_dev.usability_eval
+      case: board
+      purpose: Read moves and undo before revising a board.
+      conditions:
+      - leaf
+  mixed:
+    metadata:
+      executor: leaf_dev.usability_eval
+      case: mixed
+      purpose: Answer mixed comments, choices, moves, undo and errors.
+      conditions:
+      - leaf

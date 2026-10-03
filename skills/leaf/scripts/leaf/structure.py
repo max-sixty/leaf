@@ -232,10 +232,13 @@ def attribute_references(tag: str, attrs: dict, name: str, value: str):
 
 def rewrite_attribute_references(
     tag: str, attrs: dict, name: str, value: str, rewrite
-) -> str:
+) -> str | None:
     """Rewrite just the URL spans `attribute_references` reads in one value."""
     for start, end in reversed(tuple(attribute_references(tag, attrs, name, value))):
-        value = value[:start] + rewrite(value[start:end]) + value[end:]
+        replacement = rewrite(value[start:end])
+        if replacement is None:
+            return None
+        value = value[:start] + replacement + value[end:]
     return value
 
 
@@ -486,7 +489,7 @@ class SourceDocument:
             for start, end in attribute_references(tag, attrs, name, value)
         ]
         self.media_refs.update(
-            reference
+            urlsplit(reference).path
             for _, reference in references
             if reference.startswith(f"/{MEDIA_DIR}/")
         )

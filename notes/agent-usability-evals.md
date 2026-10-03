@@ -139,7 +139,8 @@ reading interface.
 ## First executable slice
 
 [`leaf_dev.usability_eval`](../dev/leaf_dev/usability_eval.py) owns the case definitions,
-fixture builder, whole Claude Code trajectories, trace format, and semantic scoring.
+fixture builder, controlled trajectories, and semantic scoring. The shared host
+interface runs these on Claude Code or Codex and retains each native trace.
 Promptfoo owns arms, repetition, concurrency, assertions, and reports. The cases cover:
 
 - Cold authoring and discovery: `cold-report`, `cold-decision`, `near-miss`.
@@ -152,9 +153,9 @@ Promptfoo owns arms, repetition, concurrency, assertions, and reports. The cases
 Active fixtures live in [`evals/usability/fixtures`](../evals/usability/fixtures).
 The retained `usability-eval/results/` files document the earlier experiments.
 
-The [arrangement harness](arrangement-eval/README.md) compares Layout vocabulary with
-page CSS. The broader plain-HTML authoring and feedback comparison remains
-[#19](workspace-followups.md#item-19).
+The [catalog](../evals/README.md) also runs document, dashboard and queue authoring
+and width revision with actual plain HTML controls. Broader conclusions about the
+complete authoring and feedback cycle remain [#19](workspace-followups.md#item-19).
 
 ## Running
 
@@ -162,14 +163,14 @@ Run selected whole scenarios through Promptfoo:
 
 ```sh
 npm ci --prefix evals
-uv run leaf-dev scenario-eval usability near-miss reading resume
+uv run leaf-dev eval short-chat-answer reading document/resume
 ```
 
 The default runs each selected case once against the merge base and working tree.
-Each sample includes all resumed phases or live feedback rounds, with a fresh Claude
-Code session and isolated state. Every declared check stays in the report, including
+Each sample includes all resumed phases or live feedback rounds, with a fresh selected-host
+session and isolated state. Every declared check stays in the report, including
 missing rounds and incomplete phases, which fail instead of disappearing.
-Traces and fixture pages stay under `.tmp/scenario-eval/`; read the replies alongside
+Traces and fixture pages stay under `.tmp/eval/`; read the replies alongside
 the score, since a regex can reject a correct answer. The retained JSON results above
 remain historical evidence, not a second runner.
 
@@ -182,8 +183,9 @@ reading it during setup no longer passes as recovery.
 
 The current cases leave these questions unmeasured:
 
-- Recovery after the agent has lost a long thread's middle. The `elided` runs read
-  the complete thread before the question arrived, so they did not test recovery.
+- General recovery after the agent has lost a long thread's middle. Historical
+  `elided` runs preloaded the premise. The current context prevents that preload,
+  but the earlier measurements do not establish reliability of the stronger check.
 - Reading cost with large data manifests and conflicts beyond the rejected source
   candidate in `resume`.
 - Revision after implementation lands: current conclusions and remaining work,

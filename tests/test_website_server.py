@@ -3510,7 +3510,14 @@ def test_a_turn_that_never_answered_is_reported_before_the_threads_panel():
     collected, because that reading is the only account of why the turn stopped.
     """
     stalled = verify_site.TurnReading(
-        {"active": {"revision": 1}, "activity": {"kind": "answering"}}, None, [], None
+        {
+            "active": {"revision": 1},
+            "activity": {"kind": "answering"},
+            "source_error": None,
+        },
+        None,
+        [],
+        None,
     )
     with pytest.raises(RuntimeError) as stopped:
         verify_site.check_turn_answered(
@@ -3523,11 +3530,15 @@ def test_a_turn_that_never_answered_is_reported_before_the_threads_panel():
     assert str(stopped.value) == (
         "https://leaf.page/examples/triage-board/ agent did not publish "
         "‘Deployment 446b8fe9 verified’; it reached revision 1 from 1 "
-        "with the page reading answering and did not reply"
+        "with the page reading answering and did not reply; source validation: no error"
     )
 
     answered = verify_site.TurnReading(
-        {"active": {"revision": 2}, "activity": {"kind": "listening"}},
+        {
+            "active": {"revision": 2},
+            "activity": {"kind": "listening"},
+            "source_error": None,
+        },
         {"revision": 2},
         [{"text": "deployment verified"}],
         {"text": "deployment verified"},
@@ -3538,6 +3549,47 @@ def test_a_turn_that_never_answered_is_reported_before_the_threads_panel():
         answered,
         1,
         1,
+    )
+
+
+@pytest.mark.parametrize("invalid_source", [False, True])
+def test_a_missing_publication_reports_the_real_source_validation_reading(
+    page_dir, invalid_source
+):
+    """A success reply cannot hide a rejected source or an unchanged valid one."""
+    state_service = website_server.PageStateService(page_dir)
+    revision = state_service.page_state()["active"]["revision"]
+    comment = append_event(
+        page_dir, {"kind": "comment", "author": "user", "text": "Change the heading"}
+    )
+    reply = append_event(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "parent": comment["id"],
+            "text": "deployment verified",
+        },
+    )
+    if invalid_source:
+        (page_dir / "index.html").write_text(PAGE.replace("</section>", ""))
+    state = state_service.page_state()
+    assert state["active"]["revision"] == revision
+    assert (state["source_error"] is not None) == invalid_source
+
+    with pytest.raises(RuntimeError) as stopped:
+        verify_site.check_turn_answered(
+            "https://leaf.page/examples/triage-board/",
+            "Deployment 446b8fe9 verified",
+            verify_site.TurnReading(state, None, [reply], reply),
+            1,
+            revision,
+        )
+    assert str(stopped.value) == (
+        "https://leaf.page/examples/triage-board/ agent did not publish "
+        f"‘Deployment 446b8fe9 verified’; it reached revision {revision} from {revision} "
+        f"with the page reading {state['activity']['kind']}; it replied: deployment verified"
+        f"; source validation: {state['source_error'] or 'no error'}"
     )
 
 
@@ -4741,7 +4793,11 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
         "ask_until_answered",
         lambda *args, **kwargs: verify_site.AgentAsks(
             verify_site.TurnReading(
-                {"active": {"revision": 2}, "activity": {"kind": "away"}},
+                {
+                    "active": {"revision": 2},
+                    "activity": {"kind": "away"},
+                    "source_error": None,
+                },
                 published,
                 [{"kind": "reply", "text": "deployment verified"}],
                 {"kind": "reply", "text": "deployment verified"},
@@ -4878,7 +4934,11 @@ def test_a_reload_that_presented_offline_reports_the_banner_it_presented_under(
         "ask_until_answered",
         lambda *args, **kwargs: verify_site.AgentAsks(
             verify_site.TurnReading(
-                {"active": {"revision": 2}, "activity": {"kind": "away"}},
+                {
+                    "active": {"revision": 2},
+                    "activity": {"kind": "away"},
+                    "source_error": None,
+                },
                 published,
                 [{"kind": "reply", "text": "deployment verified"}],
                 {"kind": "reply", "text": "deployment verified"},

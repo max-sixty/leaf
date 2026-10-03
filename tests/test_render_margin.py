@@ -1,7 +1,9 @@
 """The document's shared, semantic margin map."""
 
+import base64
 import re
 from datetime import datetime, timedelta
+from math import hypot
 from time import monotonic
 
 import pytest
@@ -57,6 +59,7 @@ from render_harness import (
     comment_note,
     compare_with,
     consume_browser_errors,
+    example_media,
     held_frames,
     holding,
     leaf_page,
@@ -308,12 +311,13 @@ def test_page_map_qualifies_only_duplicate_subjects_with_their_reading_region(
         "button", name="Open thread: Check this subject.", exact=True
     ).click()
     expect(dialog).to_be_hidden()
-    threads = page.locator(".lf-threads")
-    expect(
-        threads.locator(
-            ':scope > .lf-thread[data-id="comment-proposed-deployment"] leaf-text'
-        )
-    ).to_be_focused()
+    thread = page.locator(
+        '.lf-margin-preview .lf-page-thread[data-thread="comment-proposed-deployment"]'
+    )
+    expect(thread).to_be_focused()
+    expect(thread).to_contain_text("Check this subject.")
+    page.keyboard.press("c")
+    expect(thread.locator("leaf-text")).to_be_focused()
 
 
 def test_a_settled_page_with_a_standing_reaction_stops_rendering_its_margin(
@@ -1312,8 +1316,8 @@ def _unfold_suggestion_undo(page, target):
     strict=False,
     raises=(AssertionError, PlaywrightTimeoutError),
     reason=(
-        "Known main failure: suggestion style/geometry can stop updating after reject "
-        "or Undo; see notes/margin-stuck-style.md"
+        "Verified on main ef89dfd3e: gallery suggestion actions can disappear after "
+        "Undo under concurrent original journeys; see notes/margin-stuck-style.md"
     ),
 )
 @pytest.mark.parametrize("width", [1440, 1200, 700, 390])
@@ -2765,10 +2769,20 @@ def test_the_page_map_dialog_walks_its_rows_from_the_search(browser, serve):
     search.focus()
     page.keyboard.press("Enter")
     expect(dialog).to_be_hidden()
-    # The row's own press: its thread opens with the user in its reply box.
-    expect(
-        page.locator(".lf-thread", has_text="Map note 12").locator("leaf-text")
-    ).to_be_focused()
+    # The destination owner opens the compact thread when Threads is closed;
+    # its card is the reading stop and c explicitly enters its reply.
+    thread_id = next(
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event.get("text") == "Map note 12"
+    )
+    thread = page.locator(
+        f'.lf-margin-preview .lf-page-thread[data-thread="{thread_id}"]'
+    )
+    expect(thread).to_be_focused()
+    expect(thread).to_contain_text("Map note 12")
+    page.keyboard.press("c")
+    expect(thread.locator("leaf-text")).to_be_focused()
 
 
 def test_the_chrome_names_an_ask_by_its_question(browser, serve):
@@ -3012,7 +3026,7 @@ def test_g_hints_press_each_visible_page_map_margin_entry(browser, serve):
         )
     ).to_have_count(0)
     page.keyboard.press("Escape")
-    expect(page.locator("#address-disclosure textarea")).to_have_count(0)
+    expect(page.locator("#address-disclosure leaf-text")).to_have_count(0)
 
     disclosure.evaluate(
         """button => {
@@ -3022,7 +3036,7 @@ def test_g_hints_press_each_visible_page_map_margin_entry(browser, serve):
         }"""
     )
     go_to_address(page, "Margin entry", "address-disclosure", "edit")
-    expect(page.locator("#address-disclosure textarea")).to_be_focused()
+    expect(page.locator("#address-disclosure leaf-text")).to_be_focused()
     expect(disclosure).to_be_hidden()
 
 
@@ -3459,7 +3473,10 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
     back = reference.locator(
         '.lf-command-reference-command[data-lf-command="navigation.back"]'
     )
-    expect(back).to_have_text("Fold the secondary page actions")
+    expect(back).to_have_text("close options")
+    expect(
+        back.locator("xpath=ancestor::tr").locator(".lf-command-reference-description")
+    ).to_have_text("Fold the secondary page actions")
     back.click()
     expect(reference).to_be_hidden()
     expect(options).to_be_hidden()
@@ -4984,7 +5001,7 @@ def test_a_reading_marker_remains_visible_beside_offered_actions(browser, serve)
 
 
 def test_a_spilled_thread_opens_the_full_thread_without_a_hidden_anchor(browser, serve):
-    """The Page Map cannot anchor a thread card to a margin entry it has hidden."""
+    """Page Map reveals a spilled thread's reading control before anchoring its card."""
     page = open_page(browser, serve(SUGGESTION_PAGE, events=[COMMENT_ON_SUGGESTION]))
     resized(page, 1440, 900)
     page.evaluate(
@@ -5020,11 +5037,22 @@ def test_a_spilled_thread_opens_the_full_thread_without_a_hidden_anchor(browser,
     dialog = page.locator(".lf-page-map-dialog")
     dialog.get_by_role("button", name=re.compile("^Open thread:")).click()
     expect(dialog).to_be_hidden()
-    expect(page.locator(".lf-margin-preview")).to_be_hidden()
-    expect(page.locator(".lf-thread-panel")).to_have_class(re.compile(r"\bopen\b"))
-    expect(page.locator(".lf-thread-panel")).to_contain_text(
-        COMMENT_ON_SUGGESTION["text"]
+    expect(
+        item.locator('.lf-margin-reading-option[data-lf-kinds="comment"]')
+    ).to_be_visible()
+    thread_id = next(
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event.get("text") == COMMENT_ON_SUGGESTION["text"]
     )
+    thread = page.locator(
+        f'.lf-margin-preview .lf-page-thread[data-thread="{thread_id}"]'
+    )
+    expect(thread).to_be_focused()
+    expect(thread).to_contain_text(COMMENT_ON_SUGGESTION["text"])
+    expect(page.locator(".lf-thread-panel")).not_to_have_class(re.compile(r"\bopen\b"))
+    page.keyboard.press("c")
+    expect(thread.locator("leaf-text")).to_be_focused()
 
 
 # The right edge of the column's words, inside `main`'s padding. A thread card beside
@@ -5744,11 +5772,11 @@ LONG_THREAD = [
 ]
 
 
-def open_long_thread(browser, serve):
+def open_long_thread(browser, serve, height=900):
     """The long thread's margin card, its transcript scrolled partway down."""
     page = open_page(browser, serve(LONG_THREAD_PAGE, events=LONG_THREAD))
     page.emulate_media(reduced_motion="reduce")
-    resized(page, 1440, 900)
+    resized(page, 1440, height)
     page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
     preview = page.locator(".lf-margin-preview")
     expect(preview).to_be_visible()
@@ -5764,9 +5792,12 @@ def open_long_thread(browser, serve):
     return page, preview, transcript
 
 
-def test_the_margin_reply_outside_the_transcript_shows_its_whole_ring(browser, serve):
+@pytest.mark.parametrize("height", [900, 250])
+def test_the_margin_reply_outside_the_transcript_shows_its_whole_ring(
+    browser, serve, height
+):
     """Scrolling moves turns while both control rows stay outside the scrollport."""
-    page, preview, transcript = open_long_thread(browser, serve)
+    page, preview, transcript = open_long_thread(browser, serve, height)
     header = preview.locator(".lf-thread-root-meta")
     row = preview.locator(".lf-thread-reply")
     original = [header.bounding_box(), row.bounding_box()]
@@ -5974,23 +6005,77 @@ def test_a_growing_margin_reply_keeps_the_previous_turn_visible(browser, serve):
     assert editor.evaluate("input => input.scrollTop > 0")
 
 
-@pytest.mark.parametrize("long_comment", [False, True])
-def test_a_margin_reply_grows_before_it_scrolls(browser, serve, long_comment):
-    """A long transcript yields writing space just as a short one does."""
+@pytest.mark.parametrize("comment_repeats", [0, 6, 17])
+def test_a_margin_reply_grows_before_it_scrolls(browser, serve, comment_repeats):
+    """Visible and already clipped transcripts both yield writing space."""
     root = LONG_THREAD_ROOT | (
-        {"text": "The export must keep each tenant's credits separate. " * 17}
-        if long_comment
+        {
+            "text": "The export must keep each tenant's credits separate. "
+            * comment_repeats
+        }
+        if comment_repeats
         else {}
     )
     page = open_page(browser, serve(LONG_THREAD_PAGE, events=[root]))
-    resized(page, 1440, 600 if long_comment else 900)
+    resized(page, 1440, 600 if comment_repeats else 900)
     page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
     preview = page.locator(".lf-margin-preview")
     preview.get_by_role("textbox", name="Reply", exact=True).click()
     editor = preview.locator("leaf-text")
-    write(editor, "A reply with several lines.\n" * 5)
+    rendered(page)
+    transcript = preview.locator(".lf-thread-transcript")
+    if comment_repeats == 6:
+        assert transcript.evaluate("list => list.scrollHeight <= list.clientHeight + 1")
+    write(editor, "\n".join("A reply with several lines." for _ in range(5)))
     assert editor.evaluate("input => input.getBoundingClientRect().height") > 120
     assert editor.evaluate("input => input.scrollHeight <= input.clientHeight + 1")
+
+
+def test_a_margin_reply_with_a_pasted_image_keeps_its_editor_and_attachment_visible(
+    browser, serve
+):
+    """The attachment keeps its own row above the editor in a bounded card."""
+    page, preview, editor, transcript = long_thread_in_reply(browser, serve)
+    pixels = (example_media() / "051bee487bfb5d13.png").read_bytes()
+    editor.evaluate(
+        """(box, encoded) => {
+          const bytes = Uint8Array.from(atob(encoded), char => char.charCodeAt(0));
+          const transfer = new DataTransfer();
+          transfer.items.add(new File([bytes], 'pasted.png', {type: 'image/png'}));
+          box.dispatchEvent(new ClipboardEvent('paste', {
+            bubbles: true, cancelable: true, clipboardData: transfer,
+          }));
+        }""",
+        base64.b64encode(pixels).decode(),
+    )
+    image = preview.locator(".lf-composer-media img")
+    expect(image).to_have_count(1)
+    write(
+        editor, "\n".join(f"A reply with several lines, line {n}." for n in range(30))
+    )
+    rendered(page)
+    bounds = image.evaluate(
+        """image => {
+          const card = image.closest('.lf-margin-preview').getBoundingClientRect();
+          const input = image.closest('.lf-thread-reply').querySelector('leaf-text')
+            .getBoundingClientRect();
+          const media = image.getBoundingClientRect();
+          return {cardTop: card.top, cardBottom: card.bottom,
+                  imageTop: media.top, imageBottom: media.bottom, imageHeight: media.height,
+                  inputTop: input.top, inputBottom: input.bottom};
+        }"""
+    )
+    assert bounds["imageHeight"] >= 50, bounds
+    assert bounds["imageTop"] >= bounds["cardTop"], bounds
+    assert bounds["imageBottom"] <= bounds["inputTop"], bounds
+    assert bounds["inputBottom"] <= bounds["cardBottom"], bounds
+    assert editor.evaluate("input => input.scrollTop > 0")
+    editor.press("ControlOrMeta+End")
+    rendered(page)
+    caret = _focused_editor_caret(page)
+    assert caret["caretTop"] >= caret["boxTop"], caret
+    assert caret["caretBottom"] <= caret["boxBottom"], caret
+    assert transcript.evaluate("list => list.clientHeight") >= 20
 
 
 def test_an_incoming_margin_reply_follows_only_at_the_tail(browser, serve):
@@ -7960,27 +8045,45 @@ def test_a_sent_reply_leaves_the_reply_row_where_it_stands(browser, serve, size,
 
 
 def test_a_second_margin_reply_grows_below_the_first_line(browser, serve):
-    """Once the sent turn is placed, a new draft keeps its first line where typed."""
+    """A new draft grows downward, then shares the bounded card with its transcript."""
     page, preview, editor = drafting_in_a_short_card(browser, serve, 1000, 600)
     preview.locator(".lf-thread-reply .lf-compose-submit").click()
     rendered(page)
     editor.click()
     rendered(page)
     before = preview.evaluate(DRAFTING_CARD)
-    editor.type("a long new draft " * 20)
+    editor.type("A new draft.")
+    editor.press("Shift+Enter")
     rendered(page)
     after = preview.evaluate(DRAFTING_CARD)
     assert after["side"] == before["side"]
+    assert after["editorFoot"] > before["editorFoot"], (before, after)
     assert after["editorTop"] == pytest.approx(before["editorTop"], abs=0.5), (
         before,
         after,
     )
+    editor.type("a long new draft " * 20)
+    rendered(page)
+    bounded = page.evaluate(CARD_AND_REPLY)
+    assert bounded["placement"] == before["side"]
+    assert bounded["cardBottom"] == pytest.approx(bounded["foot"], abs=0.5), bounded
+    assert bounded["turn"] < bounded["editorTop"] < after["editorTop"], bounded
+    assert bounded["editorBottom"] <= bounded["cardBottom"], bounded
+    assert bounded["editorTop"] <= bounded["send"] <= bounded["cardBottom"], bounded
+    assert editor.evaluate("box => box.scrollHeight > box.clientHeight")
+    expect(editor).to_be_focused()
+    editor.press("ControlOrMeta+End")
+    rendered(page)
+    caret = _focused_editor_caret(page)
+    assert caret["caretTop"] >= caret["boxTop"], caret
+    assert caret["caretBottom"] <= caret["boxBottom"], caret
 
 
 def test_continued_margin_draft_grows_below_its_first_line_after_agent_reply(
     browser, serve
 ):
-    """News holds the reply row; later typing grows the active draft below its first line."""
+    """News holds the reply row. Typing grows below its first line until the card
+    reaches the window's foot, then the editor takes room upward and scrolls within it."""
     page, preview, editor = drafting_in_a_short_card(browser, serve, 1000, 600)
     append_carried_log_record(
         serve.page_dir,
@@ -7997,14 +8100,25 @@ def test_continued_margin_draft_grows_below_its_first_line_after_agent_reply(
     told(page)
     rendered(page)
     before = preview.evaluate(DRAFTING_CARD)
-    editor.type(" a long continuing draft " * 20)
+    editor.press("Shift+Enter")
     rendered(page)
     after = preview.evaluate(DRAFTING_CARD)
     assert after["side"] == before["side"]
+    assert after["editorFoot"] > before["editorFoot"], (before, after)
     assert after["editorTop"] == pytest.approx(before["editorTop"], abs=0.5), (
         before,
         after,
     )
+    editor.type(" a long continuing draft " * 20)
+    rendered(page)
+    bounded = page.evaluate(CARD_AND_REPLY)
+    assert bounded["placement"] == before["side"]
+    assert bounded["cardBottom"] == pytest.approx(bounded["foot"], abs=0.5), bounded
+    assert bounded["turn"] < bounded["editorTop"] < after["editorTop"], bounded
+    assert bounded["editorBottom"] <= bounded["cardBottom"], bounded
+    assert bounded["editorTop"] <= bounded["send"] <= bounded["cardBottom"], bounded
+    assert editor.evaluate("box => box.scrollHeight > box.clientHeight")
+    expect(editor).to_be_focused()
 
 
 def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve):
@@ -9074,7 +9188,8 @@ def test_a_pin_stands_after_its_run_of_text_rather_than_over_it(browser, serve):
         )
 
 
-PIN_READING = """(id) => {
+PIN_READING = """async (id) => {
+  const {shownParts} = await window.__lfRuntimeImport('/runtime/geometry.js');
   const edges = ({left, top, right, bottom}) => ({left, top, right, bottom});
   const words = [];
   const walk = document.createTreeWalker(document.querySelector('main'),
@@ -9089,15 +9204,37 @@ PIN_READING = """(id) => {
     words.push(...[...range.getClientRects()]
       .filter((box) => box.width > 2 && box.height > 2).map(edges));
   }
-  const parts = [...document.getElementById(id).querySelectorAll('*')]
-    .filter((el) => el.checkVisibility())
-    .flatMap((el) => [...el.getClientRects()]).map(edges);
-  const entries = [...document.querySelectorAll(
-    `[data-lf-margin-for="${id}"] .lf-margin-entry`)]
+  const parts = shownParts(document.getElementById(id))
+    .flatMap((el) => [...el.getClientRects()])
+    .filter((box) => box.width && box.height).map(edges);
+  const row = document.querySelector(`[data-lf-margin-for="${id}"]`);
+  const entries = [...row.querySelectorAll('.lf-margin-entry')]
     .filter((entry) => entry.checkVisibility())
     .map((entry) => edges(entry.getBoundingClientRect()));
-  return {words, parts, entries};
+  return {words, parts, entries, carrier: edges(row.getBoundingClientRect())};
 }"""
+
+
+def pin_reading(page, target):
+    """Read target parts, allocated carrier and buttons within a bounded module load."""
+    handle = page.wait_for_function(
+        PIN_READING, arg=target, timeout=render_checks_model.SERVED_TIMEOUT_MS
+    )
+    try:
+        return handle.json_value()
+    finally:
+        handle.dispose()
+
+
+def pin_distance(carrier, parts):
+    """Measure the allocated pin's distance from its nearest target part."""
+    return min(
+        hypot(
+            max(0, part["left"] - carrier["right"], carrier["left"] - part["right"]),
+            max(0, part["top"] - carrier["bottom"], carrier["top"] - part["bottom"]),
+        )
+        for part in parts
+    )
 
 
 def _meets(a, b):
@@ -9110,9 +9247,9 @@ def _meets(a, b):
 
 
 def test_a_pin_takes_the_empty_end_of_the_heading_above_its_run(browser, serve):
-    """Under a finger a suggestion's Accept and Reject are a 96px pin, and on
+    """Under a finger a suggestion's Accept and Reject form a pin, and on
     release-notes at 390px its run fills both lines of the Console paragraph, so the
-    only room within reach is the empty end of the short heading just above. A block
+    nearest clear room is the empty end of the short heading just above. A block
     that paints nothing of its own counts only by its words, so the pin stands there,
     over none of the page's words, rather than covering the run it decides."""
     context = browser.new_context(
@@ -9126,36 +9263,25 @@ def test_a_pin_takes_the_empty_end_of_the_heading_above_its_run(browser, serve):
     margins_laid_out(page)
     row = page.locator('.lf-margin-cluster[data-lf-margin-for="rn-sug-only"]')
     expect(row).to_have_attribute("data-lf-place", "pin")
-    reading = page.evaluate(PIN_READING, "rn-sug-only")
+    reading = pin_reading(page, "rn-sug-only")
     # Accept and Reject.
     assert len(reading["entries"]) == 2, reading["entries"]
     for entry in reading["entries"]:
         covered = [word for word in reading["words"] if _meets(word, entry)]
         assert not covered, (entry, covered)
-    pair = {
-        "left": min(e["left"] for e in reading["entries"]),
-        "right": max(e["right"] for e in reading["entries"]),
-        "top": min(e["top"] for e in reading["entries"]),
-        "bottom": max(e["bottom"] for e in reading["entries"]),
-    }
-    apart = min(
-        max(
-            0,
-            part["left"] - pair["right"],
-            pair["left"] - part["right"],
-            part["top"] - pair["bottom"],
-            pair["top"] - part["bottom"],
-        )
-        for part in reading["parts"]
+    line = page.locator("#rn-console-why").evaluate(
+        "el => parseFloat(getComputedStyle(el).lineHeight)"
     )
-    # Within the 12px `pinSpot` reaches from its target.
-    assert apart <= 12, (pair, reading["parts"])
+    # `pinSpot` seats the carrier, including focus-ring room, and may reach one
+    # line beyond 12px when every near seat is occupied. Actual buttons above
+    # still cover none of the page's words.
+    assert pin_distance(reading["carrier"], reading["parts"]) <= 12 + line, reading
 
 
 def test_a_pin_with_no_room_within_reach_reaches_past_a_line_of_words(browser, serve):
     """On release-notes at 390px under a finger, the API section's deletion starts on
-    its paragraph's second line, below a first line full of words, and ends where a
-    96px Accept/Reject pair has no room before the next block. No room lies within
+    its paragraph's second line, below a first line full of words, and ends where
+    an Accept/Reject pair has no room before the next block. No room lies within
     12px of the run, so the pair reaches one line further out, to the empty end of the
     section's heading, rather than covering the words it decides."""
     context = browser.new_context(
@@ -9169,7 +9295,7 @@ def test_a_pin_with_no_room_within_reach_reaches_past_a_line_of_words(browser, s
     margins_laid_out(page)
     row = page.locator('.lf-margin-cluster[data-lf-margin-for="rn-sug-dry"]')
     expect(row).to_have_attribute("data-lf-place", "pin")
-    reading = page.evaluate(PIN_READING, "rn-sug-dry")
+    reading = pin_reading(page, "rn-sug-dry")
     heading, line = page.evaluate(
         """() => {
           const {left, top, right, bottom} =
@@ -9186,9 +9312,7 @@ def test_a_pin_with_no_room_within_reach_reaches_past_a_line_of_words(browser, s
         assert _meets(entry, heading), (entry, heading)
     # The pair stands above the run, no further out than `pinSpot`'s 12px and one line
     # of the paragraph.
-    apart = min(part["top"] for part in reading["parts"]) - max(
-        entry["bottom"] for entry in reading["entries"]
-    )
+    apart = min(part["top"] for part in reading["parts"]) - reading["carrier"]["bottom"]
     assert 12 < apart <= 12 + line, (reading["entries"], reading["parts"], line)
 
 
@@ -9211,7 +9335,7 @@ FOLDING_PAGE = leaf_page(
 def test_a_pin_with_no_room_for_its_actions_stands_folded_and_unfolds_in_place(
     browser, serve
 ):
-    """Under a finger a suggestion's Accept and Reject are a 96px pair. Where no room
+    """Under a finger a suggestion's Accept and Reject form a pair. Where no room
     for the pair lies within reach of its run, the pin folds to one 44px control, the
     toggle to its actions, seated as any pin is, so it takes the room right of the
     paragraph and covers none of its words. A tap unfolds the actions leftward with the
@@ -9229,23 +9353,13 @@ def test_a_pin_with_no_room_for_its_actions_stands_folded_and_unfolds_in_place(
     expect(toggle).to_have_attribute("aria-expanded", "false")
     expect(toggle.locator("[data-lf-icon]")).to_have_attribute("data-lf-icon", "change")
     expect(toggle).to_have_attribute("aria-label", re.compile(r"^Change, rewrite"))
-    reading = page.evaluate(PIN_READING, "s")
+    reading = pin_reading(page, "s")
     # The toggle alone, over no word of the page.
     assert len(reading["entries"]) == 1, reading["entries"]
     (entry,) = reading["entries"]
     covered = [word for word in reading["words"] if _meets(word, entry)]
     assert not covered, (entry, covered)
-    apart = min(
-        max(
-            0,
-            part["left"] - entry["right"],
-            entry["left"] - part["right"],
-            part["top"] - entry["bottom"],
-            entry["top"] - part["bottom"],
-        )
-        for part in reading["parts"]
-    )
-    assert apart <= 12, (entry, reading["parts"])
+    assert pin_distance(reading["carrier"], reading["parts"]) <= 12, reading
 
     pressed = toggle.bounding_box()
     toggle.tap()
@@ -9317,7 +9431,7 @@ def test_a_heading_that_paints_its_box_keeps_a_pin_off_its_empty_end(browser, se
             " document.getElementById('h').getBoundingClientRect();"
             " return {left, top, right, bottom}; }"
         )
-        entries = page.evaluate(PIN_READING, "s")["entries"]
+        entries = pin_reading(page, "s")["entries"]
         # Accept and Reject on the heading's end; folded to their toggle beside a
         # painted heading, which leaves no room for the pair.
         assert len(entries) == (1 if painted else 2), entries
@@ -9344,7 +9458,7 @@ def test_a_widget_s_declared_face_is_room_for_its_own_pin(browser, serve, target
     margins_laid_out(page)
     row = page.locator(f'.lf-margin-cluster[data-lf-margin-for="{target}"]')
     expect(row).to_have_attribute("data-lf-place", "pin")
-    reading = page.evaluate(PIN_READING, target)
+    reading = pin_reading(page, target)
     assert reading["entries"], reading
     for entry in reading["entries"]:
         covered = [word for word in reading["words"] if _meets(word, entry)]
@@ -9385,33 +9499,17 @@ def test_a_choice_s_pin_stands_on_none_of_its_option_cards(browser, serve, optio
     row = page.locator('.lf-margin-cluster[data-lf-margin-for="o"]')
     expect(row).to_have_attribute("data-lf-place", "pin")
     margins_laid_out(page)
-    reading = page.evaluate(
-        """() => {
+    reading = pin_reading(page, "o")
+    cards = page.locator("lf-option").evaluate_all(
+        """(cards) => {
           const edges = ({left, top, right, bottom}) => ({left, top, right, bottom});
-          return {
-            cards: [...document.querySelectorAll('lf-option')]
-              .map((card) => edges(card.getBoundingClientRect())),
-            entries: [...document.querySelectorAll(
-              '[data-lf-margin-for="o"] .lf-margin-entry')]
-              .filter((entry) => entry.checkVisibility())
-              .map((entry) => edges(entry.getBoundingClientRect())),
-            group: edges(document.getElementById('o').getBoundingClientRect()),
-          };
+          return cards.map((card) => edges(card.getBoundingClientRect()));
         }"""
     )
     assert reading["entries"], reading
     for entry in reading["entries"]:
-        assert not any(_meets(entry, card) for card in reading["cards"]), reading
-        group = reading["group"]
-        apart = max(
-            0,
-            group["left"] - entry["right"],
-            entry["left"] - group["right"],
-            group["top"] - entry["bottom"],
-            entry["top"] - group["bottom"],
-        )
-        # Within the 12px `pinSpot` reaches from its target.
-        assert apart <= 12, reading
+        assert not any(_meets(entry, card) for card in cards), (reading, cards)
+    assert pin_distance(reading["carrier"], reading["parts"]) <= 12, reading
 
 
 def test_a_pin_on_a_contents_target_stands_at_its_last_part(browser, serve):

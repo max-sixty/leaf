@@ -29,7 +29,7 @@ branch rather than starting a second maintainer rewrite.
 ## Phase 2: Agent instructions
 
 Apply the same reader-based rewrite to `skills/leaf/SKILL.md`, the routed references
-and package instructions. Score with `leaf-dev instructions-eval` before and after, following
+and package instructions. Score with `leaf-dev eval` before and after, following
 “Score an instruction change” in `/developing-leaf`. This phase needs no product decision.
 
 - Make package discovery and behavior-module obligations easy to scan in `packages.md`.

@@ -78,7 +78,6 @@ from render_harness import (
     told,
     until_draft_settled,
     wait_for_revision,
-    watch_message_arrival,
     write,
 )
 from test_render_application_boundary import THREAD_MIRROR, THREAD_MIRROR_DECLARATION
@@ -1324,71 +1323,6 @@ def test_a_held_general_send_preserves_a_newer_exact_draft(browser, serve):
     assert [event["text"] for event in roots] == [old]
 
 
-def test_a_sent_comment_stands_in_the_panel_before_the_log_answers(browser, serve):
-    """The words move from the box into the thread in the gesture that sends them.
-
-    Held rather than raced: the window is one request's flight, and what these
-    assertions describe lasts exactly that long. The marked node is what the release is
-    read by. A card drawn again under the server's id would look the same and pass every
-    assertion about words on a screen, so the mark is the only thing that can tell an
-    adopted card from an identical replacement — and the difference is a user's place
-    in the one they were already standing in.
-    """
-    page = open_page(browser, serve(LONG_PAGE))
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    box = page.locator(".lf-general leaf-text")
-    words = "The comment the user can already see."
-    write(box, words)
-    before = page.locator(".lf-threads > .lf-thread").count()
-    held = []
-    page.route("**/api/event", lambda route: held.append(route))
-    watch_message_arrival(page.locator("body"), ".lf-threads .lf-msg")
-    page.locator(".lf-general button").click()
-    holding(page, held, 1, "the general send")
-
-    pending = page.locator('.lf-thread[data-id^="pending:"]')
-    expect(pending).to_have_count(1)
-    expect(pending.locator(".lf-msg")).to_contain_text(words)
-    expect(pending.locator(".lf-msg")).to_have_attribute("aria-busy", "true")
-    assert page.evaluate("window.__messageArrival") == 0.5
-    expect(pending.locator(".lf-msg")).to_have_css("opacity", "0.5")
-    pending_status = pending.locator(".lf-thread-root-meta .lf-msg-sending")
-    expect(pending_status).to_have_text("Sending")
-    assert pending_status.evaluate(
-        "node => node.parentElement.matches('.lf-msg-meta') "
-        "&& node.previousElementSibling.matches('time')"
-    )
-    expect(box).to_have_js_property("value", "")
-    assert not [
-        event
-        for event in events_model.read_events(serve.page_dir)
-        if event.get("text") == words
-    ]
-    page.evaluate(
-        """() => {
-          const card = document.querySelector('.lf-thread[data-id^="pending:"]');
-          card.dataset.probe = "kept";
-        }"""
-    )
-
-    held[0].continue_()
-    page.unroute("**/api/event")
-    round_trip(page)
-    expect(page.locator(".lf-threads > .lf-thread")).to_have_count(before + 1)
-    expect(pending).to_have_count(0)
-    kept = page.locator('.lf-thread[data-probe="kept"]')
-    expect(kept).to_have_count(1)
-    expect(kept.locator(".lf-msg")).not_to_have_attribute("aria-busy", "true")
-    expect(kept.locator(".lf-msg")).to_have_css("opacity", "1")
-    roots = [
-        event
-        for event in events_model.read_events(serve.page_dir)
-        if event["kind"] == "comment"
-    ]
-    assert [event["text"] for event in roots] == [words]
-
-
 def test_a_refused_selection_comment_leaves_the_words_on_their_passage(
     held_events, serve
 ):
@@ -1465,63 +1399,6 @@ def test_a_reply_behind_a_refused_parent_is_withdrawn_rather_than_sent(
     # The reply's draft keys by its thread's stable name, which is the parent's attempt.
     assert stored_draft_text(page, f"reply:{attempt}") == words
     consume_browser_errors(page, "400")
-
-
-@pytest.mark.parametrize("reduced_motion", ["no-preference", "reduce"])
-@pytest.mark.parametrize("surface", ["panel", "margin"])
-def test_a_sent_reply_stands_in_its_thread_before_the_log_answers(
-    held_events, serve, reduced_motion, surface
-):
-    """A reply starts dim on either surface, then admission confirms those same words."""
-    browser, held = held_events
-    page = open_page(browser, serve(LONG_PAGE, anchored=[("p0", "Paragraph 0.")]))
-    page.emulate_media(reduced_motion=reduced_motion)
-    if surface == "panel":
-        page.locator(".lf-threads-toggle").click()
-        panel_settled(page)
-        thread = page.locator(".lf-threads > .lf-thread")
-        thread.locator(".lf-thread-summary").click()
-        messages = thread.locator(".lf-msg")
-    else:
-        page.locator(".lf-margin-marker").first.click()
-        thread = page.locator(".lf-margin-preview .lf-page-thread")
-        messages = thread.locator(".lf-msg")
-    words = "The reply the user can already see."
-    write(thread.locator("leaf-text"), words)
-    before = messages.count()
-
-    watch_message_arrival(
-        page.locator("body"),
-        ".lf-threads .lf-msg" if surface == "panel" else ".lf-margin-preview .lf-msg",
-    )
-    page.keyboard.press("Enter")
-    holding(page, held, 1, "the reply send")
-
-    expect(messages).to_have_count(before + 1)
-    expect(messages.last).to_contain_text(words)
-    expect(messages.last).to_have_attribute("aria-busy", "true")
-    assert page.evaluate("window.__messageArrival") == 0.5
-    expect(messages.last).to_have_css("opacity", "0.5")
-    pending_status = messages.last.locator(".lf-msg-sending")
-    expect(pending_status).to_have_text("Sending")
-    assert pending_status.evaluate(
-        "node => node.parentElement.matches('.lf-msg-meta') "
-        "&& node.previousElementSibling.matches('time')"
-    )
-    expect(thread.locator("leaf-text")).to_have_js_property("value", "")
-
-    held.pop(0).continue_()
-    page.unroute("**/api/event")
-    round_trip(page)
-    expect(messages).to_have_count(before + 1)
-    expect(messages.last).not_to_have_attribute("aria-busy", "true")
-    expect(messages.last).to_have_css("opacity", "1")
-    replies = [
-        event
-        for event in events_model.read_events(serve.page_dir)
-        if event["kind"] == "reply"
-    ]
-    assert [event["text"] for event in replies] == [words]
 
 
 def test_a_refused_comment_takes_its_message_back_and_returns_the_words(

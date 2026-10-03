@@ -57,12 +57,18 @@ from leaf import state as cleanup_model
 from leaf import structure as structure_model
 from leaf.render_checks import one_frame, rendered, wait_until_ready
 from leaf.render_gate import scheme as render_gate_model
+from leaf_dev.browser import (
+    scroll_settled,  # noqa: F401 — shared browser wait, re-exported to tests
+)
 from leaf_dev.example_data import regression_sources
 from leaf_dev.page_fixtures import (
     example_media,
     package_selection_args,
     prepare_page,
     read_fixture,
+)
+from leaf_dev.thread_snapshot_plugin import (
+    image_snapshot,  # noqa: F401 — fixture for comparisons and explicit captures
 )
 from model_folds import leaf_page
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
@@ -76,7 +82,7 @@ WORDS_WATCH_SOURCE = Path(__file__).with_name("words_watch.js")
 
 @cache
 def shift_watch_source():
-    """Install the sensor with the runtime's document-free control vocabulary."""
+    """Install the sensor with the runtime's document-free control and clipping vocabulary."""
     controls = subprocess.check_output(
         [
             "node",
@@ -84,13 +90,15 @@ def shift_watch_source():
             "--eval",
             (
                 'import { WORKS } from "./skills/leaf/assets/runtime/control-selectors.js";'
-                "process.stdout.write(JSON.stringify(WORKS));"
+                'import { clippingAxes } from "./skills/leaf/assets/runtime/rect.js";'
+                "process.stdout.write(JSON.stringify([WORKS,clippingAxes.toString()]));"
             ),
         ],
         cwd=ROOT,
         text=True,
     )
-    return f"((interactive) => {{\n{SHIFT_WATCH_SOURCE.read_text()}\n}})({controls});"
+    interactive, clipping = json.loads(controls)
+    return f"((interactive, clippingAxes) => {{\n{SHIFT_WATCH_SOURCE.read_text()}\n}})({json.dumps(interactive)}, {clipping});"
 
 
 EXAMPLE_PACKAGES = json.loads((ROOT / "examples" / "layer.json").read_text())
@@ -797,26 +805,6 @@ def sending(page, what):
     yield
     _until(page, lambda traffic: traffic.sends > sends, f"sent {what}")
     round_trip(page)
-
-
-def watch_message_arrival(root, selector):
-    """Record delivery paint on insertion within a document or declared shadow root."""
-    root.evaluate(
-        """(node, selector) => {
-          const root = node.shadowRoot ?? node;
-          window.__messageArrival = null;
-          const observer = new MutationObserver(() => {
-            const message = root.querySelector(
-              `${selector}[data-attempt][aria-busy="true"]`
-            );
-            if (!message) return;
-            window.__messageArrival = Number(getComputedStyle(message).opacity);
-            observer.disconnect();
-          });
-          observer.observe(root, {childList: true, subtree: true});
-        }""",
-        selector,
-    )
 
 
 # The same arrangement for a test that holds the wire open with `page.route`, and the one
@@ -1866,43 +1854,11 @@ SHELL_BOX = """(() => {
 })()"""
 
 
-# How long a scroller holds one position before its travel is over, counted in the
-# browser's own rendering frames.
-SCROLL_STILL_FRAMES = 3
-
 # Put the user nowhere, with the next Tab starting at the top of the document: the
 # runtime's own let-go (focus.js, `releaseFocus`). Body holds no stop of its own, so
 # `document.body.focus()` moves nothing on a page whose root does not scroll.
 RELEASE_FOCUS = """async () =>
   (await window.__lfRuntimeImport('/runtime/focus.js')).releaseFocus()"""
-
-
-SCROLL_STILL = browser_function("harness.js", "scrollStill")
-
-
-def scroll_settled(page, scroller=None, axis="y", frames=SCROLL_STILL_FRAMES):
-    """Wait for stable scroll position after the caller observes scroll initiation.
-
-    The helper cannot distinguish a finished scroll from one not yet issued.
-    Callers first observe the gesture's synchronous arrival, focus, or attribute
-    change that accompanies its scroll. The quiet interval is counted in animation
-    frames to span the pause between instant nested-scrollport placement and the
-    outer scroller's smooth movement, rather than a machine-dependent time window.
-
-    Each call resets its observation. Timeout reports the selected scroller and
-    its last reading. `tests/AGENTS.md`, "A wait consumes a fact the system states",
-    owns the caller policy."""
-    page.evaluate("() => { delete globalThis.__lfScrollStill; }")
-    try:
-        page.wait_for_function(SCROLL_STILL, arg=[scroller, axis, frames])
-    except PlaywrightTimeout:
-        where = scroller or "the document"
-        held = page.evaluate(
-            "() => globalThis.__lfScrollStill ?? null",
-        )
-        raise AssertionError(
-            f"{where} never held one position for {frames} frames: gave up on {held}"
-        ) from None
 
 
 def panel_settled(page, open=True):

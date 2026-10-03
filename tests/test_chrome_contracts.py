@@ -51,6 +51,99 @@ from render_harness import (
 )
 
 
+@pytest.mark.parametrize("viewport", [(390, 740), (1200, 900)])
+def test_refusal_notice_clears_live_reply_through_wrapping_and_expiry(
+    browser, serve, viewport
+):
+    """Feedback clears the actual reply while its controls keep their place."""
+    url = serve(
+        leaf_page("Reply refusal", "<h1>Reply refusal</h1><p>Keep the reply live.</p>")
+    )
+    panel_comment(serve.page_dir, "A reply belongs beside this question.")
+    context = browser.new_context(
+        viewport={"width": viewport[0], "height": viewport[1]}, reduced_motion="reduce"
+    )
+    page = open_page(browser, url, context=context)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    reply = page.locator(".lf-thread[open] > .lf-thread-reply")
+    field = reply.locator("leaf-text")
+    send = reply.get_by_role("button", name="Send", exact=True)
+    words = "Keep this reply in the writing box when the server refuses it."
+    write(field, words)
+    rendered(page)
+    before = {"field": field.bounding_box(), "send": send.bounding_box()}
+    list_foot = page.locator(".lf-threads").evaluate(
+        "node => [getComputedStyle(node).paddingBottom, getComputedStyle(node).scrollPaddingBottom]"
+    )
+    field.evaluate("""field => {
+        window.__noticeReplyFrames = [];
+        new ResizeObserver(() => {
+            const status = document.querySelector('.lf-bottom-status');
+            if (!status.checkVisibility()) return;
+            const r = node => node.getBoundingClientRect().toJSON();
+            window.__noticeReplyFrames.push({status:r(status), field:r(field),
+                send:r(field.parentElement.querySelector('.lf-thread-send')),
+                general:r(document.querySelector('.lf-general leaf-text'))});
+        }).observe(field);
+    }""")
+
+    def refuse_reply(route):
+        command = route.request.post_data_json
+        if command.get("kind") == "reply":
+            route.fulfill(
+                status=400,
+                json={
+                    "ok": False,
+                    "final": True,
+                    "attempt": command["attempt"],
+                    "error": "This reply was refused; your words stay here so you can retry.",
+                },
+            )
+        else:
+            route.continue_()
+
+    page.route("**/api/event", refuse_reply)
+    page.keyboard.press("Enter")
+    notice = page.locator(".lf-notice")
+    expect(notice).to_contain_text("Couldn't send")
+    expect(notice).to_be_visible()
+    expect(field).to_have_js_property("value", words)
+    rendered(page)
+    assert {"field": field.bounding_box(), "send": send.bounding_box()} == before
+
+    write(
+        field,
+        words + "\nKeep the feedback clear when this draft wraps onto more lines.",
+    )
+    rendered(page)
+    expect(notice).to_be_visible()
+    assert field.bounding_box()["height"] > before["field"]["height"]
+    after = {"field": field.bounding_box(), "send": send.bounding_box()}
+    assert after["send"] == before["send"]
+    frames = page.evaluate("window.__noticeReplyFrames")
+    assert frames
+    for frame in frames:
+        for key in ("field", "send", "general"):
+            box, status = frame[key], frame["status"]
+            assert (
+                status["right"] <= box["left"]
+                or box["right"] <= status["left"]
+                or status["bottom"] <= box["top"]
+                or box["bottom"] <= status["top"]
+            ), frame
+    assert (
+        page.locator(".lf-threads").evaluate(
+            "node => [getComputedStyle(node).paddingBottom, getComputedStyle(node).scrollPaddingBottom]"
+        )
+        == list_foot
+    )
+    expect(notice).to_be_hidden(timeout=6_000)
+    rendered(page)
+    assert {"field": field.bounding_box(), "send": send.bounding_box()} == after
+    consume_browser_errors(page, "400")
+
+
 def test_agent_reply_arrivals_keep_open_panel_drafts_and_summarize_batches(
     browser, serve
 ):
@@ -402,8 +495,10 @@ def test_a_reply_lands_above_an_open_cards_reply_box_and_moves_neither_it_nor_it
     )
     standing = card.evaluate(REPLY_BOX)
     assert standing["caret"] == [True, 8, 8]
-    # The box stands at the list's foot, the fold later cards wait below.
-    assert standing["box"][1] == pytest.approx(list_box[1], abs=7)
+    # The live field and Send remain inside the list's visible reading band.
+    assert list_box[0] <= standing["field"][0] < standing["field"][1] <= list_box[1]
+    send = card.locator(".lf-thread-send").bounding_box()
+    assert list_box[0] <= send["y"] < send["y"] + send["height"] <= list_box[1]
 
     for text in ("A short answer.", "A long answer outgrows the free room. " * 60):
         newest = append_carried_log_record(

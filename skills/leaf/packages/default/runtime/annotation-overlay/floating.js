@@ -38,7 +38,7 @@
    after a fetch. */
 
 import { afterPresentation } from "/runtime/presentation.js";
-import { keeps, layoutPx as px } from "/runtime/keeps.js";
+import { keeps, layoutPx as px, atLayoutPrecision } from "/runtime/keeps.js";
 import { anchorElement, anchorName } from "/runtime/anchor-names.js";
 import { shownWindow } from "/runtime/geometry.js";
 
@@ -97,6 +97,12 @@ const held = {
 
 const INSETS = ["left", "right", "top", "bottom"];
 
+// The mechanical owner's last written placement, never a rectangle read back from
+// its rendered box. Consumers can distinguish a native plane change from a local
+// child/holder displacement without granting that displacement to the owner.
+const stood = new Map();
+export const floatingSelections = () => [...stood.values()];
+
 // Whether a box spanning `top` to `bottom` stands against an edge of the window the page
 // shows (geometry.js, `shownWindow`), `gap` inside it, rather than against a reading
 // region's edge the page carries.
@@ -108,6 +114,7 @@ export function heldByWindow(top, bottom, gap) {
 export function floatingPlacement({ floating, update }) {
   let epoch = 0;
   let watched = null;
+  let tenure = Object.freeze({});
   let stopWatching = null;
   // Writes the held edges' insets and clears the free ones.
   const inset = (insets) => {
@@ -141,6 +148,7 @@ export function floatingPlacement({ floating, update }) {
       });
     };
   let stand = placedAt;
+  let placementProof = null;
   return {
     // `reference` is what `computePosition` receives; `element` is the node it stands
     // for, whose scroll containers and moves `autoUpdate` follows.
@@ -148,6 +156,7 @@ export function floatingPlacement({ floating, update }) {
       if (element === watched) return;
       stopWatching?.();
       watched = element;
+      tenure = Object.freeze({});
       stopWatching = autoUpdate(reference, floating, update);
     },
     begin: () => ++epoch,
@@ -173,9 +182,51 @@ export function floatingPlacement({ floating, update }) {
         at?.x !== undefined && planeOf(answer) === "page" ? "page" : "window";
       keeps(floating, "data-lf-plane", plane);
       stand = plane === "page" ? anchoredAt(anchor, at) : placedAt;
+      // anchorAt proves the solver's containing block is the window. Other
+      // containing blocks have no declared prediction in this selection.
+      placementProof =
+        at?.x !== undefined ? { subject: watched, anchor, plane, at } : null;
       return answer;
     },
-    stand: (answer) => stand(answer),
+    stand(answer) {
+      stand(answer);
+      if (!placementProof) {
+        stood.delete(floating);
+        tenure = Object.freeze({});
+        return;
+      }
+      const { edges, width, height, block } = answer.middlewareData.held;
+      const { subject, anchor, plane, at } = placementProof;
+      const point = {};
+      for (const [axis, start, coordinate, length, extent] of [
+        ["left", "left", "x", width, block.width],
+        ["top", "top", "y", height, block.height],
+      ]) {
+        const fromStart = edges[coordinate] === start;
+        const spot = answer[coordinate];
+        point[axis] =
+          plane === "page"
+            ? fromStart
+              ? atLayoutPrecision(spot - at[coordinate])
+              : -atLayoutPrecision(at[coordinate] - spot - length)
+            : fromStart
+              ? atLayoutPrecision(spot)
+              : extent - atLayoutPrecision(extent - spot - length);
+      }
+      stood.set(
+        floating,
+        Object.freeze({
+          floating,
+          subject,
+          anchor,
+          plane,
+          tenure,
+          edges: Object.freeze({ left: edges.x, top: edges.y }),
+          point: Object.freeze(point),
+          size: Object.freeze({ width, height }),
+        }),
+      );
+    },
     // Discards any placement in flight, leaving the box where it stands.
     supersede() {
       epoch += 1;
@@ -185,6 +236,9 @@ export function floatingPlacement({ floating, update }) {
       stopWatching?.();
       stopWatching = null;
       watched = null;
+      tenure = Object.freeze({});
+      placementProof = null;
+      stood.delete(floating);
       delete floating.dataset.lfPlane;
       for (const property of ["position-anchor", ...INSETS])
         floating.style.removeProperty(property);

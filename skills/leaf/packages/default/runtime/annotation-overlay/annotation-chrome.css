@@ -175,7 +175,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     overscroll-behavior: contain;
     scroll-padding-block: var(--focus-ring-room); }
   /* The field stands at the card's inset; words stand one inset inside it. */
-  .lf-margin-thread .lf-page-thread { padding: 0; background: var(--paper); }
+  .lf-margin-thread .lf-page-thread { padding: 0; background: var(--paper);
+    min-height: min(var(--lf-thread-body-extent, 0px), var(--lf-thread-list-room)); }
   .lf-margin-thread .lf-page-thread::after { content: none; }
   @media (forced-colors: active) {
     .lf-margin-thread .lf-page-thread:is(:focus-within, .lf-focus-within) { outline: none; }

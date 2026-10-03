@@ -15,13 +15,15 @@ import sys
 import threading
 import time
 import zlib
+from dataclasses import dataclass
+from enum import Enum, auto
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from .detached import Handshake, StartRefused, start_detached
+from .detached import Handshake, StartRefused, starting_detached
 from .files import read_json
 from .host import session_harness
-from .leases import lock_is_held, page_locked, release_lease, take_lease
+from .leases import page_locked, release_lease, take_lease
 from .schema import SERVER_LOCK, SERVICE_FILE
 from .server import (
     host_key,
@@ -32,7 +34,14 @@ from .server import (
     running_server,
     stop_when_service_ends,
 )
-from .service import PageTransaction, claim_is_active, page_claim, starting_claim
+from .service import (
+    PageTransaction,
+    claim_is_active,
+    claimant_matches,
+    page_claim,
+    prepare_claim,
+    same_claim,
+)
 from .state import require_cross_process_locking, write_json
 
 TEMPORARY_SERVER_NOTE = "server   temporary (stops with this command)"
@@ -270,13 +279,10 @@ def _serve_claim(
         sys.exit("service was stopped; not reviving")
 
     harness = session_harness()
-    claim = page.claim
     claimed = bool(
         not standing
         and harness is not None
-        and claim is not None
-        and claim["released"] is None
-        and (claim["harness"], claim["id"]) == (harness.name, harness.session)
+        and claimant_matches(page.active_claim, harness)
     )
     if not standing and harness is not None and not claimed:
         sys.exit(
@@ -287,14 +293,8 @@ def _serve_claim(
     return claimed
 
 
-def _announce_server(page_dir: Path, url: str, handshake: Handshake | None) -> bool:
-    """Say where the server is to whoever started it, and whether they heard.
-
-    A detached serve announces through its handshake and learns whether its caller
-    committed the start. A foreground serve prints the URL, then its note, in the
-    order a reader of its streams takes them."""
-    if handshake is not None:
-        return handshake.announce({"url": url})
+def _announce_server(page_dir: Path, url: str) -> bool:
+    """Print a committed foreground URL, then its lifetime note."""
     print(json.dumps({"url": url}), flush=True)
     print(startup_note(page_dir), file=sys.stderr, flush=True)
     return True
@@ -320,13 +320,18 @@ def _reuse_server(page_dir: Path, host: str | None, standing: bool) -> str | Non
 
 def _take_server_lease(page_dir: Path):
     """Take the process lease after checking reuse under the page lock."""
-    lease = take_lease(page_dir / SERVER_LOCK)
+
+    def clear_identity(held):
+        held.truncate(0)
+        held.flush()
+
+    lease = take_lease(page_dir / SERVER_LOCK, prepare=clear_identity)
     if lease is not None:
         return lease
     sys.exit(f"another server run is serving {page_dir}; re-run")
 
 
-def _bind_server(page_dir: Path, access: dict, endpoint, ports: list, lease):
+def _bind_server(page_dir: Path, access: dict, endpoint, ports: list):
     """Bind the first available port, preserving a recorded address contract."""
     for port in ports:
         try:
@@ -334,7 +339,6 @@ def _bind_server(page_dir: Path, access: dict, endpoint, ports: list, lease):
         except OSError as error:
             if error.errno == errno.EADDRINUSE and "port" not in access:
                 continue
-            release_lease(lease)
             sys.exit(
                 f"can't serve {page_dir} on {access['bind']}"
                 f"{':' + str(access['port']) if 'port' in access else ''}: "
@@ -372,58 +376,105 @@ def cmd_serve(
     revive: bool = False,
     *,
     handshake: Handshake | None = None,
+    acquire: bool = False,
+    prepared_claim: dict | None = None,
 ) -> None:
-    """Serve one initialized page under its durable service contract.
+    """Prepare a serving resource, then publish it and ownership on acceptance.
 
-    Claiming is deliberately outside this process: `claim_and_start` and
-    `server run` claim through `starting_claim`, and a wait already owns the page
-    it revives. This process only verifies that the matching claim still stands,
-    then owns service.json and the server.lock process lease. A detached serve
-    answers `start_server` through `handshake`.
+    The page lock serializes preparation through commitment, so another start
+    cannot adopt an uncommitted listener. Binding and delivery preparation happen
+    before publication. Only the accepted commit takes a claim and enables a new
+    service, in a short page transaction. The serving row producer is prepared
+    privately with its server incarnation and starts only after commitment,
+    outside the page lock. The live lease names this exact HTTP incarnation;
+    private preparation cannot advertise a retained service or neighbor row.
+    A revival takes no acquisition.
     """
     from .http import page_endpoint
     from .layer import payload_provenance
+    from .server_rows import RowPublisher
 
     require_cross_process_locking()
     lease = None
     httpd = None
-    runtime = payload_provenance(include_path=True)
-    with page_locked(page_dir), PageTransaction(page_dir) as page:
-        service = read_json(page_dir / SERVICE_FILE)
-        claimed = _serve_claim(page_dir, page, service, standing, revive)
-        url = _reuse_server(page_dir, host, standing)
-        if url is None:
-            access = page_access(page_dir, host)
-            token = host_key()
-            # Before the lease and the record: a page this Leaf cannot serve refuses
-            # here, leaving the service as it found it.
-            endpoint = page_endpoint(page_dir, token)
-            base = 41000 + zlib.crc32(str(page_dir.resolve()).encode()) % 4000
-            ports = (
-                [access["port"]] if "port" in access else [*range(base, base + 10), 0]
-            )
-            lease = _take_server_lease(page_dir)
-            httpd = _bind_server(page_dir, access, endpoint, ports, lease)
-            service = _service_record(access, httpd, standing, claimed, runtime)
-            write_json(page_dir / SERVICE_FILE, service)
-            url = page_url(service["host"], service["port"], token)
-
+    harness = session_harness()
+    delivery = (
+        harness.preparing_delivery()
+        if acquire and not standing and harness is not None and handshake is None
+        else contextlib.nullcontext()
+    )
     try:
-        if handshake is None and claimed:
-            session_harness().ensure_delivery()
-        if httpd is not None:
-            from .server_rows import RowPublisher
+        with delivery, page_locked(page_dir):
+            if acquire and not standing and harness is not None:
+                prepared_claim = prepared_claim or prepare_claim(harness, page_dir)
+            previous_service = service = read_json(page_dir / SERVICE_FILE)
+            with PageTransaction(page_dir) as page:
+                claimed = (
+                    bool(not standing and harness is not None)
+                    if acquire
+                    else _serve_claim(page_dir, page, service, standing, revive)
+                )
+            url = _reuse_server(page_dir, host, standing)
+            if url is None:
+                access = page_access(page_dir, host)
+                token = host_key()
+                endpoint = page_endpoint(page_dir, token)
+                base = 41000 + zlib.crc32(str(page_dir.resolve()).encode()) % 4000
+                ports = (
+                    [access["port"]]
+                    if "port" in access
+                    else [*range(base, base + 10), 0]
+                )
+                lease = _take_server_lease(page_dir)
+                httpd = _bind_server(page_dir, access, endpoint, ports)
+                lease.write(httpd.server_id.encode())
+                lease.flush()
+                rows = RowPublisher(page_dir, httpd.server_id)
+                service = _service_record(
+                    access,
+                    httpd,
+                    standing,
+                    claimed,
+                    payload_provenance(include_path=True),
+                )
+                url = page_url(service["host"], service["port"], token)
 
-            rows = RowPublisher(page_dir, httpd.server_id)
-        announced = _announce_server(page_dir, url, handshake)
-        if httpd is None:
-            return
-        if not announced:
-            # Whoever started this server left before committing the start, and
-            # its cleanup may already have run a stop that found nothing to stop.
-            # An uncommitted start withdraws itself.
-            with page_locked(page_dir):
-                write_json(page_dir / SERVICE_FILE, {**service, "enabled": False})
+            def commit() -> dict:
+                try:
+                    with PageTransaction(page_dir) as page:
+                        if acquire and claimed:
+                            with page.publishing_claim(prepared_claim) as (_, claim):
+                                if httpd is not None:
+                                    write_json(page_dir / SERVICE_FILE, service)
+                        else:
+                            _serve_claim(page_dir, page, service, standing, revive)
+                            claim = page.claim if claimed else None
+                            if httpd is not None:
+                                write_json(page_dir / SERVICE_FILE, service)
+                        return {"url": url, "claim": claim}
+                except BaseException:
+                    # A freshly bound resource is ours to withdraw. Reused servers
+                    # have no mutation to undo. Once acquisition published, owner
+                    # cleanup instead governs the accepted, unconfirmed start.
+                    if httpd is not None and (
+                        prepared_claim is None
+                        or not same_claim(page_claim(page_dir), prepared_claim)
+                    ):
+                        if previous_service is None:
+                            (page_dir / SERVICE_FILE).unlink(missing_ok=True)
+                        else:
+                            write_json(page_dir / SERVICE_FILE, previous_service)
+                    raise
+
+            if handshake is not None:
+                announced = handshake.announce(
+                    {"url": url, "claim": prepared_claim if acquire else None},
+                    commit=commit,
+                )
+            else:
+                commit()
+                announced = _announce_server(page_dir, url)
+        if httpd is None or not announced:
             return
         threading.Thread(target=rows.run, daemon=True).start()
         threading.Thread(
@@ -435,35 +486,40 @@ def cmd_serve(
     finally:
         if httpd is not None:
             httpd.server_close()
+        if lease is not None:
             release_lease(lease)
 
 
-def start_server(
+@dataclass(frozen=True)
+class PageStart:
+    """A prepared serving address and acquisition, committed on context exit.
+
+    Consumers capture ownership while preparation is still unpublished. They
+    hand the address to the user only after the context confirms commitment.
+    """
+
+    url: str
+    claim: dict | None
+    page: Path
+
+    @property
+    def note(self) -> str:
+        return startup_note(self.page)
+
+
+@contextlib.contextmanager
+def _starting_server(
     page_dir: Path,
     host: str | None = None,
     standing: bool = False,
     revive: bool = False,
-) -> tuple[str, str]:
-    """Put the page's server up in a session of its own, and report where.
-
-    The serve has to outlive this command — the browser polls it between turns
-    and across every `leaf wait`, which exits to deliver — so it is spawned
-    rather than held, and the one long-running command a leaf costs its session
-    is the watcher. The maintainer `session-lifetime.md` contract carries the
-    rest of that; `detached` carries the handshake that commits the start.
-
-    An explicit start may enable a stopped service; a revival carries the
-    narrower intent "only if still enabled," which the child checks inside the
-    transition.
-
-    Returns where the page is and what ends it — the URL the child minted and
-    the note for the lifetime it recorded. Raises `StartRefused` with the child's
-    reason: a stale bind, a taken port, a flag the running server contradicts, a
-    claim this session no longer holds, or a page vendored from another Leaf's
-    runtime.
-    """
+    *,
+    acquire: bool = False,
+    claim: dict | None = None,
+):
+    """Prepare a private serving resource and expose its owner before accepting."""
     require_cross_process_locking()
-    answer = start_detached(
+    with starting_detached(
         [
             "server",
             "_serve",
@@ -471,31 +527,69 @@ def start_server(
             *(["--host", host] if host else []),
             *(["--standing"] if standing else []),
             *(["--revive"] if revive else []),
+            *(["--acquire"] if acquire else []),
+            *(["--claim", json.dumps(claim)] if claim is not None else []),
         ],
         what=f"the server for {page_dir}",
-    )
-    return answer["url"], startup_note(page_dir)
+    ) as ready:
+        yield PageStart(ready["url"], ready["claim"], page_dir)
 
 
-def claim_and_start(
-    page_dir: Path, host: str | None = None, standing: bool = False
-) -> tuple[str, str]:
-    """Claim the page, start its server, and connect this host's delivery.
+def start_server(
+    page_dir: Path,
+    host: str | None = None,
+    standing: bool = False,
+    revive: bool = False,
+) -> PageStart:
+    """Start or reuse a server without acquiring page ownership.
 
-    What `server start` does, and what a `--user` preview does when it first puts
-    its page up. A start that does not commit gives the claim back
-    (`starting_claim`); a `standing` start takes none and starts no delivery.
-    Return a URL only once both presentation and delivery are ready, including
-    when a page's already-running server is adopted by this session.
+    A revival commits only while the desired service remains enabled and the
+    session still owns it. The detached producer checks those facts while holding
+    the page transition lock. Every revival retains the recorded address.
     """
-    with starting_claim(page_dir, standing=standing):
-        started = start_server(page_dir, host, standing)
-        if not standing and (harness := session_harness()) is not None:
-            harness.ensure_delivery()
-        return started
+    with _starting_server(page_dir, host, standing, revive) as started:
+        pass
+    return started
 
 
-def cmd_stop(page_dir: Path, restart: str | None = None) -> bool:
+@contextlib.contextmanager
+def claim_and_start(page_dir: Path, host: str | None = None, standing: bool = False):
+    """Prepare delivery and serving, expose their acquisition, then commit.
+
+    Preparation failures and cancellation before acceptance publish no takeover.
+    The caller captures its exact acquisition inside this context and exposes the
+    URL only after exit confirms publication. Once accepted, cancellation cannot
+    restore a superseded owner; the captured acquisition governs owner cleanup.
+    """
+    harness = session_harness()
+    delivery = (
+        harness.preparing_delivery()
+        if not standing and harness is not None
+        else contextlib.nullcontext()
+    )
+    with delivery:
+        claim = prepare_claim(harness, page_dir) if not standing and harness else None
+        try:
+            with _starting_server(
+                page_dir, host, standing, acquire=True, claim=claim
+            ) as ready:
+                yield ready
+        except BaseException:
+            if claim is not None:
+                cmd_stop(page_dir, owner=claim)
+            raise
+
+
+class _StopScope(Enum):
+    ANY_OWNER = auto()
+
+
+def cmd_stop(
+    page_dir: Path,
+    restart: str | None = None,
+    *,
+    owner: dict | None | _StopScope = _StopScope.ANY_OWNER,
+) -> bool:
     """Disable the desired service, wait until its process lease is released, and
     say whether a server was running.
 
@@ -515,9 +609,19 @@ def cmd_stop(page_dir: Path, restart: str | None = None) -> bool:
     stopped = False
     first = True
     while True:
-        with page_locked(page_dir):
+        # A resource owner's cleanup cannot disable its successor's service.
+        # Check that identity in every transition, including after waiting for
+        # the former server to exit. Explicit stops supply no owner restriction.
+        with (
+            page_locked(page_dir),
+            PageTransaction(page_dir)
+            if owner is not _StopScope.ANY_OWNER
+            else contextlib.nullcontext() as page,
+        ):
+            if owner is not _StopScope.ANY_OWNER and not same_claim(page.claim, owner):
+                return stopped
             # The server may release its lease immediately after we disable it.
-            stopped = stopped or lock_is_held(page_dir / SERVER_LOCK)
+            stopped = stopped or running_server(page_dir) is not None
             service = read_json(page_dir / SERVICE_FILE)
             if service and first:
                 disabled = {
@@ -536,7 +640,6 @@ def cmd_stop(page_dir: Path, restart: str | None = None) -> bool:
             if lease is not None:
                 release_lease(lease)
                 return stopped
-        stopped = True
         time.sleep(0.05)
 
 
@@ -627,10 +730,7 @@ def _restarts_for_this_session(page_dir: Path) -> bool:
     if not claim_is_active(claim):
         return False
     harness = session_harness()
-    if harness is None or (claim["harness"], claim["id"]) != (
-        harness.name,
-        harness.session,
-    ):
+    if harness is None or not claimant_matches(claim, harness):
         sys.exit(
             f"{page_dir} is served for another session, and only that session can "
             "start its server again; re-vendor it from there, or take the page over "

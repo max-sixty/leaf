@@ -277,7 +277,7 @@ class Watch:
                         and reading.live
                         and not reading.lost
                     ):
-                        reading = reading._replace(restarted=started[0])
+                        reading = reading._replace(restarted=started.url)
                     yield reading
             except FileNotFoundError:
                 continue

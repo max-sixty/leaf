@@ -1857,83 +1857,24 @@
 
       const sample = document.querySelector("#bg-panel-sample");
       let selected = null;
-      let selectionVersion = 0;
-      const pendingPaints = new Set();
-
-      function whenPanelMatches(child, isReady) {
-        if (isReady()) return Promise.resolve();
-        return new Promise((resolve) => {
-          const finish = () => {
-            observer.disconnect();
-            pendingPaints.delete(finish);
-            resolve();
-          };
-          const observer = new MutationObserver(() => {
-            if (isReady()) finish();
-          });
-          pendingPaints.add(finish);
-          for (const selector of ["leaf-thread-narrowing", "leaf-thread-list"])
-            observer.observe(child.querySelector(selector), {
-              attributes: true,
-              childList: true,
-              subtree: true,
-            });
-        });
-      }
-
-      async function showPanelView(view, version, ready = sample.ready) {
-        const child = await ready;
-        if (!sample.isConnected || version !== selectionVersion) return;
-        const panel = child.querySelector(".lf-thread-panel");
-        if (!panel.open) child.querySelector(".lf-threads-toggle").click();
-        child.querySelector(".lf-thread-filter-reset")?.click();
-        await whenPanelMatches(child, () =>
-          child
-            .querySelector(".lf-thread-filter-reset")
-            .hasAttribute("data-lf-unoffered"),
-        );
-        if (version !== selectionVersion) return;
-        if (view === "you" || view === "resolved") {
-          const filter = child.querySelector(".lf-thread-filter-toggle");
-          if (filter.getAttribute("aria-expanded") !== "true") filter.click();
-          const [kind, value] =
-            view === "you" ? ["waiting", "user"] : ["status", "resolved"];
-          const choice = child.querySelector(
-            `[data-filter-kind="${kind}"][data-filter-value="${value}"]`,
-          );
-          choice.click();
-          await whenPanelMatches(
-            child,
-            () => choice.getAttribute("aria-pressed") === "true",
-          );
-          if (version !== selectionVersion) return;
-        }
-        const root = {
-          overview: "72e031c5bf0d485ba9054628e09869d4",
-          you: "2be2443f0bb6cc49fc86b52f340e6073",
-          resolved: "bab3cdfcfb8c02aacbb27da731de947a",
-          summary: "9ee465bb3f9c1fa309ea9cb1767fa365",
-        }[view];
-        const row = child.querySelector(`.lf-thread[data-id="${root}"]`);
-        await whenPanelMatches(child, () => !row.hidden);
-        if (version !== selectionVersion) return;
-        if (!row.open) row.querySelector(".lf-thread-summary").click();
-        const filter = child.querySelector(".lf-thread-filter-toggle");
-        if (filter.getAttribute("aria-expanded") === "true") filter.click();
-        const list = child.querySelector("leaf-thread-list");
-        list.scrollTop +=
-          row.getBoundingClientRect().top - list.getBoundingClientRect().top;
-      }
-
-      function selectPanelView(view, ready = sample.ready) {
+      function selectPanelView(view) {
         selected = view;
         for (const button of document.querySelectorAll("#bg-panel-presets button")) {
           const pressed = String(button.dataset.view === view);
           if (button.getAttribute("aria-pressed") !== pressed)
             button.setAttribute("aria-pressed", pressed);
         }
-        for (const finish of pendingPaints) finish();
-        void showPanelView(view, ++selectionVersion, ready);
+        const thread = {
+          overview: "72e031c5bf0d485ba9054628e09869d4",
+          you: "2be2443f0bb6cc49fc86b52f340e6073",
+          resolved: "bab3cdfcfb8c02aacbb27da731de947a",
+          summary: "9ee465bb3f9c1fa309ea9cb1767fa365",
+        }[view];
+        void sample.showThread(thread, {
+          surface: "panel",
+          status: view === "resolved" ? "resolved" : "open",
+          waiting: view === "you" ? "user" : "all",
+        });
       }
 
       for (const button of document.querySelectorAll("#bg-panel-presets button")) {

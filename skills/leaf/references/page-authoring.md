@@ -599,6 +599,15 @@ reach it. A page module can await the element's `ready` promise to receive the c
 `Document`, and await `reset()` to replace it. The bubbling `lf-sample-ready`
 event carries `detail.document` after each child presents, including Reset, so
 host controls can reapply a selected view without inspecting the Reset button.
+To select a conversation, call `await sample.showThread(id)` with its root event id;
+this shows the same page destination as its marker. To inspect it in Threads,
+call `await sample.showThread(id, {surface: "panel"})`. The panel view accepts
+`status: "open" | "resolved" | "all"` and `waiting: "user" | "agent" | "all"`;
+omitted values restore Open and unrestricted waiting. A panel view may omit the
+id to show its list. Completion means the selected view has presented; it returns
+false when a newer selection or Reset supersedes it. Outer controls keep keyboard
+focus. Use this method instead of clicking the child's private chrome or observing
+its DOM. Reapply the selected view on `lf-sample-ready` after Reset.
 Author child content in the
 template rather than copying rendered controls from the parent. Ordinary
 `lf-sample` children, without a template, remain static quoted material.

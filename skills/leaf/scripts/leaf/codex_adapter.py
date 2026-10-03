@@ -68,7 +68,7 @@ from .codex import (
     write_record,
 )
 from .codex_state import delivery_lock_path, hook_turn, step_delivery_turn
-from .detached import Handshake, start_detached
+from .detached import Handshake, starting_detached
 from .event_log import read_cursor
 from .host import CodexHarness, session_harness
 from .leases import (
@@ -81,11 +81,17 @@ from .leases import (
 from .machine import state_home
 from .service import (
     PageTransaction,
+    claim_page,
     owned_pages,
-    starting_claim,
 )
 from .session import Watch, read_watch_pass
-from .state import EVENTS_FILE, flocked, session_record, start_session_turn
+from .state import (
+    EVENTS_FILE,
+    ensure_session,
+    flocked,
+    session_record,
+    start_session_turn,
+)
 from .thread import (
     answered_by_reply,
     delivery_reply_reserved,
@@ -969,17 +975,19 @@ def cmd_codex_start(
 ) -> dict:
     """Claim PAGE and start one detached delivery carrier for this task, or find
     the one already running; return which, with its task and transport."""
-    with starting_claim(page_dir):
-        return ensure_adapter(codex_path, app_server)
+    with preparing_adapter(codex_path, app_server) as prepared:
+        claim_page(page_dir)
+        return prepared
 
 
-def ensure_adapter(
-    codex_path: str | None = None, app_server: str | None = None
-) -> dict:
-    """Start or join this task's delivery carrier without taking a page claim.
+@contextmanager
+def preparing_adapter(codex_path: str | None = None, app_server: str | None = None):
+    """Retain a ready carrier until the caller commits page ownership.
 
-    Both explicit adapter startup and page serving prepare the same task-wide
-    route. The caller owns the claim transition and its rollback on failure.
+    The same task start lock serializes carrier startup and no-page retirement.
+    Holding it across the caller's publication lets delivery prepare before any
+    claim exists, without a carrier retiring in that gap. A new carrier captures
+    the launching host's canonical session generation before subscribing to turns.
     """
     harness = session_harness()
     if harness is None or harness.name != CodexHarness.name:
@@ -1003,8 +1011,12 @@ def ensure_adapter(
                     + (f" through App Server {running}" if running else "")
                     + f", not through App Server {app_server}"
                 )
-            return {"task": session_id, "app_server": running, "started": False}
-        start_detached(
+            yield {"task": session_id, "app_server": running, "started": False}
+            return
+        # The connection captures its causal lifecycle before observing turns.
+        # Establish it in the launching host, independently of page ownership.
+        ensure_session(session_id, harness.lifetime())
+        with starting_detached(
             [
                 "codex",
                 "run",
@@ -1016,8 +1028,9 @@ def ensure_adapter(
             log=adapter_log_path(session_id),
             cwd=state_home(),
             timeout=START_TIMEOUT,
-        )
-    return {"task": session_id, "app_server": app_server, "started": True}
+        ):
+            pass
+        yield {"task": session_id, "app_server": app_server, "started": True}
 
 
 def _running_adapter(session_id: str) -> dict | None:

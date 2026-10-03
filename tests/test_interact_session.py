@@ -10573,11 +10573,6 @@ def test_an_offline_sibling_does_not_stop_browser_comments_reaching_codex(
             "lifetime": "session",
         },
     )
-    claim = service_model.page_claim(live)
-    cleanup_model.write_json(
-        service_model.claim_path(offline), {**claim, "page": str(offline.resolve())}
-    )
-
     program, log = fake_codex_cli(tmp_path)
     session_model.cmd_status(live, "waiting", "current review")
     release_start = tmp_path / "release-codex-start"
@@ -10614,6 +10609,9 @@ def test_an_offline_sibling_does_not_stop_browser_comments_reaching_codex(
     assert started.returncode == 0, f"{out}{err}"
 
     try:
+        claim = service_model.page_claim(live)
+        record_claim(offline, **{**claim, "page": str(offline.resolve())})
+        assert set(service_model.owned_pages("codex-thread")) == {live, offline}
         service = files_model.read_json(live / "service.json")
         origin = f"http://{service['host']}:{service['port']}"
         status, body = fetch(

@@ -29,7 +29,6 @@ import click
 # The stream-activity writers are called as `codex.<name>`, so `leaf.codex` holds their
 # one binding: whatever takes a turn's readings there takes the host's too.
 from leaf import codex
-from leaf.state import close_session_turn
 from leaf.codex import (
     LEAF_THREAD_CONFIG,
     CarriedTurn,
@@ -62,6 +61,7 @@ from leaf.service import (
     page_claim,
     restore_page_claim,
 )
+from leaf.state import close_session_turn
 from leaf.thread import (
     fail_answer,
     release_delivery_reply,

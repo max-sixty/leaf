@@ -15,10 +15,10 @@ from interact_support import append_carried_log_record
 from jsonschema import Draft202012Validator
 from leaf import cli as cli_model
 from leaf import delivery as delivery_model
-from leaf.hook_carrier import hook_acknowledgement
 from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
 from leaf import service as service_model
+from leaf.hook_carrier import hook_acknowledgement
 from leaf.registry import validation as registry_validation
 from leaf.registry.contract import event_clauses
 from leaf.registry.storage import active_registry

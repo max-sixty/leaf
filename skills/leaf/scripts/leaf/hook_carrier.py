@@ -19,15 +19,13 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
-from .state import close_session_turn, flocked, session_lock_path
 from .activity import acknowledged_obligations, turn_obligations, unanswered
 from .delivery import (
-    freeze_delivery,
     batch_data,
+    freeze_delivery,
     record_pickup,
 )
 from .host import Harness, claim_harness
-from .state import session_record
 from .schema import (
     ANSWER_ASK_INSTRUCTION,
     PREVIEW_FILE,
@@ -38,6 +36,7 @@ from .service import (
     owned_pages,
     unacknowledged,
 )
+from .state import flocked, session_lock_path, session_record
 
 
 def reclaim(obligations: list[dict]) -> str:
@@ -281,8 +280,10 @@ def compose(batches: list[dict], attention: list[str]) -> str:
         return message
     return "\n".join(
         [
-            "Leaf has new input for this turn, too large to hand over inline. "
-            f"Read it with `leaf delivery read {delivery['id']}`, then confirm it as its `acknowledge` says.",
+            (
+                "Leaf has new input for this turn, too large to hand over inline. "
+                f"Read it with `leaf delivery read {delivery['id']}`, then confirm it as its `acknowledge` says."
+            ),
             *attention,
         ]
     )
@@ -311,10 +312,10 @@ def carry_turn(
     )
     if event == "UserPromptSubmit":
         pick_up_acknowledged(sid, plans)
-    elif event == "Stop":
-        if not stop_continues(plans, repeated=bool(payload.get("stop_hook_active"))):
-            close_session_turn(sid, payload.get("turn_id"), expected=expected)
-            return True
+    elif event == "Stop" and not stop_continues(
+        plans, repeated=bool(payload.get("stop_hook_active"))
+    ):
+        return True
     reasons = remedies(plans, batches)
     if not reasons and not batches:
         return

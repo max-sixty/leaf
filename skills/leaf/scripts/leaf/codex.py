@@ -34,7 +34,6 @@ from pathlib import Path
 from urllib.parse import urlsplit
 from xml.etree import ElementTree
 
-from .state import open_session_turn, close_session_turn, start_session_turn
 from .codex_state import (
     delivery_dir,
     delivery_lock_path,
@@ -64,7 +63,15 @@ from .service import (
     restore_page_claim,
     unacknowledged,
 )
-from .state import flocked, renew_turn, session_record, write_json
+from .state import (
+    close_session_turn,
+    flocked,
+    open_session_turn,
+    renew_turn,
+    session_record,
+    start_session_turn,
+    write_json,
+)
 from .thread import (
     DeliveryReply,
     release_delivery_reply,

@@ -17,8 +17,8 @@ import pytest
 from click.testing import CliRunner
 from conftest import LEAF_COMMAND
 from interact_support import (
-    consume_pending_input,
     append_carried_log_record,
+    consume_pending_input,
     install_payload,
     wait_for,
 )
@@ -333,9 +333,9 @@ def test_a_watch_subscription_collects_before_its_first_read(tmp_path):
         reported = set()
         deadline = time.monotonic() + 10
         while str(edited) not in reported:
-            assert (
-                time.monotonic() < deadline
-            ), f"the edit was never reported: {reported}"
+            assert time.monotonic() < deadline, (
+                f"the edit was never reported: {reported}"
+            )
             reported |= {path for _, path in next(changes)}
     finally:
         changes.close()

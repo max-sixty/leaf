@@ -839,9 +839,9 @@ def assert_revendor_serializes_writer(page_dir, monkeypatch, kind, write):
     def held_append_record(page, event):
         if event.get("kind") == kind:
             entering.set()
-            assert resume.wait(
-                timeout=STATED_TIMEOUT
-            ), "re-vendor never observed the writer"
+            assert resume.wait(timeout=STATED_TIMEOUT), (
+                "re-vendor never observed the writer"
+            )
         return original_append_record(page, event)
 
     def init_result():

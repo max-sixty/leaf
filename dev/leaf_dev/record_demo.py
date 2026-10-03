@@ -22,7 +22,7 @@ from contextlib import redirect_stdout
 from pathlib import Path
 
 import click
-from leaf.delivery import pending_batches, freeze_delivery, receive_delivery
+from leaf.delivery import freeze_delivery, pending_batches, receive_delivery
 from leaf.hook_carrier import hook_acknowledgement
 from leaf.host import session_harness
 from leaf.hosting import claim_and_start, cmd_stop

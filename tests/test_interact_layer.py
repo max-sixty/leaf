@@ -20,7 +20,6 @@ import yaml
 from click.testing import CliRunner
 from conftest import LEAF_COMMAND, PagePool
 from interact_support import (
-    consume_pending_input,
     PAGE,
     PAGE_PACKAGES,
     PLUGIN_ROOT,
@@ -31,6 +30,7 @@ from interact_support import (
     append_carried_log_record,
     case_alias,
     check,
+    consume_pending_input,
     element_declaration,
     fetch,
     install_payload,
@@ -259,9 +259,9 @@ def test_the_python_instructions_name_every_module_they_own():
     )
     assert modules, "no modules read — an empty set names itself"
     packages = sorted({m.parent.as_posix() for m in modules} - {"."})
-    assert not set(packages) - set(
-        within
-    ), f"packages with no Within paragraph: {sorted(set(packages) - set(within))}"
+    assert not set(packages) - set(within), (
+        f"packages with no Within paragraph: {sorted(set(packages) - set(within))}"
+    )
 
     unnamed = [
         module.as_posix()

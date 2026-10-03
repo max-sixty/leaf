@@ -351,12 +351,12 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
                 <strong>Receipt</strong>: which input reached the agent. Claude Code's
                 hooks put the envelope into the turn, inline or as a pointer. The agent
                 confirms it with <code>leaf delivery ack &lt;delivery-id&gt;</code> once
-                the complete envelope is in context; a hook timeout can discard
-                its output, so the hook itself confirms nothing. A Codex task running its own wait gets the envelope
-                printed and confirms it the same way; printed output can be lost or cut
-                off, so unconfirmed events stay available to the next wait. The Codex
-                adapter acknowledges what it carries, and the agent follows the
-                adapter's route rather than starting a competing wait.
+                the complete envelope is in context; a hook timeout can discard its
+                output, so the hook itself confirms nothing. A Codex task running its
+                own wait gets the envelope printed and confirms it the same way; printed
+                output can be lost or cut off, so unconfirmed events stay available to
+                the next wait. The Codex adapter acknowledges what it carries, and the
+                agent follows the adapter's route rather than starting a competing wait.
               </li>
               <li id="work-evidence">
                 <strong>Work</strong>: what the agent is doing. A move that asks for an
@@ -503,8 +503,8 @@ flowchart TD
                 comment at once, marked Sent.
               </lf-chronology-entry>
               <lf-chronology-entry id="updates-picked" at="1s" kind="observation">
-                <strong>Picked up</strong> The agent reads your comment in its turn
-                and confirms receipt. Your comment reads Picked up, and until the agent
+                <strong>Picked up</strong> The agent reads your comment in its turn and
+                confirms receipt. Your comment reads Picked up, and until the agent
                 writes its own words the banner reads
                 <em>Claude working — on your update</em>.
               </lf-chronology-entry>

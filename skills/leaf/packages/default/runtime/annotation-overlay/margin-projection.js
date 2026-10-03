@@ -184,6 +184,7 @@ import { placeKeeper } from "/runtime/user-place.js";
 import { under } from "/runtime/shadow.js";
 import { retainUserIntent } from "/runtime/user-intent.js";
 import { threadFocusDestination } from "/runtime/thread/focus.js";
+import { strongestWorkflow } from "/runtime/thread/workflow.js";
 
 // A margin card's reply box.
 const REPLY_BOX = `.lf-thread-reply ${TEXT_FIELD}`;
@@ -374,10 +375,11 @@ export function createMarginProjection({
 
   let workflowCarriers = new Set();
   let selectedReadingCarriers = new Set();
-  const rows = new Map();
-  const moreMarginEntries = new Map();
   const readingMarginEntries = new Map();
   const hosts = new Map();
+  function* markerRows() {
+    for (const host of hosts.values()) yield host.marker;
+  }
   let optionsOrdinal = 0;
   let pageInventory = [];
   // How far down the page each entry's target stands, in whole percent, as its marker's
@@ -395,7 +397,7 @@ export function createMarginProjection({
       .map((entry, index) => ({ entry, position: positions[index] }))
       .filter(({ entry }) => entryHasMarginHost(entry));
     walked.forEach(({ entry, position }, index) => {
-      const marker = rows.get(entry.key);
+      const marker = hosts.get(entry.key)?.marker;
       const name = markerName(entry, index, walked.length, position);
       paintMarker(marker, entry, hosts.get(entry.key).primary, {
         suppressed: Boolean(focusedOwnerOffer(entry)),
@@ -458,7 +460,7 @@ export function createMarginProjection({
       preview.contains(node) ||
       (panelIsOpen() && panel.contains(node)));
   function readingMarginEntry(entry, kind) {
-    const marker = rows.get(entry.key);
+    const marker = hosts.get(entry.key)?.marker;
     if (marker && !marker.hidden && primaryReading(entry)?.kind === kind) return marker;
     const choice = readingChoices(entry).find((candidate) => candidate.kind === kind);
     return choice
@@ -711,19 +713,21 @@ export function createMarginProjection({
       void floatingUi().then((ui) => stillCurrent() && watch(ui));
       return false;
     }
+    const thread = threadCardThread();
+    const latest = thread && turns(thread).at(-1);
     const replyEditor = previewList.querySelector(REPLY_BOX);
     // Drafting is standing anywhere in the reply's row, Send included, holding words in
     // it, or a send of the user's still on its way. The send takes the user out of the
     // box it empties (`landSent`), and the turn it adds must not move the reply row or
     // Send from under the press.
-    const newest = [
-      ...(replyEditor?.closest(".lf-page-thread")?.querySelectorAll(".lf-msg") ?? []),
-    ].at(-1);
+    const sending =
+      latest?.author === "user" &&
+      strongestWorkflow(latest.workflows)?.stage === "sending";
     const drafting = Boolean(
       replyEditor?.checkVisibility() &&
       (replyEditor.closest(".lf-thread-reply").contains(document.activeElement) ||
         replyEditor.value !== "" ||
-        newest?.matches('.user[aria-busy="true"]')),
+        sending),
     );
     const scroller = effectiveScroller(
       containingReadingRegionFor(place.element) ?? place.element,
@@ -746,8 +750,6 @@ export function createMarginProjection({
     // projected message's stable key so admitting a Send keeps the same hold. A later
     // reading turn or a new edit releases it; an arriving turn while drafting borrows it
     // anew, and a Send borrows it through the handoff out of the reply row.
-    const thread = threadCardThread();
-    const latest = thread && turns(thread).at(-1);
     const newDraft = drafting && !previewHold?.drafting;
     const continuedDraft =
       drafting && replyEditor?.value && replyEditor.value !== previewHold?.draftText;
@@ -959,7 +961,7 @@ export function createMarginProjection({
 
   // A row hidden with the annotation layer is not one the keyboard can land on either.
   function availableRows() {
-    return [...rows.values()].filter(
+    return [...markerRows()].filter(
       (row) =>
         !row.hidden &&
         !row.closest(".lf-withheld") &&
@@ -1034,7 +1036,7 @@ export function createMarginProjection({
       try {
         renderAnnotations.refresh();
         if (returnFocus && previousKey) {
-          handBack(moreMarginEntries.get(previousKey));
+          handBack(hosts.get(previousKey)?.more);
         } else if (focusOption && nextKey) {
           const choices = clusterMarginEntries(hosts.get(nextKey)?.options);
           const fallback = clusterMarginEntries(hosts.get(nextKey));
@@ -1117,7 +1119,7 @@ export function createMarginProjection({
     const entry = host?.lfEntry;
     if (!entry) return null;
     if (control.lfChoice) return control.lfChoice.kind;
-    return control === rows.get(entry.key)
+    return control === hosts.get(entry.key)?.marker
       ? (primaryReading(entry)?.kind ?? null)
       : null;
   }
@@ -1141,7 +1143,7 @@ export function createMarginProjection({
   function mapControlPlaces(entry = null) {
     const visible = visibleRows();
     return [
-      entry ? rows.get(entry.key) : null,
+      entry ? hosts.get(entry.key)?.marker : null,
       bannerControlDoor(mapButton),
       visible.find((row) => row.tabIndex === 0) ?? visible[0],
       bannerControlDoor(versionBtn),
@@ -1165,7 +1167,7 @@ export function createMarginProjection({
         return distance < nearest.distance ? { row, distance } : nearest;
       }, null)?.row;
     }
-    for (const row of rows.values()) keeps(row, "tabindex", row === stop ? 0 : -1);
+    for (const row of markerRows()) keeps(row, "tabindex", row === stop ? 0 : -1);
   }
 
   function syncRoving() {
@@ -1531,24 +1533,21 @@ export function createMarginProjection({
       expandedOptionsKey = null;
       expandedOptionsOwner = null;
     }
-    for (const key of rows.keys())
+    for (const [key, host] of hosts)
       if (!liveHosts.has(key)) {
-        const host = hosts.get(key);
         unregisterMarginRow(host);
-        host?.clear();
-        host?.remove();
-        rows.delete(key);
-        moreMarginEntries.delete(key);
+        host.clear();
+        host.remove();
         hosts.delete(key);
       }
     const nextWorkflowCarriers = new Set();
     pageInventory.forEach((entry, order) => {
       if (!entryHasMarginHost(entry)) return;
-      let marker = rows.get(entry.key);
-      let more = moreMarginEntries.get(entry.key);
       let host = hosts.get(entry.key);
+      let marker = host?.marker;
+      let more = host?.more;
       if (host) host.lfEntry = entry;
-      if (!marker) {
+      if (!host) {
         marker = presentContributionEntry(
           readingControl("lf-margin-marker"),
           contributionEntry({
@@ -1560,7 +1559,6 @@ export function createMarginProjection({
           }),
           { writesRelation: false, writesSeat: false },
         );
-        rows.set(entry.key, marker);
         // Its face is the cluster's to paint (margin-cluster-view.js).
         more = offer("button", "lf-margin-more");
         const optionsId = `lf-margin-options-${++optionsOrdinal}`;
@@ -1656,7 +1654,6 @@ export function createMarginProjection({
           },
           { capture: true },
         );
-        moreMarginEntries.set(entry.key, more);
         hosts.set(entry.key, host);
       }
       registerMarginRow(host, markerOptions(host, order));
@@ -1714,7 +1711,7 @@ export function createMarginProjection({
           !owner.checkVisibility() &&
           forcedInlineKey !== fresh.key &&
           expandedOptionsKey !== fresh.key &&
-          !moreMarginEntries.get(fresh.key)?.hidden
+          !hosts.get(fresh.key)?.more?.hidden
         ) {
           transferThreadFocus = threadOwnerHeld;
           unfoldOpenThreadOwner(fresh);
@@ -1725,7 +1722,7 @@ export function createMarginProjection({
         else {
           transferThreadCard(owner, { returnFocus: threadOwnerHeld });
           buildThreadCard(fresh);
-          for (const row of rows.values())
+          for (const row of markerRows())
             syncReadingRelation(row, primaryReading(row.lfEntry));
           for (const reading of readingMarginEntries.values())
             syncReadingRelation(reading, reading.lfChoice);
@@ -1948,7 +1945,7 @@ export function createMarginProjection({
     });
     const positioned = placedThreadPreview();
     refreshHighlight();
-    for (const row of rows.values())
+    for (const row of markerRows())
       syncReadingRelation(row, primaryReading(row.lfEntry));
     for (const button of readingMarginEntries.values())
       syncReadingRelation(button, button.lfChoice);
@@ -1998,7 +1995,7 @@ export function createMarginProjection({
     if (forcedOptionsKey && expandedOptionsKey === forcedOptionsKey)
       setOptionsOpen(null, false);
     refreshHighlight();
-    for (const row of rows.values())
+    for (const row of markerRows())
       syncReadingRelation(row, primaryReading(row.lfEntry));
     for (const reading of readingMarginEntries.values())
       syncReadingRelation(reading, reading.lfChoice);
@@ -2205,7 +2202,7 @@ export function createMarginProjection({
     const shown = (control) => (control?.checkVisibility() ? control : null);
     const marker = unfold
       ? null
-      : (shown(threadMarginEntry(entry)) ?? shown(rows.get(entry.key)));
+      : (shown(threadMarginEntry(entry)) ?? shown(hosts.get(entry.key)?.marker));
     if (!unfold && !marker) return null;
     const previousForcedOptionsKey = forcedInlineOptionsKey;
     const transfersPreview = previewOpen();
@@ -2617,7 +2614,7 @@ export function createMarginProjection({
     mapFocusTarget: (entry) => {
       const visible = visibleRows();
       return entry
-        ? (rows.get(entry.key) ?? null)
+        ? (hosts.get(entry.key)?.marker ?? null)
         : (visible.find((row) => row.tabIndex === 0) ?? visible[0] ?? null);
     },
     targetFor,

@@ -920,7 +920,7 @@ def test_a_comment_uses_the_viewport_when_its_target_fills_the_vertical_lane(
             )
         ),
     )
-    resized(page, 511, 320)
+    resized(page, 511, 336)
     target = page.locator("#target")
     target.click(modifiers=["Alt"], position={"x": 200, "y": 25})
     field = open_compact_comment(page)
@@ -943,7 +943,7 @@ def test_a_comment_uses_the_viewport_when_its_target_fills_the_vertical_lane(
     banner = page.locator(".lf-banner").bounding_box()
     box = bar.bounding_box()
     ceiling = max(48, banner["y"] + banner["height"] + 6)
-    assert box["y"] >= ceiling and box["y"] + box["height"] <= 312, box
+    assert box["y"] >= ceiling and box["y"] + box["height"] <= 328, box
 
     field.evaluate("node => { node.scrollTop = 0; }")
     field.click(position={"x": 20, "y": 20})

@@ -29,6 +29,7 @@ from leaf_dev.harness import (
     completed,
     environment,
     hook_delivered,
+    inputs_received,
     now,
     read_trace,
     run_claude,
@@ -614,7 +615,8 @@ def execute_live(run: Run, case: Case, work: Path, page: Path) -> None:
     (run.dir / "prompt-1.txt").write_text(prompt)
     # The deadline for the posted round's delivery; unstarted until the first post.
     waiting = threading.Timer(DELIVERY_LIMIT, lambda: None)
-    url, posted, delivered = None, 0, 0
+    url, posted = None, 0
+    attempts = set()
     try:
         with (
             LiveChild(
@@ -639,25 +641,27 @@ def execute_live(run: Run, case: Case, work: Path, page: Path) -> None:
 
             for record in child.records():
                 note(record)
-                arrived = hook_delivered(record) + sum(
-                    "wait --ack" in c or "delivery read" in c for c in commands(record)
-                )
-                if arrived:
-                    delivered += arrived
-                    waiting.cancel()
                 if not url and (found := URL.search(json.dumps(record))):
                     url = found[0]
+                received = not posted or inputs_received(page_events(page), attempts)
+                if received:
+                    waiting.cancel()
                 if record.get("type") != "result":
                     continue
                 status = page_state(run, page).get("status")
                 note({"type": "eval_status", "status": status, "received_at": now()})
-                if delivered < posted:
+                if not received:
                     continue
                 if url and posted < len(case.rounds):
                     time.sleep(3)
                     if run.case == "elided" and posted == 0:
                         append_elided_history(run, page)
                     post_round(run, page, PageClient(url), case.rounds[posted], posted)
+                    attempts.update(
+                        attempt_key(posted, i)
+                        for i, move in enumerate(case.rounds[posted])
+                        if move["kind"] != "error"
+                    )
                     posted += 1
                     note({"type": "eval_post", "round": posted, "received_at": now()})
                     waiting = threading.Timer(DELIVERY_LIMIT, child.close)

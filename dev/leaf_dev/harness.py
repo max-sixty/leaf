@@ -450,6 +450,23 @@ def hook_delivered(record: dict) -> bool:
     )
 
 
+def inputs_received(events: list[dict], attempts: set[str]) -> bool:
+    """Whether every posted user attempt has an admitted reader receipt.
+
+    Inline context, pointer reads, and attempted ACK commands are presentations,
+    not acceptance. Only opened pickups name the exact inputs a reader received.
+    Page-authored errors carry no user attempt and do not advance user rounds.
+    """
+    inputs = {e["id"] for e in events if e.get("attempt") in attempts}
+    received = {
+        ident
+        for e in events
+        if e["kind"] == "pickup" and e["phase"] == "opened"
+        for ident in e["events"]
+    }
+    return len(inputs) == len(attempts) and inputs <= received
+
+
 def read_trace(stream: Path) -> list[dict]:
     return [json.loads(line) for line in stream.read_text().splitlines()]
 

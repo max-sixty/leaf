@@ -17,8 +17,8 @@ checkpoints supply the appearance gate in `test_render_thread_snapshots.py`.
 geometry live in `max-sixty/leaf-assets`, governed by `leaf-assets.json`. Run evidence
 stays in `.tmp/`.
 
-Linux browser tests use `tests/fonts.conf` and `fonts-dejavu-core` for their native
-UI, serif and mono faces. Install that package before `wt setup`; CI installs it
+Linux browser tests use `tests/fonts.conf` and `fonts-dejavu` for their native
+UI, serif and mono faces, including bold and italic styles. Install that package before `wt setup`; CI installs it
 explicitly. The PNG rendering profile binds the fontconfig and installed font bytes,
 and an actual Chromium font reading verifies those faces. Mac uses its native fonts.
 

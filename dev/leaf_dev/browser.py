@@ -26,14 +26,21 @@ LINUX_FONTS = Path("/usr/share/fonts/truetype/dejavu")
 def linux_font_fingerprint():
     """Bind the fixed fontconfig and installed font bytes to reviewed Linux images.
 
-    CI and local Linux capture install fonts-dejavu-core. An absent face is a setup
-    error; changed font bytes require an explicitly reviewed rendering profile.
+    CI and local Linux capture install fonts-dejavu, including its italic faces.
+    An absent face is a setup error; changed font bytes require an explicitly
+    reviewed rendering profile.
     """
-    for name in ("DejaVuSans.ttf", "DejaVuSerif.ttf", "DejaVuSansMono.ttf"):
-        if not (LINUX_FONTS / name).is_file():
-            raise RuntimeError(
-                "Install fonts-dejavu-core before running Linux browser tests"
-            )
+    for family, italic in (
+        ("DejaVuSans", "Oblique"),
+        ("DejaVuSerif", "Italic"),
+        ("DejaVuSansMono", "Oblique"),
+    ):
+        for style in ("", "-Bold", f"-{italic}", f"-Bold{italic}"):
+            if not (LINUX_FONTS / f"{family}{style}.ttf").is_file():
+                raise RuntimeError(
+                    "Install fonts-dejavu before running Linux browser tests "
+                    "(core alone omits UI and serif italic faces)"
+                )
     # Bind only the selected faces, so unrelated installed font packages do not
     # create another rendering profile for the same UI.
     faces = {

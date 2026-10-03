@@ -27,20 +27,44 @@ from render_harness import consume_browser_errors, leaf_page, open_page
     sys.platform != "linux", reason="Linux's fixed native font contract"
 )
 def test_linux_browser_resolves_the_profile_fonts(browser, serve):
-    """The actual browser's UI, serif and mono faces match the keyed font environment."""
+    """Native UI, serif and mono styles all use the faces bound into the profile."""
     faces = {
-        "system-ui": "DejaVu Sans",
-        "serif": "DejaVu Serif",
-        "monospace": "DejaVu Sans Mono",
+        "system-ui": ("DejaVu Sans", "DejaVuSans", "Oblique"),
+        "serif": ("DejaVu Serif", "DejaVuSerif", "Italic"),
+        "monospace": ("DejaVu Sans Mono", "DejaVuSansMono", "Oblique"),
+    }
+    styles = (
+        ("normal", "normal"),
+        ("bold", "normal"),
+        ("normal", "italic"),
+        ("bold", "italic"),
+    )
+    readings = {
+        f"{name}-{weight}-{style}": (
+            family,
+            base
+            + ("-" if weight == "bold" or style == "italic" else "")
+            + ("Bold" if weight == "bold" else "")
+            + (italic if style == "italic" else ""),
+        )
+        for name, (family, base, italic) in faces.items()
+        for weight, style in styles
     }
     page = open_page(
         browser,
         serve(
             leaf_page(
                 "Font contract",
-                "".join(f'<p id="{name}">Native Leaf words 0123</p>' for name in faces),
+                "".join(
+                    f'<p id="{name}">Native Leaf words 0123</p>' for name in readings
+                ),
                 head="<style>"
-                + "".join(f"#{name} {{ font-family: {name}; }}" for name in faces)
+                + "".join(
+                    f"#{name}-{weight}-{style} {{ font-family: {name}; "
+                    f"font-weight: {weight}; font-style: {style}; }}"
+                    for name in faces
+                    for weight, style in styles
+                )
                 + "</style>",
             )
         ),
@@ -49,7 +73,7 @@ def test_linux_browser_resolves_the_profile_fonts(browser, serve):
     session.send("DOM.enable")
     session.send("CSS.enable")
     root = session.send("DOM.getDocument")["root"]["nodeId"]
-    for name, family in faces.items():
+    for name, (family, postscript) in readings.items():
         node = session.send(
             "DOM.querySelector", {"nodeId": root, "selector": f"#{name}"}
         )["nodeId"]
@@ -61,6 +85,7 @@ def test_linux_browser_resolves_the_profile_fonts(browser, serve):
             ),
         )
         assert all(not font["isCustomFont"] for font in fonts), fonts
+        assert {font["postScriptName"] for font in fonts} == {postscript}, fonts
     session.detach()
 
 

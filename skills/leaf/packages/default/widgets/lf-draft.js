@@ -11,14 +11,14 @@
  *
  * Two rules shape the implementation:
  *
- * 1. Authored text stays in the light DOM as real text. A textarea's value lives off
+ * 1. Authored text stays in the light DOM as real text. An editor's value lives off
  *    the text-node tree, so anything inside one is invisible to comment anchoring and
  *    to the version diff. So the body is a plain div — generated, but deliberately NOT
  *    marked .lf-ui or data-lf-gen, because those are exactly the markers that tell the
  *    anchor pass and the diff to look away. A div and not the <pre> the markup wrote,
  *    which would be the tidier swap: <pre> is a text block, and the runtime's comment
  *    line lands on the nearest one, so keeping it puts that line inside the words the
- *    editor is seeded from — the exact failure the marker rules exist for. The textarea
+ *    editor is seeded from — the exact failure the marker rules exist for. The shared text field
  *    exists only while an edit is open, and its result is written back as text. Read
  *    mode is the resting state; comments and Δ work there. Leaf's authored-body
  *    decoder strips the indentation the HTML source gave every line, so an agent can
@@ -50,8 +50,10 @@
  * the log attempt makes two tabs' Save presses one action, while the instance flag closes
  * this tab's other edit doors during the request.
  *
- * Once an edit exists, a native disclosure compares the authored body with the
- * standing one and lists the widget's absolute edit actions in log order. The runtime
+ * A native disclosure compares the authored body with the standing one and lists
+ * the widget's absolute edit actions in log order. It keeps its allocated summary
+ * from the first reading, including zero edits, so first Save and refusal never add
+ * or remove room after the gesture. The runtime
  * owns that sequence and version boundary; the module owns only
  * its presentation. Restoring a row sends its text as one more ordinary edit, which
  * keeps one state model and lets another tab converge without knowing that the gesture
@@ -63,7 +65,7 @@
  * `reachedForWords` answers for every other press on the page's own words. A single
  * press makes a collapsed caret, so there is no selection to flash and nothing to
  * cancel — the word-flash this door used to have to preventDefault away was the second
- * mousedown of a double-click, and that mousedown now lands in the open textarea, where
+ * mousedown of a double-click, and that mousedown now lands in the open editor, where
  * selecting a word is what a double-click means everywhere else.
  *
  * The local editor and history are injected through the runtime's `offer`, which marks them
@@ -71,7 +73,7 @@
  * thing to work. The margin controls are projection-owned DOM rendered from this widget's
  * immutable contribution. Those boundaries keep chrome off the printed page, out of the
  * anchor pass, and out of the way of the box's own door below; the class also earns the
- * edit box the runtime's one textarea rule. Presentation is theme CSS, the
+ * edit box the runtime's shared text-field rule. Presentation is theme CSS, the
  * swap between the two views included: an open edit is the box being in the document, so
  * the CSS reads that and this module writes no display state at all. Which is also what
  * lets paper disagree — it drops the box and keeps the words. History is chrome too and
@@ -84,6 +86,7 @@ import {
   holdFocus,
   once,
   offer,
+  TEXT_FIELD,
   paintKeys,
   quoted,
   revisionLabel,
@@ -117,7 +120,7 @@ const clearEdit = (id) => clearDraft(ctx(id));
 const loadEdit = (id) => loadDraft(ctx(id));
 
 // Where the click asked for the caret, as an offset in the body's text — the body holds
-// one text node, so its offsets are the textarea's offsets. Past the end of the text
+// one text node, so its offsets are the editor's source offsets. Past the end of the text
 // there is no offset to carry at all, and the box opens where focus alone would have put
 // it.
 //
@@ -125,7 +128,7 @@ const loadEdit = (id) => loadDraft(ctx(id));
 // This used to widen the offset to the word around it, through an Intl.Segmenter that
 // knew the boundaries of the language the draft was written in, because the door was a
 // double-click and a double-click means the word. The door is a single click now, and
-// the second click of a double lands in the textarea the first one opened — so the word
+// the second click of a double lands in the editor the first one opened — so the word
 // is selected by the browser, in its own box, by the same segmentation it uses in every
 // other text field. The widget had been reimplementing that to hand it back.
 function caretAt(body, x, y) {
@@ -142,7 +145,7 @@ customElements.define(
     #history = null;
     #historyKey = "";
     #alignments = new Map();
-    #ta = null;
+    #editor = null;
     #sending = false;
     #failed = false;
     #margin = null;
@@ -237,7 +240,7 @@ customElements.define(
       const interactive = !quoted(this);
       if (
         interactive &&
-        this.#ta &&
+        this.#editor &&
         !this.#resumeProjection &&
         this.#controller.read().actions.edit.available
       )
@@ -247,7 +250,7 @@ customElements.define(
         this.#renderHistory(reading);
         this.#paintAvailability();
         this.#recoverEdit(reading);
-        if (this.#ta && !this.#resumeProjection && reading.actions.edit.available)
+        if (this.#editor && !this.#resumeProjection && reading.actions.edit.available)
           this.#resumeProjection = this.#controller.defer();
       });
     }
@@ -280,9 +283,10 @@ customElements.define(
         ctx(this.id),
         (text) => {
           if (text === null) this.#close(false);
-          else if (this.#ta && this.#ta.value !== text) this.#ta.value = text;
+          else if (this.#editor && this.#editor.value !== text)
+            this.#editor.value = text;
         },
-        { input: this.#ta },
+        { input: this.#editor },
       );
     }
 
@@ -308,44 +312,50 @@ customElements.define(
         [
           {
             id: "draft.edit",
+            contextKeys: ["1"],
+            bindingBadge: null,
             keys: [],
             control: () => this.#margin?.control("edit"),
-            decision: "Edit…",
-            does: "Edit the text in place",
-            line: "edit",
-            when: () => !this.#ta,
+            decision: true,
+            title: "Edit…",
+            description: "Edit the text in place",
+            when: () => !this.#editor,
             run: () => this.#margin?.activate("edit"),
           },
           {
             id: "draft.save",
+            contextKeys: ["1"],
+            bindingBadge: null,
             reach: "in an open draft editor",
             keys: submitBindings,
             label: submitLabel,
             control: () => this.#margin?.control(this.#saveKey()),
-            decision: () => (this.#failed ? "Retry" : "Save"),
-            does: () => (this.#failed ? "Retry saving the edit" : "Save the edit"),
-            line: () => (this.#failed ? "retry" : "save"),
-            when: () => Boolean(this.#ta),
+            decision: true,
+            title: () => (this.#failed ? "Retry" : "Save"),
+            description: () =>
+              this.#failed ? "Retry saving the edit" : "Save the edit",
+            when: () => Boolean(this.#editor),
             run: () => this.#margin?.activate(this.#saveKey()),
           },
           {
             id: "draft.cancel",
+            contextKeys: ["2"],
+            bindingBadge: null,
             reach: "in an open draft editor",
             keys: [],
             control: () => this.#margin?.control("cancel"),
-            decision: "Cancel",
-            does: "Cancel the edit",
-            line: "cancel",
-            when: () => Boolean(this.#ta),
+            decision: true,
+            title: "Cancel",
+            description: "Cancel the edit",
+            when: () => Boolean(this.#editor),
             run: () => this.#margin?.activate("cancel"),
           },
           {
             id: "draft.close",
             reach: "in an open draft editor",
             keys: ["Escape"],
-            does: "Close the editor, keeping the edit",
-            line: "close — edit kept",
-            when: () => Boolean(this.#ta),
+            title: "close — edit kept",
+            when: () => Boolean(this.#editor),
             run: () => this.#close(false),
           },
         ],
@@ -366,7 +376,7 @@ customElements.define(
 
     #entries() {
       const available = this.#available();
-      if (!this.#ta)
+      if (!this.#editor)
         return [
           contributionEntry({
             key: "edit",
@@ -413,18 +423,19 @@ customElements.define(
           ? "failed"
           : this.#sending
             ? "busy"
-            : this.#ta
+            : this.#editor
               ? "engaged"
               : "idle",
         side: "before",
-        notice: this.#failed && this.#ta ? { text: "Failed", tone: "negative" } : null,
+        notice:
+          this.#failed && this.#editor ? { text: "Failed", tone: "negative" } : null,
         entries: this.#entries(),
         readings: [
           {
             id: `draft:${this.id}`,
-            text: this.#ta ? "Save or cancel draft edit" : `Edit ${this.id}`,
+            text: this.#editor ? "Save or cancel draft edit" : `Edit ${this.id}`,
             activate: () => {
-              if (this.#ta) this.#ta.focus({ preventScroll: true });
+              if (this.#editor) this.#editor.focus({ preventScroll: true });
               else this.#margin?.focus("edit");
             },
           },
@@ -447,7 +458,10 @@ customElements.define(
       paintKeys();
     }
 
-    #paintAvailability = () => this.#refreshMargin();
+    #paintAvailability = () => {
+      if (this.#editor) this.#editor.readOnly = !this.#available();
+      this.#refreshMargin();
+    };
 
     #available() {
       return Boolean(this.#controller.read().actions.edit?.available);
@@ -501,8 +515,6 @@ customElements.define(
     }
 
     #renderHistory(reading) {
-      this.#paintAvailability();
-      if (this.#sending) return;
       const authored = reading.authored.edit.value;
       const actions = reading.actions.edit.history;
       const standing = reading.state.edit.value;
@@ -513,12 +525,6 @@ customElements.define(
       ]);
       if (key === this.#historyKey) return;
       this.#historyKey = key;
-      if (!actions.length && standing === authored) {
-        this.#history?.remove();
-        this.#history = null;
-        return;
-      }
-
       const wasOpen = this.#history?.open ?? false;
       const restoreFocus = this.#history && holdFocus(this.#history);
       const history = offer("details", "lf-draft-history");
@@ -564,8 +570,7 @@ customElements.define(
         {
           id: "draft.history.toggle",
           keys: () => DISCLOSE(summary),
-          does: () => `${history.open ? "Hide" : "Show"} the edit history`,
-          line: () => `${history.open ? "hide" : "show"} the history`,
+          title: () => `${history.open ? "hide" : "show"} the history`,
         },
       ]);
 
@@ -583,7 +588,7 @@ customElements.define(
         notice("Wait for the current edit to finish sending");
         return;
       }
-      if (this.#ta) {
+      if (this.#editor) {
         notice("Save or cancel the open edit before restoring history");
         return;
       }
@@ -595,25 +600,23 @@ customElements.define(
       this.#sending = false;
       this.removeAttribute("aria-busy");
       this.#refreshMargin();
-      this.#renderHistory(this.#controller.read());
       if (ok) notice(`Restored ${label.toLowerCase()} — sent`);
     }
 
     #open(seed, at, arrive = true) {
-      if (this.#ta) return;
+      if (this.#editor) return;
       if (this.#sending) {
         notice("Wait for the current edit to finish sending");
         return;
       }
       if (this.#available()) this.#resumeProjection ??= this.#controller.defer();
-      const ta = offer("textarea", "lf-draft-edit");
-      ta.name = "edit";
+      const editor = offer(TEXT_FIELD, "lf-draft-edit");
       // A set-aside edit outranks the authored text here too: reopening resumes it.
       const effective = this.#controller.read().state.edit.value;
-      ta.value = seed ?? loadEdit(this.id) ?? effective;
-      ta.setAttribute("aria-label", `Edit ${this.id}`);
-      ta.addEventListener("input", () => {
-        saveEdit(this.id, ta.value);
+      editor.value = seed ?? loadEdit(this.id) ?? effective;
+      editor.setAttribute("aria-label", `Edit ${this.id}`);
+      editor.addEventListener("input", () => {
+        saveEdit(this.id, editor.value);
         if (this.#failed) {
           this.#failed = false;
           this.#refreshMargin();
@@ -624,24 +627,24 @@ customElements.define(
       // discard) — and being the innermost scope's is what keeps the runtime's own rung
       // from running behind it and closing the panel too, which the widget used to have to
       // prevent by consuming the press.
-      this.#ta = ta;
+      this.#editor = editor;
       this.#watchDraft();
-      commands(ta, this.#commandScope);
-      this.#body.after(ta);
-      this.#refreshMargin();
+      commands(editor, this.#commandScope);
+      this.#body.after(editor);
+      this.#paintAvailability();
       // A pointer is already on visible words. Opening their editor preserves that
       // place before handing the clicked caret across; the pencil instead reveals
-      // the initial caret at the start of the text. A padding press carries null.
-      if (arrive) ta.focus({ preventScroll: at !== undefined });
+      // the initial caret at the end of the text. A padding press carries null.
       // Only the pointer names a place; the pencil and a recovered draft leave the
-      // caret where focus put it, at the start of the text. The range was measured
+      // caret where focus put it, at the end of the text. The range was measured
       // in the body's text, so it names a word only in a box holding that text — a
       // resumed edit opens with different words at those offsets.
-      if (at && ta.value === effective) ta.setSelectionRange(at[0], at[1]);
+      if (at && editor.value === effective) editor.setSelectionRange(at[0], at[1]);
+      if (arrive) editor.focus({ preventScroll: at !== undefined });
     }
 
     #close(discard) {
-      if (!this.#ta) return;
+      if (!this.#editor) return;
       if (discard) clearEdit(this.id);
       // Only where the user was standing in it. A close this tab's own gesture made
       // has focus in the box that is going, and the draft's one persistent control is
@@ -650,8 +653,8 @@ customElements.define(
       const stood =
         this.contains(document.activeElement) ||
         this.#margin?.contains(document.activeElement);
-      this.#ta.remove();
-      this.#ta = null;
+      this.#editor.remove();
+      this.#editor = null;
       this.#watchDraft();
       this.#failed = false;
       this.#refreshMargin({
@@ -665,9 +668,9 @@ customElements.define(
     }
 
     async #commit() {
-      if (!this.#ta || this.#sending) return;
+      if (!this.#editor || this.#sending) return;
       if (!this.#available()) return;
-      const text = this.#ta.value;
+      const text = this.#editor.value;
       if (text === this.#controller.read().state.edit.value) {
         this.#close(true);
         return;
@@ -683,7 +686,6 @@ customElements.define(
       this.#sending = false;
       this.removeAttribute("aria-busy");
       this.#refreshMargin();
-      this.#renderHistory(this.#controller.read());
       if (ok) {
         notice(`Edited “${this.id}” — sent`);
       } else {

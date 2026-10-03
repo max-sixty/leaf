@@ -102,7 +102,7 @@ other page files and the external state listed below.
   `thread.py` owns response reservations and their release. Every reader loads it
   through `service.read_status`, which reads a missing file as no declaration.
 
-- `waiter.lock` — bare-shell wait lease, present only while held; host sessions instead
+- `waiter.lock` — stable bare-shell wait lease file; host sessions instead
   use `<state-home>/sessions/<session>.wait`. See [session-lifetime.md](session-lifetime.md).
 
 - `viewed.json` — last visible browser attention, written by the server and absent until
@@ -116,7 +116,7 @@ other page files and the external state listed below.
   hands the file to the page whole. Its presence exempts the page from the handoff's watcher guard.
 
 - `service.json` — desired server address, enabled state, lifetime, and runtime
-  provenance, plus a `restart` mark while `page init` holds a served page down to
+  provenance and current serving incarnation (`server_id`), plus a `restart` mark while `page init` holds a served page down to
   re-vendor it, which any other stop replaces so the restart leaves that stop
   alone. `hosting.py` owns start/stop, restart, and revival;
   [session-lifetime.md, “Lifetime”](session-lifetime.md#lifetime) owns the lifetime rule.
@@ -126,13 +126,22 @@ other page files and the external state listed below.
   it to serialize service changes, re-vendoring, and contract-bearing writes, so it
   writes nothing and ends with the page.
 
-- `server.lock` — process-held server lease. `hosting.py` waits for its release on stop,
-  after the server has closed its sockets.
+- `server.lock` — process-held serving incarnation lease. Its bytes name the
+  HTTP server's `server_id`; only an exclusive kernel lock with the same identity
+  as the enabled service proves that service is live. Preparation clears retained
+  metadata under a shared lock before taking the exclusive lease, so a private
+  listener cannot advertise a prior incarnation. `hosting.py` waits for release
+  on stop, after sockets close. The stable file remains after release.
 
 - `<state-home>/claims/` — one atomic claim per resolved page, independent of its page
-  directory, and removed by the first scan that finds that directory gone
-  (`service.claim_records`). [session-lifetime.md](session-lifetime.md) owns claimant
-  identity, release, harness, and lifetime.
+  directory. Scans ignore claims for missing pages; fresh page initialization clears
+  the prior claim under the page lock. [session-lifetime.md](session-lifetime.md) owns
+  claimant identity, release, harness, and lifetime.
+
+- `<state-home>/rows/<page-key>.json` — disposable delivery output of a serving
+  page's own canonical activity. `server_rows.py` owns the record, producer and
+  freshness contract. It is never read by a page's semantic fold; losing it only
+  hides that neighbor until the server's next maintenance look.
 
 ## Revision delivery
 

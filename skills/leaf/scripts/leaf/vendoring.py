@@ -41,7 +41,7 @@ from .schema import (
     STATUS_FILE,
 )
 from .service import PageTransaction, claim_path, read_status
-from .session_cleanup import EVENTS_FILE, json_bytes, now_iso, write_json
+from .state import EVENTS_FILE, json_bytes, now_iso, write_json
 from .structure import SourceDocument
 from .validation.compatibility import candidate_vocabulary_gaps
 from .validation.source import check_source

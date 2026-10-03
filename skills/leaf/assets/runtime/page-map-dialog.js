@@ -16,6 +16,8 @@
    in the search enters the list at the first match, and a row's Enter is its own press.
    A finger opens the map on its first row rather than in the search, since focusing the
    search raises a soft keyboard over the list the finger came to tap.
+   A disclosure's deferred child arrival yields to newer input while its revealed
+   choices stay available.
 
    Boot supplies the inventory and current annotation focus capabilities. Its
    mount attaches the dialog and binds controls; importing the module does not
@@ -32,6 +34,7 @@ import { rowWalk } from "./walk-position.js";
 import { closeControl, el, offer } from "./widget-elements.js";
 import { keepsHidden, keepsText } from "./keeps.js";
 import { placeKeeper } from "./user-place.js";
+import { retainUserIntent } from "./user-intent.js";
 import {
   BANNER_CONTROL_RANK,
   bannerControlDoor,
@@ -115,18 +118,18 @@ export function createPageMapDialog({
   let target = null;
   let trackedOffers = new Set();
 
-  const pageMapIsActive = () => dialog.open || activeInAnnotations();
+  const pageMapIsActive = () => dialog.open || Boolean(activeInAnnotations?.());
 
   function activateItem(item, entry) {
-    releaseAnnotations(entry);
-    const destination = annotationFocus(entry);
+    releaseAnnotations?.(entry);
+    const destination = annotationFocus?.(entry);
     leavePageMap();
     handBack(destination, pageMapInvoker(), bannerControlDoor(versionBtn));
-    inventory.activate(item);
     // A location without a presented annotation lands on its exact authored target.
     // Commands that open a Thread or Ask retain their own navigation capability.
     if (!destination && targetFor(entry)?.isConnected)
       focusDestination(targetFor(entry));
+    inventory.activate(item);
   }
 
   function pageMapDialogContains(candidate, node) {
@@ -155,12 +158,14 @@ export function createPageMapDialog({
     // The first press can then reveal the exact second action without closing the
     // only surface where a spilled contribution is reachable.
     if (relation?.kind === "entries") {
+      const currentIntent = retainUserIntent({ available: () => dialog.open });
       contributionSource(offered).registration.activate(record.key, {
         origin: control,
         surface: "map",
         input: event.detail === 0 ? "keyboard" : "pointer",
       });
       nextRender(() => {
+        if (!currentIntent()) return;
         const revealed = relation.keys
           .map((key) =>
             contributionSource(offered).registration.control(key, "map", true),
@@ -442,7 +447,7 @@ export function createPageMapDialog({
       handBack(
         returnTo,
         pageMapInvoker(),
-        annotationFocus(null),
+        annotationFocus?.(null),
         bannerControlDoor(versionBtn),
       );
     });
@@ -463,16 +468,16 @@ export function createPageMapDialog({
         {
           id: "map.search.enter",
           keys: ["ArrowDown"],
-          does: "Go from the search to the first entry",
-          line: "to the entries",
+          description: "Go from the search to the first entry",
+          title: "to the entries",
           when: hasRows,
           run: () => mapRows()[0].focus(),
         },
         {
           id: "map.search.open",
           keys: ["Enter"],
-          does: "Open the first matching entry",
-          line: "open first",
+          description: "Open the first matching entry",
+          title: "open first",
           when: hasRows,
           run: () => mapRows()[0].click(),
         },

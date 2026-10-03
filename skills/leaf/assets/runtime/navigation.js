@@ -6,7 +6,6 @@ import { reducedMotion, scrollBehavior } from "./motion.js";
 import { pageScroller } from "./scrolling.js";
 import { landingBand } from "./geometry.js";
 import { effectiveScroller, userReadingRegion } from "./reading-regions.js";
-import { closestAcross } from "./passages.js";
 import { walkOrigin } from "./standing-target.js";
 import { under } from "./shadow.js";
 import { announce } from "./notifications.js";
@@ -19,18 +18,15 @@ const walkableThreads = (panelIsOpen, { threadsBox, openThreads }) =>
 
 // The walk's place: the list thread holding focus, or the thread the user is at from
 // its target (`threadHere`), in the list or beside the page.
-const currentThread = (threads, threadHere, panelIsOpen) =>
-  panelIsOpen()
-    ? (threads.find(
-        (thread) =>
-          thread.dataset.id ===
-          closestAcross(document.activeElement, ".lf-thread[data-id]")?.dataset.id,
-      ) ?? threads.find((thread) => thread.dataset.id === threadHere()?.dataset.thread))
-    : threads.find((thread) => thread.dataset.id === threadHere()?.dataset.thread);
+const currentThread = (threads, threadHere) => {
+  const held = threadHere();
+  const id = held?.dataset.id ?? held?.dataset.thread;
+  return threads.find((thread) => thread.dataset.id === id);
+};
 
 const threadPosition = (threadHere, panelIsOpen, narrowing, list) => {
   const threads = walkableThreads(panelIsOpen, list);
-  const current = currentThread(threads, threadHere, panelIsOpen);
+  const current = currentThread(threads, threadHere);
   return listWalkPosition(threads, current, {
     identity: (thread) => thread.dataset.id,
     qualifier: panelIsOpen() && narrowing.narrowed() ? "shown" : "",
@@ -67,7 +63,7 @@ function stepThread(dir, destinations, panelIsOpen, narrowing, list) {
   const { threadsBox } = list;
   const { openPageThread, scrollToThread, threadHere, threadTarget } = destinations;
   const threads = walkableThreads(panelIsOpen, list);
-  const current = currentThread(threads, threadHere, panelIsOpen);
+  const current = currentThread(threads, threadHere);
   const next = current
     ? clampedRow(threads, current, dir)
     : threadFrom(
@@ -249,11 +245,11 @@ export function createNavigation({
     // share one compact, repeatable grammar.
     keys: ["t", "Shift+t"],
     routes: [
-      { id: "thread.next", binding: "t", does: "Next open thread" },
-      { id: "thread.previous", binding: "Shift+t", does: "Previous open thread" },
+      { id: "thread.next", binding: "t", title: "Next open thread" },
+      { id: "thread.previous", binding: "Shift+t", title: "Previous open thread" },
     ],
-    does: "Next / previous open thread",
-    line: "threads",
+    description: "Next / previous open thread",
+    title: "threads",
     covering: true,
     // Once textual search owns the panel, n/N are the canonical walk there. Keep t/T as
     // the page's open-thread walk without leaving two spellings for the same panel action.
@@ -278,13 +274,18 @@ export function createNavigation({
       {
         id: "page.down",
         binding: "d",
-        does: "Move 60% of a page down",
-        line: "page down",
+        description: "Move 60% of a page down",
+        title: "page down",
       },
-      { id: "page.up", binding: "u", does: "Move 60% of a page up", line: "page up" },
+      {
+        id: "page.up",
+        binding: "u",
+        description: "Move 60% of a page up",
+        title: "page up",
+      },
     ],
-    does: "Move 60% of a page down or up",
-    line: "page down / up",
+    description: "Move 60% of a page down or up",
+    title: "page down / up",
     covering: true,
     repeat: true,
     run: (binding) => move(binding === "d" ? 0.6 : -0.6, "page"),
@@ -297,13 +298,18 @@ export function createNavigation({
       {
         id: "scroll.down",
         binding: "j",
-        does: "Scroll down a little",
-        line: "scroll down",
+        description: "Scroll down a little",
+        title: "scroll down",
       },
-      { id: "scroll.up", binding: "k", does: "Scroll up a little", line: "scroll up" },
+      {
+        id: "scroll.up",
+        binding: "k",
+        description: "Scroll up a little",
+        title: "scroll up",
+      },
     ],
-    does: "Scroll down or up a little",
-    line: "scroll down / up",
+    description: "Scroll down or up a little",
+    title: "scroll down / up",
     covering: true,
     repeat: true,
     run: (binding) => move(binding === "j" ? 60 : -60, "pixel"),

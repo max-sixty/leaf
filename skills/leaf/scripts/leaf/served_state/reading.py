@@ -19,8 +19,8 @@ from ..schema import (
     USER_VIEWS_LOCK,
     VIEWED_FILE,
 )
-from ..service import claim_path
-from ..session_cleanup import EVENTS_FILE
+from ..service import claim_path, page_claim
+from ..state import EVENTS_FILE, SESSION_SUFFIX, session_file
 
 # Diagnostic writes cannot move application state. The server writes `viewed.json`
 # when a visible tab asks for its freshness reading and `interactions.jsonl` for every request
@@ -67,6 +67,13 @@ def page_reading(page_dir: Path) -> str:
     """
     stamps = _page_stamps(page_dir)
     stamps.append(("", file_stamp(claim_path(page_dir))))
+    claim = page_claim(page_dir)
+    if claim:
+        # Turn openings/closings and SessionEnd are shared session publications,
+        # not rewrites of every page claim. They change each claimed page's state.
+        stamps.append(
+            ("$session", file_stamp(session_file(claim["id"], SESSION_SUFFIX)))
+        )
     return _token(stamps)
 
 

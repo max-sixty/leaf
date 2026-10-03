@@ -45,9 +45,7 @@ export function declareLeavesKeys() {
 }
 
 // A row's whole account of a page: the dot's tone and one line of words, from an
-// activity in the shape the banner's sentences come from — this page's own, and for
-// another page what its agent last declared (`presence.other_leaves`). The wording is
-// the seat's.
+// canonical activity computed by each serving page. The wording is the seat's.
 function rowPresence(entry) {
   const { kind, counts, detail } = entry.activity;
   const facts = activityFacts(entry);
@@ -88,7 +86,7 @@ function rowPresence(entry) {
 // session behind the leaf is working. A title is a sentence somebody wrote and two
 // pages a week apart share one; the work each came out of is the thing the user
 // already holds in their head, so it is worth the room a hover has and a row hasn't.
-// Only this page's own row knows it; another page's row carries its declaration alone.
+// Each serving page publishes the same compact account of its own canonical activity.
 //
 // One tooltip for the row rather than one per part. The innermost title wins where two
 // overlap, so a title left on the line would answer the hover most likely to be asking

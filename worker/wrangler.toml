@@ -5,6 +5,10 @@ compatibility_date = "2026-09-01"
 compatibility_flags = ["nodejs_compat_do_not_populate_process_env"]
 workers_dev = false
 
+[dev]
+port = 0
+inspector_port = 0
+
 [assets]
 directory = "../.tmp/site-assets"
 binding = "ASSETS"

@@ -24,10 +24,10 @@
 #
 #      {"kind": "comment", "revision": 1, "text": "why here?", "anchor": {"section": "plan", "quote": "moves to Tuesdays"}, "attempt": "9f86d081884c7d659a2feaa0c55ad015", "author": "user", "id": "1946b466", "attention": true, "ts": "2026-09-21T20:12:30-07:00"}
 #
-# 3. Earlier, the agent started `leaf wait` in the background and went idle. The
-#    agent does nothing in this step: `leaf wait`, a leaf process, notices the new
-#    line, prints one line naming the page, and exits, which opens a turn. Leaf's
-#    prompt hook runs as that turn begins and builds a delivery for the comment.
+# 3. Earlier, the agent ended its turn and Leaf's Stop hook went on watching.
+#    The watch notices the new input and wakes the session. Leaf's prompt hook
+#    runs as that turn begins and builds a delivery for the comment. This test
+#    drives the same watch and complete reader delivery through `leaf wait`.
 #    The comment is owed a reply, which the delivery records as its `answer` (step
 #    4): a `reply` for `leaf thread reply` here, where the Codex App Server route
 #    would record a `turn`, which the turn's own messages write. For the
@@ -122,16 +122,16 @@
 #    `seq`, `subject`, `threads`, `handling` and `answer`.
 #    The batch's `handling` maps clause ids to their text, each distinct text
 #    appearing once. The event's `handling` names its applicable clauses in order.
-#    The envelope's `acknowledge` is null: the hook confirmed the delivery as it
-#    handed it over, so the comment already reads Picked up. The whole delivery,
+#    The envelope's `acknowledge` tells the reader to confirm the complete delivery
+#    with `leaf delivery ack`. Hook output alone confirms nothing. The whole delivery,
 #    indented here (the hook writes it on one line):
 #
 #      {
 #        "format": "leaf-delivery-v3",
-#        "id": "e8417b8a-6e03-45ad-b7bd-c0f0eceb1a92",
+#        "id": "e8417b8a",
 #        "created_at": 1790046750.29,
 #        "carrier": "hook",
-#        "acknowledge": null,
+#        "acknowledge": "Once this complete delivery is in your context, confirm it with `leaf delivery ack e8417b8a`. Until then, the user's moves read Sent.",
 #        "batches": [
 #          {
 #            "page": "/path/to/page",
@@ -197,8 +197,8 @@
 #        ]
 #      }
 #
-# 5. The agent starts `leaf wait` again so later input wakes it, and follows
-#    `handling`: it names any work the comment asks for with `leaf status`, does it,
+# 5. The agent confirms the complete delivery, then follows `handling`: it names
+#    any work the comment asks for with `leaf status`, does it,
 #    and replies in the thread with `leaf thread reply`.
 #
 # What this file records

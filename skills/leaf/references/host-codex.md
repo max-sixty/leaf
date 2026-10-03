@@ -16,15 +16,18 @@ browser target beside this task; otherwise hand over the URL for a local browser
 This runs Leaf's theme, package widgets, anchored comments, versions, and state
 stream unchanged.
 
-Set the page to `waiting` and run `leaf codex start <page>` before finishing the
-turn with the URL and a concrete gesture. The browser pane is the presentation;
-the adapter below carries input back to this same task.
+Serving connects delivery before returning the URL, including when the page's
+server is already running. Set the page to `waiting`, then finish the turn with
+the URL and a concrete gesture. The browser pane is the presentation; the adapter
+below carries input back to this same task.
 
 ## Delivery
 
-`leaf codex start` leaves a detached adapter that watches every page this task owns.
-Starting the command again for another page adds that page to the same task-wide
-watch, and a completed turn does not stop the adapter.
+`leaf server start` and `leaf server run` start or join a detached adapter that
+watches every page this task owns. Serving another page adds it to the same
+task-wide watch, and a completed turn does not stop the adapter. Re-serving a page
+restores an adapter that stopped. `leaf codex start <page>` connects delivery
+explicitly when you are claiming a page without serving it.
 
 While your turn is running, Leaf's asynchronous tool hook offers new input between
 steps, after the current model request and tool calls finish. Read its pointer
@@ -47,10 +50,11 @@ the banner shows only the status you declare.
 The tool hook and adapter share one delivery record, so input read during work is
 not queued again. Without a running trusted tool hook, delivery uses the queue.
 
-If `leaf codex start` refuses to start, do not finish over a live page. Follow its
-diagnostic: an existing foreground `leaf wait` must be stopped before the adapter
-can take the task's single wait lease, and a Codex without the `codex queue` command
-cannot receive later turns.
+If serving refuses to connect delivery, follow its diagnostic before handing the
+page over: a Codex without the `codex queue` command cannot receive later turns.
+Serving honors a direct `leaf wait` this task already runs; that route keeps the
+current turn open as described below. An explicit `leaf codex start` refuses while
+that wait holds the task's single wait lease.
 
 ## Routes without the adapter
 

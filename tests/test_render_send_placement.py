@@ -22,7 +22,7 @@ line:
   (the left edge across; the top down, or the foot where the card stands above),
   bucketed `still` (the same place), `near` (a line or two) or `away`.
 
-Each case also writes the pair it read to `.tmp/send-placement/<case>.png`: the box as
+Each case also writes the pair it read to its test's `tmp_path/<case>.png`: the box as
 the user typed in it on the left, the card on the right with the box's outline drawn
 over it, so a move shows at a glance. After an intentional change, re-record and read
 the diff beside those pictures:
@@ -32,7 +32,6 @@ the diff beside those pictures:
 import base64
 import io
 import re
-from pathlib import Path
 
 import pytest
 from interact_support import wait_for, yaml_document
@@ -50,8 +49,6 @@ from render_harness import (
     select,
     sending,
 )
-
-SHOTS = Path(__file__).resolve().parent.parent / ".tmp" / "send-placement"
 
 # One source line, so a phrase's offset in the source is its offset in the text node.
 LONG = (
@@ -272,7 +269,7 @@ def direction(pixels, positive, negative):
     return f" {positive if pixels > 0 else negative}"
 
 
-def picture(name, before, after, box):
+def picture(destination, before, after, box):
     """The box and the card side by side, the box's outline drawn over the card."""
     left = Image.open(io.BytesIO(before)).convert("RGB")
     right = Image.open(io.BytesIO(after)).convert("RGB")
@@ -285,7 +282,7 @@ def picture(name, before, after, box):
     pair = Image.new("RGB", (left.width * 2 + 12, left.height), (220, 0, 0))
     pair.paste(left, (0, 0))
     pair.paste(right, (left.width + 12, 0))
-    pair.save(SHOTS / f"{name}.png")
+    pair.save(destination)
 
 
 def send_one(page, on, touch):
@@ -301,7 +298,7 @@ def send_one(page, on, touch):
     rendered(page)
 
 
-def sent(browser, serve, name):
+def sent(browser, serve, name, shots):
     """The case's reading: where the box stood with the comment typed, and where the
     card stands once the comment is sent, both in the page as it stood before Send."""
     size, touch, on, expected, *rest = CASES[name]
@@ -334,7 +331,7 @@ def sent(browser, serve, name):
     if name == "phone-touch-passage":
         phone_room = page.evaluate("""async () => {
           const {commentBoundary, COMMENT_GAP} =
-            await window.__lfRuntimeImport('/runtime/comment-placement.js');
+            await window.__lfRuntimeImport('/runtime/annotation-overlay/comment-placement.js');
           const {top, bottom, height} = commentBoundary();
           return {top, bottom, height, gap: COMMENT_GAP};
         }""")
@@ -364,7 +361,7 @@ def sent(browser, serve, name):
         for edge, value in page.evaluate(RECT, ".lf-margin-preview").items()
     }
     picture(
-        name,
+        shots / f"{name}.png",
         before,
         page.screenshot(),
         {
@@ -415,12 +412,13 @@ def sent(browser, serve, name):
     return reading
 
 
-def test_where_a_comment_stands_before_and_after_send(browser, serve, snapshot):
-    SHOTS.mkdir(parents=True, exist_ok=True)
+def test_where_a_comment_stands_before_and_after_send(
+    browser, serve, snapshot, tmp_path
+):
     snapshot.check(
         yaml_document(
             "Where each case's comment box, and the thread card it became, stand.",
-            {name: sent(browser, serve, name) for name in CASES},
+            {name: sent(browser, serve, name, tmp_path) for name in CASES},
         )
     )
 
@@ -609,7 +607,7 @@ def test_a_right_edge_passage_reopens_a_usable_card_without_moving_typing(
     card = page.evaluate(RECT, ".lf-margin-preview")
     boundary, minimum = page.evaluate("""async () => {
       const {commentBoundary, cardMinimum} =
-        await window.__lfRuntimeImport('/runtime/comment-placement.js');
+        await window.__lfRuntimeImport('/runtime/annotation-overlay/comment-placement.js');
       const {left, right, width} = commentBoundary();
       return [{left, right, width}, cardMinimum()];
     }""")
@@ -1012,7 +1010,7 @@ def test_send_grows_thread_around_the_words(
             rendered(page)
             opening = card.evaluate("""async card => {
               const {commentBoundary, COMMENT_GAP} =
-                await window.__lfRuntimeImport('/runtime/comment-placement.js');
+                await window.__lfRuntimeImport('/runtime/annotation-overlay/comment-placement.js');
               const box = card.getBoundingClientRect();
               return {top:box.top, bottom:box.bottom,
                 boundary:commentBoundary().top, gap:COMMENT_GAP};

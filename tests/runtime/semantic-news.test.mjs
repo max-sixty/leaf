@@ -89,22 +89,20 @@ test("accepted messages and user obligations arrive together after a quiet basel
         { message: "new", version: "new" },
       ),
     ],
-    pageAsks: [ask("existing"), ask("new-page")],
+    pageAsks: [ask("existing"), ask("new")],
   });
   const arrived = observeSemanticNews(baseline.observed, next);
-  assert.deepEqual(kinds(arrived), [
-    "agent_content",
-    "user_obligation",
-    "user_obligation",
-  ]);
+  // A reply and both scopes of obligation may share a source id. Combining notices
+  // must preserve all three facts while removing repeated observations of them.
   assert.deepEqual(
-    arrived.news.map((item) => item.key),
+    arrived.news.map((item) => [item.kind, item.thread, item.source ?? item.version]),
     [
-      "content:new",
-      'obligation:["page","new-page"]:1',
-      'obligation:["thread-turn","t","new"]:1',
+      ["agent_content", "t", "new"],
+      ["user_obligation", null, "new"],
+      ["user_obligation", "t", "new"],
     ],
   );
+  assert.deepEqual(combineSemanticNews(arrived.news, arrived.news), arrived.news);
   assert.deepEqual(observeSemanticNews(arrived.observed, next).news, []);
 });
 
@@ -112,30 +110,54 @@ test("structural asks own their thread obligation and reopening starts a new epi
   const baseline = observeSemanticNews(null, reading());
   const owed = reading({
     threads: [
-      thread("t", [message("question")], {
-        kind: "needs_user",
-        reason: "ask",
-      }),
+      thread(
+        "t",
+        [message("question")],
+        { kind: "needs_user", reason: "ask" },
+        { message: "question", version: "question" },
+      ),
     ],
+    pageAsks: [ask("other")],
     threadAsks: [ask("choice", "t")],
   });
   const first = observeSemanticNews(baseline.observed, owed);
   assert.deepEqual(
-    first.news.map((item) => item.key),
-    ["content:question", 'obligation:["thread","t","choice"]:1'],
+    first.news.map((item) => [item.kind, item.thread, item.source ?? item.version]),
+    [
+      ["agent_content", "t", "question"],
+      ["user_obligation", null, "other"],
+      ["user_obligation", "t", "choice"],
+    ],
   );
   const answered = observeSemanticNews(
     first.observed,
     reading({
-      threads: [thread("t", [message("question")])],
+      threads: [thread("t", [message("question", { unread: false })])],
+      pageAsks: [ask("other")],
     }),
   );
   assert.deepEqual(answered.news, []);
-  const reopened = observeSemanticNews(answered.observed, owed);
+  const reopenedReading = structuredClone(owed);
+  reopenedReading.thread.threads[0].unread = [];
+  const reopened = observeSemanticNews(answered.observed, reopenedReading);
   assert.deepEqual(
-    reopened.news.map((item) => item.key),
-    ['obligation:["thread","t","choice"]:2'],
+    reopened.news.map(({ kind, thread, source }) => [kind, thread, source]),
+    [["user_obligation", "t", "choice"]],
   );
+  assert.equal(semanticNewsNotice(reopened.news), "Input needed");
+  const queued = combineSemanticNews(first.news, reopened.news);
+  assert.equal(queued.length, 4);
+  const current = currentSemanticNews(queued, reopenedReading, reopened.observed);
+  assert.deepEqual(
+    current.map(({ kind, thread, source }) => [kind, thread, source]),
+    [
+      ["user_obligation", null, "other"],
+      ["user_obligation", "t", "choice"],
+    ],
+  );
+  assert.equal(semanticNewsNotice(current), "2 items need your input");
+  assert.deepEqual(combineSemanticNews(reopened.news, reopened.news), reopened.news);
+  assert.deepEqual(observeSemanticNews(reopened.observed, owed).news, []);
 });
 
 test("a second question in the same waiting thread has its own source version", () => {
@@ -167,8 +189,11 @@ test("a second question in the same waiting thread has its own source version", 
     }),
   );
   assert.deepEqual(
-    next.news.map((item) => item.key),
-    ["content:second", 'obligation:["thread-turn","t","second"]:1'],
+    next.news.map((item) => [item.kind, item.thread, item.source ?? item.version]),
+    [
+      ["agent_content", "t", "second"],
+      ["user_obligation", "t", "second"],
+    ],
   );
 });
 
@@ -177,27 +202,29 @@ test("current content versions and admitted messages determine arrivals", () => 
     null,
     reading({ threads: [thread("t", [message("original")])] }),
   );
-  const changed = observeSemanticNews(
-    baseline.observed,
-    reading({
-      threads: [
-        thread("t", [
-          message("original", { edited: { id: "last-edit", seq: 5 } }),
-          message("stream", {
-            addressable: false,
-            attempt: "pending",
-            unread: false,
-          }),
-          message("reaction", { token: "agree", unread: false }),
-          message("failed-reply", { failure: "turn_failed" }),
-        ]),
-      ],
-      workflows: [responseFailure({ id: "failed-reply" })],
-    }),
-  );
+  const next = reading({
+    threads: [
+      thread("t", [
+        message("original", { edited: { id: "last-edit", seq: 5 } }),
+        message("stream", {
+          addressable: false,
+          attempt: "pending",
+          unread: false,
+        }),
+        message("reaction", { token: "agree", unread: false }),
+        message("failed-reply", { failure: "turn_failed" }),
+      ]),
+    ],
+    workflows: [responseFailure({ id: "failed-reply" })],
+  });
+  const changed = observeSemanticNews(baseline.observed, next);
   assert.deepEqual(kinds(changed), ["agent_content", "response_failure"]);
-  assert.equal(changed.news[0].key, "content:last-edit");
-  assert.equal(changed.news[1].key, "response:failed-reply");
+  assert.equal(changed.news[0].version, "last-edit");
+  assert.equal(changed.news[0].message.id, "original");
+  assert.equal(
+    semanticNewsNotice(currentSemanticNews(changed.news, next, changed.observed)),
+    "Agent updated a reply; Response failed",
+  );
   const same = observeSemanticNews(
     changed.observed,
     reading({
@@ -224,7 +251,7 @@ test("a failed answer to a move in a thread's markup is news about that thread",
   );
 });
 
-test("response failures have exact episodes and recovery needs an accepted answer", () => {
+test("a response failure announces once per attempt and retrying is not recovery", () => {
   const baseline = observeSemanticNews(null, reading());
   const stale = observeSemanticNews(
     baseline.observed,
@@ -233,19 +260,32 @@ test("response failures have exact episodes and recovery needs an accepted answe
     }),
   );
   assert.deepEqual(stale.news, []);
-  const failed = observeSemanticNews(
-    stale.observed,
+  const interruptedReading = reading({
+    pageActivity: activity("working", {
+      reply: { attempt: "attempt", state: "interrupted", responds: "input" },
+    }),
+    workflows: [responseFailure({ attempt: "attempt" }, "interrupted")],
+  });
+  const failed = observeSemanticNews(stale.observed, interruptedReading);
+  assert.deepEqual(kinds(failed), ["response_failure", "agent_available"]);
+  assert.deepEqual(
+    failed.news
+      .filter(({ kind }) => kind === "response_failure")
+      .map(({ input, thread, condition }) => [input, thread, condition]),
+    [["input", "t", "interrupted"]],
+  );
+  assert.deepEqual(observeSemanticNews(failed.observed, interruptedReading).news, []);
+  const anotherAttempt = observeSemanticNews(
+    failed.observed,
     reading({
-      pageActivity: activity("working", {
-        reply: { attempt: "attempt", state: "interrupted", responds: "input" },
-      }),
-      workflows: [responseFailure({ attempt: "attempt" }, "interrupted")],
+      workflows: [responseFailure({ attempt: "another-attempt" }, "interrupted")],
+      pageActivity: activity("working"),
     }),
   );
-  assert.deepEqual(kinds(failed), ["response_failure", "agent_available"]);
-  assert.equal(failed.news[0].key, "response:attempt");
+  assert.deepEqual(kinds(anotherAttempt), ["response_failure"]);
+  assert.equal(combineSemanticNews(failed.news, anotherAttempt.news).length, 3);
   const retrying = observeSemanticNews(
-    failed.observed,
+    anotherAttempt.observed,
     reading({
       pageActivity: activity("working", {
         reply: { attempt: "attempt", state: "active", responds: "input" },
@@ -279,8 +319,8 @@ test("a settled failure before one read cannot announce a stale failure", () => 
     }),
   );
   assert.deepEqual(
-    settled.news.map((item) => item.key),
-    ["content:answer"],
+    settled.news.map(({ kind, thread, version }) => [kind, thread, version]),
+    [["agent_content", "t", "answer"]],
   );
 });
 
@@ -315,9 +355,16 @@ test("agent availability is an episode, not a work-stage notice", () => {
       pageActivity: activity("working"),
     }),
   );
+  assert.deepEqual(kinds(restored), ["agent_available"]);
+  const queued = combineSemanticNews(available.news, restored.news);
+  assert.equal(queued.length, 2);
   assert.deepEqual(
-    restored.news.map((item) => item.key),
-    ["agent-available:2"],
+    currentSemanticNews(
+      queued,
+      reading({ pageActivity: activity("working") }),
+      restored.observed,
+    ),
+    restored.news,
   );
 });
 
@@ -378,8 +425,11 @@ test("deferred news drops superseded failures and edits", () => {
   const queued = combineSemanticNews(failed.news, answered.news);
   const current = currentSemanticNews(queued, answeredReading, answered.observed);
   assert.deepEqual(
-    current.map((item) => item.key),
-    ["content:edit-b", "content:recovered"],
+    current.map(({ kind, thread, version }) => [kind, thread, version]),
+    [
+      ["agent_content", "t", "edit-b"],
+      ["agent_content", "t", "recovered"],
+    ],
   );
   assert.equal(semanticNewsNotice(current), "2 replies in 1 thread");
 });
@@ -420,8 +470,8 @@ test("agent content is news while it is unread, including on the first reading",
   });
   const opened = observeSemanticNews(null, waiting);
   assert.deepEqual(
-    opened.news.map((item) => item.key),
-    ["content:away"],
+    opened.news.map(({ kind, thread, version }) => [kind, thread, version]),
+    [["agent_content", "t", "away"]],
   );
   assert.equal(
     semanticNewsNotice(currentSemanticNews(opened.news, waiting, opened.observed)),
@@ -463,7 +513,10 @@ test("news is ordered by when each message last moved", () => {
     }),
   );
   assert.deepEqual(
-    result.news.map((item) => item.key),
-    ["content:plain", "content:e"],
+    result.news.map(({ thread, message, version }) => [thread, message.id, version]),
+    [
+      ["b", "plain", "plain"],
+      ["a", "edited", "e"],
+    ],
   );
 });

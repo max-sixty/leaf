@@ -48,6 +48,7 @@
    user sees: an `end` log opens at its end, and a pin taken after the page presents
    would show it at its top and then jump. */
 import { sizeObserver } from "./rendering.js";
+import { atScrollEnd as atEnd, scrollToEnd } from "./scrolling.js";
 import { watchArrivals } from "./arrivals.js";
 import { authoredScope, pageDocument } from "./passages.js";
 import { compoundReadingRegionId, registerReadingRegion } from "./reading-regions.js";
@@ -67,7 +68,6 @@ const byBox = new WeakMap();
 const THIS_DOCUMENT = `lf-region:bound:${performance.timeOrigin}`;
 let unnamed = 0;
 
-const atEnd = (box) => box.scrollHeight - box.scrollTop - box.clientHeight <= SLACK;
 const declaresBound = (box) =>
   getComputedStyle(box).getPropertyValue("--lf-bound-box").trim() === "1";
 
@@ -149,7 +149,7 @@ function holdBlock(bounded) {
       hold.left = true;
       return;
     }
-    box.scrollTop = box.scrollHeight;
+    scrollToEnd(box);
     hold.pinned = box.scrollTop;
   };
   const resize = sizeObserver(hold.sync);

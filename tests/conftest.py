@@ -11,13 +11,15 @@ from pathlib import Path
 from typing import NamedTuple
 
 import pytest
+from leaf import codex_adapter as codex_adapter_model
 from leaf import files as files_model
 from leaf import host as host_model
 from leaf import leases as leases_model
 from leaf import machine as machine_model
-from leaf import session_cleanup as cleanup_model
+from leaf import state as cleanup_model
 from leaf.render_gate import browser as browser_model
 from leaf_dev import LEAF_COMMAND
+from leaf_dev.browser import LINUX_FONTCONFIG, linux_font_fingerprint
 from playwright.sync_api import sync_playwright
 
 __all__ = ["LEAF_COMMAND"]
@@ -339,7 +341,9 @@ def isolated_session(tmp_path_factory, monkeypatch):
     Keep the developer's session and machine state out of every fixture. A page
     tagged with the session running the tests is otherwise reported as unattended
     by the loop guard. Isolate XDG_STATE_HOME, where Leaf stores claims and installed
-    packages, while retaining HOME so subprocesses share the host's uv cache.
+    packages, and CODEX_HOME, where Codex reads its configuration and sessions,
+    while retaining HOME so subprocesses share the host's uv cache. Clear the
+    developer's App Server endpoint so a fake task cannot connect to it.
 
     The session the tests run as is this worker: a synthetic id, so nothing of
     the developer's answers for it, and the worker's own pid. Every page a test
@@ -357,6 +361,8 @@ def isolated_session(tmp_path_factory, monkeypatch):
     it would read before this fixture sets it and after `monkeypatch` unsets it
     (tests/AGENTS.md, "A process the suite starts ends with the run")."""
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path_factory.mktemp("state")))
+    monkeypatch.setenv("CODEX_HOME", str(tmp_path_factory.mktemp("codex")))
+    monkeypatch.delenv(codex_adapter_model.APP_SERVER_ENV, raising=False)
     for name in host_model.IDENTITY_VARIABLES:
         monkeypatch.delenv(name, raising=False)
     # Claude Code's session registry, where a live turn is read
@@ -557,6 +563,9 @@ def headless_shell():
     here: a second `sync_playwright()` inside this process raises where the
     session's `browser` fixture already holds one open, so which tests had run
     first would decide whether the fixture worked."""
+    if sys.platform == "linux":
+        linux_font_fingerprint()
+        os.environ["FONTCONFIG_FILE"] = str(LINUX_FONTCONFIG)
     read = subprocess.run(
         [
             sys.executable,

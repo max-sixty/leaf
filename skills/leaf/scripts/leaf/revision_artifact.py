@@ -16,8 +16,7 @@ including after a process crash.
 
 Every reader of a stored revision takes `read_revision`: one held reading per
 revision, owning its manifest, captured vocabulary, parsed document, and passage
-readings. The one exception is a neighbour's title, which `revision_title` reads from
-the manifest alone. `read_artifact` materializes the complete bundle under a bound of
+readings. `read_artifact` materializes the complete bundle under a bound of
 its own; delivery parses the document it rewrites for serving, which is other text.
 Each is kept in the memory of the page it was read from, for as long as the process
 keeps that page (`page_memory`).
@@ -47,9 +46,10 @@ from leaf.page_memory import Slot, memo
 from leaf.passages import SourceReading, enclosing_ids
 from leaf.render_checks import PROBE_SOURCES
 from leaf.schema import BROWSER_DIRS, CONTENT_TYPES, SERVED_PATH, VENDORED_FILES
-from leaf.session_cleanup import fsync_parents
+from leaf.state import fsync_parents
 from leaf.structure import (
     SourceDocument,
+    annotation_mode,
     links_with_rel,
     remote_reference,
     script_kind,
@@ -136,6 +136,19 @@ class RevisionArtifact:
     @cached_property
     def implementations(self) -> dict:
         return json.loads(self.manifest)["implementations"]
+
+    @cached_property
+    def widget_aliases(self) -> dict[str, str]:
+        """The loader's widget module paths, mapped to their captured implementations.
+
+        A page-owned implementation lives under `/page/`, but every widget is
+        loaded through `/widgets/<tag>.js`. HTTP, publication and offline export
+        read these aliases from the same captured provenance.
+        """
+        return {
+            f"/widgets/{tag}.js": implementation["path"]
+            for tag, implementation in self.implementations.items()
+        }
 
     @cached_property
     def executable(self) -> str | None:
@@ -580,6 +593,7 @@ def _capture_artifact(
     executable = _digest(
         _canonical_json(
             {
+                "annotations": annotation_mode(document),
                 "vocabulary": _digest(
                     _canonical_json(
                         {
@@ -714,14 +728,6 @@ def write_artifact(
         marker, file_stamp(marker), RevisionReading(marker, reading)
     )
     return marker
-
-
-def revision_title(page_dir: Path, revision: int) -> str:
-    """What a revision's `<title>` says, from its manifest alone, for a reader that
-    holds no reading of the page (`presence.other_leaves`). A manifest captured
-    before it recorded the title reads as untitled."""
-    manifest = revision_path(page_dir, revision).with_suffix("") / "manifest.json"
-    return json.loads(manifest.read_bytes()).get("title", "")
 
 
 def read_artifact(page_dir: Path, revision: int) -> RevisionArtifact:

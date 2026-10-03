@@ -3,7 +3,7 @@
 import re
 from pathlib import Path
 
-from .session_cleanup import EVENTS_FILE
+from .state import EVENTS_FILE
 
 # A session-managed server gives a replacement session one short poll window to
 # claim the page before it closes. The external claim record is the ownership
@@ -238,10 +238,6 @@ AWAITS_SCHEMA = {
     "properties": {
         "when": AWAITING_CONDITION,
         "answered": ANSWERED_SCHEMA,
-        # This widget supplies the answer control but not its own question title.
-        # A matching instance therefore stands inside an x-ask-surface region, whose direct
-        # heading owns the reading and arrival.
-        "region": {"const": True},
         "all": {"type": "string", "pattern": f"^{HTML_NAME}$"},
     },
     "additionalProperties": False,

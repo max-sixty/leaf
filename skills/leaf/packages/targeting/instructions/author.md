@@ -1,6 +1,7 @@
 Use `lf-targeting` when a user needs to identify exact parts of real page markup while
-proposing changes. Put it inside `lf-ask` and put the real operable artifact in its one
-`lf-target-preview`; the user selects from the rendered result rather than a replica.
+proposing changes. Put the real operable artifact in its one `lf-target-preview`;
+the user selects from the rendered result rather than a replica. Use `lf-ask` to frame
+the question and context when they live outside the workbench.
 
 ```html
 <lf-ask id="landing-changes-ask">

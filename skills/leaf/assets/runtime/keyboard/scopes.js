@@ -20,12 +20,20 @@ import {
   ariaShortcuts,
   bindings,
   checked,
+  contextualRoute,
+  contextBindings,
+  commandRoutes,
+  declaredBindings,
+  titleOf,
+  descriptionOf,
+  lineOf,
   live,
   parsed,
   spokenBinding,
   validateRows,
   word,
 } from "./bindings.js";
+import { nativeClaimAt } from "./text-entry.js";
 import { deepFocus } from "../focus.js";
 import { hostIn, upFrom } from "../shadow.js";
 import { repaint } from "../repaint.js";
@@ -52,13 +60,148 @@ export const elementScopes = new WeakMap();
 // carry several: a margin entry holds its widget's scope and an Ask's digit route at once.
 const projectedScopes = new WeakMap();
 const commandScopeCapabilities = new WeakSet();
+export const scopeIdentity = (scope) => scope.identity ?? scope;
 export const isCommandScope = (capability) =>
   capability != null && commandScopeCapabilities.has(capability);
-export const scopesAt = (element) =>
-  [
+// Context aliases are their own scope so native text entry always precedes them,
+// even when the original declaration is attached to the exact editor. They remain
+// references to that attachment, not copied handlers or a second command inventory.
+const localContexts = new WeakMap();
+function localContext(source, scope) {
+  let contexts = localContexts.get(source);
+  if (!contexts) localContexts.set(source, (contexts = new WeakMap()));
+  let contextual = contexts.get(scope);
+  if (!contextual) {
+    contextual = {
+      identity: Object.freeze({}),
+      title: scope.title,
+      contextual: true,
+      el: source,
+      when: scope.when,
+      get rows() {
+        return contextRows([{ source, scope }]);
+      },
+    };
+    contexts.set(scope, contextual);
+  }
+  return contextual;
+}
+export const scopesAt = (element) => {
+  const original = [
     elementScopes.get(element),
     ...(projectedScopes.get(element)?.values() ?? []),
   ].filter(Boolean);
+  return original.flatMap((scope) =>
+    scope.contextual ? [scope] : [scope, localContext(element, scope)],
+  );
+};
+
+// Compile only the explicitly declared aliases. Availability is kept on the referenced
+// owner, so a disabled action keeps its keys reserved; removing/replacing an attachment
+// withdraws its old commands at invocation and at the next reading. Both a local widget
+// and a question representative use this same compiler.
+const contextRowsBySource = new WeakMap();
+function contextRows(declarations) {
+  return declarations.flatMap(({ source, scope, rows = scope.rows }) => {
+    let scopes = contextRowsBySource.get(source);
+    if (!scopes) contextRowsBySource.set(source, (scopes = new WeakMap()));
+    let rowsBySource = scopes.get(scope);
+    if (!rowsBySource) scopes.set(scope, (rowsBySource = new WeakMap()));
+    return rows.flatMap((row) => {
+      const contributions = () =>
+        commandRoutes(row).length ? commandRoutes(row) : [row];
+      if (!contributions().some((contribution) => contextBindings(contribution).length))
+        return [];
+      let contextual = rowsBySource.get(row);
+      if (!contextual) {
+        contextual = {
+          id: row.id,
+          title: () => titleOf(row),
+          description: () => descriptionOf(row),
+          get line() {
+            return row.line;
+          },
+          get keys() {
+            return this.routes.map(({ binding }) => binding);
+          },
+          get routes() {
+            return contributions().flatMap((contribution) => {
+              const aliases = contextBindings(contribution);
+              const reference = Object.freeze({
+                id: contribution.id,
+                source,
+                scope,
+                row,
+                binding:
+                  contribution === row
+                    ? (declaredBindings(row)[0] ?? aliases[0])
+                    : (contribution.binding ?? aliases[0]),
+                get control() {
+                  return word(contribution.control ?? row.control);
+                },
+              });
+              return aliases.map((binding) =>
+                contextualRoute(
+                  {
+                    id: contribution.id,
+                    binding,
+                    title: () => titleOf(contribution),
+                    description: () => descriptionOf(contribution),
+                    line: contribution.line,
+                    control: contribution.control ?? row.control,
+                    bindingBadge:
+                      contribution.bindingBadge !== undefined
+                        ? contribution.bindingBadge
+                        : row.bindingBadge,
+                    intrinsicBindings:
+                      contribution === row
+                        ? declaredBindings(row)
+                        : contribution.binding
+                          ? [contribution.binding]
+                          : [],
+                  },
+                  reference,
+                ),
+              );
+            });
+          },
+          when: () =>
+            source.isConnected &&
+            scopesAt(source).includes(scope) &&
+            (!scope.when || scope.when()) &&
+            scope.rows.includes(row) &&
+            live(row),
+        };
+        rowsBySource.set(row, contextual);
+      }
+      return [contextual];
+    });
+  });
+}
+
+// A contextual owner relates the current focus to an original command region.
+// Resolve that relation as part of the scope reading, never as a paint effect:
+// restoring focus and invoking a command in the same turn sees the same routes.
+const contextScopeReaders = new Set();
+export function contextScopes(title, resolve) {
+  const identity = Object.freeze({});
+  const read = (origin) => {
+    const projection = resolve(origin);
+    if (!projection) return null;
+    return {
+      identity,
+      title,
+      contextual: true,
+      el: projection.root,
+      get rows() {
+        return contextRows(word(projection.declarations));
+      },
+    };
+  };
+  contextScopeReaders.add(read);
+  return () => contextScopeReaders.delete(read);
+}
+
 // The weak map is the dispatcher's lookup. The reference also has to enumerate every
 // connected contributor, so keep weak references beside it. A live-version replacement
 // can then be collected, while an element temporarily moved out of the document keeps
@@ -80,7 +223,6 @@ function forgetScopedElement(el) {
   if (ref) scopeRefs.delete(ref);
   scopeRefFor.delete(el);
 }
-export const byCommand = (rows) => rows.map((row) => [row.id, row]);
 // One section per title, gathered from every contributor. Written once because the gathering
 // happens twice and used to be spelled three times: here at declaration, where a widget's
 // contributors arrive an upgraded element at a time, and at each open of the reference, where
@@ -175,9 +317,9 @@ function attachScope(where, declaration, { validateAtPaint = true } = {}) {
   return scope.rows;
 }
 
-export function keys(where, title, rows, options) {
-  if (rows === undefined && isCommandScope(title))
-    return attachScope(where, title.scope);
+// Both element-bound keys and a reusable command capability declare the same scope.
+// Attachment decides when its scene is validated, not what a declaration may contain.
+function declaredScope(title, rows, options) {
   const configuration =
     typeof options === "function" ? { when: options } : (options ?? {});
   if (typeof configuration !== "object")
@@ -189,17 +331,22 @@ export function keys(where, title, rows, options) {
     throw new TypeError(
       `A command scope's Escape ownership must be \"inner\", got ${String(escape)}`,
     );
-  const scope = {
+  return {
     title,
     rows: checked(rows, title ?? "a scope"),
     when,
     answer,
     escape,
   };
+}
+
+export function keys(where, title, rows, options) {
+  if (rows === undefined && isCommandScope(title))
+    return attachScope(where, title.scope);
   // A declaration this one replaces before its first paint is owed nothing: read at
   // the frame, a stale scope that refused would retract the element's standing
   // declaration along with itself.
-  return attachScope(where, scope);
+  return attachScope(where, declaredScope(title, rows, options));
 }
 
 /** Declare a command scope that presentation owners attach to generated controls.
@@ -209,24 +356,9 @@ export function keys(where, title, rows, options) {
  * rooted at the visible control in its own native layer.
  */
 export function commandScope(title, rows, options) {
-  const configuration =
-    typeof options === "function" ? { when: options } : (options ?? {});
-  if (typeof configuration !== "object")
-    throw new TypeError("A command scope's options must be an object");
-  const { when, answer, escape } = configuration;
-  if (answer !== undefined && typeof answer !== "function")
-    throw new TypeError("A command scope's answer must be a function");
-  if (escape !== undefined && escape !== "inner")
-    throw new TypeError(
-      `A command scope's Escape ownership must be "inner", got ${String(escape)}`,
-    );
   const scope = {
+    ...declaredScope(title, rows, options),
     identity: Object.freeze({}),
-    title,
-    rows: checked(rows, title ?? "a scope"),
-    when,
-    answer,
-    escape,
   };
   validateRows(scope.rows, title ?? "a scope");
   const capability = Object.freeze({ scope });
@@ -282,8 +414,9 @@ function scopesWithin(root, activeOnly) {
       }
     if (!inside) continue;
     for (const scope of scopesAt(scoped)) {
+      if (scope.contextual) continue;
       if (activeOnly && scope.when && !scope.when()) continue;
-      const identity = scope.identity ?? scope;
+      const identity = scopeIdentity(scope);
       if (seen.has(identity)) continue;
       seen.add(identity);
       found.push({ source: scoped, scope });
@@ -291,6 +424,7 @@ function scopesWithin(root, activeOnly) {
   }
   return found;
 }
+export const commandDeclarationsWithin = (root) => scopesWithin(root, false);
 export function commandsWithin(root) {
   return scopesWithin(root, true).flatMap(({ source, scope }) =>
     scope.rows.filter(live).map((row) => ({ source, scope, row })),
@@ -328,10 +462,29 @@ function reflectElementShortcuts(element) {
     }
     if (scope.el === element) scope.validated = true;
   }
+  const nativeClaims = nativeClaimAt(element);
+  const ownsControl = available.some((scope) =>
+    scope.rows.some(
+      (row) =>
+        word(row.control) === element ||
+        commandRoutes(row).some(
+          (route) => word(route.control ?? row.control) === element,
+        ),
+    ),
+  );
   const shortcuts = [
     ...new Set(
       available.flatMap((scope) =>
-        ariaShortcuts(scope.rows, true, scope.title ?? "a scope")
+        ariaShortcuts(
+          scope.rows,
+          true,
+          scope.title ?? "a scope",
+          (binding, entry, row) => {
+            if (scope.contextual && nativeClaims?.(binding)) return false;
+            const control = word(entry.route?.control ?? row.control);
+            return !ownsControl || control == null || control === element;
+          },
+        )
           .split(" ")
           .filter(Boolean),
       ),
@@ -377,7 +530,7 @@ export const paintKeys = () => {
  */
 export const saying = (rows) =>
   activeRows(rows, "an announced scope")
-    .map((row) => `${spoken(row)} ${word(row.line)}`)
+    .map((row) => `${spoken(row)} ${lineOf(row)}`)
     .join(", ");
 // A row's own label where it has one, read the way every other surface reads a cell, and
 // the bindings where it has none — which is what keeps a listener hearing "Escape" rather
@@ -483,12 +636,13 @@ export const recoveredLabelFocus = (event) => recoveredLabelKeys.get(event);
 // shadow tree declares them the same way. Generated margin controls own their visible
 // position directly; they no longer borrow scopes from hidden source controls.
 export function scopesFor(node) {
+  const contexts = [...contextScopeReaders].map((read) => read(node)).filter(Boolean);
   const found = [];
   const seen = new Set();
   const collect = (start) => {
     for (let a = start; a; a = upFrom(a)) {
-      for (const scope of scopesAt(a)) {
-        const identity = scope.identity ?? scope;
+      for (const scope of [...scopesAt(a), ...contexts.filter(({ el }) => el === a)]) {
+        const identity = scopeIdentity(scope);
         if (seen.has(identity)) continue;
         found.push(scope.el ? scope : { ...scope, el: a });
         seen.add(identity);

@@ -652,7 +652,8 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  * Packages may adjust placement and density; margin entries and reaction chips
  * retain their separate forms. The block padding carries the aim floor (above), less
  * the 1px border, so a rule restating it restates the floor with it. */
-:is(.lf-btn, .button) { padding: max(4px, (var(--aim-floor) - 1lh) / 2 - 1px) 10px; border: 1px solid var(--border-2); border-radius: 6px; background: var(--card); cursor: pointer; white-space: nowrap; color: var(--ink); display: inline-block; }
+:is(.lf-btn, .button) { width: var(--lf-reserved-width, auto);
+  padding: max(4px, (var(--aim-floor) - 1lh) / 2 - 1px) 10px; border: 1px solid var(--border-2); border-radius: 6px; background: var(--card); cursor: pointer; white-space: nowrap; color: var(--ink); display: inline-block; }
 :is(.lf-btn, .button)[hidden]:not([hidden="until-found"]) { display: none; }
 :is(.lf-btn, .button):not(:disabled, [aria-disabled="true"]):hover { background: var(--chip); }
 /* The committing action carries the accent as ink on the ordinary card, under a
@@ -881,3 +882,9 @@ pre:hover + .lf-code-copy,
 .lf-suggest-label { color: var(--muted-2); }
 
 .lf-react-said { font-family: var(--sans); color: var(--mark-ink); }
+/* The response foot sits after flexible mechanical space in a retained flow body.
+   Details' summary is its own disclosure outside that body. */
+.lf-reply-continuity::details-content,
+.lf-reply-continuity:not(details) { display: flex; flex-direction: column;
+  min-block-size: var(--lf-thread-body-extent, 0px); }
+.lf-reply-space { flex: 1 0 0; min-block-size: 0; }

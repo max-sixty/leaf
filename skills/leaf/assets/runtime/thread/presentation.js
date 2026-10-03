@@ -166,8 +166,11 @@ export function createThreadPresentation({
           draft: readDraft(),
           actionAnchor: activeActionAnchor(),
         });
-        if (anchors) anchorControls.render(anchorPaint.paint(anchors));
-        drawingPaint.paint(threads);
+        if (anchors) {
+          anchorPaint?.paint(anchors);
+          anchorControls.render(anchors);
+        }
+        drawingPaint.paint();
       };
       readTargets();
       surfaces = renderSurfaces(collection, anchorPlacement, surfaceView);
@@ -202,6 +205,7 @@ export function createThreadPresentation({
       readTargets();
       surfaces.commit();
       commitThreadSeats(batch);
+      surfaceView.composition.finishPlacement();
       renderAnnotations();
       pageGeometry.pageShifted();
       finishListRecovery(candidates);

@@ -34,6 +34,7 @@ from pathlib import Path
 from typing import Self
 
 import click
+from leaf.codex_adapter import APP_SERVER_ENV
 from leaf.host import IDENTITY_VARIABLES
 
 from leaf_dev import ROOT
@@ -56,17 +57,24 @@ PAYLOAD = (
 )
 
 
+def run_directory(parent: Path) -> Path:
+    """Allocate one invocation's evidence without replacing another run's files."""
+    parent.mkdir(parents=True, exist_ok=True)
+    return Path(tempfile.mkdtemp(prefix="run-", dir=parent))
+
+
 def environment(**extra: str) -> dict[str, str]:
     """This process's environment without the agent session it may be running in.
 
     A harness run from a Claude Code or Codex session inherits that session's
-    identity: its id, job directory and effort level. A `leaf` command would sign
-    events as that session, and a child would take its settings. `CLAUDE_CONFIG_DIR`
+    identity: its id, job directory, effort level and App Server endpoint. A `leaf`
+    command would sign events as that session, and a child would use its transport
+    and settings. `CLAUDE_CONFIG_DIR`
     stays, since it names where the login lives."""
     env = {
         key: value
         for key, value in os.environ.items()
-        if key not in IDENTITY_VARIABLES
+        if key not in (*IDENTITY_VARIABLES, APP_SERVER_ENV)
         and not (key.startswith("CLAUDE") and key != "CLAUDE_CONFIG_DIR")
     }
     return {**env, **extra}
@@ -442,6 +450,25 @@ def hook_delivered(record: dict) -> bool:
     )
 
 
+def inputs_received(events: list[dict], attempts: set[str]) -> bool:
+    """Whether a posted round is admitted and its attention inputs are received.
+
+    Inline context, pointer reads, and attempted ACK commands are presentations,
+    not acceptance. Every attempt must be admitted; only attention-marked inputs
+    require the opened pickups that name exactly what the reader received.
+    Page-authored errors carry no user attempt and do not advance user rounds.
+    """
+    posted = [e for e in events if e.get("attempt") in attempts]
+    inputs = {e["id"] for e in posted if e["attention"]}
+    received = {
+        ident
+        for e in events
+        if e["kind"] == "pickup" and e["phase"] == "opened"
+        for ident in e["events"]
+    }
+    return len(posted) == len(attempts) and inputs <= received
+
+
 def read_trace(stream: Path) -> list[dict]:
     return [json.loads(line) for line in stream.read_text().splitlines()]
 
@@ -463,3 +490,53 @@ def completed(trace: list[dict]) -> bool:
     """Whether a trace counts: its model call reached a result that is not an
     error."""
     return trace_result(trace).get("is_error") is False
+
+
+def accepted_thread_claims(trace: list[dict], thread: str) -> dict[str, int]:
+    """Bash call ids whose successful status result declares work on THREAD.
+
+    Status writes one JSON line. Compound Bash output may contain other lines;
+    only its canonical `work` subjects count, never an attempted command or a
+    page-wide declaration. Values are the result's trace index.
+    """
+    calls = {
+        block["id"]
+        for block in blocks(trace)
+        if block.get("type") == "tool_use"
+        and block["name"] == "Bash"
+        and re.search(
+            r"\bstatus\b[^|;&]*\bworking\b", block["input"].get("command", "")
+        )
+    }
+    accepted = {}
+    for index, record in enumerate(trace):
+        for block in blocks([record]):
+            if (
+                block.get("type") != "tool_result"
+                or block.get("is_error") is not False
+                or block["tool_use_id"] not in calls
+            ):
+                continue
+            content = block["content"]
+            text = (
+                content
+                if isinstance(content, str)
+                else "\n".join(
+                    part["text"] for part in content if part.get("type") == "text"
+                )
+            )
+            for line in text.splitlines():
+                try:
+                    status = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if (
+                    isinstance(status, dict)
+                    and status.get("state") == "working"
+                    and any(
+                        work["subject"] == {"kind": "thread", "id": thread}
+                        for work in status.get("work", [])
+                    )
+                ):
+                    accepted[block["tool_use_id"]] = index
+    return accepted

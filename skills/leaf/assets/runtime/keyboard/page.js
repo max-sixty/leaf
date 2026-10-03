@@ -59,7 +59,7 @@ function standingOn(name, title, sel, rows) {
 // nothing the browser does not already do, and what it adds is the promise being on
 // screen. Enter alone, Space under a link being the page's own scroll.
 standingOn("link", "On a link", "a[href]", [
-  { id: "link.follow", keys: ["Enter"], does: "Follow it", line: "follow" },
+  { id: "link.follow", keys: ["Enter"], title: "Follow" },
 ]);
 
 // A disclosure, in either spelling the page has for one. The platform's <details> keeps the
@@ -78,11 +78,11 @@ standingOn("disclosure", "On a disclosure", DISCLOSURE_SELECTOR, [
   {
     id: "disclosure.toggle",
     keys: () => DISCLOSE(focused()),
-    does: "Open or close it",
+    description: "Open or close it",
     // Read where it is painted rather than named once for both branches, the way a diff's
     // own file rows read theirs: what the press does is whichever way the disclosure is
     // standing, and a word fixed at declaration could only ever say one of them.
-    line: () => (disclosed(focused()) ? "close" : "open"),
+    title: () => (disclosed(focused()) ? "close" : "open"),
     // Through the element's own click, so keyboard and pointer are one behaviour: a
     // <summary>'s click is the toggle the browser was already making, and a widget's
     // control runs the handler its own pointer press runs. Enter and Space are the
@@ -98,7 +98,9 @@ pageCommand({
   id: "browser.caret",
   touch: false,
   keys: ["F7"],
-  does: "Caret browsing (the browser's): select text by keyboard, then c",
+  title: "Caret browsing",
+  description: "Select text with the browser's keyboard caret, then press c to comment",
+  line: false,
 });
 
 // Standing is a destination on the page. Releasing it lands at its floor, the document.
@@ -134,8 +136,8 @@ export function declareStanding({ pageState }) {
       {
         id: "navigation.release",
         keys: ["Escape"],
-        does: "Let go of what you are standing on",
-        line: "let go",
+        description: "Let go of what you are standing on",
+        title: "let go",
         when: () => Boolean(standingFloor()),
         run: release,
       },
@@ -157,15 +159,19 @@ pageRung("page", () => {
   if (holding())
     return standingFloor()
       ? null
-      : { says: "back to the page", does: "Back out onto the page", out: letGo };
+      : {
+          title: "back to the page",
+          description: "Back out onto the page",
+          out: letGo,
+        };
   // A sample has one more containing page. Its own controls and standing unwind
   // first; the frame's owner takes the focus back, not another keyboard listener
   // competing with this register.
   const frame = window.frameElement;
   return frame?.hasAttribute("data-lf-contained")
     ? {
-        says: "return to containing page",
-        does: "Leave this sample and return to its containing page",
+        title: "return to containing page",
+        description: "Leave this sample and return to its containing page",
         out: () => frame.dispatchEvent(new Event("lf-sample-return")),
       }
     : null;

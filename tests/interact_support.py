@@ -12,6 +12,7 @@ import http.client
 import http.cookiejar
 import json
 import os
+import secrets
 import shlex
 import shutil
 import socket
@@ -47,9 +48,10 @@ from leaf import passages as passages_model
 from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import server as server_model
+from leaf import server_rows as server_rows_model
 from leaf import service as service_model
 from leaf import session as session_model
-from leaf import session_cleanup as cleanup_model
+from leaf import state as cleanup_model
 from leaf import structure as structure_model
 from leaf import thread_context as thread_context_model
 from leaf import vendoring as vendoring_model
@@ -299,12 +301,12 @@ def take_stream_activity(monkeypatch, updates: list, clears: list) -> None:
     monkeypatch.setattr(
         codex_model,
         "set_stream_activity",
-        lambda session, turn, detail: updates.append((session, turn, detail)),
+        lambda session, turn, detail, **_scope: updates.append((session, turn, detail)),
     )
     monkeypatch.setattr(
         codex_model,
         "clear_stream_activity",
-        lambda session, turn=None: clears.append((session, turn)),
+        lambda session, turn=None, **_scope: clears.append((session, turn)),
     )
 
 
@@ -588,11 +590,14 @@ def page_state(d):
     return served_page.full_state(d, events)
 
 
-def record_claim(page, harness="claude-code", **fields):
+def record_claim(page, /, harness="claude-code", **fields):
     """Write the canonical claim shape for lifecycle fixtures.
 
     `harness` is checked against Leaf's own table, so a fixture cannot record a
     name `take_claim` would never write."""
+    observed = cleanup_model.session_record(fields.get("id", "s1"))
+    if observed and not observed["provider"]:
+        observed = None
     record = {
         "page": str(page.resolve()),
         "id": "s1",
@@ -602,20 +607,62 @@ def record_claim(page, harness="claude-code", **fields):
         "cwd": str(Path.cwd()),
         "ts": "t",
         "released": None,
-        "turn": "turn-1",
-        "turn_opened": cleanup_model.now_iso(),
-        "turn_closed": None,
+        "turn": observed["turn"] if observed else "turn-1",
+        "turn_opened": observed["turn_opened"] if observed else cleanup_model.now_iso(),
+        "turn_closed": observed["turn_closed"] if observed else None,
         **fields,
     }
-    # A lifetime is one key, the way `take_claim` spreads it: a claim naming a job
-    # record or resting on activity states no pid, and a reader that saw one there
-    # would be reading a fixture rather than a shape leaf writes.
-    if fields.keys() & {"job", "activity"}:
-        record.pop("pid", None)
+    lifetime = {key: record[key] for key in ("job", "activity") if key in record}
+    if not lifetime:
+        lifetime = {"pid": record["pid"]}
+    turn = {key: record[key] for key in ("turn", "turn_opened", "turn_closed")}
+    session = cleanup_model.ensure_session(record["id"], lifetime)
+    session = cleanup_model.write_session({**session, **turn})
+    record = {
+        key: value
+        for key, value in record.items()
+        if key not in {"job", "activity", "pid", "turn", "turn_opened", "turn_closed"}
+    }
+    record["generation"] = session["generation"]
+    record["acquisition"] = fields.get("acquisition", secrets.token_hex(16))
     path = service_model.claim_path(page)
     path.parent.mkdir(parents=True, exist_ok=True)
     cleanup_model.write_json(path, record)
-    return record
+    return service_model.page_claim(page)
+
+
+def bind_task_lifetime_to_worker(page):
+    """Keep a synthetic task standing after its one-command host exits.
+
+    The worker stands for the real host process that survives tool calls. This
+    changes only that existing task's lifetime provenance, under its session
+    lock: its generation, turn, provider observation, and page acquisition stay
+    intact. Recording another claim would create a replacement generation and
+    briefly leave the already-running carrier with no pages to own.
+    """
+    claim = service_model.page_claim(page)
+    with cleanup_model.flocked(cleanup_model.session_lock_path(claim["id"])):
+        record = cleanup_model.session_record(claim["id"])
+        assert record["generation"] == claim["generation"]
+        assert record["ended"] is None
+        cleanup_model.write_session({**record, "lifetime": {"pid": os.getpid()}})
+
+
+def release_codex_command(page, release):
+    """Complete a held command before its synthetic Codex host can exit.
+
+    The command must finish its claim transaction while its ancestor is alive.
+    The canonical lifetime handoff then keeps that same task standing for later
+    delivery, before the fixture releases the one-command host.
+    """
+    wait_for(
+        Path(f"{release}.ready").exists,
+        bool,
+        failure="the held Codex command did not finish",
+        timeout=60,
+    )
+    bind_task_lifetime_to_worker(page)
+    release.touch()
 
 
 def live_versions(d):
@@ -1121,7 +1168,7 @@ HELD_LEASES = []
 
 
 def serving(directory, port: int, lifetime: str = "standing") -> None:
-    """Hold the same contentless lease as a live `server run`."""
+    """Hold the serving incarnation lease of a live `server run`."""
     directory.mkdir(parents=True, exist_ok=True)
     service = {
         "host": "127.0.0.1",
@@ -1129,10 +1176,14 @@ def serving(directory, port: int, lifetime: str = "standing") -> None:
         "port": port,
         "enabled": True,
         "lifetime": lifetime,
+        "server_id": "fixture-server",
     }
     cleanup_model.write_json(directory / "service.json", service)
     handle = open(directory / "server.lock", "a+b")  # noqa: SIM115 - test lease
     fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    handle.truncate(0)
+    handle.write(service["server_id"].encode())
+    handle.flush()
     HELD_LEASES.append(handle)
 
 
@@ -1205,7 +1256,7 @@ def fresh_process():
         page_memory_model._memories = kept
 
 
-def neighbour_page(directory, title=None, dead=False, published=True):
+def neighbour_page(directory, title=None, dead=False, published=True, port=59999):
     """A page with desired service state and, unless dead, a live lease."""
     directory.mkdir(parents=True)
     (directory / "revisions").mkdir()
@@ -1234,21 +1285,23 @@ def neighbour_page(directory, title=None, dead=False, published=True):
                 "text": "t",
             },
         )
-    record = {"port": 59999}
+    record = {"port": port}
     if dead:
         cleanup_model.write_json(
             directory / "service.json",
             {
                 "host": "127.0.0.1",
                 "bind": "127.0.0.1",
-                "port": 59999,
+                "port": port,
                 "enabled": True,
                 "lifetime": "standing",
+                "server_id": "fixture-server",
             },
         )
     else:
         serving(directory, record["port"])
-    return server_model.page_url("127.0.0.1", 59999, server_model.host_key())
+    server_rows_model.RowPublisher(directory, "fixture-server").refresh()
+    return server_model.page_url("127.0.0.1", port, server_model.host_key())
 
 
 def _status(page_dir, *args):
@@ -1375,11 +1428,12 @@ def under_codex(spawn, codex_program):
         hosting = ["app-server"] if app_server else []
         shell_command = f"{command}; exit"
         if hold_until is not None:
-            # Keep the fake task alive until a test hands its claim to the
-            # worker. Otherwise the adapter can see a dead claimant between
-            # communicate() and that handoff, unlike a real Codex task.
+            # Mark command completion while keeping the fake host alive. A
+            # test can then hand its lifetime to the worker before release;
+            # unlike a real task, this host would otherwise die with its command.
             shell_command = (
                 f"{command}; result=$?; "
+                f"touch {shlex.quote(f'{hold_until}.ready')}; "
                 f"while [ ! -e {shlex.quote(str(hold_until))} ]; do sleep 0.01; done; "
                 "exit $result"
             )
@@ -1394,6 +1448,11 @@ def under_codex(spawn, codex_program):
 
 @pytest.fixture
 def codex_claimed_page(tmp_path, under_codex, codex_env):
+    """A Codex-owned server before delivery starts, for carrier lifecycle tests.
+
+    Public handoff connects delivery too. These tests choose their own transport
+    or exercise a direct wait, so setup takes the lower-level claim and serve.
+    """
     page = tmp_path / "codex-page"
     env = codex_env | {"CODEX_THREAD_ID": "codex-thread"}
 
@@ -1407,23 +1466,29 @@ def codex_claimed_page(tmp_path, under_codex, codex_env):
     # Captured because the URL is read back; the status is asserted here with
     # both streams in the message, rather than left to a CalledProcessError
     # that would take leaf's own account down with it.
+    program = """
+import json, sys
+from pathlib import Path
+from leaf.hosting import start_server
+from leaf.service import claim_page
+page = Path(sys.argv[1])
+claim_page(page)
+started = start_server(page)
+print(json.dumps({"url": started.url}))
+"""
+    release_start = tmp_path / "release-page-host"
     started = under_codex(
-        shlex.join([*LEAF_COMMAND, "server", "start", str(page)]),
+        shlex.join([sys.executable, "-c", program, str(page)]),
         env,
+        hold_until=release_start,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
     )
+    release_codex_command(page, release_start)
     out, err = started.communicate(timeout=60)
     assert started.returncode == 0, f"{out}{err}"
     assert json.loads(out)["url"].startswith("http://127.0.0.1:")
-    # The fake codex wrapper exits with this one command; a real Codex session
-    # stays above later hook calls. Keep that session lifetime true for tests
-    # using this fixture after the launch itself has been verified.
-    claim = service_model.page_claim(page)
-    cleanup_model.write_json(
-        service_model.claim_path(page), {**claim, "pid": os.getpid()}
-    )
     return page
 
 
@@ -1749,3 +1814,18 @@ class _YamlSnapshotHandler(BaseSnapshotHandler):
 SnapshotHandlerRegistry.add_handler(
     lambda obj: isinstance(obj, YamlDocument), _YamlSnapshotHandler, insert_front=True
 )
+
+
+def consume_pending_input(session_id):
+    """A test reader takes a complete envelope and explicitly confirms it."""
+    from leaf import delivery
+    from leaf.hook_carrier import hook_acknowledgement
+
+    batches = delivery.pending_batches(session_id)
+    if not batches:
+        return None
+    payload = delivery.freeze_delivery(
+        batches, carrier="hook", acknowledge=hook_acknowledgement
+    )
+    delivery.receive(payload, session_id)
+    return payload

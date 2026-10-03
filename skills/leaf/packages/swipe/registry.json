@@ -1,7 +1,7 @@
 {
   "lf-swipe-deck": {
     "description": "A rapid pass-or-keep classification Ask, answered when no unseen cards remain.",
-    "x-instructions": "Put the deck inside lf-ask, whose heading names it. Keep classified cards in the piles the user chose across revisions unless the revision restates them. A rewrite that invalidates a classification restates the card; one that invalidates the completed deck restates the deck. Read authoring-revisions.md, Honor user state, and $restated.",
+    "x-instructions": "Name the deck’s question in a heading; lf-ask can frame its question and context. Keep classified cards in the piles the user chose across revisions unless the revision restates them. A rewrite that invalidates a classification restates the card; one that invalidates the completed deck restates the deck. Read authoring-revisions.md, Honor user state, and $restated.",
     "type": "object",
     "properties": {
       "id": {
@@ -55,7 +55,6 @@
       }
     },
     "x-awaits": {
-      "region": true,
       "answered": {
         "swipe": {
           "empty": {

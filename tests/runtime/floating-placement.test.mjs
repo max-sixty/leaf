@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-const { floatingPlacement } = await import("/runtime/floating.js");
+const { floatingPlacement } = await import("/runtime/annotation-overlay/floating.js");
 
 test("a superseded answer leaves the newer placement's plane and spot", async () => {
   const floating = document.createElement("div");

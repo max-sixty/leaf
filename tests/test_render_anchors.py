@@ -20,6 +20,7 @@ from leaf import structure as structure_model
 from leaf.registry import storage as registry_storage
 from leaf.render_checks import rendered, wait_until_ready
 from leaf.schema import ELEMENT_ID
+from leaf_dev.thread_journey import watch_message_arrival
 from PIL import Image
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
@@ -89,7 +90,6 @@ from render_harness import (
     ticked,
     told,
     wait_for_revision,
-    watch_message_arrival,
     write,
 )
 
@@ -5894,7 +5894,11 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     holding(page, held, 1, "the inline reply")
     pending = thread.locator('.lf-msg[aria-busy="true"]')
     expect(pending).to_contain_text("Confirmed from the inline thread.")
-    assert page.evaluate("window.__messageArrival") == 0.5
+    assert page.evaluate("window.__messageArrival") == {
+        "opacity": 0.5,
+        "busy": True,
+        "words": "Confirmed from the inline thread.",
+    }
     expect(pending).to_have_css("opacity", "0.5")
     held.pop(0).continue_()
     page.unroute("**/api/event")

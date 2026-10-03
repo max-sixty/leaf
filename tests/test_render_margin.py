@@ -10522,3 +10522,119 @@ def test_draw_mode_leaves_page_annotation_controls_usable(browser, serve):
     expect(edit).to_be_visible()
     expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
     expect(page.locator(".lf-drawing-pending")).to_have_count(0)
+
+
+def test_rail_holds_foreign_thread_layout_before_existing_actions(browser, serve):
+    """A new conversation cannot push the rail's existing Ask out from under a reader."""
+    page = open_page(browser, serve(page_annotation_action_source()))
+    rail = page.locator("lf-annotation-rail")
+    ask = rail.get_by_role("button", name="Which route? · Waiting on you", exact=True)
+    expect(ask).to_be_visible()
+    before = ask.bounding_box()
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "agent",
+            "agent": "Codex",
+            "session": "pytest-rail-news",
+            "revision": 1,
+            "text": "A new thought about the source",
+            "anchor": {"section": "subject"},
+        },
+    )
+    told(page)
+    expect(rail.locator(".lf-page-thread")).to_have_count(0)
+    expect(
+        rail.get_by_role("button", name="Show updated annotations", exact=True)
+    ).to_be_enabled()
+    assert ask.bounding_box() == before
+    rail.get_by_role("button", name="Show updated annotations", exact=True).click()
+    expect(rail.locator(".lf-page-thread")).to_have_count(1)
+    expect(rail).to_contain_text("A new thought about the source")
+
+
+def test_rail_holds_source_group_changes_before_existing_actions(browser, serve):
+    """A relocated conversation keeps its source-group allocation until the reader opens it."""
+    source = page_annotation_action_source().replace("height:360px", "height:700px")
+    root = {
+        "id": "0123456789abcdef0123456789abcdef",
+        "kind": "comment",
+        "author": "agent",
+        "agent": "Codex",
+        "session": "pytest-rail-news",
+        "revision": 1,
+        "text": "A current source conversation",
+        "anchor": {"section": "subject"},
+    }
+    page = open_page(browser, serve(source, events=[root]))
+    resized(page, 1400, 1100)
+    rail = page.locator("lf-annotation-rail")
+    ask = rail.get_by_role("button", name="Which route? · Waiting on you", exact=True)
+    expect(ask).to_be_visible()
+    before = ask.bounding_box()
+    page.evaluate("window.railGroup = document.querySelector('.lf-ar-group')")
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "session": "pytest-rail-news",
+            "revision": 1,
+            "parent": root["id"],
+            "text": "Move the conversation to the decision",
+            "anchor": {"section": "choice-question"},
+        },
+    )
+    told(page)
+    expect(
+        rail.get_by_role("button", name="Show updated annotations", exact=True)
+    ).to_be_enabled()
+    assert ask.bounding_box() == before
+    assert page.evaluate(
+        "document.querySelector('.lf-ar-entry').parentElement.parentElement === railGroup"
+    )
+    rail.get_by_role("button", name="Show updated annotations", exact=True).click()
+    page.wait_for_function(
+        "document.querySelector('.lf-ar-entry').parentElement.parentElement !== railGroup"
+    )
+    expect(rail.locator(".lf-page-thread")).to_have_count(1)
+
+
+def test_rail_refused_comment_retires_native_thread_and_restores_words(browser, serve):
+    source = page_annotation_action_source().replace("height:360px", "height:700px")
+    page = open_page(browser, serve(source))
+    resized(page, 1400, 1100)
+    rail = page.locator("lf-annotation-rail")
+    page.locator("#subject").click(modifiers=["Alt"])
+    editor = rail.locator(".lf-fab-input")
+    expect(editor).to_be_focused()
+    editor.press_sequentially("A comment whose words must come back")
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    page.keyboard.press("Control+Enter")
+    holding(page, held, 1, "the refused rail comment")
+    expect(rail.locator(".lf-page-thread")).to_have_count(1)
+    ask = rail.get_by_role("button", name="Which route? · Waiting on you", exact=True)
+    expect(ask).to_be_visible()
+    before = ask.bounding_box()
+    held[0].fulfill(
+        status=400,
+        json={
+            "ok": False,
+            "final": True,
+            "attempt": held[0].request.post_data_json["attempt"],
+            "error": "refused rail comment",
+        },
+    )
+    expect(rail.locator(".lf-page-thread")).to_have_count(0)
+    expect(rail.get_by_role("button", name="Open thread", exact=False)).to_have_count(0)
+    assert ask.bounding_box() == before
+    rail.get_by_role("button", name="Show updated annotations", exact=True).click()
+    expect(rail.locator(".lf-ar-entry")).to_have_count(0)
+    page.locator("#subject").click(modifiers=["Alt"])
+    expect(editor).to_be_visible()
+    expect(editor).to_be_focused()
+    expect(editor).to_have_js_property("value", "A comment whose words must come back")
+    consume_browser_errors(page, "400")

@@ -4,6 +4,9 @@
    shared Thread coordinator owns cards, source standing and the one composer.
    Other rows consume the same annotation inventory as core navigation and use
    canonical item activation and retained native contribution controls.
+   Conversation/source-group and action allocations hold visible foreign changes
+   behind one fixed notice. Current records still reach the shared seats; a retired
+   row retains empty room, while this tab's new comment appears immediately.
    Preparation only nominates retained outlets. A removed row stays connected
    while its old seat still holds native content, including across refused cohorts;
    a later pass can retire it after a successful cohort has emptied that seat. */
@@ -38,8 +41,10 @@ customElements.define(
     #actionRows = new Map();
     #nextSlot = 0;
     #actionOrder;
+    #threadOrder;
     #actionNotice;
     #noticeCurrent = true;
+    #threadsCurrent = true;
     #groups = new Map();
     #rows = new Map();
     #list;
@@ -52,11 +57,12 @@ customElements.define(
     // Immediate contribution updates and their focus arrival can paint in one script.
     // The fixed notice describes that script's final held layout, not its intermediate one.
     #paintNotice = () => {
+      const current = this.#noticeCurrent && this.#threadsCurrent;
       keepsText(
         this.#actionNotice,
-        this.#noticeCurrent ? "Annotations current" : "Show updated annotations",
+        current ? "Annotations current" : "Show updated annotations",
       );
-      keeps(this.#actionNotice, "disabled", this.#noticeCurrent ? "" : null);
+      keeps(this.#actionNotice, "disabled", current ? "" : null);
     };
 
     connectedCallback() {
@@ -76,6 +82,7 @@ customElements.define(
       this.#annotations?.unregister();
       this.#annotations = null;
       this.#actionOrder?.dispose();
+      this.#threadOrder?.dispose();
     }
 
     #build() {
@@ -93,7 +100,14 @@ customElements.define(
         () => [this.#actions],
         () => this.#annotations?.update(),
       );
-      this.#actionNotice.addEventListener("click", () => this.#actionOrder.show());
+      this.#threadOrder = new HeldReading(
+        () => [this.#list, this.#actions, this.#empty],
+        () => this.#surface?.update(),
+      );
+      this.#actionNotice.addEventListener("click", () => {
+        this.#threadOrder.release();
+        this.#actionOrder.show();
+      });
       this.#composer = make("section", "lf-ar-composer");
       this.#composer.hidden = true;
       this.#composerName = make("h3", "lf-ar-source");
@@ -124,8 +138,8 @@ customElements.define(
       return group;
     }
 
-    #row(thread) {
-      const group = this.#group(thread.anchor?.section ?? null);
+    #row(thread, section) {
+      const group = this.#group(section);
       let row = this.#rows.get(thread.key);
       if (!row) {
         const node = make("div", "lf-ar-entry");
@@ -340,26 +354,78 @@ customElements.define(
     }
 
     #present(collection, surfaces) {
-      const current = new Set(collection.threads.map((thread) => thread.key));
-      for (const [key, row] of this.#rows) {
-        if (!current.has(key) && !row.outlet.firstElementChild) {
-          row.node.remove();
-          this.#rows.delete(key);
-        } else row.node.toggleAttribute("data-lf-ar-retired", !current.has(key));
+      const current = new Map(collection.threads.map((thread) => [thread.key, thread]));
+      const wanted = JSON.stringify(
+        collection.threads.map((thread) => [
+          thread.key,
+          thread.anchor?.section ?? null,
+        ]),
+      );
+      // A new local comment is the user's own arrival. Foreign arrivals, removals
+      // and source moves hold their allocations wherever they could carry a later
+      // conversation or action. Their current records still reach the shared seats.
+      if (
+        collection.threads.some(
+          (thread) =>
+            thread.root.author === "user" &&
+            thread.root.pending &&
+            !this.#rows.has(thread.key),
+        )
+      )
+        this.#threadOrder.release();
+      const shown = this.#threadOrder.hold(wanted);
+      const shape = JSON.parse(shown);
+      this.#threadsCurrent = shown === wanted;
+      afterScript(this.#paintNotice);
+      const groups = new Map();
+      const retained = new Set();
+      for (const [key, section] of shape) {
+        const thread = current.get(key);
+        const row = thread ? this.#row(thread, section) : this.#rows.get(key);
+        const rows = groups.get(section) ?? [];
+        rows.push(row.node);
+        groups.set(section, rows);
+        retained.add(key);
+        if (thread) {
+          row.node.style.minBlockSize = "";
+          row.node.removeAttribute("data-lf-ar-retired");
+          keepsHidden(row.button, false);
+          const target = surfaces.target(thread.key);
+          if (target) surfaces.place(thread.key, row.outlet);
+        } else {
+          // The successful cohort empties the old native outlet. Keep its allocation
+          // until the held layout can leave, with no stale navigation control.
+          if (!row.node.style.minBlockSize)
+            row.node.style.minBlockSize = layoutPx(
+              row.node.getBoundingClientRect().height,
+            );
+          keepsHidden(row.button, true);
+        }
       }
-      for (const thread of collection.threads) {
-        const row = this.#row(thread);
-        row.node.removeAttribute("data-lf-ar-retired");
-        const target = surfaces.target(thread.key);
-        if (target) surfaces.place(thread.key, row.outlet);
-      }
+      for (const [key, row] of this.#rows)
+        if (!retained.has(key)) {
+          row.node.toggleAttribute("data-lf-ar-retired", true);
+          if (!row.outlet.firstElementChild) {
+            row.node.remove();
+            this.#rows.delete(key);
+          }
+        }
       for (const [section, group] of this.#groups) {
-        if (!group.rows.childElementCount) {
+        const rows = groups.get(section);
+        if (rows)
+          setChildren(group.rows, rows, (node) => {
+            if (!node.querySelector(".lf-ar-outlet > *")) node.remove();
+          });
+        else if (
+          ![...group.rows.children].some((row) =>
+            row.querySelector(".lf-ar-outlet > *"),
+          )
+        ) {
           group.node.remove();
           this.#groups.delete(section);
         }
       }
-      keepsHidden(this.#empty, collection.threads.length > 0);
+      keepsHidden(this.#empty, shape.length > 0);
       keepsHidden(
         this.#composer,
         !surfaces.composition && !this.#composerOutlet.firstElementChild,

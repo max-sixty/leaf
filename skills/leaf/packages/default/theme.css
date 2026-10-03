@@ -1797,7 +1797,7 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
   color: var(--ink-2); font: 600 var(--t-5)/1.4 var(--sans);
   block-size: 1.4em;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-:scope:is(lf-annotation-rail) .lf-ar-entry { margin-block: var(--sp-2);
+:scope:is(lf-annotation-rail) .lf-ar-entry { display: flow-root; margin-block: var(--sp-2);
   border-block-start: 1px solid var(--border-2); }
 :scope:is(lf-annotation-rail) .lf-ar-open { margin-block: var(--sp-2);
   min-block-size: 32px; }

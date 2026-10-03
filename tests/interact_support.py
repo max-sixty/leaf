@@ -616,23 +616,8 @@ def record_claim(page, /, harness="claude-code", **fields):
     if not lifetime:
         lifetime = {"pid": record["pid"]}
     turn = {key: record[key] for key in ("turn", "turn_opened", "turn_closed")}
-    session = None
-    if "generation" in fields:
-        # Copying a current claim corrects the fake host's lifetime, rather than
-        # replacing its session and briefly leaving that claim without an owner.
-        with cleanup_model.flocked(cleanup_model.session_lock_path(record["id"])):
-            current = cleanup_model.session_record(record["id"])
-            if (
-                current is not None
-                and current["ended"] is None
-                and fields["generation"] == current["generation"]
-            ):
-                session = cleanup_model.write_session(
-                    {**current, "lifetime": lifetime, **turn}
-                )
-    if session is None:
-        session = cleanup_model.ensure_session(record["id"], lifetime)
-        session = cleanup_model.write_session({**session, **turn})
+    session = cleanup_model.ensure_session(record["id"], lifetime)
+    session = cleanup_model.write_session({**session, **turn})
     record = {
         key: value
         for key, value in record.items()
@@ -644,6 +629,23 @@ def record_claim(page, /, harness="claude-code", **fields):
     path.parent.mkdir(parents=True, exist_ok=True)
     cleanup_model.write_json(path, record)
     return service_model.page_claim(page)
+
+
+def bind_task_lifetime_to_worker(page):
+    """Keep a synthetic task standing after its one-command host exits.
+
+    The worker stands for the real host process that survives tool calls. This
+    changes only that existing task's lifetime provenance, under its session
+    lock: its generation, turn, provider observation, and page acquisition stay
+    intact. Recording another claim would create a replacement generation and
+    briefly leave the already-running carrier with no pages to own.
+    """
+    claim = service_model.page_claim(page)
+    with cleanup_model.flocked(cleanup_model.session_lock_path(claim["id"])):
+        record = cleanup_model.session_record(claim["id"])
+        assert record["generation"] == claim["generation"]
+        assert record["ended"] is None
+        cleanup_model.write_session({**record, "lifetime": {"pid": os.getpid()}})
 
 
 def live_versions(d):
@@ -1467,8 +1469,7 @@ print(json.dumps({"url": started.url}))
         assert json.loads(announcement)["url"].startswith("http://127.0.0.1:")
         # Transfer the fixture lifetime while its original host is still alive;
         # a session-bound server may retire as soon as that host exits.
-        claim = service_model.page_claim(page)
-        record_claim(page, **{**claim, "pid": os.getpid()})
+        bind_task_lifetime_to_worker(page)
     finally:
         release_start.touch()
     out, err = started.communicate(timeout=60)

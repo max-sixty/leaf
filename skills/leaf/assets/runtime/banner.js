@@ -689,8 +689,9 @@ export function stateSignoff(next, syncLayout, paintApproval) {
   syncLayout();
 }
 
-// The two primary controls hold the widest words they can show, so an asynchronous
-// count or approval result cannot move its sibling. Secondary controls can grow inside
+// The two primary controls reserve the widest words they can show, so an asynchronous
+// count or approval result cannot move its sibling. CSS bounds Approval's room when
+// the complete words cannot fit. Secondary controls can grow inside
 // More without changing the page's reading loop.
 function reserveBannerControls() {
   if (signoff) reserve(approveBtn, ["Approve version", "✓ Version approved"]);

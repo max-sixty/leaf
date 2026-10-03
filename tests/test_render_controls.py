@@ -2038,6 +2038,10 @@ def test_a_phone_banner_keeps_fixed_primary_and_menu_seats(browser, serve, other
     menu = page.locator(".lf-banner-menu").bounding_box()
     assert menu["x"] >= 0 and menu["x"] + menu["width"] <= 390, menu
     assert menu["width"] <= 390 - 16, menu
+    bulk = page.locator(".lf-banner-menu > .lf-answer-all:visible")
+    assert bulk.count() > 0
+    for control in bulk.all():
+        assert control.bounding_box()["width"] >= menu["width"] - 24
     assert root_overflow(page) == 0
     reached = []
     for _ in range(len(want) * 3):

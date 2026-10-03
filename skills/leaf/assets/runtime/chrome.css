@@ -479,10 +479,12 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     .lf-banner-status { flex-basis: 100%; }
     .lf-banner-actions { flex-basis: 100%; }
   }
-  /* A primary control keeps its words at every width. A flex item's default minimum is
-     its own words, but the shared aim floor states a minimum width in pixels and would
-     otherwise let the item shrink past them. */
+  /* Reading targets keep their reservations. Approval takes the remaining room,
+     down to the shared aim floor, and truncates its label when a larger face needs
+     more than the window can hold. Its complete text remains the accessible name. */
   .lf-banner-actions > .lf-btn { flex: none; }
+  .lf-banner-actions > .lf-signoff { flex-shrink: 1; overflow: hidden;
+    text-overflow: ellipsis; }
   .lf-banner-actions > .lf-btn:where(:not(.primary)) { border-color: transparent;
     border-radius: 0; background: transparent; }
   .lf-banner-actions > .lf-btn:where(:not(.primary)):hover { background: var(--chip); }
@@ -1831,7 +1833,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
        ones the page has taken away: hidden is a display of its own, and a rule that
        states display without excluding it puts an absent control back on the row.
        Centring is for the controls that are there. */
-    .lf-banner-actions > .lf-btn:not([hidden]) { display: inline-flex;
+    .lf-banner-actions > .lf-btn:not([hidden]):not(.lf-signoff) { display: inline-flex;
       align-items: center; justify-content: center; }
     /* Forty on the narrow row, or the aim floor where a finger raises that past
        forty: this rule's padding outranks .lf-btn's, which carries the floor

@@ -1606,6 +1606,7 @@ def test_the_banner_reads_in_one_order_at_every_width(browser, serve, other_leaf
         (630, True, 14),
         (629, True, 14),
         (320, True, 16),
+        (320, True, 20),
         (631, False, 20),
     ],
 )
@@ -1665,6 +1666,9 @@ def test_approval_capability_changes_keep_banner_targets(
         rendered(page)
         if present:
             expect(page.locator(".lf-signoff")).to_be_visible()
+            expect(
+                page.get_by_role("button", name="Approve version", exact=True)
+            ).to_be_visible()
         else:
             expect(page.locator(".lf-signoff")).to_be_hidden()
         after = boxes()
@@ -1678,6 +1682,8 @@ def test_approval_capability_changes_keep_banner_targets(
             if target.is_visible():
                 box = target.bounding_box()
                 assert box["x"] >= 0 and box["x"] + box["width"] <= width
+                if touch:
+                    assert box["width"] >= 43.5 and box["height"] >= 43.5
         for selector in selectors:
             assert after[selector] == pytest.approx(before[selector], abs=0.5), (
                 selector,

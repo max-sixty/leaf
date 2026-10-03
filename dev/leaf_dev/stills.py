@@ -159,6 +159,28 @@ def code_note(page: Page) -> None:
     )
 
 
+def theme_hierarchy(page: Page) -> None:
+    """A neutral callout with open and closed support; exercise the closed row by key."""
+    page.locator('#bg-gallery-tabs [role="tab"]').get_by_text(
+        "Page & layout", exact=True
+    ).click()
+    settle(page)
+    summary = page.locator("#bg-theme-support summary")
+    for _ in range(12):
+        page.keyboard.press("Tab")
+        if summary.evaluate("el => el.matches(':focus-visible')"):
+            break
+    else:
+        raise AssertionError("Tab did not reach the supporting disclosure")
+    page.keyboard.press("Enter")
+    page.wait_for_function("() => document.querySelector('#bg-theme-support').open")
+    page.keyboard.press("Enter")
+    page.wait_for_function("() => !document.querySelector('#bg-theme-support').open")
+    page.locator("#bg-theme-hierarchy").evaluate(
+        "el => el.scrollIntoView({block: 'start'})"
+    )
+
+
 def wide_passage(page: Page) -> None:
     """A selected passage in a wide block, with its comment field beside it."""
     page.locator('#bg-gallery-tabs [role="tab"]').get_by_text(
@@ -259,6 +281,7 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
         composer,
         card_grabbed,
         code_note,
+        theme_hierarchy,
         wide_passage,
         multiline_passage,
         code_copy_by_pointer,
@@ -284,6 +307,28 @@ class State:
 
 STATES = (
     State("gallery-tabs", "developer/feature-gallery", at_rest),
+    State("gallery-theme", "developer/feature-gallery", theme_hierarchy),
+    State(
+        "gallery-theme-dark",
+        "developer/feature-gallery",
+        theme_hierarchy,
+        scheme="dark",
+    ),
+    State(
+        "gallery-theme-phone",
+        "developer/feature-gallery",
+        theme_hierarchy,
+        viewport=(390, 844),
+        touch=True,
+    ),
+    State(
+        "gallery-theme-phone-dark",
+        "developer/feature-gallery",
+        theme_hierarchy,
+        viewport=(390, 844),
+        scheme="dark",
+        touch=True,
+    ),
     State("gallery-wide-passage", "developer/feature-gallery", wide_passage),
     State("gallery-multiline-passage", "developer/feature-gallery", multiline_passage),
     State("plan", "review-a-plan", at_rest),

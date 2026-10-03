@@ -371,19 +371,31 @@ class LeafText extends HTMLElement {
             scaleY,
             top: box.top + this.clientTop * scaleY,
             left: box.left + this.clientLeft * scaleX,
-            bottom: box.top + (this.clientTop + this.clientHeight) * scaleY,
-            right: box.left + (this.clientLeft + this.clientWidth) * scaleX,
+            // client dimensions round fractional CSS sizes. Keep the trailing
+            // edges on the actual box, inset by its native border and scrollbar.
+            bottom:
+              box.bottom -
+              (this.offsetHeight - this.clientTop - this.clientHeight) * scaleY,
+            right:
+              box.right -
+              (this.offsetWidth - this.clientLeft - this.clientWidth) * scaleX,
           };
         },
         write: ({ caret, top, left, bottom, right, scaleX, scaleY }) => {
           if (!caret) return;
+          // Native scroll offsets quantize a fractional correction. Round away from
+          // zero so a caret just beyond an edge actually enters the host's scrollport.
+          const wholePixel = (distance) =>
+            distance < 0 ? Math.floor(distance) : Math.ceil(distance);
           this.scrollBy({
-            top:
+            top: wholePixel(
               (Math.min(0, caret.top - top) + Math.max(0, caret.bottom - bottom)) /
-              scaleY,
-            left:
+                scaleY,
+            ),
+            left: wholePixel(
               (Math.min(0, caret.left - left) + Math.max(0, caret.right - right)) /
-              scaleX,
+                scaleX,
+            ),
             behavior: "instant",
           });
         },

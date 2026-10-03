@@ -10785,6 +10785,9 @@ start_server(live)
     assert started.returncode == 0, f"{out}{err}"
 
     try:
+        claim = service_model.page_claim(live)
+        record_claim(offline, **{**claim, "page": str(offline.resolve())})
+        assert set(service_model.owned_pages("codex-thread")) == {live, offline}
         service = files_model.read_json(live / "service.json")
         origin = f"http://{service['host']}:{service['port']}"
         status, body = fetch(

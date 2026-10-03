@@ -174,6 +174,40 @@ def target_document(title, body):
     )
 
 
+@pytest.mark.xfail(
+    reason=(
+        "Main 6ddf85e5d: the visual-review inline comment seat does not reveal its "
+        "focused editor after a desktop-to-phone resize"
+    ),
+    raises=AssertionError,
+    strict=True,
+)
+def test_visual_review_keeps_its_inline_comment_editor_in_view_after_phone_resize(
+    browser, serve
+):
+    """A focused comment editor remains reachable when its visual-review seat narrows."""
+    page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
+    resized(page, 1366, 768)
+    widget = page.locator("#visual-review-run")
+    fills_the_window(page, widget, True)
+    widget.get_by_role("button", name="Next").click()
+    expect(widget.locator(".lf-vr-case-select")).to_have_js_property(
+        "value", "keep-mobile-destinations"
+    )
+    datum = widget.locator('[data-lf-datum="keep-mobile-destinations"]')
+    comment_on_target(page, datum)
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_focused()
+    page.keyboard.type("Keep the destinations together")
+    assert_keyboard_focus(page, field)
+
+    # Resizing alone must keep the focused editor in view. The reader has not scrolled.
+    resized(page, 390, 760)
+    fills_the_window(page, widget, False)
+    expect(field).to_have_js_property("value", "Keep the destinations together")
+    assert_keyboard_focus(page, field)
+
+
 def test_an_authenticated_navigation_journey_becomes_credential_free_review_evidence(
     browser, serve, tmp_path
 ):
@@ -423,6 +457,8 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     expect(field).to_be_focused()
     user.keyboard.type("Restore Back to releases")
     resized(user, 390, 760)
+    field.scroll_into_view_if_needed()
+    scroll_settled(user)
     fills_the_window(user, widget, False)
     expect(field).to_have_js_property("value", "Restore Back to releases")
     assert_keyboard_focus(user, field)

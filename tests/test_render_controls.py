@@ -293,6 +293,7 @@ def test_product_gallery_threads_tab_operates_seeded_panel_views(browser, serve)
     page.locator("#bg-panel-sample").get_by_role(
         "button", name="Reset", exact=True
     ).click()
+    page.locator("#bg-panel-sample").evaluate("async sample => { await sample.ready; }")
     expect(panel).to_be_visible()
     expect(frame.locator(".lf-thread")).to_have_count(4)
     expect(

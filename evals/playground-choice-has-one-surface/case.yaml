@@ -1,0 +1,100 @@
+# From Codex session 01a0fec0-dd0e-7f01-896f-f4f9e7264b5b: a before/after
+# cue comparison offered the same four whole treatments as presets and a choice
+# control, after reading the playground instructions. The cold generation prompt
+# passed both arms; this case resumes from the duplicated draft before handoff.
+# On b5d0ad501, the final draft replay passed 0/2 baseline and 2/2 candidate runs
+# across Claude Code and Codex. Both baseline runs kept a separate choice control;
+# Claude also duplicated it with candidate buttons. Both candidate runs selected
+# the examples directly. This measures repeated selection surfaces, including
+# the preset/control duplication in the recorded draft.
+description: playground-choice-has-one-surface
+metadata:
+  purpose: 'Playground: each design decision has one selection surface; presets
+    compose independently adjustable parameters.'
+  tags:
+  - playground
+vars:
+  prompt: |
+    The user asks: "Where we have our before and after, consider ways to make it
+    clearer which we're on; I often have to glance at the titles. One way would
+    be to color the selected one red/green, similar to lf-diff. Sketch this and
+    any other ideas."
+
+    You have inspected Leaf's lf-shot comparison. It has Before and After
+    labels, a flip action, and a draggable split divider. You have built four
+    live candidates with the same screenshot pair: today's neutral selector,
+    red/green on the selected label, a colored image edge, and a neutral badge
+    inside the image. Each candidate preserves the real flip and split behavior.
+    All four are visible together in the preview as lf-sample window children.
+    You can use placeholders for the child templates. A page-local Show all
+    Before/Both/After control operates the same inspection state in every sample.
+
+    The first draft wraps those samples in lf-playground-preview, inside this
+    configuration:
+      <lf-playground id="explorer" submit-label="Use this treatment">
+        <lf-playground-control name="treatment" label="Treatment to build"
+          kind="choice" value="selector">
+          <lf-playground-choice value="current" label="Current"></lf-playground-choice>
+          <lf-playground-choice value="selector" label="Red/green selector"></lf-playground-choice>
+          <lf-playground-choice value="edge" label="Colored edge"></lf-playground-choice>
+          <lf-playground-choice value="badge" label="Image badge"></lf-playground-choice>
+        </lf-playground-control>
+        <lf-playground-preset label="Current">
+          <lf-playground-setting for="treatment" value="current"></lf-playground-setting>
+        </lf-playground-preset>
+        <lf-playground-preset label="Red/green selector">
+          <lf-playground-setting for="treatment" value="selector"></lf-playground-setting>
+        </lf-playground-preset>
+        <lf-playground-preset label="Colored edge">
+          <lf-playground-setting for="treatment" value="edge"></lf-playground-setting>
+        </lf-playground-preset>
+        <lf-playground-preset label="Image badge">
+          <lf-playground-setting for="treatment" value="badge"></lf-playground-setting>
+        </lf-playground-preset>
+        <lf-playground-preview>...inspection controls and four samples...</lf-playground-preview>
+        <lf-playground-output>Apply the
+          <lf-playground-value for="treatment"></lf-playground-value> treatment to
+          Leaf's lf-shot comparison and its margin toggle. Preserve flipping,
+          dragging, keyboard controls, and an unambiguous split state. Show the
+          result in light and dark themes at desktop and phone widths.
+        </lf-playground-output>
+      </lf-playground>
+
+    Finish the draft for handoff so the user can try the candidates and choose
+    which treatment to implement. Use the installed leaf:leaf skill and read
+    packages/playground/instructions/author.md inside its base directory.
+    The page directory is not reachable here, so reply with the HTML and any
+    page module needed for the choice and implementation request.
+assert:
+- type: javascript
+  metric: loads-leaf
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/SKILL\.md
+- type: javascript
+  metric: reads-playground-instructions
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/packages/playground/instructions/author\.md
+- type: llm-rubric
+  metric: one-selection-surface
+  value: |
+    Read the authored HTML and page module. Pass only if the user has one
+    selection surface for which treatment to build. Selectable candidates,
+    one group of choice options, or one group of presets are each acceptable.
+    Fail if presets, a choice control, or buttons on the candidates duplicate
+    the same treatment selection in two or more places, even with different
+    labels. Inspection controls for Before/Both/After and the final submission
+    button do not duplicate the treatment choice.
+- type: llm-rubric
+  metric: usable-comparison
+  value: |
+    Pass only if all four candidates remain available together for comparison,
+    the user can inspect Before/Both/After, and each visible candidate offers
+    its own selection action recording which treatment to implement. The
+    candidates themselves are the choice, so trying and choosing a candidate
+    happen in the same place. The inspection state is separate
+    from that design choice, and the implementation request identifies the
+    chosen treatment and lf-shot. Placeholders for live child templates are fine.
+    Fail if simplifying the selection removes comparison, inspection, or the
+    user's ability to submit a concrete implementation request.

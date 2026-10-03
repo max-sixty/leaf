@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from leaf import user_views
 from leaf.files import read_json
-from leaf.session_cleanup import write_json
+from leaf.state import write_json
 
 
 def report(session="a" * 32, sequence=1, revision=1):

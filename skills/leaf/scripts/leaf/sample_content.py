@@ -19,7 +19,7 @@ from .event_meaning import AdmissionReadings
 from .page_view import InitialPageView
 from .projection import generated_children, retirement_outcomes, rewritten_bodies
 from .registry.schema import aware_instant, schema_error
-from .session_cleanup import now_iso
+from .state import now_iso
 from .structure import SourceDocument
 from .thread_context import sample_events, thread_structure
 from .validation.admission import message_markup_error

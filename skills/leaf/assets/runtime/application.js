@@ -38,6 +38,7 @@ import { createInlineContributions } from "./inline-contributions.js";
 import { presentingContributions, watchContributions } from "./contributions.js";
 import { watchProjection } from "./projection-watch.js";
 import { clocked } from "./presence.js";
+import { createThreadDestinations } from "./thread/destination.js";
 import { createThreadActions } from "./thread/actions.js";
 import { registerMirrorConsumer } from "./thread/mirrors.js";
 import { createReadTracking } from "./thread/read.js";
@@ -48,6 +49,7 @@ import { isThreadEvent } from "./pending/model.js";
 import {
   focusSurface,
   consumeThreads as registerConsumer,
+  consumePageThreads as registerPageConsumer,
   renderSurfaces,
 } from "./thread/surfaces.js";
 import { createStateApplication } from "./state-application.js";
@@ -309,8 +311,7 @@ export function mountApplication(dependencies) {
     reaction: reactionView,
     read,
     anchors: {
-      isMarked: dependencies.anchorPaint.isMarked,
-      placedAt: dependencies.anchorPaint.placedAt,
+      placedAt: dependencies.anchorPlacement.placedAt,
     },
     travel: {
       focusSurface,
@@ -328,7 +329,7 @@ export function mountApplication(dependencies) {
     comparisonChanges: dependencies.margin.comparisonChanges,
     inlineComparison: dependencies.margin.inlineComparison,
     toggleInlineComparison: dependencies.margin.toggleInlineComparison,
-    placedAt: dependencies.anchorPaint.placedAt,
+    placedAt: dependencies.anchorPlacement.placedAt,
     showThread: dependencies.showThread,
     goToAsk: dependencies.margin.goToAsk,
     scrollToElement: dependencies.anchorTravel.scrollToElement,
@@ -363,7 +364,7 @@ export function mountApplication(dependencies) {
     inventory: annotations,
     refreshInventory: refreshAnnotationInventory,
     renderAnnotations,
-    showThread: dependencies.showThread,
+    openPageThread: (...args) => threadDestinations.openPageThread(...args),
     panelIsOpen: dependencies.panelIsOpen,
     panel: dependencies.panel,
     accompaniedThread: dependencies.accompaniedThread,
@@ -376,15 +377,22 @@ export function mountApplication(dependencies) {
     scrollThreadIntoView: dependencies.margin.scrollThreadIntoView,
     renderMarginThread: (host, thread, controls) =>
       renderMarginThread(host, thread, inlineView, controls),
-    placedAt: dependencies.anchorPaint.placedAt,
+    placedAt: dependencies.anchorPlacement.placedAt,
     scrollToElement: dependencies.anchorTravel.scrollToElement,
+  });
+  const threadDestinations = createThreadDestinations({
+    placedAt: dependencies.anchorPlacement.placedAt,
+    panelIsOpen: dependencies.panelIsOpen,
+    showThread: dependencies.showThread,
     scrollToThread: dependencies.anchorTravel.scrollToThread,
+    preview: margin.threadPreview,
   });
 
   threadPresenter = createThreadPresentation({
     available: dependencies.threadAvailable ?? true,
     inlineView,
     surfaceView,
+    anchorPlacement: dependencies.anchorPlacement,
     anchorPaint: dependencies.anchorPaint,
     anchorControls: dependencies.anchorControls,
     drawingPaint: dependencies.drawingPaint,
@@ -396,7 +404,7 @@ export function mountApplication(dependencies) {
     // Where a thread stands now, put up for a user carried there from a box a surface
     // stopped drawing: the surface drawing it, its margin card, or the panel.
     openThread: (id, options) =>
-      margin.openPageThread(id, { ...options, travel: false }),
+      threadDestinations.openPageThread(id, { ...options, travel: false }),
     read,
   });
   const registerThreadPanel = ({ controller, threadsBox, view, required = false }) => {
@@ -413,8 +421,7 @@ export function mountApplication(dependencies) {
           showThread: view.travel.showThread,
           travel: { ...cardView.travel, ...view.travel },
         },
-        isMarked: dependencies.anchorPaint.isMarked,
-        placedAt: dependencies.anchorPaint.placedAt,
+        placedAt: dependencies.anchorPlacement.placedAt,
         repaintThread: required ? refreshThread : () => registration.update(),
       },
     });
@@ -497,12 +504,15 @@ export function mountApplication(dependencies) {
       onDraftChanged: invalidateDom,
       wireInput: dependencies.wireInput,
     });
+  const threadSurfaceCommands = {
+    invalidate: invalidateDom,
+    composition: dependencies.compositionSurface,
+    reveal: dependencies.showThread,
+  };
   const consumeThreads = (owner, render) =>
-    registerConsumer(owner, render, {
-      invalidate: invalidateDom,
-      composition: dependencies.compositionSurface,
-      reveal: dependencies.showThread,
-    });
+    registerConsumer(owner, render, threadSurfaceCommands);
+  const consumePageThreads = (owner, render) =>
+    registerPageConsumer(owner, render, threadSurfaceCommands);
   const mountThreadViews = (owner, render) =>
     registerMirrorConsumer(owner, render, { commands: inlineView });
 
@@ -524,6 +534,7 @@ export function mountApplication(dependencies) {
     renderAnnotations,
     mountAnnotations,
     margin,
+    threadDestinations,
     read,
     mountThread: threadPresenter.mount,
     mountRead: read.mount,
@@ -539,6 +550,7 @@ export function mountApplication(dependencies) {
     refreshThread,
     presentThread,
     consumeThreads,
+    consumePageThreads,
     mountThreadViews,
     registerThreadPanel,
     forgetAuthoredOwners: projection.forgetAuthoredOwners,
@@ -565,7 +577,7 @@ export const navigateToDatum = (...args) => app().navigateToDatum(...args);
 export const openAsks = (...args) => app().openAsks(...args);
 // The one route to a thread by its root id: the thread's inline destination while
 // it has one, Threads otherwise, the same choice a mark and t/T make.
-export const openThread = (...args) => app().margin.openPageThread(...args);
+export const openThread = (...args) => app().threadDestinations.openPageThread(...args);
 export const unansweredAsks = (...args) => app().unansweredAsks(...args);
 export const pendingApprovals = (...args) => app().pendingApprovals(...args);
 export const acceptedApprovals = (...args) => app().acceptedApprovals(...args);
@@ -575,6 +587,7 @@ export const readAndApply = (...args) => app().readAndApply(...args);
 export const receiveState = (...args) => app().receiveState(...args);
 export const refreshThread = (...args) => app().refreshThread(...args);
 export const consumeThreads = (...args) => app().consumeThreads(...args);
+export const consumePageThreads = (...args) => app().consumePageThreads(...args);
 export const mountThreadViews = (...args) => app().mountThreadViews(...args);
 export const registerThreadPanel = (...args) => app().registerThreadPanel(...args);
 export const threadActions = Object.freeze({

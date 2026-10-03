@@ -1,5 +1,6 @@
 """Filesystem path identity, containment, and overlap."""
 
+import hashlib
 import os
 import sys
 from pathlib import Path
@@ -141,3 +142,20 @@ def paths_same(left: Path, right: Path) -> bool:
     # Containment both ways is equality of the canonical form: neither path can
     # be a strict ancestor of the other and still contain it.
     return path_location(left) == path_location(right)
+
+
+def path_lock_key(path: Path) -> str:
+    """A destination's lock name, stable across creation and atomic replacement.
+
+    Resolve symlink aliases and fold case only when this volume ignores it. Inode
+    identities used for containment change when a writer creates or replaces the
+    destination, so a lock must instead name its filesystem-normalized path.
+    """
+    resolved = path.expanduser().resolve()
+    ancestor = resolved
+    while not ancestor.exists():
+        ancestor = ancestor.parent
+    name = str(resolved)
+    if not _filesystem_case_sensitive(ancestor):
+        name = name.casefold()
+    return hashlib.sha256(name.encode()).hexdigest()

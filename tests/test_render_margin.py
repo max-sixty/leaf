@@ -57,6 +57,7 @@ from render_harness import (
     comment_note,
     compare_with,
     consume_browser_errors,
+    held_frames,
     holding,
     leaf_page,
     margins_laid_out,
@@ -10290,3 +10291,100 @@ def test_drafting_in_a_pane_keeps_the_card_and_reply_top_when_its_room_runs_out(
     assert caret["selection"] == caret["length"], caret
     assert caret["caretTop"] >= caret["boxTop"], caret
     assert caret["caretBottom"] <= caret["boxBottom"], caret
+
+
+@pytest.mark.parametrize("search_again", [False, True], ids=["arrival", "newer-search"])
+def test_page_map_disclosure_arrival_yields_to_newer_search(
+    browser, serve, search_again
+):
+    """An expanded entry can reveal its child without reclaiming a newer search field."""
+    page = open_page(
+        browser, serve(leaf_page("Map disclosure", '<p id="target">Review.</p>'))
+    )
+    page.evaluate(
+        """async () => {
+          const {registerContribution, contributionEntry} =
+            await window.__lfRuntimeImport('/runtime/widget-api.js');
+          let expanded = false;
+          const registration = registerContribution({
+            key: 'disclosure', target: document.querySelector('#target'),
+            read: () => ({entries: [
+              contributionEntry({key: 'open', label: 'Expand choices', icon: 'more',
+                behavior: 'disclosure',
+                relation: {kind: 'entries', keys: ['child'], expanded}}),
+              contributionEntry({key: 'child', label: 'Revealed choice', icon: 'dot',
+                visible: expanded}),
+            ]}),
+            activate: () => {
+              expanded = true;
+              registration.update({immediate: true});
+            },
+          });
+        }"""
+    )
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+m")
+    dialog = page.get_by_role("dialog", name="Page Map", exact=True)
+    door = dialog.get_by_role("button", name="Expand choices", exact=True)
+    child = dialog.get_by_role("button", name="Revealed choice", exact=True)
+    search = dialog.get_by_role(
+        "searchbox", name="Find an action, status, or location in Page Map"
+    )
+    expect(door).to_be_visible()
+    with held_frames(page):
+        box = door.bounding_box()
+        assert box is not None
+        page.mouse.click(box["x"] + 20, box["y"] + 10)
+        expect(child).to_be_visible()
+        if search_again:
+            box = search.bounding_box()
+            assert box is not None
+            page.mouse.click(box["x"] + 40, box["y"] + 10)
+            expect(search).to_be_focused()
+    rendered(page)
+    expect(search if search_again else child).to_be_focused()
+
+
+def test_a_crowded_outline_keeps_the_reading_position_when_it_fits_again(
+    browser, serve
+):
+    """An automatic map measurement leaves an outline where its reader scrolled it."""
+    source = leaf_page(
+        "Crowded outline",
+        '<h1 id="title">Crowded outline</h1>'
+        '<aside class="sidebar"><lf-toc id="contents"></lf-toc></aside>'
+        + "".join(
+            f'<section id="row-{index}"><h2>Section {index:02}</h2>'
+            '<div style="height:120px"></div></section>'
+            for index in range(40)
+        ),
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1400, 700)
+    outline = page.get_by_role("navigation", name="On this page")
+    first = outline.get_by_role("link", name="Section 00", exact=True)
+    expect(page.locator("#contents")).to_have_attribute("data-lf-outline", "")
+    first.focus()
+    box = outline.bounding_box()
+    assert box is not None
+    page.mouse.move(box["x"] + 40, box["y"] + 80)
+    page.mouse.wheel(0, 500)
+    page.wait_for_function("document.querySelector('.lf-toc-nav').scrollTop > 300")
+    scroll_settled(page)
+    before = outline.evaluate("node => node.scrollTop")
+    document_before = page.evaluate("scrollY")
+    resized(page, 1401, 700)
+    assert outline.evaluate("node => node.scrollTop") == before
+    assert page.evaluate("scrollY") == document_before
+
+    page.keyboard.press("Tab")
+    next_link = outline.get_by_role("link", name="Section 01", exact=True)
+    expect(next_link).to_be_focused()
+    assert outline.evaluate("node => node.scrollTop") < before
+    page.keyboard.press("Enter")
+    expect(page).to_have_url(re.compile(r"#row-1$"))
+    scroll_settled(page)
+    assert (
+        page.locator("#row-1").evaluate("node => node.getBoundingClientRect().top")
+        < 150
+    )

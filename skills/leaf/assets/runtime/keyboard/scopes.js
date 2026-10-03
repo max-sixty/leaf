@@ -175,9 +175,9 @@ function attachScope(where, declaration, { validateAtPaint = true } = {}) {
   return scope.rows;
 }
 
-export function keys(where, title, rows, options) {
-  if (rows === undefined && isCommandScope(title))
-    return attachScope(where, title.scope);
+// Both element-bound keys and a reusable command capability declare the same scope.
+// Attachment decides when its scene is validated, not what a declaration may contain.
+function declaredScope(title, rows, options) {
   const configuration =
     typeof options === "function" ? { when: options } : (options ?? {});
   if (typeof configuration !== "object")
@@ -189,17 +189,22 @@ export function keys(where, title, rows, options) {
     throw new TypeError(
       `A command scope's Escape ownership must be \"inner\", got ${String(escape)}`,
     );
-  const scope = {
+  return {
     title,
     rows: checked(rows, title ?? "a scope"),
     when,
     answer,
     escape,
   };
+}
+
+export function keys(where, title, rows, options) {
+  if (rows === undefined && isCommandScope(title))
+    return attachScope(where, title.scope);
   // A declaration this one replaces before its first paint is owed nothing: read at
   // the frame, a stale scope that refused would retract the element's standing
   // declaration along with itself.
-  return attachScope(where, scope);
+  return attachScope(where, declaredScope(title, rows, options));
 }
 
 /** Declare a command scope that presentation owners attach to generated controls.
@@ -209,24 +214,9 @@ export function keys(where, title, rows, options) {
  * rooted at the visible control in its own native layer.
  */
 export function commandScope(title, rows, options) {
-  const configuration =
-    typeof options === "function" ? { when: options } : (options ?? {});
-  if (typeof configuration !== "object")
-    throw new TypeError("A command scope's options must be an object");
-  const { when, answer, escape } = configuration;
-  if (answer !== undefined && typeof answer !== "function")
-    throw new TypeError("A command scope's answer must be a function");
-  if (escape !== undefined && escape !== "inner")
-    throw new TypeError(
-      `A command scope's Escape ownership must be "inner", got ${String(escape)}`,
-    );
   const scope = {
+    ...declaredScope(title, rows, options),
     identity: Object.freeze({}),
-    title,
-    rows: checked(rows, title ?? "a scope"),
-    when,
-    answer,
-    escape,
   };
   validateRows(scope.rows, title ?? "a scope");
   const capability = Object.freeze({ scope });

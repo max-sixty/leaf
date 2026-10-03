@@ -24,7 +24,7 @@ from leaf import hosting as hosting_model
 from leaf import render_checks as render_checks_model
 from leaf import service as service_model
 from leaf import session as session_model
-from leaf import session_cleanup as cleanup_model
+from leaf import state as cleanup_model
 from leaf import user_views as user_views_model
 from leaf.leases import take_lease, waiter_lease_path
 from leaf.render_checks import rendered, wait_until_ready
@@ -5645,6 +5645,478 @@ def test_the_public_widget_api_can_load_before_boot_registers_page_keys(browser,
     page.locator("[data-lf-margin-for='sug-refill'] .lf-sug-accept").click()
     round_trip(page)
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
+
+
+def test_page_thread_surface_owns_exact_source_elsewhere_in_main(browser, serve):
+    url = serve(
+        leaf_page(
+            "Page review rail",
+            """
+      <h1 id="title">Review</h1><p id="subject">The nightly export keeps one file per tenant.</p>
+      <aside id="review" aria-label="Review" style="height: 500px; overflow:auto"></aside>
+    """,
+        ),
+        anchored=[("subject", "one file per tenant")],
+    )
+    page = open_page(browser, url)
+    page.evaluate("""async () => {
+      const {consumePageThreads} = await __lfRuntimeImport('/runtime/application.js');
+      const rail = document.querySelector('#review');
+      const outlets = new Map();
+      window.pageSurface = consumePageThreads(rail, (collection, surface) => {
+        for (const thread of collection.threads) {
+          if (!surface.target(thread.key)) continue;
+          let outlet = outlets.get(thread.key);
+          if (!outlet) {
+            outlet = document.createElement('div');
+            outlet.dataset.lfGen='1'; rail.append(outlet); outlets.set(thread.key,outlet);
+          }
+          surface.place(thread.key,outlet);
+        }
+      });
+    }""")
+    thread = page.locator("#review .lf-page-thread")
+    expect(thread).to_have_count(1)
+    expect(thread).to_contain_text("About this bit.")
+    assert page.evaluate("""async () => {
+      const {claimed} = await __lfRuntimeImport('/runtime/thread/surfaces.js');
+      return claimed(document.querySelector('#review .lf-page-thread').dataset.thread);
+    }""")
+    reply = thread.get_by_role("textbox", name="Reply", exact=True)
+    write(reply, "Can the archive keep that naming?")
+    reply.press("Enter")
+    expect(thread).to_contain_text("Can the archive keep that naming?")
+    page.evaluate("pageSurface.unregister()")
+    expect(thread).to_have_count(0)
+
+
+def _hold_required_thread_panel(page):
+    """Hold actual required panel preparation without changing the semantic epoch."""
+    page.evaluate("""async()=>{
+      const [{createThreadPanelElements},{createThreadListController},
+        {createThreadNarrowing},{threadList},app]=await Promise.all([
+        __lfRuntimeImport('/runtime/thread/panel-elements.js'),
+        __lfRuntimeImport('/runtime/thread/thread-list.js'),
+        __lfRuntimeImport('/runtime/thread/narrowing.js'),
+        __lfRuntimeImport('/runtime/thread/state.js'),
+        __lfRuntimeImport('/runtime/application.js')]);
+      const elements=createThreadPanelElements();
+      elements.panel.style.cssText='position:fixed;left:8px;top:160px;width:400px;height:400px';
+      document.body.append(elements.panel);elements.panel.show();
+      const controller=createThreadListController(elements);
+      const original=controller.renderThreads.bind(controller);
+      controller.renderThreads=async(...args)=>{
+        const candidate=await original(...args);
+        if(window.holdPanel){window.holdPanel=false;await new Promise(resolve=>window.releasePanel=resolve);}
+        return candidate;
+      };
+      let handle;
+      const narrowing=createThreadNarrowing({view:elements.narrowingView,listRoot:elements.threadsBox,
+        readThreads:threadList,ready:()=>true,repaint:()=>handle.update()});narrowing.mount();
+      handle=app.registerThreadPanel({controller,threadsBox:elements.threadsBox,required:true,view:{
+        narrowing,panelIsOpen:()=>true,scrollToElement:()=>{},setThreadCounts:()=>{},onListChanged:()=>{},
+        refreshAnchorHover:()=>{},travel:{showThread:()=>{},retainPanelLanding:()=>{},retainNarrowing:()=>{}}}});
+      controller.mountThreadList(()=>true);
+      await app.refreshThread();
+    }""")
+
+
+def test_widgets_claim_before_page_and_only_required_page_failures_fail_proof(
+    browser, serve
+):
+    entry = {
+        "description": "An exact source seat.",
+        "type": "object",
+        "properties": {"id": {"type": "string"}, "style": {"type": "string"}},
+        "required": ["id"],
+        "additionalProperties": False,
+        "x-content": "empty",
+        "x-upgrade": True,
+        "x-thread-surface": True,
+        "x-example": '<lf-test-seat id="sample"></lf-test-seat>',
+    }
+    module = """
+import {projectData, consumeThreads} from '/runtime/widget-api.js';
+customElements.define('lf-test-seat', class extends HTMLElement {
+  connectedCallback() {
+    projectData(this, ['row'], key => key, key => {
+      const row = document.createElement('section');
+      row.textContent = 'Source row';
+      row.outlet = document.createElement('div'); row.append(row.outlet); return row;
+    });
+  }
+  start() {
+    this.surface = consumeThreads(this, (collection, surface) => {
+      if (this.fail) throw new Error('exact widget failed');
+      for (const thread of collection.threads) {
+        const target = surface.target(thread.key);
+        if (target) surface.place(thread.key, target.placement.datumElement.outlet);
+      }
+    });
+  }
+});
+"""
+    events = [
+        {
+            "id": f"{i:032x}",
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": text,
+            "anchor": anchor,
+        }
+        for i, text, anchor in [
+            (1, "Widget conversation", {"section": "seat", "datum": "row"}),
+            (
+                2,
+                "Passage conversation",
+                {"section": "subject", "quote": "one file per tenant"},
+            ),
+        ]
+    ]
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Widget first page review",
+                """
+      <h1>Review</h1><button id="fail-widget">Break widget</button><button id="retire-outlet">Retire outlet</button><lf-test-seat id="seat" style="display:block;height:250px;overflow:auto"></lf-test-seat>
+      <p id="subject">The nightly export keeps one file per tenant.</p>
+      <aside id="review" aria-label="Review" style="height:500px; overflow:auto"></aside>
+    """,
+            ),
+            layer_registry={"lf-test-seat": entry},
+            layer_widgets={"lf-test-seat.js": module},
+            events=events,
+        ),
+    )
+    page.evaluate("""async () => {
+      const app = await __lfRuntimeImport('/runtime/application.js');
+      window.refreshProof = app.refreshThread;
+      document.querySelector("#fail-widget").addEventListener("click", () => {
+        document.querySelector("#seat").fail = true; void refreshProof();
+      });
+      document.querySelector('#retire-outlet').onclick=()=>{
+        document.querySelector('#seat [data-lf-datum]').outlet.remove();
+      };
+      const rail = document.querySelector('#review');
+      const outlets = new Map();
+      window.pageSurface = app.consumePageThreads(rail, (collection, surface) => {
+        if (window.failPage) throw new Error('required page failed');
+        for (const thread of collection.threads) {
+          if (!surface.target(thread.key)) continue;
+          let outlet = outlets.get(thread.key);
+          if (!outlet) { outlet = document.createElement('div');
+            outlet.dataset.lfGen='1'; outlet.style.cssText='display:flow-root;height:250px;overflow:auto'; rail.append(outlet); outlets.set(thread.key,outlet); }
+          surface.place(thread.key, outlet);
+        }
+      });
+    }""")
+    expect(page.locator("#review .lf-page-thread")).to_have_count(2)
+    page.locator("#seat").evaluate("(seat) => seat.start()")
+    expect(page.locator("#seat .lf-page-thread")).to_have_count(1)
+    expect(page.locator("#review .lf-page-thread")).to_have_count(1)
+    expect(page.locator("#review")).to_contain_text("Passage conversation")
+    # An actual page-presented reply stands at its source, not its authored rail.
+    reply = page.locator("#review .lf-page-thread").get_by_role(
+        "textbox", name="Reply", exact=True
+    )
+    reply.click()
+    assert (
+        page.evaluate("""async () => {
+      const {placeOf} = await __lfRuntimeImport('/runtime/standing-target.js');
+      return placeOf(document.activeElement)?.id;
+    }""")
+        == "subject"
+    )
+    # A widget outlet can disappear while a required sibling prepares. The page's
+    # existing fallback nomination receives its Thread on this same cohort commit.
+    _hold_required_thread_panel(page)
+    page.evaluate("()=>{window.holdPanel=true;void refreshProof();}")
+    page.wait_for_function('typeof releasePanel === "function"')
+    page.locator("#retire-outlet").click()
+    page.evaluate("()=>releasePanel()")
+    expect(page.locator("#seat .lf-page-thread")).to_have_count(0)
+    expect(page.locator("#review .lf-page-thread")).to_have_count(2)
+    page.evaluate("""async()=>{
+      const row=document.querySelector('#seat [data-lf-datum]');row.append(row.outlet);
+      await refreshProof();
+    }""")
+    expect(page.locator("#seat .lf-page-thread")).to_have_count(1)
+    expect(page.locator("#review .lf-page-thread")).to_have_count(1)
+    page.locator("#fail-widget").click()
+    assert page.evaluate("async () => { await refreshProof(); return true; }")
+    expect(page.locator("#seat .lf-page-thread")).to_have_count(0)
+    expect(page.locator("#review .lf-page-thread")).to_have_count(2)
+    consume_browser_errors(page, "exact widget failed")
+    page.locator("#seat").evaluate("(seat) => { seat.fail = false; }")
+    page.evaluate("window.failPage = true")
+    proof = page.evaluate("""async () => {
+      await refreshProof();
+      const {readApplicationPresentation, applicationPresented} =
+        await __lfRuntimeImport('/runtime/semantic-state.js');
+      return {pending: readApplicationPresentation().pending, presented: applicationPresented()};
+    }""")
+    assert "thread" in proof["pending"]
+    assert proof["presented"] is False
+    consume_browser_errors(page, "required page failed")
+    # Core indexes remain readable and the same selected renderer can recover.
+    assert page.evaluate("async () => pageSurface.read().threads.length") == 2
+    page.evaluate("window.failPage = false")
+    page.evaluate("async () => { await refreshProof(); }")
+    expect(page.locator("#seat .lf-page-thread")).to_have_count(1)
+    expect(page.locator("#review .lf-page-thread")).to_have_count(1)
+
+
+def test_required_page_failure_retains_composer_seat_focus_and_caret(browser, serve):
+    entry = {
+        "description": "An exact datum seat.",
+        "type": "object",
+        "properties": {"id": {"type": "string"}},
+        "required": ["id"],
+        "additionalProperties": False,
+        "x-content": "empty",
+        "x-upgrade": True,
+        "x-thread-surface": True,
+        "x-example": '<lf-test-seat id="seat"></lf-test-seat>',
+    }
+    module = """
+import {projectData,consumeThreads} from '/runtime/widget-api.js';
+customElements.define('lf-test-seat',class extends HTMLElement{
+  connectedCallback(){
+    this.style.cssText='display:block;height:360px;overflow:auto';
+    projectData(this,['row'],x=>x,()=>{
+      const row=document.createElement('section');row.textContent='Source row';
+      for(const name of ['a','b']){row[name]=document.createElement('div');row[name].dataset.seat=name;row.append(row[name]);}
+      return row;
+    });
+    this.side='a';
+    this.surface=consumeThreads(this,(collection,surface)=>{
+      if(surface.composition)surface.placeComposition(this.querySelector("[data-lf-datum]")[this.side]);
+      for(const thread of collection.threads){
+        const target=surface.target(thread.key);if(target)surface.place(thread.key,target.placement.datumElement[this.side]);
+      }
+    });
+  }
+});
+"""
+    events = [
+        {
+            "id": f"{i:032x}",
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": text,
+            "anchor": anchor,
+        }
+        for i, text, anchor in [
+            (1, "Widget thread", {"section": "seat", "datum": "row"}),
+            (2, "Source thread", {"section": "subject"}),
+        ]
+    ]
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Cohort ownership",
+                """
+      <h1>Cohort ownership</h1><lf-test-seat id="seat"></lf-test-seat>
+      <p id="subject">An ordinary source.</p><aside id="rail" style="height:300px;overflow:auto"></aside>
+      <div id="foreign"></div>
+    """,
+            ),
+            layer_registry={"lf-test-seat": entry},
+            layer_widgets={"lf-test-seat.js": module},
+            events=events,
+        ),
+    )
+    page.evaluate("""async()=>{
+      const app=await __lfRuntimeImport('/runtime/application.js');window.refresh=app.refreshThread;
+      const rail=document.querySelector('#rail'); const outlet=document.createElement('div');outlet.dataset.lfGen='1';rail.append(outlet);
+      window.pageSurface=app.consumePageThreads(rail,async(collection,surface)=>{
+        if(window.holdNext){window.holdNext=false;await new Promise(resolve=>window.releasePage=resolve);}
+        if(surface.composition)surface.placeComposition(outlet);
+        for(const thread of collection.threads)if(surface.target(thread.key))
+          surface.place(thread.key,window.invalid?document.querySelector('#foreign'):outlet);
+      });
+    }""")
+    expect(page.locator("#rail .lf-page-thread")).to_have_count(1)
+    expect(page.locator("[data-seat=a] .lf-page-thread")).to_have_count(1)
+    page.evaluate("""() => {
+      const seat=document.querySelector('#seat');
+      seat.surface.open(seat.querySelector('[data-lf-datum]'));
+    }""")
+    editor = page.locator(".lf-fab-input")
+    expect(editor).to_be_focused()
+    write(editor, "Keep this typing place.")
+    editor.press("ArrowLeft")
+    editor.press("Shift+ArrowLeft")
+    before = editor.evaluate(
+        "(field)=>[field.selectionStart,field.selectionEnd,field.selectionDirection]"
+    )
+    assert (
+        page.evaluate(
+            "document.querySelector('.lf-fab-bar').parentElement.dataset.seat"
+        )
+        == "a"
+    )
+    assert (
+        page.evaluate("""async()=>{
+      document.querySelector('#seat').side='b';window.invalid=true;await refresh();
+      const {applicationPresented}=await __lfRuntimeImport('/runtime/semantic-state.js');return applicationPresented();
+    }""")
+        is False
+    )
+    consume_browser_errors(page, "outside its presentation owner")
+    expect(page.locator("[data-seat=a] .lf-page-thread")).to_have_count(1)
+    expect(page.locator("[data-seat=b] .lf-page-thread")).to_have_count(0)
+    expect(editor).to_be_focused()
+    assert (
+        editor.evaluate(
+            "(field)=>[field.selectionStart,field.selectionEnd,field.selectionDirection]"
+        )
+        == before
+    )
+    assert (
+        page.evaluate(
+            "document.querySelector('.lf-fab-bar').parentElement.dataset.seat"
+        )
+        == "a"
+    )
+    assert page.evaluate(
+        "document.querySelector('[data-seat=a]').hasAttribute('data-lf-thread-surface')"
+    )
+    assert not page.evaluate(
+        "document.querySelector('[data-seat=b]').hasAttribute('data-lf-thread-surface')"
+    )
+
+    page.evaluate("async()=>{window.invalid=false;await refresh();}")
+    expect(page.locator("[data-seat=b] .lf-page-thread")).to_have_count(1)
+    expect(page.locator("[data-seat=a] .lf-page-thread")).to_have_count(0)
+    expect(page.locator("#seat .lf-page-thread")).to_have_count(1)
+
+    expect(editor).to_be_focused()
+    assert (
+        editor.evaluate(
+            "(field)=>[field.selectionStart,field.selectionEnd,field.selectionDirection]"
+        )
+        == before
+    )
+    assert (
+        page.evaluate(
+            "document.querySelector('.lf-fab-bar').parentElement.dataset.seat"
+        )
+        == "b"
+    )
+    assert page.evaluate(
+        "document.querySelector('[data-seat=b]').hasAttribute('data-lf-thread-surface')"
+    )
+    assert not page.evaluate(
+        "document.querySelector('[data-seat=a]').hasAttribute('data-lf-thread-surface')"
+    )
+
+    # A cancelled preparation never moves the editor; newer native typing belongs to
+    # the next current cohort, and releasing the stale callback cannot reclaim it.
+    page.evaluate(
+        "() => { document.querySelector('#seat').side='a'; window.holdNext=true; void refresh(); }"
+    )
+    page.wait_for_function('typeof window.releasePage === "function"')
+    assert (
+        page.evaluate(
+            "document.querySelector('.lf-fab-bar').parentElement.dataset.seat"
+        )
+        == "b"
+    )
+    editor.press("End")
+    editor.press_sequentially(" More")
+    page.evaluate("() => { void refresh(); }")
+    page.wait_for_function(
+        "document.querySelector('.lf-fab-bar').parentElement.dataset.seat === 'a'"
+    )
+    current = editor.evaluate(
+        "(field)=>({value:field.value,caret:[field.selectionStart,field.selectionEnd,field.selectionDirection]})"
+    )
+    page.evaluate("async()=>{releasePage();await refresh();}")
+    expect(editor).to_be_focused()
+    assert (
+        editor.evaluate(
+            "(field)=>({value:field.value,caret:[field.selectionStart,field.selectionEnd,field.selectionDirection]})"
+        )
+        == current
+    )
+    assert (
+        page.evaluate(
+            "document.querySelector('.lf-fab-bar').parentElement.dataset.seat"
+        )
+        == "a"
+    )
+
+    # The widget can lose its contained outlet during the page callback itself.
+    # Its already prepared fallback keeps the same native editor and typing place.
+    page.evaluate(
+        "()=>{delete window.releasePage;window.holdNext=true;void refresh();}"
+    )
+    page.wait_for_function('typeof window.releasePage === "function"')
+    page.evaluate("""()=>{
+      document.querySelector('#foreign').moveBefore(document.querySelector('[data-seat=a]'),null);
+      releasePage();
+    }""")
+    news = page.locator("#rail").get_by_role("button", name="1 new thread", exact=True)
+    expect(news).to_be_visible()
+    page.wait_for_function(
+        "document.querySelector('#rail').contains(document.querySelector('.lf-fab-bar'))"
+    )
+    consume_browser_errors(page, "outside its presentation owner")
+    expect(editor).to_be_focused()
+    assert (
+        editor.evaluate(
+            "(field)=>({value:field.value,caret:[field.selectionStart,field.selectionEnd,field.selectionDirection]})"
+        )
+        == current
+    )
+    page.evaluate("()=>document.querySelector('#seat').surface.unregister()")
+    news.click()
+    expect(page.locator("#rail .lf-page-thread")).to_have_count(2)
+
+
+def test_source_retired_during_required_panel_prepare_is_not_claimed(browser, serve):
+    """A source nomination expires before placement if required preparation retires it."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Source admission at commit",
+                """
+      <h1>Source review</h1><p id="subject">An ordinary durable target.</p>
+      <button id="retire">Retire the target</button>
+      <aside id="rail" style="height:220px;overflow:auto"></aside>
+    """,
+            ),
+            anchored=[("subject", None)],
+        ),
+    )
+    page.evaluate("""async()=>{
+      const app=await __lfRuntimeImport('/runtime/application.js');
+      const rail=document.querySelector('#rail');const outlet=document.createElement('div');outlet.dataset.lfGen='1';rail.append(outlet);
+      window.surface=app.consumePageThreads(rail,(collection,surface)=>{
+        window.offered=collection.threads.filter(t=>surface.target(t.key)).map(t=>t.id);
+        for(const t of collection.threads)if(surface.target(t.key))surface.place(t.key,outlet);
+      });
+      document.querySelector('#retire').onclick=()=>{document.querySelector('#subject').id='retired';};
+      await app.refreshThread();
+      window.refresh=app.refreshThread;
+    }""")
+    _hold_required_thread_panel(page)
+    expect(page.locator("#rail .lf-page-thread")).to_have_count(1)
+    page.evaluate("()=>{window.holdPanel=true;void refresh();}")
+    page.wait_for_function('typeof releasePanel === "function"')
+    page.locator("#retire").click()
+    assert page.locator("#subject").count() == 0
+    page.evaluate("()=>releasePanel()")
+    page.wait_for_function("""async()=>{
+      const {applicationPresented}=await __lfRuntimeImport('/runtime/semantic-state.js');return applicationPresented();
+    }""")
+    expect(page.locator("#rail .lf-page-thread")).to_have_count(0)
 
 
 def test_an_unavailable_user_view_observer_creates_no_agent_work(browser, serve):

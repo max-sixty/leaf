@@ -1,8 +1,8 @@
 """The detached process that carries Leaf delivery into later turns of one Codex task.
 
-`leaf codex start` claims a page and leaves this process running behind the turn that
-started it, so a user's later moves reach the same Codex task instead of waiting for
-the agent to ask again. It owns the session watch: it captures each batch into the
+Serving a claimed page, or explicitly running `leaf codex start`, leaves this
+process running behind the turn that started it, so a user's later moves reach
+the same Codex task instead of waiting for the agent to ask again. It owns the session watch: it captures each batch into the
 task's delivery record, offers one delivery at a time, and reconciles the receipt its
 page is owed however that delivery was taken.
 
@@ -89,7 +89,7 @@ from .service import (
     starting_claim,
 )
 from .session import Watch, read_watch_pass
-from .session_cleanup import EVENTS_FILE, flocked
+from .state import EVENTS_FILE, flocked, session_record, start_session_turn
 from .thread import (
     delivery_reply_reserved,
 )
@@ -164,6 +164,7 @@ class TaskObserver:
         self.thread_id = thread_id
         self.turns: dict[str, TurnFold] = {}
         self.running: str | None = None
+        self.lifecycle = session_record(thread_id)
         self.stop_event = threading.Event()
         self.socket = None
         self.started = False
@@ -246,6 +247,7 @@ class TaskObserver:
         with app_server_connect(self.endpoint) as socket:
             self.socket = socket
             app_server_handshake(socket, 0, "leaf", "Leaf", self._read)
+            self.lifecycle = session_record(self.thread_id)
             result = self._send(
                 socket,
                 "thread/resume",
@@ -268,17 +270,12 @@ class TaskObserver:
         # A followed turn the snapshot does not list — a paginated thread's `turns`
         # can leave it out — stays disconnected until it says something.
         turns = thread.get("turns", [])
-        for turn in turns:
-            self._reconcile(turn)
+        running = {turn["id"] for turn in turns if self._reconcile(turn)}
 
         # Only a turn this can name. A resume that reports the task active without
         # naming its turn leaves nothing a `turn/completed` could ever clear.
         self.running = next(
-            (
-                turn["id"]
-                for turn in reversed(turns)
-                if turn.get("status") == "inProgress"
-            ),
+            (turn["id"] for turn in reversed(turns) if turn["id"] in running),
             None,
         )
         status = thread.get("status", {})
@@ -302,7 +299,7 @@ class TaskObserver:
             # one is still live.
             codex.clear_stream_activity(self.thread_id)
 
-    def _reconcile(self, turn: dict) -> None:
+    def _reconcile(self, turn: dict) -> bool:
         """Bring one snapshot turn's fold up to what the snapshot says of it.
 
         A running turn is followed, whether or not it was before the connection
@@ -317,12 +314,14 @@ class TaskObserver:
             turn["id"], _turn_delivery_id(turn), follow=running, ended=not running
         )
         if fold is None:
-            return
+            return False
         if running:
             fold.restore(turn)
         else:
             self.turns.pop(turn["id"], None)
             fold.commit(turn)
+        self._observe_lifecycle(turn["id"])
+        return running
 
     def _read(self, message: dict) -> None:
         """Route one notification to the fold of the turn it names."""
@@ -332,7 +331,6 @@ class TaskObserver:
         method = message.get("method")
         if method == "turn/started":
             turn_id = params["turn"]["id"]
-            self.running = turn_id
         elif method == "turn/completed":
             turn_id = params["turn"]["id"]
             if self.running == turn_id:
@@ -355,12 +353,19 @@ class TaskObserver:
         )
         if fold is None:
             return
-        if adopting:
+        if adopting or method == "turn/started":
             self.running = turn_id
         update = fold.absorb(message)
         if (terminal := fold.finished(message, update)) is not None:
             del self.turns[turn_id]
             fold.commit(terminal)
+        self._observe_lifecycle(turn_id)
+
+    def _observe_lifecycle(self, turn_id: str) -> None:
+        """Advance the subscription token only for its accepted current turn."""
+        current = session_record(self.thread_id)
+        if current and current["turn"] == turn_id:
+            self.lifecycle = current
 
     def _fold(
         self,
@@ -382,10 +387,16 @@ class TaskObserver:
             # Its follower answers for this turn, so nothing here writes it twice.
             self.turns.pop(turn_id, None)
             return None
+        if follow:
+            if start_session_turn(self.thread_id, turn_id, self.lifecycle) is None:
+                return None
+            self.lifecycle = session_record(self.thread_id)
         fold = self.turns.get(turn_id)
         if fold is None and follow:
-            fold = self.turns[turn_id] = TurnFold(self.thread_id, turn_id)
-            fold.open()
+            fold = TurnFold(self.thread_id, turn_id)
+            if not fold.open():
+                return None
+            self.turns[turn_id] = fold
         elif fold is None and ended and delivery_id is not None:
             fold = TurnFold(self.thread_id, turn_id)
         if fold is not None and delivery_id is not None and fold.delivery_id is None:
@@ -726,15 +737,6 @@ def _offer_queued_delivery(
     return True
 
 
-def _has_delivery_work(session_id: str) -> bool:
-    with flocked(delivery_lock_path(session_id)):
-        return any(
-            record["state"] != "accepted"
-            or any(not batch["receipted"] for batch in record["batches"])
-            for _, record in delivery_records(session_id)
-        )
-
-
 def run_adapter(
     codex_path: str,
     handshake: Handshake | None = None,
@@ -858,13 +860,14 @@ def run_adapter(
                     reading = read_watch_pass(watch, None, deliver=capture)
                     if captured or (reading.outcome is None and reading.live):
                         continue
-                    if owned_pages(harness.session) and _has_delivery_work(
-                        harness.session
-                    ):
-                        time.sleep(1)
-                        continue
-                    retire()
-                    return reading.outcome or 0
+                    if not owned_pages(harness.session):
+                        retire()
+                        return reading.outcome or 0
+                # The route belongs to the session's ownership, not its current
+                # authored status. Idle pages deliver nothing; a later status
+                # resumes this same route. Wait outside the startup lock.
+                watch.await_news(mark, timeout=1)
+                continue
             # A second a pass, as well as each time a page moves: the queued offer
             # and receipt recovery above answer to Codex, not to the page's files.
             watch.await_news(mark, timeout=1)
@@ -892,6 +895,18 @@ def cmd_codex_start(
 ) -> dict:
     """Claim PAGE and start one detached delivery carrier for this task, or find
     the one already running; return which, with its task and transport."""
+    with starting_claim(page_dir):
+        return ensure_adapter(codex_path, app_server)
+
+
+def ensure_adapter(
+    codex_path: str | None = None, app_server: str | None = None
+) -> dict:
+    """Start or join this task's delivery carrier without taking a page claim.
+
+    Both explicit adapter startup and page serving prepare the same task-wide
+    route. The caller owns the claim transition and its rollback on failure.
+    """
     harness = session_harness()
     if harness is None or harness.name != CodexHarness.name:
         raise RuntimeError("`leaf codex start` must run inside a Codex task")
@@ -904,7 +919,7 @@ def cmd_codex_start(
     if app_server is not None:
         check_app_server_endpoint(app_server)
     launch_lock = adapter_start_lock_path(session_id)
-    with starting_claim(page_dir), flocked(launch_lock):
+    with flocked(launch_lock):
         record = _running_adapter(session_id)
         if record is not None:
             running = record["app_server"]
@@ -963,7 +978,7 @@ def private_app_server(executable: str) -> Iterator[str]:
     endpoint until the block ends and the server stops.
 
     The server's environment names that endpoint as `LEAF_CODEX_APP_SERVER`, so a
-    task it runs hands its pages to this server when it runs `leaf codex start`."""
+    task it runs hands its pages to this server when it serves them."""
     with tempfile.TemporaryDirectory(prefix="leaf-codex-", dir="/tmp") as directory:
         path = Path(directory) / "app-server.sock"
         endpoint = f"unix://{path}"

@@ -42,6 +42,7 @@ import {
   pendingDrawing,
 } from "./runtime/composing/selection.js";
 import { createResponseSurface } from "./runtime/composing/surface.js";
+import { createFloatingResponsePlacement } from "./runtime/composing/floating-response.js";
 import { createDrawingController } from "./runtime/composing/drawing.js";
 import { createDrawingPaint } from "./runtime/composing/drawing-paint.js";
 import { createAim } from "./runtime/composing/aim.js";
@@ -56,6 +57,7 @@ import {
   reactionTokens,
   sendReaction,
 } from "./runtime/reactions.js";
+import { createAnchorPlacement } from "./runtime/anchor-placement.js";
 import { createAnchorPaint } from "./runtime/anchor-paint.js";
 import { createAnchorControls } from "./runtime/anchor-controls.js";
 import { createAnchorTravel } from "./runtime/anchor-travel.js";
@@ -78,7 +80,6 @@ import {
   wireThreadLanding,
 } from "./runtime/thread/landing.js";
 import { createPanelComposer } from "./runtime/thread/panel.js";
-import { focusSurface } from "./runtime/thread/surfaces.js";
 import { standingThreadId } from "./runtime/thread/focus.js";
 import { createThreadListController } from "./runtime/thread/thread-list.js";
 import { createThreadNarrowing } from "./runtime/thread/narrowing.js";
@@ -234,11 +235,10 @@ const navigation = createNavigation({
   narrowing,
   coveringAuxiliaryScroller: auxiliarySurfaces.coveringScroller,
   threadDestinations: {
-    openPageThread: (...args) => app.margin.openPageThread(...args),
+    openPageThread: (...args) => app.threadDestinations.openPageThread(...args),
     scrollToThread: (...args) => anchorTravel.scrollToThread(...args),
-    threadHere: () => app.margin.threadHere(),
-    threadTarget: (...args) => app.margin.threadTarget(...args),
-    inlineThreadView: () => app.margin.inlineThreadView,
+    threadHere: () => app.threadDestinations.threadHere(),
+    threadTarget: (...args) => app.threadDestinations.threadTarget(...args),
   },
 });
 
@@ -258,6 +258,7 @@ const hintChrome = {
   lineBox: () => shortcutBarEl.getBoundingClientRect(),
   viewportTop: bannerFoot,
 };
+const anchorPlacement = createAnchorPlacement();
 const anchorPaint = createAnchorPaint({
   targetPaint: targetPaintCaps,
   pointer: pointerAt,
@@ -273,7 +274,7 @@ const anchorPaint = createAnchorPaint({
       : null,
 });
 const drawingPaint = createDrawingPaint({
-  anchors: anchorPaint,
+  anchors: anchorPlacement,
   activeDrawing: () => drawing.activeDrawing(),
   draftDrawings: () => drawing.draftDrawings(),
 });
@@ -320,12 +321,13 @@ pageGeometry = createPageGeometry({
   refreshActionBar: () => responseSurface.refreshFab(),
 });
 const anchorTravel = createAnchorTravel({
-  anchors: anchorPaint,
+  anchors: anchorPlacement,
   surfaces: auxiliarySurfaces,
   currentThreads: allThreads,
   refreshThread: () => app.refreshThread(),
-  focusForNavigation: (target) => app.margin.focusForNavigation(target),
-  threadFocusTarget: (id, options) => app.margin.threadFocusTarget(id, options),
+  focusForNavigation: focusDestination,
+  threadFocusTarget: (id, options) =>
+    app.threadDestinations.threadFocusTarget(id, options),
   announce,
 });
 landing = createThreadLanding({
@@ -337,7 +339,7 @@ landing = createThreadLanding({
 declareThreadKeys(landing.landIn, narrowing);
 const anchorControls = createAnchorControls({
   commentOnTarget: (...args) => responseSurface.commentOnTarget(...args),
-  openThread: (...args) => app.margin.openPageThread(...args),
+  openThread: (...args) => app.threadDestinations.openPageThread(...args),
   withdrawReaction: (...args) => app.withdraw(...args),
   labelAnchor: anchorLabel,
   invalidateThread: () => app.refreshThread(),
@@ -351,7 +353,7 @@ const anchorControls = createAnchorControls({
 const version = createVersionController({
   compositionInput: fabInput,
   openThread: (id, options) =>
-    app.margin.openPageThread(id, { ...options, travel: false }),
+    app.threadDestinations.openPageThread(id, { ...options, travel: false }),
   midComposition: () => app.midComposition(),
   hasPending: () => app.hasPending(),
   readAndApply: (...args) => app.readAndApply(...args),
@@ -380,6 +382,7 @@ app = mountApplication({
   targetPickerOpen: () => targets.targetPickerOpen(),
   pageComposerDrawing: () => panelComposer.pageComposerDrawing(),
   wireInput: inputs.wireInput,
+  anchorPlacement,
   anchorPaint,
   anchorControls,
   drawingPaint,
@@ -534,7 +537,7 @@ selectionComposer = createSelectionComposer({
   setReact: (...args) => reactions.setReact(...args),
   reactionTokens,
   designModeActive: designMode.active,
-  marginOpenInlineThread: app.margin.openInlineThread,
+  openPageThread: app.threadDestinations.openPageThread,
   threadTransitionOrigin: app.margin.threadTransitionOrigin,
   anchorStands: (...args) => responseSurface.anchorStands(...args),
   anchorTargetAt: (...args) => responseSurface.anchorTargetAt(...args),
@@ -549,20 +552,19 @@ selectionComposer = createSelectionComposer({
   showFab: (...args) => responseSurface.showFab(...args),
   formatGoToAddress: (...args) => goToSequence.formatGoToAddress(...args),
   createComment: app.createComment,
-  focusSurface,
-  showThread: landing.showThread,
   landSent: landing.landSent,
   refreshThread: app.refreshThread,
   wireInput: inputs.wireInput,
 });
 responseSurface = createResponseSurface({
+  createPlacement: createFloatingResponsePlacement,
   panelElements,
   panelIsOpen,
   landIn: landing.landIn,
   setPanel: (...args) => threadPanelController.setPanel(...args),
-  threadHere: () => app.margin.threadHere(),
+  threadHere: () => app.threadDestinations.threadHere(),
   threadTarget: (thread) =>
-    app.margin.threadTarget(thread.dataset.thread ?? thread.dataset.id),
+    app.threadDestinations.threadTarget(thread.dataset.thread ?? thread.dataset.id),
   standingTarget,
   composerHolds: selectionComposer.composerHolds,
   responseOptionsAreOpen: selectionComposer.responseOptionsAreOpen,
@@ -586,7 +588,7 @@ responseSurface = createResponseSurface({
   collapseShortcutBar: (...args) => collapseShortcutBar(...args),
   closeVersionMenu: version.closeVersionMenu,
   versionMenuIsOpen,
-  openPageThread: app.margin.openPageThread,
+  openPageThread: app.threadDestinations.openPageThread,
   drawModeActive: () => drawing.drawModeActive(),
   refreshThread: app.refreshThread,
   dismissThreadView: () => app.margin.inlineThreadView.dismiss(),
@@ -620,7 +622,7 @@ targets = createTargetPicker({
   pointerModeActive: () => designMode.active() || drawing.drawModeActive(),
 });
 drawing = createDrawingController({
-  anchors: { aimTargetAt, resolveAnchor, pendingAt: anchorPaint.pendingAt },
+  anchors: { aimTargetAt, resolveAnchor, pendingAt: anchorPlacement.pendingAt },
   pageGeometry: { refreshAim: pageGeometry.refreshAim },
   pointer: pointerAt,
   visibleTargets: targets.visibleTargets,
@@ -668,8 +670,8 @@ threadPanelController = createThreadPanelController({
   narrowing,
   auxiliarySurfaces,
   elements: { panel, toggleBtn, threadsBox, inPanel: panelElements.inPanel },
-  threadHere: app.margin.threadHere,
-  placedAt: anchorPaint.placedAt,
+  threadHere: app.threadDestinations.threadHere,
+  placedAt: anchorPlacement.placedAt,
   showThread: landing.showThread,
   refreshThread: app.refreshThread,
   closeReactionMode: () => reactions.setReact(false),
@@ -714,7 +716,7 @@ const standing = createStanding({
       { kind: "ask", target: asks.standingIn() },
       {
         kind: "comment",
-        target: anchorPaint.placedAt(standingThreadId())?.element,
+        target: anchorPlacement.placedAt(standingThreadId())?.place,
       },
     ]),
   paintTouchControls,

@@ -14,7 +14,7 @@ prove external work succeeded, and page activity does not imply work on every me
 
 ## Evaluation
 
-Run `leaf-dev delivery-eval` for agent ordering and `leaf-dev bench-latency` for
+Run `leaf-dev scenario-eval delivery` for agent ordering and `leaf-dev bench-latency` for
 in-tab feedback. Neither is a gate. Begin with a direct delivery, a queued pointer,
 input arriving during other work, and an already-settled retry.
 
@@ -30,7 +30,7 @@ agent traces for claim ordering. Use the website verifier as the vertical smoke
 test, with causal phase traces rather than a sleep treated as proof.
 
 ```bash
-uv run leaf-dev delivery-eval --help
+uv run leaf-dev scenario-eval delivery --help
 uv run leaf-dev bench-latency --help
 uv run leaf-dev verify-site --help
 ```

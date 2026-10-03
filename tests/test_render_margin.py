@@ -9451,13 +9451,6 @@ def test_o_hides_what_is_drawn_over_the_page_and_moves_nothing(browser, serve):
     assert page.evaluate(wash) == ""
 
 
-@pytest.mark.xfail(
-    reason="Current main dde1a5ae7 routes Ask arrival through anchor travel's raw "
-    "focusDestination, bypassing the margin's annotation reveal handler; the Ask "
-    "gets focus while its pin stays hidden (CI 37081158751 follow-up)",
-    raises=AssertionError,
-    strict=True,
-)
 def test_an_ask_arrival_reveals_its_pin_while_annotations_are_hidden(browser, serve):
     """An explicit Ask walk reveals its pin until the user leaves that Ask."""
     page = open_page(

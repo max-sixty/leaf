@@ -597,8 +597,8 @@ export class ThreadView {
         {
           id: reopen ? "thread.reopen" : "thread.resolve",
           keys: PRESS,
-          does: `${word} it`,
-          line: word.toLowerCase(),
+          description: `${word} it`,
+          title: word.toLowerCase(),
           when: () => !this.#model.settlement?.pending,
           run: () => button.click(),
         },
@@ -673,8 +673,8 @@ export class ThreadView {
         {
           id: "passage.return",
           keys: PRESS,
-          does: "Return to the quoted passage on the page",
-          line: "return to the passage",
+          description: "Return to the quoted passage on the page",
+          title: "return to the passage",
           when: () => Boolean(this.#model.quote?.found),
           run: () => quote.click(),
         },

@@ -181,9 +181,9 @@ export function createGoToSequence({
     {
       id: "navigation.panel.threads",
       key: "Shift+t",
-      does: () =>
+      description: () =>
         panelIsOpen() ? "Close the Threads panel" : "Go to the Threads panel",
-      line: () => (panelIsOpen() ? "close Threads panel" : "Threads panel"),
+      title: () => (panelIsOpen() ? "close Threads panel" : "Threads panel"),
       control: () => toggleBtn,
       when: () => true,
       go: () => {
@@ -200,9 +200,9 @@ export function createGoToSequence({
     {
       id: "navigation.drawer.asks",
       key: "Shift+a",
-      does: () =>
+      description: () =>
         currentDrawer() === "asks" ? "Close the Asks drawer" : "Go to the Asks drawer",
-      line: () => (currentDrawer() === "asks" ? "close Asks drawer" : "Asks drawer"),
+      title: () => (currentDrawer() === "asks" ? "close Asks drawer" : "Asks drawer"),
       control: () => asksBtn,
       when: (...args) => asksOffered(...args),
       go: () => {
@@ -216,11 +216,11 @@ export function createGoToSequence({
     {
       id: "navigation.drawer.leaves",
       key: "Shift+l",
-      does: () =>
+      description: () =>
         currentDrawer() === "leaves"
           ? "Close the Leaves drawer"
           : "Go to the Leaves drawer",
-      line: () =>
+      title: () =>
         currentDrawer() === "leaves" ? "close Leaves drawer" : "Leaves drawer",
       control: () => othersBtn,
       when: (...args) => leavesOffered(...args),
@@ -235,8 +235,8 @@ export function createGoToSequence({
     {
       id: "navigation.page-map",
       key: "Shift+m",
-      does: "Open the Page Map dialog",
-      line: "Page Map dialog",
+      description: "Open the Page Map dialog",
+      title: "Page Map dialog",
       control: () => mapButton,
       when: () => true,
       go: (...args) => enterPageMap(...args),
@@ -585,16 +585,16 @@ export function createGoToSequence({
             {
               id: "navigation.thread.top",
               binding: "k",
-              does: "Put the focused thread at the top of its list",
+              title: "Put the focused thread at the top of its list",
             },
             {
               id: "navigation.thread.bottom",
               binding: "j",
-              does: "Put the focused thread at the bottom of its list",
+              title: "Put the focused thread at the bottom of its list",
             },
           ],
-          does: "Put the focused thread at the top / bottom of its list",
-          line: "thread top / bottom",
+          description: "Put the focused thread at the top / bottom of its list",
+          title: "thread top / bottom",
           when: () => atGoToTargets() && Boolean(focusedThreadTarget()),
           run: (binding) => {
             const thread = focusedThreadTarget();
@@ -607,8 +607,8 @@ export function createGoToSequence({
           // This changes focus without unwinding an open surface. A covering surface
           // makes the page inert, so its Escape rung remains the route back.
           keys: PAGE_RETURN_KEYS,
-          does: "Focus the page",
-          line: "page",
+          description: "Focus the page",
+          title: "page",
           when: () => atGoToTargets() && !coveringAuxiliarySurface(),
           run: () => {
             setGoToSequence(false);
@@ -631,8 +631,8 @@ export function createGoToSequence({
             ...(targetFilter ? [targetFilter.key] : []),
             "letters",
           ],
-          does: "Type a visible target's hint",
-          line: "visible target",
+          description: "Type a visible target's hint",
+          title: "visible target",
           // Once armed, keep the alphabet claimed even when a filter has no members. A key
           // then reports the miss inside this sequence rather than falling through to a page
           // command whose letter happened to match it.
@@ -645,12 +645,12 @@ export function createGoToSequence({
           routes: TARGET_FILTERS.map(({ id, key, word }) => ({
             id: `navigation.target.filter.${id}`,
             binding: key,
-            does: `Show only visible ${word}`,
+            title: `Show only visible ${word}`,
           })),
           label: FILTER_KEYS.join(" / "),
           sequenceSteps: ["kind"],
-          does: "Filter visible targets by kind",
-          line: "filter by kind",
+          description: "Filter visible targets by kind",
+          title: "filter by kind",
           when: () => atGoToTargets() && targetCapability(),
           run: filterTargets,
         },
@@ -661,16 +661,16 @@ export function createGoToSequence({
             {
               id: "navigation.target.next",
               binding: "Tab",
-              does: "Hear the next visible target",
+              title: "Hear the next visible target",
             },
             {
               id: "navigation.target.previous",
               binding: "Shift+Tab",
-              does: "Hear the previous visible target",
+              title: "Hear the previous visible target",
             },
           ],
-          does: "Hear the next / previous visible target",
-          line: "browse hints",
+          description: "Hear the next / previous visible target",
+          title: "browse hints",
           repeat: true,
           when: () => (goToActive ? hints.candidates().length > 0 : targetCapability()),
           run: (binding) => hints.walk(binding === "Tab" ? 1 : -1),
@@ -678,8 +678,8 @@ export function createGoToSequence({
         {
           id: "navigation.target.choose",
           keys: ["Enter"],
-          does: "Go to the target just announced",
-          line: "go to target",
+          description: "Go to the target just announced",
+          title: "go to target",
           when: hints.walking,
           run: hints.choose,
         },
@@ -687,8 +687,8 @@ export function createGoToSequence({
           id: destination.id,
           keys: [destination.key],
           label: spell(destination.key),
-          does: destination.does,
-          line: destination.line,
+          description: destination.description,
+          title: destination.title,
           control: destination.control,
           when: () => atGoToTargets() && destination.when(),
           // No way back of its own: the surface the mnemonic travels to owns the step
@@ -719,16 +719,16 @@ export function createGoToSequence({
             {
               id: "navigation.page.top",
               binding: "g",
-              does: "Go to the top of the page",
+              title: "Go to the top of the page",
             },
             {
               id: "navigation.page.bottom",
               binding: "Shift+g",
-              does: "Go to the bottom of the page",
+              title: "Go to the bottom of the page",
             },
           ],
-          does: "Go to the top / bottom of the page",
-          line: "top / bottom",
+          description: "Go to the top / bottom of the page",
+          title: "top / bottom",
           when: atGoToTargets,
           run: (binding) => {
             setGoToSequence(false); // before the travel, so the arrival's own scrolling paints nothing
@@ -740,13 +740,13 @@ export function createGoToSequence({
           id: "navigation.go-to.back",
           keys: ["Escape"],
           sequenceControl: true,
-          does: () =>
+          description: () =>
             hints.prefix()
               ? "Remove the last hint letter"
               : targetFilter
                 ? "Show all visible targets"
                 : "Cancel the sequence",
-          line: () =>
+          title: () =>
             hints.prefix()
               ? "back one letter"
               : targetFilter
@@ -776,8 +776,8 @@ export function createGoToSequence({
     id: "navigation.go-to.open",
     touch: false,
     keys: ["g"],
-    does: "Go to a visible target, panel, page, or edge",
-    line: "go to",
+    description: "Go to a visible target, panel, page, or edge",
+    title: "go to",
     // The sequence is still a route out of a covering auxiliary surface; its own scope
     // moves its root to that surface while armed.
     covering: true,

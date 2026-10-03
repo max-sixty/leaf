@@ -1414,15 +1414,26 @@ def shortcut_bar_text(page):
     return page.locator(".lf-shortcut-bar").inner_text()
 
 
-def ask_actions_hint(digits):
-    """What the shortcut bar's Ask row says for an Ask holding `digits` numbered routes.
+def active_digit_bindings(page):
+    """Read reachable digits without inventing a page-owned aggregate Ask command.
 
-    The row names the live range and one fixed word for the group; each action's own
-    title stays on its control and in the command reference. Tests read that wording
-    from here rather than spelling it out, so changing what the runtime says is one
-    edit here and not a sweep of every assertion that happens to quote it.
+    Widgets assign their contextual aliases. The dispatcher is the canonical reader of
+    which declared keys can execute where focus stands, including native shadowing.
     """
-    return f"{digits}\nAsk actions"
+    rendered(page)
+    digits = page.evaluate(
+        """async () => {
+          const {availableCommandRoutes} = await window.__lfRuntimeImport(
+            '/runtime/keyboard/dispatch.js');
+          return [...new Set([...availableCommandRoutes().values()].flatMap(
+            keys => [...keys].filter(key => /^[1-9]$/.test(key))))].sort();
+        }"""
+    )
+    if len(digits) > 1 and digits == [
+        str(n) for n in range(int(digits[0]), int(digits[-1]) + 1)
+    ]:
+        return f"{digits[0]}–{digits[-1]}"
+    return " ".join(digits)
 
 
 def open_versions(page):

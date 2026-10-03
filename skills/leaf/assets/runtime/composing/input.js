@@ -379,8 +379,8 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         id: "text.send",
         keys: submitBindings,
         label: submitLabel,
-        does: "Submit what you have typed",
-        line: sends,
+        description: "Submit what you have typed",
+        title: sends,
         run: () => sendBtn.click(),
       },
     ]);

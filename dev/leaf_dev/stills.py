@@ -227,6 +227,13 @@ def go_to(page: Page) -> None:
     page.wait_for_function("() => document.body.hasAttribute('data-lf-go-to-active')")
 
 
+def widget_inline_hints(page: Page) -> None:
+    """A standalone command scope with an active inline hint, outside an Ask."""
+    page.locator("#bg-widget-shortcut-hints").scroll_into_view_if_needed()
+    page.keyboard.press("Tab")
+    page.locator("#bg-local-shortcuts").focus()
+
+
 def draft_edit(page: Page) -> None:
     """A passage opened in its shared editor, with Markdown source and a focused caret."""
     page.locator("#rn-cli .lf-draft-body").click()
@@ -257,6 +264,7 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
         element_thread,
         versions_menu,
         go_to,
+        widget_inline_hints,
         draft_edit,
     )
 }
@@ -282,6 +290,7 @@ STATES = (
         touch=True,
     ),
     State("gallery-tabs", "developer/feature-gallery", at_rest),
+    State("widget-inline-hints", "developer/feature-gallery", widget_inline_hints),
     State("gallery-wide-passage", "developer/feature-gallery", wide_passage),
     State("gallery-multiline-passage", "developer/feature-gallery", multiline_passage),
     State("plan", "review-a-plan", at_rest),

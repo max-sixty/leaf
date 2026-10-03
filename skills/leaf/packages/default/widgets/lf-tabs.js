@@ -176,8 +176,8 @@ customElements.define(
         {
           id: "tab.activate",
           keys: PRESS,
-          does: "Open the focused tab",
-          line: "open the tab",
+          title: "open the tab",
+
           // The tab already open has nothing for this press to do, so the line does not
           // name it there; the walk beside it is what moves.
           when: () => document.activeElement?.getAttribute("aria-selected") !== "true",
@@ -192,15 +192,15 @@ customElements.define(
           routes: [
             ...(side
               ? [
-                  { id: "tab.up", binding: "ArrowUp", does: "Previous tab" },
-                  { id: "tab.down", binding: "ArrowDown", does: "Next tab" },
+                  { id: "tab.up", binding: "ArrowUp", title: "Previous tab" },
+                  { id: "tab.down", binding: "ArrowDown", title: "Next tab" },
                 ]
               : []),
-            { id: "tab.previous", binding: "ArrowLeft", does: "Previous tab" },
-            { id: "tab.next", binding: "ArrowRight", does: "Next tab" },
+            { id: "tab.previous", binding: "ArrowLeft", title: "Previous tab" },
+            { id: "tab.next", binding: "ArrowRight", title: "Next tab" },
           ],
-          does: "Previous / next tab, wrapping at the ends",
-          line: "walk the tabs",
+          title: "walk the tabs",
+          description: "Previous / next tab, wrapping at the ends",
           repeat: true,
           run: (binding) =>
             walk((at, n) =>
@@ -213,11 +213,10 @@ customElements.define(
           id: "tab.edge",
           keys: ["Home", "End"],
           routes: [
-            { id: "tab.first", binding: "Home", does: "First tab" },
-            { id: "tab.last", binding: "End", does: "Last tab" },
+            { id: "tab.first", binding: "Home", title: "First tab" },
+            { id: "tab.last", binding: "End", title: "Last tab" },
           ],
-          does: "First / last tab",
-          line: "first / last",
+          title: "first / last",
           run: (binding) => walk((at, n) => (binding === "Home" ? 0 : n - 1)),
         },
       ]);

@@ -262,10 +262,7 @@ def test_an_ask_surface_frames_exactly_one_source(page_dir):
         )
         == []
     )
-    outside = fragment_errors(first, registry)
-    assert "this declared Ask source must be inside an Ask with a heading" in " ".join(
-        outside
-    )
+    assert fragment_errors(first, registry) == []
 
     # Evidence can quote another Ask source without giving this Ask a
     # second live source. The runtime already excludes x-exhibit descendants from the

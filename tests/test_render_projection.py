@@ -99,7 +99,7 @@ from render_harness import (
     SAMPLE_MARKUP,
     SAMPLE_TEXT,
     TOKEN,
-    ask_actions_hint,
+    active_digit_bindings,
     compare_with,
     consume_browser_errors,
     draft_control,
@@ -3986,7 +3986,7 @@ def test_the_presses_a_user_is_mid_way_through_survive_the_page_following(
     mark = page.locator("#lk-one .lf-pick")
     mark.focus()
     expect(mark).to_be_focused()
-    assert ask_actions_hint("1–3") in shortcut_bar_text(page)
+    assert active_digit_bindings(page) == "1–3"
     # A stamped version this time, which is the other way a page moves under a user.
     # Its announcement arrives immediately; the bottom status may queue it behind the
     # earlier draft notice, so that line need not change before the next press.
@@ -3998,7 +3998,7 @@ def test_the_presses_a_user_is_mid_way_through_survive_the_page_following(
     # The same mark, still holding the focus the user put on it: the revision rewrote
     # nothing in this widget, so nothing replaced it.
     expect(page.locator("#lk-one .lf-pick")).to_be_focused()
-    assert ask_actions_hint("1–3") in shortcut_bar_text(page), (
+    assert active_digit_bindings(page) == "1–3", (
         "the revision took the user's keys down"
     )
     page.keyboard.press("2")
@@ -4037,7 +4037,7 @@ def test_a_revision_that_restates_an_ask_leaves_the_user_standing_in_it(browser,
     expect(decision).to_be_focused()
     # Standing, not a bare tab stop: the Ask's own action routes are live over the user
     # again, and the third option the revision brought is among them.
-    assert ask_actions_hint("1–4") in shortcut_bar_text(page)
+    assert active_digit_bindings(page) == "1–4"
     page.keyboard.press("3")
     expect(page.locator("#lk-three")).to_have_attribute("chosen", "")
 
@@ -4356,7 +4356,7 @@ customElements.define('page-counter', class extends HTMLElement {
         "the revision was patched in, so this proves nothing about the other install"
     )
     expect(page.locator("#lk-decision")).to_be_focused()
-    assert ask_actions_hint("1–4") in shortcut_bar_text(page)
+    assert active_digit_bindings(page) == "1–4"
 
 
 def test_an_old_document_state_request_cannot_update_the_new_revision(browser, serve):

@@ -36,8 +36,9 @@
  * not a thread: if the agent needs clarification after carrying the option into
  * the page, it can open a separate thread anchored to that option.
  *
- * The keyboard walk stops at options. Ask digits choose each authored option, then enter
- * the add field when a digit remains among the Ask's nine contextual bindings. Tab remains the
+ * The keyboard walk stops at options. This widget assigns 1–9 to authored options,
+ * then its add field and Done; generated options receive the remaining numbers.
+ * Removing or disabling a choice leaves the other bindings intact. Tab remains the
  * platform's path through every control and into that field. There it follows Leaf's
  * shared text-box contract: Shift+Enter writes a newline and Enter adds the option. A
  * generated option joins the walk on replay just like an authored one.
@@ -67,8 +68,8 @@
  *
  * The keyboard path: every mark is a checkbox, so Tab reaches it and Space toggles. From a
  * mark, the runtime's row walk moves among the options: ↑/↓ clamp at the ends, and Home and
- * End land on them. The Ask owns 1–9 across the whole question and projects them onto the
- * option cells. The column is held whether or not a key is in it, which is the theme's
+ * End land on them. This widget owns 1–9; Ask forwards those declarations across the
+ * whole question. The column is held whether or not a key is in it, which is the theme's
  * half of this. The rows are
  * declared per mark, on the mark rather than on the group — the group holds the option's
  * own argument too, and a scope over the whole subtree would promise to work an option with
@@ -270,6 +271,7 @@ customElements.define(
     #choosable = false;
     #controller = null;
     #controls = new Map();
+    #contextNumbers = new Map();
     #done = null;
     #keysDirty = false;
     #settled = null;
@@ -314,6 +316,14 @@ customElements.define(
       // group that was never choosable: it shows what a decision looks like without
       // taking one.
       this.#choosable = this.hasAttribute("choose") && !exhibited;
+      // Bindings name identities, not the current visible order. Reserve the authored
+      // choices and auxiliary actions before user-added options arrive, and retain a
+      // removed option's number so undo never changes another action's binding.
+      if (this.#choosable) {
+        for (const option of this.#options()) this.#contextKeys(`choose:${option.id}`);
+        if (!inChrome(this)) this.#contextKeys("write");
+        if (this.hasAttribute("multiple")) this.#contextKeys("done");
+      }
       for (const option of this.#options()) this.#reference(option);
       // Without `choose` there is nothing to press: the mark still reports the
       // document's state, as a span.
@@ -470,10 +480,17 @@ customElements.define(
       this.#syncDone();
     }
 
-    // From a mark, the arrows walk the options and Space toggles. The mark's own scope
-    // declares only those local mechanics (plus the thread's existing reply route).
-    // The group contributes its ordered answer controls once, and core assigns their
-    // contextual Ask bindings without the package maintaining a second digit map.
+    // Numbers stay with identities until this widget instance leaves, including a
+    // removed choice the user can restore with undo.
+    #contextKeys(identity) {
+      if (!this.#contextNumbers.has(identity))
+        this.#contextNumbers.set(identity, this.#contextNumbers.size + 1);
+      const number = this.#contextNumbers.get(identity);
+      return number <= 9 ? [String(number)] : [];
+    }
+
+    // From a mark, arrows walk the options and Space toggles. The group owns stable
+    // numbered commands; Ask forwards those same declarations.
     #keys() {
       for (const bindingBadge of this.querySelectorAll(
         ":scope > lf-option > .lf-key-badge",
@@ -481,22 +498,22 @@ customElements.define(
         bindingBadge.remove();
       const marks = this.#marks();
       const answerRows = [];
-      for (const [index, mark] of marks.entries()) {
+      for (const mark of marks) {
         const option = mark.parentElement;
-        // The widget owns the card-local placement anchor; the Ask projection decides
-        // whether this action receives one of its finite bindings and writes that binding
-        // into the empty face. The package keeps no copy of core's capacity.
+        // The widget declares the number and its local face; the shared keyboard
+        // presenter paints whichever declared binding currently reaches this action.
         const bindingBadge = offer("span", "lf-key-badge");
         bindingBadge.setAttribute("aria-hidden", "true");
         option.prepend(bindingBadge);
         answerRows.push({
-          id: `option.choose-${index + 1}`,
-          keys: [],
+          id: `option.choose-${option.id}`,
+          contextKeys: this.#contextKeys(`choose:${option.id}`),
           control: mark,
-          decision: label(option) || option.id,
+          decision: true,
           bindingBadge,
-          does: `Toggle option ${index + 1}`,
-          line: label(option) || option.id,
+          title: label(option) || option.id,
+          description: "Toggle this option",
+          when: () => this.#available("choose"),
           run: () => mark.click(),
         });
 
@@ -507,8 +524,7 @@ customElements.define(
           {
             id: "option.reply",
             keys: ["Enter"],
-            does: "Reply in this thread",
-            line: "reply",
+            title: "reply",
             when: () => Boolean(this.#reply()),
             // The box hands the user back to the thread it belongs to, and to
             // this option where that thread is nowhere to stand — the route
@@ -520,50 +536,50 @@ customElements.define(
                 line: "back to question",
               }),
           },
-          // The Ask's numbered actions are what a question offers that no other list
-          // does, so they keep the shortcut bar's slots and the walk stays off it.
+          // Numbered choices own the shortcut bar; arrow navigation stays in the reference.
           ...rowWalk({
             id: "option",
             noun: "Option",
             plural: "options",
             rows: () => this.#marks(),
-          }).map((row) => ({ ...row, lineWhen: false })),
+          }).map((row) => ({ ...row, line: false })),
           {
             id: "option.toggle",
             keys: [" "],
-            does: "Toggle the focused option",
-            line: "toggle",
-            lineWhen: false,
+            title: "toggle",
+            line: false,
             run: () => mark.click(),
           },
           {
             id: "option.reach",
             keys: [],
             label: "⇥",
-            does: "Reach an option's mark",
+            title: "Reach an option's mark",
           },
         ]);
       }
       if (this.#addition.input)
         answerRows.push({
           id: "option.write",
-          keys: [],
+          contextKeys: this.#contextKeys("write"),
           control: this.#addition.input,
-          decision: "Another option",
+          decision: true,
           bindingBadge: this.#addition.bindingBadge,
-          does: "Write another option",
-          line: "write another option",
+          title: "Another option",
+          description: "Write another option",
+          when: () => this.#available("choose"),
           run: () => this.#addition.input.focus(),
         });
       if (this.#done)
         answerRows.push({
           id: "option.done",
-          keys: [],
+          contextKeys: this.#contextKeys("done"),
           control: this.#done.control,
-          decision: "Done",
+          decision: true,
           bindingBadge: this.#done.bindingBadge,
-          does: "Finish choosing options",
-          line: "done",
+          title: "Done",
+          description: "Finish choosing options",
+          when: () => this.#available("answer"),
           run: () => this.#done.control.click(),
         });
       commands(this, SECTION, answerRows, {

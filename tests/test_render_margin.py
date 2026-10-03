@@ -1207,9 +1207,9 @@ def test_ask_binding_badges_follow_the_feature_gallery_s_visible_margin_entries(
     expect(page.locator("#bg-choice-ask")).to_be_focused()
     page.keyboard.press("a")
     expect(page.locator("#bg-replace")).to_be_focused()
-    expect(page.locator(".lf-ask-binding-badges > .lf-ask-binding-badge")).to_have_text(
-        ["1", "2"]
-    )
+    expect(
+        page.locator(".lf-command-binding-badges > .lf-command-binding-badge")
+    ).to_have_text(["1", "2"])
     geometry = page.evaluate(
         """() => {
           const item = document.querySelector('[data-lf-margin-for="bg-replace"]');
@@ -1236,7 +1236,7 @@ def test_ask_binding_badges_follow_the_feature_gallery_s_visible_margin_entries(
               node => node.getBoundingClientRect().top
             )),
             chips: boxes([...document.querySelectorAll(
-              '.lf-ask-binding-badges > .lf-ask-binding-badge'
+              '.lf-command-binding-badges > .lf-command-binding-badge'
             )]),
           };
         }"""
@@ -2136,7 +2136,7 @@ def test_a_margin_entry_refuses_an_unowned_command_scope(browser, serve):
         """async () => {
           const {commandScope, contributionEntry} = await window.__lfRuntimeImport('/runtime/widget-api.js');
           const scope = commandScope('Status command', [{
-            id: 'fixture.status', keys: ['x'], does: 'Act from status',
+            id: 'fixture.status', keys: ['x'], title: 'Act from status',
             line: 'act from status', run: () => {}
           }]);
           try {
@@ -2586,7 +2586,7 @@ def test_page_map_keyed_reconciliation_preserves_user_standing(browser, serve):
           window.lfKeyedCommandRuns = 0;
           const scope = commandScope('On the retained Page Map action', [{
             id: 'fixture.retained', keys: ['x'],
-            does: 'Run the retained action', line: 'run retained',
+            title: 'Run the retained action', line: 'run retained',
             run: () => window.lfKeyedCommandRuns += 1,
           }]);
           const ordinary = index => registerContribution({

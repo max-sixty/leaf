@@ -456,7 +456,7 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
                          + var(--lf-key-badge-size) + var(--sp-2)); }
    & > .lf-another:has(.lf-compose-submit:not([data-lf-empty])) > .lf-key-badge {
                      inset-inline-end: var(--lf-option-write-badge-inset); }
-   & > lf-option:has(> .lf-key-badge[data-lf-ask-binding-badge]) > .lf-pick {
+   & > lf-option:has(> .lf-key-badge[data-lf-binding-badge]) > .lf-pick {
                      opacity: 0; }
  }
 }

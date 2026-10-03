@@ -479,6 +479,7 @@ source = { editable = "dev" }
 dependencies = [
     { name = "click" },
     { name = "pillow" },
+    { name = "pyyaml" },
     { name = "unidiff" },
 ]
 
@@ -486,6 +487,7 @@ dependencies = [
 requires-dist = [
     { name = "click", specifier = ">=8" },
     { name = "pillow", specifier = ">=12.1" },
+    { name = "pyyaml", specifier = ">=6" },
     { name = "unidiff", specifier = ">=1" },
 ]
 

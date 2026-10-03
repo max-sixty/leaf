@@ -3,6 +3,8 @@ test suite."""
 
 from pathlib import Path
 
+from .schema import RENDER_CHECKS_DIR
+
 RENDER_VIEWPORT = {"width": 1200, "height": 900}
 
 # The same patience Playwright gives browser waits. Keeping the server request timeout
@@ -16,11 +18,11 @@ SERVED_TIMEOUT_MS = 30_000
 PROBE_POLL_MS = 4
 
 PROBE_ROOT = Path(__file__).with_name("render-checks")
-PROBE_ROUTE = "/_leaf/render-checks/index.js"
+PROBE_ROUTE = f"/{RENDER_CHECKS_DIR}/index.js"
 DRIVER_SOURCE = PROBE_ROOT / "driver.js"
 WINDOW_ERRORS_SOURCE = PROBE_ROOT / "init.js"
 PROBE_SOURCES = {
-    f"/_leaf/render-checks/{source.name}": source
+    f"/{RENDER_CHECKS_DIR}/{source.name}": source
     for source in sorted(PROBE_ROOT.glob("*.js"))
     if source != DRIVER_SOURCE
 }

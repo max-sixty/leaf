@@ -20,6 +20,15 @@ primitive must give the user something that site would not:
 - **Difficult code.** Mechanisms too hard to write well each time: anchored
   threads, widgets whose state survives a revision, and the event log that
   returns each comment and decision to the agent as a structured event.
+- **Live revisions.** Continuous, low-latency page updates are a core feature.
+  Agents revise an open page in place while the user reads, comments, and
+  interacts.
+- **Contextual threads.** Passage-relative floating replies are a core feature.
+  Users read and answer a thread beside the passage it concerns.
+- **Drawing comments.** Freehand annotations are a core feature. Users point at
+  visual details with ink as well as with text and semantic anchors.
+- **Public website.** Visitors can try Leaf directly on leaf.page through
+  interactive examples. The website is a core feature.
 - **Consistency.** One interface across sessions and agents — keybindings,
   threads, and how a widget answers a move — so the user learns it
   once.

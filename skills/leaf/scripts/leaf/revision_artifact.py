@@ -45,6 +45,7 @@ from tree_sitter import Language, Parser
 from leaf.files import file_stamp, latest_revision, list_revisions, revision_path
 from leaf.page_memory import Slot, memo
 from leaf.passages import SourceReading, enclosing_ids
+from leaf.render_checks import PROBE_SOURCES
 from leaf.schema import BROWSER_DIRS, CONTENT_TYPES, SERVED_PATH, VENDORED_FILES
 from leaf.session_cleanup import fsync_parents
 from leaf.structure import (
@@ -135,6 +136,19 @@ class RevisionArtifact:
     @cached_property
     def implementations(self) -> dict:
         return json.loads(self.manifest)["implementations"]
+
+    @cached_property
+    def widget_aliases(self) -> dict[str, str]:
+        """The loader's widget module paths, mapped to their captured implementations.
+
+        A page-owned implementation lives under `/page/`, but every widget is
+        loaded through `/widgets/<tag>.js`. HTTP, publication and offline export
+        read these aliases from the same captured provenance.
+        """
+        return {
+            f"/widgets/{tag}.js": implementation["path"]
+            for tag, implementation in self.implementations.items()
+        }
 
     @cached_property
     def executable(self) -> str | None:
@@ -380,7 +394,7 @@ def _capture_input_stamps(page_dir: Path) -> tuple[tuple[str, tuple], ...]:
     return tuple(
         (path.relative_to(page_dir).as_posix(), _path_stamp(path))
         for path in sorted(set(paths))
-    )
+    ) + tuple((logical, _path_stamp(path)) for logical, path in PROBE_SOURCES.items())
 
 
 def capture_artifact(
@@ -498,6 +512,16 @@ def _capture_artifact(
         }
     for source in widget_sources.values():
         capture("/" + source.lstrip("/"))
+
+    # Live observations and headless checks are browser code too. Capture their
+    # source beside the runtime it reads, so a revision and an export have one
+    # complete module graph, even when the serving checkout later changes.
+    resources.update(
+        {
+            logical: Resource(source.read_bytes(), "application/javascript")
+            for logical, source in PROBE_SOURCES.items()
+        }
+    )
 
     entries = []
     documents = [document]

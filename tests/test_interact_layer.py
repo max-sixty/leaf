@@ -27,6 +27,7 @@ from interact_support import (
     SHIPPED_PACKAGES,
     SKILL_ROOT,
     add_test_widget,
+    append_carried_log_record,
     case_alias,
     check,
     element_declaration,
@@ -1361,14 +1362,17 @@ def _without_arguments(compound, pseudos):
 
 def _has_hosts(selector):
     """Each compound a `:has()` stands on, without that `:has()`'s argument, so an element
-    it looks for is not read as the element it stands on. A `:has()` inside an `:is()` or
+    it looks for is not read as the element it stands on. A negated selector does not
+    name that host either. A `:has()` inside an `:is()` or
     `:where()` argument stands on that argument's compound, not on the outer one."""
     for compound in _split_top(selector, " >+~"):
         for _start, _end, argument in _pseudo_arguments(compound, (":is(", ":where(")):
             for arm in _split_top(argument, ","):
                 yield from _has_hosts(arm)
         if ":has(" in _without_arguments(compound, (":is(", ":where(")):
-            yield _without_arguments(compound, (":has(",))
+            yield _without_arguments(
+                _without_arguments(compound, (":has(",)), (":not(",)
+            )
 
 
 def test_no_has_rule_stands_on_a_root():
@@ -1384,7 +1388,7 @@ def test_no_has_rule_stands_on_a_root():
     is on the chrome and `data-lf-draw-mode` on `html`.
 
     The roots are `.lf-chrome`, `html`, `:root` and `body` in any sheet and, inside the
-    layer's one `@scope`, which is the chrome's, `:scope` and a top-level `&`, each also
+    chrome's `@scope`, `:scope` and a top-level `&`, each also
     inside `:is()` or `:where()`."""
     sheets = [
         *sorted(schema_model.ASSETS.glob("*.css")),
@@ -1406,7 +1410,7 @@ def test_no_has_rule_stands_on_a_root():
 
     scopes = {
         root
-        for sheet in sheets
+        for sheet in [schema_model.ASSETS / "runtime" / "chrome.css"]
         for root in scope_roots(
             tinycss2.parse_stylesheet(
                 sheet.read_text(), skip_comments=True, skip_whitespace=True
@@ -1424,7 +1428,12 @@ def test_no_has_rule_stands_on_a_root():
         for _conditions, enclosing, selector, _declarations in _style_rules(sheet):
             read += 1
             if any(
-                roots.search(stands) or ("scope" in enclosing and scoped.search(stands))
+                roots.search(stands)
+                or (
+                    sheet == schema_model.ASSETS / "runtime" / "chrome.css"
+                    and "scope" in enclosing
+                    and scoped.search(stands)
+                )
                 for stands in _has_hosts(selector)
             ):
                 rooted.append(
@@ -1432,8 +1441,10 @@ def test_no_has_rule_stands_on_a_root():
                 )
     assert read, "no rules read from the layer's sheets — the reading is broken"
     assert list(_has_hosts(".a:has(.b:has(.c)).d")) == [".a.d"]
+    assert list(_has_hosts(".a:not(:has(.b)).c")) == [".a.c"]
     assert list(_has_hosts(":is(:scope, .x):has(.y)")) == [":is(:scope, .x)"]
     assert list(_has_hosts(":is(html lf-a:has(> b)) > c")) == ["lf-a"]
+    assert list(_has_hosts("lf-a:not(:where(.lf-chrome *)):not(:has(> b))")) == ["lf-a"]
     assert roots.search("html[data-lf-live]") and not roots.search(".lf-body")
     assert not rooted, "a :has() on a root restyles everything below it:\n" + (
         "\n".join(rooted)
@@ -1513,11 +1524,14 @@ def test_the_injected_control_face_is_a_default_only_the_document_reads():
         if any(name in _FACE for name, _value in declarations)
     ]
     assert faces, "no face was read from the layer's sheets — the reading is broken"
-    assert faces[0] == ("assets/shadow.css", ":where(:root) .lf-ui"), faces[0]
+    # Public controls and injected controls share this one default; its root boundary
+    # and class weight still protect shadow content and win over page element rules.
+    control_face = ":where(:root) :is(.lf-ui, .button, .field)"
+    assert faces[0] == ("assets/shadow.css", control_face), faces[0]
     defaults = [
         face
         for face in faces
-        if face[1] in {".lf-ui", ":where(.lf-ui)", ":where(:root) .lf-ui"}
+        if face[1] in {".lf-ui", ":where(.lf-ui)", ":where(:root) .lf-ui", control_face}
     ]
     assert defaults == [faces[0]], defaults
 
@@ -1530,7 +1544,7 @@ def test_the_layer_sheets_spell_the_runtime_s_layout_numbers():
     runtime = schema_model.ASSETS / "runtime"
     layout = (runtime / "chrome-layout.js").read_text()
     drawers = (runtime / "drawers.js").read_text()
-    presentation = (runtime / "presentation.js").read_text()
+    page_paint = (runtime / "page-paint.js").read_text()
     sheet = (schema_model.ASSETS / "theme.css").read_text() + (
         runtime / "chrome.css"
     ).read_text()
@@ -1545,7 +1559,7 @@ def test_the_layer_sheets_spell_the_runtime_s_layout_numbers():
         "var("
         + constant(r'^export const DRAWER_SLOT_PROP = "([^"]+)";', drawers)
         + ")",
-        "[" + constant(r'^  ask: "([^"]+)",', presentation) + "]",
+        "[" + constant(r'^  ask: "([^"]+)",', page_paint) + "]",
     ):
         assert spelling in sheet, f"the layer sheets no longer spell {spelling}"
     for spelling in (
@@ -2650,7 +2664,9 @@ def test_init_does_not_partially_revendor_on_a_destination_conflict(
     conflict.mkdir()
     layer = tmp_path / ".leaf"
     layer.mkdir(parents=True)
-    (layer / "theme.css").write_text("lf-new-shape { --accent: rebeccapurple; }\n")
+    (layer / "theme.css").write_text(
+        ":scope:is(lf-new-shape) { --accent: rebeccapurple; }\n"
+    )
     (layer / "registry.json").write_text(
         json.dumps({"lf-new-shape": element_declaration("lf-new-shape")})
     )
@@ -2857,7 +2873,7 @@ def test_init_refuses_invalid_ids_in_a_registry_example(
 def test_a_fresh_log_starts_without_the_cursor_of_the_log_it_replaced(page_dir):
     """The acknowledgement cursor is a position in the log. A directory whose log
     is absent takes the fresh-page path, so the position it kept names nothing."""
-    events_model.append_event(
+    append_carried_log_record(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hi"}
     )
     cleanup_model.write_json(page_dir / "cursor.json", {"seq": 1})
@@ -2877,7 +2893,7 @@ def test_init_revendors_a_page_an_earlier_leaf_left_behind(page_dir):
     `page init` takes it."""
     publish(page_dir)
     revision = interact_files.latest_revision(page_dir)
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -2889,7 +2905,7 @@ def test_init_revendors_a_page_an_earlier_leaf_left_behind(page_dir):
         },
     )
     # The agent's side of that thread as the earlier Leaf wrote it.
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "reply",
@@ -3267,25 +3283,19 @@ def test_package_check_and_page_init_refuse_an_upgraded_widget_without_its_modul
         assert "widgets/lf-unfinished.js" in result.output
 
 
-def test_package_check_refuses_a_widget_packages_rule_on_the_root(
-    tmp_path, monkeypatch
-):
-    """A package that declares widgets reaches only inside them, so a rule of its own on
-    `:root`, `html` or `body` could never apply: composition says so rather than
-    vendoring a rule that matches nothing."""
+def test_package_check_leaves_root_matching_to_native_scope(tmp_path, monkeypatch):
+    """Composition preserves CSS; native scope makes outside subjects inert."""
     monkeypatch.chdir(tmp_path)
     runner = CliRunner()
     created = runner.invoke(cli_model.cli, ["package", "init", ".leaf"])
     assert created.exit_code == 0, created.output
     add_test_widget(tmp_path / ".leaf", "lf-toned-note")
     (tmp_path / ".leaf" / "theme.css").write_text(
-        "lf-toned-note { color: teal; }\n:root { --toned: teal; }\n"
+        ":scope { color: teal; }\n:root { --toned: teal; }\n"
     )
 
     result = runner.invoke(cli_model.cli, ["package", "check", ".leaf"])
-
-    assert result.exit_code != 0
-    assert "`:root` styles `:root`, which no widget contains" in result.output
+    assert result.exit_code == 0, result.output
 
 
 def test_package_check_requires_a_non_empty_widget_description(tmp_path, monkeypatch):
@@ -3719,6 +3729,134 @@ def test_package_init_widget_merges_an_existing_package(tmp_path, monkeypatch):
     assert helper.read_text() == "export const existing = true;\n"
 
 
+def test_package_writers_only_wait_for_contract_destinations_they_share(
+    tmp_path, monkeypatch, spawn
+):
+    """An unrelated package proceeds while registry aliases and installs wait,
+    even from environments with different state and temporary homes. Observe the
+    real child lock's nonblocking refusal rather than infer waiting from a delay.
+    """
+    monkeypatch.chdir(tmp_path)
+    package = tmp_path / "package"
+    packages_model.cmd_package_init(package)
+    alias = tmp_path / "alias"
+    alias.symlink_to(package, target_is_directory=True)
+    registry_alias = tmp_path / "registry-alias"
+    packages_model.cmd_package_init(registry_alias)
+    (registry_alias / "registry.json").unlink()
+    (registry_alias / "registry.json").symlink_to(package / "registry.json")
+    (registry_alias / "widgets").rmdir()
+    (registry_alias / "widgets").symlink_to(
+        package / "widgets", target_is_directory=True
+    )
+    other_state = tmp_path / "other-state"
+    other_tmp = tmp_path / "other-tmp"
+    other_tmp.mkdir()
+    environment = os.environ | {
+        "XDG_STATE_HOME": str(other_state),
+        "TMPDIR": str(other_tmp),
+    }
+    observe = """
+import contextlib
+import fcntl
+import sys
+from leaf import cli, packages
+real_lock = packages.flocked
+@contextlib.contextmanager
+def observed(path):
+    with open(path, "a+b") as probe:
+        try:
+            fcntl.flock(probe, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            print("waiting on shared destination", flush=True)
+    with real_lock(path) as held:
+        yield held
+packages.flocked = observed
+cli.cli.main(args=sys.argv[1:], standalone_mode=False)
+"""
+    routes = [package, alias, registry_alias]
+    case_path = package.with_name(package.name.swapcase())
+    if case_path.exists() and package.samefile(case_path):
+        routes.append(case_path)
+    for index, destination in enumerate(routes):
+        widget = f"lf-parallel-{index}"
+        with packages_model.package_write_lock(package):
+            other = (
+                package / "runtime" / "nested"
+                if index == 0
+                else tmp_path / f"other-{index}"
+            )
+            independent = subprocess.run(
+                [*LEAF_COMMAND, "package", "init", str(other)],
+                env=environment,
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=False,
+            )
+            assert independent.returncode == 0, independent.stdout + independent.stderr
+            child = spawn(
+                [
+                    sys.executable,
+                    "-c",
+                    observe,
+                    "package",
+                    "init",
+                    str(destination),
+                    "--widget",
+                    widget,
+                ],
+                env=environment,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            assert child.stdout.readline().strip() == "waiting on shared destination"
+        out, err = child.communicate(timeout=10)
+        assert child.returncode == 0, out + err
+    assert set(json.loads((package / "registry.json").read_text())) == {
+        f"lf-parallel-{index}" for index in range(len(routes))
+    }
+
+    for held_package in (package, other_state / "leaf" / "packages" / package.name):
+        with packages_model.package_write_lock(held_package):
+            installing = spawn(
+                [sys.executable, "-c", observe, "package", "install", str(package)],
+                env=environment,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            assert (
+                installing.stdout.readline().strip() == "waiting on shared destination"
+            )
+        out, err = installing.communicate(timeout=10)
+        if held_package == package:
+            assert installing.returncode == 0, out + err
+        else:
+            assert installing.returncode != 0
+            assert "already resolves to" in err
+
+
+def test_package_install_checks_the_bytes_it_publishes(tmp_path, monkeypatch):
+    """Source admission precedes copying; an editor changing it in between must
+    not publish an invalid package under a name pages can select.
+    """
+    source = tmp_path / "package"
+    packages_model.cmd_package_init(source)
+    copy_contract = packages_model.copy_package_contract
+
+    def changed_during_copy(package, staged):
+        (package / "theme.css").write_text(".bad { color red; }\n")
+        copy_contract(package, staged)
+
+    monkeypatch.setattr(packages_model, "copy_package_contract", changed_during_copy)
+    result = CliRunner().invoke(cli_model.cli, ["package", "install", str(source)])
+    assert result.exit_code != 0
+    assert "syntax error" in result.output
+    assert not (machine_model.package_store() / source.name).exists()
+
+
 def test_package_init_widget_stages_only_the_package_contract(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     unrelated = tmp_path / "unrelated"
@@ -3917,10 +4055,7 @@ def test_package_is_the_unit_that_init_creates_checks_and_vendors(
     )
     assert initialized.exit_code == 0, initialized.output
     # The package's rule reaches the page confined to the package's own widget.
-    assert (
-        "lf-callout:where(lf-callout, :is(lf-callout) *) {"
-        in (page / "theme.css").read_text()
-    )
+    assert "@scope (:is(lf-callout)) {" in (page / "theme.css").read_text()
     assert json.loads((page / "registry.json").read_text())["lf-callout"] == entry
     assert (
         "Use them for short notices."
@@ -4207,7 +4342,9 @@ def test_page_init_selects_the_same_directory_contract_at_any_cardinality(
     (widget_package / "registry.json").write_text(
         json.dumps({"lf-solo": element_declaration("lf-solo", upgrade=True)})
     )
-    (widget_package / "theme.css").write_text("lf-solo { --lf-block-frame: 1; }\n")
+    (widget_package / "theme.css").write_text(
+        ":scope:is(lf-solo) { --lf-block-frame: 1; }\n"
+    )
     (widget_package / "widgets" / "lf-solo.js").write_text(
         'import { ready } from "./ready.js";\n'
         'customElements.define("lf-solo", class extends HTMLElement {\n'
@@ -4253,9 +4390,9 @@ def test_page_init_selects_the_same_directory_contract_at_any_cardinality(
     theme = (page / "theme.css").read_text()
     # A package with a widget reaches only inside it; a package without one is a
     # theme, and its rules reach the page as written.
-    assert theme.index(
-        "lf-solo:where(lf-solo, :is(lf-solo) *) { --lf-block-frame: 1; }"
-    ) < theme.index(":root { --solo-night: 1; }")
+    assert theme.index(":scope:is(lf-solo) { --lf-block-frame: 1; }") < theme.index(
+        ":root { --solo-night: 1; }"
+    )
     instructions = (page / "instructions" / "author.md").read_text()
     assert instructions == (
         "# Package `solo`\n\nUse one solo.\n\n# Package `night`\n\nUse after dusk.\n"

@@ -11,7 +11,12 @@
 name = "leaf-dev"
 version = "0"
 requires-python = ">=3.10"
-dependencies = ["click>=8", "pillow>=12.1", "unidiff>=1"]
+dependencies = [
+    "click>=8",
+    "pillow>=12.1",
+    "pyyaml>=6",
+    "unidiff>=1",
+]
 
 [project.scripts]
 leaf-dev = "leaf_dev.cli:cli"

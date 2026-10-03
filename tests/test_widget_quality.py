@@ -94,8 +94,8 @@ def test_package_check_render_reports_findings_as_advice(tmp_path, headless_shel
     # An element the theme does not style is inline, whose box a padding would not
     # grow the way a block's grows.
     (package / "theme.css").write_text(
-        "lf-grow, lf-holder, lf-fixed { display: block; }\n"
-        "lf-fixed { height: 100px; }\n"
+        ":scope:is(lf-grow, lf-holder, lf-fixed) { display: block; }\n"
+        ":scope:is(lf-fixed) { height: 100px; }\n"
     )
     registry_path = package / "registry.json"
     registry = json.loads(registry_path.read_text())

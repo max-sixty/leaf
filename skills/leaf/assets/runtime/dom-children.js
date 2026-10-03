@@ -14,6 +14,25 @@ export function setChildren(parent, nodes, remove = detach) {
   order(parent, nodes);
 }
 
+// Replace a renderer-owned subtree using the same matching and text edits as an
+// authored revision. The caller owns every descendant's attributes and contents;
+// controls with independent state belong outside it. Current nodes pair to themselves,
+// so unchanged text and native Ranges stay in place without a source mirror.
+export function setRenderedChildren(parent, nodes) {
+  const after = document.createDocumentFragment();
+  after.append(...nodes);
+  patchChildren(parent, parent, after, {
+    pairs: new Map([...sourceNodes(parent)].map((node) => [node, node])),
+    arrive: (node) => node,
+    sameValue: (name, held, wanted) => held === wanted,
+    touched: () => {},
+    retire: () => {},
+    declared: () => false,
+    same: (held, wanted) => held.isEqualNode(wanted),
+    generated: () => false,
+  });
+}
+
 // Put `nodes` in order under `parent`, walking past the children `passed` names, and
 // moving only a node that is not already where it belongs. A node that does move keeps
 // the user standing in it: the hold is read before the first move, while the focus it
@@ -104,7 +123,7 @@ const tree = (node) => (node.localName === "template" ? node.content : node);
 // revision that never mentioned them.
 function patchAttributes(live, before, after, rules) {
   let changed = false;
-  for (const { name, value } of before.attributes) {
+  for (const { name, value } of [...before.attributes]) {
     if (after.hasAttribute(name)) continue;
     if (name === "class") live.classList.remove(...tokens(value));
     else live.removeAttribute(name);

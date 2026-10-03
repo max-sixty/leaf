@@ -1,60 +1,53 @@
 # From session 786842ae, whose design page argued for its pick and asked questions
 # only the pick raised. Main at d088065f5 failed 0 of 3; the authoring-asks.md
 # paragraph on pages for choosing an approach passed 4 of 4.
-schema_version: '1.0'
-name: approach-page-leaves-the-choice-open
-description: "Asks: a page for the user to choose an approach is built around that choice, not the author's pick, and asks nothing that only the pick raises."
-tags:
-- asks
-execution:
-  prompt: |
-    You are in a Leaf design session. Two reviews came back on how a section's inline
-    choice (Next / Later / Drop) and a summary board could share one decision, and
-    your last chat reply said:
-
-    > Both reviews reject the board-specific binding. What varies is who owns the
-    > decision:
-    > - A, the picker: `lf-options` keeps the fact; the board card is a view that
-    >   sends the picker's `choose`. Smallest step, and the first reviewer's pick.
-    >   Order within a column would need ownership to move later.
-    > - B, the board: the card's column is the fact; the section's Ask is answered by
-    >   another widget's action, which needs cross-owner Asks.
-    > - C, the section: the section's `lf-ask` carries `value` and `rank` fields,
-    >   Next / Later / Drop are declared once as a scale, and the picker and card are
-    >   both views. One drop is one event. Needs a scale element, a `set` verb and a
-    >   view relation. The second reviewer's pick.
-    > - D, a record set: data-only rows hold the fields and everything else views
-    >   them. Best when the user adds tasks; needs cross-owner Asks.
-    >
-    > Every approach needs the same generic view relation.
-    > I'd take C: the fact belongs to the subject it is about. Under C two things
-    > stay open: whether order within a column matters on these pages yet, and
-    > whether `lf-ask` carries the fields or a new `lf-item` element does.
-    >
-    > 📌 Choose the shared-state design before building. I'd build C.
-
-    The user replied: "Great, can we make a full Leaf page that explains this and
-    shows tradeoffs / any other options"
-
-    Write the page. The page directory is not reachable from here, so reply with the
-    `<main>` element's HTML rather than writing a file. Figures may be placeholders
-    such as `<figure id="owners-figure"><svg class="drawing" viewBox="0 0 680 300"></svg></figure>`.
-graders:
-- name: loads-leaf
-  type: tool_used
-  tool: Skill
-  input_match: leaf
-- name: reads-authoring-asks
-  type: tool_used
-  tool: Read
-  input_match: skills/leaf/references/authoring-asks\.md
-- name: has-asks
-  type: regex
-  pattern: <lf-ask\b
-  flags: i
-- name: judgment
-  type: llm
-  criteria: |
+description: approach-page-leaves-the-choice-open
+metadata:
+  purpose: 'Asks: a page for the user to choose an approach is built around that choice, not the author''s
+    pick, and asks nothing that only the pick raises.'
+  tags:
+  - asks
+vars:
+  prompt: "You are in a Leaf design session. Two reviews came back on how a section's inline\nchoice (Next\
+    \ / Later / Drop) and a summary board could share one decision, and\nyour last chat reply said:\n\n\
+    > Both reviews reject the board-specific binding. What varies is who owns the\n> decision:\n> - A,\
+    \ the picker: `lf-options` keeps the fact; the board card is a view that\n>   sends the picker's `choose`.\
+    \ Smallest step, and the first reviewer's pick.\n>   Order within a column would need ownership to\
+    \ move later.\n> - B, the board: the card's column is the fact; the section's Ask is answered by\n\
+    >   another widget's action, which needs cross-owner Asks.\n> - C, the section: the section's `lf-ask`\
+    \ carries `value` and `rank` fields,\n>   Next / Later / Drop are declared once as a scale, and the\
+    \ picker and card are\n>   both views. One drop is one event. Needs a scale element, a `set` verb\
+    \ and a\n>   view relation. The second reviewer's pick.\n> - D, a record set: data-only rows hold\
+    \ the fields and everything else views\n>   them. Best when the user adds tasks; needs cross-owner\
+    \ Asks.\n>\n> Every approach needs the same generic view relation.\n> I'd take C: the fact belongs\
+    \ to the subject it is about. Under C two things\n> stay open: whether order within a column matters\
+    \ on these pages yet, and\n> whether `lf-ask` carries the fields or a new `lf-item` element does.\n\
+    >\n> \U0001F4CC Choose the shared-state design before building. I'd build C.\n\nThe user replied:\
+    \ \"Great, can we make a full Leaf page that explains this and\nshows tradeoffs / any other options\"\
+    \n\nWrite the page. The page directory is not reachable from here, so reply with the\n`<main>` element's\
+    \ HTML rather than writing a file. Figures may be placeholders\nsuch as `<figure id=\"owners-figure\"\
+    ><svg class=\"drawing\" viewBox=\"0 0 680 300\"></svg></figure>`.\n"
+assert:
+- type: javascript
+  metric: loads-leaf
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/SKILL\.md
+- type: javascript
+  metric: reads-authoring-asks
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/references/authoring-asks\.md
+- type: javascript
+  metric: has-asks
+  value: file://text-regex.cjs
+  config:
+    pattern: <lf-ask\b
+    flags: i
+    negate: false
+- type: llm-rubric
+  metric: judgment
+  value: |
     Read the HTML as the user, who has to choose which approach Leaf builds. Pass
     only if all of these hold:
     1. There is an `lf-ask` whose question is which approach (who owns the decision)

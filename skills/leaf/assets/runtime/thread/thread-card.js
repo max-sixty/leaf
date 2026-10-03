@@ -41,8 +41,7 @@ function quoteReading(thread, anchors) {
   const label = anchorLabel(thread.detached_from ?? thread.anchor, thread.root.about);
   if (!label) return null;
   const anchored = Boolean(thread.anchor) || Boolean(thread.detached_from);
-  const found =
-    !thread.detached_from && (anchors.isMarked(thread.id) || Boolean(placement));
+  const found = !thread.detached_from && Boolean(placement);
   const outdated = anchored && placement?.status === "outdated";
   return Object.freeze({
     label,

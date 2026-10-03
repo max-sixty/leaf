@@ -45,8 +45,10 @@ to zero and `step` defaults to one.
 Separate the configuration the user is choosing from the cases used to inspect it.
 Configuration controls and presets describe what to build. Give preview cases and
 inspection settings their own labeled controls and page-local state, outside the
-playground's submitted values. Changing a case preserves the configuration; applying
-a preset preserves the case; all compared candidates use the same case. When editing
+playground's submitted values. Style these controls with the layer's control idioms
+(`references/page-authoring.md`, "Theme and vocabulary"). Changing a case preserves
+the configuration; applying a preset preserves the case; all compared candidates use
+the same case. When editing
 the data is itself the task, that data belongs in the configuration.
 
 Controls and presets do different jobs. Controls span the configuration space: give

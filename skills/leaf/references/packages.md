@@ -100,20 +100,24 @@ package/
 ```
 
 No individual file is required. The kernel supplies the files every complete layer
-needs. Theme files concatenate into one cascade layer, `lf-base`, so a package's rule
-beats the kernel's by specificity and order as it would unlayered, while the Layouts
-and the page's own stylesheet rank above every package rule whatever its specificity.
-A package that declares widgets styles only those widgets: composition narrows each
-rule in its `theme.css` and `shadow.css` to elements that are one of its widgets or
-stand inside one, and in the shadow sheet every declared tree receives, to trees one of
-its widgets hosts. A rule for `p` dresses the paragraphs in its widgets and no other,
-and a rule for the box that holds a widget matches nothing. Composition refuses a rule
-whose subject is `:root`, `html` or `body`, which no widget contains; state a widget's
-tokens on its own element. What several packages' widgets share, such as the pane role
-or a chip row, is the kernel's, and a package without widgets is a theme that reaches
-the whole page as the kernel's does. A widget module's adopted sheet joins the same
-layer. Shadow files concatenate too: a
-declared `x-shadow` root built with `shadowStage` receives every package's `shadow.css`
+needs. Theme files concatenate into one cascade layer, `lf-base`; specificity,
+native scope proximity, then source order decide between its rules. Layouts and
+semantic state rank above package defaults; the page's unlayered stylesheet ranks
+above all of them. In declared shadow trees, shared `shadow.css` rules rank above
+widget defaults and below semantic state. A behavior module placing third-party
+CSS in a `<style>` uses `inBaseLayer(text)` from `/runtime/widget-api.js`: it puts
+the vendor's rules, including any nested layers, in the widget-default tier.
+Composition wraps each widget package's sheets in native `@scope`: the document
+roots are its declared widget tags, and shadow roots are their `:host`. Matching
+stays inside those roots automatically. Ordinary selectors name descendants;
+`:scope` names a root, with `:scope:is(lf-tag)` selecting one kind in a package.
+In shadow CSS, `:scope:host(.state)` reads the host's state. Outside conditions
+belong in nested scopes, such as `@scope (html[data-lf-interactive] :scope)`.
+A rule for `p` styles only paragraphs inside the package's widgets. A rule for
+`html`, `body`, or a widget's containing box matches nothing. Put shared page
+vocabulary in the kernel; a package without widgets is an unscoped page theme.
+A widget module's adopted sheet joins the same layer. Shadow files concatenate:
+a declared `x-shadow` root built with `shadowStage` receives every package's `shadow.css`
 in layer order, and the document reads each package's `shadow.css` just ahead of its
 `theme.css`. Runtime, icon, widget,
 and vendor files replace by path. A later package replaces a tag's complete element
@@ -298,6 +302,15 @@ query private chrome, or duplicate a runtime helper inside itself. Resolve canon
 `/media/…` paths from typed data with `scopedMediaUrl(path)` before assigning them to
 generated images or links. It uses the page's public root across ordinary and
 published pages while the source retains its canonical path.
+
+For a vertical navigation that must retain sideways reading, use
+`scrollIntoReadingBand(target, holder, block, behavior)`: `target` is an element or
+Range, and `holder` is the element whose reading regions contain it. Element targets
+support `start`, `center`, or `nearest` for `block`; a Range is always centered. It places the
+target in the innermost reading band and reveals it in enclosing regions, across
+shadow roots, without changing horizontal offsets.
+Use it for an explicit arrival; entering visible controls and ordinary repainting
+preserve their current reading position.
 
 Registry-declared inline Markdown formats authored text, not strings a module assigns
 with `textContent`. For changing Markdown prose, load the renderer with `loadMarkdown()`
@@ -491,8 +504,25 @@ outside `scope`.
 A module that takes the user to a thread calls `openThread(id, {focus})`
 with the Thread's `id`. It opens the thread where the page shows it, inline beside
 its passage or widget, and in Threads when it has no place on the page, the same choice a
-mark and `t` make; `focus: "thread"` lands on the thread and the default `"reply"` lands in
-its reply box. A place on the page is an ordinary fragment link; Leaf follows it the
+mark and `t` make. `focus: "thread"` lands on the card or native summary;
+`focus: "reply"` reveals its available reply editor. Omitting `focus` follows the
+surface's ordinary route: a compact passage card starts at the card, while a widget
+conversation or Threads starts at its reply. The call returns a `Promise<Element|null>`:
+the actual destination after reveal and placement, or `null` when the Thread no longer
+stands or newer input has superseded the move. Leaf owns the original gesture's
+continuity inside this route. The returned, still-focused destination is the capability
+for a continuation: a separate predicate captured on the button would reject the
+route's own move to that editor. A continuation uses the returned element only while
+it still holds focus:
+
+```js
+const editor = await openThread(thread.id, {focus: "reply"});
+if (editor?.matches(":focus") && editor.setSelectionRange) {
+  editor.setSelectionRange(0, editor.value.length);
+}
+```
+
+A place on the page is an ordinary fragment link; Leaf follows it the
 way it travels to a thread, clearing a panel that covers the page and opening whatever
 holds the element.
 
@@ -528,7 +558,8 @@ to leave, so a widget retiring one uses that constant rather than choosing a num
 a duration only on letting the eye follow a box from where it was to where it is. A result
 the module can already draw is drawn in the gesture rather than after a wait.
 
-A navigation captures `retainUserIntent()` in the gesture that starts it, before its
+A module implementing its own navigation captures `retainUserIntent()` in the gesture
+that starts it, before its
 first wait, and checks the returned predicate after every wait before moving focus or
 scroll: loading a file, a deferred value, or a renderer is a wait, and a user who pressed on
 in the meantime is not moved back. A predicate taken after a wait would carry a newer
@@ -538,7 +569,9 @@ transfer without renewing the original input generation. After a wait, check the
 predicate before starting that synchronous handoff. If the synchronous work already
 moved focus, the handoff keeps and adopts that destination instead of running the old
 focus move. A skipped move returns false, so a caller that requires the surface change
-can decline; adoption alone does not report that the move ran.
+can decline; adoption alone does not report that the move ran. Leaf's navigation
+primitives own that retention already; `openThread` returns its completed destination
+as described above.
 
 When Leaf travels to a target, such as a comment anchor or an Ask, it first dispatches
 `lf-reveal` on each ancestor of the target and the target itself, outermost first, with
@@ -1095,7 +1128,11 @@ rather than authored prose and reconciles their order by key. A renderer
 that owns a nested layout passes `{nested: true}` and returns its existing descendants;
 Leaf labels those nodes without moving them, and the module orders each container with
 `setChildren(parent, nodes)`, which moves only what is out of place and keeps the user
-in a node it moves. Add `labelOf(record, index)` when a thread
+in a node it moves. For a subtree whose entire contents and descendant attributes
+belong to the renderer, use `setRenderedChildren(parent, nodes)`: it matches unchanged
+nodes and edits only changed text, preserving native selections in text the source kept.
+Keep independently stateful controls outside that subtree. Add `labelOf(record, index)`
+when a thread
 should name a projected datum with a human coordinate; the rendering key remains opaque to
 the runtime. A widget declaring `x-data` passes `{snapshot}` with the delivery from
 `watchData`, including `null` when no current value exists. Leaf stamps the projection

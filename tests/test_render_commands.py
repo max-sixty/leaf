@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 from conftest import LEAF_COMMAND
-from interact_support import add_test_widget, install_payload
+from interact_support import add_test_widget, append_carried_log_record, install_payload
 from leaf import event_log as events_model
 from leaf import render_checks as render_checks_model
 from leaf.render_gate import browser as browser_model
@@ -1093,7 +1093,7 @@ def test_render_reads_a_reply_widgets_own_chrome_and_not_the_panel_around_it(
     )
 
     url = serve(REPLY_HOST_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -1103,7 +1103,7 @@ def test_render_reads_a_reply_widgets_own_chrome_and_not_the_panel_around_it(
             "text": "What would the alternative look like?",
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",

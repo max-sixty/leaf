@@ -37,13 +37,16 @@ reaches a module by importing it from this package, never through `sys.path`,
   command that reads one.
 - `leaf-dev probe SOURCE` opens a page built from this working tree, runs input
   steps, and prints what a JavaScript expression returns, the console errors, and
-  optionally a screenshot; `--base` does the same on the merge base.
+  optionally a screenshot; `--base` does the same on the merge base. Its startup
+  evidence uses the same recorder as site verification: phases, resources, and
+  native initial layout shifts with affected nodes and before/after rectangles.
+  Those shifts are diagnostic, never a stability gate.
 - `leaf-dev stills [BASE_REF]` screenshots a catalogue of UI states, at rest and
   reached by input, on a base runtime and HEAD's, and crops each state that changed
-  into a before/after pair under `.tmp/stills/`.
-- `leaf-dev thread-snapshots` owns approved source snapshots of message delivery;
-  `thread_snapshots.py`'s docstring owns review, acceptance and the capture boundary.
-  Its shared journey replaces the former panel/card sent stills.
+  into a before/after pair in its own run directory under `.tmp/stills/`.
+- `leaf-dev thread-snapshots` owns reviewed message-delivery images in leaf-assets;
+  `thread_snapshots.py` owns capture and acceptance. Its shared journey replaces
+  the former panel/card sent stills.
 - `suite.py` runs a selection of the suite in a checkout and reads each test's
   outcome from pytest's junit report, refusing a selection pytest would not run.
 - `leaf-dev flake NODEID...` runs tests from the working tree as 18 copies, six at a
@@ -57,16 +60,18 @@ reaches a module by importing it from this package, never through `sys.path`,
   runtime and HEAD's.
 - `leaf-dev profile SOURCE TRANSITION` says where one of those transitions spends its
   time in this working tree: main-thread tasks up to the painted frame, forced style
-  recalculations and the writes that invalidated them, and JS by function.
+  recalculations and the writes that invalidated them, and JS by function. Traces and
+  CPU profiles stay in its own run directory under `.tmp/profile/`.
 - `leaf-dev bench-check [BASE_REF]` times `leaf page check --render` on a few
   examples, base plugin against HEAD's, with no model, and prints each arm's wall
-  time.
-- `leaf-dev delivery-eval [BASE_REF]` compares how a live Claude Code agent handles a
-  comment through `leaf wait` between a base plugin and HEAD's. Its children cost about
-  a dollar each.
-- `leaf-dev instructions-eval [CASE]...` runs the instructions cases in `evals/` on the merge
-  base's instructions and the working tree's at once, and prints each case's passes per
-  arm (`/developing-leaf`, "Score an instruction change").
+  time. Its arms, pages and state stay in its own run directory under
+  `.tmp/bench-check/`.
+- `leaf-dev scenario-eval SUITE [CASE]...` scores complete usability, arrangement
+  and live delivery trajectories through Promptfoo. Scenario modules own execution;
+  `promptfoo.py` owns the native runner and reports, shared with instruction evals.
+- `leaf-dev instructions-eval [CASE]...` runs native Promptfoo cases in `evals/` on
+  Claude Code and Codex, against the merge base and working tree, and prints passes
+  per host and arm (`/developing-leaf`, "Score an instruction change").
 
 ## Examples and previews
 
@@ -81,13 +86,17 @@ CI, `worker/`'s npm scripts and `.config/wt.toml` run these. The images they
 write live in `max-sixty/leaf-assets`, so outside `.tmp/` they write only the pin
 in `leaf-assets.json` and the README's image URLs that name it.
 
-- `leaf-dev site` builds <https://leaf.page/> into `.tmp/site`, and
-  `npm run dev --prefix worker` builds and serves it through `wrangler dev`.
+- `leaf-dev site` builds <https://leaf.page/> into `.tmp/site`; `--output` gives an
+  independent build its own destination. Writes to one destination are serialized.
+  `npm run dev --prefix worker` builds and serves it through `wrangler dev`, which
+  chooses available HTTP and inspector ports.
 - `leaf-dev verify-site` verifies a release at an origin, or with `wrangler` the
   site `leaf-dev site` built, through the local Worker and container, and prints the
   startup profile; CI runs `wrangler` on pull requests. With `--agent`, or `local`
   for the Python adapter alone, it runs the hosted-agent journey and emits one JSON
-  sample. `worker/README.md` owns hosted-agent diagnostics and the failure contract.
+  sample. Each local run has private listener ports, temporary site, container build
+  context and state, and retained logs under `.tmp/verify-site/run-*/`. `worker/README.md` owns hosted-agent
+  diagnostics and the failure contract.
 - `worker/deploy-dev.sh` (`npm run deploy:dev --prefix worker`) deploys the checkout
   to the standing `leaf-website-dev` environment and verifies it. Production deploys
   only through `.github/workflows/publish-site.yaml`.

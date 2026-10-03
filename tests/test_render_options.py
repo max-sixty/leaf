@@ -369,8 +369,11 @@ def test_a_live_card_pick_uses_header_state_and_remains_pressable(browser, serve
     round_trip(page)
 
 
-def test_standalone_options_own_their_digit_bindings(browser, serve):
-    """A package declares working digits without an authored lf-ask wrapper."""
+@pytest.mark.parametrize("cards", [False, True], ids=["rows", "cards"])
+def test_standalone_options_own_their_digit_bindings(browser, serve, cards):
+    """Standalone options own working digits, aligned down their form's badge column."""
+    one = "<strong>One</strong> First choice." if cards else "One"
+    two = "<strong>Two</strong> Second choice." if cards else "Two"
     page = open_page(
         browser,
         serve(
@@ -378,7 +381,8 @@ def test_standalone_options_own_their_digit_bindings(browser, serve):
                 "standalone options",
                 '<h1>Which apply?</h1><button id="outside">Outside</button>'
                 '<lf-options id="choices" choose multiple>'
-                '<lf-option id="one">One</lf-option><lf-option id="two">Two</lf-option>'
+                f'<lf-option id="one">{one}</lf-option>'
+                f'<lf-option id="two">{two}</lf-option>'
                 "</lf-options>",
             )
         ),
@@ -390,6 +394,13 @@ def test_standalone_options_own_their_digit_bindings(browser, serve):
     expect(page.locator("#two")).not_to_have_attribute("chosen", "")
     page.keyboard.press("a")
     expect(group).to_be_focused()
+    hints = group.locator(".lf-key-badge[data-lf-binding-badge]")
+    expect(hints).to_have_text(["1", "2", "3", "4"])
+    positions = hints.evaluate_all(
+        "es => es.map(e => { const r = e.getBoundingClientRect(); return [r.x, r.y]; })"
+    )
+    assert max(x for x, _ in positions) - min(x for x, _ in positions) <= 1
+    assert [y for _, y in positions] == sorted(y for _, y in positions)
     page.keyboard.press("2")
     expect(page.locator("#two")).to_have_attribute("chosen", "")
     round_trip(page)

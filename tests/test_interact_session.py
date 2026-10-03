@@ -10507,6 +10507,7 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
     )
     claim = service_model.page_claim(page)
     record_claim(page, **{**claim, "pid": os.getpid()})
+    assert service_model.page_claim(page)["generation"] == claim["generation"]
     release_start.touch()
     out, err = started.communicate(timeout=60)
     assert started.returncode == 0, f"{out}{err}"

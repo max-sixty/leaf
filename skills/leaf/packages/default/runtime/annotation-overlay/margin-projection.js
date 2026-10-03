@@ -2190,7 +2190,7 @@ export function createMarginProjection({
         id: "margin.back",
         keys: ["Escape"],
         description: () => pageMapRung(false)?.description,
-        title: () => pageMapRung()?.title,
+        title: () => pageMapRung(false)?.title,
         commandReferenceWhen: () => Boolean(pageMapRung(false)),
         when: () => Boolean(pageMapRung()),
         run: () => pageMapRung()?.out(),

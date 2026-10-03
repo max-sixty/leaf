@@ -425,6 +425,18 @@ function replaceFileContent(entry, rendered, pairs, outlets) {
     );
 }
 
+function setWrappedLines(body, wrapped) {
+  if (!body) return;
+  const mode = wrapped ? "wrap" : "scroll";
+  for (const pre of body.querySelectorAll("pre[data-overflow]")) {
+    if (pre.dataset.overflow !== mode) pre.dataset.overflow = mode;
+    if (wrapped && pre.style.getPropertyValue("--lf-diff-row-fill") !== "0")
+      pre.style.setProperty("--lf-diff-row-fill", "0");
+    else if (!wrapped && pre.style.getPropertyValue("--lf-diff-row-fill"))
+      pre.style.removeProperty("--lf-diff-row-fill");
+  }
+}
+
 // The checkbox is the complete wrap state.
 function wrapSwitch() {
   const label = offer("label", "lf-diff-wrap-label");
@@ -433,8 +445,11 @@ function wrapSwitch() {
   // The words beside the control are its accessible name (WCAG Label in Name); the
   // label element supplies them, so nothing here restates them as an aria-label.
   label.append(box, "Soft wrap");
-  // A toggle moves no focus, so nothing else would repaint the word this press changes.
-  box.addEventListener("change", paintKeys);
+  // Pierre owns line wrapping through the rendered pre's overflow mode.
+  box.addEventListener("change", () => {
+    setWrappedLines(box.closest(".lf-diff-body"), box.checked);
+    paintKeys();
+  });
   return { node: label, box };
 }
 
@@ -1113,6 +1128,7 @@ customElements.define(
 
     stageManifest() {
       if (!this.manifestEntries) return;
+      if (this.wrapped()) setWrappedLines(this.manifestBody, true);
       shadowStage(this, [...this.sharedStyles.values(), this.manifestBody]);
     }
 

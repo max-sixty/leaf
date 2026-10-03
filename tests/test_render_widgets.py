@@ -11671,14 +11671,6 @@ def test_a_control_a_widget_built_is_told_from_a_label_it_wrote(browser, serve):
     )
 
 
-@pytest.mark.xfail(
-    reason=(
-        "Main 2bd9ebdc3 WebKit: tapping Soft wrap checks its checkbox, but the "
-        "diff lines retain white-space: pre instead of wrapping"
-    ),
-    raises=AssertionError,
-    strict=False,
-)
 def test_a_phone_can_wrap_diff_lines_by_tapping_the_label(iphone, serve):
     patch = (
         "--- a/app.py\n+++ b/app.py\n@@ -1 +1 @@\n-old\n+" + "long_line " * 40 + "\n"

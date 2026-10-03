@@ -69,7 +69,7 @@ thread/start:
     ## Hand a page over from a terminal
 
     A terminal task reaches App Server through a detached adapter that
-    `leaf codex start` leaves running: it connects to the task's server as a second
+    serving leaves running: it connects to the task's server as a second
     client, watches the task's own turns, and starts a delivery's turn once the task is
     idle. This route is experimental.
 
@@ -87,16 +87,25 @@ thread/start:
     independent and no fixed port or separate server tab remains. Observed activity ends
     with that server.
 
-    To run the two processes separately instead, start a loopback WebSocket listener
-    and pass the same endpoint to both clients:
+    To run the two processes separately, create a private socket directory and print
+    its endpoint before starting App Server:
 
     ```sh
-    codex app-server --listen ws://127.0.0.1:4500
-    codex --remote ws://127.0.0.1:4500
+    socket_dir=$(mktemp -d /tmp/leaf-codex.XXXXXX)
+    endpoint="unix://$socket_dir/app-server.sock"
+    printf '%s\n' "$endpoint"
+    codex app-server --listen "$endpoint"
     ```
 
-    From that remote CLI task, pass the same endpoint to `leaf codex start` with
-    `--app-server ws://127.0.0.1:4500`.
+    In the terminal client's shell, copy that printed endpoint:
+
+    ```sh
+    export LEAF_CODEX_APP_SERVER="<printed endpoint>"
+    codex --remote "$LEAF_CODEX_APP_SERVER"
+    ```
+
+    The task inherits the endpoint, so `leaf codex start` connects to that App Server.
+    Each pair of processes has its own socket; parallel versions need no port assignment.
 
     Only `unix://<absolute path>` sockets and unauthenticated loopback `ws://` endpoints
     are accepted; keep a socket you supply in a directory only you can reach, as
@@ -112,23 +121,25 @@ thread/start:
     retain its exact keyed URL, and hand it over for a local browser. This runs Leaf's
     theme, package widgets, anchored comments, versions, and state stream unchanged.
 
-    Set the page to `waiting` and run `leaf codex start <page>` before finishing the turn
-    with the URL and a concrete gesture. The first start in a task leaves a detached
-    adapter connected to the App Server, and it prints `{"task", "app_server",
-    "started"}` with that endpoint as `app_server`; a null `app_server` means Leaf is
-    not on the App Server, and `references/host-codex.md` applies. A later start adds its
-    page to the running adapter, prints `started: false`, and reports that adapter's
-    `app_server` the same way; it refuses an
-    `--app-server` endpoint other than the one the adapter holds. The adapter watches
-    every page this task owns, and a completed turn does not stop it.
+    Serving starts or joins the task's delivery adapter before returning the URL,
+    using `LEAF_CODEX_APP_SERVER` as its endpoint. Re-serving restores an adapter that
+    stopped, including when the page server is already running. Set the page to
+    `waiting`, then finish the turn with the URL and a concrete gesture. The adapter
+    watches every page this task owns, and a completed turn does not stop it.
+
+    `leaf codex start <page>` connects delivery explicitly when claiming without
+    serving. It prints `{"task", "app_server", "started"}`; a null `app_server` means
+    Leaf is on the queue route in `references/host-codex.md`. A later start reports
+    `started: false` and the running adapter's endpoint, and refuses an endpoint other
+    than the one that adapter holds.
 
     A `leaf wait` this task already runs, or a watcher task, carries input without the
     adapter, as `references/host-codex.md`, "Routes without the adapter", describes; on those routes there is no App Server turn to bind, so
     answer with `leaf thread reply`.
 
-    If `leaf codex start` refuses to start, do not finish over a live page. Follow its
-    diagnostic: an existing foreground `leaf wait` must be stopped before the adapter
-    can take the task's single wait lease, and an unreachable endpoint must be fixed.
+    If serving refuses to connect delivery, fix its diagnostic before handing the
+    page over. Serving honors an existing direct `leaf wait`; an explicit
+    `leaf codex start` refuses while that wait holds the task's single wait lease.
 
     ## On leaf.page
 

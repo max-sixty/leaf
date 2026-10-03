@@ -57,6 +57,7 @@ from render_harness import (
     expect_banner_control_offered,
     expect_comment_notes,
     held_stale,
+    hold_pending_thread_presentation,
     hold_selection,
     holding,
     leaf_page,
@@ -82,6 +83,73 @@ from render_harness import (
 )
 from test_render_application_boundary import THREAD_MIRROR, THREAD_MIRROR_DECLARATION
 from test_render_threads import hold_visible_thread_presentation
+
+
+@pytest.mark.parametrize("bounded", [False, True])
+def test_typing_in_a_visible_inline_reply_keeps_the_reading_position(
+    browser, serve, bounded
+):
+    """Keeping a reply's controls visible does not reveal its already-scrolled-past turns."""
+    content = """
+<div style="height:900px"></div>
+<lf-command id="hub" label="Tasks"><lf-task id="jobs" status="active" talk>
+What should we do next?</lf-task></lf-command>
+<div style="height:900px"></div>
+"""
+    if bounded:
+        content = (
+            '<div id="reader" data-bound="start" style="height:480px">'
+            + content
+            + "</div>"
+        )
+    url = serve(leaf_page("Reply reading", content))
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "agent",
+            "agent": "Codex",
+            "revision": 1,
+            "text": "A short question the reader has already passed.",
+            "anchor": {"section": "jobs"},
+        },
+    )
+    page = open_page(browser, url)
+    thread = page.locator("#jobs .lf-page-thread")
+    reply = thread.locator("leaf-text")
+    reply.click()
+    reply.evaluate(
+        """(input, bounded) => {
+      const scroller = bounded ? document.querySelector('#reader') : document.scrollingElement;
+      const top = bounded ? scroller.getBoundingClientRect().top : 0;
+      scroller.scrollBy(0, input.getBoundingClientRect().top - top - 55);
+    }""",
+        bounded,
+    )
+    scroll_settled(page)
+    before = page.evaluate(
+        """bounded => ({
+      scroll: (bounded ? document.querySelector('#reader') : document.scrollingElement).scrollTop,
+      reply: document.querySelector('#jobs leaf-text').getBoundingClientRect().top,
+      thread: document.querySelector('#jobs .lf-page-thread').getBoundingClientRect().top,
+    })""",
+        bounded,
+    )
+    assert before["thread"] < (
+        page.locator("#reader").bounding_box()["y"] if bounded else 0
+    ), before
+    expect(reply).to_be_focused()
+    page.keyboard.type("A")
+    round_trip(page)
+    after = page.evaluate(
+        """bounded => ({
+      scroll: (bounded ? document.querySelector('#reader') : document.scrollingElement).scrollTop,
+      reply: document.querySelector('#jobs leaf-text').getBoundingClientRect().top,
+    })""",
+        bounded,
+    )
+    assert after["scroll"] == pytest.approx(before["scroll"], abs=1), (before, after)
+    assert after["reply"] == pytest.approx(before["reply"], abs=1), (before, after)
 
 
 @pytest.mark.parametrize("installation", ["in-place", "fresh"])
@@ -1738,6 +1806,35 @@ def test_a_held_comment_send_leaves_a_later_reply_box_focused(browser, serve):
     expect(later).to_be_focused()
     expect(later).to_have_js_property("value", "The later reply keeps the user here.")
     assert later.evaluate("ta => ta.selectionStart") == 9
+
+
+def test_newer_filter_wins_over_send_waiting_for_presentation(browser, serve):
+    """A delayed Send cannot widen a newer filter or navigate its reader away."""
+    page = open_page(browser, serve(NOTED_PAGE, comments=1))
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    search = page.get_by_role("searchbox", name="Find in threads")
+    search.fill("Comment 0")
+    select_words(page, "#p1")
+    page.locator(".lf-fab-input").click()
+    write(
+        page.locator(".lf-composer leaf-text"), "Earlier Send waiting for presentation."
+    )
+    hold_pending_thread_presentation(page)
+    page.keyboard.press("ControlOrMeta+Enter")
+    page.wait_for_function("() => window.commentPresentationHeld === true")
+    search.fill("Keep this newer search")
+    expect(search).to_be_focused()
+    page.evaluate("releaseCommentPresentation()")
+    round_trip(page)
+    page.wait_for_function("() => document.body.hasAttribute('data-lf-presented')")
+    expect(search).to_have_value("Keep this newer search")
+    expect(search).to_be_focused()
+
+    assert any(
+        event.get("text") == "Earlier Send waiting for presentation."
+        for event in events_model.read_events(serve.page_dir)
+    )
 
 
 @pytest.mark.parametrize("later_selection", [False, True])

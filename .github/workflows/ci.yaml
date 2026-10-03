@@ -89,6 +89,11 @@ jobs:
       - name: Install browser-build dependencies
         run: npm ci
 
+      # Python exercises the real Wrangler wrapper, including on main/nightly runs.
+      - name: Install website dependencies
+        run: npm ci
+        working-directory: worker
+
       - name: Check committed browser framework
         run: npm run check:browser && npm run test:browser
 
@@ -111,11 +116,6 @@ jobs:
         run: >-
           uv run pytest tests -v --junitxml=.tmp/test-results/results.xml
           ${{ github.event_name == 'pull_request' && '--nightly-changed-since HEAD^1' || '--run-nightly' }}
-
-      - name: Install website dependencies
-        if: github.event_name == 'pull_request'
-        run: npm ci
-        working-directory: worker
 
       - name: Build website
         if: github.event_name == 'pull_request'

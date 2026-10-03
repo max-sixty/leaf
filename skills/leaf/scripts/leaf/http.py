@@ -84,7 +84,7 @@ from .served_state import reading as served_reading
 from .served_state.service import PageStateService
 from .server import preview_metadata
 from .service import PageTransaction
-from .session_cleanup import write_json
+from .state import write_json
 from .structure import FRAME_ANCESTORS_CSP
 from .user_views import FRESH_FOR_S, observe_user_view, read_user_views
 
@@ -686,12 +686,11 @@ class PageEndpoint:
         else:
             with PageTransaction(self.page_dir) as page:
                 activate_source(self.page_dir)
-                events = page.events
-            revision = latest_revision(self.page_dir)
-            if revision is None:
-                return self._json({"error": missing_revision(self.page_dir)}, 404)
-            artifact = read_artifact(self.page_dir, revision)
-            version = stamped_version(events, revision)
+                revision = latest_revision(self.page_dir)
+                if revision is None:
+                    return self._json({"error": missing_revision(self.page_dir)}, 404)
+                artifact = read_artifact(self.page_dir, revision)
+                version = stamped_version(page.events, revision)
         return self._serve_document(artifact, revision, version)
 
     def _revision_name(self, revision: int) -> str:

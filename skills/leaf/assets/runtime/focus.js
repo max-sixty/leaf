@@ -204,7 +204,7 @@ for (const type of ["keydown", "pointerdown", "wheel", "touchstart"])
   );
 // Drawn counts `visibility: hidden` as hidden: a node under it keeps focus for a frame
 // and then the browser blurs it to the body, as it does a node under `display: none`.
-const drawn = (node) =>
+export const drawn = (node) =>
   node?.isConnected && node.checkVisibility({ visibilityProperty: true });
 // The node a change took out from under a user who now stands nowhere: where they last
 // stood, while it is no longer drawn.

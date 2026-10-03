@@ -53,7 +53,7 @@ from leaf import hosting as hosting_model
 from leaf import render_checks as render_checks_model
 from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
-from leaf import session_cleanup as cleanup_model
+from leaf import state as cleanup_model
 from leaf import structure as structure_model
 from leaf.render_checks import one_frame, rendered, wait_until_ready
 from leaf.render_gate import scheme as render_gate_model
@@ -841,6 +841,34 @@ def holding(page, held, count, what):
                 f"dispatched into this process, on {_traffic(page)}"
             )
         page.wait_for_timeout(20)
+
+
+@contextmanager
+def held_frames(page):
+    """Keep frame-dependent handoffs pending while real input supplies a newer intent."""
+    page.evaluate(
+        """() => {
+          const frame = requestAnimationFrame.bind(window);
+          const cancel = cancelAnimationFrame.bind(window);
+          const held = new Map();
+          let handle = 1e6;
+          window.requestAnimationFrame = callback => {
+            held.set(++handle, callback);
+            return handle;
+          };
+          window.cancelAnimationFrame = handle => held.delete(handle);
+          window.leafReleaseFrames = () => {
+            window.requestAnimationFrame = frame;
+            window.cancelAnimationFrame = cancel;
+            for (const callback of held.values()) frame(callback);
+            held.clear();
+          };
+        }"""
+    )
+    try:
+        yield
+    finally:
+        page.evaluate("leafReleaseFrames()")
 
 
 _NOTES_OF = """(holder) => {

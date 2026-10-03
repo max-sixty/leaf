@@ -6,16 +6,15 @@
  */
 
 import { cancelRender, nextRender } from "./rendering.js";
-import { annotationAt, sectionOf } from "./anchor-resolution.js";
 import {
   targetElement,
   targetParts,
   targetSegments,
   targetSurface,
 } from "./resolved-target.js";
-import { elementFromPointAcross, inChrome, pageWords, rangeOf } from "./passages.js";
+import { elementFromPointAcross, pageWords, rangeOf } from "./passages.js";
 import { bareReaction } from "./thread/model.js";
-import { shadowHost, under } from "./shadow.js";
+import { under } from "./shadow.js";
 import { annotationsHidden } from "./annotation-layer.js";
 
 const MARK = "lf-mark";
@@ -218,30 +217,12 @@ export function createAnchorPaint({
 
     const posted = [];
     const reactions = [];
-    const reactionSeats = new Map();
-    const notes = new Map();
 
     for (const { thread, placement: found } of readings) {
       if (found.status === "outdated" || thread.resolved) continue;
 
       if (bareReaction(thread)) {
-        let at;
-        let before;
-        if (targetElement(found)) {
-          [at, before] = [found.place, true];
-        } else {
-          const segments = targetSegments(found);
-          const ranges = segments.map((segment) => rangeOf([segment]));
-          reactions.push(...ranges);
-          const block = annotationAt(segments[0].node);
-          const host = shadowHost(block?.getRootNode());
-          [at, before] = host ? [host, true] : [block, false];
-        }
-        if (at && !inChrome(at)) {
-          const held = reactionSeats.get(at) ?? { before: [], inside: [] };
-          held[before ? "before" : "inside"].push(thread.root);
-          reactionSeats.set(at, held);
-        }
+        reactions.push(...targetSegments(found).map((segment) => rangeOf([segment])));
         continue;
       }
 
@@ -255,17 +236,6 @@ export function createAnchorPaint({
         marked.set(thread.id, ranges);
         posted.push(...ranges);
       }
-
-      const blocks = targetElement(found)
-        ? [found.place]
-        : [
-            ...new Set(
-              targetSegments(found).map((segment) => annotationAt(segment.node)),
-            ),
-          ].filter(Boolean);
-      for (const holder of blocks.length ? blocks : [sectionOf(thread.anchor)])
-        if (holder && !inChrome(holder))
-          notes.set(holder, [...(notes.get(holder) ?? []), thread.id]);
     }
     const resolvedDraft = draft.resolved;
     const draftMarked = Boolean(resolvedDraft && resolvedDraft.status !== "outdated");
@@ -297,17 +267,6 @@ export function createAnchorPaint({
       paintHover(hovering, hoverFromPanel, false);
     paintVisualStates();
     refreshHover();
-
-    return {
-      notes,
-      reactionSeats,
-      draft: {
-        open: draft.open,
-        anchor: draft.anchor,
-        about: draft.about,
-        marked: draftMarked,
-      },
-    };
   }
 
   function mount() {

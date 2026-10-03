@@ -10,7 +10,6 @@ several operations, so its trace alone cannot prove their internal order.
 
 import json
 import re
-import shutil
 import threading
 from datetime import datetime
 from functools import partial
@@ -18,16 +17,15 @@ from pathlib import Path
 
 from leaf.event_log import read_events
 
-from leaf_dev import ROOT
 from leaf_dev.harness import (
     URL,
     LiveChild,
     PageClient,
     accepted_thread_claims,
     blocks,
-    commands,
     completed,
     hook_delivered,
+    inputs_received,
     now,
     read_trace,
     run_leaf,
@@ -91,7 +89,7 @@ def run_session(arm: Path, case: str, run: Path) -> None:
     page, state = work / "page", run / "state"
     prepare(arm, state, page)
     leaf = partial(run_leaf, arm, state)
-    url, waits, due, posted, received = None, set(), list(CASES[case]), 0, 0
+    url, waits, due, posted = None, set(), list(CASES[case]), 0
     closing = False
     try:
         with (
@@ -120,9 +118,6 @@ def run_session(arm: Path, case: str, run: Path) -> None:
             for record in child.records():
                 stream.write(json.dumps(record) + "\n")
                 waits.update(waits_started(record))
-                received += hook_delivered(record) + sum(
-                    "leaf wait --ack" in c for c in commands(record)
-                )
                 content = (record.get("message") or {}).get("content")
                 for block in content if isinstance(content, list) else ():
                     if block.get("type") != "tool_result":
@@ -139,10 +134,15 @@ def run_session(arm: Path, case: str, run: Path) -> None:
                 if due[:1] == ["idle"] and url:
                     # A turn is over and the session idles on its page.
                     post()
-                elif not due and received >= posted and not closing:
-                    # Every comment is picked up; a trailing wake may follow.
-                    closing = True
-                    threading.Timer(20, child.close).start()
+                elif not due and not closing:
+                    # A completed response turn and exact opened receipts prove
+                    # every input reached its reader, independent of transport
+                    # spelling or an inline/pointer presentation. A trailing
+                    # wake may follow; keep the established grace before close.
+                    attempts = {attempt(n) for n in range(1, posted + 1)}
+                    if inputs_received(read_events(page), attempts):
+                        closing = True
+                        threading.Timer(20, child.close).start()
         (run / "events.jsonl").write_text(
             leaf("page", "events", str(page), check=True).stdout
         )

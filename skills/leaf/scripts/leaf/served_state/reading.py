@@ -20,7 +20,7 @@ from ..schema import (
     VIEWED_FILE,
 )
 from ..service import claim_path
-from ..session_cleanup import EVENTS_FILE
+from ..state import EVENTS_FILE
 
 # Diagnostic writes cannot move application state. The server writes `viewed.json`
 # when a visible tab asks for its freshness reading and `interactions.jsonl` for every request

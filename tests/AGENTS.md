@@ -105,8 +105,9 @@ linked carrier may draw it.
 
 ## Fixtures own the world they create
 
-Every test runs under `isolated_session`, which moves only the XDG state home and
-claims pages under the worker's pid; do not move `HOME`. Declare other process
+Every test runs under `isolated_session`, which moves the XDG state and Codex homes,
+clears an inherited App Server endpoint, and claims pages under the worker's pid;
+do not move `HOME`. Declare other process
 conditions through fixtures (`sessionless`, `codex_env`) rather than editing the
 environment in a test body.
 

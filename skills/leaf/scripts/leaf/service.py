@@ -175,20 +175,15 @@ def _touched_recently(page_dir: Path, claimed_at: str) -> bool:
 
 
 def claim_records(session_id: str | None = None) -> list:
-    """Every atomic page claim record currently on this machine, retiring each
-    record whose page directory is gone. When a session is named, unrelated
-    records need no harness validation or lifetime reading.
+    """Readable claims for pages still on this machine.
 
-    A claim outlives its session on purpose: it is the provenance of a page that
-    is still there. Once the page is gone it says nothing, and a page is usually
-    removed from outside leaf — a worktree's `.tmp/previews` goes with the
-    worktree, a scratch directory with its session — so no leaf process sees the
-    moment, and without this the record stays to be read by every later scan.
-    This scan is where leaf learns it, so the record goes here, whichever version
-    wrote it: a missing page is the same fact to every reader, and `page init`
-    already keeps a page made again at that path from inheriting the record. A
-    successor claim at that path could only be lost by a `page init` and a claim
-    both landing between this check and the unlink."""
+    A scan observes ownership without changing it. A missing directory can be
+    recreated and claimed immediately after the observation, so removing its
+    claim here could erase the successor's ownership. Fresh page initialization
+    clears the prior claim under the page lock instead.
+
+    When a session is named, unrelated records need no harness validation or
+    lifetime reading."""
     directory = state_home() / "claims"
     if not directory.is_dir():
         return []
@@ -197,7 +192,7 @@ def claim_records(session_id: str | None = None) -> list:
         record = read_json(path)
         page = record.get("page") if isinstance(record, dict) else None
         if isinstance(page, str) and not Path(page).is_dir():
-            path.unlink(missing_ok=True)
+            continue
         elif (
             session_id is None
             or (isinstance(record, dict) and record.get("id") == session_id)

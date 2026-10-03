@@ -24,6 +24,8 @@ from functools import partial
 from html import escape
 from pathlib import Path
 
+import click
+
 # The stream-activity writers are called as `codex.<name>`, so `leaf.codex` holds their
 # one binding: whatever takes a turn's readings there takes the host's too.
 from leaf import codex
@@ -144,10 +146,6 @@ WORKER_FAILURES = tuple(code for code in FAILURE_RECEIPTS if code != CONTAINER_F
 AGENT_START_PATH = "/_leaf/agent/start"
 AGENT_FAIL_PATH = "/_leaf/agent/fail"
 STARTUP_REPORT_PATH = "/api/performance"
-RUNTIME_DIRECTORY = Path(tempfile.gettempdir()).resolve()
-CODEX_SOCKET = RUNTIME_DIRECTORY / "leaf-website-codex.sock"
-CODEX_LOG = RUNTIME_DIRECTORY / "leaf-website-codex.log"
-CODEX_ENDPOINT = f"unix://{CODEX_SOCKET}"
 LEAF_COMMAND = str(Path(sys.executable).with_name("leaf"))
 # The hosted agent reads the same App Server contract a terminal task does, whole, and
 # leaf.page's own terms follow it as additions. The agent may not read outside its page
@@ -605,13 +603,17 @@ class WebsiteCodexHost:
     def __init__(
         self,
         codex_path: str | None = None,
-        socket_path: Path = CODEX_SOCKET,
-        log_path: Path = CODEX_LOG,
+        socket_path: Path | None = None,
+        log_path: Path | None = None,
     ):
         self.codex_path = codex_path or shutil.which("codex")
-        self.socket_path = socket_path
-        self.log_path = log_path
-        self.endpoint = f"unix://{socket_path}"
+        # App Server's Unix socket is short and private to this host, even when
+        # multiple website versions run in the same machine's temporary directory.
+        self.runtime = tempfile.TemporaryDirectory(prefix="lwh.", dir="/tmp")
+        runtime = Path(self.runtime.name)
+        self.socket_path = socket_path or runtime / "codex.sock"
+        self.log_path = log_path or runtime / "codex.log"
+        self.endpoint = f"unix://{self.socket_path}"
         self.process: subprocess.Popen | None = None
         self.lock = threading.Lock()
         self.next_request_id = 0
@@ -698,12 +700,15 @@ class WebsiteCodexHost:
             self.process = None
         if process is not None:
             self._stop_server(process)
+        self.runtime.cleanup()
 
     def _stop_server(self, process: subprocess.Popen) -> None:
         stop_app_server(process)
         self.socket_path.unlink(missing_ok=True)
 
     def _ensure_server(self) -> subprocess.Popen:
+        if self.stop_event.is_set():
+            raise RuntimeError("the website host is closed")
         if self.codex_path is None:
             raise RuntimeError("cannot find the `codex` executable on PATH")
         if self.process is not None:
@@ -1469,12 +1474,19 @@ def close_on_signal(agent_host: WebsiteCodexHost) -> None:
     signal.signal(signal.SIGINT, stop)
 
 
-def main() -> None:
+@click.command()
+@click.option(
+    "--port",
+    type=click.IntRange(0, 65535),
+    default=PORT,
+    help="HTTP port; 0 lets the OS choose a private local listener.",
+)
+def main(port: int) -> None:
     os.environ.setdefault("LEAF_AGENT", WEBSITE_AGENT)
     site_root = Path(os.environ.get("LEAF_SITE_ROOT", "/app/site"))
     agent_host = website_codex_host()
-    httpd = LeafHTTPServer(("0.0.0.0", PORT), site_endpoint(site_root, agent_host))
-    log_agent("container_http_ready")
+    httpd = LeafHTTPServer(("0.0.0.0", port), site_endpoint(site_root, agent_host))
+    log_agent("container_http_ready", port=httpd.server_address[1])
     close_on_signal(agent_host)
     agent_host.prewarm()
     try:

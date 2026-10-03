@@ -1017,11 +1017,12 @@ def test_the_local_adapter_owns_its_process_and_disposable_codex_home(
     host_home.mkdir()
     (host_home / "auth.json").write_text('{"test": "login"}')
     (root / "worker" / "codex-config.toml").write_text('model = "test"')
-    # The build is its own process, run from the checkout, writing `.tmp/site` there.
+    # Each invocation builds directly into its private site destination.
     build_site = tmp_path / "build_site.py"
     build_site.write_text(
+        "import sys\n"
         "from pathlib import Path\n"
-        "site = Path('.tmp/site/_leaf')\n"
+        "site = Path(sys.argv[sys.argv.index('--output') + 1]) / '_leaf'\n"
         "site.mkdir(parents=True)\n"
         "(site / 'site.json').write_text('{\"release\": \"' + 'a' * 40 + '\"}')\n"
         "print('built the site')\n"
@@ -1029,39 +1030,38 @@ def test_the_local_adapter_owns_its_process_and_disposable_codex_home(
     serve_site = tmp_path / "serve_site.py"
     serve_site.write_text(
         "import json, os\n"
-        "from pathlib import Path\n"
         "from http.server import BaseHTTPRequestHandler, HTTPServer\n"
         "class Handler(BaseHTTPRequestHandler):\n"
         "    def do_GET(self):\n"
         "        self.send_response(200)\n"
         "        self.end_headers()\n"
-        "        self.wfile.write(json.dumps(dict(pid=os.getpid(), home=os.environ['CODEX_HOME'], site=os.environ['LEAF_SITE_ROOT'])).encode())\n"
+        "        self.wfile.write(json.dumps(dict(pid=os.getpid(), home=os.environ['CODEX_HOME'], site=os.environ['LEAF_SITE_ROOT'], endpoint=os.environ.get('LEAF_CODEX_APP_SERVER'))).encode())\n"
         "server = HTTPServer(('127.0.0.1', 0), Handler)\n"
-        "Path('port').write_text(str(server.server_port))\n"
+        "print(json.dumps(dict(event='container_http_ready', port=server.server_port)), flush=True)\n"
         "server.serve_forever()\n"
     )
     monkeypatch.setattr(verify_site, "ROOT", root)
     monkeypatch.setattr(verify_site, "BUILD_SITE", [sys.executable, str(build_site)])
     monkeypatch.setattr(verify_site, "SERVE_SITE", [sys.executable, str(serve_site)])
     monkeypatch.setenv("CODEX_HOME", str(host_home))
-    urlopen = urllib.request.urlopen
-
-    def local_health(url, **kwargs):
-        assert url == "http://127.0.0.1:8080/health"
-        try:
-            port = (root / "port").read_text()
-        except FileNotFoundError:
-            raise urllib.error.URLError("not listening yet") from None
-        return urlopen(f"http://127.0.0.1:{port}/health", **kwargs)
-
-    monkeypatch.setattr(verify_site.urllib.request, "urlopen", local_health)
+    monkeypatch.setenv("LEAF_CODEX_APP_SERVER", "unix:///another-session.sock")
     with (
         pytest.raises(RuntimeError, match="journey failed"),
         verify_site.local_adapter() as (origin, release),
+        verify_site.local_adapter() as (other_origin, other_release),
     ):
         assert release == "a" * 40
+        assert other_release == release
+        assert origin != other_origin
         body, _ = get(f"{origin}/health")
         running = json.loads(body)
+        other_body, _ = get(f"{other_origin}/health")
+        other = json.loads(other_body)
+        assert running["endpoint"] is None
+        assert other["endpoint"] is None
+        assert other["pid"] != running["pid"]
+        assert other["home"] != running["home"]
+        assert other["site"] != running["site"]
         private_home = Path(running["home"])
         private_site = Path(running["site"])
         assert private_home != host_home
@@ -1075,6 +1075,12 @@ def test_the_local_adapter_owns_its_process_and_disposable_codex_home(
         raise RuntimeError("journey failed")
     assert not private_home.exists()
     assert not private_site.exists()
+    assert not Path(other["home"]).exists()
+    assert not Path(other["site"]).exists()
+    assert (
+        len(list((root / ".tmp" / "verify-site").glob("run-*/website-agent-local.log")))
+        == 2
+    )
     assert (host_home / "auth.json").read_text() == '{"test": "login"}'
     with pytest.raises(ProcessLookupError):
         os.kill(running["pid"], 0)
@@ -1133,10 +1139,10 @@ def test_the_agent_pass_emits_one_json_sample_for_local_and_remote_targets(
     @contextmanager
     def worker():
         lifecycle.append("worker")
-        yield "http://127.0.0.1:8787"
+        yield "http://127.0.0.1:8787", "b" * 40
 
     manifest = tmp_path / "site.json"
-    manifest.write_text(json.dumps({"release": "b" * 40}))
+    manifest.write_text(json.dumps({"release": "a later build"}))
     monkeypatch.setattr(verify_site, "MANIFEST", manifest)
     monkeypatch.setattr(verify_site, "local_worker", worker)
     wrangler_result = runner.invoke(verify_site.verify_site, ["wrangler", "--agent"])
@@ -1476,12 +1482,11 @@ from pathlib import Path
 
 import leaf_website as module
 
-module.PORT = 0
 module._agent_host = module.WebsiteCodexHost(
     {str(codex)!r}, Path({str(socket_dir / "app-server.sock")!r}),
     Path({str(tmp_path / "app-server.log")!r}),
 )
-module.main()
+module.main(["--port", "0"])
 """,
         ],
         env=os.environ | {"LEAF_SITE_ROOT": str(site)},
@@ -3800,7 +3805,7 @@ def test_a_failed_verifier_page_reports_its_browser_errors(browser):
 def test_local_verification_settles_host_network_only_for_release(monkeypatch, agent):
     @contextmanager
     def worker():
-        yield "http://127.0.0.1:8787"
+        yield "http://127.0.0.1:8787", "release"
 
     attempts = []
 

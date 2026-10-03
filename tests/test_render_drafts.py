@@ -4777,7 +4777,7 @@ def test_a_fresh_revision_caret_failure_does_not_strand_deferred_arrivals(
     editor.evaluate("el=>el.setSelectionRange(4,9,'backward')")
     revised = editing_revision_source("after").replace(
         "window.__rendererLifetime=",
-        "import {afterPresentation} from '/runtime/widget-api.js';afterPresentation(()=>window.__deferredArrivalRan=true);document.addEventListener('lf-presentation',()=>window.__presentationDispatched=true);\nconst setRange=HTMLTextAreaElement.prototype.setSelectionRange;\nHTMLTextAreaElement.prototype.setSelectionRange=function(a,b,d){if(a===4&&b===9)throw new Error('fresh mechanical caret fixture failed');return setRange.call(this,a,b,d)};\nwindow.__rendererLifetime=",
+        "import {afterPresentation,TEXT_FIELD} from '/runtime/widget-api.js';afterPresentation(()=>window.__deferredArrivalRan=true);document.addEventListener('lf-presentation',()=>window.__presentationDispatched=true);\nconst field=customElements.get(TEXT_FIELD).prototype;const setRange=field.setSelectionRange;\nfield.setSelectionRange=function(a,b,d){if(a===4&&b===9)throw new Error('fresh mechanical caret fixture failed');return setRange.call(this,a,b,d)};\nwindow.__rendererLifetime=",
     )
     stamp_page(serve.page_dir, revised, "Fresh executable with mechanical failure")
     told(page)

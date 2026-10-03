@@ -2812,18 +2812,33 @@ def test_rest_waits_for_contained_arrival_before_arming(browser, serve):
     child.evaluate(
         """async () => {
             const {deferredArrival} = await window.__lfRuntimeImport('/runtime/presentation.js');
-            deferredArrival(new Promise(resolve => setTimeout(() => {
-                document.body.setAttribute('data-arrived', 'yes');
-                resolve();
-            }, 1000)));
+            const entry = document.querySelector('script[data-lf-entry]');
+            deferredArrival(new Promise(resolve => {
+                entry.releaseArrival = () => {
+                    document.body.setAttribute('data-arrived', 'yes');
+                    resolve();
+                };
+            }));
         }"""
     )
 
+    page.clock.run_for(1100)
     assert (
         child.evaluate(
             "() => document.querySelector('script[data-lf-entry]').lfReadiness(null)"
         )
         == "arrived"
+    )
+    child.evaluate(
+        """() => {
+            const entry = document.querySelector('script[data-lf-entry]');
+            const readiness = entry.lfReadiness;
+            entry.lfReadiness = (...args) => {
+                entry.lfReadiness = readiness;
+                queueMicrotask(entry.releaseArrival);
+                return readiness(...args);
+            };
+        }"""
     )
     assert at_rest(page) == []
     assert child.locator("body").get_attribute("data-arrived") == "yes"

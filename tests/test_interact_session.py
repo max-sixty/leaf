@@ -11399,7 +11399,7 @@ def test_a_claim_transfer_stops_a_waiter_already_inside_a_poll(
 ):
     """Ownership is checked at delivery, not only at the start of a poll.
 
-    The FIFO holds a normal status read after the first watcher has already
+    The probe holds a normal status read after the first watcher has already
     selected its page. A second session then takes the claim and an event arrives.
     The old watcher must re-read ownership before it prints that event; otherwise
     two sessions can act as cursor owner despite the supersession check passing on
@@ -11407,20 +11407,34 @@ def test_a_claim_transfer_stops_a_waiter_already_inside_a_poll(
     """
     page = codex_claimed_page
     session_model.cmd_status(page, "waiting", "comment on the prototype")
-    status_path = page / "status.json"
-    # Arm the first status read before launch: a later replacement can catch
-    # the transactional read instead and block the claim on its event-log lock.
-    hold_status_read(status_path)
+    selected = page.parent / "waiter-selected-page"
+    probe = """
+import sys
+from pathlib import Path
+from leaf import session
+
+read_status = session.read_status
+def held_status(page):
+    Path(sys.argv[2]).write_text("selected", encoding="utf-8")
+    sys.stdin.readline()
+    return read_status(page)
+
+session.read_status = held_status
+sys.exit(session.cmd_wait(Path(sys.argv[1])))
+"""
     first = under_codex(
-        shlex.join([*LEAF_COMMAND, "wait", str(page)]),
+        shlex.join([sys.executable, "-c", probe, str(page), str(selected)]),
         codex_env | {"CODEX_THREAD_ID": "leaf-watcher-1"},
+        stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
     )
 
-    writer = fifo_writer(
-        status_path, "the first watcher never reached its held status read"
+    wait_for(
+        selected.exists,
+        bool,
+        failure="the first watcher never selected its page before the transaction",
     )
     assert service_model.page_claim(page)["id"] == "leaf-watcher-1"
 
@@ -11428,19 +11442,7 @@ def test_a_claim_transfer_stops_a_waiter_already_inside_a_poll(
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     service_model.claim_page(page)
     append_carried_log_record(page, {"kind": "comment", "author": "user", "text": "hi"})
-    os.write(
-        writer,
-        json.dumps(
-            {
-                "state": "waiting",
-                "detail": "comment on the prototype",
-                "ts": "t",
-            }
-        ).encode(),
-    )
-    os.close(writer)
-
-    first_out, first_err = first.communicate(timeout=60)
+    first_out, first_err = first.communicate(input="continue\n", timeout=60)
     assert (first.returncode, first_out) == (2, ""), first_err
     session = service_model.page_claim(page)
     assert session["id"] == "replacement"
@@ -13822,10 +13824,13 @@ def test_server_start_hands_the_page_to_a_process_of_its_own(page_dir):
         "enabled",
         "lifetime",
         "runtime",
+        "server_id",
     }
     assert service["runtime"]["path"] == str(schema_model.PLUGIN_ROOT)
     state = urllib.parse.urlsplit(url)._replace(path="/api/state").geturl()
-    assert urllib.request.urlopen(state).status == 200
+    response = urllib.request.urlopen(state)
+    assert response.status == 200
+    assert response.headers["Leaf-Server"] == service["server_id"]
 
 
 def test_server_start_forwards_flags_and_returns_service_output(page_dir):

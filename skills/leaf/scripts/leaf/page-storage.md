@@ -116,7 +116,7 @@ other page files and the external state listed below.
   hands the file to the page whole. Its presence exempts the page from the handoff's watcher guard.
 
 - `service.json` — desired server address, enabled state, lifetime, and runtime
-  provenance, plus a `restart` mark while `page init` holds a served page down to
+  provenance and current serving incarnation (`server_id`), plus a `restart` mark while `page init` holds a served page down to
   re-vendor it, which any other stop replaces so the restart leaves that stop
   alone. `hosting.py` owns start/stop, restart, and revival;
   [session-lifetime.md, “Lifetime”](session-lifetime.md#lifetime) owns the lifetime rule.
@@ -134,6 +134,11 @@ other page files and the external state listed below.
   directory. Scans ignore claims for missing pages; fresh page initialization clears
   the prior claim under the page lock. [session-lifetime.md](session-lifetime.md) owns
   claimant identity, release, harness, and lifetime.
+
+- `<state-home>/rows/<page-key>.json` — disposable delivery output of a serving
+  page's own canonical activity. `server_rows.py` owns the record, producer and
+  freshness contract. It is never read by a page's semantic fold; losing it only
+  hides that neighbor until the server's next maintenance look.
 
 ## Revision delivery
 

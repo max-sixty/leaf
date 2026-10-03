@@ -15496,10 +15496,17 @@ def test_no_page_stop_cannot_close_a_prompt_that_arrives_during_discovery(monkey
     assert cleanup_model.session_record("never-claimed") == newer[0]
 
 
+@pytest.mark.parametrize("resumed", [False, True])
 def test_first_claim_enriches_prompt_provenance_without_replacing_it(
-    page_dir, monkeypatch
+    page_dir, monkeypatch, resumed
 ):
+    if resumed:
+        old = cleanup_model.ensure_session("before-claim", {"pid": os.getpid() + 1})
+        cleanup_model.end_session("before-claim")
     before = cleanup_model.prompt_turn("before-claim", "provider")
+    assert before["lifetime"] == {}
+    if resumed:
+        assert before["generation"] != old["generation"]
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "before-claim")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     assert service_model.claim_page(page_dir)

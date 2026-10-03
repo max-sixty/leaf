@@ -348,7 +348,7 @@ def prompt_turn(session_id: str, turn_id: str | None = None) -> dict | None:
     with flocked(session_lock_path(session_id)):
         record = session_record(session_id)
         if record is not None and record["ended"] is not None:
-            write_session(new_session(session_id, record["lifetime"]))
+            write_session(new_session(session_id, {}))
         record = session_record(session_id)
         if (
             record

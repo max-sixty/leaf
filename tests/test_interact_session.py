@@ -3348,7 +3348,11 @@ def test_app_server_events_report_semantic_codex_progress():
 
 
 def test_app_server_activity_throttles_stream_deltas(monkeypatch):
-    fold = codex_model.TurnFold("codex-thread", "turn-live")
+    fold = codex_model.TurnFold(
+        "codex-thread",
+        "turn-live",
+        lifecycle=cleanup_model.session_record("codex-thread"),
+    )
     clock = iter([10.0, 10.1, 10.3])
     monkeypatch.setattr(codex_model.time, "monotonic", lambda: next(clock))
     updates = []
@@ -4756,7 +4760,11 @@ def test_reconnect_closes_a_completed_stream_binding(monkeypatch):
         def finish(self, state, text):
             finished.append((state, text))
 
-    fold = codex_model.TurnFold("codex-thread", "turn-complete")
+    fold = codex_model.TurnFold(
+        "codex-thread",
+        "turn-complete",
+        lifecycle=cleanup_model.session_record("codex-thread"),
+    )
     fold.reply_stream = Stream()
     observer.turns = {"turn-complete": fold}
     observer.running = "turn-complete"
@@ -4981,9 +4989,20 @@ def test_a_reply_that_cannot_be_written_still_closes_its_turn(page_dir, monkeypa
     payload = prepared.payload
     target = codex_model.stream_reply_target(payload)
     thread_model.reserve_delivery_reply("codex-thread", payload["id"], target)
-    turn = codex_model.TurnFold("codex-thread", "leaf-turn", payload["id"], target)
+    turn = codex_model.TurnFold(
+        "codex-thread",
+        "leaf-turn",
+        payload["id"],
+        target,
+        lifecycle=cleanup_model.session_record("codex-thread"),
+    )
     turn.open()
-    codex_model.set_stream_activity("codex-thread", "leaf-turn", {"kind": "working"})
+    codex_model.set_stream_activity(
+        "codex-thread",
+        "leaf-turn",
+        {"kind": "working"},
+        expected=cleanup_model.session_record("codex-thread"),
+    )
     turn.open_reply()
     monkeypatch.setattr(thread_model.DeliveryReply, "_set_state", _unopenable)
 
@@ -5231,11 +5250,19 @@ def test_an_app_server_failure_cleans_up_its_streams_before_retrying(
             cleanup.append("stream")
             raise OSError("reply cleanup failed")
 
-    bound = codex_model.TurnFold("codex-thread", "bound-turn")
+    bound = codex_model.TurnFold(
+        "codex-thread",
+        "bound-turn",
+        lifecycle=cleanup_model.session_record("codex-thread"),
+    )
     bound.reply_stream = Stream()
     observer.turns = {
         "bound-turn": bound,
-        "user-turn": codex_model.TurnFold("codex-thread", "user-turn"),
+        "user-turn": codex_model.TurnFold(
+            "codex-thread",
+            "user-turn",
+            lifecycle=cleanup_model.session_record("codex-thread"),
+        ),
     }
     observer.started = True
     observer._connect = lambda: (_ for _ in ()).throw(ConnectionError("offline"))
@@ -16052,7 +16079,9 @@ def test_provider_observation_cannot_replace_a_newer_prompt(claimed):
     old = cleanup_model.session_record("s1")
     cleanup_model.prompt_turn("s1", "new")
     new = cleanup_model.session_record("s1")
-    assert not codex_model.TurnFold("s1", "old").open()
+    assert not codex_model.TurnFold(
+        "s1", "old", lifecycle=cleanup_model.session_record("s1")
+    ).open()
     assert cleanup_model.session_record("s1") == new
     assert cleanup_model.start_session_turn("s1", "late-start", old) is None
     assert cleanup_model.session_record("s1") == new
@@ -16335,6 +16364,14 @@ def test_resume_metadata_cannot_replace_a_newer_observation_during_the_request(
                     )
                 else:
                     cleanup_model.prompt_turn("codex-thread", "new-turn")
+                    with service_model.PageTransaction(page_dir) as page:
+                        page.set_status("working", "New turn")
+                    codex_model.set_stream_activity(
+                        "codex-thread",
+                        "new-turn",
+                        {"kind": "tool", "detail": "New activity"},
+                        expected=cleanup_model.session_record("codex-thread"),
+                    )
                 result = {
                     "thread": {
                         "status": {
@@ -16359,6 +16396,7 @@ def test_resume_metadata_cannot_replace_a_newer_observation_during_the_request(
         codex_model.app_server_handshake(socket, 0, "test", "test", connection._read)
         thread, expected = connection._resume_task(socket, exclude_turns=False)
         winner = cleanup_model.session_record("codex-thread")
+        status_before = service_model.PageTransaction(page_dir).status
         connection._resume(thread, expected)
     assert cleanup_model.session_record("codex-thread") == winner
     assert winner["turn"] == "new-turn"
@@ -16367,6 +16405,8 @@ def test_resume_metadata_cannot_replace_a_newer_observation_during_the_request(
     )
     if replacement == "provider_notification":
         assert connection.turns["new-turn"].events.waiting_kind is None
+    else:
+        assert service_model.PageTransaction(page_dir).status == status_before
 
 
 def test_stale_live_notifications_cannot_reuse_a_fold_after_a_newer_prompt(page_dir):
@@ -16500,7 +16540,11 @@ def test_old_fold_cannot_change_activity_in_a_reused_session_generation(
 ):
     _codex_delivery(page_dir)
     cleanup_model.prompt_turn("codex-thread", "same-turn")
-    old = codex_model.TurnFold("codex-thread", "same-turn")
+    old = codex_model.TurnFold(
+        "codex-thread",
+        "same-turn",
+        lifecycle=cleanup_model.session_record("codex-thread"),
+    )
     assert old.open()
     cleanup_model.end_session("codex-thread")
     cleanup_model.prompt_turn("codex-thread", "same-turn")
@@ -16513,6 +16557,7 @@ def test_old_fold_cannot_change_activity_in_a_reused_session_generation(
         "codex-thread",
         "same-turn",
         {"kind": "tool", "detail": "New generation activity"},
+        expected=cleanup_model.session_record("codex-thread"),
     )
     winner = cleanup_model.session_record("codex-thread")
     status = service_model.PageTransaction(page_dir).status
@@ -16538,3 +16583,161 @@ def test_old_fold_cannot_change_activity_in_a_reused_session_generation(
         )
     assert cleanup_model.session_record("codex-thread") == winner
     assert service_model.PageTransaction(page_dir).status == status
+
+
+@pytest.mark.parametrize("replacement", ["prompt", "stop"])
+def test_an_old_fold_cannot_publish_working_or_tool_activity_after_its_turn(
+    page_dir, replacement
+):
+    _codex_delivery(page_dir)
+    cleanup_model.prompt_turn("codex-thread", "old-turn")
+    fold = codex_model.TurnFold(
+        "codex-thread",
+        "old-turn",
+        lifecycle=cleanup_model.session_record("codex-thread"),
+    )
+    assert fold.open()
+    if replacement == "prompt":
+        cleanup_model.prompt_turn("codex-thread", "new-turn")
+        with service_model.PageTransaction(page_dir) as page:
+            page.set_status("working", "New turn")
+        codex_model.set_stream_activity(
+            "codex-thread",
+            "new-turn",
+            {"kind": "tool", "detail": "New activity"},
+            expected=cleanup_model.session_record("codex-thread"),
+        )
+    else:
+        cleanup_model.close_session_turn("codex-thread", "old-turn")
+        fold.clear_activity()
+    status = service_model.PageTransaction(page_dir).status
+    epoch = cleanup_model.session_record("codex-thread")
+    fold.set_activity({"kind": "working"})
+    fold.absorb(
+        {
+            "method": "item/started",
+            "params": {
+                "threadId": "codex-thread",
+                "turnId": "old-turn",
+                "startedAtMs": 10,
+                "item": {
+                    "id": "old-command",
+                    "type": "commandExecution",
+                    "command": "old command",
+                },
+            },
+        }
+    )
+    assert service_model.PageTransaction(page_dir).status == status
+    assert cleanup_model.session_record("codex-thread") == epoch
+
+
+def test_a_rejected_started_fold_cannot_publish_initial_working_activity(
+    page_dir, app_server, monkeypatch
+):
+    _codex_delivery(page_dir)
+    connection = _observer()
+    path, record = codex_model.delivery_records("codex-thread")[0]
+    offered = codex_model.offer_delivery(path, record, "app-server")
+    codex_model.write_record(offered.record_path, record)
+    construct = connection._fold
+    winner = {}
+
+    def supersede_before_construction(turn_id, delivery_id, **scope):
+        cleanup_model.end_session("codex-thread")
+        cleanup_model.prompt_turn("codex-thread", turn_id)
+        with service_model.PageTransaction(page_dir) as page:
+            page.take_claim(
+                host_model.EmbeddedHarness("codex-thread", "Codex", os.getpid())
+            )
+            page.set_status("working", "New generation")
+        codex_model.set_stream_activity(
+            "codex-thread",
+            turn_id,
+            {"kind": "tool", "detail": "New activity"},
+            expected=cleanup_model.session_record("codex-thread"),
+        )
+        winner["epoch"] = cleanup_model.session_record("codex-thread")
+        winner["status"] = service_model.PageTransaction(page_dir).status
+        return construct(turn_id, delivery_id, **scope)
+
+    monkeypatch.setattr(connection, "_fold", supersede_before_construction)
+
+    def handle(socket):
+        for raw in socket:
+            request = json.loads(raw)
+            if "id" not in request:
+                continue
+            if request["method"] == "initialize":
+                result = {}
+            elif request["method"] == "thread/resume":
+                result = {"thread": {"status": {"type": "idle"}, "turns": []}}
+            elif request["method"] == "turn/start":
+                result = {"turn": {"id": "same-turn"}}
+            else:
+                raise AssertionError(request["method"])
+            socket.send(json.dumps({"id": request["id"], "result": result}))
+
+    with codex_model.app_server_connect(app_server(handle)) as socket:
+        codex_model.app_server_handshake(socket, 0, "test", "test", connection._read)
+        with pytest.raises(
+            codex_model.AppServerDeliveryUncertain, match="newer session epoch"
+        ):
+            connection._start_delivery(socket, offered.payload)
+    assert not connection.turns
+    assert cleanup_model.session_record("codex-thread") == winner["epoch"]
+    assert service_model.PageTransaction(page_dir).status == winner["status"]
+
+
+def test_fresh_resume_replaces_a_fold_from_an_earlier_session_generation(page_dir):
+    _codex_delivery(page_dir)
+    cleanup_model.prompt_turn("codex-thread", "same-turn")
+    connection = _observer()
+    connection._read(
+        {
+            "method": "turn/started",
+            "params": {"threadId": "codex-thread", "turn": {"id": "same-turn"}},
+        }
+    )
+    old = connection.turns["same-turn"]
+    cleanup_model.end_session("codex-thread")
+    cleanup_model.prompt_turn("codex-thread", "same-turn")
+    with service_model.PageTransaction(page_dir) as page:
+        page.take_claim(
+            host_model.EmbeddedHarness("codex-thread", "Codex", os.getpid())
+        )
+        page.set_status("working", "New generation")
+    expected = cleanup_model.session_record("codex-thread")
+    connection.lifecycle = expected
+    connection._resume(
+        {
+            "status": {"type": "active", "activeFlags": []},
+            "turns": [
+                {
+                    "id": "same-turn",
+                    "status": "inProgress",
+                    "itemsView": "full",
+                    "items": [],
+                }
+            ],
+        },
+        expected,
+    )
+    assert connection.turns["same-turn"] is not old
+    connection.turns["same-turn"].set_activity(
+        {"kind": "tool", "detail": "New activity"}
+    )
+    assert (
+        service_model.PageTransaction(page_dir).status["stream"]["activity"]["detail"]
+        == "New activity"
+    )
+    connection._read(
+        {
+            "method": "turn/completed",
+            "params": {
+                "threadId": "codex-thread",
+                "turn": {"id": "same-turn", "status": "completed", "items": []},
+            },
+        }
+    )
+    assert cleanup_model.session_record("codex-thread")["turn_closed"] is not None

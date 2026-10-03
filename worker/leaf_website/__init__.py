@@ -25,10 +25,6 @@ from html import escape
 from pathlib import Path
 
 import click
-
-# The stream-activity writers are called as `codex.<name>`, so `leaf.codex` holds their
-# one binding: whatever takes a turn's readings there takes the host's too.
-from leaf import codex
 from leaf.codex import (
     LEAF_THREAD_CONFIG,
     CarriedTurn,
@@ -412,11 +408,18 @@ class HostedTurn(CarriedTurn):
         turn_id: str,
         socket=None,
         *,
+        lifecycle: dict,
         reply_target: dict | None = None,
         buffered=(),
     ):
         super().__init__(
-            thread_id, socket, turn_id, delivery_id, reply_target, buffered
+            thread_id,
+            socket,
+            turn_id,
+            delivery_id,
+            reply_target,
+            buffered,
+            lifecycle=lifecycle,
         )
         self.host = host
         self.page_dir = page_dir
@@ -463,7 +466,7 @@ class HostedTurn(CarriedTurn):
         )
         self.record("turn_delivery_bound", deliveryId=self.delivery_id)
         self.open_reply()
-        codex.set_stream_activity(self.session_id, self.turn_id, {"kind": "working"})
+        self.set_activity({"kind": "working"})
 
     def observe(self, message: dict, update: dict | None) -> None:
         """Record what one notification said, before its readings reach the page."""
@@ -559,12 +562,10 @@ class HostedTurn(CarriedTurn):
             if reply_error is not None:
                 self.record("turn_reply_commit_failed", **fault_fields(reply_error))
             self.host._finish_turn(
-                self.page_dir, self.session_id, terminal, generation=self.generation
+                self.page_dir, self.session_id, terminal, expected=self.activity_epoch()
             )
         finally:
-            codex.clear_stream_activity(
-                self.session_id, self.turn_id, generation=self.generation
-            )
+            self.clear_activity()
             self._receipt_unanswered()
 
     def _receipt_unanswered(self) -> None:
@@ -862,7 +863,7 @@ class WebsiteCodexHost:
         thread_id: str,
         turn: dict,
         *,
-        generation: str | None | object = ...,
+        expected: dict | None,
     ) -> None:
         """Close one observed provider turn without inventing a Leaf response."""
         status = turn.get("status")
@@ -882,8 +883,8 @@ class WebsiteCodexHost:
                 current = session_record(thread_id)
                 claim = page.active_claim
                 if (
-                    current
-                    and (generation is ... or current["generation"] == generation)
+                    expected is not None
+                    and current == expected
                     and claim
                     and claim["id"] == thread_id
                     and claim["turn"] == turn["id"]
@@ -980,7 +981,7 @@ class WebsiteCodexHost:
         log_agent("turn_start_started", **agent_event_fields(prepared_events))
         reply_target = stream_reply_target(prepared.payload)
         try:
-            turn_id = start_app_server_delivery(
+            admitted = start_app_server_delivery(
                 lambda method, params: self._send(socket, method, params, pending),
                 thread_id,
                 prepared.payload,
@@ -1000,6 +1001,7 @@ class WebsiteCodexHost:
             raise RuntimeError(f"Codex App Server did not start a turn: {error}") from (
                 error
             )
+        turn_id = admitted["turn"]
         log_agent(
             "turn_start_acknowledged",
             **agent_event_fields(prepared_events),
@@ -1026,6 +1028,7 @@ class WebsiteCodexHost:
             prepared_events,
             turn_id,
             socket,
+            lifecycle=admitted,
             reply_target=reply_target,
             buffered=tuple(pending or ()),
         )

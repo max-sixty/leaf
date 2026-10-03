@@ -209,7 +209,12 @@ Ordered starts adopt against this token before running identity or fold selectio
 A resume response uses its pre-request token even when newer notifications arrived
 during that request; a rejected stale snapshot never marks the observer running.
 Historical delivery completion settles its immutable answer without adopting a
-current lifecycle identity.
+current lifecycle identity. The shared start boundary returns its admitted
+publication to both carriers, and their folds retain that generation and provider ID
+through construction, activity and cleanup. Live projection requires an exact
+current publication with an open matching turn under page→session locks; cleanup
+uses the matching publication after closure. A resumed new generation replaces
+an older live fold instead of borrowing it.
 Codex's synchronous prompt hook records the provider turn even before a
 page is claimed. Its asynchronous PostToolUse hook identifies an unknown session-scoped turn
 once, or renews only the already observed running provider turn and offers one immutable pointer between steps. The observation's

@@ -318,7 +318,7 @@ class TaskConnection:
             )
 
         try:
-            turn_id = start_app_server_delivery(send, self.thread_id, payload)
+            admitted = start_app_server_delivery(send, self.thread_id, payload)
         except BaseException as error:
             if not requested or isinstance(error, codex.AppServerRequestRejected):
                 with flocked(delivery_lock_path(self.thread_id)):
@@ -329,13 +329,15 @@ class TaskConnection:
             for message in buffered:
                 self._read(message)
             raise
-        if not self._observe_lifecycle(turn_id):
+        self.lifecycle = admitted
+        turn_id = admitted["turn"]
+        fold = self._fold(turn_id, payload["id"], follow=True)
+        if fold is None:
             raise AppServerDeliveryUncertain(
                 "a newer session epoch superseded the provider start"
             )
         self.running = turn_id
-        self._fold(turn_id, payload["id"], follow=True)
-        codex.set_stream_activity(self.thread_id, turn_id, {"kind": "working"})
+        fold.set_activity({"kind": "working"})
         for message in buffered:
             self._read(message)
         return True
@@ -455,7 +457,10 @@ class TaskConnection:
             # This snapshot does not establish a current provider turn, so an
             # old thinking, tool, waiting, or replying observation cannot prove
             # one is still live.
-            codex.clear_stream_activity(self.thread_id)
+            codex.clear_stream_activity(
+                self.thread_id,
+                expected=self.lifecycle if expected is ... else expected,
+            )
         return hydrated
 
     def _reconcile(self, turn: dict, expected: dict | None | object = ...) -> bool:
@@ -578,6 +583,18 @@ class TaskConnection:
         subscription's matching lifecycle identity. It is never reopened.
         """
         fold = self.turns.get(turn_id)
+        if (
+            fold is not None
+            and follow
+            and self.lifecycle is not None
+            and fold.generation != self.lifecycle["generation"]
+        ):
+            # Freshly admitted metadata may follow the same provider task in a
+            # new session lifetime. Retire the old live observer; its immutable
+            # delivery can still recover through history without live authority.
+            fold.disconnect()
+            self.turns.pop(turn_id)
+            fold = None
         if fold is None and follow:
             fold = TurnFold(self.thread_id, turn_id, lifecycle=self.lifecycle)
             if not fold.open():

@@ -65,7 +65,6 @@ from .service import (
 from .state import (
     close_session_turn,
     flocked,
-    open_session_turn,
     renew_turn,
     session_lock_path,
     session_record,
@@ -276,7 +275,7 @@ def app_server_turn_start_params(thread_id: str, payload: dict) -> dict:
     }
 
 
-def start_app_server_delivery(send, thread_id: str, payload: dict) -> str:
+def start_app_server_delivery(send, thread_id: str, payload: dict) -> dict:
     """Start one delivery's turn on an idle thread with its reply seat reserved.
 
     `send(method, params)` is the carrier's request on its own connection, under
@@ -284,6 +283,8 @@ def start_app_server_delivery(send, thread_id: str, payload: dict) -> str:
     before the request, this boundary captures its epoch; the returned identity
     is adopted only against that epoch or its own synchronous provider prompt.
     A newer different prompt leaves the start uncertain and its seat reserved.
+    Return the admitted lifecycle publication, whose turn names the provider ID;
+    every follower retains this authority instead of rereading it after other work.
 
     The seat is reserved before `turn/start` goes out, so no other writer answers
     the delivery its turn is about to answer. What happens to the seat when
@@ -316,11 +317,12 @@ def start_app_server_delivery(send, thread_id: str, payload: dict) -> str:
     turn_id = (started.get("turn") or {}).get("id")
     if not turn_id:
         raise AppServerDeliveryUncertain("Codex App Server returned no turn id")
-    if start_session_turn(thread_id, turn_id, expected) is None:
+    admitted = start_session_turn(thread_id, turn_id, expected)
+    if admitted is None:
         raise AppServerDeliveryUncertain(
             "a newer session epoch superseded the provider start"
         )
-    return turn_id
+    return admitted
 
 
 def _initialize_params(name: str, title: str) -> dict:
@@ -869,15 +871,15 @@ class AppServerReplyStream:
 
 
 @contextmanager
-def _locked_task_pages(session_id: str, *, generation: str | None | object = ...):
+def _locked_task_pages(session_id: str, *, expected: dict | None):
     """Lock this task's current page set in its stable path order.
 
     Ownership is the whole test. Both carriers that reach here — the detached
     adapter and an embedded host — write App Server readings onto the pages
     their own session holds, and the claim's session id says which those are.
     Discovery is only a candidate read, so each claim is checked again under
-    its lock. A provider fold also supplies its captured session generation;
-    page→session locks fence that generation through the activity write."""
+    its lock. A provider writer supplies its admitted lifecycle publication;
+    page→session locks retain that epoch through the activity write."""
     with ExitStack() as stack:
         pages = []
         for page_dir in owned_pages(session_id):
@@ -888,11 +890,9 @@ def _locked_task_pages(session_id: str, *, generation: str | None | object = ...
             claim = page.active_claim
             if claim and claim["id"] == session_id:
                 pages.append(page)
-        if generation is not ...:
-            stack.enter_context(flocked(session_lock_path(session_id)))
-            current = session_record(session_id)
-            if current is None or current["generation"] != generation:
-                pages = []
+        stack.enter_context(flocked(session_lock_path(session_id)))
+        if expected is None or session_record(session_id) != expected:
+            pages = []
         yield pages
 
 
@@ -901,10 +901,17 @@ def set_stream_activity(
     turn_id: str,
     activity: dict,
     *,
-    generation: str | None | object = ...,
+    expected: dict | None,
 ) -> None:
-    """Show what one turn is doing on every page this task claims."""
-    with _locked_task_pages(session_id, generation=generation) as pages:
+    """Publish a running turn's activity under its admitted lifecycle epoch."""
+    if (
+        expected is None
+        or expected["ended"] is not None
+        or expected["turn"] != turn_id
+        or expected["turn_closed"] is not None
+    ):
+        return
+    with _locked_task_pages(session_id, expected=expected) as pages:
         for page in pages:
             page.set_stream_activity(session_id, turn_id, activity)
 
@@ -913,10 +920,10 @@ def clear_stream_activity(
     session_id: str,
     turn_id: str | None = None,
     *,
-    generation: str | None | object = ...,
+    expected: dict | None,
 ) -> None:
-    """Take a turn's activity reading back off the pages showing it."""
-    with _locked_task_pages(session_id, generation=generation) as pages:
+    """Clear activity only while the supplied lifecycle publication still owns it."""
+    with _locked_task_pages(session_id, expected=expected) as pages:
         for page in pages:
             page.clear_stream_activity(session_id, turn_id)
 
@@ -933,8 +940,8 @@ class TurnFold:
     closes the turn on the page.
 
     The fold observes the session lifecycle under the provider turn id, which
-    Codex's hooks name too. `open` binds an unknown turn or matches that identity;
-    it cannot replace a newer prompt. Live activity and cleanup retain the captured
+    Codex's hooks name too. Its producer passes the publication it admitted;
+    `open` follows that generation and identity without introducing another one. Live activity and cleanup retain the captured
     session generation; an old fold cannot clear or close a newer lifetime that
     reuses the provider ID. Historical answer settlement borrows no live authority.
     `close` closes only that generation and id; delivery acceptance only records which turn
@@ -963,10 +970,9 @@ class TurnFold:
         delivery_id: str | None = None,
         reply_target: dict | None = None,
         *,
-        lifecycle: dict | None | object = ...,
+        lifecycle: dict | None,
     ):
-        observed = session_record(session_id) if lifecycle is ... else lifecycle
-        self.generation = observed["generation"] if observed is not None else None
+        self.generation = lifecycle["generation"] if lifecycle is not None else None
         self.session_id = session_id
         self.turn_id = turn_id
         self.delivery_id = delivery_id
@@ -976,13 +982,9 @@ class TurnFold:
         self.last_activity_update = 0.0
 
     def open(self) -> bool:
-        """Observe this identity without replacing a newer prompt epoch."""
-        observed = open_session_turn(self.session_id, self.turn_id)
-        if observed is None:
-            return False
-        if self.generation is None:
-            self.generation = observed["generation"]
-        return observed["generation"] == self.generation
+        """Follow the admitted provider identity without introducing another one."""
+        current = self.activity_epoch()
+        return current is not None and current["turn_closed"] is None
 
     def bind(self, delivery_id: str, reply_target: dict | None) -> None:
         """Name the delivery this turn carries, and open the reply it owes."""
@@ -1017,6 +1019,30 @@ class TurnFold:
         self.observe_reply(update, published)
         return update
 
+    def activity_epoch(self) -> dict | None:
+        """Authorize live projection only for this fold's generation and turn."""
+        current = session_record(self.session_id)
+        if (
+            current is not None
+            and current["ended"] is None
+            and current["generation"] == self.generation
+            and current["turn"] == self.turn_id
+        ):
+            return current
+        return None
+
+    def set_activity(self, activity: dict) -> None:
+        """Publish only within this fold's current open provider identity."""
+        set_stream_activity(
+            self.session_id, self.turn_id, activity, expected=self.activity_epoch()
+        )
+
+    def clear_activity(self) -> None:
+        """Clear only this fold's matching lifecycle publication."""
+        clear_stream_activity(
+            self.session_id, self.turn_id, expected=self.activity_epoch()
+        )
+
     def _project(self, message: dict, update: dict | None) -> None:
         """Show one update's activity, throttling only streamed deltas.
 
@@ -1032,9 +1058,7 @@ class TurnFold:
             and now - self.last_activity_update < STREAM_UPDATE_INTERVAL
         ):
             return
-        set_stream_activity(
-            self.session_id, update["turn"], activity, generation=self.generation
-        )
+        self.set_activity(activity)
         self.last_activity_update = now
 
     def finished(self, message: dict, update: dict | None) -> dict | None:
@@ -1070,13 +1094,11 @@ class TurnFold:
                 file=sys.stderr,
                 flush=True,
             )
-        current = session_record(self.session_id)
-        if current is None or current["generation"] != self.generation:
-            return
-        if close_session_turn(self.session_id, self.turn_id, expected=current):
-            clear_stream_activity(
-                self.session_id, self.turn_id, generation=self.generation
-            )
+        current = self.activity_epoch()
+        if current is not None and close_session_turn(
+            self.session_id, self.turn_id, expected=current
+        ):
+            self.clear_activity()
 
     def disconnect(self) -> None:
         """Stop reading a turn that may still be running, its text left on the page."""
@@ -1084,9 +1106,7 @@ class TurnFold:
             if self.reply_stream is not None:
                 self.reply_stream.disconnect()
         finally:
-            clear_stream_activity(
-                self.session_id, self.turn_id, generation=self.generation
-            )
+            self.clear_activity()
 
     def observe(self, message: dict, update: dict | None) -> None:
         """Record one notification, before its readings reach a page."""
@@ -1121,8 +1141,12 @@ class CarriedTurn(TurnFold):
         delivery_id: str,
         reply_target: dict | None,
         buffered=(),
+        *,
+        lifecycle: dict | None,
     ):
-        super().__init__(session_id, turn_id, delivery_id, reply_target)
+        super().__init__(
+            session_id, turn_id, delivery_id, reply_target, lifecycle=lifecycle
+        )
         self.socket = socket
         self.stream = TurnStream(socket, buffered, silence=self.silence)
 

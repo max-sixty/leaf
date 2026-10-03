@@ -12,7 +12,7 @@ second fold.
 | Fact | Where | Writer | Stops being believed |
 | --- | --- | --- | --- |
 | work declaration: state, detail, event floor, source message, typed `work` seats, each naming the claimant turn that wrote it, or none for another session's | `status.json` | `leaf status`, from a turn of the session driving the page | a short grace after the turn that wrote it closes; about a quarter of an hour with no renewal; at once when the claimant's lifetime has ended |
-| live App Server activity: session, turn, typed kind, detail, event floor | optional `stream` in `status.json` | the App Server connection that starts an embedded turn, or the detached adapter's observer-only client | turn completion, connection or observer exit, loss of the wait lease, or the working grace without another event |
+| live App Server activity: session, turn, typed kind, detail, event floor | optional `stream` in `status.json` | the App Server connection that starts an embedded turn, or the detached adapter's task connection | turn completion, connection or observer exit, loss of the wait lease, or the working grace without another event |
 | live App Server reply: one displayed draft plus delivery attempt bindings by response address | optional `stream.reply` and `stream.reply_bindings` in `status.json` | an App Server connection bound to a delivery's plain reply | the displayed draft remains on failure or disconnect and is retired by a logged event naming its delivery attempt or its response address; each binding names the claim turn it belongs to (the delivery's turn once its reply opens, the turn standing at reservation before then), clears after durable commit or terminal failure, and survives a lost connection; it stands only while that is still the claim's turn and the turn is open (`activity.reply_binding_stands`), and a turn's answer committed after its binding lapsed yields to a reply another writer already gave |
 | turn identity, when it last opened or took a prompt, and open or closed state | the session lifecycle record | a prompt, a direct delivery, or a carrier following a provider turn opens `turn` and stamps `turn_opened`, or renews that stamp on a turn still open; the id is the host's where it names one (Codex's hooks and App Server name the same turn) and one Leaf mints otherwise; the Stop hook stamps `turn_closed` on whatever turn is open, and a carrier on the turn it follows | the next opening of another id; the next closing stamps it, and a closed id never reopens |
 | the host's own word on the claimant's session: `idle`, `waiting` on a dialog, or `busy`, dated by its last change | the host's record, read at each state read (`Harness.live_turn`): for Claude Code, the `status` of the session's newest registry record whose process runs | the host | read live, so it moves with the host; absent where the host publishes nothing, as for a background job whose worker has retired |
@@ -203,8 +203,17 @@ context is lost, whether the envelope was inline or a large pointer. Provider ca
 can only bind an unknown turn or match the known one; an App Server start result
 introduces a new identity only by comparing the epoch captured before its request.
 The subscribed observer captures its epoch before resume and advances that token
-only with accepted messages for its current provider turn. Ordered starts adopt
-against this token; a rejected stale snapshot never marks the observer running.
+only with accepted messages and matching completion for its current provider turn.
+Ordered starts adopt against this token before running identity or fold selection.
+A resume response uses its pre-request token even when newer notifications arrived
+during that request; a rejected stale snapshot never marks the observer running.
+Historical delivery completion settles its immutable answer without adopting a
+current lifecycle identity. The shared start boundary returns its admitted
+publication to both carriers, and their folds retain that generation and provider ID
+through construction, activity and cleanup. Live projection requires an exact
+current publication with an open matching turn under page→session locks; cleanup
+uses the matching publication after closure. A resumed new generation replaces
+an older live fold instead of borrowing it.
 Codex's synchronous prompt hook records the provider turn even before a
 page is claimed. Its asynchronous PostToolUse hook identifies an unknown session-scoped turn
 once, or renews only the already observed running provider turn and offers one immutable pointer between steps. The observation's
@@ -353,7 +362,7 @@ remains at its permanent path for a turn whose acceptance may have raced the fai
 response.
 
 Each delivery has one globally addressed immutable envelope and one mutable delivery
-record. The record carries collecting, offering, or accepted state;
+record. The record carries collecting, offering, accepted, or abandoned state;
 after the freeze it retains only the event identities needed for page receipts.
 Once a cursor advances, the
 delivery record keeps that receipt so
@@ -361,16 +370,32 @@ reinitializing the same page path cannot revive old transport work; a
 reinitialized page whose events no longer match retires its old batch. The
 adapter has a second lease because a generic wait lease cannot prove its output can
 enter a later Codex turn. Leaf's unobserved queue command never calls `turn/start`.
-With an App Server the adapter holds two connections instead. One observes: it resumes
-the task, keeps the subscription that resume opens, and projects the turns Leaf did not
-start — the user's own work in the terminal, and a queued pointer the task picks up by
-itself. It binds a reply only to a delivery frozen for App Server: a queued pointer's
-delivery owes a plain `reply`, which its agent writes with `leaf thread reply`. The other belongs to one delivery for one turn: it resumes, reads the task's
-status, starts the turn while the task is idle, and follows that turn to its reply on
-the connection it started it on. Two connections may resume one thread and both then
-receive everything it says, so the observer passes over a delivery this process is
-carrying rather than answering for it a second time. The CLI remains the interactive
-client for every approval and user-input request.
+With an App Server the adapter's `TaskConnection` owns one subscribed connection.
+Its receiver serializes delivery starts beside incoming notifications and routes
+every provider turn to one `TurnFold`, whether the user or Leaf started it. A start
+first resumes the task for fresh idle evidence; cached activity only holds an offer
+back. Its reply binds before buffered notifications are replayed, including a
+completion that arrived before the start response. Queue deliveries still owe plain
+replies; App Server deliveries bind the turn's final message. The interactive client
+continues to handle approvals and user-input requests.
+
+The delivery record marks `starting` before a start request is sent. If its response
+is lost, the offer is never blindly sent again, including after adapter restart or
+when no streamed reply seat exists. Resuming reconciles the exact delivery identity
+in the provider transcript. Losing the subscription disconnects its reply and clears
+live activity without inventing an ending or releasing a running turn's reservation.
+A later provider completion settles it; a later session turn withdraws the old reply
+binding, so an explicit reply wins over a recovered final message. An uncertain start
+is never blindly repeated. Recovery exhausts full, paginated provider history;
+summary and unloaded items cannot settle an answer or prove absence. When complete
+history and a fresh idle reading show no matching delivery, Leaf abandons its own
+attempt, releases its reply seat and reports that delivery could not be confirmed
+and is not retried automatically. This does not assert that a provider turn failed.
+The archived immutable identity retains correlation for late provider evidence;
+a successful manual reply still wins. Accepted or abandoned deliveries without a
+successful exact reply also hydrate from full history, even when the initial resume
+omits their turns or the user resolved the thread. A manual reply retires an unknown
+offer through the watcher's receipt recovery, including while disconnected.
 Once every batch is acknowledged, only the delivery record moves under `history/`;
 `leaf delivery read <id>` continues to resolve the immutable envelope.
 
@@ -392,8 +417,9 @@ the delivery id as its client message id, and App Server answers with the turn i
 from it, so the starter knows its turn before reading a notification. The structured
 delivery also stays in the transcript, which is how a client that did not start a turn
 recovers the same binding — one resuming a task after the fact, or reading the turn the
-task opened for a queued pointer. A lost subscription is not one of those cases:
-losing the starting connection ends the turn rather than opening a gap to read across.
+task opened for a queued pointer. An embedded host owns the provider task and
+interrupts its turn when its initiating stream fails; a terminal adapter observes a
+user-owned task and reconnects without interrupting it.
 Reply binding is the hook's contract above and, for the agent,
 `../../references/host-codex-app-server.md`, "Replies". This is another carrier over
 the same delivery, page claim, event log, and activity projection, not another

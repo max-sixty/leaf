@@ -301,12 +301,12 @@ def take_stream_activity(monkeypatch, updates: list, clears: list) -> None:
     monkeypatch.setattr(
         codex_model,
         "set_stream_activity",
-        lambda session, turn, detail: updates.append((session, turn, detail)),
+        lambda session, turn, detail, **_scope: updates.append((session, turn, detail)),
     )
     monkeypatch.setattr(
         codex_model,
         "clear_stream_activity",
-        lambda session, turn=None: clears.append((session, turn)),
+        lambda session, turn=None, **_scope: clears.append((session, turn)),
     )
 
 
@@ -615,15 +615,24 @@ def record_claim(page, /, harness="claude-code", **fields):
     lifetime = {key: record[key] for key in ("job", "activity") if key in record}
     if not lifetime:
         lifetime = {"pid": record["pid"]}
-    session = cleanup_model.ensure_session(record["id"], lifetime)
-    session = cleanup_model.write_session(
-        {
-            **session,
-            "turn": record["turn"],
-            "turn_opened": record["turn_opened"],
-            "turn_closed": record["turn_closed"],
-        }
-    )
+    turn = {key: record[key] for key in ("turn", "turn_opened", "turn_closed")}
+    session = None
+    if "generation" in fields:
+        # Copying a current claim corrects the fake host's lifetime, rather than
+        # replacing its session and briefly leaving that claim without an owner.
+        with cleanup_model.flocked(cleanup_model.session_lock_path(record["id"])):
+            current = cleanup_model.session_record(record["id"])
+            if (
+                current is not None
+                and current["ended"] is None
+                and fields["generation"] == current["generation"]
+            ):
+                session = cleanup_model.write_session(
+                    {**current, "lifetime": lifetime, **turn}
+                )
+    if session is None:
+        session = cleanup_model.ensure_session(record["id"], lifetime)
+        session = cleanup_model.write_session({**session, **turn})
     record = {
         key: value
         for key, value in record.items()

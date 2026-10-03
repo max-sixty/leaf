@@ -357,7 +357,12 @@ export function createMarginProjection({
   }
 
   function carryCommentFrame(origin) {
-    previewMessageViewport = origin && { scroll: origin.scroll, body: null };
+    previewMessageViewport?.stopRegion?.();
+    previewMessageViewport = origin && {
+      scroll: origin.scroll,
+      body: null,
+      stopRegion: null,
+    };
     preview.toggleAttribute("data-lf-comment-frame", Boolean(previewMessageViewport));
     const properties = {
       "--lf-comment-width": previewMessageViewport && `${origin.frame.width}px`,
@@ -901,8 +906,16 @@ export function createMarginProjection({
         if (previewMessageViewport) {
           const body = previewList.querySelector(".lf-msg > .lf-msg-body");
           if (body && body !== previewMessageViewport.body) {
+            previewMessageViewport.stopRegion?.();
             body.scrollTop = previewMessageViewport.scroll;
             previewMessageViewport.body = body;
+            // Adoption retains the editor's viewport inside the transcript. It is
+            // a reading region of its own while that inner viewport stands.
+            previewMessageViewport.stopRegion = registerReadingRegion({
+              id: `${THREAD_CARD}:submitted`,
+              host: body,
+              body,
+            });
           }
         }
         // The spot the rule stood the card at before the boundary shifted it in, so a

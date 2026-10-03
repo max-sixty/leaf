@@ -3107,9 +3107,10 @@ def test_a_resized_page_comes_back_as_it_was(browser, serve, source):
     """What a page says at a width depends on the width, not on the widths it passed
     through: a page taken through a resize and back says at each width on the way back
     what it said there on the way out, including accessible controls and their layout,
-    read from the same scroll position in the document and every reading region.
+    after asking the document and every reading region to scroll to their start.
     Resize continuity can move each region's viewpoint independently; this journey
-    holds those inputs fixed after the resize has rendered.
+    resets those inputs after the resize has rendered and compares their actual
+    positions too, since native scroll snapping can settle away from zero.
     Both ends are tried: a state written on the way down and one written on the
     way up are cleared by different widths.
 
@@ -3147,8 +3148,10 @@ def test_a_resized_page_comes_back_as_it_was(browser, serve, source):
             positions = reading.json_value()
         finally:
             reading.dispose()
-        assert all(position == [0, 0] for position in positions.values()), positions
-        return reader_state(page)
+        return [
+            *reader_state(page),
+            "scroll positions: " + json.dumps(positions, sort_keys=True),
+        ]
 
     for path in (RESIZE_PATH, RESIZE_PATH[::-1]):
         page = still_page(browser, url, width=path[0])

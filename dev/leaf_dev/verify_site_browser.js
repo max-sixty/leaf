@@ -94,7 +94,7 @@
     },
     async activateSession() {
       const client = await runtimeModule("layer-client");
-      client.observeSession(
+      client.admitResponse(
         new Response(null, { headers: { "Leaf-Session": "active" } }),
       );
     },

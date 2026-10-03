@@ -30,6 +30,9 @@
  * descendants without changing its own size emits the shared layout signal. The map
  * writes only to itself, never the main box it observes, and never the track either. The
  * ordinary in-flow list remains the narrow and paper form.
+ * Fitting the map into a scrollable outline preserves that outline's native reading
+ * position. Only a new focus or link gesture reveals its destination; a measurement
+ * never returns the outline to a link the reader has already scrolled away from.
  *
  * Every link is a real fragment link. The
  * browser owns its navigation, history, :target state, wheel input, and scroll
@@ -339,9 +342,6 @@ customElements.define(
       if (layout.labelHeight > track.height + 1) {
         this.removeAttribute("data-lf-compact");
         this.setAttribute("data-lf-outline", "");
-        const focused = document.activeElement;
-        if (focused instanceof HTMLElement && this.#nav.contains(focused))
-          focused.scrollIntoView({ block: "nearest" });
         return shifts;
       }
 

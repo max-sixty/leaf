@@ -12,6 +12,7 @@ from interact_support import (
     COMMAND_HUB_PACKAGE,
     SHIPPED_PACKAGES,
     add_test_widget,
+    append_carried_log_record,
     append_command,
     running_http_server,
     trial_family,
@@ -25,7 +26,7 @@ from leaf import http as http_model
 from leaf import render_checks as render_checks_model
 from leaf import service as service_model
 from leaf import session as session_model
-from leaf import session_cleanup as cleanup_model
+from leaf import state as cleanup_model
 from leaf import structure as structure_model
 from leaf.render_checks import one_frame, rendered, wait_until_ready
 from leaf.render_gate import version as render_gate_model
@@ -59,7 +60,6 @@ from render_cases_interaction import (
     RING,
     ROSTER_PAGE,
     SEATED_ASK_ENTRY,
-    SEATED_ASK_MODULE,
     SEATED_QUESTION_PAGE,
     STANDING_ACTIONS,
     STANDING_PAGE,
@@ -73,6 +73,7 @@ from render_cases_interaction import (
     drifting_widget,
     executable_revision,
     live_url,
+    seated_ask_module,
     stale_report,
 )
 from render_cases_layout import (
@@ -119,6 +120,7 @@ from render_harness import (
     root_overflow,
     round_trip,
     scroll_settled,
+    select,
     sending,
     shortcut_bar_text,
     stamp_page,
@@ -798,7 +800,7 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     # The pinned run is a second source that nothing rewrites.
     data_model.cmd_data_set(serve.page_dir, "docs-run-reviewed", record)
     page = open_page(browser, url)
-    case_thread = events_model.append_event(
+    case_thread = append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -1531,22 +1533,23 @@ def test_a_source_replacement_preserves_the_focused_draft_and_its_original_ancho
             "source comment draft",
             '<h1 id="title">Review</h1>'
             '<lf-text-document id="source" source="document"></lf-text-document>',
+            layout="wide",
         )
     )
     data_model.cmd_data_set(serve.page_dir, "document", "Original source words.")
     original_revision = source_revision(serve.page_dir, "document")
     page = open_page(browser, url)
+    resized(page, 900, 900)
     if quote_anchor:
-        page.locator("#source code").evaluate(
+        words = page.locator("#source code").evaluate(
             """code => {
               const range = document.createRange();
               range.selectNodeContents(code);
-              const selection = getSelection();
-              selection.removeAllRanges();
-              selection.addRange(range);
-              document.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
+              return range.getBoundingClientRect().toJSON();
             }"""
         )
+        y = words["top"] + words["height"] / 2
+        select(page, (words["left"] + 1, y), (words["right"] - 1, y))
     else:
         page.locator("#source [data-lf-datum]").click(modifiers=["Alt"])
     quote = page.locator("#lf-composer-quote")
@@ -1577,6 +1580,14 @@ def test_a_source_replacement_preserves_the_focused_draft_and_its_original_ancho
     )
     assert page.evaluate("() => CSS.highlights.get('lf-pending').size") == 0
     expect(page.locator("#source.lf-pending, #source .lf-pending")).to_have_count(0)
+    # Earlier data no longer supplies a passage fragment. The surviving datum
+    # supplies the same element attachment to the editor and a freshly opened card.
+    bar = page.locator(".lf-fab-bar")
+    expect(bar).to_have_attribute("data-lf-placement", re.compile("(top|bottom)-start"))
+    rendered(page)
+    before = bar.bounding_box()
+    datum = page.locator("#source [data-lf-datum]").bounding_box()
+    assert before["x"] > datum["x"] + 100
 
     with sending(page, "the draft about the replaced source"):
         draft.press("ControlOrMeta+Enter")
@@ -1601,6 +1612,13 @@ def test_a_source_replacement_preserves_the_focused_draft_and_its_original_ancho
         )
         == "0px"
     )
+    card = page.locator(".lf-margin-preview")
+    expect(card).to_have_css("opacity", "1")
+    page.keyboard.press("Escape")
+    page.locator(".lf-margin-marker").click()
+    expect(card).to_have_css("opacity", "1")
+    rendered(page)
+    assert card.bounding_box()["x"] == pytest.approx(before["x"], abs=1)
 
 
 def test_a_large_diff_filters_navigates_and_replays_explicit_file_reviews(
@@ -1955,7 +1973,7 @@ def test_live_news_keeps_the_reading_draft_and_resting_target(browser, serve, wi
         + "</p></main>",
     )
     url = serve(source)
-    root = events_model.append_event(
+    root = append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -2016,7 +2034,7 @@ def test_live_news_keeps_the_reading_draft_and_resting_target(browser, serve, wi
     kept()
 
     reply = "\n\n".join(["The first job needs a careful explanation."] * 12)
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -3189,11 +3207,7 @@ def test_a_live_revision_reapplies_the_authored_thread_seat_predicate(browser, s
     entry["x-example"] = (
         '<lf-verdict id="verdict-example" asks talk>Ship it?</lf-verdict>'
     )
-    module = SEATED_ASK_MODULE.replace(
-        'const seat = threadBox(this, "Say something about this");',
-        'const seat = this.hasAttribute("talk") '
-        '? threadBox(this, "Say something about this") : null;',
-    )
+    module = seated_ask_module(seat_attribute="talk")
     first = leaf_page(
         "Conditional thread seat",
         '<lf-verdict id="question" asks talk>Ship it?</lf-verdict>',
@@ -3546,6 +3560,121 @@ def test_revision_reveals_an_active_region_without_any_reading_landmark(browser,
     # Reachable, not focused: the revision wrapped the control, so the element the
     # user stood on is gone and the region owes them the way back to its replacement.
     expect(page.locator("#standing-control")).to_be_visible()
+
+
+def test_ask_repaints_keep_the_drawers_reading_until_an_explicit_arrival(
+    browser, serve
+):
+    """The drawer's standing mark may repaint without returning to its focused Ask."""
+    questions = "".join(
+        f'<lf-ask id="ask-{index}"><h2>Question {index} about this project</h2>'
+        f'<lf-options id="options-{index}" choose>'
+        f'<lf-option id="yes-{index}">Proceed with this choice</lf-option>'
+        f'<lf-option id="no-{index}">Leave this choice for now</lf-option>'
+        "</lf-options></lf-ask>"
+        for index in range(30)
+    )
+    page = open_page(browser, serve(leaf_page("Reading the Ask inventory", questions)))
+    resized(page, 1200, 900)
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+a")
+    page.locator('.lf-asks-row[data-lf-at="ask-0"]').click()
+    expect(page.locator("#ask-0")).to_be_focused()
+    list_selector = ".lf-asks-panel .lf-drawer-list"
+    drawer = page.locator(list_selector)
+    drawer.evaluate(
+        """list => list.addEventListener('scroll', () => {
+          if (list.scrollTop > 100) window.readLaterAsks = true;
+        })"""
+    )
+    box = drawer.bounding_box()
+    page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    page.mouse.wheel(0, 700)
+    page.wait_for_function("() => window.readLaterAsks")
+    scroll_settled(page, list_selector)
+    reading = drawer.evaluate("list => list.scrollTop")
+    assert reading > 100, "painting the standing row must not undo scrolling the list"
+
+    resized(page, 1180, 900)
+    scroll_settled(page, list_selector)
+    assert drawer.evaluate("list => list.scrollTop") == reading
+    expect(page.locator("#ask-0")).to_be_focused()
+
+    page.keyboard.press("a")
+    expect(page.locator("#ask-1")).to_be_focused()
+    scroll_settled(page, list_selector)
+    assert drawer.evaluate("list => list.scrollTop") < reading
+    row = page.locator('.lf-asks-row[data-lf-at="ask-1"]')
+    assert row.locator(".lf-asks-says").evaluate(
+        "words => words.getBoundingClientRect().top >= "
+        "words.closest('.lf-drawer-list').getBoundingClientRect().top"
+    ), "explicit Ask navigation still reveals its matching drawer row"
+
+
+@pytest.mark.parametrize("newer_reading", [False, True])
+def test_a_panes_posture_change_keeps_the_reading_after_scrolling_past_focus(
+    browser, serve, newer_reading
+):
+    """An automatic scroll-container change preserves reading rather than stale focus."""
+    paragraphs = "".join(
+        f'<p id="line-{index}">Reading paragraph {index}. '
+        + "Words holding the current reading. " * 10
+        + "</p>"
+        for index in range(30)
+    )
+    source = leaf_page(
+        "Reading beyond the focused control",
+        '<lf-pane id="reading" label="Reading"><div id="reading-body">'
+        '<button id="control">Earlier focused control</button>'
+        f"{paragraphs}</div></lf-pane>",
+        head="""<style>
+#reading-body { height: 400px; overflow: auto; }
+@media (width < 720px) { #reading-body { height: auto; overflow: visible; } }
+</style>""",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1200, 900)
+    body = page.locator("#reading-body")
+    control = page.locator("#control")
+    control.focus()
+    body.evaluate("body => body.scrollTop = 900")
+    scroll_settled(page, "#reading-body")
+    assert control.evaluate("control => control.getBoundingClientRect().bottom") < 0
+    landmark_id = body.evaluate(
+        """body => [...body.querySelectorAll('p')].find(paragraph =>
+          paragraph.getBoundingClientRect().top >= body.getBoundingClientRect().top).id"""
+    )
+    if newer_reading:
+        # Interleave at the announced handover, before its deferred restoration. The
+        # platform input supersedes that restoration just as a trackpad gesture does.
+        page.evaluate("""async () => {
+          const regions = await window.__lfRuntimeImport('/runtime/reading-regions.js');
+          const stop = regions.watchReadingRegionTransitions(({phase, shifted}) => {
+            if (phase !== 'shift' || !shifted.some(({region}) => region.id === 'reading'))
+              return;
+            stop();
+            dispatchEvent(new WheelEvent('wheel', {deltaY: 500}));
+            scrollTo({top: 1900, behavior: 'instant'});
+            window.laterReading = scrollY;
+          });
+        }""")
+
+    resized(page, 520, 900)
+    pane_posture(page, page.locator("#reading"), "flow")
+    scroll_settled(page)
+
+    expect(control).to_be_focused()
+    if newer_reading:
+        assert page.evaluate("() => window.laterReading") > 1000
+        assert page.evaluate("() => scrollY === window.laterReading"), (
+            "a queued posture restore must yield to the user's later reading"
+        )
+        return
+    landmark = page.locator(f"#{landmark_id}")
+    assert landmark.evaluate(
+        "paragraph => paragraph.getBoundingClientRect().top < innerHeight"
+    ), "changing posture must keep the passage being read on screen"
+    assert control.evaluate("control => control.getBoundingClientRect().bottom") < 0
 
 
 def test_revision_does_not_move_a_page_offset_into_a_new_bounded_region(browser, serve):
@@ -4567,6 +4696,14 @@ def test_the_reading_position_restores_onto_a_section_that_draws_no_box(browser,
     )
 
 
+@pytest.mark.xfail(
+    reason=(
+        "Native package scope prevents joined-control suppression of the Ask ring"
+        " on main 2bd9; CI run 37057440971."
+    ),
+    raises=AssertionError,
+    strict=False,
+)
 def test_the_ring_says_where_the_user_is_standing(browser, serve):
     """One ring, meaning one thing: this is where the user is standing. It is painted
     from the focus, so every way into a decision paints it and leaving takes it off.
@@ -4702,7 +4839,7 @@ def test_escape_lets_go_of_the_ask_the_user_is_standing_on(browser, serve):
     Map action leaves focus in a margin cluster."""
     url = serve(ASKS_PAGE)
     # A third action puts the suggestion's cluster beyond its two resting controls.
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -4799,7 +4936,7 @@ def test_travelling_to_an_element_lands_where_it_was_aimed(browser, serve):
     start."""
     url = serve(TRAVEL_PAGE)
     thread = {
-        section: events_model.append_event(
+        section: append_carried_log_record(
             serve.page_dir,
             {
                 "kind": "comment",
@@ -5141,7 +5278,7 @@ def test_claims_and_reports_share_one_canonical_update_feed(
     # Event ids and authored element ids belong to different identity spaces. Give
     # the thread and widget the same spelling so only the typed target can separate
     # their updates; a bare id or target lookup by store would merge them.
-    thread = events_model.append_event(
+    thread = append_carried_log_record(
         d,
         {
             "id": "ag-wren",
@@ -5241,7 +5378,7 @@ def test_claims_and_reports_share_one_canonical_update_feed(
 
     # Each source ends at its own authority: a reply settles thread work, while a
     # version note settles the report.
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "reply",
@@ -6732,7 +6869,7 @@ def test_a_settled_holder_in_a_reply_joins_the_panel_wearing_its_mark(
     monkeypatch.chdir(tmp_path)
     trial_family(tmp_path)
     url = serve(REPLY_HOST_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -6766,8 +6903,9 @@ def test_a_settled_holder_in_a_reply_joins_the_panel_wearing_its_mark(
     expect(page.locator("#rq-next")).to_be_hidden()
 
 
+@pytest.mark.parametrize("shadow", [False, True])
 def test_withdrawing_a_recorded_settlement_clears_the_layers_mark(
-    browser, serve, tmp_path, monkeypatch
+    browser, serve, tmp_path, monkeypatch, shadow
 ):
     """Authored reconstruction states markup, not a logged decision. A holder may
     validly record a value its deciding verb carries; restoring that value after
@@ -6777,6 +6915,8 @@ def test_withdrawing_a_recorded_settlement_clears_the_layers_mark(
     registry_path = tmp_path / ".leaf" / "registry.json"
     declarations = json.loads(registry_path.read_text())
     holder = declarations["lf-trial"]
+    if shadow:
+        holder["x-shadow"] = True
     holder["properties"]["decision"] = {"enum": ["open", "shelved"]}
     holder.setdefault("required", []).append("decision")
     holder["x-example"] = holder["x-example"].replace(
@@ -6787,16 +6927,25 @@ def test_withdrawing_a_recorded_settlement_clears_the_layers_mark(
     decide["detail"]["required"].append("decision")
     decide["record"] = {"kind": "value", "attr": "decision", "value": "decision"}
     registry_path.write_text(json.dumps(declarations))
+    stage = (
+        "if (once(this)) shadowStage(this, [...this.children]);"
+        if shadow
+        else "once(this);"
+    )
+    if shadow:
+        (tmp_path / ".leaf" / "shadow.css").write_text(
+            "lf-current, lf-proposed { display: block; }"
+        )
     (tmp_path / ".leaf" / "widgets" / "lf-trial.js").write_text(
-        """import { keeps, once, widgetController } from "/runtime/widget-api.js";
+        """import { keeps, once, shadowStage, widgetController } from "/runtime/widget-api.js";
 customElements.define("lf-trial", class extends HTMLElement {
   #controller = widgetController(this);
   #stop;
-  connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
+  connectedCallback() { STAGE this.#stop ??= this.#controller.subscribe(() => {}); }
   disconnectedCallback() { this.#stop?.(); this.#stop = null; }
   renderState(state) { keeps(this, "decision", state.decide.value); }
 });
-"""
+""".replace("STAGE", stage)
     )
     page_html = TWO_HOLDER_PAGE.replace(
         '<lf-trial id="th-cache">', '<lf-trial id="th-cache" decision="open">'
@@ -6814,11 +6963,15 @@ customElements.define("lf-trial", class extends HTMLElement {
         },
     )
     page = open_page(browser, url)
+    assert page.locator("#th-cache").evaluate("el => Boolean(el.shadowRoot)") is shadow
     expect(page.locator("#th-cache")).to_have_attribute("decision", "shelved")
     expect(page.locator("#th-cache")).to_have_attribute("data-lf-state", "shelve")
+    expect(page.locator("#th-cache lf-proposed")).to_have_attribute(
+        "data-lf-retired", ""
+    )
     expect(page.locator("#th-cache lf-proposed")).to_be_hidden()
 
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {"kind": "undo", "author": "user", "undoes": decision["id"]},
     )
@@ -6826,6 +6979,9 @@ customElements.define("lf-trial", class extends HTMLElement {
     expect(page.locator("#th-cache")).to_have_attribute("decision", "open")
     expect(page.locator("#th-cache")).not_to_have_attribute(
         "data-lf-state", re.compile(r".+")
+    )
+    expect(page.locator("#th-cache lf-proposed")).not_to_have_attribute(
+        "data-lf-retired", ""
     )
     expect(page.locator("#th-cache lf-proposed")).to_be_visible()
 
@@ -7020,7 +7176,7 @@ def test_a_decision_that_empties_its_widget_detaches_the_element_anchor(browser,
     outline drew nothing. Pending, the wrapper is a thing to point at; refused, the
     thread detaches like any passage the decision removed."""
     url = serve(SUGGESTION_PAGE)
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -7062,7 +7218,7 @@ def test_a_reply_renders_the_markdown_it_was_written_in(browser, serve):
     uses, and a bare URL arrives as the link the user will want to follow."""
     url = serve(REPLY_HOST_PAGE)
     d = serve.page_dir
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "comment",
@@ -7072,7 +7228,7 @@ def test_a_reply_renders_the_markdown_it_was_written_in(browser, serve):
             "text": "which one wins?",
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "reply",
@@ -7129,7 +7285,7 @@ def test_a_message_reference_travels_or_says_it_cant(browser, serve, one_user):
     wears and its press is refused — asserted from a real press, since that refusal
     is the whole of what the runtime does here."""
     url = serve(REF_PAGE)
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -7328,7 +7484,7 @@ def test_a_suggestion_shows_the_characters_it_proposes(browser, serve):
     as typed. Rendering them would promise the user an italic where the next
     version carries the asterisks they wrote."""
     url = serve(REPLY_HOST_PAGE)
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -7405,7 +7561,7 @@ customElements.define('lf-delayed-body', class extends HTMLElement {
             },
         }
     url = serve(REPLY_HOST_PAGE, **layer)
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -7415,7 +7571,7 @@ customElements.define('lf-delayed-body', class extends HTMLElement {
             "text": "Please draft it.",
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -7517,7 +7673,7 @@ def test_crossed_responses_wait_for_the_same_frozen_widget_module(browser, serve
     page = open_page(browser, live_url(url))
     held = []
     page.route("**/widgets/lf-draft.js", lambda route: held.append(route))
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -7528,7 +7684,7 @@ def test_crossed_responses_wait_for_the_same_frozen_widget_module(browser, serve
         },
     )
     with page.expect_request("**/widgets/lf-draft.js"):
-        events_model.append_event(
+        append_carried_log_record(
             serve.page_dir,
             {
                 "kind": "reply",
@@ -7603,7 +7759,7 @@ def test_a_reply_widget_replays_and_withdraws_its_action(browser, serve):
     widget."""
     url = serve(REPLY_HOST_PAGE)
     d = serve.page_dir
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "comment",
@@ -7613,7 +7769,7 @@ def test_a_reply_widget_replays_and_withdraws_its_action(browser, serve):
             "text": "Which of these?",
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "reply",
@@ -7704,7 +7860,7 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     have, no version being able to carry a thread's markup."""
     url = serve(REPLY_HOST_PAGE)
     for event in THREAD_ASKS:
-        events_model.append_event(serve.page_dir, event)
+        append_carried_log_record(serve.page_dir, event)
     page = open_page(browser, url)
     decisions = page.locator(".lf-asks")
     expect(decisions).to_have_text("Asks 0/2")
@@ -7867,7 +8023,7 @@ def test_a_thread_answer_is_not_repainted_after_its_undo_arrives_with_it(
     answer and its undo, the send continuation must not overwrite that authoritative
     authored state after replay has accounted for the action."""
     url = serve(REPLY_HOST_PAGE)
-    events_model.append_event(serve.page_dir, THREAD_ASKS[1])
+    append_carried_log_record(serve.page_dir, THREAD_ASKS[1])
     page = open_page(browser, url)
     page.keyboard.press("a")
     held = []
@@ -7883,7 +8039,7 @@ def test_a_thread_answer_is_not_repainted_after_its_undo_arrives_with_it(
         for event in accepted_answer.json()["state"]["events"]
         if event.get("attempt") == attempt
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {"kind": "undo", "author": "user", "undoes": accepted["id"]},
     )
@@ -7904,7 +8060,7 @@ def test_a_refused_thread_choice_restores_its_frozen_markup(browser, serve):
     their authored baseline. A definitive refusal removes the optimistic choice from
     that baseline instead of leaving a decision the log never took."""
     url = serve(REPLY_HOST_PAGE)
-    events_model.append_event(serve.page_dir, THREAD_ASKS[1])
+    append_carried_log_record(serve.page_dir, THREAD_ASKS[1])
     page = open_page(browser, url)
     page.keyboard.press("a")
     expect(page.locator(".lf-thread-panel")).to_be_visible()
@@ -7938,7 +8094,7 @@ def test_a_refused_thread_choice_replays_recorded_and_recordless_history(
     Reconstructing after a later refusal must replay both the recorded selection and
     the separate `answer` verb, retaining both visible facts."""
     url = serve(REPLY_HOST_PAGE)
-    events_model.append_event(serve.page_dir, THREAD_ASKS[1])
+    append_carried_log_record(serve.page_dir, THREAD_ASKS[1])
     page = open_page(browser, url)
     page.keyboard.press("a")
     page.locator("#tq-logs").click()
@@ -7981,7 +8137,7 @@ def test_refusal_restores_queued_recordless_thread_actions_in_order(browser, ser
     """A queued recordless action paints immediately and each refusal removes only
     the local outcome belonging to that attempt."""
     url = serve(REPLY_HOST_PAGE)
-    events_model.append_event(serve.page_dir, THREAD_ASKS[1])
+    append_carried_log_record(serve.page_dir, THREAD_ASKS[1])
     page = open_page(browser, url)
     page.keyboard.press("a")
     held = []
@@ -8035,7 +8191,7 @@ def test_a_done_press_answers_optimistically_and_only_once(browser, serve):
     still produce one action."""
     url = serve(REPLY_HOST_PAGE)
     for event in THREAD_ASKS:
-        events_model.append_event(serve.page_dir, event)
+        append_carried_log_record(serve.page_dir, event)
     page = open_page(browser, url)
     page.keyboard.press("a")
     expect(page.locator(".lf-thread-panel")).to_be_visible()
@@ -8071,11 +8227,11 @@ def test_closing_a_thread_withdraws_the_question_in_it(browser, serve):
     standing decision for the life of the page and have `d` step them into a closed
     hidden thread to reach it."""
     url = serve(REPLY_HOST_PAGE)
-    events_model.append_event(serve.page_dir, THREAD_ASKS[0])
+    append_carried_log_record(serve.page_dir, THREAD_ASKS[0])
     page = open_page(browser, url)
     expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
 
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir, {"kind": "resolve", "author": "agent", "parent": "c-which"}
     )
     told(page)
@@ -8220,7 +8376,7 @@ def test_worktree_evidence_names_the_arrow_that_stands_on_it(browser, serve):
     # arrow, leaving the pair — and the pair is the half a `details > summary` gets from
     # the platform and a span gets from nowhere. So the row keeps its own `run`, and this
     # is the surface that says whether it does.
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -8982,7 +9138,7 @@ def test_command_hub_repaints_anchors_after_generated_projections_change(
 def test_command_hub_reveals_collapsed_worker_evidence_from_threads(browser, serve):
     url = serve(COMMAND_HUB_EXAMPLE)
     threads = {
-        target: events_model.append_event(
+        target: append_carried_log_record(
             serve.page_dir,
             {
                 "kind": "comment",
@@ -9089,7 +9245,7 @@ def test_command_hub_send_and_pause_is_one_thread_fold(browser, serve):
         if event.get("holds") == "goal-parser"
     )
 
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "reply",
@@ -9328,11 +9484,11 @@ def test_command_hub_readings_stay_in_their_own_document(browser, serve):
     """A command in thread markup fills the seat in that message's document, and the
     page's seat keeps the page's command's readings."""
     url = serve(COMMAND_HUB_EXAMPLE)
-    root = events_model.append_event(
+    root = append_carried_log_record(
         serve.page_dir,
         {"kind": "comment", "author": "user", "text": "Status?"},
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",

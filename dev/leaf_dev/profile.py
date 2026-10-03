@@ -14,7 +14,7 @@ the JS behind each, and JS by self and inclusive time.
 
 Tracing slows the page, so read proportions here and durations from the benchmark.
 Each run's `.trace.json` (DevTools or Perfetto) and `.cpuprofile` land in
-`.tmp/profile/`.
+a separate run directory under `.tmp/profile/`.
 """
 
 import json
@@ -28,6 +28,7 @@ import click
 from leaf_dev import ROOT
 from leaf_dev.bench_latency import SOURCES, TRANSITIONS, served
 from leaf_dev.browser import chrome
+from leaf_dev.harness import run_directory
 
 OUT = ROOT / ".tmp" / "profile"
 RUNS = 3
@@ -161,7 +162,9 @@ def attribute(trace: Path, profile: Profile) -> dict:
     start = keys[-1] if keys else spans[0]["ts"]
 
     # A task or a render step can straddle either end; only its part inside counts.
-    inside = lambda e: min(e["ts"] + e.get("dur", 0), end) - max(e["ts"], start)
+    def inside(e):
+        return min(e["ts"] + e.get("dur", 0), end) - max(e["ts"], start)
+
     tasks = [
         (
             max(e["ts"], start) - start,
@@ -222,12 +225,12 @@ def attribute(trace: Path, profile: Profile) -> dict:
 
 
 @contextmanager
-def recorded(session, browser, name: str, runs: list):
+def recorded(session, browser, name: str, runs: list, out: Path):
     """Profile and trace the page for the life of the block, then attribute it."""
     cdp = session.page.context.new_cdp_session(session.page)
     cdp.send("Profiler.enable")
     cdp.send("Profiler.setSamplingInterval", {"interval": 100})
-    trace = OUT / f"{name}.trace.json"
+    trace = out / f"{name}.trace.json"
     browser.start_tracing(page=session.page, path=str(trace), categories=CATEGORIES)
     cdp.send("Profiler.start")
     try:
@@ -236,7 +239,7 @@ def recorded(session, browser, name: str, runs: list):
         profile = cdp.send("Profiler.stop")["profile"]
         browser.stop_tracing()
         cdp.detach()
-    (OUT / f"{name}.cpuprofile").write_text(json.dumps(profile))
+    (out / f"{name}.cpuprofile").write_text(json.dumps(profile))
     runs.append(attribute(trace, Profile(profile)))
 
 
@@ -249,8 +252,13 @@ def show(runs: list) -> None:
             click.echo(
                 f"  {ms(at):7.1f} ms  task {ms(duration):6.1f} ms  {' | '.join(paths)}"
             )
-    total = lambda key: sum((run[key] for run in runs), Counter())
-    per_run = lambda value: ms(value / len(runs))
+
+    def total(key):
+        return sum((run[key] for run in runs), Counter())
+
+    def per_run(value):
+        return ms(value / len(runs))
+
     render, forced = total("render"), total("forced")
     click.echo(f"\nper run, over {len(runs)} runs")
     click.echo(
@@ -284,7 +292,7 @@ def profile(source: str, transition: str) -> None:
     style, and JS by function. Each run's trace and CPU profile land in
     .tmp/profile/ for DevTools or Perfetto.
     """
-    OUT.mkdir(parents=True, exist_ok=True)
+    out = run_directory(OUT)
     runs = []
     with (
         tempfile.TemporaryDirectory(prefix="leaf-profile-") as scratch,
@@ -294,7 +302,9 @@ def profile(source: str, transition: str) -> None:
         for run in range(RUNS):
             session.open()
             name = f"{source}-{transition}-{run + 1}"
-            session.recording = lambda name=name: recorded(session, browser, name, runs)
+            session.recording = lambda name=name: recorded(
+                session, browser, name, runs, out
+            )
             getattr(session, transition)(run)
     show(runs)
-    click.echo(f"\nfiles in {OUT}")
+    click.echo(f"\nfiles in {out}")

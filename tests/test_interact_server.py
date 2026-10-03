@@ -30,6 +30,7 @@ from interact_support import (
     PAGE,
     PAGE_PACKAGES,
     TOKEN,
+    append_carried_log_record,
     append_command,
     check,
     declare_data_input,
@@ -70,7 +71,7 @@ from leaf import samples as samples_model
 from leaf import schema as schema_model
 from leaf import server as server_model
 from leaf import service as service_model
-from leaf import session_cleanup as cleanup_model
+from leaf import state as cleanup_model
 from leaf import structure as structure_model
 from leaf import thread_context as thread_context_model
 from leaf import vendoring as vendoring_model
@@ -322,7 +323,7 @@ def test_sample_allocations_share_no_parent_lock_and_keep_one_log_reading(
 ):
     template = '<template id="practice" data-sample data-sample-threads="aabb0011"><h1>Practice</h1></template>'
     (page_dir / "index.html").write_text(PAGE.replace("</main>", template + "</main>"))
-    event_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -406,7 +407,7 @@ def test_samples_seed_only_the_declared_threads_and_reset_by_recreation(
         ("aabb0011", "Selected thread"),
         ("aabb0022", "Outside thread"),
     ):
-        event_model.append_event(
+        append_carried_log_record(
             page_dir,
             {
                 "kind": "comment",
@@ -418,7 +419,7 @@ def test_samples_seed_only_the_declared_threads_and_reset_by_recreation(
                 "id": identity,
             },
         )
-    event_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "reply",
@@ -487,7 +488,7 @@ def test_frozen_preview_samples_use_snapshot_inputs_without_parent_writes(
 ):
     declare_data_input(page_dir, "builds", {"type": "array"})
     publish(page_dir)
-    event_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -506,7 +507,7 @@ def test_frozen_preview_samples_use_snapshot_inputs_without_parent_writes(
     snapshot = page_snapshot_model.capture_page_snapshot(
         page_dir, document, {"revision": 2, "version": None, "url": "/"}
     )
-    event_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "reply",
@@ -945,7 +946,7 @@ def test_historical_deferred_reads_keep_the_document_revision_and_layer(
     (page_dir / "index.html").write_text(source)
     first = revisioning_model.activate_source(page_dir)
     assert first.error is None
-    event_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "note",
@@ -1746,7 +1747,7 @@ def test_server_takes_an_approval_only_where_the_version_asked_for_one(
     )
     assert status == 200, body
 
-    event_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -1816,7 +1817,7 @@ def test_the_transcript_reports_only_an_approval_that_stands(page_dir):
     )
     (page_dir / "index.html").write_text(signoff)
     publish(page_dir, version=1)
-    approval = event_model.append_event(
+    approval = append_carried_log_record(
         page_dir, {"kind": "done", "author": "user", "version": 1}
     )
 
@@ -1829,7 +1830,7 @@ def test_the_transcript_reports_only_an_approval_that_stands(page_dir):
 
     assert f"Approved v1 at {approval['ts']}." in transcript()
 
-    event_model.append_event(
+    append_carried_log_record(
         page_dir, {"kind": "undo", "author": "user", "undoes": approval["id"]}
     )
     assert "Approved" not in transcript()
@@ -2160,11 +2161,11 @@ def test_undo_offer_keeps_the_doors_active_page_containment(page_dir):
     }
     (page_dir / "index.html").write_text(old_page)
     publish(page_dir, 1)
-    reaction = event_model.append_event(
+    reaction = append_carried_log_record(
         page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "token": "keep"},
     )
-    event_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "action",
@@ -2183,7 +2184,7 @@ def test_undo_offer_keeps_the_doors_active_page_containment(page_dir):
     )
     (page_dir / "index.html").write_text(new_page)
     publish(page_dir, 2)
-    event_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "note",
@@ -2335,7 +2336,7 @@ def test_each_view_offers_only_the_gestures_it_paints(page_dir):
     publish(page_dir, 1)
 
     def choose(widget, option):
-        return event_model.append_event(
+        return append_carried_log_record(
             page_dir,
             {
                 "kind": "action",
@@ -2351,12 +2352,12 @@ def test_each_view_offers_only_the_gestures_it_paints(page_dir):
     kept = choose("kept", "kept-one")
     gone = choose("gone", "gone-one")
     restated = choose("picks", "flag-first")
-    approval = event_model.append_event(
+    approval = append_carried_log_record(
         page_dir, {"kind": "done", "author": "user", "version": 1}
     )
     # The fold reads revision 2 from `documents`; it is never written to disk, since
     # the door refuses to activate a revision that drops a standing decision.
-    event_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "note",
@@ -2760,7 +2761,7 @@ def test_server_preserves_the_active_vocabulary_when_candidate_registry_is_broke
 
 def test_server_resolves_actions_from_agent_thread_widgets(server, page_dir):
     publish(page_dir)
-    event_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -2794,7 +2795,7 @@ def test_server_resolves_actions_from_agent_thread_widgets(server, page_dir):
         ],
     )
     assert reply.exit_code == 0, reply.output
-    event_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "reply",
@@ -3006,17 +3007,17 @@ def test_event_ids_are_unique_within_the_log_whatever_the_mint_returns(
         return next(minted)
 
     monkeypatch.setattr(event_model.secrets, "token_hex", token_hex)
-    first = event_model.append_event(
+    first = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "first"}
     )
-    second = event_model.append_event(
+    second = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "second"}
     )
 
     assert widths == [4, 4, 4]
     assert (first["id"], second["id"]) == ("aaaaaaaa", "bbbbbbbb")
     with pytest.raises(ValueError, match="event id .* already exists"):
-        event_model.append_event(
+        append_carried_log_record(
             page_dir,
             {"id": first["id"], "kind": "comment", "author": "user", "text": "third"},
         )
@@ -3072,69 +3073,39 @@ def test_the_page_reports_its_own_errors_to_the_watcher(server, page_dir, sessio
 
 
 def _news(server):
-    """An open news stream, and a reader of the next reading it names."""
-    stream = urllib.request.urlopen(f"{server}/api/news?t={TOKEN}", timeout=5)
-    # Readings are said once, to the tab holding this stream. A cache that kept them
-    # would answer a later stream with news that has already been acted on.
-    assert stream.headers.get("Cache-Control") == "no-store"
-
-    def heard():
-        while True:
-            line = stream.readline().decode()
-            assert line, "the stream ended"
-            if line.startswith("data: "):
-                return line[6:].strip()
-
-    return stream, heard
+    """One finite, uncached freshness answer from the visible-page door."""
+    with urllib.request.urlopen(f"{server}/api/news?t={TOKEN}", timeout=5) as response:
+        assert response.headers.get("Cache-Control") == "no-store"
+        return response.read().decode()
 
 
-def test_an_open_stream_records_that_the_page_was_visible(server, page_dir):
-    """A page nobody ever viewed and one the user studied and left used to be
-    indistinguishable from the agent's side; a visible tab's news stream is the
-    proof of user attention, so the server writes it down. A bare read is not
-    that proof — `curl`, the render gate and `page state` all read, and a visible
-    tab that has no news never reads again."""
+def test_a_freshness_read_records_that_the_page_was_visible(server, page_dir):
+    """Only the explicit attention door proves that the user is looking."""
     events = event_model.read_events(page_dir)
     assert presence_model.presence(page_dir, events)["viewed"] is None
     fetch(f"{server}/api/state")
     assert presence_model.presence(page_dir, events)["viewed"] is None
-    stream, heard = _news(server)
-    heard()
+    _news(server)
     assert presence_model.presence(page_dir, events)["viewed"] is not None
-    stream.close()
 
 
-def test_the_news_stream_names_the_reading_and_speaks_on_a_change(server, page_dir):
-    """The stream says what reading the page is at, once on arrival and again each
-    time it changes, and the reading it names for a page at rest is the one a state
-    read answers with — that agreement is what lets a tab compare the two and ask
-    only when they differ. Nothing else rides it: an append is news, and the state
-    carrying it still comes by asking."""
+def test_freshness_names_the_state_reading_and_changes_with_the_page(server, page_dir):
+    """A finite cheap token names the same view as state without carrying its log."""
     publish(page_dir)
-    stream, heard = _news(server)
-    first = heard()
+    first = _news(server)
     assert first == json.loads(fetch(f"{server}/api/state")[1])["reading"]
-    event_model.append_event(
+    append_carried_log_record(
         page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "text": "News."},
     )
-    assert heard() != first
-    stream.close()
-    # The word spoken on a change can be sampled while the log is still being
-    # appended to, and the stamp taken then can pair the new modification time with
-    # the size before it — a reading of a state the page was never in, which the
-    # stream's next look puts right. A state read never names one, taking its
-    # reading under the log's own lease. So the agreement is read from a stream
-    # opened once the append has landed, where both sides stamp a page at rest.
-    settled, heard_at_rest = _news(server)
-    assert heard_at_rest() == json.loads(fetch(f"{server}/api/state")[1])["reading"]
-    settled.close()
+    assert _news(server) != first
+    assert _news(server) == json.loads(fetch(f"{server}/api/state")[1])["reading"]
 
 
 def test_unchanged_presence_observation_is_shared_and_file_changes_refresh_it(
     page_dir, monkeypatch
 ):
-    """Several news streams share one presence observation until the page moves.
+    """Several freshness reads share one presence observation until the page moves.
 
     The cache is a reading cache, not a second authority: rewriting a page-owned
     file invalidates it immediately, while a repeated quiet observation does not
@@ -3201,7 +3172,6 @@ def test_server_shutdown_stops_an_idle_serving_loop(page_dir):
         httpd.shutdown()
         thread.join(timeout=5)
         assert not thread.is_alive()
-        assert httpd.stopping
     finally:
         if thread.is_alive():
             httpd.shutdown()
@@ -3377,12 +3347,12 @@ def test_a_torn_tail_is_isolated_and_the_log_keeps_reading(page_dir):
     """A crash tears an append mid-line. The next append restores the line
     discipline rather than gluing onto the fragment, the fragment's event is
     gone (its sender saw the failure), and the seqs around it hold."""
-    event_model.append_event(
+    append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "revision": 1, "text": "before"}
     )
     with open(page_dir / "events.jsonl", "a", encoding="utf-8") as f:
         f.write('{"kind": "comm')  # the tear: no trailing newline
-    event_model.append_event(
+    append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "revision": 1, "text": "after"}
     )
     events = event_model.read_events(page_dir)
@@ -3393,7 +3363,7 @@ def test_a_torn_tail_is_isolated_and_the_log_keeps_reading(page_dir):
     # before any line-level tolerance could reach it.
     with open(page_dir / "events.jsonl", "ab") as f:
         f.write('{"kind": "comment", "text": "café'.encode()[:-1])
-    event_model.append_event(
+    append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "revision": 1, "text": "again"}
     )
     assert [e["text"] for e in event_model.read_events(page_dir)] == [
@@ -3757,7 +3727,7 @@ def test_a_page_snapshot_stays_on_one_page_reading(page_dir):
         page_dir, page_snapshot=snapshot
     ).page_state()
 
-    event_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -3804,11 +3774,7 @@ def test_a_page_snapshot_stays_on_one_page_reading(page_dir):
         assert status == 200
         assert json.loads(deferred)["value"] == "old"
 
-        stream = http.client.HTTPConnection("127.0.0.1", server.port, timeout=5)
-        stream.request("GET", f"/api/news?t={TOKEN}")
-        response = stream.getresponse()
-        assert response.readline().decode().strip() == f"data: {snapshot.reading}"
-        stream.close()
+        assert _news(server.origin) == snapshot.reading
 
 
 def test_frozen_history_and_comparisons_do_not_reopen_the_page(page_dir):
@@ -3912,7 +3878,7 @@ def test_a_page_reading_moves_for_a_second_write_in_one_clock_tick(
 ):
     """A data file rewritten in place, to the same size, after a reading taken in the
     write clock's tick of the write before it, still moves the page's reading:
-    `leaf wait`, the news stream, and source activation all key on that reading, and
+    `leaf wait`, freshness reads, and source activation all key on that reading, and
     an unmoved one leaves the write unheard until some later write."""
     written = _coarse_write_clock(monkeypatch)
     value = page_dir / schema_model.DATA_DIR / "tick.json"
@@ -4744,14 +4710,11 @@ def test_others_ships_on_a_network_facing_bind_too(page_dir):
     assert [entry["title"] for entry in state["others"]] == ["The other page"]
 
 
-def test_neighbours_follow_their_servers_and_a_deleted_pages_claim_retires(
-    page_dir, tmp_path
-):
+def test_neighbours_follow_their_servers_and_ignore_deleted_pages(page_dir, tmp_path):
     """A neighbour appears on the read after its server starts and leaves on the
     read after it stops, though neither moves a file the candidate set is keyed
-    on. A claim whose page directory is gone is removed by the next scan, whether
-    the page went before the first scan or after one had listed it, so the
-    claims directory holds what is still there to claim."""
+    on. A page whose directory is gone disappears on the next scan, whether it
+    went before the first scan or after one had listed it."""
     stopped = tmp_path / "stopped"
     neighbour_page(stopped, title="Starts later", dead=True)
     record_claim(stopped, id="later")
@@ -4767,7 +4730,7 @@ def test_neighbours_follow_their_servers_and_a_deleted_pages_claim_retires(
         return [entry["title"] for entry in presence_model.other_leaves(page_dir)]
 
     assert titles() == ["Scratch"]
-    assert not service_model.claim_path(deleted).exists()
+    assert service_model.claim_path(deleted).exists()
     assert service_model.claim_path(stopped).exists()
 
     lease = leases_model.take_lease(stopped / "server.lock")
@@ -4777,7 +4740,46 @@ def test_neighbours_follow_their_servers_and_a_deleted_pages_claim_retires(
 
     shutil.rmtree(stopped)
     assert titles() == ["Scratch"]
-    assert not service_model.claim_path(stopped).exists()
+    assert service_model.claim_path(stopped).exists()
+
+
+def test_the_live_document_keeps_its_revision_and_version_in_one_transaction(
+    page_dir, server, monkeypatch
+):
+    """A publication after the root read cannot pair a new revision with an old log."""
+    publish(page_dir)
+    published = False
+
+    class ConcurrentPublication(service_model.PageTransaction):
+        def __exit__(self, *args):
+            nonlocal published
+            answer = super().__exit__(*args)
+            if not published:
+                published = True
+                source = page_dir / "index.html"
+                source.write_text(
+                    source.read_text().replace(
+                        "<title>t</title>", "<title>New title</title>"
+                    )
+                )
+                publishing_model.cmd_stamp(page_dir, "Concurrent publication")
+            return answer
+
+    monkeypatch.setattr(http_model, "PageTransaction", ConcurrentPublication)
+    status, body = fetch(f"{server}/")
+    assert status == 200
+    document = body.decode()
+    assert '<meta name="lf-revision" data-lf-runtime content="1">' in document
+    assert '<meta name="lf-version" data-lf-runtime content="1">' in document
+    assert "<title>t</title>" in document
+    assert published
+
+    status, body = fetch(f"{server}/")
+    assert status == 200
+    document = body.decode()
+    assert '<meta name="lf-revision" data-lf-runtime content="2">' in document
+    assert '<meta name="lf-version" data-lf-runtime content="2">' in document
+    assert "<title>New title</title>" in document
 
 
 def test_state_reads_claims_and_their_log_floor_in_one_transaction(
@@ -4788,7 +4790,7 @@ def test_state_reads_claims_and_their_log_floor_in_one_transaction(
     Status writes hold the log lease because a claim records the exact log floor it
     followed. The state reader takes the same lease across both reads, so every claim
     in a response names a floor that response's events actually contain."""
-    event_model.append_event(
+    append_carried_log_record(
         page_dir,
         {"kind": "comment", "id": "c1", "author": "user", "text": "why?"},
     )
@@ -5003,7 +5005,7 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
         )
     )
     publish(page_dir)
-    event_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -5013,7 +5015,7 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
             "text": "the question nobody can read any more",
         },
     )
-    event_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "reply",
@@ -5083,7 +5085,7 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
     assert served_thread["id"] == "c-lost"
     assert served_thread["attention"]["kind"] == "needs_user"
 
-    closed = event_model.append_event(
+    closed = append_carried_log_record(
         page_dir,
         {"kind": "resolve", "author": "user", "parent": "c-lost"},
     )

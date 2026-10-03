@@ -5,6 +5,7 @@ import re
 from itertools import pairwise
 
 import pytest
+from interact_support import append_carried_log_record
 from leaf import event_log as events_model
 from leaf import interaction_log as interaction_model
 from leaf.render_checks import rendered, wait_until_ready
@@ -392,7 +393,7 @@ def test_packages_and_panel_share_threads_through_gestures_and_authored_content(
             "markup": '<lf-options id="direction" choose><lf-option id="north">North</lf-option><lf-option id="south">South</lf-option></lf-options>',
         },
     ]:
-        events_model.append_event(serve.page_dir, event)
+        append_carried_log_record(serve.page_dir, event)
     page = open_page(browser, url)
     reader = page.locator("#reader")
     expect(reader).to_contain_text("Decision")
@@ -487,7 +488,7 @@ def test_package_thread_widgets_keep_local_filters_and_independent_subscriptions
         layer_widgets={"lf-thread-filter.js": THREAD_FILTER},
     )
     for thread_id, words in [("alpine", "Alpine"), ("bay", "Bay")]:
-        events_model.append_event(
+        append_carried_log_record(
             serve.page_dir,
             {
                 "id": thread_id,
@@ -554,7 +555,7 @@ def test_package_thread_mirrors_share_core_conversation_without_claiming_placeme
         layer_registry={"lf-thread-mirror": THREAD_MIRROR_DECLARATION},
         layer_widgets={"lf-thread-mirror.js": THREAD_MIRROR},
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "id": "shared-thread",
@@ -1487,7 +1488,7 @@ def test_thread_presentation_waits_for_its_frozen_widgets_only(browser, serve):
         }"""
     )
 
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -1497,7 +1498,7 @@ def test_thread_presentation_waits_for_its_frozen_widgets_only(browser, serve):
             "text": "Show the frozen widget.",
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -1508,7 +1509,7 @@ def test_thread_presentation_waits_for_its_frozen_widgets_only(browser, serve):
             "markup": '<lf-local id="thread-local" choice="idle"></lf-local>',
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "action",
@@ -1569,7 +1570,7 @@ def test_thread_presentation_waits_for_its_frozen_widgets_only(browser, serve):
           );
         }"""
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -1579,7 +1580,7 @@ def test_thread_presentation_waits_for_its_frozen_widgets_only(browser, serve):
             "text": "Show another frozen widget.",
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -1629,7 +1630,7 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
         layer_registry=layer,
         layer_widgets=widgets,
     )
-    kept = events_model.append_event(
+    kept = append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -1700,7 +1701,7 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
 
     # Each failed attempt reaches Lit's updated callback, so the candidate count and
     # narrowing have painted before the list owner restores its committed reading.
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -1710,7 +1711,7 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
             "text": "Prepare the frozen widget.",
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -1824,7 +1825,7 @@ def test_a_refused_thread_reading_leaves_a_user_who_moved_on_where_they_went(
         layer_registry=layer,
         layer_widgets=widgets,
     )
-    kept = events_model.append_event(
+    kept = append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -1865,7 +1866,7 @@ def test_a_refused_thread_reading_leaves_a_user_who_moved_on_where_they_went(
           };
         }"""
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -1902,7 +1903,7 @@ def test_a_refused_thread_reading_leaves_a_user_who_moved_on_where_they_went(
 def test_thread_readiness_waits_for_the_keyed_thread_list(browser, serve):
     """The existing thread ticket includes Lit ordering without replacing a card."""
     url = serve(LIVE_V1)
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -2056,7 +2057,7 @@ def test_package_thread_actions_share_core_admission_and_current_availability(
             "text": "I propose one.",
         },
     ]:
-        events_model.append_event(serve.page_dir, event)
+        append_carried_log_record(serve.page_dir, event)
     page = open_page(browser, url)
     actions = page.locator("#actions")
     expect(actions).to_have_attribute("data-resolved", "false")

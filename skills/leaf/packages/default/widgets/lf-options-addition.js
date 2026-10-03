@@ -40,10 +40,14 @@ export class OptionAddition {
     if (!this.#offered) return;
     if (!this.#form) this.#buildForm();
     if (!this.#stopDraftWatch) {
-      this.#stopDraftWatch = watchDraft(this.#context, (value) => {
-        if (!this.#form.isConnected) return this.disconnect();
-        this.#syncInput.load(value ?? "");
-      });
+      this.#stopDraftWatch = watchDraft(
+        this.#context,
+        (value) => {
+          if (!this.#form.isConnected) return this.disconnect();
+          this.#syncInput.load(value ?? "");
+        },
+        { input: this.#input },
+      );
     }
   }
 

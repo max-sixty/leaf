@@ -10,7 +10,7 @@ domains: undo in `events` and widget meaning in `event_meaning`.
 
 from leaf.asks import asking, projected_action_holders, quoted_in
 from leaf.document_reading import read_document
-from leaf.event_log import EventRefused, Refusal
+from leaf.event_log import EventRefused, Refusal, new_event_id
 from leaf.event_meaning import (
     AdmissionReadings,
     admit_widget_event,
@@ -39,12 +39,12 @@ from leaf.registry.schema import schema_error
 from leaf.schema import MESSAGE_KINDS, WIDGET_KINDS
 from leaf.served_state.thread import browser_thread
 from leaf.structure import review_mode
+from leaf.workflows import obligation_reading
 
 # The envelope the append lease itself assigns. Admission validates the complete
-# record, so it supplies placeholders for the three fields that cannot exist
-# until the write: an id proved unique against this log, the moment it landed,
-# and its line number. A caller that supplies one of them is held to the
-# contract's own reading of it.
+# record, so pre-admission shape checks supply representative envelope fields.
+# Semantic admission allocates the real identity before folding the candidate.
+# A caller supplying an envelope field is held to the contract's reading of it.
 APPEND_STAMPED = {"id": "pending", "ts": "pending", "seq": 1}
 
 
@@ -66,9 +66,11 @@ def command_record_schema(contract: dict) -> dict:
         "properties": {
             key: value
             for key, value in schema["properties"].items()
-            if key != "meaning"
+            if key not in {"meaning", "attention"}
         },
-        "required": [key for key in schema["required"] if key != "meaning"],
+        "required": [
+            key for key in schema["required"] if key not in {"meaning", "attention"}
+        ],
     }
 
 
@@ -621,13 +623,41 @@ def admitted_event(view, events: list, event: dict) -> dict:
     kind = event.get("kind")
     if kind not in contracts:
         raise EventRefused(f"kind must be one of {sorted(contracts)}")
+    if "id" not in event:
+        event = {**event, "id": new_event_id(events)}
     readings = AdmissionReadings(view, events, registry)
     if error := admission_error(view, events, event, registry, readings):
         raise EventRefused(error)
     if kind in WIDGET_KINDS:
         event = admit_widget_event(view.document(event["revision"]), event, readings)
-    if error := event_record_error(contracts[kind], {**APPEND_STAMPED, **event}):
+    # Fold only a validated event. Attention is server-owned and boolean by
+    # construction; the placeholder completes the stored shape before that fold.
+    if error := event_record_error(
+        contracts[kind], {**APPEND_STAMPED, **event, "attention": False}
+    ):
         raise EventRefused(f"{kind} event is invalid: {error}")
+    attention = kind in {"report", "error"}
+    if (
+        not attention
+        and event["author"] == "user"
+        and not contracts[kind].get("bookkeeping")
+    ):
+        candidate = {
+            **APPEND_STAMPED,
+            **event,
+            "seq": events[-1]["seq"] + 1 if events else 1,
+        }
+        claims = view.claims
+        # The sender's vocabulary validates its command; the active vocabulary
+        # decides what that command changes for the page the agent owes now.
+        revisions = view.revisions
+        active_registry = view.registry(revisions[-1] if revisions else None)
+        before = AdmissionReadings(view, events, active_registry)
+        after = AdmissionReadings(view, [*events, candidate], active_registry)
+        attention = obligation_reading(before, claims) != obligation_reading(
+            after, claims
+        )
+    event = {**event, "attention": attention}
     return event
 
 

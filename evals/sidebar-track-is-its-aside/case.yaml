@@ -2,12 +2,14 @@
 # in a last `div` (0 of 3); the change put it in an `aside` before the body (2 of 3).
 # Rewritten to a code review's verdict and file list, it also fails a stuck `aside`:
 # base at eee4a2d6d 0 of 3, the change 3 of 3.
-schema_version: '1.0'
-name: sidebar-track-is-its-aside
-description: "A sidebar page: its track is the Layout's `aside`, written where a reader of the stacked page needs it, so a code review's verdict and the list of what it covers come before the body on a phone."
-tags:
-- layout
-execution:
+description: sidebar-track-is-its-aside
+metadata:
+  purpose: 'A sidebar page: its track is the Layout''s `aside`, written where a reader of the stacked
+    page needs it, so a code review''s verdict and the list of what it covers come before the body on
+    a phone.'
+  tags:
+  - layout
+vars:
   prompt: |
     Write a Leaf page for the user: your review of pull request #412, which moves web
     sessions off the Redis cluster `sess-redis-prod` onto Postgres. The review goes
@@ -22,18 +24,20 @@ execution:
 
     The page directory is not reachable from here, so reply with the complete
     `index.html`, rather than writing a file.
-graders:
-- name: loads-leaf
-  type: tool_used
-  tool: Skill
-  input_match: leaf
-- name: reads-page-authoring
-  type: tool_used
-  tool: Read
-  input_match: skills/leaf/references/page-authoring\.md
-- name: judgment
-  type: llm
-  criteria: |
+assert:
+- type: javascript
+  metric: loads-leaf
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/SKILL\.md
+- type: javascript
+  metric: reads-page-authoring
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/references/page-authoring\.md
+- type: llm-rubric
+  metric: judgment
+  value: |
     Read the HTML. Pass only if all of these hold. `main` has class `layout-sidebar`.
     The verdict and the list of areas stand together in an `aside` that is a direct
     child of `main`, and that `aside` comes before the element holding the six areas in

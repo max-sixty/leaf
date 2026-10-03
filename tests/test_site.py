@@ -693,22 +693,35 @@ def test_published_visual_evidence_loads_from_its_page(served_example, browser):
 
 
 def test_a_replaced_ephemeral_server_reloads_the_active_tab(served_example, browser):
-    """A lower sequence from a replacement cannot be applied over vanished state."""
+    """Private record loss must reload even when the finite freshness token repeats."""
     _, url = served_example("triage-board")
     page = open_page(browser, url)
-    with page.expect_navigation(wait_until="load", timeout=10_000):
-        page.evaluate(
-            """async () => {
-                  const client = await window.__lfRuntimeImport("/runtime/layer-client.js");
-                  client.observeSession(new Response(null, {headers: {
-                    "Leaf-Session": "active", "Leaf-Server": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-                  }}));
-                  setTimeout(() => client.observeSession(new Response(null, {headers: {
-                    "Leaf-Session": "active", "Leaf-Server": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-                  }})), 0);
-                }"""
+    page.evaluate("window.__originalDocument = true")
+    reading = page.locator("body").get_attribute("data-lf-reading")
+    replaced = []
+
+    def replacement(route):
+        answer = route.fetch()
+        if replaced:
+            route.fulfill(response=answer)
+            return
+        replaced.append(answer.text())
+        route.fulfill(
+            response=answer,
+            headers={
+                **answer.headers,
+                "leaf-session": "active",
+                "leaf-server": "replacement-private-server",
+            },
         )
+
+    page.route("**/api/news", replacement)
+    with page.expect_navigation(wait_until="load", timeout=10_000):
+        pass
+    page.unroute("**/api/news", replacement)
+    assert replaced == [reading]
     wait_until_ready(page)
+    assert page.evaluate("window.__originalDocument === true") is False
 
 
 def test_a_layer_mismatch_signals_startup_failure_on_window(served_example, browser):
@@ -896,6 +909,7 @@ def test_session_activation_reaches_other_tabs(served_example, browser):
         servers = []
         for page in (leader, follower):
             page.route("**/api/state*", passive_session)
+            page.route("**/registry.json", passive_session)
             response = page.goto(url, wait_until="load")
             assert response
             servers.append(response.header_value("Leaf-Server"))
@@ -910,7 +924,7 @@ def test_session_activation_reaches_other_tabs(served_example, browser):
         leader.evaluate(
             """async server => {
               const client = await window.__lfRuntimeImport("/runtime/layer-client.js");
-              client.observeSession(new Response(null, {headers: {
+              client.admitResponse(new Response(null, {headers: {
                 "Leaf-Session": "active", "Leaf-Server": server
               }}));
             }""",
@@ -920,6 +934,77 @@ def test_session_activation_reaches_other_tabs(served_example, browser):
     finally:
         for page in (leader, follower):
             page.unroute_all(behavior="ignoreErrors")
+
+
+def test_freshness_checks_share_session_identity_without_rebroadcasting(
+    served_example, browser
+):
+    """Learning a private identity wakes peers once; healthy looks stay quiet."""
+    _, url = served_example("triage-board")
+    page = browser.new_page()
+    page.add_init_script(
+        """const post = BroadcastChannel.prototype.postMessage;
+        window.__sessionBroadcasts = [];
+        BroadcastChannel.prototype.postMessage = function(value) {
+          if (this.name === 'leaf-session') window.__sessionBroadcasts.push(value);
+          return post.call(this,value);
+        };"""
+    )
+
+    def passive(route):
+        answer = route.fetch()
+        route.fulfill(
+            response=answer,
+            headers={**answer.headers, "leaf-session": "passive"},
+        )
+
+    looks = []
+
+    def active(route):
+        answer = route.fetch()
+        looks.append(answer)
+        route.fulfill(
+            response=answer,
+            headers={
+                **answer.headers,
+                "leaf-session": "active",
+                "leaf-server": "private-server",
+            },
+        )
+
+    page.route("**/api/state*", passive)
+    page.route("**/registry.json", passive)
+    page.route("**/api/news", active)
+    page.goto(url, wait_until="load")
+    wait_until_ready(page)
+    # An active error envelope still establishes the session and its public reference.
+    # A later successful freshness response first learns the private incarnation.
+    page.evaluate(
+        """async()=>{
+          const client=await window.__lfRuntimeImport('/runtime/layer-client.js');
+          window.__activations=0;
+          document.addEventListener('lf-session-active',()=>window.__activations++);
+          client.admitResponse(new Response('', {status:503, headers:{
+            'Leaf-Session':'active','Leaf-Session-Reference':'239383829012'
+          }}));
+        }"""
+    )
+    page.wait_for_function("window.__sessionBroadcasts.length===2")
+    for _ in range(4):
+        with page.expect_response("**/api/news", timeout=5000):
+            pass
+    assert len(looks) >= 4
+    assert page.evaluate("window.__activations") == 1
+    assert page.evaluate("window.__sessionBroadcasts") == [
+        {"active": True, "server": None},
+        {"active": True, "server": "private-server"},
+    ]
+    assert (
+        page.evaluate(
+            "async()=> (await window.__lfRuntimeImport('/runtime/context.js')).runtime.sessionReference"
+        )
+        == "239383829012"
+    )
 
 
 def test_every_product_route_is_a_live_leaf_page(site, hosted, browser):
@@ -1459,7 +1544,7 @@ def test_a_contained_replay_leaves_the_page_around_it_standing(serve, browser):
     ) == [False, False, False, False]
     assert page.evaluate("() => document.activeElement?.tagName") != "IFRAME"
     # The positive ready edge is where each inner page would open its own news
-    # stream and two-second heartbeat. Hold through that interval: only the outer
+    # freshness checks and two-second heartbeat. Hold through that interval: only the outer
     # page and operable sample own live leases; the passive replays stop after one read.
     page.wait_for_timeout(2_200)
     assert news_frames and not any(

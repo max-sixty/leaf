@@ -4,7 +4,9 @@ import os
 import re
 
 import pytest
+from browser_sources import browser_function
 from interact_support import (
+    append_carried_log_record,
     append_command,
     record_claim,
 )
@@ -12,7 +14,7 @@ from leaf import event_log as events_model
 from leaf import leases as leases_model
 from leaf import service as service_model
 from leaf import session as session_model
-from leaf import session_cleanup as cleanup_model
+from leaf import state as cleanup_model
 from leaf.render_checks import rendered, wait_until_ready
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
@@ -25,12 +27,9 @@ from render_cases_interaction import (
     panel_comment,
 )
 from render_cases_layout import (
-    ACCENT_SWATCH,
     BANNER_ORDER,
     BANNER_WATCH,
-    DEEP_FOCUS,
     DEFINE_BOXES,
-    HERE_SHADOW,
     MANY_ASKS_PAGE,
     NEIGHBOUR,
     NEIGHBOURHOOD,
@@ -80,6 +79,7 @@ from render_harness import (
     any_suggestion_control,
     consume_browser_errors,
     expect_comment_notes,
+    held_frames,
     holding,
     leaf_page,
     nudge,
@@ -2870,7 +2870,7 @@ def test_a_seat_thread_leaves_the_pick_it_is_about_live(browser, serve):
         layer_registry=SEATED_ASK_LAYER,
         layer_widgets=SEATED_ASK_WIDGETS,
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -2909,7 +2909,7 @@ def test_a_marked_element_draws_nothing_under_the_pointer_and_a_complete_row_con
     )
     url = serve(REPLAYED_PAGE)
     for ident in ("approach", "col-doing"):
-        events_model.append_event(
+        append_carried_log_record(
             serve.page_dir,
             {
                 "kind": "comment",
@@ -3016,7 +3016,7 @@ def test_the_poll_leaves_the_banner_where_it_was(browser, serve):
     for what, drive, arrived in [
         (
             "a tenth comment arrives",
-            lambda: events_model.append_event(
+            lambda: append_carried_log_record(
                 d,
                 {
                     "kind": "comment",
@@ -3593,6 +3593,53 @@ def test_leaves_keep_focus_through_reordering_and_choose_a_neighbour_on_removal(
     destination = rows.nth(1).get_attribute("href")
     assert destination is not None and destination.startswith(f"{second_url}/?t=")
     opened_tab(page, destination, lambda: page.keyboard.press("Enter"))
+
+
+def test_a_removed_leaf_hands_focus_on_without_revealing_the_old_reading(
+    browser, serve, other_leaf
+):
+    """A disappearing focused row preserves the later rows reached with the wheel."""
+    page = open_page(browser, serve(LONG_PAGE))
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+l")
+    expect(page.locator(".lf-others-panel")).to_have_class(re.compile(r"\bopen\b"))
+    page.evaluate(
+        "document.querySelector('.lf-others-panel').getAnimations().forEach(a => a.finish())"
+    )
+    page.evaluate(
+        """async () => {
+          const list = document.querySelector('lf-leaves-list');
+          const row = list.model.rows.find(row => !row.self);
+          window.auditLeaves = Array.from({length: 30}, (_,index) => ({
+            ...row, key: `audit-${index}`, href: `${row.href}&audit=${index}`,
+            title: `Live leaf ${index}`,
+          }));
+          await list.present({...list.model, rows: window.auditLeaves});
+        }"""
+    )
+    page.keyboard.press("Home")
+    rows = page.locator("a.lf-others-row")
+    expect(rows.first).to_be_focused()
+    box = page.locator("lf-leaves-list")
+    area = box.bounding_box()
+    assert area is not None
+    page.mouse.move(area["x"] + 50, area["y"] + 100)
+    page.mouse.wheel(0, 700)
+    page.wait_for_function("document.querySelector('lf-leaves-list').scrollTop > 500")
+    scroll_settled(page, "lf-leaves-list")
+    expect(rows.first).to_be_focused()
+    reading = rows.nth(15).bounding_box()
+    assert reading is not None
+    page.evaluate(
+        """async () => {
+          const list = document.querySelector('lf-leaves-list');
+          await list.present({...list.model, rows: window.auditLeaves.slice(1)});
+        }"""
+    )
+    expect(rows.first).to_be_focused()
+    after = rows.nth(14).bounding_box()
+    assert after is not None
+    assert abs(after["y"] - reading["y"]) <= 1
 
 
 def test_a_leaves_clock_change_reopens_only_its_same_epoch_presentation(
@@ -4672,7 +4719,7 @@ def test_a_comment_on_a_scrolling_box_leaves_its_tab_stop_alone(browser, serve):
     expect(diagram).to_have_attribute("tabindex", "0")
     expect_comment_notes(page, "#flow", 0)
 
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -4709,7 +4756,7 @@ def test_a_scroll_box_in_a_panel_reply_takes_the_keyboard(browser, serve):
     two reconciles and hides all of that."""
     url = serve(REPLY_HOST_PAGE)
     d = serve.page_dir
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "comment",
@@ -4723,7 +4770,7 @@ def test_a_scroll_box_in_a_panel_reply_takes_the_keyboard(browser, serve):
     page.locator(".lf-threads-toggle").click()
     page.locator(".lf-thread-summary").first.click()
     page.wait_for_selector(".lf-thread")  # the panel is open and reconciled once
-    events_model.append_event(
+    append_carried_log_record(
         d,
         {
             "kind": "reply",
@@ -4747,6 +4794,53 @@ def test_a_scroll_box_in_a_panel_reply_takes_the_keyboard(browser, serve):
         " return Math.round(viewport.scrollWidth - viewport.clientWidth); }"
     )
     assert scrolls > 0, "this diff fits the panel, so it proves nothing"
+
+
+def test_the_accessibility_audit_reads_exposed_frames_and_their_names(browser, serve):
+    """Hidden documents are absent; exposed documents and frame names are audited."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Frame audit",
+                """<h1>Frame audit</h1>
+<iframe id="hidden-frame" title="Hidden practice" hidden srcdoc="<button></button>"></iframe>
+<iframe title="Hidden from assistive technology" aria-hidden="true" tabindex="-1"
+  srcdoc="<button></button>"></iframe>
+<iframe id="shown-frame" title="Visible practice"
+  srcdoc="<html lang='en'><title>Practice</title><body><main><h1>Practice</h1>
+    <button></button></main></body></html>"></iframe>
+""",
+            )
+        ),
+    )
+    shown = page.locator("#shown-frame")
+    child = shown.element_handle().content_frame()
+    child.evaluate("""async () => {
+      const frame = document.createElement('iframe');
+      frame.id = 'nested-frame';
+      frame.title = 'Nested practice';
+      frame.srcdoc = `<html lang="en"><title>Nested practice</title><body><main>
+        <h1>Nested practice</h1><button></button></main></body></html>`;
+      const loaded = new Promise(resolve => frame.addEventListener('load', resolve, {once:true}));
+      document.body.append(frame);
+      await loaded;
+    }""")
+    violations, _ = serious_axe_violations(page)
+    assert [violation["id"] for violation in violations] == ["button-name"]
+    assert len(violations[0]["nodes"]) == 2, "both exposed documents must be audited"
+
+    child.locator("button").evaluate("button => button.textContent = 'Continue'")
+    child.frame_locator("#nested-frame").locator("button").evaluate(
+        "button => button.textContent = 'Continue'"
+    )
+    shown.evaluate("frame => frame.removeAttribute('title')")
+    violations, _ = serious_axe_violations(page)
+    assert [violation["id"] for violation in violations] == ["frame-title"]
+
+    shown.evaluate("frame => frame.title = 'Visible practice'")
+    violations, report = serious_axe_violations(page)
+    assert violations == [], report
 
 
 def test_the_feature_gallery_has_no_serious_wcag_a_or_aa_violations(browser, serve):
@@ -6062,102 +6156,8 @@ RING_SCOPE_WIDTH = {
 # Focus put back at the document's start. A blur retains the previous sequential
 # navigation position, which would make the opening key sequences depend on the last case.
 RING_FOCUS_START = RELEASE_FOCUS
-# A keyboard stop this sweep has not reached, one it has, or the document boundary.
-# This deliberately waits for no settled geometry: focus paint is synchronous, and the
-# separate sample floor below owns ring geometry. Avoiding a layout-settlement probe at
-# every Tab is what makes a complete native-stop sweep cheap.
-RING_NEW_STOP = f"""() => {{
-  const e = ({DEEP_FOCUS})();
-  if (!e || e === document.body || e === document.documentElement) return "empty";
-  if (window.__lfSeen.has(e)) return "seen";
-  window.__lfSeen.add(e);
-  return "new";
-}}"""
-# A focused sample the user cannot find, or null when they can.
-#
-# Three answers count, because the layer leaves "here" drawn in three ways and every one of
-# them is the user seeing the same thing.
-#
-# The platform's own ring (`outline-style: auto`) is the first and the commonest. Leaf
-# restyles the controls it draws and leaves that ring on the rest — an authored link, a
-# `summary`, a widget's own native control — and replacing it everywhere would be a
-# change to how the product looks rather than a thing this test is owed.
-#
-# The layer's focus ring is the second, on the stop or on an ancestor: a `choose` group
-# takes the ring for the pick mark inside it, whose own rule states `outline: none`
-# exactly so the two do not both draw, and the user sees the group.
-#
-# What this cannot see, said out loud so a green is not read as more than it is. A
-# joined `lf-options` carrying log news — restated, pending, reported — deliberately
-# stands its ring down, because an element takes one outline and the log has claimed it;
-# the layer's own comment (packages/default/theme.css) names the carriers that stand in
-# its place as the washed cell and the key badges, and neither is an outline nor an
-# accent shadow. That is a fifth way of drawing "here" and this reading has no honest
-# test for it: accepting a background would pass every stop on a tinted page. No corpus
-# example reaches the state — none carries `restated`, the one shipped log carries no
-# report, and the samples make no gesture — so nothing here is being excused today. A
-# reading of the wash has to come with the corpus case that shows it.
-#
-# A marked element answers the keyboard with the same named accent ring as any other
-# focusable passage. Its hover and current-thread contours have no focus-ring
-# declaration, so they cannot be mistaken for focus.
-#
-# The band cast as a shadow is the third. The anchored response bar draws it that way —
-# its focused states take the outline off so the field and its choices keep one
-# silhouette — and to a user that is the same ring. It is the sweep's own reading
-# (HERE_SHADOW), so the two halves of this file agree on what an accent shadow ring is
-# rather than each keeping a spelling of it: the earlier one here took any shadow
-# carrying the accent, which a wash or a tinted lift would have satisfied. Read on the
-# stop itself and never on an ancestor, since a card's decorative drop shadow is no
-# answer to where the keyboard is and accepting one from any ancestor would pass every
-# stop on a page with one shadowed box above it.
-#
-# Every colour is resolved through a swatch rather than compared as written, and the
-# accent is resolved twice: `outline-color` serializes as the browser resolved it, and a
-# `color-mix` resolves into a different space than a plain token does, so the ring's
-# `rgb(...)` and the shadow's `color(srgb ...)` are the same colour written two ways and
-# each needs the browser to say so.
-SEEN_STOP = f"""() => {{
-  const e = ({DEEP_FOCUS})();
-  if (!e) return null;
-  const {{ accent, mixed }} = ({ACCENT_SWATCH})();
-  const ringed = (cs) => cs.outlineStyle === 'solid'
-    && cs.outlineWidth === cs.getPropertyValue('--focus-ring-w').trim()
-    && cs.outlineColor === accent;
-  // A box whose own content paints over its outline draws the same ring on a later
-  // pseudo-element instead: the scrolling thread list's frame, a page thread over its
-  // pinned reply row, a code block's host over its sticky notes. That ring is only ever
-  // named, so it answers under the same rule as a named ancestor's outline.
-  const overlaid = (el) => {{
-    const cs = getComputedStyle(el, '::after');
-    return cs.content !== 'none' && ringed(cs)
-      && cs.getPropertyValue('--lf-focus-ring').trim() !== 'none';
-  }};
-  const shown = (el) => {{
-    const cs = getComputedStyle(el);
-    return cs.outlineStyle === 'auto' || ringed(cs);
-  }};
-  // An ancestor answers only for a ring whose rule named it. Every ancestor on this
-  // chain contains the focus by construction, so containing it says nothing; what
-  // separates a ring drawn because the user is here from one drawn for another
-  // reason is that the layer's focus rules say which ring they are and the pointer's
-  // do not. An element mark's contour is the case: it is not a named
-  // outline, so neither answers the keyboard's question for every stop underneath it.
-  const named = (el) =>
-    getComputedStyle(el).getPropertyValue('--lf-focus-ring').trim() !== 'none';
-  if (shown(e) || overlaid(e)) return null;
-  for (let el = e.parentElement ?? e.getRootNode().host ?? null; el;
-       el = el.parentElement ?? el.getRootNode().host ?? null)
-    if ((shown(el) && (getComputedStyle(el).outlineStyle === 'auto' || named(el)))
-        || overlaid(el))
-      return null;
-  if (({HERE_SHADOW})(getComputedStyle(e), accent, mixed) > 0) return null;
-  const cls = typeof e.className === 'string' && e.className.trim()
-    ? '.' + e.className.trim().split(/\\s+/).join('.') : '';
-  return e.tagName.toLowerCase() + (e.id ? '#' + e.id : '') + cls
-    + ' [outline ' + getComputedStyle(e).outlineStyle
-    + ', shadow ' + getComputedStyle(e).boxShadow + ']';
-}}"""
+RING_NEW_STOP = browser_function("focus_rings.js", "newStop", using="control_name.js")
+SEEN_STOP = browser_function("focus_rings.js", "seenStop", using="control_name.js")
 
 
 def test_the_stop_reading_names_a_control_with_nothing_drawn_on_it(browser, serve):
@@ -6961,3 +6961,105 @@ def test_a_closing_layer_hands_the_user_back_to_the_first_place_that_takes_them(
         assert page.evaluate(
             "() => !document.activeElement.matches('#open, #shut, .lf-skip')"
         ), f"{step}: the next Tab did not carry on from the block being read"
+
+
+@pytest.mark.parametrize("new_composer", [False, True], ids=["control", "composer"])
+def test_a_reaction_withdrawal_does_not_take_back_a_newer_place(
+    browser, serve, new_composer
+):
+    """Taking a reaction back ends its response gesture before the log answers it."""
+    source = leaf_page(
+        "A later response",
+        '<h1>Review</h1><section id="first"><h2>First passage</h2>'
+        '<button id="first-control">First control</button></section>'
+        '<div style="height:1500px"></div>'
+        '<section id="later"><h2>Later passage</h2>'
+        '<button id="later-control">Later control</button></section>'
+        '<div style="height:1200px"></div>',
+    )
+    url = serve(source)
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "id": "standing-reaction",
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "token": "keep",
+            "anchor": {"section": "first-control"},
+        },
+    )
+    page = open_page(browser, url)
+    page.locator("#first-control").click()
+    page.keyboard.press("e")
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    page.keyboard.press("1")
+    holding(page, held, 1, "the reaction withdrawal")
+    page.locator("#later-control").click()
+    current = page.locator("#later-control")
+    if new_composer:
+        page.keyboard.press("c")
+        current = page.locator(".lf-fab-input")
+        write(current, "Keep this newer draft")
+    expect(current).to_be_focused()
+    before = page.evaluate("scrollY")
+    held[0].continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+    expect(current).to_be_visible()
+    expect(current).to_be_focused()
+    assert page.evaluate("scrollY") == before
+    if new_composer:
+        expect(current).to_have_js_property("value", "Keep this newer draft")
+    withdrawn = events_model.read_events(serve.page_dir)[-1]
+    assert (withdrawn["kind"], withdrawn["undoes"]) == (
+        "undo",
+        "standing-reaction",
+    )
+
+
+@pytest.mark.parametrize(
+    "newer_control", [False, True], ids=["arrival", "newer-control"]
+)
+def test_a_reference_command_finishes_its_gesture_before_a_newer_control(
+    browser, serve, newer_control
+):
+    """Modal close and command dispatch share one gesture, before another input arrives."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Reference arrival",
+                '<h1>Review</h1><div style="height:1200px"></div>'
+                '<button id="origin">Original control</button>'
+                '<button id="later">Later control</button><div style="height:1000px"></div>',
+            )
+        ),
+    )
+    page.locator("#origin").click()
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+    search = page.get_by_role("combobox", name="Search commands")
+    search.fill("Comment on the control")
+    command = page.get_by_role("button", name="Comment on the control", exact=True)
+    expect(command).to_be_visible()
+    expect(command).to_have_attribute("data-lf-available", "true")
+    with held_frames(page):
+        box = command.bounding_box()
+        assert box is not None
+        page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+        expect(page.locator(".lf-command-reference")).to_be_hidden()
+        if newer_control:
+            box = page.locator("#later").bounding_box()
+            assert box is not None
+            page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+            expect(page.locator("#later")).to_be_focused()
+        before = page.evaluate("scrollY")
+    rendered(page)
+    if newer_control:
+        expect(page.locator("#later")).to_be_focused()
+    else:
+        expect(page.locator(".lf-fab-input")).to_be_focused()
+        expect(page.locator("#origin")).to_have_class(re.compile("lf-projected-mark"))
+    assert page.evaluate("scrollY") == before

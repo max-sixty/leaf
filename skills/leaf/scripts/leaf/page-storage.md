@@ -75,12 +75,20 @@ other page files and the external state listed below.
   `(session, sequence)` identifies duplicates. Large browser records arrive as
   `interaction_part` rows whose `json` fields concatenate in `part` order.
   A tab retains at most 512 pending browser records: when delivery falls behind,
-  it sheds repeated observations first, then older actions only to admit new
+  it sheds resource timings and repeated input observations first, then older actions only to admit new
   actions. New repeated observations yield to pending actions. Sequence gaps show
   where records were lost; a single record too large to fit is marked
   `interaction_omitted`. This is a best-effort diagnostic trace, not an audit
   guarantee: an offline tab closed with unsent data may lose it. The semantic
   event log remains the durable record of accepted decisions.
+
+- `user-views.json` — replaceable per-document browser
+  observations (`user_views.py`). These are author
+  context, not event history or source inputs. They are excluded from page freshness
+  and activation. `conversation-loop.md`, "The user's view", defines the agent reading.
+
+- `user-views.lock` — the independent lock serializing observation writes;
+  excluded from page freshness and activation.
 
 - `data.json` — the contract each external-data source id was first set under.
   `data.py` owns storage and updates.
@@ -94,7 +102,7 @@ other page files and the external state listed below.
   `thread.py` owns response reservations and their release. Every reader loads it
   through `service.read_status`, which reads a missing file as no declaration.
 
-- `waiter.lock` — bare-shell wait lease, present only while held; host sessions instead
+- `waiter.lock` — stable bare-shell wait lease file; host sessions instead
   use `<state-home>/sessions/<session>.wait`. See [session-lifetime.md](session-lifetime.md).
 
 - `viewed.json` — last visible browser attention, written by the server and absent until
@@ -119,12 +127,13 @@ other page files and the external state listed below.
   writes nothing and ends with the page.
 
 - `server.lock` — process-held server lease. `hosting.py` waits for its release on stop,
-  after the server has closed its sockets.
+  after the server has closed its sockets. The file remains after release; its
+  exclusive kernel lock, rather than its existence, proves a live server.
 
 - `<state-home>/claims/` — one atomic claim per resolved page, independent of its page
-  directory, and removed by the first scan that finds that directory gone
-  (`service.claim_records`). [session-lifetime.md](session-lifetime.md) owns claimant
-  identity, release, harness, and lifetime.
+  directory. Scans ignore claims for missing pages; fresh page initialization clears
+  the prior claim under the page lock. [session-lifetime.md](session-lifetime.md) owns
+  claimant identity, release, harness, and lifetime.
 
 ## Revision delivery
 

@@ -19,9 +19,10 @@ builds and CI may discard and reconstruct.
 
 Every reader calls `pinned_assets()`, which fetches on a miss; the command only warms
 the cache, as `wt setup` does. A writer stages its files in a clone and pushes them with
-`publish`, which moves the pin. Both boundaries reconcile the catalog's linked images
-with the complete staged asset set, including previews another writer has published.
-Staging prepares those links for a caller's site validation before publication.
+`publish`, which moves the pin and reconciles the catalog's linked images with the
+complete published asset set, including previews another writer has published.
+Draft site validation consumes derived markup in its own build; staging and refused
+publication leave Leaf's consumers unchanged.
 """
 
 import json
@@ -134,8 +135,8 @@ def clone(staging: Path) -> Path:
     return checkout
 
 
-def update_catalog(checkout: Path) -> None:
-    """Point every linked catalog image at its staged preview's content address.
+def catalog_updates(checkout: Path) -> dict[Path, str]:
+    """Derive changed catalog documents from the selected asset bytes.
 
     The authored catalog selects the routes; unused files in the asset repository
     cannot add entries. Unlinked images retain their authored addresses, and pages
@@ -161,16 +162,14 @@ def update_catalog(checkout: Path) -> None:
             updated += count
         if updated == 0:
             raise RuntimeError(f"{source.stem}: expected one catalog preview")
-    for page, markup in pages.items():
-        if markup != originals[page]:
-            page.write_text(markup, encoding="utf-8")
+    return {page: markup for page, markup in pages.items() if markup != originals[page]}
 
 
 def stage(directory: str, files: dict[str, bytes], staging: Path) -> Path:
     """Clone the asset repository into `staging` with `directory`'s files exactly
     `files`, for a generator to verify before it publishes. Subdirectories are left
-    alone: `examples/media/` sits inside the previews' `examples/`. The catalog's
-    links name these staged bytes before the generator validates its site."""
+    alone: `examples/media/` sits inside the previews' `examples/`. Leaf's catalog,
+    pin and README continue naming published bytes."""
     checkout = clone(staging)
     target = checkout / directory
     target.mkdir(parents=True, exist_ok=True)
@@ -179,18 +178,17 @@ def stage(directory: str, files: dict[str, bytes], staging: Path) -> Path:
             stale.unlink()
     for name, content in files.items():
         (target / name).write_bytes(content)
-    update_catalog(checkout)
     return checkout
 
 
 def publish(checkout: Path, message: str) -> str:
-    """Reconcile catalog links, publish the checkout, and pin Leaf and its README."""
+    """Publish the checkout, then install its pin, README and derived catalog links."""
     repository, _ = specification(ROOT)
-    update_catalog(checkout)
+    updates = catalog_updates(checkout)
     run("git", "add", "-A", cwd=checkout)
     if run("git", "status", "--porcelain", cwd=checkout):
         run("git", "commit", "-m", message, cwd=checkout)
-        run("git", "push", cwd=checkout)
+    run("git", "push", cwd=checkout)
     revision = run("git", "rev-parse", "HEAD", cwd=checkout)
     (ROOT / LOCK).write_text(
         json.dumps({"repository": repository, "revision": revision}, indent=2) + "\n",
@@ -204,6 +202,8 @@ def publish(checkout: Path, message: str) -> str:
         ),
         encoding="utf-8",
     )
+    for page, markup in updates.items():
+        page.write_text(markup, encoding="utf-8")
     return revision
 
 

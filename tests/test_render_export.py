@@ -1786,7 +1786,7 @@ def test_an_export_keeps_utf8(browser, serve, tmp_path):
     source = leaf_page(
         "Café handoff",
         f'<h1>Café handoff</h1><p id="literal">{literal}</p><section id="native-shadow"><template shadowrootmode="open"><p id="shadow-text">Captured shadow text</p></template></section><script id="body-probe" type="module">window.order.push("body");</script>',
-        head='<meta name="parser-probe" content="head"><script id="head-probe" type="module">window.order = [document.querySelector("#head-probe").parentElement.tagName.toLowerCase()];</script>',
+        head='<style>#literal::after {content:"</noscript>";}</style><meta name="parser-probe" content="head"><script id="head-probe" type="module">window.order = [document.querySelector("#head-probe").parentElement.tagName.toLowerCase()];</script>',
     )
     serve(source)
     out = tmp_path / "cafe.html"
@@ -1804,7 +1804,15 @@ def test_an_export_keeps_utf8(browser, serve, tmp_path):
         "Captured shadow text"
     )
     expect(page.locator("#literal")).to_have_text(literal)
+    expect(page.get_by_role("heading", name="Café handoff")).to_have_count(1)
     expect(page.get_by_role("heading", name="Café handoff")).to_be_visible()
+    disabled = browser.new_page(java_script_enabled=False)
+    disabled.goto(out.as_uri(), wait_until="load")
+    expect(disabled.get_by_role("heading", name="Café handoff")).to_have_count(1)
+    expect(disabled.locator("#literal")).to_have_text(literal)
+    expect(disabled.locator("#literal")).to_have_css(
+        "content", '"</noscript>"', pseudo="after"
+    )
 
 
 def test_an_export_without_scripts_keeps_text_layout_and_alt_text(

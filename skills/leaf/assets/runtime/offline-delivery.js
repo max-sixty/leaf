@@ -6,7 +6,7 @@
    data URLs and the import map keep their existing module identity. document.write
    hands the existing composed source to the native parser, including classic scripts,
    import maps and declarative shadow trees; it creates no alternate renderer. */
-(() => {
+window.setTimeout(() => {
   const packageScript = document.querySelector("script[data-lf-export]");
   const exported = JSON.parse(packageScript.textContent);
   const addresses = new Map();
@@ -22,16 +22,17 @@
       character.charCodeAt(0),
     );
     const body =
-      resource.mime === "text/css" ? rebase(new window.TextDecoder().decode(bytes)) : bytes;
+      resource.mime === "text/css"
+        ? rebase(new window.TextDecoder().decode(bytes))
+        : bytes;
     const url = URL.createObjectURL(new window.Blob([body], { type: resource.mime }));
     addresses.set(token, url);
     return url;
   }
   const source = rebase(exported.document);
-  // document.open() is ignored while this parser script executes. Retire the
-  // wrapper's head nodes before the composed head joins the same native parser.
-  document.head.replaceChildren();
+  // Run outside the parser's script nesting: document.open() then retires the
+  // readable outer document before the composed source enters the native parser.
   document.open();
   document.write(source);
   document.close();
-})();
+}, 0);

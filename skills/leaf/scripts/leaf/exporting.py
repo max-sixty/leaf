@@ -277,6 +277,7 @@ def export_document(
         }
     )
     readable = ReadableAssets(inliner.resource)
+    bootstrap = artifact.resources["/runtime/offline-delivery.js"].data.decode()
     fallback = compose_document(
         artifact.html.decode("utf-8"),
         revision,
@@ -288,20 +289,23 @@ def export_document(
         delivery=Delivery(
             address=readable.address,
             inline_stylesheet=readable.stylesheet,
+            html_attributes={"data-lf-export-pending": ""},
+            head=(
+                "<style>[data-lf-export-pending] body {visibility:hidden}</style>"
+                "<noscript><style>[data-lf-export-pending] body {visibility:visible}</style></noscript>"
+                f'<script type="application/json" data-lf-export>{package}</script>'
+                f"<script>{bootstrap}</script>"
+            ),
         ),
-    ).removeprefix(UTF8_BOM)
-    bootstrap = artifact.resources["/runtime/offline-delivery.js"].data.decode()
-    return (
-        (UTF8_BOM if composed.startswith(UTF8_BOM) else "")
-        + '<!doctype html><html><head><meta charset="utf-8">'
-        + "<noscript>"
-        + '<p role="note">This file needs JavaScript to display embedded images, fonts, '
-        + "and recordings. The captured text is shown below.</p>"
-        + fallback
-        + "</noscript>"
-        + f'<script type="application/json" data-lf-export>{package}</script>'
-        + f"<script>{bootstrap}</script></head><body></body></html>"
     )
+    # The readable record is the outer document, not raw text inside a noscript
+    # wrapper: authored noscript elements keep native semantics in both parser modes.
+    body = SourceDocument(fallback).wrapper_tags["body"][1]
+    note = (
+        '<noscript><p role="note">This file needs JavaScript to display embedded '
+        "images, fonts, and recordings. The captured text is shown below.</p></noscript>"
+    )
+    return fallback[:body] + note + fallback[body:]
 
 
 def cmd_export(page_dir: Path, out: Path, version) -> int:

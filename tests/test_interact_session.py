@@ -165,9 +165,9 @@ def codex_loop(monkeypatch):
 
 def codex_start_announcement(process) -> str:
     """Wait for committed CLI output before transferring the fake host lifetime."""
-    assert select.select([process.stdout], [], [], 30)[
-        0
-    ], "Codex start did not report completion"
+    assert select.select([process.stdout], [], [], 30)[0], (
+        "Codex start did not report completion"
+    )
     line = process.stdout.readline()
     assert json.loads(line)["task"] == "codex-thread"
     return line
@@ -7822,9 +7822,9 @@ def test_ack_rearms_the_wait_after_releasing_the_cursor_transaction(
     )
 
     assert files_model.read_json(page_dir / "cursor.json") == {"seq": 1}
-    assert leases_model.lock_is_held(
-        lease_path
-    ), "acknowledgement returned without holding the next wait"
+    assert leases_model.lock_is_held(lease_path), (
+        "acknowledgement returned without holding the next wait"
+    )
     status_before_delivery = (page_dir / "status.json").read_bytes()
     append_carried_log_record(
         page_dir, {"kind": "comment", "id": "c2", "author": "user", "text": "two"}
@@ -8874,9 +8874,9 @@ def test_the_stop_hook_watch_wakes_the_session_only_for_input(
         # The lease is acquired before the initial log snapshot. A comment sent
         # after acquisition can still enter that snapshot as pre-existing input;
         # the first completed pass proves this watch can now read later arrivals.
-        assert initialized.wait(
-            STATED_TIMEOUT
-        ), "the watch never completed its first pass"
+        assert initialized.wait(STATED_TIMEOUT), (
+            "the watch never completed its first pass"
+        )
         assert leases_model.wait_is_live(claimed, "s1")
         return watch
 
@@ -11337,9 +11337,9 @@ def test_a_fresh_init_does_not_delete_a_concurrently_created_pages_claim(
     executor = ThreadPoolExecutor(max_workers=1)
     first = executor.submit(vendoring_model.cmd_init, page)
     try:
-        assert reached_layer.wait(
-            timeout=10
-        ), "the first init never reached its held read"
+        assert reached_layer.wait(timeout=10), (
+            "the first init never reached its held read"
+        )
         second = spawn(
             [*LEAF_COMMAND, "page", "init", page],
             stdout=subprocess.PIPE,

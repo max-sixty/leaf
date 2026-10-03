@@ -49,6 +49,7 @@ from leaf.schema import BROWSER_DIRS, CONTENT_TYPES, SERVED_PATH, VENDORED_FILES
 from leaf.state import fsync_parents
 from leaf.structure import (
     SourceDocument,
+    annotation_mode,
     links_with_rel,
     remote_reference,
     script_kind,
@@ -592,6 +593,7 @@ def _capture_artifact(
     executable = _digest(
         _canonical_json(
             {
+                "annotations": annotation_mode(document),
                 "vocabulary": _digest(
                     _canonical_json(
                         {

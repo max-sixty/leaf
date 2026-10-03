@@ -126,9 +126,12 @@ other page files and the external state listed below.
   it to serialize service changes, re-vendoring, and contract-bearing writes, so it
   writes nothing and ends with the page.
 
-- `server.lock` — process-held server lease. `hosting.py` waits for its release on stop,
-  after the server has closed its sockets. The file remains after release; its
-  exclusive kernel lock, rather than its existence, proves a live server.
+- `server.lock` — process-held serving incarnation lease. Its bytes name the
+  HTTP server's `server_id`; only an exclusive kernel lock with the same identity
+  as the enabled service proves that service is live. Preparation clears retained
+  metadata under a shared lock before taking the exclusive lease, so a private
+  listener cannot advertise a prior incarnation. `hosting.py` waits for release
+  on stop, after sockets close. The stable file remains after release.
 
 - `<state-home>/claims/` — one atomic claim per resolved page, independent of its page
   directory. Scans ignore claims for missing pages; fresh page initialization clears

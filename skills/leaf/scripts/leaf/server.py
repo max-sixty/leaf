@@ -22,11 +22,25 @@ from .state import json_bytes
 
 
 def running_server(page_dir: Path):
-    """The desired service, while a process holds its live-server lease."""
+    """The desired service, while its exact serving incarnation holds the lease.
+
+    A preparation clears old lease metadata before taking an exclusive lock, then
+    names its privately bound HTTP server. Only a matching committed service can
+    appear live, so a retained desired record cannot lend its identity to revival.
+    """
     if not lock_is_held(page_dir / SERVER_LOCK):
         return None
     service = read_json(page_dir / SERVICE_FILE)
     if not service or not service["enabled"]:
+        return None
+    incarnation = service.get("server_id")
+    if not isinstance(incarnation, str) or not incarnation:
+        return None
+    try:
+        held_incarnation = (page_dir / SERVER_LOCK).read_bytes()
+    except FileNotFoundError:
+        return None
+    if held_incarnation != incarnation.encode():
         return None
     return {
         **service,

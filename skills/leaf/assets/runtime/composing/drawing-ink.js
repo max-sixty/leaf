@@ -1,15 +1,13 @@
-/* Passive replay of user drawings.
+/* Native drawing ink, independent of saved annotation presentation.
  *
- * Gesture capture supplies the active and draft drawings. Thread presentation
- * supplies threads and readonly anchor placement. This module owns only SVG paint,
- * retained node identity, resize observation, and its scheduled geometry refresh.
+ * The supplied reading names current drawings and their targets. This owner alone
+ * reconciles SVG nodes, anchors their frames, observes their geometry and schedules
+ * repaint. Every repaint rereads its producers, including active pointer strokes and
+ * unsent drafts. Optional saved ink joins the same reading without another layer,
+ * cache or observer; a page without that producer still draws its live gestures.
  *
- * Each mark is fixed and anchored (CSS anchor positioning) to the box its target
- * anchors through, or to `main` for a drawing on the page as a whole, with its frame
- * written as insets from that anchor. The browser carries it through every scroll that
- * moves the anchor, a fixed box adds nothing to the document's scrollable overflow
- * however far a stroke reaches, and a repaint after a scroll finds every mark's
- * description unchanged and keeps the node it has.
+ * Fixed, CSS-anchored marks follow their source through scroll without extending the
+ * document's overflow. Equal complete descriptions retain the actual SVG node.
  */
 
 import { cancelRender, nextRender, sizeObserver } from "../rendering.js";
@@ -18,7 +16,6 @@ import { shownBox } from "../geometry.js";
 import { atLayoutPrecision } from "../keeps.js";
 import { el } from "../widget-elements.js";
 import { anchorElement, anchorName } from "../anchor-names.js";
-import { targetElement, targetPlace } from "../resolved-target.js";
 import { validDrawing } from "./drawing-record.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -60,11 +57,10 @@ function pathFor(data) {
   return path;
 }
 
-export function createDrawingPaint({ anchors, activeDrawing, draftDrawings }) {
-  // The ordinary thread is the accessible and interactive representation of this paint.
+export function createDrawingInk({ drawings }) {
+  // The draft or ordinary Thread is the accessible representation of its ink.
   const layer = el("div", "lf-ui lf-drawings lf-page-paint");
   layer.setAttribute("aria-hidden", "true");
-  let lastThreads = [];
   let paintFrame = 0;
   let mounted = new Map();
   let mounting = new Map();
@@ -127,37 +123,15 @@ export function createDrawingPaint({ anchors, activeDrawing, draftDrawings }) {
     return svg;
   }
 
-  function paint(threads = lastThreads) {
-    lastThreads = threads;
+  function paint() {
     const nextObserved = new Set();
     const marks = [];
     mounting = new Map();
-    for (const thread of threads) {
-      if (thread.resolved || !thread.root.drawing) continue;
-      const place = thread.root.anchor ? anchors.placedAt(thread.id) : null;
-      if (thread.root.anchor && (!place || place.status === "outdated")) continue;
-      const target = targetElement(place) ?? targetPlace(place);
-      const painted = mark(thread.root.drawing, target, "lf-drawing-posted", thread.id);
+    for (const { drawing, target, className, id } of drawings()) {
+      const painted = mark(drawing, target, className, id);
       if (painted) {
         marks.push(painted);
         if (target) nextObserved.add(target);
-      }
-    }
-
-    const active = activeDrawing();
-    if (active) {
-      const painted = mark(active.drawing, active.target, "lf-drawing-active");
-      if (painted) {
-        marks.push(painted);
-        if (active.target) nextObserved.add(active.target);
-      }
-    } else {
-      for (const draft of draftDrawings()) {
-        const painted = mark(draft.drawing, draft.target, "lf-drawing-pending");
-        if (painted) {
-          marks.push(painted);
-          if (draft.target) nextObserved.add(draft.target);
-        }
       }
     }
 
@@ -191,7 +165,6 @@ export function createDrawingPaint({ anchors, activeDrawing, draftDrawings }) {
     observed.clear();
     mounted.clear();
     mounting.clear();
-    lastThreads = [];
     layer.replaceChildren();
   }
 

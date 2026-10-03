@@ -70,9 +70,9 @@
    pass owns refresh, clocks, contribution updates and print deferral; local geometry
    gestures request that same pass. Mount binds the overlay's mechanical lifecycle. */
 
-import { atScrollEnd, scrollToEnd } from "./scrolling.js";
-import { afterScript, cancelRender, nextRender } from "./rendering.js";
-import { labelWords, spokenSubject } from "./contribution-model.js";
+import { atScrollEnd, scrollToEnd } from "/runtime/scrolling.js";
+import { afterScript, cancelRender, nextRender } from "/runtime/rendering.js";
+import { labelWords, spokenSubject } from "/runtime/contribution-model.js";
 import {
   THREAD_CARD,
   layoutMarginRows,
@@ -95,7 +95,7 @@ import {
   syncContributionSelection,
   syncContributionTurn,
   syncContributionUnread,
-} from "./contribution-controls.js";
+} from "/runtime/contribution-controls.js";
 import {
   entryEngaged,
   choosePrimary,
@@ -115,11 +115,11 @@ import {
   unreadIn,
   readingContext,
   clusterProjection,
-} from "./margin-model.js";
+} from "/runtime/margin-model.js";
 
-import { mapButton } from "./page-map-dialog.js";
+import { mapButton } from "/runtime/page-map-dialog.js";
 
-import { pointBand } from "./pointed-place.js";
+import { pointBand } from "/runtime/pointed-place.js";
 import {
   declareRelease,
   focusDestination,
@@ -127,13 +127,13 @@ import {
   holdFocus,
   letGo,
   placeChrome,
-} from "./focus.js";
-import { TEXT_FIELD } from "./control-selectors.js";
-import { closeControl, el, offer } from "./widget-elements.js";
-import { keeps, keepsHidden, keepsText, layoutPx } from "./keeps.js";
-import { setChildren } from "./dom-children.js";
-import { PRESS } from "./keyboard/bindings.js";
-import { beginWalk, listWalkPosition, rowWalk } from "./walk-position.js";
+} from "/runtime/focus.js";
+import { TEXT_FIELD } from "/runtime/control-selectors.js";
+import { closeControl, el, offer } from "/runtime/widget-elements.js";
+import { keeps, keepsHidden, keepsText, layoutPx } from "/runtime/keeps.js";
+import { setChildren } from "/runtime/dom-children.js";
+import { PRESS } from "/runtime/keyboard/bindings.js";
+import { beginWalk, listWalkPosition, rowWalk } from "/runtime/walk-position.js";
 
 import {
   containingReadingRegionFor,
@@ -141,37 +141,32 @@ import {
   readingRegionFor,
   registerReadingRegion,
   shownRegionBounds,
-} from "./reading-regions.js";
+} from "/runtime/reading-regions.js";
 
-import { focused, keys, paintKeys } from "./keyboard/scopes.js";
-import { pageCommand, pageRung, pageScope } from "./keyboard/register.js";
-import { declareOffFlowSurface } from "./off-flow.js";
-import {
-  annotationsHidden,
-  setAnnotationsHidden,
-  watchAnnotations,
-} from "./annotation-layer.js";
-import { repaint } from "./repaint.js";
-import { chromeRoot } from "./chrome.js";
-import { versionBtn } from "./version-picker.js";
-import { motion, scrollBehavior } from "./motion.js";
-import { declareSide, placeOf } from "./standing-target.js";
-import { closestAcross, inChrome } from "./passages.js";
-import { visualAt } from "./anchor-resolution.js";
-import { paintTrace } from "./target-paint.js";
+import { focused, keys, paintKeys } from "/runtime/keyboard/scopes.js";
+import { pageRung, pageScope } from "/runtime/keyboard/register.js";
+import { declareOffFlowSurface } from "/runtime/off-flow.js";
+import { annotationsHidden, watchAnnotations } from "./annotation-layer.js";
+import { repaint } from "/runtime/repaint.js";
+import { chromeRoot } from "/runtime/chrome.js";
+import { versionBtn } from "/runtime/version-picker.js";
+import { motion, scrollBehavior } from "/runtime/motion.js";
+import { declareSide, placeOf } from "/runtime/standing-target.js";
+import { closestAcross, inChrome } from "/runtime/passages.js";
+import { visualAt } from "/runtime/anchor-resolution.js";
+import { paintTrace } from "/runtime/target-paint.js";
 
-import { allThreads } from "./thread/state.js";
-import { threadNames, turns } from "./thread/model.js";
-import { whenDocumentPresented } from "./semantic-state.js";
+import { allThreads } from "/runtime/thread/state.js";
+import { threadNames, turns } from "/runtime/thread/model.js";
+import { whenDocumentPresented } from "/runtime/semantic-state.js";
 
-import { notice } from "./notifications.js";
-import { iconElement } from "./icons.js";
-import { claimed, showHeld } from "./thread/surfaces.js";
-import { anchorLabel } from "./thread/messages.js";
+import { iconElement } from "/runtime/icons.js";
+import { claimed, revealHeld } from "/runtime/thread/surfaces.js";
+import { anchorLabel } from "/runtime/thread/messages.js";
 import { createMarginClusterViews } from "./margin-cluster-view.js";
 
-import { bannerControlDoor } from "./banner-toolbar.js";
-import { coarsePointer } from "./pointer.js";
+import { bannerControlDoor } from "/runtime/banner-toolbar.js";
+import { coarsePointer } from "/runtime/pointer.js";
 import {
   COMMENT_GAP,
   cardMeasure,
@@ -180,15 +175,15 @@ import {
   commentPlacement,
   makeRoom,
 } from "./comment-placement.js";
-import { shownExtent, shownParts, shownRect, skipped } from "./geometry.js";
-import { union } from "./rect.js";
-import { passageGeometry } from "./resolved-target.js";
+import { shownExtent, shownParts, shownRect, skipped } from "/runtime/geometry.js";
+import { union } from "/runtime/rect.js";
+import { passageGeometry } from "/runtime/resolved-target.js";
 import { floatingPlacement, floatingUi, heldByWindow } from "./floating.js";
-import { placeKeeper } from "./user-place.js";
+import { placeKeeper } from "/runtime/user-place.js";
 
-import { under } from "./shadow.js";
-import { retainUserIntent } from "./user-intent.js";
-import { threadFocusDestination } from "./thread/focus.js";
+import { under } from "/runtime/shadow.js";
+import { retainUserIntent } from "/runtime/user-intent.js";
+import { threadFocusDestination } from "/runtime/thread/focus.js";
 
 // A margin card's reply box.
 const REPLY_BOX = `.lf-thread-reply ${TEXT_FIELD}`;
@@ -1281,16 +1276,6 @@ export function createMarginProjection({
     },
     { capture: true },
   );
-  function toggleAnnotations() {
-    setAnnotationsHidden(!annotationsHidden());
-    notice(
-      !annotationsHidden()
-        ? "Annotations shown"
-        : coarsePointer.matches
-          ? "Annotations hidden"
-          : "Annotations hidden. o shows them",
-    );
-  }
   watchAnnotations((hidden) => {
     if (hidden) {
       const holding = closestAcross(document.activeElement, ".lf-margin-cluster");
@@ -1303,15 +1288,6 @@ export function createMarginProjection({
     revealHost(null);
     renderAnnotations.refresh();
     repaint();
-  });
-  pageCommand({
-    id: "annotations.toggle",
-    keys: ["o"],
-    does: "Hide or show the annotations drawn over the page",
-    line: () => (annotationsHidden() ? "show annotations" : "hide annotations"),
-    // A pin covers the corner of its block, and a finger has no `o` to clear it.
-    touch: () => (annotationsHidden() ? "Show annotations" : "Hide annotations"),
-    run: toggleAnnotations,
   });
 
   let marginKeysAvailable = false;
@@ -2228,8 +2204,17 @@ export function createMarginProjection({
     // A thread a widget holds out of its flow, so as to move nothing the user reads,
     // has this marker for its notice: pressing it shows the thread where the widget
     // draws it, and lands the user there (thread/held-news.js).
-    if (showHeld(choice.items.map((item) => sourceItem(item).thread.id))) {
-      closePreview();
+    const intent = retainUserIntent();
+    const held = revealHeld(choice.items.map((item) => sourceItem(item).thread.id));
+    if (held) {
+      intent.handoff(closePreview);
+      void held.presented.then(() =>
+        openPageThread(held.id, {
+          focus: "thread",
+          travel: false,
+          intent,
+        }),
+      );
       return;
     }
     togglePinned(entry, button);

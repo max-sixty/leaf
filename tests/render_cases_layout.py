@@ -1259,7 +1259,7 @@ def live_leaf(tmp_path, monkeypatch):
         )
         # Use the durable server's maintenance loop: the row remains canonical
         # even while no browser has visited this neighboring page.
-        url, _ = hosting_model.start_server(d, standing=True)
+        url = hosting_model.start_server(d, standing=True).url
         served.append(d)
         return url.split("?")[0].rstrip("/"), d
 

@@ -103,6 +103,7 @@ export function mountSample(
     const parent = frame.parentNode;
     const next = frame.nextSibling;
     frame.remove();
+    delete frame.lfShowThread;
     frame.removeAttribute("src");
     frame.removeAttribute("srcdoc");
     discardPageStorage(previous);
@@ -145,6 +146,7 @@ export function mountSample(
   const host = {
     ready: null,
     reset,
+    showThread: (id, options) => frame.lfShowThread(id, options),
     destroy() {
       if (closing) return closing;
       destroyed = true;

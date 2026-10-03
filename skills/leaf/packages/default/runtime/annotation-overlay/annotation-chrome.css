@@ -1,0 +1,210 @@
+/* Physical annotation overlays, adopted only by the overlay renderer.
+ * Shared controls, Aim, target trace and drawing capture remain in chrome.css.
+ * This sheet owns persistent target contours, smart margin rows, floating response
+ * placement and the contextual Thread preview; importing page chrome needs none of it. */
+
+body.lf-over-mark { cursor: pointer; }
+/* An element holding threads draws no contour at rest: its margin entry says so, and a
+   box means "this, now". A contour appears for a moment — a draft on it, the pointer
+   on its row in Threads, the thread the user stands in — and is one hollow line.
+   Unlike a text highlight, an element mark is projected above everything the target
+   draws, so any interior paint can obscure the target's own words or picture. The
+   target painter keeps the contour above those descendants; the declarations below
+   are the no-JS fallback. The element still takes a press that opens its thread. */
+.lf-mark-el { cursor: pointer; }
+/* The annotation layer hidden (`o`): the element's threads are out of reach, so the
+   hand that promises one goes too, while a gesture's own contour stays. */
+:root[data-lf-annotations="hidden"]
+  .lf-mark-el:not(.lf-pending, .lf-mark-here, :focus-visible, .lf-focus-visible) {
+    cursor: auto; }
+/* The draft's own element uses the accent contour. An open composer is on screen
+   whenever this is. */
+.lf-mark-el.lf-pending { outline: 2px solid var(--accent); outline-offset: -2px;
+  cursor: auto; }
+/* The pointer on the thread's row in Threads and the current thread use one accent
+   contour. Keyboard focus is the distinct state that earns a complete outer ring. */
+.lf-mark-el.lf-mark-hover { outline: 2px solid var(--accent); outline-offset: -2px; }
+.lf-mark-el:not(.lf-projected-mark):is(:focus-visible, .lf-focus-visible) {
+  outline: var(--focus-ring);
+  --lf-focus-ring: passage-focus; outline-offset: 2px; }
+/* The thread the user stands in draws the same accent contour. Focus on the element
+   itself is the separate outer ring above. */
+.lf-mark-el.lf-mark-here { outline: 2px solid var(--accent); outline-offset: -2px; }
+/* Armed, a press on a thread-marked element is the aim's, not the thread's, so the
+   hand here is the aim's answer rather than the thread's: it stands where the aim has
+   an item and comes off where it hasn't, which is the same promise the body is making
+   and not the mark's own "open this thread". */
+body:is(.lf-aiming, [data-lf-design-mode]) .lf-mark-el { cursor: default; }
+body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: pointer; }
+/* The chrome layer projects every element mark above the element's own descendants,
+   so source paint would duplicate it. */
+:is(.lf-mark-el, .lf-action-target).lf-projected-mark {
+  outline: none;
+}
+
+@scope (.lf-chrome) {
+  /* The hand only where the press lands. An element anchor draws its contour
+     wherever its element stands, the layer's own parts included — that is what lets
+     a design comment about the banner point at the banner, and a thread about a
+     question an agent asked in a reply point at the question. What the mark may
+     not do here is offer the hand: markAt refuses a press inside this container on
+     purpose, because what the container holds keeps its own presses — the Threads
+     button opens the panel, an option takes a pick, and neither opens a thread. So
+     the contour goes on saying which element, and stops promising a click nothing
+     takes. Scoped rather than written at document level, where it would widen the
+     shared vocabulary by this container's own class. Design mode's rules outside
+     outrank this at a weight it cannot reach and draw the arrow here too, which is
+     the same answer arrived at twice: the aim never lands in the chrome (isAddressable), so
+     the hand it promises is not one this mark could offer either. */
+  .lf-mark-el { cursor: auto; }
+  /* The rail cannot trap a raised item below the page paint it summons. Only the item
+     under pointer or focus crosses that paint; the full-page toolbar stays at rest. */
+  .lf-margin-projection { z-index: auto; }
+  .lf-margin-cluster:is(:hover, :focus-within) { z-index: var(--lf-z-margin-raised); }
+  /* A pane's lane is a stacking context of its own (its clip makes it one), so the lane
+     rises with the row the pointer or the keyboard is on. */
+  .lf-margin-lane:has(.lf-margin-cluster:is(:hover, :focus-within)) {
+    z-index: var(--lf-z-margin-raised); }
+  /* Placement fits the finished thread before typing. Only the editor paints; the
+     transparent header/reply slots neither take document flow nor intercept presses. */
+  .lf-fab-bar:not([data-lf-target-only], [data-lf-presentation="inline"]) {
+    box-sizing: border-box;
+    min-width: min(var(--thread-card-min), var(--lf-float-w, 100vw));
+    max-width: min(var(--lf-float-w, calc(100vw - 16px)), var(--thread-card));
+    padding: var(--lf-comment-frame-top) calc(var(--lf-comment-inset) + 1px)
+      var(--lf-comment-frame-bottom);
+    pointer-events: none;
+  }
+  .lf-fab-bar > * { pointer-events: auto; }
+  .lf-fab-bar { position: fixed; width: max-content;
+    align-items: flex-end; gap: 4px; white-space: nowrap;
+    max-width: var(--lf-float-w, calc(100vw - 16px)); }
+  .lf-fab-bar[data-lf-margin-raised] { display: none !important; }
+  /* A floating surface anchored in the page's plane (floating.js) shows wherever its
+     placement puts it, its anchor scrolled away or not. */
+  :is(.lf-fab-bar, .lf-margin-preview) { position-visibility: always; }
+  .lf-fab-bar { --lf-response-min-width: 216px; }
+  .lf-fab-bar:not([data-lf-presentation="inline"]) .lf-compose-field {
+    min-width: var(--lf-response-min-width); }
+  .lf-visual-marks { display: contents; }
+  /* Every projected state is a moment (anchor-paint.js), drawn as one accent contour;
+     an action's target alone keeps the hairline. */
+  .lf-visual-mark { position: absolute; display: none; pointer-events: none;
+    --lf-shape-ink: var(--accent); --lf-shape-stroke: var(--focus-ring-w);
+    border: var(--focus-ring-w) solid var(--accent);
+    /* This layer is above the target's children. Keep its interior physically unable
+       to paint over them, including under package and page-local theme rules. */
+    background: none !important; }
+  .lf-visual-mark.lf-visual-mark-action:not(.lf-visual-mark-pending,
+      .lf-visual-mark-hover, .lf-visual-mark-focus, .lf-visual-mark-here) {
+    --lf-shape-stroke: 1px; border-width: 1px; }
+  .lf-visual-mark.lf-shaped { border: 0; border-radius: 0 !important; }
+  .lf-visual-mark-shape { display: block; width: 100%; height: 100%; overflow: hidden; }
+  .lf-fab-bar:not([data-lf-presentation="inline"]) .lf-composer-media {
+    flex: 0 1 auto; min-width: 42px; }
+  /* margin-projection.js writes the width and height cap the card's placement gives it
+     (comment-placement.js); these are the fallbacks for a card no placement has sized
+     yet, so only they are held to the viewport. The selected thread's transcript is
+     the card's reading scroller; metadata and reply stand outside it. Anchored to what
+     it is about, it moves with the words (floating.js), and passes under the banner
+     and the bottom bar the way they do. Its insets are its placement's alone:
+     floating.js writes the edges that hold it and clears the others, so an edge the
+     stylesheet set would stretch a card held by its foot. */
+  .lf-margin-preview { position: fixed;
+    z-index: var(--lf-z-margin-preview);
+    /* As wide as its thread, between the bounds its placement gives it
+       (margin-projection.js, `placeThreadPreview`). */
+    width: max-content;
+    min-width: var(--lf-thread-min-width, 0);
+    max-width: var(--lf-thread-width, min(var(--thread-card), calc(100vw - 16px)));
+    max-height: var(--lf-thread-max-height,
+      calc(100vh - var(--lf-banner-h) - 16px));
+    box-sizing: border-box; overflow: hidden; scroll-padding-block: var(--focus-ring-room);
+    margin: 0; padding: var(--lf-comment-inset);
+    border: 1px solid var(--border-2); border-radius: 10px;
+    background: var(--paper); color: var(--ink); box-shadow: 0 12px 36px var(--shade); }
+  .lf-margin-preview:not([hidden]) { display: flex; flex-direction: column; }
+  /* Open before its first placement lands (margin-projection.js, `placeThreadPreview`),
+     the card has no spot yet, so it is not seen or pressed where it happens to lie. */
+  .lf-margin-preview:not([data-lf-thread-placement]) { opacity: 0; pointer-events: none; }
+  /* The card is the thread's one frame. The thread fills it with no ground or ring of its
+     own, so the keyboard standing on the thread rings the card: the ring takes the
+     card's edge in place of its border, inset, since the card stands over the page and
+     nothing outside it is free. It used to ring and tint the thread 13px inside the
+     card's own border, a frame in a frame with the reply field a third box inside
+     that. The reply field keeps its box, since that is the thing typed into. The ring is
+     still the thread's (shadow.css names it page-thread); the card only carries it. */
+  .lf-margin-preview:has(.lf-page-thread:is(:focus-visible, .lf-focus-visible)) {
+    outline: var(--focus-ring); --lf-focus-ring: page-thread;
+    outline-offset: calc(-1 * var(--focus-ring-w)); }
+  /* A newly submitted message keeps its editor's wrapping measure and viewport.
+     Receipt updates preserve these mechanical dimensions until the card is put away. */
+  .lf-margin-preview[data-lf-comment-frame] {
+    width: min(var(--lf-comment-width), var(--lf-thread-width));
+  }
+  .lf-margin-preview[data-lf-comment-frame] .lf-msg:first-of-type > .lf-msg-body {
+    box-sizing: border-box; width: min(100%, calc(var(--lf-comment-message-width) - var(--lf-thread-text-inset)));
+    max-height: var(--lf-comment-message-height); overflow-y: auto; margin-top: var(--lf-comment-body-gap);
+    padding-block: var(--lf-comment-text-pad-block);
+    padding-inline: 0 var(--lf-comment-text-pad-end);
+  }
+  .lf-margin-preview[data-lf-comment-frame] .lf-msg:first-of-type > .lf-msg-body > .lf-msg-text > p {
+    font: inherit; white-space: break-spaces; overflow-wrap: anywhere;
+    margin-block: 1lh;
+  }
+  .lf-margin-preview[data-lf-comment-frame] .lf-msg:first-of-type > .lf-msg-body > .lf-msg-text > p:first-child { margin-top: 0; }
+  .lf-margin-preview[data-lf-comment-frame] .lf-msg:first-of-type > .lf-msg-body > .lf-msg-text > p:last-child { margin-bottom: 0; }
+  .lf-margin-preview-close { flex: none; }
+  .lf-margin-preview-nav { display: flex; flex: none; align-items: center;
+    gap: 0; color: var(--muted-2); font-size: 10px; }
+  .lf-margin-preview-nav[hidden] { display: none; }
+  .lf-margin-preview-position { white-space: nowrap; }
+  .lf-margin-preview-step { border: 0;
+    background: transparent; color: var(--muted); }
+  .lf-margin-preview-step:first-child > .lf-action-icon { inset-inline-start: 4px; }
+  .lf-margin-preview-step:last-child > .lf-action-icon { inset-inline-end: 4px; }
+  .lf-margin-preview-step:not(:disabled):hover { background: var(--chip);
+    color: var(--ink); }
+  /* Only the turns scroll: the metadata and reply keep their own rows, so the
+     scrollbar describes the content it moves. The card grows to its content until
+     placement exhausts the room; every intervening holder can then shrink. */
+  .lf-margin-preview-list, .lf-margin-thread, .lf-margin-thread-body {
+    display: flex; flex-direction: column;
+    min-height: 0; min-width: 0; }
+  /* Both tracks grow to their words and share the room beyond their minimums.
+     A short transcript leaves its unused share to the editor. The reading owner
+     retains a complete turn's visible span after news extended the card above a
+     draft, so continued typing leaves the first input line where news held it. */
+  .lf-margin-thread .lf-page-thread { display: grid;
+    grid-template-rows: auto minmax(var(--lf-thread-reading-height, auto), max-content)
+      minmax(auto, max-content);
+    min-height: 0; min-width: 0; }
+  .lf-margin-thread .lf-thread-transcript { min-height: 1lh; overflow-y: auto;
+    overscroll-behavior: contain;
+    scroll-padding-block: var(--focus-ring-room); }
+  /* The field stands at the card's inset; words stand one inset inside it. */
+  .lf-margin-thread .lf-page-thread { padding: 0; background: var(--paper); }
+  .lf-margin-thread .lf-page-thread::after { content: none; }
+  @media (forced-colors: active) {
+    .lf-margin-thread .lf-page-thread:is(:focus-within, .lf-focus-within) { outline: none; }
+  }
+  /* The row's ring has room in the card's common inset. Its inline containment keeps
+     a draft from widening the card. */
+  .lf-margin-thread .lf-thread-reply { contain: inline-size;
+    display: grid; grid-template-rows: auto minmax(0, max-content);
+    box-sizing: border-box;
+    min-height: calc(var(--lf-compose-h) + var(--lf-comment-foot-gap) + 2px);
+    align-items: stretch; margin: 0;
+    padding-block: var(--lf-comment-foot-gap) 0;
+    background: inherit; }
+  .lf-margin-thread .lf-thread-reply .lf-composer-media { grid-row: 1; }
+  .lf-margin-thread .lf-thread-reply .lf-compose-field { grid-row: 2; min-height: 0;
+    grid-template-rows: minmax(0, max-content); }
+  .lf-margin-thread .lf-thread-reply leaf-text { min-width: 0;
+    max-height: none; }
+  .lf-margin-preview .lf-thread-root-meta { flex: none;
+    align-items: center; gap: 4px; min-height: var(--lf-comment-head); }
+  @media (forced-colors: active) {
+    .lf-margin-preview { border: 1px solid CanvasText; box-shadow: none; }
+  }
+}

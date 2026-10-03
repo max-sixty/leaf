@@ -436,7 +436,9 @@ def record_demo(output: Path | None) -> None:
         (page_dir / "index.html").write_text(demo_page(1), encoding="utf-8")
         cmd_stamp(page_dir, "Migration rehearsal started; 2 of 4 checks complete")
         cmd_status(page_dir, "waiting", "")
-        url, _note = claim_and_start(page_dir)
+        with claim_and_start(page_dir) as started:
+            pass
+        url = started.url
         waiter = DemoWaiter(page_dir)
         try:
             with chrome() as browser, tab(browser, GIF_SIZE) as page:

@@ -5,7 +5,7 @@ import { watchCodeBlocks } from "./code-copy.js";
 import { reachScrollers } from "./reach.js";
 import { adoptRegistry, registry, tagsDeclaring } from "./registry.js";
 import { loadShadowRules } from "./shadow.js";
-import { revealLayer, sameDelivery, sameLayer } from "./layer-client.js";
+import { revealLayer, admitResponse, sameLayer } from "./layer-client.js";
 import {
   applicationState,
   attachApplicationPresentation,
@@ -210,9 +210,9 @@ async function settle(presentation, scope, arrived, presented) {
 
 export async function upgradeWidgets({ buildReactionBar }) {
   const response = await fetch(registryUrl());
+  if (!admitResponse(response)) return false;
   if (!response.ok)
     throw new Error(`leaf: registry failed to load (${response.status})`);
-  if (!sameDelivery(response)) return false;
   adoptRegistry(await response.json());
   const registryGeneration = registry.$layer?.generation;
   if (typeof registryGeneration !== "string" || !registryGeneration)

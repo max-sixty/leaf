@@ -60,15 +60,12 @@ from leaf_dev.harness import (
     extract_payload,
     run_leaf,
 )
+from leaf_dev.review_scenario import REQUEST, prepare
 
 # How long one step may take, and how long it has to stay settled before its
 # checks count: a second reply lands after the turn that wrote the first.
 STEP_LIMIT = 300
 QUIET = 10
-PROMPT = (
-    "I wrote a Leaf page at ./page. Serve it so I can review it in my browser, "
-    "and handle the comments I leave on it."
-)
 USER_TURN = (
     "Run `sleep 20` in the shell. Then, in a separate tool call, run "
     "`printf 'verified\\n'`. Then reply with the single word done."
@@ -290,7 +287,7 @@ def journey(task: Task, page: Path, codex: str, transport: str) -> None:
         click.echo(f"{transport}/{name}: passed in {time.monotonic() - started:.0f} s")
 
     started = time.monotonic()
-    task.say(PROMPT)
+    task.say(REQUEST)
     task.settle(
         lambda: adapter_is_live(task.thread) and running_server(page) is not None,
         "the setup turn did not serve the page and start the adapter",
@@ -446,18 +443,7 @@ def verify_transport(codex: str, transport: str) -> None:
     os.environ.update(isolated)
     passed = False
     try:
-        run_leaf(ROOT, state, "page", "init", str(page), check=True)
-        shutil.copy(ROOT / "examples" / "triage-board.html", page / "index.html")
-        run_leaf(
-            ROOT,
-            state,
-            "page",
-            "stamp",
-            str(page),
-            "--text",
-            "Release triage for review.",
-            check=True,
-        )
+        prepare(ROOT, state, page)
         with private_app_server(executable) as endpoint:
             task = Task(endpoint)
             try:

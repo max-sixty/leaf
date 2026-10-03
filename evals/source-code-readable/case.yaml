@@ -1,0 +1,62 @@
+# The widget keyboard API playground used bare <pre><code> and packed several
+# command fields onto each line. This case exercises a revision of that code display.
+# On d1a357e06, with page-authoring.md read, the baseline passed 0 of 3 and the
+# guidance on language and illustrative-code formatting passed 3 of 3. The plain
+# diagnostic output is the guardrail against treating every preformatted block as code.
+description: source-code-readable
+metadata:
+  purpose: Source snippets declare their language and keep the code structure readable; literal output
+    remains literal.
+  tags:
+  - authoring
+  - code
+vars:
+  prompt: |
+    Use the leaf:leaf skill and read `references/page-authoring.md` inside its
+    base directory before revising this page.
+
+    Revise this section in our Leaf keyboard API design playground. Explain that each
+    action is declared once, and that `commands(deck, decisions)` exposes the scope
+    while keeping its action identity. Keep the explanation short. Include the code
+    example and the diagnostic output below, and keep the code's behavior unchanged.
+
+    <section id="api-design"><h2>One declared command, several places to use it</h2>
+    <pre><code>const decisions = commandScope("In a swipe deck", [
+      { id: "swipe.pass", keys: ["ArrowLeft", "1"], control: pass,
+        decision: "Pass", does: "Pass the active card",
+        line: "pass", when: canSwipe, run: () =&gt; pass.click() },
+      { id: "swipe.keep", keys: ["ArrowRight", "2"], control: keep,
+        decision: "Keep", does: "Keep the active card",
+        line: "keep", when: canSwipe, run: () =&gt; keep.click() },
+    ]);
+    commands(deck, decisions);</code></pre>
+    <p>Diagnostic output:</p>
+    <pre><code>Scope: In a swipe deck
+    Active commands: 2
+    Result: ready</code></pre>
+    </section>
+
+    The page directory is not reachable from here, so reply with the revised HTML
+    section rather than writing a file.
+assert:
+- type: javascript
+  metric: loads-leaf
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/SKILL\.md
+- type: javascript
+  metric: reads-page-authoring
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/references/page-authoring\.md
+- type: llm-rubric
+  metric: readable-source
+  value: |
+    The JavaScript source is displayed in a syntax-highlighted Leaf code block:
+    either a native pre/code with class="language-javascript" or a lf-code with
+    language="javascript". Object fields and closing braces are broken onto
+    consistently indented lines so each action's fields can be read individually.
+    All the original command fields and behavior remain in the snippet. Fail if
+    source stays uncolored or keeps several distinct object fields crammed onto
+    each line. The diagnostic output remains uncolored and preserves its lines
+    and exact values; it must not be mistaken for source code or rewritten.

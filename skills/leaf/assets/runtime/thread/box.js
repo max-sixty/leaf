@@ -66,11 +66,15 @@ export const threadBox = (el, hint, { createComment, onDraftChanged, wireInput }
   });
   sync();
   box.lfFirstMessage = row;
-  const off = watchDraft(ctx, (value) => {
-    if (!box.isConnected) return off();
-    sync.load(value ?? "");
-    onDraftChanged();
-  });
+  const off = watchDraft(
+    ctx,
+    (value) => {
+      if (!box.isConnected) return off();
+      sync.load(value ?? "");
+      onDraftChanged();
+    },
+    { input: ta },
+  );
   mountFirstMessage(box, row);
   return box;
 };

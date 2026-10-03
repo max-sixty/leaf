@@ -7,7 +7,7 @@ from pathlib import Path
 import click
 
 from leaf.schema import SKILL_ROOT, WAIT_BATCH_OUTPUT_INSTRUCTION
-from leaf.session_cleanup import EVENTS_FILE
+from leaf.state import EVENTS_FILE
 
 
 def resolve_dir(dir_arg: str, must_exist: bool = True) -> Path:
@@ -951,6 +951,6 @@ def hook(watch: bool) -> None:
 @cli.command(hidden=True)
 def session_end() -> None:
     """Release ownership for the host's SessionEnd payload on stdin."""
-    from leaf.session_cleanup import main
+    from leaf.state import main
 
     main()

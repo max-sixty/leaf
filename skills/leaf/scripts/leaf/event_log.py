@@ -11,7 +11,7 @@ from pathlib import Path
 
 from leaf.files import file_stamp, next_reading, read_json
 from leaf.schema import CURSOR_FILE
-from leaf.session_cleanup import EVENTS_FILE, flocked, now_iso
+from leaf.state import EVENTS_FILE, flocked, now_iso
 
 
 def read_cursor(page_dir: Path) -> int:
@@ -81,7 +81,7 @@ def _attempt_payload(event: dict) -> dict:
     return {
         key: value
         for key, value in event.items()
-        if key not in {"id", "ts", "author", "seq", "meaning"}
+        if key not in {"id", "ts", "author", "seq", "meaning", "attention"}
     }
 
 
@@ -105,6 +105,19 @@ def _event_id_exists(events: list[dict], event_id: str) -> bool:
     return any(existing.get("id") == event_id for existing in events)
 
 
+def new_event_id(events: list[dict]) -> str:
+    """An unused page-local identity, allocated under the append lease.
+
+    Eight hex characters stay short enough to read and retype. Uniqueness comes
+    from checking the held log, not their width; a host pairs the id with its page.
+    Admission allocates it before semantic folding and storage keeps that identity.
+    """
+    while True:
+        candidate = secrets.token_hex(4)
+        if not _event_id_exists(events, candidate):
+            return candidate
+
+
 def _append_event_unlocked(f, event: dict, events: list[dict]) -> tuple[dict, bool]:
     """Append while the caller holds this log file's exclusive lease."""
     # Attempt identity is checked under the log's append lock. Checking before
@@ -118,18 +131,7 @@ def _append_event_unlocked(f, event: dict, events: list[dict]) -> tuple[dict, bo
         if _event_id_exists(events, event["id"]):
             raise ValueError(f"event id {event['id']!r} already exists")
     else:
-        # An id is unique within this page and nowhere else. Eight hex
-        # characters, re-rolled while this log already holds the candidate,
-        # under the lease that serializes appends — so uniqueness is proven by
-        # the write rather than assumed from width, and the id stays short
-        # enough for an agent to read off a projection and retype into `leaf
-        # thread reply --for`. Nothing may treat one as a global identifier: a host
-        # keying an external operation on an event pairs the id with the page.
-        while True:
-            candidate = secrets.token_hex(4)
-            if not _event_id_exists(events, candidate):
-                event["id"] = candidate
-                break
+        event["id"] = new_event_id(events)
     event.setdefault("ts", now_iso())
     # A crash can tear the previous append mid-line: SIGKILL under a buffered
     # flush, a full disk. The line discipline is the writer's, so the writer

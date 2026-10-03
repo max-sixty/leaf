@@ -15,14 +15,14 @@ second fold.
 | work declaration: state, detail, event floor, source message, typed `work` seats, each naming the claimant turn that wrote it, or none for another session's | `status.json` | `leaf status`, from a turn of the session driving the page | a short grace after the turn that wrote it closes; about a quarter of an hour with no renewal; at once when the claimant's lifetime has ended |
 | live App Server activity: session, turn, typed kind, detail, event floor | optional `stream` in `status.json` | the App Server connection that starts an embedded turn, or the detached adapter's task connection | turn completion, connection or observer exit, loss of the wait lease, or the working grace without another event |
 | live App Server reply: one displayed draft plus delivery attempt bindings by response address | optional `stream.reply` and `stream.reply_bindings` in `status.json` | an App Server connection bound to a delivery's plain reply | the displayed draft remains on failure or disconnect and is retired by a logged event naming its delivery attempt or its response address; each binding names the claim turn it belongs to (the delivery's turn once its reply opens, the turn standing at reservation before then), clears after durable commit or terminal failure, and survives a lost connection; it stands only while that is still the claim's turn and the turn is open (`activity.reply_binding_stands`), and a turn's answer committed after its binding lapsed yields to a reply another writer already gave |
-| turn identity, when it last opened or took a prompt, and open or closed state | the page's claim record | a prompt, a direct delivery, or a carrier following a provider turn opens `turn` and stamps `turn_opened`, or renews that stamp on a turn still open; the id is the host's where it names one (Codex's hooks and App Server name the same turn) and one Leaf mints otherwise; the Stop hook stamps `turn_closed` on whatever turn is open, and a carrier on the turn it follows | the next opening of another id; the next closing stamps it, and a closed id never reopens |
+| turn identity, when it last opened or took a prompt, and open or closed state | the session lifecycle record | a prompt, a direct delivery, or a carrier following a provider turn opens `turn` and stamps `turn_opened`, or renews that stamp on a turn still open; the id is the host's where it names one (Codex's hooks and App Server name the same turn) and one Leaf mints otherwise; the Stop hook stamps `turn_closed` on whatever turn is open, and a carrier on the turn it follows | the next opening of another id; the next closing stamps it, and a closed id never reopens |
 | the host's own word on the claimant's session: `idle`, `waiting` on a dialog, or `busy`, dated by its last change | the host's record, read at each state read (`Harness.live_turn`): for Claude Code, the `status` of the session's newest registry record whose process runs | the host | read live, so it moves with the host; absent where the host publishes nothing, as for a background job whose worker has retired |
 | the turn ending this page nudged its session after | `messaged_ending` in the page's claim record: the turn id and its close stamp, or for an interrupted turn its last opening | browser-event admission, once the harness's nudge lands | a later ending, a close under a new id or an interrupt after a new prompt renewed the same one, differs |
-| wait lease | `waiter.lock`, or `sessions/<session>.wait` for a host session | the live `leaf wait` process, or Claude Code's background Stop hook watching between turns (`leaf hook --watch`), held open for its life and removed when it lets go, SIGTERM and SIGHUP included | process exit |
+| wait lease | `waiter.lock`, or `sessions/<session>.wait` for a host session | the live `leaf wait` process, or Claude Code's background Stop hook watching between turns (`leaf hook --watch`), holding an exclusive kernel lock on a stable file; file existence does not prove liveness | descriptor close or process exit, including a crash |
 | the host runs Leaf's hooks for this session | `sessions/<session>.hooks` | every Leaf hook the host runs for the session | removed by its SessionEnd hook |
-| acknowledgement cursor | `cursor.json` | whichever carrier confirms the complete delivery reached its durable consumer: a Claude Code hook as it hands the envelope to the turn, `leaf wait --ack` after a printed one, or the Codex adapter | when its seq is past the log's end, or a fresh log replaces the one it named; monotonic within one log |
-| pickup transition | a `pickup` event in `events.jsonl` | an unobserved carrier records `queued` when Codex accepts a batch; whichever carrier puts the batch into a turn records `opened` with session and turn identity: a direct `leaf wait --ack` confirmation, a Claude Code hook handing a delivery to the turn, the prompt hook re-presenting an acknowledged unanswered move, or an App Server turn start | never; each event/phase/session/turn transition is idempotent |
-| page claim: session, display name, harness, carrier, lifetime | `~/.local/state/leaf/claims/<page>` | `server start` from an agent host; released by the hook when the session exits | `released` is set, or the lifetime it rests on is gone: the pid, the background job's directory, or — for a host that multiplexes every session into one process, where there is no pid to name — the page going untouched for ACTIVITY_GRACE_SECS, which a *visible* tab's `viewed.json` writes keep renewing — a backgrounded tab closes the news stream and stops renewing |
+| acknowledgement cursor | `cursor.json` | whichever carrier confirms the complete delivery reached its durable consumer: the reader of a complete Claude Code hook delivery via `leaf delivery ack`, `leaf wait --ack` after a printed one, or the Codex adapter | when its seq is past the log's end, or a fresh log replaces the one it named; monotonic within one log |
+| pickup transition | a `pickup` event in `events.jsonl` | an unobserved carrier records `queued` when Codex accepts a batch; whichever carrier puts the batch into a turn records `opened` with session and turn identity: a direct `leaf wait --ack` confirmation, the reader confirming a complete Claude Code hook delivery, the prompt hook re-presenting an acknowledged unanswered move, or an App Server turn start | never; each event/phase/session/turn transition is idempotent |
+| page claim: unique acquisition, session generation, display name, harness, page freshness | `~/.local/state/leaf/claims/<page>` | `server start` from an agent host; references the session lifetime publication | `released` is set, the referenced generation ended or was replaced, or the shared host lifetime is gone: the pid, the background job's directory, or — for a host that multiplexes every session into one process, where there is no pid to name — the page going untouched for ACTIVITY_GRACE_SECS, which a *visible* tab's `viewed.json` writes keep renewing — a backgrounded tab stops its freshness reads and stops renewing |
 | service lifetime | `service.json` | `server start` at launch: session, or standing | `leaf server stop`; a session server also retires when no live claim holds it |
 | Codex delivery record | `sessions/<session>.deliveries/` in the state home | the detached adapter or an embedded App Server host | an unaccepted record is inactive while the session owns no page; an accepted record moves under `history/` after every batch is receipted; a record, live or archived, goes at the next scan that finds its pages all gone: its own task's reading, its next archiving, or any Codex adapter's retirement, which scans every task's records and removes a directory it empties |
 | Codex adapter log | `sessions/<session>.codex.log` | the detached adapter's own output, begun afresh when serving or `leaf codex start` starts a new adapter | removed when the adapter retires owning no page; a run that ended any other way leaves it for the next start of that task |
@@ -32,7 +32,7 @@ Page activity describes ownership, carrier availability, and current work. Its
 `kind` is `closed`, `unheld`, `away`, `listening`, `working`, or `stalled`. Every
 rule in the fold that asks whether the claimant's turn is running reads one answer,
 `activity.claimant_turn`, which dates each piece of evidence and lets the newest
-decide. The claim's turn stamps are believed open only while the opening, a status
+decide. The session's turn stamps are believed open only while the opening, a status
 written during the turn, or the claimant's streamed activity renewed them within the
 working grace. The host's record adds the two things no hook sees, each only when
 newer than what it contradicts: an `idle` newer than every renewal ends the open
@@ -153,9 +153,16 @@ leave the page to it, so a declaration over work that outlasts the turn stands
 unrenewed until a later turn writes it again.
 
 The turn id and `turn_closed` stamp a declaration is judged against are the
-session's rather than the page's: the Stop hook closes the turn on every page the
-session holds, and an opening advances that same set, each page under its own
-transaction. Where nothing answers for the declaration, activity reports the page
+session's rather than the page's: prompts and endings publish one atomic session
+record. Page claims reference its generation and derive the current turn; no
+opening or ending rewrites claims. Each acquisition has its own unique ID, so
+rollback compares claim publication rather than derived lifecycle fields or
+second-resolution timestamps. The first observed host lifetime may enrich an
+unknown prompt-created lifetime; replacing known provenance starts a generation.
+SessionEnd marks the generation ended without
+page discovery or page locks. A resumed host ID gets a new generation, leaving
+old claims inactive. Activity-backed ownership freshness remains per page: one
+visible sibling does not renew every page in a multiplexed host. Where nothing answers for the declaration, activity reports the page
 unheld rather than repeating it. Unheld is not a fault: a standing page spends most
 of its life unheld and picks up again when a session takes it.
 
@@ -182,9 +189,30 @@ turns (`session.watch_between_turns`): its exit 2 wakes the session with its
 stderr, and every other ending is silent.
 Its unanswered-work guard reads `activity.turn_obligations` over the page's
 activity, selected from the same `workflows` projection the browser reads; it does not reconstruct threads
-itself. Codex's synchronous prompt hook records the provider turn even before a
-page is claimed. Its asynchronous PostToolUse hook renews only that observed
-running turn and offers one immutable pointer between steps. The observation's
+itself. The hook planner reads each page once under its transaction, including
+ownership, log, cursor, status and the full served projection. Its typed input,
+response debt and carrier facts feed Stop policy before host formatting; prompt
+pickup is an explicit transition and rechecks that debt remains unsettled.
+Every hook effect checks its captured session generation and revision, including
+no-ID and same-ID prompt renewal. The complete context is published and flushed
+under that epoch guard. Hook stdout cannot prove receipt, since a host timeout
+discards it. Every hook envelope names `leaf delivery ack`; its reader confirms
+only once every batch is in context. Receipt then revalidates current ownership
+and exact event identities under page→session locks held through pickup and
+cursor commit. Receipt observes an open turn and cannot open or replace one. Input stays pending if
+context is lost, whether the envelope was inline or a large pointer. Provider callbacks
+can only bind an unknown turn or match the known one; an App Server start result
+introduces a new identity only by comparing the epoch captured before its request.
+The subscribed observer captures its epoch before resume and advances that token
+only with accepted messages and matching completion for its current provider turn.
+Ordered starts adopt against this token before running identity or fold selection.
+A resume response uses its pre-request token even when newer notifications arrived
+during that request; a rejected stale snapshot never marks the observer running.
+Historical delivery completion settles its immutable answer without adopting a
+current lifecycle identity.
+Codex's synchronous prompt hook records the provider turn even before a
+page is claimed. Its asynchronous PostToolUse hook identifies an unknown session-scoped turn
+once, or renews only the already observed running provider turn and offers one immutable pointer between steps. The observation's
 revision advances on a prompt, ending, or tool step: the queue rechecks it under
 the same delivery lock before reserving its route, so even a renewed step within
 the same turn invalidates an idle reading taken before it. Completing the hook does not prove
@@ -194,7 +222,9 @@ all use `codex.accept_codex_delivery` against the exact delivery id. It persists
 acceptance before page IO; normal receipt and interrupted-acceptance recovery use
 `codex.finish_codex_batch`, which never opens a turn. Stop or Interrupt closes the
 observed turn, including a
-page acquired before its first tool hook, and a newer prompt protects its claims.
+page acquired before its first tool hook. Stale provider callbacks are rejected
+before planning or printing context, and a newer prompt protects its generation
+and turn.
 The App Server adapter presents at most one thread reply in each turn's
 chronological delivery slice, frozen as a `turn` answer; once the turn binds it, its
 workflow's `answer` reads `turn` too. Its completed final-answer item finishes that
@@ -218,9 +248,10 @@ ownership through `service.owned_pages`; a session holding no page avoids the
 delivery and page-reading stacks.
 
 SessionEnd calls the launcher's `session-end` entry, which runs its standalone
-stdlib cleanup program directly. That program supports Python 3.9 and releases
-records still naming the ended session under each page's transaction lock,
-including claims made by another checkout when this plugin has no uv environment.
+stdlib state owner directly. That program supports Python 3.9 and publishes
+one ended session generation. Every claim referencing it becomes inactive without
+page discovery, page locks or claim rewrites, including claims made by another
+checkout when this plugin has no uv environment.
 Managed Leaf delegates SessionEnd to the same owner. Registrations suppress errors
 and return success when the application cannot answer. The host owns their
 deadlines. `hooks/scripts/loop-guard.py` supervises the background watch, calling
@@ -245,7 +276,7 @@ shapes:
   (`Harness.watches_between_turns`), and the model starts no watcher. It holds the
   session's wait lease until a page has input, exits 2 to wake the session, and the
   prompt hook of the turn the wake opens or reaches puts the batch in that turn's
-  context and advances the cursors. Input that was already pending as the turn
+  context; its reader acknowledges the complete envelope before work. Input that was already pending as the turn
   ended is the other Stop hook's to hand to the turn it continues, so the watch
   carries it only once that hook lets the turn end over it. Claude Code bounds a
   background command at two hours and a hook only at its own `timeout`, which is
@@ -430,3 +461,12 @@ service is not lost, since a stop is the agent's own move and may be followed by
 a start: `page init` stops and restarts a served page's server around a
 re-vendor. The wait neither revives nor ends on it, and goes on watching until
 the page goes idle or changes hands.
+
+### Detached route lifetime
+
+The detached Codex adapter follows active session/page ownership, including when
+all owned pages declare idle. Idle pages deliver no input and direct waits end;
+a later working or waiting declaration resumes the existing route. The adapter
+waits for page news while idle and retires once ownership ends through release,
+transfer, expiry or SessionEnd. Serving a closed page therefore does not lose
+its delivery route before the agent's next declaration.

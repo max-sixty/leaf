@@ -85,7 +85,7 @@ from .service import (
     starting_claim,
 )
 from .session import Watch, read_watch_pass
-from .session_cleanup import EVENTS_FILE, flocked
+from .state import EVENTS_FILE, flocked, session_record, start_session_turn
 from .thread import (
     answered_by_reply,
     delivery_reply_reserved,
@@ -143,6 +143,11 @@ class TaskConnection:
     A dropped connection is unknown provider state, never a failed turn. Resuming
     reconciles running and completed turns from their exact delivery identities.
     A persisted starting offer is never blindly repeated after an uncertain send.
+    Live provider observations adopt the subscription's lifecycle token before
+    fold selection. A resume response uses its pre-request token, so intervening
+    notifications or a newer prompt win; exact historical answers settle without
+    adopting a current lifecycle. Matching completion refreshes the token for the
+    next natural provider turn.
     """
 
     def __init__(self, endpoint: str, thread_id: str):
@@ -151,6 +156,7 @@ class TaskConnection:
         self.thread_id = thread_id
         self.turns: dict[str, TurnFold] = {}
         self.running: str | None = None
+        self.lifecycle = session_record(thread_id)
         self.stop_event = threading.Event()
         self.socket = None
         self.started = False
@@ -213,19 +219,29 @@ class TaskConnection:
             stopped=self.stop_event.is_set,
         )
 
+    def _resume_task(self, socket, *, exclude_turns: bool) -> tuple[dict, dict | None]:
+        """Capture the causal lifecycle token before authoritative provider metadata."""
+        expected = session_record(self.thread_id)
+        self.lifecycle = expected
+        result = self._send(
+            socket,
+            "thread/resume",
+            1,
+            {
+                "threadId": self.thread_id,
+                "excludeTurns": exclude_turns,
+            },
+        )
+        return result.get("thread") or {}, expected
+
     def _connect(self) -> None:
         with app_server_connect(self.endpoint) as socket:
             self.socket = socket
             if self.stop_event.is_set():
                 return
             app_server_handshake(socket, 0, "leaf", "Leaf", self._read)
-            result = self._send(
-                socket,
-                "thread/resume",
-                1,
-                {"threadId": self.thread_id, "excludeTurns": False},
-            )
-            hydrated = self._resume(result.get("thread", {}))
+            thread, expected = self._resume_task(socket, exclude_turns=False)
+            hydrated = self._resume(thread, expected)
             self._reconcile_history(socket, hydrated)
             self.connected.set()
             if not self.started:
@@ -258,19 +274,13 @@ class TaskConnection:
         """Check provider status, then start once with a durable uncertain boundary."""
         with flocked(delivery_lock_path(self.thread_id)):
             path = codex.record_path(self.thread_id, payload["id"])
-            record = codex.read_json(path)
+            record = codex.read_record(path)
             if record is None or record["state"] in {"accepted", "abandoned"}:
                 return True
             uncertain = (record.get("transport") or {}).get("phase") == "starting"
-        resumed = self._send(
-            socket,
-            "thread/resume",
-            1,
-            {"threadId": self.thread_id, "excludeTurns": not uncertain},
-        )
-        thread = resumed.get("thread") or {}
+        thread, expected = self._resume_task(socket, exclude_turns=not uncertain)
         if uncertain:
-            hydrated = self._resume(thread)
+            hydrated = self._resume(thread, expected)
             self._reconcile_history(socket, hydrated)
             return delivery_record_state(self.thread_id, payload["id"]) in {
                 "accepted",
@@ -287,7 +297,7 @@ class TaskConnection:
         # and archived this offer. Re-read at the intent transition rather than
         # restoring the stale offering object captured before that request.
         with flocked(delivery_lock_path(self.thread_id)):
-            record = codex.read_json(path)
+            record = codex.read_record(path)
             if record is None or record["state"] in {"accepted", "abandoned"}:
                 return True
             record["transport"] = {"phase": "starting", "turn": None}
@@ -312,13 +322,17 @@ class TaskConnection:
         except BaseException as error:
             if not requested or isinstance(error, codex.AppServerRequestRejected):
                 with flocked(delivery_lock_path(self.thread_id)):
-                    refused = codex.read_json(path)
+                    refused = codex.read_record(path)
                     if refused is not None and refused["state"] == "offering":
                         refused["transport"] = {"phase": "app-server", "turn": None}
                         write_record(path, refused)
             for message in buffered:
                 self._read(message)
             raise
+        if not self._observe_lifecycle(turn_id):
+            raise AppServerDeliveryUncertain(
+                "a newer session epoch superseded the provider start"
+            )
         self.running = turn_id
         self._fold(turn_id, payload["id"], follow=True)
         codex.set_stream_activity(self.thread_id, turn_id, {"kind": "working"})
@@ -352,7 +366,7 @@ class TaskConnection:
             *directory.glob("*.json"),
             *(directory / "history").glob("*.json"),
         ):
-            record = codex.read_json(path)
+            record = codex.read_record(path)
             if record is None or record.get("state") not in {"accepted", "abandoned"}:
                 continue
             if (record.get("transport") or {}).get("turn") in hydrated:
@@ -370,6 +384,7 @@ class TaskConnection:
             return
         cursor = None
         while True:
+            expected = self.lifecycle
             page = self._send(
                 socket,
                 "thread/turns/list",
@@ -387,7 +402,7 @@ class TaskConnection:
                     )
                 delivery_id = _turn_delivery_id(turn)
                 if delivery_id in pending | unresolved or turn["id"] in known:
-                    self._reconcile(turn)
+                    self._reconcile(turn, expected)
                     pending.discard(delivery_id)
                     unresolved.discard(delivery_id)
                     known.discard(turn["id"])
@@ -397,16 +412,8 @@ class TaskConnection:
         # The snapshot may precede notifications folded during pagination. Any
         # running turn holds back abandonment until a fresh idle reading.
         if pending and self.running is None:
-            fresh = self._send(
-                socket,
-                "thread/resume",
-                1,
-                {
-                    "threadId": self.thread_id,
-                    "excludeTurns": True,
-                },
-            )
-            if (fresh.get("thread", {}).get("status") or {}).get(
+            fresh, _ = self._resume_task(socket, exclude_turns=True)
+            if (fresh.get("status") or {}).get(
                 "type"
             ) != "idle" or self.running is not None:
                 return
@@ -416,18 +423,22 @@ class TaskConnection:
                     codex.read_json(codex.delivery_path(delivery_id)),
                 )
 
-    def _resume(self, thread: dict) -> set[str]:
+    def _resume(self, thread: dict, expected: dict | None | object = ...) -> set[str]:
         """Reconcile task metadata; return turn IDs whose full items were read."""
         # A followed turn the snapshot does not list — a paginated thread's `turns`
         # can leave it out — stays disconnected until it says something.
         turns = thread.get("turns", [])
         # Only metadata naming a current turn establishes running identity;
         # every snapshot turn is read by the same reconciliation owner.
-        self.running = None
-        hydrated = {turn["id"] for turn in turns if self._reconcile(turn)}
+        if expected is ... or self.lifecycle == expected:
+            self.running = None
+        hydrated = {turn["id"] for turn in turns if self._reconcile(turn, expected)}
         status = thread.get("status", {})
         fold = self.turns.get(self.running) if self.running is not None else None
-        if status.get("type") == "active" and self.running is not None:
+        if status.get("type") == "active" and any(
+            turn["id"] == self.running and turn.get("status") == "inProgress"
+            for turn in turns
+        ):
             if fold is not None:
                 fold.absorb(
                     {
@@ -439,7 +450,7 @@ class TaskConnection:
                         },
                     }
                 )
-        else:
+        elif self.running is None:
             # A previous connection may have died without its disconnect cleanup.
             # This snapshot does not establish a current provider turn, so an
             # old thinking, tool, waiting, or replying observation cannot prove
@@ -447,7 +458,7 @@ class TaskConnection:
             codex.clear_stream_activity(self.thread_id)
         return hydrated
 
-    def _reconcile(self, turn: dict) -> bool:
+    def _reconcile(self, turn: dict, expected: dict | None | object = ...) -> bool:
         """Bring one snapshot turn's fold up to what the snapshot says of it.
 
         A running turn is followed, whether or not it was before the connection
@@ -463,6 +474,8 @@ class TaskConnection:
         complete = _turn_items_complete(turn)
         if not running and not complete:
             return False
+        if running and not self._observe_lifecycle(turn["id"], expected):
+            return False
         fold = self._fold(
             turn["id"], _turn_delivery_id(turn), follow=running, ended=not running
         )
@@ -477,6 +490,7 @@ class TaskConnection:
                 self.running = None
             self.turns.pop(turn["id"], None)
             fold.commit(turn)
+            self._refresh_lifecycle(turn["id"])
         return complete
 
     def _read(self, message: dict) -> None:
@@ -487,7 +501,6 @@ class TaskConnection:
         method = message.get("method")
         if method == "turn/started":
             turn_id = params["turn"]["id"]
-            self.running = turn_id
         elif method == "turn/completed":
             turn_id = params["turn"]["id"]
             if self.running == turn_id:
@@ -495,6 +508,11 @@ class TaskConnection:
         else:
             turn_id = params.get("turnId") or self.running
         if turn_id is None:
+            return
+        # Live evidence must still own the subscription's epoch before it can
+        # change running identity or reuse even an existing fold. Historical
+        # completion instead settles the exact delivery without reopening it.
+        if method != "turn/completed" and not self._observe_lifecycle(turn_id):
             return
 
         delivery_id = app_server_delivery_id(message)
@@ -507,16 +525,43 @@ class TaskConnection:
             in {"offering", "abandoned"}
         )
         fold = self._fold(
-            turn_id, delivery_id, follow=method == "turn/started" or adopting
+            turn_id,
+            delivery_id,
+            follow=method == "turn/started" or adopting,
+            ended=method == "turn/completed",
         )
         if fold is None:
             return
-        if adopting:
+        if adopting or method == "turn/started":
             self.running = turn_id
         update = fold.absorb(message)
         if (terminal := fold.finished(message, update)) is not None:
-            del self.turns[turn_id]
+            self.turns.pop(turn_id, None)
             fold.commit(terminal)
+        self._refresh_lifecycle(turn_id)
+
+    def _observe_lifecycle(
+        self, turn_id: str, expected: dict | None | object = ...
+    ) -> bool:
+        """Adopt ordered live provider evidence only against this subscription's epoch."""
+        observed = start_session_turn(
+            self.thread_id, turn_id, self.lifecycle if expected is ... else expected
+        )
+        if observed is None:
+            return False
+        self.lifecycle = observed
+        return True
+
+    def _refresh_lifecycle(self, turn_id: str) -> None:
+        """Follow our matching close, without adopting an unmatched newer prompt."""
+        current = session_record(self.thread_id)
+        if (
+            current
+            and self.lifecycle
+            and current["turn"] == turn_id
+            and current["generation"] == self.lifecycle["generation"]
+        ):
+            self.lifecycle = current
 
     def _fold(
         self,
@@ -529,15 +574,24 @@ class TaskConnection:
         """The fold of one turn, taking the turn up where `follow` says it runs.
 
         This is the one place the connection opens a turn and binds a delivery.
-        An ended historical turn gets a fold only to settle a delivery it carries;
-        it is never reopened.
+        An ended turn gets a fold to settle its immutable delivery or close the
+        subscription's matching lifecycle identity. It is never reopened.
         """
         fold = self.turns.get(turn_id)
         if fold is None and follow:
-            fold = self.turns[turn_id] = TurnFold(self.thread_id, turn_id)
-            fold.open()
-        elif fold is None and ended and delivery_id is not None:
-            fold = TurnFold(self.thread_id, turn_id)
+            fold = TurnFold(self.thread_id, turn_id, lifecycle=self.lifecycle)
+            if not fold.open():
+                return None
+            self.turns[turn_id] = fold
+        elif (
+            fold is None
+            and ended
+            and (
+                delivery_id is not None
+                or (self.lifecycle is not None and self.lifecycle["turn"] == turn_id)
+            )
+        ):
+            fold = TurnFold(self.thread_id, turn_id, lifecycle=self.lifecycle)
         if fold is not None and delivery_id is not None and fold.delivery_id is None:
             accept_codex_delivery(self.thread_id, delivery_id, turn_id)
             fold.bind(
@@ -768,15 +822,6 @@ def _offer_queued_delivery(
     return True
 
 
-def _has_delivery_work(session_id: str) -> bool:
-    with flocked(delivery_lock_path(session_id)):
-        return any(
-            record["state"] != "accepted"
-            or any(not batch["receipted"] for batch in record["batches"])
-            for _, record in delivery_records(session_id)
-        )
-
-
 def run_adapter(
     codex_path: str,
     handshake: Handshake | None = None,
@@ -879,13 +924,14 @@ def run_adapter(
                     reading = read_watch_pass(watch, None, deliver=capture)
                     if captured or (reading.outcome is None and reading.live):
                         continue
-                    if owned_pages(harness.session) and _has_delivery_work(
-                        harness.session
-                    ):
-                        time.sleep(1)
-                        continue
-                    retire()
-                    return reading.outcome or 0
+                    if not owned_pages(harness.session):
+                        retire()
+                        return reading.outcome or 0
+                # The route belongs to the session's ownership, not its current
+                # authored status. Idle pages deliver nothing; a later status
+                # resumes this same route. Wait outside the startup lock.
+                watch.await_news(mark, timeout=1)
+                continue
             # A second a pass, as well as each time a page moves: the queued offer
             # and receipt recovery above answer to Codex, not to the page's files.
             watch.await_news(mark, timeout=1)

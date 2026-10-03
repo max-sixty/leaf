@@ -78,6 +78,7 @@ jobs:
           cache-dependency-path: |
             package-lock.json
             worker/package-lock.json
+            evals/package-lock.json
 
       # The runner supplies installed Chrome for the two launcher tests. The rest of
       # the browser suite uses the headless shell matching the locked Playwright, and
@@ -87,6 +88,11 @@ jobs:
 
       - name: Install browser-build dependencies
         run: npm ci
+
+      # Python exercises the real Wrangler wrapper, including on main/nightly runs.
+      - name: Install website dependencies
+        run: npm ci
+        working-directory: worker
 
       - name: Check committed browser framework
         run: npm run check:browser && npm run test:browser
@@ -102,16 +108,14 @@ jobs:
       - name: 🧪 Runtime folds
         run: npm run test:runtime
 
+      - name: Check eval assertions without model calls
+        run: npm ci --prefix evals && npm test --prefix evals
+
       # Cheap gates fail before the complete Python suite spends its runner time.
       - name: 🧪 Python tests
         run: >-
           uv run pytest tests -v --junitxml=.tmp/test-results/results.xml
           ${{ github.event_name == 'pull_request' && '--nightly-changed-since HEAD^1' || '--run-nightly' }}
-
-      - name: Install website dependencies
-        if: github.event_name == 'pull_request'
-        run: npm ci
-        working-directory: worker
 
       - name: Build website
         if: github.event_name == 'pull_request'

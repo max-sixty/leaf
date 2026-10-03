@@ -73,7 +73,7 @@ export function wireReply(
       },
     },
     draftCtx,
-    { retained: true },
+    { retained: true, mirrored: true },
   );
   return { sync, dispose };
 }

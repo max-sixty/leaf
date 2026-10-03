@@ -23,7 +23,7 @@ from urllib.parse import urlsplit
 import pytest
 from conftest import LEAF_COMMAND
 from interact_support import ROOT, fetch, stamp, wait_for
-from leaf import codex_adapter, leases, server, service
+from leaf import codex_adapter, leases, server, service, session
 from leaf_dev import preview
 
 
@@ -245,8 +245,16 @@ def test_an_unrelated_ancestor_layer_does_not_change_an_external_source(tmp_path
 
 @pytest.mark.parametrize("delivery_available", [True, False, "missing"])
 @pytest.mark.parametrize("handoff", ["preview", "start", "run"])
+@pytest.mark.parametrize("initially_idle", [False, True])
 def test_serving_connects_codex_feedback_before_handing_over_its_url(
-    page_dir, tmp_path, under_codex, codex_env, codex_queue, delivery_available, handoff
+    page_dir,
+    tmp_path,
+    under_codex,
+    codex_env,
+    codex_queue,
+    delivery_available,
+    handoff,
+    initially_idle,
 ):
     """HTTP feedback reaches the current task without a second `codex start`.
 
@@ -255,6 +263,8 @@ def test_serving_connects_codex_feedback_before_handing_over_its_url(
     task and delivery pointer instead of starting a model turn.
     """
     stamp(page_dir)
+    if initially_idle:
+        session.cmd_status(page_dir, "idle", "")
     queued = Path(codex_queue["PREVIEW_QUEUE_RECORD"])
     ready = tmp_path / "ready.json"
     done = tmp_path / "done"
@@ -360,6 +370,9 @@ finally:
         url, _ = json.loads(ready.read_text())
         assert service.page_claim(page_dir)["id"] == "preview-thread"
         assert codex_adapter.adapter_is_live("preview-thread")
+        if initially_idle:
+            assert service.read_status(page_dir)["state"] == "idle"
+            session.cmd_status(page_dir, "waiting", "Review this page")
         endpoint = urlsplit(url)._replace(path="/api/event").geturl()
         status, body = fetch(
             endpoint,

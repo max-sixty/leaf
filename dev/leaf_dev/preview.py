@@ -147,7 +147,7 @@ def mark_preview(source: Path, page: Path, runtime: Path, user: bool) -> None:
     Every field written here reaches the browser: the server hands the file to
     the page whole. It serves neither the file itself nor an absolute checkout path.
     """
-    from leaf.session_cleanup import write_json
+    from leaf.state import write_json
 
     layer = json.loads((page / "registry.json").read_text(encoding="utf-8"))["$layer"]
     producer = layer.get("producer", {})
@@ -770,7 +770,9 @@ def export_preview(
     runtime: Path, launcher: Path, source: Path, slot: str | None
 ) -> None:
     """Write the page as one offline file under `.tmp/`, and print its path."""
-    TMP.mkdir(exist_ok=True)
+    from leaf_dev.harness import run_directory
+
+    out_dir = run_directory(TMP / "exports")
     with tempfile.TemporaryDirectory(prefix="preview-export-", dir=TMP) as staging:
         page = Path(staging) / "page"
         prepared = prepare_page(
@@ -779,8 +781,7 @@ def export_preview(
             partial(leaf, launcher, runtime),
         )
         suffix = f"-{slot}" if slot else ""
-        out = TMP / f"example-{source.stem}{suffix}.html"
-        out.unlink(missing_ok=True)
+        out = out_dir / f"example-{source.stem}{suffix}.html"
         leaf(launcher, runtime, "page", "export", str(page), "-o", str(out))
     print(
         preparation_note(source, prepared.data_sources, prepared.versions),

@@ -107,6 +107,8 @@ export const deepFocus = (at = document.activeElement) => {
 // to, is the caller's own landing: it puts the user there its own way, takes no caret,
 // and returns `true` where it did. Restoring answers whether the user now stands on one
 // of them.
+// An asynchronous stand-in returns its actual landed element. Only that still-focused
+// destination can receive the held caret; its owner retains permission across the wait.
 //
 // Nothing is owed while the user still stands on the held node and it is drawn, and
 // nothing once focus has been placed anywhere since the hold began: a user who moved on
@@ -202,7 +204,7 @@ for (const type of ["keydown", "pointerdown", "wheel", "touchstart"])
   );
 // Drawn counts `visibility: hidden` as hidden: a node under it keeps focus for a frame
 // and then the browser blurs it to the body, as it does a node under `display: none`.
-const drawn = (node) =>
+export const drawn = (node) =>
   node?.isConnected && node.checkVisibility({ visibilityProperty: true });
 // The node a change took out from under a user who now stands nowhere: where they last
 // stood, while it is no longer drawn.
@@ -237,6 +239,22 @@ function holdOn(held) {
       // A function runs as the owner's own act, so whatever it does with focus counts
       // as a placement to every other hold; only the move back to the held place does not.
       const place = typeof standIn === "function" ? standIn() : standIn;
+      // An asynchronous owner lands under its original input intent before returning
+      // the destination. Continue its caret only while that exact editor still holds
+      // focus; a Promise is never permission to find or focus another stand-in.
+      if (place?.then)
+        return place.then((destination) => {
+          if (
+            !(destination instanceof Element) ||
+            !drawn(destination) ||
+            deepFocus() !== destination
+          )
+            return false;
+          return land(() => {
+            focusDestination(destination, caret);
+            return destination.matches(":focus");
+          });
+        });
       if (place === true) return true;
       if (!(place instanceof Element) || !drawn(place)) continue;
       if (place === held && deepFocus() === held) return true;

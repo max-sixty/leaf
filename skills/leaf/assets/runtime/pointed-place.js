@@ -113,7 +113,7 @@ export function commitPoint(key, element, passage) {
 
 // Where each of `threads` pointed into its target stands on this page reading `text`:
 // `{ key, target }` in, and `key → { element, row, words }` out for each that stands. The one
-// writer of the points, run by anchor paint's pass. It takes in what sends handed over,
+// writer of the points, run by anchor-placement's read. It takes in what sends handed over,
 // a comment pointed at a row another stands at sharing that row's key. `known` is the key
 // of every thread the log holds, settled ones included, so undoing a settle finds its
 // point again; a point whose thread the log does not hold, a refused send's, is

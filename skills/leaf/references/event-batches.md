@@ -33,10 +33,10 @@ wait`'s output, `hook` for the context a host hook adds to the turn it opens,
 `queue` for a pointer Codex queued, `app-server` for a turn Leaf started. Two things differ by carrier, and the envelope states each once:
 
 - `acknowledge` says who confirms receipt and how. On `wait` it is the reader of
-  the wait, in the way your host runs the next one; on the other carriers Leaf
-  confirmed receipt itself and it is `null`. A hook hands over a delivery too
-  large for the turn's context as a pointer to read with `leaf delivery read
-  <id>` instead, and then `acknowledge` says how its reader confirms it.
+  wait, in the way your host runs the next one. On `hook`, its reader confirms
+  with `leaf delivery ack <id>` after the complete envelope is in context,
+  whether it arrived inline or through `leaf delivery read <id>`. On `queue`
+  and `app-server`, the durable consumer confirmed receipt and it is `null`.
 - A thread reply's `answer` is `turn` on `app-server`, whose turn writes it with
   its own messages, and `reply`, for `leaf thread reply`, everywhere else.
 
@@ -96,11 +96,9 @@ the covered originals, write the summary, and keep outcomes in the document.
 
 ## Delivery and acknowledgement
 
-A carrier that puts the complete envelope in model context itself, as a hook
-does, confirms receipt as it hands it over. Printing is not receipt: the owner of a
-wait that prints the envelope acknowledges only after the complete envelope
-reaches its next durable consumer, which in the direct loop is model context. The envelope's `acknowledge` says how, in the way your host runs the
-next wait:
+Printing and hook completion are not receipt. Follow the envelope's
+`acknowledge` only after every batch is in context: a hook delivery uses
+`leaf delivery ack <id>`, while a direct wait uses the host's next wait:
 
 ```bash
 leaf wait --ack <delivery-id>

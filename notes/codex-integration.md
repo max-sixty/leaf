@@ -6,16 +6,6 @@ Leaf's current companion workflow is documented in
 [Session lifetime, “Carriers”](../skills/leaf/scripts/leaf/session-lifetime.md#carriers)
 owns the delivery and connection lifecycle. This note holds open design work.
 
-## Start the adapter when the first page is claimed
-
-An App Server-backed task could ensure its adapter is running when `server start`
-claims the first page. The adapter already discovers later
-pages held by that task. This would remove the separate startup step from the
-normal handoff, while retaining an explicit command for recovery and diagnostics.
-
-Check the claim path and task-wide lease handling before making startup
-automatic. The terminal remains the interactive client for approvals and input.
-
 ## Typed operations
 
 Provide model tools for reading page state, replying, declaring work, and

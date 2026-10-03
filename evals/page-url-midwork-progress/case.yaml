@@ -1,11 +1,11 @@
 # Sibling of the 2026-10-01 repeated-link complaint. Against 78f9fc8cd,
 # the old instructions repeated the URL in 2/2 runs; the repair omitted it in 2/2.
-schema_version: '1.0'
-name: page-url-midwork-progress
-description: "Handoff: a progress update while checks run does not repeat the page URL."
-tags:
-- handoff
-execution:
+description: page-url-midwork-progress
+metadata:
+  purpose: 'Handoff: a progress update while checks run does not repeat the page URL.'
+  tags:
+  - handoff
+vars:
   prompt: |
     You are a Claude Code session fixing an interaction in a handed-over Leaf page.
     The page is http://127.0.0.1:8123/?t=abc#controls. The user already has the URL.
@@ -21,18 +21,18 @@ execution:
 
     Use the leaf skill for the page workflow. Read whatever instructions you need.
     Only Skill and Read run here; write the requested chat message itself in your reply.
-graders:
-- name: loads-leaf
-  type: tool_used
-  tool: Skill
-  input_match: leaf
-- name: page-url
-  type: regex
-  pattern: 'http://127\.0\.0\.1:8123/'
-  match: not_contains
-- name: progress-message
-  type: llm
-  criteria: |
+assert:
+- type: javascript
+  metric: loads-leaf
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/SKILL\.md
+- type: not-regex
+  metric: page-url
+  value: http://127\.0\.0\.1:8123/
+- type: llm-rubric
+  metric: progress-message
+  value: |
     Pass only if the reply gives an intermediate update about the selection fix
     and the checks that are still running. It must not claim all work is
     complete, refuse the task, or replace the update with an explanation of the

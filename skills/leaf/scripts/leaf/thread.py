@@ -825,14 +825,16 @@ def title_refusal(page_dir: Path, title: str) -> str | None:
     from leaf.event_contracts import (
         APPEND_STAMPED,
         admitting_registry,
-        event_record_error,
+        command_record_schema,
     )
     from leaf.page_view import PageView
+    from leaf.registry.schema import schema_error
 
     event = title_event("pending", title, message_identity())
     registry = admitting_registry(PageView(page_dir), event, read_events(page_dir))
-    error = event_record_error(
-        registry["$events"]["kinds"]["thread_title"], {**APPEND_STAMPED, **event}
+    error = schema_error(
+        command_record_schema(registry["$events"]["kinds"]["thread_title"]),
+        {**APPEND_STAMPED, **event},
     )
     return error and f"thread_title event is invalid: {error}"
 

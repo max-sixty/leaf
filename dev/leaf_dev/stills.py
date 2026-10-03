@@ -15,14 +15,14 @@ add one where a change touches a surface it does not reach.
 
 Whether a state changed, and where, is `lf-shot`'s reading of its two stills, from the
 module that owns the rule (`runtime/image-difference.js`), loaded into the browser.
-Each state's directory under `.tmp/stills/` holds `base.png` and `head.png`, and for a
+Each invocation allocates a run directory under `.tmp/stills/`. Each state's
+directory within it holds `base.png` and `head.png`, and for a
 change `base-crop.png` and `head-crop.png` cropped to the union of its regions (or
 whole, when the reading names none), ready to hand off as an `lf-shot` pair, and
 `diff.png` outlining the head's own regions, a change in red and a move in blue. The
 crops cover both stills' regions.
 """
 
-import shutil
 import tempfile
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -36,7 +36,7 @@ from playwright.sync_api import Page
 
 from leaf_dev import ROOT
 from leaf_dev.browser import BESIDE, DESKTOP, chrome, load, settle, tab
-from leaf_dev.harness import build_pair, serving_source
+from leaf_dev.harness import build_pair, run_directory, serving_source
 
 OUT = ROOT / ".tmp" / "stills"
 CROP_MARGIN = 32
@@ -150,6 +150,46 @@ def code_note(page: Page) -> None:
     )
 
 
+def wide_passage(page: Page) -> None:
+    """A selected passage in a wide block, with its comment field beside it."""
+    page.locator('#bg-gallery-tabs [role="tab"]').get_by_text(
+        "Threads", exact=True
+    ).click()
+    page.locator("#bg-wide-passage").evaluate(
+        "el => el.scrollIntoView({block: 'center'})"
+    )
+    page.keyboard.press("/")
+    page.keyboard.insert_text('"keep the active card"')
+    page.keyboard.press("Enter")
+    page.locator(".lf-fab-input").wait_for(state="visible")
+
+
+def multiline_passage(page: Page) -> None:
+    """A passage beginning midline and ending on a line that starts further left."""
+    page.locator('#bg-gallery-tabs [role="tab"]').get_by_text(
+        "Threads", exact=True
+    ).click()
+    page.locator("#bg-wide-passage").evaluate(
+        "el => el.scrollIntoView({block: 'center'})"
+    )
+    first, last = page.evaluate("""() => {
+      const walker = document.createTreeWalker(
+        document.querySelector('#bg-wide-passage code'), NodeFilter.SHOW_TEXT);
+      const range = document.createRange();
+      for (let node; (node = walker.nextNode());) {
+        if (node.data.includes('Keep')) range.setStart(node, node.data.indexOf('Keep'));
+        if (node.data.includes('card')) range.setEnd(node, node.data.indexOf('card') + 4);
+      }
+      const fragments = [...range.getClientRects()].filter(r => r.width && r.height);
+      return [fragments[0].toJSON(), fragments.at(-1).toJSON()];
+    }""")
+    page.mouse.move(first["left"] + 1, first["top"] + first["height"] / 2)
+    page.mouse.down()
+    page.mouse.move(last["right"] - 1, last["top"] + last["height"] / 2, steps=8)
+    page.mouse.up()
+    page.locator(".lf-fab-input").wait_for(state="visible")
+
+
 def code_copy_by_pointer(page: Page) -> None:
     """Code's corner control revealed by hovering its source."""
     code_note(page)
@@ -209,6 +249,8 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
         composer,
         card_grabbed,
         code_note,
+        wide_passage,
+        multiline_passage,
         code_copy_by_pointer,
         code_copy_by_keyboard,
         code_source_by_touch,
@@ -232,6 +274,8 @@ class State:
 
 STATES = (
     State("gallery-tabs", "developer/feature-gallery", at_rest),
+    State("gallery-wide-passage", "developer/feature-gallery", wide_passage),
+    State("gallery-multiline-passage", "developer/feature-gallery", multiline_passage),
     State("plan", "review-a-plan", at_rest),
     State("plan-dark", "review-a-plan", at_rest, scheme="dark"),
     State("plan-beside", "review-a-plan", at_rest, viewport=BESIDE),
@@ -323,7 +367,7 @@ def capture(browser, address: str, state: State, path: Path) -> None:
         page.screenshot(path=path)
 
 
-def differences(browser, names: list[str]) -> dict[str, dict]:
+def differences(browser, names: list[str], out: Path) -> dict[str, dict]:
     """`lf-shot`'s reading of each named state's two stills, from the module that
     owns it, served beside them to a blank page."""
 
@@ -332,7 +376,7 @@ def differences(browser, names: list[str]) -> dict[str, dict]:
         if path == "/image-difference.js":
             route.fulfill(path=DIFFERENCE, content_type="text/javascript")
         elif path.endswith(".png"):
-            route.fulfill(path=OUT / path.lstrip("/"))
+            route.fulfill(path=out / path.lstrip("/"))
         else:
             route.fulfill(body="<!doctype html>", content_type="text/html")
 
@@ -393,9 +437,7 @@ def crop(folder: Path, regions: list[dict]) -> None:
 def stills(base_ref: str | None) -> None:
     """Screenshot a catalogue of UI states on BASE_REF's runtime and HEAD's, and crop
     each state that changed into a before/after pair under .tmp/stills/."""
-    if OUT.exists():
-        shutil.rmtree(OUT)
-    OUT.mkdir(parents=True)
+    out = run_directory(OUT)
     failed: dict[str, str] = {}
     with tempfile.TemporaryDirectory(prefix="leaf-stills-") as built:
         scratch = Path(built)
@@ -411,7 +453,7 @@ def stills(base_ref: str | None) -> None:
                         for state in STATES:
                             if state.source != source:
                                 continue
-                            folder = OUT / state.name
+                            folder = out / state.name
                             folder.mkdir(exist_ok=True)
                             try:
                                 capture(browser, address, state, folder / f"{arm}.png")
@@ -420,12 +462,14 @@ def stills(base_ref: str | None) -> None:
                                     f"on {arm}: {str(error).splitlines()[0]}"
                                 )
             read = differences(
-                browser, [state.name for state in STATES if state.name not in failed]
+                browser,
+                [state.name for state in STATES if state.name not in failed],
+                out,
             )
     click.echo(f"base {commits['base'][:10]} vs head {commits['head'][:10]}")
     unchanged = 0
     for state in STATES:
-        folder = OUT / state.name
+        folder = out / state.name
         if state.name in failed:
             click.echo(f"  failed  {state.name} {failed[state.name]}")
         elif (difference := read[state.name])["changed"]:
@@ -436,3 +480,4 @@ def stills(base_ref: str | None) -> None:
         else:
             unchanged += 1
     click.echo(f"{unchanged} of {len(STATES)} states unchanged")
+    click.echo(f"files in {out}")

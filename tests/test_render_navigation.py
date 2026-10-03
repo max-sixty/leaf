@@ -1372,11 +1372,6 @@ def _accepted_gallery_proposal(browser, serve):
     return url, page
 
 
-@pytest.mark.xfail(
-    reason="Linux b89e7ef0 and current main b91ad7c7 still paint a retired block lf-old",
-    raises=AssertionError,
-    strict=False,
-)
 def test_the_feature_gallery_hides_an_accepted_proposal_slot(browser, serve):
     """An accepted block proposal hides the slot retired by its decision."""
     _, page = _accepted_gallery_proposal(browser, serve)

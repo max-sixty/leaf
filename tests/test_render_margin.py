@@ -308,12 +308,13 @@ def test_page_map_qualifies_only_duplicate_subjects_with_their_reading_region(
         "button", name="Open thread: Check this subject.", exact=True
     ).click()
     expect(dialog).to_be_hidden()
-    threads = page.locator(".lf-threads")
-    expect(
-        threads.locator(
-            ':scope > .lf-thread[data-id="comment-proposed-deployment"] leaf-text'
-        )
-    ).to_be_focused()
+    thread = page.locator(
+        '.lf-margin-preview .lf-page-thread[data-thread="comment-proposed-deployment"]'
+    )
+    expect(thread).to_be_focused()
+    expect(thread).to_contain_text("Check this subject.")
+    page.keyboard.press("c")
+    expect(thread.locator("leaf-text")).to_be_focused()
 
 
 def test_a_settled_page_with_a_standing_reaction_stops_rendering_its_margin(
@@ -1312,8 +1313,8 @@ def _unfold_suggestion_undo(page, target):
     strict=False,
     raises=(AssertionError, PlaywrightTimeoutError),
     reason=(
-        "Known main failure: suggestion style/geometry can stop updating after reject "
-        "or Undo; see notes/margin-stuck-style.md"
+        "Verified on main ef89dfd3e: gallery suggestion actions can disappear after "
+        "Undo under concurrent original journeys; see notes/margin-stuck-style.md"
     ),
 )
 @pytest.mark.parametrize("width", [1440, 1200, 700, 390])
@@ -2765,10 +2766,20 @@ def test_the_page_map_dialog_walks_its_rows_from_the_search(browser, serve):
     search.focus()
     page.keyboard.press("Enter")
     expect(dialog).to_be_hidden()
-    # The row's own press: its thread opens with the user in its reply box.
-    expect(
-        page.locator(".lf-thread", has_text="Map note 12").locator("leaf-text")
-    ).to_be_focused()
+    # The destination owner opens the compact thread when Threads is closed;
+    # its card is the reading stop and c explicitly enters its reply.
+    thread_id = next(
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event.get("text") == "Map note 12"
+    )
+    thread = page.locator(
+        f'.lf-margin-preview .lf-page-thread[data-thread="{thread_id}"]'
+    )
+    expect(thread).to_be_focused()
+    expect(thread).to_contain_text("Map note 12")
+    page.keyboard.press("c")
+    expect(thread.locator("leaf-text")).to_be_focused()
 
 
 def test_the_chrome_names_an_ask_by_its_question(browser, serve):
@@ -3459,7 +3470,10 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
     back = reference.locator(
         '.lf-command-reference-command[data-lf-command="navigation.back"]'
     )
-    expect(back).to_have_text("Fold the secondary page actions")
+    expect(back).to_have_text("close options")
+    expect(
+        back.locator("xpath=ancestor::tr").locator(".lf-command-reference-description")
+    ).to_have_text("Fold the secondary page actions")
     back.click()
     expect(reference).to_be_hidden()
     expect(options).to_be_hidden()
@@ -4984,7 +4998,7 @@ def test_a_reading_marker_remains_visible_beside_offered_actions(browser, serve)
 
 
 def test_a_spilled_thread_opens_the_full_thread_without_a_hidden_anchor(browser, serve):
-    """The Page Map cannot anchor a thread card to a margin entry it has hidden."""
+    """Page Map reveals a spilled thread's reading control before anchoring its card."""
     page = open_page(browser, serve(SUGGESTION_PAGE, events=[COMMENT_ON_SUGGESTION]))
     resized(page, 1440, 900)
     page.evaluate(
@@ -5020,11 +5034,22 @@ def test_a_spilled_thread_opens_the_full_thread_without_a_hidden_anchor(browser,
     dialog = page.locator(".lf-page-map-dialog")
     dialog.get_by_role("button", name=re.compile("^Open thread:")).click()
     expect(dialog).to_be_hidden()
-    expect(page.locator(".lf-margin-preview")).to_be_hidden()
-    expect(page.locator(".lf-thread-panel")).to_have_class(re.compile(r"\bopen\b"))
-    expect(page.locator(".lf-thread-panel")).to_contain_text(
-        COMMENT_ON_SUGGESTION["text"]
+    expect(
+        item.locator('.lf-margin-reading-option[data-lf-kinds="comment"]')
+    ).to_be_visible()
+    thread_id = next(
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event.get("text") == COMMENT_ON_SUGGESTION["text"]
     )
+    thread = page.locator(
+        f'.lf-margin-preview .lf-page-thread[data-thread="{thread_id}"]'
+    )
+    expect(thread).to_be_focused()
+    expect(thread).to_contain_text(COMMENT_ON_SUGGESTION["text"])
+    expect(page.locator(".lf-thread-panel")).not_to_have_class(re.compile(r"\bopen\b"))
+    page.keyboard.press("c")
+    expect(thread.locator("leaf-text")).to_be_focused()
 
 
 # The right edge of the column's words, inside `main`'s padding. A thread card beside
@@ -7980,7 +8005,8 @@ def test_a_second_margin_reply_grows_below_the_first_line(browser, serve):
 def test_continued_margin_draft_grows_below_its_first_line_after_agent_reply(
     browser, serve
 ):
-    """News holds the reply row; later typing grows the active draft below its first line."""
+    """News holds the reply row. Typing grows below its first line until the card
+    reaches the window's foot, then the editor takes room upward and scrolls within it."""
     page, preview, editor = drafting_in_a_short_card(browser, serve, 1000, 600)
     append_carried_log_record(
         serve.page_dir,
@@ -7997,14 +8023,25 @@ def test_continued_margin_draft_grows_below_its_first_line_after_agent_reply(
     told(page)
     rendered(page)
     before = preview.evaluate(DRAFTING_CARD)
-    editor.type(" a long continuing draft " * 20)
+    editor.press("Shift+Enter")
     rendered(page)
     after = preview.evaluate(DRAFTING_CARD)
     assert after["side"] == before["side"]
+    assert after["editorFoot"] > before["editorFoot"], (before, after)
     assert after["editorTop"] == pytest.approx(before["editorTop"], abs=0.5), (
         before,
         after,
     )
+    editor.type(" a long continuing draft " * 20)
+    rendered(page)
+    bounded = page.evaluate(CARD_AND_REPLY)
+    assert bounded["placement"] == before["side"]
+    assert bounded["cardBottom"] == pytest.approx(bounded["foot"], abs=0.5), bounded
+    assert bounded["turn"] < bounded["editorTop"] < after["editorTop"], bounded
+    assert bounded["editorBottom"] <= bounded["cardBottom"], bounded
+    assert bounded["editorTop"] <= bounded["send"] <= bounded["cardBottom"], bounded
+    assert editor.evaluate("box => box.scrollHeight > box.clientHeight")
+    expect(editor).to_be_focused()
 
 
 def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve):

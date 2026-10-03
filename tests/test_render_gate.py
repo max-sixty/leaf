@@ -2789,7 +2789,16 @@ def test_a_page_at_rest_does_nothing(browser, serve, source):
 
     The reader has asked for reduced motion, which is when a page owes stillness: one who
     allows motion may be shown a page's own film playing itself (rust-sort's)."""
-    findings = at_rest(still_page(browser, serve(source)))
+    page = still_page(browser, serve(source))
+    # Gallery samples have their own startup and render after the outer page.
+    gallery_frames = page.locator("[data-interaction-frame]")
+    expect(
+        page.locator("[data-interaction-frame][data-interaction-ready]")
+    ).to_have_count(gallery_frames.count())
+    for frame in page.frames[1:]:
+        if frame.frame_element().get_attribute("data-interaction-ready") is not None:
+            rendered(frame)
+    findings = at_rest(page)
     assert findings == [], "\n".join(findings)
 
 

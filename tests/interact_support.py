@@ -12,6 +12,7 @@ import http.client
 import http.cookiejar
 import json
 import os
+import secrets
 import shlex
 import shutil
 import socket
@@ -49,7 +50,7 @@ from leaf import schema as schema_model
 from leaf import server as server_model
 from leaf import service as service_model
 from leaf import session as session_model
-from leaf import session_cleanup as cleanup_model
+from leaf import state as cleanup_model
 from leaf import structure as structure_model
 from leaf import thread_context as thread_context_model
 from leaf import vendoring as vendoring_model
@@ -588,11 +589,14 @@ def page_state(d):
     return served_page.full_state(d, events)
 
 
-def record_claim(page, harness="claude-code", **fields):
+def record_claim(page, /, harness="claude-code", **fields):
     """Write the canonical claim shape for lifecycle fixtures.
 
     `harness` is checked against Leaf's own table, so a fixture cannot record a
     name `take_claim` would never write."""
+    observed = cleanup_model.session_record(fields.get("id", "s1"))
+    if observed and not observed["provider"]:
+        observed = None
     record = {
         "page": str(page.resolve()),
         "id": "s1",
@@ -602,20 +606,34 @@ def record_claim(page, harness="claude-code", **fields):
         "cwd": str(Path.cwd()),
         "ts": "t",
         "released": None,
-        "turn": "turn-1",
-        "turn_opened": cleanup_model.now_iso(),
-        "turn_closed": None,
+        "turn": observed["turn"] if observed else "turn-1",
+        "turn_opened": observed["turn_opened"] if observed else cleanup_model.now_iso(),
+        "turn_closed": observed["turn_closed"] if observed else None,
         **fields,
     }
-    # A lifetime is one key, the way `take_claim` spreads it: a claim naming a job
-    # record or resting on activity states no pid, and a reader that saw one there
-    # would be reading a fixture rather than a shape leaf writes.
-    if fields.keys() & {"job", "activity"}:
-        record.pop("pid", None)
+    lifetime = {key: record[key] for key in ("job", "activity") if key in record}
+    if not lifetime:
+        lifetime = {"pid": record["pid"]}
+    session = cleanup_model.ensure_session(record["id"], lifetime)
+    session = cleanup_model.write_session(
+        {
+            **session,
+            "turn": record["turn"],
+            "turn_opened": record["turn_opened"],
+            "turn_closed": record["turn_closed"],
+        }
+    )
+    record = {
+        key: value
+        for key, value in record.items()
+        if key not in {"job", "activity", "pid", "turn", "turn_opened", "turn_closed"}
+    }
+    record["generation"] = session["generation"]
+    record["acquisition"] = fields.get("acquisition", secrets.token_hex(16))
     path = service_model.claim_path(page)
     path.parent.mkdir(parents=True, exist_ok=True)
     cleanup_model.write_json(path, record)
-    return record
+    return service_model.page_claim(page)
 
 
 def live_versions(d):
@@ -1394,6 +1412,11 @@ def under_codex(spawn, codex_program):
 
 @pytest.fixture
 def codex_claimed_page(tmp_path, under_codex, codex_env):
+    """A Codex-owned server before delivery starts, for carrier lifecycle tests.
+
+    Public handoff connects delivery too. These tests choose their own transport
+    or exercise a direct wait, so setup takes the lower-level claim and serve.
+    """
     page = tmp_path / "codex-page"
     env = codex_env | {"CODEX_THREAD_ID": "codex-thread"}
 
@@ -1407,8 +1430,18 @@ def codex_claimed_page(tmp_path, under_codex, codex_env):
     # Captured because the URL is read back; the status is asserted here with
     # both streams in the message, rather than left to a CalledProcessError
     # that would take leaf's own account down with it.
+    program = """
+import json, sys
+from pathlib import Path
+from leaf.hosting import start_server
+from leaf.service import starting_claim
+page = Path(sys.argv[1])
+with starting_claim(page):
+    url, _ = start_server(page)
+print(json.dumps({"url": url}))
+"""
     started = under_codex(
-        shlex.join([*LEAF_COMMAND, "server", "start", str(page)]),
+        shlex.join([sys.executable, "-c", program, str(page)]),
         env,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -1421,9 +1454,7 @@ def codex_claimed_page(tmp_path, under_codex, codex_env):
     # stays above later hook calls. Keep that session lifetime true for tests
     # using this fixture after the launch itself has been verified.
     claim = service_model.page_claim(page)
-    cleanup_model.write_json(
-        service_model.claim_path(page), {**claim, "pid": os.getpid()}
-    )
+    record_claim(page, **{**claim, "pid": os.getpid()})
     return page
 
 
@@ -1749,3 +1780,18 @@ class _YamlSnapshotHandler(BaseSnapshotHandler):
 SnapshotHandlerRegistry.add_handler(
     lambda obj: isinstance(obj, YamlDocument), _YamlSnapshotHandler, insert_front=True
 )
+
+
+def consume_pending_input(session_id):
+    """A test reader takes a complete envelope and explicitly confirms it."""
+    from leaf import delivery
+    from leaf.hook_carrier import hook_acknowledgement
+
+    batches = delivery.pending_batches(session_id)
+    if not batches:
+        return None
+    payload = delivery.freeze_delivery(
+        batches, carrier="hook", acknowledge=hook_acknowledgement
+    )
+    delivery.receive(payload, session_id)
+    return payload

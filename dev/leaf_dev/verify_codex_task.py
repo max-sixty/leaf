@@ -15,8 +15,8 @@ process, and stops at the first check that fails.
 
 The journey, in order:
 
-- `setup`: the user asks for a page to review; the agent serves it and hands it to
-  the adapter with `leaf codex start` using this journey's transport;
+- `setup`: the user asks for a page to review; serving it automatically connects
+  delivery using this journey's transport;
 - `idle`: a comment posted while the task is idle is answered in a turn Leaf starts;
 - `mid-turn`: a comment posted during a shell command is answered once; the queue
   task must pick it up and answer it before that turn's first final response;
@@ -308,6 +308,8 @@ def journey(
                         "url": running_server(page)["url"],
                         "thread": task.thread,
                         "turn": claim["turn"],
+                        "generation": claim["generation"],
+                        "acquisition": claim["acquisition"],
                         "turn_closed": claim["turn_closed"],
                         "answers": {
                             name: len(answers(page, name))
@@ -322,7 +324,6 @@ def journey(
             )
 
     started = time.monotonic()
-    isolated_adapter = f"leaf codex start ./page --codex-path {shlex.quote(codex)}"
     if preview:
         command = shlex.join(
             [
@@ -339,9 +340,6 @@ def journey(
                 "--user",
             ]
         )
-        # Codex's login shell constructs PATH afresh. Set the transport wrapper
-        # on this command itself so preview's automatic connection selects it.
-        command = f"PATH={shlex.quote(str(Path(codex).parent))}:$PATH {command}"
         task.say(
             "I wrote a Leaf source at ./source.html. "
             f"Run `{command}` as a long-running shell command and leave it running "
@@ -349,10 +347,7 @@ def journey(
             "Handle the comments I leave on the page."
         )
     else:
-        task.say(
-            f"{REQUEST} This isolated test has a dedicated Codex executable. "
-            f"Connect the page with `{isolated_adapter}`."
-        )
+        task.say(REQUEST)
     task.settle(
         lambda: adapter_is_live(task.thread) and running_server(page) is not None,
         "the setup turn did not serve the page and start the adapter",
@@ -369,6 +364,7 @@ def journey(
     )
     check(page, task, [])
     url = running_server(page)["url"]
+    acquired = page_claim(page)["acquisition"]
 
     def check_step(posted: list[str]) -> None:
         check(page, task, posted)
@@ -377,6 +373,15 @@ def journey(
             "the page's keyed URL changed between Codex turns",
         )
         PageClient(url).state()
+        if preview:
+            require(
+                page_claim(page)["acquisition"] == acquired,
+                "the preview lost its acquisition between Codex turns",
+            )
+            require(
+                lock_is_held(preview_lease(page)),
+                "the preview watcher ended between Codex turns",
+            )
 
     step("setup", started)
 
@@ -455,10 +460,27 @@ def journey(
         lambda: not adapter_is_live(task.thread),
         "the killed adapter still holds its lease",
     )
-    task.say(
-        f"The isolated test's delivery adapter stopped. Start it again with "
-        f"`{isolated_adapter}`, then {RESTART_TURN}"
-    )
+    if preview:
+        reconnect = shlex.join(
+            [
+                "uv",
+                "run",
+                "--project",
+                str(ROOT),
+                "python",
+                "-c",
+                "from leaf.host import session_harness; session_harness().ensure_delivery()",
+            ]
+        )
+        task.say(
+            "The isolated delivery adapter stopped. Reconnect the current preview "
+            f"without acquiring its page again: run `{reconnect}`, then {RESTART_TURN}"
+        )
+    else:
+        task.say(
+            "Serve the existing ./page again with `leaf server start ./page`, "
+            f"then {RESTART_TURN}"
+        )
     task.settle(
         lambda: adapter_is_live(task.thread),
         "the agent did not start the adapter again",
@@ -528,7 +550,9 @@ def verify_transport(codex: str, transport: str, *, preview: bool = False) -> No
     page = work / "page"
     payload = root / "plugin"
     extract_payload(payload)
-    home = codex_home(root / "codex-home")
+    # Keep the journey's isolated executable on PATH; a login shell would
+    # replace it with the user's Codex and bypass the queue wrapper.
+    home = codex_home(root / "codex-home", "allow_login_shell = false\n")
     executable = task_codex(root, codex, transport)
     # This process reads the page and claim in the state home the task writes, and
     # every child inherits the throwaway Codex home, never the session running this.
@@ -537,6 +561,7 @@ def verify_transport(codex: str, transport: str, *, preview: bool = False) -> No
         XDG_STATE_HOME=str(state),
         CODEX_HOME=str(home),
         LEAF_PREVIEWS_ROOT=str(work),
+        PATH=f"{Path(executable).parent}{os.pathsep}{os.environ['PATH']}",
     )
     os.environ.clear()
     os.environ.update(isolated)

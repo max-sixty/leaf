@@ -72,8 +72,10 @@ from render_harness import (
     RELEASE_FOCUS,
     REPLAYED_PAGE,
     SAMPLE_PAGE,
+    admit_before_presenting_comment,
     draft_key,
     expect_comment_notes,
+    hold_pending_thread_presentation,
     judge_watches,
     leaf_page,
     open_page,
@@ -206,6 +208,7 @@ def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve
     assert field.bounding_box()["height"] == 32
     write(field, "Carry this comment into its thread.")
     source = field.bounding_box()
+    hold_pending_thread_presentation(page)
     page.evaluate(
         """() => {
           window.__lfForceMarginRender = true;
@@ -221,7 +224,9 @@ def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve
     )
     page.wait_for_function("() => window.__lfRenderCycles > 0")
     page.keyboard.press("ControlOrMeta+Enter")
-    round_trip(page)
+    admitted = admit_before_presenting_comment(
+        page, serve.page_dir, "Carry this comment into its thread."
+    )
 
     preview = page.locator(".lf-margin-preview")
     expect(preview).to_be_visible()
@@ -229,6 +234,9 @@ def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve
     expect(preview.get_by_text("Carry this comment into its thread.")).to_be_visible()
     expect(target).to_be_focused()
     message = preview.locator(".lf-msg-body").first
+    expect(preview.locator(".lf-page-thread")).to_have_attribute(
+        "data-thread", admitted["id"]
+    )
     expect(message).to_have_text("Carry this comment into its thread.")
     full = message.evaluate(
         "node => ({family: getComputedStyle(node).fontFamily, "

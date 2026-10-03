@@ -17,7 +17,44 @@ const { DEFAULT_INTENT, createThreadNarrowing, narrowingReading, transition } =
   await import("/runtime/thread/narrowing.js");
 const { createThreadPanelElements } = await import("/runtime/thread/panel-elements.js");
 const { createThreadListController } = await import("/runtime/thread/thread-list.js");
+const { createThreadDestinations } = await import("/runtime/thread/destination.js");
+const { retainUserIntent } = await import("/runtime/user-intent.js");
 const { createThreadPanelController } = await import("/runtime/thread-panel.js");
+
+test("Thread destinations without a page preview retain canonical targets and shadow-held identity", async () => {
+  const owner = document.createElement("div");
+  const shadow = owner.attachShadow({ mode: "open" });
+  const thread = document.createElement("section");
+  thread.className = "lf-page-thread";
+  thread.dataset.thread = "thread-without-preview";
+  const control = document.createElement("button");
+  thread.append(control);
+  shadow.append(thread);
+  document.body.append(owner);
+  const arrivals = [];
+  const destinations = createThreadDestinations({
+    placedAt: (id) => (id === thread.dataset.thread ? { place: owner } : null),
+    panelIsOpen: () => false,
+    showThread: async (id, options) => {
+      arrivals.push({ id, options });
+      return control;
+    },
+  });
+  control.focus();
+  assert.equal(destinations.threadHere(), thread);
+  assert.equal(destinations.threadTarget(thread.dataset.thread), owner);
+  assert.equal(destinations.threadTarget("detached"), null);
+  assert.equal(destinations.threadFocusTarget(thread.dataset.thread), null);
+  const intent = retainUserIntent();
+  assert.equal(await destinations.openPageThread("detached", { intent }), control);
+  assert.equal(arrivals[0].id, "detached");
+  assert.equal(arrivals[0].options.intent, intent);
+  assert.equal(arrivals[0].options.focus, "reply");
+  window.dispatchEvent(new Event("input"));
+  assert.equal(await destinations.openPageThread("detached", { intent }), null);
+  assert.equal(arrivals.length, 1);
+  owner.remove();
+});
 
 test("two Thread panels own separate controls and list state", () => {
   const first = createThreadPanelElements({ id: "test-threads-first" });

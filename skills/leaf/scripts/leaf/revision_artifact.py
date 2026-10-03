@@ -47,7 +47,7 @@ from leaf.page_memory import Slot, memo
 from leaf.passages import SourceReading, enclosing_ids
 from leaf.render_checks import PROBE_SOURCES
 from leaf.schema import BROWSER_DIRS, CONTENT_TYPES, SERVED_PATH, VENDORED_FILES
-from leaf.session_cleanup import fsync_parents
+from leaf.state import fsync_parents
 from leaf.structure import (
     SourceDocument,
     links_with_rel,
@@ -136,6 +136,19 @@ class RevisionArtifact:
     @cached_property
     def implementations(self) -> dict:
         return json.loads(self.manifest)["implementations"]
+
+    @cached_property
+    def widget_aliases(self) -> dict[str, str]:
+        """The loader's widget module paths, mapped to their captured implementations.
+
+        A page-owned implementation lives under `/page/`, but every widget is
+        loaded through `/widgets/<tag>.js`. HTTP, publication and offline export
+        read these aliases from the same captured provenance.
+        """
+        return {
+            f"/widgets/{tag}.js": implementation["path"]
+            for tag, implementation in self.implementations.items()
+        }
 
     @cached_property
     def executable(self) -> str | None:

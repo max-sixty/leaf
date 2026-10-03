@@ -14,7 +14,7 @@ from typing import TypeVar
 
 from .locations import path_location
 from .schema import REVISION_NAME, VERSION_NAME
-from .session_cleanup import replace_bytes
+from .state import replace_bytes
 
 # The name an atomic write stages under, beside its target, for the moment before the
 # rename (`replace_files` below). A reader of the directory looks past it: it is not yet

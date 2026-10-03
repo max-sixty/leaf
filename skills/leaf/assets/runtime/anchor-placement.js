@@ -9,15 +9,17 @@ import { anchoringIsReady, resolveAnchor } from "./anchor-resolution.js";
 import { pageText } from "./passages.js";
 import { targetElement } from "./resolved-target.js";
 import { placePoints } from "./pointed-place.js";
-import { threadKey } from "./thread/model.js";
+import { threadKey, threadNames } from "./thread/model.js";
 
 export function createAnchorPlacement() {
   const placed = new Map();
   let pendingPlaced = null;
+  let names = new Map();
 
   function read({ threads, draft, actionAnchor }) {
     if (!anchoringIsReady()) return null;
     placed.clear();
+    names = threadNames(threads);
     const text = pageText();
     const readings = [];
     const pointable = [];
@@ -55,7 +57,7 @@ export function createAnchorPlacement() {
   }
   return Object.freeze({
     read,
-    placedAt: (id) => placed.get(id),
+    placedAt: (id) => placed.get(names.get(id)?.id ?? id),
     pendingAt: () => pendingPlaced,
   });
 }

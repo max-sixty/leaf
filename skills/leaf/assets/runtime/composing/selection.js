@@ -31,14 +31,15 @@ import {
 } from "../drafts.js";
 
 import { pageSelection, rangeAnchor } from "./capture.js";
+import { THREAD } from "../thread/selectors.js";
 import { focused, keys, paintKeys } from "../keyboard/scopes.js";
 import { pageScope } from "../keyboard/register.js";
 import { PRESS } from "../keyboard/bindings.js";
 import { takesLetters } from "../focus.js";
 import { repaint } from "../repaint.js";
-import { retainUserIntent } from "../user-intent.js";
+import { restrictUserIntent, retainUserIntent } from "../user-intent.js";
 
-import { elementById, inChrome } from "../passages.js";
+import { closestAcross, elementById, inChrome } from "../passages.js";
 
 import { notice } from "../notifications.js";
 import { validDrawing } from "./drawing-record.js";
@@ -136,7 +137,7 @@ export function createSelectionComposer({
   setReact,
   reactionTokens,
   designModeActive,
-  marginOpenInlineThread,
+  openPageThread,
   threadTransitionOrigin,
   anchorStands,
   anchorTargetAt,
@@ -151,21 +152,11 @@ export function createSelectionComposer({
   showFab,
   formatGoToAddress,
   createComment,
-  focusSurface,
-  showThread,
   landSent,
   refreshThread,
   wireInput,
 }) {
   const closeReactions = () => setReact(false);
-  const openInlineThread = (id, options) => {
-    const local = focusSurface(id, { focus: "thread" });
-    return (
-      local?.closest(".lf-page-thread") ??
-      marginOpenInlineThread(id, options)?.thread ??
-      null
-    );
-  };
 
   // What the open composer's comment is about: "design" for one opened in design mode, so
   // the anchor chosen there — a widget, a control, a runtime part — posts with the word
@@ -693,21 +684,27 @@ export function createSelectionComposer({
         await refreshThread();
         // A later draft or selection keeps its focus. The accepted comment still belongs
         // in an open panel, including when revealing it must widen the panel's filter.
-        const shouldReveal =
-          composerEpoch === epoch &&
-          loadDraft(ctx) === null &&
-          currentIntent() &&
-          !pageSelection();
+        const revealAvailable = () =>
+          composerEpoch === epoch && loadDraft(ctx) === null && !pageSelection();
+        const mayReveal = () => revealAvailable() && currentIntent();
+        const shouldReveal = mayReveal();
         // Land where any send leaves the user (`landSent`): on the thread, or on the
         // element the margin card's thread is about, never in its reply box. A later
         // gesture may already have moved the user elsewhere while presentation was
         // settling.
-        const inlineThread =
-          shouldReveal && !panelIsOpen()
-            ? openInlineThread(sent.id, { transition, onPositioned: landSent })
-            : null;
-        if (!inlineThread && (shouldReveal || panelIsOpen()))
-          await showThread(sent.id, { focus: shouldReveal ? "thread" : false });
+        if (shouldReveal || panelIsOpen()) {
+          const destination = await openPageThread(sent.id, {
+            focus: shouldReveal ? "thread" : false,
+            travel: false,
+            intent: shouldReveal
+              ? restrictUserIntent(currentIntent, revealAvailable)
+              : currentIntent,
+            transition,
+          });
+          const thread = destination && closestAcross(destination, THREAD);
+          if (shouldReveal && mayReveal() && thread)
+            currentIntent.handoff(() => landSent(thread));
+        }
       },
     });
     suggestCheck.onchange = () => setSuggestionMode(suggestCheck.checked);

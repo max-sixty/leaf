@@ -151,7 +151,7 @@ def mark_preview(source: Path, page: Path, runtime: Path, user: bool) -> None:
     Every field written here reaches the browser: the server hands the file to
     the page whole. It serves neither the file itself nor an absolute checkout path.
     """
-    from leaf.session_cleanup import write_json
+    from leaf.state import write_json
 
     layer = json.loads((page / "registry.json").read_text(encoding="utf-8"))["$layer"]
     producer = layer.get("producer", {})
@@ -252,34 +252,19 @@ class PreviewService:
         self.address: dict = {}
         self.revive_at = 0.0
         self.revive_refusal: str | None = None
+        self.claim: dict | None = None
 
     def start(self) -> tuple[str, str]:
         """Put the server up for the first time and report its URL and lifetime
         note. A `--user` preview claims the page for this session here, once, and
         gives the claim back if the start does not commit."""
-        from leaf.host import CodexHarness, session_harness
-        from leaf.hosting import claim_and_start, start_server
-        from leaf.service import starting_claim
+        from leaf.hosting import claim_and_start
 
         if not self.user:
             return self._serve_temporary()
-        if isinstance(session_harness(), CodexHarness):
-            from leaf.codex_adapter import cmd_codex_start
-
-            # Both parts must be ready before handing over the URL. The carrier
-            # joins an existing task-wide adapter, whose lifetime it owns itself.
-            with starting_claim(self.page):
-                started = start_server(self.page)
-                try:
-                    cmd_codex_start(self.page)
-                except BaseException:
-                    # The server committed before the adapter did. Withdraw it
-                    # while this claim still names us; starting_claim restores
-                    # the previous claim after this resource cleanup completes.
-                    self.stop()
-                    raise
-                return started
-        return claim_and_start(self.page)
+        started = claim_and_start(self.page)
+        self.claim = started.claim
+        return started.url, started.note
 
     def serve_again(self) -> None:
         """Put a `--user` service that is down but still wanted back up.
@@ -339,11 +324,10 @@ class PreviewService:
 
     def stop(self) -> None:
         """Take the server down for good, as the preview ends."""
-        from leaf.host import session_harness
         from leaf.hosting import cmd_stop
 
         if self.user:
-            cmd_stop(self.page, owner=session_harness())
+            cmd_stop(self.page, owner=self.claim)
         else:
             self._close_temporary()
 
@@ -366,8 +350,7 @@ class PreviewService:
         that died, or one `page init` re-vendored but could not start again (the
         recorded port was taken), and the watcher tries it again."""
         from leaf.files import read_json
-        from leaf.host import session_harness
-        from leaf.service import claim_is_active, claimant_matches, page_claim
+        from leaf.service import claim_is_active, page_claim, same_claim
 
         if not self.user:
             return not self.running
@@ -375,8 +358,8 @@ class PreviewService:
         if not service or not service["enabled"]:
             return True
         claim = page_claim(self.page)
-        return not claimant_matches(
-            claim if claim_is_active(claim) else None, session_harness()
+        return not same_claim(claim, self.claim) or (
+            claim is not None and not claim_is_active(claim)
         )
 
 
@@ -808,7 +791,9 @@ def export_preview(
     runtime: Path, launcher: Path, source: Path, slot: str | None
 ) -> None:
     """Write the page as one offline file under `.tmp/`, and print its path."""
-    TMP.mkdir(exist_ok=True)
+    from leaf_dev.harness import run_directory
+
+    out_dir = run_directory(TMP / "exports")
     with tempfile.TemporaryDirectory(prefix="preview-export-", dir=TMP) as staging:
         page = Path(staging) / "page"
         prepared = prepare_page(
@@ -817,8 +802,7 @@ def export_preview(
             partial(leaf, launcher, runtime),
         )
         suffix = f"-{slot}" if slot else ""
-        out = TMP / f"example-{source.stem}{suffix}.html"
-        out.unlink(missing_ok=True)
+        out = out_dir / f"example-{source.stem}{suffix}.html"
         leaf(launcher, runtime, "page", "export", str(page), "-o", str(out))
     print(
         preparation_note(source, prepared.data_sources, prepared.versions),

@@ -72,7 +72,7 @@ from leaf import samples as samples_model
 from leaf import schema as schema_model
 from leaf import server as server_model
 from leaf import service as service_model
-from leaf import session_cleanup as cleanup_model
+from leaf import state as cleanup_model
 from leaf import structure as structure_model
 from leaf import thread_context as thread_context_model
 from leaf import vendoring as vendoring_model
@@ -4236,13 +4236,15 @@ def test_a_start_whose_caller_left_before_committing_leaves_no_service(
     assert not json.loads((page_dir / "service.json").read_text())["enabled"]
 
 
-@pytest.mark.parametrize("owned", [False, True])
+@pytest.mark.parametrize(
+    "owned,same_session", [(False, False), (True, False), (True, True)]
+)
 def test_stop_does_not_wait_forever_on_a_server_started_after_its_transition(
-    page_dir, monkeypatch, owned
+    page_dir, monkeypatch, owned, same_session
 ):
     """Explicit stops retire a later start; owner cleanup yields to a successor."""
     assert service_model.claim_page(page_dir)
-    owner = host_model.session_harness() if owned else None
+    owner = service_model.page_claim(page_dir) if owned else None
     assert hosting_model.start_server(page_dir, standing=True)
     transitioned = threading.Event()
     resume = threading.Event()
@@ -4276,7 +4278,9 @@ def test_stop_does_not_wait_forever_on_a_server_started_after_its_transition(
         if owned:
             with service_model.PageTransaction(page_dir) as transaction:
                 transaction.take_claim(
-                    host_model.ClaudeCodeHarness("successor", "Claude")
+                    host_model.session_harness()
+                    if same_session
+                    else host_model.ClaudeCodeHarness("successor", "Claude")
                 )
         assert hosting_model.start_server(page_dir, standing=True)
         resume.set()
@@ -4723,14 +4727,11 @@ def test_others_ships_on_a_network_facing_bind_too(page_dir):
     assert [entry["title"] for entry in state["others"]] == ["The other page"]
 
 
-def test_neighbours_follow_their_servers_and_a_deleted_pages_claim_retires(
-    page_dir, tmp_path
-):
+def test_neighbours_follow_their_servers_and_ignore_deleted_pages(page_dir, tmp_path):
     """A neighbour appears on the read after its server starts and leaves on the
     read after it stops, though neither moves a file the candidate set is keyed
-    on. A claim whose page directory is gone is removed by the next scan, whether
-    the page went before the first scan or after one had listed it, so the
-    claims directory holds what is still there to claim."""
+    on. A page whose directory is gone disappears on the next scan, whether it
+    went before the first scan or after one had listed it."""
     stopped = tmp_path / "stopped"
     neighbour_page(stopped, title="Starts later", dead=True)
     record_claim(stopped, id="later")
@@ -4746,7 +4747,7 @@ def test_neighbours_follow_their_servers_and_a_deleted_pages_claim_retires(
         return [entry["title"] for entry in presence_model.other_leaves(page_dir)]
 
     assert titles() == ["Scratch"]
-    assert not service_model.claim_path(deleted).exists()
+    assert service_model.claim_path(deleted).exists()
     assert service_model.claim_path(stopped).exists()
 
     lease = leases_model.take_lease(stopped / "server.lock")
@@ -4756,7 +4757,46 @@ def test_neighbours_follow_their_servers_and_a_deleted_pages_claim_retires(
 
     shutil.rmtree(stopped)
     assert titles() == ["Scratch"]
-    assert not service_model.claim_path(stopped).exists()
+    assert service_model.claim_path(stopped).exists()
+
+
+def test_the_live_document_keeps_its_revision_and_version_in_one_transaction(
+    page_dir, server, monkeypatch
+):
+    """A publication after the root read cannot pair a new revision with an old log."""
+    publish(page_dir)
+    published = False
+
+    class ConcurrentPublication(service_model.PageTransaction):
+        def __exit__(self, *args):
+            nonlocal published
+            answer = super().__exit__(*args)
+            if not published:
+                published = True
+                source = page_dir / "index.html"
+                source.write_text(
+                    source.read_text().replace(
+                        "<title>t</title>", "<title>New title</title>"
+                    )
+                )
+                publishing_model.cmd_stamp(page_dir, "Concurrent publication")
+            return answer
+
+    monkeypatch.setattr(http_model, "PageTransaction", ConcurrentPublication)
+    status, body = fetch(f"{server}/")
+    assert status == 200
+    document = body.decode()
+    assert '<meta name="lf-revision" data-lf-runtime content="1">' in document
+    assert '<meta name="lf-version" data-lf-runtime content="1">' in document
+    assert "<title>t</title>" in document
+    assert published
+
+    status, body = fetch(f"{server}/")
+    assert status == 200
+    document = body.decode()
+    assert '<meta name="lf-revision" data-lf-runtime content="2">' in document
+    assert '<meta name="lf-version" data-lf-runtime content="2">' in document
+    assert "<title>New title</title>" in document
 
 
 def test_state_reads_claims_and_their_log_floor_in_one_transaction(

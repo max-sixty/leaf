@@ -5,7 +5,9 @@ delivery:
   id: <delivery>
   created_at: <time>
   carrier: hook
-  acknowledge: null
+  acknowledge: >-
+    Once this complete delivery is in your context, confirm it with `leaf delivery
+    ack <delivery>`. Until then, the user's moves read Sent.
   batches:
     - page: <page>
       through_seq: 14

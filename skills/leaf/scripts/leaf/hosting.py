@@ -15,13 +15,14 @@ import sys
 import threading
 import time
 import zlib
+from dataclasses import dataclass
 from enum import Enum, auto
 from pathlib import Path
 from urllib.parse import urlsplit
 
 from .detached import Handshake, StartRefused, start_detached
 from .files import read_json
-from .host import Harness, session_harness
+from .host import session_harness
 from .leases import lock_is_held, page_locked, release_lease, take_lease
 from .schema import SERVER_LOCK, SERVICE_FILE
 from .server import (
@@ -38,9 +39,10 @@ from .service import (
     claim_is_active,
     claimant_matches,
     page_claim,
+    same_claim,
     starting_claim,
 )
-from .session_cleanup import require_cross_process_locking, write_json
+from .state import require_cross_process_locking, write_json
 
 TEMPORARY_SERVER_NOTE = "server   temporary (stops with this command)"
 
@@ -304,13 +306,11 @@ def _announce_server(page_dir: Path, url: str, handshake: Handshake | None) -> b
     return True
 
 
-def _reuse_server(
-    page_dir: Path, host: str | None, standing: bool, handshake: Handshake | None
-) -> bool:
-    """Report a compatible running server, or say a fresh bind is needed."""
+def _reuse_server(page_dir: Path, host: str | None, standing: bool) -> str | None:
+    """Read a compatible running server's URL, or say a fresh bind is needed."""
     existing = running_server(page_dir)
     if not existing:
-        return False
+        return None
     if host and urlsplit(existing["url"]).hostname != host.lower():
         sys.exit(
             f"already serving at {existing['url']}; "
@@ -321,19 +321,14 @@ def _reuse_server(
             f"already serving as a session server at {existing['url']}; "
             "leaf server stop first, then re-run with --standing"
         )
-    _announce_server(page_dir, existing["url"], handshake)
-    return True
+    return existing["url"]
 
 
-def _take_server_lease(page_dir: Path, handshake: Handshake | None):
-    """Take the process lease, or report the concurrent server that won it."""
+def _take_server_lease(page_dir: Path):
+    """Take the process lease after checking reuse under the page lock."""
     lease = take_lease(page_dir / SERVER_LOCK)
     if lease is not None:
         return lease
-    winner = running_server(page_dir)
-    if winner:
-        _announce_server(page_dir, winner["url"], handshake)
-        return None
     sys.exit(f"another server run is serving {page_dir}; re-run")
 
 
@@ -401,26 +396,30 @@ def cmd_serve(
     with page_locked(page_dir), PageTransaction(page_dir) as page:
         service = read_json(page_dir / SERVICE_FILE)
         claimed = _serve_claim(page_dir, page, service, standing, revive)
-        if _reuse_server(page_dir, host, standing, handshake):
-            return
-
-        access = page_access(page_dir, host)
-        token = host_key()
-        # Before the lease and the record: a page this Leaf cannot serve refuses
-        # here, leaving the service as it found it.
-        endpoint = page_endpoint(page_dir, token)
-        base = 41000 + zlib.crc32(str(page_dir.resolve()).encode()) % 4000
-        ports = [access["port"]] if "port" in access else [*range(base, base + 10), 0]
-        lease = _take_server_lease(page_dir, handshake)
-        if lease is None:
-            return
-        httpd = _bind_server(page_dir, access, endpoint, ports, lease)
-        service = _service_record(access, httpd, standing, claimed, runtime)
-        write_json(page_dir / SERVICE_FILE, service)
-        url = page_url(service["host"], service["port"], token)
+        url = _reuse_server(page_dir, host, standing)
+        if url is None:
+            access = page_access(page_dir, host)
+            token = host_key()
+            # Before the lease and the record: a page this Leaf cannot serve refuses
+            # here, leaving the service as it found it.
+            endpoint = page_endpoint(page_dir, token)
+            base = 41000 + zlib.crc32(str(page_dir.resolve()).encode()) % 4000
+            ports = (
+                [access["port"]] if "port" in access else [*range(base, base + 10), 0]
+            )
+            lease = _take_server_lease(page_dir)
+            httpd = _bind_server(page_dir, access, endpoint, ports, lease)
+            service = _service_record(access, httpd, standing, claimed, runtime)
+            write_json(page_dir / SERVICE_FILE, service)
+            url = page_url(service["host"], service["port"], token)
 
     try:
-        if not _announce_server(page_dir, url, handshake):
+        if handshake is None and claimed:
+            session_harness().ensure_delivery()
+        announced = _announce_server(page_dir, url, handshake)
+        if httpd is None:
+            return
+        if not announced:
             # Whoever started this server left before committing the start, and
             # its cleanup may already have run a stop that found nothing to stop.
             # An uncommitted start withdraws itself.
@@ -434,8 +433,9 @@ def cmd_serve(
         ).start()
         httpd.serve_forever()
     finally:
-        httpd.server_close()
-        release_lease(lease)
+        if httpd is not None:
+            httpd.server_close()
+            release_lease(lease)
 
 
 def start_server(
@@ -477,17 +477,35 @@ def start_server(
     return answer["url"], startup_note(page_dir)
 
 
+@dataclass(frozen=True)
+class PageStart:
+    """A committed serving address and the acquisition that started it."""
+
+    url: str
+    note: str
+    claim: dict | None
+
+
 def claim_and_start(
     page_dir: Path, host: str | None = None, standing: bool = False
-) -> tuple[str, str]:
-    """Claim the page for this host session, then start its server.
+) -> PageStart:
+    """Claim the page, start its server, and connect this host's delivery.
 
     What `server start` does, and what a `--user` preview does when it first puts
-    its page up. A start that does not commit gives the claim back
-    (`starting_claim`); a `standing` start takes none.
+    its page up. A start that does not commit withdraws its serving resource
+    before giving its claim back (`starting_claim`); a `standing` start takes
+    none and starts no delivery. Return only once both presentation and delivery
+    are ready, with the captured acquisition a resource owner may later retire.
     """
-    with starting_claim(page_dir, standing=standing):
-        return start_server(page_dir, host, standing)
+    with starting_claim(page_dir, standing=standing) as claimed:
+        url, note = start_server(page_dir, host, standing)
+        try:
+            if not standing and (harness := session_harness()) is not None:
+                harness.ensure_delivery()
+        except BaseException:
+            cmd_stop(page_dir, owner=claimed)
+            raise
+        return PageStart(url, note, claimed)
 
 
 class _StopScope(Enum):
@@ -498,7 +516,7 @@ def cmd_stop(
     page_dir: Path,
     restart: str | None = None,
     *,
-    owner: Harness | None | _StopScope = _StopScope.ANY_OWNER,
+    owner: dict | None | _StopScope = _StopScope.ANY_OWNER,
 ) -> bool:
     """Disable the desired service, wait until its process lease is released, and
     say whether a server was running.
@@ -528,9 +546,7 @@ def cmd_stop(
             if owner is not _StopScope.ANY_OWNER
             else contextlib.nullcontext() as page,
         ):
-            if owner is not _StopScope.ANY_OWNER and not claimant_matches(
-                page.claim, owner
-            ):
+            if owner is not _StopScope.ANY_OWNER and not same_claim(page.claim, owner):
                 return stopped
             # The server may release its lease immediately after we disable it.
             stopped = stopped or lock_is_held(page_dir / SERVER_LOCK)

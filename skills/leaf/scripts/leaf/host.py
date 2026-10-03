@@ -18,15 +18,14 @@ import socket
 import subprocess
 import sys
 import time
-from collections.abc import Callable, Iterator
-from contextlib import contextmanager
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import ClassVar
 
 from leaf.files import read_json
-from leaf.leases import adapter_is_live, hooks_ran
+from leaf.leases import adapter_is_live, hooks_ran, wait_is_live
 from leaf.machine import ancestry, pid_alive, process_argv
 
 
@@ -51,7 +50,7 @@ class Harness:
       session's pages in the background and wakes the session when input arrives
       (`watches_between_turns`), and the prompt hook, which runs as the turn the
       wake opens begins, and the other Stop hook put the input in the turn's
-      context and confirm it (`hook_delivers`). A turn that ends without its Stop
+      context for its reader to confirm (`hook_delivers`). A turn that ends without its Stop
       hooks, as an interrupt does, leaves nothing watching while the session lives
       on, which is why this is the harness with a `nudge`.
     - Codex has a detached adapter that outlives the turn and proves itself by
@@ -65,8 +64,8 @@ class Harness:
     agent: str
 
     name: ClassVar[str]
-    # Whether the host's hooks can carry input into the turn: they freeze, confirm,
-    # and hand over the whole delivery, and `leaf wait` only wakes the session.
+    # Whether the host's hooks can carry input into the turn: they freeze and
+    # hand over the whole delivery, and `leaf wait` only wakes the session.
     # `hooks_carry` says whether they do for this session.
     hook_delivers: ClassVar[bool] = False
 
@@ -93,6 +92,13 @@ class Harness:
         process holding one lease. A carrier that has to prove more overrides
         this."""
         return listening
+
+    def ensure_delivery(self) -> None:
+        """Prepare this host's input route before handing over a served page.
+
+        Hosts whose hooks or embedding own delivery need no separate process.
+        A detached carrier starts or joins its task-wide watch here.
+        """
 
     def hooks_carry(self) -> bool:
         """Whether this session's hooks carry its input: its host runs hooks that
@@ -126,8 +132,8 @@ class Harness:
     def run_ack(cls, delivery_id: str) -> str:
         """How the reader of this session's printed delivery runs the `leaf wait
         --ack` that confirms it and goes on waiting: the verb phrase the
-        delivery's `acknowledge` ends with. A harness whose hook carries input
-        prints no delivery; a wait held in a background task is the default."""
+        delivery's `acknowledge` ends with. Hook context names its separate
+        `leaf delivery ack` route; a wait held in a background task is the default."""
         return f"start `leaf wait --ack {delivery_id}` as the next background task"
 
     @classmethod
@@ -156,15 +162,6 @@ class Harness:
         Server carrier names the thread instead, as it starts the turn answering
         it, since the page server cannot reach that server."""
         return None
-
-    @contextmanager
-    def claiming_turn(self) -> Iterator[str | None]:
-        """Hold the host's current turn observation while a page claims it.
-
-        Hosts that name no turn leave its identity for Leaf to mint. The scope
-        covers the claim write so a concurrent ending cannot miss that page.
-        """
-        yield None
 
     def live_turn(self) -> dict | None:
         """What the host itself says about this session right now, or None where it
@@ -362,6 +359,15 @@ class CodexHarness(EnvironmentHarness):
     session_variables = ("LEAF_SESSION_ID", "CODEX_THREAD_ID")
     identity_variables = session_variables
 
+    def ensure_delivery(self) -> None:
+        from .codex_adapter import ensure_adapter
+
+        # A direct wait already selected by this task remains its carrier. It
+        # holds the current turn open rather than starting later turns.
+        if wait_is_live(None, self.session) and not adapter_is_live(self.session):
+            return
+        ensure_adapter()
+
     def lifetime(self) -> dict:
         """Codex states no process, so this one is discovered: the nearest
         ancestor running the `codex` program.
@@ -409,15 +415,6 @@ class CodexHarness(EnvironmentHarness):
             "LEAF_SESSION_ID names a Codex session but no codex process runs "
             f"above this one ({chain}); leaf takes the session's lifetime from it"
         )
-
-    @contextmanager
-    def claiming_turn(self) -> Iterator[str | None]:
-        from .codex_state import delivery_lock_path, hook_turn
-        from .session_cleanup import flocked
-
-        with flocked(delivery_lock_path(self.session)):
-            observed = hook_turn(self.session)
-            yield observed["turn"] if observed and observed["running"] else None
 
     def carrier_live(self, *, listening: bool) -> bool:
         """A wait lease says only that some process can read page events. The

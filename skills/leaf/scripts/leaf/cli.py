@@ -7,7 +7,7 @@ from pathlib import Path
 import click
 
 from leaf.schema import SKILL_ROOT, WAIT_BATCH_OUTPUT_INSTRUCTION
-from leaf.session_cleanup import EVENTS_FILE
+from leaf.state import EVENTS_FILE
 
 
 def resolve_dir(dir_arg: str, must_exist: bool = True) -> Path:
@@ -607,20 +607,20 @@ def serve_flags(command):
 def start(dir: str, host: str | None, standing: bool) -> None:
     """Start a page's server and print its URL.
 
-    Returns as soon as the server is up; the server itself keeps running in a
+    Returns once the server and this host's feedback route are ready; the server itself keeps running in a
     session of its own. `leaf server stop` takes one down, and a session server
     goes down with the session that claimed it besides. A page already served
-    prints that server's URL and is left alone.
+    reconnects delivery and prints that server's URL. `--standing` claims no
+    page and prepares no agent delivery.
     """
-    from leaf.detached import StartRefused
     from leaf.hosting import claim_and_start
 
     try:
-        url, note = claim_and_start(resolve_dir(dir), host, standing)
-    except StartRefused as error:
+        started = claim_and_start(resolve_dir(dir), host, standing)
+    except RuntimeError as error:
         raise SystemExit(str(error)) from None
-    print(json.dumps({"url": url}))
-    print(note, file=sys.stderr)
+    print(json.dumps({"url": started.url}))
+    print(started.note, file=sys.stderr)
 
 
 @server.command(short_help="Serve a page in the foreground until stopped.")
@@ -649,8 +649,11 @@ def run(dir: str, host: str | None, standing: bool, temporary: bool) -> None:
             raise click.UsageError("--temporary is loopback-only; omit --host")
         cmd_serve_temporary(page_dir)
         return
-    with starting_claim(page_dir, standing=standing):
-        cmd_serve(page_dir, host, standing)
+    try:
+        with starting_claim(page_dir, standing=standing):
+            cmd_serve(page_dir, host, standing)
+    except RuntimeError as error:
+        raise SystemExit(str(error)) from None
 
 
 @server.command("_serve", hidden=True)
@@ -948,6 +951,6 @@ def hook(watch: bool) -> None:
 @cli.command(hidden=True)
 def session_end() -> None:
     """Release ownership for the host's SessionEnd payload on stdin."""
-    from leaf.session_cleanup import main
+    from leaf.state import main
 
     main()

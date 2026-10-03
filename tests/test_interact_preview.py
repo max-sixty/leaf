@@ -13,14 +13,17 @@ in a nightly module runs nowhere near the change that breaks it.
 
 import json
 import shlex
+import shutil
+import socket
 import subprocess
 import sys
 from pathlib import Path
 from urllib.parse import urlsplit
 
 import pytest
+from conftest import LEAF_COMMAND
 from interact_support import ROOT, fetch, stamp, wait_for
-from leaf import codex_adapter, server, service
+from leaf import codex_adapter, leases, server, service, session
 from leaf_dev import preview
 
 
@@ -240,9 +243,18 @@ def test_an_unrelated_ancestor_layer_does_not_change_an_external_source(tmp_path
     assert preview.media_source(source) == source.parent / "media"
 
 
-@pytest.mark.parametrize("delivery_available", [True, False])
-def test_a_user_preview_connects_codex_feedback_before_handing_over_its_url(
-    page_dir, tmp_path, under_codex, codex_env, codex_queue, delivery_available
+@pytest.mark.parametrize("delivery_available", [True, False, "missing"])
+@pytest.mark.parametrize("handoff", ["preview", "start", "run"])
+@pytest.mark.parametrize("initially_idle", [False, True])
+def test_serving_connects_codex_feedback_before_handing_over_its_url(
+    page_dir,
+    tmp_path,
+    under_codex,
+    codex_env,
+    codex_queue,
+    delivery_available,
+    handoff,
+    initially_idle,
 ):
     """HTTP feedback reaches the current task without a second `codex start`.
 
@@ -251,47 +263,103 @@ def test_a_user_preview_connects_codex_feedback_before_handing_over_its_url(
     task and delivery pointer instead of starting a model turn.
     """
     stamp(page_dir)
+    if initially_idle:
+        session.cmd_status(page_dir, "idle", "")
     queued = Path(codex_queue["PREVIEW_QUEUE_RECORD"])
     ready = tmp_path / "ready.json"
     done = tmp_path / "done"
     program = """
 import json
+import subprocess
 import sys
 import time
 from pathlib import Path
-from leaf.service import PageTransaction
+from leaf.service import PageTransaction, page_claim
+from leaf.host import session_harness
+from leaf.hosting import cmd_stop
 from leaf_dev.preview import PreviewService
 
-page, ready, done = map(Path, sys.argv[1:])
+page, ready, done = map(Path, sys.argv[1:4])
+handoff = sys.argv[4]
 preview = PreviewService(page, True)
+foreground = None
 try:
-    ready.write_text(json.dumps(preview.start()))
+    if handoff == "preview":
+        started = preview.start()
+        # Joining the current carrier preserves the preview's acquisition.
+        session_harness().ensure_delivery()
+        assert page_claim(page)["acquisition"] == preview.claim["acquisition"]
+        assert not preview.ended
+    elif handoff == "start":
+        result = subprocess.run(
+            [sys.executable, "-m", "leaf", "server", "start", str(page)],
+            capture_output=True, text=True,
+        )
+        if result.returncode:
+            sys.exit(result.stderr)
+        started = (json.loads(result.stdout)["url"], result.stderr)
+    else:
+        foreground = subprocess.Popen(
+            [sys.executable, "-m", "leaf", "server", "run", str(page)],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+        )
+        line = foreground.stdout.readline()
+        if not line:
+            output, errors = foreground.communicate(timeout=30)
+            sys.exit(errors)
+        started = (json.loads(line)["url"], "")
+    ready.write_text(json.dumps(started))
     while not done.exists():
         time.sleep(0.01)
 finally:
-    preview.stop()
+    if handoff == "preview":
+        preview.stop()
+    else:
+        cmd_stop(page)
+    if foreground is not None:
+        foreground.communicate(timeout=30)
     if ready.exists():
         with PageTransaction(page) as transaction:
             transaction.release_claim()
 """
-    task = under_codex(
-        shlex.join(
-            [sys.executable, "-c", program, str(page_dir), str(ready), str(done)]
-        ),
+    delivery_env = (
         codex_env
         | codex_queue
         | {
             "CODEX_THREAD_ID": "preview-thread",
             "PREVIEW_QUEUE_AVAILABLE": str(delivery_available),
-        },
+        }
+    )
+    if delivery_available == "missing":
+        delivery_env["PATH"] = str(tmp_path / "no-codex")
+    task = under_codex(
+        shlex.join(
+            [
+                sys.executable,
+                "-c",
+                program,
+                str(page_dir),
+                str(ready),
+                str(done),
+                handoff,
+            ]
+        ),
+        delivery_env,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
     )
-    if not delivery_available:
+    if delivery_available is not True:
         output, errors = task.communicate(timeout=60)
         assert task.returncode != 0, f"{output}{errors}"
-        assert "queue unsupported" in errors
+        expected = (
+            "cannot find the `codex` executable"
+            if delivery_available == "missing"
+            else "queue unsupported"
+        )
+        assert expected in errors
+        if handoff != "preview":
+            assert "Traceback" not in errors
         assert not ready.exists()
         assert service.page_claim(page_dir) is None
         assert server.running_server(page_dir) is None
@@ -307,6 +375,9 @@ finally:
         url, _ = json.loads(ready.read_text())
         assert service.page_claim(page_dir)["id"] == "preview-thread"
         assert codex_adapter.adapter_is_live("preview-thread")
+        if initially_idle:
+            assert service.read_status(page_dir)["state"] == "idle"
+            session.cmd_status(page_dir, "waiting", "Review this page")
         endpoint = urlsplit(url)._replace(path="/api/event").geturl()
         status, body = fetch(
             endpoint,
@@ -338,3 +409,205 @@ finally:
         lambda live: not live,
         failure="the task's delivery carrier outlived its preview",
     )
+
+
+def test_serving_preserves_a_direct_codex_wait(
+    codex_claimed_page, under_codex, codex_env, codex_queue
+):
+    """An active direct watcher keeps its lease instead of being replaced.
+
+    The queue is deliberately unavailable: a successful handoff must use the
+    real wait already watching this task. Stop still keeps that turn open.
+    """
+    page = codex_claimed_page
+    stamp(page)
+    program = """
+import json, subprocess, sys, time
+from pathlib import Path
+from leaf.leases import wait_is_live, adapter_is_live
+from leaf.session import cmd_status
+page = Path(sys.argv[1])
+cmd_status(page, "waiting", "Review this page")
+watch = subprocess.Popen([sys.executable, "-m", "leaf", "wait", str(page)],
+                         stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+try:
+    deadline = time.monotonic() + 30
+    while not wait_is_live(page, "codex-thread"):
+        assert watch.poll() is None, watch.communicate()
+        assert time.monotonic() < deadline, "the direct wait never took its lease"
+        time.sleep(0.01)
+    for command in ("start", "run"):
+        served = subprocess.run([sys.executable, "-m", "leaf", "server", command, str(page)],
+                                capture_output=True, text=True)
+        assert served.returncode == 0, served.stderr
+        assert json.loads(served.stdout)["url"]
+        assert watch.poll() is None
+        assert not adapter_is_live("codex-thread")
+    stopped = subprocess.run([sys.executable, "-m", "leaf", "hook"],
+                             input=json.dumps({"hook_event_name": "Stop", "session_id": "codex-thread"}),
+                             capture_output=True, text=True)
+    assert stopped.returncode == 0, stopped.stderr
+    reason = json.loads(stopped.stdout)["reason"]
+    assert "leaf wait" in reason and "no delivery adapter" not in reason
+finally:
+    cmd_status(page, "idle", "")
+    output, errors = watch.communicate(timeout=30)
+    assert watch.returncode == 2, (output, errors)
+"""
+    task = under_codex(
+        shlex.join([sys.executable, "-c", program, str(page)]),
+        codex_env
+        | codex_queue
+        | {"CODEX_THREAD_ID": "codex-thread", "PREVIEW_QUEUE_AVAILABLE": "False"},
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    output, errors = task.communicate(timeout=60)
+    assert task.returncode == 0, f"{output}{errors}"
+
+
+def test_an_abandoned_handoff_does_not_disable_the_server_it_reuses(
+    codex_claimed_page, spawn, codex_env
+):
+    """Dropping a reused server's real handshake withdraws no existing service."""
+    page = codex_claimed_page
+    before = server.running_server(page)
+    caller, child = socket.socketpair()
+    task = spawn(
+        [
+            *LEAF_COMMAND,
+            "server",
+            "_serve",
+            str(page),
+            "--handshake",
+            str(child.fileno()),
+        ],
+        env=codex_env | {"CODEX_THREAD_ID": "codex-thread"},
+        pass_fds=(child.fileno(),),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    child.close()
+    caller.settimeout(30)
+    try:
+        with caller.makefile("rb") as announced:
+            assert json.loads(announced.readline())["url"] == before["url"]
+    finally:
+        caller.close()
+    output, errors = task.communicate(timeout=60)
+    assert task.returncode == 0, f"{output}{errors}"
+    assert server.running_server(page) == before
+
+
+def test_serving_adopts_existing_pages_and_joins_one_codex_delivery(
+    codex_claimed_page, tmp_path, under_codex, codex_env, codex_queue
+):
+    """A revived handoff connects once, including a reused foreground server.
+
+    The first server already exists with no carrier. Two public starts and a
+    foreground reuse must retain one adapter and leave Stop nothing to repair.
+    """
+    first = codex_claimed_page
+    second = tmp_path / "sibling"
+    shutil.copytree(first, second)
+    (second / "service.json").unlink()
+    ready, done = tmp_path / "ready.json", tmp_path / "done"
+    program = """
+import json, subprocess, sys, time
+from pathlib import Path
+from leaf.hosting import cmd_stop
+from leaf.leases import adapter_lease_path
+from leaf.service import PageTransaction
+pages = list(map(Path, sys.argv[1:3]))
+ready, done = map(Path, sys.argv[3:])
+lease = adapter_lease_path("codex-thread")
+try:
+    identities = []
+    for command, page in (("start", pages[0]), ("start", pages[1]), ("run", pages[0])):
+        result = subprocess.run(
+            [sys.executable, "-m", "leaf", "server", command, str(page)],
+            capture_output=True, text=True,
+        )
+        assert result.returncode == 0, result.stderr
+        assert json.loads(result.stdout)["url"]
+        identities.append(lease.stat().st_ino)
+    stopped = subprocess.run(
+        [sys.executable, "-m", "leaf", "hook"],
+        input=json.dumps({"hook_event_name": "Stop", "session_id": "codex-thread"}),
+        capture_output=True, text=True,
+    )
+    assert stopped.returncode == 0, stopped.stderr
+    assert not stopped.stdout, stopped.stdout
+    ready.write_text(json.dumps(identities))
+    while not done.exists():
+        time.sleep(0.01)
+finally:
+    for page in pages:
+        cmd_stop(page)
+        with PageTransaction(page) as transaction:
+            transaction.release_claim()
+"""
+    task = under_codex(
+        shlex.join(
+            [
+                sys.executable,
+                "-c",
+                program,
+                str(first),
+                str(second),
+                str(ready),
+                str(done),
+            ]
+        ),
+        codex_env | codex_queue | {"CODEX_THREAD_ID": "codex-thread"},
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        wait_for(
+            ready.exists,
+            bool,
+            failure="the shared delivery handoff did not finish",
+            timeout=60,
+        )
+        assert len(set(json.loads(ready.read_text()))) == 1
+        assert leases.wait_is_live(first, "codex-thread")
+        assert leases.wait_is_live(second, "codex-thread")
+        assert codex_adapter.adapter_is_live("codex-thread")
+    finally:
+        done.touch()
+        output, errors = task.communicate(timeout=15)
+    assert task.returncode == 0, f"{output}{errors}"
+
+
+def test_a_preview_keeps_its_acquisition_when_delivery_transfers_the_page(
+    page_dir, monkeypatch
+):
+    """Startup returns its own claim even if delivery acquired a successor."""
+    from leaf.host import session_harness
+    from leaf.hosting import cmd_stop
+    from leaf.server import running_server
+    from leaf.service import PageTransaction, page_claim
+
+    owner = session_harness()
+    captured = []
+
+    def transfer(harness):
+        captured.append(page_claim(page_dir))
+        with PageTransaction(page_dir) as transaction:
+            transaction.take_claim(harness)
+
+    monkeypatch.setattr(type(owner), "ensure_delivery", transfer)
+    service = preview.PreviewService(page_dir, user=True)
+    try:
+        url, _ = service.start()
+        assert service.claim["acquisition"] == captured[0]["acquisition"]
+        assert page_claim(page_dir)["acquisition"] != service.claim["acquisition"]
+        assert service.ended
+        service.stop()
+        assert running_server(page_dir)["url"] == url
+    finally:
+        cmd_stop(page_dir)

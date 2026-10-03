@@ -24,12 +24,13 @@ define what a user should see when their message joins a turn already answering
 other input: which message the final answer settles, where that answer appears,
 and what remains outstanding if the turn fails.
 
-The start race is unconfirmed. `codex_adapter.start_delivery_turn` checks
-that the task is idle before starting, but another client can start a turn between
-those requests. Test that race and interruption/reconnect behavior against the
-installed App Server before changing delivery policy. Generate its current schema
-with `codex app-server generate-json-schema`; do not infer turn preconditions from
-an older protocol snapshot.
+`TaskConnection._start_delivery` checks fresh provider status before starting,
+but another client can start a turn between those requests. The installed App
+Server schema exposes no atomic idle precondition; it says `turnTrigger` is ignored
+when a start steers an active turn. Test that race against the real provider before
+changing delivery policy. Generate its current schema with
+`codex app-server generate-json-schema`; do not infer turn preconditions from an
+older protocol snapshot.
 
 ## Evaluate a typed reply body
 

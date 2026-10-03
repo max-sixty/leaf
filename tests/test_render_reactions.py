@@ -267,7 +267,7 @@ def test_a_token_press_marks_the_passage_and_its_revealed_remove_takes_it_back(
         and level["clusters"] == 1
     ), level
     # A mark, not a thread: nothing in the panel, and nothing in its count.
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Open threads: 0")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 0")
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     expect(page.locator(".lf-thread")).to_have_count(0)
@@ -2603,7 +2603,7 @@ def test_a_reply_to_a_reaction_opens_a_thread_and_resolve_is_its_floor(browser, 
     )
     page = open_page(browser, url)
     painted(page, [["merge-both", "change"]])
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Open threads: 0")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 0")
 
     thread_model.cmd_reply(
         serve.page_dir,
@@ -2613,7 +2613,7 @@ def test_a_reply_to_a_reaction_opens_a_thread_and_resolve_is_its_floor(browser, 
         for_event=None,
     )
     told(page)
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Open threads: 1")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 1")
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     thread = page.locator(f'.lf-thread[data-id="{reaction["id"]}"]')
@@ -2623,7 +2623,7 @@ def test_a_reply_to_a_reaction_opens_a_thread_and_resolve_is_its_floor(browser, 
 
     thread_model.cmd_resolve(serve.page_dir, reaction["id"])
     told(page)
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Open threads: 0")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 0")
     assert page.evaluate("() => CSS.highlights.get('lf-mark').size") == 0
 
 

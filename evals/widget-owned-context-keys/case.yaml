@@ -1,10 +1,12 @@
-schema_version: '1.0'
-name: widget-owned-context-keys
-description: "A widget declares local keys and explicitly forwardable context aliases once."
-tags:
-- packages
-- keyboard
-execution:
+# User-requested widget digits exposed Ask-owned allocation and duplicated hints.
+# This case checks explicit context aliases, stable roles, and Leaf-owned presentation.
+description: widget-owned-context-keys
+metadata:
+  purpose: A widget declares local keys and explicitly forwardable context aliases once.
+  tags:
+  - packages
+  - keyboard
+vars:
   prompt: |
     An existing Leaf package widget owns a swipe deck with passButton and keepButton,
     canSwipe(), and existing button click handlers. Add its keyboard integration:
@@ -15,21 +17,23 @@ execution:
     Both controls need inline hints. Leaf must own dispatch, forwarding, and hint
     visibility. Only shipped references are available; runtime source and execution
     are unavailable. Do not implement new runtime machinery or a page adapter.
-graders:
-- name: loads-leaf
-  type: tool_used
-  tool: Skill
-  input_match: leaf
-- name: reads-packages
-  type: tool_used
-  tool: Read
-  input_match: skills/leaf/references/packages\.md
-- name: declares-context-aliases
-  type: regex
-  pattern: 'contextKeys\s*:'
-- name: judgment
-  type: llm
-  criteria: |
+assert:
+- type: javascript
+  metric: loads-leaf
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/SKILL\.md
+- type: javascript
+  metric: reads-packages
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/references/packages\.md
+- type: regex
+  metric: declares-context-aliases
+  value: 'contextKeys\s*:'
+- type: llm-rubric
+  metric: judgment
+  value: |
     Pass only if the snippet uses the public commands/commandScope API imported
     from /runtime/widget-api.js and declares one command per existing action.
     Pass and Keep have stable dotted ids, concise titles, ordinary ArrowLeft and

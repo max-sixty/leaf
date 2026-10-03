@@ -2065,23 +2065,33 @@ def scroll_followers(writes):
     return found
 
 
-# The page as its DOM states it: `<html>`'s attributes, then each element in the body and
-# in every open shadow tree by where it stands, with its attributes sorted, and the words
-# of each text node. Comments are Lit's markers, which `live_counts` counts instead.
-# `data-lf-traffic` is the runtime's request ledger, which the page's clock moves. An
-# inline style is a set of declarations, read sorted: a property taken off and set again
-# stands last in the attribute's text and says the same.
-PAGE_STATE = browser_function("harness.js", "pageState")
+_BROWSER_STATE = browser_function("harness.js", "browserState")
 
 
-def page_state(page):
-    """The page as its DOM states it (`PAGE_STATE`), one line per element and text."""
-    return page.evaluate(PAGE_STATE)
+def reader_state(page):
+    """Accessible content, controls, and their rendered boxes, plus focus and caret.
+
+    Compare two readings from the same journey, not a saved implementation snapshot.
+    Accessibility owns names, roles, values, and control states; Playwright's boxes
+    expose accessible element geometry, not every detail of painted text. Browser
+    focus affordances and visible fields' source/selection are read separately.
+    Hidden caches, wrapper classes, app-owned attributes, and equivalent styles are
+    irrelevant.
+    Node/listener retention belongs to `live_counts`, not this reading.
+    """
+    focused = page.locator(":focus")
+    native = page.evaluate(_BROWSER_STATE)
+    return [
+        *page.locator("body").aria_snapshot(boxes=True).splitlines(),
+        "focus: "
+        + (focused.last.aria_snapshot(boxes=True) if focused.count() else "none"),
+        *("field: " + json.dumps(field) for field in native["fields"]),
+        *("keyboard stop: " + json.dumps(stop) for stop in native["stops"]),
+    ]
 
 
 def state_changes(before, after):
-    """The lines of `page_state` one reading holds and the other does not, marked `-`
-    for the first and `+` for the second."""
+    """Differences between two reader_state readings, with enough context to act."""
     return [
         line
         for line in difflib.unified_diff(before, after, lineterm="", n=0)

@@ -70,6 +70,8 @@ module-name = "leaf"
 
 [dependency-groups]
 dev = [
+  # Accessible snapshots with rendered boxes for corpus round-trip checks.
+  "playwright>=1.63",
   "pytest>=9.1",
   "pytest-xdist>=3",
   "axe-playwright-python>=0.1.4",

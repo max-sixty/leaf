@@ -589,26 +589,6 @@ def page_state(d):
     return served_page.full_state(d, events)
 
 
-def release_codex_command(session_id, release):
-    """Finish a held command while retaining its fixture host's session.
-
-    A real host outlives each command. Wait for the command to finish, substitute
-    pytest for its fake process lifetime without changing generation or turn,
-    then let that process exit. Multiplexed hosts retain their activity lifetime.
-    """
-    wait_for(
-        Path(f"{release}.ready").exists,
-        bool,
-        failure="the held Codex command did not finish",
-        timeout=60,
-    )
-    with cleanup_model.flocked(cleanup_model.session_lock_path(session_id)):
-        session = cleanup_model.session_record(session_id)
-        if "pid" in session["lifetime"]:
-            cleanup_model.write_session({**session, "lifetime": {"pid": os.getpid()}})
-    release.touch()
-
-
 def record_claim(page, /, harness="claude-code", **fields):
     """Write the canonical claim shape for lifecycle fixtures.
 
@@ -635,23 +615,8 @@ def record_claim(page, /, harness="claude-code", **fields):
     if not lifetime:
         lifetime = {"pid": record["pid"]}
     turn = {key: record[key] for key in ("turn", "turn_opened", "turn_closed")}
-    session = None
-    if "generation" in fields:
-        # Copying a current claim corrects the fake host's lifetime, rather than
-        # replacing its session and briefly leaving that claim without an owner.
-        with cleanup_model.flocked(cleanup_model.session_lock_path(record["id"])):
-            current = cleanup_model.session_record(record["id"])
-            if (
-                current is not None
-                and current["ended"] is None
-                and fields["generation"] == current["generation"]
-            ):
-                session = cleanup_model.write_session(
-                    {**current, "lifetime": lifetime, **turn}
-                )
-    if session is None:
-        session = cleanup_model.ensure_session(record["id"], lifetime)
-        session = cleanup_model.write_session({**session, **turn})
+    session = cleanup_model.ensure_session(record["id"], lifetime)
+    session = cleanup_model.write_session({**session, **turn})
     record = {
         key: value
         for key, value in record.items()
@@ -663,6 +628,40 @@ def record_claim(page, /, harness="claude-code", **fields):
     path.parent.mkdir(parents=True, exist_ok=True)
     cleanup_model.write_json(path, record)
     return service_model.page_claim(page)
+
+
+def bind_task_lifetime_to_worker(page):
+    """Keep a synthetic task standing after its one-command host exits.
+
+    The worker stands for the real host process that survives tool calls. This
+    changes only that existing task's lifetime provenance, under its session
+    lock: its generation, turn, provider observation, and page acquisition stay
+    intact. Recording another claim would create a replacement generation and
+    briefly leave the already-running carrier with no pages to own.
+    """
+    claim = service_model.page_claim(page)
+    with cleanup_model.flocked(cleanup_model.session_lock_path(claim["id"])):
+        record = cleanup_model.session_record(claim["id"])
+        assert record["generation"] == claim["generation"]
+        assert record["ended"] is None
+        cleanup_model.write_session({**record, "lifetime": {"pid": os.getpid()}})
+
+
+def release_codex_command(page, release):
+    """Complete a held command before its synthetic Codex host can exit.
+
+    The command must finish its claim transaction while its ancestor is alive.
+    The canonical lifetime handoff then keeps that same task standing for later
+    delivery, before the fixture releases the one-command host.
+    """
+    wait_for(
+        Path(f"{release}.ready").exists,
+        bool,
+        failure="the held Codex command did not finish",
+        timeout=60,
+    )
+    bind_task_lifetime_to_worker(page)
+    release.touch()
 
 
 def live_versions(d):
@@ -1422,8 +1421,9 @@ def under_codex(spawn, codex_program):
         hosting = ["app-server"] if app_server else []
         shell_command = f"{command}; exit"
         if hold_until is not None:
-            # Expose command completion while its fake task remains alive, so
-            # release_codex_command can retain the same session before host exit.
+            # Mark command completion while keeping the fake host alive. A
+            # test can then hand its lifetime to the worker before release;
+            # unlike a real task, this host would otherwise die with its command.
             shell_command = (
                 f"{command}; result=$?; "
                 f"touch {shlex.quote(f'{hold_until}.ready')}; "
@@ -1469,16 +1469,16 @@ with starting_claim(page):
     url, _ = start_server(page)
 print(json.dumps({"url": url}))
 """
-    release = tmp_path / "release-server-start"
+    release_start = tmp_path / "release-server-start"
     started = under_codex(
         shlex.join([sys.executable, "-c", program, str(page)]),
         env,
-        hold_until=release,
+        hold_until=release_start,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
     )
-    release_codex_command("codex-thread", release)
+    release_codex_command(page, release_start)
     out, err = started.communicate(timeout=60)
     assert started.returncode == 0, f"{out}{err}"
     assert json.loads(out)["url"].startswith("http://127.0.0.1:")

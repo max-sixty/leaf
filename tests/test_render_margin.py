@@ -5897,20 +5897,22 @@ def test_typing_in_a_margin_reply_leaves_the_transcript_where_the_reader_put_it(
 def test_a_block_pasted_into_a_margin_reply_keeps_the_last_turn_above_it(
     browser, serve
 ):
-    """A long transcript already fills the card above its reply. A pasted block
-    scrolls in that editor, keeping its starting top and the answered turn in view."""
+    """A full card shares its bounded body with the growing reply. Paste preserves
+    the outer frame and latest answered turn, then scrolls inside the editor."""
     page, preview, editor, transcript = long_thread_in_reply(browser, serve)
     transcript.evaluate("list => list.scrollTop = list.scrollHeight")
     editor.type("first")
     rendered(page)
     before = page.evaluate(CARD_AND_REPLY)
-    transcript_top = transcript.evaluate("list => list.scrollTop")
     page.keyboard.insert_text("\n" + "\n".join(f"pasted {n}" for n in range(30)))
     rendered(page)
     after = page.evaluate(CARD_AND_REPLY)
-    for edge in ("cardTop", "editorTop", "editorBottom"):
+    for edge in ("cardTop", "cardBottom"):
         assert after[edge] == pytest.approx(before[edge], abs=0.5), (before, after)
-    assert transcript.evaluate("list => list.scrollTop") == transcript_top
+    before_height = before["editorBottom"] - before["editorTop"]
+    after_height = after["editorBottom"] - after["editorTop"]
+    assert after_height > before_height, (before, after)
+    assert editor.evaluate("box => box.scrollTop > 0")
     caret = _focused_editor_caret(page)
     assert caret["selection"] == caret["length"], caret
     assert caret["caretTop"] >= caret["boxTop"], caret
@@ -5948,15 +5950,23 @@ def test_a_growing_margin_reply_keeps_the_previous_turn_visible(browser, serve):
     assert editor.evaluate("input => input.scrollTop > 0")
 
 
-def test_a_short_margin_thread_lets_the_editor_use_available_room(browser, serve):
-    page = open_page(browser, serve(LONG_THREAD_PAGE, events=[LONG_THREAD_ROOT]))
-    resized(page, 1440, 900)
+@pytest.mark.parametrize("long_comment", [False, True])
+def test_a_margin_reply_grows_before_it_scrolls(browser, serve, long_comment):
+    """A long transcript yields writing space just as a short one does."""
+    root = LONG_THREAD_ROOT | (
+        {"text": "The export must keep each tenant's credits separate. " * 17}
+        if long_comment
+        else {}
+    )
+    page = open_page(browser, serve(LONG_THREAD_PAGE, events=[root]))
+    resized(page, 1440, 600 if long_comment else 900)
     page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
     preview = page.locator(".lf-margin-preview")
     preview.get_by_role("textbox", name="Reply", exact=True).click()
     editor = preview.locator("leaf-text")
-    write(editor, "A reply with several lines.\n" * 8)
+    write(editor, "A reply with several lines.\n" * 5)
     assert editor.evaluate("input => input.getBoundingClientRect().height") > 120
+    assert editor.evaluate("input => input.scrollHeight <= input.clientHeight + 1")
 
 
 def test_an_incoming_margin_reply_follows_only_at_the_tail(browser, serve):
@@ -7309,7 +7319,7 @@ def send_anchored_comment(page, text):
     assert len(accepted) == len(lines), (lines, accepted)
     for actual, expected in zip(accepted, lines, strict=True):
         assert actual == pytest.approx(expected, abs=0.5), (lines, accepted)
-    return frame, len(lines)
+    return frame["x"], len(lines)
 
 
 @pytest.mark.parametrize("wrapping", [False, True])
@@ -7334,7 +7344,7 @@ def test_an_inline_thread_keeps_one_readable_card_across_page_claims(
         if wrapping
         else "Check the January failure mode."
     )
-    _, narrow_lines = send_anchored_comment(page, text)
+    editor_start, narrow_lines = send_anchored_comment(page, text)
     assert narrow_lines > 1 if wrapping else narrow_lines == 1
     page.locator(".lf-margin-thread").get_by_role(
         "textbox", name="Reply", exact=True
@@ -7348,9 +7358,7 @@ def test_an_inline_thread_keeps_one_readable_card_across_page_claims(
     assert narrow["replyWidth"] >= 160, narrow
     # The sent thread retains the comment frame's width and inline start.
     # Its control cluster remains clear when the card takes the lower route.
-    assert narrow["cardLeft"] == pytest.approx(
-        narrow["wordsRight"] - narrow["minimum"], abs=0.5
-    ), narrow
+    assert narrow["cardLeft"] == pytest.approx(editor_start, abs=0.5), narrow
     assert narrow["cardLeft"] < narrow["mainRight"], narrow
     # Clear of its words under or over them, the card leaves its cluster uncovered.
     assert (
@@ -7368,7 +7376,7 @@ def test_an_inline_thread_keeps_one_readable_card_across_page_claims(
         init_script=MARGIN_EDITOR_ROOTS,
     )
     resized(page, 1920, 900)
-    _, wide_lines = send_anchored_comment(page, text)
+    editor_start, wide_lines = send_anchored_comment(page, text)
     assert wide_lines > 1 if wrapping else wide_lines == 1
     page.locator(".lf-margin-thread").get_by_role(
         "textbox", name="Reply", exact=True
@@ -7378,6 +7386,7 @@ def test_an_inline_thread_keeps_one_readable_card_across_page_claims(
     wide = page.evaluate(THREAD_CARD_GEOMETRY)
     assert wide["minimum"] <= wide["cardWidth"] <= wide["preferred"], wide
     assert wide["replyWidth"] >= 160, wide
+    assert wide["cardLeft"] == pytest.approx(editor_start, abs=0.5), wide
     assert wide["cardLeft"] > wide["controlsRight"], wide
 
 
@@ -7483,14 +7492,6 @@ CARD_AND_REPLY = """async () => {
 }"""
 
 
-@pytest.mark.xfail(
-    reason=(
-        "Linux native caret extends 0.328125 CSSpx below the editor at its drafting "
-        "limit; reproduced on main b89e7ef0e in full CI run 36998982468"
-    ),
-    raises=AssertionError,
-    strict=False,
-)
 def test_margin_card_holds_its_top_as_a_turn_arrives_and_as_a_reply_wraps(
     browser, serve
 ):
@@ -10291,23 +10292,7 @@ def _focused_editor_caret(page):
         session.detach()
 
 
-@pytest.mark.parametrize(
-    "route",
-    [
-        pytest.param(
-            "paste",
-            marks=pytest.mark.xfail(
-                reason=(
-                    "Native caret extends 0.1875 CSSpx below the editor after paste, "
-                    "with 10px of scrolling still available; reproduced on main f86be535d"
-                ),
-                raises=AssertionError,
-                strict=False,
-            ),
-        ),
-        "typing",
-    ],
-)
+@pytest.mark.parametrize("route", ["paste", "typing"])
 @pytest.mark.parametrize("size", [(1440, 900), (1440, 600), (1000, 700)])
 def test_drafting_in_a_pane_keeps_the_card_and_reply_top_when_its_room_runs_out(
     browser, serve, size, route

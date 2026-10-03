@@ -324,7 +324,9 @@ The corpus has these matrices. Return state is anchored on a first visit
 standing actions or reports twice and checking the visible state and idempotence; a
 scroll's writes (`scroll_writes`, read by `scroll_followers`) fail where a place is
 written on every step; a page left alone (`at_rest`) fails anything it does; a
-surface's round trips fail where one leaves a different `page_state` than the first,
+surface's round trips fail where one leaves a different `reader_state` than the first
+(accessible content and element geometry, control values, focus, caret, and native
+keyboard affordances),
 or `live_counts` climb on every trip; a resize fails where a width says something
 other than it said on the way out; and a box the user types in fails where sending
 every scroller to either end and back loses its words. The last four read a

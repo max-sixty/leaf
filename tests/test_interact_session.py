@@ -10169,7 +10169,7 @@ def test_codex_restart_finishes_an_accepted_batch_without_queueing_again(
         stderr=subprocess.PIPE,
         text=True,
     )
-    release_codex_command("codex-thread", release_start)
+    release_codex_command(page, release_start)
     out, err = started.communicate(timeout=60)
     assert started.returncode == 0, f"{out}{err}"
 
@@ -10209,41 +10209,24 @@ def test_a_later_codex_start_names_the_running_transport(
         "FAKE_CODEX_EXPECT_CWD": str(machine_model.state_home()),
     }
 
-    def start(*arguments):
-        started = under_codex(
-            shlex.join(
-                [
-                    *LEAF_COMMAND,
-                    "codex",
-                    "start",
-                    str(page),
-                    "--codex-path",
-                    os.path.relpath(program),
-                    *arguments,
-                ]
-            ),
-            environment,
-            app_server=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-        )
-        out, err = started.communicate(timeout=60)
-        return started.returncode, out.strip(), err
-
+    # All three tool calls belong to one standing host process. Three separate
+    # under_codex calls would introduce three genuine task lifetimes, rather than
+    # asking whether another command in this task joins its existing carrier.
+    command = [
+        *LEAF_COMMAND,
+        "codex",
+        "start",
+        str(page),
+        "--codex-path",
+        os.path.relpath(program),
+    ]
+    results = tmp_path / "start-results.json"
+    calls = [command, [*command, "--app-server", "unix:///tmp/elsewhere.sock"], command]
+    runner = PLUGIN_ROOT / "tests" / "fixtures" / "programs" / "codex_starts.py"
     try:
         release_start = tmp_path / "release-codex-start"
         started = under_codex(
-            shlex.join(
-                [
-                    *LEAF_COMMAND,
-                    "codex",
-                    "start",
-                    str(page),
-                    "--codex-path",
-                    os.path.relpath(program),
-                ]
-            ),
+            shlex.join([sys.executable, str(runner), json.dumps(calls), str(results)]),
             environment,
             app_server=True,
             hold_until=release_start,
@@ -10251,31 +10234,28 @@ def test_a_later_codex_start_names_the_running_transport(
             stderr=subprocess.PIPE,
             text=True,
         )
-        # The multiplexed host's activity lifetime outlives this command. A
-        # refused start restores its claim; the joining one comes last.
-        wait_for(
-            lambda: codex_adapter_model.adapter_is_live("codex-thread"),
-            bool,
-            failure="the detached Codex carrier did not start",
+        [(status, first, err), (refused, _, refusal), (joined, again, _)] = wait_for(
+            lambda: files_model.read_json(results),
+            lambda reading: reading is not None,
+            failure="the standing Codex host did not finish its three start commands",
         )
-        release_codex_command("codex-thread", release_start)
-        out, err = started.communicate(timeout=60)
-        assert started.returncode == 0, f"{out}{err}"
-        assert json.loads(out) == {
+        assert status == 0, err
+        assert json.loads(first) == {
             "task": "codex-thread",
             "app_server": None,
             "started": True,
         }
-        status, _, err = start("--app-server", "unix:///tmp/elsewhere.sock")
-        assert status != 0
-        assert "not through App Server unix:///tmp/elsewhere.sock" in err
-        status, again, _ = start()
-        assert status == 0
+        assert refused != 0
+        assert "not through App Server unix:///tmp/elsewhere.sock" in refusal
+        assert joined == 0
         assert json.loads(again) == {
             "task": "codex-thread",
             "app_server": None,
             "started": False,
         }
+        release_start.touch()
+        out, err = started.communicate(timeout=60)
+        assert started.returncode == 0, f"{out}{err}"
     finally:
         session_model.cmd_status(page, "idle", "")
         with service_model.PageTransaction(page) as transaction:
@@ -10328,15 +10308,17 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
     # The fake Codex wrapper models one shell command, while a real task's Codex
     # ancestor remains alive. Keep that already-proven lifetime standing so this
     # test can isolate the detached carrier after its starting shell is gone.
-    # Retain its generation and turn before allowing that fake ancestor to exit.
+    # Transfer the claim while that ancestor is still alive.
     wait_for(
         lambda: codex_adapter_model.adapter_is_live("codex-thread"),
         bool,
         failure="the detached Codex carrier did not start",
     )
+    claim = service_model.page_claim(page)
     before_release = cleanup_model.session_record("codex-thread")
-    release_codex_command("codex-thread", release_start)
+    release_codex_command(page, release_start)
     after_release = cleanup_model.session_record("codex-thread")
+    assert service_model.page_claim(page)["generation"] == claim["generation"]
     assert after_release["generation"] == before_release["generation"]
     assert after_release["turn"] == before_release["turn"]
     out, err = started.communicate(timeout=60)
@@ -10496,14 +10478,14 @@ def test_codex_adapter_follows_ownership_across_idle_and_server_stop(
         stderr=subprocess.PIPE,
         text=True,
     )
-    # The fake ancestor must remain alive until the start's claim is complete;
-    # keep that session standing after the command and its ancestor exit.
+    # The start claims the page for its own short-lived Codex; hand the claim to
+    # this process, whose life a real task's Codex stands for, before it exits.
     wait_for(
         lambda: codex_adapter_model.adapter_is_live("codex-thread"),
         bool,
         failure="the detached Codex carrier did not start",
     )
-    release_codex_command("codex-thread", release_start)
+    release_codex_command(page, release_start)
     out, err = started.communicate(timeout=60)
     assert started.returncode == 0, f"{out}{err}"
     try:
@@ -10600,19 +10582,14 @@ def test_an_offline_sibling_does_not_stop_browser_comments_reaching_codex(
         bool,
         failure="the detached Codex carrier did not start",
     )
-    claim = service_model.page_claim(live)
-    cleanup_model.write_json(
-        service_model.claim_path(offline), {**claim, "page": str(offline.resolve())}
-    )
-    release_codex_command("codex-thread", release_start)
-    assert set(service_model.owned_pages("codex-thread")) == {
-        live.resolve(),
-        offline.resolve(),
-    }
+    release_codex_command(live, release_start)
     out, err = started.communicate(timeout=60)
     assert started.returncode == 0, f"{out}{err}"
 
     try:
+        claim = service_model.page_claim(live)
+        record_claim(offline, **{**claim, "page": str(offline.resolve())})
+        assert set(service_model.owned_pages("codex-thread")) == {live, offline}
         service = files_model.read_json(live / "service.json")
         origin = f"http://{service['host']}:{service['port']}"
         status, body = fetch(
@@ -10668,6 +10645,7 @@ def test_a_codex_adapter_whose_start_was_never_committed_exits(
     and a caller that leaves instead ends it with its leases released."""
     page = codex_claimed_page
     program, log = fake_codex_cli(tmp_path)
+    # A live owner, so the only thing that can end this adapter is the handshake.
     caller, end = socket.socketpair()
     adapter = spawn(
         [
@@ -10830,13 +10808,13 @@ def test_a_queued_codex_delivery_leaves_the_turn_ended_stamp_standing(
         text=True,
     )
 
-    # Keep the verified fake task's generation and turn after its command exits.
+    # The fake task must still own the page while its claim moves to pytest.
     wait_for(
         lambda: codex_adapter_model.adapter_is_live("codex-thread"),
         bool,
         failure="the detached Codex carrier did not start",
     )
-    release_codex_command("codex-thread", release_start)
+    release_codex_command(page, release_start)
     out, err = started.communicate(timeout=60)
     assert started.returncode == 0, f"{out}{err}"
     try:
@@ -10954,8 +10932,8 @@ raise SystemExit(codex_adapter_model.run_adapter(os.environ["CODEX_PATH"]))
     )
     assert json.loads(standing.stdout)["url"].startswith("http://127.0.0.1:")
     session_model.cmd_status(second, "waiting", "second page")
-    starter = None
     release_start = tmp_path / "release-codex-start"
+    starter = None
     try:
         with cleanup_model.flocked(start_lock):
             session_model.cmd_status(first, "idle", "")
@@ -10989,7 +10967,7 @@ raise SystemExit(codex_adapter_model.run_adapter(os.environ["CODEX_PATH"]))
                 failure="the second start did not claim before the exit lock",
             )
 
-        release_codex_command("codex-thread", release_start)
+        release_codex_command(second, release_start)
         out, err = starter.communicate(timeout=60)
         assert starter.returncode == 0, f"{out}{err}"
         wait_for(
@@ -11237,7 +11215,7 @@ def test_hook_remedies_follow_the_host_not_the_display_name(
     waited = under_codex(
         shlex.join([*LEAF_COMMAND, "wait", str(page)]), env, hold_until=release_wait
     )
-    release_codex_command("w1", release_wait)
+    release_codex_command(page, release_wait)
     assert waited.wait(timeout=60) == 0
     session_model.cmd_status(page, "waiting", "")
 

@@ -4662,7 +4662,7 @@ customElements.define('lf-test-surface', class extends HTMLElement {
     }:
         expected_phase = "end" if failure in {"unregister", "disconnect"} else failure
         expected = (
-            "returned an outlet outside its widget"
+            "returned an outlet outside its presentation owner"
             if failure == "moved"
             else f"surface fixture: {expected_phase}"
         )

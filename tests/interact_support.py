@@ -589,6 +589,26 @@ def page_state(d):
     return served_page.full_state(d, events)
 
 
+def release_codex_command(session_id, release):
+    """Finish a held command while retaining its fixture host's session.
+
+    A real host outlives each command. Wait for the command to finish, substitute
+    pytest for its fake process lifetime without changing generation or turn,
+    then let that process exit. Multiplexed hosts retain their activity lifetime.
+    """
+    wait_for(
+        Path(f"{release}.ready").exists,
+        bool,
+        failure="the held Codex command did not finish",
+        timeout=60,
+    )
+    with cleanup_model.flocked(cleanup_model.session_lock_path(session_id)):
+        session = cleanup_model.session_record(session_id)
+        if "pid" in session["lifetime"]:
+            cleanup_model.write_session({**session, "lifetime": {"pid": os.getpid()}})
+    release.touch()
+
+
 def record_claim(page, /, harness="claude-code", **fields):
     """Write the canonical claim shape for lifecycle fixtures.
 
@@ -1393,11 +1413,11 @@ def under_codex(spawn, codex_program):
         hosting = ["app-server"] if app_server else []
         shell_command = f"{command}; exit"
         if hold_until is not None:
-            # Keep the fake task alive until a test hands its claim to the
-            # worker. Otherwise the adapter can see a dead claimant between
-            # communicate() and that handoff, unlike a real Codex task.
+            # Expose command completion while its fake task remains alive, so
+            # release_codex_command can retain the same session before host exit.
             shell_command = (
                 f"{command}; result=$?; "
+                f"touch {shlex.quote(f'{hold_until}.ready')}; "
                 f"while [ ! -e {shlex.quote(str(hold_until))} ]; do sleep 0.01; done; "
                 "exit $result"
             )
@@ -1440,21 +1460,19 @@ with starting_claim(page):
     url, _ = start_server(page)
 print(json.dumps({"url": url}))
 """
+    release = tmp_path / "release-server-start"
     started = under_codex(
         shlex.join([sys.executable, "-c", program, str(page)]),
         env,
+        hold_until=release,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
     )
+    release_codex_command("codex-thread", release)
     out, err = started.communicate(timeout=60)
     assert started.returncode == 0, f"{out}{err}"
     assert json.loads(out)["url"].startswith("http://127.0.0.1:")
-    # The fake codex wrapper exits with this one command; a real Codex session
-    # stays above later hook calls. Keep that session lifetime true for tests
-    # using this fixture after the launch itself has been verified.
-    claim = service_model.page_claim(page)
-    record_claim(page, **{**claim, "pid": os.getpid()})
     return page
 
 

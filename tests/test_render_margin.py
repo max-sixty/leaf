@@ -7681,8 +7681,9 @@ def test_a_turn_arriving_leaves_the_card_being_read_where_it_stands(browser, ser
     )
 
 
-def test_a_short_thread_stops_scrolling_when_the_page_gives_it_room(browser, serve):
-    """News preserves the reading edge; scrolling into room releases its old cap."""
+@pytest.mark.parametrize("repeats", [2, 12])
+def test_a_thread_uses_room_the_page_gives_it(browser, serve, repeats):
+    """A scroll into room expands clipped turns, whether or not the whole thread fits."""
     source = leaf_page(
         "Room for a conversation",
         '<h1>Room for a conversation</h1><div style="height: 100vh"></div>'
@@ -7710,7 +7711,7 @@ def test_a_short_thread_stops_scrolling_when_the_page_gives_it_room(browser, ser
             "parent": LONG_THREAD_ROOT["id"],
             "text": "One shared geometry reading can simplify the render gate while "
             "individual tests keep their assertions. The experiment checks that "
-            "taking those readings together still detects known faults. " * 2,
+            "taking those readings together still detects known faults. " * repeats,
         },
     )
     told(page)
@@ -7718,9 +7719,14 @@ def test_a_short_thread_stops_scrolling_when_the_page_gives_it_room(browser, ser
     rendered(page)
     assert preview.bounding_box()["y"] == pytest.approx(top, abs=0.5)
     assert transcript.evaluate("node => node.scrollHeight > node.clientHeight")
+    cramped = transcript.evaluate("node => node.clientHeight")
     page.evaluate("scrollBy(0, 400)")
     rendered(page)
-    assert transcript.evaluate("node => node.scrollHeight <= node.clientHeight + 1")
+    assert transcript.evaluate("node => node.clientHeight") > cramped + (
+        150 if repeats == 2 else 300
+    )
+    if repeats == 2:
+        assert transcript.evaluate("node => node.scrollHeight <= node.clientHeight + 1")
     assert preview.bounding_box()["y"] == pytest.approx(top - 400, abs=0.5)
 
 

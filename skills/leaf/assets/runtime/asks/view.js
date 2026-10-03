@@ -193,7 +193,7 @@ export function createAskView({
     }
     return { target, source };
   }
-  const presentedActionControl = (control) => presentedControl(control) ?? control;
+  const presentedActionControl = (control) => presentedControl?.(control) ?? control;
   const answeringAll = new Set();
   const bulkAnswers = new Map();
   const bannerControls = createAskBannerControls(asksBtn, async (outcome) => {

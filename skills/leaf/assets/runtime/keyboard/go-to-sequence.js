@@ -255,12 +255,16 @@ export function createGoToSequence({
 
   const MARGIN_TARGET_KIND = "Margin entry";
   const TARGET_KINDS = [
-    {
-      kind: MARGIN_TARGET_KIND,
-      list: visibleMarginEntries,
-      go: (...args) => activateMarginEntry(...args),
-      exposure: "self",
-    },
+    ...(visibleMarginEntries
+      ? [
+          {
+            kind: MARGIN_TARGET_KIND,
+            list: visibleMarginEntries,
+            go: activateMarginEntry,
+            exposure: "self",
+          },
+        ]
+      : []),
     {
       kind: "Tab",
       list: pageTabs,

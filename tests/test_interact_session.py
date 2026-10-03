@@ -6,6 +6,7 @@ import http.cookiejar
 import json
 import os
 import re
+import select
 import shlex
 import shutil
 import signal
@@ -160,6 +161,16 @@ def codex_loop(monkeypatch):
     return lambda page: record_claim(
         page, id="codex-thread", harness="codex", agent="Codex"
     )
+
+
+def codex_start_announcement(process) -> str:
+    """Wait for committed CLI output before transferring the fake host lifetime."""
+    assert select.select([process.stdout], [], [], 30)[0], (
+        "Codex start did not report completion"
+    )
+    line = process.stdout.readline()
+    assert json.loads(line)["task"] == "codex-thread"
+    return line
 
 
 def fake_codex_cli(tmp_path: Path) -> tuple[Path, Path]:
@@ -3526,6 +3537,142 @@ def test_app_server_activity_reads_only_its_own_turn():
             },
         }
     ) == {"turn": "turn-live", "completed": "interrupted"}
+
+
+def test_a_new_codex_carrier_observes_ordinary_turns_without_a_prior_hook(
+    page_dir, app_server, under_codex, codex_env, tmp_path
+):
+    """Startup establishes the generation before an idle provider subscribes."""
+    begin = threading.Event()
+    finish = threading.Event()
+
+    def handle(socket):
+        initialize = json.loads(socket.recv())
+        socket.send(json.dumps({"id": initialize["id"], "result": {}}))
+        socket.recv()  # initialized
+        resume = json.loads(socket.recv())
+        socket.send(
+            json.dumps(
+                {
+                    "id": resume["id"],
+                    "result": {
+                        "thread": {
+                            "id": "codex-thread",
+                            "status": {"type": "idle"},
+                            "turns": [],
+                        }
+                    },
+                }
+            )
+        )
+        if not begin.wait(timeout=30):
+            return
+        socket.send(
+            json.dumps(
+                {
+                    "method": "turn/started",
+                    "params": {
+                        "threadId": "codex-thread",
+                        "turn": {"id": "ordinary-turn"},
+                    },
+                }
+            )
+        )
+        socket.send(
+            json.dumps(
+                {
+                    "method": "item/started",
+                    "params": {
+                        "threadId": "codex-thread",
+                        "turnId": "ordinary-turn",
+                        "startedAtMs": 1000,
+                        "item": {
+                            "id": "ordinary-command",
+                            "type": "commandExecution",
+                            "command": "uv run pytest tests",
+                        },
+                    },
+                }
+            )
+        )
+        if not finish.wait(timeout=30):
+            return
+        socket.send(
+            json.dumps(
+                {
+                    "method": "turn/completed",
+                    "params": {
+                        "threadId": "codex-thread",
+                        "turn": {"id": "ordinary-turn"},
+                    },
+                }
+            )
+        )
+        for _raw in socket:
+            pass
+
+    assert cleanup_model.session_record("codex-thread") is None
+    endpoint = app_server(handle)
+    program, _log = fake_codex_cli(tmp_path)
+    session_model.cmd_status(page_dir, "waiting", "Reviewing the page")
+    release_start = tmp_path / "release-codex-start"
+    started = under_codex(
+        shlex.join(
+            [
+                *LEAF_COMMAND,
+                "codex",
+                "start",
+                str(page_dir),
+                "--codex-path",
+                str(program),
+                "--app-server",
+                endpoint,
+            ]
+        ),
+        codex_env | {"CODEX_THREAD_ID": "codex-thread"},
+        hold_until=release_start,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        announcement = codex_start_announcement(started)
+        claim = service_model.page_claim(page_dir)
+        generation = claim["generation"]
+        begin.set()
+        observed = wait_for(
+            lambda: files_model.read_json(page_dir / "status.json"),
+            lambda status: (
+                status.get("stream", {}).get("activity", {}).get("detail")
+                == "Running uv run pytest tests"
+            ),
+            failure="the newly subscribed carrier did not project ordinary provider activity",
+        )
+        assert observed["stream"]["activity"]["turn"] == "ordinary-turn"
+        current = service_model.page_claim(page_dir)
+        assert current["generation"] == generation
+        assert current["turn"] == "ordinary-turn"
+        assert current["turn_closed"] is None
+        finish.set()
+        closed = wait_for(
+            lambda: service_model.page_claim(page_dir),
+            lambda claim: claim["turn_closed"] is not None,
+            failure="the ordinary provider completion did not close the page turn",
+        )
+        assert (closed["generation"], closed["turn"]) == (generation, "ordinary-turn")
+    finally:
+        begin.set()
+        finish.set()
+        release_start.touch()
+        out, err = started.communicate(timeout=60)
+        assert started.returncode == 0, f"{announcement}{out}{err}"
+        with service_model.PageTransaction(page_dir) as page:
+            page.release_claim()
+    wait_for(
+        lambda: codex_adapter_model.adapter_is_live("codex-thread"),
+        lambda live: not live,
+        failure="the carrier did not retire after its page was released",
+    )
 
 
 def test_app_server_client_stays_subscribed_between_ordinary_codex_turns(
@@ -7965,7 +8112,7 @@ def test_a_revival_that_does_not_hold_ends_the_wait(
         raise StartRefused("the port is taken")
 
     def start_that_dies(*_args, **_kwargs):
-        return "http://127.0.0.1:1/", ""
+        return hosting_model.PageStart("http://127.0.0.1:1/", None, page_dir)
 
     monkeypatch.setattr(
         hosting_model,
@@ -8083,7 +8230,7 @@ def test_a_stop_during_a_restart_keeps_the_service_stopped(
 
     def recorded_start(page, **kwargs):
         starts.append(kwargs)
-        return "http://127.0.0.1:1/", ""
+        return hosting_model.PageStart("http://127.0.0.1:1/", None, page)
 
     monkeypatch.setattr(hosting_model, "start_server", recorded_start)
     if stopped == "during the lease wait":
@@ -9717,7 +9864,7 @@ def test_a_page_claimed_mid_turn_keeps_its_first_comment_for_the_tool_hook(
 
 @pytest.mark.parametrize("ending", ["Stop", "Interrupt"])
 def test_a_codex_ending_closes_a_page_claimed_before_its_first_tool_hook(
-    page_dir, codex_loop, capsys, ending
+    page_dir, codex_loop, capsys, ending, monkeypatch
 ):
     """No step-hook completion is needed to end a page acquired mid-turn."""
     hooks_model.cmd_hook(
@@ -9727,7 +9874,11 @@ def test_a_codex_ending_closes_a_page_claimed_before_its_first_tool_hook(
             "turn_id": "user-turn",
         }
     )
-    codex_loop(page_dir)
+    monkeypatch.setattr(
+        host_model.CodexHarness, "lifetime", lambda self: {"pid": os.getpid()}
+    )
+    with service_model.PageTransaction(page_dir) as page:
+        page.take_claim(host_model.session_harness())
     assert service_model.page_claim(page_dir)["turn"] == "user-turn"
     # A preview owes no watcher, so Stop may end without a carrier lease.
     (page_dir / "preview.json").write_text("{}")
@@ -9740,6 +9891,7 @@ def test_a_codex_ending_closes_a_page_claimed_before_its_first_tool_hook(
     )
     assert not capsys.readouterr().out
     assert service_model.page_claim(page_dir)["turn_closed"]
+    assert service_model.page_claim(page_dir)["turn"] == "user-turn"
     assert not codex_state_model.hook_turn("codex-thread")["running"]
     hooks_model.cmd_hook(
         {
@@ -9750,6 +9902,7 @@ def test_a_codex_ending_closes_a_page_claimed_before_its_first_tool_hook(
     )
     assert not capsys.readouterr().out
     assert service_model.page_claim(page_dir)["turn_closed"]
+    assert service_model.page_claim(page_dir)["turn"] == "user-turn"
 
 
 def test_a_late_codex_tool_hook_cannot_replace_a_newer_turn(page_dir, codex_loop):
@@ -10313,11 +10466,13 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
         bool,
         failure="the detached Codex carrier did not start",
     )
+    announcement = codex_start_announcement(started)
     claim = service_model.page_claim(page)
     bind_task_lifetime_to_worker(page)
     assert service_model.page_claim(page)["generation"] == claim["generation"]
     release_start.touch()
     out, err = started.communicate(timeout=60)
+    out = announcement + out
     assert started.returncode == 0, f"{out}{err}"
     assert json.loads(out)["task"] == "codex-thread"
     assert json.loads(out)["started"] is True
@@ -10481,9 +10636,11 @@ def test_codex_adapter_follows_ownership_across_idle_and_server_stop(
         bool,
         failure="the detached Codex carrier did not start",
     )
+    announcement = codex_start_announcement(started)
     bind_task_lifetime_to_worker(page)
     release_start.touch()
     out, err = started.communicate(timeout=60)
+    out = announcement + out
     assert started.returncode == 0, f"{out}{err}"
     try:
         # The adapter passes over its pages once a second; two of them have read
@@ -10526,10 +10683,10 @@ def test_codex_adapter_follows_ownership_across_idle_and_server_stop(
 
 
 def test_an_offline_sibling_does_not_stop_browser_comments_reaching_codex(
-    codex_claimed_page, under_codex, codex_env, tmp_path
+    page_dir, under_codex, codex_env, tmp_path
 ):
     """One unavailable leaf cannot break another page's browser-to-task path."""
-    live = codex_claimed_page
+    live = page_dir
     source = re.sub(r"\s*<lf-diagram.*?</lf-diagram>", "", PAGE, flags=re.DOTALL)
     (live / "index.html").write_text(source, encoding="utf-8")
     stamped = CliRunner().invoke(
@@ -10550,11 +10707,26 @@ def test_an_offline_sibling_does_not_stop_browser_comments_reaching_codex(
             "lifetime": "session",
         },
     )
+
     program, log = fake_codex_cli(tmp_path)
     session_model.cmd_status(live, "waiting", "current review")
     release_start = tmp_path / "release-codex-start"
+    # Both page claims and the carrier belong to the same actual task host.
+    # A second fake Codex process would declare a replacement session lifetime.
+    prepare = """\
+import sys
+from pathlib import Path
+from leaf.hosting import start_server
+from leaf.service import claim_page
+live, offline = map(Path, sys.argv[1:])
+claim_page(offline)
+claim_page(live)
+start_server(live)
+"""
     started = under_codex(
-        shlex.join(
+        shlex.join([sys.executable, "-c", prepare, str(live), str(offline)])
+        + " && "
+        + shlex.join(
             [
                 *LEAF_COMMAND,
                 "codex",
@@ -10579,9 +10751,11 @@ def test_an_offline_sibling_does_not_stop_browser_comments_reaching_codex(
         bool,
         failure="the detached Codex carrier did not start",
     )
+    announcement = codex_start_announcement(started)
     bind_task_lifetime_to_worker(live)
     release_start.touch()
     out, err = started.communicate(timeout=60)
+    out = announcement + out
     assert started.returncode == 0, f"{out}{err}"
 
     try:
@@ -10815,9 +10989,11 @@ def test_a_queued_codex_delivery_leaves_the_turn_ended_stamp_standing(
         bool,
         failure="the detached Codex carrier did not start",
     )
+    announcement = codex_start_announcement(started)
     bind_task_lifetime_to_worker(page)
     release_start.touch()
     out, err = started.communicate(timeout=60)
+    out = announcement + out
     assert started.returncode == 0, f"{out}{err}"
     try:
         wait_for(
@@ -10935,6 +11111,22 @@ raise SystemExit(codex_adapter_model.run_adapter(os.environ["CODEX_PATH"]))
     assert json.loads(standing.stdout)["url"].startswith("http://127.0.0.1:")
     session_model.cmd_status(second, "waiting", "second page")
     starter = None
+    release_start = tmp_path / "release-second-start"
+    starter_ready = tmp_path / "second-start-lock"
+    start_program = """\
+import contextlib, json, os, sys
+from pathlib import Path
+from leaf import codex_adapter
+native_flocked = codex_adapter.flocked
+@contextlib.contextmanager
+def observed_flocked(path):
+    if Path(path).resolve() == Path(sys.argv[3]).resolve():
+        Path(sys.argv[4]).write_text("requested")
+    with native_flocked(path) as held:
+        yield held
+codex_adapter.flocked = observed_flocked
+print(json.dumps(codex_adapter.cmd_codex_start(Path(sys.argv[1]), sys.argv[2])), flush=True)
+"""
     try:
         with cleanup_model.flocked(start_lock):
             session_model.cmd_status(first, "idle", "")
@@ -10948,29 +11140,34 @@ raise SystemExit(codex_adapter_model.run_adapter(os.environ["CODEX_PATH"]))
             starter = under_codex(
                 shlex.join(
                     [
-                        *LEAF_COMMAND,
-                        "codex",
-                        "start",
+                        sys.executable,
+                        "-c",
+                        start_program,
                         str(second),
-                        "--codex-path",
                         str(program),
+                        str(start_lock),
+                        str(starter_ready),
                     ]
                 ),
                 environment,
+                hold_until=release_start,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
             )
             wait_for(
-                lambda: service_model.page_claim(second),
-                lambda claim: claim and claim["id"] == "codex-thread",
-                failure="the second start did not claim before the exit lock",
+                starter_ready.exists,
+                bool,
+                failure="the second start did not request the startup lock",
             )
-            # The starter's process is short lived. Keep the claim active before
-            # the adapter can take the exit lock and recheck its watched pages.
-            bind_task_lifetime_to_worker(second)
+            assert service_model.page_claim(second) is None
+
+        announcement = codex_start_announcement(starter)
+        bind_task_lifetime_to_worker(second)
+        release_start.touch()
 
         out, err = starter.communicate(timeout=60)
+        out = announcement + out
         assert starter.returncode == 0, f"{out}{err}"
         wait_for(
             lambda: (
@@ -11508,7 +11705,8 @@ def test_wait_lease_is_exact_and_excludes_another_wait(
     assert not leases_model.lock_is_held(lease_path)
 
 
-def test_a_question_about_a_lease_does_not_turn_its_taker_away(tmp_path):
+@pytest.mark.parametrize("prepared", [False, True])
+def test_a_question_about_a_lease_does_not_turn_its_taker_away(tmp_path, prepared):
     """`lock_is_held` asks with a momentary shared lock, which refuses an exclusive
     one as a lease does. A lease taken while a question is open waits the question
     out; only a lease turns a taker away."""
@@ -11518,7 +11716,9 @@ def test_a_question_about_a_lease_does_not_turn_its_taker_away(tmp_path):
         fcntl.flock(question, fcntl.LOCK_SH)
         assert not leases_model.lock_is_held(path)
         threading.Timer(0.05, fcntl.flock, (question, fcntl.LOCK_UN)).start()
-        lease = leases_model.take_lease(path)
+        lease = leases_model.take_lease(
+            path, prepare=(lambda held: held.flush()) if prepared else None
+        )
     assert lease is not None
     assert leases_model.take_lease(path) is None
     lease.close()
@@ -11555,6 +11755,27 @@ def test_a_stable_lock_serializes_waiting_takers_and_retains_its_file(
     assert not leases_model.lock_is_held(path)
     with cleanup_model.flocked(path):
         assert leases_model.lock_is_held(path)
+
+
+def test_prepared_lease_metadata_precedes_exclusive_liveness(tmp_path):
+    """A preparation never pairs a successor's lease with retained old metadata."""
+    path = tmp_path / "prepared.lock"
+    path.write_bytes(b"old")
+
+    def prepare(held):
+        assert not leases_model.lock_is_held(path)
+        held.truncate(0)
+        held.write(b"new")
+        held.flush()
+        assert not leases_model.lock_is_held(path)
+
+    lease = leases_model.take_lease(path, prepare=prepare)
+    try:
+        assert leases_model.lock_is_held(path)
+        assert path.read_bytes() == b"new"
+    finally:
+        leases_model.release_lease(lease)
+    assert not leases_model.lock_is_held(path)
 
 
 def test_a_crashed_lease_holder_releases_the_stable_file_for_a_successor(
@@ -16051,6 +16272,13 @@ def test_claim_rollback_tracks_acquisition_independently_of_turn(claimed):
         assert first["acquisition"] != successor["acquisition"]
         page.restore_claim(first, previous)
         assert page.claim["acquisition"] == successor["acquisition"]
+        incompatible = {
+            key: value for key, value in successor.items() if key != "acquisition"
+        }
+        cleanup_model.write_json(service_model.claim_path(claimed), incompatible)
+        page.restore_claim(successor, previous)
+        assert page.claim is None
+        assert files_model.read_json(service_model.claim_path(claimed)) == incompatible
 
 
 def test_provider_observation_cannot_replace_a_newer_prompt(claimed):

@@ -822,7 +822,9 @@ def test_a_foreign_edit_waits_for_a_live_draft_and_replays_in_order(browser, ser
     told(page)
     expect(page.locator("#col-done #card-x")).to_have_count(1)
     expect(editor).to_have_js_property("value", "Local unsent words.")
-    expect(draft.locator(".lf-draft-history")).to_have_count(0)
+    expect(draft.locator(".lf-draft-history > summary")).to_have_text(
+        "Changes · 0 edits"
+    )
 
     page.route("**/api/state*", refuse)
     page.keyboard.press("Escape")
@@ -4786,3 +4788,37 @@ def test_a_fresh_revision_caret_failure_does_not_strand_deferred_arrivals(
     page.wait_for_function("window.__deferredArrivalRan===true")
     assert len(errors) == 1, errors
     assert "Revision continuity failed" in errors[0], errors
+
+
+def test_first_draft_save_and_refusal_keep_the_history_allocation(browser, serve):
+    """Current text and the zero-edit history keep one box through a refused first Save."""
+    source = leaf_page(
+        "First draft refusal",
+        "<h1>First draft refusal</h1>"
+        '<lf-draft id="first-draft"><pre>Original words.</pre></lf-draft>'
+        '<p id="following">The following passage stays where the reader found it.</p>',
+    )
+    page = open_page(browser, serve(source))
+    draft = page.locator("#first-draft")
+    history = draft.locator(".lf-draft-history > summary")
+    expect(history).to_have_text("Changes · 0 edits")
+    draft_control(page, "edit", "first-draft").click()
+    write(draft.locator("leaf-text"), "Changed words.")
+    before = page.locator("#following").bounding_box()
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    draft_control(page, "save", "first-draft").click()
+    holding(page, held, 1, "the refused first draft Save")
+    expect(draft.locator(".lf-draft-body")).to_have_text("Changed words.")
+    expect(draft.locator(".lf-draft-current")).to_contain_text(
+        "This version → standing text"
+    )
+    assert page.locator("#following").bounding_box() == before
+    held[0].fulfill(
+        status=400, json={"ok": False, "final": True, "error": "refused first edit"}
+    )
+    expect(draft.locator("leaf-text")).to_have_js_property("value", "Changed words.")
+    expect(draft.locator(".lf-draft-body")).to_have_text("Original words.")
+    expect(history).to_have_text("Changes · 0 edits")
+    assert page.locator("#following").bounding_box() == before
+    consume_browser_errors(page, "400")

@@ -336,6 +336,8 @@ must not run in the frame that asked for it, such as an animation tick, asks for
 `nextFrame`; a playback loop that runs until
 the user stops it stays on `requestAnimationFrame`, or the page never settles while it
 plays);
+`afterScript(callback)` coalesces a stable callback at the current script's microtask
+checkpoint when several synchronous updates produce one final mechanical reading;
 `keeps(node, name,
 value)` for any name or state a reactive render writes, handed the boolean or count raw,
 since an unconditional `setAttribute` restates itself on every publication and
@@ -1289,6 +1291,49 @@ by the widget. Core captures its full datum coordinate, including external-data 
 revision, opens the ordinary anchored draft, and seats the response bar in the consumer's
 outlet when the datum still resolves exactly. `origin` is the widget control to which
 Escape may return focus. Widgets do not receive draft, submission, or event APIs.
+
+## Page annotation presentation
+
+With `data-annotations="page"` on `body`, one connected Element may register
+`consumePageThreads(owner, render)` to nominate page-owned conversation outlets.
+Its callback receives the current immutable Thread collection and the same
+`target`, `place`, `composition` and `placeComposition` capabilities as a
+widget-local surface. Page targets include exact passages and visual details,
+as well as projected data. `target(key)` expresses candidacy: widget-local
+outlets that survive final validation take priority. A held widget arrival stays
+with its existing notice until the user opens it. Source-target coverage and
+outlet containment are separate: the source may be elsewhere in the document,
+but the outlet must stay inside its registered owner. Core validates both again
+at the sole conversation/composer commit. Failure of this selected page callback
+fails presentation instead of claiming an empty successful view.
+
+The same owner can register `consumeAnnotations(owner, render)` for Asks,
+updates, status and contributed actions. It receives the current immutable
+inventory after the conversation cohort commits, plus these capabilities:
+
+- `view.items(entry)` gives generated items not already represented by an owner's
+  visible native contribution controls. `view.activate(item)` uses the current
+  canonical action; a view never sends an event itself. Retain items by the
+  exported `contributionItemKey(item)`: each contribution owns its reading IDs.
+- `view.controls(entry)` returns the retained native contribution controls in
+  canonical order. Seat those actual nodes; their registration owns activation,
+  command scopes, disabled state and focus. `view.controlKey(control)` identifies
+  that current control by its contribution owner and entry key;
+  `view.controlRecord(control)` reads its canonical immutable contribution entry,
+  including its owner. Do not copy markup.
+- `view.arriving` says an explicit contribution focus is arriving at this view.
+  Release held layout before seating that current reading so its control is reachable.
+- `view.place(entry, row)` associates a contained row with its current source for
+  commenting, standing and Escape. `view.target(entry)` reads that exact target.
+
+Annotation paint is synchronous and joins the existing conversation presentation
+proof. `controls` and `place` accept only entries in that paint's current reading;
+holding layout never authorizes old actions. Both handles provide `read()`,
+`update()` and `unregister()`. Unregister on disconnect. Retain keyed rows and
+hold visible size changes with the shared `HeldReading` mechanism. Hold only layout
+identities and allocations, while updating surviving records and controls immediately;
+retired slots retain space with no interactive descendants. The bundled `lf-annotation-rail` is the worked
+implementation. Omitting either consumer retains the core Threads and Asks routes.
 
 ## Seeing it
 

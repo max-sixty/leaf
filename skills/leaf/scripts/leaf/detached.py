@@ -1,29 +1,14 @@
-"""A leaf process started in a session of its own, and the handshake that commits it.
+"""Private resource preparation, caller acceptance, and producer confirmation.
 
-A page server and a Codex delivery adapter both have to outlive the command that
-starts them, so each is spawned into a session of its own rather than held. Their
-caller still has to know whether the start happened, and has cleanup of its own to
-run when it did not: a claim to restore, a stop to issue. So the start is a
-handshake over a private socket pair, and the commit is the caller's to make:
+The child first announces a prepared resource without publishing ownership. The
+caller captures the announced identity inside `starting_detached`, then accepts
+on normal context exit. Acceptance is the caller's one write. The child commits
+its resource and confirms that publication before the caller returns.
 
-1. The child answers once, with one JSON line: `{"error": reason}` to refuse, or
-   its announcement — the URL a server minted, or nothing more than readiness.
-2. The caller reads that line. An announcement it keeps is committed by writing one
-   byte back, which is the last thing the caller does before returning it.
-3. The child, having announced, waits for that byte. An end of stream instead means
-   the caller left without taking the announcement, and the child withdraws what it
-   started.
-
-The commit is therefore one write in the caller, never a write in the child whose
-reading the caller may or may not have finished. A caller interrupted anywhere
-before it has sent that byte can run its cleanup knowing the child will not stay
-up behind it, and a caller that sent it knows the child is committed. A child that
-refuses, or dies before announcing, closes its end, and the caller reads the reason
-or the end of stream.
-
-The child's own streams go to the log its caller names, begun afresh for each child,
-or to nothing: what a start has to say travels in the handshake, and nobody drains a
-pipe once it is over.
+Abandonment before acceptance publishes nothing. After acceptance, a missing
+confirmation is uncertain commitment, never evidence that the child did not
+commit. The caller already holds the announced owner and retires only that
+owner's resources; it never restores an owner an accepted start superseded.
 """
 
 import json
@@ -32,23 +17,30 @@ import socket
 import subprocess
 import sys
 import traceback
+from collections.abc import Callable
+from contextlib import contextmanager
 from pathlib import Path
 
 
 class StartRefused(RuntimeError):
-    """A detached start that did not commit, carrying the reason the child gave."""
+    """A detached start the producer refused, carrying its reason."""
 
 
-def start_detached(
+class StartUnconfirmed(RuntimeError):
+    """An accepted start whose publication confirmation did not arrive."""
+
+
+@contextmanager
+def starting_detached(
     arguments: list[str],
     *,
     what: str,
     log: Path | None = None,
     cwd: Path | None = None,
     timeout: float | None = None,
-) -> dict:
+):
     """Spawn `python -m leaf ARGUMENTS --handshake FD` in a session of its own, and
-    return its announcement once the start is committed.
+    yield its private announcement, then accept and confirm on context exit.
 
     Raises `StartRefused` with the child's reason when it refuses, exits, or does not
     answer within `timeout`; a child that has not answered by then is terminated.
@@ -84,8 +76,21 @@ def start_detached(
         answer = json.loads(line) if line else {"error": None}
         if "error" in answer:
             raise StartRefused(answer["error"] or f"{what} did not start")
+        yield answer
         caller.sendall(b"\n")
-        return answer
+        try:
+            confirmed = caller.makefile("rb").readline()
+        except TimeoutError:
+            raise StartUnconfirmed(
+                f"{what} was accepted but did not confirm publication"
+            ) from None
+        if not confirmed:
+            raise StartUnconfirmed(
+                f"{what} was accepted but did not confirm publication"
+            )
+        answer = json.loads(confirmed)
+        if "error" in answer:
+            raise StartRefused(answer["error"] or f"{what} did not commit")
     finally:
         caller.close()
         child.close()
@@ -103,20 +108,36 @@ class Handshake:
         self._socket = socket.socket(fileno=fd)
         self._answered = False
 
-    def announce(self, answer: dict | None = None) -> bool:
-        """Announce the start and wait for the caller to commit it.
+    def announce(
+        self,
+        answer: dict | None = None,
+        *,
+        commit: Callable[[], dict] | None = None,
+    ) -> bool:
+        """Prepare an announcement, accept the caller's commit, then confirm it.
 
-        False when the caller left without taking the announcement: the child then
-        withdraws what it started.
+        A caller leaving before acknowledgement publishes nothing. Once accepted,
+        the producer commits its resource and confirms the resulting identity;
+        losing the confirmation does not undo an accepted commit.
         """
-        self._answered = True
         try:
             self._socket.sendall(json.dumps(answer or {}).encode() + b"\n")
-            return self._socket.recv(1) == b"\n"
+            accepted = self._socket.recv(1) == b"\n"
         except OSError:
+            accepted = False
+        if not accepted:
+            self._answered = True
+            self._socket.close()
             return False
+        result = commit() if commit is not None else answer or {}
+        self._answered = True
+        try:
+            self._socket.sendall(json.dumps(result).encode() + b"\n")
+        except OSError:
+            pass  # The caller already committed; confirmation cannot revoke it.
         finally:
             self._socket.close()
+        return True
 
     def __enter__(self):
         return self

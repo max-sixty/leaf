@@ -10,7 +10,7 @@ import {
   LEAST_HEIGHT,
   commentPlacement,
   commentSide,
-} from "/runtime/comment-placement.js";
+} from "/runtime/annotation-overlay/comment-placement.js";
 
 const boundary = new DOMRect(8, 50, 1284, 797);
 // A paragraph `width` wide from x = `left`, from y = `top` to `bottom`.

@@ -405,8 +405,9 @@ def test_the_asset_site_is_the_live_immutable_half_of_each_page(site):
         assets
         / active_revision_directory(site_build.product_page(site, "index.html"))
         / "runtime"
+        / "annotation-overlay"
         / "margin-layout.js",
-        example_layer / "runtime" / "margin-layout.js",
+        example_layer / "runtime" / "annotation-overlay" / "margin-layout.js",
     ]
     assert repeated[0].read_bytes() == repeated[1].read_bytes()
     assert repeated[0].stat().st_ino == repeated[1].stat().st_ino

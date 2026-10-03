@@ -1597,7 +1597,7 @@ def test_a_comment_rechooses_its_side_after_vertical_target_motion(browser, serv
     target.evaluate(
         """async (node, up) => {
           const {commentBoundary, COMMENT_GAP} =
-            await window.__lfRuntimeImport('/runtime/comment-placement.js');
+            await window.__lfRuntimeImport('/runtime/annotation-overlay/comment-placement.js');
           const boundary = commentBoundary(), box = node.getBoundingClientRect();
           const top = up ? boundary.top + COMMENT_GAP
             : boundary.bottom - box.height - COMMENT_GAP;

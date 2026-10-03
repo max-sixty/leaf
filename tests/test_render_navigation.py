@@ -11607,15 +11607,17 @@ def test_escape_on_a_declaring_control_does_exactly_what_it_says(browser, serve)
     expect(page.locator(".lf-thread-panel")).to_be_visible()
 
     draft_control(page, "edit", "plan").click()
-    ta = page.locator("lf-draft textarea")
+    ta = page.locator("lf-draft leaf-text")
     expect(ta).to_be_focused()
-    ta.fill("Ship it — but louder.")
+    write(ta, "Ship it — but louder.")
     page.keyboard.press("Escape")
     expect(ta).to_have_count(0)  # the editor closed…
     expect(page.locator(".lf-thread-panel")).to_be_visible()  # …and only the editor
     # The edit was set aside, not discarded: reopening resumes it.
     draft_control(page, "edit", "plan").click()
-    expect(page.locator("lf-draft textarea")).to_have_value("Ship it — but louder.")
+    expect(page.locator("lf-draft leaf-text")).to_have_js_property(
+        "value", "Ship it — but louder."
+    )
     page.keyboard.press("Escape")
 
     # A grabbed card: Esc cancels the move, and the panel it would have closed stands.

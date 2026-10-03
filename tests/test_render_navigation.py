@@ -5463,6 +5463,14 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
         "node => getComputedStyle(node).backgroundColor"
     )
 
+    # The Ask route may scroll these hyperlinks out of the visible target map.
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    page.evaluate("() => document.scrollingElement.scrollTo(0, 0)")
+    scroll_settled(page)
+    for target in ("lk1", "lk2", "revealed-link"):
+        expect(page.locator(f"#{target}")).to_be_in_viewport()
+    page.keyboard.press("g")
     page.keyboard.press("h")
     links = page.locator(f'{CHIPS}[data-lf-go-to-kind="Link"]')
     expect(links).to_have_count(3)

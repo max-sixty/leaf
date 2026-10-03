@@ -1,0 +1,53 @@
+# Added for the optional annotation renderer (#6). Scores the public authoring
+# selection; native admission separately checks the generated page against Leaf.
+description: page-owned-annotations
+metadata:
+  purpose: A page can place Leaf annotations in its own reading layout without loading the overlay or reimplementing shared semantics.
+  tags:
+  - authoring
+  - annotations
+vars:
+  prompt: |
+    Write a complete Leaf HTML page for a research workspace. Its main passage has
+    id="finding" and says "The observed spread warrants another measurement."
+    Put conversations, Asks and contributed actions in an independently scrolling
+    area of the authored document beside the research, with no floating annotation
+    markers or overlay geometry. Use Leaf's supplied presentation rather than
+    implementing a log reader or copying controls. Keep native comments, replies,
+    decisions and Undo available. Give the annotation area an explicit allocation
+    and a reachable arrangement on a narrow screen.
+
+    Also include an independent live practice window in the page where I can try
+    the same annotation arrangement. Give its source template id="practice-source"
+    and its recommendation paragraph id="child-finding" with the same words as the
+    main finding. Practice comments must stay separate from the surrounding review.
+
+    The page directory is not reachable. Reply with the complete HTML document.
+assert:
+- type: javascript
+  metric: reads-page-authoring
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/references/page-authoring\.md
+- type: regex
+  metric: selects-page-presentation
+  value: 'data-annotations\s*=\s*["'']page["'']'
+- type: regex
+  metric: uses-native-rail
+  value: '<lf-annotation-rail\b'
+- type: llm-rubric
+  metric: judgment
+  value: |
+    Pass only if this is a complete HTML document with body data-annotations="page",
+    exactly one empty lf-annotation-rail with a stable id and explicit CSS width and
+    height allocation for independent scrolling, plus a narrow-screen arrangement
+    making that rail reachable. It must retain the exact finding paragraph. It must
+    not reconstruct event/log state, create its own Thread or decision controls,
+    merely hide an overlay with CSS, or use data-rail="none" as the mode selection.
+    Native leaf rail markup must have both start and end tags and no children.
+    The practice window must use an lf-sample with a data-sample template selecting
+    data-annotations="page" for its child and a separately allocated empty native
+    rail. Its child-finding paragraph has the same words as finding; ids are separate
+    child identities. It must not set the child mode by changing the parent after load.
+    The authored head must omit delivery-owned encoding declarations such as meta
+    charset, so the complete source can be admitted by Leaf.

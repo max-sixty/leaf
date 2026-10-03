@@ -203,6 +203,18 @@ def test_the_captured_executable_digest_separates_code_from_content(page_dir):
 
     base = activate()
 
+    document = document.replace("<body>", '<body data-annotations="overlay">')
+    explicit_overlay = activate()
+    assert explicit_overlay.executable == base.executable
+
+    document = document.replace('data-annotations="overlay"', 'data-annotations="page"')
+    page_annotations = activate()
+    assert page_annotations.executable != explicit_overlay.executable
+
+    document = document.replace(' data-annotations="page"', "")
+    restored_overlay = activate()
+    assert restored_overlay.executable == base.executable
+
     document = document.replace("<h2>Plan</h2>", "<h2>The plan, restated</h2>")
     reworded = activate()
     assert reworded.digest != base.digest

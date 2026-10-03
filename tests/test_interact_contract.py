@@ -4559,6 +4559,41 @@ def test_source_reading_keeps_a_sample_out_of_its_parent_identity_space():
     assert sample["document"].main_elements == [(1, True)]
 
 
+def test_sample_body_declarations_use_the_child_document_boundary(page_dir):
+    """A practice page selects its own mode; invalid values stay child diagnostics."""
+    for declarations, valid, mode in (
+        ('data-annotations="page" data-rail="none"', True, "page"),
+        ("", True, "overlay"),
+        ('data-annotations="unknown"', False, None),
+    ):
+        source = PAGE.replace(
+            "</main>",
+            f'<template id="practice" data-sample {declarations}>'
+            "<h1>Child page</h1></template></main>",
+        )
+        (page_dir / "index.html").write_text(source)
+        parser = structure_model.SourceDocument(source)
+        [sample] = parser.samples
+        result = check(page_dir)
+        assert (result.exit_code == 0) is valid, result.output
+        if valid:
+            assert structure_model.annotation_mode(sample["document"]) == mode
+            assert structure_model.annotation_mode(parser) == "overlay"
+        else:
+            assert "sample 'practice'" in result.output
+            assert "invalid value" in result.output
+
+    # The declaration is not allowed on arbitrary templates or content blocks.
+    (page_dir / "index.html").write_text(
+        PAGE.replace(
+            "</main>", '<template data-annotations="page">Static</template></main>'
+        )
+    )
+    result = check(page_dir)
+    assert result.exit_code != 0
+    assert "belongs on <body>" in result.output
+
+
 @pytest.mark.parametrize(
     ("markup", "error"),
     [

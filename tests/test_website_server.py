@@ -45,12 +45,12 @@ from leaf.files import revision_path
 from leaf.hosting import LeafHTTPServer
 from leaf.http import page_delivery
 from leaf.machine import pid_alive
-from leaf.revision_artifact import Resource
+from leaf.revision_artifact import capture_artifact
 from leaf.revision_delivery import compose_document
-from leaf.schema import ASSETS
 from leaf.served_state import page as served_page
 from leaf.service import delivery_reply_attempt, open_session_turn
 from leaf.session_cleanup import flocked
+from leaf.structure import SourceDocument
 from leaf.thread import cmd_reply, cmd_resolve
 from leaf_dev import example_previews, startup, verify_site
 from playwright.sync_api import expect
@@ -229,7 +229,9 @@ PAGE_SOURCE = """<!doctype html>
         ("/examples/decision", "example", "https://leaf.page/examples/decision/"),
     ),
 )
-def test_a_published_document_names_its_page_to_a_crawler(page_root, kind, url):
+def test_a_published_document_names_its_page_to_a_crawler(
+    page_dir, page_root, kind, url
+):
     """An unfurler reads absolute URLs, and reads them from inside the head.
 
     Leaf owns the canonical address; publication adds what needs the site's origin.
@@ -241,15 +243,11 @@ def test_a_published_document_names_its_page_to_a_crawler(page_root, kind, url):
         "image": "/media/card.png",
     }
     addition = website_server.site_metadata(page_root, page)
-    resources = {
-        path: Resource((ASSETS / path.lstrip("/")).read_bytes(), mime)
-        for path, mime in (
-            ("/runtime/bootstrap.js", "application/javascript"),
-            ("/runtime/prepaint.js", "application/javascript"),
-            ("/runtime/chrome.css", "text/css"),
-            ("/runtime/marks.css", "text/css"),
-        )
-    }
+    resources = capture_artifact(
+        page_dir,
+        SourceDocument(PAGE_SOURCE),
+        json.loads((page_dir / "registry.json").read_text()),
+    ).resources
     delivery = page_delivery(
         resources, server_id="server", layer_id="layer", page_root=page_root
     )

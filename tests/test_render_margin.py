@@ -227,7 +227,7 @@ def test_margin_layout_batches_the_composed_page_without_refolding_controls(
     page.evaluate(
         """async () => {
           const {layoutMarginRows} =
-            await window.__lfRuntimeImport('/runtime/margin-layout.js');
+            await window.__lfRuntimeImport('/runtime/annotation-overlay/margin-layout.js');
           layoutMarginRows();
         }"""
     )
@@ -239,7 +239,7 @@ def test_margin_layout_batches_the_composed_page_without_refolding_controls(
     }
     reading = page.evaluate(
         """async () => {
-          const {layoutMarginRows} = await window.__lfRuntimeImport('/runtime/margin-layout.js');
+          const {layoutMarginRows} = await window.__lfRuntimeImport('/runtime/annotation-overlay/margin-layout.js');
           const rows = [...document.querySelectorAll('.lf-margin-cluster')];
           const boxes = () => rows.map(row => {
             const {x, y, width, height} = row.getBoundingClientRect();
@@ -10388,3 +10388,141 @@ def test_a_crowded_outline_keeps_the_reading_position_when_it_fits_again(
         page.locator("#row-1").evaluate("node => node.getBoundingClientRect().top")
         < 150
     )
+
+
+def page_annotation_rail_source():
+    return leaf_page(
+        "Authored annotations",
+        """
+      <h1>Authored annotations</h1>
+      <p id="subject">An exact passage remains here.</p>
+      <lf-annotation-rail id="annotations"></lf-annotation-rail>
+      <textarea id="elsewhere" aria-label="Elsewhere"></textarea>
+    """,
+        head="<style>lf-annotation-rail {height:360px;width:430px}</style>",
+    ).replace("<body>", '<body data-annotations="page">')
+
+
+def test_rail_native_comment_and_retained_reply(browser, serve):
+    page = open_page(browser, serve(page_annotation_rail_source()))
+    rail = page.locator("lf-annotation-rail")
+    page.locator("#subject").click(modifiers=["Alt"])
+    editor = rail.locator(".lf-fab-input")
+    expect(editor).to_be_visible()
+    expect(editor).to_be_focused()
+    page.evaluate('window.nativeComposer=document.querySelector(".lf-fab-input")')
+    editor.press_sequentially("A comment in the authored rail")
+    page.keyboard.press("Control+Enter")
+    card = rail.locator(".lf-page-thread")
+    expect(card).to_have_count(1)
+    expect(card).to_be_visible()
+    page.evaluate(
+        """async () => {const {openThread}=await __lfRuntimeImport('/runtime/application.js'); await openThread(document.querySelector('.lf-page-thread').dataset.thread,{focus:'reply',travel:false});}"""
+    )
+    reply = card.locator("leaf-text")
+    expect(reply).to_be_focused()
+    reply.press_sequentially("A retained rail reply")
+    page.evaluate("""() => {
+      window.railBefore={rail:document.querySelector('lf-annotation-rail'),
+        row:document.querySelector('.lf-ar-entry'),group:document.querySelector('.lf-ar-group'),
+        outlet:document.querySelector('.lf-ar-entry .lf-ar-outlet'),
+        input:document.activeElement};
+      document.activeElement.setSelectionRange(2,7,'backward');
+    }""")
+    page.evaluate("""async () => {
+      const {repaint}=await __lfRuntimeImport('/runtime/repaint.js');
+      repaint();
+      const {whenDocumentPresented}=await __lfRuntimeImport('/runtime/semantic-state.js');
+      await whenDocumentPresented();
+    }""")
+    assert page.evaluate("""() => {
+      const b=railBefore, input=document.activeElement;
+      return b.rail===document.querySelector('lf-annotation-rail') &&
+        b.row===document.querySelector('.lf-ar-entry') && b.row.querySelector('.lf-page-thread').open &&
+        b.group===document.querySelector('.lf-ar-group') &&
+        b.outlet===document.querySelector('.lf-ar-entry .lf-ar-outlet') &&
+        input===b.input && input.value==='A retained rail reply' &&
+        input.selectionStart===2 && input.selectionEnd===7 && input.selectionDirection==='backward';
+    }""")
+    assert (
+        page.evaluate(
+            "document.querySelector('lf-annotation-rail').getBoundingClientRect().height"
+        )
+        == 360
+    )
+    assert page.locator(".lf-margin-projection,.lf-margin-preview").count() == 0
+    resources = page.evaluate(
+        "() => performance.getEntriesByType('resource').map(e=>new URL(e.name).pathname)"
+    )
+    assert not [path for path in resources if "/annotation-overlay/" in path]
+    print(
+        {
+            "rail_height": 360,
+            "native_reply_caret": [2, 7, "backward"],
+            "outlet_identity": "retained",
+        }
+    )
+
+
+def page_annotation_action_source():
+    return leaf_page(
+        "Canonical action rail",
+        """
+      <h1>Canonical action rail</h1><p id="subject">A source for contributed actions.</p>
+      <lf-ask id="choice-question"><h2>Which route?</h2>
+        <lf-options id="routes" choose><lf-option id="route-a">Route A</lf-option>
+        <lf-option id="route-b">Route B</lf-option></lf-options>
+      </lf-ask>
+      <lf-draft id="draft"><pre>A draft to revise.</pre></lf-draft>
+      <lf-annotation-rail id="annotations"></lf-annotation-rail>
+    """,
+        head="<style>lf-annotation-rail {height:360px;width:430px}</style>",
+    ).replace("<body>", '<body data-annotations="page">')
+
+
+def test_rail_ask_draft_and_optimistic_undo(browser, serve):
+    page = open_page(browser, serve(page_annotation_action_source()))
+    rail = page.locator("lf-annotation-rail")
+    ask = rail.get_by_role("button", name="Which route? · Waiting on you", exact=True)
+    expect(ask).to_be_visible()
+
+    ask.click()
+    page.wait_for_function("!!document.activeElement?.closest('#choice-question')")
+    rail.get_by_role("button", name="Edit draft", exact=True).click()
+    expect(rail.get_by_role("button", name="Cancel", exact=True)).to_be_visible()
+    editor = page.locator("#draft textarea")
+    expect(editor).to_be_focused()
+    editor.fill("A canonical rail saved this draft.")
+    rail.get_by_role("button", name="Save", exact=True).click()
+    expect(page.locator("#draft .lf-draft-body")).to_have_text(
+        "A canonical rail saved this draft."
+    )
+    expect(rail.get_by_role("button", name="Edit draft", exact=True)).to_be_visible()
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    page.locator("#route-a .lf-pick").click()
+    expect(page.locator("#route-a")).to_have_attribute("chosen", "")
+    expect(ask).to_be_visible()
+    holding(page, held, 1, "the optimistic rail choice")
+    held[0].continue_()
+    page.unroute("**/api/event")
+    expect(ask).to_have_count(0)
+    undo(page)
+    expect(page.locator("#route-a")).not_to_have_attribute("chosen", "")
+    expect(ask).to_be_visible()
+
+
+def test_draw_mode_leaves_page_annotation_controls_usable(browser, serve):
+    page = open_page(browser, serve(page_annotation_action_source()))
+    rail = page.locator("lf-annotation-rail")
+    page.locator("#subject").hover()
+    page.keyboard.press("w")
+    expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
+    edit = rail.get_by_role("button", name="Edit draft", exact=True)
+    assert edit.evaluate("el => getComputedStyle(el).cursor") != "crosshair"
+    edit.click()
+    expect(page.locator("#draft textarea")).to_be_focused()
+    rail.get_by_role("button", name="Cancel", exact=True).click()
+    expect(edit).to_be_visible()
+    expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
+    expect(page.locator(".lf-drawing-pending")).to_have_count(0)

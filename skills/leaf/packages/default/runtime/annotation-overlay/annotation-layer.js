@@ -14,10 +14,13 @@
    stylesheets (theme.css, marks.css, chrome.css), keeps it for the tab, and tells each
    watcher, so the margin can take focus and its card off what it hides. Readers ask
    `annotationsHidden()` rather than the root attribute, which is a rendering. */
-import { tabStore } from "./storage.js";
-import { setRuntimeRootAttribute } from "./root-state.js";
+import { tabStore } from "/runtime/storage.js";
+import { setRuntimeRootAttribute } from "/runtime/root-state.js";
+import { pageCommand } from "/runtime/keyboard/register.js";
+import { notice } from "/runtime/notifications.js";
+import { coarsePointer } from "/runtime/pointer.js";
 
-export const ANNOTATIONS_KEY = "lf-annotations";
+import { ANNOTATIONS_KEY } from "/runtime/restore-state.js";
 
 let hidden = false;
 const watchers = new Set();
@@ -26,6 +29,27 @@ export const annotationsHidden = () => hidden;
 
 export function watchAnnotations(watcher) {
   watchers.add(watcher);
+}
+
+export function mountAnnotationControls() {
+  pageCommand({
+    id: "annotations.toggle",
+    keys: ["o"],
+    does: "Hide or show the annotations drawn over the page",
+    line: () => (hidden ? "show annotations" : "hide annotations"),
+    touch: () => (hidden ? "Show annotations" : "Hide annotations"),
+    when: () => watchers.size > 0,
+    run: () => {
+      setAnnotationsHidden(!hidden);
+      notice(
+        !hidden
+          ? "Annotations shown"
+          : coarsePointer.matches
+            ? "Annotations hidden"
+            : "Annotations hidden. o shows them",
+      );
+    },
+  });
 }
 
 export function setAnnotationsHidden(on) {
@@ -38,4 +62,9 @@ export function setAnnotationsHidden(on) {
   );
   tabStore.set(ANNOTATIONS_KEY, on ? "hidden" : null);
   for (const watcher of watchers) watcher(on);
+}
+
+// Restore before presentation, after the actual overlay has installed its readers.
+export function restoreAnnotations() {
+  if (tabStore.get(ANNOTATIONS_KEY) === "hidden") setAnnotationsHidden(true);
 }

@@ -41,7 +41,7 @@ function residencyPass(time) {
 }
 function readResidency() {
   const changed = settleResidency();
-  readFinished(changed);
+  readFinished?.(changed);
   if (changed) repaintPage();
 }
 export function scheduleResidency() {

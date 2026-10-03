@@ -1470,6 +1470,8 @@ def test_a_decision_undone_leaves_every_suggestion_pin_where_it_stood(browser, s
             "data-lf-applied", str(applied + 1)
         )
         render_checks_model.wait_until_ready(page)
+        if target == "bg-insert":
+            expect(page.locator("#bg-insert lf-new")).to_be_hidden()
         margins_laid_out(page)
         undo_control = _unfold_suggestion_undo(page, target)
         applied += 1
@@ -1485,6 +1487,8 @@ def test_a_decision_undone_leaves_every_suggestion_pin_where_it_stood(browser, s
         page.evaluate(RELEASE_FOCUS)
         rendered(page)
         margins_laid_out(page)
+        for suggestion in ids:
+            expect(page.locator(f"#{suggestion}")).to_be_visible()
         after = page.evaluate(SUGGESTION_PINS, ids)
         faces = [
             [(i, f, [k for k, *_ in e]) for i, f, e, _ in pins]

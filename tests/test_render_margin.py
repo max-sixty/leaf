@@ -8044,21 +8044,38 @@ def test_a_sent_reply_leaves_the_reply_row_where_it_stands(browser, serve, size,
 
 
 def test_a_second_margin_reply_grows_below_the_first_line(browser, serve):
-    """Once the sent turn is placed, a new draft keeps its first line where typed."""
+    """A new draft grows downward, then shares the bounded card with its transcript."""
     page, preview, editor = drafting_in_a_short_card(browser, serve, 1000, 600)
     preview.locator(".lf-thread-reply .lf-compose-submit").click()
     rendered(page)
     editor.click()
     rendered(page)
     before = preview.evaluate(DRAFTING_CARD)
-    editor.type("a long new draft " * 20)
+    editor.type("A new draft.")
+    editor.press("Shift+Enter")
     rendered(page)
     after = preview.evaluate(DRAFTING_CARD)
     assert after["side"] == before["side"]
+    assert after["editorFoot"] > before["editorFoot"], (before, after)
     assert after["editorTop"] == pytest.approx(before["editorTop"], abs=0.5), (
         before,
         after,
     )
+    editor.type("a long new draft " * 20)
+    rendered(page)
+    bounded = page.evaluate(CARD_AND_REPLY)
+    assert bounded["placement"] == before["side"]
+    assert bounded["cardBottom"] == pytest.approx(bounded["foot"], abs=0.5), bounded
+    assert bounded["turn"] < bounded["editorTop"] < after["editorTop"], bounded
+    assert bounded["editorBottom"] <= bounded["cardBottom"], bounded
+    assert bounded["editorTop"] <= bounded["send"] <= bounded["cardBottom"], bounded
+    assert editor.evaluate("box => box.scrollHeight > box.clientHeight")
+    expect(editor).to_be_focused()
+    editor.press("ControlOrMeta+End")
+    rendered(page)
+    caret = _focused_editor_caret(page)
+    assert caret["caretTop"] >= caret["boxTop"], caret
+    assert caret["caretBottom"] <= caret["boxBottom"], caret
 
 
 def test_continued_margin_draft_grows_below_its_first_line_after_agent_reply(

@@ -38,9 +38,9 @@
 
    Floating UI supplies the height available at the held edge. Native grid tracks
    share that room between the transcript and reply, each growing to its words and
-   scrolling only when its share is exhausted. News that extends a fully visible
-   transcript above a held reply retains that span while drafting continues. Ordinary
-   draft growth lets the transcript yield writing room while retaining visible lines.
+   scrolling only when its share is exhausted. The shared reply continuity keeps
+   removed turns as flexible space before the reply. Draft growth lets the transcript
+   yield writing room while retaining visible lines.
 
    The card is margin chrome, not a native layer: it shows the threads of the target the
    user stands at, from the target, its cluster, or the card itself, so standing on an
@@ -619,7 +619,6 @@ export function createMarginProjection({
   // The selected transcript's unconstrained extent changes with turns, not editor
   // lines. Keep its fractional local height alongside the native overflow reading;
   // rounding the whole measurement makes an unchanged turn look newly arrived.
-  const boxHeight = (node) => node.getBoundingClientRect().height;
   function measureTranscript() {
     return previewTranscript
       ? parseFloat(getComputedStyle(previewTranscript).height) +
@@ -759,14 +758,6 @@ export function createMarginProjection({
       ((previewHold?.replyTurn && previewHold.replyTurn === latest.key) ||
         (turned && (drafting || (previewHold?.drafting && latest.author === "user")))),
     );
-    // News or Send may borrow the reply line across the gap before the next draft.
-    // Keep that reading span while its turn holds the line or drafting continues.
-    // Ordinary drafting starts flexible so writing may claim its share; this is
-    // retained reading geometry, not a second calculation of editor room.
-    let readingHeight =
-      !fresh && (drafting || keepReplyLine)
-        ? (previewHold?.readingHeight ?? null)
-        : null;
     // Adoption holds the message's start: expanded composer choices may add a row
     // below it that the thread does not carry. Later placements use the card's own
     // top/foot reading, including the normal above-side and reply-line holds.
@@ -784,13 +775,6 @@ export function createMarginProjection({
           minimumWidth: cardMinimum(),
           fit({ width, height, scale }) {
             if (!stillCurrent()) return;
-            if (readingHeight === null)
-              preview.style.removeProperty("--lf-thread-reading-height");
-            else
-              preview.style.setProperty(
-                "--lf-thread-reading-height",
-                `${readingHeight / scale.y}px`,
-              );
             // Capture when fitting actually starts, after the module load and any
             // Send landing. Hold this reading through every middleware measurement:
             // an intermediate cap must not turn an earlier offset into end-following.
@@ -861,25 +845,12 @@ export function createMarginProjection({
         // The spot the rule stood the card at before the boundary shifted it in, so a
         // card opened low in the window rises back to it once a scroll gives it room.
         const { scale, spot } = previewSide.landed(position);
-        if (
-          keepReplyLine &&
-          previewTranscript &&
-          (readingHeight !== null ||
-            previewTranscript.scrollHeight <= previewTranscript.clientHeight + 1)
-        ) {
-          readingHeight = boxHeight(previewTranscript);
-          preview.style.setProperty(
-            "--lf-thread-reading-height",
-            `${readingHeight / scale.y}px`,
-          );
-        }
         // The transcript this placement answered, so a turn that joined it while the
         // placement was worked out is one the next placement still sees join.
         previewHold = {
           ...spot,
           transcript,
           drafting,
-          readingHeight,
           replyTurn: keepReplyLine ? latest.key : null,
           draftText: replyEditor?.value,
         };

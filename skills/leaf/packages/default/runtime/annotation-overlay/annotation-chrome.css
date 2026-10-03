@@ -171,14 +171,23 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-margin-preview-list, .lf-margin-thread, .lf-margin-thread-body {
     display: flex; flex-direction: column;
     min-height: 0; min-width: 0; }
-  /* Both tracks grow to their words and share the room beyond their minimums.
-     A short transcript leaves its unused share to the editor. The reading owner
-     retains a complete turn's visible span after news extended the card above a
-     draft, so continued typing leaves the first input line where news held it. */
+  /* Transcript and editor grow to their words. The shared continuity spacer
+     keeps a removed turn's room before the reply and yields it to later writing.
+     A spanning sizing item supplies the retained intrinsic extent while allowing
+     every track to shrink into the card's outer bound. */
   .lf-margin-thread .lf-page-thread { display: grid;
-    grid-template-rows: auto minmax(var(--lf-thread-reading-height, auto), max-content)
+    grid-template-rows: auto minmax(auto, max-content) minmax(0, 1fr)
       minmax(auto, max-content);
     min-height: 0; min-width: 0; }
+  .lf-margin-thread .lf-page-thread::before { content: "";
+    grid-area: 1 / 1 / 5 / 2;
+    block-size: var(--lf-thread-body-extent, 0px);
+    min-block-size: 0; max-block-size: 100%; pointer-events: none; }
+  .lf-margin-thread .lf-page-thread > * { grid-column: 1; }
+  .lf-margin-thread .lf-thread-root-meta { grid-row: 1; }
+  .lf-margin-thread .lf-thread-transcript { grid-row: 2; }
+  .lf-margin-thread .lf-reply-space { grid-row: 3; }
+  .lf-margin-thread .lf-thread-reply { grid-row: 4; }
   .lf-margin-thread .lf-thread-transcript { min-height: 1lh; overflow-y: auto;
     overscroll-behavior: contain;
     scroll-padding-block: var(--focus-ring-room); }

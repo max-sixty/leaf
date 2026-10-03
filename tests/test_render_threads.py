@@ -7530,6 +7530,66 @@ def pressed_send_surface(browser, serve, surface):
 
 
 @pytest.mark.parametrize(
+    "surface",
+    ["general", "panel", "card", "composer", "composer-panel", "composer-widget"],
+)
+def test_sending_flashes_only_the_new_message(browser, serve, surface):
+    """Sending cues the words in every surface, including a shadow-root thread.
+    Admission and subsequent repaint do not restart the cue or wash the card."""
+    page, _box, send, _after, _reply = pressed_send_surface(browser, serve, surface)
+    # Capture the first painted cue, before driver latency can consume its duration.
+    page.evaluate(
+        """() => {
+          window.__sendPaint = null;
+          const root = document.querySelector('#patch')?.shadowRoot ?? document;
+          const observer = new MutationObserver(() => {
+            const message = [...root.querySelectorAll('.lf-msg')].find(node =>
+              node.textContent.includes('Sent from the box.')
+            );
+            if (!message) return;
+            const cue = message.getAnimations().find(animation =>
+              animation.effect.getKeyframes().some(frame => frame.backgroundColor)
+            );
+            window.__sendPaint = {cue: Boolean(cue), message};
+            if (cue) { cue.pause(); cue.currentTime = 0; }
+            observer.disconnect();
+          });
+          observer.observe(root, {subtree: true, childList: true, attributes: true});
+        }"""
+    )
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    send.click()
+    holding(page, held, 1, "the highlighted send")
+    page.wait_for_function("() => window.__sendPaint !== null")
+    assert page.evaluate("() => window.__sendPaint.cue"), surface
+    assert page.evaluate(
+        """() => {
+          const message = window.__sendPaint.message;
+          return getComputedStyle(message).backgroundColor !== 'rgba(0, 0, 0, 0)';
+        }"""
+    )
+    held.pop().continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+    assert page.evaluate(
+        """() => {
+          const message = window.__sendPaint.message;
+          const thread = message.closest('.lf-thread, .lf-page-thread');
+          return !thread.getAnimations({subtree: true}).some(animation =>
+            animation.effect.target !== message &&
+            animation.effect.getKeyframes().some(frame => frame.background || frame.backgroundColor)
+          );
+        }"""
+    ), "the surrounding card flashed on admission"
+    page.evaluate(
+        "() => window.__sendPaint.message.getAnimations().forEach(a => a.finish())"
+    )
+    one_frame(page)
+    assert page.evaluate("() => window.__sendPaint.message.getAnimations().length") == 0
+
+
+@pytest.mark.parametrize(
     ("surface", "how"),
     [
         (surface, how)

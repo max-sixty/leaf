@@ -371,7 +371,7 @@ def record_pickup(
     turn: str | None = None,
     failure: str | None = None,
 ) -> dict | None:
-    """Durably record one delivery transition for exact user moves.
+    """Durably record one delivery transition for exact attention-bearing inputs.
 
     ``queued`` means Codex's durable same-task queue accepted the batch;
     ``opened`` means the batch entered an agent turn; ``failed`` means the host
@@ -387,11 +387,7 @@ def record_pickup(
         session = claim.get("id")
     if phase == "opened" and turn is None and claim and claim.get("id") == session:
         turn = claim.get("turn")
-    wanted = [
-        event["id"]
-        for event in events
-        if event.get("author") == "user" and requires_agent_attention(event)
-    ]
+    wanted = [event["id"] for event in events if requires_agent_attention(event)]
     picked = {
         (event_id, event["phase"], event["session"], event["turn"])
         for event in page.events

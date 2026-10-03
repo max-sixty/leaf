@@ -1,4 +1,4 @@
-"""Whole Claude Code usability trajectories, scored by Promptfoo.
+"""Whole agent usability trajectories, scored by Promptfoo.
 
 Each provider call owns one isolated scenario, including its resumed phases or
 live user rounds. Promptfoo owns arms, repetition, concurrency, and reporting;
@@ -17,6 +17,9 @@ from html import unescape
 from pathlib import Path
 
 import click
+from leaf.files import read_json
+from leaf.service import readable_claim, requires_agent_attention
+from leaf.session_cleanup import page_key
 
 from leaf_dev import ROOT
 from leaf_dev.harness import (
@@ -28,14 +31,14 @@ from leaf_dev.harness import (
     commands,
     completed,
     environment,
-    hook_delivered,
     now,
+    observed_sum,
     read_trace,
-    run_claude,
+    run_agent,
     run_leaf,
     scratch,
     trace_result,
-    waits_started,
+    token_counts,
 )
 
 FIXTURES = ROOT / "evals/usability/fixtures"
@@ -219,6 +222,7 @@ class Case:
     fixture: str | None = None
     # A live case's user moves, one tuple per round (`execute_live`).
     rounds: tuple[tuple[dict, ...], ...] = ()
+    injection: tuple[str, ...] = ()
 
 
 def reading_case(surface: str | None) -> Case:
@@ -263,6 +267,7 @@ class Run:
     case: str
     payload: Path
     dir: Path
+    host: str = "cc"
 
     @property
     def state(self) -> Path:
@@ -615,6 +620,7 @@ def execute_live(run: Run, case: Case, work: Path, page: Path) -> None:
     # The deadline for the posted round's delivery; unstarted until the first post.
     waiting = threading.Timer(DELIVERY_LIMIT, lambda: None)
     url, posted, delivered = None, 0, 0
+    pending_events: set[str] = set()
     try:
         with (
             LiveChild(
@@ -629,6 +635,7 @@ def execute_live(run: Run, case: Case, work: Path, page: Path) -> None:
                 timed_out=run.dir / "timed-out",
                 dirs=[run.payload],
                 env={"XDG_STATE_HOME": str(run.state)},
+                host=run.host,
             ) as child,
             (run.dir / "stream-1.jsonl").open("w") as stream,
         ):
@@ -637,31 +644,82 @@ def execute_live(run: Run, case: Case, work: Path, page: Path) -> None:
                 stream.write(json.dumps(record) + "\n")
                 stream.flush()
 
-            for record in child.records():
-                note(record)
-                arrived = hook_delivered(record) + sum(
-                    "wait --ack" in c or "delivery read" in c for c in commands(record)
+            def post(injection: str) -> None:
+                nonlocal posted, pending_events, waiting
+                if injection == "idle":
+                    time.sleep(3)
+                claim = readable_claim(
+                    read_json(run.state / "leaf" / "claims" / f"{page_key(page)}.json")
                 )
-                if arrived:
-                    delivered += arrived
-                    waiting.cancel()
+                active_turn = (
+                    claim["turn"] if claim and claim["turn_closed"] is None else None
+                )
+                if run.host == "codex" and active_turn not in child.task.running:
+                    active_turn = None
+                if run.case == "elided" and posted == 0:
+                    append_elided_history(run, page)
+                pending_events = post_round(
+                    run, page, PageClient(url), case.rounds[posted], posted
+                )
+                posted += 1
+                note(
+                    {
+                        "type": "eval_post",
+                        "round": posted,
+                        "injection": injection,
+                        "events": sorted(pending_events),
+                        "active_turn": active_turn,
+                        "received_at": now(),
+                    }
+                )
+                waiting = threading.Timer(DELIVERY_LIMIT, child.close)
+                waiting.start()
+
+            for record in child.records():
+                if delivered < posted:
+                    picked = {
+                        event_id
+                        for event in page_events(page)
+                        if event["kind"] == "pickup" and event["phase"] == "opened"
+                        for event_id in event["events"]
+                    }
+                    if pending_events <= picked:
+                        delivered = posted
+                        waiting.cancel()
+                        note(
+                            {
+                                "type": "eval_pickup",
+                                "round": posted,
+                                "events": sorted(pending_events),
+                                "received_at": now(),
+                            }
+                        )
+                note(record)
                 if not url and (found := URL.search(json.dumps(record))):
                     url = found[0]
+                if (
+                    posted < len(case.rounds)
+                    and url
+                    and record.get("type") != "result"
+                    and (case.injection[posted] if case.injection else "idle")
+                    == "running"
+                ):
+                    post("running")
                 if record.get("type") != "result":
                     continue
-                status = page_state(run, page).get("status")
-                note({"type": "eval_status", "status": status, "received_at": now()})
+                state = page_state(run, page)
+                note(
+                    {
+                        "type": "eval_status",
+                        "status": state.get("status"),
+                        "listening": state["listening"],
+                        "received_at": now(),
+                    }
+                )
                 if delivered < posted:
                     continue
                 if url and posted < len(case.rounds):
-                    time.sleep(3)
-                    if run.case == "elided" and posted == 0:
-                        append_elided_history(run, page)
-                    post_round(run, page, PageClient(url), case.rounds[posted], posted)
-                    posted += 1
-                    note({"type": "eval_post", "round": posted, "received_at": now()})
-                    waiting = threading.Timer(DELIVERY_LIMIT, child.close)
-                    waiting.start()
+                    post("idle")
                 else:
                     threading.Timer(GRACE, child.close).start()
     finally:
@@ -671,16 +729,18 @@ def execute_live(run: Run, case: Case, work: Path, page: Path) -> None:
 
 def post_round(
     run: Run, page: Path, client: PageClient, moves: tuple[dict, ...], n: int
-) -> None:
+) -> set[str]:
     """Post one round's moves as the user's tab would, resolving each placeholder
-    against the page as it is served now."""
+    against the page as it is served now. Return the admitted attention-bearing
+    identities, including the page's native error rather than giving it a retry key."""
+    admitted = []
     served = page_state(run, page)
     html = (page / served["active"]["file"]).read_text()
     for i, move in enumerate(moves):
         event = dict(move)
         if move["kind"] != "error":
-            event["attempt"] = attempt_key(n, i)
-        if "anchor" in move:
+            event["attempt"] = move.get("attempt", attempt_key(n, i))
+        if "anchor" in move and not isinstance(move["anchor"], dict):
             event["anchor"] = anchor(html, *move["anchor"])
         if move.get("undoes") == "previous":
             event["undoes"] = posted_event(page, attempt_key(n, i - 1))["id"]
@@ -695,7 +755,21 @@ def post_round(
             )
         if move["kind"] != "undo":
             event["revision"] = served["active"]["revision"]
+        before = {e["id"] for e in page_events(page)}
         client.post(event)
+        if event["kind"] == "error":
+            admitted.append(
+                next(
+                    e
+                    for e in page_events(page)
+                    if e["id"] not in before
+                    and e["kind"] == "error"
+                    and e["text"] == event["text"]
+                )
+            )
+        else:
+            admitted.append(posted_event(page, event["attempt"]))
+    return {e["id"] for e in admitted if requires_agent_attention(e)}
 
 
 def attempt_key(n: int, i: int) -> str:
@@ -718,7 +792,7 @@ def execute_phases(run: Run, case: Case, work: Path, page: Path) -> None:
             .replace("{quiet}", QUIET)
         )
         (run.dir / f"prompt-{phase}.txt").write_text(prompt)
-        trace = run_claude(
+        trace = run_agent(
             work,
             prompt,
             "--model",
@@ -730,6 +804,7 @@ def execute_phases(run: Run, case: Case, work: Path, page: Path) -> None:
             err=run.dir / f"err-{phase}.txt",
             dirs=[run.payload],
             env={"XDG_STATE_HOME": str(run.state)},
+            host=run.host,
         )
         session = trace_result(trace).get("session_id")
         if not session:
@@ -825,24 +900,24 @@ def trace_scores(trace: list[dict]) -> dict:
     # A live trace ends each turn with a result: its usage, turns and duration are
     # that turn's, and its cost is the session's so far.
     ended = [d for d in trace if d.get("type") == "result"]
-    usage = [d.get("usage", {}) for d in ended]
     return {
         "completed": completed(trace),
         "turns": sum(d.get("num_turns", 0) for d in ended),
-        "cost_usd": round(done.get("total_cost_usd", 0), 3),
-        "minutes": round(sum(d.get("duration_ms", 0) for d in ended) / 60000, 1),
-        "input_tokens": sum(
-            u.get(k, 0)
-            for u in usage
-            for k in (
-                "input_tokens",
-                "cache_creation_input_tokens",
-                "cache_read_input_tokens",
-            )
+        "cost_usd": (
+            round(done["total_cost_usd"], 3)
+            if done.get("total_cost_usd") is not None
+            else None
         ),
-        "output_tokens": sum(u.get("output_tokens", 0) for u in usage),
+        "cost_known": done.get("total_cost_usd") is not None,
+        "minutes": round(sum(d.get("duration_ms", 0) for d in ended) / 60000, 1),
+        **token_counts(trace),
         "denials": len(done.get("permission_denials") or []),
-        "leaf_skill": any("leaf" in s for s in skills),
+        "leaf_skill": any("leaf" in s for s in skills)
+        or any(
+            "skills/leaf/SKILL.md" in json.dumps(c["input"])
+            and results.get(cid, {}).get("is_error") is False
+            for cid, c in calls.items()
+        ),
         "references": references,
         "calls": kinds,
         "output_bytes": dict(sorted(output.items(), key=lambda kv: -kv[1])),
@@ -1157,7 +1232,12 @@ def live_rounds(trace: list[dict]) -> list[dict]:
         i for i, d in enumerate(trace) if d["type"] == "eval_post"
     ):
         arrived = next(
-            (i for i in range(post, len(trace)) if hook_delivered(trace[i])), None
+            (
+                i
+                for i in range(post, len(trace))
+                if trace[i]["type"] == "eval_pickup" and trace[i]["round"] == n + 1
+            ),
+            None,
         )
         end = arrived and next(
             (i for i in range(arrived, len(trace)) if trace[i]["type"] == "result"),
@@ -1169,6 +1249,11 @@ def live_rounds(trace: list[dict]) -> list[dict]:
                 "post": post,
                 "delivery": arrived,
                 "end": end,
+                "listening": end is not None
+                and next(
+                    (d["listening"] for d in trace[end:] if d["type"] == "eval_status"),
+                    False,
+                ),
                 "status": end is not None
                 and next(
                     (d["status"] for d in trace[end:] if d["type"] == "eval_status"),
@@ -1217,9 +1302,7 @@ def round_scores(trace: list[dict], r: dict, name: str) -> dict:
     end = trace[r["end"]]
     return {
         f"{name}_delivered": True,
-        f"{name}_rearmed": any(
-            waits_started(d) for d in trace[r["delivery"] : r["end"]]
-        ),
+        f"{name}_rearmed": r["listening"],
         f"{name}_waiting": (r["status"] or {}).get("state") == "waiting",
         f"{name}_url": bool(URL.search(end.get("result") or "")),
     }
@@ -1241,7 +1324,9 @@ def score_handoff(run: Run, trace: list[dict]) -> dict:
         "detail_names_ask": check(
             r"cop(y|ies)|backfill|approach|option|how .*run", status.get("detail") or ""
         ),
-        "wait_started": any(waits_started(d) for d in trace[:first_end]),
+        "wait_started": next(
+            (d["listening"] for d in trace if d["type"] == "eval_status"), False
+        ),
         "gesture_named": check(
             r"\b(pick|choose|select|click)", handover.get("result") or ""
         ),
@@ -1281,17 +1366,23 @@ def score_mixed(run: Run, trace: list[dict]) -> dict:
     # The error carries no retry key, as the runtime sends none.
     posted = [posted_event(page, attempt_key(0, i)) for i in range(5)]
     comment, pick, reaction, _, _ = posted
-    picked = {i for e in events if e["kind"] == "pickup" for i in e.get("events", [])}
+    post_ids = set(trace[r["post"]]["events"])
+    batches = [
+        e
+        for e in events
+        if e["kind"] == "pickup"
+        and e["phase"] == "opened"
+        and post_ids.intersection(e["events"])
+    ]
     fixture_words = len(
         element_text((FIXTURES / "mixed.html").read_text(), "why-now").split()
     )
     state, html = active_html(run, page)
     out = round_scores(trace, r, "batch") | {
-        # One delivery carried every user move, and nothing else arrived in its turn.
+        # One delivery carried the whole round, including the page-authored error.
         "one_delivery": r["delivery"] is not None
-        and sum(hook_delivered(d) for d in trace[r["post"] : r["end"] or len(trace)])
-        == 1
-        and {e["id"] for e in posted if e["author"] == "user"} <= picked,
+        and len(batches) == 1
+        and post_ids <= set(batches[0]["events"]),
         "comment_claimed": r["delivery"] is not None
         and r["end"] is not None
         and claimed_first(trace[r["delivery"] : r["end"]], comment["id"]),
@@ -1361,7 +1452,19 @@ def score_elided(run: Run, trace: list[dict]) -> dict:
     out = round_scores(trace, r, "question")
     if r["delivery"] is None:
         return out
-    delivery = trace[r["delivery"]].get("output", "")
+    deliveries = [
+        text
+        for record in trace[r["post"] : r["end"]]
+        for text in [
+            record.get("output", ""),
+            *[
+                text_of(block.get("content", ""))
+                for block in blocks([record])
+                if block.get("type") == "tool_result"
+            ],
+        ]
+        if "leaf-delivery-v" in text
+    ]
     replying = next(
         (
             i
@@ -1386,10 +1489,11 @@ def score_elided(run: Run, trace: list[dict]) -> dict:
     replies = answered(events, question["id"])
     return out | {
         # Validity: the delivery shortened the thread, as the case assumes.
-        "shown_elided": bool(
+        "shown_elided": any(
             re.search(r'\\?"elided\\?":\s*\{\\?"messages\\?":\s*[1-9]', delivery)
-        )
-        and PREMISE not in delivery,
+            and PREMISE not in delivery
+            for delivery in deliveries
+        ),
         "middle_read": premise is not None and r["post"] < premise < replying,
         "premise_read_in": None
         if premise is None
@@ -1544,7 +1648,7 @@ CHECKS = {
 }
 
 
-def expected_checks(case: str) -> list[str]:
+def expected_checks(case: str, *, condition: str = "leaf") -> list[str]:
     """The fixed assertion set for one complete scenario."""
     CASES[case]
     if case.startswith("reading"):
@@ -1611,9 +1715,18 @@ def score_run(
     return score_resume(run, replies)
 
 
-def execute_scenario(case: str, payload: Path, work: Path) -> dict:
+def execute_scenario(
+    case: str,
+    payload: Path,
+    work: Path,
+    *,
+    host: str = "cc",
+    condition: str = "leaf",
+) -> dict:
     """One Promptfoo provider call owns all phases, live rounds, and evidence."""
-    run = Run(case, payload, work)
+    if condition != "leaf":
+        raise ValueError("Seeded Leaf state checks require the Leaf condition")
+    run = Run(case, payload, work, host)
     execute(run)
     traces = run.traces()
     phases = [trace_scores(t) for t in traces]
@@ -1622,13 +1735,19 @@ def execute_scenario(case: str, payload: Path, work: Path) -> dict:
     usable = run.usable()
     score = score_run(run, traces, replies, calls) if usable else {}
     checks = checks_for(case, score, phases, usable)
+    usage = {
+        field: count
+        for field, key in (("prompt", "input_tokens"), ("completion", "output_tokens"))
+        if (count := observed_sum(phase[key] for phase in phases)) is not None
+    }
     return {
         "output": "\n\n".join(replies),
-        "cost": sum(p["cost_usd"] for p in phases),
-        "tokenUsage": {
-            "prompt": sum(p["input_tokens"] for p in phases),
-            "completion": sum(p["output_tokens"] for p in phases),
-        },
+        **(
+            {"cost": cost}
+            if (cost := observed_sum(p["cost_usd"] for p in phases)) is not None
+            else {}
+        ),
+        **({"tokenUsage": usage} if usage else {}),
         "metadata": {
             "checks": checks,
             "diagnostics": {"score": score, "phases": phases, "work": str(work)},

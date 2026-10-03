@@ -33,20 +33,16 @@ task, its page and its state home live in a temporary directory, removed when ev
 check passes and kept, with its path printed, when one fails.
 """
 
-import itertools
-import json
 import os
 import shlex
 import shutil
 import sys
 import tempfile
 import time
-from collections.abc import Callable
 from pathlib import Path
 
 import click
 import psutil
-from leaf.codex import app_server_connect, app_server_handshake, app_server_request
 from leaf.codex_adapter import private_app_server
 from leaf.event_log import read_events
 from leaf.leases import adapter_is_live
@@ -54,6 +50,7 @@ from leaf.server import running_server
 from leaf.service import page_claim
 
 from leaf_dev import ROOT
+from leaf_dev.codex_task import STEP_LIMIT, Task, install_plugin
 from leaf_dev.harness import (
     PageClient,
     codex_home,
@@ -62,10 +59,6 @@ from leaf_dev.harness import (
     run_leaf,
 )
 
-# How long one step may take, and how long it has to stay settled before its
-# checks count: a second reply lands after the turn that wrote the first.
-STEP_LIMIT = 300
-QUIET = 10
 PROMPT = (
     "I wrote a Leaf page at ./page. Serve it so I can review it in my browser, "
     "and handle the comments I leave on it."
@@ -85,120 +78,6 @@ COMMENTS = {
 def require(condition: bool, message: str) -> None:
     if not condition:
         raise click.ClickException(message)
-
-
-class Task:
-    """The task's terminal: one App Server connection that opens the task, types the
-    user's turns, and hears every turn the task runs, Leaf's included, since every
-    client of a thread receives what it says."""
-
-    def __init__(self, endpoint: str) -> None:
-        self.socket = app_server_connect(endpoint)
-        self.ids = itertools.count()
-        self.thread = ""
-        self.started: list[str] = []
-        self.running: set[str] = set()
-        self.commands: list[str] = []
-        self.running_commands: dict[str, str] = {}
-        self.on_final: Callable[[str], None] | None = None
-        app_server_handshake(
-            self.socket, next(self.ids), "verify", "Verify", self._hear
-        )
-
-    def _hear(self, message: dict) -> None:
-        method, params = message.get("method"), message.get("params") or {}
-        if method == "turn/started":
-            self.started.append(params["turn"]["id"])
-            self.running.add(params["turn"]["id"])
-        elif method == "turn/completed":
-            self.running.discard(params["turn"]["id"])
-        elif method in {"item/started", "item/completed"}:
-            item = params["item"]
-            if item["type"] == "commandExecution":
-                if method == "item/started":
-                    self.running_commands[item["id"]] = item["command"]
-                else:
-                    self.running_commands.pop(item["id"], None)
-                    self.commands.append(item["command"])
-            elif (
-                method == "item/completed"
-                and item["type"] == "agentMessage"
-                and item.get("phase") == "final_answer"
-                and self.on_final is not None
-            ):
-                self.on_final(params["turnId"])
-
-    def request(self, method: str, params: dict) -> dict:
-        return app_server_request(
-            self.socket, method, next(self.ids), params, self._hear
-        )
-
-    def listen(self, seconds: float) -> None:
-        """Hear whatever the task says for `seconds`."""
-        deadline = time.monotonic() + seconds
-        while (left := deadline - time.monotonic()) > 0:
-            try:
-                raw = self.socket.recv(timeout=left)
-            except TimeoutError:
-                return
-            self._hear(json.loads(raw))
-
-    def say(self, text: str) -> str:
-        """Type one user turn and return its id."""
-        started = self.request(
-            "turn/start",
-            {"threadId": self.thread, "input": [{"type": "text", "text": text}]},
-        )
-        return started["turn"]["id"]
-
-    def settle(self, done: Callable[[], bool], what: str) -> None:
-        """Hear the task until it is idle with `done` true, and still is QUIET
-        seconds later."""
-        deadline = time.monotonic() + STEP_LIMIT
-        while time.monotonic() < deadline:
-            self.listen(0.5)
-            if not self.running and done():
-                self.listen(QUIET)
-                if not self.running and done():
-                    return
-        raise click.ClickException(
-            f"{what} within {STEP_LIMIT} s. The agent's last commands:\n"
-            + "\n".join(f"  {command}" for command in self.commands[-8:])
-        )
-
-
-def install_plugin(task: Task, payload: Path, cwd: Path) -> None:
-    """Install the payload as the task's Leaf plugin and trust its hooks, which
-    Codex otherwise lists and never runs."""
-    task.request(
-        "plugin/install",
-        {
-            "pluginName": "leaf",
-            "marketplacePath": str(payload / ".agents/plugins/marketplace.json"),
-        },
-    )
-    hooks = [
-        hook
-        for hook in task.request("hooks/list", {"cwds": [str(cwd)]})["data"][0]["hooks"]
-        if hook["pluginId"] == "leaf@leaf"
-    ]
-    require(bool(hooks), "Codex lists no hooks for the installed Leaf plugin")
-    task.request(
-        "config/batchWrite",
-        {
-            "edits": [
-                {
-                    "keyPath": "hooks.state",
-                    "mergeStrategy": "upsert",
-                    "value": {
-                        hook["key"]: {"trusted_hash": hook["currentHash"]}
-                        for hook in hooks
-                    },
-                }
-            ],
-            "reloadUserConfig": True,
-        },
-    )
 
 
 def adapter_processes(codex: str) -> list[psutil.Process]:

@@ -1,16 +1,16 @@
 """Complete trajectories and fixed evidence contracts survive partial execution."""
 
 import json
-from pathlib import Path
 
-import pytest
 from leaf_dev.delivery_eval import expected_checks, grade, score
-from leaf_dev.scenario_eval import prepare
 
 
 def test_delivery_requires_every_comment_and_a_completed_reply_turn():
     complete = {
         "comment": 1,
+        "injection": "running",
+        "active_turn": "setup-turn",
+        "after_completion": False,
         "timed_out": False,
         "turn_completed": True,
         "session_completed": True,
@@ -33,7 +33,17 @@ def test_delivery_requires_every_comment_and_a_completed_reply_turn():
         assert set(checks) == set(expected_checks("mid-turn"))
         assert not checks["completed"]
     assert not grade("idle", [complete])["completed"]
-    assert all(grade("idle", [complete, {**complete, "comment": 2}]).values())
+    idle = {
+        **complete,
+        "injection": "idle",
+        "active_turn": None,
+        "after_completion": True,
+    }
+    assert all(grade("idle", [idle, {**idle, "comment": 2}]).values())
+    assert not grade("mid-turn", [idle])["injected-as-requested-1"]
+    assert not grade("mid-turn", [{**complete, "after_completion": True}])[
+        "injected-as-requested-1"
+    ]
     assert not grade("mid-turn", [{**complete, "done_s": None}])["replied-1"]
     assert not grade("mid-turn", [{**complete, "claim_s": None}])["claimed-1"]
 
@@ -45,7 +55,12 @@ def test_delivery_uses_successful_turns_and_accepted_exact_thread_claims(tmp_pat
         "work": [{"subject": {"kind": "thread", "id": "comment"}}],
     }
     records = [
-        {"type": "eval_comment", "n": 1},
+        {
+            "type": "eval_post",
+            "round": 1,
+            "injection": "running",
+            "active_turn": "setup-turn",
+        },
         {
             "type": "system",
             "subtype": "hook_response",
@@ -103,7 +118,7 @@ def test_delivery_uses_successful_turns_and_accepted_exact_thread_claims(tmp_pat
     (tmp_path / "events.jsonl").write_text("\n".join(json.dumps(e) for e in events))
 
     def checks():
-        (tmp_path / "stream.jsonl").write_text(
+        (tmp_path / "stream-1.jsonl").write_text(
             "\n".join(json.dumps(r) for r in records)
         )
         return grade("mid-turn", score(tmp_path))
@@ -133,32 +148,3 @@ def test_delivery_uses_successful_turns_and_accepted_exact_thread_claims(tmp_pat
     )
     assert checks()["claimed-1"]
     assert score(tmp_path)[0]["before_claim"] == ["Read"]
-
-
-def test_scenario_matrix_pairs_arms_and_keeps_repetition_evidence_distinct(tmp_path):
-    arms = {arm: tmp_path / arm for arm in ("base", "candidate")}
-    config = prepare("delivery", ["idle", "mid-turn"], arms, tmp_path / "results", 2)
-    assert len(config["providers"]) == 2
-    assert len(config["tests"]) == 8
-    tests = config["tests"]
-    assert [t["metadata"]["arm"] for t in tests] == ["base", "candidate"] * 4
-    assert len({t["vars"]["work"] for t in tests}) == 8
-    for test in tests:
-        assert [a["config"]["check"] for a in test["assert"]] == expected_checks(
-            test["vars"]["case"]
-        )
-        assert test["providers"] == [f"cc/{test['metadata']['arm']}"]
-        assert Path(test["vars"]["work"]).is_relative_to(tmp_path / "results")
-
-
-@pytest.mark.parametrize("suite", ["usability", "arrangement", "delivery"])
-def test_every_existing_scenario_declares_completion_and_fixed_checks(suite, tmp_path):
-    from leaf_dev.scenario_eval import select_cases
-
-    cases = select_cases(suite, ())
-    config = prepare(suite, cases, {"candidate": tmp_path / "payload"}, tmp_path, 1)
-    assert len(config["tests"]) == len(cases) > 0
-    for test in config["tests"]:
-        checks = [a["config"]["check"] for a in test["assert"]]
-        assert "completed" in checks
-        assert len(checks) == len(set(checks))

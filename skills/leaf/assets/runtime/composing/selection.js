@@ -732,11 +732,11 @@ export function createSelectionComposer({
   const RESPONSE_REACTION = {
     id: "response.reaction.choose",
     keys: () =>
-      responseReactionButtons()
+      reactionTokens()
         .slice(0, 9)
         .map((_, index) => String(index + 1)),
     label: () => {
-      const count = Math.min(responseReactionButtons().length, 9);
+      const count = Math.min(reactionTokens().length, 9);
       return count > 1 ? `1–${count}` : "1";
     },
     description: () =>

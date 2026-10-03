@@ -1,0 +1,10 @@
+# Complete task; diagnostic contexts retain the original fixed checks.
+description: Short Chat Answer
+metadata:
+  purpose: Answer a short question without creating an unnecessary Leaf page.
+  tags:
+  - workflow
+  conditions:
+  - leaf
+  executor: leaf_dev.usability_eval
+  case: near-miss

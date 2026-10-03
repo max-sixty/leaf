@@ -155,7 +155,12 @@ export {
 } from "./motion.js";
 // `afterPresentation` is the package's whole route past presentation: it waits and
 // declares the arrival in one call, so a widget cannot defer without the page knowing.
-export { PRESENTATION, afterPresentation, quietWord } from "./presentation.js";
+export {
+  PAGE_INTERFACE,
+  PRESENTATION,
+  afterPresentation,
+  quietWord,
+} from "./presentation.js";
 export {
   captureTargetReference,
   resolveTargetReference,

@@ -451,20 +451,22 @@ def hook_delivered(record: dict) -> bool:
 
 
 def inputs_received(events: list[dict], attempts: set[str]) -> bool:
-    """Whether every posted user attempt has an admitted reader receipt.
+    """Whether a posted round is admitted and its attention inputs are received.
 
     Inline context, pointer reads, and attempted ACK commands are presentations,
-    not acceptance. Only opened pickups name the exact inputs a reader received.
+    not acceptance. Every attempt must be admitted; only attention-marked inputs
+    require the opened pickups that name exactly what the reader received.
     Page-authored errors carry no user attempt and do not advance user rounds.
     """
-    inputs = {e["id"] for e in events if e.get("attempt") in attempts}
+    posted = [e for e in events if e.get("attempt") in attempts]
+    inputs = {e["id"] for e in posted if e["attention"]}
     received = {
         ident
         for e in events
         if e["kind"] == "pickup" and e["phase"] == "opened"
         for ident in e["events"]
     }
-    return len(inputs) == len(attempts) and inputs <= received
+    return len(posted) == len(attempts) and inputs <= received
 
 
 def read_trace(stream: Path) -> list[dict]:

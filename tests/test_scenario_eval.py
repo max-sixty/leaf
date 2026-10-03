@@ -168,8 +168,8 @@ def test_live_round_receipts_require_exact_admitted_user_inputs():
     from leaf_dev.harness import inputs_received
 
     events = [
-        {"id": "first", "kind": "comment", "attempt": "round-1"},
-        {"id": "second", "kind": "action", "attempt": "round-2"},
+        {"id": "first", "kind": "comment", "attempt": "round-1", "attention": True},
+        {"id": "second", "kind": "action", "attempt": "round-2", "attention": True},
         {"id": "error", "kind": "error"},
         {"kind": "pickup", "phase": "opened", "events": ["other"]},
         {"kind": "pickup", "phase": "claimed", "events": ["first", "second"]},

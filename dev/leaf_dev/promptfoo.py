@@ -1,6 +1,6 @@
 """Run Leaf's native Promptfoo configs with local account authentication.
 
-Instruction and live-scenario commands stage their own inputs. This module owns
+The case catalog stages its inputs. This module owns
 dependency discovery, report directories, execution, and result summaries. Runs
 never share, cache, or write to Promptfoo's result database.
 """

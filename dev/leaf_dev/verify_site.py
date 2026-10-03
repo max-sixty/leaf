@@ -606,8 +606,8 @@ def check_turn_answered(
     url: str, heading: str, turn: TurnReading, asks: int, revision: int
 ) -> None:
     """Require the turn to have published the heading and answered, reading only what
-    the container admitted, so a turn that stopped is reported as that rather than as
-    a panel that drew nothing."""
+    the container admitted. A missing publication includes the source-validation
+    reading, distinguishing a rejected source from a valid source missing the heading."""
     state, published, replies, answer = turn
     tried = f" to {asks} asks" if asks > 1 else ""
     reading = (state.get("activity") or {}).get("kind") or "no activity"
@@ -616,7 +616,9 @@ def check_turn_answered(
         published is not None,
         f"{url} agent did not publish ‘{heading}’{tried}; it reached revision "
         f"{state['active']['revision']} from {revision} with the page "
-        f"reading {reading}" + (said if replies else " and did not reply"),
+        f"reading {reading}"
+        + (said if replies else " and did not reply")
+        + f"; source validation: {state['source_error'] or 'no error'}",
     )
     check(
         replies != [],

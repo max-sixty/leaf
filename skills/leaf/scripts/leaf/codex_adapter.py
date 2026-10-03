@@ -1060,19 +1060,23 @@ def _wait_for_app_server(path: Path, process: subprocess.Popen, log) -> None:
 
 
 @contextmanager
-def private_app_server(executable: str) -> Iterator[str]:
+def private_app_server(
+    executable: str, *, env: dict[str, str] | None = None
+) -> Iterator[str]:
     """Run one App Server on a Unix socket only this user can reach, and yield its
     endpoint until the block ends and the server stops.
 
     The server's environment names that endpoint as `LEAF_CODEX_APP_SERVER`, so a
-    task it runs hands its pages to this server when it serves them."""
+    task it runs hands its pages to this server when it serves them.
+    An eval may supply an isolated child environment without mutating this process.
+    """
     with tempfile.TemporaryDirectory(prefix="leaf-codex-", dir="/tmp") as directory:
         path = Path(directory) / "app-server.sock"
         endpoint = f"unix://{path}"
         with tempfile.TemporaryFile() as log:
             server = subprocess.Popen(
                 [executable, "app-server", "--listen", endpoint],
-                env=os.environ | {APP_SERVER_ENV: endpoint},
+                env=(os.environ if env is None else env) | {APP_SERVER_ENV: endpoint},
                 stdin=subprocess.DEVNULL,
                 stdout=log,
                 stderr=subprocess.STDOUT,

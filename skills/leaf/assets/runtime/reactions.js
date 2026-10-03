@@ -657,7 +657,7 @@ export function createReactionController({
         .join(
           ", ",
         )} — for the selection, the item you are standing on, or the reply you are reading`,
-    title: "react",
+    title: "reactions",
     // Reachable from a reply in a Threads panel covering the page, as `c` is; under a
     // covering surface the page's own targets are out of reach.
     covering: true,

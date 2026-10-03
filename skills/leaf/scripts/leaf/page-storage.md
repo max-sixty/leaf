@@ -52,7 +52,7 @@ other page files and the external state listed below.
   only; delivery reads their captured revision copies, never these mutable files
   directly.
 
-- `media/` — content-addressed page images, shared across revisions. `media.py` owns
+- `media/` — content-addressed page media, shared across revisions. `media.py` owns
   ingestion through `page media` and `/api/media`. Browser drafts and messages refer to
   them with Markdown; a public filename always identifies the same bytes. That name is
   `schema.MEDIA_DIGEST`'s, the one `media.media_name` mints and the server serves;
@@ -199,3 +199,12 @@ batches never change. Delivery
 records are separate mutable transport state; acknowledgement can archive
 those records without moving or rewriting the delivery addressed by `leaf
 delivery read <id>`.
+
+A publication with dependent log transitions stages its immutable bundle before
+admitting its prerequisite. A `publication` coordinate on the note, replacement
+reply, or first automatic reanchor names that exact bundle. The HTML marker
+appears only after every required transition is durable. Entering a page
+transaction completes any journaled publication whose marker is missing, using
+the staged inputs and prior immutable revision. A staged bundle with no admitted
+prerequisite is absent; a later mutable source edit never substitutes for the
+journaled input (`revisioning.finish_publications`).

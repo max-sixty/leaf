@@ -66,12 +66,10 @@ reaches a module by importing it from this package, never through `sys.path`,
   examples, base plugin against HEAD's, with no model, and prints each arm's wall
   time. Its arms, pages and state stay in its own run directory under
   `.tmp/bench-check/`.
-- `leaf-dev scenario-eval SUITE [CASE]...` scores complete usability, arrangement
-  and live delivery trajectories through Promptfoo. Scenario modules own execution;
-  `promptfoo.py` owns the native runner and reports, shared with instruction evals.
-- `leaf-dev instructions-eval [CASE]...` runs native Promptfoo cases in `evals/` on
-  Claude Code and Codex, against the merge base and working tree, and prints passes
-  per host and arm (`/developing-leaf`, "Score an instruction change").
+- `leaf-dev eval [CASE]...` scores the task catalog on Claude Code and Codex.
+  Tasks include short native Promptfoo tests and authored, resumed or live workflows;
+  explicit contexts select focused regressions, and `--condition both` includes HTML
+  where meaningful. `evals/README.md` owns the format and execution contract.
 
 ## Examples and previews
 
@@ -106,7 +104,7 @@ in `leaf-assets.json` and the README's image URLs that name it.
   previews under its `examples/`, republishes them, and moves the pin.
 - `leaf-dev record-demo` regenerates the README's demo GIF and stills and the site's
   card under its `demo/`, and publishes them the same way.
-- `leaf-dev publish-media IMAGE...` adds images the example pages show under its
+- `leaf-dev publish-media FILE...` adds media the example pages show under its
   `examples/media/`, and moves the pin.
 
 ## Codex

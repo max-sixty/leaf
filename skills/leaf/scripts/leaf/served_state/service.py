@@ -42,7 +42,7 @@ class PageStateService:
             yield self.page_snapshot.context, self.page_snapshot.reading, None
         else:
             with PageTransaction(self.page_dir) as page:
-                activation = activate_source(self.page_dir)
+                activation = activate_source(self.page_dir, transaction=page)
                 # Only the complete state response carries a news token. Take it
                 # after activation and before the facts it names.
                 reading = (

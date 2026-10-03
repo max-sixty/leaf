@@ -288,20 +288,20 @@ def check(dir: str, render: bool) -> None:
     sys.exit(cmd_check(resolve_dir(dir), render))
 
 
-@page.command(short_help="Add images and print their page paths.")
+@page.command()
 @click.argument("dir", metavar="PAGE")
 @click.argument(
     "files",
     nargs=-1,
     required=True,
     type=click.Path(exists=True, dir_okay=False),
-    metavar="IMAGE...",
+    metavar="FILE...",
 )
 def media(dir: str, files) -> None:
-    """Add images and print their page paths.
+    """Add images, video, or audio and print their page paths.
 
-    Copies each image into the page under a content-addressed name and prints
-    one JSON line per image: its page `path` and its `source` file.
+    Copies each file into the page under a content-addressed name and prints
+    one JSON line per file: its page `path` and its `source` file.
     """
     from leaf.media import cmd_media
 

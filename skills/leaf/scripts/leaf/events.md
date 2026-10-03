@@ -14,13 +14,14 @@ page and is not a global identifier. The kinds:
 | `edit` | agent | `leaf thread edit` | `message`, `text` | replaces one message's visible text; the original stays in the log |
 | `read` | user | `POST /api/event` | `messages: [{message, version}]` | records that this page's one user has read exact current or historical agent-content versions; `$events` declares it bookkeeping, so it adds no thread turn or agent work |
 | `thread_title` | agent | `--title` on `leaf thread open`, `reply` or `edit` | `thread`, `title` | names a thread in the panel; latest title wins without adding a turn or settling work |
+| `reanchor` | page | revision activation | `thread`, `revision`, `anchor: {section}` | a quoted passage no longer resolves; retains the open thread at its surviving section without adding a message, answering work or changing attention |
 | `summary` | agent | `leaf thread summarize` | `thread`, `from`, `through`, `text` | replaces one contiguous range with Markdown in the thread panel; originals stay in the log and remain revealable |
 | `resolve` | user or agent | `POST /api/event`, `leaf thread resolve` | `parent` | closes a thread |
 | `unresolve` | user | `POST /api/event` | `parent` | the user reopens a resolved thread |
 | `done` | user | the banner, only on a page declaring `<meta name="lf-review" content="sign-off">` | `version`, the stamp approved | approval of the declared sign-off; a page that asks nothing gets no terminal control |
 | `action` | user | `POST /api/event` from a widget | `widget`, `action`, `detail`; server-stamped `meaning` | the user edited the document through the widget |
 | `report` | agent or worker | `leaf page report` | as `action`, validated by an `x-state` verb declaring `writer: "agent"` | provisional state that stands until a stamped revision answers it |
-| `pickup` | page | the delivery carrier; a host failure receipt | `events`, `phase` (`queued`, `opened`, or `failed`), `session`, `turn`; `failure` with `failed` | the named user events reached the durable Codex queue or entered an exact agent turn, or the host gave up on them with no answer coming; idempotent per event, phase, session, and turn; never a work claim |
+| `pickup` | page | the delivery carrier; a host failure receipt | `events`, `phase` (`queued`, `opened`, or `failed`), `session`, `turn`; `failure` with `failed` | the named attention-bearing inputs reached the durable Codex queue or entered an exact agent turn, or the host gave up on them with no answer coming; includes page errors and reports; idempotent per event, phase, session, and turn; never a work claim |
 | `note` | agent | `leaf page stamp` | `version`, `revision`, changelog `text`, `restated`, `settles` | one public version mapped to an immutable revision, naming the decisions it took back and the reports or work it answered |
 | `error` | page | the runtime | | the page reported a failure in front of the user; heard like a report, never counted against the user |
 | `undo` | user | `POST /api/event` | `undoes` | withdraws one gesture of the user's own (`UNDOABLE_KINDS`: resolve, unresolve, action, done) |
@@ -34,6 +35,13 @@ subject the emitter knows persists across source replacements, independently of 
 `visual` names a declared part of a picture and `part` the control a design comment
 landed on.
 
+Activation records a `reanchor` for every affected open thread, even when no reply
+addresses it. The original message retains its quote; `build_threads` reads the
+latest explicit reply transition or automatic reanchor as the current location.
+Quoted text that the predecessor's file reading cannot resolve, such as words a
+data projection generates, stays with its runtime owner. An automatic transition
+cannot invent a replacement passage or detach a thread: a reply makes those choices.
+
 A `drawing` is up to 32 freehand strokes (`strokes`, each a list of points) attached to
 an ordinary comment, and may be that comment's only content. Its first stroke decides
 whether it anchors on an element or on the page, and with it the browser records `box`
@@ -44,6 +52,17 @@ reading can produce, so the door bounds their shape, the stroke count and 500
 characters of `says`, and does not re-read them. Leaf derives the drawing's frame and
 owns ink, weight, SVG construction, and replay. A drawing is immutable once sent,
 follows the thread's resolution state.
+
+
+A publishing note, replacement reply, or the first automatic `reanchor` may carry
+`publication`, the exact immutable bundle name (`r<revision>-<digest>`). The
+checked source publisher alone supplies it; browser commands and sample fixtures
+cannot. The bundle is staged before this prerequisite is admitted, and its HTML
+revision marker is published after every dependent anchor move. A transaction
+first finishes any prerequisite whose marker is absent from that exact bundle,
+including its remaining anchor moves. It never reads mutable source to recover.
+Copying a thread into a sample retains `reanchor` transitions but drops this
+parent publication coordinate along with the log sequence.
 
 ## Undo
 

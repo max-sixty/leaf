@@ -37,7 +37,7 @@ _UPLOAD_TYPES = {
 def media_name(data: bytes, suffix: str) -> str:
     """The one name a page's media directory gives these bytes (`schema.MEDIA_DIGEST`).
 
-    A caller that needs an image's public path before the page holds it — the site
+    A caller that needs media's public path before the page holds it — the site
     build naming a social image it has already published — derives it here rather
     than restating the digest rule. `suffix` is the source file's, in any case.
     """
@@ -79,12 +79,12 @@ def store_uploaded_media(page_dir: Path, data: bytes, content_type: str) -> str:
 
 
 def cmd_media(page_dir: Path, files: list) -> list:
-    """Copy images into the page's media directory, named by the hash of their
+    """Copy media into the page's media directory, named by the hash of their
     bytes; returns (source, served path) per file, in the order given.
 
     Content-addressing is doing two jobs. It keeps the directory's promise —
     a name can only ever mean one set of bytes, so a version the user
-    approved shows them the same picture forever, which is the same guarantee
+    approved shows them the same media forever, which is the same guarantee
     vendoring gives the layer. And it de-duplicates for free: a version that
     re-shows last version's screenshot re-uses the file rather than a second
     copy of it, which is what makes the version history cheap to keep."""
@@ -92,7 +92,7 @@ def cmd_media(page_dir: Path, files: list) -> list:
     for src in files:
         if src.suffix.lower() not in MEDIA_TYPES:
             sys.exit(
-                f"{src}: not an image leaf serves — {', '.join(sorted(MEDIA_TYPES))}"
+                f"{src}: not a media type leaf serves — {', '.join(sorted(MEDIA_TYPES))}"
             )
         data = src.read_bytes()
         path = _store_media(page_dir, data, src.suffix)

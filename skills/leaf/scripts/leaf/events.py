@@ -265,6 +265,11 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
             if thread := threads.get(e["thread"]):
                 thread["title"] = e["title"]
             continue
+        if e["kind"] == "reanchor":
+            if thread := threads.get(e["thread"]):
+                thread["anchor"] = e["anchor"]
+                thread["detached_from"] = None
+            continue
         if e["kind"] == "edit":
             if message := messages.get(e["message"]):
                 message["text"] = e["text"]

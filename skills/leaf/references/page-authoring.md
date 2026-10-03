@@ -549,8 +549,8 @@ do not turn their contents into source code or markup.
 
 Use `lf-sample` with one direct `template[data-sample]` to let the user
 operate a complete Leaf page inside the surrounding document. Give both the
-element and template stable ids, and put the child page's main content in the
-template:
+element and template stable ids. Put the child's content and styles directly in
+the template; Leaf supplies the document and its `main`:
 
 ```html
 <lf-sample id="practice" label="practice release note">
@@ -574,9 +574,9 @@ A click or Tab reaches the child directly; its normal widget controls, keyboard
 routes, comments, and replies work there. Escape closes the child's open controls
 before returning to the surrounding page. Reset creates a fresh page from the template.
 Child decisions and comments do not change the parent's log or Ask inventory.
-Set a page-wide body declaration, such as `data-annotations="page"` or
-`data-rail="none"`, on the sample template when the child needs it. Leaf carries
-that declaration onto the child's body; the surrounding page keeps its own choice.
+Set a page-wide body declaration, such as `data-annotations="page"`, on the sample
+template when the child needs it. Leaf carries that declaration onto the child's
+body; the surrounding page keeps its own choice.
 The child is temporary: use an ordinary Leaf page when its history must outlive
 the sample. A live sample needs a server, so a page declaring one cannot be
 exported (`references/serving-pages.md`, "Exported files").

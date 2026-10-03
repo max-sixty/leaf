@@ -20,6 +20,9 @@ import { followBoxGrowth, readBoxPlace } from "../thread/reply-landing.js";
 // accepts images, a paste uploads bytes to page media; one that does not says so in a
 // notice, so no box answers a pasted picture with silence. The draft keeps the resulting
 // Markdown, while the field shows only the user's words and a thumbnail projection.
+// An upload completion changes that draft; it is not another typing or focus gesture.
+// The field retains focus while read-only, and completion preserves wherever the user
+// has moved since the paste.
 // So the box holds more than its .value, and wire() returns the seam that says so:
 // sync.value() reads the complete draft, sync.load() replaces it — a stored record, a
 // draft mirrored from another tab, or the emptiness a send leaves — and sync() says the
@@ -181,7 +184,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     const removeMedia = (index) => {
       pastedMedia.splice(index, 1);
       renderMedia();
-      ta.dispatchEvent(new Event("input", { bubbles: true }));
+      draftChanged();
       ta.focus({ preventScroll: true });
     };
     const renderMedia = () => {
@@ -258,6 +261,10 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       stale.add(ta);
       repaint();
     };
+    const draftChanged = () => {
+      save(draftValue());
+      refresh();
+    };
     // sync() asks for the paint of what the box holds. It is not how a draft gets in:
     // what the user would miss is the words and the pasted images together, and the
     // images show only in the shelf, so a caller writing .value states half a draft.
@@ -298,8 +305,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       }
     };
     ta.addEventListener("input", () => {
-      save(draftValue());
-      refresh();
+      draftChanged();
       // A box a thread or seat holds keeps its controls in view as it grows
       // (`followBoxGrowth`). On the user's own keystrokes and nothing else: a send settling
       // after they scrolled away, or a draft mirrored from another tab, must not pull the
@@ -339,7 +345,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         if (paths.some((path) => path === null)) return;
         pastedMedia.push(...paths);
         renderMedia();
-        ta.dispatchEvent(new Event("input", { bubbles: true }));
+        draftChanged();
         notice(images.length === 1 ? "Image added" : `${images.length} images added`);
       } catch (error) {
         notice(`Could not add image — ${error?.message ?? error}`);
@@ -348,7 +354,6 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         ta.readOnly = wasReadOnly;
         ta.removeAttribute("aria-busy");
         refresh();
-        if (ta.isConnected) ta.focus();
       }
     });
     // The box's own scope: one row, so the shortcut bar's word, the command reference dialog's sentence and

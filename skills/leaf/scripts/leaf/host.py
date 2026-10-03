@@ -19,13 +19,14 @@ import subprocess
 import sys
 import time
 from collections.abc import Callable
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import ClassVar
 
 from leaf.files import read_json
-from leaf.leases import adapter_is_live, hooks_ran
+from leaf.leases import adapter_is_live, hooks_ran, wait_is_live
 from leaf.machine import ancestry, pid_alive, process_argv
 
 
@@ -50,7 +51,7 @@ class Harness:
       session's pages in the background and wakes the session when input arrives
       (`watches_between_turns`), and the prompt hook, which runs as the turn the
       wake opens begins, and the other Stop hook put the input in the turn's
-      context and confirm it (`hook_delivers`). A turn that ends without its Stop
+      context for its reader to confirm (`hook_delivers`). A turn that ends without its Stop
       hooks, as an interrupt does, leaves nothing watching while the session lives
       on, which is why this is the harness with a `nudge`.
     - Codex has a detached adapter that outlives the turn and proves itself by
@@ -64,8 +65,8 @@ class Harness:
     agent: str
 
     name: ClassVar[str]
-    # Whether the host's hooks can carry input into the turn: they freeze, confirm,
-    # and hand over the whole delivery, and `leaf wait` only wakes the session.
+    # Whether the host's hooks can carry input into the turn: they freeze and
+    # hand over the whole delivery, and `leaf wait` only wakes the session.
     # `hooks_carry` says whether they do for this session.
     hook_delivers: ClassVar[bool] = False
 
@@ -92,6 +93,23 @@ class Harness:
         process holding one lease. A carrier that has to prove more overrides
         this."""
         return listening
+
+    def ensure_delivery(self) -> None:
+        """Prepare this host's input route before handing over a served page.
+
+        Hosts whose hooks or embedding own delivery need no separate process.
+        A detached carrier starts or joins its task-wide watch here.
+        """
+
+    @contextmanager
+    def preparing_delivery(self):
+        """Prepare delivery and retain it until the caller publishes its page.
+
+        Detached carriers prevent no-page retirement throughout this boundary.
+        A failed preparation therefore precedes any page ownership transition.
+        """
+        self.ensure_delivery()
+        yield
 
     def hooks_carry(self) -> bool:
         """Whether this session's hooks carry its input: its host runs hooks that
@@ -125,8 +143,8 @@ class Harness:
     def run_ack(cls, delivery_id: str) -> str:
         """How the reader of this session's printed delivery runs the `leaf wait
         --ack` that confirms it and goes on waiting: the verb phrase the
-        delivery's `acknowledge` ends with. A harness whose hook carries input
-        prints no delivery; a wait held in a background task is the default."""
+        delivery's `acknowledge` ends with. Hook context names its separate
+        `leaf delivery ack` route; a wait held in a background task is the default."""
         return f"start `leaf wait --ack {delivery_id}` as the next background task"
 
     @classmethod
@@ -351,6 +369,21 @@ class CodexHarness(EnvironmentHarness):
     default_agent = "Codex"
     session_variables = ("LEAF_SESSION_ID", "CODEX_THREAD_ID")
     identity_variables = session_variables
+
+    def ensure_delivery(self) -> None:
+        with self.preparing_delivery():
+            pass
+
+    @contextmanager
+    def preparing_delivery(self):
+        from .codex_adapter import preparing_adapter
+
+        # A direct wait already selected by this task remains its carrier.
+        if wait_is_live(None, self.session) and not adapter_is_live(self.session):
+            yield
+            return
+        with preparing_adapter():
+            yield
 
     def lifetime(self) -> dict:
         """Codex states no process, so this one is discovered: the nearest

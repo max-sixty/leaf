@@ -27,8 +27,10 @@
  * Retained nodes keep their mechanical state. Replaced nodes use `carry.js`'s authored-id
  * contract, and the Ask view restores the selected Ask by id. Both installs restore these
  * readings; the patch passes its retained nodes so restoration skips them. Unnamed
- * replaced controls receive no guessed focus. Native selections and arbitrary module
- * state cannot cross documents; drafts and chrome preferences use their own stores.
+ * replaced controls receive no guessed focus. Authored controls and registered draft
+ * editors carry native editing under their existing replacement identity; arbitrary
+ * selections and module state cannot cross documents. Drafts and chrome preferences
+ * use their own stores.
  *
  * A fresh-document install stores a page-scoped, one-use handoff: reading position,
  * comparison, pointer, margin standing, mechanical carry, and Ask standing. A newer
@@ -41,8 +43,9 @@
  * region, and the decision landmark. `restoreView` returns the user to them. A fresh
  * navigation aimed at an element keeps it landed while the page arrives (`aimArrival`).
  * `landArrival` runs after presentation: a valid revision handoff restores continuity;
- * otherwise a fresh navigation aimed nowhere restores a saved view from a different
- * revision. Ordinary reloads and history travel keep the browser's restored offset
+ * unexpected mechanical failures report without blocking proved state or deferred
+ * arrivals. Otherwise a fresh navigation aimed nowhere restores a saved view from a
+ * different revision. Ordinary reloads and history travel keep the browser's restored offset
  * (history.js). Comparison is restored after activation because its base must be
  * fetched again. Reading position is restored even after a patch because content above
  * it may have changed height.
@@ -61,7 +64,15 @@ import {
 } from "./document-identity.js";
 
 import { captureCarry, restoreCarry } from "./carry.js";
-import { retainUserIntent } from "./user-intent.js";
+import {
+  captureDraftEditing,
+  draftEditingDestination,
+  draftEditingStands,
+  restoreDraftEditing,
+} from "./drafts.js";
+import { heldThreadId, replyDestination } from "./thread/focus.js";
+import { focusDestination } from "./focus.js";
+import { restrictUserIntent, retainUserIntent } from "./user-intent.js";
 import { patchTree } from "./dom-children.js";
 import { labelOf, PRESS } from "./keyboard/bindings.js";
 import { commandShortcut } from "./keyboard/control-keys.js";
@@ -111,8 +122,6 @@ import {
   stageAuthoredStates,
   stateCoordinate,
 } from "./projection/authored.js";
-import { whenApplicationRegionsPresented } from "./semantic-state.js";
-import { settlePageInterface } from "./presentation.js";
 import { runtimeRootState } from "./root-state.js";
 import {
   commitWidgetDescriptors,
@@ -217,6 +226,8 @@ const initialPairs = servedMain
   : new WeakMap();
 
 export function createVersionController({
+  compositionInput,
+  openThread,
   midComposition,
   hasPending,
   readAndApply,
@@ -1247,10 +1258,48 @@ export function createVersionController({
 
   // Patch against the authored baselines. Retained nodes keep their live state;
   // replacement nodes recover eligible state through carry and Ask restoration.
+  function captureEditingContinuity() {
+    const draftEditing = captureDraftEditing();
+    return {
+      draftEditing,
+      replyThread: draftEditing?.mirrored ? heldThreadId() : null,
+      // Ask standing is the fallback for unnamed controls. An exact editor already
+      // has a replacement identity, so its parent Ask does not also own focus.
+      askStanding: draftEditing ? null : captureAskStanding(),
+    };
+  }
+
+  // Mechanical landing is outside proved semantic presentation. An unexpected
+  // failure reports once through the page error owner and leaves both installs free
+  // to finish receipt accounting and initial presentation/deferred arrivals.
+  async function landContinuity(land) {
+    try {
+      await land();
+    } catch (error) {
+      reportPageError(`Revision continuity failed: ${error?.message ?? error}`);
+    }
+  }
+
+  async function restoreEditingContinuity(continuity, currentIntent) {
+    if (!currentIntent()) return;
+    const { draftEditing, replyThread, askStanding } = continuity;
+    restoreAskStanding(askStanding);
+    const mayRestore = restrictUserIntent(currentIntent, () =>
+      draftEditingStands(draftEditing),
+    );
+    if (!mayRestore()) return;
+    if (restoreDraftEditing(draftEditing, focused())) return;
+    const input = replyThread
+      ? await replyDestination(replyThread, openThread, mayRestore)
+      : draftEditingDestination(draftEditing);
+    if (!replyThread && input) mayRestore.handoff(() => focusDestination(input));
+    if (mayRestore()) restoreDraftEditing(draftEditing, input);
+  }
+
   async function activateRevision(doc, target) {
     const currentIntent = retainUserIntent();
     const view = captureView();
-    const askStanding = captureAskStanding();
+    const editingContinuity = captureEditingContinuity();
     // A pending selection is standing too: cancel its old-document request before the
     // authored page changes, then restore that base against the arriving revision.
     const comparedFrom = selectedBase();
@@ -1391,21 +1440,6 @@ export function createVersionController({
     authoredWidgets = arrivingWidgets;
     authoredSource = source;
     authoredRoot = arrivingRoot;
-    await settlePageInterface(() =>
-      whenApplicationRegionsPresented(["page-interface"], () => true),
-    );
-    syncLayout();
-    // Presentation can wait on a renderer download while the user uses the arrivals.
-    // Their newer input owns navigation; values, focus and caret crossed with the nodes
-    // synchronously, so yielding here leaves their ongoing editing intact.
-    if (currentIntent()) {
-      restoreView(view, currentIntent);
-      restoreCarryScroll();
-      restoreAskStanding(askStanding);
-    }
-    if (comparedFrom !== null) showComparison(comparedFrom);
-    // Use the arriving descriptor: the current label still names the previous revision.
-    notice(`Updated to ${target.label}`, { background: true });
     const nextAuthored = new Map(
       [...prior.authored].filter(
         ([id]) => prior.descriptors.get(id)?.document.kind === "thread",
@@ -1437,11 +1471,27 @@ export function createVersionController({
     );
     commitWidgetDescriptors({ bindings: [] }, retired);
     return {
-      ...prior,
-      revision: target.revision,
-      stamp: target.version ?? null,
-      authored: nextAuthored,
-      descriptors,
+      document: {
+        ...prior,
+        revision: target.revision,
+        stamp: target.version ?? null,
+        authored: nextAuthored,
+        descriptors,
+      },
+      // The incoming publication opens recovered editors. State application alone
+      // adopts this capture and proves that epoch before returning mechanical places.
+      // This continuation never enters the semantic document snapshot.
+      land: () =>
+        landContinuity(async () => {
+          syncLayout();
+          if (currentIntent()) {
+            restoreView(view, currentIntent);
+            restoreCarryScroll();
+            await restoreEditingContinuity(editingContinuity, currentIntent);
+          }
+          if (comparedFrom !== null) showComparison(comparedFrom);
+          notice(`Updated to ${target.label}`, { background: true });
+        }),
     };
   }
 
@@ -1504,6 +1554,7 @@ export function createVersionController({
   const reloadInto = (target) => () => {
     forceActivation = false;
     const view = captureView();
+    const editingContinuity = captureEditingContinuity();
     tabStore.set(VIEW_KEY, JSON.stringify(view));
     tabStore.set(
       HANDOFF_KEY,
@@ -1512,7 +1563,7 @@ export function createVersionController({
         url: location.href,
         view,
         retainedStanding: captureRetainedStanding(),
-        askStanding: captureAskStanding(),
+        ...editingContinuity,
         carry: captureCarry(document.querySelector("body > main"), authoredSource)
           .records,
         comparison: selectedBase(),
@@ -1691,21 +1742,17 @@ export function createVersionController({
     }
   }
 
-  // A region handed to another scroller keeps the place recorded before the handover.
+  // A region handed to another scroller keeps the reading recorded before the handover.
+  // Focus can remain on a control the user has since scrolled past, so a posture change
+  // restores that reading without making the focused control a navigation destination.
   // A composition change in progress owns any shift inside it.
-  function restoreShifted(shifted) {
+  function restoreShifted(shifted, currentIntent) {
     if (compositionChanges.size) return;
-    const currentIntent = retainUserIntent();
     if (!currentIntent()) return;
     const candidates = shifted
       .map(({ region }) => region)
       .filter((region) => shownRegionBounds(region));
     restoreRegions(candidates, currentIntent);
-    // A control the user is standing on is where they are, more exactly than any
-    // passage near it: keep it in view in whichever box scrolls it now.
-    const held = focused();
-    if (held && candidates.some(({ host }) => under(held, host)))
-      held.scrollIntoView({ block: "nearest", inline: "nearest" });
     recordRegions();
   }
 
@@ -1720,7 +1767,8 @@ export function createVersionController({
     // Announced from a resize observer's delivery; restoring there could reveal a
     // region and resize what the observer watches, so it waits for the next frame.
     if (phase === "shift") {
-      nextRender(() => restoreShifted(shifted));
+      const currentIntent = retainUserIntent();
+      nextRender(() => restoreShifted(shifted, currentIntent));
       return;
     }
     // A composition change captures the intact view before hiding any region, and its
@@ -1812,28 +1860,29 @@ export function createVersionController({
       tabStore.set(VIEW_KEY, JSON.stringify(captureView()));
     });
     const restoreCarryScroll = handoff && restoreCarry(handoff.carry);
-    const currentIntent = retainUserIntent();
-    function landArrival() {
-      if (!currentIntent()) return;
-      if (handoff) {
-        restorePointer(handoff.pointer);
-        restoreView(handoff.view, currentIntent);
-        restoreRetainedStanding(handoff.retainedStanding);
-        restoreCarryScroll();
-        restoreAskStanding(handoff.askStanding);
-        if (handoff.comparison !== null && stamped(handoff.comparison))
-          showComparison(handoff.comparison);
-        return;
-      }
-      // A URL aimed somewhere has already landed there (`aimArrival`).
-      if (
-        navigationType === "navigate" &&
-        !aimedAt &&
-        savedView &&
-        savedView.revision !== runtime.currentRevision
-      )
-        restoreView(savedView, currentIntent);
-    }
+    const currentIntent = retainUserIntent({ fallback: compositionInput });
+    const landArrival = () =>
+      landContinuity(async () => {
+        if (!currentIntent()) return;
+        if (handoff) {
+          restorePointer(handoff.pointer);
+          restoreView(handoff.view, currentIntent);
+          restoreRetainedStanding(handoff.retainedStanding);
+          restoreCarryScroll();
+          await restoreEditingContinuity(handoff, currentIntent);
+          if (handoff.comparison !== null && stamped(handoff.comparison))
+            showComparison(handoff.comparison);
+          return;
+        }
+        // A URL aimed somewhere has already landed there (`aimArrival`).
+        if (
+          navigationType === "navigate" &&
+          !aimedAt &&
+          savedView &&
+          savedView.revision !== runtime.currentRevision
+        )
+          restoreView(savedView, currentIntent);
+      });
     return { landArrival, savedView };
   }
 

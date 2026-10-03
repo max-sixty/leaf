@@ -33,6 +33,7 @@ from interact_support import (
     _report,
     _status,
     _tasks_version,
+    append_carried_log_record,
     append_command,
     before_choice,
     check,
@@ -65,7 +66,7 @@ from leaf import revision_delivery as revision_delivery_model
 from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import service as service_model
-from leaf import session_cleanup as cleanup_model
+from leaf import state as cleanup_model
 from leaf import structure as structure_model
 from leaf import thread as thread_model
 from leaf.registry.storage import read_page_registry, require_registry
@@ -201,6 +202,18 @@ def test_the_captured_executable_digest_separates_code_from_content(page_dir):
         return artifact_model.read_artifact(page_dir, activated.revision)
 
     base = activate()
+
+    document = document.replace("<body>", '<body data-annotations="overlay">')
+    explicit_overlay = activate()
+    assert explicit_overlay.executable == base.executable
+
+    document = document.replace('data-annotations="overlay"', 'data-annotations="page"')
+    page_annotations = activate()
+    assert page_annotations.executable != explicit_overlay.executable
+
+    document = document.replace(' data-annotations="page"', "")
+    restored_overlay = activate()
+    assert restored_overlay.executable == base.executable
 
     document = document.replace("<h2>Plan</h2>", "<h2>The plan, restated</h2>")
     reworded = activate()
@@ -1074,7 +1087,7 @@ def test_page_state_names_each_bound_source_and_its_failures(page_dir):
 def test_thread_read_reads_frozen_construction(page_dir):
     (page_dir / "index.html").write_text(PAGE)
     publish(page_dir)
-    root = events_model.append_event(
+    root = append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -1115,7 +1128,7 @@ def test_thread_read_reads_frozen_construction(page_dir):
         "format": "leaf-drawing/2",
         "strokes": [[[-20, 74], [50, 10], [120, 74]]],
     }
-    drawn = events_model.append_event(
+    drawn = append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -1804,7 +1817,7 @@ def test_suggestion_rejects_malformed_shapes(page_dir):
 
 
 def test_suggestion_resolves_accepts_a_real_comment(page_dir):
-    events_model.append_event(
+    append_carried_log_record(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hm"}
     )
     markup = '<lf-suggestion id="sug-a" resolves="c1"><lf-new><p>x</p></lf-new></lf-suggestion>'
@@ -1817,7 +1830,7 @@ def test_suggestion_resolves_a_thread_whose_opening_comment_was_lost(page_dir):
     A torn line can lose the comment that opened a thread while its reply survives,
     and the thread keeps the lost comment's id, so the suggestion an agent writes
     from that id validates."""
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {"kind": "reply", "author": "agent", "parent": "c0ffee", "text": "kept"},
     )
@@ -1918,7 +1931,7 @@ def test_rejecting_licenses_retiring_the_proposal(page_dir):
             '<p id="refill-rule">Refill every feeder each morning.</p><lf-options>',
         )
     )
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -1965,7 +1978,7 @@ def test_withdrawing_an_unanswered_suggestion_needs_no_consent(page_dir):
         )
     )
     assert check(page_dir).exit_code == 0
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -1978,14 +1991,14 @@ def test_withdrawing_an_unanswered_suggestion_needs_no_consent(page_dir):
     result = check(page_dir)
     assert result.exit_code == 1
     assert "refill-camera" in result.output
-    events_model.append_event(
+    append_carried_log_record(
         page_dir, {"kind": "resolve", "author": "user", "parent": "c1"}
     )
     assert check(page_dir).exit_code == 0
 
 
 def test_reply_refuses_a_suggestion(page_dir):
-    events_model.append_event(
+    append_carried_log_record(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hm"}
     )
     result = CliRunner().invoke(
@@ -2009,7 +2022,7 @@ def test_reply_refuses_a_suggestion(page_dir):
 def test_reply_infers_one_obligation_and_activates_the_current_source(page_dir):
     initial = revisioning_model.activate_source(page_dir)
     assert initial.error is None and initial.revision == 1
-    comment = events_model.append_event(
+    comment = append_carried_log_record(
         page_dir,
         {"kind": "comment", "id": "c1", "author": "user", "text": "update it"},
     )
@@ -2040,7 +2053,7 @@ def test_reply_infers_one_obligation_and_activates_the_current_source(page_dir):
 
 
 def test_reply_refuses_an_invalid_current_source(page_dir):
-    comment = events_model.append_event(
+    comment = append_carried_log_record(
         page_dir,
         {"kind": "comment", "id": "c1", "author": "user", "text": "update it"},
     )
@@ -2073,7 +2086,7 @@ def test_reply_uses_for_to_select_one_of_several_obligations(page_dir):
     comments = []
     for event_id in ("c1", "c2"):
         comments.append(
-            events_model.append_event(
+            append_carried_log_record(
                 page_dir,
                 {
                     "kind": "comment",
@@ -2116,7 +2129,7 @@ def test_reply_uses_for_to_select_one_of_several_obligations(page_dir):
 
 
 def test_inferred_reply_never_settles_a_newer_undelivered_correction(page_dir):
-    delivered = events_model.append_event(
+    delivered = append_carried_log_record(
         page_dir,
         {"kind": "comment", "id": "c1", "author": "user", "text": "make it blue"},
     )
@@ -2129,7 +2142,7 @@ def test_inferred_reply_never_settles_a_newer_undelivered_correction(page_dir):
             session=claim["id"],
             turn=claim["turn"],
         )
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "reply",
@@ -2156,7 +2169,7 @@ def test_inferred_reply_never_settles_a_newer_undelivered_correction(page_dir):
 def test_inferred_reply_belongs_to_the_session_with_the_opened_delivery(
     page_dir, monkeypatch
 ):
-    comment = events_model.append_event(
+    comment = append_carried_log_record(
         page_dir,
         {"kind": "comment", "id": "c1", "author": "user", "text": "update it"},
     )
@@ -2181,7 +2194,7 @@ def test_inferred_reply_belongs_to_the_session_with_the_opened_delivery(
 
 
 def test_inferred_reply_cannot_borrow_a_closed_turns_delivery(page_dir):
-    comment = events_model.append_event(
+    comment = append_carried_log_record(
         page_dir,
         {"kind": "comment", "id": "c1", "author": "user", "text": "update it"},
     )
@@ -2220,7 +2233,7 @@ def test_a_cli_write_is_admitted_through_the_browser_door(page_dir):
     `event_contracts`. Both are refused in the writer's own voice.
     """
     publish(page_dir)
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {"kind": "comment", "id": "c1", "author": "agent", "revision": 1, "text": "?"},
     )
@@ -2250,7 +2263,7 @@ def test_inferred_reply_attempt_is_idempotent(page_dir):
     writer to the record contract's shape for one — the delivery carriers mint
     theirs from a digest, so a short hand-written label is not a retry key."""
     attempt = "retry-inferred-reply-1"
-    comment = events_model.append_event(
+    comment = append_carried_log_record(
         page_dir,
         {"kind": "comment", "id": "c1", "author": "user", "text": "update it"},
     )
@@ -2295,7 +2308,7 @@ def test_inferred_reply_attempt_is_idempotent(page_dir):
 
 
 def test_reply_for_a_stale_event_reports_the_failed_fence(page_dir):
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {"kind": "comment", "id": "c1", "author": "user", "text": "update it"},
     )
@@ -2602,7 +2615,7 @@ def test_any_id_names_one_subject_for_every_command(page_dir):
             "detail": {"options": ["t-sqlite"]},
         },
     )
-    undone = events_model.append_event(
+    undone = append_carried_log_record(
         page_dir, {"kind": "undo", "author": "user", "undoes": picked["id"]}
     )
     for name in ("t-ask", opened["id"], renamed["id"], picked["id"], undone["id"]):
@@ -2653,7 +2666,7 @@ def test_an_id_held_twice_is_refused_for_both_reasons_at_once(page_dir):
             "detail": {"options": ["o-shim"]},
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -2735,7 +2748,7 @@ def test_a_suggestion_keeps_the_markup_its_withdrawal_does_not_retire(page_dir):
 
 def test_an_unresolved_anchor_protects_its_id_until_the_thread_resolves(page_dir):
     publish(page_dir)
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -2761,7 +2774,7 @@ def test_an_unresolved_anchor_protects_its_id_until_the_thread_resolves(page_dir
     # The refusal names the way out its own reason leaves open, and no other reason's.
     assert _remedies(unresolved.output) == {"thread"}
 
-    events_model.append_event(
+    append_carried_log_record(
         page_dir, {"kind": "resolve", "author": "user", "parent": "c1"}
     )
     resolved = check(page_dir)
@@ -2814,7 +2827,7 @@ def test_a_standing_action_protects_its_fold_unit_until_undone(page_dir):
     assert standing.exit_code == 1
     assert "protected ids" in standing.output and "'card-x'" in standing.output
 
-    events_model.append_event(
+    append_carried_log_record(
         page_dir, {"kind": "undo", "author": "user", "undoes": moved["id"]}
     )
     undone = check(page_dir)
@@ -4305,7 +4318,7 @@ def test_a_source_bound_only_by_frozen_reply_markup_can_be_set(page_dir):
         re.sub(r"<lf-test-data[^>]*></lf-test-data>\n?", "", version.read_text())
     )
     publish(page_dir)
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -4353,7 +4366,7 @@ def test_thread_markup_cannot_rebind_a_page_source(page_dir):
     }
     registry_path.write_text(json.dumps(registry))
     publish(page_dir)
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -4409,7 +4422,7 @@ def test_thread_markup_cannot_rebind_a_draft_only_page_source(page_dir):
     )
     immutable, errors = data_contracts_model.merge_data_document_readings(documents)
     assert errors == [] and "project-feed" not in immutable
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -4584,7 +4597,7 @@ def test_page_state_keeps_thread_history_out_of_its_current_reading(page_dir):
     history while the append-only log remains the one copy of its prose."""
     (page_dir / "index.html").write_text(PAGE)
     publish(page_dir)
-    opened = events_model.append_event(
+    opened = append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -4594,7 +4607,7 @@ def test_page_state_keeps_thread_history_out_of_its_current_reading(page_dir):
             "anchor": {"section": "s-1", "quote": "Ship dark"},
         },
     )
-    answered = events_model.append_event(
+    answered = append_carried_log_record(
         page_dir,
         {
             "kind": "reply",
@@ -4773,7 +4786,7 @@ def test_page_state_points_to_a_users_suggestion_record(page_dir):
     `events` supplies that raw flag without maintaining a second message shape."""
     (page_dir / "index.html").write_text(PAGE)
     publish(page_dir)
-    suggestion = events_model.append_event(
+    suggestion = append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -4806,7 +4819,7 @@ def test_page_state_holds_a_thread_ask_open_until_its_verb(page_dir):
     `multiple` group open across picks, and only the named verb closes it."""
     (page_dir / "index.html").write_text(PAGE)
     publish(page_dir)
-    root = events_model.append_event(
+    root = append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -4962,7 +4975,7 @@ def test_page_state_carries_a_report_until_a_version_answers_it(page_dir):
         2,
         (page_dir / "index.html").read_bytes(),
     )
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "note",
@@ -5017,7 +5030,7 @@ def test_update_feed_orders_clock_ties_by_log_causality(page_dir, monkeypatch):
             "detail": {"status": "done"},
         },
     )
-    thread = events_model.append_event(
+    thread = append_carried_log_record(
         page_dir,
         {"kind": "comment", "id": "c1", "author": "user", "text": "why?"},
     )

@@ -24,9 +24,7 @@ from functools import partial
 from html import escape
 from pathlib import Path
 
-# The stream-activity writers are called as `codex.<name>`, so `leaf.codex` holds their
-# one binding: whatever takes a turn's readings there takes the host's too.
-from leaf import codex
+import click
 from leaf.codex import (
     LEAF_THREAD_CONFIG,
     CarriedTurn,
@@ -56,9 +54,15 @@ from leaf.served_state.service import PageStateService
 from leaf.server import preview_metadata
 from leaf.service import (
     PageTransaction,
-    close_session_turn,
     page_claim,
     restore_page_claim,
+)
+from leaf.state import (
+    advance_turn,
+    close_session_turn,
+    flocked,
+    session_lock_path,
+    session_record,
 )
 from leaf.thread import (
     fail_answer,
@@ -144,10 +148,6 @@ WORKER_FAILURES = tuple(code for code in FAILURE_RECEIPTS if code != CONTAINER_F
 AGENT_START_PATH = "/_leaf/agent/start"
 AGENT_FAIL_PATH = "/_leaf/agent/fail"
 STARTUP_REPORT_PATH = "/api/performance"
-RUNTIME_DIRECTORY = Path(tempfile.gettempdir()).resolve()
-CODEX_SOCKET = RUNTIME_DIRECTORY / "leaf-website-codex.sock"
-CODEX_LOG = RUNTIME_DIRECTORY / "leaf-website-codex.log"
-CODEX_ENDPOINT = f"unix://{CODEX_SOCKET}"
 LEAF_COMMAND = str(Path(sys.executable).with_name("leaf"))
 # The hosted agent reads the same App Server contract a terminal task does, whole, and
 # leaf.page's own terms follow it as additions. The agent may not read outside its page
@@ -408,11 +408,18 @@ class HostedTurn(CarriedTurn):
         turn_id: str,
         socket=None,
         *,
+        lifecycle: dict,
         reply_target: dict | None = None,
         buffered=(),
     ):
         super().__init__(
-            thread_id, socket, turn_id, delivery_id, reply_target, buffered
+            thread_id,
+            socket,
+            turn_id,
+            delivery_id,
+            reply_target,
+            buffered,
+            lifecycle=lifecycle,
         )
         self.host = host
         self.page_dir = page_dir
@@ -448,7 +455,8 @@ class HostedTurn(CarriedTurn):
         delivery's without anything having to read it back off the stream.
         """
         self.record("turn_following_started")
-        self.open()
+        if not self.open():
+            raise RuntimeError("the hosted turn no longer owns its session epoch")
         open_app_server_delivery(
             self.page_dir,
             self.session_id,
@@ -458,7 +466,7 @@ class HostedTurn(CarriedTurn):
         )
         self.record("turn_delivery_bound", deliveryId=self.delivery_id)
         self.open_reply()
-        codex.set_stream_activity(self.session_id, self.turn_id, {"kind": "working"})
+        self.set_activity({"kind": "working"})
 
     def observe(self, message: dict, update: dict | None) -> None:
         """Record what one notification said, before its readings reach the page."""
@@ -553,9 +561,11 @@ class HostedTurn(CarriedTurn):
         try:
             if reply_error is not None:
                 self.record("turn_reply_commit_failed", **fault_fields(reply_error))
-            self.host._finish_turn(self.page_dir, self.session_id, terminal)
+            self.host._finish_turn(
+                self.page_dir, self.session_id, terminal, expected=self.activity_epoch()
+            )
         finally:
-            codex.clear_stream_activity(self.session_id, self.turn_id)
+            self.clear_activity()
             self._receipt_unanswered()
 
     def _receipt_unanswered(self) -> None:
@@ -604,13 +614,17 @@ class WebsiteCodexHost:
     def __init__(
         self,
         codex_path: str | None = None,
-        socket_path: Path = CODEX_SOCKET,
-        log_path: Path = CODEX_LOG,
+        socket_path: Path | None = None,
+        log_path: Path | None = None,
     ):
         self.codex_path = codex_path or shutil.which("codex")
-        self.socket_path = socket_path
-        self.log_path = log_path
-        self.endpoint = f"unix://{socket_path}"
+        # App Server's Unix socket is short and private to this host, even when
+        # multiple website versions run in the same machine's temporary directory.
+        self.runtime = tempfile.TemporaryDirectory(prefix="lwh.", dir="/tmp")
+        runtime = Path(self.runtime.name)
+        self.socket_path = socket_path or runtime / "codex.sock"
+        self.log_path = log_path or runtime / "codex.log"
+        self.endpoint = f"unix://{self.socket_path}"
         self.process: subprocess.Popen | None = None
         self.lock = threading.Lock()
         self.next_request_id = 0
@@ -697,12 +711,15 @@ class WebsiteCodexHost:
             self.process = None
         if process is not None:
             self._stop_server(process)
+        self.runtime.cleanup()
 
     def _stop_server(self, process: subprocess.Popen) -> None:
         stop_app_server(process)
         self.socket_path.unlink(missing_ok=True)
 
     def _ensure_server(self) -> subprocess.Popen:
+        if self.stop_event.is_set():
+            raise RuntimeError("the website host is closed")
         if self.codex_path is None:
             raise RuntimeError("cannot find the `codex` executable on PATH")
         if self.process is not None:
@@ -845,6 +862,8 @@ class WebsiteCodexHost:
         page_dir: Path,
         thread_id: str,
         turn: dict,
+        *,
+        expected: dict | None,
     ) -> None:
         """Close one observed provider turn without inventing a Leaf response."""
         status = turn.get("status")
@@ -860,15 +879,18 @@ class WebsiteCodexHost:
 
         with PageTransaction(page_dir) as page:
             activation = activate_source(page_dir)
-            claim = page.claim
-            if (
-                claim
-                and claim.get("released") is None
-                and claim.get("id") == thread_id
-                and claim.get("turn") == turn["id"]
-            ):
-                page.set_status("waiting", "")
-                page.close_turn(thread_id)
+            with flocked(session_lock_path(thread_id)):
+                current = session_record(thread_id)
+                claim = page.active_claim
+                if (
+                    expected is not None
+                    and current == expected
+                    and claim
+                    and claim["id"] == thread_id
+                    and claim["turn"] == turn["id"]
+                ):
+                    page.set_status("waiting", "")
+                    advance_turn(thread_id, turn["id"], running=False)
         if activation.error:
             raise ValueError(activation.error)
 
@@ -959,7 +981,7 @@ class WebsiteCodexHost:
         log_agent("turn_start_started", **agent_event_fields(prepared_events))
         reply_target = stream_reply_target(prepared.payload)
         try:
-            turn_id = start_app_server_delivery(
+            admitted = start_app_server_delivery(
                 lambda method, params: self._send(socket, method, params, pending),
                 thread_id,
                 prepared.payload,
@@ -979,6 +1001,7 @@ class WebsiteCodexHost:
             raise RuntimeError(f"Codex App Server did not start a turn: {error}") from (
                 error
             )
+        turn_id = admitted["turn"]
         log_agent(
             "turn_start_acknowledged",
             **agent_event_fields(prepared_events),
@@ -1005,6 +1028,7 @@ class WebsiteCodexHost:
             prepared_events,
             turn_id,
             socket,
+            lifecycle=admitted,
             reply_target=reply_target,
             buffered=tuple(pending or ()),
         )
@@ -1468,12 +1492,19 @@ def close_on_signal(agent_host: WebsiteCodexHost) -> None:
     signal.signal(signal.SIGINT, stop)
 
 
-def main() -> None:
+@click.command()
+@click.option(
+    "--port",
+    type=click.IntRange(0, 65535),
+    default=PORT,
+    help="HTTP port; 0 lets the OS choose a private local listener.",
+)
+def main(port: int) -> None:
     os.environ.setdefault("LEAF_AGENT", WEBSITE_AGENT)
     site_root = Path(os.environ.get("LEAF_SITE_ROOT", "/app/site"))
     agent_host = website_codex_host()
-    httpd = LeafHTTPServer(("0.0.0.0", PORT), site_endpoint(site_root, agent_host))
-    log_agent("container_http_ready")
+    httpd = LeafHTTPServer(("0.0.0.0", port), site_endpoint(site_root, agent_host))
+    log_agent("container_http_ready", port=httpd.server_address[1])
     close_on_signal(agent_host)
     agent_host.prewarm()
     try:

@@ -39,12 +39,26 @@ from urllib.parse import quote, unquote, urlsplit
 
 import turbohtml
 
-from .revision_artifact import Resource, authored_imports, bind_imports, rewrite_css
-from .schema import BROWSER_DIRS, DECLARED_MARKS, MEDIA_DIR, VENDORED_FILES
+from .layer import CASCADE_LAYERS
+from .revision_artifact import (
+    Resource,
+    RevisionArtifact,
+    authored_imports,
+    bind_imports,
+    rewrite_css,
+)
+from .schema import (
+    BROWSER_DIRS,
+    DECLARED_MARKS,
+    MEDIA_DIR,
+    RENDER_CHECKS_DIR,
+    VENDORED_FILES,
+)
 from .structure import (
     DELIVERY_ENCODING_META,
     UTF8_BOM,
     SourceDocument,
+    annotation_mode,
     element_attrs,
     rel_tokens,
     review_mode,
@@ -349,7 +363,14 @@ def layer_import_map(asset_root: str) -> dict:
     render probe importing `/runtime/widget-api.js` reaches the runtime's own instance.
     """
     root = asset_root.rstrip("/")
-    return {"imports": {f"/{name}/": f"{root}/{name}/" for name in BROWSER_DIRS}}
+    # Server-owned passive checks must read this document's runtime instance too.
+    # Their source is server-owned; their captured bytes belong to this revision.
+    return {
+        "imports": {
+            f"/{name}/": f"{root}/{name}/"
+            for name in (*BROWSER_DIRS, RENDER_CHECKS_DIR)
+        }
+    }
 
 
 def deliver_resource(resource: Resource, logical_path: str, address: Address) -> bytes:
@@ -367,6 +388,28 @@ def deliver_resource(resource: Resource, logical_path: str, address: Address) ->
             "utf-8"
         )
     return resource.data
+
+
+def delivered_resource(
+    artifact: RevisionArtifact, logical_path: str, address: Address
+) -> Resource | None:
+    """One resource as an HTTP or static host serves it, including widget aliases.
+
+    Aliases re-export the addressed captured implementation rather than copying
+    its module: loading either path then shares one module instance. Ordinary
+    resources are rebased against their own captured path, and a missing path
+    remains absent for the transport to report.
+    """
+    source = artifact.widget_aliases.get(logical_path, logical_path)
+    if source != logical_path:
+        return Resource(
+            f"export * from {json.dumps(address(source))};\n".encode(),
+            "application/javascript",
+        )
+    resource = artifact.resources.get(source)
+    if resource is None:
+        return None
+    return Resource(deliver_resource(resource, source, address), resource.mime)
 
 
 def delivery_identity(
@@ -419,22 +462,15 @@ def json_script(value) -> str:
     )
 
 
-def delivery_sheets(resources: Mapping[str, Resource], address: Address) -> str:
-    """Carry the layer's adopted stylesheets in the document that runs the layer.
+def delivery_sheets(
+    resources: Mapping[str, Resource], address: Address, document: SourceDocument
+) -> str:
+    """Carry the selected layer's adopted sheets, with their own text and addressed URLs.
 
-    `runtime/stylesheets.js` constructs the chrome's and the marks' sheets while it
-    evaluates, so their text must be in hand without a request. WebKit has no CSS module
-    scripts to import them with, and a fetch awaited at module scope would make every
-    page module that imports the widget API evaluate after `DOMContentLoaded`. Every
-    document that runs the layer carries this (`compose_document`), with the sheets'
-    own URLs at the delivery's `address`: a constructed sheet resolves them against the
-    document.
-
-    The sheets go out as they are written, comments included. They used to be stripped
-    here, which is the one thing that made the text a user receives differ from the
-    file a maintainer reads, and a page has no build step to make that difference
-    anywhere else. The comments are most of the weight: 62KB of sheet becomes 134KB,
-    or 11KB against 39KB over the wire, at the head of every delivered document.
+    `runtime/stylesheets.js` constructs these synchronously while it evaluates, so
+    every document running the layer carries their text without a request or await.
+    Shared chrome and marks are always present; physical annotation sheets are absent
+    in page mode. The browser constructs only the sheets this carrier actually holds.
     """
     sheets = {
         name: rebase_css(resources[path].data.decode("utf-8"), path, address)
@@ -443,6 +479,14 @@ def delivery_sheets(resources: Mapping[str, Resource], address: Address) -> str:
             ("marks", "/runtime/marks.css"),
         )
     }
+    if annotation_mode(document) == "overlay":
+        sheets["annotations"] = {
+            name: rebase_css(resources[path].data.decode("utf-8"), path, address)
+            for name, path in (
+                ("chrome", "/runtime/annotation-overlay/annotation-chrome.css"),
+                ("marks", "/runtime/annotation-overlay/annotation-marks.css"),
+            )
+        }
     return (
         '<script type="application/json" data-lf-runtime data-lf-sheets>'
         f"{json_script(sheets)}</script>"
@@ -544,6 +588,20 @@ def compose_document(
         if delivery.inline_stylesheet is not None
         else f'<link rel="stylesheet" href="{html.escape(delivery.address("/theme.css"), quote=True)}" data-lf-runtime>'
     )
+    # Physical page-side placement keeps the theme's lf-base contract, below package
+    # and authored overrides. An adopted sheet would rank after those same defaults.
+    if delivery.runtime is not None and annotation_mode(document) == "overlay":
+        annotation_theme = rebase_css(
+            resources["/runtime/annotation-overlay/annotation-theme.css"].data.decode(
+                "utf-8"
+            ),
+            "/runtime/annotation-overlay/annotation-theme.css",
+            delivery.address,
+        )
+        theme = (
+            f"<style data-lf-runtime data-lf-annotation-theme>@layer {', '.join(CASCADE_LAYERS)};\n"
+            f"@layer lf-base {{\n{_inline_css(annotation_theme)}\n}}</style>" + theme
+        )
     head = (
         delivery_prelude(document, revision, version, executable, widgets)
         + (
@@ -566,7 +624,7 @@ def compose_document(
         + (delivery.runtime or "")
         + theme
         + (
-            delivery_sheets(resources, delivery.address)
+            delivery_sheets(resources, delivery.address, document)
             if delivery.runtime is not None
             else ""
         )

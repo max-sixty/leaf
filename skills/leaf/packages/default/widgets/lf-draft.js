@@ -50,8 +50,10 @@
  * the log attempt makes two tabs' Save presses one action, while the instance flag closes
  * this tab's other edit doors during the request.
  *
- * Once an edit exists, a native disclosure compares the authored body with the
- * standing one and lists the widget's absolute edit actions in log order. The runtime
+ * A native disclosure compares the authored body with the standing one and lists
+ * the widget's absolute edit actions in log order. It keeps its allocated summary
+ * from the first reading, including zero edits, so first Save and refusal never add
+ * or remove room after the gesture. The runtime
  * owns that sequence and version boundary; the module owns only
  * its presentation. Restoring a row sends its text as one more ordinary edit, which
  * keeps one state model and lets another tab converge without knowing that the gesture
@@ -275,10 +277,15 @@ customElements.define(
 
     #watchDraft() {
       if (quoted(this) || !this.#margin) return;
-      this.#stopDraft ??= watchDraft(ctx(this.id), (text) => {
-        if (text === null) this.#close(false);
-        else if (this.#ta && this.#ta.value !== text) this.#ta.value = text;
-      });
+      this.#stopDraft?.();
+      this.#stopDraft = watchDraft(
+        ctx(this.id),
+        (text) => {
+          if (text === null) this.#close(false);
+          else if (this.#ta && this.#ta.value !== text) this.#ta.value = text;
+        },
+        { input: this.#ta },
+      );
     }
 
     #offer() {
@@ -502,8 +509,6 @@ customElements.define(
     }
 
     #renderHistory(reading) {
-      this.#paintAvailability();
-      if (this.#sending) return;
       const authored = reading.authored.edit.value;
       const actions = reading.actions.edit.history;
       const standing = reading.state.edit.value;
@@ -514,12 +519,6 @@ customElements.define(
       ]);
       if (key === this.#historyKey) return;
       this.#historyKey = key;
-      if (!actions.length && standing === authored) {
-        this.#history?.remove();
-        this.#history = null;
-        return;
-      }
-
       const wasOpen = this.#history?.open ?? false;
       const restoreFocus = this.#history && holdFocus(this.#history);
       const history = offer("details", "lf-draft-history");
@@ -595,7 +594,6 @@ customElements.define(
       this.#sending = false;
       this.removeAttribute("aria-busy");
       this.#refreshMargin();
-      this.#renderHistory(this.#controller.read());
       if (ok) notice(`Restored ${label.toLowerCase()} — sent`);
     }
 
@@ -625,10 +623,14 @@ customElements.define(
       // from running behind it and closing the panel too, which the widget used to have to
       // prevent by consuming the press.
       this.#ta = ta;
+      this.#watchDraft();
       commands(ta, this.#commandScope);
       this.#body.after(ta);
       this.#refreshMargin();
-      if (arrive) ta.focus();
+      // A pointer is already on visible words. Opening their editor preserves that
+      // place before handing the clicked caret across; the pencil instead reveals
+      // the initial caret at the start of the text. A padding press carries null.
+      if (arrive) ta.focus({ preventScroll: at !== undefined });
       // Only the pointer names a place; the pencil and a recovered draft leave the
       // caret where focus put it, at the start of the text. The range was measured
       // in the body's text, so it names a word only in a box holding that text — a
@@ -648,6 +650,7 @@ customElements.define(
         this.#margin?.contains(document.activeElement);
       this.#ta.remove();
       this.#ta = null;
+      this.#watchDraft();
       this.#failed = false;
       this.#refreshMargin({
         immediate: stood,
@@ -678,7 +681,6 @@ customElements.define(
       this.#sending = false;
       this.removeAttribute("aria-busy");
       this.#refreshMargin();
-      this.#renderHistory(this.#controller.read());
       if (ok) {
         notice(`Edited “${this.id}” — sent`);
       } else {

@@ -31,14 +31,15 @@ import {
 } from "../drafts.js";
 
 import { pageSelection, rangeAnchor } from "./capture.js";
+import { THREAD } from "../thread/selectors.js";
 import { focused, keys, paintKeys } from "../keyboard/scopes.js";
 import { pageScope } from "../keyboard/register.js";
 import { PRESS } from "../keyboard/bindings.js";
 import { takesLetters } from "../focus.js";
 import { repaint } from "../repaint.js";
-import { retainUserIntent } from "../user-intent.js";
+import { restrictUserIntent, retainUserIntent } from "../user-intent.js";
 
-import { elementById, inChrome } from "../passages.js";
+import { closestAcross, elementById, inChrome } from "../passages.js";
 
 import { notice } from "../notifications.js";
 import { validDrawing } from "./drawing-record.js";
@@ -136,7 +137,7 @@ export function createSelectionComposer({
   setReact,
   reactionTokens,
   designModeActive,
-  marginOpenInlineThread,
+  openPageThread,
   threadTransitionOrigin,
   anchorStands,
   anchorTargetAt,
@@ -151,21 +152,11 @@ export function createSelectionComposer({
   showFab,
   formatGoToAddress,
   createComment,
-  focusSurface,
-  showThread,
   landSent,
   refreshThread,
   wireInput,
 }) {
   const closeReactions = () => setReact(false);
-  const openInlineThread = (id, options) => {
-    const local = focusSurface(id, { focus: "thread" });
-    return (
-      local?.closest(".lf-page-thread") ??
-      marginOpenInlineThread(id, options)?.thread ??
-      null
-    );
-  };
 
   // What the open composer's comment is about: "design" for one opened in design mode, so
   // the anchor chosen there — a widget, a control, a runtime part — posts with the word
@@ -482,7 +473,7 @@ export function createSelectionComposer({
     if (focus) handoff = beginFabFocus();
     else endFabFocus();
     showComposer(true);
-    showFab(anchor, null, { point });
+    showFab(anchor, { point });
     // The suggest mode renders against the bar once it stands on this anchor with the box
     // open: rendered before, its response choices would follow the bar's previous
     // anchor and flip as the bar arrived.
@@ -497,7 +488,12 @@ export function createSelectionComposer({
     // Programmatic carrying fires no input event, so persist that one move explicitly.
     // An automatically opened empty field has no draft to save; its first edit does.
     if (carriedDraft) transferDraft(previousCtx, ctx, composerDraftValue());
-    else if (drawingSupplied) saveComposerDraft();
+    else if (
+      drawingSupplied &&
+      JSON.stringify(composerRecord(ctx)?.drawing ?? null) !==
+        JSON.stringify(pendingDrawing)
+    )
+      saveComposerDraft();
   }
   // The box is one view of the draft standing on this passage, and it follows the plain
   // boxes' rule with one thing of its own: the composer is chrome as well as a box, so a
@@ -506,26 +502,30 @@ export function createSelectionComposer({
   let composerWatch = null;
   function watchComposer() {
     composerWatch?.();
-    composerWatch = watchDraft(composerCtx(pendingAnchor), (value) => {
-      // Settled, not discarded. A send masks its generation and leaves the record
-      // standing, because a refusal has to give the words back; discarding here would
-      // tombstone them first and there would be nothing left to give.
-      if (value === null) return settleComposer();
-      const { text, suggest, about, drawing = null } = JSON.parse(value);
-      if (syncComposer.value() !== text) {
-        syncComposer.load(text);
-        // Whatever stood here is another tab's words now, not this box's machine seed.
-        seededQuote = "";
-      }
-      // The whole record, not the words alone: the mode a draft was written in rides with
-      // it (pendingAbout, above), so a box taking up those words sends them under the word
-      // they were written with. Design mode is this tab's and the draft's about is not.
-      pendingAbout = about;
-      pendingDrawing = validDrawing(drawing) ? drawing : null;
-      suggestCheck.checked = Boolean(suggest);
-      syncSuggestMode();
-      refreshThread();
-    });
+    composerWatch = watchDraft(
+      composerCtx(pendingAnchor),
+      (value) => {
+        // Settled, not discarded. A send masks its generation and leaves the record
+        // standing, because a refusal has to give the words back; discarding here would
+        // tombstone them first and there would be nothing left to give.
+        if (value === null) return settleComposer();
+        const { text, suggest, about, drawing = null } = JSON.parse(value);
+        if (syncComposer.value() !== text) {
+          syncComposer.load(text);
+          // Whatever stood here is another tab's words now, not this box's machine seed.
+          seededQuote = "";
+        }
+        // The whole record, not the words alone: the mode a draft was written in rides with
+        // it (pendingAbout, above), so a box taking up those words sends them under the word
+        // they were written with. Design mode is this tab's and the draft's about is not.
+        pendingAbout = about;
+        pendingDrawing = validDrawing(drawing) ? drawing : null;
+        suggestCheck.checked = Boolean(suggest);
+        syncSuggestMode();
+        refreshThread();
+      },
+      { input: fabInput },
+    );
   }
   // Hiding keeps the draft and closing discards it, but the mark goes down with the box
   // either way: a marked passage with no composer on screen points at nothing.
@@ -567,7 +567,7 @@ export function createSelectionComposer({
     )
       transferDraft(composerCtx(pendingAnchor), ctx, text);
     detachComposer();
-    showFab(null, null, { returnFocus: "none" });
+    showFab(null, { returnFocus: "none" });
   }
   // The composer going down because its draft is spent rather than because the user
   // dropped it: the words are somewhere else now, or on their way back.
@@ -576,7 +576,7 @@ export function createSelectionComposer({
     // Settlement may arrive after Escape has already started another keyboard gesture.
     // Move focus only when it still belongs to the field this settlement hid; showFab's
     // page return makes that distinction from a later focus elsewhere.
-    showFab(null, null, { returnFocus: "page" });
+    showFab(null, { returnFocus: "page" });
   }
 
   // The response bar's Comment action returns to this same compact field on the anchor
@@ -657,7 +657,7 @@ export function createSelectionComposer({
         // The accepted comment becomes a thread, drawn as a card beside the passage unless
         // Threads is open. Carry the submitted field's geometry into the new card, which
         // stands where the field did: by the row a pointing gesture named.
-        const transition = threadTransitionOrigin(composerInput, fabFrameAt());
+        const transition = threadTransitionOrigin?.(composerInput, fabFrameAt());
         const point = fabPointAt();
         const epoch = composerEpoch;
         const currentIntent = retainUserIntent();
@@ -684,21 +684,27 @@ export function createSelectionComposer({
         await refreshThread();
         // A later draft or selection keeps its focus. The accepted comment still belongs
         // in an open panel, including when revealing it must widen the panel's filter.
-        const shouldReveal =
-          composerEpoch === epoch &&
-          loadDraft(ctx) === null &&
-          currentIntent() &&
-          !pageSelection();
+        const revealAvailable = () =>
+          composerEpoch === epoch && loadDraft(ctx) === null && !pageSelection();
+        const mayReveal = () => revealAvailable() && currentIntent();
+        const shouldReveal = mayReveal();
         // Land where any send leaves the user (`landSent`): on the thread, or on the
         // element the margin card's thread is about, never in its reply box. A later
         // gesture may already have moved the user elsewhere while presentation was
         // settling.
-        const inlineThread =
-          shouldReveal && !panelIsOpen()
-            ? openInlineThread(sent.id, { transition, onPositioned: landSent })
-            : null;
-        if (!inlineThread && (shouldReveal || panelIsOpen()))
-          await showThread(sent.id, { focus: shouldReveal ? "thread" : false });
+        if (shouldReveal || panelIsOpen()) {
+          const destination = await openPageThread(sent.id, {
+            focus: shouldReveal ? "thread" : false,
+            travel: false,
+            intent: shouldReveal
+              ? restrictUserIntent(currentIntent, revealAvailable)
+              : currentIntent,
+            transition,
+          });
+          const thread = destination && closestAcross(destination, THREAD);
+          if (shouldReveal && mayReveal() && thread)
+            currentIntent.handoff(() => landSent(thread));
+        }
       },
     });
     suggestCheck.onchange = () => setSuggestionMode(suggestCheck.checked);

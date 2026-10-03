@@ -66,7 +66,8 @@ import {
   progressStates,
 } from "./presentation.js";
 import { html, nothing } from "../../vendor/browser-runtime.js";
-import { isExternalPageLink, PAGE_PAINT_ATTRIBUTE } from "../presentation.js";
+import { isExternalPageLink } from "../presentation.js";
+import { PAGE_PAINT_ATTRIBUTE } from "../page-paint.js";
 import { el, PRESSABLE } from "../widget-elements.js";
 import { allButCommandReference, pageCommand, pageScope } from "./register.js";
 import { focusedThreadTarget } from "../thread/focus.js";
@@ -254,12 +255,16 @@ export function createGoToSequence({
 
   const MARGIN_TARGET_KIND = "Margin entry";
   const TARGET_KINDS = [
-    {
-      kind: MARGIN_TARGET_KIND,
-      list: visibleMarginEntries,
-      go: (...args) => activateMarginEntry(...args),
-      exposure: "self",
-    },
+    ...(visibleMarginEntries
+      ? [
+          {
+            kind: MARGIN_TARGET_KIND,
+            list: visibleMarginEntries,
+            go: activateMarginEntry,
+            exposure: "self",
+          },
+        ]
+      : []),
     {
       kind: "Tab",
       list: pageTabs,

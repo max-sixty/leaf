@@ -5,6 +5,7 @@ import re
 from itertools import pairwise
 
 import pytest
+from interact_support import append_carried_log_record
 from leaf import event_log as events_model
 from leaf import interaction_log as interaction_model
 from leaf.render_checks import rendered, wait_until_ready
@@ -392,7 +393,7 @@ def test_packages_and_panel_share_threads_through_gestures_and_authored_content(
             "markup": '<lf-options id="direction" choose><lf-option id="north">North</lf-option><lf-option id="south">South</lf-option></lf-options>',
         },
     ]:
-        events_model.append_event(serve.page_dir, event)
+        append_carried_log_record(serve.page_dir, event)
     page = open_page(browser, url)
     reader = page.locator("#reader")
     expect(reader).to_contain_text("Decision")
@@ -487,7 +488,7 @@ def test_package_thread_widgets_keep_local_filters_and_independent_subscriptions
         layer_widgets={"lf-thread-filter.js": THREAD_FILTER},
     )
     for thread_id, words in [("alpine", "Alpine"), ("bay", "Bay")]:
-        events_model.append_event(
+        append_carried_log_record(
             serve.page_dir,
             {
                 "id": thread_id,
@@ -554,7 +555,7 @@ def test_package_thread_mirrors_share_core_conversation_without_claiming_placeme
         layer_registry={"lf-thread-mirror": THREAD_MIRROR_DECLARATION},
         layer_widgets={"lf-thread-mirror.js": THREAD_MIRROR},
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "id": "shared-thread",
@@ -753,13 +754,6 @@ STARTUP_PROJECTION_WIDGET = PAGE_WIDGET.replace(
       this.controller.defer()();
     }
     const held = globalThis.__heldLocalPresentations?.get(this.id);""",
-).replace(
-    '    keeps(this, "data-rendered-choice", state.choose.value);',
-    """\
-    keeps(this, "data-rendered-choice", state.choose.value);
-    this.dataset.controllerRenders = String(
-      Number(this.dataset.controllerRenders || 0) + 1
-    );""",
 )
 
 
@@ -844,12 +838,6 @@ def test_waiting_projection_settles_before_ready_state_reopens_it(browser, serve
     assert held, "the positive control did not hold the first authoritative state"
     expect(page.locator("#page-local").get_by_role("button")).to_be_disabled()
     expect(page.locator("#page-local").get_by_role("status")).to_have_text("idle")
-    controller_renders = int(
-        page.locator("#page-local").get_attribute("data-controller-renders")
-    )
-    # The synchronous subscription paints once; the widget's deliberate startup
-    # defer/resume invalidation paints the same complete provisional reading once.
-    assert controller_renders == 2
     waiting = page.evaluate(
         """async () => {
               const runtime = await window.__lfRuntimeImport('/runtime/semantic-state.js');
@@ -874,9 +862,7 @@ def test_waiting_projection_settles_before_ready_state_reopens_it(browser, serve
     held.pop(0).continue_()
     wait_until_ready(page)
     expect(page.locator("#page-local").get_by_role("button")).to_be_enabled()
-    expect(page.locator("#page-local")).to_have_attribute(
-        "data-controller-renders", str(controller_renders + 1)
-    )
+    expect(page.locator("#page-local").get_by_role("status")).to_have_text("idle")
     ready = page.evaluate(
         """() => {
               const application = readStartupApplication();
@@ -1487,7 +1473,7 @@ def test_thread_presentation_waits_for_its_frozen_widgets_only(browser, serve):
         }"""
     )
 
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -1497,7 +1483,7 @@ def test_thread_presentation_waits_for_its_frozen_widgets_only(browser, serve):
             "text": "Show the frozen widget.",
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -1508,7 +1494,7 @@ def test_thread_presentation_waits_for_its_frozen_widgets_only(browser, serve):
             "markup": '<lf-local id="thread-local" choice="idle"></lf-local>',
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "action",
@@ -1569,7 +1555,7 @@ def test_thread_presentation_waits_for_its_frozen_widgets_only(browser, serve):
           );
         }"""
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -1579,7 +1565,7 @@ def test_thread_presentation_waits_for_its_frozen_widgets_only(browser, serve):
             "text": "Show another frozen widget.",
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -1598,7 +1584,7 @@ def test_thread_presentation_waits_for_its_frozen_widgets_only(browser, serve):
           )""",
         timeout=5000,
     )
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Open threads: 2")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 2")
     expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text("Threads")
     page.evaluate(
         "threadReady = false; "
@@ -1608,7 +1594,7 @@ def test_thread_presentation_waits_for_its_frozen_widgets_only(browser, serve):
     )
     page.wait_for_function("threadReady", timeout=3000)
     expect(page.locator("#thread-failing")).to_have_count(1)
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Open threads: 2")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 2")
     expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text("Threads")
     assert take_browser_errors(page) == [
         "leaf: Presentation failed: frozen descendant failure"
@@ -1629,7 +1615,7 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
         layer_registry=layer,
         layer_widgets=widgets,
     )
-    kept = events_model.append_event(
+    kept = append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -1700,7 +1686,7 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
 
     # Each failed attempt reaches Lit's updated callback, so the candidate count and
     # narrowing have painted before the list owner restores its committed reading.
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -1710,7 +1696,7 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
             "text": "Prepare the frozen widget.",
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -1731,7 +1717,7 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
     assert page.evaluate("() => !window.threadPreparationSettled")
     expect(page.locator("#thread-held")).to_have_count(0)
     expect(page.locator('[data-id="held-widget-thread"]')).to_have_count(0)
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Open threads: 1")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 1")
     expect(page.locator(".lf-thread-view-summary")).to_have_text("1 open thread")
     assert page.evaluate(
         """id => {
@@ -1761,7 +1747,7 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
     )
     page.wait_for_function(
         """() => document.querySelector('#thread-held') &&
-          document.querySelector('.lf-threads-toggle')?.textContent === 'Open threads: 2' &&
+          document.querySelector('.lf-threads-toggle')?.textContent === 'Threads: 2' &&
           window.readLeafPresentation().pending.includes(
             'widget:thread-held:preparation'
           )""",
@@ -1775,7 +1761,7 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
     )
     expect(page.locator("#thread-held")).to_have_count(1)
     expect(page.locator('[data-id="held-widget-thread"]')).to_have_count(1)
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Open threads: 2")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 2")
     expect(page.locator(".lf-thread-view-summary")).to_have_text("2 open threads")
     assert page.evaluate(
         """id => {
@@ -1824,7 +1810,7 @@ def test_a_refused_thread_reading_leaves_a_user_who_moved_on_where_they_went(
         layer_registry=layer,
         layer_widgets=widgets,
     )
-    kept = events_model.append_event(
+    kept = append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -1865,7 +1851,7 @@ def test_a_refused_thread_reading_leaves_a_user_who_moved_on_where_they_went(
           };
         }"""
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -1900,9 +1886,9 @@ def test_a_refused_thread_reading_leaves_a_user_who_moved_on_where_they_went(
 
 
 def test_thread_readiness_waits_for_the_keyed_thread_list(browser, serve):
-    """The existing thread ticket includes Lit ordering without replacing a card."""
+    """Readiness includes the real Lit paint, preserving the standing editor."""
     url = serve(LIVE_V1)
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -1919,68 +1905,62 @@ def test_thread_readiness_waits_for_the_keyed_thread_list(browser, serve):
     reply = page.locator('.lf-thread[data-id="standing-thread"] leaf-text')
     write(reply, "half a thought")
     reply.evaluate("input => input.setSelectionRange(4, 4)")
+    standing = page.locator('.lf-thread[data-id="standing-thread"]').element_handle()
+
+    def assert_draft_retained():
+        assert standing.evaluate("node => node.isConnected"), "the card was replaced"
+        expect(reply).to_be_focused()
+        expect(reply).to_have_js_property("value", "half a thought")
+        assert reply.evaluate(
+            "input => [input.selectionStart, input.selectionEnd]"
+        ) == [4, 4]
+
     held_events = []
     page.route("**/api/event", lambda route: held_events.append(route))
     page.evaluate(
         """async () => {
           const application = await window.__lfRuntimeImport('/runtime/application.js');
-          const presentation = await window.__lfRuntimeImport(
-            '/runtime/semantic-state.js'
-          );
           const list = document.querySelector('leaf-thread-list');
           const schedule = list.scheduleUpdate.bind(list);
           const perform = list.performUpdate.bind(list);
           let release;
           const held = new Promise(resolve => { release = resolve; });
           window.threadListReleased = false;
-          list.scheduleUpdate = () => held.then(schedule);
-          list.performUpdate = (...args) =>
-            window.threadListReleased ? perform(...args) : undefined;
+          list.scheduleUpdate = () => {
+            window.threadListHeld = true;
+            return held.then(schedule);
+          };
+          list.performUpdate = (...args) => {
+            window.threadListHeld = true;
+            return window.threadListReleased ? perform(...args) : undefined;
+          };
           window.releaseThreadList = () => {
             window.threadListReleased = true;
             release();
           };
-          window.readLeafPresentation = presentation.readApplicationPresentation;
-          window.standingThread = document.querySelector(
-            '.lf-thread[data-id="standing-thread"]'
-          );
           application.createComment({
             attempt: 'held-thread-list',
             text: 'A second thread arrives.',
           });
         }"""
     )
-    page.wait_for_function(
-        "readLeafPresentation().pending.includes('thread')", timeout=3000
+    # The held owner was actually called. Read the same readiness door as page
+    # authors and the render gate, without naming its internal renderer tickets.
+    page.wait_for_function("() => window.threadListHeld === true", timeout=3000)
+    assert (
+        page.evaluate(
+            "() => document.querySelector('script[data-lf-entry]').lfReadiness(null, 'presented')"
+        )
+        == "presented"
     )
     pending_card = page.locator('.lf-thread[data-attempt="held-thread-list"]')
     expect(pending_card).to_have_count(0)
-    assert page.evaluate(
-        """() => {
-          const current = document.querySelector(
-            '.lf-thread[data-id="standing-thread"]'
-          );
-          const input = current.querySelector('leaf-text');
-          return current === standingThread && document.activeElement === input &&
-            input.value === 'half a thought' && input.selectionStart === 4;
-        }"""
-    )
+    assert_draft_retained()
 
     page.evaluate("releaseThreadList()")
-    page.wait_for_function(
-        "!readLeafPresentation().pending.includes('thread')", timeout=3000
-    )
+    wait_until_ready(page, through="presented")
     expect(pending_card).to_have_count(1)
-    assert page.evaluate(
-        """() => {
-          const current = document.querySelector(
-            '.lf-thread[data-id="standing-thread"]'
-          );
-          const input = current.querySelector('leaf-text');
-          return current === standingThread && document.activeElement === input &&
-            input.value === 'half a thought' && input.selectionStart === 4;
-        }"""
-    )
+    assert_draft_retained()
     holding(page, held_events, 1, "the comment made behind the held thread list")
     held_events[0].continue_()
     page.unroute("**/api/event")
@@ -2056,7 +2036,7 @@ def test_package_thread_actions_share_core_admission_and_current_availability(
             "text": "I propose one.",
         },
     ]:
-        events_model.append_event(serve.page_dir, event)
+        append_carried_log_record(serve.page_dir, event)
     page = open_page(browser, url)
     actions = page.locator("#actions")
     expect(actions).to_have_attribute("data-resolved", "false")

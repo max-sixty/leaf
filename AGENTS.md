@@ -20,6 +20,15 @@ primitive must give the user something that site would not:
 - **Difficult code.** Mechanisms too hard to write well each time: anchored
   threads, widgets whose state survives a revision, and the event log that
   returns each comment and decision to the agent as a structured event.
+- **Live revisions.** Continuous, low-latency page updates are a core feature.
+  Agents revise an open page in place while the user reads, comments, and
+  interacts.
+- **Contextual threads.** Passage-relative floating replies are a core feature.
+  Users read and answer a thread beside the passage it concerns.
+- **Drawing comments.** Freehand annotations are a core feature. Users point at
+  visual details with ink as well as with text and semantic anchors.
+- **Public website.** Visitors can try Leaf directly on leaf.page through
+  interactive examples. The website is a core feature.
 - **Consistency.** One interface across sessions and agents — keybindings,
   threads, and how a widget answers a move — so the user learns it
   once.
@@ -246,8 +255,10 @@ itself, under the identity that replacement already keys on, or the user loses i
 
 Python derives page-wide `activity` and exact-input `workflows` from the agent's
 status declaration, claim and turn identity, watcher lease, delivery, and response
-evidence. The banner describes page activity; a neighboring-page row, for now,
-describes only that page's declaration, in the same shape (`presence.other_leaves`).
+evidence. The banner describes page activity; each serving page publishes a compact
+canonical activity summary for neighboring rows (`server_rows.py`). The summary is
+disposable delivery output; neighboring readers consult it and server liveness,
+never another page's log or document.
 Messages, thread attention, and margin entries consume the canonical workflows;
 thread attention also retains outstanding user Asks. Page activity does not imply
 work on every message. JavaScript adds unresolved local sends through the

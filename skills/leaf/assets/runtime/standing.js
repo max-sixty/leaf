@@ -19,7 +19,7 @@ export function createStanding({
   // Content whose resulting boxes chrome layout must measure.
   function paintStandingContent() {
     markHere();
-    paintStanding();
+    paintStanding?.();
     // The page and its compact Page Map projection read the same standing after both
     // feature painters have settled it. Selection changes only the entry representing
     // that reading; focus, open state, and agent work keep their separate contours.

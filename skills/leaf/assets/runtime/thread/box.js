@@ -18,6 +18,7 @@ export const threadBox = (el, hint, { createComment, onDraftChanged, wireInput }
     );
   if (!el.id) throw new TypeError(`<${el.localName}> needs an id to own a thread`);
   const box = offer("div", "lf-thread-seat");
+  box.dataset.lfRuntime = "";
   box.dataset.lfThreadSeat = el.id;
   const row = offer("div", "lf-say");
   const ta = offer(TEXT_FIELD);
@@ -66,11 +67,15 @@ export const threadBox = (el, hint, { createComment, onDraftChanged, wireInput }
   });
   sync();
   box.lfFirstMessage = row;
-  const off = watchDraft(ctx, (value) => {
-    if (!box.isConnected) return off();
-    sync.load(value ?? "");
-    onDraftChanged();
-  });
+  const off = watchDraft(
+    ctx,
+    (value) => {
+      if (!box.isConnected) return off();
+      sync.load(value ?? "");
+      onDraftChanged();
+    },
+    { input: ta },
+  );
   mountFirstMessage(box, row);
   return box;
 };

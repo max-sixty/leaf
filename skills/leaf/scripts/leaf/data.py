@@ -14,6 +14,7 @@ value binds a source id nothing rewrites.
 
 import hashlib
 import json
+import os
 import re
 from datetime import datetime
 from pathlib import Path
@@ -25,7 +26,7 @@ from .files import replace_files
 from .registry.storage import read_page_registry
 from .schema import DATA_CONTRACT_NAME, DATA_DIR, DATA_FILE, DATA_SOURCE_NAME
 from .service import PageTransaction
-from .session_cleanup import json_bytes
+from .state import json_bytes
 
 
 class StaleDataError(DataError):
@@ -66,6 +67,7 @@ def read_contracts(page_dir: Path) -> dict[str, str]:
 # re-reads each value file, and a large value costs far more to validate than to
 # digest, so a server judges each distinct value once.
 _JUDGED: dict[tuple[str, str, str], str | None] = {}
+_UNJUDGED = object()
 
 
 def _value_error(source: str, contract: str, value, revision: str, registry: dict):
@@ -73,11 +75,14 @@ def _value_error(source: str, contract: str, value, revision: str, registry: dic
         registry.get("$data", {}).get("contracts", {}).get(contract), sort_keys=True
     )
     key = source, declaration, revision
-    if key not in _JUDGED:
-        if len(_JUDGED) >= 1024:
-            _JUDGED.clear()
-        _JUDGED[key] = payload_error(source, contract, value, registry)
-    return _JUDGED[key]
+    held = _JUDGED.get(key, _UNJUDGED)
+    if held is not _UNJUDGED:
+        return held
+    if len(_JUDGED) >= 1024:
+        _JUDGED.clear()
+    error = payload_error(source, contract, value, registry)
+    _JUDGED[key] = error
+    return error
 
 
 def _refuse_constant(name: str):
@@ -90,8 +95,9 @@ def read_source(page_dir: Path, source: str, contract: str, registry: dict) -> d
     exists, that file's revision, `updated` instant, and `value` or `error`."""
     path = source_file(page_dir, source)
     try:
-        data = path.read_bytes()
-        modified = path.stat().st_mtime
+        with path.open("rb") as stream:
+            data = stream.read()
+            modified = os.fstat(stream.fileno()).st_mtime
     except FileNotFoundError:
         return {"contract": contract}
     reading = {

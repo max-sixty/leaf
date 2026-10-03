@@ -158,7 +158,7 @@ export function createDrawers({
       arrival: "presentation",
       show({ phase }) {
         dismissBannerControls();
-        closePreview();
+        closePreview?.();
         keeps(btn, "aria-expanded", "true");
         // Filled before it is shown, so the drawer is its own list from the first frame of
         // the slide rather than a blank card that populates a moment later. The way down

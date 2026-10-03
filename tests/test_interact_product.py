@@ -15,6 +15,7 @@ from interact_support import (
     SHIPPED_PACKAGES,
     _report,
     _tasks_version,
+    append_carried_log_record,
     append_command,
     check,
     comment,
@@ -35,7 +36,7 @@ from leaf import layer as layer_model
 from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import service as service_model
-from leaf import session_cleanup as cleanup_model
+from leaf import state as cleanup_model
 from leaf import thread as thread_model
 from leaf.registry import storage as registry_storage
 from leaf.structure import SourceDocument
@@ -107,7 +108,7 @@ def test_the_log_reopens_a_refused_save_but_never_the_active_revision(page_dir):
     live = revisioning_model.activate_source(page_dir)
 
     # The source is the active revision, so an append leaves the answer standing.
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -128,7 +129,7 @@ def test_the_log_reopens_a_refused_save_but_never_the_active_revision(page_dir):
     source.write_text(dropped)
     refused = revisioning_model.activate_source(page_dir)
     assert refused.revision == 1 and "'flow'" in refused.error
-    events_model.append_event(
+    append_carried_log_record(
         page_dir, {"kind": "resolve", "author": "user", "parent": "c1"}
     )
     released = revisioning_model.activate_source(page_dir)
@@ -137,7 +138,7 @@ def test_the_log_reopens_a_refused_save_but_never_the_active_revision(page_dir):
     # A tab still showing r1 may anchor a thread on the id r2 dropped. r2 is live
     # and its transition was judged when it activated, so neither activation nor
     # `page check` re-judges it against the later event; the thread detaches.
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -652,7 +653,7 @@ def test_the_key_reference_is_generated_from_the_registry():
 
 
 def test_reply_validates_widget_markup(page_dir):
-    events_model.append_event(
+    append_carried_log_record(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hm"}
     )
 
@@ -701,7 +702,7 @@ def test_reply_validates_typed_references_against_the_page(page_dir):
         PAGE.replace("</section>", subjects + "</section>")
     )
     publish(page_dir, version=2)
-    events_model.append_event(
+    append_carried_log_record(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "Act?"}
     )
 
@@ -739,7 +740,7 @@ def test_reply_validates_typed_references_against_the_page(page_dir):
 def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
     """The runtime resolves actions document-wide by id, so a reply widget must not
     reuse a page id — and a later version must not take a reply's."""
-    events_model.append_event(
+    append_carried_log_record(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hm"}
     )
 
@@ -797,7 +798,7 @@ def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
     # Text claims no ids however it quotes a tag — only the `markup` field does, and
     # a user's message never carries one (the log is append-only; a false claim
     # would deadlock every future version).
-    follow_up = events_model.append_event(
+    follow_up = append_carried_log_record(
         page_dir,
         {
             "kind": "reply",
@@ -841,7 +842,7 @@ def test_the_runtimes_lf_id_namespace_is_off_limits(page_dir):
     assert "lf- namespace" in result.output and "lf-msg-7" in result.output
     (page_dir / "index.html").write_text(PAGE)
 
-    events_model.append_event(
+    append_carried_log_record(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hm"}
     )
     reply = CliRunner().invoke(
@@ -907,7 +908,7 @@ def test_the_wire_ships_a_message_as_logged(page_dir):
     renders (test_render holds that side), markup is the fragment the CLI gate
     validated, and the only vocabulary a page's frozen layer has to keep speaking is
     the log's own, which $events stamps."""
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -949,7 +950,7 @@ def test_each_agent_session_posts_as_its_own_voice(page_dir, monkeypatch):
     _tasks_version(page_dir, "active")
     service_model.claim_page(page_dir)
     published(page_dir)
-    events_model.append_event(
+    append_carried_log_record(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "status?"}
     )
 
@@ -997,7 +998,7 @@ def test_each_agent_session_posts_as_its_own_voice(page_dir, monkeypatch):
 
 def test_an_agent_reply_records_only_a_question_it_leaves_with_the_user(page_dir):
     published(page_dir)
-    root = events_model.append_event(
+    root = append_carried_log_record(
         page_dir,
         {"kind": "comment", "id": "c1", "author": "user", "text": "status?"},
     )
@@ -1092,7 +1093,7 @@ def test_an_agent_edits_its_own_messages_without_rewriting_history(
     opened = comment(page_dir, "--text", "The index is still pending.")
     assert opened.exit_code == 0, opened.output
     root = json.loads(opened.output)
-    user = events_model.append_event(
+    user = append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -1197,7 +1198,7 @@ def test_an_agent_edits_its_own_messages_without_rewriting_history(
     assert user_edit.exit_code != 0
     assert "is not agent-authored" in user_edit.output
     assert events_model.read_events(page_dir) == before
-    sessionless = events_model.append_event(
+    sessionless = append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -1232,7 +1233,7 @@ def test_edit_uses_the_captured_contract_when_the_candidate_registry_is_invalid(
     activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None and activated.revision == 1
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-1")
-    message = events_model.append_event(
+    message = append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -1295,7 +1296,7 @@ def test_export_prints_threads_and_versions(page_dir):
         cli_model.cli,
         ["page", "stamp", str(page_dir), "--text", "first cut"],
     )
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -1305,7 +1306,7 @@ def test_export_prints_threads_and_versions(page_dir):
             "text": "why?",
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "reply",
@@ -1317,10 +1318,10 @@ def test_export_prints_threads_and_versions(page_dir):
             "markup": '<lf-diagram id="why"><pre>graph LR\n  A --> B</pre></lf-diagram>',
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         page_dir, {"kind": "resolve", "id": "x1", "author": "user", "parent": "r1"}
     )
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -1330,7 +1331,7 @@ def test_export_prints_threads_and_versions(page_dir):
             "text": "arrow?",
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -1341,7 +1342,7 @@ def test_export_prints_threads_and_versions(page_dir):
             "text": "start here?",
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "action",
@@ -1357,7 +1358,7 @@ def test_export_prints_threads_and_versions(page_dir):
             },
         },
     )
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "action",
@@ -1378,7 +1379,7 @@ def test_export_prints_threads_and_versions(page_dir):
     # named by its ends and the exchange stays readable under it.
     said = "The batch replays from the top."
     long_quote = " ".join([said] * 20)
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -1408,7 +1409,7 @@ def test_export_prints_threads_and_versions(page_dir):
     # And one they took back is an outcome under its own name: left out it would
     # read as never made, and shown plainly it would read as final.
     moved = next(e for e in events_model.read_events(page_dir) if e["kind"] == "action")
-    events_model.append_event(
+    append_carried_log_record(
         page_dir, {"kind": "undo", "author": "user", "undoes": moved["id"]}
     )
     result = CliRunner().invoke(cli_model.cli, ["page", "transcript", str(page_dir)])
@@ -1440,7 +1441,7 @@ def test_reply_markup_uses_the_captured_registry_after_candidate_files_disappear
     activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None and activated.revision == 1
     (page_dir / "registry.json").unlink()
-    events_model.append_event(
+    append_carried_log_record(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hm"}
     )
     plain = CliRunner().invoke(
@@ -1592,7 +1593,7 @@ def test_page_state_and_the_transcript_read_reactions_as_marks(page_dir):
     prints one as the user's mark rather than a turn. Its durable token is enough;
     packages may add an explanation, but the default layer does not prescribe one."""
     published(page_dir)
-    bare = events_model.append_event(
+    bare = append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -1602,7 +1603,7 @@ def test_page_state_and_the_transcript_read_reactions_as_marks(page_dir):
             "anchor": {"section": "plan", "quote": "Ship dark"},
         },
     )
-    answered = events_model.append_event(
+    answered = append_carried_log_record(
         page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "token": "change"},
     )
@@ -1640,7 +1641,7 @@ def test_an_agent_names_and_renames_a_thread_without_changing_its_speech(
     page_dir,
 ):
     publish(page_dir)
-    root = events_model.append_event(
+    root = append_carried_log_record(
         page_dir,
         {
             "kind": "comment",
@@ -1689,7 +1690,7 @@ def test_an_agent_names_and_renames_a_thread_without_changing_its_speech(
 
 def test_thread_titles_require_an_existing_thread_and_short_agent_prose(page_dir):
     publish(page_dir)
-    root = events_model.append_event(
+    root = append_carried_log_record(
         page_dir,
         {
             "kind": "comment",

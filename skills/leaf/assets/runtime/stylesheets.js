@@ -1,5 +1,6 @@
-/* The layer's constructed stylesheets: the comment chrome's (chrome.css) and the marks'
-   (marks.css), which the document and every shadow stage adopt.
+/* The layer's constructed stylesheets: shared chrome and marks, with actual annotation
+   sheets only when delivery selected the overlay renderer. The document adopts the
+   chrome; the document and every shadow stage adopt the marks.
 
    Every delivery carries their text in the document (`delivery_sheets` in
    revision_delivery.py), so they are constructed while this module evaluates, with no
@@ -13,8 +14,10 @@ if (!carrier) throw new Error("leaf: the document carries no runtime stylesheets
 const sheets = JSON.parse(carrier.textContent);
 
 // A widget module's own rules join the theme's cascade layer (layer.py, CASCADE_LAYERS), so
-// they rank against it by specificity and order as they always have, below the Layouts
-// and the page's own stylesheet. The chrome and marks sheets stay unlayered: their paint
+// specificity, scope proximity, then order rank their rules, below Layouts, semantic
+// state and the page's own stylesheet. Shared shadow rules use `lf-shadow` above
+// these adopted defaults and below semantic state.
+// The chrome and marks sheets stay unlayered: their paint
 // lies over the page and must beat page and widget alike (chrome.css).
 export const inBaseLayer = (text) => `@layer lf-base {\n${text}\n}`;
 
@@ -30,3 +33,12 @@ export function constructSheet(text, name) {
 
 export const chromeSheet = constructSheet(sheets.chrome, "chrome");
 export const marksSheet = constructSheet(sheets.marks, "marks");
+export const annotationMarkSheets = sheets.annotations
+  ? [constructSheet(sheets.annotations.marks, "annotation marks")]
+  : [];
+export const annotationSheets = sheets.annotations
+  ? [
+      constructSheet(sheets.annotations.chrome, "annotation chrome"),
+      ...annotationMarkSheets,
+    ]
+  : [];

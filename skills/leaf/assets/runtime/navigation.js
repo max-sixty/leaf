@@ -6,7 +6,6 @@ import { reducedMotion, scrollBehavior } from "./motion.js";
 import { pageScroller } from "./scrolling.js";
 import { landingBand } from "./geometry.js";
 import { effectiveScroller, userReadingRegion } from "./reading-regions.js";
-import { closestAcross } from "./passages.js";
 import { walkOrigin } from "./standing-target.js";
 import { under } from "./shadow.js";
 import { announce } from "./notifications.js";
@@ -19,18 +18,15 @@ const walkableThreads = (panelIsOpen, { threadsBox, openThreads }) =>
 
 // The walk's place: the list thread holding focus, or the thread the user is at from
 // its target (`threadHere`), in the list or beside the page.
-const currentThread = (threads, threadHere, panelIsOpen) =>
-  panelIsOpen()
-    ? (threads.find(
-        (thread) =>
-          thread.dataset.id ===
-          closestAcross(document.activeElement, ".lf-thread[data-id]")?.dataset.id,
-      ) ?? threads.find((thread) => thread.dataset.id === threadHere()?.dataset.thread))
-    : threads.find((thread) => thread.dataset.id === threadHere()?.dataset.thread);
+const currentThread = (threads, threadHere) => {
+  const held = threadHere();
+  const id = held?.dataset.id ?? held?.dataset.thread;
+  return threads.find((thread) => thread.dataset.id === id);
+};
 
 const threadPosition = (threadHere, panelIsOpen, narrowing, list) => {
   const threads = walkableThreads(panelIsOpen, list);
-  const current = currentThread(threads, threadHere, panelIsOpen);
+  const current = currentThread(threads, threadHere);
   return listWalkPosition(threads, current, {
     identity: (thread) => thread.dataset.id,
     qualifier: panelIsOpen() && narrowing.narrowed() ? "shown" : "",
@@ -67,7 +63,7 @@ function stepThread(dir, destinations, panelIsOpen, narrowing, list) {
   const { threadsBox } = list;
   const { openPageThread, scrollToThread, threadHere, threadTarget } = destinations;
   const threads = walkableThreads(panelIsOpen, list);
-  const current = currentThread(threads, threadHere, panelIsOpen);
+  const current = currentThread(threads, threadHere);
   const next = current
     ? clampedRow(threads, current, dir)
     : threadFrom(
@@ -78,7 +74,7 @@ function stepThread(dir, destinations, panelIsOpen, narrowing, list) {
       );
   if (!next) return;
   if (!panelIsOpen()) {
-    openPageThread(next.dataset.id, { focus: "thread" });
+    void openPageThread(next.dataset.id, { focus: "thread" });
     announce(
       beginWalk("thread", "Thread", () =>
         threadPosition(threadHere, panelIsOpen, narrowing, list),

@@ -1462,6 +1462,49 @@
           box.scrollTop += r.top - b.top - b.height / 3;
       });
     </script>
+<!-- annotation-workspace.html authored styles -->
+<style>
+      #aw-regions {
+        display: grid;
+        grid-template-columns: minmax(0, 2fr) minmax(20rem, 1fr);
+        gap: var(--sp-4);
+        min-block-size: 0;
+      }
+      #aw-research,
+      #aw-conversations {
+        min-inline-size: 0;
+        min-block-size: 0;
+      }
+      #aw-conversations {
+        display: flex;
+        flex-direction: column;
+        gap: var(--sp-3);
+      }
+      #aw-conversations > h2 {
+        margin: 0;
+        flex: none;
+      }
+      #aw-annotations {
+        inline-size: 100%;
+        block-size: 100%;
+        min-block-size: 0;
+        flex: 1 1 0;
+      }
+      #aw-navigation {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--sp-3);
+      }
+      @media (width < 720px), (height < 480px) {
+        #aw-regions {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        #aw-annotations {
+          block-size: clamp(18rem, 55svh, 30rem);
+          flex: none;
+        }
+      }
+    </style>
 <!-- current-proposed-comparison.html authored styles -->
 <style>
       /* The regions side by side, stacked where the workspace flows. */
@@ -1543,18 +1586,9 @@
       #bg-panel-presets {
         display: flex;
         flex-wrap: wrap;
+        align-items: center;
         gap: var(--sp-2);
         margin-block: var(--sp-3);
-      }
-
-      #bg-panel-presets button {
-        border: 1px solid var(--border-2);
-        border-radius: var(--r);
-        background: var(--paper);
-        color: inherit;
-        padding: var(--sp-2) var(--sp-3);
-        font: inherit;
-        cursor: pointer;
       }
 
       #bg-panel-sample {
@@ -1671,16 +1705,6 @@
         gap: 6px;
         color: var(--ink-2);
         font: var(--t-6) / 1.2 var(--sans);
-      }
-
-      .interaction-gallery .lf-interaction-setting select {
-        min-height: var(--aim-floor);
-        padding: 5px 24px 5px 8px;
-        border: 1px solid var(--border-2);
-        border-radius: 6px;
-        background: var(--card);
-        color: var(--ink);
-        font: inherit;
       }
 
       .interaction-gallery .lf-interaction-loop {
@@ -1877,87 +1901,46 @@
         frameOpener.disabled = true;
       });
 
+      document
+        .querySelector("#bg-read-user-view")
+        .addEventListener("click", async () => {
+          const response = await fetch(new URL("api/user-view", pageRoot));
+          if (!response.ok) throw new Error(`User view: HTTP ${response.status}`);
+          const output = document.querySelector("#bg-user-view-reading");
+          output.textContent = JSON.stringify(await response.json(), null, 2);
+          output.hidden = false;
+        });
+
       await customElements.whenDefined("lf-sample");
 
       const sample = document.querySelector("#bg-panel-sample");
       let selected = null;
-      let selectionVersion = 0;
-      const pendingPaints = new Set();
-
-      function whenPanelMatches(child, isReady) {
-        if (isReady()) return Promise.resolve();
-        return new Promise((resolve) => {
-          const finish = () => {
-            observer.disconnect();
-            pendingPaints.delete(finish);
-            resolve();
-          };
-          const observer = new MutationObserver(() => {
-            if (isReady()) finish();
-          });
-          pendingPaints.add(finish);
-          for (const selector of ["leaf-thread-narrowing", "leaf-thread-list"])
-            observer.observe(child.querySelector(selector), {
-              attributes: true,
-              childList: true,
-              subtree: true,
-            });
-        });
-      }
-
-      async function showPanelView(view, version, ready = sample.ready) {
-        const child = await ready;
-        if (!sample.isConnected || version !== selectionVersion) return;
-        const panel = child.querySelector(".lf-thread-panel");
-        if (!panel.open) child.querySelector(".lf-threads-toggle").click();
-        child.querySelector(".lf-thread-filter-reset")?.click();
-        await whenPanelMatches(child, () =>
-          child
-            .querySelector(".lf-thread-filter-reset")
-            .hasAttribute("data-lf-unoffered"),
-        );
-        if (version !== selectionVersion) return;
-        if (view === "you" || view === "resolved") {
-          const filter = child.querySelector(".lf-thread-filter-toggle");
-          if (filter.getAttribute("aria-expanded") !== "true") filter.click();
-          const [kind, value] =
-            view === "you" ? ["waiting", "user"] : ["status", "resolved"];
-          const choice = child.querySelector(
-            `[data-filter-kind="${kind}"][data-filter-value="${value}"]`,
-          );
-          choice.click();
-          await whenPanelMatches(
-            child,
-            () => choice.getAttribute("aria-pressed") === "true",
-          );
-          if (version !== selectionVersion) return;
+      function selectPanelView(view) {
+        selected = view;
+        for (const button of document.querySelectorAll("#bg-panel-presets button")) {
+          const pressed = String(button.dataset.view === view);
+          if (button.getAttribute("aria-pressed") !== pressed)
+            button.setAttribute("aria-pressed", pressed);
         }
-        const root = {
+        const thread = {
           overview: "72e031c5bf0d485ba9054628e09869d4",
           you: "2be2443f0bb6cc49fc86b52f340e6073",
           resolved: "bab3cdfcfb8c02aacbb27da731de947a",
           summary: "9ee465bb3f9c1fa309ea9cb1767fa365",
         }[view];
-        const row = child.querySelector(`.lf-thread[data-id="${root}"]`);
-        await whenPanelMatches(child, () => !row.hidden);
-        if (version !== selectionVersion) return;
-        if (!row.open) row.querySelector(".lf-thread-summary").click();
-        const filter = child.querySelector(".lf-thread-filter-toggle");
-        if (filter.getAttribute("aria-expanded") === "true") filter.click();
-        const list = child.querySelector("leaf-thread-list");
-        list.scrollTop +=
-          row.getBoundingClientRect().top - list.getBoundingClientRect().top;
-      }
-
-      function selectPanelView(view, ready = sample.ready) {
-        selected = view;
-        for (const finish of pendingPaints) finish();
-        void showPanelView(view, ++selectionVersion, ready);
+        void sample.showThread(thread, {
+          surface: "panel",
+          status: view === "resolved" ? "resolved" : "open",
+          waiting: view === "you" ? "user" : "all",
+        });
       }
 
       for (const button of document.querySelectorAll("#bg-panel-presets button")) {
         button.addEventListener("click", () => selectPanelView(button.dataset.view));
       }
+      document.querySelector("#bg-panel-width").addEventListener("change", (event) => {
+        sample.style.maxWidth = event.target.value;
+      });
       sample.addEventListener("lf-sample-ready", () => {
         if (selected) selectPanelView(selected);
       });
@@ -5788,6 +5771,90 @@ stateDiagram-v2
       </aside>
 </lf-tab>
 
+<lf-tab id="corpus-annotation-workspace" label="Annotation workspace">
+<header>
+        <h1>Measurement review</h1>
+        <nav id="aw-navigation" aria-label="Review regions">
+          <a href="#aw-finding">Finding</a>
+          <a href="#aw-next-run">Next run</a>
+          <a href="#aw-conversations">Conversations</a>
+        </nav>
+      </header>
+
+      <div id="aw-regions">
+        <lf-pane id="aw-research" label="Sampling evidence">
+          <header><h2>Repeat before changing the calibration</h2></header>
+          <div id="aw-evidence">
+            <p id="aw-finding">
+              The third block has a wider range. Repeat with unchanged calibration
+              before treating it as a persistent change.
+            </p>
+            <table id="aw-measurements">
+              <caption>
+                Illustrative sensor readings from one bench session
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">Block</th>
+                  <th scope="col">Readings (mV)</th>
+                  <th scope="col">Range (mV)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">First</th>
+                  <td>10.1, 10.2, 10.0, 10.1</td>
+                  <td>0.2</td>
+                </tr>
+                <tr>
+                  <th scope="row">Second</th>
+                  <td>10.2, 10.1, 10.3, 10.2</td>
+                  <td>0.2</td>
+                </tr>
+                <tr>
+                  <th scope="row">Third</th>
+                  <td>9.7, 10.5, 10.0, 10.6</td>
+                  <td>0.9</td>
+                </tr>
+              </tbody>
+            </table>
+            <section id="aw-run-decision">
+              <lf-ask id="aw-next-run">
+                <h3>How should the repeat be sampled?</h3>
+                <p>
+                  Keep the sensor, calibration and interval fixed. Four readings match
+                  the earlier blocks; eight give more evidence about the range.
+                </p>
+                <lf-options id="aw-sampling" choose>
+                  <lf-option id="aw-four-readings">
+                    Four readings · two minutes
+                  </lf-option>
+                  <lf-option id="aw-eight-readings">
+                    Eight readings · four minutes
+                  </lf-option>
+                </lf-options>
+              </lf-ask>
+            </section>
+          </div>
+        </lf-pane>
+
+        <aside
+          id="aw-conversations"
+          aria-labelledby="aw-conversations-heading"
+          tabindex="-1"
+        >
+          <h2 id="aw-conversations-heading">Conversations and actions</h2>
+          <lf-annotation-rail id="aw-annotations"></lf-annotation-rail>
+        </aside>
+      </div>
+      <footer>
+        <p id="aw-comment-route">
+          Select a reading or passage to comment on it. Conversations stay in this
+          workspace; Threads opens the complete discussion.
+        </p>
+      </footer>
+</lf-tab>
+
 <lf-tab id="corpus-current-proposed-comparison" label="Current Proposed Comparison">
 <header>
         <p class="eyebrow">release review · decision recorded</p>
@@ -6740,6 +6807,13 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
                 <kbd>c</kbd>, then type. Narrow the window until the contents sidebar
                 disappears; the field remains available, and widening reattaches it.
               </p>
+              <p id="bg-revision-editor-guide">
+                Open Threads, expand the lunch question, and leave its empty reply
+                focused. Restamp this gallery with a prose change, then with a changed
+                inline module: each revision arrives automatically and keeps the reply
+                focused. Writing in it holds a revision for review instead, so leave it
+                empty to inspect automatic arrival.
+              </p>
             </section>
           </section>
         </lf-tab>
@@ -6753,10 +6827,38 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
               seeded discussion after trying a reply or changing a thread.
             </p>
             <div id="bg-panel-presets" role="group" aria-label="Threads panel views">
-              <button type="button" data-view="overview">Open threads</button>
-              <button type="button" data-view="you">On you</button>
-              <button type="button" data-view="resolved">Resolved</button>
-              <button type="button" data-view="summary">Long discussion</button>
+              <button
+                type="button"
+                class="button"
+                data-view="overview"
+                aria-pressed="false"
+              >
+                Open threads
+              </button>
+              <button type="button" class="button" data-view="you" aria-pressed="false">
+                On you
+              </button>
+              <button
+                type="button"
+                class="button"
+                data-view="resolved"
+                aria-pressed="false"
+              >
+                Resolved
+              </button>
+              <button
+                type="button"
+                class="button"
+                data-view="summary"
+                aria-pressed="false"
+              >
+                Long discussion
+              </button>
+              <label for="bg-panel-width">Sample width</label>
+              <select id="bg-panel-width" class="field">
+                <option value="30rem">Wide</option>
+                <option value="20rem">Narrow</option>
+              </select>
             </div>
             <lf-sample id="bg-panel-sample" label="workshop threads">
               <template
@@ -6785,6 +6887,46 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
             </lf-sample>
           </section>
 
+          <section id="bg-page-annotations">
+            <p class="eyebrow bg-feature-elements">lf-annotation-rail</p>
+            <h3>Page-owned annotations</h3>
+            <p>
+              Alt-click the recommendation in this practice window to comment. The reply
+              and actions stay in the allocated annotation area. Choose a route, then
+              use Undo to return to the open question.
+            </p>
+            <lf-sample
+              id="bg-page-annotations-sample"
+              label="practice route review"
+              window
+            >
+              <template
+                id="bg-page-annotations-page"
+                data-sample
+                data-annotations="page"
+              >
+                <style>
+                  #bg-page-annotations-rail {
+                    display: block;
+                    inline-size: 100%;
+                    block-size: 20rem;
+                  }
+                </style>
+                <h1>Workshop route</h1>
+                <p id="bg-page-annotations-finding">
+                  The shorter path leaves more time to inspect the cooling loop.
+                </p>
+                <lf-ask id="bg-page-annotations-ask">
+                  <h2>Which path should the inspection take?</h2>
+                  <lf-options id="bg-page-annotations-options" choose>
+                    <lf-option id="bg-page-annotations-short">Short path</lf-option>
+                    <lf-option id="bg-page-annotations-long">Full circuit</lf-option>
+                  </lf-options>
+                </lf-ask>
+                <lf-annotation-rail id="bg-page-annotations-rail"> </lf-annotation-rail>
+              </template>
+            </lf-sample>
+          </section>
           <section id="bg-threads">
             <h2>
               <strong>Threads</strong
@@ -6826,6 +6968,19 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
               the words on this passage, where opening the composer again finds them;
               the general box in Threads gets them back in place.
             </p>
+            <p id="bg-wide-passage-guide">
+              <strong>A passage in a wide block.</strong> Select the words in the
+              <code>description</code> value below. The comment field follows the passage's
+              inline start while standing clear of the code block. Send a comment: its
+              thread keeps that attachment.
+            </p>
+            <pre
+              id="bg-wide-passage"
+              data-width="wide"
+            ><code class="language-javascript">const command = {
+  title: "Keep",
+  description: "keep the active card",
+};</code></pre>
             <p id="bg-markdown-draft">
               <strong>Markdown as you type.</strong> Every box Leaf gives you to write
               in shows the draft the way the sent message will read. Type
@@ -6922,6 +7077,21 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
         </lf-tab>
 
         <lf-tab id="bg-view-page" label="Page & layout">
+          <section id="bg-user-view">
+            <h2><strong>The user's observed view</strong></h2>
+            <p id="bg-user-view-guide">
+              Resize this window, change its color scheme, or open another tab. Read the
+              observations to inspect each document's viewport, visible reading regions,
+              revision, freshness, and passive geometry checks. The authoring agent gets
+              this context under <code>user_views</code> in
+              <code>leaf page state</code>. The measurements leave the layout decision
+              with the author. On the public site, make a decision or comment first to
+              activate your private page, then return here.
+            </p>
+            <button id="bg-read-user-view" type="button">Read observed views</button>
+            <pre id="bg-user-view-reading" hidden></pre>
+          </section>
+
           <section id="bg-widths" data-width="wide">
             <p class="eyebrow">data-width</p>
             <h2><strong>Responsive block widths</strong></h2>
@@ -7733,7 +7903,9 @@ gallery/
               </section>
               <p id="bg-shot-guide">
                 Sample labels invented content. Choose “Before” or “After” above the
-                image, or press the Shot control or image to flip. This pair carries
+                image, or press the Shot control or image to flip. The selected label is
+                red for Before and green for After; a split colors both labels without
+                selecting either. This pair carries
                 <code>outlines</code>, so outlines mark each region where the two images
                 differ, on both sides of the divider, and the rail counts them.
               </p>
@@ -8200,8 +8372,8 @@ switch --readers checkout-api,orders-api</code></pre>
 <lf-tab id="corpus-targeting-gallery" label="Targeting package">
 <h1 id="targeting-title">Point at the interface change</h1>
       <p class="lede" id="targeting-lede">
-        Targeting turns a visual selection into a structured set of exact element,
-        scope, attribute, style, and instruction changes.
+        Select exact interface targets, preview box-model style changes, and submit
+        those changes with target-bound instructions.
       </p>
       <lf-ask id="targeting-ask">
         <h2>Which exact changes should be made?</h2>

@@ -4,6 +4,7 @@ import json
 import os
 import re
 import signal
+import socket
 import subprocess
 import sys
 import time
@@ -16,19 +17,24 @@ from typing import NamedTuple
 import pytest
 from click.testing import CliRunner
 from conftest import LEAF_COMMAND
-from interact_support import install_payload, wait_for
+from interact_support import (
+    append_carried_log_record,
+    consume_pending_input,
+    install_payload,
+    wait_for,
+)
 from leaf import cli as cli_model
 from leaf import data as data_model
-from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import exporting as exporting_model
 from leaf import files as files_model
 from leaf import hooks as hooks_model
+from leaf import host as host_model
 from leaf import leases as leases_model
 from leaf import media as media_model
 from leaf import server as server_model
 from leaf import service as service_model
-from leaf import session_cleanup as cleanup_model
+from leaf import state as cleanup_model
 from leaf.schema import ELEMENT_ID
 from leaf.structure import UTF8_BOM
 from leaf_dev import preview as preview_model
@@ -561,7 +567,7 @@ def test_an_unclaimed_preview_keeps_its_gestures_out_of_the_stop_hook(
     session = os.environ["CLAUDE_CODE_SESSION_ID"]
     assert service_model.page_claim(page_dir) is None
     assert page_dir not in service_model.owned_pages(session)
-    events_model.append_event(
+    append_carried_log_record(
         page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "text": "probe"},
     )
@@ -1111,7 +1117,7 @@ def test_a_user_preview_update_keeps_the_sessions_wait_watching(
     assert server_model.running_server(directory)
     assert waiter.poll() is None, waited.read_text()
 
-    events_model.append_event(
+    append_carried_log_record(
         directory,
         {
             "kind": "comment",
@@ -1122,7 +1128,7 @@ def test_a_user_preview_update_keeps_the_sessions_wait_watching(
     )
     assert waiter.wait(timeout=30) == 0, waited.read_text()
     assert "has new input" in waited.read_text()
-    [batch] = delivery_model.take_input(session)["batches"]
+    [batch] = consume_pending_input(session)["batches"]
     assert [event["text"] for event in batch["events"]] == ["still there?"]
 
 
@@ -1130,32 +1136,84 @@ def test_a_user_preview_brings_back_a_service_that_is_down_but_wanted(
     served_preview,
 ):
     """A `--user` service still enabled with no server is the preview's to bring
-    back on its next update, and does not end it: that is a server that died, or
+    back without an edit, and does not end it: that is a server that died, or
     one a re-vendor could not start again (its recorded port taken), which is left
     enabled and down in just this way. Only a stop, or the claim leaving this
     session, ends the preview."""
-    source, _, directory, process, _, log = served_preview
+    _, _, directory, process, url, log = served_preview
     port = server_model.running_server(directory)["port"]
-    killed = subprocess.run(
-        ["pkill", "-KILL", "-f", f"server _serve {directory}"], check=False
-    )
-    assert killed.returncode == 0
+    claim = service_model.page_claim(directory)
+    events = (directory / "events.jsonl").read_bytes()
+    # Hold the watcher while taking the stopped server's port. The first revival
+    # must refuse, then recover after that condition clears without a source edit.
+    with socket.socket() as occupied:
+        occupied.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        os.killpg(process.pid, signal.SIGSTOP)
+        try:
+            killed = subprocess.run(
+                ["pkill", "-KILL", "-f", f"server _serve {directory}"], check=False
+            )
+            assert killed.returncode == 0
+            wait_for(
+                lambda: server_model.running_server(directory),
+                lambda running: running is None,
+                failure="the killed server still held its lease",
+            )
+            occupied.bind(("127.0.0.1", port))
+            occupied.listen()
+        finally:
+            os.killpg(process.pid, signal.SIGCONT)
+        wait_for(
+            log.read_text,
+            lambda output: "can't serve" in output,
+            failure="the occupied preview address was not reported",
+            timeout=10,
+        )
+        assert files_model.read_json(directory / "service.json")["enabled"]
+
     wait_for(
         lambda: server_model.running_server(directory),
-        lambda running: running is None,
-        failure="the killed server still held its lease",
-    )
-    assert files_model.read_json(directory / "service.json")["enabled"]
-
-    source.write_text(source.read_text().replace("Rollout", "Back up", 1))
-    wait_for(
-        log.read_text,
-        lambda output: "Reloaded watched" in output,
+        bool,
         failure="the preview did not bring its server back",
-        timeout=60,
+        timeout=10,
     )
     assert process.poll() is None, log.read_text()
     assert server_model.running_server(directory)["port"] == port
+    wait_for(
+        lambda: _reachable(url),
+        bool,
+        failure="the restored preview did not answer at its original keyed URL",
+    )
+    assert service_model.page_claim(directory) == claim
+    assert (directory / "events.jsonl").read_bytes() == events
+
+
+@pytest.mark.parametrize("unclaimed", [False, True])
+def test_a_preview_relinquishes_a_service_another_session_claims(
+    served_preview, monkeypatch, unclaimed
+):
+    """The old author's watcher ends without disabling the successor's service."""
+    _, _, directory, process, url, log = served_preview
+    if unclaimed:
+        # A plain-terminal --user preview has no host session. Exercise its same
+        # cleanup boundary directly; the subprocess owns the serving resource.
+        monkeypatch.delenv("CLAUDE_CODE_SESSION_ID", raising=False)
+        cleanup = preview_model.PreviewService(directory, user=True)
+    with service_model.PageTransaction(directory) as transaction:
+        transaction.take_claim(host_model.ClaudeCodeHarness("successor", "Claude"))
+    if unclaimed:
+        assert cleanup.ended
+        cleanup.stop()
+    wait_for(
+        lambda: process.poll(),
+        lambda status: status is not None,
+        failure="the former owner's preview kept following the successor's page",
+        timeout=10,
+    )
+    assert process.returncode == 0, log.read_text()
+    assert service_model.page_claim(directory)["id"] == "successor"
+    assert server_model.running_server(directory)
+    assert _reachable(url)
 
 
 # ---------- export: the page as one file ----------
@@ -1536,7 +1594,6 @@ def test_the_example_preview_command_exports_a_file_that_opens_on_its_own(
     browser,
 ):
     """The handoff command names one file whose page draws with no live server."""
-    out = ROOT / ".tmp" / "example-pr-walkthrough.html"
     result = subprocess.run(
         [
             *PREVIEW,
@@ -1550,7 +1607,9 @@ def test_the_example_preview_command_exports_a_file_that_opens_on_its_own(
         timeout=90,
     )
     assert result.returncode == 0, f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
-    assert result.stdout.splitlines()[-1] == str(out.resolve())
+    out = Path(result.stdout.splitlines()[-1])
+    assert out.is_absolute()
+    assert out.name == "example-pr-walkthrough.html"
 
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     page.on(
@@ -1687,11 +1746,11 @@ def test_an_export_embeds_only_the_widgets_its_markup_names(browser, serve, tmp_
             "<pre>print('hi')</pre></lf-code>",
         )
     )
-    root = events_model.append_event(
+    root = append_carried_log_record(
         serve.page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "text": "Sketch it?"},
     )
-    events_model.append_event(
+    append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
@@ -1860,7 +1919,7 @@ def test_inline_threads_keep_their_words_without_live_controls_in_print(
         '<rect width="24" height="24" fill="navy"/></svg>'
     )
     _, image_url = media_model.cmd_media(serve.page_dir, [image])[0]
-    root = events_model.append_event(
+    root = append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -1890,7 +1949,7 @@ def test_inline_threads_keep_their_words_without_live_controls_in_print(
         )
         assert result.exit_code == 0, result.output
     if resolved:
-        events_model.append_event(
+        append_carried_log_record(
             serve.page_dir,
             {"kind": "resolve", "author": "user", "parent": root["id"]},
         )

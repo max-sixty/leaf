@@ -22,7 +22,8 @@ from contextlib import redirect_stdout
 from pathlib import Path
 
 import click
-from leaf.delivery import take_input
+from leaf.delivery import freeze_delivery, pending_batches, receive_delivery
+from leaf.hook_carrier import hook_acknowledgement
 from leaf.host import session_harness
 from leaf.hosting import claim_and_start, cmd_stop
 from leaf.projection import folded_positions
@@ -214,8 +215,8 @@ def select_text(page: Page, selector: str, text: str) -> None:
 
 class DemoWaiter:
     """One background `leaf wait`, taking each delivery the way this host's agent
-    does: where the session's hooks carry input, `take_input` hands it over;
-    elsewhere the wait prints it and re-arming with `--ack` confirms it."""
+    does: it reads a complete delivery, explicitly acknowledges it, and
+    rearms the wait. The demo itself stands in for the reader."""
 
     def __init__(self, page_dir: Path) -> None:
         self.process = subprocess.Popen(
@@ -234,7 +235,12 @@ class DemoWaiter:
         if not stdout.strip():
             payload = {}
         elif hooked:
-            payload = take_input(harness.session)
+            payload = freeze_delivery(
+                pending_batches(harness.session),
+                carrier="hook",
+                acknowledge=hook_acknowledgement,
+            )
+            receive_delivery(payload["id"])
         else:
             payload = json.loads(stdout)
         batches = payload.get("batches", [])
@@ -332,6 +338,7 @@ def record(
 
     page.locator("#work").scroll_into_view_if_needed()
     shot(1000)
+    applied_before_move = page.locator("body").get_attribute("data-lf-applied")
     grip = page.locator("#card-oncall .lf-grip").bounding_box()
     destination = page.locator("#col-during").bounding_box()
     page.mouse.move(grip["x"] + grip["width"] / 2, grip["y"] + grip["height"] / 2)
@@ -347,7 +354,12 @@ def record(
         "() => document.querySelector('.lf-notice').classList.contains('show')"
     )
     shot(2400)
-    waiter.receive()
+    page.wait_for_function(
+        "before => document.body.getAttribute('data-lf-applied') !== before",
+        arg=applied_before_move,
+    )
+    if "card-oncall" not in folded_board(page_dir)["col-during"]:
+        raise RuntimeError("the board move did not reach the page's standing log")
     return frames, durations
 
 
@@ -424,7 +436,9 @@ def record_demo(output: Path | None) -> None:
         (page_dir / "index.html").write_text(demo_page(1), encoding="utf-8")
         cmd_stamp(page_dir, "Migration rehearsal started; 2 of 4 checks complete")
         cmd_status(page_dir, "waiting", "")
-        url, _note = claim_and_start(page_dir)
+        with claim_and_start(page_dir) as started:
+            pass
+        url = started.url
         waiter = DemoWaiter(page_dir)
         try:
             with chrome() as browser, tab(browser, GIF_SIZE) as page:

@@ -23,7 +23,7 @@
    (delivery.js), the page's error report, and a media upload (layer-client.js) never
    enter that ledger, so a wait for "what this page sent has come back" consumes both
    facts: every send acked, and nothing pending. */
-import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
+import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { setRuntimeRootAttribute } from "./root-state.js";
 
 const ledger = { sends: 0, acked: 0, asked: 0, heard: 0, pending: [] };

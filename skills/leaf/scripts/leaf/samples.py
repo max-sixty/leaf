@@ -22,7 +22,7 @@ from .revision_artifact import RevisionArtifact
 from .revisioning import activate_source
 from .sample_content import initial_sample_events
 from .schema import DATA_DIR, DATA_FILE
-from .session_cleanup import now_iso, write_json
+from .state import now_iso, write_json
 from .structure import SourceDocument
 
 

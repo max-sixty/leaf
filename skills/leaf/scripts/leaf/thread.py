@@ -5,7 +5,7 @@ from pathlib import Path
 
 from leaf.activity import answer_command, reply_binding_stands
 from leaf.asks import local_ask_entry
-from leaf.delivery import current_responses, record_pickup
+from leaf.delivery import ReceiptRefused, current_responses, record_pickup
 from leaf.event_contracts import append_admitted
 from leaf.event_log import read_events
 from leaf.events import build_threads
@@ -370,6 +370,20 @@ def cmd_comment(
         return append_admitted(page, event)
 
 
+def answered_by_reply(events: list[dict], for_event: str) -> bool:
+    """A successful exact reply wins over every later delivery completion.
+
+    Failure receipts and user settlement do not assert a provider answer, so a
+    recovered final message may still answer that original delivered address.
+    """
+    return any(
+        event["kind"] == "reply"
+        and event.get("responds") == for_event
+        and "failure" not in event
+        for event in events
+    )
+
+
 @contract_writer
 def cmd_reply(
     page_dir: Path,
@@ -417,7 +431,7 @@ def cmd_reply(
         if claimed_session is not None:
             claim = page.active_claim
             if claim is None or claim["id"] != claimed_session:
-                raise RuntimeError(
+                raise ReceiptRefused(
                     f"page is no longer claimed by session {claimed_session!r}"
                 )
             posting_identity = {"agent": claim["agent"], "session": claim["id"]}
@@ -442,12 +456,7 @@ def cmd_reply(
         if (
             when_settled == "post"
             and for_event is not None
-            and any(
-                event["kind"] == "reply"
-                and event.get("responds") == for_event
-                and "failure" not in event
-                for event in events
-            )
+            and answered_by_reply(events, for_event)
         ):
             return None
         responses = current_responses(page_dir, events)
@@ -686,6 +695,7 @@ def fail_answer(
     attempt: str,
     identity: dict,
     only_if_unclaimed: bool,
+    claimed_session: str | None = None,
 ) -> dict | None:
     """Tell the user no answer to one move is coming, in the move's own terms.
 
@@ -704,9 +714,18 @@ def fail_answer(
     some turn already picked up to the writer following that turn.
     """
     with PageTransaction(page_dir) as page:
+        if (
+            claimed_session is not None
+            and (page.active_claim or {}).get("id") != claimed_session
+        ):
+            raise ReceiptRefused(
+                f"page is no longer claimed by session {claimed_session!r}"
+            )
         answer = current_responses(page_dir, page.events).get(responds)
     if answer is not None and answer["kind"] == "markup":
-        return _fail_markup_answer(page_dir, responds, failure, only_if_unclaimed)
+        return _fail_markup_answer(
+            page_dir, responds, failure, only_if_unclaimed, claimed_session
+        )
     return cmd_reply(
         page_dir,
         None,
@@ -718,15 +737,27 @@ def fail_answer(
         only_if_unclaimed=only_if_unclaimed,
         failure=failure,
         identity=identity,
+        claimed_session=claimed_session,
     )
 
 
 @contract_writer
 def _fail_markup_answer(
-    page_dir: Path, responds: str, failure: str, only_if_unclaimed: bool
+    page_dir: Path,
+    responds: str,
+    failure: str,
+    only_if_unclaimed: bool,
+    claimed_session: str | None,
 ) -> dict | None:
     """Record a failed pickup of a page move, rechecking its answer under the lock."""
     with PageTransaction(page_dir) as page:
+        if (
+            claimed_session is not None
+            and (page.active_claim or {}).get("id") != claimed_session
+        ):
+            raise ReceiptRefused(
+                f"page is no longer claimed by session {claimed_session!r}"
+            )
         events = page.events
         answer = current_responses(page_dir, events).get(responds)
         if answer is None or (
@@ -794,14 +825,16 @@ def title_refusal(page_dir: Path, title: str) -> str | None:
     from leaf.event_contracts import (
         APPEND_STAMPED,
         admitting_registry,
-        event_record_error,
+        command_record_schema,
     )
     from leaf.page_view import PageView
+    from leaf.registry.schema import schema_error
 
     event = title_event("pending", title, message_identity())
     registry = admitting_registry(PageView(page_dir), event, read_events(page_dir))
-    error = event_record_error(
-        registry["$events"]["kinds"]["thread_title"], {**APPEND_STAMPED, **event}
+    error = schema_error(
+        command_record_schema(registry["$events"]["kinds"]["thread_title"]),
+        {**APPEND_STAMPED, **event},
     )
     return error and f"thread_title event is invalid: {error}"
 

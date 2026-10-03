@@ -176,13 +176,14 @@ def composed_dir_files(inputs: list[Path], sub: str) -> dict[str, Path]:
 # The document's cascade tiers, lowest first. The chrome's form-control clearing
 # (`lf-reset`, runtime/chrome.css) stays below everything that chooses a face. The
 # kernel, every package, and each widget module's adopted sheet (runtime/stylesheets.js)
-# share one layer, so they rank against each other by specificity and order as they
-# always have. The kernel's Layouts sit above it, and the page's own stylesheet,
-# unlayered, above both: a Layout resets what a widget sets on the boxes it arranges,
-# and a page overrides either. The page's rules reach Leaf's own controls only where
-# they name them (runtime/page-sheets.js). The chrome and marks sheets stay unlayered,
+# share one layer, so specificity, scope proximity, then order rank their rules.
+# The kernel's Layouts sit above it, followed by semantic state: retirement must
+# outrank a package's default box and a Layout's arrangement. The page's own sheet
+# stays unlayered above these tiers, and inline widget motion outranks them too.
+# The page's rules reach Leaf's own controls only where they name them
+# (runtime/page-sheets.js). The chrome and marks sheets stay unlayered,
 # since their paint must beat page and widget alike (chrome.css).
-CASCADE_LAYERS = ("lf-reset", "lf-base", "lf-layouts")
+CASCADE_LAYERS = ("lf-reset", "lf-base", "lf-layouts", "lf-shadow", "lf-state")
 
 
 def _sheet(source: Path) -> str:
@@ -198,10 +199,11 @@ def _sheet(source: Path) -> str:
 
 
 def widget_confinement(root: Path) -> tuple[str, str] | None:
-    """The conditions a package's rules meet: in the document, the element is one of
-    the package's widgets or stands inside one; in a declared shadow tree, the tree's
-    host is one of them, which is the one element outside the tree a selector in it can
-    name. None for a package that declares no widget."""
+    """Native document and shadow scope roots for a package's declared widgets.
+
+    The browser confines matching to each root and its descendants; authors name
+    a root with :scope. A widget-free package is an unscoped page theme.
+    """
     registry = root / "registry.json"
     tags = (
         sorted(
@@ -214,7 +216,7 @@ def widget_confinement(root: Path) -> tuple[str, str] | None:
         return None
     listed = ", ".join(tags)
     host = f":host(:is({listed}))"
-    return f":where({listed}, :is({listed}) *)", f":where({host}, {host} *)"
+    return f":is({listed})", host
 
 
 # A root's own stylesheets, in the order the document's theme.css reads them.
@@ -229,23 +231,25 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
     document's theme.css reads each root's shadow.css just ahead of its theme.css.
 
     In the document, every root's sheets are the `lf-base` cascade layer, and the
-    kernel's layouts.css, which names `lf-layouts` itself, comes last. A shadow tree's
-    sheet stays unlayered: a renderer that brings its own layered CSS into the tree
-    (the diff's) keeps ranking below it.
+    kernel's layouts.css and state.css name their higher tiers and come last.
+    Shared shadow rules use `lf-shadow` above adopted widget sheets (`lf-base`),
+    preserving their precedence over vendor defaults. state.css ranks above both,
+    so declared retirement has the same precedence in both trees. Authored
+    unlayered styles and inline widget motion remain above it.
 
-    A package that declares widgets styles those widgets and nothing else
-    (`widget_confinement`): in the document each of its rules matches only an element
-    that is one of them or stands inside one, and in the shadow sheet every declared
-    tree receives, only an element of a tree one of them hosts. A package that
-    declares none is a theme, and reaches the page and every tree the way the kernel's
-    own sheets do.
+    Each widget package's sheet has one native @scope around its declared tags
+    in the document, or around their :host in shadow trees. :scope names the root,
+    ordinary selectors its descendants. CSS owns nested conditions and proximity;
+    composition neither rewrites selectors nor adds specificity. Widget-free
+    packages are unscoped themes that reach the page and every tree.
     """
-    from .styles import confined
+    from .styles import scoped
 
     if not any((root / "theme.css").is_file() for root in inputs):
         sys.exit("the incoming layer has no theme.css")
-    theme = [f"@layer {', '.join(CASCADE_LAYERS)};\n"]
-    shadow = []
+    order = f"@layer {', '.join(CASCADE_LAYERS)};\n"
+    theme = [order]
+    shadow = [order]
     for position, root in enumerate(inputs):
         where = widget_confinement(root) if position else None
         for name in ROOT_SHEETS:
@@ -253,15 +257,17 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
             if not source.is_file():
                 continue
             css = _sheet(source)
-            try:
-                placed = confined(css, where[0]) if where else css
-                if name == "shadow.css":
-                    shadow.append(confined(css, where[1]) if where else css)
-            except ValueError as error:
-                sys.exit(f"{source}: {error}; state a widget's rules on the widget")
+            placed = scoped(css, where[0]) if where else css
+            if name == "shadow.css":
+                shadow_css = scoped(css, where[1]) if where else css
+                shadow.append(f"@layer lf-shadow {{\n{shadow_css}}}\n")
             theme.append(f"@layer lf-base {{\n{placed}}}\n")
-    if (layouts := inputs[0] / "layouts.css").is_file():
-        theme.append(_sheet(layouts))
+    for name in ("layouts.css", "state.css"):
+        if (source := inputs[0] / name).is_file():
+            sheet = _sheet(source)
+            theme.append(sheet)
+            if name == "state.css":
+                shadow.append(sheet)
     return {
         "theme.css": "".join(theme).encode(),
         "shadow.css": "".join(shadow).encode(),

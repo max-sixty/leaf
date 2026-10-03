@@ -1,3 +1,7 @@
+/* A bound text document updates its evidence inside one figure and code scrollport.
+ * The syntax renderer owns the code's contents; shared DOM reconciliation retains
+ * unchanged tokens and edits only changed text, so native reading selections survive
+ * source updates beside them. */
 import {
   failSoft,
   projectData,
@@ -5,6 +9,7 @@ import {
   syntax,
   watchData,
   keepsText,
+  setRenderedChildren,
 } from "/runtime/widget-api.js";
 
 customElements.define(
@@ -66,6 +71,6 @@ function sourceNode(widget, { snapshot, tokens }, prior) {
   keepsText(caption, heading);
   const code = pre.querySelector("code");
   const source = tokens.map(({ text }) => text).join("");
-  if (code.textContent !== source) code.replaceChildren(...synNodes(tokens));
+  if (code.textContent !== source) setRenderedChildren(code, synNodes(tokens));
   return figure;
 }

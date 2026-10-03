@@ -1,13 +1,11 @@
 """Process-backed locks and leases for page and session transitions.
 
-A lease or lock file is the lock and nothing more, so it exists only while it is
-held or awaited, whoever it belongs to: its holder removes it on release, and a
-taker that locks a file already removed takes the lock again on whatever the path
-names now (`session_cleanup.still_named`). That is what lets a session's files end with
-the session: nothing reads them once they are released, so there is no later
-reader to retire them, and no signal that a session which can be resumed is over.
-A holder the kernel kills outright leaves its file behind, unheld; the next holder
-of that name takes it and removes it on release.
+Lease files are stable coordination points, created on first use and retained
+after release. Only the descriptor's exclusive kernel lock proves a holder is
+live; file existence says nothing. Closing the descriptor or process exit releases
+the lease, including a crash. Neither holders nor session cleanup remove these
+files. A taker verifies the acquired inode still has its name, since another
+process may have removed or replaced the shared path while it was opening it.
 """
 
 import contextlib
@@ -15,12 +13,14 @@ import functools
 import os
 import signal
 import sys
+from collections.abc import Callable
 from pathlib import Path
+from typing import BinaryIO
 
 from leaf.event_log import EventRefused
 from leaf.machine import state_home
 from leaf.schema import WAITER_LOCK
-from leaf.session_cleanup import (
+from leaf.state import (
     HOOKS_SUFFIX,
     STEP_HOOK_SUFFIX,
     TITLES_SUFFIX,
@@ -59,7 +59,7 @@ def lock_is_held(path: Path) -> bool:
         return False
 
 
-def take_lease(path: Path):
+def take_lease(path: Path, *, prepare: Callable[[BinaryIO], None] | None = None):
     """Take the exclusive lease on this file and return it held, or None when
     another process holds it.
 
@@ -67,18 +67,40 @@ def take_lease(path: Path):
     adapter's, a preview slot's, and the barrier a stop takes once the server it
     disabled has exited. The caller holds the returned file for as long as it
     holds the lease and gives it back with `release_lease`; exiting releases it
-    too, leaving the file for the next holder to remove. The lease's directory
+    too. The stable file remains unheld for the next taker. The lease's directory
     must already exist, so a stop naming a page that is gone cannot create it.
 
     A refused exclusive lock means a lease or a `lock_is_held` question, whose
     shared lock is momentary. A shared lock of its own tells them apart, since
     only a lease refuses one, so a question asked at the instant a lease is taken
     does not turn that lease away.
+
+    A producer that must prepare descriptor metadata supplies `prepare`. It runs
+    under a shared lock before promotion to the live exclusive lease, so probes
+    see preparation as unheld and can never pair old metadata with a new holder.
+    The caller serializes those preparations; promotion waits for the momentary
+    shared probes rather than refusing a legitimate lease.
     """
     require_cross_process_locking()
-    path = path.absolute()
     while True:
         record = open(path, "a+b")  # noqa: SIM115 - returned and held by the caller
+        if prepare is not None:
+            try:
+                fcntl.flock(record, fcntl.LOCK_SH | fcntl.LOCK_NB)
+            except BlockingIOError:
+                record.close()
+                return None
+            try:
+                if still_named(record.fileno(), path):
+                    prepare(record)
+                    fcntl.flock(record, fcntl.LOCK_EX)
+                    if still_named(record.fileno(), path):
+                        return record
+            except BaseException:
+                record.close()
+                raise
+            record.close()
+            continue
         try:
             fcntl.flock(record, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
@@ -94,22 +116,16 @@ def take_lease(path: Path):
 
 
 def release_lease(lease) -> None:
-    """Give a lease back and remove its file, which only its holder may do.
-
-    The path still names the held file, since nobody else removes a lease while it
-    is held; it may already be gone when the state home was cleared by hand."""
-    Path(lease.name).unlink(missing_ok=True)
+    """Release the descriptor's kernel lock, retaining its coordination file."""
     lease.close()
 
 
 def release_on_termination() -> None:
-    """Turn SIGTERM and SIGHUP into an ordinary exit for a process holding leases.
+    """Unwind process-owned resources when SIGTERM or SIGHUP ends a command.
 
-    Their default action ends the process without unwinding it, which leaves every
-    lease file it held for a holder that may never come. Stopping a background
-    command, logging out, and shutting down all send one of these, so a `leaf wait`
-    or Codex adapter unwinds through the `finally` that releases its leases. Only
-    SIGKILL still skips it."""
+    Kernel leases release even without unwinding, but a command may also own
+    reply reservations and pending work that its `finally` blocks must retire.
+    SIGKILL still skips that application cleanup."""
     for terminating in (signal.SIGTERM, signal.SIGHUP):
         signal.signal(terminating, lambda signum, _frame: sys.exit(128 + signum))
 
@@ -188,7 +204,7 @@ def adapter_lease_path(session_id: str) -> Path:
 
 
 def session_state_path(session_id: str, suffix: str) -> Path:
-    """`session_cleanup.session_file`, with its directory created."""
+    """`state.session_file`, with its directory created."""
     sessions_home()
     return session_file(session_id, suffix)
 
@@ -243,7 +259,7 @@ def adapter_is_live(session_id: str) -> bool:
     return lock_is_held(adapter_lease_path(session_id))
 
 
-def wait_is_live(page_dir: Path, session_id: str | None) -> bool:
+def wait_is_live(page_dir: Path | None, session_id: str | None) -> bool:
     """Whether this ownership scope's exact wait lease is held now."""
     lease_path = waiter_lease_path(page_dir, session_id)
     return bool(lease_path and lock_is_held(lease_path))

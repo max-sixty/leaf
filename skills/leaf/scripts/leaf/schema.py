@@ -3,7 +3,7 @@
 import re
 from pathlib import Path
 
-from .session_cleanup import EVENTS_FILE
+from .state import EVENTS_FILE
 
 # A session-managed server gives a replacement session one short poll window to
 # claim the page before it closes. The external claim record is the ownership
@@ -498,6 +498,9 @@ DATA_DIR = "data"
 INTERACTIONS_FILE = "interactions.jsonl"
 PREVIEW_FILE = "preview.json"
 VIEWED_FILE = "viewed.json"
+USER_VIEWS_FILE = "user-views.json"
+USER_VIEWS_LOCK = "user-views.lock"
+RENDER_CHECKS_DIR = "checks"
 # How long a bare address stays authorized after the last handover link (`host_key`),
 # the lifetime Jupyter gives its login cookie.
 KEY_COOKIE_MAX_AGE = 30 * 24 * 60 * 60
@@ -515,6 +518,8 @@ SESSION_FILES = (
     WAITER_LOCK,
     CURSOR_FILE,
     VIEWED_FILE,
+    USER_VIEWS_FILE,
+    USER_VIEWS_LOCK,
     SERVICE_FILE,
     SERVER_LOCK,
     PREVIEW_FILE,
@@ -535,7 +540,7 @@ VERSION_NAME = r"v(?P<version>[1-9][0-9]*)"
 # `leaf-dev site` writes: a static miss under a session directory is a file the
 # page's container has. `api` is the page server's protocol prefix, which the Worker
 # names with the endpoints under it.
-SESSION_ROUTE_DIRS = (MEDIA_DIR, "revisions", "versions")
+SESSION_ROUTE_DIRS = (MEDIA_DIR, "revisions", "versions", RENDER_CHECKS_DIR)
 PAGE_ROUTE_DIRS = ("api", *BROWSER_DIRS, *SESSION_ROUTE_DIRS)
 # What the server exposes from a page: the browser layer, media, immutable revisions,
 # and event-backed version addresses. Agent-side instructions stay vendored but are read

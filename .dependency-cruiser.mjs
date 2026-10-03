@@ -5,22 +5,28 @@
 // whole graph; `eslint.config.mjs` keeps the rules a module's own source answers, such
 // as which specifiers an owner may name and who may write the document root.
 //
-// The graph is the runtime directory. Everything outside it is excluded, the boot
-// entry and the vendored bundles among them: no route between owners runs through
-// either, and eslint's own `no-restricted-imports` is what refuses an owner that
-// imports the entry. Two runtime modules name a bundle by its site-absolute
-// `/vendor/` specifier, which the browser resolves and Node does not, so that form is
-// excluded under its own name. Every other unresolvable specifier is a missing module
-// and an error.
+// The graph includes core owners and the bundled physical renderer. Browser-absolute
+// imports resolve through the same canonical resource roots as layer composition.
+// The boot entry selects the actual renderer and is outside the owner graph. Vendored
+// bundles have no owner edges; every other unresolved specifier is an error.
 
 import fs from "node:fs";
+import path from "node:path";
 
 const assets = "skills/leaf/assets/";
 const runtime = `${assets}runtime/`;
+const overlay = "skills/leaf/packages/default/runtime/annotation-overlay/";
+export const runtimeAliases = {
+  "/runtime/annotation-overlay": path.resolve(overlay),
+  "/runtime": path.resolve(runtime),
+};
+const owners = `^(?:${runtime}|${overlay})`;
+const modulePath = (name) =>
+  fs.existsSync(`${runtime}${name}`) ? `${runtime}${name}` : `${overlay}${name}`;
 
 const escaped = (name) => name.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&");
-const isModule = (name) => `^${runtime}${escaped(name)}$`;
-const isOneOf = (names) => `^${runtime}(?:${names.map(escaped).join("|")})$`;
+const isModule = (name) => `^${escaped(modulePath(name))}$`;
+const isOneOf = (names) => `^(?:${names.map(modulePath).map(escaped).join("|")})$`;
 
 // Each root reaches these modules and nothing else. The pure record folds take values
 // and return values; the keyboard dispatcher resolves a key against the register and
@@ -32,7 +38,7 @@ const exactClosures = {
   "image-difference.js": [],
   "contribution-model.js": [],
   "margin-model.js": ["contribution-model.js"],
-  "margin-map-model.js": ["contribution-model.js"],
+  "margin-map-model.js": ["margin-model.js", "contribution-model.js"],
   "projection/model.js": ["collapse.js"],
   "projection/state.js": ["semantic-state.js"],
   "thread/model.js": [
@@ -120,7 +126,7 @@ for (const name of new Set(
     Object.entries(closures).flatMap(([root, names]) => [root, ...names]),
   ),
 ))
-  if (!fs.existsSync(new URL(`./${runtime}${name}`, import.meta.url)))
+  if (!fs.existsSync(new URL(`./${modulePath(name)}`, import.meta.url)))
     throw new Error(`.dependency-cruiser.mjs names a missing runtime module: ${name}`);
 
 export default {
@@ -132,7 +138,7 @@ export default {
         "composition root.",
       severity: "error",
       from: {
-        path: `^${runtime}`,
+        path: owners,
         pathNot: isOneOf(["widget-api.js", "widget-controller.js"]),
       },
       to: { path: isModule("application.js") },
@@ -143,30 +149,16 @@ export default {
         "keyboard/page.js declares the page's own keys as it evaluates and exports " +
         "nothing; only leaf.js imports it, for that effect.",
       severity: "error",
-      from: { path: `^${runtime}`, pathNot: isModule("keyboard/page.js") },
+      from: { path: owners, pathNot: isModule("keyboard/page.js") },
       to: { path: isModule("keyboard/page.js") },
     },
     {
-      name: "contributions-independent-of-annotation-layout",
+      name: "core-independent-of-overlay",
       comment:
-        "Shared contribution records, activation and controls do not choose annotation geometry.",
+        "Core owners cannot load the selected package's physical annotation graph.",
       severity: "error",
-      from: { path: isOneOf(["contributions.js", "contribution-controls.js"]) },
-      to: {
-        reachable: true,
-        path: isOneOf(["margin-layout.js", "margin-projection.js"]),
-      },
-    },
-    {
-      name: "content-layout-independent-of-annotation-layout",
-      comment:
-        "Authored residents share one content geometry owner without loading annotation geometry.",
-      severity: "error",
-      from: { path: isModule("content-layout.js") },
-      to: {
-        reachable: true,
-        path: isOneOf(["margin-layout.js", "margin-projection.js"]),
-      },
+      from: { path: `^${runtime}` },
+      to: { reachable: true, path: `^${overlay}` },
     },
     {
       name: "no-cycle",
@@ -174,7 +166,7 @@ export default {
         "A cycle has no boot order; whichever module the browser evaluates first " +
         "reads the other's bindings before they exist.",
       severity: "error",
-      from: { path: `^${runtime}` },
+      from: { path: owners },
       to: { circular: true },
     },
     {
@@ -201,9 +193,11 @@ export default {
   ],
   options: {
     moduleSystems: ["es6"],
-    exclude: { path: [`^${assets}(?!runtime/)`, "^/vendor/"] },
+    // /checks probes are supplied by the Python server, outside the runtime graph.
+    exclude: { path: [`^${assets}(?!runtime/)`, "^/vendor/", "^/checks/"] },
     // Resolve as the browser does: a specifier names its file exactly. Without this,
     // `./repaint` finds `repaint.js` and passes here while the browser 404s it.
     enhancedResolveOptions: { extensions: [] },
+    webpackConfig: { fileName: ".dependency-cruiser-resolve.mjs" },
   },
 };

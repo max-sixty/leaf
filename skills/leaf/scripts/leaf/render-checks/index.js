@@ -10,3 +10,4 @@ export * from "./replay.js";
 export * from "./runtime.js";
 export * from "./widgets.js";
 export * from "./words.js";
+export * from "./view.js";

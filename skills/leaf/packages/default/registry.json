@@ -130,6 +130,19 @@
     "x-upgrade": true,
     "x-example": "<lf-text-document id=\"leaf-skill\" source=\"leaf-skill\" language=\"markdown\"></lf-text-document>"
   },
+  "lf-annotation-rail": {
+    "description": "An authored-flow rail for Threads, Asks, action and status contributions, updates, and the active comment editor.",
+    "x-instructions": "Select data-annotations=page on body and place one empty rail with a stable id where the document should show annotations. Allocate its width and height in page CSS; it scrolls within that box. Omit it to use the core Threads panel. Native disclosures retain their open state and the shared Thread renderer owns conversations and replies.",
+    "type": "object",
+    "properties": {
+      "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"}
+    },
+    "required": ["id"],
+    "additionalProperties": false,
+    "x-content": "empty",
+    "x-upgrade": true,
+    "x-example": "<lf-annotation-rail id=\"page-annotations\"></lf-annotation-rail>"
+  },
   "lf-toc": {
     "description": "An outline of the document’s h2–h6 headings for navigating its sections and showing the reader’s position.",
     "x-instructions": "Set max-level when deeper headings are local detail rather than navigation destinations; omit it to include h2–h6. Use stable authored section or heading ids for links that must keep their target across versions; generated heading ids are not addresses for comments or page state. Write the element empty with a stable id.",

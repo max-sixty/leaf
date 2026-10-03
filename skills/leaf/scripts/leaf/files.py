@@ -14,7 +14,7 @@ from typing import TypeVar
 
 from .locations import path_location
 from .schema import REVISION_NAME, VERSION_NAME
-from .session_cleanup import replace_bytes
+from .state import replace_bytes
 
 # The name an atomic write stages under, beside its target, for the moment before the
 # rename (`replace_files` below). A reader of the directory looks past it: it is not yet
@@ -49,7 +49,7 @@ def file_stamp(path: Path):
     stamps as None, which keeps nothing and reads every time.
 
     Every freshness key in leaf is built from these stamps — the page's reading that
-    `leaf wait`, the news stream and activation follow, neighbour discovery, and the
+    `leaf wait`, browser freshness reads and activation follow, neighbour discovery, and the
     caches of parsed files — so this is where a stamp is made exact. The time alone is
     not, while `write_clock` is still in the tick that stamped the last write: a second
     write inside it, to the same size, would leave the stamp unmoved — a data file
@@ -114,14 +114,13 @@ def entry_stamps(directory: Path, ignored: Collection[str]) -> list[tuple[str, o
     )
 
 
-# How often a reader waiting on a page looks for news: the browser's news stream,
-# `leaf page events --follow`, and `leaf wait`. The look is a re-stat rather than an
+# How often a synchronous reader waiting on page files looks for news:
+# `leaf page events --follow` and `leaf wait`. The look is a re-stat rather than an
 # in-process signal because an append does not have to come from the reader's process —
 # `leaf thread reply` and every other command write these same files from outside a server,
 # and a follower has no server at all — so one mechanism covers a browser's POST and an
-# agent's command alike. Measured at 70us a look of the whole page, 0.14% of a core per
-# open tab, against the full state read and log parse a timed poll cost every two
-# seconds whether or not anything had happened.
+# agent's command alike. The browser chooses its own finite request cadence in
+# `state-feed.js`; the same file stamps name changes at either boundary.
 LOOK_S = 0.05
 
 

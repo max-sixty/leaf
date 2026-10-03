@@ -338,6 +338,13 @@ export class HeldReading {
   }
 
   hold(reading) {
+    // Preparation can draw partial authored contributions before the complete log
+    // arrives. That is no baseline for news: the first ready reading stands whole.
+    if (readApplication().phase !== "ready") {
+      this.#shown = null;
+      this.#stop();
+      return reading;
+    }
     const nodes = this.#region();
     if (
       this.#released ||

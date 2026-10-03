@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>Measurement review: decide the next sampling run</title>
+    <meta
+      name="description"
+      content="Review illustrative sensor measurements, decide how to repeat the sampling run, and keep anchored conversations in an allocated annotation workspace."
+    />
+    <style>
+      #aw-regions {
+        display: grid;
+        grid-template-columns: minmax(0, 2fr) minmax(20rem, 1fr);
+        gap: var(--sp-4);
+        min-block-size: 0;
+      }
+      #aw-research,
+      #aw-conversations {
+        min-inline-size: 0;
+        min-block-size: 0;
+      }
+      #aw-conversations {
+        display: flex;
+        flex-direction: column;
+        gap: var(--sp-3);
+      }
+      #aw-conversations > h2 {
+        margin: 0;
+        flex: none;
+      }
+      #aw-annotations {
+        inline-size: 100%;
+        block-size: 100%;
+        min-block-size: 0;
+        flex: 1 1 0;
+      }
+      #aw-navigation {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--sp-3);
+      }
+      @media (width < 720px), (height < 480px) {
+        #aw-regions {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        #aw-annotations {
+          block-size: clamp(18rem, 55svh, 30rem);
+          flex: none;
+        }
+      }
+    </style>
+  </head>
+  <body data-annotations="page">
+    <main class="layout-workspace">
+      <header>
+        <h1>Measurement review</h1>
+        <nav id="aw-navigation" aria-label="Review regions">
+          <a href="#aw-finding">Finding</a>
+          <a href="#aw-next-run">Next run</a>
+          <a href="#aw-conversations">Conversations</a>
+        </nav>
+      </header>
+
+      <div id="aw-regions">
+        <lf-pane id="aw-research" label="Sampling evidence">
+          <header><h2>Repeat before changing the calibration</h2></header>
+          <div id="aw-evidence">
+            <p id="aw-finding">
+              The third block has a wider range. Repeat with unchanged calibration
+              before treating it as a persistent change.
+            </p>
+            <table id="aw-measurements">
+              <caption>
+                Illustrative sensor readings from one bench session
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">Block</th>
+                  <th scope="col">Readings (mV)</th>
+                  <th scope="col">Range (mV)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">First</th>
+                  <td>10.1, 10.2, 10.0, 10.1</td>
+                  <td>0.2</td>
+                </tr>
+                <tr>
+                  <th scope="row">Second</th>
+                  <td>10.2, 10.1, 10.3, 10.2</td>
+                  <td>0.2</td>
+                </tr>
+                <tr>
+                  <th scope="row">Third</th>
+                  <td>9.7, 10.5, 10.0, 10.6</td>
+                  <td>0.9</td>
+                </tr>
+              </tbody>
+            </table>
+            <section id="aw-run-decision">
+              <lf-ask id="aw-next-run">
+                <h3>How should the repeat be sampled?</h3>
+                <p>
+                  Keep the sensor, calibration and interval fixed. Four readings match
+                  the earlier blocks; eight give more evidence about the range.
+                </p>
+                <lf-options id="aw-sampling" choose>
+                  <lf-option id="aw-four-readings">
+                    Four readings · two minutes
+                  </lf-option>
+                  <lf-option id="aw-eight-readings">
+                    Eight readings · four minutes
+                  </lf-option>
+                </lf-options>
+              </lf-ask>
+            </section>
+          </div>
+        </lf-pane>
+
+        <aside
+          id="aw-conversations"
+          aria-labelledby="aw-conversations-heading"
+          tabindex="-1"
+        >
+          <h2 id="aw-conversations-heading">Conversations and actions</h2>
+          <lf-annotation-rail id="aw-annotations"></lf-annotation-rail>
+        </aside>
+      </div>
+      <footer>
+        <p id="aw-comment-route">
+          Select a reading or passage to comment on it. Conversations stay in this
+          workspace; Threads opens the complete discussion.
+        </p>
+      </footer>
+    </main>
+  </body>
+</html>

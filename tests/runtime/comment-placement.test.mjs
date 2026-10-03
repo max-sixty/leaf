@@ -10,7 +10,7 @@ import {
   LEAST_HEIGHT,
   commentPlacement,
   commentSide,
-} from "/runtime/comment-placement.js";
+} from "/runtime/annotation-overlay/comment-placement.js";
 
 const boundary = new DOMRect(8, 50, 1284, 797);
 // A paragraph `width` wide from x = `left`, from y = `top` to `bottom`.
@@ -83,7 +83,7 @@ test("a submitted frame survives supersession until it lands, then follows scrol
       clear,
       boundary,
       row: clear.top,
-      minimum: { width: 320 },
+      minimumWidth: 320,
       scroller: scroller(1000),
       coarse: false,
     };
@@ -109,7 +109,7 @@ test("a submitted frame survives supersession until it lands, then follows scrol
       middlewareData: {
         scaled: {
           scale: { x: 1, y: 1 },
-          reference: scrolled,
+          column: scrolled.right - input.minimumWidth,
           line: card.line(scrolled, scrolled.top),
         },
         held: { height: box.height },

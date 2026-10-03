@@ -41,6 +41,7 @@ export function createThreadDestinations({
     {
       focus = null,
       travel = true,
+      flash = true,
       intent = retainUserIntent(),
       transition = null,
     } = {},
@@ -103,7 +104,7 @@ export function createThreadDestinations({
       }
       if (surfaceFocusTarget(id, { focus: localFocus })) return openSurface();
     }
-    return showThread(id, { focus: focus ?? "reply", flash: travel, intent });
+    return showThread(id, { focus: focus ?? "reply", flash, intent });
   }
   return { openPageThread, threadFocusTarget, threadHere, threadTarget };
 }

@@ -3107,6 +3107,33 @@ def test_the_pointer_over_a_page_mark_lights_its_comment_quote(browser, serve):
     wait_hovered(page, "neighbouring block")
 
 
+@pytest.mark.parametrize("route", ["passage-press", "note-enter"])
+def test_a_page_mark_flashes_its_panel_destination_without_page_travel(
+    browser, serve, route
+):
+    """Opening a thread from its passage still cues the destination in an open panel."""
+    page = open_page(browser, serve(INLINE_PAGE, anchored=[("p", "bold text")]))
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    page.evaluate("""() => {
+      window.__panelArrivalFlashed = false;
+      const thread = document.querySelector('.lf-threads > .lf-thread');
+      const observer = new MutationObserver(() => {
+        if (!thread.classList.contains('flash')) return;
+        window.__panelArrivalFlashed = true;
+        observer.disconnect();
+      });
+      observer.observe(thread, {attributes: true, attributeFilter: ['class']});
+    }""")
+    if route == "passage-press":
+        page.mouse.click(*mark_point(page, "lf-mark"))
+        expect(page.locator(".lf-threads > .lf-thread leaf-text")).to_be_focused()
+    else:
+        comment_note(page, "#p").press("Enter")
+        expect(page.locator(".lf-threads > .lf-thread > summary")).to_be_focused()
+    assert page.evaluate("window.__panelArrivalFlashed"), "the destination lost its cue"
+
+
 def test_a_page_mark_does_not_wash_a_long_thread_card(browser, serve):
     """The reciprocal cue stays at the quote when its thread is taller than the
     list. A short-card case proves selector routing but cannot reproduce the full-panel

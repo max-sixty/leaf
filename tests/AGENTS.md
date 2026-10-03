@@ -11,6 +11,17 @@ move its contract to the lower boundary.
 
 Each helper's docstring owns its contract, and code cites sections here by heading.
 
+Message delivery has one shared journey in `leaf_dev.thread_journey`, whose held
+checkpoints supply the appearance gate in `test_render_thread_snapshots.py`.
+`leaf_dev.thread_snapshots` owns capture, review and acceptance; reviewed PNG images and
+geometry live in `max-sixty/leaf-assets`, governed by `leaf-assets.json`. Run evidence
+stays in `.tmp/`.
+
+Linux browser tests use `tests/fonts.conf` and `fonts-dejavu` for their native
+UI, serif and mono faces, including bold and italic styles. Install that package before `wt setup`; CI installs it
+explicitly. The PNG rendering profile binds the fontconfig and installed font bytes,
+and an actual Chromium font reading verifies those faces. Mac uses its native fonts.
+
 ## Run the narrowest useful surface
 
 The host supplies `wt`, `uv`, `jq` 1.6 or newer, Node 22 or newer, and Docker for the

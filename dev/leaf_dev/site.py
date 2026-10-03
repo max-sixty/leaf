@@ -34,6 +34,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from dataclasses import replace
 from functools import partial
 from html.parser import HTMLParser
 from pathlib import Path
@@ -334,8 +335,14 @@ def publish_examples(out: Path, env: dict) -> None:
         print(f"  {source.stem}")
 
 
-def publish_pages(out: Path, env: dict, assets: Path) -> None:
-    """Canonical interactive product documents and worked examples."""
+def publish_pages(
+    out: Path, env: dict, assets: Path, source_markup: dict[Path, str]
+) -> None:
+    """Publish product documents with build-local markup and authored companions.
+
+    Overrides are private source files, consumed by validation and the final stamp;
+    their versions, data, media and history still come from the authored source.
+    """
     with tempfile.TemporaryDirectory() as tmp:
         template = Path(tmp) / "product-page"
         packages = json.loads((EXAMPLES / "layer.json").read_text(encoding="utf-8"))
@@ -353,13 +360,25 @@ def publish_pages(out: Path, env: dict, assets: Path) -> None:
         leaf(env, "page", "media", str(template), *map(str, product_media))
         # Each product document is checked in the template, then published as a copy.
         for source in product_sources():
-            shutil.copyfile(source, template / "index.html")
+            fixture = read_fixture(source)
+            if source in source_markup:
+                private_source = Path(tmp) / source.name
+                private_source.write_text(source_markup[source], encoding="utf-8")
+                fixture = replace(
+                    fixture,
+                    source=private_source,
+                    versions=tuple(
+                        private_source if version == source else version
+                        for version in fixture.versions
+                    ),
+                )
+            shutil.copyfile(fixture.source, template / "index.html")
             leaf(env, "page", "check", str(template))
             target = product_page(out, source.name)
             shutil.copytree(template, target)
             prepare_page(
                 target,
-                read_fixture(source),
+                fixture,
                 partial(leaf, env),
                 initialize=False,
                 final_status="idle",
@@ -467,11 +486,17 @@ def build_examples(out: Path, *, assets: Path) -> None:
     publish_live_shells(out, assets, include_products=False)
 
 
-def build(out: Path, *, assets: Path | None = None) -> None:
+def build(
+    out: Path,
+    *,
+    assets: Path | None = None,
+    source_markup: dict[Path, str] | None = None,
+) -> None:
+    """Build one site, optionally validating draft markup without editing its sources."""
     assets = assets or pinned_assets()
     shutil.rmtree(out, ignore_errors=True)
     out.mkdir(parents=True)
-    publish_pages(out, environment(), assets)
+    publish_pages(out, environment(), assets, source_markup or {})
     publish_live_shells(out, assets)
     check_links(out)
 

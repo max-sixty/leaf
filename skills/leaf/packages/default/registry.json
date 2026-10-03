@@ -187,7 +187,7 @@
   },
   "lf-options": {
     "description": "Alternatives the user can choose individually or as a set to answer a question.",
-    "x-instructions": "Put a live group inside lf-ask, with shared premises and evidence before the group. Keep each alternative's case and decision-relevant evidence inside its lf-option. Use multiple wherever two selections can both hold; leave it off for mutually exclusive alternatives. The built-in Another option field accepts unlisted answers, so author the alternatives you mean without a catch-all option. Use for only to select sections or work items that exist independently of the decision; do not create sections solely to hold alternatives. To incorporate a user-added option into a revision, keep its id and words as an ordinary lf-option. A multiple-choice Ask still needs the user's Done even when chosen is authored. Use settled to collapse a retired decision while preserving its options and anchors.",
+    "x-instructions": "Keep shared premises and evidence with the group; lf-ask can frame its question and context. Keep each alternative's case and decision-relevant evidence inside its lf-option. Use multiple wherever two selections can both hold; leave it off for mutually exclusive alternatives. The built-in Another option field accepts unlisted answers, so author the alternatives you mean without a catch-all option. Use for only to select sections or work items that exist independently of the decision; do not create sections solely to hold alternatives. To incorporate a user-added option into a revision, keep its id and words as an ordinary lf-option. A multiple-choice Ask still needs the user's Done even when chosen is authored. Use settled to collapse a retired decision while preserving its options and anchors.",
     "type": "object",
     "properties": {
       "id": {
@@ -223,7 +223,6 @@
     "x-word": "module",
     "x-upgrade": true,
     "x-awaits": {
-      "region": true,
       "when": {
         "choose": [
           true
@@ -839,7 +838,7 @@
   },
   "lf-draft": {
     "description": "A block of text the user owns and can rewrite in place, with recorded revision history.",
-    "x-instructions": "Write the draft text verbatim inside pre, HTML-escaping & before < and > and preserving newlines. Use a suggestion for an agent-proposed change to existing prose. A draft has no Ask of its own; put it inside lf-card when its column supplies the verdict, or use page sign-off to approve the page. Preserve the user’s edits on revision. To replace an edited passage deliberately, write the new text and mark the draft restated; read $restated.",
+    "x-instructions": "Write the draft text verbatim inside pre, HTML-escaping & before < and > and preserving newlines. Use a suggestion for an agent-proposed change to existing prose. A draft asks for an edit when needed is present; otherwise it is an optional editing surface. Use lf-ask when that request needs its own heading and supporting evidence, or page sign-off to approve the whole page. Preserve the user’s edits on revision. To replace an edited passage deliberately, write the new text and mark the draft restated; read $restated.",
     "type": "object",
     "properties": {
       "id": {

@@ -19,7 +19,10 @@ builds and CI may discard and reconstruct.
 
 Every reader calls `pinned_assets()`, which fetches on a miss; the command only warms
 the cache, as `wt setup` does. A writer stages its files in a clone and pushes them with
-`publish`, which moves the pin.
+`publish`, which moves the pin and reconciles the catalog's linked images with the
+complete published asset set, including previews another writer has published.
+Draft site validation consumes derived markup in its own build; staging and refused
+publication leave Leaf's consumers unchanged.
 """
 
 import json
@@ -31,8 +34,10 @@ import urllib.request
 from pathlib import Path, PurePosixPath
 
 import click
+from leaf.media import media_name
 
 from leaf_dev import ROOT
+from leaf_dev.example_data import catalog_sources
 
 LOCK = "leaf-assets.json"
 CACHE = ROOT / ".tmp" / "leaf-assets"
@@ -118,7 +123,7 @@ def run(*args: str, cwd: Path) -> str:
 
 def clone(staging: Path) -> Path:
     """Clone the asset repository's current head into `staging`."""
-    repository, _ = specification()
+    repository, _ = specification(ROOT)
     checkout = staging / "leaf-assets"
     run(
         "git",
@@ -130,10 +135,41 @@ def clone(staging: Path) -> Path:
     return checkout
 
 
+def catalog_updates(checkout: Path) -> dict[Path, str]:
+    """Derive changed catalog documents from the selected asset bytes.
+
+    The authored catalog selects the routes; unused files in the asset repository
+    cannot add entries. Unlinked images retain their authored addresses, and pages
+    whose links already name the staged bytes are left untouched.
+    """
+    pages = {
+        path: path.read_text(encoding="utf-8")
+        for path in sorted((ROOT / "docs").glob("*.html"))
+    }
+    originals = dict(pages)
+    for source in catalog_sources():
+        preview = checkout / "examples" / f"example-{source.stem}.jpg"
+        address = media_name(preview.read_bytes(), preview.suffix)
+        pattern = re.compile(
+            rf'(<a\b[^>]*\bhref="/examples/{re.escape(source.stem)}/"[^>]*>'
+            rf'(?:(?!</a>).)*?<img\b[^>]*\bsrc=")'
+            rf'/media/[0-9a-f]{{16}}\.jpg(")',
+            re.DOTALL,
+        )
+        updated = 0
+        for page, markup in pages.items():
+            pages[page], count = pattern.subn(rf"\g<1>/media/{address}\g<2>", markup)
+            updated += count
+        if updated == 0:
+            raise RuntimeError(f"{source.stem}: expected one catalog preview")
+    return {page: markup for page, markup in pages.items() if markup != originals[page]}
+
+
 def stage(directory: str, files: dict[str, bytes], staging: Path) -> Path:
     """Clone the asset repository into `staging` with `directory`'s files exactly
     `files`, for a generator to verify before it publishes. Subdirectories are left
-    alone: `examples/media/` sits inside the previews' `examples/`."""
+    alone: `examples/media/` sits inside the previews' `examples/`. Leaf's catalog,
+    pin and README continue naming published bytes."""
     checkout = clone(staging)
     target = checkout / directory
     target.mkdir(parents=True, exist_ok=True)
@@ -146,12 +182,13 @@ def stage(directory: str, files: dict[str, bytes], staging: Path) -> Path:
 
 
 def publish(checkout: Path, message: str) -> str:
-    """Commit and push a staged checkout, then pin Leaf and its README to it."""
-    repository, _ = specification()
+    """Publish the checkout, then install its pin, README and derived catalog links."""
+    repository, _ = specification(ROOT)
+    updates = catalog_updates(checkout)
     run("git", "add", "-A", cwd=checkout)
     if run("git", "status", "--porcelain", cwd=checkout):
         run("git", "commit", "-m", message, cwd=checkout)
-        run("git", "push", cwd=checkout)
+    run("git", "push", cwd=checkout)
     revision = run("git", "rev-parse", "HEAD", cwd=checkout)
     (ROOT / LOCK).write_text(
         json.dumps({"repository": repository, "revision": revision}, indent=2) + "\n",
@@ -165,6 +202,8 @@ def publish(checkout: Path, message: str) -> str:
         ),
         encoding="utf-8",
     )
+    for page, markup in updates.items():
+        page.write_text(markup, encoding="utf-8")
     return revision
 
 

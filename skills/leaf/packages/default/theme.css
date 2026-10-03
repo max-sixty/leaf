@@ -456,7 +456,7 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
                          + var(--lf-key-badge-size) + var(--sp-2)); }
    & > .lf-another:has(.lf-compose-submit:not([data-lf-empty])) > .lf-key-badge {
                      inset-inline-end: var(--lf-option-write-badge-inset); }
-   & > lf-option:has(> .lf-key-badge[data-lf-ask-binding-badge]) > .lf-pick {
+   & > lf-option:has(> .lf-key-badge[data-lf-binding-badge]) > .lf-pick {
                      opacity: 0; }
  }
 }
@@ -2427,40 +2427,13 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
 
-/* lf-draft rendered form: a block of text the user owns. The dashed border says
-   "editable" and sharpens under the pointer, because the box is the door a press opens
-   (lf-draft.js); the ✎ button is the door the keyboard uses. Newlines in a draft are
-   content, so the body preserves them. A user-edited body differing from authored
-   text is named as the user's change in Page Map. Unupgraded, the same box shows raw
-   text.
-
-   Reading and editing are one box, not a box inside a box. The two views state their
-   shared metrics together — same font (both inherit the page's), same wrapping — and
-   the edit box drops everything the runtime's general textarea rule adds around text
-   that would move it: the padding and border shifted the words 9px right and 6px down,
-   the 64px floor stretched a two-line draft, and inline-block layout left a baseline
-   gap under it. So the word under the press stays under the pointer, which is what makes
-   the gesture worth aiming. field-sizing (that same rule) does the growing, so the box
-   is as tall as its text and no taller — what read mode showed. The affordance moves to
-   the host, since a border on the textarea is a border read mode hasn't got: the dashed
-   border goes solid and accent for as long as an edit is open.
-
-   Edit, Save and Cancel belong to the target's shared contribution surface. The
-   native history disclosure has its own allocated row below the text, in both
-   reading and editing; opening it grows that row to show the version and edits.
-
-   The box being open is a fact about the screen, so the whole swap is scoped to it and
-   the widget's JS writes none of it. Paper drops the box with the other offers, and
-   without this scope it dropped the hidden body too and printed a draft as an empty
-   frame — the words a page states have to survive a medium that has no box to type in,
-   and an unsent edit is not yet among them.
-
-   The ring is inset, which is the metrics above carried out one layer: every word held
-   still and the frame around them did not, because an outset ring paints 2px past the
-   border on every side with the corners rounding wider to match. A shadow costs no
-   layout, so every rect agreed nothing had happened and it took a screenshot diff to
-   find. Inside the border there is padding to paint on and nothing of the page's to
-   disturb. */
+/* A draft keeps the page's type and frame while its shared Markdown editor opens.
+   Plain text retains its reading geometry; Markdown takes the field's common face.
+   Keep the reading body in flow until the editor has content, so its initial layout
+   cannot collapse a scrolled page or pane. Edit, Save and Cancel belong to the target's
+   contribution surface; native history keeps its allocated row below the text.
+   The frame carries the inset focus ring, and print keeps the saved reading body
+   while dropping editing controls. */
 :scope:is(lf-draft) { display: block; border: 1px dashed var(--border-2); border-radius: 6px;
            padding: 10px 14px; margin: 12px 0; background: var(--card); }
 .lf-draft-body, .lf-draft-edit.lf-ui { white-space: pre-wrap; }
@@ -2490,20 +2463,22 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
   :scope:is(lf-draft):has(.lf-draft-edit) { border-style: solid;
     border-color: color-mix(in srgb, var(--accent) 45%, var(--card));
     box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent); }
-  :scope:is(lf-draft):has(.lf-draft-edit:focus-visible) { outline: var(--focus-ring);
+  :scope:is(lf-draft):has(.lf-draft-edit:focus) { outline: var(--focus-ring);
     --lf-focus-ring: draft-editor;
     outline-offset: calc(-1 * (var(--focus-ring-w) + var(--focus-ring-gap))); }
-  :scope:is(lf-draft):has(.lf-draft-edit) > .lf-draft-body { display: none; }
+  :scope:is(lf-draft):has(.lf-draft-edit:state(ready)) > .lf-draft-body { display: none; }
   .lf-draft-history { display: block; }
 
   /* The live draft's second row belongs to its native history disclosure from the
      parser's first paint. The complete reading supplies the real summary; until
      then the same row is empty. Its minimum is the native details spacing and one
-     chrome line, so opening history can grow it without a measured-height cache. */
+     chrome line, so opening history can grow it without a measured-height cache.
+     The text row keeps its content minimum even when the shared field clips overflow,
+     so a bounded draft scrolls its words instead of shrinking that row. */
   @scope (html[data-lf-interactive] :scope) {
     :scope:is(lf-draft):not(:where([data-lf-exhibit], [data-lf-exhibit] *)) {
       display: grid;
-      grid-template-rows: auto minmax(calc(3 * var(--details-padding-block) +
+      grid-template-rows: minmax(min-content, auto) minmax(calc(3 * var(--details-padding-block) +
         var(--details-margin-block) + 2 * var(--details-border) +
         var(--t-5) * var(--lf-ui-lh)), auto);
     }
@@ -2511,7 +2486,7 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
 
 }
 @media (forced-colors: active) {
-  :scope:is(lf-draft):has(.lf-draft-edit:focus-visible){
+  :scope:is(lf-draft):has(.lf-draft-edit:focus){
     outline: 2px solid Highlight; outline-offset: -5px; box-shadow: none;
   }
 }

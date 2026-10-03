@@ -37,7 +37,6 @@ from interact_support import (
     append_carried_log_record,
     append_command,
     available_loopback_port,
-    bind_task_lifetime_to_worker,
     check,
     consume_pending_input,
     fetch,
@@ -49,6 +48,7 @@ from interact_support import (
     page_state,
     publish,
     record_claim,
+    release_codex_command,
     serving,
     spawn_probe,
     stamp,
@@ -10300,6 +10300,7 @@ def test_codex_restart_finishes_an_accepted_batch_without_queueing_again(
     queue = files_model.read_json(record_path)
     queue.update(state="accepted", transport={"phase": "queued", "turn": None})
     codex_model.write_record(record_path, queue)
+    release_start = tmp_path / "release-codex-start"
     started = under_codex(
         shlex.join(
             [
@@ -10316,14 +10317,15 @@ def test_codex_restart_finishes_an_accepted_batch_without_queueing_again(
             "CODEX_THREAD_ID": "codex-thread",
             "FAKE_CODEX_LOG": str(log),
         },
+        hold_until=release_start,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
     )
+    release_codex_command(page, release_start)
     out, err = started.communicate(timeout=60)
     assert started.returncode == 0, f"{out}{err}"
 
-    bind_task_lifetime_to_worker(page)
     try:
         wait_for(
             lambda: files_model.read_json(page / "cursor.json"),
@@ -10404,7 +10406,6 @@ def test_a_later_codex_start_names_the_running_transport(
             "app_server": None,
             "started": False,
         }
-        bind_task_lifetime_to_worker(page)
         release_start.touch()
         out, err = started.communicate(timeout=60)
         assert started.returncode == 0, f"{out}{err}"
@@ -10468,9 +10469,12 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
     )
     announcement = codex_start_announcement(started)
     claim = service_model.page_claim(page)
-    bind_task_lifetime_to_worker(page)
+    before_release = cleanup_model.session_record("codex-thread")
+    release_codex_command(page, release_start)
+    after_release = cleanup_model.session_record("codex-thread")
     assert service_model.page_claim(page)["generation"] == claim["generation"]
-    release_start.touch()
+    assert after_release["generation"] == before_release["generation"]
+    assert after_release["turn"] == before_release["turn"]
     out, err = started.communicate(timeout=60)
     out = announcement + out
     assert started.returncode == 0, f"{out}{err}"
@@ -10637,8 +10641,7 @@ def test_codex_adapter_follows_ownership_across_idle_and_server_stop(
         failure="the detached Codex carrier did not start",
     )
     announcement = codex_start_announcement(started)
-    bind_task_lifetime_to_worker(page)
-    release_start.touch()
+    release_codex_command(page, release_start)
     out, err = started.communicate(timeout=60)
     out = announcement + out
     assert started.returncode == 0, f"{out}{err}"
@@ -10752,8 +10755,7 @@ start_server(live)
         failure="the detached Codex carrier did not start",
     )
     announcement = codex_start_announcement(started)
-    bind_task_lifetime_to_worker(live)
-    release_start.touch()
+    release_codex_command(live, release_start)
     out, err = started.communicate(timeout=60)
     out = announcement + out
     assert started.returncode == 0, f"{out}{err}"
@@ -10818,7 +10820,6 @@ def test_a_codex_adapter_whose_start_was_never_committed_exits(
     page = codex_claimed_page
     program, log = fake_codex_cli(tmp_path)
     # A live owner, so the only thing that can end this adapter is the handshake.
-    bind_task_lifetime_to_worker(page)
     caller, end = socket.socketpair()
     adapter = spawn(
         [
@@ -10854,7 +10855,6 @@ def test_codex_adapter_exits_when_delivery_retries_outlive_its_claim(
     page = codex_claimed_page
     program, log = fake_codex_cli(tmp_path)
     session_model.cmd_status(page, "waiting", "comment on the prototype")
-    bind_task_lifetime_to_worker(page)
     adapter = spawn(
         [*LEAF_COMMAND, "codex", "run", "--codex-path", str(program)],
         env=codex_env
@@ -10913,7 +10913,6 @@ def test_codex_adapter_keeps_transferred_input_unreceived(
     page = codex_claimed_page
     program, log = fake_codex_cli(tmp_path)
     session_model.cmd_status(page, "waiting", "comment on the prototype")
-    bind_task_lifetime_to_worker(page)
     queue_wait = tmp_path / "held-queue"
     adapter = spawn(
         [*LEAF_COMMAND, "codex", "run", "--codex-path", str(program)],
@@ -10990,8 +10989,7 @@ def test_a_queued_codex_delivery_leaves_the_turn_ended_stamp_standing(
         failure="the detached Codex carrier did not start",
     )
     announcement = codex_start_announcement(started)
-    bind_task_lifetime_to_worker(page)
-    release_start.touch()
+    release_codex_command(page, release_start)
     out, err = started.communicate(timeout=60)
     out = announcement + out
     assert started.returncode == 0, f"{out}{err}"
@@ -11163,9 +11161,7 @@ print(json.dumps(codex_adapter.cmd_codex_start(Path(sys.argv[1]), sys.argv[2])),
             assert service_model.page_claim(second) is None
 
         announcement = codex_start_announcement(starter)
-        bind_task_lifetime_to_worker(second)
-        release_start.touch()
-
+        release_codex_command(second, release_start)
         out, err = starter.communicate(timeout=60)
         out = announcement + out
         assert starter.returncode == 0, f"{out}{err}"
@@ -11410,9 +11406,12 @@ def test_hook_remedies_follow_the_host_not_the_display_name(
     env = codex_env | {"CODEX_THREAD_ID": "w1", "LEAF_AGENT": "Indexer"}
     subprocess.run([*LEAF_COMMAND, "page", "init", page], env=env, check=True)
     append_carried_log_record(page, {"kind": "comment", "author": "user", "text": "hi"})
-    waited = under_codex(shlex.join([*LEAF_COMMAND, "wait", str(page)]), env)
+    release_wait = tmp_path / "release-codex-wait"
+    waited = under_codex(
+        shlex.join([*LEAF_COMMAND, "wait", str(page)]), env, hold_until=release_wait
+    )
+    release_codex_command(page, release_wait)
     assert waited.wait(timeout=60) == 0
-    bind_task_lifetime_to_worker(page)
     session_model.cmd_status(page, "waiting", "")
 
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "w1"})

@@ -1,7 +1,7 @@
 {
   "lf-targeting": {
     "description": "A workbench for selecting parts of an authored preview and submitting exact style or prose changes.",
-    "x-instructions": "Put the workbench inside lf-ask when its proposed changes are a question for the user. Supply one real lf-target-preview.",
+    "x-instructions": "Use lf-ask to frame the question and context when they live outside the workbench. Supply one real lf-target-preview.",
     "type": "object",
     "properties": {
       "id": {
@@ -21,7 +21,6 @@
     "x-content": "members",
     "x-upgrade": true,
     "x-awaits": {
-      "region": true,
       "answered": {"submit": {}}
     },
     "x-state": {

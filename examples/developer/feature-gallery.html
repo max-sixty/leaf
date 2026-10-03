@@ -319,7 +319,22 @@
       ]
     </script>
     <script type="module">
-      import { afterPresentation } from "/runtime/widget-api.js";
+      import { afterPresentation, commands } from "/runtime/widget-api.js";
+
+      const localNote = document.querySelector("#bg-shortcut-note");
+      const focusNote = document.querySelector("#bg-shortcut-focus-note");
+      focusNote.addEventListener("click", () => localNote.focus());
+      commands(document.querySelector("#bg-local-shortcuts"), "In the note sample", [
+        {
+          id: "note.focus",
+          contextKeys: ["1"],
+          control: focusNote,
+          bindingBadge: null,
+          title: "Write note",
+          description: "Focus the sample note",
+          run: () => focusNote.click(),
+        },
+      ]);
 
       const pageRoot = document.querySelector(
         'link[rel="canonical"][data-lf-runtime]',
@@ -426,6 +441,22 @@
                 <lf-option id="bg-choice-trail">Trail map</lf-option>
               </lf-options>
             </lf-ask>
+            <section id="bg-widget-shortcut-hints">
+              <h3>Inline hints outside an Ask</h3>
+              <p>
+                Tab into this sample to see <kbd>1</kbd> beside its button. Press it to
+                focus the note: the hint disappears and digits type normally. Leaving
+                the sample withdraws its binding. This command has no Decision role; the
+                shared keyboard renderer paints its requested control-corner hint from
+                the same binding that dispatches the key.
+              </p>
+              <div id="bg-local-shortcuts" tabindex="0">
+                <button id="bg-shortcut-focus-note" type="button">
+                  Write sample note
+                </button>
+                <label>Sample note <input id="bg-shortcut-note" type="text" /></label>
+              </div>
+            </section>
             <p id="bg-core-controls-guide">
               The banner also shows <strong>Threads</strong>, the
               <strong>Versions</strong> menu, <strong>Page Map</strong> (<kbd>g</kbd>
@@ -502,12 +533,13 @@
               ><span class="bg-feature-detail">: editable passages and history</span>
             </h2>
             <p id="bg-editing-guide">
-              “Edit” opens a draft. “Save” records the new text; “Cancel” closes the
-              editor. “Changes” lists saved versions, and “Restore” reapplies one.
+              “Edit” opens the shared Markdown editor. Try emphasis or inline code;
+              “Save” records the exact source, and “Cancel” discards the unsaved edit.
+              “Changes” lists saved versions, and “Restore” reapplies one.
             </p>
             <lf-draft id="bg-draft">
               <pre>
-Write a different invitation here. Try a few lines to see the editor grow.</pre>
+Write a **different invitation** here. Try a few lines to see the editor grow.</pre>
             </lf-draft>
             <p id="bg-history-guide">
               <strong>Picked up</strong> means the saved edit entered an agent turn. The
@@ -821,16 +853,16 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
             </p>
             <p id="bg-wide-passage-guide">
               <strong>A passage in a wide block.</strong> Select the words in the
-              <code>does</code> value below. The comment field follows the passage's
-              inline start while standing clear of the code block. Send a comment: its
-              thread keeps that attachment.
+              <code>description</code> value below. The comment field follows the
+              passage's inline start while standing clear of the code block. Send a
+              comment: its thread keeps that attachment.
             </p>
             <pre
               id="bg-wide-passage"
               data-width="wide"
-            ><code class="language-javascript">const decision = {
-  label: "Keep",
-  does: "keep the active card",
+            ><code class="language-javascript">const command = {
+  title: "Keep",
+  description: "keep the active card",
 };</code></pre>
             <p id="bg-markdown-draft">
               <strong>Markdown as you type.</strong> Every box Leaf gives you to write

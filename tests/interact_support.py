@@ -520,8 +520,9 @@ def stamp_activation(d):
     log with transitions allowed, ahead of the note that records them."""
     from leaf.validation.source import check_source
 
-    checked = check_source(d, events_model.read_events(d), allow_transition=True)
-    return revisioning_model.activate_checked_source(d, checked)
+    with service_model.PageTransaction(d) as page:
+        checked = check_source(d, page.events, allow_transition=True)
+        return revisioning_model.activate_checked_source(page, checked)
 
 
 def publish(d, version=1):

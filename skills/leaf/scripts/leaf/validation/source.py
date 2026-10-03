@@ -52,6 +52,7 @@ from leaf.validation.source_history import (
     PredecessorReading,
     continuity_errors,
     predecessor_reading,
+    quote_reanchors,
     transition_errors,
     transition_reading,
 )
@@ -69,6 +70,8 @@ class SourceCheck(NamedTuple):
     errors: list[str]
     advice: list[str]
     artifact: RevisionArtifact | None = None
+    reanchors: dict | None = None
+    revision: PredecessorReading = NO_PREDECESSOR
 
     @property
     def document(self) -> SourceDocument:
@@ -369,4 +372,9 @@ def check_source(
         dropped_advice,
         artifact,
     )
-    return SourceCheck(reading, registry, errors, advice, artifact)
+    reanchors, anchor_errors, anchor_advice = quote_reanchors(
+        events, reading, revision, candidate_revision=revision.candidate
+    )
+    errors.extend(anchor_errors)
+    advice.extend(anchor_advice)
+    return SourceCheck(reading, registry, errors, advice, artifact, reanchors, revision)

@@ -274,12 +274,14 @@ def _current_anchor(
     section: str,
     part: str,
     revision: int | None = None,
+    *,
+    transaction=None,
 ) -> tuple[int, dict | None]:
     """Capture one optional target against the page's active reading."""
     if revision is None:
         from leaf.revisioning import activate_source
 
-        activation = activate_source(page_dir)
+        activation = activate_source(page_dir, transaction=transaction)
         if activation.error and (quote or section or part):
             sys.exit(f"cannot use invalid index.html: {activation.error}")
         revision = require_revision(page_dir)
@@ -353,7 +355,9 @@ def cmd_comment(
         run_markup(page_dir, "comment", markup)
     with PageTransaction(page_dir) as page:
         events = page.events
-        revision, anchor = _current_anchor(page_dir, events, quote, section, part)
+        revision, anchor = _current_anchor(
+            page_dir, events, quote, section, part, transaction=page
+        )
         if markup:
             check_markup(page_dir, "comment", markup, events)
         event = {
@@ -579,21 +583,19 @@ def cmd_reply(
                 and (page_dir / "index.html").read_bytes()
                 == revision_path(page_dir, active).read_bytes()
             )
-            if detach or section:
+            if relocating:
                 source_events = [
                     *events,
                     {
                         "kind": "reply",
                         "id": "prospective-anchor-transition",
+                        "author": "agent",
+                        "text": body,
+                        "seq": events[-1]["seq"] + 1,
+                        "ts": "pending",
                         "parent": to,
-                        "anchor": (
-                            None
-                            if detach
-                            else {
-                                "section": section,
-                                **({"visual": part} if part else {}),
-                            }
-                        ),
+                        "anchor": None,
+                        **({"responds": for_event} if for_event is not None else {}),
                     },
                 ]
             if source_matches_active:
@@ -644,20 +646,20 @@ def cmd_reply(
                     f"({', '.join(f'<{tag}>' for tag in structural)})"
                 )
         if not source_matches_active:
-            from leaf.revisioning import activate_checked_source
+            from leaf.revisioning import planned_activation
 
-            activation = activate_checked_source(page_dir, checked)
-            if activation.error:
-                operation = "reply" if validate_source else "detach"
-                sys.exit(
-                    f"cannot {operation} while index.html is invalid: {activation.error}"
-                )
-            reply_revision = activation.revision
+            reply_revision = planned_activation(page_dir, checked).revision
         if prospective_anchor is not None:
             revision, anchor = reply_revision, prospective_anchor
         elif moving:
             revision, anchor = _current_anchor(
-                page_dir, events, quote, section, part, revision=reply_revision
+                page_dir,
+                events,
+                quote,
+                section,
+                part,
+                revision=reply_revision,
+                transaction=page,
             )
         elif detach:
             revision, anchor = reply_revision, None
@@ -683,6 +685,10 @@ def cmd_reply(
             event["revision"] = revision or latest_revision(page_dir)
         if relocating:
             event["anchor"] = anchor
+        if not source_matches_active:
+            from leaf.revisioning import publish_checked_event
+
+            return publish_checked_event(page, checked, event)
         return append_admitted(page, event)
 
 
@@ -945,7 +951,7 @@ def cmd_report(
             sys.exit(f"detail fields are name=value, got {field!r}")
         detail[name] = value
     with PageTransaction(page_dir) as page:
-        activate_source(page_dir)
+        activate_source(page_dir, transaction=page)
         event = {
             "kind": "report",
             "author": "agent",

@@ -109,7 +109,7 @@ def test_stylesheets_rebase_nested_imports_urls_and_preserve_inert_values():
 """
     delivered = deliver_resource(
         Resource(source.encode(), "text/css"), "/page/styles/main.css", ADDRESS
-    ).decode()
+    ).data.decode()
 
     assert f'@import "{ROOT}/page/styles/theme.css" layer(palette);' in delivered
     assert f'url("{ROOT}/page/shared.css") screen;' in delivered
@@ -152,7 +152,7 @@ main { background: image-set("./a.png" 1x, url(./b.png) 2x); }
     assert set(captured.dependencies) == expected
     assert "/page/ignored.css" not in artifact.resources
 
-    delivered = deliver_resource(captured, "/page/style.css", ADDRESS).decode()
+    delivered = deliver_resource(captured, "/page/style.css", ADDRESS).data.decode()
     assert {path for path in expected if f'"{ROOT}{path}"' in delivered} == expected
     assert '@import "./ignored.css"; @import url(./ignored.css);' in delivered
 
@@ -176,7 +176,7 @@ const plain = "../helper.js";
         Resource(source, "application/javascript"),
         "/page/widgets/lf-local.js",
         ADDRESS,
-    )
+    ).data
     assert delivered == source.replace(
         b'from "../helper.js"', f'from "{ROOT}/page/helper.js"'.encode()
     ).replace(
@@ -195,13 +195,13 @@ const plain = "../helper.js";
             "/runtime/state.js",
         ),
     ):
-        assert deliver_resource(resource, path, ADDRESS) == resource.data
+        assert deliver_resource(resource, path, ADDRESS) is resource
     assert (
         deliver_resource(
             Resource(b'.mark { mask: url("/icon.svg") }', "text/css"),
             "/runtime/chrome.css",
             ADDRESS,
-        )
+        ).data
         == f'.mark {{ mask: url("{ROOT}/icon.svg") }}'.encode()
     )
 

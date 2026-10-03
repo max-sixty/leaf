@@ -38,11 +38,16 @@ PAINTED = """() => new Promise((done) => requestAnimationFrame(() =>
   requestAnimationFrame(done)))"""
 
 
+def paint(page):
+    """Let Chrome paint before sampling native layout shifts."""
+    page.evaluate(PAINTED)
+    page.screenshot()
+
+
 def field_page(browser, key=""):
     page = browser.new_page()
     page.goto("data:text/html," + quote(FIELD))
-    page.evaluate(PAINTED)
-    page.screenshot()
+    paint(page)
     page.evaluate("key => { document.body.dataset.key = key; }", key)
     return page
 
@@ -581,8 +586,7 @@ def test_typing_into_a_holder_still_sliding_in_is_the_slide_s(browser):
       opener.addEventListener('click', () => document.getElementById('foot').animate(
         [{ transform: 'translateX(-200px)' }, { transform: 'none' }], 3000));
     }""")
-    page.evaluate(PAINTED)
-    page.screenshot()
+    paint(page)
     page.locator("#open-slide").click()
     page.locator("#field").fill("a")
     page.locator("#field").fill("ab")
@@ -938,8 +942,7 @@ def test_typing_keeps_its_field_when_chrome_reports_only_larger_sources(browser)
         });</script></body>"""
         )
     )
-    page.evaluate(PAINTED)
-    page.screenshot()
+    paint(page)
     page.locator("#field").fill("a")
     page.screenshot()
     judge_watches()
@@ -1001,8 +1004,7 @@ def test_a_wheel_gesture_does_not_own_later_passive_carry(browser):
     }, {once:true})""")
     page.mouse.wheel(0, 100)
     page.wait_for_function("document.querySelector('#above').style.height === '20px'")
-    page.evaluate(PAINTED)
-    page.screenshot()
+    paint(page)
     judge_watches()
     page.evaluate(PAINTED)
     page.evaluate("document.querySelector('#above').style.height = '40px'")
@@ -1132,8 +1134,7 @@ def test_native_anchor_scroll_retains_local_motion_proof(browser, fault):
 <script>field.addEventListener('beforeinput',()=>{{scroller.scrollTop+=20;evidence.style.left='30px';{change}}})</script></body>""")
     )
     page.evaluate("scroller.scrollTop=20")
-    page.evaluate(PAINTED)
-    page.screenshot()
+    paint(page)
     before = page.locator("#field").bounding_box()
     page.locator("#field").fill("a")
     page.screenshot()
@@ -1161,8 +1162,7 @@ def test_owned_animation_retains_local_motion_through_next_gesture(browser, faul
 <div id="panel" style="margin-left:350px"><textarea id="field"></textarea><p>Retained reading</p></div>
 <script>function move(){window.motion=panel.animate([{marginLeft:'350px'},{marginLeft:'0px'}],{duration:700,fill:'forwards'})}document.getElementById('open').addEventListener('click',move)</script>""")
     )
-    page.evaluate(PAINTED)
-    page.screenshot()
+    paint(page)
     if fault == "passive":
         page.evaluate("move()")
     else:
@@ -1221,12 +1221,10 @@ def test_unused_anchor_cannot_bank_an_earlier_scroll(browser, mode):
             )
         )
     )
-    page.evaluate(PAINTED)
-    page.screenshot()
+    paint(page)
     before = page.locator("#field").bounding_box()
     page.evaluate("scroller.scrollTop=20")
-    page.evaluate(PAINTED)
-    page.screenshot()
+    paint(page)
     assert page.locator("#field").bounding_box() == before
     change = "field.style.marginTop='-20px'"
     page.evaluate(
@@ -1252,8 +1250,7 @@ GESTURE_MOTION = """<!doctype html><body style="margin:0"><button id="open">Open
 def gesture_motion_page(browser):
     page = browser.new_page()
     page.goto("data:text/html," + quote(GESTURE_MOTION))
-    page.evaluate(PAINTED)
-    page.screenshot()
+    paint(page)
     return page
 
 
@@ -1277,12 +1274,10 @@ def test_gesture_close_does_not_own_future_or_local_motion(browser, fault):
     page = gesture_motion_page(browser)
     page.locator("#open").click()
     page.locator("#other").click()
-    page.evaluate(PAINTED)
-    page.screenshot()
+    paint(page)
     if fault == "late_unowned":
         page.evaluate("() => motion.finished")
-        page.evaluate(PAINTED)
-        page.screenshot()
+        paint(page)
         page.evaluate(
             "window.late = panel.animate([{marginTop:'0px'},{marginTop:'80px'}],{duration:250,fill:'forwards'})"
         )
@@ -1543,8 +1538,7 @@ def test_native_clipping_preserves_only_painted_carry(
         layout=None,
     )
     page = open_page(browser, serve(source))
-    page.evaluate(PAINTED)
-    page.screenshot()
+    paint(page)
     state = page.evaluate("""async()=>{
       const field=document.querySelector('#field'), box=field.getBoundingClientRect();
       const geometry=await window.__lfRuntimeImport('/runtime/geometry.js');
@@ -1586,16 +1580,13 @@ def test_new_anchor_relation_cannot_credit_scroll_before_activation(browser, mod
             """<!doctype html><body style="margin:0"><div id="scroller" style="height:140px;width:300px;overflow:auto"><div style="height:400px"><div id="target" style="anchor-name:--target;margin-top:60px;width:70px;height:30px">Target</div></div></div><textarea id="field" style="position:fixed;position-anchor:--target;left:0;top:200px"></textarea><div id="evidence" style="position:absolute;left:10px;top:400px;width:300px;height:60px;background:red"></div></body>"""
         )
     )
-    page.evaluate(PAINTED)
-    page.screenshot()
+    paint(page)
     before = page.locator("#field").bounding_box()
     page.evaluate("scroller.scrollTop=20")
-    page.evaluate(PAINTED)
-    page.screenshot()
+    paint(page)
     assert page.locator("#field").bounding_box() == before
     page.evaluate("field.style.top='calc(anchor(top) + 160px)'")
-    page.evaluate(PAINTED)
-    page.screenshot()
+    paint(page)
     assert page.locator("#field").bounding_box() == before
     if mode == "typing":
         page.evaluate(
@@ -1604,8 +1595,7 @@ def test_new_anchor_relation_cannot_credit_scroll_before_activation(browser, mod
         page.locator("#field").fill("a")
     else:
         page.keyboard.press("Shift")
-        page.evaluate(PAINTED)
-        page.screenshot()
+        paint(page)
         page.evaluate("()=>{field.style.marginTop='-20px';evidence.style.left='50px'}")
     page.screenshot()
     page.evaluate(PAINTED)
@@ -1655,14 +1645,12 @@ def test_real_factory_invalidates_nonwindow_and_stopped_tenure(browser, serve, f
         "newStoppedTenure": True,
         "sameStoppedSubject": True,
     }, state
-    page.evaluate(PAINTED)
-    page.screenshot()
+    paint(page)
     assert page.locator("#holder").bounding_box() == initial
     judge_watches()
     assert take_browser_errors(page) == []
     page.keyboard.press("Shift")
-    page.evaluate(PAINTED)
-    page.screenshot()
+    paint(page)
     if fault:
         page.evaluate(
             """fault=>{document.querySelector(fault==='holder'?'#holder':'#field').style.marginLeft='80px';document.querySelector('#evidence').style.marginLeft='40px'}""",
@@ -1689,8 +1677,7 @@ def test_native_activation_owns_its_release_not_later_motion(browser, mode, faul
             """<!doctype html><body style="margin:0"><button id="open" style="position:fixed;left:400px;top:0">Open</button><div id="above"></div><textarea id="field"></textarea><script>document.querySelector('#open').addEventListener('click',()=>document.querySelector('#above').style.height='40px')</script></body>"""
         )
     )
-    page.evaluate(PAINTED)
-    page.screenshot()
+    paint(page)
     before = page.locator("#field").bounding_box()
     if fault == "synthetic":
         page.locator("#open").evaluate("n=>n.click()")
@@ -1702,14 +1689,12 @@ def test_native_activation_owns_its_release_not_later_motion(browser, mode, faul
         else:
             page.locator("#open").focus()
             page.keyboard.down("Space")
-        page.evaluate(PAINTED)
-        page.screenshot()
+        paint(page)
         if mode == "pointer":
             page.mouse.up()
         else:
             page.keyboard.up("Space")
-    page.evaluate(PAINTED)
-    page.screenshot()
+    paint(page)
     judge_watches()
     errors = take_browser_errors(page)
     assert page.locator("#field").bounding_box()["y"] - before["y"] == 40
@@ -1718,11 +1703,9 @@ def test_native_activation_owns_its_release_not_later_motion(browser, mode, faul
     else:
         assert errors == [], errors
         if fault == "late":
-            page.evaluate(PAINTED)
-            page.screenshot()
+            paint(page)
             page.evaluate("document.querySelector('#above').style.height='80px'")
-            page.evaluate(PAINTED)
-            page.screenshot()
+            paint(page)
             judge_watches()
             errors = take_browser_errors(page)
             assert any("textarea#field moved without input" in e for e in errors), (
@@ -1739,19 +1722,16 @@ def test_native_pointer_motion_owns_only_an_active_drag(browser, pressed):
             """<!doctype html><body style="margin:0"><button id="grip" style="position:fixed;left:400px;top:0">Drag</button><div id="above"></div><textarea id="field"></textarea></body>"""
         )
     )
-    page.evaluate(PAINTED)
-    page.screenshot()
+    paint(page)
     page.mouse.move(405, 5)
     if pressed:
         page.mouse.down()
-    page.evaluate(PAINTED)
-    page.screenshot()
+    paint(page)
     page.evaluate(
         "document.addEventListener('pointermove',()=>document.querySelector('#above').style.height='40px')"
     )
     page.mouse.move(410, 10)
-    page.evaluate(PAINTED)
-    page.screenshot()
+    paint(page)
     judge_watches()
     errors = take_browser_errors(page)
     assert page.locator("#field").bounding_box()["y"] == 40
@@ -1776,8 +1756,7 @@ def test_long_held_native_anchor_keeps_complete_history(browser, fault):
 <textarea id="field" style="position:fixed;position-anchor:--target;top:calc(anchor(top) + 10px);left:400px"></textarea>
 <p id="evidence" style="position:absolute;left:10px;top:400px">Paint evidence</p></body>""")
     )
-    page.evaluate(PAINTED)
-    page.screenshot()
+    paint(page)
     initial = page.locator("#field").bounding_box()
     page.evaluate(
         "() => {window.nativeEntries=[];new PerformanceObserver(list=>nativeEntries.push(...list.getEntries().map(e=>e.startTime))).observe({type:'layout-shift'})}"
@@ -1789,14 +1768,12 @@ def test_long_held_native_anchor_keeps_complete_history(browser, fault):
     page.evaluate(PAINTED)
     page.wait_for_timeout(10400)
     page.evaluate("ancestor.style.opacity='.9'")
-    page.evaluate(PAINTED)
-    page.screenshot()
+    paint(page)
     page.evaluate(
         "fault=>{scroller.scrollTop=20;if(fault){field.style.marginTop='10px';evidence.style.left='30px'}}",
         fault,
     )
-    page.evaluate(PAINTED)
-    page.screenshot()
+    paint(page)
     judge_watches()
     errors = take_browser_errors(page)
     after = page.locator("#field").bounding_box()
@@ -1826,13 +1803,11 @@ def test_owned_native_finish_records_the_applied_endpoint(browser, local_carry):
   motion.finished.then(()=>queueMicrotask(()=>motion.cancel()));
 })</script></body>""")
     )
-    page.evaluate(PAINTED)
-    page.screenshot()
+    paint(page)
     page.locator("#open").click()
     page.evaluate(PAINTED)
     page.locator("#other").click()
-    page.evaluate(PAINTED)
-    page.screenshot()
+    paint(page)
     page.evaluate("""() => {
       window.finishPaint=[];
       new PerformanceObserver(list=>finishPaint.push(...list.getEntries().map(entry=>entry.startTime)))
@@ -1851,8 +1826,7 @@ def test_owned_native_finish_records_the_applied_endpoint(browser, local_carry):
     )
     assert before["state"] == "running"
     assert before["translation"] > 1
-    page.evaluate(PAINTED)
-    page.screenshot()
+    paint(page)
     page.wait_for_function("finishPaint.length > 0")
     after = page.locator("#field").bounding_box()
     assert (

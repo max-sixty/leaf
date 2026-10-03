@@ -147,25 +147,17 @@ def hidden_editor_carets(page: Page):
 
 
 class SnapshotRun:
-    """One case's captures, compared by the installed pytest image-snapshot fixture."""
+    """Compare one case's captures using the store Path resolved by pytest."""
 
     def __init__(
-        self, browser_version, case, compare, *, output, store=None, updating=False
+        self, browser_version, case, compare, *, output, store: Path, updating=False
     ):
         self.profile = render_profile(browser_version)
         self.case = case
         self.compare = compare
         self.output = Path(output) / case.name
         self.output.mkdir(parents=True, exist_ok=True)
-        if updating and store is None:
-            raise ValueError("snapshot capture requires --thread-snapshot-store")
-        self.store = (
-            (Path(store) if Path(store).is_absolute() else ROOT / store)
-            if store
-            else None
-        )
-        if self.store is None:
-            raise ValueError("snapshot comparison requires an expected store")
+        self.store = store
         self.updating = updating
         self.failures = []
         self.observations = {}

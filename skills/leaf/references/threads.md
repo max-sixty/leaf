@@ -85,11 +85,19 @@ each move in the thread still owes as its workflow's `answer`. When the source
 changed, the reply validates and activates it before posting, so an edit and its
 answer cross one command boundary.
 
-When the change leaves the same subject at a new passage, move the open thread onto
-that result in the same reply. If the edit also removes the old target, name the
-replacement's section; a quote can narrow that section, and a diagram should use its
-declared stable visual part. A bare quote cannot license removing its old target in the
-same edit, so move the thread with it first:
+## Preserve revised anchors
+
+When a revision rewrites a quoted passage, preserve every affected open thread,
+including threads you are not answering this turn. `leaf page check` lists each
+quote that no longer identifies one passage. Activation moves those threads to
+their own surviving sections automatically, recording an anchor transition without
+adding a message or answering an outstanding move. A surviving unique quote keeps
+its precise attachment; repeated words require unique stored context.
+
+Prefer the passage that replaced the quote when you know it: move the thread onto
+that result in the reply reporting the change. A quote can narrow its section,
+and a diagram should use its declared stable visual part. A bare replacement quote
+can also move a thread whose old element the edit removes:
 
 ```bash
 leaf thread reply <page> --section <element-id> --quote "<new passage>" --text "Updated this and moved the thread to the result."
@@ -98,7 +106,9 @@ leaf thread reply <page> --section <diagram-id> --part node:<source-id> --text "
 ```
 
 When the subject itself leaves the page, detach the thread instead of moving it onto
-nearby surviving content:
+nearby surviving content. A thread with no surviving section needs an explicit move
+or detachment before that revision can activate; the check names the thread and the
+reply that corrects it:
 
 ```bash
 leaf thread reply <page> --detach --text "Removed this; the thread no longer has a page target."

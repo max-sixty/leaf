@@ -17,6 +17,7 @@ from leaf import cli as cli_model
 from leaf import delivery as delivery_model
 from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
+from leaf import files as files_model
 from leaf import service as service_model
 from leaf.hook_carrier import hook_acknowledgement
 from leaf.registry import validation as registry_validation
@@ -191,7 +192,8 @@ def test_how_it_works_quotes_the_real_check_and_stamp_lines(page_dir):
     A shown line is a promise about what the user will see. The changelog is the
     page's own, so the stamp record is generated here with the transcript's text and
     compared field by field: a renamed or added field has to be written into the page
-    before this passes again. Only the record's identity and time differ per run.
+    before this passes again. Record, voice and captured artifact identities differ
+    per page; the artifact coordinate must match its committed revision marker.
     """
     checked = CliRunner().invoke(cli_model.cli, ["page", "check", str(page_dir)])
     assert checked.exit_code == 0, checked.output
@@ -212,7 +214,12 @@ def test_how_it_works_quotes_the_real_check_and_stamp_lines(page_dir):
     shown = json.loads(lines[command + 1])
     record = json.loads(stamped.output)
     assert shown.keys() == record.keys()
-    per_run = {"id", "ts", "session", "agent"}
+    assert (
+        record["publication"]
+        == files_model.revision_path(page_dir, record["revision"]).stem
+    )
+    assert re.fullmatch(r"r1-[0-9a-f]{16}", shown["publication"])
+    per_run = {"id", "ts", "session", "agent", "publication"}
     assert {k: v for k, v in shown.items() if k not in per_run} == {
         k: v for k, v in record.items() if k not in per_run
     }

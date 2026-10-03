@@ -65,6 +65,7 @@ from render_cases_navigation import (
 )
 from render_harness import (
     EXAMPLES,
+    FEATURE_GALLERY,
     INLINE_PAGE,
     LONG_PAGE,
     PASSAGE_SOURCES,
@@ -503,6 +504,62 @@ def test_browser_and_file_captures_stop_at_the_same_widget_fences(
         # send landed on the passage, and letting go of it takes the card.
         page.keyboard.press("Escape")
         expect(page.locator(".lf-margin-preview")).to_be_hidden()
+
+
+def test_gallery_revision_preserves_every_open_quoted_thread(browser, serve):
+    """A served gallery revision keeps two discussions beside their revised subject."""
+    url = live_url(serve(FEATURE_GALLERY))
+    roots = []
+    for quote in ("first draft", "early estimate"):
+        result = CliRunner().invoke(
+            cli_model.cli,
+            [
+                "thread",
+                "open",
+                str(serve.page_dir),
+                "--section",
+                "bg-revised-quotes",
+                "--quote",
+                quote,
+                "--text",
+                "Discuss the release wording.",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        roots.append(json.loads(result.output))
+    page = open_page(browser, url)
+    page.locator("#bg-gallery-tabs").get_by_role("tab", name="Threads").click()
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    for root in roots:
+        expect(
+            page.locator(f'.lf-thread[data-id="{root["id"]}"] .lf-quote')
+        ).to_have_text(f"“{root['anchor']['quote']}”")
+    source = (serve.page_dir / "index.html").read_text()
+    updated = source.replace(
+        "The first draft uses an early estimate",
+        "The revised plan uses the current forecast",
+    )
+    note = stamp_page(serve.page_dir, updated, "Refined the rollout wording.")
+    wait_for_revision(page, note["revision"])
+    page.locator("#bg-gallery-tabs").get_by_role("tab", name="Threads").click()
+    expect(page.locator("#bg-revised-quotes")).to_have_text(
+        "The revised plan uses the current forecast for the rollout."
+    )
+    for root in roots:
+        thread = page.locator(f'.lf-thread[data-id="{root["id"]}"]')
+        expect(thread).to_be_visible()
+        expect(thread.locator(".lf-quote")).to_contain_text("§ paragraph")
+        expect(thread.locator(".lf-quote")).to_contain_text("The revised plan")
+        expect(thread.locator(".lf-quote.detached")).to_have_count(0)
+        expect(thread.locator(".lf-msg")).to_have_count(1)
+    moves = [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "reanchor"
+    ]
+    assert {event["thread"] for event in moves} == {root["id"] for root in roots}
+    assert all(event["anchor"] == {"section": "bg-revised-quotes"} for event in moves)
 
 
 @pytest.mark.parametrize("panes", [False, True], ids=["ask", "panes"])
@@ -3120,11 +3177,13 @@ def test_a_repeated_passage_anchors_where_it_was_picked(browser, serve):
     )
 
 
-def test_an_ambiguous_revised_passage_detaches_until_the_agent_moves_it(browser, serve):
+def test_an_ambiguous_revised_passage_keeps_its_section_until_the_agent_moves_it(
+    browser, serve
+):
     """Context tells two copies apart; it must not relocate a comment when the page moves
     on. If a later version rewrites the words beside the anchored copy, that copy confirms
     almost nothing while another copy remains. Neither is now identifiable: document
-    order is not evidence, so the comment first detaches visibly. An anchored agent reply
+    order is not evidence, so the thread falls back to its section. An anchored agent reply
     then names the revised passage explicitly, and the complete thread moves there."""
     url = serve(DRIFT_V1)
     page = open_page(browser, live_url(url))
@@ -3157,11 +3216,12 @@ def test_an_ambiguous_revised_passage_detaches_until_the_agent_moves_it(browser,
     d = serve.page_dir
     stamp_page(d, DRIFT_V2, "revised")
     wait_for_revision(page, 2)
-    expect(page.locator(".lf-thread .lf-quote.detached")).to_have_count(1)
+    expect(page.locator(".lf-thread .lf-quote.detached")).to_have_count(0)
     assert page.evaluate("() => CSS.highlights.get('lf-mark')?.size ?? 0") == 0
-    expect(page.locator(".lf-thread .lf-quote")).to_have_attribute(
-        "title", re.compile("can't be identified")
-    )
+    [transition] = [
+        event for event in events_model.read_events(d) if event["kind"] == "reanchor"
+    ]
+    assert transition["anchor"] == {"section": "drift"}
 
     [root] = [
         event for event in events_model.read_events(d) if event["kind"] == "comment"
@@ -3514,8 +3574,7 @@ def test_one_neighbour_is_not_enough_to_identify_a_revised_comment(browser, serv
     there. A passage at the edge of its section has just one, and one is a bar another copy
     clears — so a revision that rewrites the commented copy's only neighbour would hand the
     comment to a copy it was never made on, silently, a version after anyone was looking.
-    The cost of refusing is visible instead: the thread detaches until a later version
-    makes its passage unique again."""
+    The thread keeps its section until the agent chooses its replacement passage."""
     url = serve(THIN_V1)
     page = open_page(browser, live_url(url))
     with sending(page, "the comment on the passage with one neighbour"):
@@ -3545,8 +3604,12 @@ def test_one_neighbour_is_not_enough_to_identify_a_revised_comment(browser, serv
     d = serve.page_dir
     stamp_page(d, THIN_V2, "revised")
     wait_for_revision(page, 2)
-    expect(page.locator(".lf-thread .lf-quote.detached")).to_have_count(1)
+    expect(page.locator(".lf-thread .lf-quote.detached")).to_have_count(0)
     assert page.evaluate("() => CSS.highlights.get('lf-mark')?.size ?? 0") == 0
+    [transition] = [
+        event for event in events_model.read_events(d) if event["kind"] == "reanchor"
+    ]
+    assert transition["anchor"] == {"section": "thin"}
 
 
 def test_a_revised_example_travels_between_its_own_versions(browser, serve):

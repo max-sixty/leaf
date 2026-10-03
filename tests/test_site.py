@@ -1789,19 +1789,23 @@ def test_interaction_gallery_waits_for_a_restored_frame_tab(serve, browser):
         lambda request: (
             request.frame.name == "interaction-send-comment"
             and "/api/state" in request.url
-        )
+        ),
+        timeout=HANDOVER_DEADLINE_MS,
     ):
         page.reload(wait_until="domcontentloaded")
+        gallery.scroll_into_view_if_needed()
     toggle = gallery.locator("[data-interaction-toggle]")
     expect(gallery.get_by_role("tab", name="Send a comment")).to_have_attribute(
-        "aria-selected", "true"
+        "aria-selected", "true", timeout=HANDOVER_DEADLINE_MS
     )
-    expect(gallery.locator("[data-interaction-status]")).to_have_text("Loading")
-    expect(toggle).to_be_disabled()
+    expect(gallery.locator("[data-interaction-status]")).to_have_text(
+        "Loading", timeout=HANDOVER_DEADLINE_MS
+    )
+    expect(toggle).to_be_disabled(timeout=HANDOVER_DEADLINE_MS)
     assert held, "the restored frame never requested its state"
     held.pop().continue_()
-    page.wait_for_load_state("load")
-    wait_until_ready(page)
+    page.wait_for_load_state("load", timeout=HANDOVER_DEADLINE_MS)
+    wait_until_ready(page, timeout_ms=HANDOVER_DEADLINE_MS)
     page.unroute("**/api/state*", hold_restored_state)
     expect(gallery.locator("[data-interaction-status]")).to_have_text(
         "Ready — motion will start only when you press Play", timeout=15_000
@@ -1970,6 +1974,32 @@ def test_a_failed_gallery_frame_does_not_block_other_demos(serve, browser):
         page, "entry module did not load", "net::ERR_FAILED"
     )
     assert any("entry module did not load" in error for error in errors), errors
+
+
+def test_gallery_reports_sample_document_without_leaf(serve, browser):
+    """A response without Leaf startup scripts cannot leave a gallery demo loading."""
+    url = serve(FEATURE_GALLERY)
+    context = browser.new_context(reduced_motion="reduce")
+    page = context.new_page()
+
+    def fail_inner_document(route):
+        if route.request.frame.name == "interaction-send-comment":
+            route.fulfill(
+                status=503,
+                content_type="text/html",
+                body="<html><body>Unavailable</body></html>",
+            )
+        else:
+            route.continue_()
+
+    page.route(re.compile(r"/api/samples/[^/]+/$"), fail_inner_document)
+    page.goto(f"{url}#bg-interactions", wait_until="domcontentloaded")
+    gallery = page.locator("#bg-interactions")
+    gallery.get_by_role("tab", name="Send a comment").click()
+    expect(gallery.locator("[data-interaction-status]")).to_have_text(
+        "Could not play", timeout=5_000
+    )
+    consume_browser_errors(page, "503", "Leaf sample document did not start")
 
 
 def test_every_published_page_stands_as_a_live_page(served_example, browser):

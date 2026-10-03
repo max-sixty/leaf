@@ -1,8 +1,7 @@
-"""Promptfoo's native Python provider for a complete Leaf scenario trajectory.
+"""Native Promptfoo Python provider for a catalog task's complete workflow.
 
-The runner supplies explicit suite, case, payload and evidence addresses. Scenario
-modules own authoring, resumed turns and live feedback; Promptfoo owns scheduling,
-assertions, repetitions and reports. Exceptions remain provider errors.
+Executors own the steps and fixed checks. The catalog supplies explicit host,
+condition, payload and evidence addresses; errors remain provider errors.
 """
 
 import os
@@ -12,9 +11,12 @@ from pathlib import Path
 
 def call_api(prompt: str, options: dict, context: dict) -> dict:
     config, variables = options["config"], context["vars"]
-    # claude_child copies login files, then removes this from each CLI child.
     os.environ["CLAUDE_CONFIG_DIR"] = config["claude_config_dir"]
-    module = import_module(f"leaf_dev.{config['suite']}_eval")
+    module = import_module(config["executor"])
     return module.execute_scenario(
-        variables["case"], Path(config["payload"]), Path(variables["work"])
+        variables["case"],
+        Path(config["payload"]),
+        Path(variables["work"]),
+        host=config["host"],
+        condition=config["condition"],
     )

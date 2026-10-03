@@ -18,12 +18,12 @@
   function address(token) {
     if (addresses.has(token)) return addresses.get(token);
     const resource = exported.resources[token];
-    const bytes = Uint8Array.from(atob(resource.base64), (character) =>
+    const bytes = Uint8Array.from(window.atob(resource.base64), (character) =>
       character.charCodeAt(0),
     );
     const body =
-      resource.mime === "text/css" ? rebase(new TextDecoder().decode(bytes)) : bytes;
-    const url = URL.createObjectURL(new Blob([body], { type: resource.mime }));
+      resource.mime === "text/css" ? rebase(new window.TextDecoder().decode(bytes)) : bytes;
+    const url = URL.createObjectURL(new window.Blob([body], { type: resource.mime }));
     addresses.set(token, url);
     return url;
   }

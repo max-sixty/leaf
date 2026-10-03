@@ -7651,9 +7651,9 @@ def test_live_revision_drafts_wait_for_the_complete_controller_publication(
     expect(page.locator("#arriving-draft .lf-draft-body")).to_have_text(
         "The second revision's newly inserted body."
     )
-    expect(revised.get_by_role("textbox", name="Edit revised-draft")).to_have_js_property(
-        "value", "The user's unsent replacement.\n"
-    )
+    expect(
+        revised.get_by_role("textbox", name="Edit revised-draft")
+    ).to_have_js_property("value", "The user's unsent replacement.\n")
     assert take_browser_errors(page) == []
 
 
@@ -8915,7 +8915,7 @@ def test_command_hub_input_is_trimmed_before_it_enters_the_record(browser, serve
     editor = draft.get_by_role("textbox", name="Edit ledger-cargo")
     write(
         editor,
-        "ledger_id,customer_name,billing_email,amount\n7,Alice,a@example.test,42"
+        "ledger_id,customer_name,billing_email,amount\n7,Alice,a@example.test,42",
     )
     assert not [
         event
@@ -8924,7 +8924,7 @@ def test_command_hub_input_is_trimmed_before_it_enters_the_record(browser, serve
     ]
     write(
         editor,
-        "ledger_id,customer_name,billing_email,amount\n7,[redacted],[redacted],42"
+        "ledger_id,customer_name,billing_email,amount\n7,[redacted],[redacted],42",
     )
     with sending(page, "the saved edit"):
         draft_control(page, "save", "ledger-cargo").click()

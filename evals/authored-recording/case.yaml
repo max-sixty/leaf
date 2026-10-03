@@ -13,7 +13,7 @@ vars:
     These files are already registered in the page:
 
     - recording: /media/2930ad3df7819c50.mp4
-    - first frame: /media/051bee487bfb5d13.png
+    - first frame: /media/d7cf2b4e22c063dd.png
 
     The page directory is unavailable. Reply with the section's HTML.
 assert:
@@ -26,7 +26,7 @@ assert:
   metric: native-recording
   value: file://text-regex.cjs
   config:
-    pattern: '<video\b(?=[^>]*\bcontrols\b)(?=[^>]*\bposter=["''][^"'']*051bee487bfb5d13\.png)[^>]*>(?:[\s\S]*?)</video>'
+    pattern: '<video\b(?=[^>]*\bcontrols\b)(?=[^>]*\bposter=["''][^"'']*d7cf2b4e22c063dd\.png)[^>]*>(?:[\s\S]*?)</video>'
     flags: i
 - type: javascript
   metric: recorded-source

@@ -1367,9 +1367,9 @@ def test_the_feature_gallery_keeps_its_draft_and_page_map_actions_reachable(
     resized(page, width, 900)
     draft_item = page.locator('[data-lf-margin-for="bg-draft"]')
     draft_item.locator(".lf-draft-pencil").click()
-    editor = page.locator("#bg-draft textarea")
+    editor = page.locator("#bg-draft leaf-text")
     body = "The workshop moved outdoors.\nBring a folding chair."
-    editor.fill(body)
+    write(editor, body)
     page.locator("#bg-editing-guide").click()
     expect(draft_item.get_by_role("button", name="Save", exact=True)).to_be_visible()
     expect(draft_item.get_by_role("button", name="Cancel", exact=True)).to_be_visible()
@@ -7266,33 +7266,86 @@ THREAD_CARD_GEOMETRY = """() => {
 }"""
 
 
+# Observe the actual editor glyphs without changing its closed-root behavior.
+MARGIN_EDITOR_ROOTS = """window.marginEditorRoots = new WeakMap();
+const attach = Element.prototype.attachShadow;
+Element.prototype.attachShadow = function(options) {
+    const root = attach.call(this, options);
+    if (this.localName === 'leaf-text') window.marginEditorRoots.set(this, root);
+    return root;
+};"""
+
+# Native text fragments grouped into visual lines, rather than inferred from width
+# or the runtime's placement reading. DOM text-node splits do not change a line.
+MARGIN_TEXT_LINES = """node => {
+    const lines = new Map();
+    const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
+    while (walker.nextNode()) {
+        const range = document.createRange();
+        range.selectNodeContents(walker.currentNode);
+        for (const rect of range.getClientRects()) {
+            if (!rect.width) continue;
+            const line = lines.get(rect.top);
+            lines.set(rect.top, line ? {
+                left: Math.min(line.left, rect.left), right: Math.max(line.right, rect.right),
+                height: Math.max(line.height, rect.height),
+            } : {left: rect.left, right: rect.right, height: rect.height});
+        }
+    }
+    return [...lines].sort(([a], [b]) => a - b)
+        .map(([, line]) => [line.right - line.left, line.height]);
+}"""
+
+
 def send_anchored_comment(page, text):
     """The gesture the contract's sentence is about: a comment accepted on a passage."""
     page.locator("#mounts-p").click(click_count=3)
     expect(page.locator(".lf-fab-input")).to_be_visible()
     page.locator(".lf-fab-input").click()
-    editor = page.locator(".lf-composer leaf-text")
-    write(editor, text)
-    inline_start = editor.evaluate(
-        "box => box.closest('.lf-fab-bar').getBoundingClientRect().left"
+    write(page.locator(".lf-composer leaf-text"), text)
+    rendered(page)
+    frame = page.locator(".lf-fab-bar").bounding_box()
+    lines = page.locator(".lf-fab-input").evaluate(
+        "(box, read) => eval(read)(window.marginEditorRoots.get(box).querySelector('.cm-content'))",
+        MARGIN_TEXT_LINES,
     )
     page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
     expect(page.locator(".lf-margin-preview")).to_be_visible()
     expect(page.locator(".lf-margin-thread")).to_have_count(1)
-    return inline_start
+    accepted = page.locator(".lf-margin-preview .lf-msg-body").first.evaluate(
+        MARGIN_TEXT_LINES
+    )
+    assert len(accepted) == len(lines), (lines, accepted)
+    for actual, expected in zip(accepted, lines, strict=True):
+        assert actual == pytest.approx(expected, abs=0.5), (lines, accepted)
+    return frame["x"], len(lines)
 
 
-def test_an_inline_thread_keeps_one_readable_card_across_page_claims(browser, serve):
-    """An accepted comment opens readable beside or over either page shape."""
+@pytest.mark.parametrize("wrapping", [False, True])
+def test_an_inline_thread_keeps_one_readable_card_across_page_claims(
+    browser, serve, wrapping
+):
+    """An accepted comment preserves the real editor frame and wrapping, beside
+    or over either page shape, while its reply and neighboring controls remain usable."""
     sidebar_page = ASK_PAGE.replace(
         '<main class="layout-column">',
         '<main class="layout-column"><aside class="sidebar">Page reference</aside>',
         1,
     )
-    page = open_page(browser, serve(sidebar_page, events=[COMMENT_ON_ASK]))
+    page = open_page(
+        browser,
+        serve(sidebar_page, events=[COMMENT_ON_ASK]),
+        init_script=MARGIN_EDITOR_ROOTS,
+    )
     resized(page, 1200, 900)
-    editor_start = send_anchored_comment(page, "Check the January failure mode.")
+    text = (
+        "Check the January failure mode before accepting this design. " * 3
+        if wrapping
+        else "Check the January failure mode."
+    )
+    editor_start, narrow_lines = send_anchored_comment(page, text)
+    assert narrow_lines > 1 if wrapping else narrow_lines == 1
     page.locator(".lf-margin-thread").get_by_role(
         "textbox", name="Reply", exact=True
     ).click()
@@ -7317,9 +7370,14 @@ def test_an_inline_thread_keeps_one_readable_card_across_page_claims(browser, se
 
     page.close()
 
-    page = open_page(browser, serve(ASK_PAGE, events=[COMMENT_ON_ASK]))
+    page = open_page(
+        browser,
+        serve(ASK_PAGE, events=[COMMENT_ON_ASK]),
+        init_script=MARGIN_EDITOR_ROOTS,
+    )
     resized(page, 1920, 900)
-    editor_start = send_anchored_comment(page, "Check the January failure mode.")
+    editor_start, wide_lines = send_anchored_comment(page, text)
+    assert wide_lines > 1 if wrapping else wide_lines == 1
     page.locator(".lf-margin-thread").get_by_role(
         "textbox", name="Reply", exact=True
     ).click()
@@ -10486,9 +10544,9 @@ def test_rail_ask_draft_and_optimistic_undo(browser, serve):
     page.wait_for_function("!!document.activeElement?.closest('#choice-question')")
     rail.get_by_role("button", name="Edit draft", exact=True).click()
     expect(rail.get_by_role("button", name="Cancel", exact=True)).to_be_visible()
-    editor = page.locator("#draft textarea")
+    editor = page.locator("#draft leaf-text")
     expect(editor).to_be_focused()
-    editor.fill("A canonical rail saved this draft.")
+    write(editor, "A canonical rail saved this draft.")
     rail.get_by_role("button", name="Save", exact=True).click()
     expect(page.locator("#draft .lf-draft-body")).to_have_text(
         "A canonical rail saved this draft."
@@ -10517,7 +10575,7 @@ def test_draw_mode_leaves_page_annotation_controls_usable(browser, serve):
     edit = rail.get_by_role("button", name="Edit draft", exact=True)
     assert edit.evaluate("el => getComputedStyle(el).cursor") != "crosshair"
     edit.click()
-    expect(page.locator("#draft textarea")).to_be_focused()
+    expect(page.locator("#draft leaf-text")).to_be_focused()
     rail.get_by_role("button", name="Cancel", exact=True).click()
     expect(edit).to_be_visible()
     expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")

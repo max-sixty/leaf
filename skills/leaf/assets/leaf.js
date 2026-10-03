@@ -116,20 +116,23 @@ import {
   toggleBtn,
 } from "./runtime/banner.js";
 
+import { nativeLayers } from "./runtime/keyboard/layer-stack.js";
+
 initializeServedDocument();
 keepPageRulesOffLayer();
 holdArrivingBounds();
 
 // A published shell may bundle the entry without publishing its source modules beside
 // it. Keep the synchronous validation seam on Leaf's own bootstrap element so render
-// checks can inspect either distribution without turning it into a package API. The two
-// readings answer different questions: which readiness fact the page has yet to state
+// checks can inspect either distribution without turning it into a package API. These
+// scene readings answer different questions: which readiness fact the page has yet to state
 // (`pageReadiness`), and whether its chrome and geometry have caught up with the input
-// handled since.
+// handled since, and which native layers currently expose reading and controls.
 const validationEntry = document.querySelector("script[data-lf-entry]");
 if (validationEntry) {
   validationEntry.lfReadiness = pageReadiness;
   validationEntry.lfRenderingSettled = renderingSettled;
+  validationEntry.lfNativeLayers = nativeLayers;
 }
 import { overflowMenu } from "./runtime/banner-toolbar.js";
 import {
@@ -179,7 +182,7 @@ import {
   releaseFocus,
   tabStops,
 } from "./runtime/focus.js";
-import { announce, liveEl, notice } from "./runtime/notifications.js";
+import { announce, liveEl, notice, noticeVisible } from "./runtime/notifications.js";
 import { mediaViewer } from "./runtime/media.js";
 import { offer } from "./runtime/widget-elements.js";
 import { retainUserIntent } from "./runtime/user-intent.js";
@@ -191,6 +194,8 @@ const overlaySelected = annotationMode === "overlay";
 const annotationRenderer = overlaySelected
   ? await import("./runtime/annotation-overlay/index.js")
   : null;
+if (validationEntry && annotationRenderer)
+  validationEntry.lfFloatingSelections = annotationRenderer.floatingSelections;
 annotationRenderer?.mountAnnotationControls();
 
 const panelElements = createThreadPanelElements({ id: "lf-threads" });
@@ -660,6 +665,7 @@ drawing = createDrawingController({
 
 layout = createChromeLayout({
   panelIsOpen,
+  noticeIsVisible: noticeVisible,
   elements: {
     panel,
     closeBtn,
@@ -838,6 +844,7 @@ if (!offlineInteractive) {
   layout.mountLayoutObservers();
   goToSequence.mountGoToSequence();
   mountShortcutBar({
+    placeBottomStatus: layout.syncBottomStatus,
     setGoToSequence: goToSequence.setGoToSequence,
     setReact: reactions.setReact,
   });

@@ -2,7 +2,7 @@
  * window the page shows, and the one conversion from viewport boxes to
  * document-positioned chrome. */
 import { renderedParent, uiInside, under, upFrom } from "./shadow.js";
-import { overlaps, overlapsAcross, union } from "./rect.js";
+import { overlaps, overlapsAcross, union, clippingAxes } from "./rect.js";
 
 /* Shared readings of the boxes the page actually shows.
 
@@ -10,8 +10,8 @@ import { overlaps, overlapsAcross, union } from "./rect.js";
    `display: contents` descendants paint. `shownParts` returns the visible elements on
    which an outline can be drawn, and `shownExtent` the box they cover together.
    `shownRect` clips an element's `shownBox` through scrolling ancestors' visible bands (less the sticky headers stuck over their tops) and the viewport,
-   stopping ancestor clipping at a fixed-position box, then takes away what a declared
-   occluder stands over (`declareOccluder`). It is what a box may be drawn over, which
+   following native positioned containing blocks past intermediate overflow clips,
+   then takes away what a declared occluder stands over (`declareOccluder`). It is what a box may be drawn over, which
    chrome can be: the banner and the shortcut bar are drawn above the page, not cut out
    of it. `seenRect` holds that to the room the chrome leaves (`shownWindow`), and it is
    the one reading of whether the user can see something.
@@ -158,21 +158,18 @@ export function shownBand(el) {
       bottom: doc.documentElement.clientHeight,
     };
   const s = doc.defaultView.getComputedStyle(el);
-  if (
-    s.overflowX === "visible" &&
-    s.overflowY === "visible" &&
-    !/paint|strict|content/.test(s.contain) &&
-    s.contentVisibility === "visible"
-  )
-    return null;
+  const axes = clippingAxes(s);
+  if (!axes.x && !axes.y) return null;
   const b = el.getBoundingClientRect();
-  const left = b.left + el.clientLeft,
-    top = b.top + el.clientTop;
+  const scaleX = el.offsetWidth ? b.width / el.offsetWidth : 1;
+  const scaleY = el.offsetHeight ? b.height / el.offsetHeight : 1;
+  const left = b.left + el.clientLeft * scaleX,
+    top = b.top + el.clientTop * scaleY;
   return {
     left,
     top,
-    right: left + el.clientWidth,
-    bottom: top + el.clientHeight,
+    right: left + el.clientWidth * scaleX,
+    bottom: top + el.clientHeight * scaleY,
   };
 }
 
@@ -354,13 +351,11 @@ export const shownExtent = (el) =>
 // The root scrollport's viewport band is one of these too: what is scrolled off screen
 // has no rect, and a legend draws boxes for what is on it and nothing for the rest.
 //
-// The walk stops at a box the viewport holds rather than the document: nothing above a
-// `position: fixed` element clips it, so the ancestors past that one are answering about a
-// flow the element left. Every box in the chrome is behind one — the thread panel is
-// fixed, so a reply box measured through the page flow's ancestors came back wholly clipped
-// away whenever the page had scrolled. The one caller before this asked
-// only about the page's own items, none of which is ever inside a fixed box, which is why
-// the walk could be written as "every ancestor" and read as complete.
+// Positioned descendants escape intermediate overflow clips up to their native
+// containing block. The viewport holds a fixed box with no offsetParent; a transformed,
+// filtered or layout-contained ancestor instead holds it and still clips its contents.
+// Absolute boxes follow the same containing-block boundary. A DOM ancestor's overflow
+// does not clip a box whose containing block lies outside that ancestor.
 //
 // Which leaves the viewport itself, applied to everything: for a box in the page it is
 // the root's band, and for one in a fixed layer it is the whole of what clips it.
@@ -449,6 +444,8 @@ function clipped(box, item, clips, held, inWindow = true) {
   // (`headerInset`): the item at its own scroller, and the scroller below at each one
   // further out.
   let inner = item;
+  let escaped = false,
+    containing = null;
   for (let a = item; a; a = upFrom(a)) {
     let c = clips.get(a);
     if (c === undefined) {
@@ -456,18 +453,27 @@ function clipped(box, item, clips, held, inWindow = true) {
         a,
         (c = {
           band: shownBand(a),
+          axes:
+            a === a.ownerDocument.scrollingElement
+              ? { x: true, y: true }
+              : clippingAxes(getComputedStyle(a)),
           // Read here rather than out of shownBand, whose answer is a band and is the
           // render gate's too: what clips a box and what a box is positioned against are
           // two facts, and one of them is this walk's alone.
-          fixed: getComputedStyle(a).position === "fixed",
+          positioned:
+            a.offsetParent !== undefined &&
+            ["fixed", "absolute"].includes(getComputedStyle(a).position),
+          block: a.offsetParent,
           scrolls: holdsHeaders(a),
         }),
       );
     }
-    if ((held || a !== item) && c.band) {
+    if (escaped && a === containing) escaped = false;
+    if (!escaped && (held || a !== item) && c.band) {
       const covered = c.band.top + headerInset(inner, a);
-      if (covered >= c.band.bottom) return null;
-      let band = covered > c.band.top ? { ...c.band, top: covered } : c.band;
+      if (c.axes.y && covered >= c.band.bottom) return null;
+      let band =
+        c.axes.y && covered > c.band.top ? { ...c.band, top: covered } : c.band;
       // In the page's plane the root's band is the window, which cuts nothing there;
       // only a header stuck over its top does.
       if (!inWindow && a === a.ownerDocument?.scrollingElement)
@@ -477,13 +483,20 @@ function clipped(box, item, clips, held, inWindow = true) {
           right: Infinity,
           bottom: Infinity,
         };
-      left = Math.max(left, band.left);
-      top = Math.max(top, band.top);
-      right = Math.min(right, band.right);
-      bottom = Math.min(bottom, band.bottom);
+      if (c.axes.x) {
+        left = Math.max(left, band.left);
+        right = Math.min(right, band.right);
+      }
+      if (c.axes.y) {
+        top = Math.max(top, band.top);
+        bottom = Math.min(bottom, band.bottom);
+      }
       if (c.scrolls) inner = a;
     }
-    if (c.fixed) break;
+    if (!escaped && c.positioned) {
+      escaped = true;
+      containing = c.block;
+    }
   }
   return right > left && bottom > top
     ? occluded({ left, top, right, bottom }, item, clips)

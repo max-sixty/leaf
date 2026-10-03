@@ -13,7 +13,6 @@ import http.cookiejar
 import json
 import os
 import secrets
-import select
 import shlex
 import shutil
 import socket
@@ -647,6 +646,23 @@ def bind_task_lifetime_to_worker(page):
         assert record["generation"] == claim["generation"]
         assert record["ended"] is None
         cleanup_model.write_session({**record, "lifetime": {"pid": os.getpid()}})
+
+
+def release_codex_command(page, release):
+    """Complete a held command before its synthetic Codex host can exit.
+
+    The command must finish its claim transaction while its ancestor is alive.
+    The canonical lifetime handoff then keeps that same task standing for later
+    delivery, before the fixture releases the one-command host.
+    """
+    wait_for(
+        Path(f"{release}.ready").exists,
+        bool,
+        failure="the held Codex command did not finish",
+        timeout=60,
+    )
+    bind_task_lifetime_to_worker(page)
+    release.touch()
 
 
 def live_versions(d):
@@ -1412,11 +1428,12 @@ def under_codex(spawn, codex_program):
         hosting = ["app-server"] if app_server else []
         shell_command = f"{command}; exit"
         if hold_until is not None:
-            # Keep the fake task alive until a test hands its claim to the
-            # worker. Otherwise the adapter can see a dead claimant between
-            # communicate() and that handoff, unlike a real Codex task.
+            # Mark command completion while keeping the fake host alive. A
+            # test can then hand its lifetime to the worker before release;
+            # unlike a real task, this host would otherwise die with its command.
             shell_command = (
                 f"{command}; result=$?; "
+                f"touch {shlex.quote(f'{hold_until}.ready')}; "
                 f"while [ ! -e {shlex.quote(str(hold_until))} ]; do sleep 0.01; done; "
                 "exit $result"
             )
@@ -1468,19 +1485,10 @@ print(json.dumps({"url": started.url}))
         stderr=subprocess.PIPE,
         text=True,
     )
-    try:
-        assert select.select([started.stdout], [], [], 30)[0], (
-            "Page start did not finish"
-        )
-        announcement = started.stdout.readline()
-        assert json.loads(announcement)["url"].startswith("http://127.0.0.1:")
-        # Transfer the fixture lifetime while its original host is still alive;
-        # a session-bound server may retire as soon as that host exits.
-        bind_task_lifetime_to_worker(page)
-    finally:
-        release_start.touch()
+    release_codex_command(page, release_start)
     out, err = started.communicate(timeout=60)
     assert started.returncode == 0, f"{out}{err}"
+    assert json.loads(out)["url"].startswith("http://127.0.0.1:")
     return page
 
 

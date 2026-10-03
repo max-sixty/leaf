@@ -1649,7 +1649,7 @@ def test_a_refused_draft_keeps_newer_authoritative_words_under_its_editor(
     draft = page.locator("#note-cli")
     with page.expect_request("**/api/event"):
         draft_control(page, "edit", "note-cli").click()
-        draft.locator("textarea").fill("Local C")
+        write(draft.locator("leaf-text"), "Local C")
         page.keyboard.press("Meta+Enter")
     holding(page, held, 1, "the refused draft")
     expect(draft.locator(".lf-draft-body")).to_have_text("Local C")
@@ -1682,10 +1682,10 @@ def test_a_refused_draft_keeps_newer_authoritative_words_under_its_editor(
         )
     round_trip(page)
 
-    expect(draft.locator("textarea")).to_have_value("Local C")
+    expect(draft.locator("leaf-text")).to_have_js_property("value", "Local C")
     expect(draft.locator(".lf-draft-body")).to_have_text("Remote B")
     page.keyboard.press("Escape")
-    expect(draft.locator("textarea")).to_have_count(0)
+    expect(draft.locator("leaf-text")).to_have_count(0)
     expect(draft.locator(".lf-draft-body")).to_have_text("Remote B")
     assert [event["detail"]["text"] for event in actions(serve.page_dir)] == [
         "Remote B"
@@ -1706,7 +1706,7 @@ def test_a_draft_commit_stages_before_deferred_projection_retries(browser, serve
     page.route("**/api/event", lambda route: held.append(route))
     draft = page.locator("#note-cli")
     draft_control(page, "edit", "note-cli").click()
-    draft.locator("textarea").fill("Local C")
+    write(draft.locator("leaf-text"), "Local C")
 
     append_command(
         serve.page_dir,
@@ -1720,7 +1720,7 @@ def test_a_draft_commit_stages_before_deferred_projection_retries(browser, serve
         },
     )
     told(page)
-    expect(draft.locator("textarea")).to_have_value("Local C")
+    expect(draft.locator("leaf-text")).to_have_js_property("value", "Local C")
 
     page.keyboard.press("Meta+Enter")
     holding(page, held, 1, "the draft commit")
@@ -1748,7 +1748,7 @@ def test_z_walks_back_through_gestures_rather_than_toggling_one(browser, serve):
     assert "\n\n" in authored
 
     draft_control(page, "edit", "note-cli").click()
-    page.locator("lf-draft textarea").fill("Rewritten.")
+    write(page.locator("lf-draft leaf-text"), "Rewritten.")
     page.keyboard.press("Meta+Enter")
     round_trip(page)
     expect(body).to_have_text("Rewritten.")
@@ -1920,14 +1920,14 @@ def test_a_withdrawal_waits_for_a_widget_that_cannot_take_it_yet(browser, serve)
     authored = one.locator(body).inner_text()
 
     draft_control(one, "edit", "note-cli").click()
-    one.locator("lf-draft textarea").fill("Rewritten.")
+    write(one.locator("lf-draft leaf-text"), "Rewritten.")
     one.keyboard.press("Meta+Enter")
     round_trip(one)
     expect(two.locator(body)).to_have_text("Rewritten.")
 
     # The second tab is now holding words of its own, so the log may not write over it.
     draft_control(two, "edit", "note-cli").click()
-    expect(two.locator("lf-draft textarea")).to_be_focused()
+    expect(two.locator("lf-draft leaf-text")).to_be_focused()
     undo(one)
     expect(one.locator(body)).to_have_text(authored)
     expect(one.locator("lf-draft .lf-draft-history > summary")).to_have_text(
@@ -1942,7 +1942,7 @@ def test_a_withdrawal_waits_for_a_widget_that_cannot_take_it_yet(browser, serve)
 
     # Let go, and the withdrawal it could not take yet lands from the editor's close.
     two.keyboard.press("Escape")
-    expect(two.locator("lf-draft textarea")).to_have_count(0)
+    expect(two.locator("lf-draft leaf-text")).to_have_count(0)
     assert two.locator(body).inner_text() == authored
     expect(two.locator("lf-draft .lf-draft-history > summary")).to_have_text(
         "Changes · 1 edit"

@@ -170,12 +170,15 @@ const shortcutBarTemplate = (model) =>
     }`;
 
 let bottomStatusContext = EMPTY_STATUS_CONTEXT;
+let placeBottomStatus = null;
 const renderBottomStatus = () => {
   const model = Object.freeze({
     ...bottomStatusContext,
     notice: noticeReading(),
   });
   render(bottomStatusTemplate(model), bottomStatusEl);
+  // Feedback reaches its geometry owner before this turn can paint it.
+  placeBottomStatus?.();
 };
 renderBottomStatus();
 render(shortcutBarTemplate(EMPTY_BAR), shortcutBarEl);
@@ -527,7 +530,13 @@ const shortcutBarExpanded = () => shortcutBarIsExpanded && shortcutHelpAvailable
 
 // Boot supplies the two transient interactions More closes. The bar renderer and its
 // reference rows never import those command owners to draw their current declarations.
-export function mountShortcutBar({ setGoToSequence, setReact }) {
+export function mountShortcutBar({
+  setGoToSequence,
+  setReact,
+  placeBottomStatus: place,
+}) {
+  placeBottomStatus = place;
+  placeBottomStatus();
   activateShortcutMore = () => {
     setGoToSequence(false);
     setReact(false);

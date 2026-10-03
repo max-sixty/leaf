@@ -29,7 +29,7 @@ from leaf.hosting import claim_and_start, cmd_stop
 from leaf.projection import folded_positions
 from leaf.publishing import cmd_stamp
 from leaf.render_checks import wait_until_ready
-from leaf.render_gate.scheme import served
+from leaf.render_gate.scheme import rendered_revision, served
 from leaf.served_state.context import read_page
 from leaf.served_state.page import read_served_page
 from leaf.service import PageTransaction
@@ -40,7 +40,7 @@ from PIL import Image
 from playwright.sync_api import Page
 
 from leaf_dev import LEAF_COMMAND
-from leaf_dev.browser import chrome, tab
+from leaf_dev.browser import chrome, settle, tab
 from leaf_dev.leaf_assets import publish, stage
 
 GIF_SIZE = (1120, 700)
@@ -178,7 +178,7 @@ new version as the checks finish.</p>
 
 <section id="work">
 <h2>Cutover punch list</h2>
-<p id="work-note">Drag a card to change the plan; the move reaches the agent directly.</p>
+<p id="work-note">Drag a card to change the plan; your arrangement is saved on this page.</p>
 <lf-board id="punch-list">
 {board_markup(board or BOARD)}
 </lf-board>
@@ -305,7 +305,7 @@ def record(
     comment_id = next(
         event["id"] for event in waiter.receive() if event["kind"] == "comment"
     )
-    cmd_status(page_dir, "working", "answering the backfill question")
+    cmd_status(page_dir, "working", "answering the backfill question", on=comment_id)
     page.wait_for_function(
         "() => document.querySelector('.lf-status-detail').textContent.includes('answering')"
     )
@@ -367,11 +367,10 @@ def shoot_stills(browser, url: str, page_dir: Path, into: Path) -> None:
     """The README's session stills and the site's card, off the scene `record`
     has just left, written into `into` beside the GIF.
 
-    The board move `record` delivered stands until the document says what it said,
-    so the document is rewritten with the card where the user dropped it and stamped
-    before `waiting`, which with the wait `record` re-armed makes the banner say
-    "Claude awaits". Each shot is a fresh context: viewport and color scheme are
-    context settings, and the diagram palette is read once at load."""
+    Write the saved board arrangement into the document and stamp it before
+    `waiting`, so the stills show the revised plan. The comment watcher remains
+    armed and the banner invites input. Each shot is a fresh context: viewport and
+    color scheme are context settings, and the diagram palette is read once at load."""
     (page_dir / "index.html").write_text(
         demo_page(2, folded_board(page_dir)), encoding="utf-8"
     )
@@ -381,8 +380,16 @@ def shoot_stills(browser, url: str, page_dir: Path, into: Path) -> None:
     for name, size, scheme in STILLS:
         with tab(browser, size, scheme) as page:
             page.goto(url)
-            # Ready against the server's own answer, so the board move has landed.
-            wait_until_ready(page, served(page, url, "/api/state").json())
+            # Hold the server's state and authored revision before taking the still.
+            state = served(page, url, "/api/state").json()
+            wait_until_ready(page, state)
+            revision = rendered_revision(url, state)
+            page.wait_for_function(
+                "revision => document.querySelector("
+                "'meta[name=\"lf-revision\"][data-lf-runtime]'"
+                ")?.content === String(revision)",
+                arg=revision,
+            )
             page.wait_for_function(
                 "() => document.querySelector('.lf-status-text')"
                 ".textContent.includes('awaits')"
@@ -391,9 +398,7 @@ def shoot_stills(browser, url: str, page_dir: Path, into: Path) -> None:
             page.locator(".lf-thread-summary").click()
             page.wait_for_selector(".lf-thread .lf-msg.agent")
             page.locator("#top").scroll_into_view_if_needed()
-            page.wait_for_function(
-                "() => document.querySelector('body > main').getAnimations().length === 0"
-            )
+            settle(page)
             page.screenshot(
                 path=into / f"{name}.png", animations="disabled", caret="hide"
             )

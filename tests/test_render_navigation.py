@@ -1373,7 +1373,9 @@ def _accepted_gallery_proposal(browser, serve):
 
 
 @pytest.mark.xfail(
-    reason="Linux b89e7ef0 and current main b91ad7c7 still paint a retired block lf-old",
+    reason="Current main 27988929e intermittently keeps the gallery's accepted "
+    "lf-old visible after its retired marker and fold cleanup; reproduced with "
+    "the original assertion on the main runtime (CI 37081158751 follow-up)",
     raises=AssertionError,
     strict=False,
 )

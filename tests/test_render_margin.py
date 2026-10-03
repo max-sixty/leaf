@@ -3023,7 +3023,7 @@ def test_g_hints_press_each_visible_page_map_margin_entry(browser, serve):
         )
     ).to_have_count(0)
     page.keyboard.press("Escape")
-    expect(page.locator("#address-disclosure textarea")).to_have_count(0)
+    expect(page.locator("#address-disclosure leaf-text")).to_have_count(0)
 
     disclosure.evaluate(
         """button => {
@@ -3033,7 +3033,7 @@ def test_g_hints_press_each_visible_page_map_margin_entry(browser, serve):
         }"""
     )
     go_to_address(page, "Margin entry", "address-disclosure", "edit")
-    expect(page.locator("#address-disclosure textarea")).to_be_focused()
+    expect(page.locator("#address-disclosure leaf-text")).to_be_focused()
     expect(disclosure).to_be_hidden()
 
 

@@ -8705,6 +8705,20 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
             await window.__lfRuntimeImport('/runtime/keyboard/bindings.js');
           const { elementScopes, paintKeys } =
             await window.__lfRuntimeImport('/runtime/keyboard/scopes.js');
+          const { renderingSettled } =
+            await window.__lfRuntimeImport('/runtime/rendering.js');
+          const settled = () => new Promise((resolve, reject) => {
+            const timeout = setTimeout(
+              () => reject(new Error('Shortcut rendering did not settle within 30 seconds')),
+              30000);
+            const check = () => {
+              if (renderingSettled()) {
+                clearTimeout(timeout);
+                resolve();
+              } else requestAnimationFrame(check);
+            };
+            requestAnimationFrame(check);
+          });
           const declare = (id, rows) => {
             const button = document.createElement('button');
             button.id = id;
@@ -8726,12 +8740,11 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
               return error.message;
             }
           };
-          // A paint lands once the task's synchronous work is done, so each is read after
-          // a microtask; the second finds the refused scope gone rather than refusing it
-          // again.
+          // Read after all repaint work has settled; the second paint finds the
+          // refused scope gone rather than refusing it again.
           const painted = async (button) => {
             paintKeys();
-            await Promise.resolve();
+            await settled();
             return button.getAttribute('aria-keyshortcuts');
           };
           const firstPaint = async (id, rows, when) => {
@@ -8757,8 +8770,7 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
             document.querySelector('main').append(button);
             commands(button, id, rows);
             const declared = button.getAttribute('aria-keyshortcuts');
-            await new Promise((settle) =>
-              requestAnimationFrame(() => requestAnimationFrame(settle)));
+            await settled();
             const framed = button.getAttribute('aria-keyshortcuts');
             button.remove();
             return {declared, framed};
@@ -8772,8 +8784,7 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
             document.querySelector('main').append(button);
             commands(button, id, first);
             commands(button, id, second);
-            await new Promise((settle) =>
-              requestAnimationFrame(() => requestAnimationFrame(settle)));
+            await settled();
             const framed = button.getAttribute('aria-keyshortcuts');
             const standing = Boolean(
               (await window.__lfRuntimeImport('/runtime/keyboard/scopes.js')).elementScopes.get(button));

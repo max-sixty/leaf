@@ -1,11 +1,12 @@
 """Approved appearance across a real message delivery journey.
 
-Prepare with ``leaf-dev thread-snapshots prepare``, then run
+Run
 ``uv run pytest -n0 tests/test_render_thread_snapshots.py``. Baselines are
-rendered from explicitly approved source; run evidence stays in .tmp.
+reviewed PNG images pinned in leaf-assets; run evidence stays in .tmp.
 ``leaf-dev thread-snapshots --help`` owns snapshot review and acceptance.
 """
 
+import hashlib
 import json
 import shutil
 from datetime import datetime, timezone
@@ -131,35 +132,49 @@ def test_message_delivery_appearance_and_first_frame(
         )
 
 
-@pytest.mark.parametrize(
-    "corruption",
-    ["missing_png", "poisoned_png", "null_hash", "null_inventory", "malformed_marker"],
-)
-def test_approved_cache_rejects_missing_or_changed_bytes(
-    browser, tmp_path, monkeypatch, corruption
+def test_accept_publishes_only_a_successful_unchanged_capture(
+    browser, thread_expected_store, tmp_path, monkeypatch
 ):
-    """A completion claim cannot replace required bytes from a real approved render."""
-    from leaf_dev import thread_snapshot_source as source
+    """Publication consumes reviewed bytes; a partial or changed capture cannot publish."""
+    from click.testing import CliRunner
+    from leaf_dev import leaf_assets
+    from leaf_dev.thread_snapshots import accept, capture_files, render_profile
 
-    store = source.approved_store(browser.version)
-    cache = tmp_path / "approved"
-    copied = cache / store.parent.name
-    shutil.copytree(store.parent, copied)
-    monkeypatch.setattr(source, "CACHE", cache)
-    assert source.approved_store(browser.version) == copied / "images"
-    png = next((copied / "images").rglob("*.png"))
-    marker = copied / "complete.json"
-    if corruption == "poisoned_png":
-        png.write_bytes(png.read_bytes() + b"poison")
-    elif corruption == "malformed_marker":
-        marker.write_text("{")
-    else:
-        png.unlink()
-        if corruption == "null_hash":
-            recorded = json.loads(marker.read_text())
-            recorded[str(png.relative_to(copied / "images"))] = None
-            marker.write_text(json.dumps(recorded))
-        elif corruption == "null_inventory":
-            marker.write_text("null")
-    with pytest.raises(RuntimeError, match="incomplete or changed"):
-        source.approved_store(browser.version)
+    profile = render_profile(browser.version)
+    directory = tmp_path / "capture"
+    shutil.copytree(thread_expected_store / profile, directory / profile)
+    files = capture_files(directory, profile)
+    runner = CliRunner()
+    published = []
+    monkeypatch.setattr(
+        leaf_assets, "stage", lambda *args: published.append(args) or tmp_path
+    )
+    monkeypatch.setattr(
+        leaf_assets, "publish", lambda *args: "reviewed-assets-revision"
+    )
+    assert runner.invoke(accept, [str(directory)]).exit_code != 0
+    assert published == []
+    (directory / "capture.json").write_text(
+        json.dumps(
+            {
+                "profile": profile,
+                "sha256": {
+                    name: hashlib.sha256(data).hexdigest()
+                    for name, data in files.items()
+                },
+            }
+        )
+    )
+    result = runner.invoke(accept, [str(directory)])
+    assert result.exit_code == 0, result.output
+    assert published[0][1] == files
+    published.clear()
+    image = next((directory / profile).glob("*.png"))
+    image.write_bytes(image.read_bytes() + b"changed")
+    result = runner.invoke(accept, [str(directory)])
+    assert result.exit_code != 0 and "changed after" in result.output
+    assert published == []
+    image.unlink()
+    result = runner.invoke(accept, [str(directory)])
+    assert result.exit_code != 0 and "missing capture" in result.output
+    assert published == []

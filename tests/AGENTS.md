@@ -13,8 +13,9 @@ Each helper's docstring owns its contract, and code cites sections here by headi
 
 Message delivery has one shared journey in `leaf_dev.thread_journey`, whose held
 checkpoints supply the appearance gate in `test_render_thread_snapshots.py`.
-`leaf_dev.thread_snapshots` owns the approved-source review and acceptance workflow;
-its source pin and patch are text, while generated image evidence stays in `.tmp/`.
+`leaf_dev.thread_snapshots` owns capture, review and acceptance; reviewed PNG images and
+geometry live in `max-sixty/leaf-assets`, governed by `leaf-assets.json`. Run evidence
+stays in `.tmp/`.
 
 ## Run the narrowest useful surface
 

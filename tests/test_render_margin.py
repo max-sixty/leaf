@@ -7333,7 +7333,7 @@ def test_an_inline_thread_keeps_one_readable_card_across_page_claims(
         if wrapping
         else "Check the January failure mode."
     )
-    narrow_frame, narrow_lines = send_anchored_comment(page, text)
+    _, narrow_lines = send_anchored_comment(page, text)
     assert narrow_lines > 1 if wrapping else narrow_lines == 1
     page.locator(".lf-margin-thread").get_by_role(
         "textbox", name="Reply", exact=True
@@ -7367,7 +7367,7 @@ def test_an_inline_thread_keeps_one_readable_card_across_page_claims(
         init_script=MARGIN_EDITOR_ROOTS,
     )
     resized(page, 1920, 900)
-    wide_frame, wide_lines = send_anchored_comment(page, text)
+    _, wide_lines = send_anchored_comment(page, text)
     assert wide_lines > 1 if wrapping else wide_lines == 1
     page.locator(".lf-margin-thread").get_by_role(
         "textbox", name="Reply", exact=True

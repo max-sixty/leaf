@@ -1,51 +1,43 @@
-"""Approved thread appearance from an explicit, reviewed historical source.
+"""Reviewed PNG expectations for one real message-delivery journey.
 
-The expectation is tests/snapshots/thread-source.json plus thread-source.patch, a
-small text patch against a durable public main ancestor. Generated browser bundles
-are rebuilt from approved build inputs and the JavaScript lock; no minified vendor
-output is duplicated in the patch. Both arms use the same
-browser/OS, so no PNG, platform-specific golden catalogue or external upload is
-needed. The approved source runs its own Python server and browser runtime;
-thread_snapshot_source owns extraction and caching. This is an explicit source
-snapshot: merging a candidate never advances the reviewed baseline automatically.
+Images and viewport geometry live in max-sixty/leaf-assets, pinned by the existing
+leaf-assets.json. Tests compare current Leaf directly against that immutable set;
+no historical runtime, source patch or baseline build is involved. Each rendering
+profile names the OS, architecture and locked Chromium version. Missing profiles
+fail: browser upgrades require deliberately reviewed captures, including the Linux
+CI profile. Existing fetch-assets warms the same cache as every other asset reader.
 
-The one real delivery journey supplies held-state appearance and delivery
-assertions. pytest-image-snapshot compares pixels using Pixelmatch's antialias
-handling and 0.01 perceptual tolerance. Three unchanged seven-case repeats
-showed only two-level corner raster noise; this threshold excludes that noise
-while detecting the measured seventeen-level ink change. There is
-no whole-image allowance for mismatched pixels. Capture the
-thread's region and its independently compared viewport geometry, so a translated
-crop cannot hide bad placement. Refusal feedback's exact words and native visibility
-are recorded at its mutation checkpoint. Its real expiry precedes the restored-draft
-screenshot, so a finite notice interval cannot expire during a slow capture. Initial
-seeded-agent feedback also expires before drafting. Transient notice styling is
-outside this pixel oracle; ordinary rendered notice tests cover arrival, control
-clearance, wrapping and expiry. First insertion runs with normal
-motion and its own observer; stable screenshots use the dependency's animation
-settling, after that proof. They do not claim to capture the insertion instant.
-
-    uv run leaf-dev thread-snapshots prepare
     uv run pytest -n0 tests/test_render_thread_snapshots.py
-    uv run leaf-dev thread-snapshots accept
+    uv run leaf-dev thread-snapshots capture
+    uv run leaf-dev thread-snapshots accept .tmp/thread-snapshots/captures/<run>
 
-Appearance failures name their stage and expected/actual/diff paths; geometry
-failures show both rectangles. Every case retains its images and observations.json;
-CI retains the same folders. Review those images and summarize the changed
-checkpoints before accepting. Acceptance changes the ordinary text source pin/patch;
-prepare and re-run the test, then commit them with the intentional UI change. Missing source,
-failed generation and changed cached bytes fail instead of silently accepting.
-Setup co-renders the approved source; ordinary tests read its verified cache only.
-Artifacts under .tmp/thread-snapshots are disposable evidence, never Git goldens.
-Both arms share the browser, so a regression in a browser upgrade itself is outside
-this oracle. A changed driver incompatible with old source requires refreshing the
-approved source; do not add selector fallbacks.
+Capture runs the same journey and hard delivery assertions, writing all 42 PNG images and
+geometry readings to a new evidence folder. Review its actual images and observations,
+then accept publishes that profile through leaf_assets.stage / publish and updates
+the ordinary asset pin. Acceptance never occurs in normal tests. CI retains failed
+run evidence. Small antialias noise is excluded by Pixelmatch's AA handling and
+calibrated 0.01 perceptual tolerance; every other mismatched pixel fails, with no
+whole-image allowance. Independently compare viewport geometry so a translated crop
+cannot conceal placement changes.
+
+First insertion has an immediate words/busy/opacity observer before stabilized
+screenshots. Refusal's exact feedback and native visibility are observed at mutation;
+its real expiry precedes the restored-draft capture. Transient notice styling is
+outside the pixel oracle and retains its ordinary rendered lifecycle tests. Capture
+hides only editor carets, preserving draft words, focus and selection. Seven bounded
+cases cover general, panel, margin, inline diff, dark and narrow appearances;
+they do not claim all thread states. Existing news/storage tests remain separate.
 """
 
+import hashlib
 import io
 import json
 import platform
 import shutil
+import subprocess
+import sys
+import tempfile
+import uuid
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -55,7 +47,8 @@ from PIL import Image
 from playwright.sync_api import Page
 from pytest_image_snapshot import ImageMismatchError
 
-from leaf_dev import ROOT
+from leaf_dev import ROOT, leaf_assets
+from leaf_dev.thread_journey import STAGES
 
 
 @dataclass(frozen=True)
@@ -162,14 +155,14 @@ class SnapshotRun:
         self.output = Path(output) / case.name
         self.output.mkdir(parents=True, exist_ok=True)
         if updating and store is None:
-            raise ValueError("snapshot acceptance requires --thread-snapshot-store")
+            raise ValueError("snapshot capture requires --thread-snapshot-store")
         self.store = (
             (Path(store) if Path(store).is_absolute() else ROOT / store)
             if store
             else None
         )
         if self.store is None:
-            raise ValueError("source approval must provide an expected store")
+            raise ValueError("snapshot comparison requires an expected store")
         self.updating = updating
         self.failures = []
         self.observations = {}
@@ -230,31 +223,102 @@ class SnapshotRun:
         )
 
 
+ASSET_DIRECTORY = "tests/thread-snapshots"
+
+
+def expected_store() -> Path:
+    """The immutable PNG tree every checkout's ordinary asset pin governs."""
+    return leaf_assets.pinned_assets() / ASSET_DIRECTORY
+
+
 @click.group("thread-snapshots")
 def thread_snapshots():
-    """Review and accept thread appearance as a squash-safe source snapshot."""
+    """Capture, review and publish current Leaf's thread appearance."""
 
 
-@thread_snapshots.command("prepare")
-def prepare():
-    """Materialize the approved cache during setup, with the gate's locked browser."""
-    from playwright.sync_api import sync_playwright
+@thread_snapshots.command("capture")
+def capture():
+    """Run all delivery assertions and capture current appearance for review."""
+    directory = ROOT / ".tmp/thread-snapshots/captures" / uuid.uuid4().hex
+    directory.mkdir(parents=True)
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "-n0",
+            "-q",
+            "--image-snapshot-update",
+            "--thread-snapshot-store",
+            str(directory),
+            "tests/test_render_thread_snapshots.py::test_message_delivery_appearance_and_first_frame",
+        ],
+        cwd=ROOT,
+        check=False,
+    )
+    if result.returncode:
+        raise click.ClickException(
+            f"capture assertions failed; review evidence in {directory}"
+        )
+    (profile,) = (path.name for path in directory.iterdir() if path.is_dir())
+    files = capture_files(directory, profile)
 
-    from leaf_dev.browser import headless_shell
-    from leaf_dev.thread_snapshot_source import prepare_store
+    (directory / "capture.json").write_text(
+        json.dumps(
+            {
+                "profile": profile,
+                "sha256": {
+                    name: hashlib.sha256(data).hexdigest()
+                    for name, data in files.items()
+                },
+            },
+            indent=2,
+        )
+        + "\n"
+    )
+    click.echo(
+        f"Review captures: {directory}\nAccept: uv run leaf-dev thread-snapshots accept {directory}"
+    )
 
-    with sync_playwright() as playwright, headless_shell(playwright) as browser:
-        store = prepare_store(browser.version)
-    click.echo(f"Prepared approved thread snapshots: {store}")
+
+def capture_files(directory: Path, profile: str) -> dict[str, bytes]:
+    """Require every named checkpoint and its independently read geometry."""
+    files = {}
+    for case in CASES:
+        for stage in STAGES:
+            for suffix in ("png", "json"):
+                name = f"{case.name}-{stage}.{suffix}"
+                path = directory / profile / name
+                if not path.is_file():
+                    raise click.ClickException(f"missing capture: {path}")
+                files[name] = path.read_bytes()
+    return files
 
 
 @thread_snapshots.command("accept")
-def accept():
-    """Accept current tracked source after reviewing the ordinary test's evidence."""
-    from leaf_dev.thread_snapshot_source import PATCH, PIN, accept_source
-
-    accept_source()
-    click.echo(f"Accepted source: {PIN}\nPatch: {PATCH}")
-    click.echo(
-        "Prepare with uv run leaf-dev thread-snapshots prepare; then validate with uv run pytest -n0 tests/test_render_thread_snapshots.py"
-    )
+@click.argument(
+    "directory", type=click.Path(exists=True, file_okay=False, path_type=Path)
+)
+def accept(directory: Path):
+    """Publish a complete, reviewed capture and update Leaf's immutable asset pin."""
+    marker = directory / "capture.json"
+    if not marker.is_file():
+        raise click.ClickException(f"not a successful capture: {directory}")
+    captured = json.loads(marker.read_text())
+    profile = captured["profile"]
+    files = capture_files(directory, profile)
+    if captured["sha256"] != {
+        name: hashlib.sha256(data).hexdigest() for name, data in files.items()
+    }:
+        raise click.ClickException(
+            f"capture changed after its assertions passed: {directory}"
+        )
+    with tempfile.TemporaryDirectory(prefix="leaf-thread-images-") as staging:
+        checkout = leaf_assets.stage(
+            f"{ASSET_DIRECTORY}/{profile}", files, Path(staging)
+        )
+        revision = leaf_assets.publish(
+            checkout, f"Accept reviewed thread appearance for {profile}"
+        )
+    click.echo(f"Accepted {len(files) // 2} thread images: {revision}")
+    click.echo("Validate with uv run pytest -n0 tests/test_render_thread_snapshots.py")

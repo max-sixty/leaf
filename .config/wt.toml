@@ -30,11 +30,6 @@ eval-node = "npm ci --prefix evals"
 [[pre-merge]]
 bundles = 'uv run build/vendor.py > /dev/null && git status --porcelain && test -z "$(git status --porcelain)"'
 
-# Prepare historical appearance before the network-free checks. A changed recipe or
-# browser lock has a new cache identity, even in a previously set-up worktree.
-[[pre-merge]]
-thread-snapshots = "uv run leaf-dev thread-snapshots prepare"
-
 # Broad discovery keeps the local gate quick, adding only the nightly-marked tests the
 # branch edits, as a pull request's gate does. CI runs the rest after main moves.
 [[pre-merge]]
@@ -84,9 +79,6 @@ assets = "uv run --frozen leaf-dev fetch-assets"
 
 [[aliases.setup]]
 chromium = "uv run --frozen playwright install chromium --only-shell"
-
-[[aliases.setup]]
-thread-snapshots = "uv run --frozen leaf-dev thread-snapshots prepare"
 
 [[aliases.setup]]
 webkit = "uv run --frozen playwright install webkit"

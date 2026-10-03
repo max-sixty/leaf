@@ -58,6 +58,7 @@ import {
   showBannerControl,
 } from "../banner-toolbar.js";
 import { seenRect } from "../geometry.js";
+import { cancelRender, nextRender } from "../rendering.js";
 import { targetElement, targetPlace, targetSegments } from "../resolved-target.js";
 import {
   composer,

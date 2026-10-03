@@ -19,8 +19,6 @@ repos:
     rev: v6.0.0
     hooks:
       - id: trailing-whitespace
-        # Blank context lines and authored trailing spaces are meaningful in Git diffs.
-        exclude_types: [diff]
       - id: end-of-file-fixer
       - id: check-yaml
       - id: check-json

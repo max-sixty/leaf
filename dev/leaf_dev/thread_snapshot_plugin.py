@@ -1,8 +1,8 @@
-"""Pytest's boundary for approved-source thread snapshots and internal capture arms.
+"""Current Leaf compares directly against PNG images pinned in leaf-assets.
 
-Setup renders the explicitly approved historical source once per environment;
-normal tests read its verified cache, then compare the candidate. A capture arm must name its writable evidence store;
-the ordinary gate never creates expectations from the candidate.
+Only the explicit capture command writes a separate evidence store. Ordinary
+comparisons cannot update the immutable asset checkout or silently accept missing
+images. Verbose failures save evidence without launching an external image viewer.
 """
 
 from pathlib import Path
@@ -18,7 +18,7 @@ def image_snapshot(request):
     """Compare through the dependency without launching an external image viewer.
 
     Verbose pytest runs retain their normal text output and saved image evidence.
-    Both the candidate and historical capture arms load this fixture.
+    Current comparisons and explicit captures load this fixture.
     """
 
     def compare(img, img_path, threshold=None):
@@ -44,7 +44,7 @@ def image_snapshot(request):
             )
             raise ImageMismatchError(
                 f"Image does not match the snapshot stored in {path}.{evidence}"
-                " Review appearance with leaf-dev thread-snapshots before accepting source."
+                " Review evidence, then use leaf-dev thread-snapshots capture and accept."
             ) from None
 
     return compare
@@ -54,7 +54,7 @@ def pytest_addoption(parser):
     parser.addoption(
         "--thread-snapshot-store",
         type=Path,
-        help="Explicit PNG evidence store for a source arm; ordinarily use the approved source",
+        help="Writable PNG store for an explicit capture; ordinary tests use pinned leaf-assets",
     )
 
 
@@ -66,14 +66,14 @@ def pytest_configure(config):
 
 
 @pytest.fixture
-def thread_expected_store(browser, pytestconfig):
+def thread_expected_store(pytestconfig):
     store = pytestconfig.getoption("--thread-snapshot-store")
     if store:
         return store if store.is_absolute() else ROOT / store
     if pytestconfig.getoption("--image-snapshot-update"):
         raise pytest.UsageError(
-            "Accept reviewed source with leaf-dev thread-snapshots accept"
+            "Use leaf-dev thread-snapshots capture before accepting reviewed images"
         )
-    from leaf_dev.thread_snapshot_source import approved_store
+    from leaf_dev.thread_snapshots import expected_store
 
-    return approved_store(browser.version)
+    return expected_store()

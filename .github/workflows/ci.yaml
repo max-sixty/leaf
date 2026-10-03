@@ -86,8 +86,8 @@ jobs:
       - name: Install Chromium headless shell and WebKit
         run: uv run playwright install --with-deps chromium webkit --only-shell
 
-      - name: Prepare approved thread appearance
-        run: uv run leaf-dev thread-snapshots prepare
+      - name: Fetch pinned image assets
+        run: uv run leaf-dev fetch-assets
 
       - name: Install browser-build dependencies
         run: npm ci
@@ -144,6 +144,5 @@ jobs:
           path: |
             .tmp/test-results/results.xml
             .tmp/thread-snapshots/runs/
-            .tmp/thread-snapshots/approved/
           if-no-files-found: ignore
           retention-days: 30

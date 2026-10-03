@@ -67,6 +67,15 @@ def card_by_keyboard(page: Page) -> None:
     )
 
 
+def card_more_room(page: Page) -> None:
+    """An overflowing conversation uses extra room without needing a complete fit."""
+    page.set_viewport_size({"width": 1440, "height": 480})
+    settle(page)
+    card_by_pointer(page)
+    settle(page)
+    page.set_viewport_size({"width": 1440, "height": 600})
+
+
 def card_reply(page: Page) -> None:
     """The first margin card with a reply being typed."""
     card_by_keyboard(page)
@@ -240,6 +249,7 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
         at_rest,
         card_by_pointer,
         card_by_keyboard,
+        card_more_room,
         card_reply,
         card_reply_sent,
         card_reply_large,
@@ -335,6 +345,7 @@ STATES = (
         touch=True,
     ),
     State("ship-thread", "ship-review", element_thread),
+    State("ship-card-more-room", "ship-review", card_more_room, viewport=(1440, 600)),
     State(
         "ship-card-short-window", "ship-review", card_by_pointer, viewport=(1440, 480)
     ),

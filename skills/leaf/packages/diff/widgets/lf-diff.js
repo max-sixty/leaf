@@ -874,6 +874,7 @@ customElements.define(
         const restores = [];
         const fresh = [];
         const entries = prepared.map(({ file, renderKey, previous, rendered }) => {
+          if (rendered && this.wrapped()) setWrappedLines(rendered.node, true);
           let entry = previous;
           if (!entry) {
             entry = {
@@ -917,7 +918,7 @@ customElements.define(
             ...entries.map(({ node }) => node),
           ]);
           this.replaceChildren();
-          shadowStage(this, [...sharedStyles.values(), this.manifestBody]);
+          this.stageFiles();
           if (bound)
             projectData(
               this,
@@ -1097,7 +1098,7 @@ customElements.define(
           ...entries.map(({ node }) => node),
         ]);
         this.replaceChildren();
-        this.stageManifest();
+        this.stageFiles();
         this.projectManifest();
         this.classList.toggle("lf-rendered", true);
         this.filterFiles(this.diffTools.search.value);
@@ -1126,8 +1127,8 @@ customElements.define(
       }
     }
 
-    stageManifest() {
-      if (!this.manifestEntries) return;
+    stageFiles() {
+      if (!this.manifestBody) return;
       if (this.wrapped()) setWrappedLines(this.manifestBody, true);
       shadowStage(this, [...this.sharedStyles.values(), this.manifestBody]);
     }
@@ -1308,7 +1309,7 @@ customElements.define(
         entry.loading = null;
         entry.prepared = prepared;
         this.applyManifestEntry(entry);
-        this.stageManifest();
+        this.stageFiles();
         this.projectManifest();
       })();
       return entry.loading;
@@ -1324,6 +1325,7 @@ customElements.define(
         deferredError(entry.details, error);
         return;
       }
+      if (rendered && this.wrapped()) setWrappedLines(rendered.node, true);
       const restore =
         rendered &&
         replaceFileContent(entry, rendered, this.threadPairs, this.threadOutlets);

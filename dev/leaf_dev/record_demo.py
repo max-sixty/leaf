@@ -305,7 +305,7 @@ def record(
     comment_id = next(
         event["id"] for event in waiter.receive() if event["kind"] == "comment"
     )
-    cmd_status(page_dir, "working", "answering the backfill question")
+    cmd_status(page_dir, "working", "answering the backfill question", on=comment_id)
     page.wait_for_function(
         "() => document.querySelector('.lf-status-detail').textContent.includes('answering')"
     )

@@ -25,6 +25,7 @@ import pytest
 from click.testing import CliRunner
 from conftest import CLAUDE_IDENTITY, HOOKED_SESSIONS, LEAF_COMMAND
 from interact_support import (
+    consume_pending_input,
     COMMAND_SUBJECTS,
     HELD_LEASES,
     PAGE,
@@ -117,11 +118,10 @@ def woken(output: str, session: str | None = None) -> tuple[dict, dict, list[dic
     """`delivered`, for a wait whose output the test already holds, and for a
     session other than the one the test runs as."""
     assert "has new input" in output, output
-    payload = delivery_model.take_input(
-        session or session_model.session_harness().session
-    )
+    payload = consume_pending_input(session or session_model.session_harness().session)
     assert payload["format"] == delivery_model.DELIVERY_FORMAT
-    assert (payload["carrier"], payload["acknowledge"]) == ("hook", None)
+    assert payload["carrier"] == "hook"
+    assert f"leaf delivery ack {payload['id']}" in payload["acknowledge"]
     [batch] = payload["batches"]
     return payload, batch, batch["events"]
 
@@ -2420,7 +2420,16 @@ def test_claude_codes_own_record_adds_what_no_hook_sees(claimed, capsys, dead_pi
         claimed, {"kind": "comment", "author": "user", "text": "Tighten the lede."}
     )
     hooks_model.cmd_hook({"hook_event_name": "UserPromptSubmit", "session_id": "s1"})
-    capsys.readouterr()
+    context = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
+        "additionalContext"
+    ]
+    delivered = json.loads(context.split("\n")[1])
+    assert (
+        CliRunner()
+        .invoke(cli_model.cli, ["delivery", "ack", delivered["id"]])
+        .exit_code
+        == 0
+    )
 
     # The stamps answer, and nothing renews this turn past the grace; `busy`, and
     # a record whose process is gone, change nothing.
@@ -2497,6 +2506,8 @@ def test_away_asks_for_a_nudge_only_once_input_is_overdue(claimed, capsys):
             )
         capsys.readouterr()
 
+    consume_pending_input("s1")
+
     turn_ends()
     assert _activity_at(claimed, 3)["kind"] == "away"
     assert _activity_at(claimed, 3)["counts"]["overdue"] == 0
@@ -2513,6 +2524,7 @@ def test_away_asks_for_a_nudge_only_once_input_is_overdue(claimed, capsys):
     # ending without answering does.
     hooks_model.cmd_hook({"hook_event_name": "UserPromptSubmit", "session_id": "s1"})
     capsys.readouterr()
+    consume_pending_input("s1")
     assert _activity_at(claimed)["counts"]["overdue"] == 0
     assert _activity_at(claimed, 16)["counts"]["overdue"] == 0
     turn_ends()
@@ -4579,8 +4591,7 @@ def test_a_reply_binding_lapses_when_a_turn_it_does_not_name_opens(page_dir):
     [owed] = _obligations(page_dir)
     assert owed["answer"]["kind"] == "turn"
 
-    with service_model.PageTransaction(page_dir) as page:
-        page.open_turn("codex-thread", "later-turn")
+    cleanup_model.prompt_turn("codex-thread", "later-turn")
 
     [owed] = _obligations(page_dir)
     assert owed["answer"] == {
@@ -5770,7 +5781,7 @@ def test_each_delivered_event_says_only_what_its_own_case_asks(page_dir, capsys)
     # How receipt is confirmed is the envelope's to say once, and a hook confirms
     # it itself, so no event tells the agent to acknowledge anything. A message is
     # told its own clauses, then how to write the reply it owes.
-    assert envelope["acknowledge"] is None
+    assert f"leaf delivery ack {envelope['id']}" in envelope["acknowledge"]
     assert not any("--ack" in text for text in handling.values())
     assert plain[-len(replying) :] == replying
     # A drawn comment is told everything a plain one is, and how to read its drawing.
@@ -6683,6 +6694,7 @@ def test_settling_a_frozen_widget_move_does_not_revive_its_superseded_move(
     completed = state_json(page_dir)
     assert completed["asks"] == []
     assert completed["activity"]["obligations"] == [answered["id"]]
+    cleanup_model.prompt_turn("s1")
     receive_through(page_dir, last_deliverable_seq(page_dir))
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     blocked = json.loads(capsys.readouterr().out)
@@ -7580,14 +7592,13 @@ def test_receiving_a_delivery_keeps_each_pages_response_obligation(page_dir, tmp
     )
 
 
-def test_concurrent_receipts_open_sibling_turns_without_nesting_page_locks(
+def test_concurrent_receipts_observe_one_session_without_nesting_page_locks(
     claimed, tmp_path, spawn
 ):
-    """Both consumers reach the sibling sweep before either can run it.
+    """Both consumers hold disjoint page locks before observing the session.
 
-    If receipt still holds its own page lock at this boundary, each process
-    waits on the other's page forever. The real sweep must complete both
-    receipts, including the sibling that supplied neither batch.
+    Each takes only the shared session lock next; it never waits for a sibling
+    page. Both receipts complete and the silent sibling derives the same turn.
     """
     second = tmp_path / "second"
     silent = tmp_path / "silent"
@@ -7599,6 +7610,7 @@ def test_concurrent_receipts_open_sibling_turns_without_nesting_page_locks(
     for page in pages:
         with service_model.PageTransaction(page) as transaction:
             transaction.close_turn(session_id)
+    cleanup_model.prompt_turn(session_id)
     deliveries = []
     for page in pages[:2]:
         comment = append_carried_log_record(
@@ -7611,15 +7623,15 @@ def test_concurrent_receipts_open_sibling_turns_without_nesting_page_locks(
 import time
 from leaf import delivery
 
-original_open = delivery.open_session_turn
-def synchronized_open(*args, **kwargs):
+original_lock = delivery.flocked
+def synchronized_lock(*args, **kwargs):
     Path(os.environ["ARRIVAL"]).write_text("ready", encoding="utf-8")
     release = Path(os.environ["RELEASE"])
     while not release.exists():
         time.sleep(0.01)
-    return original_open(*args, **kwargs)
+    return original_lock(*args, **kwargs)
 
-delivery.open_session_turn = synchronized_open
+delivery.flocked = synchronized_lock
 delivery.receive_delivery(os.environ["DELIVERY"])
 """
     consumers = [
@@ -7636,7 +7648,7 @@ delivery.receive_delivery(os.environ["DELIVERY"])
     wait_for(
         lambda: all(arrival.exists() for arrival in arrivals),
         bool,
-        failure="both receipts did not reach the sibling-turn sweep",
+        failure="both receipts did not reach their shared session observation",
     )
     release.write_text("continue", encoding="utf-8")
     for consumer in consumers:
@@ -8821,6 +8833,7 @@ def test_the_stop_hook_watch_wakes_the_session_only_for_input(
 
     # Input arriving once the watch runs wakes the session at once, between turns
     # or within one, where it reaches the turn at its next tool result.
+    cleanup_model.prompt_turn("s1")
     receive_through(claimed, last_deliverable_seq(claimed))
     outcome = []
     watch = watching(outcome)
@@ -8851,6 +8864,7 @@ def test_the_stop_hook_watch_wakes_the_session_only_for_input(
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
 
     # An idle page leaves nothing to watch, and that ending wakes nobody.
+    cleanup_model.prompt_turn("s1")
     receive_through(claimed, last_deliverable_seq(claimed))
     session_model.cmd_status(claimed, "idle", "")
     assert hooks_model.cmd_watch(stop) is None
@@ -10919,8 +10933,8 @@ def test_codex_adapter_keeps_transferred_input_unreceived(
 def test_a_queued_codex_delivery_leaves_the_turn_ended_stamp_standing(
     codex_claimed_page, under_codex, codex_env, tmp_path
 ):
-    """A direct wait's receipt opens the turn after the agent confirms the complete
-    batch entered its context. This carrier's is not: it hands a pointer
+    """A direct wait's reader confirms the complete batch in its already-open turn.
+    This carrier instead hands a pointer
     to Codex's durable same-task queue, which the loaded client starts and an unloaded
     task leaves standing until someone reopens it — and the adapter never reopens one.
 
@@ -11836,7 +11850,7 @@ def test_the_stop_hook_records_the_ending_of_the_turn_behind_a_claim(claimed, ca
     lease.close()
 
 
-def test_receiving_a_batch_opens_the_turn_on_every_page_the_session_holds(
+def test_receiving_a_batch_observes_the_session_turn_on_every_owned_page(
     claimed, tmp_path, capsys
 ):
     """The turn is the session's, not the delivering page's. The Stop hook closes it
@@ -11866,6 +11880,7 @@ def test_receiving_a_batch_opens_the_turn_on_every_page_the_session_holds(
     append_carried_log_record(
         claimed, {"kind": "comment", "id": "c1", "author": "user", "text": "one"}
     )
+    cleanup_model.prompt_turn("s1")
     assert session_model.cmd_wait() == 0
     delivered(capsys)
     assert service_model.page_claim(claimed)["turn_closed"] is None
@@ -11945,8 +11960,8 @@ def test_a_named_wait_claim_does_not_invent_turn_entry(claimed, capsys):
     """Naming a page claims it without reopening an ended session turn.
 
     That ownership action does not confirm receipt of output: the batch remains
-    pending, and no pickup is recorded until a carrier confirms it, here the Stop
-    hook that hands it to the turn.
+    pending, and no pickup is recorded until the actual reader confirms the
+    delivery the Stop hook handed over.
     """
     session_model.cmd_status(claimed, "working", "answering the first comment")
     hooks_model.cmd_hook(
@@ -11970,6 +11985,7 @@ def test_a_named_wait_claim_does_not_invent_turn_entry(claimed, capsys):
         event["kind"] == "pickup" for event in events_model.read_events(claimed)
     )
 
+    cleanup_model.prompt_turn("s1")
     # The Stop hook carries the batch into the turn it holds open, asked again
     # for the same turn or not.
     hooks_model.cmd_hook(
@@ -11979,6 +11995,7 @@ def test_a_named_wait_claim_does_not_invent_turn_entry(claimed, capsys):
     [batch] = json.loads(reason.split("\n")[1])["batches"]
     assert [event["id"] for event in batch["events"]] == ["c1"]
     assert service_model.page_claim(claimed)["turn_closed"] is None
+    consume_pending_input("s1")
 
     # A batch this session never took says nothing about its turn: the successor
     # that delivers it is the one whose turn opened.
@@ -12014,8 +12031,13 @@ def test_a_stop_that_hands_over_input_keeps_the_turn_open(claimed, capsys):
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     answer = json.loads(capsys.readouterr().out)
     assert "decision" not in answer
-    [batch] = json.loads(continued(answer).split("\n")[1])["batches"]
+    envelope = json.loads(continued(answer).split("\n")[1])
+    [batch] = envelope["batches"]
     assert [event["id"] for event in batch["events"]] == [comment["id"]]
+    assert (
+        CliRunner().invoke(cli_model.cli, ["delivery", "ack", envelope["id"]]).exit_code
+        == 0
+    )
     claim = service_model.page_claim(claimed)
     assert (claim["turn"], claim["turn_closed"]) == (session["turn"], None)
     pickup = events_model.read_events(claimed)[-1]
@@ -12050,11 +12072,17 @@ def test_a_repeated_stop_is_held_open_only_by_the_users_input(claimed, capsys):
     comment = append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "is it broken?"}
     )
+    cleanup_model.prompt_turn("s1")
     hooks_model.cmd_hook(repeated)
     answer = json.loads(capsys.readouterr().out)
     assert "decision" not in answer
-    [batch] = json.loads(continued(answer).split("\n")[1])["batches"]
+    envelope = json.loads(continued(answer).split("\n")[1])
+    [batch] = envelope["batches"]
     assert [event["id"] for event in batch["events"]] == [error["id"], comment["id"]]
+    assert (
+        CliRunner().invoke(cli_model.cli, ["delivery", "ack", envelope["id"]]).exit_code
+        == 0
+    )
     assert files_model.read_json(claimed / "cursor.json") == {
         "seq": last_deliverable_seq(claimed)
     }
@@ -12094,8 +12122,9 @@ def test_a_page_that_changed_hands_before_receipt_keeps_its_input(
         str(moved),
         str(claimed),
     ]
-    # The context it already composed says which page is no longer this turn's.
-    assert f"{moved} changed hands before Leaf could confirm" in continued(answer)
+    # Handover never confirms input. The actual reader checks current ownership.
+    refused = CliRunner().invoke(cli_model.cli, ["delivery", "ack", delivery["id"]])
+    assert refused.exit_code != 0
 
     assert service_model.page_claim(moved)["id"] == "s2"
     assert files_model.read_json(moved / "cursor.json") is None
@@ -12104,11 +12133,15 @@ def test_a_page_that_changed_hands_before_receipt_keeps_its_input(
         event["id"]
         for event in service_model.unacknowledged(events_model.read_events(moved), 0)
     ] == [comments[moved]["id"]]
-    assert files_model.read_json(claimed / "cursor.json") == {
-        "seq": last_deliverable_seq(claimed)
-    }
-    pickup = events_model.read_events(claimed)[-1]
-    assert (pickup["kind"], pickup["events"]) == ("pickup", [comments[claimed]["id"]])
+    assert files_model.read_json(claimed / "cursor.json") is None
+    assert service_model.claim_page(moved)
+    assert (
+        CliRunner().invoke(cli_model.cli, ["delivery", "ack", delivery["id"]]).exit_code
+        == 0
+    )
+    assert all(
+        events_model.read_cursor(page) >= comments[page]["seq"] for page in comments
+    )
 
 
 def test_input_too_large_for_the_turn_goes_as_a_pointer_the_model_confirms(
@@ -12349,6 +12382,9 @@ def test_a_preview_owes_no_watcher_but_still_carries_its_user(claimed, capsys):
     # Handed over, the comment is owed an answer, and a later Stop holds for it.
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     reason = continued(capsys.readouterr().out)
+    consume_pending_input("s1")
+    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    reason = continued(capsys.readouterr().out)
     assert f"{claimed}: 1 acknowledged user move with no answer" in reason
     assert "no watcher" not in reason
 
@@ -12514,13 +12550,14 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
             "text": "but why not C?",
         },
     )
-    # The Stop hook carries the follow-up into this same turn, and a later Stop
-    # holds for an answer to it: the last word, not the root the earlier reply
-    # answered.
+    # The host opens the follow-up turn; its Stop carries the new input, and a
+    # later Stop holds for an answer to the last word.
+    cleanup_model.prompt_turn("s1")
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     reason = continued(capsys.readouterr().out)
     [batch] = json.loads(reason.split("\n")[1])["batches"]
     assert [event["id"] for event in batch["events"]] == [follow["id"]]
+    consume_pending_input("s1")
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     assert f"--for {follow['id']}" in continued(capsys.readouterr().out)
     thread_model.cmd_reply(
@@ -12538,6 +12575,7 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
     moot = append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "and C?"}
     )
+    cleanup_model.prompt_turn("s1")
     receive_through(claimed, last_deliverable_seq(claimed))
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     assert moot["id"] in continued(capsys.readouterr().out)
@@ -12560,6 +12598,7 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
         claimed,
         {"kind": "reply", "author": "user", "parent": ask["id"], "text": "sqlite"},
     )
+    cleanup_model.prompt_turn("s1")
     receive_through(claimed, last_deliverable_seq(claimed))
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     assert f"--for {answered['id']}" in continued(capsys.readouterr().out)
@@ -12609,7 +12648,7 @@ def test_the_guard_survives_a_page_vendored_before_the_layer_moved(claimed, caps
     lease.close()
 
 
-def test_claude_codes_hooks_carry_input_into_the_turn_and_confirm_it(claimed, capsys):
+def test_claude_codes_hook_input_is_confirmed_only_by_its_reader(claimed, capsys):
     """Claude Code's prompt hook runs as every turn begins, including the one a
     background wait's ending opens, and its Stop hook as a turn ends; each hands
     the turn the whole pending delivery and confirms it, so the model reads no
@@ -12631,11 +12670,17 @@ def test_claude_codes_hooks_carry_input_into_the_turn_and_confirm_it(claimed, ca
     ]
     lease.close()
     instruction, envelope = context.split("\n")[:2]
-    assert "confirmed it" in instruction
+    assert "acknowledge" in instruction
     payload = json.loads(envelope)
-    assert (payload["carrier"], payload["acknowledge"]) == ("hook", None)
+    assert payload["carrier"] == "hook"
+    assert f"leaf delivery ack {payload['id']}" in payload["acknowledge"]
     [batch] = payload["batches"]
     assert [event["id"] for event in batch["events"]] == [comment["id"]]
+    assert page_state(claimed)["pending"] == 1
+    assert (
+        CliRunner().invoke(cli_model.cli, ["delivery", "ack", payload["id"]]).exit_code
+        == 0
+    )
     assert page_state(claimed)["pending"] == 0
     pickup = events_model.read_events(claimed)[-1]
     claim = service_model.page_claim(claimed)
@@ -12655,8 +12700,15 @@ def test_claude_codes_hooks_carry_input_into_the_turn_and_confirm_it(claimed, ca
     )
     blocked = json.loads(capsys.readouterr().out)
     assert "decision" not in blocked
-    [batch] = json.loads(continued(blocked).split("\n")[1])["batches"]
+    later_delivery = json.loads(continued(blocked).split("\n")[1])
+    [batch] = later_delivery["batches"]
     assert [event["id"] for event in batch["events"]] == [later["id"]]
+    assert (
+        CliRunner()
+        .invoke(cli_model.cli, ["delivery", "ack", later_delivery["id"]])
+        .exit_code
+        == 0
+    )
     assert page_state(claimed)["pending"] == 0
 
 
@@ -12864,8 +12916,7 @@ def test_a_user_move_no_carrier_will_pick_up_messages_its_claude_code_session(
         ):
             if prompt:
                 time.sleep(1)
-                with service_model.PageTransaction(page_dir) as transaction:
-                    transaction.open_turn("s1")
+                cleanup_model.prompt_turn("s1")
             if status is not None:
                 time.sleep(0.01)
                 cleanup_model.write_json(
@@ -13564,7 +13615,7 @@ def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
     # same user is still waiting, and now nothing will raise the comment again,
     # so idle holds until the thread has something under it.
     assert CliRunner().invoke(cli_model.cli, ["wait", str(claimed)]).exit_code == 0
-    assert delivery_model.take_input("s1")
+    assert consume_pending_input("s1")
     refused = CliRunner().invoke(cli_model.cli, ["status", str(claimed), "idle"])
     assert refused.exit_code == 1
     assert "1 acknowledged user move with no answer" in refused.output
@@ -13616,6 +13667,7 @@ def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
     refused = CliRunner().invoke(cli_model.cli, ["status", str(claimed), "idle"])
     assert refused.exit_code == 1
     assert "1 update nobody has picked up" in refused.output
+    cleanup_model.prompt_turn("s1")
     report = str(events_model.read_events(claimed)[-1]["seq"])
     assert (
         CliRunner()
@@ -14349,6 +14401,7 @@ def test_a_reaction_holds_no_turn_as_an_unanswered_ask(claimed, capsys):
         claimed,
         {"kind": "reply", "author": "user", "parent": answer["id"], "text": "but C?"},
     )
+    cleanup_model.prompt_turn("s1")
     receive_through(claimed, last_deliverable_seq(claimed))
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     continued(capsys.readouterr().out)
@@ -14419,8 +14472,15 @@ def test_agent_sees_the_complete_interaction_recovery(claimed, capsys, snapshot)
     instruction, delivery, *attention = context.split("\n")
     observations["delivered at prompt"] = {
         "instruction": instruction,
-        "delivery": {**json.loads(delivery), "id": "<delivery>"},
+        "delivery": json.loads(delivery),
         "attention": "\n".join(attention),
+    }
+    envelope = json.loads(delivery)
+    result = CliRunner().invoke(cli_model.cli, ["delivery", "ack", envelope["id"]])
+    assert result.exit_code == 0, result.output
+    observations["reader confirms delivery"] = {
+        "exit": result.exit_code,
+        "output": result.output,
     }
     session = service_model.page_claim(page)
     lease = leases_model.take_lease(leases_model.waiter_lease_path(page, session["id"]))
@@ -14454,7 +14514,12 @@ def test_agent_sees_the_complete_interaction_recovery(claimed, capsys, snapshot)
             "Complete agent-facing outputs through real hooks, wait and response commands.\n"
             "Only page paths, event/delivery identities and timestamps are normalized.\n"
             "A null hook output means the turn can end without a reminder.",
-            _interaction_prompt_evidence(page, observations),
+            _interaction_prompt_evidence(
+                page,
+                json.loads(
+                    json.dumps(observations).replace(envelope["id"], "<delivery>")
+                ),
+            ),
         )
     )
 
@@ -14618,6 +14683,7 @@ def test_a_move_the_turn_claimed_lets_that_turn_end(claimed, capsys):
     )
     hooks_model.cmd_hook({"hook_event_name": "UserPromptSubmit", "session_id": "s1"})
     capsys.readouterr()
+    consume_pending_input("s1")
     reason = _stop(capsys)
     assert f"`leaf thread reply <page> --for {follow['id']}`" in reason
     assert f"the work claim on {asked['id']} is older than its pickup" in reason
@@ -15204,7 +15270,7 @@ def test_provider_observation_cannot_replace_a_newer_prompt(claimed):
     assert adopted["turn"] == "legitimate-start"
 
 
-def test_hook_publication_precedes_receipt_without_losing_superseded_input(
+def test_hook_publication_never_receipts_input_before_its_reader(
     claimed, tmp_path, monkeypatch, capsys
 ):
     sibling = tmp_path / "sibling"
@@ -15215,23 +15281,111 @@ def test_hook_publication_precedes_receipt_without_losing_superseded_input(
         append_carried_log_record(
             page, {"kind": "comment", "author": "user", "text": "Please answer"}
         )
-    receive = hook_carrier_model.receive_one
-    published = []
+    # A lock taken after planning would block the former receipt loop after its
+    # first write, allowing a host timeout to discard context already receipted.
+    compose = hook_carrier_model.compose
+    held = service_model.PageTransaction(sibling)
 
-    def supersede_before_receipt(batch, sid, **kwargs):
-        if not published:
-            published.append(capsys.readouterr().out)
-            cleanup_model.prompt_turn(sid)
-        return receive(batch, sid, **kwargs)
+    def compose_with_locked_receipt_page(batches, attention):
+        message = compose(batches, attention)
+        held.__enter__()
+        return message
 
-    monkeypatch.setattr(hook_carrier_model, "receive_one", supersede_before_receipt)
-    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
-    assert published and "Please answer" in published[0]
-    assert all(events_model.read_cursor(page) == 0 for page in (claimed, sibling))
-    monkeypatch.setattr(hook_carrier_model, "receive_one", receive)
+    monkeypatch.setattr(hook_carrier_model, "compose", compose_with_locked_receipt_page)
+    try:
+        hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+        context = continued(json.loads(capsys.readouterr().out))
+        envelope = json.loads(context.split("\n")[1])
+        assert len(envelope["batches"]) == 2
+        assert all(events_model.read_cursor(page) == 0 for page in (claimed, sibling))
+    finally:
+        held.__exit__(None, None, None)
+    # Discard the first output just as the host does on timeout. A later prompt
+    # publishes the same input; only its reader's exact ack advances cursors.
+    monkeypatch.setattr(hook_carrier_model, "compose", compose)
     hooks_model.cmd_hook({"hook_event_name": "UserPromptSubmit", "session_id": "s1"})
-    assert "Please answer" in capsys.readouterr().out
+    retry = json.loads(
+        json.loads(capsys.readouterr().out)["hookSpecificOutput"][
+            "additionalContext"
+        ].split("\n")[1]
+    )
+    assert [
+        [event["id"] for event in batch["events"]] for batch in retry["batches"]
+    ] == [[event["id"] for event in batch["events"]] for batch in envelope["batches"]]
+    assert (
+        CliRunner().invoke(cli_model.cli, ["delivery", "ack", retry["id"]]).exit_code
+        == 0
+    )
     assert all(events_model.read_cursor(page) > 0 for page in (claimed, sibling))
+
+
+@pytest.mark.parametrize("turn_id", [None, "provider-turn"])
+def test_reader_ack_refuses_a_closed_turn_without_reopening_it(
+    claimed, turn_id, capsys
+):
+    cleanup_model.prompt_turn("s1", turn_id)
+    event = append_carried_log_record(
+        claimed, {"kind": "comment", "author": "user", "text": "Please answer"}
+    )
+    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    envelope = json.loads(continued(capsys.readouterr().out).split("\n")[1])
+    cleanup_model.close_session_turn("s1", turn_id)
+    closed = cleanup_model.session_record("s1")
+    refused = CliRunner().invoke(cli_model.cli, ["delivery", "ack", envelope["id"]])
+    assert refused.exit_code != 0
+    assert cleanup_model.session_record("s1") == closed
+    assert events_model.read_cursor(claimed) < event["seq"]
+    assert not any(e["kind"] == "pickup" for e in events_model.read_events(claimed))
+    # A real subsequent host prompt admits the same immutable input to its reader.
+    cleanup_model.prompt_turn("s1", "next-provider" if turn_id else None)
+    assert (
+        CliRunner().invoke(cli_model.cli, ["delivery", "ack", envelope["id"]]).exit_code
+        == 0
+    )
+    assert events_model.read_cursor(claimed) == event["seq"]
+
+
+def test_reader_ack_commits_pickup_and_cursor_before_session_end(
+    claimed, monkeypatch, capsys
+):
+    event = append_carried_log_record(
+        claimed, {"kind": "comment", "author": "user", "text": "Please answer"}
+    )
+    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    envelope = json.loads(continued(capsys.readouterr().out).split("\n")[1])
+    attempting = threading.Event()
+    ended = threading.Event()
+
+    def end():
+        attempting.set()
+        cleanup_model.end_session("s1")
+        ended.set()
+
+    thread = threading.Thread(target=end)
+    pickup = delivery_model.record_pickup
+
+    def pickup_while_end_attempts(*args, **kwargs):
+        thread.start()
+        assert attempting.wait(STATED_TIMEOUT)
+        # Observe the actual lock ownership, rather than relying on scheduling
+        # an end call to happen before this short receipt transaction completes.
+        with open(cleanup_model.session_lock_path("s1"), "a+") as lock:
+            with pytest.raises(BlockingIOError):
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        assert not ended.is_set()
+        assert cleanup_model.session_record("s1")["ended"] is None
+        return pickup(*args, **kwargs)
+
+    monkeypatch.setattr(delivery_model, "record_pickup", pickup_while_end_attempts)
+    accepted = CliRunner().invoke(cli_model.cli, ["delivery", "ack", envelope["id"]])
+    thread.join(STATED_TIMEOUT)
+    assert accepted.exit_code == 0, accepted.output
+    assert ended.is_set()
+    assert events_model.read_cursor(claimed) == event["seq"]
+    assert (
+        CliRunner().invoke(cli_model.cli, ["delivery", "ack", envelope["id"]]).exit_code
+        != 0
+    )
 
 
 def test_no_page_stop_cannot_close_a_prompt_that_arrives_during_discovery(monkeypatch):
@@ -15260,3 +15414,86 @@ def test_first_claim_enriches_prompt_provenance_without_replacing_it(
         True,
     )
     assert after["lifetime"] == {"pid": os.getpid()}
+
+
+def test_closed_provider_prompt_never_reopens_its_identity(claimed, capsys):
+    cleanup_model.prompt_turn("s1", "completed")
+    cleanup_model.close_session_turn("s1", "completed")
+    ended = cleanup_model.session_record("s1")
+    hooks_model.cmd_hook(
+        {
+            "hook_event_name": "UserPromptSubmit",
+            "session_id": "s1",
+            "turn_id": "completed",
+        }
+    )
+    assert cleanup_model.session_record("s1") == ended
+    assert capsys.readouterr().out == ""
+
+
+@pytest.mark.parametrize("existing_fold", [False, True])
+def test_observer_rejects_stale_running_snapshot(existing_fold, claimed):
+    cleanup_model.prompt_turn("s1", "old")
+    observer = codex_adapter_model.TaskObserver("ws://127.0.0.1:1", "s1")
+    if existing_fold:
+        observer._read(
+            {
+                "method": "turn/started",
+                "params": {"threadId": "s1", "turn": {"id": "old"}},
+            }
+        )
+    cleanup_model.prompt_turn("s1", "new")
+    cleanup_model.close_session_turn("s1", "new")
+    current = cleanup_model.session_record("s1")
+    observer._resume(
+        {
+            "status": {"type": "active"},
+            "turns": [{"id": "old", "status": "inProgress", "items": []}],
+        }
+    )
+    assert observer.running is None
+    assert cleanup_model.session_record("s1") == current
+
+
+def test_observer_continues_after_a_recovered_provider_completion(claimed):
+    cleanup_model.prompt_turn("s1", "old")
+    observer = codex_adapter_model.TaskObserver("ws://127.0.0.1:1", "s1")
+    observer._read(
+        {"method": "turn/started", "params": {"threadId": "s1", "turn": {"id": "old"}}}
+    )
+    observer._resume(
+        {
+            "status": {"type": "idle"},
+            "turns": [{"id": "old", "status": "completed", "items": []}],
+        }
+    )
+    assert cleanup_model.session_record("s1")["turn_closed"] is not None
+    observer._read(
+        {"method": "turn/started", "params": {"threadId": "s1", "turn": {"id": "next"}}}
+    )
+    assert observer.running == "next"
+    assert cleanup_model.session_record("s1")["turn"] == "next"
+
+
+def test_provider_start_cannot_reopen_a_completed_named_turn(claimed):
+    cleanup_model.prompt_turn("s1", "completed")
+    cleanup_model.close_session_turn("s1", "completed")
+    expected = cleanup_model.session_record("s1")
+    assert cleanup_model.start_session_turn("s1", "completed", expected) is None
+    assert cleanup_model.session_record("s1") == expected
+
+
+def test_provider_start_accepts_its_own_synchronous_prompt(claimed):
+    expected = cleanup_model.session_record("s1")
+    published = cleanup_model.prompt_turn("s1", "returned-turn")
+    assert (
+        cleanup_model.start_session_turn("s1", "returned-turn", expected) == published
+    )
+    assert cleanup_model.session_record("s1") == published
+    cleanup_model.prompt_turn("s1", "competing-turn")
+    competing = cleanup_model.session_record("s1")
+    assert cleanup_model.start_session_turn("s1", "returned-turn", expected) is None
+    assert cleanup_model.session_record("s1") == competing
+    cleanup_model.end_session("s1")
+    cleanup_model.prompt_turn("s1", "returned-turn")
+    assert cleanup_model.start_session_turn("s1", "returned-turn", expected) is None

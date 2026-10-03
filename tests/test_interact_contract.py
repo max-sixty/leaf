@@ -16,6 +16,7 @@ import model_folds as model
 import pytest
 from click.testing import CliRunner
 from interact_support import (
+    consume_pending_input,
     ACCEPT,
     ADOPTED,
     COMMAND_HUB_PACKAGE,
@@ -3817,7 +3818,7 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
     capsys.readouterr()
     assert session_model.cmd_wait(page_dir) == 0
     assert "has new input" in capsys.readouterr().out
-    envelope = delivery_model.take_input(host_model.session_harness().session)
+    envelope = consume_pending_input(host_model.session_harness().session)
     record = json.loads(logged)
     [batch] = envelope["batches"]
     [delivered] = batch["events"]
@@ -4919,9 +4920,9 @@ def test_the_reply_door_refuses_a_picture_the_page_directory_has_not_got(page_di
         f"the reply door froze a picture the page has not got into the log:\n"
         f"{posted.output}"
     )
-    assert "/media/0000000000000001.png isn't in the page directory" in posted.output, (
-        posted.output
-    )
+    assert (
+        "/media/0000000000000001.png isn't in the page directory" in posted.output
+    ), posted.output
     assert not [e for e in events_model.read_events(page_dir) if e["kind"] == "reply"]
 
 

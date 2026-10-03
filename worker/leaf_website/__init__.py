@@ -448,7 +448,8 @@ class HostedTurn(CarriedTurn):
         delivery's without anything having to read it back off the stream.
         """
         self.record("turn_following_started")
-        self.open()
+        if not self.open():
+            raise RuntimeError("the hosted turn no longer owns its session epoch")
         open_app_server_delivery(
             self.page_dir,
             self.session_id,

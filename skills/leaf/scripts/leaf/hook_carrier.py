@@ -7,14 +7,13 @@ of a background task opens, idle or between two tool calls, and adds what the
 hook returns to that turn's context; what the Stop hook returns reaches the
 model the same way, and continues the turn (`Harness.continue_turn`). So these
 two hooks are the session's carrier
-(`Harness.hook_delivers`): each freezes the input pending on the session's
-pages, confirms it, and hands over the whole envelope, and the `leaf wait` the
-model keeps running only ends to open the turn. The model reads no output file
-and runs no acknowledgement.
+(`Harness.hook_delivers`): each freezes the input pending on the session's pages and hands over its complete
+envelope or immutable pointer. The reader confirms receipt only once the whole
+delivery is in context; hook completion and stdout publication prove no receipt.
 
 Claude Code writes a hook's context over 10,000 characters to a file and hands
 the turn a preview and its path, so a delivery that large goes as a pointer its
-reader confirms instead of being confirmed unseen."""
+reader confirms once read. Every inline envelope requires the same confirmation."""
 
 import json
 from dataclasses import dataclass
@@ -23,10 +22,8 @@ from pathlib import Path
 from .state import close_session_turn, flocked, session_lock_path
 from .activity import acknowledged_obligations, turn_obligations, unanswered
 from .delivery import (
-    ReceiptRefused,
     freeze_delivery,
     batch_data,
-    receive_one,
     record_pickup,
 )
 from .host import Harness, claim_harness
@@ -253,52 +250,42 @@ def pick_up_acknowledged(session_id: str, plans: list[PagePlan]) -> None:
 HOOK_CONTEXT_LIMIT = 10_000
 
 
-def pointer_acknowledgement(delivery_id: str) -> str:
-    """What a delivery too large to hand over inline tells its reader, who confirms
-    it once read."""
+def hook_acknowledgement(delivery_id: str) -> str:
+    """Only the reader can prove a host hook's context reached its turn."""
     return (
-        "Leaf's hook handed this delivery over as a pointer, because it was too "
-        "large for the turn's context; until it is confirmed, the user's moves "
-        "read Sent. Once all of it is in your context, confirm it with "
-        f"`leaf delivery ack {delivery_id}`."
+        "Once this complete delivery is in your context, confirm it with "
+        f"`leaf delivery ack {delivery_id}`. Until then, the user's moves read Sent."
     )
 
 
-def compose(batches: list[dict], attention: list[str]) -> tuple[str, dict | None]:
-    """The turn context for one hook, and the delivery handing it over confirms.
+def compose(batches: list[dict], attention: list[str]) -> str:
+    """Publish one reader-confirmed envelope inline, or its exact pointer.
 
-    A delivery that fits goes in whole, and handing it over is receipt. One that
-    would not fit goes as a pointer the model reads and confirms itself, since
-    Claude Code would replace it with a preview and receipt would confirm what
-    the model never saw."""
+    Hook completion cannot establish receipt: a host timeout discards stdout,
+    and large context may be truncated. The model acknowledges only after the
+    complete immutable delivery reached its context on either path.
+    """
     if not batches:
-        return "\n".join(attention), None
-    delivery = freeze_delivery(batches, carrier="hook")
+        return "\n".join(attention)
+    delivery = freeze_delivery(
+        batches, carrier="hook", acknowledge=hook_acknowledgement
+    )
     message = "\n".join(
         [
-            (
-                "Leaf delivered this input into your turn and confirmed it, so the "
-                "user's moves read Picked up."
-            ),
+            "Leaf has new input for your turn. Read this complete delivery and take its acknowledge route before answering.",
             json.dumps(delivery, ensure_ascii=False),
             *attention,
         ]
     )
     if len(message.encode("utf-8")) < HOOK_CONTEXT_LIMIT:
-        return message, delivery
-    pointer = freeze_delivery(
-        batches, carrier="hook", acknowledge=pointer_acknowledgement
-    )
+        return message
     return "\n".join(
         [
-            (
-                "Leaf has new input for this turn, too large to hand over inline. "
-                f"Read it with `leaf delivery read {pointer['id']}`, then confirm it "
-                "as its `acknowledge` says."
-            ),
+            "Leaf has new input for this turn, too large to hand over inline. "
+            f"Read it with `leaf delivery read {delivery['id']}`, then confirm it as its `acknowledge` says.",
             *attention,
         ]
-    ), None
+    )
 
 
 def carry_turn(
@@ -347,10 +334,9 @@ def carry_turn(
         if reasons
         else []
     )
-    # Publish the whole context under its epoch guard before confirming input.
-    # Per-page receipts follow with the same guard and page→session lock order.
-    # If a newer prompt wins after publication, unreceipted input stays pending.
-    message, confirmed = compose(batches, attention)
+    # Publishing context proves no receipt. Its reader acknowledges the exact
+    # envelope after the host accepted this output into its turn.
+    message = compose(batches, attention)
     with flocked(session_lock_path(sid)):
         if session_record(sid) != expected:
             return
@@ -375,11 +361,3 @@ def carry_turn(
                 ),
                 flush=True,
             )
-
-    for batch in confirmed["batches"] if confirmed else ():
-        try:
-            receive_one(batch, sid, lifecycle=expected)
-        except (ReceiptRefused, FileNotFoundError):
-            # Context was published, but a new turn/owner won before receipt.
-            # Its unchanged cursor keeps the exact input pending for that owner.
-            continue

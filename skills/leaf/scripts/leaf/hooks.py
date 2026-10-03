@@ -45,6 +45,8 @@ def cmd_hook(payload: dict) -> None:
     turn_id = payload.get("turn_id")
     if event == "UserPromptSubmit":
         expected = prompt_turn(sid, turn_id)
+        if expected is None:
+            return
     elif turn_id:
         # A first trusted step can identify an unknown session-scoped turn.
         # Once a prompt/provider named it, late callbacks cannot replace it.

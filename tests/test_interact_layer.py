@@ -20,6 +20,7 @@ import yaml
 from click.testing import CliRunner
 from conftest import LEAF_COMMAND, PagePool
 from interact_support import (
+    consume_pending_input,
     PAGE,
     PAGE_PACKAGES,
     PLUGIN_ROOT,
@@ -39,7 +40,6 @@ from interact_support import (
 )
 from leaf import cli as cli_model
 from leaf import data as data_model
-from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import files as interact_files
 from leaf import hooks as hooks_model
@@ -195,7 +195,7 @@ def test_reply_command_guides_selection_and_followup(claimed, server, regtest):
     woke = runner.invoke(cli_model.cli, ["wait", str(page)])
     assert woke.exit_code == 0, woke.output
     assert "has new input" in woke.output
-    [batch] = delivery_model.take_input("s1")["batches"]
+    [batch] = consume_pending_input("s1")["batches"]
     assert len(batch["events"]) == 2
     record(["thread", "reply", str(page), "--text", "Answer"], 1)
     record(["thread", "reply", str(page), ids[0], "--text", "Answer"], 1)
@@ -259,9 +259,9 @@ def test_the_python_instructions_name_every_module_they_own():
     )
     assert modules, "no modules read — an empty set names itself"
     packages = sorted({m.parent.as_posix() for m in modules} - {"."})
-    assert not set(packages) - set(within), (
-        f"packages with no Within paragraph: {sorted(set(packages) - set(within))}"
-    )
+    assert not set(packages) - set(
+        within
+    ), f"packages with no Within paragraph: {sorted(set(packages) - set(within))}"
 
     unnamed = [
         module.as_posix()

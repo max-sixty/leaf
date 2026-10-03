@@ -1780,3 +1780,18 @@ class _YamlSnapshotHandler(BaseSnapshotHandler):
 SnapshotHandlerRegistry.add_handler(
     lambda obj: isinstance(obj, YamlDocument), _YamlSnapshotHandler, insert_front=True
 )
+
+
+def consume_pending_input(session_id):
+    """A test reader takes a complete envelope and explicitly confirms it."""
+    from leaf import delivery
+    from leaf.hook_carrier import hook_acknowledgement
+
+    batches = delivery.pending_batches(session_id)
+    if not batches:
+        return None
+    payload = delivery.freeze_delivery(
+        batches, carrier="hook", acknowledge=hook_acknowledgement
+    )
+    delivery.receive(payload, session_id)
+    return payload

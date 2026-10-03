@@ -16,10 +16,14 @@ from typing import NamedTuple
 import pytest
 from click.testing import CliRunner
 from conftest import LEAF_COMMAND
-from interact_support import append_carried_log_record, install_payload, wait_for
+from interact_support import (
+    consume_pending_input,
+    append_carried_log_record,
+    install_payload,
+    wait_for,
+)
 from leaf import cli as cli_model
 from leaf import data as data_model
-from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import exporting as exporting_model
 from leaf import files as files_model
@@ -329,9 +333,9 @@ def test_a_watch_subscription_collects_before_its_first_read(tmp_path):
         reported = set()
         deadline = time.monotonic() + 10
         while str(edited) not in reported:
-            assert time.monotonic() < deadline, (
-                f"the edit was never reported: {reported}"
-            )
+            assert (
+                time.monotonic() < deadline
+            ), f"the edit was never reported: {reported}"
             reported |= {path for _, path in next(changes)}
     finally:
         changes.close()
@@ -1122,7 +1126,7 @@ def test_a_user_preview_update_keeps_the_sessions_wait_watching(
     )
     assert waiter.wait(timeout=30) == 0, waited.read_text()
     assert "has new input" in waited.read_text()
-    [batch] = delivery_model.take_input(session)["batches"]
+    [batch] = consume_pending_input(session)["batches"]
     assert [event["text"] for event in batch["events"]] == ["still there?"]
 
 

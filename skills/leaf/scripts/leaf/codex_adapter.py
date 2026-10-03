@@ -164,6 +164,7 @@ class TaskObserver:
         self.thread_id = thread_id
         self.turns: dict[str, TurnFold] = {}
         self.running: str | None = None
+        self.lifecycle = session_record(thread_id)
         self.stop_event = threading.Event()
         self.socket = None
         self.started = False
@@ -246,6 +247,7 @@ class TaskObserver:
         with app_server_connect(self.endpoint) as socket:
             self.socket = socket
             app_server_handshake(socket, 0, "leaf", "Leaf", self._read)
+            self.lifecycle = session_record(self.thread_id)
             result = self._send(
                 socket,
                 "thread/resume",
@@ -268,17 +270,12 @@ class TaskObserver:
         # A followed turn the snapshot does not list — a paginated thread's `turns`
         # can leave it out — stays disconnected until it says something.
         turns = thread.get("turns", [])
-        for turn in turns:
-            self._reconcile(turn)
+        running = {turn["id"] for turn in turns if self._reconcile(turn)}
 
         # Only a turn this can name. A resume that reports the task active without
         # naming its turn leaves nothing a `turn/completed` could ever clear.
         self.running = next(
-            (
-                turn["id"]
-                for turn in reversed(turns)
-                if turn.get("status") == "inProgress"
-            ),
+            (turn["id"] for turn in reversed(turns) if turn["id"] in running),
             None,
         )
         status = thread.get("status", {})
@@ -302,7 +299,7 @@ class TaskObserver:
             # one is still live.
             codex.clear_stream_activity(self.thread_id)
 
-    def _reconcile(self, turn: dict) -> None:
+    def _reconcile(self, turn: dict) -> bool:
         """Bring one snapshot turn's fold up to what the snapshot says of it.
 
         A running turn is followed, whether or not it was before the connection
@@ -317,12 +314,14 @@ class TaskObserver:
             turn["id"], _turn_delivery_id(turn), follow=running, ended=not running
         )
         if fold is None:
-            return
+            return False
         if running:
             fold.restore(turn)
         else:
             self.turns.pop(turn["id"], None)
             fold.commit(turn)
+        self._observe_lifecycle(turn["id"])
+        return running
 
     def _read(self, message: dict) -> None:
         """Route one notification to the fold of the turn it names."""
@@ -332,7 +331,6 @@ class TaskObserver:
         method = message.get("method")
         if method == "turn/started":
             turn_id = params["turn"]["id"]
-            self.running = turn_id
         elif method == "turn/completed":
             turn_id = params["turn"]["id"]
             if self.running == turn_id:
@@ -355,12 +353,19 @@ class TaskObserver:
         )
         if fold is None:
             return
-        if adopting:
+        if adopting or method == "turn/started":
             self.running = turn_id
         update = fold.absorb(message)
         if (terminal := fold.finished(message, update)) is not None:
             del self.turns[turn_id]
             fold.commit(terminal)
+        self._observe_lifecycle(turn_id)
+
+    def _observe_lifecycle(self, turn_id: str) -> None:
+        """Advance the subscription token only for its accepted current turn."""
+        current = session_record(self.thread_id)
+        if current and current["turn"] == turn_id:
+            self.lifecycle = current
 
     def _fold(
         self,
@@ -382,6 +387,10 @@ class TaskObserver:
             # Its follower answers for this turn, so nothing here writes it twice.
             self.turns.pop(turn_id, None)
             return None
+        if follow:
+            if start_session_turn(self.thread_id, turn_id, self.lifecycle) is None:
+                return None
+            self.lifecycle = session_record(self.thread_id)
         fold = self.turns.get(turn_id)
         if fold is None and follow:
             fold = TurnFold(self.thread_id, turn_id)
@@ -487,7 +496,6 @@ def start_delivery_turn(
             raise RuntimeError(
                 f"the Codex task is not taking turns: {status.get('type', 'unknown')}"
             )
-        expected = session_record(session_id)
         turn_id = start_app_server_delivery(
             lambda method, params: app_server_request(
                 socket, method, 2, params, buffered.append
@@ -500,11 +508,6 @@ def start_delivery_turn(
         # turn the moment it says anything; every other failure has given it back.
         socket.close()
         raise
-    if start_session_turn(session_id, turn_id, expected) is None:
-        socket.close()
-        raise AppServerDeliveryUncertain(
-            "a newer session turn superseded the provider start"
-        )
     # On the task's configured model: a user's App Server offers no model this
     # process could name for every account.
     name_untitled_threads(

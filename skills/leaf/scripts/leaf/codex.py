@@ -34,7 +34,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 from xml.etree import ElementTree
 
-from .state import open_session_turn, close_session_turn
+from .state import open_session_turn, close_session_turn, start_session_turn
 from .codex_state import (
     delivery_dir,
     delivery_lock_path,
@@ -272,7 +272,10 @@ def start_app_server_delivery(send, thread_id: str, payload: dict) -> str:
     """Start one delivery's turn on an idle thread with its reply seat reserved.
 
     `send(method, params)` is the carrier's request on its own connection, under
-    its own request ids.
+    its own request ids. The task thread id is the Leaf session id. Immediately
+    before the request, this boundary captures its epoch; the returned identity
+    is adopted only against that epoch or its own synchronous provider prompt.
+    A newer different prompt leaves the start uncertain and its seat reserved.
 
     The seat is reserved before `turn/start` goes out, so no other writer answers
     the delivery its turn is about to answer. What happens to the seat when
@@ -288,6 +291,7 @@ def start_app_server_delivery(send, thread_id: str, payload: dict) -> str:
     if reply_target is not None:
         reserve_delivery_reply(thread_id, payload["id"], reply_target)
     try:
+        expected = session_record(thread_id)
         started = send("turn/start", app_server_turn_start_params(thread_id, payload))
     except AppServerRequestRejected:
         if reply_target is not None:
@@ -305,6 +309,10 @@ def start_app_server_delivery(send, thread_id: str, payload: dict) -> str:
         if reply_target is not None:
             release_delivery_reply(thread_id, payload["id"], reply_target)
         raise RuntimeError("Codex App Server returned no turn id")
+    if start_session_turn(thread_id, turn_id, expected) is None:
+        raise AppServerDeliveryUncertain(
+            "a newer session epoch superseded the provider start"
+        )
     return turn_id
 
 

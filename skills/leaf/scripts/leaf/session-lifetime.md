@@ -20,8 +20,8 @@ second fold.
 | the turn ending this page nudged its session after | `messaged_ending` in the page's claim record: the turn id and its close stamp, or for an interrupted turn its last opening | browser-event admission, once the harness's nudge lands | a later ending, a close under a new id or an interrupt after a new prompt renewed the same one, differs |
 | wait lease | `waiter.lock`, or `sessions/<session>.wait` for a host session | the live `leaf wait` process, or Claude Code's background Stop hook watching between turns (`leaf hook --watch`), held open for its life and removed when it lets go, SIGTERM and SIGHUP included | process exit |
 | the host runs Leaf's hooks for this session | `sessions/<session>.hooks` | every Leaf hook the host runs for the session | removed by its SessionEnd hook |
-| acknowledgement cursor | `cursor.json` | whichever carrier confirms the complete delivery reached its durable consumer: a Claude Code hook as it hands the envelope to the turn, `leaf wait --ack` after a printed one, or the Codex adapter | when its seq is past the log's end, or a fresh log replaces the one it named; monotonic within one log |
-| pickup transition | a `pickup` event in `events.jsonl` | an unobserved carrier records `queued` when Codex accepts a batch; whichever carrier puts the batch into a turn records `opened` with session and turn identity: a direct `leaf wait --ack` confirmation, a Claude Code hook handing a delivery to the turn, the prompt hook re-presenting an acknowledged unanswered move, or an App Server turn start | never; each event/phase/session/turn transition is idempotent |
+| acknowledgement cursor | `cursor.json` | whichever carrier confirms the complete delivery reached its durable consumer: the reader of a complete Claude Code hook delivery via `leaf delivery ack`, `leaf wait --ack` after a printed one, or the Codex adapter | when its seq is past the log's end, or a fresh log replaces the one it named; monotonic within one log |
+| pickup transition | a `pickup` event in `events.jsonl` | an unobserved carrier records `queued` when Codex accepts a batch; whichever carrier puts the batch into a turn records `opened` with session and turn identity: a direct `leaf wait --ack` confirmation, the reader confirming a complete Claude Code hook delivery, the prompt hook re-presenting an acknowledged unanswered move, or an App Server turn start | never; each event/phase/session/turn transition is idempotent |
 | page claim: unique acquisition, session generation, display name, harness, page freshness | `~/.local/state/leaf/claims/<page>` | `server start` from an agent host; references the session lifetime publication | `released` is set, the referenced generation ended or was replaced, or the shared host lifetime is gone: the pid, the background job's directory, or — for a host that multiplexes every session into one process, where there is no pid to name — the page going untouched for ACTIVITY_GRACE_SECS, which a *visible* tab's `viewed.json` writes keep renewing — a backgrounded tab stops its freshness reads and stops renewing |
 | service lifetime | `service.json` | `server start` at launch: session, or standing | `leaf server stop`; a session server also retires when no live claim holds it |
 | Codex delivery record | `sessions/<session>.deliveries/` in the state home | the detached adapter or an embedded App Server host | an unaccepted record is inactive while the session owns no page; an accepted record moves under `history/` after every batch is receipted; a record, live or archived, goes at the next scan that finds its pages all gone: its own task's reading, its next archiving, or any Codex adapter's retirement, which scans every task's records and removes a directory it empties |
@@ -195,12 +195,17 @@ response debt and carrier facts feed Stop policy before host formatting; prompt
 pickup is an explicit transition and rechecks that debt remains unsettled.
 Every hook effect checks its captured session generation and revision, including
 no-ID and same-ID prompt renewal. The complete context is published and flushed
-under that epoch guard before receipts. Each receipt then independently revalidates
-the epoch, current ownership and exact event identities under page→session locks.
-A prompt arriving after publication leaves any remaining batches pending for its
-next hook, so input may repeat by identity but cannot disappear. Provider callbacks
+under that epoch guard. Hook stdout cannot prove receipt, since a host timeout
+discards it. Every hook envelope names `leaf delivery ack`; its reader confirms
+only once every batch is in context. Receipt then revalidates current ownership
+and exact event identities under page→session locks held through pickup and
+cursor commit. Receipt observes an open turn and cannot open or replace one. Input stays pending if
+context is lost, whether the envelope was inline or a large pointer. Provider callbacks
 can only bind an unknown turn or match the known one; an App Server start result
 introduces a new identity only by comparing the epoch captured before its request.
+The subscribed observer captures its epoch before resume and advances that token
+only with accepted messages for its current provider turn. Ordered starts adopt
+against this token; a rejected stale snapshot never marks the observer running.
 Codex's synchronous prompt hook records the provider turn even before a
 page is claimed. Its asynchronous PostToolUse hook identifies an unknown session-scoped turn
 once, or renews only the already observed running provider turn and offers one immutable pointer between steps. The observation's
@@ -267,7 +272,7 @@ shapes:
   (`Harness.watches_between_turns`), and the model starts no watcher. It holds the
   session's wait lease until a page has input, exits 2 to wake the session, and the
   prompt hook of the turn the wake opens or reaches puts the batch in that turn's
-  context and advances the cursors. Input that was already pending as the turn
+  context; its reader acknowledges the complete envelope before work. Input that was already pending as the turn
   ended is the other Stop hook's to hand to the turn it continues, so the watch
   carries it only once that hook lets the turn end over it. Claude Code bounds a
   background command at two hours and a hook only at its own `timeout`, which is

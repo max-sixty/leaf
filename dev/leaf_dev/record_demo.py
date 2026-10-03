@@ -22,7 +22,8 @@ from contextlib import redirect_stdout
 from pathlib import Path
 
 import click
-from leaf.delivery import take_input
+from leaf.delivery import pending_batches, freeze_delivery, receive_delivery
+from leaf.hook_carrier import hook_acknowledgement
 from leaf.host import session_harness
 from leaf.hosting import claim_and_start, cmd_stop
 from leaf.projection import folded_positions
@@ -214,8 +215,8 @@ def select_text(page: Page, selector: str, text: str) -> None:
 
 class DemoWaiter:
     """One background `leaf wait`, taking each delivery the way this host's agent
-    does: where the session's hooks carry input, `take_input` hands it over;
-    elsewhere the wait prints it and re-arming with `--ack` confirms it."""
+    does: it reads a complete delivery, explicitly acknowledges it, and
+    rearms the wait. The demo itself stands in for the reader."""
 
     def __init__(self, page_dir: Path) -> None:
         self.process = subprocess.Popen(
@@ -234,7 +235,12 @@ class DemoWaiter:
         if not stdout.strip():
             payload = {}
         elif hooked:
-            payload = take_input(harness.session)
+            payload = freeze_delivery(
+                pending_batches(harness.session),
+                carrier="hook",
+                acknowledge=hook_acknowledgement,
+            )
+            receive_delivery(payload["id"])
         else:
             payload = json.loads(stdout)
         batches = payload.get("batches", [])

@@ -306,8 +306,11 @@ def advance_turn(session_id: str, turn_id: str | None, *, running: bool) -> dict
 def open_session_turn(session_id: str, turn_id: str | None = None) -> dict | None:
     with flocked(session_lock_path(session_id)):
         record = session_record(session_id)
-        if record is not None and record["ended"] is not None:
-            # Only a prompt/claim starts a new lifetime, never a late receipt.
+        if record is not None and (
+            record["ended"] is not None
+            or (record["provider"] and record["turn_closed"] is not None)
+        ):
+            # A late consumer/callback cannot restart a known provider turn.
             return None
         if (
             record
@@ -326,18 +329,45 @@ def start_session_turn(
 ) -> dict | None:
     """Adopt a provider start result only if its request still owns this epoch."""
     with flocked(session_lock_path(session_id)):
-        if session_record(session_id) != expected:
+        current = session_record(session_id)
+        if (
+            current
+            and current["provider"]
+            and current["turn"] == turn_id
+            and current["turn_closed"] is not None
+        ):
+            return None
+        if current != expected:
+            # The provider may run its synchronous prompt hook before replying
+            # to turn/start. That exact publication is the successful adoption,
+            # not a competing turn; no identity or revision is rewritten here.
+            if (
+                current
+                and expected
+                and current["generation"] == expected["generation"]
+                and current["ended"] is None
+                and current["provider"]
+                and current["turn"] == turn_id
+            ):
+                return current
             return None
         return advance_turn(session_id, turn_id, running=True)
 
 
-def prompt_turn(session_id: str, turn_id: str | None = None) -> dict:
+def prompt_turn(session_id: str, turn_id: str | None = None) -> dict | None:
     """A synchronous prompt starts/resumes the host's generation before claims."""
     with flocked(session_lock_path(session_id)):
         record = session_record(session_id)
         if record is not None and record["ended"] is not None:
             write_session(new_session(session_id, record["lifetime"]))
         record = session_record(session_id)
+        if (
+            record
+            and turn_id is not None
+            and turn_id == record["turn"]
+            and record["turn_closed"] is not None
+        ):
+            return None
         if record and (
             turn_id == record["turn"]
             or (turn_id is None and record["turn_closed"] is None)

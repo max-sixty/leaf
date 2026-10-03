@@ -15,7 +15,8 @@ The envelope names the carrier that brings it into an agent's context, and the
 two facts that differ by carrier are stated once for the whole delivery rather
 than per event. `acknowledge` says who confirms receipt: the reader of a `leaf
 wait`, in the way its harness runs that command, or nobody, where the carrier
-confirmed it itself, as a hook does when it hands the whole envelope to the turn. And a carrier whose turn speaks for the delivery, App Server,
+confirmed it itself. A host hook always names the reader's confirmation route.
+A carrier whose turn speaks for the delivery, App Server,
 turns the one thread reply the delivery owes into a `turn` answer, which that
 turn's own messages write; every other carrier leaves it a `reply` for `leaf thread
 reply`. Each event's `answer` is that same address, so its `answering` clauses
@@ -28,10 +29,10 @@ import secrets
 import sys
 import time
 from collections.abc import Callable, Iterator
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from pathlib import Path
 
-from .state import open_session_turn, flocked, session_lock_path, session_record
+from .state import flocked, session_lock_path, session_record
 from .files import read_json
 from .host import claim_harness, session_harness
 from .machine import state_home
@@ -301,8 +302,8 @@ def freeze_delivery(
     will deliver it hands it over.
 
     `acknowledge` writes, for the delivery's id, what the reader does to confirm
-    it: a `leaf wait`'s reader acknowledges, in the way its harness runs the
-    command, and every other carrier confirms receipt itself, so its envelope says
+    it: the reader of `wait` or `hook` confirms only after the complete envelope
+    is in context. A carrier whose durable consumer confirms it directly uses
     `null`."""
     if carrier not in CARRIERS:
         raise ValueError(f"unknown delivery carrier {carrier!r}")
@@ -439,21 +440,24 @@ def receive_batch(
     Current ownership authorizes the write, not capture-time ownership;
     an old envelope can be confirmed after ownership returns to its receiver.
     """
-    claim = page.active_claim
-    if (claim["id"] if claim else None) != session_id:
-        raise ReceiptRefused(f"delivery no longer owns its page: {page.page_dir}")
-    expected = {event["seq"]: event["id"] for event in batch["events"]}
-    delivered = {event["seq"]: event for event in page.events}
-    if not expected or any(
-        seq not in delivered or delivered[seq]["id"] != event_id
-        for seq, event_id in expected.items()
-    ):
-        raise ReceiptRefused(
-            f"delivery no longer matches its page log: {page.page_dir}"
-        )
-    yield [delivered[seq] for seq in expected]
-    if max(expected) > page.cursor:
-        write_json(page.page_dir / CURSOR_FILE, {"seq": max(expected)})
+    # The page is already locked; keep lifecycle admission valid through pickup
+    # and cursor commit. SessionEnd cannot cross between those writes.
+    with flocked(session_lock_path(session_id)) if session_id else nullcontext():
+        claim = page.active_claim
+        if (claim["id"] if claim else None) != session_id:
+            raise ReceiptRefused(f"delivery no longer owns its page: {page.page_dir}")
+        expected = {event["seq"]: event["id"] for event in batch["events"]}
+        delivered = {event["seq"]: event for event in page.events}
+        if not expected or any(
+            seq not in delivered or delivered[seq]["id"] != event_id
+            for seq, event_id in expected.items()
+        ):
+            raise ReceiptRefused(
+                f"delivery no longer matches its page log: {page.page_dir}"
+            )
+        yield [delivered[seq] for seq in expected]
+        if max(expected) > page.cursor:
+            write_json(page.page_dir / CURSOR_FILE, {"seq": max(expected)})
 
 
 def receive_delivery(delivery_id: str) -> list[Path]:
@@ -468,35 +472,29 @@ def receive(payload: dict, session_id: str | None) -> list[Path]:
 
     Each page uses its own transaction. Interrupted multi-page receipt can be
     retried against the same immutable bounds; no receipt transfers ownership.
-    Sibling turns open after releasing the page locks, so concurrent receipts
-    never nest transactions across pages.
+    Each receipt observes the current session turn under page→session locks;
+    concurrent receipts never nest transactions across pages.
     """
     pages = [receive_one(batch, session_id) for batch in payload["batches"]]
-    if session_id:
-        open_session_turn(session_id)
     return pages
 
 
-def receive_one(
-    batch: dict, session_id: str | None, *, lifecycle: dict | None = None
-) -> Path:
-    """Confirm one page's batch of a delivery and record its entry into
-    `session_id`'s turn, under that page's transaction; raise `ReceiptRefused`
-    when the page no longer matches."""
+def receive_one(batch: dict, session_id: str | None) -> Path:
+    """Confirm one consumer-read batch under its current page ownership."""
     page_dir = Path(batch["page"])
-    with PageTransaction(page_dir) as page:
-        if lifecycle is not None:
-            with flocked(session_lock_path(session_id)):
-                if session_record(session_id) != lifecycle:
-                    raise ReceiptRefused("the receiving turn has changed")
-                with receive_batch(page, batch, session_id=session_id) as events:
-                    record_pickup(
-                        page, events, session=session_id, turn=lifecycle["turn"]
-                    )
-        else:
-            with receive_batch(page, batch, session_id=session_id) as events:
-                turn = page.open_turn(session_id) if session_id else None
-                record_pickup(page, events, session=session_id, turn=turn)
+    with (
+        PageTransaction(page_dir) as page,
+        receive_batch(page, batch, session_id=session_id) as events,
+    ):
+        turn = None
+        if session_id:
+            observed = session_record(session_id)
+            if observed["turn_closed"] is not None:
+                raise ReceiptRefused("the receiving provider turn has ended")
+            # Receipt observes the already-open consumer turn. Host prompt and
+            # provider-start boundaries own lifecycle; an ack never opens it.
+            turn = observed["turn"]
+        record_pickup(page, events, session=session_id, turn=turn)
     return page_dir
 
 
@@ -504,7 +502,7 @@ def pending_batches(session_id: str) -> list[dict]:
     """Every page's pending input for a session whose hooks carry it, one batch
     per page, captured under that page's transaction and not yet confirmed.
 
-    Receipt is a separate step, taken when the carrier hands the batches over:
+    Receipt is a separate step, taken when the reader confirms those batches:
     it rechecks ownership and the captured events, and anything appended between
     the two readings stays pending, above the cursor it advances."""
     batches = []
@@ -523,15 +521,3 @@ def pending_batches(session_id: str) -> list[dict]:
         except FileNotFoundError:
             continue
     return batches
-
-
-def take_input(session_id: str) -> dict | None:
-    """Freeze and confirm a hook-carried session's pending input as its hook
-    does, and return the delivery, or None when nothing is pending. For a driver
-    standing in for the host, such as the demo recorder."""
-    batches = pending_batches(session_id)
-    if not batches:
-        return None
-    payload = freeze_delivery(batches, carrier="hook")
-    receive(payload, session_id)
-    return payload

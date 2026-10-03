@@ -194,14 +194,14 @@ $ leaf page stamp ./review --text "Two ways to shed load — which?"
 Leaf: /home/you/review has new input; Leaf's prompt hook puts it in your context with this notification
 
 # the wake opens a turn; as it begins, Leaf's prompt hook adds the delivery to the
-# turn's context as one line of JSON and confirms it; here it is indented as
+# turn's context as one line of JSON; here it is indented as
 # `leaf delivery read` shows it
 {
   "format": "leaf-delivery-v3",
   "id": "2d5bdcc4",
   "created_at": 1790100943.144468,
   "carrier": "hook",
-  "acknowledge": null,
+  "acknowledge": "Once this complete delivery is in your context, confirm it with `leaf delivery ack 2d5bdcc4`. Until then, the user's moves read Sent.",
   "batches": [
     {
       "page": "/home/you/review",
@@ -312,7 +312,8 @@ Leaf: /home/you/review has new input; Leaf's prompt hook puts it in your context
   ]
 }
 
-# the moves already read Picked up; name the work before starting it
+# acknowledge the complete delivery, then name the work before starting it
+$ leaf delivery ack 2d5bdcc4
 $ leaf status ./review working "splitting the shed policy between the API and the importer" --on ebe8f367
 
 # revise ./review/index.html; a valid save goes live at once
@@ -348,10 +349,10 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
             <ul id="receipt-work-response">
               <li id="wait-ack">
                 <strong>Receipt</strong>: which input reached the agent. Claude Code's
-                hooks confirm the whole envelope as they put it into the turn; one too
-                large for the turn's context goes in as a pointer, and the agent
-                confirms it with <code>leaf wait --ack &lt;delivery-id&gt;</code> once
-                it has read it. A Codex task running its own wait gets the envelope
+                hooks put the envelope into the turn, inline or as a pointer. The agent
+                confirms it with <code>leaf delivery ack &lt;delivery-id&gt;</code> once
+                the complete envelope is in context; a hook timeout can discard
+                its output, so the hook itself confirms nothing. A Codex task running its own wait gets the envelope
                 printed and confirms it the same way; printed output can be lost or cut
                 off, so unconfirmed events stay available to the next wait. The Codex
                 adapter acknowledges what it carries, and the agent follows the
@@ -402,7 +403,7 @@ stateDiagram-v2
   }
   [*] --&gt; Sent: you send a move owed an answer
   Sent --&gt; Queued: Codex queues it for the next turn
-  Sent --&gt; Held: a hook or a wait hands it to a turn
+  Sent --&gt; Held: the reader confirms a hook or wait delivery
   Queued --&gt; Held: the queued turn opens
   Held --&gt; Settled: a reply or a version answers it
   Settled --&gt; [*]
@@ -502,8 +503,8 @@ flowchart TD
                 comment at once, marked Sent.
               </lf-chronology-entry>
               <lf-chronology-entry id="updates-picked" at="1s" kind="observation">
-                <strong>Picked up</strong> Leaf hands your comment to the agent's turn
-                and confirms it. Your comment reads Picked up, and until the agent
+                <strong>Picked up</strong> The agent reads your comment in its turn
+                and confirms receipt. Your comment reads Picked up, and until the agent
                 writes its own words the banner reads
                 <em>Claude working — on your update</em>.
               </lf-chronology-entry>

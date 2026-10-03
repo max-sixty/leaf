@@ -12,14 +12,16 @@ the watch wakes the session: >-
 
 delivered at prompt:
   instruction: >-
-    Leaf delivered this input into your turn and confirmed it, so the user's moves
-    read Picked up.
+    Leaf has new input for your turn. Read this complete delivery and take its acknowledge
+    route before answering.
   delivery:
     format: leaf-delivery-v3
     id: <delivery>
     created_at: <time>
     carrier: hook
-    acknowledge: null
+    acknowledge: >-
+      Once this complete delivery is in your context, confirm it with `leaf delivery
+      ack <delivery>`. Until then, the user's moves read Sent.
     batches:
       - page: <page>
         through_seq: 2
@@ -80,6 +82,10 @@ delivered at prompt:
               to: event-2
               for: event-2
   attention: ''
+
+reader confirms delivery:
+  exit: 0
+  output: ''
 
 acknowledged at stop:
   hookSpecificOutput:

@@ -1101,7 +1101,7 @@ def local_worker() -> Iterator[tuple[str, str]]:
                 ],
                 context,
             )
-            from leaf.session_cleanup import flocked
+            from leaf.state import flocked
 
             with flocked(MANIFEST.parents[1].with_name("site.lock")):
                 shutil.copytree(MANIFEST.parents[1], context / ".tmp" / "site")

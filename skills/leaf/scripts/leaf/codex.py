@@ -35,7 +35,6 @@ from urllib.parse import urlsplit
 from xml.etree import ElementTree
 
 from .codex_state import (
-    advance_hook_turn,
     delivery_dir,
     delivery_lock_path,
     hook_turn,
@@ -60,13 +59,19 @@ from .leases import sessions_home
 from .schema import THREAD_ANSWER_KINDS
 from .service import (
     PageTransaction,
-    close_session_turn,
-    open_session_turn,
     owned_pages,
     restore_page_claim,
     unacknowledged,
 )
-from .session_cleanup import flocked, write_json
+from .state import (
+    close_session_turn,
+    flocked,
+    open_session_turn,
+    renew_turn,
+    session_record,
+    start_session_turn,
+    write_json,
+)
 from .thread import (
     DeliveryReply,
     release_delivery_reply,
@@ -273,7 +278,10 @@ def start_app_server_delivery(send, thread_id: str, payload: dict) -> str:
     """Start one delivery's turn on an idle thread with its reply seat reserved.
 
     `send(method, params)` is the carrier's request on its own connection, under
-    its own request ids.
+    its own request ids. The task thread id is the Leaf session id. Immediately
+    before the request, this boundary captures its epoch; the returned identity
+    is adopted only against that epoch or its own synchronous provider prompt.
+    A newer different prompt leaves the start uncertain and its seat reserved.
 
     The seat is reserved before `turn/start` goes out, so no other writer answers
     the delivery its turn is about to answer. What happens to the seat when
@@ -289,6 +297,7 @@ def start_app_server_delivery(send, thread_id: str, payload: dict) -> str:
     if reply_target is not None:
         reserve_delivery_reply(thread_id, payload["id"], reply_target)
     try:
+        expected = session_record(thread_id)
         started = send("turn/start", app_server_turn_start_params(thread_id, payload))
     except AppServerRequestRejected:
         if reply_target is not None:
@@ -306,6 +315,10 @@ def start_app_server_delivery(send, thread_id: str, payload: dict) -> str:
         if reply_target is not None:
             release_delivery_reply(thread_id, payload["id"], reply_target)
         raise RuntimeError("Codex App Server returned no turn id")
+    if start_session_turn(thread_id, turn_id, expected) is None:
+        raise AppServerDeliveryUncertain(
+            "a newer session epoch superseded the provider start"
+        )
     return turn_id
 
 
@@ -901,9 +914,9 @@ class TurnFold:
     answer. The completion commits the answer, or gives the seat back, and then
     closes the turn on the page.
 
-    The fold is Leaf's one account of the turn's lifecycle on a page. `open` opens
-    the claim's turn under the provider's own turn id, which Codex's hooks name
-    too, and `close` closes that id; delivery acceptance only records which turn
+    The fold observes the session lifecycle under the provider turn id, which
+    Codex's hooks name too. `open` binds an unknown turn or matches that identity;
+    it cannot replace a newer prompt. `close` closes only that id; delivery acceptance only records which turn
     took the moves. A carrier opens a fold's turn only while it runs, so a turn
     read back from a snapshot after it ended is committed without reopening it.
 
@@ -937,9 +950,9 @@ class TurnFold:
         self.reply_stream: AppServerReplyStream | None = None
         self.last_activity_update = 0.0
 
-    def open(self) -> None:
-        """Open this turn on every page its task claims."""
-        open_session_turn(self.session_id, self.turn_id)
+    def open(self) -> bool:
+        """Observe this identity without replacing a newer prompt epoch."""
+        return open_session_turn(self.session_id, self.turn_id) is not None
 
     def bind(self, delivery_id: str, reply_target: dict | None) -> None:
         """Name the delivery this turn carries, and open the reply it owes."""
@@ -1456,8 +1469,8 @@ def offer_hook_delivery(session_id: str, turn_id: str) -> str | None:
                 with flocked(lock):
                     if hook_turn(session_id) != expected:
                         return None
-                    expected = advance_hook_turn(session_id, turn_id, running=True)
-                    page.open_turn(session_id, turn_id)
+                    renew_turn(session_record(session_id))
+                    expected = hook_turn(session_id)
                     if batch := unacknowledged(page.events, page.cursor):
                         append_batch(session_id, page_dir, page, batch)
         except FileNotFoundError:

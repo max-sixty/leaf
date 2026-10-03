@@ -11,11 +11,13 @@ from leaf_dev.usability_eval import (
     Run,
     admit,
     append_elided_history,
+    attempt_key,
     build_fixture,
     checks_for,
     claimed_first,
     expected_checks,
     page_events,
+    post_round,
     score_elided,
 )
 
@@ -87,11 +89,12 @@ def test_fixture_builds_through_current_leaf_admission(tmp_path, case):
             {"type": "eval_post"},
             {"type": "system", "subtype": "hook_response",
              "output": 'leaf-delivery-v {"elided":{"messages":16}}'},
+            {"type": "eval_received", "round": 1},
             read_premise,
             {"type": "result"},
         ]  # fmt: skip
         assert score_elided(run, trace)["middle_read"]
-        assert not score_elided(run, [read_premise, *trace[:3], trace[4]])[
+        assert not score_elided(run, [read_premise, *trace[:4], trace[5]])[
             "middle_read"
         ]
 
@@ -138,3 +141,86 @@ def test_a_thread_claim_must_be_accepted_for_the_comment_before_reply():
     assert not claimed_first([call, result("comment", refused=True), reply], "comment")
     assert not claimed_first([call, result("another-thread"), reply], "comment")
     assert not claimed_first([call, reply, accepted], "comment")
+
+
+def test_mixed_round_requires_receipts_only_for_admitted_attention(tmp_path):
+    from leaf_dev.harness import inputs_received
+
+    run = Run("mixed", ROOT, tmp_path)
+    run.state.mkdir()
+    page = tmp_path / "page"
+    build_fixture(run, "mixed", page)
+
+    class Browser:
+        origin = "http://127.0.0.1:1"
+
+        def post(self, event):
+            admit(run, page, event)
+
+    moves = CASES["mixed"].rounds[0]
+    post_round(run, page, Browser(), moves, 0)
+    events = page_events(page)
+    attempts = {
+        attempt_key(0, i) for i, move in enumerate(moves) if move["kind"] != "error"
+    }
+    posted = [event for event in events if event.get("attempt") in attempts]
+    assert len(posted) == 5
+    assert [event["attention"] for event in posted] == [True, True, False, False, False]
+    assert not inputs_received(events, attempts)
+    attention = [event["id"] for event in posted if event["attention"]]
+    events.append({"kind": "pickup", "phase": "opened", "events": attention})
+    assert inputs_received(events, attempts)
+    assert not inputs_received(events, attempts | {"never-admitted"})
+
+
+def test_live_rounds_use_confirmed_receipts_before_successful_response():
+    from leaf_dev.usability_eval import live_rounds
+
+    trace = [
+        {"type": "eval_post", "round": 1},
+        {"type": "system", "subtype": "hook_response", "output": "leaf-delivery-v"},
+        {"type": "result", "is_error": False},
+    ]
+    assert live_rounds(trace)[0]["end"] is None
+    trace[1] = {"type": "eval_received", "round": 2}
+    assert live_rounds(trace)[0]["end"] is None
+    trace[1] = {"type": "eval_received", "round": 1}
+    assert live_rounds(trace)[0]["end"] == 2
+    assert live_rounds(trace)[0]["delivery"] == 0
+    assert live_rounds(trace[:-1])[0]["end"] is None
+
+
+def test_round_scoring_leaves_the_watch_with_leaf():
+    from leaf_dev.usability_eval import live_rounds, round_scores
+
+    trace = [
+        {"type": "eval_post", "round": 1},
+        {"type": "eval_received", "round": 1},
+        {"type": "result", "result": "http://127.0.0.1:1234/?t=abc", "is_error": False},
+        {"type": "eval_status", "status": {"state": "waiting"}},
+    ]
+    assert round_scores(trace, live_rounds(trace)[0], "input")[
+        "input_watch_left_to_leaf"
+    ]
+    trace.insert(
+        2,
+        {
+            "type": "assistant",
+            "message": {
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "id": "manual",
+                        "name": "Bash",
+                        "input": {
+                            "command": "leaf wait page",
+                            "run_in_background": True,
+                        },
+                    }
+                ]
+            },
+        },
+    )
+    assert not round_scores(trace, live_rounds(trace)[0], "input")[
+        "input_watch_left_to_leaf"
+    ]

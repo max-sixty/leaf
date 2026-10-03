@@ -47,7 +47,7 @@ from leaf.page_memory import Slot, memo
 from leaf.passages import SourceReading, enclosing_ids
 from leaf.render_checks import PROBE_SOURCES
 from leaf.schema import BROWSER_DIRS, CONTENT_TYPES, SERVED_PATH, VENDORED_FILES
-from leaf.session_cleanup import fsync_parents
+from leaf.state import fsync_parents
 from leaf.structure import (
     SourceDocument,
     links_with_rel,

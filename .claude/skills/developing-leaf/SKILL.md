@@ -235,12 +235,12 @@ that bear on an instruction change:
 
 ```bash
 npm ci --prefix evals
-uv run leaf-dev instructions-eval [CASE]... [--base REF] [--host cc|codex|both] [--runs N]
+uv run leaf-dev eval [CASE]... [--base REF] [--host cc|codex|both] [--runs N]
 ```
 
 The defaults are both hosts, one run, and the merge base with `main`. Each sample
 has a fresh workspace and home with the host's account login. Promptfoo owns the
-assertions, judgments, traces, and HTML report under `.tmp/instructions-eval/`;
+assertions, judgments, traces, and HTML report under `.tmp/eval/`;
 the runner prints passes separately for each host and base/candidate arm. Read
 `evals/README.md` for the provider models and case format.
 
@@ -274,11 +274,12 @@ Run cold, a case that states the situation plainly usually passes on both arms: 
 failing session had its own earlier turns or a competing instruction pulling the
 other way, so paste those into the prompt. A rule that loses only to a long
 session's context needs a replay of that session instead.
-`leaf-dev scenario-eval usability [CASE]...` runs cases that need a page directory
-and `leaf`, through the same Promptfoo reporting and assertion framework.
-`scenario-eval arrangement` owns paired composition studies, and `scenario-eval
-delivery` owns live feedback timing. Those existing trajectories use Claude Code.
-No grader has been checked against a person's judgment, so a pass is weak evidence.
+Complete workflows use the same catalog and command. `leaf-dev eval document`
+authors and revises a document; `document/resume`
+selects a controlled state-reading context. `--condition both` compares the authored example with
+ordinary HTML. `evals/README.md` owns selection, conditions and evidence limits.
+Keep focused contexts until a combined workflow detects their original failures.
+No grader has been calibrated against human judgments, so a pass is weak evidence.
 
 ## Refresh the public catalog stills
 

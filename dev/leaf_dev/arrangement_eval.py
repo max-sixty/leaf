@@ -1,15 +1,15 @@
-"""One arrangement comparison for Promptfoo: author, revise, render and judge.
+"""Author, revise and read one page-task sample under its explicit condition.
 
-Both vocabulary arms come from the supplied Leaf payload. The plain arm removes
-arrangement declarations but keeps Leaf widgets, theme and feedback; this is a
-vocabulary comparison, not a whole-product comparison with ordinary HTML.
-Each Claude author resumes its initial session for the 900px preference. Two
-fresh judges see only neutral captures, with each arm shown on each side.
-Completion, render checks and judge evidence are assertions. Preferences and
-visual winners remain diagnostics; a tie is a valid result.
+Leaf and ordinary HTML receive the same task and revision request. Each sample
+contains only its selected condition; the HTML child sees no Leaf payload,
+instructions or runtime. CC and Codex authors use the shared host interface;
+fresh fixed Claude judges receive only neutral screenshots and the user request.
+Rendered validity and judge evidence establish execution. Separate output-quality
+assertions measure completion, readability and usable decisions. Leaf also seeds
+a choice after the common comparison, asks a fresh reader for its current state,
+and checks that a separate resumed revision preserves that choice.
 """
 
-import hashlib
 import json
 import re
 import shutil
@@ -18,22 +18,24 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from leaf.render_checks import rendered
+from leaf.structure import SourceDocument
 
 from leaf_dev import ROOT, arrangement_plain
 from leaf_dev.browser import chrome, load, settle, tab
 from leaf_dev.harness import (
     blocks,
     completed,
+    observed_sum,
     read_trace,
-    run_claude,
+    run_agent,
     run_leaf,
     serving,
+    token_counts,
 )
 from leaf_dev.harness import trace_result as result
 
-SUBJECTS = ROOT / "evals/arrangement/subjects"
+TASKS = ROOT / "evals"
 CASES = ("document", "dashboard", "queue")
-ARMS = ("leaf", "plain")
 PHASES = (1, 2)
 MODEL = "claude-opus-5-5"
 WIDTHS = {
@@ -67,7 +69,7 @@ def claude(
     prompt: str, cwd: Path, out: Path, err: Path, *, tools, dirs, env=None, resume=None
 ):
     """Run one isolated Claude turn and retain its complete trace."""
-    return run_claude(
+    return run_agent(
         cwd,
         prompt,
         "--model",
@@ -87,10 +89,20 @@ class Run:
     subject: str
     payload: Path
     directory: Path
+    host: str = "cc"
+    condition: str = "leaf"
+
+    @property
+    def work(self) -> Path:
+        return Path((self.directory / "work-dir").read_text())
+
+    @property
+    def authored_page(self) -> Path:
+        return self.work / "page"
 
     @property
     def state(self) -> Path:
-        return self.directory / "state"
+        return self.work / "state"
 
     def leaf(self, *args: str, **kwargs):
         return run_leaf(self.payload, self.state, *args, **kwargs)
@@ -100,54 +112,71 @@ class Run:
         return page if (page / "index.html").exists() else None
 
 
-def first_prompt(payload: Path, page: Path, subject: str) -> str:
-    return f"""You have the Leaf skill. Its instructions are in {payload}/skills/leaf/SKILL.md: read
-that file first and follow it, resolving the references it names from
-{payload}/skills/leaf/. $LEAF is set to its launcher, {payload}/bin/leaf.
+def first_prompt(payload: Path, page: Path, subject: str, condition="leaf") -> str:
+    request = (TASKS / subject / "request.md").read_text()
+    tooling = (
+        f"You have the Leaf skill at {payload}/skills/leaf/SKILL.md. Read and follow it, "
+        f"resolving references from {payload}/skills/leaf/. $LEAF is {payload}/bin/leaf. "
+        f"Check the page with `$LEAF page check {page} --render`, fix findings and stamp it."
+        if condition == "leaf"
+        else "Build with ordinary HTML, CSS and JavaScript. No Leaf instructions, widgets "
+        "or runtime are available. Check your output in the browser and fix findings."
+    )
+    return f"""{tooling}
 
-Write the page at {page}. This run is non-interactive: nobody will read the page in a
-browser or answer in it. Treat the page as a finished record the user will rely on:
-write it, run the pre-handover review including `$LEAF page check {page} --render`,
-fix what the checks report, and stamp it. Don't start a server, set a status, or wait
-for feedback. When the stamped page passes, reply with one line naming its path.
+Write the page at {page}/index.html. This run is non-interactive: nobody will
+answer in the page. Produce a finished record with readable evidence and usable
+choices. You may use the browser tooling available on this machine. Do not start
+an agent feedback watcher or wait for input. Reply with one line naming the path.
 
 The user's request follows.
 
-{(SUBJECTS / f"{subject}.md").read_text()}"""
+{request}"""
 
 
-def second_prompt(page: Path) -> str:
+def second_prompt(page: Path, condition="leaf") -> str:
+    check = (
+        f"Check it with `$LEAF page check {page} --render`, fix findings and stamp it."
+        if condition == "leaf"
+        else "Check your output in the browser and fix findings."
+    )
     return f"""The user writes:
 
 {PREFERENCE}
 
-Revise the page at {page} to follow this preference. Check it again with
-`$LEAF page check {page} --render`, fix what the checks report, and stamp it. As
-before, don't start a server or wait for feedback. When it passes, reply with one line.
+Revise the page at {page} to follow this preference. {check}
+Do not start an agent feedback watcher or wait for input. Reply with its path.
 """
 
 
 def author(run: Run, cwd: Path) -> None:
-    """Author and revise in one isolated session, preserving phase one's page."""
+    """Author and revise with the same host session, preserving the initial page."""
+    cwd.mkdir(parents=True, exist_ok=True)
+    (run.directory / "work-dir").write_text(str(cwd))
     run.state.mkdir(parents=True)
-    cwd.mkdir()
-    page = run.directory / "page"
-    prompts = [first_prompt(run.payload, page, run.subject), second_prompt(page)]
+    page = run.authored_page
+    prompts = [
+        first_prompt(run.payload, page, run.subject, run.condition),
+        second_prompt(page, run.condition),
+    ]
     for phase, prompt in enumerate(prompts, 1):
         (run.directory / f"prompt-{phase}.txt").write_text(prompt)
     child = {
-        "tools": "Bash,Read,Write,Edit,Glob,Grep",
-        "dirs": [run.payload, run.directory],
-        "env": {
-            "LEAF": str(run.payload / "bin/leaf"),
-            "XDG_STATE_HOME": str(run.state),
-        },
+        "dirs": [run.payload] if run.condition == "leaf" else [],
+        "env": (
+            {"LEAF": str(run.payload / "bin/leaf"), "XDG_STATE_HOME": str(run.state)}
+            if run.condition == "leaf"
+            else {}
+        ),
+        "host": run.host,
     }
-    first = claude(
-        prompts[0],
+    first = run_agent(
         cwd,
-        run.directory / "stream-1.jsonl",
-        run.directory / "err-1.txt",
+        prompts[0],
+        "--model",
+        MODEL,
+        out=run.directory / "stream-1.jsonl",
+        err=run.directory / "err-1.txt",
         **child,
     )
     if page.exists():
@@ -156,15 +185,136 @@ def author(run: Run, cwd: Path) -> None:
             run.directory / "page-phase1",
             ignore=shutil.ignore_patterns("service.json", "*.lock"),
         )
+    second = []
     if completed(first) and (session := result(first).get("session_id")):
-        claude(
-            prompts[1],
+        second = run_agent(
             cwd,
-            run.directory / "stream-2.jsonl",
-            run.directory / "err-2.txt",
-            resume=session,
+            prompts[1],
+            "--model",
+            MODEL,
+            "--resume",
+            session,
+            out=run.directory / "stream-2.jsonl",
+            err=run.directory / "err-2.txt",
             **child,
         )
+
+    if page.exists():
+        shutil.copytree(
+            page,
+            run.directory / "page",
+            ignore=shutil.ignore_patterns("service.json", "*.lock"),
+        )
+    if (
+        run.condition == "leaf"
+        and page.exists()
+        and completed(first)
+        and completed(second)
+    ):
+        seed_and_read_choice(run)
+        continuation = (
+            f"The user has reviewed {page}. Add a short Review status note saying "
+            "it has now been reviewed. Preserve their existing decisions. "
+            f"Check with `$LEAF page check {page} --render` and stamp the revision. "
+            "Do not start a watcher or wait for input. Reply with its path."
+        )
+        (run.directory / "prompt-3.txt").write_text(continuation)
+        run_agent(
+            cwd,
+            continuation,
+            "--model",
+            MODEL,
+            "--resume",
+            result(second)["session_id"],
+            out=run.directory / "stream-3.jsonl",
+            err=run.directory / "err-3.txt",
+            **child,
+        )
+        shutil.copytree(
+            page,
+            run.directory / "page-continuation",
+            ignore=shutil.ignore_patterns("service.json", "*.lock"),
+        )
+
+
+def seed_and_read_choice(run: Run) -> None:
+    """Admit a real user choice, then read it without the author's conversation."""
+    from leaf_dev.usability_eval import admit
+
+    page = run.authored_page
+    record = {"seeded": False}
+    elements = SourceDocument((page / "index.html").read_text()).lf_elements
+    options = [
+        r
+        for r in elements
+        if r["tag"] == "lf-option"
+        and "chosen" not in r["attrs"]
+        and r["holder"]
+        and "choose" in r["holder"]["attrs"]
+    ]
+    if options:
+        option = options[-1]
+        widget, chosen = option["holder"]["attrs"]["id"], option["attrs"]["id"]
+        state = json.loads(run.leaf("page", "state", str(page)).stdout)
+        admit(
+            run,
+            page,
+            {
+                "kind": "action",
+                "widget": widget,
+                "action": "choose",
+                "revision": state["active"]["revision"],
+                "detail": {"options": [chosen]},
+                "attempt": "authored-choice-0001",
+            },
+        )
+        record = {
+            "seeded": True,
+            "widget": widget,
+            "options": [chosen],
+            "revision": state["active"]["revision"],
+        }
+        source_before = (page / "index.html").read_bytes()
+        events_before = (page / "events.jsonl").read_bytes()
+        destination = run.directory / "reader"
+        destination.mkdir()
+        with tempfile.TemporaryDirectory(prefix="leaf-authored-reader-") as temporary:
+            prompt = (
+                f"Read the Leaf skill at {run.payload}/skills/leaf/SKILL.md. "
+                f"The page at {page} has been reviewed by a user. Read its current "
+                f"state: which option ids are selected in {widget}? Don't edit "
+                'the page or serve it. Reply only with JSON: {"options":["id"]}.'
+            )
+            (destination / "prompt.txt").write_text(prompt)
+            trace = run_agent(
+                Path(temporary),
+                prompt,
+                "--model",
+                MODEL,
+                out=destination / "stream.jsonl",
+                err=destination / "err.txt",
+                dirs=[run.payload, page],
+                env={
+                    "LEAF": str(run.payload / "bin/leaf"),
+                    "XDG_STATE_HOME": str(run.state),
+                },
+                host=run.host,
+            )
+        raw = result(trace).get("result", "")
+        match = re.search(r"\{.*\}", raw, re.DOTALL)
+        try:
+            answer = json.loads(match[0]) if match else None
+        except json.JSONDecodeError:
+            answer = None
+        record |= {
+            "completed": completed(trace),
+            "page_unchanged": source_before == (page / "index.html").read_bytes()
+            and events_before == (page / "events.jsonl").read_bytes(),
+            "answer": answer,
+            "correct": isinstance(answer, dict) and answer.get("options") == [chosen],
+            "trace": trace_scores(destination / "stream.jsonl"),
+        }
+    (run.directory / "choice.json").write_text(json.dumps(record, indent=2))
 
 
 def trace_scores(stream: Path) -> dict:
@@ -178,8 +328,20 @@ def trace_scores(stream: Path) -> dict:
         elif block.get("type") == "tool_result":
             results[block["tool_use_id"]] = block
     checks = renders = refused = writes = 0
+    delegations = []
     for cid, call in calls.items():
         name, inp = call["name"], call.get("input", {})
+        if name in ("Agent", "Task", "spawn_agent", "spawnAgent"):
+            returned = results.get(cid)
+            delegations.append(
+                {
+                    "tool": name,
+                    "task": inp,
+                    "returned": returned is not None,
+                    "successful": returned is not None
+                    and not returned.get("is_error", False),
+                }
+            )
         if name == "Bash":
             cmd = inp.get("command", "")
             if "page check" in cmd and "--help" not in cmd:
@@ -204,20 +366,22 @@ def trace_scores(stream: Path) -> dict:
         elif name in ("Write", "Edit") and "index.html" in inp.get("file_path", ""):
             writes += 1
     done = result(trace)
-    usage = done.get("usage", {})
     return {
         "completed": completed(trace),
         "finished": bool(done),
         "turns": done.get("num_turns"),
         "is_error": done.get("is_error"),
-        "cost_usd": done.get("total_cost_usd", 0),
+        "cost_usd": done.get("total_cost_usd"),
+        "cost_known": done.get("total_cost_usd") is not None,
         "minutes": round(done.get("duration_ms", 0) / 60000, 1),
-        "output_tokens": usage.get("output_tokens"),
+        **token_counts(trace),
         "checks": checks,
         "renders": renders,
         "refused": refused,
         "page_writes": writes,
         "reads": sorted(set(reads)),
+        "delegation_invocations": len(delegations),
+        "delegations": delegations,
         "reply": (done.get("result") or "")[-300:],
     }
 
@@ -245,90 +409,85 @@ def page_scores(page: Path) -> dict:
     }
 
 
-def review_prompt(subject: str, a: list[str], b: list[str], phase: int) -> str:
-    request = (SUBJECTS / f"{subject}.md").read_text()
+def review_prompt(subject: str, captures: list[str], phase: int) -> str:
+    request = (TASKS / subject / "request.md").read_text()
     revised = (
-        f"\nAfter the first version, the user added this standing preference, and both "
-        f"pages below were revised for it:\n\n{PREFERENCE}\n"
-        if phase == 2
+        f"\nStanding preference added after the first version:\n{PREFERENCE}"
+        if phase >= 2
         else ""
     )
-    preference_field = (
-        ', "preference": {"A": true|false, "B": true|false, "why": "…"}'
-        if phase == 2
-        else ""
-    )
-    return f"""Two pages were built for the same user request. You have not seen how either
-was made, and you judge only what the user sees. Both run inside the same page viewer:
-the bar fixed across the top, the bottom bar at the foot, and the column of small
-markers at the right edge are the viewer's, identical on both, and not part of either
-page. A region with a scroll of its own shows only its first screen here; in the real
-page the user can scroll it, so judge whether what it shows first is the right part and
-enough of it, not whether everything inside it is visible.
-
-The user's request:
+    return f"""Review a page built for this request, judging only what a user sees.
 
 <request>
 {request}
 </request>
 {revised}
-Read every screenshot below with the Read tool before judging; a judgment that skips
-one is discarded. Each width's screens run top to bottom through the page, overlapping
-a little.
 
-Page A:
-{chr(10).join(a)}
+Read every screenshot with Read before judging. Each width's screenshots run top
+to bottom with overlap. Fixed viewer controls, if present, are outside the page's
+content. A region with its own scroll shows only its first screen here.
 
-Page B:
-{chr(10).join(b)}
+{chr(10).join(captures)}
 
-Judge as this user: which page would they rather have for this task? Consider whether
-they can find what they need at a glance, read it comfortably, and act on it, and
-whether anything is cut off, overlapping, cramped, misaligned, or wasting the room,
-at each width.
-
-Reply with only a JSON object:
-{{"winner": "A"|"B"|"tie", "margin": "clear"|"slight", "by_width": {{"laptop": "A"|"B"|"tie", "narrow": "A"|"B"|"tie", "phone": "A"|"B"|"tie"}}, "reasons": ["…", "…", "…"], "defects": {{"A": ["…"], "B": ["…"]}}{preference_field}}}"""
+Judge whether the page preserves the task's substantive information, lets the user
+find and read the evidence, and provides the decisions or navigation the task needs
+at each width. For phase two also check the standing width preference. Report only
+visible defects; do not infer interaction behavior from an unoperated screenshot.
+Reply only with JSON:
+{{"task_complete": true|false, "readable": true|false, "usable": true|false,
+"preference": true|false, "defects": ["…"], "reasons": ["…"]}}"""
 
 
 def gate(run: Run, phase: int, page: Path) -> dict:
     """Independently check the authored page, retaining the check's output."""
-    proc = run.leaf("page", "check", str(page), "--render", timeout=900)
-    reading = {"passed": proc.returncode == 0, "output": proc.stdout + proc.stderr}
+    if run.condition == "html":
+        reading = arrangement_plain.gate(page, WIDTHS)
+    else:
+        proc = run.leaf("page", "check", str(page), "--render", timeout=900)
+        reading = {"passed": proc.returncode == 0, "output": proc.stdout + proc.stderr}
     (run.directory / f"gate-{phase}.json").write_text(json.dumps(reading, indent=2))
     return reading
 
 
-def capture(run: Run) -> dict[int, list[str]]:
-    """Capture settled viewports down each phase's page, including fixed chrome."""
+def capture_phase(run: Run, phase: int, page: Path | None = None) -> list[str]:
+    """Capture one authored or later trajectory phase with the same browser reader."""
     shots = run.directory / "shots"
-    shots.mkdir()
-    captures = {}
-    with chrome() as browser:
-        for phase in PHASES:
-            captures[phase] = []
-            if not (page := run.page(phase)):
-                continue
-            with serving(run.payload, run.state, page) as url:
-                for name, (viewport, _) in WIDTHS.items():
-                    with tab(browser, viewport=viewport, touch=name == "phone") as view:
-                        load(view, url)
-                        height = view.evaluate("document.documentElement.scrollHeight")
-                        step = int(viewport[1] * 0.85)
-                        screens = min(
-                            16, 1 + max(0, height - viewport[1] + step - 1) // step
-                        )
-                        for index in range(screens):
-                            view.evaluate(
-                                "y => window.scrollTo({top: y, behavior: 'instant'})",
-                                index * step,
-                            )
-                            rendered(view)
-                            settle(view)
-                            path = shots / f"p{phase}-{name}-{index}.png"
-                            view.screenshot(path=path)
-                            captures[phase].append(str(path))
+    shots.mkdir(exist_ok=True)
+    page = page or run.page(phase)
+    if page is None:
+        return []
+    captures = []
+    server = (
+        arrangement_plain.serving(page)
+        if run.condition == "html"
+        else serving(run.payload, run.state, page)
+    )
+    with server as url, chrome() as browser:
+        for name, (viewport, _) in WIDTHS.items():
+            with tab(browser, viewport=viewport, touch=name == "phone") as view:
+                (arrangement_plain.load if run.condition == "html" else load)(view, url)
+                height = view.evaluate("document.documentElement.scrollHeight")
+                step = int(viewport[1] * 0.85)
+                screens = min(16, 1 + max(0, height - viewport[1] + step - 1) // step)
+                for index in range(screens):
+                    view.evaluate(
+                        "y => window.scrollTo({top: y, behavior: 'instant'})",
+                        index * step,
+                    )
+                    if run.condition == "html":
+                        arrangement_plain.settle(view)
+                    else:
+                        rendered(view)
+                        settle(view)
+                    path = shots / f"p{phase}-{name}-{index}.png"
+                    view.screenshot(path=path)
+                    captures.append(str(path))
     return captures
+
+
+def capture(run: Run) -> dict[int, list[str]]:
+    """Capture the initial and width-revised page phases."""
+    return {phase: capture_phase(run, phase) for phase in PHASES}
 
 
 def stage(run: Run, phase: int, side: str, into: Path) -> tuple[list[str], set[str]]:
@@ -368,50 +527,28 @@ def capture_reads(trace: list[dict]) -> set[str]:
 
 
 def valid_verdict(value, phase: int) -> bool:
-    """Require the blind judge's declared comparison, including every width."""
-    picks = ("A", "B", "tie")
-    if not isinstance(value, dict) or value.get("winner") not in picks:
-        return False
-    if value.get("margin") not in ("clear", "slight"):
-        return False
-    widths = value.get("by_width")
-    if not isinstance(widths, dict) or any(
-        widths.get(width) not in picks for width in WIDTHS
-    ):
-        return False
-    if not isinstance(value.get("reasons"), list) or not value["reasons"]:
-        return False
-    defects = value.get("defects")
-    if not isinstance(defects, dict) or any(
-        not isinstance(defects.get(side), list) for side in ("A", "B")
-    ):
-        return False
-    if phase == 2:
-        preference = value.get("preference")
-        if not isinstance(preference, dict) or any(
-            type(preference.get(side)) is not bool for side in ("A", "B")
-        ):
-            return False
-    return True
-
-
-def judge(
-    subject: str, phase: int, flipped: bool, pair: dict[str, Run], directory: Path
-) -> dict:
-    """Judge one phase in one side order, retaining the evidence for acceptance."""
-    directory.mkdir(parents=True)
-    flip = (
-        int(hashlib.sha256(f"{subject}-{phase}".encode()).hexdigest(), 16) % 2 ^ flipped
+    """A verdict must separately declare every requested quality judgment."""
+    return (
+        isinstance(value, dict)
+        and all(
+            type(value.get(key)) is bool
+            for key in ("task_complete", "readable", "usable", "preference")
+        )
+        and isinstance(value.get("defects"), list)
+        and isinstance(value.get("reasons"), list)
+        and bool(value["reasons"])
     )
-    order = ["plain", "leaf"] if flip else ["leaf", "plain"]
-    with tempfile.TemporaryDirectory(prefix="leaf-arrangement-judge-") as temporary:
+
+
+def judge_output(run: Run, phase: int, directory: Path) -> dict:
+    """A fresh, fixed judge receives neutral captures without author context."""
+    directory.mkdir(parents=True)
+    with tempfile.TemporaryDirectory(prefix="leaf-output-judge-") as temporary:
         cwd, shots = Path(temporary) / "cwd", Path(temporary) / "shots"
         cwd.mkdir()
         shots.mkdir()
-        a, expected_a = stage(pair[order[0]], phase, "A", shots)
-        b, expected_b = stage(pair[order[1]], phase, "B", shots)
-        expected = expected_a | expected_b
-        prompt = review_prompt(subject, a, b, phase)
+        captures, expected = stage(run, phase, "page", shots)
+        prompt = review_prompt(run.subject, captures, phase)
         (directory / "prompt.txt").write_text(prompt)
         trace = claude(
             prompt,
@@ -431,132 +568,173 @@ def judge(
     unread = sorted(expected - capture_reads(trace))
     record = {
         "phase": phase,
-        "flipped": flipped,
-        "A": order[0],
-        "B": order[1],
         "completed": completed(trace),
-        "captures_read": bool(expected_a and expected_b) and not unread,
+        "captures_read": bool(expected) and not unread,
         "valid_verdict": valid_verdict(verdict, phase),
-        "shots": len(expected),
         "unread": unread,
         "verdict": verdict,
         "raw": raw,
-        "cost_usd": answer.get("total_cost_usd", 0),
+        "cost_usd": answer.get("total_cost_usd"),
+        "cost_known": answer.get("total_cost_usd") is not None,
         "trace": str(directory / "stream.jsonl"),
     }
     (directory / "verdict.json").write_text(json.dumps(record, indent=2))
     return record
 
 
-def expected_checks(case: str) -> list[str]:
-    """The fixed assertions required by one complete arrangement comparison."""
+def expected_checks(case: str, *, condition="leaf") -> list[str]:
+    """Common outcome checks apply to both tools, without Leaf routing in HTML."""
     if case not in CASES:
-        raise ValueError(f"Unknown arrangement case: {case}")
+        raise ValueError(f"Unknown authored task: {case}")
     return [
         "completed",
         *(
-            f"{arm}-phase-{phase}-{check}"
-            for arm in ARMS
+            f"phase-{phase}-{check}"
             for phase in PHASES
-            for check in ("completed", "page", "render", "captures")
+            for check in (
+                "completed",
+                "page",
+                "render",
+                "captures",
+                "judge-completed",
+                "captures-read",
+                "valid-verdict",
+                "task-complete",
+                "readable",
+                "usable",
+            )
         ),
+        "phase-2-preference",
         *(
-            f"judge-phase-{phase}-{order}-{check}"
-            for phase in PHASES
-            for order in ("forward", "flipped")
-            for check in ("completed", "captures-read", "valid-verdict")
+            [
+                "choice-seeded",
+                "choice-reader-completed",
+                "choice-reader-correct",
+                "choice-reader-page-unchanged",
+                "choice-continuation-completed",
+                "choice-revised",
+                "choice-preserved",
+            ]
+            if condition == "leaf"
+            else []
         ),
     ]
 
 
-def execute_scenario(case: str, payload: Path, work: Path) -> dict:
-    """Run one whole comparison; Promptfoo owns repetition, scheduling and reports."""
-    checks = dict.fromkeys(expected_checks(case), False)
-    diagnostics = {"subject": case, "authors": {}, "judgments": []}
-    cost = 0
-    with tempfile.TemporaryDirectory(prefix="leaf-arrangement-") as temporary:
-        staging = Path(temporary)
-        pair = {}
-        for arm in ARMS:
-            staged = staging / arm
-            shutil.copytree(
-                payload, staged, ignore=shutil.ignore_patterns(".venv", "__pycache__")
+def execute_scenario(
+    case: str, payload: Path, work: Path, *, host="cc", condition="leaf"
+) -> dict:
+    """Execute only the selected condition; Promptfoo owns the condition matrix."""
+    if condition not in ("leaf", "html"):
+        raise ValueError(f"Unknown condition: {condition}")
+    work.mkdir(parents=True, exist_ok=True)
+    checks = dict.fromkeys(expected_checks(case, condition=condition), False)
+    run = Run(case, payload, work, host, condition)
+    diagnostics = {
+        "subject": case,
+        "host": host,
+        "condition": condition,
+        "phases": {},
+        "judgments": [],
+    }
+    costs = []
+    with tempfile.TemporaryDirectory(prefix="leaf-author-") as temporary:
+        author(run, Path(temporary) / "cwd")
+        if condition == "leaf":
+            choice_path = work / "choice.json"
+            choice = json.loads(choice_path.read_text()) if choice_path.exists() else {}
+            diagnostics["choice"] = choice
+            checks["choice-seeded"] = choice.get("seeded") is True
+            checks["choice-reader-completed"] = choice.get("completed") is True
+            checks["choice-reader-correct"] = choice.get("correct") is True
+            checks["choice-reader-page-unchanged"] = (
+                choice.get("page_unchanged") is True
             )
-            if arm == "plain":
-                smoke = arrangement_plain.build(staged)
-                smoke_page, smoke_state = staging / "smoke", staging / "smoke-state"
-                run_leaf(
-                    staged, smoke_state, "page", "init", str(smoke_page), check=True
+            continuation = trace_scores(work / "stream-3.jsonl")
+            checks["choice-continuation-completed"] = (
+                continuation.get("completed") is True
+            )
+            diagnostics["continuation"] = continuation
+            costs.append(continuation.get("cost_usd"))
+            if choice.get("seeded"):
+                state = json.loads(
+                    run.leaf("page", "state", str(run.authored_page)).stdout
                 )
-                (smoke_page / "index.html").write_text(smoke)
-                run_leaf(
-                    staged,
-                    smoke_state,
-                    "page",
-                    "check",
-                    str(smoke_page),
-                    "--render",
-                    check=True,
+                checks["choice-revised"] = (
+                    state["active"]["revision"] != choice["revision"]
                 )
-            run = Run(case, staged, work / arm)
-            pair[arm] = run
-        for arm, run in pair.items():
-            author(run, staging / f"{arm}-cwd")
-            captures = capture(run)
-            rows = {}
-            for phase in PHASES:
-                trace = trace_scores(run.directory / f"stream-{phase}.jsonl")
-                cost += trace.get("cost_usd", 0)
-                checks[f"{arm}-phase-{phase}-completed"] = bool(trace.get("completed"))
-                page = run.page(phase)
-                checks[f"{arm}-phase-{phase}-page"] = page is not None
-                checks[f"{arm}-phase-{phase}-captures"] = all(
-                    any(
-                        Path(path).name.startswith(f"p{phase}-{width}-")
-                        for path in captures[phase]
-                    )
-                    for width in WIDTHS
+                standing = [
+                    s
+                    for s in state["state"]
+                    if s["widget"] == choice["widget"] and s["action"] == "choose"
+                ]
+                document = SourceDocument(
+                    (run.authored_page / "index.html").read_text()
                 )
-                row = {
-                    "trace": trace,
-                    "trace_path": str(run.directory / f"stream-{phase}.jsonl"),
-                    "captures": captures[phase],
-                }
-                if page:
-                    reading = gate(run, phase, page)
-                    checks[f"{arm}-phase-{phase}-render"] = reading["passed"]
-                    row |= {
-                        "page": str(page),
-                        "page_scores": page_scores(page),
-                        "gate": reading,
-                    }
-                rows[phase] = row
-            diagnostics["authors"][arm] = rows
+                authored_choice = [
+                    r["attrs"]["id"]
+                    for r in document.lf_elements
+                    if r["tag"] == "lf-option"
+                    and "chosen" in r["attrs"]
+                    and r["holder"]
+                    and r["holder"]["attrs"].get("id") == choice["widget"]
+                ]
+                checks["choice-preserved"] = (
+                    standing[0]["detail"]["options"] if standing else authored_choice
+                ) == choice["options"]
+                reader_trace = choice["trace"]
+                costs.append(reader_trace["cost_usd"])
+        captures = capture(run)
         for phase in PHASES:
-            if not all(checks[f"{arm}-phase-{phase}-captures"] for arm in ARMS):
-                continue
-            for flipped in (False, True):
-                order = "flipped" if flipped else "forward"
-                record = judge(
-                    case,
-                    phase,
-                    flipped,
-                    pair,
-                    work / "judges" / f"phase-{phase}-{order}",
+            trace = trace_scores(work / f"stream-{phase}.jsonl")
+            costs.append(trace.get("cost_usd"))
+            checks[f"phase-{phase}-completed"] = bool(trace.get("completed"))
+            page = run.page(phase)
+            checks[f"phase-{phase}-page"] = page is not None
+            checks[f"phase-{phase}-captures"] = all(
+                any(
+                    Path(path).name.startswith(f"p{phase}-{width}-")
+                    for path in captures[phase]
                 )
-                cost += record["cost_usd"]
+                for width in WIDTHS
+            )
+            row = {"trace": trace, "captures": captures[phase]}
+            if page:
+                reading = gate(run, phase, page)
+                checks[f"phase-{phase}-render"] = reading["passed"]
+                row |= {
+                    "page": str(page),
+                    "page_scores": page_scores(page),
+                    "gate": reading,
+                }
+            diagnostics["phases"][phase] = row
+            if not checks[f"phase-{phase}-captures"]:
+                continue
+            record = judge_output(run, phase, work / "judges" / f"phase-{phase}")
+            costs.append(record["cost_usd"])
+            for check, field in (
+                ("judge-completed", "completed"),
+                ("captures-read", "captures_read"),
+                ("valid-verdict", "valid_verdict"),
+            ):
+                checks[f"phase-{phase}-{check}"] = record[field]
+            if (
+                record["completed"]
+                and record["captures_read"]
+                and record["valid_verdict"]
+            ):
                 for check, field in (
-                    ("completed", "completed"),
-                    ("captures-read", "captures_read"),
-                    ("valid-verdict", "valid_verdict"),
+                    ("task-complete", "task_complete"),
+                    ("readable", "readable"),
+                    ("usable", "usable"),
                 ):
-                    checks[f"judge-phase-{phase}-{order}-{check}"] = record[field]
-                diagnostics["judgments"].append(record)
-    checks["completed"] = all(
-        value for name, value in checks.items() if name.endswith("-completed")
-    )
+                    checks[f"phase-{phase}-{check}"] = record["verdict"][field]
+                if phase == 2:
+                    checks["phase-2-preference"] = record["verdict"]["preference"]
+            diagnostics["judgments"].append(record)
+    checks["completed"] = all(checks[f"phase-{phase}-completed"] for phase in PHASES)
     return {
         "output": json.dumps(diagnostics),
         "metadata": {"checks": checks, "diagnostics": diagnostics},
-        "cost": cost,
+        **({"cost": cost} if (cost := observed_sum(costs)) is not None else {}),
     }

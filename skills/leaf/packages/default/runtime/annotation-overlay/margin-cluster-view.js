@@ -37,6 +37,14 @@ class MarginClusterView extends HTMLElement {
     this.#optionsId = optionsId;
   }
 
+  get marker() {
+    return this.#marker;
+  }
+
+  get more() {
+    return this.#more;
+  }
+
   get options() {
     return this.querySelector(":scope > .lf-margin-options");
   }

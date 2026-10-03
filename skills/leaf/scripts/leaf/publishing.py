@@ -3,27 +3,23 @@
 import sys
 from pathlib import Path
 
-from leaf.event_contracts import append_admitted
-from leaf.files import (
-    revision_path,
-    stamped_version,
-)
+from leaf.files import stamped_version
 from leaf.host import message_identity
 from leaf.leases import contract_writer
 from leaf.projection import folded_value, markup_value, page_reading
-from leaf.revisioning import activate_checked_source
+from leaf.revisioning import planned_activation, publish_checked_event
 from leaf.service import PageTransaction
 from leaf.validation.admission import read_text_arg
 from leaf.validation.source import check_source
 from leaf.work import standing_work_claims, widget_work_without_targets
 
 
-def _stamp_activation(page_dir: Path, events: list):
-    """Check the exact source against the standing log, then activate it."""
+def _stamp_candidate(page_dir: Path, events: list):
+    """Check the exact source and determine its revision without publishing it."""
     checked = check_source(page_dir, events, allow_transition=True)
     if checked.errors:
         sys.exit(f"refusing to stamp index.html: {'; '.join(checked.errors)}")
-    return checked, activate_checked_source(page_dir, checked)
+    return checked, planned_activation(page_dir, checked)
 
 
 def _stamp_reading(events: list, checked, revision: int):
@@ -126,36 +122,26 @@ def _stamp_event(
 
 def _stamp_locked(page_dir: Path, page, body: str, completes: tuple[str, ...]) -> dict:
     events = page.events
-    checked, activation = _stamp_activation(page_dir, events)
+    checked, activation = _stamp_candidate(page_dir, events)
     revision = activation.revision
-    created_revision = revision_path(page_dir, revision) if activation.created else None
-    committed = False
-    try:
-        registry, projection, parser, spk = _stamp_reading(events, checked, revision)
-
-        completed = _completed_work(
-            checked,
-            parser,
-            projection,
-            events,
-            page,
-            registry,
-            revision,
-            completes,
-        )
-        settled_reports = _settled_reports(projection, parser, spk, registry)
-
-        notes = [event for event in events if event["kind"] == "note"]
-        version = max((event["version"] for event in notes), default=0) + 1
-        event = _stamp_event(
-            body, version, revision, parser, settled_reports, completed
-        )
-        accepted = append_admitted(page, event)
-        committed = True
-        return accepted
-    finally:
-        if not committed and created_revision is not None:
-            created_revision.unlink(missing_ok=True)
+    registry, projection, parser, spk = _stamp_reading(events, checked, revision)
+    completed = _completed_work(
+        checked,
+        parser,
+        projection,
+        events,
+        page,
+        registry,
+        revision,
+        completes,
+    )
+    settled_reports = _settled_reports(projection, parser, spk, registry)
+    notes = [event for event in events if event["kind"] == "note"]
+    version = max((event["version"] for event in notes), default=0) + 1
+    event = _stamp_event(body, version, revision, parser, settled_reports, completed)
+    # Stamp-specific refusals precede publication. The publisher preflights this
+    # note's effects, then journals it and every anchor move before the marker.
+    return publish_checked_event(page, checked, event)
 
 
 @contract_writer

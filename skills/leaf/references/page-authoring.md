@@ -414,8 +414,8 @@ interface with a screenshot, and a visual change with an `lf-shot` before-and-af
 capture. A proposal or a mechanism has nothing to capture yet, so draw it. A process
 that unfolds over time is a diagram that moves: draw it in a page module from its
 state and the moment, with controls to pause and scrub, so every moment stays
-readable and its parts stay commentable. A recorded video is flat and heavy, and
-belongs only where the explanation leaves the page. When the shape of numbers is
+readable and its parts stay commentable. For fixed recordings and screen captures,
+follow `authoring-evidence.md`, "Source files and media". When the shape of numbers is
 the point — a trend, ranking, groups on one scale, or series moving together —
 lead with an `lf-chart`, even if the numbers compare the same dimensions across
 items. Put a table below it in `<details>` when readers also need exact values.

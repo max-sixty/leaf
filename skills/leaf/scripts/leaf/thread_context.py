@@ -44,7 +44,11 @@ def sample_events(
     )
     return [
         {
-            **{key: value for key, value in event.items() if key != "seq"},
+            **{
+                key: value
+                for key, value in event.items()
+                if key not in {"seq", "publication"}
+            },
             **({"revision": 1} if "revision" in event else {}),
         }
         for event in events
@@ -209,7 +213,7 @@ def event_threads(event: dict, names: dict, widgets: dict) -> list:
         named = [names.get(event["id"])]
     elif kind == "edit":
         named = [names.get(event["message"])]
-    elif kind in {"summary", "thread_title"}:
+    elif kind in {"summary", "thread_title", "reanchor"}:
         named = [event["thread"]]
     elif kind in {"resolve", "unresolve"}:
         named = [names.get(event["parent"])]

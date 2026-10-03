@@ -436,9 +436,10 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
    & > lf-option[chosen] > .lf-pick::before {
                      width: auto; height: auto; border: 0; background: transparent;
                      color: inherit; }
-   & > lf-option > .lf-key-badge {
-                     inset-inline-start: auto; inset-inline-end: var(--sp-2);
-                     top: var(--sp-2); }
+   & > lf-option > .lf-key-badge,
+   & > lf-options-done > .lf-done > .lf-key-badge {
+                     inset-inline-start: auto; inset-inline-end: var(--sp-2); }
+   & > lf-option > .lf-key-badge { top: var(--sp-2); }
    /* An empty draft offers only the route into its field, so that binding badge occupies
     * the Add seat while the press is hidden. Content reveals Add; once focus leaves the
     * field, the Ask's write route is available beside it again and takes the inner seat.

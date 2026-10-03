@@ -1,5 +1,6 @@
 """The document's shared, semantic margin map."""
 
+import base64
 import re
 from datetime import datetime, timedelta
 from math import hypot
@@ -58,6 +59,7 @@ from render_harness import (
     comment_note,
     compare_with,
     consume_browser_errors,
+    example_media,
     held_frames,
     holding,
     leaf_page,
@@ -5770,11 +5772,11 @@ LONG_THREAD = [
 ]
 
 
-def open_long_thread(browser, serve):
+def open_long_thread(browser, serve, height=900):
     """The long thread's margin card, its transcript scrolled partway down."""
     page = open_page(browser, serve(LONG_THREAD_PAGE, events=LONG_THREAD))
     page.emulate_media(reduced_motion="reduce")
-    resized(page, 1440, 900)
+    resized(page, 1440, height)
     page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
     preview = page.locator(".lf-margin-preview")
     expect(preview).to_be_visible()
@@ -5790,9 +5792,12 @@ def open_long_thread(browser, serve):
     return page, preview, transcript
 
 
-def test_the_margin_reply_outside_the_transcript_shows_its_whole_ring(browser, serve):
+@pytest.mark.parametrize("height", [900, 250])
+def test_the_margin_reply_outside_the_transcript_shows_its_whole_ring(
+    browser, serve, height
+):
     """Scrolling moves turns while both control rows stay outside the scrollport."""
-    page, preview, transcript = open_long_thread(browser, serve)
+    page, preview, transcript = open_long_thread(browser, serve, height)
     header = preview.locator(".lf-thread-root-meta")
     row = preview.locator(".lf-thread-reply")
     original = [header.bounding_box(), row.bounding_box()]
@@ -6000,23 +6005,77 @@ def test_a_growing_margin_reply_keeps_the_previous_turn_visible(browser, serve):
     assert editor.evaluate("input => input.scrollTop > 0")
 
 
-@pytest.mark.parametrize("long_comment", [False, True])
-def test_a_margin_reply_grows_before_it_scrolls(browser, serve, long_comment):
-    """A long transcript yields writing space just as a short one does."""
+@pytest.mark.parametrize("comment_repeats", [0, 6, 17])
+def test_a_margin_reply_grows_before_it_scrolls(browser, serve, comment_repeats):
+    """Visible and already clipped transcripts both yield writing space."""
     root = LONG_THREAD_ROOT | (
-        {"text": "The export must keep each tenant's credits separate. " * 17}
-        if long_comment
+        {
+            "text": "The export must keep each tenant's credits separate. "
+            * comment_repeats
+        }
+        if comment_repeats
         else {}
     )
     page = open_page(browser, serve(LONG_THREAD_PAGE, events=[root]))
-    resized(page, 1440, 600 if long_comment else 900)
+    resized(page, 1440, 600 if comment_repeats else 900)
     page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
     preview = page.locator(".lf-margin-preview")
     preview.get_by_role("textbox", name="Reply", exact=True).click()
     editor = preview.locator("leaf-text")
-    write(editor, "A reply with several lines.\n" * 5)
+    rendered(page)
+    transcript = preview.locator(".lf-thread-transcript")
+    if comment_repeats == 6:
+        assert transcript.evaluate("list => list.scrollHeight <= list.clientHeight + 1")
+    write(editor, "\n".join("A reply with several lines." for _ in range(5)))
     assert editor.evaluate("input => input.getBoundingClientRect().height") > 120
     assert editor.evaluate("input => input.scrollHeight <= input.clientHeight + 1")
+
+
+def test_a_margin_reply_with_a_pasted_image_keeps_its_editor_and_attachment_visible(
+    browser, serve
+):
+    """The attachment keeps its own row above the editor in a bounded card."""
+    page, preview, editor, transcript = long_thread_in_reply(browser, serve)
+    pixels = (example_media() / "051bee487bfb5d13.png").read_bytes()
+    editor.evaluate(
+        """(box, encoded) => {
+          const bytes = Uint8Array.from(atob(encoded), char => char.charCodeAt(0));
+          const transfer = new DataTransfer();
+          transfer.items.add(new File([bytes], 'pasted.png', {type: 'image/png'}));
+          box.dispatchEvent(new ClipboardEvent('paste', {
+            bubbles: true, cancelable: true, clipboardData: transfer,
+          }));
+        }""",
+        base64.b64encode(pixels).decode(),
+    )
+    image = preview.locator(".lf-composer-media img")
+    expect(image).to_have_count(1)
+    write(
+        editor, "\n".join(f"A reply with several lines, line {n}." for n in range(30))
+    )
+    rendered(page)
+    bounds = image.evaluate(
+        """image => {
+          const card = image.closest('.lf-margin-preview').getBoundingClientRect();
+          const input = image.closest('.lf-thread-reply').querySelector('leaf-text')
+            .getBoundingClientRect();
+          const media = image.getBoundingClientRect();
+          return {cardTop: card.top, cardBottom: card.bottom,
+                  imageTop: media.top, imageBottom: media.bottom, imageHeight: media.height,
+                  inputTop: input.top, inputBottom: input.bottom};
+        }"""
+    )
+    assert bounds["imageHeight"] >= 50, bounds
+    assert bounds["imageTop"] >= bounds["cardTop"], bounds
+    assert bounds["imageBottom"] <= bounds["inputTop"], bounds
+    assert bounds["inputBottom"] <= bounds["cardBottom"], bounds
+    assert editor.evaluate("input => input.scrollTop > 0")
+    editor.press("ControlOrMeta+End")
+    rendered(page)
+    caret = _focused_editor_caret(page)
+    assert caret["caretTop"] >= caret["boxTop"], caret
+    assert caret["caretBottom"] <= caret["boxBottom"], caret
+    assert transcript.evaluate("list => list.clientHeight") >= 20
 
 
 def test_an_incoming_margin_reply_follows_only_at_the_tail(browser, serve):
@@ -7986,21 +8045,38 @@ def test_a_sent_reply_leaves_the_reply_row_where_it_stands(browser, serve, size,
 
 
 def test_a_second_margin_reply_grows_below_the_first_line(browser, serve):
-    """Once the sent turn is placed, a new draft keeps its first line where typed."""
+    """A new draft grows downward, then shares the bounded card with its transcript."""
     page, preview, editor = drafting_in_a_short_card(browser, serve, 1000, 600)
     preview.locator(".lf-thread-reply .lf-compose-submit").click()
     rendered(page)
     editor.click()
     rendered(page)
     before = preview.evaluate(DRAFTING_CARD)
-    editor.type("a long new draft " * 20)
+    editor.type("A new draft.")
+    editor.press("Shift+Enter")
     rendered(page)
     after = preview.evaluate(DRAFTING_CARD)
     assert after["side"] == before["side"]
+    assert after["editorFoot"] > before["editorFoot"], (before, after)
     assert after["editorTop"] == pytest.approx(before["editorTop"], abs=0.5), (
         before,
         after,
     )
+    editor.type("a long new draft " * 20)
+    rendered(page)
+    bounded = page.evaluate(CARD_AND_REPLY)
+    assert bounded["placement"] == before["side"]
+    assert bounded["cardBottom"] == pytest.approx(bounded["foot"], abs=0.5), bounded
+    assert bounded["turn"] < bounded["editorTop"] < after["editorTop"], bounded
+    assert bounded["editorBottom"] <= bounded["cardBottom"], bounded
+    assert bounded["editorTop"] <= bounded["send"] <= bounded["cardBottom"], bounded
+    assert editor.evaluate("box => box.scrollHeight > box.clientHeight")
+    expect(editor).to_be_focused()
+    editor.press("ControlOrMeta+End")
+    rendered(page)
+    caret = _focused_editor_caret(page)
+    assert caret["caretTop"] >= caret["boxTop"], caret
+    assert caret["caretBottom"] <= caret["boxBottom"], caret
 
 
 def test_continued_margin_draft_grows_below_its_first_line_after_agent_reply(

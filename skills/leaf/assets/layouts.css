@@ -116,8 +116,14 @@
     table[data-lf-space]:not([data-lf-space="column"]) {
       width: calc(100% + var(--lf-surplus));
     }
+    /* `wide` is one width wherever the block stands. The breakout above only grows a
+     * block past its holder, so in a holder already wider than `--wide`, such as a wide
+     * Layout's track or a workspace's pane, the block would take the holder's width; the
+     * cap holds it to the evidence width there, at the holder's start. A holder narrower
+     * than `--wide` still bounds it, and `available` is the width that takes everything. */
     [data-lf-space="wide"] {
       --lf-reach: min(var(--wide), var(--lf-room, 0px));
+      max-width: var(--wide);
     }
     [data-lf-space="available"] {
       --lf-reach: var(--lf-room, 0px);

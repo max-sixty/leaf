@@ -145,6 +145,7 @@ export function observeSemanticNews(prior, reading) {
         kind: "user_obligation",
         key: `obligation:${key}:${episode}`,
         sourceKey: key,
+        episode,
         ...obligation,
       });
   }
@@ -175,7 +176,10 @@ export function currentSemanticNews(news, reading, observed) {
         return current ? [{ ...item, condition: current.kind }] : [];
       }
       case "user_obligation":
-        return obligations.has(item.sourceKey) ? [item] : [];
+        return obligations.has(item.sourceKey) &&
+          item.episode === observed.obligationEpisodes.get(item.sourceKey)
+          ? [item]
+          : [];
       case "agent_available":
         return agentAvailable(reading.activity) &&
           item.key === `agent-available:${observed.availabilityEpisode}`

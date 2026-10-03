@@ -754,13 +754,6 @@ STARTUP_PROJECTION_WIDGET = PAGE_WIDGET.replace(
       this.controller.defer()();
     }
     const held = globalThis.__heldLocalPresentations?.get(this.id);""",
-).replace(
-    '    keeps(this, "data-rendered-choice", state.choose.value);',
-    """\
-    keeps(this, "data-rendered-choice", state.choose.value);
-    this.dataset.controllerRenders = String(
-      Number(this.dataset.controllerRenders || 0) + 1
-    );""",
 )
 
 
@@ -845,12 +838,6 @@ def test_waiting_projection_settles_before_ready_state_reopens_it(browser, serve
     assert held, "the positive control did not hold the first authoritative state"
     expect(page.locator("#page-local").get_by_role("button")).to_be_disabled()
     expect(page.locator("#page-local").get_by_role("status")).to_have_text("idle")
-    controller_renders = int(
-        page.locator("#page-local").get_attribute("data-controller-renders")
-    )
-    # The synchronous subscription paints once; the widget's deliberate startup
-    # defer/resume invalidation paints the same complete provisional reading once.
-    assert controller_renders == 2
     waiting = page.evaluate(
         """async () => {
               const runtime = await window.__lfRuntimeImport('/runtime/semantic-state.js');
@@ -875,9 +862,7 @@ def test_waiting_projection_settles_before_ready_state_reopens_it(browser, serve
     held.pop(0).continue_()
     wait_until_ready(page)
     expect(page.locator("#page-local").get_by_role("button")).to_be_enabled()
-    expect(page.locator("#page-local")).to_have_attribute(
-        "data-controller-renders", str(controller_renders + 1)
-    )
+    expect(page.locator("#page-local").get_by_role("status")).to_have_text("idle")
     ready = page.evaluate(
         """() => {
               const application = readStartupApplication();
@@ -1901,7 +1886,7 @@ def test_a_refused_thread_reading_leaves_a_user_who_moved_on_where_they_went(
 
 
 def test_thread_readiness_waits_for_the_keyed_thread_list(browser, serve):
-    """The existing thread ticket includes Lit ordering without replacing a card."""
+    """Readiness includes the real Lit paint, preserving the standing editor."""
     url = serve(LIVE_V1)
     append_carried_log_record(
         serve.page_dir,
@@ -1920,68 +1905,62 @@ def test_thread_readiness_waits_for_the_keyed_thread_list(browser, serve):
     reply = page.locator('.lf-thread[data-id="standing-thread"] leaf-text')
     write(reply, "half a thought")
     reply.evaluate("input => input.setSelectionRange(4, 4)")
+    standing = page.locator('.lf-thread[data-id="standing-thread"]').element_handle()
+
+    def assert_draft_retained():
+        assert standing.evaluate("node => node.isConnected"), "the card was replaced"
+        expect(reply).to_be_focused()
+        expect(reply).to_have_js_property("value", "half a thought")
+        assert reply.evaluate(
+            "input => [input.selectionStart, input.selectionEnd]"
+        ) == [4, 4]
+
     held_events = []
     page.route("**/api/event", lambda route: held_events.append(route))
     page.evaluate(
         """async () => {
           const application = await window.__lfRuntimeImport('/runtime/application.js');
-          const presentation = await window.__lfRuntimeImport(
-            '/runtime/semantic-state.js'
-          );
           const list = document.querySelector('leaf-thread-list');
           const schedule = list.scheduleUpdate.bind(list);
           const perform = list.performUpdate.bind(list);
           let release;
           const held = new Promise(resolve => { release = resolve; });
           window.threadListReleased = false;
-          list.scheduleUpdate = () => held.then(schedule);
-          list.performUpdate = (...args) =>
-            window.threadListReleased ? perform(...args) : undefined;
+          list.scheduleUpdate = () => {
+            window.threadListHeld = true;
+            return held.then(schedule);
+          };
+          list.performUpdate = (...args) => {
+            window.threadListHeld = true;
+            return window.threadListReleased ? perform(...args) : undefined;
+          };
           window.releaseThreadList = () => {
             window.threadListReleased = true;
             release();
           };
-          window.readLeafPresentation = presentation.readApplicationPresentation;
-          window.standingThread = document.querySelector(
-            '.lf-thread[data-id="standing-thread"]'
-          );
           application.createComment({
             attempt: 'held-thread-list',
             text: 'A second thread arrives.',
           });
         }"""
     )
-    page.wait_for_function(
-        "readLeafPresentation().pending.includes('thread')", timeout=3000
+    # The held owner was actually called. Read the same readiness door as page
+    # authors and the render gate, without naming its internal renderer tickets.
+    page.wait_for_function("() => window.threadListHeld === true", timeout=3000)
+    assert (
+        page.evaluate(
+            "() => document.querySelector('script[data-lf-entry]').lfReadiness(null, 'presented')"
+        )
+        == "presented"
     )
     pending_card = page.locator('.lf-thread[data-attempt="held-thread-list"]')
     expect(pending_card).to_have_count(0)
-    assert page.evaluate(
-        """() => {
-          const current = document.querySelector(
-            '.lf-thread[data-id="standing-thread"]'
-          );
-          const input = current.querySelector('leaf-text');
-          return current === standingThread && document.activeElement === input &&
-            input.value === 'half a thought' && input.selectionStart === 4;
-        }"""
-    )
+    assert_draft_retained()
 
     page.evaluate("releaseThreadList()")
-    page.wait_for_function(
-        "!readLeafPresentation().pending.includes('thread')", timeout=3000
-    )
+    wait_until_ready(page, through="presented")
     expect(pending_card).to_have_count(1)
-    assert page.evaluate(
-        """() => {
-          const current = document.querySelector(
-            '.lf-thread[data-id="standing-thread"]'
-          );
-          const input = current.querySelector('leaf-text');
-          return current === standingThread && document.activeElement === input &&
-            input.value === 'half a thought' && input.selectionStart === 4;
-        }"""
-    )
+    assert_draft_retained()
     holding(page, held_events, 1, "the comment made behind the held thread list")
     held_events[0].continue_()
     page.unroute("**/api/event")

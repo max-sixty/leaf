@@ -275,12 +275,14 @@ class PageEndpoint:
     def respond(self) -> Response:
         """Answer this request, on a worker thread of the serving loop's own pool."""
         started = time.monotonic()
-        if self.method == "GET":
+        if self.method in {"GET", "HEAD"}:
             answer = self._answer(self._get)
         elif self.method == "POST":
             answer = self._answer(self._post, prepare=self._read_posted)
         else:
             answer = self._json({"error": f"unsupported method {self.method}"}, 501)
+        if self.method == "HEAD":
+            answer.body = b""
         answer.headers.update(self._delivery_headers())
         # The request boundary sees successful answers and refusals alike. Keep
         # query strings (including the access key) and request bodies out of it.
@@ -505,6 +507,50 @@ class PageEndpoint:
         if is_html:
             headers["Content-Security-Policy"] = FRAME_ANCESTORS_CSP
         return Response(body, status_code=status, headers=headers)
+
+    def _resource_content(self, ctype: str, body: bytes) -> Response:
+        """Serve exact resource bytes, with single byte ranges for native playback.
+
+        Captured previews own bytes rather than file paths, so both live and captured
+        resources use this response. RFC 9110 permits ignoring Range; unsupported
+        units, malformed or multiple ranges, and If-Range without a validator get the
+        complete representation. A valid unsatisfiable range earns 416.
+        """
+        if not ctype.startswith(("video/", "audio/")):
+            return self._content(200, ctype, body)
+        size = len(body)
+        status = 200
+        headers = {"Accept-Ranges": "bytes"}
+        requested = self.headers.get("Range", "")
+        match = re.fullmatch(r"bytes=([0-9]*)-([0-9]*)", requested)
+        if (
+            self.method == "GET"
+            and not self.headers.get("If-Range")
+            and match is not None
+            and any(match.groups())
+        ):
+            first, last = (
+                part.lstrip("0") or "0" if part else "" for part in match.groups()
+            )
+
+            # Bound decimal parsing by the representation's length; an arbitrarily
+            # long numeral is still simply beyond that length.
+            def offset(raw: str) -> int:
+                return size + 1 if len(raw) > len(str(size)) else int(raw)
+
+            start = offset(first) if first else max(0, size - offset(last))
+            end = min(size, offset(last) + 1) if first and last else size
+            if first and last and (len(last), last) < (len(first), first):
+                pass  # An invalid range is ignored, rather than unsatisfiable.
+            elif start >= end:
+                status, body = 416, b""
+                headers["Content-Range"] = f"bytes */{size}"
+            else:
+                status, body = 206, body[start:end]
+                headers["Content-Range"] = f"bytes {start}-{end - 1}/{size}"
+        response = self._content(status, ctype, body)
+        response.headers.update(headers)
+        return response
 
     def _json(self, obj, status: int = 200) -> Response:
         return self._content(
@@ -784,7 +830,7 @@ class PageEndpoint:
         ctype = resource.mime
         if ctype not in BINARY_TYPES:
             ctype += "; charset=utf-8"
-        return self._content(200, ctype, resource.data)
+        return self._resource_content(ctype, resource.data)
 
     def _serve_page_path(self) -> Response | None:
         path = self.path
@@ -864,7 +910,7 @@ class PageEndpoint:
                 path,
                 DeliveryAddress(self.page_root, self.page_root),
             )
-            return self._content(200, ctype, body)
+            return self._resource_content(ctype, body)
         return None
 
     def _get(self) -> Response:

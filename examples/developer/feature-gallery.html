@@ -1752,6 +1752,39 @@ gallery/
                   </template>
                 </lf-sample>
               </section>
+              <section id="bg-recorded-media">
+                <h3>Recorded video and audio</h3>
+                <p>
+                  Play the eight-second test pattern, then drag its native timeline to a
+                  later frame. Pause and resume with the keyboard after tabbing to the
+                  player. The recording also plays in an offline export.
+                </p>
+                <video
+                  id="bg-recording"
+                  controls
+                  playsinline
+                  preload="none"
+                  width="320"
+                  height="180"
+                  aria-label="Eight-second moving test pattern"
+                  poster="/media/d7cf2b4e22c063dd.png"
+                  src="/media/2930ad3df7819c50.mp4"
+                ></video>
+                <p>
+                  Play or seek the eight-second tone with the audio player's controls.
+                  Both recordings are fixed evidence; the samples above stay
+                  interactive.
+                </p>
+                <audio
+                  id="bg-audio"
+                  controls
+                  preload="none"
+                  aria-label="Eight-second 440 hertz test tone"
+                  style="max-width: 100%"
+                >
+                  <source src="/media/b5eb956d4548b3b0.mp3" type="audio/mpeg" />
+                </audio>
+              </section>
               <p id="bg-shot-guide">
                 Sample labels invented content. Choose “Before” or “After” above the
                 image, or press the Shot control or image to flip. The selected label is

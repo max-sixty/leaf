@@ -597,6 +597,91 @@ def test_a_browser_image_becomes_content_addressed_page_media(server, page_dir):
     assert fetch(server + path) == (200, pixels)
 
 
+def test_authored_recordings_are_served_with_seekable_captured_bytes(
+    server, page_dir, tmp_path
+):
+    """Author admission, MIME and ranges work before and after revision capture.
+
+    The author chooses the type; these deliberately arbitrary bytes exercise transport
+    independently from codec support, which the browser playback test owns.
+    """
+    data = b"0123456789"
+    paths = []
+    for suffix, mime in {
+        ".mp4": "video/mp4",
+        ".webm": "video/webm",
+        ".mp3": "audio/mpeg",
+        ".m4a": "audio/mp4",
+        ".ogg": "audio/ogg",
+        ".wav": "audio/wav",
+    }.items():
+        source = tmp_path / ("recording" + suffix.upper())
+        source.write_bytes(data)
+        _, path = media_model.cmd_media(page_dir, [source])[0]
+        paths.append((path, mime))
+    markup = "".join(f'<audio controls src="{path}"></audio>' for path, _ in paths)
+    (page_dir / "index.html").write_text(PAGE.replace("</main>", markup + "</main>"))
+    publish(page_dir)
+    captured = "/revisions/" + files_model.revision_path(page_dir, 1).stem
+    for path, mime in paths:
+        for route in (path, captured + path):
+            conn = http.client.HTTPConnection(urllib.parse.urlsplit(server).netloc)
+            try:
+                for requested, status, expected, content_range in [
+                    (None, 200, data, None),
+                    ("bytes=2-5", 206, data[2:6], "bytes 2-5/10"),
+                    ("bytes=7-", 206, data[7:], "bytes 7-9/10"),
+                    ("bytes=-3", 206, data[-3:], "bytes 7-9/10"),
+                    ("bytes=-100", 206, data, "bytes 0-9/10"),
+                    ("bytes=0-99", 206, data, "bytes 0-9/10"),
+                    ("bytes=10-", 416, b"", "bytes */10"),
+                    ("bytes=-0", 416, b"", "bytes */10"),
+                    ("bytes=999999999999999999999999-", 416, b"", "bytes */10"),
+                    ("bytes=5-2", 200, data, None),
+                    ("bytes=99999999999999999999-99", 200, data, None),
+                    ("bytes=00002-00005", 206, data[2:6], "bytes 2-5/10"),
+                    ("bytes=0-1,4-5", 200, data, None),
+                    ("bytes=bad", 200, data, None),
+                    ("frames=0-1", 200, data, None),
+                ]:
+                    headers = {"Range": requested} if requested else {}
+                    conn.request("GET", route + f"?t={TOKEN}", headers=headers)
+                    answer = conn.getresponse()
+                    assert (answer.status, answer.read()) == (status, expected)
+                    assert answer.getheader("Content-Type") == mime
+                    assert answer.getheader("Accept-Ranges") == "bytes"
+                    assert answer.getheader("Content-Range") == content_range
+                conn.request(
+                    "GET",
+                    route + f"?t={TOKEN}",
+                    headers={"Range": "bytes=2-5", "If-Range": '"other"'},
+                )
+                answer = conn.getresponse()
+                assert (answer.status, answer.read()) == (200, data)
+                conn.request(
+                    "HEAD", route + f"?t={TOKEN}", headers={"Range": "bytes=2-5"}
+                )
+                answer = conn.getresponse()
+                assert (
+                    answer.status,
+                    answer.read(),
+                    answer.getheader("Content-Length"),
+                ) == (200, b"", "10")
+                conn.request("GET", route)
+                answer = conn.getresponse()
+                assert answer.status == 403
+                answer.read()
+            finally:
+                conn.close()
+    # Historical media must use its capture even if the page's mutable file changes.
+    path, _ = paths[0]
+    (page_dir / path.lstrip("/")).write_bytes(b"changed")
+    assert fetch(server + captured + path, headers={"Range": "bytes=2-5"}) == (
+        206,
+        data[2:6],
+    )
+
+
 def test_the_browser_media_door_refuses_untrusted_or_unbounded_bytes(server, page_dir):
     """The browser door derives the file type and bounds allocation before reading.
 
@@ -606,6 +691,8 @@ def test_the_browser_media_door_refuses_untrusted_or_unbounded_bytes(server, pag
     """
     png = b"\x89PNG\r\n\x1a\n" + b"browser pixels"
     refusals = [
+        ({"Content-Type": "video/mp4"}, b"video", "image type must be one of:"),
+        ({"Content-Type": "audio/mpeg"}, b"audio", "image type must be one of:"),
         (
             {"Content-Type": "image/jpeg"},
             png,

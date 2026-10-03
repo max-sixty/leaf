@@ -1,0 +1,36 @@
+# Added for issue #1083: a reusable recording should remain native media instead of
+# being reconstructed as a live page module. Base/candidate scoring also guards
+# the existing evidence route; it is not a measure of general authoring quality.
+description: authored-recording
+metadata:
+  purpose: 'Source files and media: show a fixed recording with native playback controls and a poster.'
+  tags:
+  - evidence
+vars:
+  prompt: |
+    Write a Leaf section showing a fixed eight-second screen recording of a bug.
+    The reader needs to play, pause, and seek it, and save the page for offline review.
+    These files are already registered in the page:
+
+    - recording: /media/2930ad3df7819c50.mp4
+    - first frame: /media/051bee487bfb5d13.png
+
+    The page directory is unavailable. Reply with the section's HTML.
+assert:
+- type: javascript
+  metric: reads-authoring-evidence
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/references/authoring-evidence\.md
+- type: javascript
+  metric: native-recording
+  value: file://text-regex.cjs
+  config:
+    pattern: '<video\b(?=[^>]*\bcontrols\b)(?=[^>]*\bposter=["''][^"'']*051bee487bfb5d13\.png)[^>]*>(?:[\s\S]*?)</video>'
+    flags: i
+- type: javascript
+  metric: recorded-source
+  value: file://text-regex.cjs
+  config:
+    pattern: '<(?:video|source)\b[^>]*\bsrc=["'']/media/2930ad3df7819c50\.mp4["'']'
+    flags: i

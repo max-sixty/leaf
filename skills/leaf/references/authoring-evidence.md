@@ -129,7 +129,16 @@ element, supplies its text. Add `collapsed` to a large diff so each file starts 
 a comment or navigation target still opens the file that owns its line.
 
 Run `leaf page media <page> <file>…` and use each printed `/media/…` `path` for
-images. Never inline image bytes. Put invented examples inside `lf-sample` and
+images, video, and audio. Never inline media bytes. Use a recording for a fixed
+demo or screen capture; keep a live widget where the user should manipulate the
+subject. Give native `<video>` and `<audio>` elements `controls`, label their
+content, and give a video a `poster` image. MP4 and WebM video, and MP3, M4A,
+Ogg, and WAV audio are admitted; codec playback is the browser's. Export embeds
+the complete recording for offline playback with no size cap or omissions: base64
+adds about a third to its bytes, so trim recordings to what the reader needs.
+Browser paste and upload still accept raster images only.
+
+Put invented examples inside `lf-sample` and
 make them visibly fictional. Render tickets, source locations, and URLs as real
 links.
 

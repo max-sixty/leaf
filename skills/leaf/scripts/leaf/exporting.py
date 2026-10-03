@@ -2,7 +2,9 @@
 
 The export packages the captured revision, its resources, and the page's authoritative
 state reading into one file, and Leaf's normal runtime boots from them. There is no
-second rendering: whatever the page draws when served, the file draws.
+second rendering: whatever the page draws when served, the file draws. Media is
+embedded in full, including recordings: no size cap silently removes content, and
+the reported output byte count includes the base64 expansion.
 """
 
 import base64

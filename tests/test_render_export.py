@@ -35,6 +35,7 @@ from leaf import media as media_model
 from leaf import server as server_model
 from leaf import service as service_model
 from leaf import state as cleanup_model
+from leaf.render_checks import wait_until_ready
 from leaf.schema import ELEMENT_ID
 from leaf.structure import UTF8_BOM
 from leaf_dev import preview as preview_model
@@ -1301,6 +1302,102 @@ OFFLINE_REGISTRY = {
         ),
     },
 }
+
+
+def test_authored_video_and_audio_play_seek_and_export_offline(
+    browser, serve, tmp_path
+):
+    """Actual MP4 and MP3 decoders cross capture, HTTP ranges, CSP and offline URLs."""
+    content = leaf_page(
+        "Recorded media",
+        """
+        <h1>Recorded media</h1>
+        <video id="video" controls playsinline width="320" height="180"
+          aria-label="Test pattern" poster="/media/d7cf2b4e22c063dd.png"
+          src="/media/2930ad3df7819c50.mp4"></video>
+        <audio id="audio" controls aria-label="Test tone">
+          <source src="/media/b5eb956d4548b3b0.mp3" type="audio/mpeg">
+        </audio>
+    """,
+    )
+    url = serve(content)
+    page = open_page(browser, url)
+    media_responses = []
+    page.on(
+        "response",
+        lambda response: (
+            media_responses.append(response)
+            if response.url.endswith((".mp4", ".mp3"))
+            else None
+        ),
+    )
+    exported = tmp_path / "recordings.html"
+    exporting_model.cmd_export(serve.page_dir, exported, None)
+    for location in (url, exported.as_uri()):
+        page.goto(location, wait_until="load")
+        wait_until_ready(page)
+        for selector in ("#video", "#audio"):
+            player = page.locator(selector)
+            page.wait_for_function(
+                "selector => document.querySelector(selector).readyState >= 2",
+                arg=selector,
+            )
+            assert player.evaluate("el => el.duration") == pytest.approx(8, abs=0.2)
+            # Reach the browser's player controls through ordinary sequential focus.
+            for _ in range(20):
+                page.keyboard.press("Tab")
+                if player.evaluate("el => document.activeElement === el"):
+                    break
+            assert player.evaluate("el => document.activeElement === el")
+            page.keyboard.press("Space")
+            page.wait_for_function(
+                "selector => document.querySelector(selector).currentTime > 0",
+                arg=selector,
+            )
+            page.keyboard.press("Space")
+            assert player.evaluate("el => el.paused")
+            player.evaluate("el => { el.pause(); el.currentTime = 6; }")
+            page.wait_for_function(
+                "selector => { const el = document.querySelector(selector); return !el.seeking && Math.abs(el.currentTime - 6) < 0.1; }",
+                arg=selector,
+            )
+            assert player.evaluate("el => el.error") is None
+        touch = browser.new_page(has_touch=True, viewport={"width": 390, "height": 844})
+        touch.goto(location, wait_until="load")
+        wait_until_ready(touch)
+        for selector in ("#video", "#audio"):
+            player = touch.locator(selector)
+            bounds = player.bounding_box()
+            player.tap(
+                position={
+                    "x": 24,
+                    "y": bounds["height"] - 48 if selector == "#video" else 27,
+                }
+            )
+            touch.wait_for_function(
+                "selector => !document.querySelector(selector).paused", arg=selector
+            )
+            player.tap(
+                position={
+                    "x": 24,
+                    "y": bounds["height"] - 48 if selector == "#video" else 27,
+                }
+            )
+            assert player.evaluate("el => el.paused")
+        touch.close()
+    assert media_responses
+    assert all(response.status == 206 for response in media_responses)
+    assert all(
+        response.headers["accept-ranges"] == "bytes" for response in media_responses
+    )
+    assert (
+        page.locator("#video").get_attribute("src").startswith("data:video/mp4;base64,")
+    )
+    assert (
+        page.locator("#audio source")
+        .get_attribute("src")
+        .startswith("data:audio/mpeg;base64,")
+    )
 
 
 def test_interactive_export_with_an_ask_reaches_application_presentation(

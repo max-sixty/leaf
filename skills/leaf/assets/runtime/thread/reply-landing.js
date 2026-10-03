@@ -15,7 +15,8 @@
 
    A send lands the turn it adds, around the box it was sent from even once the user
    stands outside it, and a box growing under the user's keystrokes keeps its controls in
-   the band and the words just above it beside it. Every box a thread or a
+   the band and the words just above it beside it. Growth reveals the writing area
+   alone; earlier turns the reader has passed stay out of view. Every box a thread or a
    seat holds answers both, whichever owner built it. The climbs cross shadow roots,
    since a widget may draw a thread inside its own tree and still be scrolled by the
    page, and the box that scrolls a thread is the reading region's (`scrollerFor`). A
@@ -32,6 +33,7 @@ import { scrollerFor, scrollersOf } from "../reading-regions.js";
 import { renderedParent } from "../shadow.js";
 import { bringBackSurfaceOf } from "../off-flow.js";
 import { retainUserIntent } from "../user-intent.js";
+import { scrollIntoReadingBand } from "../landing-scroll.js";
 import { atScrollEnd, scrollToEnd } from "../scrolling.js";
 import { SAYS_IN } from "./selectors.js";
 
@@ -149,6 +151,13 @@ const transcriptPlaces = new WeakMap();
 const covered = (reply) =>
   (reply.previousElementSibling?.getBoundingClientRect().bottom ?? -Infinity) -
   reply.getBoundingClientRect().top;
+// Editing reveals only the writing area. Revealing the whole thread here would pull
+// earlier turns back into view on the first keystroke in an already-visible reply.
+const revealWritingArea = (held, input, reply) => {
+  bringBackSurfaceOf(held, "instant");
+  const target = reply && shownBox(reply).height <= landingRoom(held) ? reply : input;
+  scrollIntoReadingBand(target, target, "nearest", "instant");
+};
 export function followBoxGrowth(input) {
   const held = input.closest(SAYS_IN);
   if (!held) return;
@@ -166,17 +175,17 @@ export function followBoxGrowth(input) {
     )
       scrollToEnd(transcript);
     transcriptPlaces.delete(input);
-    if (!onScreen(reply)) scrollThreadIntoView(held, input, "instant");
+    if (!onScreen(reply)) revealWritingArea(held, input, reply);
     return;
   }
-  if (!pinned(reply)) return scrollThreadIntoView(held, input, "instant");
+  if (!pinned(reply)) return revealWritingArea(held, input, reply);
   const height = reply.getBoundingClientRect().height;
   const grew = height - (rowHeights.get(input) ?? height);
   rowHeights.set(input, height);
   const by = Math.max(0, Math.min(grew, covered(reply)));
   if (by) scrollerFor(reply).scrollBy({ top: by, behavior: "instant" });
   // A row pins only at its scroller's foot, so one the user scrolled past is brought back.
-  if (!onScreen(reply)) scrollThreadIntoView(held, input, "instant");
+  if (!onScreen(reply)) revealWritingArea(held, input, reply);
 }
 // The editor's place before its own edit, and on arrival for a first edit delivered
 // without beforeinput: a pinned row's height, or a separate transcript's tail and room.

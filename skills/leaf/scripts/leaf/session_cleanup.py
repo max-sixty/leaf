@@ -8,7 +8,7 @@ another checkout holds its page transaction lock and cannot release a successor.
 
 Multi-target path validation belongs to files.replace_files, above the atomic
 replacement primitive here. Page events must exist before their lock is taken;
-purpose locks are removed by their holder and retaken when their name changes.
+purpose locks retain their files so every taker locks the same inode.
 """
 
 from __future__ import annotations
@@ -81,37 +81,26 @@ def flocked(path: Path):
     racing page deletion must not recreate it and turn a deleted directory back into
     an initialized page, so it is opened, never created, and it outlives the lock.
 
-    A purpose lock's file is the lock and nothing more, so it exists only while it
-    is held or awaited: it is minted on first use and its holder removes it on the
-    way out. A taker that waited on a file removed under it holds a lock on nothing
-    anyone else can find, so it takes the lock again on whatever the path names
-    now (`still_named`)."""
+    A purpose lock's file is created on first use and remains after release.
+    Closing its descriptor releases the lock. Every acquired descriptor is checked
+    against its path, since a shared-path replacement while a taker waits must
+    never let it enter a transaction on an inode other takers can no longer find.
+    This also covers a page replaced with a new event log."""
     require_cross_process_locking()
-    if path.name == EVENTS_FILE:
-        with open(path, "r+b") as f:
-            fcntl.flock(f, fcntl.LOCK_EX)
-            yield f
-        return
+    mode = "r+b" if path.name == EVENTS_FILE else "a+b"
     while True:
-        f = open(path, "a+b")  # noqa: SIM115 - closed below, after the unlink
-        fcntl.flock(f, fcntl.LOCK_EX)
-        if still_named(f.fileno(), path):
-            break
-        f.close()
-    try:
-        yield f
-    finally:
-        path.unlink(missing_ok=True)
-        f.close()
+        with open(path, mode) as f:
+            fcntl.flock(f, fcntl.LOCK_EX)
+            if still_named(f.fileno(), path):
+                yield f
+                return
 
 
 def still_named(held: int, path: Path) -> bool:
     """Whether PATH still names the file the descriptor HELD was opened on.
 
-    A lock file is removed by whoever holds it, so a lock taken on a descriptor
-    opened before that removal is a lock on an unlinked inode. Every taker asks this
-    once it holds the lock and takes it again when the answer is no; the holder's
-    removal can then never let two processes each believe they hold one name."""
+    A shared path can change while a taker waits. Checking after acquisition lets
+    it retry on the currently named inode before entering its transaction."""
     try:
         return os.path.samestat(os.fstat(held), os.stat(path))
     except FileNotFoundError:

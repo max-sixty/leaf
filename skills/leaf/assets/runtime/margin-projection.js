@@ -70,6 +70,7 @@
    pass owns refresh, clocks, contribution updates and print deferral; local geometry
    gestures request that same pass. Mount binds the overlay's mechanical lifecycle. */
 
+import { atScrollEnd, scrollToEnd } from "./scrolling.js";
 import { afterScript, cancelRender, nextRender } from "./rendering.js";
 import { labelWords, spokenSubject } from "./contribution-model.js";
 import {
@@ -159,8 +160,8 @@ import { closestAcross, inChrome } from "./passages.js";
 import { visualAt } from "./anchor-resolution.js";
 import { paintTrace } from "./target-paint.js";
 
-import { threadList } from "./thread/state.js";
-import { turns } from "./thread/model.js";
+import { allThreads } from "./thread/state.js";
+import { threadNames, turns } from "./thread/model.js";
 import { whenDocumentPresented } from "./semantic-state.js";
 
 import { notice } from "./notifications.js";
@@ -621,7 +622,7 @@ export function createMarginProjection({
       (sum, box) => sum + (box ? box.scrollHeight - box.clientHeight : 0),
       previewList.scrollHeight,
     );
-  function measureThreadCard(room, cap) {
+  function measureThreadCard(room, cap, reading) {
     preview.style.setProperty("--lf-thread-width", `${room}px`);
     const worn = parseFloat(preview.style.getPropertyValue("--lf-thread-max-height"));
     const height = preview.offsetHeight;
@@ -641,6 +642,7 @@ export function createMarginProjection({
       wornContent = content;
     }
     fitThreadCardEditors();
+    if (reading?.end) scrollToEnd(previewTranscript);
     return preview.getBoundingClientRect().height;
   }
   // The thread's complete turns, without the reply row under them: what an arriving or a
@@ -757,6 +759,7 @@ export function createMarginProjection({
   function placeThreadPreview() {
     if (!previewOpen() || !previewMarginEntry?.isConnected) return false;
     const placement = previewPlacement.begin();
+    let reading = null;
     const stillCurrent = () =>
       previewPlacement.current(placement) &&
       previewOpen() &&
@@ -842,6 +845,12 @@ export function createMarginProjection({
           minimumWidth: cardMinimum(),
           fit({ width, scale }) {
             if (!stillCurrent()) return;
+            // Capture when fitting actually starts, after the module load and any
+            // Send landing. Hold this reading through every middleware measurement:
+            // an intermediate cap must not turn an earlier offset into end-following.
+            reading ??= previewTranscript && {
+              end: !fresh && atScrollEnd(previewTranscript),
+            };
             const room = Math.min(cardMeasure(), width);
             preview.style.setProperty(
               "--lf-thread-min-width",
@@ -863,7 +872,7 @@ export function createMarginProjection({
               : held === "foot"
                 ? clamp(edge, boundary.top + last, boundary.bottom) - boundary.top
                 : boundary.bottom - clamp(edge, boundary.top, boundary.bottom - last);
-            const height = measureThreadCard(room, cap / scale.y);
+            const height = measureThreadCard(room, cap / scale.y, reading);
             // Fitting the width settles wrapping before opening the card spends
             // scroll travel. A scroll supersedes this answer's attachment geometry.
             if (
@@ -1863,10 +1872,7 @@ export function createMarginProjection({
       listBox &&
       lastBox.bottom >= listBox.top &&
       lastBox.bottom <= (replyBox?.top ?? listBox.bottom) + 80 &&
-      previewTranscript.scrollHeight -
-        previewTranscript.clientHeight -
-        previewTranscript.scrollTop <=
-        2;
+      atScrollEnd(previewTranscript);
     const present = () => {
       previewThreadItem = selected?.id ?? null;
       const targetHeading =
@@ -1903,7 +1909,7 @@ export function createMarginProjection({
       if (previewTranscript) previewTranscript.scrollTop = 0;
     }
     previewLatest = latest && { thread: selected.id, id: latest.id, text: latest.text };
-    if (follow) previewTranscript.scrollTop = previewTranscript.scrollHeight;
+    if (follow) scrollToEnd(previewTranscript);
     // Fit the new content after restoring the reader but before paint; a deferred
     // pass exposes the previous height limit and makes a sent reply grow twice.
     placeThreadPreview();
@@ -2269,7 +2275,7 @@ export function createMarginProjection({
   // they asked for: it hangs from the cluster's visible marker instead of unfolding the
   // cluster to reach the thread's own entry, so arriving somewhere changes no margin.
   function openInlineThread(id, { transition = null, unfold = true } = {}) {
-    const itemId = marginThreadItem(threadList().find((t) => t.id === id));
+    const itemId = marginThreadItem(threadNames(allThreads()).get(id));
     const entry = pageInventory.find((candidate) =>
       candidate.items.some((item) => item.id === itemId),
     );
@@ -2338,7 +2344,7 @@ export function createMarginProjection({
     { focus = null, travel = true, intent = retainUserIntent() } = {},
   ) {
     if (!intent()) return null;
-    if (!panelIsOpen()) {
+    if (!panelIsOpen() && focus !== "message") {
       // Capture the departure before any selected surface moves focus. The route
       // returns its actual destination only after the existing placement has landed.
       const localFocus = focus ?? "reply";
@@ -2597,8 +2603,10 @@ export function createMarginProjection({
   // element its inventory entry is grouped under. A general or detached thread has none.
   const threadTarget = (id) => placedAt(id)?.place ?? null;
   const threadFocusTarget = (id, { focus = null } = {}) => {
+    if (focus === "message") return null;
     const surface = surfaceFocusTarget(id, { focus });
     if (surface) return surface;
+    id = threadNames(allThreads()).get(id)?.id ?? id;
     const thread = [...previewList.querySelectorAll(".lf-page-thread")].find(
       (candidate) => candidate.dataset.thread === id,
     );

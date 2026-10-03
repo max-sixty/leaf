@@ -65,6 +65,7 @@ from .revision_delivery import (
     DeliveryAddress,
     compose_document,
     deliver_resource,
+    delivered_resource,
     layer_import_map,
     rebase_document,
 )
@@ -685,12 +686,11 @@ class PageEndpoint:
         else:
             with PageTransaction(self.page_dir) as page:
                 activate_source(self.page_dir)
-                events = page.events
-            revision = latest_revision(self.page_dir)
-            if revision is None:
-                return self._json({"error": missing_revision(self.page_dir)}, 404)
-            artifact = read_artifact(self.page_dir, revision)
-            version = stamped_version(events, revision)
+                revision = latest_revision(self.page_dir)
+                if revision is None:
+                    return self._json({"error": missing_revision(self.page_dir)}, 404)
+                artifact = read_artifact(self.page_dir, revision)
+                version = stamped_version(page.events, revision)
         return self._serve_document(artifact, revision, version)
 
     def _revision_name(self, revision: int) -> str:
@@ -774,31 +774,17 @@ class PageEndpoint:
         artifact = self._artifact(revision)
         self.response_layer = artifact.registry["$layer"]["generation"]
         logical = "/" + match.group("resource")
-        source = logical
-        widget = re.fullmatch(r"/widgets/(?P<tag>lf-[a-z0-9-]+)\.js", logical)
-        if widget is not None:
-            implementation = artifact.implementations.get(widget.group("tag"))
-            if implementation is not None:
-                source = implementation["path"]
-        if source != logical:
-            target = json.dumps(self._artifact_root(revision) + source)
-            return self._content(
-                200,
-                "application/javascript; charset=utf-8",
-                f"export * from {target};\n".encode(),
-            )
-        resource = artifact.resources.get(source)
-        if resource is None:
-            return None
-        body = deliver_resource(
-            resource,
-            source,
+        resource = delivered_resource(
+            artifact,
+            logical,
             DeliveryAddress(self.page_root, self._artifact_root(revision)),
         )
+        if resource is None:
+            return None
         ctype = resource.mime
         if ctype not in BINARY_TYPES:
             ctype += "; charset=utf-8"
-        return self._content(200, ctype, body)
+        return self._content(200, ctype, resource.data)
 
     def _serve_page_path(self) -> Response | None:
         path = self.path

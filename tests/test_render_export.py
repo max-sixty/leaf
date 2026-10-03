@@ -1536,7 +1536,6 @@ def test_the_example_preview_command_exports_a_file_that_opens_on_its_own(
     browser,
 ):
     """The handoff command names one file whose page draws with no live server."""
-    out = ROOT / ".tmp" / "example-pr-walkthrough.html"
     result = subprocess.run(
         [
             *PREVIEW,
@@ -1550,7 +1549,9 @@ def test_the_example_preview_command_exports_a_file_that_opens_on_its_own(
         timeout=90,
     )
     assert result.returncode == 0, f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
-    assert result.stdout.splitlines()[-1] == str(out.resolve())
+    out = Path(result.stdout.splitlines()[-1])
+    assert out.is_absolute()
+    assert out.name == "example-pr-walkthrough.html"
 
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     page.on(

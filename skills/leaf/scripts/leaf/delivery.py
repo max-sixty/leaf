@@ -96,13 +96,14 @@ def pages_gone(batches: list[dict]) -> bool:
 
 
 def retire_if_gone(path: Path, record_format: str) -> None:
-    """Remove this record unless it is a `record_format` record some page of which
-    still stands. A record without this version's required fields goes rather
-    than taking the reading down."""
+    """Remove a readable record once every page it names is gone.
+
+    Other installed versions share these directories. A format or shape this
+    version cannot read may still belong to one of their live sessions."""
     try:
         record = read_json(path)
     except ValueError:
-        record = None
+        return
     batches = record.get("batches") if isinstance(record, dict) else None
     if (
         not isinstance(record, dict)
@@ -112,13 +113,14 @@ def retire_if_gone(path: Path, record_format: str) -> None:
             not isinstance(batch, dict) or not isinstance(batch.get("page"), str)
             for batch in batches
         )
-        or pages_gone(batches)
     ):
+        return
+    if pages_gone(batches):
         path.unlink(missing_ok=True)
 
 
 def _retire_gone_deliveries() -> None:
-    """Remove every envelope this version cannot read or whose pages are all gone.
+    """Remove readable envelopes whose pages are all gone.
 
     Envelopes are read one id at a time, so the only enumeration of them is here,
     under the lock every new one is written under."""

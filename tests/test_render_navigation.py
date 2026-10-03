@@ -2819,7 +2819,7 @@ def test_a_delayed_thread_reveal_reports_that_new_user_focus_cancelled_it(
     page.wait_for_function("window.threadArrivalSettled === true", timeout=3000)
 
     expect(page.locator(".lf-threads-toggle")).to_be_focused()
-    assert page.evaluate("window.threadArrived") is False
+    assert page.evaluate("window.threadArrived") is None
     expect(page.locator(".lf-threads > .lf-thread")).not_to_have_class(
         re.compile(r"\bflash\b")
     )

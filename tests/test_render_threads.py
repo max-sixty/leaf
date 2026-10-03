@@ -50,8 +50,10 @@ from render_harness import (
     FEATURE_GALLERY,
     LONG_PAGE,
     CutOff,
+    admit_before_presenting_comment,
     any_owner_entry,
     example_media,
+    hold_pending_thread_presentation,
     holding,
     leaf_page,
     open_page,
@@ -5700,9 +5702,7 @@ def test_a_control_in_a_reply_holds_the_page_s_control_shape(browser, serve):
     )
 
 
-def test_a_boxless_widget_in_a_reply_still_shows_the_parts_it_paints(
-    browser, serve, tmp_path, monkeypatch
-):
+def test_a_boxless_widget_in_a_reply_still_shows_the_parts_it_paints(browser, serve):
     """A wrapper that generates no box shows as what its contents paint — in either
     document.
 
@@ -5714,19 +5714,16 @@ def test_a_boxless_widget_in_a_reply_still_shows_the_parts_it_paints(
     widget showed as nothing at all. Bounded at the widget, the panel above it is no
     longer its own apparatus and the parts come back.
 
-    `display: contents` on a widget is a project's line to write — the shipped
-    vocabulary has none today, and `shownParts` exists because any layer can — so a
-    project theme is what puts one here. The page's own copy is the control."""
-    monkeypatch.chdir(tmp_path)
-    (tmp_path / ".leaf").mkdir(exist_ok=True)
-    (tmp_path / ".leaf" / "theme.css").write_text(
-        "/* a project styling a wrapper away, which is any layer's to do */\n"
-        "lf-options { display: contents }\n"
+    `display: contents` on a widget is a page's line to write — the shipped vocabulary
+    has none today, and `shownParts` exists because any layer can. Page CSS is the
+    unlayered author stylesheet, above the package-scoped widget rules."""
+    page_source = REPLY_TRAVEL_PAGE.replace(
+        "</head>",
+        "<style>lf-options { display: contents }</style>\n</head>",
     )
-    url = serve(REPLY_TRAVEL_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
-    # A group reporting rather than asking: the joined control the layer draws for
-    # `choose` states its own display at a weight a project's bare tag rule does not
-    # reach, and the subject here is a boxless wrapper rather than a cascade fight.
+    url = serve(page_source, packages=EXAMPLE_PACKAGES)
+    # The page's unlayered style puts a reporting group's wrapper in `contents`; the
+    # subject is the boxless wrapper fallback, not package-theme precedence.
     seed_reply(
         serve.page_dir,
         '<lf-options id="tv-decision">'
@@ -7448,6 +7445,27 @@ def pressed_send_surface(browser, serve, surface):
             if surface == "pause"
             else seat.locator(":scope > .lf-page-thread > .lf-thread-reply leaf-text")
         )
+    elif surface == "composer-widget":
+        url = serve(
+            leaf_page(
+                "diff",
+                '<h1 id="title">Review</h1><lf-diff id="patch" '
+                'source="review-patch"><pre></pre></lf-diff>',
+            )
+        )
+        data_model.cmd_data_set(serve.page_dir, "review-patch", SEAT_DIFF)
+        page = open_page(browser, url)
+        line = page.locator(
+            'lf-diff [data-line-type="change-addition"][data-lf-datum=\'["app.py","new",1]\']'
+        )
+        line.hover()
+        page.get_by_role(
+            "button", name="Comment on app.py · new line 1", exact=True
+        ).click()
+        box = page.locator(".lf-fab-input")
+        send = page.locator(".lf-composer .lf-compose-submit")
+        after = page.locator("lf-diff .lf-page-thread")
+        reply = after.locator(".lf-thread-reply leaf-text")
     else:
         url = serve(PANEL_PAGE)
         root = panel_comment(
@@ -7460,7 +7478,10 @@ def pressed_send_surface(browser, serve, surface):
             page.locator('[data-lf-margin-for="how-store"] .lf-margin-marker').click()
             holder = page.locator(".lf-margin-preview")
             box = holder.locator(".lf-thread-reply leaf-text")
-        elif surface == "composer":
+        elif surface in {"composer", "composer-panel"}:
+            if surface == "composer-panel":
+                page.locator(".lf-threads-toggle").click()
+                panel_settled(page)
             page.locator("#how-cap").click(click_count=3)
             page.locator(".lf-fab-input").click()
             holder = page.locator(".lf-composer")
@@ -7482,12 +7503,19 @@ def pressed_send_surface(browser, serve, surface):
         after = {
             "card": page.locator("#how-store"),
             "composer": page.locator("#how-cap"),
+            "composer-panel": page.locator(
+                ".lf-thread", has_text="Sent from the box."
+            ).locator(":scope > .lf-thread-summary"),
             "panel": holder.locator(".lf-thread-summary"),
             "general": box,
         }[surface]
         reply = (
             page.locator(".lf-margin-preview .lf-thread-reply leaf-text")
             if surface in {"card", "composer"}
+            else page.locator(".lf-thread", has_text="Sent from the box.").locator(
+                ":scope > .lf-thread-reply leaf-text"
+            )
+            if surface == "composer-panel"
             else box
         )
     write(box, "Sent from the box.")
@@ -7499,11 +7527,20 @@ def pressed_send_surface(browser, serve, surface):
     ("surface", "how"),
     [
         (surface, how)
-        for surface in ["card", "panel", "general", "pause", "handoff", "composer"]
+        for surface in [
+            "card",
+            "panel",
+            "general",
+            "pause",
+            "handoff",
+            "composer",
+            "composer-widget",
+            "composer-panel",
+        ]
         for how in ["pointer", "keyboard"]
         # The anchored composer's Tab walks its field and response options
         # (`response.tab`), so its Send takes no keyboard press; Enter is that route.
-        if (surface, how) != ("composer", "keyboard")
+        if not (surface.startswith("composer") and how == "keyboard")
     ],
 )
 def test_a_pressed_send_leaves_the_user_where_enter_does(browser, serve, surface, how):
@@ -7514,6 +7551,8 @@ def test_a_pressed_send_leaves_the_user_where_enter_does(browser, serve, surface
     thread, or on the element the margin card is about with the card still up, and `c`
     writes the follow-up."""
     page, box, send, after, reply = pressed_send_surface(browser, serve, surface)
+    if surface.startswith("composer"):
+        hold_pending_thread_presentation(page)
     if how == "keyboard":
         # Tab reaches the control from the box; `Send & pause` stands one past `Send`.
         for _ in range(2 if surface == "pause" else 1):
@@ -7530,6 +7569,26 @@ def test_a_pressed_send_leaves_the_user_where_enter_does(browser, serve, surface
             # The press never takes the focus, so the box never hears it leave.
             expect(box).to_be_focused()
             page.mouse.up()
+    if surface.startswith("composer"):
+        sent = admit_before_presenting_comment(
+            page, serve.page_dir, "Sent from the box."
+        )
+        thread = page.locator(
+            f'.lf-thread[data-id="{sent["id"]}"]'
+            if surface == "composer-panel"
+            else f'.lf-page-thread[data-thread="{sent["id"]}"]'
+        )
+        expect(thread).to_be_visible()
+        if surface == "composer-widget":
+            # Exact message navigation belongs to Threads, not the local reply box.
+            assert page.evaluate(
+                """async id => {
+                  const {surfaceFocusTarget} = await window.__lfRuntimeImport(
+                    '/runtime/thread/surfaces.js');
+                  return surfaceFocusTarget(id, {focus: 'message'}) === null;
+                }""",
+                sent["id"],
+            )
     rendered(page)
     expect(after).to_be_focused()
     expect(after).to_be_visible()

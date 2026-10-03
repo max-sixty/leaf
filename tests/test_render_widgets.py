@@ -10549,7 +10549,9 @@ def test_a_diff_refresh_keeps_the_readers_inspection(browser, serve, manifest):
         changed_line = page.locator(
             'lf-diff [data-lf-datum=\'["app/routes.py","new",201]\']'
         )
-        assert changed_line.evaluate("el => el.closest('pre').dataset.overflow") == "wrap"
+        assert (
+            changed_line.evaluate("el => el.closest('pre').dataset.overflow") == "wrap"
+        )
     data_model.cmd_data_set(
         serve.page_dir,
         "review-patch",
@@ -10561,7 +10563,9 @@ def test_a_diff_refresh_keeps_the_readers_inspection(browser, serve, manifest):
     expect(search).to_have_value("handlers")
     assert after == before, (before, after)
     if not manifest:
-        assert changed_line.evaluate("el => el.closest('pre').dataset.overflow") == "wrap"
+        assert (
+            changed_line.evaluate("el => el.closest('pre').dataset.overflow") == "wrap"
+        )
 
 
 @pytest.mark.parametrize("manifest", [False, True])

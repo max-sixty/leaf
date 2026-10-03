@@ -17,9 +17,7 @@ from html import unescape
 from pathlib import Path
 
 import click
-from leaf.files import read_json
-from leaf.service import readable_claim, requires_agent_attention
-from leaf.state import page_key
+from leaf.service import requires_agent_attention
 
 from leaf_dev import ROOT
 from leaf_dev.harness import (
@@ -660,14 +658,7 @@ def execute_live(run: Run, case: Case, work: Path, page: Path) -> None:
                 nonlocal posted, pending_events, waiting
                 if injection == "idle":
                     time.sleep(3)
-                claim = readable_claim(
-                    read_json(run.state / "leaf" / "claims" / f"{page_key(page)}.json")
-                )
-                active_turn = (
-                    claim["turn"] if claim and claim["turn_closed"] is None else None
-                )
-                if run.host == "codex" and active_turn not in child.task.running:
-                    active_turn = None
+                active_turn = observed_active_turn(run, page, child)
                 if run.case == "elided" and posted == 0:
                     append_elided_history(run, page)
                 pending_events = post_round(
@@ -739,6 +730,19 @@ def execute_live(run: Run, case: Case, work: Path, page: Path) -> None:
     finally:
         waiting.cancel()
         run.leaf("server", "stop", str(page))
+
+
+def observed_active_turn(run: Run, page: Path, child) -> str | None:
+    """Read the arm's canonical claimant turn inside this run's isolated home.
+
+    Claim enrichment joins its session lifecycle, which lives in the same state
+    home. The native Codex parent turn must also still run at the injection edge.
+    """
+    state = page_state(run, page)
+    turn = state["claim_turn"] if state["turn_closed"] is None else None
+    if run.host == "codex" and turn not in child.task.running:
+        return None
+    return turn
 
 
 def post_round(

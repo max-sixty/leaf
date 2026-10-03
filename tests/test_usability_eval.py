@@ -321,3 +321,49 @@ def test_round_scoring_leaves_the_watch_with_leaf():
     assert not round_scores(trace, live_rounds(trace)[0], "input")[
         "input_watch_left_to_leaf"
     ]
+
+
+@pytest.mark.parametrize("host", ["cc", "codex"])
+def test_live_injection_reads_the_claimants_turn_from_the_isolated_home(tmp_path, host):
+    import os
+    from types import SimpleNamespace
+
+    from leaf_dev.usability_eval import arm_python, observed_active_turn
+
+    run = Run("mixed", ROOT, tmp_path, host)
+    run.state.mkdir()
+    page = tmp_path / "page"
+    build_fixture(run, "mixed", page)
+    # Create actual session and page-claim publications in the child state home.
+    # Only the external model transport is replaced; the CLI joins the canonical
+    # claim and lifecycle under the arm's own isolated environment.
+    arm_python(
+        run,
+        """
+import os, sys
+from pathlib import Path
+from leaf.host import ClaudeCodeHarness
+from leaf.service import PageTransaction
+from leaf.state import prompt_turn
+os.environ["CLAUDE_PID"] = sys.argv[2]
+with PageTransaction(Path(sys.argv[1])) as page:
+    page.take_claim(ClaudeCodeHarness(session="injection-observer", agent="Claude"))
+prompt_turn("injection-observer", "actual-parent-turn")
+""",
+        str(page),
+        str(os.getpid()),
+    )
+    child = SimpleNamespace(task=SimpleNamespace(running={"actual-parent-turn"}))
+    assert observed_active_turn(run, page, child) == "actual-parent-turn"
+    if host == "codex":
+        child.task.running.clear()
+        assert observed_active_turn(run, page, child) is None
+        child.task.running.add("actual-parent-turn")
+    arm_python(
+        run,
+        """
+from leaf.state import close_session_turn
+assert close_session_turn("injection-observer", "actual-parent-turn")
+""",
+    )
+    assert observed_active_turn(run, page, child) is None

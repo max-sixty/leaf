@@ -636,6 +636,21 @@ def record_claim(page, /, harness="claude-code", **fields):
     return service_model.page_claim(page)
 
 
+def keep_session_alive(page):
+    """Let pytest stand for the fake task after its command process exits.
+
+    A process-backed simulated session keeps its generation and page acquisitions.
+    Rebind its process provenance in one atomic session publication, so every page
+    remains owned throughout the handoff. Activity and job lifetimes already
+    outlive the command process and need no handoff.
+    """
+    session_id = service_model.page_claim(page)["id"]
+    with cleanup_model.flocked(cleanup_model.session_lock_path(session_id)):
+        record = cleanup_model.session_record(session_id)
+        if "pid" in record["lifetime"] and record["lifetime"]["pid"] != os.getpid():
+            cleanup_model.write_session({**record, "lifetime": {"pid": os.getpid()}})
+
+
 def live_versions(d):
     events = events_model.read_events(d)
     return files_model.published_versions(d, events)
@@ -1453,8 +1468,7 @@ print(json.dumps({"url": url}))
     # The fake codex wrapper exits with this one command; a real Codex session
     # stays above later hook calls. Keep that session lifetime true for tests
     # using this fixture after the launch itself has been verified.
-    claim = service_model.page_claim(page)
-    record_claim(page, **{**claim, "pid": os.getpid()})
+    keep_session_alive(page)
     return page
 
 

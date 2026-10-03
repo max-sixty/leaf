@@ -2162,6 +2162,255 @@ def test_a_table_of_contents_reads_the_page_outline_and_reveals_its_heading(
     )
 
 
+def test_contents_addresses_a_title_group_and_maps_its_complete_box(browser, serve):
+    """The heading supplies words; its group supplies the destination and map origin.
+
+    A grouped section title still belongs to the identified section it titles. Marker
+    centers and the viewport lens share one coordinate, including the track's origin.
+    """
+    source = leaf_page(
+        "grouped contents titles",
+        """
+<hgroup id="page-title">
+  <p class="eyebrow">Eval consolidation</p>
+  <h1 id="title-label">One catalog, with short cases and complete workflows</h1>
+</hgroup>
+<aside class="sidebar"><lf-toc id="contents"></lf-toc></aside>
+<div style="height: 110vh"></div>
+<hgroup id="standalone-title">
+  <p class="eyebrow">One vocabulary</p>
+  <h2 id="standalone-label">Name each case</h2>
+</hgroup>
+<p>The whole title arrives together.</p>
+<div style="height: 110vh"></div>
+<section id="owned-section">
+  <hgroup id="owned-title">
+    <p class="eyebrow">One command</p>
+    <h2 id="owned-label">Run each case</h2>
+  </hgroup>
+  <p>The fragment names the section that owns this title.</p>
+</section>
+<div style="height: 110vh"></div>
+""",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1400, 900)
+    nav = page.get_by_role("navigation", name="On this page")
+    start = nav.locator(".lf-toc-start a")
+    expect(start).to_have_text("One catalog, with short cases and complete workflows")
+    expect(start).to_have_attribute("href", "#page-title")
+    standalone = nav.get_by_role("link", name="Name each case", exact=True)
+    expect(standalone).to_have_attribute("href", "#standalone-title")
+    expect(nav.get_by_role("link", name="Run each case", exact=True)).to_have_attribute(
+        "href", "#owned-section"
+    )
+
+    geometry = nav.evaluate(
+        """nav => {
+          const rows = nav.querySelector('.lf-toc-rows');
+          const start = nav.querySelector('.lf-toc-start');
+          const marker = getComputedStyle(start, '::before');
+          const title = document.querySelector('#page-title');
+          return {
+            trackTop: rows.getBoundingClientRect().top,
+            markerCenter: start.getBoundingClientRect().top +
+              parseFloat(marker.top) + new DOMMatrixReadOnly(marker.transform).m42 +
+              parseFloat(marker.height) / 2,
+            lensTop: nav.querySelector('.lf-toc-window').getBoundingClientRect().top,
+            titleTop: title.getBoundingClientRect().top,
+            headingTop: title.querySelector('h1').getBoundingClientRect().top,
+            nextTitleTop: document.querySelector('#standalone-title').getBoundingClientRect().top,
+            startSpan: Number(start.style.getPropertyValue('--lf-toc-span')),
+          };
+        }"""
+    )
+    assert geometry["headingTop"] > geometry["titleTop"], geometry
+    assert geometry["startSpan"] == pytest.approx(
+        geometry["nextTitleTop"] - geometry["titleTop"], abs=1
+    ), geometry
+    assert geometry["markerCenter"] == pytest.approx(geometry["trackTop"], abs=1), (
+        geometry
+    )
+    assert geometry["lensTop"] == pytest.approx(geometry["markerCenter"], abs=1), (
+        geometry
+    )
+
+    # Native fragment navigation brings the eyebrow with the heading; the viewport
+    # lens meets that destination's marker rather than the top of its link box.
+    standalone.focus()
+    page.keyboard.press("Enter")
+    expect(page).to_have_url(re.compile(r"#standalone-title$"))
+    scroll_settled(page)
+    expect(standalone).to_have_attribute("aria-current", "location")
+    alignment = standalone.evaluate(
+        """link => {
+          const row = link.parentElement;
+          const marker = getComputedStyle(row, '::before');
+          return {
+            markerCenter: row.getBoundingClientRect().top +
+              parseFloat(marker.top) + new DOMMatrixReadOnly(marker.transform).m42 +
+              parseFloat(marker.height) / 2,
+            lensTop: link.closest('nav').querySelector('.lf-toc-window')
+              .getBoundingClientRect().top,
+            eyebrowTop: document.querySelector('#standalone-title .eyebrow')
+              .getBoundingClientRect().top,
+          };
+        }"""
+    )
+    assert alignment["eyebrowTop"] >= 0, alignment
+    assert alignment["lensTop"] == pytest.approx(alignment["markerCenter"], abs=2), (
+        alignment
+    )
+
+
+def test_contents_with_every_destination_hidden_returns_when_the_disclosure_opens(
+    browser, serve
+):
+    """An empty displayed route has no current destination, then recovers on reveal."""
+    source = leaf_page(
+        "closed contents",
+        """
+<details>
+  <summary>Open the migration plan</summary>
+  <h1>Migration plan</h1>
+  <aside class="sidebar"><lf-toc id="contents"></lf-toc></aside>
+  <h2 id="prepare">Prepare the readers</h2>
+  <div style="height: 110vh"></div>
+  <h2 id="verify">Verify both copies</h2>
+  <div style="height: 110vh"></div>
+</details>
+""",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1400, 900)
+    nav = page.get_by_role("navigation", name="On this page", include_hidden=True)
+    expect(nav).to_be_hidden()
+    expect(nav.locator("[aria-current]")).to_have_count(0)
+    page.get_by_text("Open the migration plan", exact=True).click()
+    expect(nav).to_be_visible()
+    expect(nav.locator(".lf-toc-start a")).to_have_attribute("aria-current", "location")
+    expect(nav.locator("[data-lf-toc-hidden]")).to_have_count(0)
+    page.get_by_text("Open the migration plan", exact=True).click()
+    expect(nav).to_be_hidden()
+    expect(nav.locator("[aria-current]")).to_have_count(0)
+
+
+def test_contents_reconciles_live_title_boundaries_and_preserves_its_reading_position(
+    browser, serve
+):
+    """A retained ToC follows the current authored outline without replacing its links.
+
+    Grouping a title changes its destination, and adding, dropping or renaming a heading
+    changes the route. Surviving links retain focus and the outline's native scroll.
+    """
+    title = '<p class="eyebrow">Stage</p><h1 id="title">Report</h1>'
+    sections = [
+        f'<section id="part-{index}"><h2 id="label-{index}">Migration part {index}</h2></section>'
+        for index in range(1, 81)
+    ]
+    source = leaf_page(
+        "live contents",
+        title
+        + '<aside class="sidebar"><lf-toc id="contents"></lf-toc></aside>'
+        + '<h2 id="body-title">Body</h2>'
+        + "".join(sections),
+    )
+    page = open_page(browser, live_url(serve(source)))
+    resized(page, 1400, 900)
+    toc = page.locator("#contents")
+    nav = page.get_by_role("navigation", name="On this page")
+    start = nav.locator(".lf-toc-start a")
+    expect(start).to_have_attribute("href", "#title")
+    expect(toc).to_have_attribute("data-lf-outline", "")
+    expect(nav.locator("a")).to_have_count(82)
+    body = nav.get_by_role("link", name="Body", exact=True)
+    expect(body).to_have_attribute("href", "#body-title")
+    held_body = body.element_handle()
+    survivor = nav.get_by_role("link", name="Migration part 80", exact=True)
+    survivor.focus()
+    expect(survivor).to_be_focused()
+    held_survivor = survivor.element_handle()
+    reading_position = nav.evaluate("node => node.scrollTop")
+    assert reading_position > 0
+
+    grouped = source.replace(
+        title, f'<hgroup id="title-group">{title}</hgroup>'
+    ).replace(
+        '<h2 id="body-title">Body</h2>',
+        '<hgroup id="body-group"><p class="eyebrow">One section</p>'
+        '<h2 id="body-title">Named body</h2></hgroup>',
+    )
+    (serve.page_dir / "index.html").write_text(grouped, encoding="utf-8")
+    told(page)
+    rendered(page)
+    expect(start).to_have_attribute("href", "#title-group")
+    renamed_body = nav.get_by_role("link", name="Named body", exact=True)
+    expect(renamed_body).to_have_attribute("href", "#body-group")
+    assert held_body.evaluate(
+        "held => held === document.querySelector('#contents a[href=\"#body-group\"]')"
+    )
+    assert held_survivor.evaluate("held => held === document.activeElement")
+    assert nav.evaluate("node => node.scrollTop") == pytest.approx(
+        reading_position, abs=1
+    )
+
+    changed = grouped.replace(
+        sections[39],
+        '<section id="new-part"><h2>New destination</h2></section>',
+    ).replace("Migration part 41", "Renamed destination")
+    (serve.page_dir / "index.html").write_text(changed, encoding="utf-8")
+    told(page)
+    rendered(page)
+    expect(nav.locator("a")).to_have_count(82)
+    expect(nav.get_by_role("link", name="Migration part 40", exact=True)).to_have_count(
+        0
+    )
+    expect(
+        nav.get_by_role("link", name="New destination", exact=True)
+    ).to_have_attribute("href", "#new-part")
+    expect(
+        nav.get_by_role("link", name="Renamed destination", exact=True)
+    ).to_have_attribute("href", "#part-41")
+    assert held_survivor.evaluate(
+        "held => held === document.activeElement && held === "
+        "document.querySelector('#contents a[href=\"#part-80\"]')"
+    )
+    assert nav.evaluate("node => node.scrollTop") == pytest.approx(
+        reading_position, abs=1
+    )
+
+
+def test_an_empty_contents_route_follows_headings_arriving_and_leaving(browser, serve):
+    """A ToC with no initial outline can present one later and retire it again."""
+    source = leaf_page(
+        "changing contents",
+        '<h1>Report</h1><aside class="sidebar"><lf-toc id="contents"></lf-toc></aside>'
+        '<p id="body">The body has no section headings.</p>',
+    )
+    page = open_page(browser, live_url(serve(source)))
+    nav = page.get_by_role("navigation", name="On this page", include_hidden=True)
+    expect(nav).to_be_hidden()
+    expect(nav.locator("li a")).to_have_count(0)
+
+    headed = source.replace(
+        '<p id="body">', '<h2 id="arrived">An arriving section</h2><p id="body">'
+    )
+    (serve.page_dir / "index.html").write_text(headed, encoding="utf-8")
+    told(page)
+    rendered(page)
+    expect(nav).to_be_visible()
+    expect(nav.get_by_role("link", name="An arriving section")).to_have_attribute(
+        "href", "#arrived"
+    )
+
+    (serve.page_dir / "index.html").write_text(source, encoding="utf-8")
+    told(page)
+    rendered(page)
+    expect(nav).to_be_hidden()
+    expect(nav.locator("li a")).to_have_count(0)
+    expect(nav.locator("[aria-current]")).to_have_count(0)
+
+
 def test_a_table_of_contents_link_is_a_finger_s_aim(browser, serve):
     """The open outline stacks its links with no gap between them, so each link's box
     is all there is to land on. Under a finger they stood 24px tall where the layer's
@@ -2653,7 +2902,8 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
           const box = item.getBoundingClientRect();
           return {content: style.content, width: style.width, height: style.height,
                   color: style.backgroundColor, x: box.x + parseFloat(style.left),
-                  y: box.y + parseFloat(style.top), rowY: box.y,
+                  y: box.y + parseFloat(style.top) +
+                    new DOMMatrixReadOnly(style.transform).m42, rowY: box.y,
                   labelY: item.querySelector(':scope > a').getBoundingClientRect().y};
         })"""
     )
@@ -2734,7 +2984,8 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
     page.wait_for_function(
         "before => { const item = document.querySelector('a[href=\"#move\"]').parentElement; "
         "const style = getComputedStyle(item, '::before'); "
-        "return item.getBoundingClientRect().y + parseFloat(style.top) > before + 20; }",
+        "return item.getBoundingClientRect().y + parseFloat(style.top) "
+        "+ new DOMMatrixReadOnly(style.transform).m42 > before + 20; }",
         arg=move_before,
     )
     assert nav.bounding_box() == nav_box
@@ -2749,7 +3000,8 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
     resting_marker_centers = nav.locator(".lf-toc-start, li").evaluate_all(
         "items => items.map(item => { const s = getComputedStyle(item, '::before'); "
         "const r = item.getBoundingClientRect(); "
-        "return r.y + parseFloat(s.top) + parseFloat(s.height) / 2; })"
+        "return r.y + parseFloat(s.top) + new DOMMatrixReadOnly(s.transform).m42 "
+        "+ parseFloat(s.height) / 2; })"
     )
 
     # The go-to menu can address the complete route without moving its geometry or focus
@@ -2834,7 +3086,8 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
             visible: getComputedStyle(label).opacity === '1',
             rowTop: row.top,
             markerCenter:
-              row.top + parseFloat(marker.top) + parseFloat(marker.height) / 2,
+              row.top + parseFloat(marker.top) + new DOMMatrixReadOnly(marker.transform).m42 +
+              parseFloat(marker.height) / 2,
             labelCenter: labelBox.top + lineHeight / 2,
           };
         })"""
@@ -2922,7 +3175,8 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
     assert after_navigation == nav_box, "following a link moved the contents rail"
     assert prepare.evaluate("node => node.matches(':hover')")
     current_alignment = prepare.evaluate(
-        "node => ({label: node.getBoundingClientRect().top, "
+        "node => ({label: node.getBoundingClientRect().top "
+        "+ parseFloat(getComputedStyle(node).lineHeight) / 2, "
         "lens: node.closest('nav').querySelector('.lf-toc-window')"
         ".getBoundingClientRect().top})"
     )
@@ -2940,7 +3194,8 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
           requestAnimationFrame(() => resolve({
             lens: node.closest('nav').querySelector('.lf-toc-window')
               .getBoundingClientRect().top,
-            label: node.getBoundingClientRect().top,
+            label: node.getBoundingClientRect().top +
+              parseFloat(getComputedStyle(node).lineHeight) / 2,
           }));
         })"""
     )
@@ -3150,7 +3405,8 @@ def test_a_crowded_document_map_reveals_every_heading_on_one_fitted_scale(
     assert nav.evaluate("node => node.scrollHeight <= node.clientHeight + 1")
     markers = nav.locator(".lf-toc-start, li").evaluate_all(
         "items => items.map(item => { const s = getComputedStyle(item, '::before'); "
-        "const r = item.getBoundingClientRect(); return r.y + parseFloat(s.top); })"
+        "const r = item.getBoundingClientRect(); return r.y + parseFloat(s.top) "
+        "+ new DOMMatrixReadOnly(s.transform).m42; })"
     )
     assert markers[-1] <= nav_box["y"] + nav_box["height"]
     shifts = nav.locator(".lf-toc-start, li").evaluate_all(
@@ -3215,7 +3471,8 @@ def test_co_located_headings_share_the_current_title_and_lens_position(browser, 
     )
     expect(checks).to_have_attribute("aria-current", "location")
     alignment = checks.evaluate(
-        "node => ({label: node.getBoundingClientRect().top, "
+        "node => ({label: node.getBoundingClientRect().top "
+        "+ parseFloat(getComputedStyle(node).lineHeight) / 2, "
         "lens: node.closest('nav').querySelector('.lf-toc-window')"
         ".getBoundingClientRect().top})"
     )

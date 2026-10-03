@@ -672,6 +672,23 @@ def test_a_wheel_return_paints_the_comment_box_at_its_attachment_in_the_first_fr
         page.locator(".lf-fab-input").click()
     page.locator(".lf-fab-input").type("Keep these words while the page leaves. " * 6)
     rendered(page)
+
+    def painted_tops(image):
+        pixels = image.load()
+        target_rows, box_rows = [], []
+        for y in range(image.height):
+            for x in range(image.width):
+                red, green, blue = pixels[x, y]
+                # Match #ff0044 with room for JPEG edges, not tinted text pixels.
+                if red > 180 and green < 80 and blue < 140:
+                    target_rows.append(y)
+                if green - red > 20 and green - blue > 20 and green > 130:
+                    box_rows.append(y)
+        return (
+            min(target_rows) if target_rows else None,
+            min(box_rows) if box_rows else None,
+        )
+
     cdp = page.context.new_cdp_session(page)
     events, complete = [], []
     cdp.on("Tracing.dataCollected", lambda data: events.extend(data["value"]))
@@ -686,6 +703,22 @@ def test_a_wheel_return_paints_the_comment_box_at_its_attachment_in_the_first_fr
     page.mouse.move(120 if scroller else 100, 350)
     page.mouse.wheel(0, wheel)
     scroll_settled(page, scroller)
+    rendered(page)
+    expect(page.locator(".lf-fab-bar")).to_have_attribute("data-lf-plane", "window")
+
+    def window_paint():
+        image = Image.open(io.BytesIO(page.screenshot())).convert("RGB")
+        target_top, box_top = painted_tops(image)
+        return image if target_top is None and box_top is not None else None
+
+    # Trace screenshots sample paints. Capture the completed outgoing window
+    # attachment before returning, so a missed trace frame cannot erase that posture.
+    window_image = wait_for(
+        window_paint,
+        bool,
+        failure="the offscreen passage never left a painted draft in the window",
+        timeout=10,
+    )
     page.mouse.wheel(0, -wheel)
     scroll_settled(page, scroller)
     cdp.send("Tracing.end")
@@ -707,21 +740,7 @@ def test_a_wheel_return_paints_the_comment_box_at_its_attachment_in_the_first_fr
         image = Image.open(
             io.BytesIO(base64.b64decode(event["args"]["snapshot"]))
         ).convert("RGB")
-        pixels = image.load()
-        target_rows, box_rows = [], []
-        for y in range(image.height):
-            for x in range(image.width):
-                red, green, blue = pixels[x, y]
-                if red - green > 60 and red - blue > 20:
-                    target_rows.append(y)
-                if green - red > 20 and green - blue > 20 and green > 130:
-                    box_rows.append(y)
-        readings.append(
-            (
-                min(target_rows) if target_rows else None,
-                min(box_rows) if box_rows else None,
-            )
-        )
+        readings.append(painted_tops(image))
     shown = [
         (target_top, box_top)
         for target_top, box_top in readings
@@ -735,6 +754,7 @@ def test_a_wheel_return_paints_the_comment_box_at_its_attachment_in_the_first_fr
         for target_top, box_top in readings
         if target_top is None and box_top is not None
     }
+    window_tops.add(painted_tops(window_image.resize(image.size))[1])
     offset = shown[-1][1] - shown[-1][0]
     assert all(
         abs(box_top - target_top - offset) <= 1

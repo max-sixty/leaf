@@ -12,7 +12,7 @@ import {
   pinSpot,
   rowPosture,
   seatRows,
-} from "/runtime/margin-placement.js";
+} from "/runtime/annotation-overlay/margin-placement.js";
 
 const posture = (blockRight, over = {}) =>
   rowPosture({

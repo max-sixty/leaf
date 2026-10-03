@@ -217,7 +217,7 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Vocabulary and public helpers | `registry.js`, `widget-api.js`, `widget-elements.js` |
 | External data | `data.js`, `projection/data.js`, `projection/authored.js` |
 | Revision installs and continuity | `version.js`, `version-picker.js`, `carry.js`, `dom-children.js`, `root-state.js`, `restore-state.js` |
-| Repaint and geometry | `rendering.js`, `repaint.js`, `standing.js`, `page-geometry.js`, `geometry.js`, `rect.js`, `pointer.js`, `floating.js` |
+| Repaint and geometry | `rendering.js`, `repaint.js`, `standing.js`, `page-geometry.js`, `geometry.js`, `rect.js`, `pointer.js` |
 | Chrome and available room | `chrome.js`, `chrome-layout.js`, `auxiliary-surfaces.js`, `drawn-edge.js` |
 | Reading regions and scrolling | `reading-regions.js`, `reading-place.js`, `bounds.js`, `scrolling.js`, `reach.js`, `user-place.js` |
 | Keyboard | `keyboard/AGENTS.md` |
@@ -225,11 +225,11 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Asks | `asks/` |
 | Comment capture | `composing/`, `drafts.js`, `media.js` |
 | Threads | `thread/`, `thread-panel.js` |
-| Annotation inventory and controls | `annotation-inventory.js`, `contributions.js`, `contribution-controls.js`, `inline-contributions.js` |
-| Overlay and Page Map | `margin-*.js`, `page-map-dialog.js`, `pointed-place.js` |
-| Comment box and thread card placement | `comment-placement.js`, `floating.js` |
+| Annotation inventory and controls | `annotation-inventory.js`, `annotation-view.js`, `contributions.js`, `contribution-controls.js`, `inline-contributions.js` |
+| Annotation records and Page Map | `margin-model.js`, `margin-map-model.js`, `page-map-dialog.js`, `pointed-place.js` |
+| Physical annotation presentation | `../packages/default/runtime/annotation-overlay/` |
 | Passages and target identity | `passages.js`, `text-alignment.js`, `anchor-coordinate.js`, `target-references.js`, `resolved-target.js`, `anchor-resolution.js` |
-| Anchor placement, decoration and travel | `anchor-placement.js`, `anchor-paint.js`, `anchor-note-view.js`, `anchor-controls.js`, `anchor-travel.js`, `target-paint.js`, `visual-parts.js`, `indication.js` |
+| Anchor placement, decoration and travel | `anchor-placement.js`, `anchor-note-view.js`, `anchor-controls.js`, `anchor-travel.js`, `target-paint.js`, `target-paint-geometry.js`, `visual-parts.js`, `indication.js` |
 | Banner and approvals | `banner*.js` |
 | Drawers and neighboring pages | `drawers.js`, `live-leaves*.js` |
 | Activity and updates | `presence.js`, `updates.js` |
@@ -240,6 +240,14 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Shadow trees and styles | `shadow.js`, `shadow-stage.js`, `stylesheets.js` |
 | Elements a paint belongs to while they stand, and the stages they stand in | `arrivals.js` |
 | Utilities | `icons.js`, `markdown.js`, `syntax.js`, `motion.js`, `storage.js`, `interaction-log.js` |
+
+The executable body declaration `data-annotations` selects the default physical
+renderer or page-owned presentation. `leaf.js` imports the default package's
+`runtime/annotation-overlay/index.js` only for overlay presentation; core owners
+cannot reach that graph. Core retains target readings, inventory, native controls,
+Thread/composer lifetimes and active/draft drawing ink. The selected package owns
+pins, contextual floating placement, posted drawing paint, marks and annotation
+visibility. Page-owned views consume the same owners through `widget-api.js`.
 
 `runtime/rendering.js` runs every rendering callback in one pass per frame; schedule
 through its `nextRender`, `nextFrame`, `cancelRender`, and `sizeObserver`, since

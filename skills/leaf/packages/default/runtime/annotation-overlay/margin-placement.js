@@ -11,7 +11,7 @@
    then writes. Each fold answers from its arguments alone, so `tests/runtime/` runs them
    without a browser. */
 
-import { overlaps, overlapsAcross } from "./rect.js";
+import { overlaps, overlapsAcross } from "/runtime/rect.js";
 
 // A row stands in the rail when the page has one, the rail stands beside the box that
 // scrolls its target (the document, or a bounded block in its flow; never a pane), and

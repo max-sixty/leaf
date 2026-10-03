@@ -93,7 +93,7 @@ export function createThreadPanelController({
       // screen after the press would take the next key the user meant for the page.
       panel.close();
     }
-    if (open) closePreview();
+    if (open) closePreview?.();
   }
   const stopSurface = auxiliarySurfaces.registerAuxiliarySurface({
     key,

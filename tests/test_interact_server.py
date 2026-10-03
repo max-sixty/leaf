@@ -1210,7 +1210,7 @@ def test_server_round_trip(server, page_dir):
         f'<script type="module" src="{artifact_root}/leaf.js" data-lf-runtime></script>'
     ).encode()
     assert marker in body
-    assert body.index(marker) < body.index(entry) < body.index(b"</style>")
+    assert body.index(marker) < body.index(entry) < body.index(b"<style>.probe::before")
     # Historical source remains delivery-free; today's boundary is applied when read.
     with urllib.request.urlopen(f"{server}/versions/v1.html?t={TOKEN}") as response:
         pinned = response.read()

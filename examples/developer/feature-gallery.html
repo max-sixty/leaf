@@ -738,6 +738,46 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
             </lf-sample>
           </section>
 
+          <section id="bg-page-annotations">
+            <p class="eyebrow bg-feature-elements">lf-annotation-rail</p>
+            <h3>Page-owned annotations</h3>
+            <p>
+              Alt-click the recommendation in this practice window to comment. The reply
+              and actions stay in the allocated annotation area. Choose a route, then
+              use Undo to return to the open question.
+            </p>
+            <lf-sample
+              id="bg-page-annotations-sample"
+              label="practice route review"
+              window
+            >
+              <template
+                id="bg-page-annotations-page"
+                data-sample
+                data-annotations="page"
+              >
+                <style>
+                  #bg-page-annotations-rail {
+                    display: block;
+                    inline-size: 100%;
+                    block-size: 20rem;
+                  }
+                </style>
+                <h1>Workshop route</h1>
+                <p id="bg-page-annotations-finding">
+                  The shorter path leaves more time to inspect the cooling loop.
+                </p>
+                <lf-ask id="bg-page-annotations-ask">
+                  <h2>Which path should the inspection take?</h2>
+                  <lf-options id="bg-page-annotations-options" choose>
+                    <lf-option id="bg-page-annotations-short">Short path</lf-option>
+                    <lf-option id="bg-page-annotations-long">Full circuit</lf-option>
+                  </lf-options>
+                </lf-ask>
+                <lf-annotation-rail id="bg-page-annotations-rail"> </lf-annotation-rail>
+              </template>
+            </lf-sample>
+          </section>
           <section id="bg-threads">
             <h2>
               <strong>Threads</strong

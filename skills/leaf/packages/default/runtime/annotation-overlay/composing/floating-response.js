@@ -5,10 +5,10 @@
    placement: card sizing, collision geometry, off-flow reveals and withholding when
    the usable window has no room. No second anchor or editor is captured here.
    An inline seat suspends this placement; restoring the default home resumes it. */
-import { cancelRender, nextRender } from "../rendering.js";
-import { resolveAnchor } from "../anchor-resolution.js";
-import { sameAnchor } from "../anchor-coordinate.js";
-import { declareOffFlowSurface } from "../off-flow.js";
+import { cancelRender, nextRender } from "/runtime/rendering.js";
+import { resolveAnchor } from "/runtime/anchor-resolution.js";
+import { sameAnchor } from "/runtime/anchor-coordinate.js";
+import { declareOffFlowSurface } from "/runtime/off-flow.js";
 import {
   clippedContents,
   clippedRect,
@@ -18,24 +18,24 @@ import {
   shownParts,
   shownRect,
   skipped,
-} from "../geometry.js";
+} from "/runtime/geometry.js";
 import {
   passageGeometry,
   rangeGeometry,
   targetElement,
   targetParts,
   targetSegments,
-} from "../resolved-target.js";
-import { pageRange, pageText } from "../passages.js";
-import { pageSelection, selectionAnchor } from "./capture.js";
-import { holdFocus } from "../focus.js";
-import { coarsePointer } from "../pointer.js";
-import { overlaps, union } from "../rect.js";
+} from "/runtime/resolved-target.js";
+import { pageRange, pageText } from "/runtime/passages.js";
+import { pageSelection, selectionAnchor } from "/runtime/composing/capture.js";
+import { holdFocus } from "/runtime/focus.js";
+import { coarsePointer } from "/runtime/pointer.js";
+import { overlaps, union } from "/runtime/rect.js";
 import {
   containingReadingRegionFor,
   effectiveScroller,
   shownRegionBounds,
-} from "../reading-regions.js";
+} from "/runtime/reading-regions.js";
 import { floatingPlacement, floatingUi, heldByWindow } from "../floating.js";
 import {
   cardMinimum,
@@ -46,8 +46,8 @@ import {
   reachableRoom,
 } from "../comment-placement.js";
 import { marginSpot } from "../margin-layout.js";
-import { pointBand } from "../pointed-place.js";
-import { keeps } from "../keeps.js";
+import { pointBand } from "/runtime/pointed-place.js";
+import { keeps } from "/runtime/keeps.js";
 
 export function createFloatingResponsePlacement({
   nodes: { bar: fabBar, input: fabInput, composer, options: fabOptions },

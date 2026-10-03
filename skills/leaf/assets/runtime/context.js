@@ -24,6 +24,11 @@ if (
 )
   throw new TypeError("Leaf's interactive export payload is incomplete");
 
+// This declaration participates in executable identity: changing it replaces this
+// document realm rather than switching initialized physical owners in place.
+export const annotationMode =
+  document.body.getAttribute("data-annotations") ?? "overlay";
+
 export const offlineInteractive = offlinePayload !== null;
 export const offlineState = () =>
   offlineInteractive ? structuredClone(offlinePayload.state) : null;

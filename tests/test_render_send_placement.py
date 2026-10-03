@@ -331,7 +331,7 @@ def sent(browser, serve, name, shots):
     if name == "phone-touch-passage":
         phone_room = page.evaluate("""async () => {
           const {commentBoundary, COMMENT_GAP} =
-            await window.__lfRuntimeImport('/runtime/comment-placement.js');
+            await window.__lfRuntimeImport('/runtime/annotation-overlay/comment-placement.js');
           const {top, bottom, height} = commentBoundary();
           return {top, bottom, height, gap: COMMENT_GAP};
         }""")
@@ -607,7 +607,7 @@ def test_a_right_edge_passage_reopens_a_usable_card_without_moving_typing(
     card = page.evaluate(RECT, ".lf-margin-preview")
     boundary, minimum = page.evaluate("""async () => {
       const {commentBoundary, cardMinimum} =
-        await window.__lfRuntimeImport('/runtime/comment-placement.js');
+        await window.__lfRuntimeImport('/runtime/annotation-overlay/comment-placement.js');
       const {left, right, width} = commentBoundary();
       return [{left, right, width}, cardMinimum()];
     }""")
@@ -1010,7 +1010,7 @@ def test_send_grows_thread_around_the_words(
             rendered(page)
             opening = card.evaluate("""async card => {
               const {commentBoundary, COMMENT_GAP} =
-                await window.__lfRuntimeImport('/runtime/comment-placement.js');
+                await window.__lfRuntimeImport('/runtime/annotation-overlay/comment-placement.js');
               const box = card.getBoundingClientRect();
               return {top:box.top, bottom:box.bottom,
                 boundary:commentBoundary().top, gap:COMMENT_GAP};

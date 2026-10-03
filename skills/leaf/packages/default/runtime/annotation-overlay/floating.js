@@ -37,10 +37,10 @@
    A surface's first placement then lands in the frame that asks for it rather than
    after a fetch. */
 
-import { afterPresentation } from "./presentation.js";
-import { keeps, layoutPx as px } from "./keeps.js";
-import { anchorElement, anchorName } from "./anchor-names.js";
-import { shownWindow } from "./geometry.js";
+import { afterPresentation } from "/runtime/presentation.js";
+import { keeps, layoutPx as px } from "/runtime/keeps.js";
+import { anchorElement, anchorName } from "/runtime/anchor-names.js";
+import { shownWindow } from "/runtime/geometry.js";
 
 let floatingUiModule = null;
 export const floatingUi = () =>

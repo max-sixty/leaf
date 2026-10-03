@@ -87,7 +87,7 @@ export function createChromeLayout({
   function syncLayout() {
     syncLayoutRegion();
     scheduleResidency();
-    scheduleThreadPreviewPosition();
+    scheduleThreadPreviewPosition?.();
     const panelLive = panelIsOpen() && !panelCovers();
     const foot = panelFoot.getBoundingClientRect();
     // Over a live page, the thread panel owns the right of the window all the way to its

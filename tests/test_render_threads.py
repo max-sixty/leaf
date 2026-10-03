@@ -31,6 +31,7 @@ from render_cases_interaction import (
     SEATED_ASK_WIDGETS,
     SEATED_QUESTION_PAGE,
     THREAD_DIFF_PAGE,
+    live_url,
     panel_comment,
 )
 from render_cases_layout import (
@@ -64,9 +65,11 @@ from render_harness import (
     scroll_settled,
     sending,
     shortcut_bar_text,
+    stamp_page,
     take_browser_errors,
     told,
     undo,
+    wait_for_revision,
     write,
 )
 
@@ -8540,3 +8543,48 @@ def test_typing_a_search_moves_nothing_under_the_find_box(browser, serve):
         }"""
     )
     assert words == pytest.approx(title, abs=0.5), (words, title)
+
+
+def annotation_mode_source(mode):
+    return leaf_page(
+        "Mode switch",
+        '<h1>Mode switch</h1><p id="subject">A passage with stable words.</p>',
+    ).replace("<body>", f'<body data-annotations="{mode}">')
+
+
+@pytest.mark.parametrize(
+    "initial,next_mode", [("overlay", "page"), ("page", "overlay")]
+)
+def test_actual_mode_switch_carries_native_composer(browser, serve, initial, next_mode):
+    root = "0123456789abcdef0123456789abcdef"
+    event = {
+        "id": root,
+        "kind": "comment",
+        "author": "user",
+        "revision": 1,
+        "text": "A current thread",
+        "anchor": {"section": "subject"},
+    }
+    page = open_page(
+        browser, live_url(serve(annotation_mode_source(initial), events=[event]))
+    )
+    page.locator(".lf-threads-toggle").click()
+    thread = page.locator(f'.lf-thread[data-id="{root}"]')
+    thread.locator(":scope > summary").click()
+    editor = thread.locator(".lf-thread-reply leaf-text")
+    editor.click()
+    expect(editor).to_be_focused()
+    editor.evaluate("el=>el.setSelectionRange(0,0,'none')")
+    birth = page.evaluate("performance.timeOrigin")
+    stamp_page(
+        serve.page_dir,
+        annotation_mode_source(next_mode),
+        "Change actual annotation mode",
+    )
+    wait_for_revision(page, 2)
+    assert page.evaluate("performance.timeOrigin") != birth
+    expect(editor).to_be_focused()
+    assert editor.evaluate(
+        "el=>[el.value,el.selectionStart,el.selectionEnd,el.selectionDirection]"
+    ) == ["", 0, 0, "none"]
+    assert page.locator(".lf-margin-projection").count() == (next_mode == "overlay")

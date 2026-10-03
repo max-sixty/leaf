@@ -3604,7 +3604,19 @@ def test_a_leaves_update_is_presented_before_the_page_calls_it_current(
         closing_dir / "status.json",
         {"state": "idle", "detail": "", "ts": cleanup_model.now_iso()},
     )
-    told(page)
+    told(
+        page,
+        until=lambda state: (
+            {
+                row["title"]: (row["activity"]["kind"], row["activity"]["detail"])
+                for row in state["others"]
+            }
+            == {
+                "The closing leaf": ("closed", ""),
+                "The other leaf": ("working", "recording the demo"),
+            }
+        ),
+    )
     held = page.evaluate(
         """() => {
           window.leavesReady = false;
@@ -3884,7 +3896,13 @@ def test_a_failed_leaves_restore_keeps_application_presentation_pending(
         closing_dir / "status.json",
         {"state": "idle", "detail": "", "ts": cleanup_model.now_iso()},
     )
-    told(page)
+    told(
+        page,
+        until=lambda state: any(
+            row["title"] == "The closing leaf" and row["activity"]["kind"] == "closed"
+            for row in state["others"]
+        ),
+    )
     page.wait_for_function(
         """async () => {
           const presentation = await window.__lfRuntimeImport(

@@ -1817,7 +1817,7 @@ def test_working_the_evidence_in_an_option_is_not_a_pick(browser, serve):
     assert not option.evaluate(picked), "opening the disclosure answered the question"
 
     page.locator("#ro-note .lf-draft-body").dblclick()
-    expect(page.locator("#ro-note textarea")).to_be_visible()
+    expect(page.locator("#ro-note leaf-text")).to_be_visible()
     assert not option.evaluate(picked), (
         "opening the draft's editor answered the question"
     )

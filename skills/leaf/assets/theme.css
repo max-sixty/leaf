@@ -324,7 +324,7 @@
   --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
 
   --card: light-dark(#fffefb, #201e1a);   /* raised surfaces: cards, panels, controls */
-  --field: light-dark(#f4f1e8, #232019);  /* tinted fields: details, callouts, notes */
+  --field: light-dark(#f4f1e8, #232019);  /* tinted fields and callout emphasis */
   /* The ink every raised surface casts its shadow in. One per scheme, because the two
      grounds want opposite amounts of it and a shadow written once as rgba(0,0,0,α) can
      only be right about one of them: at .12 over the light paper a menu lifts 10 L*, and
@@ -976,7 +976,9 @@ th:not([scope="row"]) { font-size: var(--t-working-label);
      color: var(--muted); font-weight: 600;
      border-bottom-color: var(--border-2); }
 th[scope="row"] { font-weight: 600; }
-details { background: var(--field); border: var(--details-border) solid var(--rule);
+/* Supporting detail stays unfilled whether closed or open. Its chevron and hairline
+   offer inspection; the stronger fill belongs to the callout's emphasis. */
+details { border: var(--details-border) solid var(--rule);
           border-radius: var(--r); padding: var(--details-padding-block) 14px;
           margin: var(--details-margin-block) 0; --lf-block-frame: 1; }
 summary { cursor: pointer; font-weight: 600; font-size: var(--t-5); }

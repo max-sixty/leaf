@@ -1839,7 +1839,7 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
  * distorts the document-scale rows.
  * The open and paper forms retain the complete words. */
 :scope:is(lf-toc) { display: block; margin: var(--sp-4) 0 30px; }
-:scope:is(lf-toc):empty { display: none; }
+:scope:is(lf-toc):is(:empty, [data-lf-toc-empty]) { display: none; }
 :scope:is(lf-toc) .lf-toc-nav { position: relative; border-left: 1px solid var(--border-2);
                      padding-left: var(--sp-3); color: var(--muted);
                      font: var(--t-5)/1.3 var(--sans); }
@@ -1932,7 +1932,8 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
       :scope:is(lf-toc) ol { display: contents; }
       :scope:is(lf-toc) .lf-toc-start::before, :scope:is(lf-toc) li::before {
         content: ""; position: absolute; z-index: 2;
-        top: calc(7px + var(--lf-toc-row-shift, 0px));
+        top: var(--lf-toc-row-shift, 0px);
+        transform: translateY(-50%);
         left: -1px; width: 3px; height: 3px; border-radius: 50%;
         background: var(--muted);
       }
@@ -1949,7 +1950,7 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
         overflow: hidden; max-height: 2.6em;
         padding: 0 2px 2px calc(14px + var(--lf-toc-indent));
         line-height: 1.3; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
-        transform: translateY(var(--lf-toc-row-shift, 0px));
+        transform: translateY(calc(var(--lf-toc-row-shift, 0px) - .5lh));
         opacity: var(--lf-toc-label-opacity); pointer-events: none;
         transition: color .12s ease-out, opacity .24s ease-out;
       }

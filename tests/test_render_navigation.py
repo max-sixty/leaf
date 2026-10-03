@@ -5244,7 +5244,12 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
     A filtered map preserves the codes its members had in the complete map. Its chips
     show only those generated suffixes; the complete route remains in the shortcut bar.
     """
-    url = serve(ADDRESSED_PAGE)
+    url = serve(
+        ADDRESSED_PAGE.replace(
+            '<p id="dsc-body">',
+            '<p id="dsc-body"><a id="revealed-link" href="#p2">Read next passage</a> ',
+        )
+    )
     append_carried_log_record(
         serve.page_dir,
         {
@@ -5321,6 +5326,9 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
         f'{CHIPS}[data-lf-go-to-kind="Margin entry"]'
         '[data-lf-go-to-target="opts-decision"]'
     )
+    expect(
+        page.locator(f'{CHIPS}[data-lf-go-to-target="revealed-link"]')
+    ).to_have_count(0)
     expect(mixed).to_have_count(2)
     mixed_codes = mixed.evaluate_all(
         "els => Object.fromEntries(els.map(el => "
@@ -5328,7 +5336,6 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
     )
     thread_code = mixed_codes["reading:threadList"]
     ask_key = next(key for key in mixed_codes if key != "reading:threadList")
-    ask_code = mixed_codes[ask_key]
 
     page.keyboard.press("m")
     filtered = page.locator(CHIPS)
@@ -5356,6 +5363,9 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
     expect(page.locator(".lf-margin-thread")).to_have_count(1)
     page.keyboard.press("Escape")
 
+    # Reveal another target so rearming reads a different visible scene.
+    page.locator("#dsc-head").click()
+    expect(page.locator("#revealed-link")).to_be_visible()
     page.keyboard.press("g")
     shortcut_bar_text(page)
     expect(page.locator("body")).to_have_attribute("data-lf-go-to-active", "")
@@ -5369,6 +5379,12 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
         == initial_kinds
     )
 
+    # Navigation can change the visible scene. This new map assigns its own hints;
+    # filtering must preserve this map's Ask code rather than the earlier map's.
+    expect(
+        page.locator(f'{CHIPS}[data-lf-go-to-target="revealed-link"]')
+    ).to_have_count(1)
+    ask_code = address_code(page, "Margin entry", "opts-decision", ask_key)
     page.keyboard.press("a")
     expect(filtered).to_have_count(1)
     assert address_codes(page) == [ask_code]
@@ -5449,10 +5465,10 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
 
     page.keyboard.press("h")
     links = page.locator(f'{CHIPS}[data-lf-go-to-kind="Link"]')
-    expect(links).to_have_count(2)
+    expect(links).to_have_count(3)
     expect(page.locator(f'{CHIPS}:not([data-lf-go-to-kind="Link"])')).to_have_count(0)
     resized(page, 1180, 800)
-    expect(links).to_have_count(2)
+    expect(links).to_have_count(3)
     expect(page.locator(f'{CHIPS}:not([data-lf-go-to-kind="Link"])')).to_have_count(0)
     page.keyboard.type(address_code(page, "Link", "lk2"))
     page.wait_for_url(re.compile(r"#p2$"))

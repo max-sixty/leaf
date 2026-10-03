@@ -276,9 +276,15 @@ def address_codes(page):
 
 
 def address_code(page, kind, target, margin_entry=None):
-    selector = f'{CHIPS}[data-lf-go-to-kind="{kind}"][data-lf-go-to-target="{target}"]'
+    """Read a generated hint by its exact target and optional margin-entry identity."""
+    attributes = {"data-lf-go-to-kind": kind, "data-lf-go-to-target": target}
     if margin_entry:
-        selector += f'[data-lf-go-to-margin-entry="{margin_entry}"]'
+        attributes["data-lf-go-to-margin-entry"] = margin_entry
+    selector = page.evaluate(
+        """({selector, attributes}) => selector + Object.entries(attributes)
+          .map(([name, value]) => `[${name}="${CSS.escape(value)}"]`).join('')""",
+        {"selector": CHIPS, "attributes": attributes},
+    )
     chip = page.locator(selector)
     expect(chip).to_have_count(1)
     code = chip.get_attribute("data-lf-hint-code")

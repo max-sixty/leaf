@@ -33,7 +33,8 @@ nothing to weigh: write the true thing straight and name the change in the versi
 note.
 
 Use `lf-draft` for a passage whose wording belongs to the user. Their submitted
-words remain effective across revisions.
+words remain effective across revisions. Editing uses the same Markdown text field
+as a message; Save records the exact source as the passage's replacement text.
 
 ## Honor user state
 

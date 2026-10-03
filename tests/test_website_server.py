@@ -154,7 +154,8 @@ def hosted_follower(
     turn App Server named for it, and the connection that named it. Opening the
     Leaf turn stays the follower's own first step.
     """
-    assert start_session_turn(thread_id, turn_id, session_record(thread_id))
+    admitted = start_session_turn(thread_id, turn_id, session_record(thread_id))
+    assert admitted is not None
     return website_server.HostedTurn(
         host,
         page_dir,
@@ -172,7 +173,7 @@ def hosted_follower(
             if reply_target is None
             else reply_target
         ),
-        lifecycle=session_record(thread_id),
+        lifecycle=admitted,
     )
 
 
@@ -2249,7 +2250,7 @@ def test_notifications_before_start_response_reach_the_turn_follower(
     finished = []
     completed = threading.Event()
 
-    def finish(*args):
+    def finish(*args, expected):
         finished.append(args)
         completed.set()
 
@@ -2456,7 +2457,9 @@ def test_the_starting_connection_projects_codex_activity(page_dir, monkeypatch, 
 
     host = website_server.WebsiteCodexHost("codex")
     finished = []
-    monkeypatch.setattr(host, "_finish_turn", lambda *args: finished.append(args))
+    monkeypatch.setattr(
+        host, "_finish_turn", lambda *args, expected: finished.append(args)
+    )
     hosted_follower(host, page_dir, prepared, socket, turn_id="initial-turn").follow()
 
     assert updates == [

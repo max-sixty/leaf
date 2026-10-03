@@ -4752,7 +4752,9 @@ def test_the_prompt_hook_and_the_observer_open_one_codex_turn(page_dir, capsys):
     assert (owed["stage"], owed["condition"]) == ("picked_up", None)
 
 
-def test_reconnect_closes_a_completed_stream_binding(monkeypatch):
+def test_reconnect_closes_a_completed_stream_binding(page_dir):
+    _codex_delivery(page_dir)
+    cleanup_model.prompt_turn("codex-thread", "turn-complete")
     observer = _observer()
     finished = []
 
@@ -4768,12 +4770,6 @@ def test_reconnect_closes_a_completed_stream_binding(monkeypatch):
     fold.reply_stream = Stream()
     observer.turns = {"turn-complete": fold}
     observer.running = "turn-complete"
-    closed = []
-    monkeypatch.setattr(
-        codex_model,
-        "close_session_turn",
-        lambda session, turn: closed.append((session, turn)),
-    )
 
     observer._resume(
         {
@@ -4795,7 +4791,7 @@ def test_reconnect_closes_a_completed_stream_binding(monkeypatch):
     )
 
     assert finished == [("completed", "Done.")]
-    assert closed == [("codex-thread", "turn-complete")]
+    assert service_model.page_claim(page_dir)["turn_closed"] is not None
     assert observer.turns == {}
     assert not observer.working()
 
@@ -4989,12 +4985,16 @@ def test_a_reply_that_cannot_be_written_still_closes_its_turn(page_dir, monkeypa
     payload = prepared.payload
     target = codex_model.stream_reply_target(payload)
     thread_model.reserve_delivery_reply("codex-thread", payload["id"], target)
+    admitted = cleanup_model.start_session_turn(
+        "codex-thread", "leaf-turn", cleanup_model.session_record("codex-thread")
+    )
+    assert admitted is not None
     turn = codex_model.TurnFold(
         "codex-thread",
         "leaf-turn",
         payload["id"],
         target,
-        lifecycle=cleanup_model.session_record("codex-thread"),
+        lifecycle=admitted,
     )
     turn.open()
     codex_model.set_stream_activity(
@@ -9266,6 +9266,7 @@ def test_one_thread_delivery_starts_and_receipts_its_app_server_turn(
 
     def start_delivery(payload):
         started.append(payload)
+        assert connection._observe_lifecycle("app-server-turn")
         fold = connection._fold("app-server-turn", payload["id"], follow=True)
         assert fold is not None
         return True
@@ -9527,6 +9528,7 @@ def test_app_server_deliveries_preserve_order_with_one_plain_reply_each(
 
     def start_delivery(payload):
         started.append(payload)
+        assert connection._observe_lifecycle("app-server-turn")
         fold = connection._fold("app-server-turn", payload["id"], follow=True)
         assert fold is not None
         return True
@@ -10035,7 +10037,9 @@ def test_codex_acceptance_survives_interruption_before_page_receipt(
             if carrier == "hook":
                 delivery_model.cmd_delivery_read(path.stem)
             elif carrier == "app-server":
-                _observer()._fold("user-turn", path.stem, follow=True)
+                observer = _observer()
+                assert observer._observe_lifecycle("user-turn")
+                observer._fold("user-turn", path.stem, follow=True)
             else:
                 codex_adapter_model._offer_queued_delivery(
                     "codex", "codex-thread", None
@@ -15458,6 +15462,7 @@ def test_full_paginated_history_hydrates_an_accepted_delivery_omitted_from_resum
     prepared = _codex_delivery(page_dir)
     turn_id = "hidden-turn"
     connection = _observer()
+    assert connection._observe_lifecycle(turn_id)
     connection._fold(turn_id, prepared.payload["id"], follow=True)
     path = codex_model.record_path("codex-thread", prepared.payload["id"])
     assert (path.parent / "history" / path.name).exists()
@@ -15692,6 +15697,7 @@ def test_full_history_restores_the_running_identity_omitted_from_resume(
 ):
     prepared = _codex_delivery(page_dir)
     connection = _observer()
+    assert connection._observe_lifecycle("hidden-running")
     connection._fold("hidden-running", prepared.payload["id"], follow=True)
     connection._disconnect_turns()
 

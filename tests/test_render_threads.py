@@ -8571,3 +8571,117 @@ def test_actual_mode_switch_carries_native_composer(browser, serve, initial, nex
         "el=>[el.value,el.selectionStart,el.selectionEnd,el.selectionDirection]"
     ) == ["", 0, 0, "none"]
     assert page.locator(".lf-margin-projection").count() == (next_mode == "overlay")
+
+
+def test_a_short_window_keeps_media_choices_and_send_around_the_scrolling_draft(
+    browser, serve
+):
+    """A whole-frame cap reserves the image, choices and Send before text scrolls."""
+    page = open_page(browser, serve(LONG_PAGE))
+    resized(page, 390, 300)
+    page.locator("#p1").click(click_count=3)
+    bar = page.locator(".lf-fab-bar")
+    field = bar.locator(".lf-fab-input")
+    expect(field).to_be_visible()
+    field.click()
+    pixels = (example_media() / "051bee487bfb5d13.png").read_bytes()
+    with page.expect_response(lambda response: response.url.endswith("/api/media")):
+        field.evaluate(
+            """(box, encoded) => {
+              const bytes = Uint8Array.from(atob(encoded), char => char.charCodeAt(0));
+              const transfer = new DataTransfer();
+              transfer.items.add(new File([bytes], 'pasted.png', {type: 'image/png'}));
+              box.dispatchEvent(new ClipboardEvent('paste', {
+                bubbles: true, cancelable: true, clipboardData: transfer,
+              }));
+            }""",
+            base64.b64encode(pixels).decode(),
+        )
+    expect(bar.locator(".lf-composer-media img")).to_be_visible()
+    content = "\n".join(
+        f"Line {n}: the draft shares room with its picture and response choices."
+        for n in range(80)
+    )
+    write(field, content)
+    field.press("Tab")
+    expect(bar.locator(".lf-react:visible")).to_have_count(6)
+    rendered(page)
+    expect(field).to_have_js_property("value", content)
+    assert field.evaluate("el => el.scrollHeight > el.clientHeight")
+    bounds = bar.evaluate("el => el.getBoundingClientRect().toJSON()")
+    banner_bottom = page.locator(".lf-banner").evaluate(
+        "el => el.getBoundingClientRect().bottom"
+    )
+    assert bounds["top"] >= banner_bottom + 6
+    assert bounds["bottom"] <= 292
+    parts = bar.locator(
+        ".lf-compose-field, .lf-fab-input, .lf-compose-submit, .lf-composer-media, "
+        ".lf-response-options, .lf-response-action:visible"
+    ).evaluate_all("nodes => nodes.map(node => node.getBoundingClientRect().toJSON())")
+    for part in parts:
+        assert bounds["left"] <= part["left"] < part["right"] <= bounds["right"], (
+            bounds,
+            parts,
+        )
+        assert bounds["top"] <= part["top"] < part["bottom"] <= bounds["bottom"], (
+            bounds,
+            parts,
+        )
+    resized(page, 390, 200)
+    expect(bar).to_be_hidden()
+    resized(page, 390, 300)
+    expect(field).to_be_visible()
+    expect(field).to_have_js_property("value", content)
+    expect(bar.locator(".lf-composer-media img")).to_be_visible()
+    expect(bar.locator(".lf-react:visible")).to_have_count(6)
+
+
+def test_a_scaled_floating_draft_keeps_its_room_when_its_passage_scrolls_away(
+    browser, serve
+):
+    """The transformed holder's native scale sizes a draft even without an anchor box."""
+    page = open_page(browser, serve(LONG_PAGE))
+    page.locator(".lf-fab-bar").evaluate(
+        """bar => {
+          const holder = document.createElement('div');
+          holder.style.cssText = 'position:fixed;inset:0;pointer-events:none;'
+            + 'transform:scale(1.2);transform-origin:0 0';
+          const home = bar.parentElement;
+          home.before(holder); holder.append(home);
+        }"""
+    )
+    resized(page, 390, 620)
+    page.locator("#p1").click(click_count=3)
+    bar = page.locator(".lf-fab-bar")
+    field = bar.locator(".lf-fab-input")
+    expect(field).to_be_visible()
+    field.click()
+    content = "\n".join(
+        f"Line {n}: every word stays in the scaled editor." for n in range(80)
+    )
+    write(field, content)
+    rendered(page)
+    before = bar.bounding_box()
+    scale = bar.evaluate(
+        "el => el.getBoundingClientRect().width / parseFloat(getComputedStyle(el).width)"
+    )
+    assert scale == pytest.approx(1.2, abs=0.001)
+    page.mouse.move(20, 100)
+    page.mouse.wheel(0, 1000)
+    page.wait_for_function(
+        "document.querySelector('#p1').getBoundingClientRect().bottom < 0"
+    )
+    scroll_settled(page)
+    resized(page, 390, 600)
+    rendered(page)
+    expect(field).to_be_visible()
+    expect(field).to_be_focused()
+    expect(field).to_have_js_property("value", content)
+    after = bar.bounding_box()
+    banner_bottom = page.locator(".lf-banner").evaluate(
+        "el => el.getBoundingClientRect().bottom"
+    )
+    assert 8 <= after["x"] and after["x"] + after["width"] <= 382.1, (before, after)
+    assert banner_bottom + 6 <= after["y"] + 0.1, (before, after)
+    assert after["y"] + after["height"] <= 592.1, (before, after)
+    assert after["width"] <= before["width"] + 0.1, (before, after)

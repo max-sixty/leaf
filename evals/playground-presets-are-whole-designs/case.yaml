@@ -10,6 +10,11 @@
 # read in 6 of 6 runs of the change, which passed 4.
 # Also guards realistic candidate copy for the comment-growth guidance repair:
 # comparison labels belong around the diff, while the diff retains product text.
+# A later grader called a gutter sign and code-edge bar a collision despite a
+# rendered 4px gap. The rubric now judges physical placement, including separation
+# inherited from the base layout, rather than both marks being near the left edge.
+# Regrading accepted that output and rejected mutations that overlapped the gutter
+# paint or gave the line and word fills identical hue and strength.
 description: playground-presets-are-whole-designs
 metadata:
   purpose: 'Playground: controls span every part the user may vary, and each preset is one composed design
@@ -73,10 +78,12 @@ assert:
        `lf-playground-setting` for every control the playground declares.
     3. Apart from a preset that reproduces today's diff as the baseline, no preset
        turns on two marks that the CSS draws in the same place for the same line,
-       such as the gutter sign and the left bar both at the line's left edge, or a
-       line tint and a word highlight in the same hue and strength, unless the CSS
-       gives that preset rules of its own that merge them into one mark or visibly
-       separate them.
+       or a line tint and word highlight in the same hue and strength, unless
+       the CSS merges them into one mark or visibly separates them. Judge the
+       actual geometry: a sign in a gutter column and a bar in a separate code
+       column with space between their paint are visibly separated, even when
+       both are near the line's left edge. Separation can come from shared base
+       layout rules as well as rules specific to a preset.
     4. The presets other than the baseline differ from each other in more than one
        control's value, so none is a slight variant of another.
     Fail if any one of these does not hold.

@@ -338,6 +338,7 @@ def record(
 
     page.locator("#work").scroll_into_view_if_needed()
     shot(1000)
+    applied_before_move = page.locator("body").get_attribute("data-lf-applied")
     grip = page.locator("#card-oncall .lf-grip").bounding_box()
     destination = page.locator("#col-during").bounding_box()
     page.mouse.move(grip["x"] + grip["width"] / 2, grip["y"] + grip["height"] / 2)
@@ -347,25 +348,18 @@ def record(
         destination["y"] + destination["height"] / 2,
         steps=15,
     )
-    with page.expect_response(
-        lambda response: (
-            response.url.endswith("/api/event")
-            and response.request.method == "POST"
-            and response.request.post_data_json.get("widget") == "punch-list"
-        )
-    ) as moved:
-        page.mouse.up()
-    if not moved.value.json()["ok"]:
-        raise RuntimeError("the server refused the demo's board move")
+    page.mouse.up()
     page.wait_for_selector("#col-during #card-oncall")
     page.wait_for_function(
         "() => document.querySelector('.lf-notice').classList.contains('show')"
     )
     shot(2400)
-    # A board move records the user's arrangement without creating agent work,
-    # so admission, rather than another delivery, completes this gesture.
+    page.wait_for_function(
+        "before => document.body.getAttribute('data-lf-applied') !== before",
+        arg=applied_before_move,
+    )
     if "card-oncall" not in folded_board(page_dir)["col-during"]:
-        raise RuntimeError("the demo's board move did not reach its saved arrangement")
+        raise RuntimeError("the board move did not reach the page's standing log")
     return frames, durations
 
 

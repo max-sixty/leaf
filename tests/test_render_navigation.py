@@ -8705,12 +8705,12 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
               return error.message;
             }
           };
-          // A paint lands once the task's synchronous work is done, so each is read after
-          // a microtask; the second finds the refused scope gone rather than refusing it
-          // again.
+          // Shortcut reflection lands in the repaint frame. Read after that frame;
+          // the second paint finds the refused scope gone rather than refusing it again.
           const painted = async (button) => {
             paintKeys();
-            await Promise.resolve();
+            await new Promise((settle) =>
+              requestAnimationFrame(() => requestAnimationFrame(settle)));
             return button.getAttribute('aria-keyshortcuts');
           };
           const firstPaint = async (id, rows, when) => {

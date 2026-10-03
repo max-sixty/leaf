@@ -19,7 +19,9 @@ builds and CI may discard and reconstruct.
 
 Every reader calls `pinned_assets()`, which fetches on a miss; the command only warms
 the cache, as `wt setup` does. A writer stages its files in a clone and pushes them with
-`publish`, which moves the pin.
+`publish`, which moves the pin. Both boundaries reconcile the catalog's linked images
+with the complete staged asset set, including previews another writer has published.
+Staging prepares those links for a caller's site validation before publication.
 """
 
 import json
@@ -31,8 +33,10 @@ import urllib.request
 from pathlib import Path, PurePosixPath
 
 import click
+from leaf.media import media_name
 
 from leaf_dev import ROOT
+from leaf_dev.example_data import catalog_sources
 
 LOCK = "leaf-assets.json"
 CACHE = ROOT / ".tmp" / "leaf-assets"
@@ -118,7 +122,7 @@ def run(*args: str, cwd: Path) -> str:
 
 def clone(staging: Path) -> Path:
     """Clone the asset repository's current head into `staging`."""
-    repository, _ = specification()
+    repository, _ = specification(ROOT)
     checkout = staging / "leaf-assets"
     run(
         "git",
@@ -130,10 +134,43 @@ def clone(staging: Path) -> Path:
     return checkout
 
 
+def update_catalog(checkout: Path) -> None:
+    """Point every linked catalog image at its staged preview's content address.
+
+    The authored catalog selects the routes; unused files in the asset repository
+    cannot add entries. Unlinked images retain their authored addresses, and pages
+    whose links already name the staged bytes are left untouched.
+    """
+    pages = {
+        path: path.read_text(encoding="utf-8")
+        for path in sorted((ROOT / "docs").glob("*.html"))
+    }
+    originals = dict(pages)
+    for source in catalog_sources():
+        preview = checkout / "examples" / f"example-{source.stem}.jpg"
+        address = media_name(preview.read_bytes(), preview.suffix)
+        pattern = re.compile(
+            rf'(<a\b[^>]*\bhref="/examples/{re.escape(source.stem)}/"[^>]*>'
+            rf'(?:(?!</a>).)*?<img\b[^>]*\bsrc=")'
+            rf'/media/[0-9a-f]{{16}}\.jpg(")',
+            re.DOTALL,
+        )
+        updated = 0
+        for page, markup in pages.items():
+            pages[page], count = pattern.subn(rf"\g<1>/media/{address}\g<2>", markup)
+            updated += count
+        if updated == 0:
+            raise RuntimeError(f"{source.stem}: expected one catalog preview")
+    for page, markup in pages.items():
+        if markup != originals[page]:
+            page.write_text(markup, encoding="utf-8")
+
+
 def stage(directory: str, files: dict[str, bytes], staging: Path) -> Path:
     """Clone the asset repository into `staging` with `directory`'s files exactly
     `files`, for a generator to verify before it publishes. Subdirectories are left
-    alone: `examples/media/` sits inside the previews' `examples/`."""
+    alone: `examples/media/` sits inside the previews' `examples/`. The catalog's
+    links name these staged bytes before the generator validates its site."""
     checkout = clone(staging)
     target = checkout / directory
     target.mkdir(parents=True, exist_ok=True)
@@ -142,12 +179,14 @@ def stage(directory: str, files: dict[str, bytes], staging: Path) -> Path:
             stale.unlink()
     for name, content in files.items():
         (target / name).write_bytes(content)
+    update_catalog(checkout)
     return checkout
 
 
 def publish(checkout: Path, message: str) -> str:
-    """Commit and push a staged checkout, then pin Leaf and its README to it."""
-    repository, _ = specification()
+    """Reconcile catalog links, publish the checkout, and pin Leaf and its README."""
+    repository, _ = specification(ROOT)
+    update_catalog(checkout)
     run("git", "add", "-A", cwd=checkout)
     if run("git", "status", "--porcelain", cwd=checkout):
         run("git", "commit", "-m", message, cwd=checkout)

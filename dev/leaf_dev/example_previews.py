@@ -10,10 +10,8 @@ pages are not part of the captured scene.
     uv run leaf-dev refresh-previews    (or `wt refresh-previews`)
 """
 
-import hashlib
 import io
 import os
-import re
 import shutil
 import tempfile
 import threading
@@ -28,12 +26,10 @@ from leaf.render_checks import wait_until_ready
 from PIL import Image
 from playwright.sync_api import Page, sync_playwright
 
-from leaf_dev import ROOT
 from leaf_dev import site as site_build
 from leaf_dev.example_data import catalog_sources
 from leaf_dev.leaf_assets import pinned_assets, publish, stage
 
-DOCS = ROOT / "docs"
 VIEWPORT = {"width": 1120, "height": 700}
 # docs/index.html and docs/examples.html reserve this 8:5 box before a preview loads.
 OUTPUT_SIZE = (896, 560)
@@ -98,32 +94,6 @@ def require_capture_fonts(page: Page) -> None:
         )
 
 
-def update_catalog(previews: set[Path]) -> None:
-    """Point every linked example image at the content address of its new still."""
-    pages = {
-        path: path.read_text(encoding="utf-8") for path in sorted(DOCS.glob("*.html"))
-    }
-    updated = dict.fromkeys(previews, 0)
-    for preview in sorted(previews):
-        stem = preview.stem.removeprefix("example-")
-        address = hashlib.sha256(preview.read_bytes()).hexdigest()[:16]
-        pattern = re.compile(
-            rf'(<a\b[^>]*\bhref="/examples/{re.escape(stem)}/"[^>]*>'
-            rf'(?:(?!</a>).)*?<img\b[^>]*\bsrc=")'
-            rf'/media/[0-9a-f]{{16}}\.jpg(")',
-            re.DOTALL,
-        )
-        for page, markup in pages.items():
-            pages[page], count = pattern.subn(
-                rf"\g<1>/media/{address}.jpg\g<2>", markup
-            )
-            updated[preview] += count
-        if updated[preview] == 0:
-            raise RuntimeError(f"{stem}: expected one catalog preview")
-    for page, markup in pages.items():
-        page.write_text(markup, encoding="utf-8")
-
-
 def bootstrap_assets(target: Path) -> Path:
     """Copy the pinned assets, supplying a preview for every route before newly added
     stills exist."""
@@ -180,7 +150,6 @@ def refresh_previews() -> None:
 
     with tempfile.TemporaryDirectory(prefix="leaf-assets-") as raw:
         checkout = stage("examples", captures, Path(raw))
-        update_catalog(set((checkout / "examples").glob("example-*.jpg")))
         site_build.build(site_build.OUT, assets=checkout)
         revision = publish(checkout, "Refresh generated example previews")
         click.echo(f"  max-sixty/leaf-assets@{revision}")

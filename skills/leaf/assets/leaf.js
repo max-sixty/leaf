@@ -72,6 +72,8 @@ import {
 import { createPageGeometry } from "./runtime/page-geometry.js";
 import * as targetPaint from "./runtime/target-paint.js";
 import { pointerAt } from "./runtime/pointer.js";
+import { createWritingResume } from "./runtime/drafts.js";
+import { threadKey } from "./runtime/thread/model.js";
 import { allThreads, threadList } from "./runtime/thread/state.js";
 import { anchorLabel } from "./runtime/thread/messages.js";
 import {
@@ -345,8 +347,8 @@ const anchorTravel = createAnchorTravel({
   surfaces: auxiliarySurfaces,
   currentThreads: allThreads,
   refreshThread: () => app.refreshThread(),
-  focusForNavigation: (node) =>
-    (app?.overlay?.focusForNavigation ?? focusDestination)(node),
+  focusForNavigation: (node, caret) =>
+    (app?.overlay?.focusForNavigation ?? focusDestination)(node, caret),
   threadFocusTarget: (id, options) =>
     app.threadDestinations.threadFocusTarget(id, options),
   announce,
@@ -577,7 +579,6 @@ selectionComposer = createSelectionComposer({
   endFabFocus: (...args) => responseSurface.endFabFocus(...args),
   landFabFocus: (...args) => responseSurface.landFabFocus(...args),
   showFab: (...args) => responseSurface.showFab(...args),
-  formatGoToAddress: (...args) => goToSequence.formatGoToAddress(...args),
   createComment: app.createComment,
   landSent: landing.landSent,
   refreshThread: app.refreshThread,
@@ -737,11 +738,20 @@ drawers = createDrawers({
   presentLeaves,
   syncAsks: asks.syncAsks,
 });
+const writingResume = createWritingResume({
+  arriveEditor: anchorTravel.arriveEditor,
+  revealReply: (key, intent) => {
+    const thread = allThreads().find((thread) => threadKey(thread) === key);
+    return thread
+      ? app.threadDestinations.openPageThread(thread.id, { focus: "reply", intent })
+      : null;
+  },
+});
 goToSequence = createGoToSequence({
   panelIsOpen,
   elements: { banner, toggleBtn, threadsBox },
   hintChrome,
-  directDestinations: () => [version.PICKER, selectionComposer.KEPT_DRAFT],
+  directDestinations: () => [version.PICKER, writingResume],
   setPanel: threadPanelController.setPanel,
   setOpenDrawer: drawers.setOpenDrawer,
   scrollToElement: anchorTravel.scrollToElement,

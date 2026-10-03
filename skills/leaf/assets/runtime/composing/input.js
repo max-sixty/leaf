@@ -1,3 +1,4 @@
+import { rememberWriting } from "../drafts.js";
 import { focused, keys } from "../keyboard/scopes.js";
 import { repaint } from "../repaint.js";
 import { keeps, keepsHidden, keepsText } from "../keeps.js";
@@ -185,6 +186,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       pastedMedia.splice(index, 1);
       renderMedia();
       draftChanged();
+      rememberWriting(ta);
       ta.focus({ preventScroll: true });
     };
     const renderMedia = () => {
@@ -339,6 +341,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
 
         // Keep the current words visible while the bounded local upload runs. Send remains
         // reachable but inert and exposes the same busy state through aria-disabled.
+        rememberWriting(ta);
         const wasReadOnly = ta.readOnly;
         uploading = true;
         ta.readOnly = true;

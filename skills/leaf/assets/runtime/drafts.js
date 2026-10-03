@@ -78,6 +78,8 @@ import { PENDING } from "./thread/identity.js";
 import { draftStore } from "./storage.js";
 import { focused } from "./keyboard/scopes.js";
 import { focusDestination, readCaret } from "./focus.js";
+import { notice } from "./notifications.js";
+import { retainUserIntent } from "./user-intent.js";
 
 // ---------- draft persistence ----------
 // Text the user typed but hasn't sent must survive navigation, reload, version switches,
@@ -407,7 +409,29 @@ export function sendMessage(ctx, owns, send) {
     answer(null);
     return null;
   }
-  void Promise.resolve(flight).then(answer);
+  // A sent first message now has a durable conversation identity: its attempt is
+  // the thread key before and after admission. Continue there, with an empty reply.
+  // Refusal returns to the same original editor unless a later edit chose another.
+  const previousPlace = writingPlace;
+  const sentPlace =
+    previousPlace?.context === ctx
+      ? {
+          context: ctx.startsWith("reply:") ? ctx : `reply:${current.attempt}`,
+          selection: [0, 0],
+          generation: previousPlace.generation,
+        }
+      : null;
+  if (sentPlace) keepWritingPlace(sentPlace);
+  void Promise.resolve(flight).then((sent) => {
+    answer(sent);
+    if (
+      !sent &&
+      sentPlace &&
+      writingPlace?.generation === sentPlace.generation &&
+      writingPlace.context === sentPlace.context
+    )
+      keepWritingPlace(previousPlace);
+  });
   return { attempt: current.attempt, id: `${PENDING}${current.attempt}` };
 }
 
@@ -424,12 +448,131 @@ export function sendMessage(ctx, owns, send) {
 // it and so may move nothing.
 const draftEditors = new Set();
 
+// Resume writing is mechanical page state, owned alongside editor identity. Only a
+// content edit changes its destination; focus, draft mirroring and automatic recovery do
+// not. The one context and caret survive reload with the words. Reveal capabilities
+// belong to the editor's existing owner, and reply mirrors use the canonical thread
+// destination supplied by the composition root. No editor node is stored as identity.
+const WRITING_PLACE = "lf-writing-place";
+let writingPlace = (() => {
+  try {
+    const place = JSON.parse(draftStore.get(WRITING_PLACE));
+    return typeof place?.context === "string" &&
+      typeof place.generation === "string" &&
+      Array.isArray(place.selection) &&
+      place.selection.slice(0, 2).every(Number.isInteger)
+      ? place
+      : null;
+  } catch {
+    return null;
+  }
+})();
+const writingRoutes = new Map();
+const editorInput = (editor) =>
+  typeof editor.input === "function" ? editor.input() : editor.input;
+const keepWritingPlace = (place) => {
+  writingPlace = place;
+  draftStore.set(WRITING_PLACE, JSON.stringify(place));
+};
+const writingEditor = () =>
+  [...draftEditors].find((editor) => editorInput(editor) === focused());
+const keepWritingCaret = () => {
+  const editor = writingEditor();
+  if (editor && editor.ctx === writingPlace?.context)
+    keepWritingPlace({ ...writingPlace, selection: readCaret(editorInput(editor)) });
+};
+export function rememberWriting(input) {
+  const editor = [...draftEditors].find((view) => editorInput(view) === input);
+  if (editor)
+    keepWritingPlace({
+      context: editor.ctx,
+      selection: readCaret(input),
+      generation: newAttempt(),
+    });
+}
+document.addEventListener("input", (event) => {
+  const editor = [...draftEditors].find((view) =>
+    event.composedPath().includes(editorInput(view)),
+  );
+  if (editor) rememberWriting(editorInput(editor));
+});
+document.addEventListener("keyup", (event) => {
+  if (
+    [
+      "ArrowLeft",
+      "ArrowRight",
+      "ArrowUp",
+      "ArrowDown",
+      "Home",
+      "End",
+      "PageUp",
+      "PageDown",
+    ].includes(event.key) ||
+    (event.key === "a" && (event.ctrlKey || event.metaKey))
+  )
+    keepWritingCaret();
+});
+document.addEventListener("pointerup", keepWritingCaret);
+
+export function registerWritingDestination(prefix, reveal) {
+  writingRoutes.set(prefix, reveal);
+  return () => writingRoutes.delete(prefix);
+}
+
+export function createWritingResume({ revealReply, arriveEditor }) {
+  const resume = async () => {
+    const place = writingPlace;
+    if (!place) return;
+    const intent = retainUserIntent();
+    let input;
+    if (place.context.startsWith("reply:"))
+      input = await revealReply(place.context.slice("reply:".length), intent);
+    else {
+      const resolve = () => {
+        const route = [...writingRoutes].find(([prefix]) =>
+          place.context.startsWith(prefix),
+        );
+        const editor = [...draftEditors].find(
+          (view) => view.ctx === place.context && view.resume,
+        );
+        return route ? route[1](place.context) : editor?.resume();
+      };
+      input = await arriveEditor(resolve, { intent, caret: place.selection });
+    }
+    if (input === undefined || !intent()) return;
+    const matchesEditor = [...draftEditors].some(
+      (view) => view.ctx === place.context && editorInput(view) === input,
+    );
+    if (
+      !matchesEditor ||
+      !input?.isConnected ||
+      !input.checkVisibility() ||
+      input.readOnly ||
+      input.disabled
+    ) {
+      notice("That writing place is unavailable on this version");
+      return;
+    }
+    intent.handoff(() => focusDestination(input, place.selection));
+  };
+  return {
+    id: "writing.resume",
+    keys: ["i"],
+    description: "Resume writing",
+    title: "Resume writing",
+    touch: "Resume writing",
+    covering: true,
+    when: () => writingPlace !== null,
+    run: resume,
+  };
+}
+
 // A subscription owns its editor's context and lifetime. Each context has one root
 // editor; replies explicitly declare mirrors and land through their thread owner.
 // A revision carries mechanical editing, never another copy of the draft's words.
 export function captureDraftEditing() {
   const input = focused();
-  const editor = [...draftEditors].find((view) => view.input === input);
+  const editor = [...draftEditors].find((view) => editorInput(view) === input);
   if (!editor) return null;
   return {
     context: editor.ctx,
@@ -449,15 +592,16 @@ export function draftEditingDestination(editing) {
     (view) =>
       view.ctx === editing.context &&
       !view.mirrored &&
-      view.input.isConnected &&
-      view.input.checkVisibility({ visibilityProperty: true }),
-  )?.input;
-  return input ?? null;
+      editorInput(view)?.isConnected &&
+      editorInput(view).checkVisibility({ visibilityProperty: true }),
+  );
+  const destination = editorInput(input ?? {});
+  return destination ?? null;
 }
 
 export function restoreDraftEditing(editing, input) {
   if (!draftEditingStands(editing)) return false;
-  const editor = [...draftEditors].find((view) => view.input === input);
+  const editor = [...draftEditors].find((view) => editorInput(view) === input);
   if (
     !editor ||
     editor.ctx !== editing.context ||
@@ -472,8 +616,12 @@ export function restoreDraftEditing(editing, input) {
   return true;
 }
 
-export function watchDraft(ctx, callback, { input = null, mirrored = false } = {}) {
-  const editor = input && { ctx, input, mirrored };
+export function watchDraft(
+  ctx,
+  callback,
+  { input = null, mirrored = false, resume = null } = {},
+) {
+  const editor = input && { ctx, input, mirrored, resume };
   if (editor) draftEditors.add(editor);
   const update = (ev) =>
     ev.detail.ctx === ctx && callback(ev.detail.value, ev.detail.payload);
@@ -521,7 +669,7 @@ export function mirrorDraft(
   ta,
   sync,
   ctx,
-  { retained = false, mirrored = false } = {},
+  { retained = false, mirrored = false, resume = null } = {},
 ) {
   const off = watchDraft(
     ctx,
@@ -529,7 +677,7 @@ export function mirrorDraft(
       if (!retained && !ta.isConnected) return off();
       sync.load(value ?? "");
     },
-    { input: ta, mirrored },
+    { input: ta, mirrored, resume },
   );
   return off;
 }

@@ -6042,7 +6042,7 @@ def test_swipe_deck_buttons_arrows_and_rapid_actions_share_order(browser, serve)
     buttons = deck.locator(".lf-swipe-controls button:visible")
 
     expect(buttons).to_have_count(2)
-    expect(deck).to_have_attribute("aria-keyshortcuts", "ArrowLeft ArrowRight")
+    expect(deck).to_have_attribute("aria-keyshortcuts", "ArrowLeft ArrowRight 1 2")
     deck.get_by_role("button", name="← Pass", exact=True).click()
     expect(passed).to_have_count(2)
     round_trip(page)

@@ -599,41 +599,21 @@ export function createMarginProjection({
     const region = containingReadingRegionFor(target);
     return region ? shownRegionBounds(region) : null;
   };
-  // A scroll moves the held edge and with it the room to the boundary, so the cap the
-  // geometry asks for moves with every scroll, and every write during a scroll costs a
-  // repaint (keeps.js) while the card's far edge, written from the
-  // main thread, trails the scroll that carries the rest of it. So a scroll leaves the
-  // cap the card wears: a card short of both caps renders the same under either, and a
-  // card at its cap takes a new one only once its contents change, when a turn arrives
-  // or a draft grows. If the complete thread now fits, the cap grows once to let the
-  // transcript leave scrolling behind. A cap that would cut the card it stands on is
-  // always taken. Both
-  // are in the card's positioning space, as offsetHeight is.
-  let wornContent = null;
-  const threadCardContent = () =>
-    [previewTranscript, ...previewList.querySelectorAll(REPLY_BOX)].reduce(
-      (sum, box) => sum + (box ? box.scrollHeight - box.clientHeight : 0),
-      previewList.scrollHeight,
-    );
+  // Refit a height limit only when it changes the card's actual allocation. A
+  // scroll that merely carries the card writes nothing. Clipped contents take
+  // newly available room even when the whole conversation still cannot fit;
+  // comparing content signatures or requiring a complete fit leaves long threads
+  // wearing the cap from the cramped place where they first opened.
   function measureThreadCard(room, cap, reading) {
     preview.style.setProperty("--lf-thread-width", `${room}px`);
     const worn = parseFloat(preview.style.getPropertyValue("--lf-thread-max-height"));
     const height = preview.offsetHeight;
-    const content = threadCardContent();
-    const atCap = height >= worn - 0.5;
-    const overflow = previewTranscript
-      ? previewTranscript.scrollHeight - previewTranscript.clientHeight
-      : 0;
-    const fitsUnscrolled = overflow > 0.5 && height + overflow <= cap;
-    if (
-      !(worn >= 0) ||
-      cap < height - 0.5 ||
-      (atCap && content !== wornContent) ||
-      fitsUnscrolled
-    ) {
+    const overflow = [
+      previewTranscript,
+      ...previewList.querySelectorAll(REPLY_BOX),
+    ].reduce((sum, box) => sum + (box ? box.scrollHeight - box.clientHeight : 0), 0);
+    if (!(worn >= 0) || cap < height - 0.5 || (overflow > 0.5 && cap > height + 0.5))
       preview.style.setProperty("--lf-thread-max-height", `${cap}px`);
-      wornContent = content;
-    }
     fitThreadCardEditors();
     if (reading?.end) scrollToEnd(previewTranscript);
     return preview.getBoundingClientRect().height;
@@ -658,9 +638,9 @@ export function createMarginProjection({
       0,
     );
   }
-  // The reply takes the room below the transcript without carrying the words above
-  // it. A transcript that cannot fit beside even one editor line scrolls itself;
-  // typing then uses the remaining room and scrolls inside the editor.
+  // Draft lines take room before they scroll. A long transcript yields up to half
+  // the card's body to the reply; a short one leaves the remaining room available.
+  // Growing the editor moves their shared boundary, never the card's attachment.
   function fitThreadCardEditors() {
     const listRoom =
       parseFloat(preview.style.getPropertyValue("--lf-thread-max-height")) -
@@ -673,18 +653,22 @@ export function createMarginProjection({
       const line = parseFloat(box.lineHeight);
       const furniture = row.offsetHeight - input.offsetHeight;
       const inset = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
-      // Reserve the turns' own content, rather than the room the last-sized editor
-      // left them. After a resize that editor can exceed the new card's height.
-      const answered =
-        (thread.querySelector(".lf-thread-root-meta")?.offsetHeight ?? 0) +
-        thread.querySelector(".lf-thread-transcript").scrollHeight;
+      const available =
+        listRoom -
+        (thread.querySelector(".lf-thread-root-meta")?.offsetHeight ?? 0) -
+        furniture -
+        inset;
+      const answered = Math.min(
+        thread.querySelector(".lf-thread-transcript").scrollHeight,
+        available / 2,
+      );
       const oneLine =
         input.offsetHeight -
         input.clientHeight +
         line +
         parseFloat(box.paddingTop) +
         parseFloat(box.paddingBottom);
-      const room = Math.max(oneLine, listRoom - answered - furniture - inset);
+      const room = Math.max(oneLine, available - answered);
       input.style.setProperty("--lf-thread-editor-room", `${room}px`);
     }
   }

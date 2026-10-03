@@ -1729,29 +1729,19 @@ def test_an_image_only_composer_names_and_lays_out_the_draft_it_keeps(
         })"""
     )
     assert layout == {"display": "flex", "overflowX": "auto", "scrolls": True}
-    field.evaluate(
-        """box => box.addEventListener('input', () => {
-          const shelf = box.parentElement.previousElementSibling;
-          window.__lfShelfAtInput = {
-            hidden: shelf.hidden,
-            images: shelf.querySelectorAll(':scope > .lf-composer-media-item').length,
-            removeLabels: [...shelf.querySelectorAll('.lf-composer-media-remove')]
-              .map(button => button.getAttribute('aria-label')),
-          };
-        }, {once: true})"""
-    )
     shelf.get_by_role("button", name="Remove pasted image 2").click()
-    assert page.evaluate("() => window.__lfShelfAtInput") == {
-        "hidden": False,
-        "images": 3,
-        "removeLabels": [
-            "Remove pasted image 1",
-            "Remove pasted image 2",
-            "Remove pasted image 3",
-        ],
-    }, "the local input event ran before Lit committed the reduced shelf"
+    rendered(page)
+    expect(shelf).to_be_visible()
+    expect(shelf.locator(":scope > .lf-composer-media-item")).to_have_count(3)
     expect(field).to_be_focused()
     expect(shelf.locator("img")).to_have_count(3)
+    assert shelf.locator(".lf-composer-media-remove").evaluate_all(
+        "buttons => buttons.map(button => button.getAttribute('aria-label'))"
+    ) == [
+        "Remove pasted image 1",
+        "Remove pasted image 2",
+        "Remove pasted image 3",
+    ]
     assert shelf.locator(".lf-composer-media-open").evaluate_all(
         "buttons => buttons.map(button => button.getAttribute('aria-label'))"
     ) == [
@@ -1760,6 +1750,36 @@ def test_an_image_only_composer_names_and_lays_out_the_draft_it_keeps(
         "View pasted image 3",
     ]
     page.keyboard.press("Escape")
+    expect(page.locator(".lf-composer")).to_be_hidden()
+    page.locator("#p1").click(click_count=3)
+    expect(field).to_be_visible()
+    field.click()
+    expect(shelf.locator("img")).to_have_count(3)
+    assert shelf.locator(".lf-composer-media-remove").evaluate_all(
+        "buttons => buttons.map(button => button.getAttribute('aria-label'))"
+    ) == [
+        "Remove pasted image 1",
+        "Remove pasted image 2",
+        "Remove pasted image 3",
+    ]
+    with sending(page, "the retained image draft"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    comments = [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    assert len(comments) == 1, comments
+    sent = comments[0]
+    image_markdown = "![Pasted image](/media/051bee487bfb5d13.png)"
+    assert sent["kind"] == "comment"
+    assert sent["text"].splitlines() == [
+        image_markdown,
+        "",
+        image_markdown,
+        "",
+        image_markdown,
+    ]
     expect(page.locator(".lf-composer")).to_be_hidden()
 
 

@@ -19,8 +19,9 @@ import urllib.parse
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 import tinycss2
@@ -42,10 +43,12 @@ from interact_support import (
     read_page_data,
     record_claim,
     running_http_server,
+    spawn_probe,
     thread_records,
     vendored_by_another_leaf,
     wait_for,
 )
+from leaf import activity as activity_model
 from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf import detached as detached_model
@@ -53,6 +56,7 @@ from leaf import document_reading as document_reading_model
 from leaf import event_log as event_model
 from leaf import events as event_folds_model
 from leaf import files as files_model
+from leaf import host as host_model
 from leaf import hosting as hosting_model
 from leaf import http as http_model
 from leaf import interaction_log as interaction_model
@@ -70,6 +74,7 @@ from leaf import revisioning as revisioning_model
 from leaf import samples as samples_model
 from leaf import schema as schema_model
 from leaf import server as server_model
+from leaf import server_rows as server_rows_model
 from leaf import service as service_model
 from leaf import state as cleanup_model
 from leaf import structure as structure_model
@@ -77,6 +82,7 @@ from leaf import thread_context as thread_context_model
 from leaf import vendoring as vendoring_model
 from leaf.registry import storage as registry_storage
 from leaf.served_state import browser as served_browser
+from leaf.served_state import context as served_context
 from leaf.served_state import document as served_document
 from leaf.served_state import page as served_page
 from leaf.served_state import reading as served_reading
@@ -3133,32 +3139,295 @@ def test_unchanged_presence_observation_is_shared_and_file_changes_refresh_it(
     assert calls == 2
 
 
-def test_a_neighbours_row_is_its_declaration_read_afresh(page_dir):
-    """A neighbour's row reads its status file and its revision's title on every
-    scan, so a new declaration shows on the next read with nothing kept between,
-    and a page whose agent is done drops to closed."""
-    neighbour = machine_model.state_home() / "pages" / "declared"
-    neighbour_page(neighbour, title="Declared neighbor")
+def test_neighbors_read_only_compact_canonical_output(page_dir, monkeypatch):
+    """A neighbor scan costs small row/service reads, never source or a fold.
 
-    def row():
-        [entry] = presence_model.other_leaves(page_dir)
-        return entry["title"], entry["activity"]["kind"], entry["activity"]["detail"]
-
+    The publication carries real owed-move counts. Changing a declaration alone
+    cannot change that delivered row, and another server cannot inherit it.
+    """
+    neighbor = machine_model.state_home() / "pages" / "canonical"
+    neighbour_page(neighbor, title="Canonical neighbor")
+    record_claim(neighbor, id="neighbor", cwd="/work/neighbor")
     cleanup_model.write_json(
-        neighbour / "status.json",
+        neighbor / "status.json",
         {"state": "working", "detail": "measuring", "ts": cleanup_model.now_iso()},
     )
-    assert row() == ("Declared neighbor", "working", "measuring")
+    append_carried_log_record(
+        neighbor, {"kind": "comment", "author": "user", "text": "why?"}
+    )
+    publisher = server_rows_model.RowPublisher(neighbor, "fixture-server")
+    publisher.refresh()
+    expected = page_state(neighbor)["activity"]
+    expected.pop("obligations")
+    reads = []
+    read_json = files_model.read_json
+
+    def small_read(path):
+        if path == machine_model.state_home() / "access.json":
+            return read_json(path)
+        assert path in {neighbor / "service.json", publisher.path}
+        reads.append(path)
+        return read_json(path)
+
+    def no_fold(*_args, **_kwargs):
+        pytest.fail("a neighbor scan folded another page")
+
+    monkeypatch.setattr(server_model, "read_json", small_read)
+    monkeypatch.setattr(server_rows_model, "read_json", small_read)
+    monkeypatch.setattr(served_service.PageStateService, "activity_row", no_fold)
+    monkeypatch.setattr(service_model, "read_status", no_fold)
+    monkeypatch.setattr(artifact_model, "read_revision", no_fold)
+    monkeypatch.setattr(event_model, "read_events", no_fold)
+    [row] = presence_model.other_leaves(page_dir)
+    assert row["activity"] == expected
+    assert row["activity"]["counts"]["pending"] == 1
+    assert row["session_cwd"] == "/work/neighbor"
+    assert reads == [neighbor / "service.json", publisher.path]
+    cleanup_model.write_json(neighbor / "status.json", {"state": "idle"})
+    assert presence_model.other_leaves(page_dir) == [row]
+    # Shared-home records from an incompatible producer stay absent, including
+    # a row with the outer envelope but without the activity/count contract.
+    record = read_json(publisher.path)
+    for activity in ({}, {**row["activity"], "counts": {}}):
+        cleanup_model.write_json(
+            publisher.path, {**record, "row": {**row, "activity": activity}}
+        )
+        assert presence_model.other_leaves(page_dir) == []
+    cleanup_model.write_json(publisher.path, record)
+    service = read_json(neighbor / "service.json")
     cleanup_model.write_json(
-        neighbour / "status.json",
+        neighbor / "service.json", {**service, "server_id": "replacement"}
+    )
+    assert presence_model.other_leaves(page_dir) == []
+
+
+def test_a_server_keeps_its_row_fresh_without_browser_visits(page_dir, spawn):
+    """Own file changes, watcher and agent lifetime reach other pages with no tab.
+
+    The agent exits normally while the standing server continues. Releasing the
+    server lease then removes even its still-present cached row immediately.
+    """
+    neighbor = machine_model.state_home() / "pages" / "invisible"
+    neighbour_page(neighbor, title="Invisible", dead=True, port=0)
+    agent = spawn(
+        [sys.executable, "-c", "input()"],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    record_claim(neighbor, id="invisible", pid=agent.pid, cwd="/work/invisible")
+    cleanup_model.write_json(
+        neighbor / "status.json",
+        {"state": "working", "detail": "measuring", "ts": cleanup_model.now_iso()},
+    )
+    hosting_model.start_server(neighbor, standing=True)
+
+    def rows():
+        return presence_model.other_leaves(page_dir)
+
+    def await_row(accepts):
+        return wait_for(
+            rows,
+            lambda values: len(values) == 1 and accepts(values[0]),
+            failure="the invisible page's canonical row did not refresh",
+        )[0]
+
+    row = await_row(lambda row: row["activity"]["kind"] == "working")
+    assert row["session_cwd"] == "/work/invisible"
+    source = neighbor / "index.html"
+    source.write_text(
+        source.read_text().replace(
+            "<title>Invisible</title>", "<title>Revised unseen</title>"
+        )
+    )
+    append_carried_log_record(
+        neighbor, {"kind": "comment", "author": "user", "text": "why?"}
+    )
+    await_row(
+        lambda row: (
+            row["title"] == "Revised unseen"
+            and row["activity"]["counts"]["pending"] == 1
+        )
+    )
+    cleanup_model.write_json(
+        neighbor / "status.json",
         {"state": "waiting", "detail": "pick one", "ts": cleanup_model.now_iso()},
     )
-    assert row() == ("Declared neighbor", "listening", "pick one")
+    session = cleanup_model.session_record("invisible")
+    cleanup_model.write_session({**session, "turn_closed": cleanup_model.now_iso()})
+    await_row(lambda row: row["activity"]["kind"] == "away")
+    # The host's dialog changes outside the page, with no lifecycle rewrite.
+    host_record = host_model.claude_code_sessions() / f"{agent.pid}.json"
+    host_record.parent.mkdir(parents=True, exist_ok=True)
     cleanup_model.write_json(
-        neighbour / "status.json",
-        {"state": "idle", "detail": "done", "ts": cleanup_model.now_iso()},
+        host_record,
+        {
+            "pid": agent.pid,
+            "sessionId": "invisible",
+            "status": "waiting",
+            "statusUpdatedAt": int((time.time() + 1) * 1000),
+        },
     )
-    assert row() == ("Declared neighbor", "closed", "")
+    await_row(lambda row: row["activity"]["observed_kind"] == "awaiting_user")
+    host_record.unlink()
+    await_row(lambda row: row["activity"]["kind"] == "away")
+    waiter = leases_model.take_lease(
+        leases_model.waiter_lease_path(neighbor, "invisible")
+    )
+    try:
+        await_row(lambda row: row["activity"]["kind"] == "listening")
+    finally:
+        leases_model.release_lease(waiter)
+    await_row(lambda row: row["activity"]["kind"] == "away")
+    agent.stdin.write(b"done\n")
+    agent.stdin.flush()
+    agent.wait(timeout=10)
+    await_row(lambda row: row["activity"]["kind"] == "unheld")
+    assert server_model.running_server(neighbor)
+    hosting_model.cmd_stop(neighbor)
+    assert rows() == []
+    assert server_rows_model.row_path(neighbor).is_file()
+
+
+def test_a_row_ages_at_the_canonical_deadline_and_recovers_after_cache_loss(
+    page_dir, monkeypatch
+):
+    """Clock-only aging uses the banner's deadline, with no file or live change.
+
+    Quiet checks retain the delivered row without folding again; deleting this
+    output regenerates it from the page, leaving the canonical inputs untouched.
+    """
+    now = datetime.now().astimezone().replace(microsecond=0)
+    stamp = (now - activity_model.WORKING_GRACE + timedelta(seconds=1)).isoformat()
+    record_claim(page_dir, turn_opened=stamp)
+    cleanup_model.write_json(
+        page_dir / "status.json",
+        {"state": "working", "detail": "measuring", "ts": stamp},
+    )
+    waiter = leases_model.take_lease(leases_model.waiter_lease_path(page_dir, "s1"))
+    publisher = server_rows_model.RowPublisher(page_dir, "clock-server")
+    monkeypatch.setattr(
+        server_rows_model,
+        "time",
+        SimpleNamespace(monotonic=time.monotonic, time=lambda: now.timestamp()),
+    )
+    monkeypatch.setattr(served_context, "now_iso", lambda: now.isoformat())
+    try:
+        publisher.refresh()
+        first = json.loads(publisher.path.read_text())["row"]
+        assert first["activity"]["kind"] == "working"
+        assert (
+            first["activity"]["next_transition_at"]
+            == (now + timedelta(seconds=1)).isoformat()
+        )
+        stamp_before = publisher.path.stat().st_mtime_ns
+        original_read = publisher.service.activity_row
+        monkeypatch.setattr(
+            publisher.service,
+            "activity_row",
+            lambda: pytest.fail("a quiet look refolded the page"),
+        )
+        publisher.refresh()
+        assert publisher.path.stat().st_mtime_ns == stamp_before
+        monkeypatch.setattr(publisher.service, "activity_row", original_read)
+        now += timedelta(seconds=2)
+        publisher.refresh()
+        aged = json.loads(publisher.path.read_text())["row"]
+        assert aged["activity"]["kind"] == "stalled"
+        assert aged["activity"]["next_transition_at"] is None
+        publisher.path.unlink()
+        publisher.refresh()
+        assert json.loads(publisher.path.read_text())["row"] == aged
+    finally:
+        leases_model.release_lease(waiter)
+
+
+def test_a_row_read_cannot_block_server_stop(page_dir, spawn, tmp_path):
+    """A row producer waiting on a page writer cannot hold service retirement.
+
+    The process probe announces entry to the real row transaction, so the stop
+    runs after the producer is blocked rather than winning a scheduling race.
+    """
+    entered = tmp_path / "row-entered"
+    child = spawn_probe(
+        spawn,
+        page_dir,
+        """
+from leaf import hosting
+from leaf.served_state import service
+
+class AnnouncedTransaction(service.PageTransaction):
+    def __enter__(self):
+        Path(os.environ["ENTERED"]).write_text("reading")
+        return super().__enter__()
+
+service.PageTransaction = AnnouncedTransaction
+hosting.cmd_serve(Path(os.environ["PAGE"]), standing=True)
+""",
+        ENTERED=entered,
+    )
+    path = server_rows_model.row_path(page_dir)
+    wait_for(path.is_file, bool, failure="the server did not publish its initial row")
+    entered.unlink()
+    ended = threading.Event()
+    with service_model.PageTransaction(page_dir):
+        cleanup_model.write_json(
+            page_dir / "status.json",
+            {"state": "working", "detail": "blocked", "ts": cleanup_model.now_iso()},
+        )
+        wait_for(
+            entered.is_file,
+            bool,
+            failure="the row producer did not enter the held transaction",
+        )
+        stopping = threading.Thread(
+            target=lambda: (hosting_model.cmd_stop(page_dir), ended.set()), daemon=True
+        )
+        stopping.start()
+        assert ended.wait(10), "a transaction-blocked row read held server stop"
+    stopping.join(timeout=10)
+    assert child.wait(timeout=10) == 0
+    assert server_model.running_server(page_dir) is None
+
+
+def test_a_failed_row_producer_retires_and_revives_with_its_service(page_dir):
+    """A failed fold cannot leave a live lease advertising stale canonical output.
+
+    Repairing the invalid input then uses the existing enabled-service revival,
+    with a new serving identity and a newly computed row.
+    """
+    neighbor = machine_model.state_home() / "pages" / "broken-row"
+    neighbour_page(neighbor, title="Repairable", dead=True, port=0)
+    hosting_model.start_server(neighbor, standing=True)
+    wait_for(
+        lambda: server_rows_model.read_row(
+            neighbor, server_model.running_server(neighbor)
+        ),
+        bool,
+        failure="the server did not publish a row",
+    )
+    original = server_model.running_server(neighbor)["server_id"]
+    (neighbor / "status.json").write_text("{invalid")
+    wait_for(
+        lambda: server_model.running_server(neighbor),
+        lambda service: service is None,
+        failure="the failed producer left a live server lease",
+    )
+    assert presence_model.other_leaves(page_dir) == []
+    assert files_model.read_json(neighbor / "service.json")["enabled"]
+    cleanup_model.write_json(
+        neighbor / "status.json",
+        {"state": "working", "detail": "repaired", "ts": cleanup_model.now_iso()},
+    )
+    hosting_model.start_server(neighbor, standing=True, revive=True)
+    renewed = server_model.running_server(neighbor)["server_id"]
+    assert renewed != original
+    [row] = wait_for(
+        lambda: presence_model.other_leaves(page_dir),
+        lambda rows: len(rows) == 1 and rows[0]["activity"]["detail"] == "repaired",
+        failure="the revived service did not regenerate its row",
+    )
+    assert row["activity"]["kind"] == "working"
 
 
 def test_server_shutdown_stops_an_idle_serving_loop(page_dir):
@@ -4597,12 +4866,11 @@ def test_a_claimed_page_without_a_declaration_serves_its_state(page_dir, server)
 
 
 def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
-    """`others` on /api/state is every page a live server holds up, found through
-    both places pages are written down — the conventional pages/ home and the
-    canonical claims — titled by its latest revision, and nothing else: not a
-    dead server's page or the page doing the asking. Each entry is that page's
-    declaration in the shape of its activity, read from its status file alone, so
-    a neighbour whose log or claim is broken still gets its row."""
+    """Both discovery homes supply compact publications of live server owners.
+
+    Dead servers stay out; a corrupt neighbor cannot make this page parse its
+    source. The retained output of that neighbor is independently readable.
+    """
     pages = machine_model.state_home() / "pages"
     live_url = neighbour_page(pages / "live", title="The other page")
     cleanup_model.write_json(
@@ -4651,49 +4919,28 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
         turn_opened="2026-01-01T00:00:00-08:00",
     )
 
+    for directory in (pages / "live", malformed, scratch):
+        server_rows_model.RowPublisher(directory, "fixture-server").refresh()
     state = json.loads(fetch(f"{server}/api/state")[1])
-    closed = {
-        "kind": "closed",
-        "held": True,
-        "dropped": False,
-        "detail": "",
-        "observed": "",
-        "observed_kind": None,
-        "counts": {
-            "active": 0,
-            "handling": 0,
-            "queued": 0,
-            "picked_up": 0,
-            "pending": 0,
-            "overdue": 0,
-            "total": 0,
-        },
-        "ts": None,
-        "next_transition_at": None,
-        "obligations": [],
-    }
-    [malformed_row] = [
-        row for row in state["others"] if row["title"] == "Malformed status"
+    rows = {row["title"]: row for row in state["others"]}
+    assert list(rows) == [
+        "A corrupted page",
+        "Malformed status",
+        "Nothing to link",
+        "scratch",
+        "The other page",
     ]
-    assert (malformed_row["activity"]["kind"], malformed_row["activity"]["detail"]) == (
-        "working",
-        "unknown",
-    )
-    assert [row for row in state["others"] if row is not malformed_row] == [
-        {"title": "A corrupted page", "url": corrupt_url, "activity": closed},
-        {"title": "Nothing to link", "url": draft_url, "activity": closed},
-        {"title": "scratch", "url": claimed_url, "activity": closed},
-        {
-            "title": "The other page",
-            "url": live_url,
-            "activity": {
-                **closed,
-                "kind": "working",
-                "detail": "measuring",
-                "ts": "2026-01-01T00:00:00-08:00",
-            },
-        },
-    ]
+    assert rows["A corrupted page"]["url"] == corrupt_url
+    assert rows["Nothing to link"]["url"] == draft_url
+    assert rows["scratch"]["url"] == claimed_url
+    assert rows["The other page"]["url"] == live_url
+    assert rows["The other page"]["session_cwd"] == "/work/api"
+    assert rows["The other page"]["activity"]["kind"] == "away"
+    assert (
+        rows["Malformed status"]["activity"]["kind"],
+        rows["Malformed status"]["activity"]["detail"],
+    ) == ("working", "unknown")
+    assert all("obligations" not in row["activity"] for row in rows.values())
 
 
 def test_others_ships_on_a_network_facing_bind_too(page_dir):

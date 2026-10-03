@@ -84,7 +84,7 @@ export function rowWalk({
   const route = (binding, step) => ({
     id: `${id}.${step}`,
     binding,
-    does: `${capital(step)} ${noun.toLowerCase()}`,
+    title: `${capital(step)} ${noun.toLowerCase()}`,
   });
   const land = (pick) => {
     const was = focused();
@@ -99,8 +99,7 @@ export function rowWalk({
       id: `${id}.walk`,
       keys: ["ArrowUp", "ArrowDown"],
       routes: [route("ArrowUp", up), route("ArrowDown", down)],
-      does: `Walk the ${plural}`,
-      line: `walk the ${plural}`,
+      title: `walk the ${plural}`,
       repeat: true,
       run: (binding) =>
         land((list) =>
@@ -111,8 +110,8 @@ export function rowWalk({
       id: `${id}.edge`,
       keys: ["Home", "End"],
       routes: [route("Home", home), route("End", end)],
-      does: `${capital(home)} / ${end} ${noun.toLowerCase()}`,
-      line: `${home} / ${end}`,
+      description: `${capital(home)} / ${end} ${noun.toLowerCase()}`,
+      title: `${home} / ${end}`,
       // Home and End answer as they do in any list, so the shortcut bar spends its
       // slots on the walk and on what the list offers that no other list does; the
       // command reference and `aria-keyshortcuts` still name them.

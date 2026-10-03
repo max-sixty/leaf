@@ -112,8 +112,8 @@ export function newsNotice() {
     {
       id: "thread.news",
       keys: PRESS,
-      does: "Show what is waiting",
-      line: "show it",
+      description: "Show what is waiting",
+      title: "show it",
       run: () => node.click(),
     },
   ]);

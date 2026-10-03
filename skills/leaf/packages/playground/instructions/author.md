@@ -1,6 +1,7 @@
 Use `lf-playground` when several values or behaviors need to be explored together before
-the user chooses one configuration. Put it inside `lf-ask`, declare controls and
-optional presets, then include exactly one preview and one output.
+the user chooses one configuration. Declare controls and optional presets, then include
+exactly one preview and one output. Use `lf-ask` to frame the question and context
+when they live outside the playground.
 
 Interactive behavior does not by itself justify a package; `references/packages.md`
 says where page-only and reused behavior belong. A page module can define custom

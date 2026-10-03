@@ -617,8 +617,8 @@ export function createSelectionComposer({
   const KEPT_DRAFT = {
     id: "composer.kept-draft",
     keys: ["Shift+d"],
-    does: "Go to the draft you have not sent",
-    line: "your draft",
+    description: "Go to the draft you have not sent",
+    title: "your draft",
     when: () => !composerOpen && keptDraft() !== null,
     run: () => {
       const record = keptDraft();
@@ -733,28 +733,28 @@ export function createSelectionComposer({
       const count = Math.min(responseReactionButtons().length, 9);
       return count > 1 ? `1–${count}` : "1";
     },
-    does: () =>
+    description: () =>
       `Put a reaction on the response target: ${reactionTokens()
         .slice(0, 9)
         .map(([name, entry], index) => `${index + 1} ${entry.glyph} ${name}`)
         .join(", ")}`,
-    line: "react",
+    title: "react",
     when: () => !takesLetters(focused()) && responseReactionButtons().length > 0,
     run: (binding) => responseReactionButtons()[+binding - 1]?.click(),
   };
   const RESPONSE_TAB = {
     id: "response.tab",
     keys: ["Tab", "Shift+Tab"],
-    does: "Move between the comment and other responses",
-    line: "move",
+    description: "Move between the comment and other responses",
+    title: "move",
     repeat: true,
     run: stepResponseOptions,
   };
   const RESPONSE_MOVE = {
     id: "response.move",
     keys: ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"],
-    does: "Move through other responses",
-    line: "move",
+    description: "Move through other responses",
+    title: "move",
     repeat: true,
     when: () => focusedResponseOption(),
     run: stepResponseOptions,
@@ -762,16 +762,16 @@ export function createSelectionComposer({
   const RESPONSE_ACTIVATE = {
     id: "response.activate",
     keys: PRESS,
-    does: "Use the focused response",
-    line: "choose",
+    description: "Use the focused response",
+    title: "choose",
     when: () => focusedResponseOption(),
     run: () => focused()?.click(),
   };
   const RESPONSE_CLOSE = {
     id: "response.close",
     keys: ["Escape"],
-    does: "Close other responses",
-    line: "close",
+    description: "Close other responses",
+    title: "close",
     run: () => setResponseOptions(false, { returnFocus: true }),
   };
   const responseOptionRows = () => [

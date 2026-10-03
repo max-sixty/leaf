@@ -54,8 +54,7 @@ export class SettledOptions {
       {
         id: "option.toggle-settled",
         keys: () => DISCLOSE(this.#row),
-        does: "Open or close the settled ask",
-        line: () => (this.#isOpen ? "close" : "open"),
+        title: () => (this.#isOpen ? "close" : "open"),
         run: () => this.#row.click(),
       },
     ]);

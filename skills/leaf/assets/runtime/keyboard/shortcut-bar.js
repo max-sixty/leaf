@@ -59,6 +59,8 @@ import {
   commandEntries,
   commandPresentations,
   commandRoutes,
+  lineOf,
+  titleOf,
   spell,
   word,
 } from "./bindings.js";
@@ -72,6 +74,7 @@ import {
 import { el } from "../widget-elements.js";
 import { keeps, keepsHidden } from "../keeps.js";
 import { lineOwner, shadow, stack, executeCommand } from "./dispatch.js";
+import { scopeIdentity } from "./scopes.js";
 
 import {
   commandReferenceDialog,
@@ -239,7 +242,8 @@ const effectiveRow = (row, declared, active) => {
     // may supply the short word for its remaining direction; otherwise the row's shared
     // word still describes the reduced binding set.
     label: route?.label,
-    does: route?.does ?? row.does,
+    title: route?.title ?? row.title,
+    description: route?.description ?? row.description,
     line: route?.line ?? row.line,
   };
   sourceRows.set(projected, row);
@@ -259,16 +263,20 @@ function lineRows(scopes) {
     // outer scopes are read. Keep all unshadowed rows in the batch so activeRows still
     // rejects two live meanings inside this reachable scope.
     const reachable = scope.rows.flatMap((row) => {
-      if (!row.line || (!scope.sequence && word(row.lineWhen) === false)) return [];
+      if (row.line === false || (!scope.sequence && word(row.lineWhen) === false))
+        return [];
       const bound = bindings(row);
       const active = bound.filter((binding) =>
         binding === "Escape"
-          ? escape?.visible && escape.scope === scope && escape.row === row
+          ? escape?.visible &&
+            scopeIdentity(escape.scope) === scopeIdentity(scope) &&
+            escape.row === row
           : !named.has(binding) && !nearer.takes(binding),
       );
       return active.length ? [effectiveRow(row, bound, active)] : [];
     });
     for (const row of activeRows(reachable, scope.title ?? "the page's keys")) {
+      if (!lineOf(row)) continue;
       const active = bindings(row).filter(
         (binding) => commandEntries(row, [binding]).length,
       );
@@ -393,8 +401,8 @@ export function renderShortcutBar(goToStatus) {
   // accessible shortcut, label, and dispatch from becoming four independent claims about
   // the binding.
   const referenceBinding = reference ? bindings(reference)[0] : null;
-  const referenceDoes = word(SHORTCUT_HELP.does);
-  const referenceLine = word(SHORTCUT_HELP.line);
+  const referenceTitle = titleOf(SHORTCUT_HELP);
+  const referenceLine = lineOf(SHORTCUT_HELP);
   // Read where it is painted, like every other cell. Every destination keeps its complete
   // sequence while the user advances through it: completed keys change face, but no key is
   // added, removed, or moved. A sequence control such as Escape is a way out of the interaction, not
@@ -410,7 +418,7 @@ export function renderShortcutBar(goToStatus) {
       key: rowPresentationKey(row),
       sequenceControl: Boolean(row.sequenceControl),
       sequence: keySequenceModel(steps, states),
-      said: word(row.line),
+      said: lineOf(row),
       commandIds: commandPresentations(row, active)
         .map(({ id }) => id)
         .join(" "),
@@ -428,18 +436,18 @@ export function renderShortcutBar(goToStatus) {
       hidden: commandReferenceOpen() || !referenceBinding,
       binding: referenceBinding ? spell(referenceBinding) : null,
       line: referenceLine,
-      title: referenceDoes,
+      title: referenceTitle,
       expanded,
       ariaLabel: referenceBinding
         ? `${spell(referenceBinding)} ${referenceLine}`
-        : referenceDoes,
+        : referenceTitle,
       ariaShortcuts: referenceBinding ? ariaShortcuts([reference], false) : null,
     }),
     tail:
       expanded && tail
         ? Object.freeze({
             sequence: keySequenceModel(rowSteps(tail), neutralStates(rowSteps(tail))),
-            said: word(tail.line),
+            said: lineOf(tail),
           })
         : null,
     expanded,
@@ -549,7 +557,8 @@ const SHORTCUT_HELP = pageCommand({
   touch: false,
   runFromCommandReference: false,
   keys: ["?"],
-  does: () => (shortcutBarExpanded() ? "Command reference" : "More keyboard shortcuts"),
+  title: () =>
+    shortcutBarExpanded() ? "Command reference" : "More keyboard shortcuts",
   line: () => (shortcutBarExpanded() ? "command reference" : "more"),
   control: () => shortcutBarMore,
   run: () => shortcutBarMore.click(),
@@ -558,7 +567,7 @@ const SHORTCUT_HELP = pageCommand({
 const COLLAPSE_SHORTCUT_BAR = {
   id: "shortcut.bar.collapse",
   keys: ["Escape"],
-  does: "Show fewer keyboard shortcuts",
+  title: "Fewer keyboard shortcuts",
   line: "less",
   commandReferenceWhen: () => false,
   runFromCommandReference: false,

@@ -53,8 +53,7 @@ class AskDrawerList extends RetainedFace {
         {
           id: "ask.open",
           keys: PRESS,
-          does: "Go to this ask",
-          line: "go to this ask",
+          title: "go to this ask",
         },
       ]);
     }

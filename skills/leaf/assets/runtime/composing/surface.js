@@ -1395,8 +1395,7 @@ export function createResponseSurface({
   // the panel names one. Every destination is a box to write in and says so in the same
   // sentence; the word is what varies.
   const commenting = (word) => ({
-    does: `Comment on the ${word}`,
-    line: `comment on the ${word}`,
+    title: `comment on the ${word}`,
   });
   function commentDestination() {
     if (touchSelectionAnchor)
@@ -1495,8 +1494,8 @@ export function createResponseSurface({
     keys: ["c"],
     // The surfaces name the destination in front of the user rather than the capability:
     // "Comment" covered all four and so promised none of them.
-    does: () => commentDestination().does,
-    line: () => commentDestination().line,
+    description: () => commentDestination().description,
+    title: () => commentDestination().title,
     // A selection made before the anchor pass has run can't be quoted yet, and commenting
     // on the page instead is not what the user asked for — so the press waits, and the
     // row's own liveness is where that is said rather than a refusal inside run that no
@@ -1525,19 +1524,19 @@ export function createResponseSurface({
       {
         id: "comment.options",
         keys: ["Tab"],
-        does: "Show other responses",
-        line: "other responses",
+        description: "Show other responses",
+        title: "other responses",
         when: () => fabOptionsAvailable() && !responseOptionsAreOpen(),
         run: () => showFabOptions(),
       },
       {
         id: "composer.close",
         keys: ["Escape"],
-        does: () =>
+        description: () =>
           composerHolds()
             ? "Close the composer, keeping the draft"
             : "Close the composer",
-        line: () => (composerHolds() ? "close — draft kept" : "close"),
+        title: () => (composerHolds() ? "close — draft kept" : "close"),
         promoteEscape: false,
         when: () => !responseOptionsAreOpen(),
         run: () => dismissFab(),
@@ -1553,8 +1552,8 @@ export function createResponseSurface({
   pageRung("selection", () =>
     pageSelection() || (fabAnchorAt() && !fabWithheld)
       ? {
-          says: "unselect",
-          does: "Clear the selection",
+          title: "unselect",
+          description: "Clear the selection",
           promoteEscape: !Boolean(fabAnchorAt()) || reactionTokens().length === 0,
           out: dismissFab,
         }

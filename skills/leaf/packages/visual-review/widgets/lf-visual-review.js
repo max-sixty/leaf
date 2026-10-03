@@ -250,8 +250,7 @@ customElements.define(
             {
               id: `visual.${kind}.${value}`,
               keys: PRESS,
-              does: `${text} visual evidence`,
-              line: text.toLowerCase(),
+              title: text.toLowerCase(),
               run: () => radio.click(),
             },
           ]);
@@ -510,16 +509,14 @@ customElements.define(
         {
           id: "visual.next-case",
           keys: ["ArrowDown"],
-          does: "Show the next visual case",
-          line: "next case",
+          title: "next case",
           when: () => this.#caseEntries.size > 1,
           run: () => this.#step(1),
         },
         {
           id: "visual.previous-case",
           keys: ["ArrowUp"],
-          does: "Show the previous visual case",
-          line: "previous case",
+          title: "previous case",
           when: () => this.#caseEntries.size > 1,
           run: () => this.#step(-1),
         },

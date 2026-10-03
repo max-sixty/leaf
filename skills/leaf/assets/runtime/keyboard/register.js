@@ -19,6 +19,9 @@ import {
   bindings,
   checked,
   touchPresses as pressesOf,
+  titleOf,
+  descriptionOf,
+  lineOf,
   word,
 } from "./bindings.js";
 import { focused } from "./scopes.js";
@@ -80,7 +83,6 @@ const RUNG_LADDER = [
 ];
 
 const PAGE_COMMANDS = [
-  "ask.activate-nth",
   "comment.create",
   "target.picker.open",
   "reaction.open",
@@ -153,7 +155,7 @@ export function pageCommand(row) {
 }
 
 /** Declare one instance's step of Escape's fallback ladder: a function answering what the press would
- * take off right now, as `{says, does, out}` plus an optional `root` for the surface the
+ * take off right now, as `{title, description?, line?, out}` plus an optional `root` for the surface the
  * step is inside and the `lineWhen` and `promoteEscape` this step wants on the compact
  * line, or null where this step has nothing to take. `RUNG_LADDER` orders the steps. */
 export function pageRung(name, reading) {
@@ -194,8 +196,9 @@ function rung() {
 const BACK_OUT = {
   id: "navigation.back",
   keys: ["Escape"],
-  does: () => rung()?.does,
-  line: () => rung()?.says,
+  title: () => (rung() ? titleOf(rung()) : "Back"),
+  description: () => (rung() ? descriptionOf(rung()) : undefined),
+  line: () => (rung() ? lineOf(rung()) : false),
   lineWhen: () => word(rung()?.lineWhen) !== false,
   promoteEscape: () => word(rung()?.promoteEscape) !== false,
   when: () => Boolean(rung()),

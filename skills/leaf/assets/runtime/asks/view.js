@@ -48,7 +48,7 @@
 
    An arrival stands the user on the ask, which is the element the scroll has just
    aligned and the one the ring names. The widget's contributed actions are addressable
-   there by their declared bindings, with `1`–`9` as the default; its controls remain the
+   there by their declared context bindings; its controls remain the
    next Tab stops, a stop at `tabindex: -1` keeping its place in document order. Landing
    the answering control instead puts them as far down the ask as its context and
    evidence are long, off the screen the same gesture arranged. An Ask a page styles
@@ -97,13 +97,7 @@
 
 import { landingBand, shownBox, shownParts } from "../geometry.js";
 import { askProgressModel, createAskBannerControls } from "./banner-controls.js";
-import {
-  bindings,
-  clampedRow,
-  contextualRoute,
-  decisionControls,
-  spell,
-} from "../keyboard/bindings.js";
+import { clampedRow, decisionControls } from "../keyboard/bindings.js";
 import { closestAcross, elementById, inChrome, TEXT_BLOCK } from "../passages.js";
 import { scrollerFor } from "../reading-regions.js";
 import { reserve, reveal } from "../widget-elements.js";
@@ -118,11 +112,13 @@ import {
 } from "./model.js";
 import { beginWalk, listWalkPosition, walkPositionLabel } from "../walk-position.js";
 import {
+  commandDeclarationsWithin,
   commandScopesWithin,
   commandsWithin,
   documentFocused,
   focused,
   paintKeys,
+  contextScopes,
 } from "../keyboard/scopes.js";
 import { addressableLabel, addressableWord } from "../anchor-resolution.js";
 import { PAGE_PAINT_ATTRIBUTE } from "../presentation.js";
@@ -141,7 +137,7 @@ import {
   readApplication,
   watchSemantic,
 } from "../semantic-state.js";
-import { hostIn, under } from "../shadow.js";
+import { hostIn, under, upFrom } from "../shadow.js";
 
 // Ask owns contextual action routes and navigation; the keyboard presenter owns their hints.
 export function createAskView({
@@ -403,8 +399,7 @@ export function createAskView({
   //
   // Document focus rather than the inner control: a control staged in a shadow tree
   // retargets to its host, and the host is the place in the document this wants.
-  function standingAsk() {
-    const held = documentFocused();
+  function standingAsk(held = documentFocused()) {
     if (!held || held === document.body) return null;
     const unanswered = askAt(unansweredAsks(), held);
     if (unanswered) return unanswered;
@@ -422,86 +417,46 @@ export function createAskView({
   }
   const standingIn = () => askNode(standingAsk());
 
-  // The Ask-local action map. A package contributes exact controls through the same
-  // command scopes dispatch and Help already consume. Each action receives a contextual
-  // digit independently of any intrinsic widget binding. The map stays active as Tab
-  // moves into the Ask; each route points back to the contributed command, while nearer
-  // local scopes still own the keys they declare and the dispatcher's ordinary shadowing
-  // keeps an unavailable digit out of every projection.
+  // Widgets own context aliases. Ask selects declarations through the same standing
+  // relation that maps a margin entry or thread back to its source; the generic
+  // compiler retains original command identity and availability.
   function ownedAskControl(source, commandSource) {
     const selector = tagsDeclaring((entry) => entry["x-awaits"]).join(",");
     return !selector || closestAcross(commandSource, selector) === source;
   }
-  const MAX_ASK_ACTIONS = 9;
   const actionsFor = (source) =>
     decisionControls(commandsWithin(source), `Ask ${source.id}`).filter(
       ({ source: commandSource, control }) =>
         ownedAskControl(source, commandSource) &&
-        control.isConnected &&
-        !control.matches(":disabled") &&
-        control.getAttribute("aria-disabled") !== "true" &&
         control.getAttribute("aria-busy") !== "true",
     );
-  // The actions an Ask offers under their contextual bindings, whether or not the user
-  // stands in it yet: an arrival asks it of the Ask it is bringing them to.
   const actionsOf = (ask) => {
-    if (!ask) return [];
-    const source = sourceNode(ask);
-    if (!source) return [];
-    const actions = actionsFor(source);
-    const contextual = bindings({
-      keys: Array.from({ length: MAX_ASK_ACTIONS }, (_, index) => String(index + 1)),
-    });
-    return actions
-      .slice(0, contextual.length)
-      .map((action, index) => ({ ...action, binding: contextual[index] }));
+    const source = ask && sourceNode(ask);
+    return source ? actionsFor(source) : [];
   };
-  const availableActions = () => actionsOf(standingAsk());
-  // A binding with a different result is a different command. Keep each action as a
-  // route under one compact row, so the dispatcher, command reference, shortcut bar, and the
-  // control-facing projections all consume the same binding-to-control identity.
-  const actionRoutes = () =>
-    availableActions().map(
-      ({ id, control, label, bindingBadge, intrinsicBindings, command, binding }) =>
-        contextualRoute(
-          {
-            id,
-            binding,
-            does: `Activate the “${label}” action`,
-            line: label,
-            control,
-            bindingBadge,
-            intrinsicBindings,
-          },
-          command,
-        ),
-    );
-  // Away from every Ask the row still stands in the command reference, as the range the
-  // digits take once the user stands in one, since that is where a question's options
-  // are pressed by number; the widgets' own Decision rows have no key of their own there.
-  const actionRow = {
-    id: "ask.activate-nth",
-    touch: false,
-    keys: () => actionRoutes().map(({ binding }) => binding),
-    routes: actionRoutes,
-    label: () => {
-      const count = actionRoutes().length;
-      if (!count) return `1–${MAX_ASK_ACTIONS}`;
-      return count > 1 ? `1–${count}` : "1";
-    },
-    does: () => {
-      const routes = actionRoutes();
-      if (!routes.length)
-        return "Activate an action in the Ask you stand at, by its number";
-      return `Activate an action in this Ask: ${routes
-        .map(({ binding, line }) => `${spell(binding)} ${line}`)
-        .join("; ")}`;
-    },
-    line: "Ask actions",
-    reach: "in an Ask",
-    when: () => actionRoutes().length > 0,
-    commandReferenceWhen: () => allAsks().length > 0,
-  };
+  function questionContext(origin) {
+    const record = askAt(allAsks(), hostIn(origin, document));
+    let root = null;
+    // Keep the projection outside any nearer widget scope, but inside the
+    // keyboard boundary of a thread. Native input claims precede context scopes.
+    for (let node = origin; record && node; node = upFrom(node)) {
+      if (askAt(allAsks(), node)?.id !== record.id) break;
+      root = node;
+      if (node.hasAttribute("data-lf-thread-surface")) break;
+    }
+    if (!root) return null;
+    return {
+      root,
+      declarations: () => {
+        const source = sourceNode(record);
+        return source
+          ? commandDeclarationsWithin(source).filter(({ source: commandSource }) =>
+              ownedAskControl(source, commandSource),
+            )
+          : [];
+      },
+    };
+  }
   // The ring that says so, painted from the focus rather than written where the user was
   // put. The walk used to write it, and it then said where the walk had left them rather
   // than where they were: click away, work in the panel, come back tomorrow, and an ask
@@ -600,7 +555,7 @@ export function createAskView({
   // is the failure version.js's header names — a user holding the second option was
   // given the first, and their next press chose it. The Ask's own opening is the one
   // place that cannot misfire, because it holds a lent tab stop rather than a decision:
-  // the Ask's digit routes are live there and Space decides nothing.
+  // the widget's context routes are live there and Space decides nothing.
   //
   // Chrome is excluded because it has nothing to restore: a drawer row and a margin entry
   // for the same Ask are keyed by that id already, so a patch hands each of them back as
@@ -864,11 +819,13 @@ export function createAskView({
 
   let mounted = false;
   let stopActionChanges = null;
+  let stopContextScopes = null;
   const actionsChanged = () => mounted && void syncAsks();
 
   function mount() {
     if (mounted) return;
     mounted = true;
+    stopContextScopes = contextScopes("In this question", questionContext);
     stopActionChanges = watchSemantic(actionsChanged);
     document.addEventListener(PRESENTATION, actionsChanged);
     addEventListener("resize", repaint);
@@ -882,12 +839,13 @@ export function createAskView({
       document.removeEventListener(PRESENTATION, actionsChanged);
       globalThis.removeEventListener("resize", repaint);
     }
+    stopContextScopes?.();
+    stopContextScopes = null;
     presenter.disconnect();
     for (const marked of document.querySelectorAll(`[${PAGE_PAINT_ATTRIBUTE.ask}]`))
       marked.removeAttribute(PAGE_PAINT_ATTRIBUTE.ask);
   }
 
-  pageCommand(actionRow);
   pageCommand({
     id: "ask.walk",
     touch: false,
@@ -896,15 +854,18 @@ export function createAskView({
       {
         id: "ask.next",
         binding: "a",
-        does: "Next ask this page is waiting on you for",
+        title: "Next Ask",
+        description: "Next ask this page is waiting on you for",
       },
       {
         id: "ask.previous",
         binding: "Shift+a",
-        does: "Previous ask this page is waiting on you for",
+        title: "Previous Ask",
+        description: "Previous ask this page is waiting on you for",
       },
     ],
-    does: "Next / previous ask this page is waiting on you for",
+    title: "Asks",
+    description: "Next / previous ask this page is waiting on you for",
     line: "asks",
     when: () => openAsks().length > 0,
     repeat: true,

@@ -186,7 +186,14 @@ export function createCommandHints({ presentedControl }) {
       projectCommandScope(
         control,
         CONTROL_ROUTES,
-        commandScope(null, [{ id: "keyboard.control-route", keys: [...keys] }]),
+        commandScope(null, [
+          {
+            id: "keyboard.control-route",
+            title: "Control shortcuts",
+            line: false,
+            keys: [...keys],
+          },
+        ]),
       );
       routedControls.add(control);
     }

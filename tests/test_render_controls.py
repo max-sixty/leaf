@@ -107,11 +107,17 @@ KEYBOARD_HINT_REGISTRY = {
     "lf-keyboard-probe": {
         "description": "Exercises declared keyboard commands and their controls.",
         "type": "object",
-        "properties": {"id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"}},
+        "properties": {
+            "id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
+            "asks": {"type": "boolean"},
+            "restated": {"type": "boolean"},
+        },
         "required": ["id"],
         "additionalProperties": False,
         "x-content": "empty",
         "x-upgrade": True,
+        "x-state": SEATED_ASK_LAYER["lf-verdict"]["x-state"],
+        "x-awaits": SEATED_ASK_LAYER["lf-verdict"]["x-awaits"],
     }
 }
 
@@ -152,20 +158,24 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
     this.append(disable, ariaDisable, guard, replace, quiet);
     const scope = commandScope('In the command probe', [
       {
-        id: 'probe.apply', keys: ['1', 'x'],
+        id: 'probe.apply', keys: ['x'], contextKeys: ['1'],
         control: () => this.control, bindingBadge: () => this.badge,
-        does: 'Apply the operation', line: 'apply',
+        title: 'Apply the operation', line: 'apply',
         when: () => this.allowed,
         run: () => this.control.click(),
       },
       {
         id: 'probe.quiet', keys: ['q'], control: quiet,
-        does: 'Activate without an inline hint', line: 'quiet action',
+        title: 'Activate without an inline hint', line: 'quiet action',
         run: () => quiet.click(),
       },
     ]);
     commands(this, scope);
-    commands(this.closest('section'), scope);
+    commands(editor, scope);
+    commands(this.closest('main'), 'Outside the widget', [{
+      id: 'probe.outer', title: 'Outer digit', keys: ['1'],
+      run: () => keepsText(this.result, 'Outer applied'),
+    }]);
   }
 
   makeControl() {
@@ -193,8 +203,8 @@ def test_widget_owned_inline_hints_follow_reachable_commands(browser, serve, hin
             leaf_page(
                 "command hints",
                 '<h1>Command hints</h1><button id="outside">Outside the widget</button>'
-                '<section id="question" tabindex="0"><h2>Apply the operation?</h2>'
-                '<lf-keyboard-probe id="probe"></lf-keyboard-probe></section>',
+                '<lf-ask id="question"><h2>Apply the operation?</h2>'
+                '<lf-keyboard-probe id="probe" asks></lf-keyboard-probe></lf-ask>',
             ),
             layer_registry=KEYBOARD_HINT_REGISTRY,
             layer_widgets={
@@ -225,12 +235,12 @@ def test_widget_owned_inline_hints_follow_reachable_commands(browser, serve, hin
     page.locator("#outside").focus()
     rendered(page)
     expect(badge).to_be_hidden()
-    page.keyboard.press("1")
+    page.keyboard.press("x")
     rendered(page)
     expect(result).to_have_text("0")
 
     # The question context forwards the widget's declaration without an Ask allocator.
-    page.keyboard.press("Tab")
+    page.keyboard.press("a")
     expect(page.locator("#question")).to_be_focused()
     expect(badge).to_be_visible()
     expect(badge).to_have_text("1")
@@ -245,15 +255,19 @@ def test_widget_owned_inline_hints_follow_reachable_commands(browser, serve, hin
     page.keyboard.press("x")
     expect(result).to_have_text("2")
 
-    # Native editing hides the numeric alias and retains the character press.
+    # Even an exact editor scope leaves its contextual digit to native editing.
+    # Its ordinary exact-control x command retains priority.
     page.keyboard.press("Tab")
     editor = widget.get_by_role("textbox", name="Practice note")
     expect(editor).to_be_focused()
     rendered(page)
-    expect(badge).to_be_hidden()
-    page.keyboard.type("1x")
-    expect(editor).to_have_value("1x")
+    expect(badge).to_have_text("x")
+    page.keyboard.type("1")
+    expect(editor).to_have_value("1")
     expect(result).to_have_text("2")
+    page.keyboard.press("x")
+    expect(result).to_have_text("3")
+    expect(editor).to_have_value("1")
 
     widget.get_by_role("button", name="Toggle disabled").click()
     rendered(page)
@@ -261,7 +275,7 @@ def test_widget_owned_inline_hints_follow_reachable_commands(browser, serve, hin
     expect(badge).to_be_hidden()
     page.keyboard.press("1")
     rendered(page)
-    expect(result).to_have_text("2")
+    expect(result).to_have_text("3")
     widget.get_by_role("button", name="Toggle disabled").click()
     expect(badge).to_be_visible()
 
@@ -271,7 +285,7 @@ def test_widget_owned_inline_hints_follow_reachable_commands(browser, serve, hin
     expect(badge).to_be_hidden()
     page.keyboard.press("1")
     rendered(page)
-    expect(result).to_have_text("2")
+    expect(result).to_have_text("3")
     widget.get_by_role("button", name="Toggle ARIA disabled").click()
     expect(badge).to_be_visible()
 
@@ -280,7 +294,7 @@ def test_widget_owned_inline_hints_follow_reachable_commands(browser, serve, hin
     expect(badge).to_be_hidden()
     page.keyboard.press("1")
     rendered(page)
-    expect(result).to_have_text("2")
+    expect(result).to_have_text("3")
     widget.get_by_role("button", name="Toggle availability").click()
     expect(badge).to_be_visible()
 
@@ -289,7 +303,7 @@ def test_widget_owned_inline_hints_follow_reachable_commands(browser, serve, hin
     expect(badge).to_have_text("1")
     expect(active_hints).to_have_count(1)
     page.keyboard.press("1")
-    expect(result).to_have_text("3")
+    expect(result).to_have_text("4")
     # A control whose command omitted bindingBadge has no hint, but its key works.
     page.keyboard.press("q")
     expect(widget.get_by_role("button", name="Quiet action applied")).to_be_visible()
@@ -298,9 +312,48 @@ def test_widget_owned_inline_hints_follow_reachable_commands(browser, serve, hin
     page.locator("#outside").focus()
     rendered(page)
     expect(badge).to_be_hidden()
-    page.keyboard.press("1")
+    page.keyboard.press("x")
     rendered(page)
-    expect(result).to_have_text("3")
+    expect(result).to_have_text("4")
+
+
+def test_widget_context_keys_work_without_an_ask(browser, serve):
+    """A contextual alias is local widget capability before any Ask forwards it."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "standalone widget commands",
+                '<h1>Standalone command</h1><button id="outside">Outside</button>'
+                '<lf-keyboard-probe id="probe"></lf-keyboard-probe>',
+            ),
+            layer_registry=KEYBOARD_HINT_REGISTRY,
+            layer_widgets={"lf-keyboard-probe.js": KEYBOARD_HINT_MODULE},
+        ),
+    )
+    widget = page.locator("#probe")
+    result = widget.locator("output")
+    page.locator("#outside").focus()
+    expect(page.locator("#outside")).to_be_focused()
+    page.keyboard.press("1")
+    expect(result).to_have_text("Outer applied")
+    page.keyboard.press("Tab")
+    expect(widget.get_by_role("button", name="Apply", exact=True)).to_be_focused()
+    page.keyboard.press("1")
+    expect(result).to_have_text("1")
+    expect(widget.locator("kbd")).to_have_text("1")
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+    expect(
+        page.locator('.lf-command-reference-command[data-lf-command="probe.outer"]')
+    ).to_have_attribute("data-lf-available", "false")
+    page.keyboard.press("Escape")
+    page.keyboard.press("Tab")
+    editor = widget.get_by_role("textbox", name="Practice note")
+    expect(editor).to_be_focused()
+    page.keyboard.type("1")
+    expect(editor).to_have_value("1")
+    expect(result).to_have_text("1")
 
 
 KEYBOARD_ROUTE_MODULE = """\
@@ -322,17 +375,17 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
     second.onclick = () => apply('2');
     this.append(first, second, result);
     commands(this, 'In parameterized actions', [{
-      id: 'probe.apply', keys: ['1', '2'], does: 'Apply an action', line: 'apply',
+      id: 'probe.apply', keys: ['1', '2'], title: 'Apply an action', line: 'apply',
       routes: [
         {id: 'probe.first', binding: '1', control: first,
-         bindingBadge: firstHint, does: 'Apply the first action'},
+         bindingBadge: firstHint, title: 'Apply the first action'},
         {id: 'probe.second', binding: '2', control: second,
-         bindingBadge: secondHint, does: 'Apply the second action'},
+         bindingBadge: secondHint, title: 'Apply the second action'},
       ],
       run: apply,
     }]);
     commands(this.closest('section'), 'Outside parameterized actions', [{
-      id: 'probe.outer', keys: ['1'], does: 'Apply the outer action', line: 'outer action',
+      id: 'probe.outer', keys: ['1'], title: 'Apply the outer action', line: 'outer action',
       run: () => keepsText(result, 'Outer applied'),
     }]);
   }
@@ -411,6 +464,399 @@ def test_disabled_command_route_keeps_its_key_and_enabled_sibling(
     ).to_have_count(0)
 
 
+CONTEXT_COMMAND_MODULE = """\
+import {commands, keepsText, offer, paintKeys} from '/runtime/widget-api.js';
+
+customElements.define('lf-keyboard-probe', class extends HTMLElement {
+  connectedCallback() {
+    const result = offer('output', '', 'No action');
+    const rows = [];
+    for (let index = 1; index <= 12; index++) {
+      const control = offer('button', '', `Action ${index}`);
+      const apply = () => keepsText(result, `Action ${index} applied`);
+      control.onclick = index === 11
+        ? () => keepsText(result, 'Action 11 clicked') : apply;
+      this.append(control);
+      rows.push({id: `probe.action-${index}`, title: `Action ${index}`, decision: true,
+        contextKeys: index <= 9 ? [String(index)] : index === 10 ? ['F10'] : [],
+        keys: index === 12 ? ['F12'] : [], control, run: apply});
+    }
+    this.append(result);
+    commands(this, 'In explicit actions', rows);
+    const replace = offer('button', '', 'Replace declaration');
+    replace.onclick = () => {
+      commands(this, 'In explicit actions', [{id: 'probe.replacement', title: 'Replacement',
+        contextKeys: ['2'], run: () => keepsText(result, 'Replacement applied')}]);
+      paintKeys();
+    };
+    this.append(replace);
+  }
+});
+"""
+
+
+def test_context_commands_keep_widget_assigned_aliases_and_source_lifetime(
+    browser, serve
+):
+    """Forwarding has no nine-action cap and never assigns a missing binding.
+
+    A source declaration replacement withdraws its old routes and installs references
+    to the replacement callback; the ordinary widget key never leaks to its question.
+    """
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "explicit context commands",
+                '<h1>Explicit bindings</h1><lf-ask id="question"><h2>Which action?</h2>'
+                '<lf-keyboard-probe id="probe" asks></lf-keyboard-probe></lf-ask>',
+            ),
+            layer_registry=KEYBOARD_HINT_REGISTRY,
+            layer_widgets={"lf-keyboard-probe.js": CONTEXT_COMMAND_MODULE},
+        ),
+    )
+    result = page.locator("#probe output")
+    page.keyboard.press("a")
+    expect(page.locator("#question")).to_be_focused()
+    expect(
+        page.locator('.lf-shortcut-bar [data-lf-command-ids~="probe.action-1"]')
+    ).to_contain_text("Action 1")
+    page.keyboard.press("9")
+    expect(result).to_have_text("Action 9 applied")
+    page.keyboard.press("F10")
+    expect(result).to_have_text("Action 10 applied")
+    page.keyboard.press("F12")
+    rendered(page)
+    expect(result).to_have_text("Action 10 applied")
+    page.keyboard.press("Tab")
+    expect(page.get_by_role("button", name="Action 1", exact=True)).to_be_focused()
+    page.keyboard.press("F12")
+    expect(result).to_have_text("Action 12 applied")
+    page.get_by_role("button", name="Action 11", exact=True).click()
+    expect(result).to_have_text("Action 11 clicked")
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+    unbound = page.locator(
+        '.lf-command-reference tr[data-lf-command="probe.action-11"]'
+    )
+    expect(unbound.locator(".lf-command-reference-command")).to_have_attribute(
+        "data-lf-available", "true"
+    )
+    expect(unbound).to_contain_text("Action 11")
+    unbound.locator(".lf-command-reference-command").click()
+    expect(result).to_have_text("Action 11 applied")
+
+    page.get_by_role("button", name="Replace declaration").click()
+    page.locator("#question").focus()
+    rendered(page)
+    page.keyboard.press("1")
+    rendered(page)
+    expect(result).to_have_text("Action 11 applied")
+    page.keyboard.press("2")
+    expect(result).to_have_text("Replacement applied")
+    expect(
+        page.locator('.lf-shortcut-bar [data-lf-command-ids~="probe.replacement"]')
+    ).to_contain_text("Replacement")
+    page.keyboard.press("F10")
+    rendered(page)
+    expect(result).to_have_text("Replacement applied")
+
+
+def test_restoring_question_focus_can_execute_its_command_in_the_same_turn(
+    browser, serve
+):
+    """Focus determines forwarded scopes synchronously, without a paint registering them."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "synchronous context commands",
+                '<h1>Explicit bindings</h1><button id="outside">Outside</button>'
+                '<lf-ask id="question"><h2>Which action?</h2>'
+                '<lf-keyboard-probe id="probe" asks></lf-keyboard-probe></lf-ask>',
+            ),
+            layer_registry=KEYBOARD_HINT_REGISTRY,
+            layer_widgets={"lf-keyboard-probe.js": CONTEXT_COMMAND_MODULE},
+        ),
+    )
+    page.locator("#outside").focus()
+    rendered(page)
+    immediate = page.evaluate(
+        """async () => {
+          const {focusDestination} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const {executeCommand} = await window.__lfRuntimeImport('/runtime/keyboard/dispatch.js');
+          focusDestination(document.getElementById('question'));
+          const executed = executeCommand('probe.action-10');
+          return {executed, held: document.activeElement.id,
+            output: document.querySelector('#probe output').textContent};
+        }"""
+    )
+    assert immediate == {
+        "executed": True,
+        "held": "question",
+        "output": "Action 10 applied",
+    }
+
+
+def test_contextual_escape_agrees_across_dispatch_hints_and_reference(browser, serve):
+    """Escape forwarding stays live when its context scope is read more than once."""
+    module = """\
+import {commands, keepsText, offer} from '/runtime/widget-api.js';
+
+customElements.define('lf-keyboard-probe', class extends HTMLElement {
+  connectedCallback() {
+    const control = offer('button', '', 'Apply operation');
+    const result = offer('output', '', 'No action');
+    let count = 0;
+    this.append(control, result);
+    commands(this, 'In escape operation', [{id: 'probe.escape', title: 'Apply operation',
+      keys: ['x'], contextKeys: ['Escape'], control, bindingBadge: null,
+      run: () => keepsText(result, `Applied ${++count}`)}]);
+  }
+});
+"""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "contextual escape",
+                '<h1>Explicit bindings</h1><lf-ask id="question"><h2>Which action?</h2>'
+                '<lf-keyboard-probe id="probe" asks></lf-keyboard-probe></lf-ask>',
+            ),
+            layer_registry=KEYBOARD_HINT_REGISTRY,
+            layer_widgets={"lf-keyboard-probe.js": module},
+        ),
+    )
+    result = page.locator("#probe output")
+    page.keyboard.press("a")
+    expect(page.locator("#question")).to_be_focused()
+    rendered(page)
+    routes = page.evaluate(
+        """async () => {
+          const {availableCommandRoutes} = await window.__lfRuntimeImport('/runtime/keyboard/dispatch.js');
+          const {commandEntries} = await window.__lfRuntimeImport('/runtime/keyboard/bindings.js');
+          return [...availableCommandRoutes()].flatMap(([row, bindings]) =>
+            commandEntries(row, [...bindings]).filter(entry => entry.id === 'probe.escape')
+              .map(entry => entry.binding));
+        }"""
+    )
+    assert routes == ["Escape"]
+    expect(
+        page.locator(".lf-command-binding-badges > .lf-command-binding-badge")
+    ).to_be_visible()
+    expect(
+        page.locator('.lf-shortcut-bar [data-lf-command-ids~="probe.escape"]')
+    ).to_contain_text("Apply operation")
+    page.keyboard.press("Escape")
+    expect(result).to_have_text("Applied 1")
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+    reference_action = page.locator(
+        '.lf-command-reference tr[data-lf-command="probe.escape"] '
+        ".lf-command-reference-command"
+    )
+    expect(reference_action).to_have_attribute("data-lf-available", "true")
+    reference_action.click()
+    expect(result).to_have_text("Applied 2")
+    expect(page.locator("#question")).to_be_focused()
+    page.keyboard.press("Tab")
+    expect(
+        page.get_by_role("button", name="Apply operation", exact=True)
+    ).to_be_focused()
+    page.keyboard.press("x")
+    expect(result).to_have_text("Applied 3")
+    page.keyboard.press("Escape")
+    expect(result).to_have_text("Applied 4")
+
+
+def test_context_aliases_do_not_collide_with_authored_command_ids(browser, serve):
+    """A contextual projection keeps both commands when an authored id ends in .context."""
+    module = """\
+import {commands, keepsText, offer} from '/runtime/widget-api.js';
+
+customElements.define('lf-keyboard-probe', class extends HTMLElement {
+  connectedCallback() {
+    const control = offer('button', '', 'Apply operation');
+    const neighbour = offer('button', '', 'Neighbour operation');
+    const result = offer('output', '', 'No action');
+    let count = 0;
+    this.append(control, neighbour, result);
+    commands(this, 'In named operations', [
+      {id: 'probe.apply', title: 'Apply operation', keys: ['F8'], contextKeys: ['1'],
+        control, run: () => keepsText(result, `Applied ${++count}`)},
+      {id: 'probe.apply.context', title: 'Neighbour operation', keys: ['F9'],
+        control: neighbour, run: () => keepsText(result, 'Neighbour applied')},
+    ]);
+  }
+});
+"""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "context command identity",
+                '<h1>Explicit bindings</h1><button id="outside">Outside</button>'
+                '<lf-ask id="question"><h2>Which action?</h2>'
+                '<lf-keyboard-probe id="probe" asks></lf-keyboard-probe></lf-ask>',
+            ),
+            layer_registry=KEYBOARD_HINT_REGISTRY,
+            layer_widgets={"lf-keyboard-probe.js": module},
+        ),
+    )
+    result = page.locator("#probe output")
+    page.locator("#outside").focus()
+    for standing in ["outside", "question"]:
+        page.keyboard.press("?")
+        page.keyboard.press("?")
+        for command_id, title in [
+            ("probe.apply", "Apply operation"),
+            ("probe.apply.context", "Neighbour operation"),
+        ]:
+            row = page.locator(
+                f'.lf-command-reference tr[data-lf-command="{command_id}"]'
+            )
+            expect(row).to_have_count(1)
+            expect(row).to_contain_text(title)
+            expect(row.locator(".lf-command-reference-command")).to_have_attribute(
+                "data-lf-available",
+                str(standing == "question" and command_id == "probe.apply").lower(),
+            )
+        page.keyboard.press("Escape")
+        if standing == "outside":
+            page.keyboard.press("a")
+            expect(page.locator("#question")).to_be_focused()
+    page.keyboard.press("1")
+    expect(result).to_have_text("Applied 1")
+    page.keyboard.press("F9")
+    rendered(page)
+    expect(result).to_have_text("Applied 1")
+    page.keyboard.press("Tab")
+    expect(
+        page.get_by_role("button", name="Apply operation", exact=True)
+    ).to_be_focused()
+    page.keyboard.press("F8")
+    expect(result).to_have_text("Applied 2")
+    page.keyboard.press("F9")
+    expect(result).to_have_text("Neighbour applied")
+
+
+def test_context_forwarding_preserves_reference_activation_opt_out(browser, serve):
+    """A contextual alias cannot turn a reading-only reference row into an action."""
+    module = """\
+import {commands, keepsText, offer} from '/runtime/widget-api.js';
+
+customElements.define('lf-keyboard-probe', class extends HTMLElement {
+  connectedCallback() {
+    const result = offer('output', '', 'No action');
+    let count = 0;
+    this.append(result);
+    commands(this, 'In guarded operation', [{id: 'probe.guarded', title: 'Guarded operation',
+      contextKeys: ['F8'], runFromCommandReference: false,
+      run: () => keepsText(result, `Applied ${++count}`)}]);
+  }
+});
+"""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "contextual reference policy",
+                '<h1>Explicit bindings</h1><lf-ask id="question"><h2>Which action?</h2>'
+                '<lf-keyboard-probe id="probe" asks></lf-keyboard-probe></lf-ask>',
+            ),
+            layer_registry=KEYBOARD_HINT_REGISTRY,
+            layer_widgets={"lf-keyboard-probe.js": module},
+        ),
+    )
+    result = page.locator("#probe output")
+    page.keyboard.press("a")
+    expect(page.locator("#question")).to_be_focused()
+    page.keyboard.press("F8")
+    expect(result).to_have_text("Applied 1")
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+    reference_row = page.locator(
+        '.lf-command-reference tr[data-lf-command="probe.guarded"]'
+    )
+    expect(reference_row).to_contain_text("Guarded operation")
+    expect(reference_row.locator(".lf-command-reference-command")).to_have_count(0)
+    reference_row.click()
+    rendered(page)
+    expect(result).to_have_text("Applied 1")
+    page.keyboard.press("Escape")
+    expect(page.locator("#question")).to_be_focused()
+    page.keyboard.press("F8")
+    expect(result).to_have_text("Applied 2")
+
+
+@pytest.mark.parametrize(
+    ("answered", "resolved"), [(False, False), (False, True), (True, False)]
+)
+def test_context_keys_follow_an_ask_into_its_associated_thread(
+    browser, serve, answered, resolved
+):
+    """A thread representative forwards explicit aliases without local widget keys.
+
+    The relationship survives resolution and answering the Ask. Typing in its comment
+    field keeps the contextual digit rather than running the page widget.
+    """
+    url = serve(
+        leaf_page(
+            "associated context commands",
+            '<h1>Explicit bindings</h1><lf-ask id="question"><h2>Which action?</h2>'
+            '<lf-keyboard-probe id="probe" asks></lf-keyboard-probe></lf-ask>',
+        ),
+        layer_registry=KEYBOARD_HINT_REGISTRY,
+        layer_widgets={"lf-keyboard-probe.js": CONTEXT_COMMAND_MODULE},
+    )
+    thread = panel_comment(
+        serve.page_dir, "Discuss the action first.", {"section": "question"}
+    )
+    if answered:
+        append_command(
+            serve.page_dir,
+            {
+                "kind": "action",
+                "author": "user",
+                "revision": 1,
+                "widget": "probe",
+                "action": "settle",
+                "detail": {"answer": "yes"},
+            },
+        )
+    if resolved:
+        events_model.append_event(
+            serve.page_dir, {"kind": "resolve", "author": "user", "parent": thread}
+        )
+    page = open_page(browser, url)
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    panel_settled(page, True)
+    if resolved:
+        page.locator(".lf-thread-filter-toggle").click()
+        page.locator(
+            '[data-filter-kind="status"][data-filter-value="resolved"]'
+        ).click()
+    summary = page.locator(f'.lf-thread[data-id="{thread}"] > .lf-thread-summary')
+    summary.focus()
+    expect(summary).to_be_focused()
+    result = page.locator("#probe output")
+    page.keyboard.press("9")
+    expect(result).to_have_text("Action 9 applied")
+    page.keyboard.press("F12")
+    rendered(page)
+    expect(result).to_have_text("Action 9 applied")
+    page.keyboard.press("F10")
+    expect(result).to_have_text("Action 10 applied")
+    if not resolved:
+        page.keyboard.press("c")
+        editor = page.locator(f'.lf-thread[data-id="{thread}"] leaf-text')
+        expect(editor).to_be_focused()
+        page.keyboard.type("1")
+        expect(editor).to_have_js_property("value", "1")
+        expect(result).to_have_text("Action 10 applied")
+
+
 ROUTE_HINT_OVERRIDE_MODULE = """\
 import {commands, keepsText, offer} from '/runtime/widget-api.js';
 
@@ -424,13 +870,13 @@ customElements.define('lf-verdict', class extends HTMLElement {
     control.onclick = () => keepsText(result, String(++count));
     this.append(control, inheritedHint, result);
     commands(this, 'In the inspection', [{
-      id: 'probe.inspect', keys: ['x'], does: 'Inspect the proposal', line: 'inspect',
+      id: 'probe.inspect', keys: ['x'], title: 'Inspect the proposal', line: 'inspect',
       bindingBadge: inheritedHint,
       routes: [{
-        id: 'probe.inspect-proposal', binding: 'x', decision: 'Inspect',
-        control, bindingBadge: null, does: 'Inspect the proposal',
+        id: 'probe.inspect-proposal', binding: 'x', contextKeys: ['1'], decision: true,
+        control, bindingBadge: null, title: 'Inspect the proposal',
       }],
-      run: () => control.click(),
+      run: binding => keepsText(result, `${binding}:${++count}`),
     }]);
   }
 });
@@ -473,7 +919,7 @@ def test_route_corner_hint_overrides_the_rows_face_in_ask_and_widget(browser, se
     expect(chip).to_be_visible()
     expect(inherited).to_be_hidden()
     page.keyboard.press("1")
-    expect(result).to_have_text("1")
+    expect(result).to_have_text("x:1")
 
     page.keyboard.press("Tab")
     expect(control).to_be_focused()
@@ -483,7 +929,7 @@ def test_route_corner_hint_overrides_the_rows_face_in_ask_and_widget(browser, se
     expect(inherited).to_be_hidden()
     assert set(control.get_attribute("aria-keyshortcuts").split()) == {"1", "x"}
     page.keyboard.press("x")
-    expect(result).to_have_text("2")
+    expect(result).to_have_text("x:2")
     expect(chip).to_have_count(1)
 
 

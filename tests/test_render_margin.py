@@ -2135,7 +2135,7 @@ def test_a_margin_entry_refuses_an_unowned_command_scope(browser, serve):
         """async () => {
           const {commandScope, contributionEntry} = await window.__lfRuntimeImport('/runtime/widget-api.js');
           const scope = commandScope('Status command', [{
-            id: 'fixture.status', keys: ['x'], does: 'Act from status',
+            id: 'fixture.status', keys: ['x'], title: 'Act from status',
             line: 'act from status', run: () => {}
           }]);
           try {
@@ -2585,7 +2585,7 @@ def test_page_map_keyed_reconciliation_preserves_user_standing(browser, serve):
           window.lfKeyedCommandRuns = 0;
           const scope = commandScope('On the retained Page Map action', [{
             id: 'fixture.retained', keys: ['x'],
-            does: 'Run the retained action', line: 'run retained',
+            title: 'Run the retained action', line: 'run retained',
             run: () => window.lfKeyedCommandRuns += 1,
           }]);
           const ordinary = index => registerContribution({

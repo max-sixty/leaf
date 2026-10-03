@@ -2,6 +2,7 @@
 
 import re
 from datetime import datetime, timedelta
+from math import hypot
 from time import monotonic
 
 import pytest
@@ -9111,7 +9112,8 @@ def test_a_pin_stands_after_its_run_of_text_rather_than_over_it(browser, serve):
         )
 
 
-PIN_READING = """(id) => {
+PIN_READING = """async (id) => {
+  const {shownParts} = await window.__lfRuntimeImport('/runtime/geometry.js');
   const edges = ({left, top, right, bottom}) => ({left, top, right, bottom});
   const words = [];
   const walk = document.createTreeWalker(document.querySelector('main'),
@@ -9126,15 +9128,37 @@ PIN_READING = """(id) => {
     words.push(...[...range.getClientRects()]
       .filter((box) => box.width > 2 && box.height > 2).map(edges));
   }
-  const parts = [...document.getElementById(id).querySelectorAll('*')]
-    .filter((el) => el.checkVisibility())
-    .flatMap((el) => [...el.getClientRects()]).map(edges);
-  const entries = [...document.querySelectorAll(
-    `[data-lf-margin-for="${id}"] .lf-margin-entry`)]
+  const parts = shownParts(document.getElementById(id))
+    .flatMap((el) => [...el.getClientRects()])
+    .filter((box) => box.width && box.height).map(edges);
+  const row = document.querySelector(`[data-lf-margin-for="${id}"]`);
+  const entries = [...row.querySelectorAll('.lf-margin-entry')]
     .filter((entry) => entry.checkVisibility())
     .map((entry) => edges(entry.getBoundingClientRect()));
-  return {words, parts, entries};
+  return {words, parts, entries, carrier: edges(row.getBoundingClientRect())};
 }"""
+
+
+def pin_reading(page, target):
+    """Read target parts, allocated carrier and buttons within a bounded module load."""
+    handle = page.wait_for_function(
+        PIN_READING, arg=target, timeout=render_checks_model.SERVED_TIMEOUT_MS
+    )
+    try:
+        return handle.json_value()
+    finally:
+        handle.dispose()
+
+
+def pin_distance(carrier, parts):
+    """Measure the allocated pin's distance from its nearest target part."""
+    return min(
+        hypot(
+            max(0, part["left"] - carrier["right"], carrier["left"] - part["right"]),
+            max(0, part["top"] - carrier["bottom"], carrier["top"] - part["bottom"]),
+        )
+        for part in parts
+    )
 
 
 def _meets(a, b):
@@ -9147,7 +9171,7 @@ def _meets(a, b):
 
 
 def test_a_pin_takes_the_empty_end_of_the_heading_above_its_run(browser, serve):
-    """Under a finger a suggestion's Accept and Reject are a 96px pin, and on
+    """Under a finger a suggestion's Accept and Reject form a pin, and on
     release-notes at 390px its run fills both lines of the Console paragraph, so the
     nearest clear room is the empty end of the short heading just above. A block
     that paints nothing of its own counts only by its words, so the pin stands there,
@@ -9163,39 +9187,25 @@ def test_a_pin_takes_the_empty_end_of_the_heading_above_its_run(browser, serve):
     margins_laid_out(page)
     row = page.locator('.lf-margin-cluster[data-lf-margin-for="rn-sug-only"]')
     expect(row).to_have_attribute("data-lf-place", "pin")
-    reading = page.evaluate(PIN_READING, "rn-sug-only")
+    reading = pin_reading(page, "rn-sug-only")
     # Accept and Reject.
     assert len(reading["entries"]) == 2, reading["entries"]
     for entry in reading["entries"]:
         covered = [word for word in reading["words"] if _meets(word, entry)]
         assert not covered, (entry, covered)
-    pair = {
-        "left": min(e["left"] for e in reading["entries"]),
-        "right": max(e["right"] for e in reading["entries"]),
-        "top": min(e["top"] for e in reading["entries"]),
-        "bottom": max(e["bottom"] for e in reading["entries"]),
-    }
-    apart = min(
-        max(
-            0,
-            part["left"] - pair["right"],
-            pair["left"] - part["right"],
-            part["top"] - pair["bottom"],
-            pair["top"] - part["bottom"],
-        )
-        for part in reading["parts"]
-    )
     line = page.locator("#rn-console-why").evaluate(
         "el => parseFloat(getComputedStyle(el).lineHeight)"
     )
-    # If no clear seat is within 12px, `pinSpot` may use one line more.
-    assert apart <= 12 + line, (pair, reading["parts"])
+    # `pinSpot` seats the carrier, including focus-ring room, and may reach one
+    # line beyond 12px when every near seat is occupied. Actual buttons above
+    # still cover none of the page's words.
+    assert pin_distance(reading["carrier"], reading["parts"]) <= 12 + line, reading
 
 
 def test_a_pin_with_no_room_within_reach_reaches_past_a_line_of_words(browser, serve):
     """On release-notes at 390px under a finger, the API section's deletion starts on
-    its paragraph's second line, below a first line full of words, and ends where a
-    96px Accept/Reject pair has no room before the next block. No room lies within
+    its paragraph's second line, below a first line full of words, and ends where
+    an Accept/Reject pair has no room before the next block. No room lies within
     12px of the run, so the pair reaches one line further out, to the empty end of the
     section's heading, rather than covering the words it decides."""
     context = browser.new_context(
@@ -9209,7 +9219,7 @@ def test_a_pin_with_no_room_within_reach_reaches_past_a_line_of_words(browser, s
     margins_laid_out(page)
     row = page.locator('.lf-margin-cluster[data-lf-margin-for="rn-sug-dry"]')
     expect(row).to_have_attribute("data-lf-place", "pin")
-    reading = page.evaluate(PIN_READING, "rn-sug-dry")
+    reading = pin_reading(page, "rn-sug-dry")
     heading, line = page.evaluate(
         """() => {
           const {left, top, right, bottom} =
@@ -9226,9 +9236,7 @@ def test_a_pin_with_no_room_within_reach_reaches_past_a_line_of_words(browser, s
         assert _meets(entry, heading), (entry, heading)
     # The pair stands above the run, no further out than `pinSpot`'s 12px and one line
     # of the paragraph.
-    apart = min(part["top"] for part in reading["parts"]) - max(
-        entry["bottom"] for entry in reading["entries"]
-    )
+    apart = min(part["top"] for part in reading["parts"]) - reading["carrier"]["bottom"]
     assert 12 < apart <= 12 + line, (reading["entries"], reading["parts"], line)
 
 
@@ -9251,7 +9259,7 @@ FOLDING_PAGE = leaf_page(
 def test_a_pin_with_no_room_for_its_actions_stands_folded_and_unfolds_in_place(
     browser, serve
 ):
-    """Under a finger a suggestion's Accept and Reject are a 96px pair. Where no room
+    """Under a finger a suggestion's Accept and Reject form a pair. Where no room
     for the pair lies within reach of its run, the pin folds to one 44px control, the
     toggle to its actions, seated as any pin is, so it takes the room right of the
     paragraph and covers none of its words. A tap unfolds the actions leftward with the
@@ -9269,23 +9277,13 @@ def test_a_pin_with_no_room_for_its_actions_stands_folded_and_unfolds_in_place(
     expect(toggle).to_have_attribute("aria-expanded", "false")
     expect(toggle.locator("[data-lf-icon]")).to_have_attribute("data-lf-icon", "change")
     expect(toggle).to_have_attribute("aria-label", re.compile(r"^Change, rewrite"))
-    reading = page.evaluate(PIN_READING, "s")
+    reading = pin_reading(page, "s")
     # The toggle alone, over no word of the page.
     assert len(reading["entries"]) == 1, reading["entries"]
     (entry,) = reading["entries"]
     covered = [word for word in reading["words"] if _meets(word, entry)]
     assert not covered, (entry, covered)
-    apart = min(
-        max(
-            0,
-            part["left"] - entry["right"],
-            entry["left"] - part["right"],
-            part["top"] - entry["bottom"],
-            entry["top"] - part["bottom"],
-        )
-        for part in reading["parts"]
-    )
-    assert apart <= 12, (entry, reading["parts"])
+    assert pin_distance(reading["carrier"], reading["parts"]) <= 12, reading
 
     pressed = toggle.bounding_box()
     toggle.tap()
@@ -9357,7 +9355,7 @@ def test_a_heading_that_paints_its_box_keeps_a_pin_off_its_empty_end(browser, se
             " document.getElementById('h').getBoundingClientRect();"
             " return {left, top, right, bottom}; }"
         )
-        entries = page.evaluate(PIN_READING, "s")["entries"]
+        entries = pin_reading(page, "s")["entries"]
         # Accept and Reject on the heading's end; folded to their toggle beside a
         # painted heading, which leaves no room for the pair.
         assert len(entries) == (1 if painted else 2), entries
@@ -9384,7 +9382,7 @@ def test_a_widget_s_declared_face_is_room_for_its_own_pin(browser, serve, target
     margins_laid_out(page)
     row = page.locator(f'.lf-margin-cluster[data-lf-margin-for="{target}"]')
     expect(row).to_have_attribute("data-lf-place", "pin")
-    reading = page.evaluate(PIN_READING, target)
+    reading = pin_reading(page, target)
     assert reading["entries"], reading
     for entry in reading["entries"]:
         covered = [word for word in reading["words"] if _meets(word, entry)]
@@ -9425,33 +9423,17 @@ def test_a_choice_s_pin_stands_on_none_of_its_option_cards(browser, serve, optio
     row = page.locator('.lf-margin-cluster[data-lf-margin-for="o"]')
     expect(row).to_have_attribute("data-lf-place", "pin")
     margins_laid_out(page)
-    reading = page.evaluate(
-        """() => {
+    reading = pin_reading(page, "o")
+    cards = page.locator("lf-option").evaluate_all(
+        """(cards) => {
           const edges = ({left, top, right, bottom}) => ({left, top, right, bottom});
-          return {
-            cards: [...document.querySelectorAll('lf-option')]
-              .map((card) => edges(card.getBoundingClientRect())),
-            entries: [...document.querySelectorAll(
-              '[data-lf-margin-for="o"] .lf-margin-entry')]
-              .filter((entry) => entry.checkVisibility())
-              .map((entry) => edges(entry.getBoundingClientRect())),
-            group: edges(document.getElementById('o').getBoundingClientRect()),
-          };
+          return cards.map((card) => edges(card.getBoundingClientRect()));
         }"""
     )
     assert reading["entries"], reading
     for entry in reading["entries"]:
-        assert not any(_meets(entry, card) for card in reading["cards"]), reading
-        group = reading["group"]
-        apart = max(
-            0,
-            group["left"] - entry["right"],
-            entry["left"] - group["right"],
-            group["top"] - entry["bottom"],
-            entry["top"] - group["bottom"],
-        )
-        # Within the 12px `pinSpot` reaches from its target.
-        assert apart <= 12, reading
+        assert not any(_meets(entry, card) for card in cards), (reading, cards)
+    assert pin_distance(reading["carrier"], reading["parts"]) <= 12, reading
 
 
 def test_a_pin_on_a_contents_target_stands_at_its_last_part(browser, serve):

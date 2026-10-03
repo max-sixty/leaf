@@ -106,7 +106,7 @@ in `leaf-assets.json` and the README's image URLs that name it.
   previews under its `examples/`, republishes them, and moves the pin.
 - `leaf-dev record-demo` regenerates the README's demo GIF and stills and the site's
   card under its `demo/`, and publishes them the same way.
-- `leaf-dev publish-media IMAGE...` adds images the example pages show under its
+- `leaf-dev publish-media FILE...` adds media the example pages show under its
   `examples/media/`, and moves the pin.
 
 ## Codex

@@ -20,8 +20,8 @@ consumers read the page.
 
 Every reader of a stored revision takes `read_revision`: one held reading per
 revision, owning its manifest, captured vocabulary, parsed document, and passage
-readings. `read_artifact` materializes the complete bundle under a bound of
-its own; delivery parses the document it rewrites for serving, which is other text.
+readings. `read_artifact` holds immutable resource files without loading their
+bodies; delivery parses the document it rewrites for serving, which is other text.
 Each is kept in the memory of the page it was read from, for as long as the process
 keeps that page (`page_memory`).
 """
@@ -89,9 +89,37 @@ def _canonical_json(value) -> bytes:
 
 @dataclass(frozen=True)
 class Resource:
-    data: bytes
+    """Exact bytes or an immutable backing file, read only when a consumer needs them.
+
+    Captured files belong to the revision bundle; callers never replace them with a
+    mutable page path. A full read is explicit in `data`, while transports use `size`
+    and `read` to answer HEAD and byte ranges without materializing the whole file.
+    """
+
+    content: bytes | Path
     mime: str
     dependencies: tuple[str, ...] = ()
+
+    @property
+    def size(self) -> int:
+        return (
+            len(self.content)
+            if isinstance(self.content, bytes)
+            else self.content.stat().st_size
+        )
+
+    def read(self, window: slice = slice(0, None)) -> bytes:
+        if isinstance(self.content, bytes):
+            return self.content[window]
+        with self.content.open("rb") as stream:
+            stream.seek(window.start or 0)
+            return stream.read(
+                -1 if window.stop is None else window.stop - (window.start or 0)
+            )
+
+    @property
+    def data(self) -> bytes:
+        return self.read()
 
     @property
     def digest(self) -> str:
@@ -191,13 +219,12 @@ def resolve_dependency(specifier: str, importer: str, *, module=False) -> str | 
         not specifier
         or parsed.scheme
         or parsed.netloc
-        or parsed.query
-        or (module and parsed.fragment)
+        or (module and (parsed.query or parsed.fragment))
         or "\\" in specifier
         or any(ord(char) < 33 for char in specifier)
     ):
         raise ArtifactError(
-            f"{where}: dependency must be a local URL without a query, or an "
+            f"{where}: dependency must be a local URL (module URLs have no query or fragment), or an "
             "http(s) URL"
         )
     path = unquote(parsed.path)
@@ -358,15 +385,39 @@ def _css_dependencies(source: str, declarations: bool = False) -> tuple[str, ...
 def rewrite_css(source: str, address, *, declarations: bool = False) -> str:
     """Re-address every URL `source` loads through `address`, the rest byte-for-byte.
 
-    `address` takes a URL as written and returns the one to write in its place.
+    `address` takes a URL as written and returns its replacement, or None when
+    unavailable: the containing declaration or import is then omitted. Other
+    declarations, including the enclosing layout rules, remain.
     Delivery and export re-address through this, and capture collects its
     dependencies from the same `_css_references`, so all three agree on which URLs a
     sheet has.
     """
     tokens = _parse_css(source, declarations)
-    changed = False
+    references = list(_css_references(tokens))
+    targets = {token.value: address(token.value) for token in references}
+    omitted = {reference for reference, value in targets.items() if value is None}
+
+    def available(entries):
+        kept = []
+        for entry in entries:
+            if entry.type == "declaration" or (
+                entry.type == "at-rule" and entry.lower_at_keyword == "import"
+            ):
+                if any(token.value in omitted for token in _css_references([entry])):
+                    continue
+            elif getattr(entry, "content", None) is not None:
+                children = available(tinycss2.parse_blocks_contents(entry.content))
+                entry.content = tinycss2.parse_component_value_list(
+                    tinycss2.serialize(children)
+                )
+            kept.append(entry)
+        return kept
+
+    if omitted:
+        tokens = available(tokens)
+    changed = bool(omitted)
     for token in list(_css_references(tokens)):
-        value = address(token.value)
+        value = targets[token.value]
         if value == token.value:
             continue
         changed = True
@@ -753,7 +804,7 @@ def write_artifact(
 def read_artifact(page_dir: Path, revision: int) -> RevisionArtifact:
     """Read exact captured inputs, never substituting a mutable page file.
 
-    The page keeps the last few it materialized (`_Artifacts`), until any file they
+    The page keeps the last few bundle descriptors (`_Artifacts`), until any file they
     were read from changes."""
     path = revision_path(page_dir, revision).absolute()
     bundle = path.with_suffix("")
@@ -770,7 +821,7 @@ def read_artifact(page_dir: Path, revision: int) -> RevisionArtifact:
 
 
 class _Artifacts:
-    """A page's last materialized bundles, least recently read first.
+    """A page's last immutable bundle descriptors, least recently read first.
 
     A bundle is a couple of hundred files and several megabytes. A server answers
     each resource request from the revision a tab shows, which is the active one and
@@ -813,7 +864,8 @@ class RevisionReading(SourceReading):
 
     The complete bundle is not held here. It is a couple of hundred files, several
     megabytes, and a snapshot or a live shell asks for every revision's, so
-    `read_artifact` materializes it under its own small bound. What the bundle's
+    `read_artifact` holds its manifest and immutable resource paths under its own
+    small bound. What the bundle's
     identity answers, its `digest`, is the manifest's and needs none of it.
 
     `document` and `registry` are what `SourceReading` reads: here they are read from
@@ -953,12 +1005,12 @@ def _shared_registry(data: bytes) -> dict:
 
 
 def _materialize(path: Path, bundle: Path) -> RevisionArtifact:
-    """Read one immutable revision's complete bundle."""
+    """Read one immutable revision's manifest and retain its exact resource paths."""
     manifest_bytes = (bundle / "manifest.json").read_bytes()
     manifest = json.loads(manifest_bytes)
     resources = {
         logical: Resource(
-            (bundle / ("resources" + logical)).read_bytes(),
+            (bundle / ("resources" + logical)),
             record["mime"],
             tuple(record["dependencies"]),
         )

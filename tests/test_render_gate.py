@@ -2789,8 +2789,93 @@ def test_a_page_at_rest_does_nothing(browser, serve, source):
 
     The reader has asked for reduced motion, which is when a page owes stillness: one who
     allows motion may be shown a page's own film playing itself (rust-sort's)."""
-    findings = at_rest(still_page(browser, serve(source)))
+    page = still_page(browser, serve(source))
+    if source == FEATURE_GALLERY:
+        gallery_frames = page.locator("[data-interaction-frame]")
+        assert gallery_frames.count() > 0
+        expect(
+            page.locator("[data-interaction-frame][data-interaction-ready]")
+        ).to_have_count(gallery_frames.count())
+    findings = at_rest(page)
     assert findings == [], "\n".join(findings)
+
+
+def test_rest_waits_for_contained_arrival_before_arming(browser, serve):
+    source = leaf_page(
+        "Contained arrival",
+        '<lf-sample id="sample"><template id="content" data-sample>'
+        "<p>Example</p></template></lf-sample>",
+    )
+    page = still_page(browser, serve(source))
+    child = page.frames[1]
+    wait_until_ready(child)
+    child.evaluate(
+        """async () => {
+            const {deferredArrival} = await window.__lfRuntimeImport('/runtime/presentation.js');
+            const entry = document.querySelector('script[data-lf-entry]');
+            deferredArrival(new Promise(resolve => {
+                entry.releaseArrival = () => {
+                    document.body.setAttribute('data-arrived', 'yes');
+                    resolve();
+                };
+            }));
+        }"""
+    )
+
+    page.clock.run_for(1100)
+    assert (
+        child.evaluate(
+            "() => document.querySelector('script[data-lf-entry]').lfReadiness(null)"
+        )
+        == "arrived"
+    )
+    child.evaluate(
+        """() => {
+            const entry = document.querySelector('script[data-lf-entry]');
+            const readiness = entry.lfReadiness;
+            entry.lfReadiness = (...args) => {
+                entry.lfReadiness = readiness;
+                queueMicrotask(entry.releaseArrival);
+                return readiness(...args);
+            };
+        }"""
+    )
+    assert at_rest(page) == []
+    assert child.locator("body").get_attribute("data-arrived") == "yes"
+
+
+def test_rest_watches_a_frame_created_by_contained_arrival(browser, serve):
+    source = leaf_page(
+        "Nested arrival",
+        '<lf-sample id="sample"><template id="content" data-sample>'
+        "<p>Example</p></template></lf-sample>",
+    )
+    page = still_page(browser, serve(source))
+    child = page.frames[1]
+    wait_until_ready(child)
+    child.evaluate(
+        """async () => {
+            const {deferredArrival} = await window.__lfRuntimeImport('/runtime/presentation.js');
+            deferredArrival(new Promise(resolve => setTimeout(() => {
+                const nested = document.createElement('iframe');
+                nested.srcdoc = `<body><script>
+                    Object.defineProperty(window, 'lfRest', {
+                        configurable: true,
+                        set(rest) {
+                            Object.defineProperty(window, 'lfRest', {
+                                value: rest, writable: true, configurable: true
+                            });
+                            queueMicrotask(() => document.body.setAttribute('data-late', 'yes'));
+                        }
+                    });
+                <\\/script></body>`;
+                document.body.append(nested);
+                nested.addEventListener('load', resolve, {once: true});
+            }, 1000)));
+        }"""
+    )
+
+    assert any("data-late" in finding for finding in at_rest(page))
 
 
 def test_reader_state_observes_behavior_without_freezing_the_dom(browser, serve):

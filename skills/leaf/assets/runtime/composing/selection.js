@@ -696,6 +696,7 @@ export function createSelectionComposer({
           const destination = await openPageThread(sent.id, {
             focus: shouldReveal ? "thread" : false,
             travel: false,
+            flash: false,
             intent: shouldReveal
               ? restrictUserIntent(currentIntent, revealAvailable)
               : currentIntent,

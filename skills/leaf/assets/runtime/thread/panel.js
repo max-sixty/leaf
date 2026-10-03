@@ -94,7 +94,8 @@ export function createPanelComposer({
           return createPageComment(event);
         });
         if (!sent) return;
-        showThread(sent.id, { focus: false });
+        // The message renderer cues the send; revealing its thread only lands it.
+        showThread(sent.id, { focus: false, flash: false });
       },
     });
     sync();

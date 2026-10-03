@@ -33,7 +33,13 @@ export function mountReplay(capabilities) {
         commands.fabFrameAt(),
       );
       commands.detachComposer();
-      return () => commands.openThread(threadId, { travel: false, intent, transition });
+      return () =>
+        commands.openThread(threadId, {
+          travel: false,
+          flash: false,
+          intent,
+          transition,
+        });
     },
     resetThreads() {
       neutralChrome();

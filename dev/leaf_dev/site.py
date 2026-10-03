@@ -357,8 +357,14 @@ def publish_pages(out: Path, env: dict, assets: Path) -> None:
             leaf(env, "page", "check", str(template))
             target = product_page(out, source.name)
             shutil.copytree(template, target)
-            leaf(env, "page", "stamp", str(target), "--text", "As published")
-            leaf(env, "status", str(target), "idle")
+            prepare_page(
+                target,
+                read_fixture(source),
+                partial(leaf, env),
+                initialize=False,
+                final_status="idle",
+                current_note="As published",
+            )
     publish_examples(out, env)
 
 

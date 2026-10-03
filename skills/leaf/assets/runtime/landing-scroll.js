@@ -10,6 +10,15 @@ import { landingBand, shownBox } from "./geometry.js";
 import { scrollersOf } from "./reading-regions.js";
 import { moveScrollerBy, reachable } from "./scrolling.js";
 
+const nearestBy = ({ top, bottom }, band) =>
+  top < band.top && bottom > band.bottom
+    ? 0
+    : top < band.top
+      ? top - band.top
+      : bottom > band.bottom
+        ? Math.min(bottom - band.bottom, top - band.top)
+        : 0;
+
 function placementBy(where, block, box) {
   const rect = where instanceof Range ? where.getBoundingClientRect() : shownBox(where);
   const band = landingBand(box);
@@ -18,6 +27,8 @@ function placementBy(where, block, box) {
     where instanceof Range
       ? 0
       : Number.parseFloat(getComputedStyle(where).scrollMarginTop) || 0;
+  if (block === "nearest" && !(where instanceof Range))
+    return nearestBy({ top: rect.top - margin, bottom: rect.bottom }, band);
   const place =
     where instanceof Range
       ? (room - rect.height) / 2
@@ -34,18 +45,13 @@ export function scrollIntoReadingBand(where, holder, block, behavior) {
   let { top, bottom } = rect;
   const by = placementBy(where, block, box);
   let moved = reachable(box, by);
-  moveScrollerBy(box, by, behavior);
+  if (Math.abs(moved) >= 1) moveScrollerBy(box, by, behavior);
   for (const outer of around) {
     top -= moved;
     bottom -= moved;
     const band = landingBand(outer);
     if (!band) return;
-    const by =
-      top < band.top
-        ? top - band.top
-        : bottom > band.bottom
-          ? Math.min(bottom - band.bottom, top - band.top)
-          : 0;
+    const by = nearestBy({ top, bottom }, band);
     moved = reachable(outer, by);
     if (Math.abs(moved) >= 1) moveScrollerBy(outer, moved, behavior);
   }

@@ -306,7 +306,7 @@ function optionGroupProjection(
   });
 }
 
-const focusedOfferOf = (entry, expandedKey, expandedOwner) =>
+export const focusedOfferOf = (entry, expandedKey, expandedOwner) =>
   expandedKey === entry.key && expandedOwner
     ? (entry.offers.find((offered) => offered.key === expandedOwner) ?? null)
     : null;

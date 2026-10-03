@@ -123,6 +123,8 @@ def clone(staging: Path) -> Path:
     run(
         "git",
         "clone",
+        "--depth",
+        "1",
         f"https://github.com/{repository}.git",
         str(checkout),
         cwd=staging,

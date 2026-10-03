@@ -318,7 +318,7 @@ export function createFloatingResponsePlacement({
             // intrinsic growth may use the reading region's remaining travel before
             // the field scrolls. Content, rather than placed height, keeps clipping
             // during a wheel gesture from spending that travel again.
-            const height = fabBar.offsetHeight;
+            const height = fabBar.getBoundingClientRect().height;
             const contentHeight = response.open
               ? fabInput.scrollHeight + Math.max(0, height - fabInput.offsetHeight)
               : fabBar.scrollHeight;

@@ -92,6 +92,7 @@ dev = [
   "leaf-dev",
   # The Python server behind leaf.page, in `worker/`.
   "leaf-website",
+  "pytest-image-snapshot[pixelmatch]>=0.5.3",
 ]
 
 # An install never syncs the members, but uv reads their `pyproject.toml` files to
@@ -112,7 +113,7 @@ leaf-website = { workspace = true }
 # Two workers cap the browser load when suites overlap.
 # `-n0` to debug a single test.
 [tool.pytest.ini_options]
-addopts = "-n 2 --dist loadgroup --regtest-consider-line-endings"
+addopts = "-n 2 --dist loadgroup --regtest-consider-line-endings --image-snapshot-save-diff -p leaf_dev.thread_snapshot_plugin"
 markers = [
   "nightly: a pull request can land without it; `--run-nightly` runs it",
   "watch_shifts: a surveyed nightly test also rejects unsolicited layout shifts and typing that carries its field",

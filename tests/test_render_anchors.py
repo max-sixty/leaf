@@ -20,6 +20,7 @@ from leaf import structure as structure_model
 from leaf.registry import storage as registry_storage
 from leaf.render_checks import rendered, wait_until_ready
 from leaf.schema import ELEMENT_ID
+from leaf_dev.thread_journey import watch_message_arrival
 from PIL import Image
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
@@ -89,7 +90,6 @@ from render_harness import (
     ticked,
     told,
     wait_for_revision,
-    watch_message_arrival,
     write,
 )
 
@@ -160,9 +160,26 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
     wait_until_ready(page)
     result = page.evaluate(
         """async () => {
-        const {TEXT_BLOCK} = await window.__lfRuntimeImport('/runtime/passages.js');
+        const {TEXT_BLOCK, pageRange} = await window.__lfRuntimeImport('/runtime/passages.js');
+        const {nextRender, renderingSettled} =
+            await window.__lfRuntimeImport('/runtime/rendering.js');
         const tick = () => new Promise(r => setTimeout(r, 0));
-        const composer = document.querySelector('.lf-composer');
+        const rendered = async () => {
+            let timer;
+            const deadline = new Promise((_, reject) => {
+                timer = setTimeout(() => reject(
+                    new Error('Selection rendering did not settle')), 10000);
+            });
+            try {
+                await Promise.race([deadline, (async () => {
+                    await tick();
+                    await new Promise(resolve => nextRender(resolve));
+                    while (!renderingSettled()) await tick();
+                })()]);
+            } finally {
+                clearTimeout(timer);
+            }
+        };
         const fab = document.querySelector('.lf-fab-input');
         const speaks = el => {
             const near = el.closest('.lf-ui, [data-lf-said]');
@@ -188,7 +205,7 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
                 const pointer = {bubbles: true, composed: true, isPrimary: true,
                                  pointerType: 'mouse', button: 0};
                 blocks[i].dispatchEvent(new PointerEvent('pointerdown', pointer));
-                const range = document.createRange();
+                let range = document.createRange();
                 range.setStart(blocks[i], 0);
                 range.setEnd(end, end.childNodes.length);
                 const sel = getSelection();
@@ -196,14 +213,16 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
                 sel.addRange(range);
                 end.dispatchEvent(new PointerEvent('pointerup', pointer));
                 end.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
-                await tick();
+                await rendered();
+                // Mouse release snaps the native selection to word and sentence edges.
+                // The mark must match the selection the reader now sees.
+                range = pageRange(sel);
                 // Counted, not shrugged off: a selection the button declines to offer is
                 // a passage silently outside this sweep, and the sweep is the coverage.
                 if (fab.style.display !== 'block') {
                     skipped.push(range.toString().replace(/\\s+/g, ' ').trim().slice(0, 70));
                     continue;
                 }
-                await tick();
                 const painted = CSS.highlights.get('lf-pending');
                 // The captured quote, read off the node whether or not the user can
                 // see it: the composer shows it only where the page has no mark to give,
@@ -229,8 +248,8 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
                         return !n || !range.intersectsNode(n);
                     }))
                     astray.push(quoted.slice(0, 70));
-                composer.style.display = 'none';
                 sel.removeAllRanges();
+                await rendered();
             }
         }
         return {attempted, missed, skipped, astray};
@@ -2595,7 +2614,7 @@ def test_staged_widget_controls_name_the_presses_their_owners_make(browser, serv
     handle.scroll_into_view_if_needed()
     handle.focus()
     expect(line).to_contain_text("adjust the comparison")
-    expect(line).to_contain_text("jump to an endpoint")
+    expect(line).to_contain_text("show before or after")
     page.keyboard.press("ArrowRight")
     expect(comparison).to_have_attribute("position", "51")
     page.keyboard.press("End")
@@ -4159,7 +4178,7 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve, color_sch
     expect(page.locator(".lf-command-reference")).to_contain_text("Earlier version")
     expect(page.locator(".lf-command-reference")).to_contain_text("Latest version")
     expect(page.locator(".lf-command-reference")).to_contain_text("Earliest version")
-    expect(page.locator(".lf-command-reference")).to_contain_text("Open v1")
+    expect(page.locator(".lf-command-reference")).to_contain_text("open v1")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-command-reference")).not_to_have_class(re.compile("open"))
     expect(menu).to_be_hidden()
@@ -4591,7 +4610,7 @@ def test_a_row_the_platform_activates_names_both_of_its_keys(browser, serve):
     page.keyboard.press("?")
     page.keyboard.press("?")
     expect(page.locator(".lf-command-reference")).to_contain_text("⏎ / space")
-    expect(page.locator(".lf-command-reference")).to_contain_text("Open that version")
+    expect(page.locator(".lf-command-reference")).to_contain_text("open that version")
     page.keyboard.press("Escape")
 
     # And the key the row had been leaving unnamed does what the row now says it does,
@@ -4738,7 +4757,7 @@ def test_the_current_page_has_a_menu_local_key(browser, serve):
     # walk it saves.
     page.keyboard.press("?")
     page.keyboard.press("?")
-    expect(help_el).to_contain_text("Open the current page")
+    expect(help_el).to_contain_text("open the current page")
     page.keyboard.press("Escape")
 
     # The first press opens and goes nowhere. A whole tick passes before the reading,
@@ -4767,7 +4786,7 @@ def test_the_current_page_has_a_menu_local_key(browser, serve):
     page.keyboard.press("?")
     page.keyboard.press("?")
     expect(help_el).to_be_visible()
-    expect(help_el).to_contain_text("Open the current page")
+    expect(help_el).to_contain_text("open the current page")
 
 
 def test_comparison_selection_moves_before_its_documents_finish_loading(browser, serve):
@@ -5894,7 +5913,11 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     holding(page, held, 1, "the inline reply")
     pending = thread.locator('.lf-msg[aria-busy="true"]')
     expect(pending).to_contain_text("Confirmed from the inline thread.")
-    assert page.evaluate("window.__messageArrival") == 0.5
+    assert page.evaluate("window.__messageArrival") == {
+        "opacity": 0.5,
+        "busy": True,
+        "words": "Confirmed from the inline thread.",
+    }
     expect(pending).to_have_css("opacity", "0.5")
     held.pop(0).continue_()
     page.unroute("**/api/event")

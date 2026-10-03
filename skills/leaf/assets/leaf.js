@@ -89,7 +89,11 @@ import { createThreadNarrowing } from "./runtime/thread/narrowing.js";
 import { createThreadPanelElements } from "./runtime/thread/panel-elements.js";
 import { createPageMapDialog } from "./runtime/page-map-dialog.js";
 import { createAskView } from "./runtime/asks/view.js";
-import { askActionLayer, ASK_CONTROL } from "./runtime/asks/view-elements.js";
+import { ASK_CONTROL } from "./runtime/asks/view-elements.js";
+import {
+  commandHintLayer,
+  createCommandHints,
+} from "./runtime/keyboard/command-hints.js";
 import { createDesignMode, inspectEl, legendRoot } from "./runtime/design.js";
 import { createChromeLayout } from "./runtime/chrome-layout.js";
 import { createThreadPanelController } from "./runtime/thread-panel.js";
@@ -116,20 +120,23 @@ import {
   toggleBtn,
 } from "./runtime/banner.js";
 
+import { nativeLayers } from "./runtime/keyboard/layer-stack.js";
+
 initializeServedDocument();
 keepPageRulesOffLayer();
 holdArrivingBounds();
 
 // A published shell may bundle the entry without publishing its source modules beside
 // it. Keep the synchronous validation seam on Leaf's own bootstrap element so render
-// checks can inspect either distribution without turning it into a package API. The two
-// readings answer different questions: which readiness fact the page has yet to state
+// checks can inspect either distribution without turning it into a package API. These
+// scene readings answer different questions: which readiness fact the page has yet to state
 // (`pageReadiness`), and whether its chrome and geometry have caught up with the input
-// handled since.
+// handled since, and which native layers currently expose reading and controls.
 const validationEntry = document.querySelector("script[data-lf-entry]");
 if (validationEntry) {
   validationEntry.lfReadiness = pageReadiness;
   validationEntry.lfRenderingSettled = renderingSettled;
+  validationEntry.lfNativeLayers = nativeLayers;
 }
 import { overflowMenu } from "./runtime/banner-toolbar.js";
 import {
@@ -161,7 +168,12 @@ import {
   standingStatusBoxes,
   bottomStatusEl,
 } from "./runtime/keyboard/shortcut-bar.js";
-import { focused, paintKeys, reflectFirstScopes } from "./runtime/keyboard/scopes.js";
+import {
+  focused,
+  paintKeys,
+  reflectFirstScopes,
+  reflectKeys,
+} from "./runtime/keyboard/scopes.js";
 import { watchDisclosures } from "./runtime/keyboard/disclosure.js";
 import { createStanding } from "./runtime/standing.js";
 import { mountRepaint, repaint, repaintPage } from "./runtime/repaint.js";
@@ -179,7 +191,7 @@ import {
   releaseFocus,
   tabStops,
 } from "./runtime/focus.js";
-import { announce, liveEl, notice } from "./runtime/notifications.js";
+import { announce, liveEl, notice, noticeVisible } from "./runtime/notifications.js";
 import { mediaViewer } from "./runtime/media.js";
 import { offer } from "./runtime/widget-elements.js";
 import { retainUserIntent } from "./runtime/user-intent.js";
@@ -191,6 +203,8 @@ const overlaySelected = annotationMode === "overlay";
 const annotationRenderer = overlaySelected
   ? await import("./runtime/annotation-overlay/index.js")
   : null;
+if (validationEntry && annotationRenderer)
+  validationEntry.lfFloatingSelections = annotationRenderer.floatingSelections;
 annotationRenderer?.mountAnnotationControls();
 
 const panelElements = createThreadPanelElements({ id: "lf-threads" });
@@ -521,6 +535,10 @@ asks = createAskView({
   repaint,
 });
 
+const commandHints = createCommandHints({
+  presentedControl: (control) => app.overlay?.presentedControl(control) ?? control,
+});
+
 const standingTarget = createStandingTarget({
   isAskControl: (node) => node?.matches?.(ASK_CONTROL),
   standingIn: asks.standingIn,
@@ -660,6 +678,7 @@ drawing = createDrawingController({
 
 layout = createChromeLayout({
   panelIsOpen,
+  noticeIsVisible: noticeVisible,
   elements: {
     panel,
     closeBtn,
@@ -755,6 +774,7 @@ const standing = createStanding({
   renderShortcutBar: () => renderShortcutBar(goToSequence.goToStatus),
   paintGoToHints: goToSequence.paintGoToHints,
   paintTargetPickerHints: targets.paintTargetPickerHints,
+  paintCommandHints: commandHints.paint,
   paintCoreControls,
   paintVersionShortcuts: version.paintShortcuts,
   paintInputs: inputs.paintInputs,
@@ -785,7 +805,7 @@ if (!offlineInteractive) {
     panel,
     legendRoot,
     goToHintLayer,
-    askActionLayer,
+    commandHintLayer,
     targetPickerHintLayer,
     pageSearchSurface,
     ...(visualMarkPaint ? [visualMarkPaint.layer] : []),
@@ -827,6 +847,7 @@ if (!offlineInteractive) {
   pageGeometry.mount();
   pageMapDialog.mount(chromeRoot);
   asks.mount();
+  commandHints.mount();
   app.mountAnnotations();
   app.overlay?.mount();
   app.mountThread();
@@ -838,6 +859,7 @@ if (!offlineInteractive) {
   layout.mountLayoutObservers();
   goToSequence.mountGoToSequence();
   mountShortcutBar({
+    placeBottomStatus: layout.syncBottomStatus,
     setGoToSequence: goToSequence.setGoToSequence,
     setReact: reactions.setReact,
   });
@@ -851,6 +873,7 @@ if (!offlineInteractive) {
   watchDisclosures(document);
   mountRepaint({
     reflectFirstScopes,
+    reflectKeys,
     paintStandingContent: standing.paintStandingContent,
     syncLayout: layout.syncLayout,
     pageShifted: pageGeometry.pageShifted,
@@ -859,7 +882,7 @@ if (!offlineInteractive) {
 } else {
   // An interactive export attaches no chrome, so its standing is only what a widget's
   // own box shows: an options group's addition field paints there as it does live.
-  mountRepaint({ paintStandingGeometry: inputs.paintInputs });
+  mountRepaint({ paintStandingGeometry: inputs.paintInputs, reflectKeys });
 }
 
 const replayReady = passiveSample

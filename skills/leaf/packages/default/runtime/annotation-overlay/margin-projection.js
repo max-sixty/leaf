@@ -478,8 +478,8 @@ export function createMarginProjection({
         {
           id: "margin.press",
           keys: PRESS,
-          does: "Open or close what the focused margin entry holds",
-          line: "open / close",
+          description: "Open or close what the focused margin entry holds",
+          title: "open / close",
           run: () => control.click(),
         },
       ],
@@ -1295,8 +1295,8 @@ export function createMarginProjection({
     {
       id: "margin.controls",
       keys: ["ArrowLeft", "ArrowRight"],
-      does: "Move through the margin entries on this target",
-      line: "move through margin entries",
+      description: "Move through the margin entries on this target",
+      title: "move through margin entries",
       repeat: true,
       when: () => {
         const active = focused();
@@ -2092,14 +2092,14 @@ export function createMarginProjection({
     if (stepsOut())
       return {
         root: preview,
-        does: "Return to the page element this thread is about",
-        says: "back to page",
+        description: "Return to the page element this thread is about",
+        title: "back to page",
         out: () => focusDestination(stepsOut()),
       };
     return {
       root: preview,
-      does: "Dismiss the thread view",
-      says: "dismiss thread",
+      description: "Dismiss the thread view",
+      title: "dismiss thread",
       // Where it lands turns on whether a level of the user's own stands under it. A
       // cluster they unfolded themselves is that level, and it folds the moment focus
       // leaves the margin, so the close hands them back to the entry the card hangs
@@ -2143,8 +2143,8 @@ export function createMarginProjection({
     if (expandedOptionsKey === forcedInlineOptionsKey) return null;
     return {
       root: host,
-      does: "Fold the secondary page actions",
-      says: "close options",
+      description: "Fold the secondary page actions",
+      title: "close options",
       out: () => setOptionsOpen(host.lfEntry, false, { returnFocus: true }),
     };
   }
@@ -2162,8 +2162,8 @@ export function createMarginProjection({
       {
         id: "margin.back",
         keys: ["Escape"],
-        does: () => pageMapRung(false)?.does,
-        line: () => pageMapRung()?.says,
+        description: () => pageMapRung(false)?.description,
+        title: () => pageMapRung(false)?.title,
         commandReferenceWhen: () => Boolean(pageMapRung(false)),
         when: () => Boolean(pageMapRung()),
         run: () => pageMapRung()?.out(),

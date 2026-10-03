@@ -918,9 +918,9 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      the outcome said in paint: the box is on its way out and may not also state
      that in metrics the fold is animating. */
   /* One baseline separates threads without putting boxes back around them. */
-  .lf-thread, .lf-going { --lf-thread-pad: 8px;
+  .lf-thread, .lf-going { --lf-thread-pad: 8px; --lf-thread-border: 1px;
     font: var(--t-5)/var(--lf-ui-lh) var(--sans); color: var(--ink); position: relative;
-    border: 1px solid transparent; border-block-end-color: var(--rule);
+    border: var(--lf-thread-border) solid transparent; border-block-end-color: var(--rule);
     padding: var(--lf-thread-pad); margin-bottom: 16px;
     --lf-block-frame: 1; }
   .lf-threads > .lf-thread:nth-last-child(1 of :not([hidden])) {
@@ -998,8 +998,8 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      title the thread is a column whose free room lies between the last message and the
      box, so later cards wait below the fold. That unused room is panel space: only
      the title, content and reply row paint the thread surface. Where the card runs past the fold the box
-     pins at the list's visible foot, over its foot padding, so nothing scrolls visibly
-     beneath it and a status reserving more of that foot moves nothing; the column is
+     pins above the list's stable focus-ring inset, so native editor growth leaves
+     Send stationary while transient status reservations belong to scroll landing; the column is
      its containing block, so it never pins over the title. Its own padding is the room
      the field's ring needs, and its surface is the card's (`reply-landing.js` reads a
      pinned row as shown, `thread-list.js` follows a reply to its top). The card fills
@@ -1008,9 +1008,13 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      in, so it lands whole. A column does not collapse margins, so the boxes that set
      one below keep only the space above them. */
   .lf-thread-compact > .lf-thread-reply { margin: auto 0 0; padding: 12px var(--lf-thread-inset);
-    position: sticky; bottom: calc(-1 * var(--lf-list-foot)); }
+    position: sticky; bottom: var(--focus-ring-room); }
   .lf-thread-compact[open]:not([hidden]):has(> .lf-thread-reply) { display: flex;
     flex-direction: column; box-sizing: border-box;
+    /* Native scrollHeight and clientHeight round separately to whole CSS pixels.
+       Their difference can over-scroll by less than one. End flow one pixel nearer
+       the border so the row remains on its sticky floor through that boundary. */
+    padding-block-end: calc(var(--focus-ring-room) - var(--lf-thread-border) - 1px);
     min-height: round(down, 100cqh - 2 * var(--focus-ring-room), 1px); }
   .lf-thread-compact[open]:has(> .lf-thread-reply)::details-content { display: flex;
     flex: 1; flex-direction: column; }
@@ -1323,13 +1327,15 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   .lf-command-reference .lf-binding-sequence > kbd { max-width: calc(var(--lf-command-key-column) - 8px);
     height: auto; min-height: var(--lf-key-badge-size); padding-block: 1px;
     line-height: 1.3; white-space: normal; }
-  .lf-command-reference-binding-matches .lf-command-reference-action {
+  .lf-command-reference-binding-matches .lf-command-reference-action-main {
     display: flex; align-items: baseline;
     justify-content: space-between; gap: 8px; }
   .lf-command-reference-binding-matches .lf-command-reference-command { flex: 1; width: auto; }
   .lf-command-reference-scope { flex: none; color: var(--muted); font-size: var(--t-6); }
+  .lf-command-reference-description { display: block; margin-top: 2px;
+    color: var(--muted); font-size: var(--t-6); }
   @media (max-width: 640px) {
-    .lf-command-reference-binding-matches .lf-command-reference-action { display: block; }
+    .lf-command-reference-binding-matches .lf-command-reference-action-main { display: block; }
     .lf-command-reference-binding-matches .lf-command-reference-command { width: 100%; }
     .lf-command-reference-binding-matches .lf-command-reference-scope {
       display: block; margin-top: 1px; }
@@ -1566,9 +1572,9 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      above prose, the single digit is a local label for the control it touches, so they
      stand in the document plane with it, where a scroll carries them, under the chrome
      they never cover. */
-  .lf-ask-binding-badges { position: absolute; inset: 0 auto auto 0;
+  .lf-command-binding-badges { position: absolute; inset: 0 auto auto 0;
     z-index: var(--lf-z-page-paint); }
-  .lf-ask-binding-badges > .lf-ask-binding-badge { transform: translate(-50%, -50%); }
+  .lf-command-binding-badges > .lf-command-binding-badge { transform: translate(-50%, -50%); }
   /* The Target picker and Go-to sequence both give visible targets generated, prefix-free
      names while their interaction stands. Every hint remains visible: the face is
      the route itself, not a reminder of a predictable ordinal. */

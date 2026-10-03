@@ -148,8 +148,8 @@ export function createThreadPanelController({
     panelIsOpen() && narrowing.narrowed()
       ? {
           root: panel,
-          says: "show all",
-          does: "Show every thread again",
+          title: "show all",
+          description: "Show every thread again",
           lineWhen: yieldsToSearch(),
           out: () => narrowing.widen(),
         }
@@ -163,8 +163,8 @@ export function createThreadPanelController({
     panelIsOpen()
       ? {
           root: panel,
-          says: "close threads",
-          does: "Close the thread panel",
+          title: "close threads",
+          description: "Close the thread panel",
           lineWhen: yieldsToSearch(),
           out: () => {
             setPanel(false);

@@ -348,11 +348,15 @@ customElements.define(
         "On a suggested change",
         Object.entries(labels).map(([key, label]) => ({
           id: `suggestion.${key}`,
-          keys: [],
+          contextKeys: () => {
+            const position = this.#offered().indexOf(key);
+            return position === -1 ? [] : [String(position + 1)];
+          },
           control: () => this.#margin?.control(key),
-          decision: label,
-          does: `${label} the suggested change`,
-          line: label.toLowerCase(),
+          bindingBadge: null,
+          decision: true,
+          title: label,
+          description: `${label} the suggested change`,
           when: () => this.#offered().includes(key),
           run: () => this.#margin?.activate(key),
         })),

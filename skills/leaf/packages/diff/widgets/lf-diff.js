@@ -246,8 +246,7 @@ function summaryNode(file, open) {
     {
       id: "diff.toggle",
       keys: () => DISCLOSE(summary),
-      does: () => `${details.open ? "Hide" : "Show"} that file's diff`,
-      line: () => `${details.open ? "hide" : "show"} this file`,
+      title: () => `${details.open ? "hide" : "show"} this file`,
     },
   ]);
   details.append(summary);
@@ -696,32 +695,30 @@ customElements.define(
             {
               id: "diff.next-hunk",
               keys: ["]"],
-              does: "Go to the next hunk",
-              line: "next hunk",
+              title: "next hunk",
               when: () => this.hasHunks(),
               run: () => this.present(this.stepHunk(false)),
             },
             {
               id: "diff.previous-hunk",
               keys: ["["],
-              does: "Go to the previous hunk",
-              line: "previous hunk",
+              title: "previous hunk",
               when: () => this.hasHunks(),
               run: () => this.present(this.stepHunk(true)),
             },
             {
               id: "diff.next-file",
               keys: ["}"],
-              does: "Go to the next file's header",
-              line: "next file",
+              title: "next file",
+              description: "Go to the next file's header",
               when: () => this.shownEntries().length > 1,
               run: () => this.stepFile(false),
             },
             {
               id: "diff.previous-file",
               keys: ["{"],
-              does: "Go to the previous file's header",
-              line: "previous file",
+              title: "previous file",
+              description: "Go to the previous file's header",
               when: () => this.shownEntries().length > 1,
               run: () => this.stepFile(true),
             },
@@ -734,16 +731,14 @@ customElements.define(
             {
               id: "diff.wrap",
               keys: ["Alt+w"],
-              does: () =>
-                this.wrapped() ? "Show long lines unwrapped" : "Wrap long lines",
-              line: () => (this.wrapped() ? "stop wrapping" : "wrap long lines"),
+              title: () => (this.wrapped() ? "stop wrapping" : "wrap long lines"),
               run: () => this.diffTools?.wrap.click(),
             },
             {
               id: "diff.search",
               keys: ["/"],
-              does: "Filter the files in this diff",
-              line: "filter files",
+              title: "filter files",
+              description: "Filter the files in this diff",
               run: () => this.diffTools?.search.focus(),
             },
             // The filter is a layer of this widget, so its way out is read off the
@@ -760,11 +755,11 @@ customElements.define(
                   (search.value || this.diffTools.node.matches(":focus-within")),
                 );
               },
-              does: () =>
+              title: () => (this.diffTools?.search.value ? "show all files" : "back"),
+              description: () =>
                 this.diffTools?.search.value
                   ? "Show every file again"
                   : "Leave the diff filter",
-              line: () => (this.diffTools?.search.value ? "show all files" : "back"),
               run: () => {
                 const search = this.diffTools?.search;
                 if (search?.value) {
@@ -781,8 +776,8 @@ customElements.define(
             {
               id: "diff.next-unreviewed",
               keys: ["Alt+ArrowDown"],
-              does: "Open the next unreviewed matching file",
-              line: "next unreviewed file",
+              title: "next unreviewed file",
+              description: "Open the next unreviewed matching file",
               when: () => this.nextReviewEntry() !== null,
               run: () => this.present(this.nextUnreviewed()),
             },

@@ -1773,34 +1773,36 @@ def test_interaction_gallery_waits_for_a_restored_frame_tab(serve, browser):
     page = open_page(browser, f"{url}#bg-interactions", context=context)
     gallery = page.locator("#bg-interactions")
     gallery.get_by_role("tab", name="Send a comment").click()
-    # An init script is source rather than a function Playwright calls, so a bare
-    # arrow here is an expression the document evaluates and throws away, and the
-    # delay this test is named for never reaches the frame.
-    context.add_init_script(
-        """(() => {
-                const append = Element.prototype.append;
-                Element.prototype.append = function(...nodes) {
-                    if (
-                        window.frameElement?.hasAttribute('data-interaction-frame')
-                        && nodes.some(node => node instanceof HTMLScriptElement)
-                    ) {
-                        setTimeout(() => append.apply(this, nodes), 2000);
-                        return;
-                    }
-                    return append.apply(this, nodes);
-                };
-            })();"""
-    )
-    page.reload(wait_until="domcontentloaded")
+    held = []
+    held_once = False
+
+    def hold_restored_state(route):
+        nonlocal held_once
+        if route.request.frame.name == "interaction-send-comment" and not held_once:
+            held_once = True
+            held.append(route)
+            return
+        route.continue_()
+
+    page.route("**/api/state*", hold_restored_state)
+    with page.expect_request(
+        lambda request: (
+            request.frame.name == "interaction-send-comment"
+            and "/api/state" in request.url
+        )
+    ):
+        page.reload(wait_until="domcontentloaded")
     toggle = gallery.locator("[data-interaction-toggle]")
-    page.wait_for_function(
-        """() => {
-                const gallery = document.querySelector('#bg-interactions');
-                const status = gallery?.querySelector('[data-interaction-status]');
-                const toggle = gallery?.querySelector('[data-interaction-toggle]');
-                return status?.textContent === 'Loading' && toggle?.disabled;
-            }"""
+    expect(gallery.get_by_role("tab", name="Send a comment")).to_have_attribute(
+        "aria-selected", "true"
     )
+    expect(gallery.locator("[data-interaction-status]")).to_have_text("Loading")
+    expect(toggle).to_be_disabled()
+    assert held, "the restored frame never requested its state"
+    held.pop().continue_()
+    page.wait_for_load_state("load")
+    wait_until_ready(page)
+    page.unroute("**/api/state*", hold_restored_state)
     expect(gallery.locator("[data-interaction-status]")).to_have_text(
         "Ready — motion will start only when you press Play", timeout=15_000
     )

@@ -230,8 +230,8 @@ export function createDrawers({
     currentDrawer()
       ? {
           root: drawers.get(currentDrawer()).panel,
-          says: `close ${currentDrawer()}`,
-          does: `Close the ${currentDrawer()} drawer`,
+          title: `close ${currentDrawer()}`,
+          description: `Close the ${currentDrawer()} drawer`,
           // A drawer's parent is the document, so its step lands the user there rather
           // than on the edge button that reopens it.
           out: () => {

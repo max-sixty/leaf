@@ -238,10 +238,6 @@ AWAITS_SCHEMA = {
     "properties": {
         "when": AWAITING_CONDITION,
         "answered": ANSWERED_SCHEMA,
-        # This widget supplies the answer control but not its own question title.
-        # A matching instance therefore stands inside an x-ask-surface region, whose direct
-        # heading owns the reading and arrival.
-        "region": {"const": True},
         "all": {"type": "string", "pattern": f"^{HTML_NAME}$"},
     },
     "additionalProperties": False,

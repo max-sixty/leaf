@@ -51,6 +51,14 @@ function presented(frame, url, signal) {
     const loaded = () => {
       const doc = frame.contentDocument;
       if (!doc || frame.contentWindow.location.href !== url) return;
+      // A failed document response can load without any Leaf scripts to report it.
+      if (
+        !doc.documentElement.hasAttribute("data-lf-live") &&
+        !doc.documentElement.dataset.lfStartupError
+      ) {
+        finish(new Error(`Leaf sample document did not start: ${url}`));
+        return;
+      }
       const inspect = () => {
         const failure = doc.documentElement.dataset.lfStartupError;
         if (failure) finish(new Error(failure));

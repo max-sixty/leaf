@@ -1625,8 +1625,8 @@ def test_a_refused_approval_says_why_to_the_keyboard_and_the_finger(browser, ser
     expect(approval).to_have_attribute("aria-disabled", "true")
     expect(approval).to_have_attribute("aria-description", reason)
     expect(approval).to_be_disabled()
-    page.locator(".lf-banner-more").focus()
-    page.keyboard.press("Tab")
+    page.locator(".lf-threads-toggle").focus()
+    page.keyboard.press("Shift+Tab")
     expect(approval).to_be_focused()
     before = events_model.read_events(serve.page_dir)
     page.keyboard.press("Enter")
@@ -1669,23 +1669,135 @@ def test_the_banner_reads_in_one_order_at_every_width(browser, serve, other_leaf
         f"too few controls stood at these widths to have an order at all: {orders}"
     )
 
-    # And the order it settled on: every banner control the page offers, with the reading loop
-    # finishing the row beside the panel it opens.
+    # More follows the primary reading loop, with one order at every width.
     widest = max(orders.values(), key=len)
     for wanted in ("All leaves", "Asks", "Accept all", "v1", "Approve version"):
         assert any(wanted in name for name in widest), (
             f"{wanted} was not on the row at all, so this order proves little: {widest}"
         )
     for width, order in orders.items():
-        assert order[-1].startswith("Open threads:"), (
-            f"the thread no longer finishes the row at {width}px: {order}"
-        )
+        assert order[-1].startswith("Open threads:"), order
+    expect(page.locator(".lf-banner-actions > :last-child")).to_have_class(
+        re.compile(r"\blf-banner-more\b")
+    )
     resized(page, 500, 900)
     control = banner_control(page, ".lf-others")
     control.click()
     page.mouse.move(0, page.viewport_size["height"] - 1)
     expect(control).to_have_attribute("aria-expanded", "true")
     expect(control).to_have_css("background-color", token_colour(page, "--chip"))
+
+
+@pytest.mark.watch_shifts
+@pytest.mark.parametrize(
+    "width,touch,ui_size",
+    [
+        (1200, False, 14),
+        (630, False, 14),
+        (629, False, 14),
+        (500, False, 14),
+        (390, False, 14),
+        (320, False, 14),
+        (630, True, 14),
+        (629, True, 14),
+        (320, True, 16),
+        (320, True, 20),
+        (631, False, 20),
+    ],
+)
+def test_approval_capability_changes_keep_banner_targets(
+    browser, serve, width, touch, ui_size
+):
+    """Approval arriving or leaving cannot change chrome allocation or a resting aim.
+
+    The widths straddle the capacity boundary, include the former page-dependent
+    interval, and retain access with enlarged UI text. Native shift watching also
+    protects movement between the settled reads.
+    """
+    original = leaf_page("Reading", '<h1 id="reading">A place to read</h1>').replace(
+        "</head>", f"<style>:root {{ --t-5: {ui_size}px; }}</style></head>"
+    )
+    approval = original.replace(
+        "<title>Reading</title>",
+        '<title>Reviewing</title><meta name="lf-review" content="sign-off">',
+    )
+    context = browser.new_context(
+        viewport={"width": width, "height": 900}, has_touch=touch, is_mobile=touch
+    )
+    page = open_page(browser, live_url(serve(original)), context=context)
+    resized(page, width, 900)
+    selectors = (
+        ".lf-banner",
+        ".lf-banner-status",
+        ".lf-banner-actions",
+        ".lf-threads-toggle",
+        ".lf-banner-more",
+        "#reading",
+    )
+
+    def boxes():
+        return {
+            selector: page.locator(selector).bounding_box() for selector in selectors
+        }
+
+    before = boxes()
+    more = page.locator(".lf-banner-more")
+    more_box = before[".lf-banner-more"]
+    aim = (
+        more_box["x"] + more_box["width"] / 2,
+        more_box["y"] + more_box["height"] / 2,
+    )
+    page.mouse.move(*aim)
+    more.focus()
+    expect(more).to_be_focused()
+    for source, title, present in (
+        (approval, "Reviewing", True),
+        (original, "Reading", False),
+    ):
+        page.wait_for_timeout(600)  # End Chrome's native recent-input grace.
+        (serve.page_dir / "index.html").write_text(source)
+        told(page)
+        expect(page).to_have_title(title)
+        rendered(page)
+        if present:
+            expect(page.locator(".lf-signoff")).to_be_visible()
+            expect(
+                page.get_by_role("button", name="Approve version", exact=True)
+            ).to_be_visible()
+        else:
+            expect(page.locator(".lf-signoff")).to_be_hidden()
+        after = boxes()
+        assert after[".lf-banner-status"]["width"] >= 150
+        reserved_height = page.evaluate(
+            "parseFloat(getComputedStyle(document.body, '::before').height)"
+        )
+        assert after[".lf-banner"]["height"] == pytest.approx(reserved_height, abs=0.5)
+        for selector in (".lf-signoff", ".lf-threads-toggle", ".lf-banner-more"):
+            target = page.locator(selector)
+            if target.is_visible():
+                box = target.bounding_box()
+                assert box["x"] >= 0 and box["x"] + box["width"] <= width
+                if touch:
+                    assert box["width"] >= 43.5 and box["height"] >= 43.5
+        for selector in selectors:
+            assert after[selector] == pytest.approx(before[selector], abs=0.5), (
+                selector,
+                before,
+                after,
+            )
+        expect(more).to_be_focused()
+        assert page.evaluate(
+            "([x,y]) => document.elementFromPoint(x,y).closest('.lf-banner-more') !== null",
+            aim,
+        )
+        page.keyboard.press("Enter")
+        menu = page.locator(".lf-banner-menu")
+        expect(menu).to_be_visible()
+        menu_box = menu.bounding_box()
+        assert menu_box["x"] >= 0 and menu_box["x"] + menu_box["width"] <= width
+        page.keyboard.press("Escape")
+        expect(menu).to_be_hidden()
+        expect(more).to_be_focused()
 
 
 def test_notices_stay_at_the_visible_pages_right_edge(browser, serve):

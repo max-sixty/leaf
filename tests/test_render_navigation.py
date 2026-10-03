@@ -6876,6 +6876,11 @@ def test_the_reference_keeps_its_complete_keyboard_layer(browser, serve):
             )
         ).to_have_count(1)
 
+    # The reference advertises the whole palette even while its controls are closed.
+    expect(
+        help_el.locator('tr[data-lf-command="response.reaction.choose"] kbd')
+    ).to_have_text("1–6")
+
     seen = set()
     for _ in range(6):
         page.keyboard.press("Tab")
@@ -10164,7 +10169,7 @@ def test_expanded_shortcuts_fit_their_region_with_larger_text(browser, serve):
 def test_the_resting_key_line_leads_from_the_page_to_target_selection(browser, serve):
     """The sentence a user reads before they have pressed anything.
 
-    The two Comment routes identify their targets directly. Whole-page search and page
+    Comment opens its box; selection first opens the picker. Whole-page search and page
     movement remain in the complete reference.
 
     Read off `:not([hidden])`, because renderShortcutBar leaves every live row in the DOM and
@@ -10177,8 +10182,7 @@ def test_the_resting_key_line_leads_from_the_page_to_target_selection(browser, s
     expect(page.get_by_role("button", name="? more", exact=True)).to_be_visible()
     # One settled read, which pins the count, the order, the keys and the words together.
     assert (
-        shortcut_bar_text(page)
-        == "c\ncomment on the page\ns\ncomment on target\n?\nmore"
+        shortcut_bar_text(page) == "c\ncomment on the page\ns\nselect element\n?\nmore"
     ), shortcut_bar_text(page)
 
     # Search and page movement are still declared but off the glance nobody asked for.

@@ -776,7 +776,7 @@ export function createGoToSequence({
     id: "navigation.go-to.open",
     touch: false,
     keys: ["g"],
-    description: "Go to a visible target, panel, page, or edge",
+    description: "Show hints for targets, panels, and page edges",
     title: "go to",
     // The sequence is still a route out of a covering auxiliary surface; its own scope
     // moves its root to that surface while armed.

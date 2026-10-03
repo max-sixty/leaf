@@ -744,8 +744,8 @@ export function createTargetPicker({
   pageCommand({
     id: "target.picker.open",
     keys: ["s"],
-    description: "Select an element to comment by tapping it or typing its hint",
-    title: "comment on target",
+    description: "Choose an element by tapping it or typing its hint, then comment",
+    title: "select element",
     touch: "Select element",
     // Once the field is open, its typing scope owns character keys. This gate also keeps
     // the route off the short line while a target is in hand.

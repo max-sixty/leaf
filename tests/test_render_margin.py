@@ -5809,8 +5809,9 @@ def test_a_margin_card_is_one_frame_that_rings_for_its_thread(browser, serve):
                 ground: getComputedStyle(thread).backgroundColor,
                 paper: getComputedStyle(card).backgroundColor,
                 words: x(words), field: x(field),
-                author: x(thread.querySelector('.lf-msg-head b')),
-                fieldBorder: getComputedStyle(field).borderTopStyle};
+                fieldBorder: getComputedStyle(field).borderTopStyle,
+                inset: Math.round(words.getBoundingClientRect().left
+                                  - card.getBoundingClientRect().left)};
     }"""
     )
     assert frame["ground"] == frame["paper"], frame

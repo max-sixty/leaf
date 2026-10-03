@@ -49,8 +49,8 @@ from leaf.revision_artifact import Resource
 from leaf.revision_delivery import compose_document
 from leaf.schema import ASSETS
 from leaf.served_state import page as served_page
-from leaf.service import delivery_reply_attempt, open_session_turn
-from leaf.session_cleanup import flocked
+from leaf.service import delivery_reply_attempt
+from leaf.state import flocked, open_session_turn, session_record, start_session_turn
 from leaf.thread import cmd_reply, cmd_resolve
 from leaf_dev import example_previews, startup, verify_site
 from playwright.sync_api import expect
@@ -63,7 +63,8 @@ ROOT = Path(__file__).parent.parent
 def accept_in_turn(thread_id: str, turn: str = "app-server-turn") -> None:
     """Open the provider turn and accept the offered delivery into it, as
     `HostedTurn.begin` does."""
-    open_session_turn(thread_id, turn)
+    assert start_session_turn(thread_id, turn, session_record(thread_id))
+    assert open_session_turn(thread_id, turn)
     with flocked(delivery_lock_path(thread_id)):
         [(path, _)] = [
             (path, record)
@@ -153,6 +154,7 @@ def hosted_follower(
     turn App Server named for it, and the connection that named it. Opening the
     Leaf turn stays the follower's own first step.
     """
+    assert start_session_turn(thread_id, turn_id, session_record(thread_id))
     return website_server.HostedTurn(
         host,
         page_dir,

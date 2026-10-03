@@ -18,6 +18,7 @@ from leaf import delivery as delivery_model
 from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
 from leaf import service as service_model
+from leaf.hook_carrier import hook_acknowledgement
 from leaf.registry import validation as registry_validation
 from leaf.registry.contract import event_clauses
 from leaf.registry.storage import active_registry
@@ -237,13 +238,16 @@ def test_how_it_works_delivery_has_the_shape_a_real_delivery_has(page_dir):
     with service_model.PageTransaction(page_dir) as page:
         stored = next(event for event in page.events if event["id"] == comment["id"])
         real = delivery_model.freeze_delivery(
-            [delivery_model.batch_data(page_dir, page, [stored])], carrier="hook"
+            [delivery_model.batch_data(page_dir, page, [stored])],
+            carrier="hook",
+            acknowledge=hook_acknowledgement,
         )
     # The transcript is Claude Code's loop, whose prompt hook carries the delivery
     # and confirms it, so nothing is left for the agent to acknowledge.
     assert shown.keys() == real.keys()
-    assert (shown["carrier"], shown["acknowledge"]) == ("hook", None)
-    assert real["acknowledge"] is None
+    assert shown["carrier"] == "hook"
+    assert f"leaf delivery ack {shown['id']}" in shown["acknowledge"]
+    assert f"leaf delivery ack {real['id']}" in real["acknowledge"]
     [real_batch] = real["batches"]
     (real_thread,) = real_batch["threads"]
     registry = active_registry(page_dir)

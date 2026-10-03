@@ -21,7 +21,7 @@ from pathlib import Path
 from leaf.files import read_json
 from leaf.registry.schema import aware_instant, schema_error
 from leaf.schema import USER_VIEWS_FILE, USER_VIEWS_LOCK
-from leaf.session_cleanup import flocked, write_json
+from leaf.state import flocked, write_json
 
 FRESH_FOR_S = 45
 RETAIN_FOR = timedelta(days=1)

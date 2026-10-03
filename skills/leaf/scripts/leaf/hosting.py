@@ -23,7 +23,7 @@ from urllib.parse import urlsplit
 from .detached import Handshake, StartRefused, starting_detached
 from .files import read_json
 from .host import session_harness
-from .leases import lock_is_held, page_locked, release_lease, take_lease
+from .leases import page_locked, release_lease, take_lease
 from .schema import SERVER_LOCK, SERVICE_FILE
 from .server import (
     host_key,
@@ -320,7 +320,12 @@ def _reuse_server(page_dir: Path, host: str | None, standing: bool) -> str | Non
 
 def _take_server_lease(page_dir: Path):
     """Take the process lease after checking reuse under the page lock."""
-    lease = take_lease(page_dir / SERVER_LOCK)
+
+    def clear_identity(held):
+        held.truncate(0)
+        held.flush()
+
+    lease = take_lease(page_dir / SERVER_LOCK, prepare=clear_identity)
     if lease is not None:
         return lease
     sys.exit(f"another server run is serving {page_dir}; re-run")
@@ -360,6 +365,7 @@ def _service_record(
         "enabled": True,
         "lifetime": lifetime,
         "runtime": runtime,
+        "server_id": httpd.server_id,
     }
 
 
@@ -378,10 +384,15 @@ def cmd_serve(
     The page lock serializes preparation through commitment, so another start
     cannot adopt an uncommitted listener. Binding and delivery preparation happen
     before publication. Only the accepted commit takes a claim and enables a new
-    service, in a short page transaction. A revival takes no acquisition.
+    service, in a short page transaction. The serving row producer is prepared
+    privately with its server incarnation and starts only after commitment,
+    outside the page lock. The live lease names this exact HTTP incarnation;
+    private preparation cannot advertise a retained service or neighbor row.
+    A revival takes no acquisition.
     """
     from .http import page_endpoint
     from .layer import payload_provenance
+    from .server_rows import RowPublisher
 
     require_cross_process_locking()
     lease = None
@@ -416,6 +427,9 @@ def cmd_serve(
                 )
                 lease = _take_server_lease(page_dir)
                 httpd = _bind_server(page_dir, access, endpoint, ports)
+                lease.write(httpd.server_id.encode())
+                lease.flush()
+                rows = RowPublisher(page_dir, httpd.server_id)
                 service = _service_record(
                     access,
                     httpd,
@@ -462,6 +476,7 @@ def cmd_serve(
                 announced = _announce_server(page_dir, url)
         if httpd is None or not announced:
             return
+        threading.Thread(target=rows.run, daemon=True).start()
         threading.Thread(
             target=stop_when_service_ends,
             args=(page_dir,),
@@ -606,7 +621,7 @@ def cmd_stop(
             if owner is not _StopScope.ANY_OWNER and not same_claim(page.claim, owner):
                 return stopped
             # The server may release its lease immediately after we disable it.
-            stopped = stopped or lock_is_held(page_dir / SERVER_LOCK)
+            stopped = stopped or running_server(page_dir) is not None
             service = read_json(page_dir / SERVICE_FILE)
             if service and first:
                 disabled = {
@@ -625,7 +640,6 @@ def cmd_stop(
             if lease is not None:
                 release_lease(lease)
                 return stopped
-        stopped = True
         time.sleep(0.05)
 
 

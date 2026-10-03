@@ -3331,13 +3331,13 @@ def test_the_banner_opens_a_panel_of_the_machines_leaves(
     expect(link.locator(".lf-dot")).to_have_class(re.compile(r"\bworking\b"))
     # Every row is cut to the panel's width, so the hover holds the whole account.
     # This page's own row carries the work behind it, which is what tells two rows
-    # apart when their titles are alike. A neighbour's row reads only that page's
-    # declaration (`presence.other_leaves`), so its hover has no work behind it.
+    # apart when their titles are alike. Neighbors publish the same compact account.
     expect(self_row).to_have_attribute(
         "title", re.compile(rf"^long\n{re.escape(str(tmp_path / 'self-work'))}\n")
     )
     expect(link).to_have_attribute(
-        "title", "The other leaf\nWorking — running the suite"
+        "title",
+        f"The other leaf\n{tmp_path / 'other-work'}\nWorking — running the suite",
     )
     destination = link.get_attribute("href")
     # The new tab keeps the other page's live root, authorized by the key its link
@@ -3458,7 +3458,9 @@ def test_the_banner_uses_the_page_mark_and_puts_each_edge_by_its_panel(
         assert 0 <= fit["threads"]["left"] < fit["threads"]["right"] <= width, fit
 
 
-def test_a_panel_row_follows_its_pages_status_live(browser, serve, other_leaf):
+def test_a_panel_row_follows_its_pages_status_live(
+    browser, serve, other_leaf, tmp_path
+):
     """The panel is a status surface, not a snapshot: a neighbour's declaration
     changing on disk repaints its row at the next poll, in place, and the row's
     hover follows it, being the same account written where there is room for it
@@ -3498,7 +3500,8 @@ def test_a_panel_row_follows_its_pages_status_live(browser, serve, other_leaf):
     line = row.locator(".lf-others-line")
     expect(line).to_have_text("Awaits — pick a storage engine")
     expect(row).to_have_attribute(
-        "title", "The other leaf\nAwaits — pick a storage engine"
+        "title",
+        f"The other leaf\n{tmp_path / 'other-work'}\nAwaits — pick a storage engine",
     )
     assert line.get_attribute("title") is None, (
         "the line carries a tooltip of its own again, which wins under the pointer "

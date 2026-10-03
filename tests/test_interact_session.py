@@ -11596,7 +11596,7 @@ def test_a_claim_transfer_stops_a_waiter_already_inside_a_poll(
 ):
     """Ownership is checked at delivery, not only at the start of a poll.
 
-    The FIFO holds a normal status read after the first watcher has already
+    The probe holds a normal status read after the first watcher has already
     selected its page. A second session then takes the claim and an event arrives.
     The old watcher must re-read ownership before it prints that event; otherwise
     two sessions can act as cursor owner despite the supersession check passing on
@@ -11604,20 +11604,34 @@ def test_a_claim_transfer_stops_a_waiter_already_inside_a_poll(
     """
     page = codex_claimed_page
     session_model.cmd_status(page, "waiting", "comment on the prototype")
-    status_path = page / "status.json"
-    # Arm the first status read before launch: a later replacement can catch
-    # the transactional read instead and block the claim on its event-log lock.
-    hold_status_read(status_path)
+    selected = page.parent / "waiter-selected-page"
+    probe = """
+import sys
+from pathlib import Path
+from leaf import session
+
+read_status = session.read_status
+def held_status(page):
+    Path(sys.argv[2]).write_text("selected", encoding="utf-8")
+    sys.stdin.readline()
+    return read_status(page)
+
+session.read_status = held_status
+sys.exit(session.cmd_wait(Path(sys.argv[1])))
+"""
     first = under_codex(
-        shlex.join([*LEAF_COMMAND, "wait", str(page)]),
+        shlex.join([sys.executable, "-c", probe, str(page), str(selected)]),
         codex_env | {"CODEX_THREAD_ID": "leaf-watcher-1"},
+        stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
     )
 
-    writer = fifo_writer(
-        status_path, "the first watcher never reached its held status read"
+    wait_for(
+        selected.exists,
+        bool,
+        failure="the first watcher never selected its page before the transaction",
     )
     assert service_model.page_claim(page)["id"] == "leaf-watcher-1"
 
@@ -11625,19 +11639,7 @@ def test_a_claim_transfer_stops_a_waiter_already_inside_a_poll(
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     service_model.claim_page(page)
     append_carried_log_record(page, {"kind": "comment", "author": "user", "text": "hi"})
-    os.write(
-        writer,
-        json.dumps(
-            {
-                "state": "waiting",
-                "detail": "comment on the prototype",
-                "ts": "t",
-            }
-        ).encode(),
-    )
-    os.close(writer)
-
-    first_out, first_err = first.communicate(timeout=60)
+    first_out, first_err = first.communicate(input="continue\n", timeout=60)
     assert (first.returncode, first_out) == (2, ""), first_err
     session = service_model.page_claim(page)
     assert session["id"] == "replacement"
@@ -11703,7 +11705,8 @@ def test_wait_lease_is_exact_and_excludes_another_wait(
     assert not leases_model.lock_is_held(lease_path)
 
 
-def test_a_question_about_a_lease_does_not_turn_its_taker_away(tmp_path):
+@pytest.mark.parametrize("prepared", [False, True])
+def test_a_question_about_a_lease_does_not_turn_its_taker_away(tmp_path, prepared):
     """`lock_is_held` asks with a momentary shared lock, which refuses an exclusive
     one as a lease does. A lease taken while a question is open waits the question
     out; only a lease turns a taker away."""
@@ -11713,7 +11716,9 @@ def test_a_question_about_a_lease_does_not_turn_its_taker_away(tmp_path):
         fcntl.flock(question, fcntl.LOCK_SH)
         assert not leases_model.lock_is_held(path)
         threading.Timer(0.05, fcntl.flock, (question, fcntl.LOCK_UN)).start()
-        lease = leases_model.take_lease(path)
+        lease = leases_model.take_lease(
+            path, prepare=(lambda held: held.flush()) if prepared else None
+        )
     assert lease is not None
     assert leases_model.take_lease(path) is None
     lease.close()
@@ -11750,6 +11755,27 @@ def test_a_stable_lock_serializes_waiting_takers_and_retains_its_file(
     assert not leases_model.lock_is_held(path)
     with cleanup_model.flocked(path):
         assert leases_model.lock_is_held(path)
+
+
+def test_prepared_lease_metadata_precedes_exclusive_liveness(tmp_path):
+    """A preparation never pairs a successor's lease with retained old metadata."""
+    path = tmp_path / "prepared.lock"
+    path.write_bytes(b"old")
+
+    def prepare(held):
+        assert not leases_model.lock_is_held(path)
+        held.truncate(0)
+        held.write(b"new")
+        held.flush()
+        assert not leases_model.lock_is_held(path)
+
+    lease = leases_model.take_lease(path, prepare=prepare)
+    try:
+        assert leases_model.lock_is_held(path)
+        assert path.read_bytes() == b"new"
+    finally:
+        leases_model.release_lease(lease)
+    assert not leases_model.lock_is_held(path)
 
 
 def test_a_crashed_lease_holder_releases_the_stable_file_for_a_successor(
@@ -14019,10 +14045,13 @@ def test_server_start_hands_the_page_to_a_process_of_its_own(page_dir):
         "enabled",
         "lifetime",
         "runtime",
+        "server_id",
     }
     assert service["runtime"]["path"] == str(schema_model.PLUGIN_ROOT)
     state = urllib.parse.urlsplit(url)._replace(path="/api/state").geturl()
-    assert urllib.request.urlopen(state).status == 200
+    response = urllib.request.urlopen(state)
+    assert response.status == 200
+    assert response.headers["Leaf-Server"] == service["server_id"]
 
 
 def test_server_start_forwards_flags_and_returns_service_output(page_dir):

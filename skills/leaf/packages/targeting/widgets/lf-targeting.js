@@ -324,7 +324,7 @@ customElements.define(
           {
             id: "targeting.focused-element",
             keys: ["Enter"],
-            title: "choose this element",
+            title: "choose boundary",
             when: () =>
               this.#armed &&
               targetCandidates(this.#preview, document.activeElement).length > 0,

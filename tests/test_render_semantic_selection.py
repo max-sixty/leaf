@@ -802,9 +802,9 @@ def test_slash_finds_page_text_without_a_target_kind(browser, serve):
         "Search all the text on the page"
     )
     expect(select_command.locator("kbd")).to_have_text("s")
-    expect(select_command.get_by_role("button")).to_have_text("comment on target")
+    expect(select_command.get_by_role("button")).to_have_text("select element")
     expect(select_command.locator(".lf-command-reference-description")).to_have_text(
-        "Select an element to comment by tapping it or typing its hint"
+        "Choose an element by tapping it or typing its hint, then comment"
     )
     page.keyboard.press("Escape")
     page.keyboard.press("/")

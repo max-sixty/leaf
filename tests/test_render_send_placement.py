@@ -679,7 +679,8 @@ def test_a_wheel_return_paints_the_comment_box_at_its_attachment_in_the_first_fr
         for y in range(image.height):
             for x in range(image.width):
                 red, green, blue = pixels[x, y]
-                if red - green > 60 and red - blue > 20:
+                # Match #ff0044 with room for JPEG edges, not tinted text pixels.
+                if red > 180 and green < 80 and blue < 140:
                     target_rows.append(y)
                 if green - red > 20 and green - blue > 20 and green > 130:
                     box_rows.append(y)

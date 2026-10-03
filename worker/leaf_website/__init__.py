@@ -343,7 +343,7 @@ def pending_agent_inputs(page_dir: Path) -> dict[str, str | None]:
     have taken another input first.
     """
     with PageTransaction(page_dir) as page:
-        activation = activate_source(page_dir)
+        activation = activate_source(page_dir, transaction=page)
         if activation.error:
             raise ValueError(activation.error)
         # Obligations already are canonical workflows, including their delivery
@@ -878,7 +878,7 @@ class WebsiteCodexHost:
             )
 
         with PageTransaction(page_dir) as page:
-            activation = activate_source(page_dir)
+            activation = activate_source(page_dir, transaction=page)
             with flocked(session_lock_path(thread_id)):
                 current = session_record(thread_id)
                 claim = page.active_claim

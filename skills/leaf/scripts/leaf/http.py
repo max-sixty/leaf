@@ -685,7 +685,7 @@ class PageEndpoint:
             version = self.page_snapshot.context.active["version"]
         else:
             with PageTransaction(self.page_dir) as page:
-                activate_source(self.page_dir)
+                activate_source(self.page_dir, transaction=page)
                 revision = latest_revision(self.page_dir)
                 if revision is None:
                     return self._json({"error": missing_revision(self.page_dir)}, 404)

@@ -7,6 +7,7 @@ process inspection and page-event semantics are imported only by their callers."
 import hashlib
 import os
 import secrets
+import sys
 import time
 from contextlib import contextmanager
 from datetime import datetime, timedelta
@@ -240,6 +241,13 @@ class PageTransaction:
         self._events = None
         self._lock = flocked(self.page_dir / EVENTS_FILE)
         self._log = self._lock.__enter__()
+        try:
+            from leaf.revisioning import finish_publications
+
+            finish_publications(self)
+        except BaseException:
+            self._lock.__exit__(*sys.exc_info())
+            raise
         return self
 
     def __exit__(self, exc_type, exc, traceback):

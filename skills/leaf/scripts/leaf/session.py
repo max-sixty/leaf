@@ -76,7 +76,7 @@ def cmd_status(
     from .served_state.page import full_state
 
     with PageTransaction(page_dir) as page:
-        activate_source(page_dir)
+        activate_source(page_dir, transaction=page)
         work = None
         if on is not None:
             check_local_claim(state)

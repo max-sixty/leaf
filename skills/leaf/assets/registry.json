@@ -575,6 +575,7 @@
             "seq": {"type": "integer", "minimum": 1},
             "parent": {"type": "string", "minLength": 1},
             "revision": {"type": "integer", "minimum": 1},
+            "publication": {"type": "string", "pattern": "^r[1-9][0-9]*-[a-f0-9]{16}$"},
             "text": {"type": "string", "minLength": 1},
             "token": {"type": "string", "minLength": 1},
             "anchor": {
@@ -618,6 +619,7 @@
           "additionalProperties": false,
           "oneOf": [{"required": ["text"]}, {"required": ["token"]}],
           "dependentSchemas": {
+            "publication": {"required": ["revision"], "properties": {"author": {"const": "agent"}}},
             "token": {"not": {"required": ["markup"]}},
             "failure": {"required": ["text", "responds"], "properties": {"author": {"const": "agent"}}},
             "anchor": {
@@ -719,6 +721,69 @@
             "session": {"type": "string", "minLength": 1}
           },
           "required": ["attention", "id", "ts", "author", "kind", "seq", "thread", "title", "agent", "session"],
+          "additionalProperties": false
+        }
+      },
+      "reanchor": {
+        "bookkeeping": true,
+        "record": {
+          "type": "object",
+          "properties": {
+            "attention": {
+              "type": "boolean"
+            },
+            "id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "ts": {
+              "type": "string",
+              "minLength": 1
+            },
+            "author": {
+              "const": "page"
+            },
+            "publication": {"type": "string", "pattern": "^r[1-9][0-9]*-[a-f0-9]{16}$"},
+            "kind": {
+              "const": "reanchor"
+            },
+            "seq": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "thread": {
+              "type": "string",
+              "minLength": 1
+            },
+            "revision": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "anchor": {
+              "type": "object",
+              "properties": {
+                "section": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "section"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "attention",
+            "id",
+            "ts",
+            "author",
+            "kind",
+            "seq",
+            "thread",
+            "revision",
+            "anchor"
+          ],
           "additionalProperties": false
         }
       },
@@ -880,6 +945,7 @@
             "seq": {"type": "integer", "minimum": 1},
             "version": {"type": "integer", "minimum": 1},
             "revision": {"type": "integer", "minimum": 1},
+            "publication": {"type": "string", "pattern": "^r[1-9][0-9]*-[a-f0-9]{16}$"},
             "text": {"type": "string", "minLength": 1},
             "restated": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
             "settles": {
@@ -899,6 +965,7 @@
             "session": {"type": "string", "minLength": 1}
           },
           "required": ["attention", "id", "ts", "author", "kind", "seq", "version", "revision", "text"],
+          "dependentSchemas": {"publication": {"properties": {"author": {"const": "agent"}}}},
           "additionalProperties": false
         }
       },

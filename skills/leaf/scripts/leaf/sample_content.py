@@ -137,6 +137,8 @@ def initial_sample_events(
     for seq, command in enumerate(commands, 1):
         try:
             event = deepcopy(command)
+            if "publication" in event:
+                raise ValueError("publication is owned by the checked source publisher")
             kind = event.get("kind")
             if not isinstance(kind, str) or kind not in kinds:
                 raise ValueError(f"kind must be one of {sorted(kinds)}")

@@ -378,6 +378,15 @@ def test_disabled_command_route_keeps_its_key_and_enabled_sibling(
     expect(first.locator("kbd")).to_be_hidden()
     expect(second.locator("kbd")).to_be_visible()
     expect(second.locator("kbd")).to_have_text("2")
+    expect(page.locator("#probe")).to_have_attribute("aria-keyshortcuts", "2")
+    offered = page.locator(
+        '.lf-shortcut-bar .lf-shortcut[data-lf-command-ids~="probe.second"]'
+    )
+    expect(offered).to_have_count(1)
+    expect(offered.locator("kbd")).to_have_text("2")
+    expect(
+        page.locator('.lf-shortcut-bar [data-lf-command-ids~="probe.first"]')
+    ).to_have_count(0)
 
     page.keyboard.press("1")
     rendered(page)
@@ -388,6 +397,18 @@ def test_disabled_command_route_keeps_its_key_and_enabled_sibling(
     page.keyboard.press("1")
     rendered(page)
     expect(result).to_have_text("Second applied")
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+    reference = page.locator(".lf-command-reference")
+    expect(
+        reference.locator('[data-lf-command="probe.second"][data-lf-available="true"]')
+    ).to_have_count(1)
+    expect(
+        reference.locator(
+            '[data-lf-command="probe.first"][data-lf-available="true"], '
+            '[data-lf-command="probe.outer"][data-lf-available="true"]'
+        )
+    ).to_have_count(0)
 
 
 ROUTE_HINT_OVERRIDE_MODULE = """\

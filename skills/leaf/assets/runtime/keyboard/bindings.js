@@ -444,7 +444,9 @@ export const ariaShortcuts = (rows, current = true, where) =>
   [
     ...new Set(
       (current ? activeRows(rows, where) : rows).flatMap((row) =>
-        bindings(row).flatMap(ariaBindings),
+        bindings(row)
+          .filter((binding) => !current || commandEntries(row, [binding]).length)
+          .flatMap(ariaBindings),
       ),
     ),
   ].join(" ");

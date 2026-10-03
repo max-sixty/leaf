@@ -56,6 +56,7 @@ import {
   activeRows,
   ariaShortcuts,
   bindings,
+  commandEntries,
   commandPresentations,
   commandRoutes,
   spell,
@@ -268,8 +269,13 @@ function lineRows(scopes) {
       return active.length ? [effectiveRow(row, bound, active)] : [];
     });
     for (const row of activeRows(reachable, scope.title ?? "the page's keys")) {
-      for (const binding of bindings(row)) named.add(binding);
-      rows.push(row);
+      const active = bindings(row).filter(
+        (binding) => commandEntries(row, [binding]).length,
+      );
+      if (!active.length) continue;
+      const source = sourceRow(row);
+      for (const binding of active) named.add(binding);
+      rows.push(effectiveRow(source, bindings(source), active));
     }
     nearer.past(scope);
   }

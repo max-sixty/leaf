@@ -2172,8 +2172,8 @@ def left_alone(page):
                 rendered(frame)
             prepare_children(frame)
 
-    prepare_children(page.main_frame)
     rendered(page)
+    prepare_children(page.main_frame)
     notice = page.locator(".lf-notice.show")
     deadline = time.monotonic() + render_checks_model.SERVED_TIMEOUT_MS / 1000
     while notice.count():

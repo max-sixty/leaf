@@ -32,6 +32,7 @@ import { scrollerFor, scrollersOf } from "../reading-regions.js";
 import { renderedParent } from "../shadow.js";
 import { bringBackSurfaceOf } from "../off-flow.js";
 import { retainUserIntent } from "../user-intent.js";
+import { atScrollEnd, scrollToEnd } from "../scrolling.js";
 import { SAYS_IN } from "./selectors.js";
 
 const REPLY_ROW = ".lf-thread-reply, .lf-say";
@@ -97,7 +98,7 @@ export function scrollThreadIntoView(
   bringBackSurfaceOf(held, behavior);
   const transcript = separateTranscript(held);
   if (transcript && control !== held && replyRowOf(held, control)) {
-    transcript.scrollTo({ top: transcript.scrollHeight, behavior });
+    scrollToEnd(transcript, behavior);
     return;
   }
   if (transcript?.contains(control)) {
@@ -114,6 +115,9 @@ export function scrollThreadIntoView(
 // them: the thread or seat holding the box by default, or the page element a reply in
 // the margin card hands them to (`landSent`). A box the send removed has handed the user
 // on already.
+// The sent turn lands without animation: fitting can change the transcript's room in
+// the next update, and an in-flight pixel destination would outlive the room it named.
+// The geometry owner then preserves the landed end while it fits that room.
 export function sendLanding(input, standing = input.closest(SAYS_IN)) {
   const held = input.closest(SAYS_IN);
   if (!held) return () => {};
@@ -124,7 +128,8 @@ export function sendLanding(input, standing = input.closest(SAYS_IN)) {
   return () =>
     void whenDocumentPresented()
       .then(() => {
-        if (mayLand() && input.isConnected) scrollThreadIntoView(held, input);
+        if (mayLand() && input.isConnected)
+          scrollThreadIntoView(held, input, "instant");
       })
       .catch(() => {});
 }
@@ -159,7 +164,7 @@ export function followBoxGrowth(input) {
       place.atTail &&
       transcript.clientHeight < place.height
     )
-      transcript.scrollTo({ top: transcript.scrollHeight, behavior: "instant" });
+      scrollToEnd(transcript);
     transcriptPlaces.delete(input);
     if (!onScreen(reply)) scrollThreadIntoView(held, input, "instant");
     return;
@@ -184,8 +189,7 @@ export function readBoxPlace(input) {
     transcriptPlaces.set(input, {
       transcript,
       height: transcript.clientHeight,
-      atTail:
-        transcript.scrollHeight - transcript.clientHeight - transcript.scrollTop <= 2,
+      atTail: atScrollEnd(transcript),
     });
 }
 

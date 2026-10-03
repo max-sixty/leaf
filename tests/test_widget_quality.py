@@ -18,6 +18,7 @@ from leaf import exporting as exporting_model
 from leaf import schema as schema_model
 from leaf.render_checks import wait_until_ready
 from leaf.render_gate.widget_quality import widget_findings
+from leaf.revision_delivery import json_script
 from model_folds import leaf_page
 from playwright.sync_api import expect
 from render_harness import consume_browser_errors, displayed
@@ -253,12 +254,29 @@ feeders/
         r'(<script type="module" src=)"[^"]*"( data-lf-runtime></script>)'
     )
     source = exported.read_text(encoding="utf-8")
-    held_source, entries = entry.subn("", source)
-    assert entries == 1, "the export no longer names one entry module to leave out"
+    packaged = re.search(
+        r'<script type="application/json" data-lf-export>(.*?)</script>',
+        source,
+        re.DOTALL,
+    )
+    package = json.loads(packaged[1])
+    composed = package["document"]
+    held_document, entries = entry.subn("", composed)
+    assert entries == 1, "the composed export no longer names one entry module"
+
+    def write_document(path, document):
+        package["document"] = document
+        path.write_text(
+            source[: packaged.start(1)]
+            + json_script(package)
+            + source[packaged.end(1) :],
+            encoding="utf-8",
+        )
+
     held = tmp_path / "held.html"
-    held.write_text(held_source, encoding="utf-8")
+    write_document(held, held_document)
     failed = tmp_path / "failed.html"
-    failed.write_text(entry.sub(r'\1"missing.js"\2', source), encoding="utf-8")
+    write_document(failed, entry.sub(r'\1"missing.js"\2', composed))
 
     first_page = browser.new_page(viewport={"width": 1200, "height": 900})
     first_page.goto(held.as_uri(), wait_until="load")
@@ -267,7 +285,7 @@ feeders/
 
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     page.goto(exported.as_uri(), wait_until="load")
-    expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
+    wait_until_ready(page)
     presented = page.evaluate(SHOWN)
 
     assert {"views", "more", "build", "tree"} <= first["boxes"].keys(), first

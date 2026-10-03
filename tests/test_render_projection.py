@@ -1940,9 +1940,9 @@ def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
     expect(page.locator(".lf-version")).to_contain_text("v2")
     signoff = page.locator(".lf-signoff")
     expect(signoff).to_be_visible()
-    assert signoff.evaluate("el => parseFloat(el.style.minWidth) > 0"), (
-        "approval was measured while its control was detached"
-    )
+    assert signoff.evaluate(
+        "el => parseFloat(el.style.getPropertyValue('--lf-reserved-width')) > 0"
+    ), "approval was measured while its control was detached"
     assert page.evaluate("window.__leafMain === document.querySelector('main')"), (
         "stamping the displayed revision replaced its main"
     )

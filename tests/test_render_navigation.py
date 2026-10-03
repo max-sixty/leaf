@@ -8686,11 +8686,18 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
             await window.__lfRuntimeImport('/runtime/keyboard/scopes.js');
           const { renderingSettled } =
             await window.__lfRuntimeImport('/runtime/rendering.js');
-          const settled = async () => {
-            do {
-              await new Promise(requestAnimationFrame);
-            } while (!renderingSettled());
-          };
+          const settled = () => new Promise((resolve, reject) => {
+            const timeout = setTimeout(
+              () => reject(new Error('Shortcut rendering did not settle within 30 seconds')),
+              30000);
+            const check = () => {
+              if (renderingSettled()) {
+                clearTimeout(timeout);
+                resolve();
+              } else requestAnimationFrame(check);
+            };
+            requestAnimationFrame(check);
+          });
           const declare = (id, rows) => {
             const button = document.createElement('button');
             button.id = id;

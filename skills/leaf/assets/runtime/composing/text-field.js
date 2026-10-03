@@ -26,8 +26,9 @@
  * runtime uses — `value`, the selection triple, `setSelectionRange`, `placeholder`,
  * `readOnly`, `name` — and fires `input` for a user edit only, as a textarea does. A
  * write to `value` fires nothing, puts the caret at the end, and starts a new undo
- * history, so undo never walks back into a draft the runtime swapped out. A pasted
- * picture is the box owner's: the field leaves that paste to the host's listeners.
+ * history, so undo never walks back into a draft the runtime swapped out. A box owner
+ * that takes pasted pictures intercepts paste in capture; otherwise the field pastes
+ * the clipboard's text, including text carried beside a picture.
  *
  * The placeholder is a layer under the words, shown while the field is empty. It reads
  * the `placeholder` attribute, and a child in slot `placeholder` stands in its place when
@@ -302,16 +303,6 @@ function decorate(state, placed) {
   return Decoration.set(out, true);
 }
 
-// A paste carrying a picture is left to the box's owner, which uploads it and keeps the
-// words as they were (`wireInput`); the editor would otherwise insert the clipboard's
-// text, or delete the selection for a clipboard with none, before the owner hears it.
-const pastesPicture = EditorView.domEventHandlers({
-  paste: (event) =>
-    [...(event.clipboardData?.items ?? [])].some(
-      (item) => item.kind === "file" && item.type.startsWith("image/"),
-    ),
-});
-
 // The draft is read by the renderer that will send it, so the preview styles exactly what
 // the message will: the same constructs, the same links. The reading is taken again when
 // the words change and the styling when the selection moves. The renderer loads lazily;
@@ -448,7 +439,6 @@ class LeafText extends HTMLElement {
         ]),
         new LanguageSupport(markdownLanguage),
         livePreview,
-        pastesPicture,
         fieldTheme,
         EditorView.lineWrapping,
         this.#editable.of(EditorState.readOnly.of(this.#readOnly)),

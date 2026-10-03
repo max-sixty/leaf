@@ -2919,6 +2919,75 @@ def test_a_draft_the_chrome_stands_down_says_so_and_keeps_an_address(browser, se
     assert pending_text(page), "the box came back on nothing"
 
 
+def test_picture_paste_belongs_to_the_composer_not_the_shared_text_field(
+    browser, serve
+):
+    """A direct editor pastes text; a composer takes pictures before text insertion."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Paste ownership",
+                '<h1>Paste ownership</h1><p id="passage">Comment on this passage.</p>'
+                '<lf-draft id="text-only"><pre>Keep WORD tail</pre></lf-draft>',
+            )
+        ),
+    )
+    page.context.grant_permissions(["clipboard-read", "clipboard-write"])
+    pixels = base64.b64encode(
+        (example_media() / "051bee487bfb5d13.png").read_bytes()
+    ).decode()
+    page.evaluate(
+        """async encoded => {
+      window.clipboardBeforePasteTest = await navigator.clipboard.read();
+      const bytes=Uint8Array.from(atob(encoded), char=>char.charCodeAt(0));
+      window.pasteTestPicture=new Blob([bytes], {type:'image/png'});
+    }""",
+        pixels,
+    )
+
+    def paste(box, text, picture):
+        box.focus()
+        box.evaluate("el=>el.setSelectionRange(5,9)")
+        page.evaluate(
+            """async ([text,picture]) => {
+          const payload={};
+          if(text!==null)payload['text/plain']=new Blob([text],{type:'text/plain'});
+          if(picture)payload['image/png']=window.pasteTestPicture;
+          await navigator.clipboard.write([new ClipboardItem(payload)]);
+        }""",
+            [text, picture],
+        )
+        page.keyboard.press("ControlOrMeta+v")
+
+    try:
+        draft_control(page, "edit", "text-only").click()
+        editor = page.locator("#text-only leaf-text")
+        for text, picture, expected in [
+            ("Pasted words", False, "Keep Pasted words tail"),
+            ("Pasted words", True, "Keep Pasted words tail"),
+            (None, True, "Keep  tail"),
+        ]:
+            write(editor, "Keep WORD tail")
+            paste(editor, text, picture)
+            expect(editor).to_have_js_property("value", expected)
+        draft_control(page, "cancel", "text-only").click()
+
+        compose(page, "#passage")
+        composer = page.locator(".lf-fab-input")
+        write(composer, "Keep WORD tail")
+        with page.expect_response(lambda response: response.url.endswith("/api/media")):
+            paste(composer, "Pasted words", True)
+        expect(page.locator(".lf-composer-media img")).to_have_count(1)
+        expect(composer).to_have_js_property("value", "Keep WORD tail")
+    finally:
+        page.evaluate("""async () => {
+          const previous=window.clipboardBeforePasteTest;
+          if(previous.length)await navigator.clipboard.write(previous);
+          else await navigator.clipboard.writeText('');
+        }""")
+
+
 @pytest.mark.parametrize("leave", [False, True])
 def test_image_upload_completion_preserves_the_readers_focus_and_scroll(
     browser, serve, leave

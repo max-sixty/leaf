@@ -446,8 +446,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   /* The banner draws the rows the theme states (--lf-banner-rows): on one, the status
      and the control run share the line and the status gives up room, down to an
      ellipsis, rather than wrap; on two, the status takes the first line whole and the
-     run a second of its own, starting at the left. The browser's wrap decides nothing.
-     Each line is a stated height, the status's 36px and the run's --lf-banner-row, so
+     run a second of its own. The browser's wrap decides nothing.
+     Each line's stated height follows UI type and aim size in the theme, so
      the banner's own height is its lines and always the one --lf-banner-h states. */
   .lf-banner { --lf-banner-gap: 10px;
     --lf-status-inset-left: 0px; --lf-status-inset-right: 0px;
@@ -463,22 +463,28 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      still; the press inside it (.lf-status-button) is as wide as its words and grows
      rightward into the room as its sentence does, so a status ageing from "is working"
      to "last checked in" moves nothing beside it. */
-  .lf-banner-status { flex: 1 1 0; min-width: 0; height: 36px;
+  .lf-banner-status { flex: 1 1 0; min-width: 0; height: var(--lf-banner-status-row);
     padding: 0 var(--lf-status-inset-right) 0 var(--lf-status-inset-left); }
-  @container style(--lf-banner-rows: 2) {
-    .lf-banner { flex-wrap: wrap; }
-    .lf-banner-status { flex-basis: 100%; }
-  }
-  /* The run's reserved widths are its basis, so an asynchronous count never moves the
-     status beside it, and a status sentence never moves a control. */
-  .lf-banner-actions { flex: 0 0 auto; min-width: 0; max-width: 100%;
+  /* The toolbar owns a stationary room, independent of which page capabilities are
+     present. The theme states its capacity and the rows that fit that capacity;
+     on two rows it owns the whole second row. Controls align at its trailing edge,
+     so Approval can appear before Threads and More without moving either target or
+     the status. */
+  .lf-banner-actions { flex: 0 0 var(--lf-banner-actions-w); min-width: 0; max-width: 100%;
     min-height: calc(var(--lf-banner-row) - 1px);
     justify-content: safe flex-end; overflow: hidden;
     padding: 4px 5px; }
-  /* A primary control keeps its words at every width. A flex item's default minimum is
-     its own words, but the shared aim floor states a minimum width in pixels and would
-     otherwise let the item shrink past them. */
+  @container style(--lf-banner-rows: 2) {
+    .lf-banner { flex-wrap: wrap; }
+    .lf-banner-status { flex-basis: 100%; }
+    .lf-banner-actions { flex-basis: 100%; }
+  }
+  /* Reading targets keep their reservations. Approval takes the remaining room,
+     down to the shared aim floor, and truncates its label when a larger face needs
+     more than the window can hold. Its complete text remains the accessible name. */
   .lf-banner-actions > .lf-btn { flex: none; }
+  .lf-banner-actions > .lf-signoff { flex-shrink: 1; overflow: hidden;
+    text-overflow: ellipsis; }
   .lf-banner-actions > .lf-btn:where(:not(.primary)) { border-color: transparent;
     border-radius: 0; background: transparent; }
   .lf-banner-actions > .lf-btn:where(:not(.primary)):hover { background: var(--chip); }
@@ -544,9 +550,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-status-text:has(.lf-publication-install) { display: flex; gap: 0.6em; }
   .lf-publication-copy { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   .lf-publication-link, .lf-publication-install { flex: none; }
-  /* The door onto the secondary controls stands at the row's start. Its menu hangs
-     inward from that door on a desk, where Approval and Threads place it near the
-     viewport's right edge; the phone rule below hangs it outward from the left instead. */
+  /* More finishes the row at the viewport's right edge; its menus hang inward. */
   .lf-banner-more { anchor-name: --lf-banner-more; flex: none; }
   /* A top-layer panel owned by the fixed banner keeps its vertical edge in viewport
      coordinates. WebKit otherwise resolves an anchor inside that fixed banner against
@@ -1811,10 +1815,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-inspect.lf-shown { display: block; }
   /* A phone held upright is narrower than the run in its desk face, so there the run
      wears a narrow one: the banner gives up its inset, which the status keeps for its
-     own line, and each control keeps only a sliver of padding. The same More, Approval,
-     and Threads seats remain in the same order at every width.
+     own line, and each control keeps only a sliver of padding. Approval, Threads,
+     and More keep the same order at every width.
 
-     The status keeps to one line in its own 36px row. Two would be a row that changes
+     The status keeps to one line in its own stated row. Two would be a row that changes
      height as a sentence ages, which moves every control under it for no gesture; the
      complete status remains available in its hover title at every width. */
   @media screen and (width <= 480px) {
@@ -1829,7 +1833,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
        ones the page has taken away: hidden is a display of its own, and a rule that
        states display without excluding it puts an absent control back on the row.
        Centring is for the controls that are there. */
-    .lf-banner-actions > .lf-btn:not([hidden]) { display: inline-flex;
+    .lf-banner-actions > .lf-btn:not([hidden]):not(.lf-signoff) { display: inline-flex;
       align-items: center; justify-content: center; }
     /* Forty on the narrow row, or the aim floor where a finger raises that past
        forty: this rule's padding outranks .lf-btn's, which carries the floor
@@ -1838,14 +1842,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
        safe here.
        It states both axes for the same reason, and the band is the shared control's. */
     .lf-banner-actions > .lf-btn { min-height: max(40px, var(--aim-floor)); padding: 4px 2px; }
-  }
-  /* The control run starts at the left once it has a line of its own. Keep each menu
-     under the same door; pinning the menu to the viewport's right made it appear to
-     belong to Threads after the Versions door wrapped to the left. The door already
-     stands inside the row's inset, so its edge is the menu's; the viewport max-width
-     above keeps the far edge inside the phone. */
-  @container style(--lf-banner-rows: 2) {
-    :is(.lf-banner-menu, .lf-version-menu) { right: auto; left: anchor(left); }
   }
   @media screen and (width <= 840px) {
     /* The sheet the Map opens in stands over the whole window and is sized to it, so

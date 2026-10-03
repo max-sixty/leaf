@@ -652,7 +652,8 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  * Packages may adjust placement and density; margin entries and reaction chips
  * retain their separate forms. The block padding carries the aim floor (above), less
  * the 1px border, so a rule restating it restates the floor with it. */
-:is(.lf-btn, .button) { padding: max(4px, (var(--aim-floor) - 1lh) / 2 - 1px) 10px; border: 1px solid var(--border-2); border-radius: 6px; background: var(--card); cursor: pointer; white-space: nowrap; color: var(--ink); display: inline-block; }
+:is(.lf-btn, .button) { width: var(--lf-reserved-width, auto);
+  padding: max(4px, (var(--aim-floor) - 1lh) / 2 - 1px) 10px; border: 1px solid var(--border-2); border-radius: 6px; background: var(--card); cursor: pointer; white-space: nowrap; color: var(--ink); display: inline-block; }
 :is(.lf-btn, .button)[hidden]:not([hidden="until-found"]) { display: none; }
 :is(.lf-btn, .button):not(:disabled, [aria-disabled="true"]):hover { background: var(--chip); }
 /* The committing action carries the accent as ink on the ordinary card, under a

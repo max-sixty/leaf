@@ -2803,7 +2803,7 @@ SURFACES = {
     "target picker": (["s"], None),
     "page search": (["/"], None),
     "go-to": (["g"], None),
-    "thread card": (["t"], '.lf-threads-toggle:text-matches("Open threads: [1-9]")'),
+    "thread card": (["t"], '.lf-threads-toggle:text-matches("Threads: [1-9]")'),
     "threads panel": (["g", "Shift+t"], None),
     "asks drawer": (["g", "Shift+a"], ".lf-btn.lf-asks"),
     "leaves drawer": (["g", "Shift+l"], ".lf-btn.lf-others"),
@@ -2972,7 +2972,7 @@ TYPED_BOXES = {
     "comment on the page": lambda page: ["c"],
     "thread card reply": lambda page: (
         page.locator(
-            '.lf-threads-toggle:text-matches("Open threads: [1-9]")'
+            '.lf-threads-toggle:text-matches("Threads: [1-9]")'
         ).first.is_visible()
         and ["t", "c"]
     ),

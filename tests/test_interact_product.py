@@ -36,7 +36,7 @@ from leaf import layer as layer_model
 from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import service as service_model
-from leaf import session_cleanup as cleanup_model
+from leaf import state as cleanup_model
 from leaf import thread as thread_model
 from leaf.registry import storage as registry_storage
 from leaf.structure import SourceDocument

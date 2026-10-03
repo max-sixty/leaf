@@ -38,7 +38,7 @@ from .service import (
     read_status,
     unacknowledged,
 )
-from .session_cleanup import now_iso
+from .state import now_iso
 
 # Presence is deliberately a short-lived reading: process and lock leases can change
 # without touching a page file. Readers share one observation for two seconds, while
@@ -91,7 +91,7 @@ def neighbor_candidates() -> tuple:
     page it holds is deleted, which for a claimed scratch page moves neither. So
     it is read again only then: keyed on the two stamps, the way `leaf wait` keys
     its ownership set on the claims directory's, and on each held page still
-    being there, so the read that retires a deleted page's claim follows its
+    being there, so the read drops a deleted page from the candidates after its
     deletion. Whether each page is serving is the caller's question, asked fresh
     every time."""
     global _candidates
@@ -107,8 +107,7 @@ def neighbor_candidates() -> tuple:
             page for page in (path.resolve() for path in found) if page.is_dir()
         )
         # Keyed on the stamp taken before the read, so an entry written during it
-        # moves the stamp and the next call reads again. A read that retired
-        # records has moved it too, and the call after it settles.
+        # moves the stamp and the next call reads again.
         _candidates = (stamp, tuple(resolved))
         return _candidates[1]
 

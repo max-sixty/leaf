@@ -2,11 +2,10 @@
 
 import json
 
-from interact_support import fetch, published, state_json
+from interact_support import fetch, published, record_claim, state_json
 from leaf import event_endpoint as endpoint_model
 from leaf import event_log as event_log_model
 from leaf import service as service_model
-from leaf import session_cleanup as cleanup_model
 from leaf import thread as thread_model
 
 
@@ -143,21 +142,13 @@ def test_read_does_not_nudge_a_closed_agent_turn(page_dir, monkeypatch):
     message = thread_model.cmd_comment(
         page_dir, None, None, None, "An answer to read.", None
     )
-    claim_path = service_model.claim_path(page_dir)
-    claim_path.parent.mkdir(parents=True, exist_ok=True)
-    cleanup_model.write_json(
-        claim_path,
-        {
-            "page": str(page_dir.resolve()),
-            "ts": service_model.now_iso(),
-            "released": None,
-            "activity": "multiplexed",
-            "id": "one-user-session",
-            "harness": "claude-code",
-            "agent": "Agent",
-            "turn": "closed-turn",
-            "turn_closed": service_model.now_iso(),
-        },
+    record_claim(
+        page_dir,
+        id="one-user-session",
+        activity="multiplexed",
+        ts=service_model.now_iso(),
+        turn="closed-turn",
+        turn_closed=service_model.now_iso(),
     )
     nudges = []
 

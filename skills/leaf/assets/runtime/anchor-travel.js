@@ -48,7 +48,10 @@ import { pageScroller } from "./scrolling.js";
 import { scrollIntoReadingBand } from "./landing-scroll.js";
 import { renderedParent } from "./shadow.js";
 import { reveal } from "./widget-elements.js";
+import { threadNames } from "./thread/model.js";
 import { restrictUserIntent, retainUserIntent } from "./user-intent.js";
+import { targetElement, targetPlace, targetSegments } from "./resolved-target.js";
+import { rangeOf } from "./passages.js";
 import { standingPoint } from "./pointed-place.js";
 
 // The browser's rule for landing the element a fragment names: its start at its
@@ -383,14 +386,23 @@ export function createAnchorTravel({
   // Hydration may outlive its gesture. After it settles, validate the retained intent
   // and synchronously repaint before reading placement. The second refresh after reveal
   // handles outlets or fallback placement whose geometry appears only when opened.
-  // Where a thread's travel lands: its first mark, or the element its anchor placed.
+  // Travel reads the first passage segment or semantic element from canonical placement,
+  // independently of whether the selected presentation paints a mark.
   // A thread pointed into its target is travelled to at the row its own margin row
   // stands by (pointed-place.js), which a target taller than the window would otherwise
   // leave off screen.
   const threadDestination = (id) => {
     const placement = anchors.placedAt(id);
-    const where = anchors.marksFor(id)[0] ?? placement?.element ?? null;
-    return standingPoint(placement?.target, placement?.point) ?? where;
+    const segment = targetSegments(placement)[0];
+    const where = segment
+      ? rangeOf([segment])
+      : (targetElement(placement) ?? targetPlace(placement));
+    return (
+      standingPoint(
+        targetElement(placement) ?? targetPlace(placement),
+        placement?.point,
+      ) ?? where
+    );
   };
 
   async function scrollToThread(
@@ -398,7 +410,7 @@ export function createAnchorTravel({
     { focus = null, keep = false, presented = null, intent } = {},
   ) {
     const mayArrive = retainTravel(intent);
-    const thread = currentThreads().find((candidate) => candidate.id === id);
+    const thread = threadNames(currentThreads()).get(id);
     const anchor = thread?.anchor;
     const status = anchors.placedAt(id)?.status;
     const hydrating =

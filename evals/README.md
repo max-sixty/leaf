@@ -1,4 +1,4 @@
-# Leaf instruction evals
+# Leaf evals
 
 Promptfoo scores static authoring cases against the base and working-tree Leaf
 instructions, using Claude Code or Codex. Start with one case:
@@ -39,11 +39,30 @@ Codex's staged skill directory supply the same shipped instructions. These cases
 exercise instruction use, not plugin discovery or hooks; `leaf-dev
 verify-codex-task` checks that integration.
 
-The live page/revision experiments in `notes/usability-eval/` and
-`notes/arrangement-eval/` still own their scenario execution. This first cut moves
-the instruction suite onto Promptfoo without adding a second scenario framework.
+Complete page, revision, arrangement and feedback trajectories also run through
+Promptfoo. Their existing execution uses Claude Code, and each whole scenario is
+one sample with fixed checks, including completion:
+
+```sh
+uv run leaf-dev scenario-eval usability cold-report
+uv run leaf-dev scenario-eval arrangement document
+uv run leaf-dev scenario-eval delivery mid-turn --runs 2
+```
+
+The defaults are one repetition, base versus working tree, and every case in the
+selected suite when no case glob is given. The 19 usability cases, three arrangement
+subjects and two delivery cases keep their traces and page evidence beside the native
+results under `.tmp/scenario-eval/`. Missing checks and incomplete trajectories fail.
+Timing, costs and arrangement preferences remain diagnostics; the arrangement's
+stripped-vocabulary arm still uses Leaf's runtime and feedback, so it is not the full
+Leaf-versus-plain-HTML comparison in #19. Browser benchmarks and deterministic host
+integration checks keep their own commands.
+
+`dev/leaf_dev/promptfoo.py` owns invocation and reporting for both commands.
+`scenario_provider.py` is Promptfoo's native Python provider entry point; scenario
+modules own their fixtures and trajectories, not scheduling or reports.
 
 ```sh
 npm test --prefix evals
-uv run pytest tests/test_instructions_eval.py -q -n0
+uv run pytest tests/test_instructions_eval.py tests/test_scenario_eval.py tests/test_usability_eval.py tests/test_arrangement_eval.py -q -n0
 ```

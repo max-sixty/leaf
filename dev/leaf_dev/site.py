@@ -357,8 +357,14 @@ def publish_pages(out: Path, env: dict, assets: Path) -> None:
             leaf(env, "page", "check", str(template))
             target = product_page(out, source.name)
             shutil.copytree(template, target)
-            leaf(env, "page", "stamp", str(target), "--text", "As published")
-            leaf(env, "status", str(target), "idle")
+            prepare_page(
+                target,
+                read_fixture(source),
+                partial(leaf, env),
+                initialize=False,
+                final_status="idle",
+                current_note="As published",
+            )
     publish_examples(out, env)
 
 
@@ -485,10 +491,22 @@ def bundle_published_runtime(out: Path) -> None:
 
 
 @click.command("site")
-def site() -> None:
-    """Build leaf.page into .tmp/site."""
-    build(OUT)
-    bundle_published_runtime(OUT)
+@click.option(
+    "--output",
+    type=click.Path(path_type=Path),
+    default=OUT,
+    help="Build destination (default: .tmp/site).",
+)
+def site(output: Path) -> None:
+    """Build leaf.page and its edge assets."""
+    from leaf.state import flocked
+
+    output = output.resolve()
+    output.parent.mkdir(parents=True, exist_ok=True)
+    # One destination is one publication; independent builds use separate outputs.
+    with flocked(output.with_name(f"{output.name}.lock")):
+        build(output)
+        bundle_published_runtime(output)
     click.echo(
-        f"✓ {len(list(OUT.rglob('*.html')))} pages → {OUT} and {asset_site(OUT)}"
+        f"✓ {len(list(output.rglob('*.html')))} pages → {output} and {asset_site(output)}"
     )

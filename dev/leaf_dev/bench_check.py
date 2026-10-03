@@ -9,16 +9,24 @@ checked RUNS times by that arm's `bin/leaf`, alternating arms so drift in machin
 falls on both. Wall time is the child process's, launcher included. Other processes'
 load moves every run, so read the spread and the load average before the median;
 `leaf-dev profile` says where a browser transition's time goes.
+
+Each invocation builds its arms, pages, and state in a unique run directory under
+`.tmp/bench-check/` and prints that directory.
 """
 
-import shutil
 import statistics
 import time
 
 import click
 
 from leaf_dev import ROOT
-from leaf_dev.harness import build_pair, build_source, load_average, run_leaf
+from leaf_dev.harness import (
+    build_pair,
+    build_source,
+    load_average,
+    run_directory,
+    run_leaf,
+)
 
 OUT = ROOT / ".tmp" / "bench-check"
 RUNS = 3
@@ -40,15 +48,15 @@ def bench_check(base_ref: str | None) -> None:
     HEAD's, with no model; BASE_REF defaults to the merge base with main. Prints each
     arm's median (min-max) wall seconds per page.
     """
-    arms, commits = build_pair(base_ref, OUT / "arms")
+    out = run_directory(OUT)
+    arms, commits = build_pair(base_ref, out / "arms")
     pages = {}
     for arm, arm_dir in arms.items():
         for name in PAGES:
-            page = pages[arm, name] = OUT / "pages" / arm / name
-            shutil.rmtree(page, ignore_errors=True)
+            page = pages[arm, name] = out / "pages" / arm / name
             page.parent.mkdir(parents=True, exist_ok=True)
             build_source(
-                arm_dir, OUT / "state" / arm, ROOT / "examples" / f"{name}.html", page
+                arm_dir, out / "state" / arm, ROOT / "examples" / f"{name}.html", page
             )
     before = load_average()
     walls = {key: [] for key in pages}
@@ -58,7 +66,7 @@ def bench_check(base_ref: str | None) -> None:
                 click.echo(f"run {run + 1}/{RUNS} {name} {arm}", err=True)
                 started = time.perf_counter()
                 run_leaf(
-                    arm_dir, OUT / "state" / arm,
+                    arm_dir, out / "state" / arm,
                     "page", "check", str(pages[arm, name]), "--render", check=True,
                 )  # fmt: skip
                 walls[arm, name].append(time.perf_counter() - started)
@@ -70,3 +78,4 @@ def bench_check(base_ref: str | None) -> None:
         base, head = walls["base", name], walls["head", name]
         change = statistics.median(head) - statistics.median(base)
         click.echo(f"| {name} | {spread(base)} | {spread(head)} | {change:+.2f} |")
+    click.echo(f"files in {out}")

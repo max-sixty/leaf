@@ -31,7 +31,7 @@ export function createThreadPanelController({
     const listed = panel.contains(node)
       ? closestAcross(node, ".lf-thread[data-id]")
       : null;
-    return listed ? (placedAt(listed.dataset.id)?.element ?? null) : null;
+    return listed ? (placedAt(listed.dataset.id)?.place ?? null) : null;
   });
   const panelIsOpen = () => auxiliarySurfaces.selectedSurface() === panel;
   // Opening a <dialog> runs the browser's dialog focusing steps whichever way it is opened,
@@ -94,8 +94,12 @@ export function createThreadPanelController({
   });
   let mounted = false;
   let pressedInlineThread = null;
+  const currentThreadId = () => {
+    const thread = threadHere();
+    return thread?.dataset.id ?? thread?.dataset.thread ?? null;
+  };
   const rememberInlineThread = () => {
-    pressedInlineThread = threadHere()?.dataset.thread ?? null;
+    pressedInlineThread = currentThreadId();
   };
   const toggle = (event) => {
     const pressed = pressIsKeyboardActivation(event) ? null : pressedInlineThread;
@@ -104,7 +108,7 @@ export function createThreadPanelController({
       setPanel(false);
       return;
     }
-    const inlineThread = pressed ?? threadHere()?.dataset.thread;
+    const inlineThread = pressed ?? currentThreadId();
     if (inlineThread) showThread(inlineThread, { focus: "thread" });
     else setPanel(true);
   };

@@ -17,7 +17,7 @@ import sys
 def main() -> None:
     args = sys.argv[1:]
     if args == ["session-end"]:
-        from leaf.session_cleanup import main as end_session
+        from leaf.state import main as end_session
 
         end_session()
         return

@@ -149,9 +149,13 @@ idle a preview to quiet the loop; `idle` closes the page in the browser.
 `uv run --project <root> leaf-dev verify-site local` builds the site, starts the
 website adapter against the host's Codex login, asks for one heading edit, and
 verifies the publication, reply, and changed page in Chrome. It bypasses the
-Cloudflare Worker, container limits, and credential proxy. When a change touches
-those and `OPENAI_API_KEY` is exported, run the same check through Wrangler's local
-container:
+Cloudflare Worker, container limits, and credential proxy, and needs no Docker.
+
+Use CI for Linux-specific evidence and the complete Worker/container boundary:
+pull requests run the site build, dry-run deploy, and `verify-site wrangler`, and
+`publish-site` verifies that boundary before deployment. Start Docker locally
+only to reproduce a concrete failure at that boundary. When debugging hosted-agent
+delivery through it and `OPENAI_API_KEY` is exported, run:
 
 ```bash
 npm ci --prefix <root>/worker
@@ -165,8 +169,8 @@ production reading.
 ## Test a terminal Codex task
 
 `uv run --project <root> leaf-dev verify-codex-task` runs real Codex tasks, with
-this working tree installed as their plugin, through both transports of `leaf codex
-start`. It checks each comment is answered once, a comment during queue-backed
+this working tree installed as their plugin, through both transports of automatic
+server handoff. It checks each comment is answered once, a comment during queue-backed
 work is picked up and answered in that same turn, and each turn is closed under
 App Server's id. Run it after a change to `codex.py`,
 `codex_adapter.py`, `hooks.py`, `hook_carrier.py`, or the claim's turn in
@@ -265,7 +269,10 @@ Run cold, a case that states the situation plainly usually passes on both arms: 
 failing session had its own earlier turns or a competing instruction pulling the
 other way, so paste those into the prompt. A rule that loses only to a long
 session's context needs a replay of that session instead.
-`notes/usability-eval/harness.py` runs cases that need a page directory and `leaf`.
+`leaf-dev scenario-eval usability [CASE]...` runs cases that need a page directory
+and `leaf`, through the same Promptfoo reporting and assertion framework.
+`scenario-eval arrangement` owns paired composition studies, and `scenario-eval
+delivery` owns live feedback timing. Those existing trajectories use Claude Code.
 No grader has been checked against a person's judgment, so a pass is weak evidence.
 
 ## Refresh the public catalog stills

@@ -311,8 +311,9 @@ def _touches(item, changed):
 
 # A host session states its identity in the environment, under names of its own
 # (`host.IDENTITY_VARIABLES`). The suite is a Claude Code session, and
-# `session_harness` reads that set first, so a test about a Codex session takes
-# this away, and a test about no session at all takes the whole set (`sessionless`).
+# `session_harness` answers with it wherever no nearer host's process runs above
+# the command, so a test about a Codex session takes this away, and a test about
+# no session at all takes the whole set (`sessionless`).
 CLAUDE_IDENTITY = host_model.ClaudeCodeHarness.identity_variables
 # The Claude Code sessions `isolated_session` marks as hooked: the worker's own
 # and the id lifecycle fixtures claim under (`record_claim`).

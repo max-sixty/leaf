@@ -175,9 +175,9 @@ Stop hook)
 or a delivered move unanswered and unclaimed, stamps that turn's ending and the
 next one's opening, surfaces unacknowledged user events at the next prompt, and
 releases the session's page claims when it exits. The Stop hook keeps a turn
-going through the host's continuation channel (`Harness.continue_turn`): Claude
-Code's non-error `additionalContext`, or a block where, as in Codex, the host's
-Stop output has nothing else. It continues a turn only for what the turn owes: input
+going through the host's continuation channel (`Harness.hook_context`): the
+non-error `additionalContext` Claude Code reads, or a block where, as in
+Codex, the host's Stop output has nothing else. It continues a turn only for what the turn owes: input
 arriving as it ends that is owed an answer, which it hands over, or a debt above.
 Input that owes nothing, such as a resolve, a report or a page error, waits for the
 watcher and rides along when the turn goes on anyway. A repeated Stop

@@ -5,7 +5,7 @@ conversation loop. `hooks` reaches this module only for a session holding a page
 Claude Code runs the prompt hook as every turn begins, including a turn the end
 of a background task opens, idle or between two tool calls, and adds what the
 hook returns to that turn's context; what the Stop hook returns reaches the
-model the same way, and continues the turn (`Harness.continue_turn`). So these
+model the same way, and continues the turn (`Harness.hook_context`). So these
 two hooks are the session's carrier
 (`Harness.hook_delivers`): each freezes the input pending on the session's pages and hands over its complete
 envelope or immutable pointer. The reader confirms receipt only once the whole
@@ -341,24 +341,5 @@ def carry_turn(
     with flocked(session_lock_path(sid)):
         if session_record(sid) != expected:
             return
-        if event == "Stop":
-            print(
-                json.dumps(
-                    (type(plans[0].harness) if plans else Harness).continue_turn(
-                        message
-                    )
-                ),
-                flush=True,
-            )
-        else:
-            print(
-                json.dumps(
-                    {
-                        "hookSpecificOutput": {
-                            "hookEventName": "UserPromptSubmit",
-                            "additionalContext": message,
-                        }
-                    }
-                ),
-                flush=True,
-            )
+        harness = type(plans[0].harness) if plans else Harness
+        print(json.dumps(harness.hook_context(event, message)), flush=True)

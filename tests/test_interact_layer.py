@@ -4092,7 +4092,8 @@ def test_package_recognizes_a_page_without_runtime_status(tmp_path, monkeypatch)
     page = tmp_path / "page"
     initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
     assert initialized.exit_code == 0, initialized.output
-    (page / "status.json").unlink()
+    # A page has no status until its agent declares one.
+    assert not (page / "status.json").exists()
     before = (page / "theme.css").read_bytes()
 
     layer = project / ".leaf"

@@ -38,6 +38,7 @@ from interact_support import (
     check,
     declare_data_input,
     declare_work,
+    end_work,
     fetch,
     live_versions,
     neighbour_page,
@@ -79,6 +80,7 @@ from leaf import schema as schema_model
 from leaf import server as server_model
 from leaf import server_rows as server_rows_model
 from leaf import service as service_model
+from leaf import session as session_model
 from leaf import state as cleanup_model
 from leaf import structure as structure_model
 from leaf import thread_context as thread_context_model
@@ -235,6 +237,7 @@ def test_a_staged_write_moves_neither_the_page_nor_its_presence_reading(page_dir
 
 
 def test_interaction_trace_does_not_keep_an_unattended_page_active(page_dir):
+    session_model.cmd_waiting(page_dir, "")
     old = time.time() - schema_model.ACTIVITY_GRACE_SECS - 60
     for entry in page_dir.iterdir():
         os.utime(entry, (old, old))
@@ -3404,6 +3407,7 @@ def test_a_server_keeps_its_row_fresh_without_browser_visits(page_dir, spawn):
             and row["activity"]["counts"]["pending"] == 1
         )
     )
+    end_work(neighbor)
     cleanup_model.write_json(
         neighbor / "status.json",
         {"state": "waiting", "detail": "pick one", "ts": cleanup_model.now_iso()},
@@ -5198,7 +5202,7 @@ def test_a_claimed_page_without_a_declaration_serves_its_state(page_dir, server)
     user."""
     publish(page_dir)
     service_model.claim_page(page_dir)
-    (page_dir / schema_model.STATUS_FILE).unlink()
+    (page_dir / schema_model.STATUS_FILE).unlink(missing_ok=True)
 
     status, raw = fetch(f"{server}/api/state")
 

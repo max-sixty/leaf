@@ -533,7 +533,9 @@ export function createAskView({
     const ask = askNode(record);
     const source = sourceNode(record);
     if (!ask || !source) return null;
-    const target = ask.getClientRects().length
+    // A boxless decided Ask can retain a zero-height layout rect after its
+    // content retires. It has no visible surface to receive the return focus.
+    const target = [...ask.getClientRects()].some((rect) => rect.width && rect.height)
       ? ask
       : (source.querySelector(ASK_CONTROL) ??
         actionsFor(source).map(({ control }) => presentedActionControl(control))[0] ??

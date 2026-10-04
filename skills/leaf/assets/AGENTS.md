@@ -240,7 +240,7 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Child pages and gallery playback | `sample.js`, `interaction-gallery*.js` |
 | Shadow trees and styles | `shadow.js`, `shadow-stage.js`, `stylesheets.js` |
 | Elements a paint belongs to while they stand, and the stages they stand in | `arrivals.js` |
-| Utilities | `icons.js`, `markdown.js`, `syntax.js`, `motion.js`, `storage.js`, `interaction-log.js` |
+| Utilities | `icons.js`, `markdown.js`, `syntax.js`, `motion.js`, `color-scheme.js`, `storage.js`, `interaction-log.js` |
 
 The executable body declaration `data-annotations` selects the default physical
 renderer or page-owned presentation. `leaf.js` imports the default package's

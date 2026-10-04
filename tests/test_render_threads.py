@@ -54,6 +54,7 @@ from render_harness import (
     admit_before_presenting_comment,
     any_owner_entry,
     example_media,
+    expect_asks_answered,
     hold_pending_thread_presentation,
     holding,
     leaf_page,
@@ -2389,8 +2390,8 @@ def test_explicit_navigation_reveals_held_panel_news(browser, serve, destination
         )
         expect(message).to_be_focused()
     else:
-        banner_control(page, ".lf-asks").click()
-        row = page.locator("button.lf-asks-row").filter(
+        banner_control(page, ".lf-queue").click()
+        row = page.locator("button.lf-queue-row").filter(
             has_text="Which answer should we use?"
         )
         expect(row).to_have_count(1)
@@ -3643,7 +3644,7 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_user(browser, serve):
     page.keyboard.press("n")
     expect(theirs_title).to_be_focused()
     # The card the narrowing hides keeps its node. A widget an agent sent in a reply is
-    # instantiated once, in that card, and the banner's Asks count and the drawer find it by
+    # instantiated once, in that card, and the Ask reading and the Queue find it by
     # id in the document — hidden is the list's business, gone would be a claim about the
     # log (test_a_narrowing_hides_a_thread_without_taking_its_question_off_the_page).
     expect(
@@ -6060,7 +6061,7 @@ def test_a_panel_reads_a_log_that_lost_the_message_a_reply_answers(browser, serv
 
     page = open_page(browser, url)
     resized(page, 1280, 900)
-    expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
+    expect_asks_answered(page, "0/1")
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     expect(page.locator(".lf-thread")).to_have_count(1)
@@ -7055,16 +7056,16 @@ def test_the_line_offers_the_thread_g_t_lands_on_its_own_keys(browser, serve):
 def test_a_narrowing_hides_a_thread_without_taking_its_question_off_the_page(
     browser, serve
 ):
-    """The banner's Asks count and the drawer read the log; the panel's narrowing is a view.
+    """The Ask reading and the Queue read the log; the panel's narrowing is a view.
 
     A question an agent asks in a reply is a widget instantiated once, in the panel's
     card, and every other reading of it finds that widget by id in the document. So
     when "Waiting on you" took the answered thread's card out of the list, it took the
-    question out of the page: Asks 2/2 became 1/1, the drawer listed one ask, and a
+    question out of the page: Asks 2/2 became 1/1, the Asks list held one, and a
     minute later — the narrowing let go — both came back, with nothing in the log
     having moved. A blind drive spent a locator timeout on the flip.
 
-    The card the narrowing hides is hidden, not gone, so the count and the drawer hold."""
+    The card the narrowing hides is hidden, not gone, so the count and the Queue hold."""
     page = open_page(
         browser, serve(next(p for p in EXAMPLES if p.stem == "ship-review"))
     )
@@ -7076,7 +7077,7 @@ def test_a_narrowing_hides_a_thread_without_taking_its_question_off_the_page(
     round_trip(page)
     question.locator(".lf-done").click()
     round_trip(page)
-    expect(page.locator(".lf-asks")).to_have_text("Asks 2/2")
+    expect_asks_answered(page, "2/2")
     page.locator(".lf-thread-filter-toggle").click()
     page.locator(".lf-needs").click()
     expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text("Threads")
@@ -7086,9 +7087,9 @@ def test_a_narrowing_hides_a_thread_without_taking_its_question_off_the_page(
     expect(
         page.locator('.lf-threads > .lf-thread[hidden][data-resolved="false"]')
     ).to_have_count(1)
-    expect(page.locator(".lf-asks")).to_have_text("Asks 2/2")
-    banner_control(page, ".lf-asks").click()
-    expect(page.locator(".lf-asks-row")).to_have_count(2)
+    expect_asks_answered(page, "2/2")
+    banner_control(page, ".lf-queue").click()
+    expect(page.locator(".lf-queue-row[data-lf-kind='ask']")).to_have_count(2)
 
 
 def test_a_narrowing_that_hides_the_card_the_user_stands_in_lands_them_on_the_list(

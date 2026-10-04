@@ -557,8 +557,8 @@ EDGES = [
         name="drawers",
         html=lambda: ASKS_PAGE,
         comments=0,
-        stand=lambda page: banner_control(page, ".lf-asks").click(),
-        region=".lf-asks-panel",
+        stand=lambda page: banner_control(page, ".lf-queue").click(),
+        region=".lf-queue-panel",
         side="left",
         store="lf-drawer-slot-width",
         wide=300,
@@ -568,7 +568,7 @@ EDGES = [
 EDGE_IDS = [edge.name for edge in EDGES]
 
 
-# One Ask, so a page offers the Asks drawer.
+# One Ask, so a page offers the Queue panel.
 ONE_ASK = (
     '<lf-ask id="go-decision"><h2>Ship it?</h2>'
     '<lf-options id="go" choose>'
@@ -586,10 +586,10 @@ def with_one_ask(html):
     return html.replace("</main>", ONE_ASK + "</main>")
 
 
-def toggle_asks(page, open=True):
-    """Open or close the Asks drawer from its banner control and wait for it to stand."""
-    banner_control(page, ".lf-asks").click()
-    drawer = expect(page.locator(".lf-asks-panel"))
+def toggle_queue(page, open=True):
+    """Open or close the Queue panel from its banner control and wait for it to stand."""
+    banner_control(page, ".lf-queue").click()
+    drawer = expect(page.locator(".lf-queue-panel"))
     opened = re.compile(r"\bopen\b")
     if open:
         drawer.to_have_class(opened)

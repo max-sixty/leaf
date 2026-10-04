@@ -675,6 +675,59 @@
           }
         ]
       }
+    },
+    "done": {
+      "asks": {
+        "all": [
+          {
+            "id": "pick-ask",
+            "tag": "lf-ask",
+            "source": "pick",
+            "source_tag": "lf-options",
+            "thread": null
+          },
+          {
+            "id": "ship-ask",
+            "tag": "lf-ask",
+            "source": "ship",
+            "source_tag": "lf-options",
+            "thread": null
+          }
+        ],
+        "unanswered": [
+          {
+            "id": "pick-ask",
+            "tag": "lf-ask",
+            "source": "pick",
+            "source_tag": "lf-options",
+            "thread": null
+          }
+        ]
+      },
+      "tasks": [
+        {
+          "id": "e4",
+          "subject": {
+            "kind": "thread",
+            "id": "e2"
+          },
+          "title": "Check the colours",
+          "state": "done",
+          "seq": 4,
+          "ts": "2026-09-19T12:00:00+00:00",
+          "agent": "Agent",
+          "session": "served-records",
+          "outcome": {
+            "id": "e5",
+            "seq": 5,
+            "ts": "2026-09-19T12:00:00+00:00",
+            "detail": "Matched the theme",
+            "agent": "Agent",
+            "session": "served-records"
+          },
+          "thread": "e2"
+        }
+      ]
     }
   }
 }

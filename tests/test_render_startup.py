@@ -84,6 +84,7 @@ from render_harness import (
     consume_browser_errors,
     displayed,
     draft_control,
+    expect_asks_answered,
     expect_banner_control_offered,
     holding,
     leaf_page,
@@ -790,7 +791,7 @@ RESTORED_PROSE = "".join(
 @pytest.mark.parametrize(
     ("saved", "wide", "window"),
     [
-        ({"lf-auxiliary-surface": "asks", "lf-drawer-slot-width": "280"}, False, 1600),
+        ({"lf-auxiliary-surface": "queue", "lf-drawer-slot-width": "280"}, False, 1600),
         (
             {"lf-auxiliary-surface": "threads", "lf-thread-panel-width": "500"},
             True,
@@ -798,10 +799,10 @@ RESTORED_PROSE = "".join(
         ),
         # Where it would leave less than a usable page it covers the page instead.
         ({"lf-auxiliary-surface": "threads"}, True, 700),
-        # The Asks drawer by the same rule: 300 of a 600px window leaves 300.
-        ({"lf-auxiliary-surface": "asks"}, False, 600),
+        # The Queue panel by the same rule: 300 of a 600px window leaves 300.
+        ({"lf-auxiliary-surface": "queue"}, False, 600),
     ],
-    ids=["asks", "threads-wide-page", "covering", "asks-covering"],
+    ids=["queue", "threads-wide-page", "covering", "queue-covering"],
 )
 @pytest.mark.parametrize("contained", [False, True])
 def test_a_restored_auxiliary_surface_leaves_the_page_where_it_painted(
@@ -869,7 +870,7 @@ def test_a_restored_auxiliary_surface_leaves_the_page_where_it_painted(
             "data-lf-auxiliary-surface", surface
         )
         expect(page.locator("html[data-lf-covering-surface]")).to_have_count(
-            1 if window < {"asks": 620, "threads": 740}[surface] else 0
+            1 if window < {"queue": 620, "threads": 740}[surface] else 0
         )
         presented = geometry()
         assert presented == pytest.approx(initial, abs=1), (
@@ -1590,7 +1591,7 @@ def test_a_current_auxiliary_choice_replaces_a_persisted_drawer_during_replay(
     priming = context.new_page()
     priming.goto(url, wait_until="load")
     wait_until_ready(priming)
-    priming.evaluate("localStorage.setItem('lf-auxiliary-surface', 'asks')")
+    priming.evaluate("localStorage.setItem('lf-auxiliary-surface', 'queue')")
     priming.close()
 
     held = []
@@ -1601,28 +1602,27 @@ def test_a_current_auxiliary_choice_replaces_a_persisted_drawer_during_replay(
     page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
     assert held, "the positive control did not hold the first state response"
     body = page.locator("body")
-    expect(body).to_have_attribute("data-lf-auxiliary-surface", "asks")
-    expect_banner_control_offered(page.locator(".lf-asks"), offered=False)
-    expect(page.locator(".lf-asks-panel")).to_be_hidden()
+    expect(body).to_have_attribute("data-lf-auxiliary-surface", "queue")
+    expect_banner_control_offered(page.locator(".lf-queue"), offered=False)
+    expect(page.locator(".lf-queue-panel")).to_be_hidden()
     expect_banner_control_offered(page.locator(".lf-answer-all"), offered=False)
 
     comments = page.locator(".lf-threads-toggle")
     expect(comments).to_be_enabled()
     comments.click()
-    expect(body).not_to_have_attribute("data-lf-auxiliary-surface", "asks")
+    expect(body).not_to_have_attribute("data-lf-auxiliary-surface", "queue")
     expect(page.locator(".lf-general leaf-text")).to_be_editable()
 
     held.pop(0).continue_()
     wait_until_ready(page)
     expect(page.locator("#sug")).to_have_attribute("data-lf-state", "accept")
-    decisions = page.locator(".lf-asks")
+    decisions = page.locator(".lf-queue")
     expect_banner_control_offered(decisions)
-    expect(decisions).to_have_text("Asks 1/1")
-    expect(decisions).to_have_attribute("data-lf-complete", "")
+    expect_asks_answered(page, "1/1")
     expect(decisions).to_have_attribute("aria-expanded", "false")
-    expect(page.locator(".lf-asks-panel")).to_be_hidden()
+    expect(page.locator(".lf-queue-panel")).to_be_hidden()
     expect(page.locator(".lf-thread-panel")).to_be_visible()
-    expect(page.locator("button.lf-asks-row")).to_have_count(0)
+    expect(page.locator("button.lf-queue-row")).to_have_count(0)
     expect_banner_control_offered(page.locator(".lf-answer-all"), offered=False)
 
 

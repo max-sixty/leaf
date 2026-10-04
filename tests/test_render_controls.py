@@ -49,7 +49,7 @@ from render_cases_layout import (
     rings_drawn,
     serious_axe_violations,
     standing_ring,
-    toggle_asks,
+    toggle_queue,
     token_colour,
 )
 from render_cases_navigation import (
@@ -79,6 +79,7 @@ from render_harness import (
     any_owner_entry,
     any_suggestion_control,
     consume_browser_errors,
+    expect_asks_answered,
     expect_comment_notes,
     held_frames,
     holding,
@@ -2337,7 +2338,7 @@ def test_banner_status_is_compact_with_accessible_details(browser, serve, other_
     # The complete real action set, wherever the fold has put each of them: what this is
     # about is the pressure that set puts on the sentence beside it.
     on_the_row = page.evaluate(BANNER_ORDER)
-    for wanted in ("All leaves", "Asks", "Accept all", "v1", "Approve version"):
+    for wanted in ("All leaves", "Queue", "Accept all", "v1", "Approve version"):
         assert any(wanted in name for name in on_the_row), (
             f"{wanted} was not on the row, so the fixture is short of the crowding this "
             f"test is about: {on_the_row}"
@@ -3692,18 +3693,18 @@ def test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll(
     # The drawer still has range at 320px, and its grip finishes sliding on screen.
     page.get_by_role("button", name="Close threads").click()
     panel_settled(page, open=False)
-    banner_control(page, ".lf-asks").click()
+    banner_control(page, ".lf-queue").click()
     panel_settled(page, open=False)
-    expect(page.locator(".lf-asks-panel")).to_have_class(re.compile(r"\bopen\b"))
+    expect(page.locator(".lf-queue-panel")).to_have_class(re.compile(r"\bopen\b"))
     page_at_rest(page)
-    narrow_decisions = edge_geometry(".lf-asks-panel", ".lf-asks-panel > .lf-edge")
+    narrow_decisions = edge_geometry(".lf-queue-panel", ".lf-queue-panel > .lf-edge")
     assert not narrow_decisions["edge"]["hidden"]
     assert narrow_decisions["edge"]["left"] >= -0.1, narrow_decisions
     assert narrow_decisions["edge"]["right"] <= narrow_decisions["viewport"] + 0.1, (
         narrow_decisions
     )
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-asks-panel")).not_to_have_class(re.compile(r"\bopen\b"))
+    expect(page.locator(".lf-queue-panel")).not_to_have_class(re.compile(r"\bopen\b"))
 
     # Exercise both mirrored owners in different layout postures. A swipe beside the
     # visible grip scrolls its list without moving the boundary; a horizontal drag on
@@ -3729,15 +3730,15 @@ def test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll(
         (
             "asks",
             900,
-            ".lf-asks",
-            ".lf-asks-panel",
-            ".lf-asks-panel > .lf-edge",
-            ".lf-asks-panel .lf-drawer-list",
+            ".lf-queue",
+            ".lf-queue-panel",
+            ".lf-queue-panel > .lf-edge",
+            ".lf-queue-panel .lf-drawer-list",
             -36,
         ),
     ):
         resized(page, width, 800)
-        if open_button == ".lf-asks":
+        if open_button == ".lf-queue":
             banner_control(page, open_button).click()
         else:
             page.locator(open_button).click()
@@ -3921,7 +3922,7 @@ def test_a_seat_thread_leaves_the_pick_it_is_about_live(browser, serve):
     )
     page = open_page(browser, url)
     # Off the user's list, which is the whole reason the two readings differ here.
-    expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
+    expect_asks_answered(page, "0/1")
 
     page.get_by_role("button", name="Accept").click()
     round_trip(page)
@@ -4384,14 +4385,14 @@ def test_the_banner_uses_the_page_mark_and_puts_each_edge_by_its_panel(
                  const menu = document.querySelector('.lf-banner-menu');
                  return [...menu.children, ...toolbar.children].map(el =>
                    [['others', 'lf-others'], ['latest', 'lf-latest-chip'],
-                    ['asks', 'lf-asks'], ['version', 'lf-version'],
+                    ['queue', 'lf-queue'], ['version', 'lf-version'],
                     ['comments', 'lf-threads-toggle'], ['signoff', 'lf-signoff']]
                      .find(([, cls]) => el.classList.contains(cls))?.[0])
                    .filter(Boolean);
                }"""
         )
 
-    order = ["others", "latest", "asks", "version", "signoff", "comments"]
+    order = ["others", "latest", "queue", "version", "signoff", "comments"]
     for width in (1200, 390, 320):
         resized(page, width, 900)
         assert actions() == order
@@ -5073,11 +5074,11 @@ def test_auxiliary_surfaces_replace_each_other_and_name_the_open_one(
     """
     page = open_page(browser, serve(MANY_ASKS_PAGE))
     resized(page, width, 700)
-    asks = page.locator(".lf-asks-panel")
+    asks = page.locator(".lf-queue-panel")
     comments = page.locator(".lf-thread-panel")
     controls = {
         "leaves": page.locator(".lf-others"),
-        "asks": page.locator(".lf-asks"),
+        "asks": page.locator(".lf-queue"),
         "threads": page.locator(".lf-threads-toggle"),
     }
 
@@ -5110,7 +5111,7 @@ def test_auxiliary_surfaces_replace_each_other_and_name_the_open_one(
             )
             assert face(control) == (active if peer == name else resting[peer])
 
-    banner_control(page, ".lf-asks").click()
+    banner_control(page, ".lf-queue").click()
     expect(asks).to_have_class(re.compile(r"\bopen\b"))
     expect_open("asks")
     if page.locator("main").evaluate("el => el.inert"):
@@ -5131,7 +5132,7 @@ def test_auxiliary_surfaces_replace_each_other_and_name_the_open_one(
 
     page.keyboard.press("Escape")
     expect(page.locator(".lf-others-panel")).not_to_have_class(re.compile(r"\bopen\b"))
-    banner_control(page, ".lf-asks").click()
+    banner_control(page, ".lf-queue").click()
     panel_settled(page, open=False)
     expect(asks).to_have_class(re.compile(r"\bopen\b"))
     expect(comments).not_to_have_class(re.compile(r"\bopen\b"))
@@ -5307,7 +5308,7 @@ def test_a_covering_auxiliary_surface_keeps_a_replacement_document_inert(
     url = serve(source)
     page = open_page(browser, live_url(url))
     resized(page, 500, 640)
-    toggle_asks(page)
+    toggle_queue(page)
     assert page.locator("main").evaluate("el => el.inert")
 
     revised = source.replace(
@@ -5320,8 +5321,8 @@ def test_a_covering_auxiliary_surface_keeps_a_replacement_document_inert(
     state = page.evaluate(
         """() => ({
           inert: document.querySelector('main').inert,
-          modal: document.querySelector('.lf-asks-panel').getAttribute('aria-modal'),
-          focusInside: document.querySelector('.lf-asks-panel').contains(document.activeElement),
+          modal: document.querySelector('.lf-queue-panel').getAttribute('aria-modal'),
+          focusInside: document.querySelector('.lf-queue-panel').contains(document.activeElement),
         })"""
     )
     assert state == {
@@ -5330,13 +5331,13 @@ def test_a_covering_auxiliary_surface_keeps_a_replacement_document_inert(
         "focusInside": True,
     }, f"the updated document escaped its covering auxiliary surface: {state}"
 
-    page.get_by_role("button", name="Close asks").click()
-    expect(page.locator(".lf-asks-panel")).not_to_have_class(re.compile(r"\bopen\b"))
+    page.get_by_role("button", name="Close queue").click()
+    expect(page.locator(".lf-queue-panel")).not_to_have_class(re.compile(r"\bopen\b"))
     assert not page.locator("main").evaluate("el => el.inert")
 
 
 def test_a_covering_drawer_uses_the_same_auxiliary_modality_boundary(browser, serve):
-    """The Asks drawer gets the covering auxiliary surface contract rather than a drawer-specific
+    """The Queue panel gets the covering auxiliary surface contract rather than a drawer-specific
     focus trap. Its exact Ask and reading place survive both responsive crossings, its
     reading keys move its own list, and closing returns to its door without moving the
     document behind it."""
@@ -5344,14 +5345,14 @@ def test_a_covering_drawer_uses_the_same_auxiliary_modality_boundary(browser, se
     resized(page, 500, 640)
     page.evaluate("() => document.scrollingElement.scrollTop = 180")
     document_at = page.evaluate("() => document.scrollingElement.scrollTop")
-    banner_control(page, ".lf-asks").click()
-    drawer = page.locator(".lf-asks-panel")
+    banner_control(page, ".lf-queue").click()
+    drawer = page.locator(".lf-queue-panel")
     expect(drawer).to_have_class(re.compile(r"\bopen\b"))
     assert page.locator("main").evaluate("el => el.inert")
     expect(drawer).to_have_attribute("role", "dialog")
     expect(drawer).to_have_attribute("aria-modal", "true")
 
-    rows = drawer.locator(".lf-asks-row")
+    rows = drawer.locator(".lf-queue-row")
     row = rows.nth(8)
     row.focus()
     row.evaluate("el => el.scrollIntoView({block: 'start'})")
@@ -5363,19 +5364,19 @@ def test_a_covering_drawer_uses_the_same_auxiliary_modality_boundary(browser, se
     for _ in range(rows.count() + 3):
         page.keyboard.press("Tab")
         assert drawer.evaluate("el => el.contains(document.activeElement)"), (
-            "Tab reached a control behind the covering Asks drawer"
+            "Tab reached a control behind the covering Queue panel"
         )
 
     list_box.evaluate("el => el.scrollTop = 0")
     rows.first.focus()
     page.keyboard.press("d")
     page.wait_for_function(
-        "() => document.querySelector('.lf-asks-panel .lf-drawer-list').scrollTop > 0"
+        "() => document.querySelector('.lf-queue-panel .lf-drawer-list').scrollTop > 0"
     )
-    scroll_settled(page, scroller=".lf-asks-panel .lf-drawer-list")
+    scroll_settled(page, scroller=".lf-queue-panel .lf-drawer-list")
     assert page.evaluate("() => document.scrollingElement.scrollTop") == document_at
 
-    row = drawer.locator(f'.lf-asks-row[data-lf-at="{identity}"]')
+    row = drawer.locator(f'.lf-queue-row[data-lf-at="{identity}"]')
     row.focus()
     list_at = list_box.evaluate("el => el.scrollTop")
     resized(page, 900, 640)
@@ -5415,7 +5416,7 @@ def test_covering_drawers_have_a_pointer_route_back_to_their_banner_controls(
     ), "the fixture did not fold Leaves behind the banner menu"
 
     for selector, panel, name, first_destination in (
-        (".lf-asks", ".lf-asks-panel", "asks", ".lf-asks-row"),
+        (".lf-queue", ".lf-queue-panel", "queue", ".lf-queue-row"),
         (".lf-others", ".lf-others-panel", "leaves", "a.lf-others-row"),
     ):
         door = banner_control(page, selector)
@@ -5570,16 +5571,16 @@ def test_threads_covering_a_page_holds_while_its_lock_takes_the_scrollbar(
 
 def test_a_keyboard_auxiliary_entry_survives_covering_to_beside(browser, serve):
     """Auxiliary placement does not retire a live return; closing its surface does. The
-    Asks drawer is the surface that crosses between covering and beside."""
+    Queue panel is the surface that crosses between covering and beside."""
     page = open_page(browser, serve(MANY_ASKS_PAGE))
     resized(page, 500, 640)
     origin = page.locator("main .lf-pick").first
     origin.focus()
-    drawer = page.locator(".lf-asks-panel")
+    drawer = page.locator(".lf-queue-panel")
     opened = re.compile(r"\bopen\b")
 
     page.keyboard.press("g")
-    page.keyboard.press("Shift+a")
+    page.keyboard.press("Shift+q")
     expect(drawer).to_have_class(opened)
     assert page.locator("main").evaluate("el => el.inert")
 
@@ -5594,8 +5595,8 @@ def test_a_keyboard_auxiliary_entry_survives_covering_to_beside(browser, serve):
     assert page.evaluate("() => document.activeElement === document.body")
 
     page.keyboard.press("g")
-    page.keyboard.press("Shift+a")
-    page.get_by_role("button", name="Close asks").click()
+    page.keyboard.press("Shift+q")
+    page.get_by_role("button", name="Close queue").click()
     expect(drawer).not_to_have_class(opened)
     page.keyboard.press("Escape")
     assert page.evaluate("() => document.activeElement === document.body"), (
@@ -5648,12 +5649,10 @@ def test_a_walk_down_the_drawer_stops_clear_of_the_shortcut_bar_text(
     )
 
 
-def test_a_walk_down_the_asks_drawer_stops_clear_of_the_shortcut_bar_text(
-    browser, serve
-):
+def test_a_walk_down_the_queue_stops_clear_of_the_shortcut_bar_text(browser, serve):
     """The leaves drawer's reading above, made of the drawer beside it. The room is one
     fact — the shortcut bar stands in the corner both lists reach — and it was written to one
-    list, so the Asks drawer's walk parked its last row 47px under the line. Nothing said
+    list, so the Asks list's walk parked its last row 47px under the line. Nothing said
     so, because no example ships enough Asks to fill a drawer and the walk that would have
     shown it had only ever been made down the other one.
 
@@ -5662,8 +5661,8 @@ def test_a_walk_down_the_asks_drawer_stops_clear_of_the_shortcut_bar_text(
     goes without, and the second drawer is the one nobody looks at."""
     page = open_page(browser, serve(MANY_ASKS_PAGE))
     resized(page, 900, 420)
-    banner_control(page, ".lf-asks").click()
-    rows = page.locator("button.lf-asks-row")
+    banner_control(page, ".lf-queue").click()
+    rows = page.locator("button.lf-queue-row")
     expect(rows).to_have_count(24)
     rows.first.focus()
     page.keyboard.press("ArrowUp")
@@ -5677,9 +5676,9 @@ def test_a_walk_down_the_asks_drawer_stops_clear_of_the_shortcut_bar_text(
     expect(rows.first).to_be_focused()
     page.keyboard.press("End")
     expect(rows.last).to_be_focused()
-    drawer = page.locator(".lf-asks-panel .lf-drawer-list")
+    drawer = page.locator(".lf-queue-panel .lf-drawer-list")
     assert page.evaluate(
-        "() => { const b = document.querySelector('.lf-asks-panel .lf-drawer-list');"
+        "() => { const b = document.querySelector('.lf-queue-panel .lf-drawer-list');"
         "        return b.scrollHeight > b.clientHeight; }"
     ), (
         "the drawer never overflowed, so the walk had nothing to scroll and proves nothing"
@@ -7083,7 +7082,7 @@ RING_CASES = (
     # shows a token nobody has pressed only while it is open, so a walk of the panel
     # that never opens one stands on the trigger and nothing under it.
     ("a reaction palette", (), {"ship-review": ((".lf-react", "chip"),)}),
-    ("the Asks drawer", (), {"ship-review": ((".lf-asks-row", "asks-row"),)}),
+    ("the Queue panel", (), {"ship-review": ((".lf-queue-row", "queue-row"),)}),
     ("the leaves drawer", ("g", "Shift+l"), {"corpus": ((None, "others-row"),)}),
     ("page status", (), {"corpus": ((None, "status-detail"),)}),
     # The menu's own route after the key that opens it: an open lands on the version being
@@ -7187,7 +7186,7 @@ RING_SCOPE_SURFACE = {
     # frame and shows only for an anchor.
     "target hints": (".lf-target-picker-hint.lf-current", None),
     "the response bar": (".lf-fab-bar .lf-composer[data-lf-open]", None),
-    "the Asks drawer": (".lf-asks-panel.open", ".lf-asks"),
+    "the Queue panel": (".lf-queue-panel.open", ".lf-queue"),
     "the leaves drawer": (".lf-others-panel.open", ".lf-others"),
     "the versions menu": (".lf-version-menu:popover-open", None),
     "the command reference": (".lf-command-reference.open", None),
@@ -7196,7 +7195,7 @@ RING_SCOPE_SURFACE = {
 }
 RING_SCOPE_OPENER = {
     "an inline response": "#pr-exact-patch .lf-diff-file-comment",
-    "the Asks drawer": ".lf-asks",
+    "the Queue panel": ".lf-queue",
     "a thread card": '.lf-margin-marker[data-lf-kinds~="comment"]',
     "the Page Map dialog": ".lf-page-map-toggle",
     "a reaction palette": ".lf-react-strip > .lf-react-trigger",
@@ -7479,7 +7478,7 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
             if opener := RING_SCOPE_OPENER.get(scope):
                 control = (
                     banner_control(page, opener)
-                    if opener in {".lf-asks", ".lf-page-map-toggle"}
+                    if opener in {".lf-queue", ".lf-page-map-toggle"}
                     else page.locator(opener).first
                 )
                 open_containing_thread(control)

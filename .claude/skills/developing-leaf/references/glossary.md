@@ -105,9 +105,9 @@ stylesheet decides whether their bodies scroll.
 | **Bottom bar** | The row at the window's foot, at one stated height (`--lf-bottom-bar-h`), holding the shortcut bar and the status; the page ends above it as it starts below the banner |
 | **Auxiliary surface** | Chrome opened `beside`, `over`, or `covering` the content frame |
 | **Thread panel** | The right-side auxiliary surface containing threads; it stands over the page and takes no width from it, and covers the page only where it leaves less than a usable page beside it |
-| **Drawer** | A mutually exclusive auxiliary surface that slides in at the window's left edge, one at a time; the Asks drawer stands over the page as the thread panel does, and the Leaves drawer always covers |
+| **Drawer** | A mutually exclusive auxiliary surface that slides in at the window's left edge, one at a time; the Queue panel stands over the page as the thread panel does, and the Leaves drawer always covers |
 
-The current drawers are the **Asks drawer** and **Leaves drawer**. Use *covering auxiliary
+The current drawers are the **Queue panel** (experimental) and the **Leaves drawer**. Use *covering auxiliary
 surface*, not *modal workspace*: a covering surface and a modal dialog are different
 web interaction primitives. A covering surface makes the page inert behind it; a surface
 over the page, such as the thread panel on a desktop window, takes no width from
@@ -167,7 +167,7 @@ spine instead.
 | **Target picker** | The `s` interaction that presents addressable elements and ends when the user chooses one or closes it |
 | **Page search** | The `/` interaction that filters or walks text matches for a query |
 | **Walk** | Ordered semantic movement among one category of destination: open threads (`t`), the user's queue (`a`), a list's rows |
-| **Queue** | What one side has to act on: the user's (`on_you`: open Asks, then each other thread whose attention is the user's, and page moves to send again) or the agent's (`on_agent`: owed replies, claimed work, open tasks). `agent_state.queues` and `runtime/queues.js` select both from the same readings; `a` walks the user's |
+| **Queue** | What one side has to act on: the user's (`on_you`: open Asks, then each other thread whose attention is the user's, and page moves to send again) or the agent's (`on_agent`: owed replies, claimed work, open tasks). `agent_state.queues` and `runtime/queues.js` select both from the same readings; `a` walks the user's, and the Queue panel lists both, with what is done (answered Asks, ended tasks) folded beneath |
 | **Trip** | One travel to a destination, a thread's passage, an Ask, a datum, or the element a followed fragment link names: it clears the auxiliary surface hiding the destination, then stays when the user already has it or departs, leaving a history entry. A fragment link always departs, by the entry the browser's navigation adds; Back or Forward to an entry whose fragment names an element the page has hidden since is a trip that departs by no entry |
 | **Journey** | Consecutive trips each leaving from the last one's landing, which share one history entry so Back returns to where the first began; it may mix threads and Asks, and is not a walk |
 | **Standing** | Holding a destination or a control inside it: a thread on the page or in the panel, an Ask, or authored page content. A panel thread's title and its messages are one destination. Chrome controls, margin markers, mark notes, and contents-outline links are apparatus rather than destinations |

@@ -232,7 +232,7 @@ and its chrome coordinate.
   and overlaps the element it comments on, on any page wide enough to place it
   beside its target. The reference rect handed to Floating UI (`composing/surface.js`,
   `placeFab`) and the fixed bar disagree by the root's margin.
-  `test_an_aimed_comment_keeps_its_place_with_the_asks_drawer_open` reproduces it at
+  `test_an_aimed_comment_keeps_its_place_with_the_queue_panel_open` reproduces it at
   1200px with the drawer closed and runs at 900px, where the composer goes above or
   below, until this is fixed.
 - **Land a sent comment's thread where its comment box stood.** A comment typed beside

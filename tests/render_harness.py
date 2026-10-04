@@ -1507,6 +1507,34 @@ def expect_banner_control_offered(control, *, offered=True):
         expect(control).to_have_css("display", "none")
 
 
+# How many of the page's active Asks are answered, as "answered/total": the publisher's
+# own Ask reading, which the Queue panel's Done list and the `a` walk select from.
+_ASKS_ANSWERED = """async () => {
+  const { readApplication } = await window.__lfRuntimeImport('/runtime/semantic-state.js');
+  window.__lfAsksAnswered = () => {
+    const { all, unanswered } = readApplication().effective.asks;
+    return `${all.length - unanswered.length}/${all.length}`;
+  };
+}"""
+
+
+def expect_asks_answered(page, answered: str, *, timeout_ms: int = 15_000) -> None:
+    """Wait until the page's Ask reading holds `answered` ("answered/total").
+
+    The deadline bounds a hang; on expiry the failure names the reading the page held.
+    """
+    page.evaluate(_ASKS_ANSWERED)
+    try:
+        page.wait_for_function(
+            "(want) => window.__lfAsksAnswered() === want",
+            arg=answered,
+            timeout=timeout_ms,
+        )
+    except PlaywrightTimeout as error:
+        held = page.evaluate("() => window.__lfAsksAnswered()")
+        raise AssertionError(f"answered Asks read {held}, not {answered}") from error
+
+
 def open_page(
     browser,
     url,

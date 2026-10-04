@@ -909,12 +909,24 @@ def test_thread_attention_names_the_workflow_the_thread_waits_on():
             threads,
             {"user": []},
             browser_served_model.served_workflows(workflows, frozen),
+            [{"id": "t1", "title": "Rebuild", "thread": "root"}],
         )
         assert threads[0]["attention"] == {
             "kind": "waiting",
             "reason": "workflow",
             "workflow": expected,
         }
+    # With no workflow holding it, an open task keeps the thread on the agent.
+    threads = [{"id": "root", "resolved": None, "user_prompt": None}]
+    browser_served_model._apply_thread_attention(
+        threads, {"user": []}, [], [{"id": "t1", "title": "Rebuild", "thread": "root"}]
+    )
+    assert threads[0]["attention"] == {
+        "kind": "waiting",
+        "reason": "task",
+        "workflow": None,
+        "task": {"id": "t1", "title": "Rebuild"},
+    }
 
 
 def test_served_workflows_list_the_strongest_first():

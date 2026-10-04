@@ -24,6 +24,8 @@ page and is not a global identifier. The kinds:
 | `pickup` | page | the delivery carrier; a host failure receipt | `events`, `phase` (`queued`, `opened`, or `failed`), `session`, `turn`; `failure` with `failed` | the named attention-bearing inputs reached the durable Codex queue or entered an exact agent turn, or the host gave up on them with no answer coming; includes page errors and reports; idempotent per event, phase, session, and turn; never a work claim |
 | `note` | agent | `leaf page stamp` | `version`, `revision`, changelog `text`, `restated`, `settles` | one public version mapped to an immutable revision, naming the decisions it took back and the reports or work it answered |
 | `error` | page | the runtime | | the page reported a failure in front of the user; heard like a report, never counted against the user |
+| `task` | agent | `leaf task open` | `subject` (`{kind: thread, id}`, an open thread), `title` | the agent takes on work it owes that thread; it stands through replies, resolutions, versions and session ends (`tasks.py`) |
+| `task_end` | agent | `leaf task end` | `task`, an open task; `outcome` (`done`, `failed`, or `dropped`); optional `detail` | ends one open task; nothing else does |
 | `undo` | user | `POST /api/event` | `undoes` | withdraws one gesture of the user's own (`UNDOABLE_KINDS`: resolve, unresolve, action, done) |
 
 An `anchor` names a passage by `section` and `quote`, with `prefix` and `suffix`

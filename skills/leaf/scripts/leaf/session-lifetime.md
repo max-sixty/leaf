@@ -149,7 +149,8 @@ that prompted the work even when the user adds another comment, while renewing i
 after the user supersedes a move puts Working on the move that replaced it.
 Nothing in a session touches `status.json` while its turn is over, and its workers
 leave the page to it, so a declaration over work that outlasts the turn stands
-unrenewed until a later turn writes it again.
+unrenewed until a later turn writes it again. What holds such work across turns is
+a task in the log (`tasks.py`), which no turn or session ending lapses.
 
 The turn id and `turn_closed` stamp a declaration is judged against are the
 session's rather than the page's: prompts and endings publish one atomic session

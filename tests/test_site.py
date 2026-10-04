@@ -37,7 +37,7 @@ from leaf import schema as schema_model
 from leaf.event_log import _parse_events, read_events
 from leaf.events import bare_reaction, build_threads
 from leaf.passages import enclosing_ids
-from leaf.render_checks import wait_until_ready
+from leaf.render_checks import HANDOVER_DEADLINE_MS, wait_until_ready
 from leaf.render_gate import version as render_gate_model
 from leaf.structure import SourceDocument
 from leaf_dev import site as site_build
@@ -50,7 +50,6 @@ from render_cases_layout import banner_control
 # The suite's own page primitives, so a navigation here waits on what every other
 # navigation waits on. tests/AGENTS.md, "A wait consumes a fact the system states".
 from render_harness import (
-    HANDOVER_DEADLINE_MS,
     consume_browser_errors,
     displayed,
     expect_banner_control_offered,
@@ -1761,7 +1760,7 @@ def test_interaction_gallery_contains_page_chrome(serve, browser):
     # restored reading position leaves it is not something this test arranges.
     comment_tab.click()
     page.reload(wait_until="domcontentloaded")
-    wait_until_ready(page, timeout_ms=HANDOVER_DEADLINE_MS)
+    wait_until_ready(page)
     gallery = page.locator("#bg-interactions")
     status = gallery.locator("[data-interaction-status]")
     expect(status).to_have_text(
@@ -1812,7 +1811,7 @@ def test_interaction_gallery_waits_for_a_restored_frame_tab(serve, browser):
     assert held, "the restored frame never requested its state"
     held.pop().continue_()
     page.wait_for_load_state("load", timeout=HANDOVER_DEADLINE_MS)
-    wait_until_ready(page, timeout_ms=HANDOVER_DEADLINE_MS)
+    wait_until_ready(page)
     page.unroute("**/api/state*", hold_restored_state)
     expect(gallery.locator("[data-interaction-status]")).to_have_text(
         "Ready — motion will start only when you press Play", timeout=15_000
@@ -1947,44 +1946,8 @@ def test_a_contained_page_retries_a_failed_first_state_read(serve, browser):
     assert len(errors) == 2
 
 
-def test_a_failed_gallery_frame_does_not_block_other_demos(serve, browser):
-    """A contained page that never presents fails without blocking its neighbors."""
-    url = serve(FEATURE_GALLERY)
-    context = browser.new_context(reduced_motion="reduce")
-    page = context.new_page()
-
-    def stop_inner_leaf(route):
-        if route.request.frame.name == "interaction-send-comment":
-            route.abort()
-        else:
-            route.continue_()
-
-    page.route("**/leaf.js", stop_inner_leaf)
-    navigate(page, f"{url}#bg-interactions")
-    gallery = page.locator("#bg-interactions")
-    status = gallery.locator("[data-interaction-status]")
-    toggle = gallery.locator("[data-interaction-toggle]")
-    expect(status).to_have_text("Ready — motion will start only when you press Play")
-    expect(toggle).to_be_enabled()
-
-    gallery.get_by_role("tab", name="Send a comment").click()
-    expect(status).to_have_text("Could not play", timeout=5_000)
-    expect(toggle).to_be_disabled()
-
-    gallery.get_by_role("tab", name="Move a card").click()
-    expect(status).to_have_text("Ready — motion will start only when you press Play")
-    toggle.click()
-    expect(status).to_have_text("Complete", timeout=10_000)
-    expect(toggle).to_have_text("Replay")
-    expect(toggle).to_be_enabled()
-    errors = consume_browser_errors(
-        page, "entry module did not load", "net::ERR_FAILED"
-    )
-    assert any("entry module did not load" in error for error in errors), errors
-
-
 def test_gallery_reports_sample_document_without_leaf(serve, browser):
-    """A response without Leaf startup scripts cannot leave a gallery demo loading."""
+    """A failed contained page is reported without blocking the other demos."""
     url = serve(FEATURE_GALLERY)
     context = browser.new_context(reduced_motion="reduce")
     page = context.new_page()
@@ -2006,6 +1969,15 @@ def test_gallery_reports_sample_document_without_leaf(serve, browser):
     expect(gallery.locator("[data-interaction-status]")).to_have_text(
         "Could not play", timeout=5_000
     )
+    expect(gallery.locator("[data-interaction-toggle]")).to_be_disabled()
+    gallery.get_by_role("tab", name="Move a card").click()
+    status = gallery.locator("[data-interaction-status]")
+    toggle = gallery.locator("[data-interaction-toggle]")
+    expect(status).to_have_text("Ready — motion will start only when you press Play")
+    toggle.click()
+    expect(status).to_have_text("Complete", timeout=10_000)
+    expect(toggle).to_have_text("Replay")
+    expect(toggle).to_be_enabled()
     consume_browser_errors(page, "503", "Leaf sample document did not start")
 
 

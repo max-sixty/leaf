@@ -10017,13 +10017,6 @@ def test_a_row_behind_an_inactive_tab_is_withheld(browser, serve):
     expect(row).to_be_visible()
 
 
-@pytest.mark.xfail(
-    reason="Current main dde1a5ae7 gives a page-flow tab a block frame, confining the "
-    "gallery's available-width figure to the column and leaving its marker in the rail "
-    "(CI 37081158751; native scope allocation defect)",
-    raises=AssertionError,
-    strict=False,
-)
 def test_the_feature_gallery_shows_a_pin_on_a_wide_figure_and_o_hides_it(
     browser, serve
 ):

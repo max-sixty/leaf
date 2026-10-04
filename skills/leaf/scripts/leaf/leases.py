@@ -182,8 +182,8 @@ def contract_writer(function):
 def waiter_lease_path(page_dir: Path | None, session_id: str | None) -> Path | None:
     """The one lease a wait holds for its watch set.
 
-    A host wait covers every page its session owns, so its lease belongs to the
-    session and takes only its id. Outside a host, a named page is the entire
+    A harness wait covers every page its session owns, so its lease belongs to the
+    session and takes only its id. Outside a harness, a named page is the entire
     watch set and holds a page-local lease. An unnamed bare-shell wait has no
     watch set and no lease.
     """
@@ -193,7 +193,7 @@ def waiter_lease_path(page_dir: Path | None, session_id: str | None) -> Path | N
 
 
 def adapter_lease_path(session_id: str) -> Path:
-    """The live proof for a detached host delivery adapter.
+    """The live proof for a detached harness delivery adapter.
 
     A wait lease says only that some process can read page events.  The Codex
     Stop hook needs the narrower fact that the process can durably hand those
@@ -228,13 +228,13 @@ def titles_log(session_id: str) -> Path:
 
 
 def mark_hooks(session_id: str) -> None:
-    """Record that the host ran a Leaf hook for this session. The mark stands for
+    """Record that the harness ran a Leaf hook for this session. The mark stands for
     the session's life, and its SessionEnd hook removes it."""
     hooks_path(session_id).touch()
 
 
 def hooks_ran(session_id: str) -> bool:
-    """Whether the host has run a Leaf hook for this session. A host whose hooks
+    """Whether the harness has run a Leaf hook for this session. A harness whose hooks
     can carry input carries it only where they run: a session launched without the
     plugin's hooks, with hooks disabled, or whose hooks read another state home
     never marks this one."""

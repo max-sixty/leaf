@@ -10,7 +10,8 @@
    middleware, by comment-placement.js for both.
 
    `floatingPlacement` is one box's lifecycle around those two calls: it watches the
-   element the box stands against, re-arming when that element changes, and numbers each
+   element the box stands against, re-arming when that element or its observation
+   contract changes, and numbers each
    placement so an answer computed for an earlier one is dropped. A placement lands in
    the microtasks after the rendering pass that asks for it, before the frame paints.
 
@@ -19,10 +20,14 @@
    `window`'s, where the visible boundary holds it in. In the page's plane the box is
    anchored (CSS anchor positioning) to the element it stands beside, with its spot
    written as insets from that anchor, so the browser carries it through every scroll
-   that moves the anchor, in step with the words, and a placement that follows that
-   scroll finds the same insets and writes nothing. The box stays fixed either way, so
-   what lands inside it, a scroll into view or a focus, never scrolls the page under
-   it.
+   that moves the anchor, in step with the words. A quote or shadow target can scroll
+   inside that anchor; native ScrollTimeline motion layers carry those remaining axes.
+   One viewport frame holds the surface's native subtree and solver coordinates. Its
+   layer graph stays intact across size solves and transfers focus/caret through the
+   existing focus owner only when that graph changes. The frame ignores pointer input;
+   each surface's own CSS retains its interaction policy. Without the needed native
+   capability, the existing observed placement path invalidates on scroll instead.
+   The containing frame stays fixed, so native focus never scrolls the page under it.
 
    In either plane the box stands by the edges that hold it, one per axis (`held`). On
    the axis its placement stands it beside something, that is the edge facing it; on the
@@ -40,7 +45,8 @@
 import { afterPresentation } from "/runtime/presentation.js";
 import { keeps, layoutPx as px, atLayoutPrecision } from "/runtime/keeps.js";
 import { anchorElement, anchorName } from "/runtime/anchor-names.js";
-import { shownWindow } from "/runtime/geometry.js";
+import { holdFocus } from "/runtime/focus.js";
+import { shownWindow, scrollAxes } from "/runtime/geometry.js";
 
 let floatingUiModule = null;
 export const floatingUi = () =>
@@ -51,13 +57,12 @@ afterPresentation(floatingUi);
 // there and both boxes' client rectangles. Nothing where a transform, filter, or
 // containment between the box and the body makes some box other than the viewport its
 // containing block, since an anchor outside that block cannot position it.
-const anchorAt = (reference, anchor) => ({
+const anchorAt = (reference, anchor, box) => ({
   name: "anchorAt",
   async fn({ rects, elements, platform }) {
     if (!anchor || (await platform.getOffsetParent(elements.floating)) !== window)
       return {};
     const client = reference.getBoundingClientRect();
-    const box = anchor.getBoundingClientRect();
     return {
       data: {
         x: rects.reference.x + box.left - client.left,
@@ -112,20 +117,82 @@ export function heldByWindow(top, bottom, gap) {
 }
 
 export function floatingPlacement({ floating, update }) {
+  // Native anchors carry all ancestors of their CSS box. Text inside a self-scroller
+  // and targets inside a shadow host have additional scroll coordinates. Each missing
+  // source/axis gets one nested compositor layer with a replacement transform. Additive
+  // effects on one node compose a frame late; nested native layers compose in the same
+  // scroll frame. The viewport frame remains the solver's containing block.
+  let frame = floating;
+  let layers = [];
+  let graph = [];
+  let restoreNativeFocus = null;
+  function motionFrame(sources) {
+    if (
+      sources.length === graph.length &&
+      sources.every(
+        (motion, i) =>
+          motion.source === graph[i].source && motion.axis === graph[i].axis,
+      )
+    )
+      return;
+    restoreNativeFocus = holdFocus(floating);
+    if (frame === floating && sources.length) {
+      frame = document.createElement("div");
+      frame.className = "lf-ui";
+      Object.assign(frame.style, {
+        position: "fixed",
+        display: "grid",
+        width: "max-content",
+        height: "max-content",
+        pointerEvents: "none",
+        zIndex: getComputedStyle(floating).zIndex,
+      });
+      floating.before(frame);
+      Object.assign(floating.style, {
+        position: "relative",
+        left: "auto",
+        right: "auto",
+        top: "auto",
+        bottom: "auto",
+      });
+    }
+    if (frame === floating) return;
+    // Actual graph changes transfer the native subtree through the existing focus
+    // handoff. Ordinary size/layout solves keep both its ancestors and caret untouched.
+    const previous = layers;
+    layers = [];
+    let parent = frame;
+    for (let i = 0; i < sources.length; i++) {
+      const layer = document.createElement("div");
+      Object.assign(layer.style, {
+        display: "grid",
+        width: "max-content",
+        height: "max-content",
+        pointerEvents: "none",
+      });
+      parent.append(layer);
+      layers.push(layer);
+      parent = layer;
+    }
+    parent.append(floating);
+    for (const layer of previous) layer.remove();
+    graph = sources;
+  }
   let epoch = 0;
   let watched = null;
+  let observer = null;
   let tenure = Object.freeze({});
   let stopWatching = null;
   // Writes the held edges' insets and clears the free ones.
   const inset = (insets) => {
     for (const edge of INSETS)
-      if (insets[edge] === undefined) floating.style.removeProperty(edge);
-      else floating.style.setProperty(edge, insets[edge]);
+      if (insets[edge] === undefined) frame.style.removeProperty(edge);
+      else frame.style.setProperty(edge, insets[edge]);
   };
   // Each held edge's inset from the same edge of the box's containing block.
   const placedAt = ({ x, y, middlewareData }) => {
     const { edges, width, height, block } = middlewareData.held;
-    floating.style.removeProperty("position-anchor");
+    frame.style.removeProperty("position-anchor");
     inset({
       [edges.x]: px(edges.x === "left" ? x : block.width - x - width),
       [edges.y]: px(edges.y === "top" ? y : block.height - y - height),
@@ -141,24 +208,33 @@ export function floatingPlacement({ floating, update }) {
     ({ x, y, middlewareData }) => {
       const { edges, width, height } = middlewareData.held;
       const from = (side, length) => `calc(anchor(${side}, -9999px) + ${px(length)})`;
-      floating.style.positionAnchor = anchorName(anchor);
+      frame.style.positionAnchor = anchorName(anchor);
       inset({
         [edges.x]: from("left", edges.x === "left" ? x - at.x : at.x - x - width),
         [edges.y]: from("top", edges.y === "top" ? y - at.y : at.y - y - height),
       });
     };
   let stand = placedAt;
+  let scrollAnimations = [];
   let placementProof = null;
+  let stopScrollInvalidation = null;
   return {
     // `reference` is what `computePosition` receives; `element` is the node it stands
-    // for, whose scroll containers and moves `autoUpdate` follows.
+    // for; `autoUpdate` declares which mechanical changes invalidate its placement.
     watch(element, reference, autoUpdate) {
-      if (element === watched) return;
+      if (element === watched && autoUpdate === observer) return;
       stopWatching?.();
       watched = element;
+      observer = autoUpdate;
       tenure = Object.freeze({});
       stopWatching = autoUpdate(reference, floating, update);
     },
+    holdsHome: (home) =>
+      frame !== floating && frame.parentElement === home && frame.contains(floating),
+    nativeAvailable: () =>
+      CSS.supports("anchor-name", "--lf-anchor") &&
+      typeof window.ScrollTimeline === "function",
+    follows: () => placementProof?.plane === "page",
     begin: () => ++epoch,
     current: (placement) => placement === epoch,
     // Computes the answer, in the window's positioning space, and the plane `planeOf`
@@ -167,20 +243,96 @@ export function floatingPlacement({ floating, update }) {
     // superseded while it was computed is null, and writes nothing.
     async position(computePosition, reference, options, planeOf, beside) {
       const placement = epoch;
+      const context = reference.contextNode ?? beside;
+      const physical =
+        context?.nodeType === Node.TEXT_NODE ? context.parentElement : context;
       const anchor =
-        beside && CSS.supports("anchor-name", "--lf-anchor")
-          ? anchorElement(beside)
+        physical && CSS.supports("anchor-name", "--lf-anchor")
+          ? anchorElement(physical)
           : null;
-      const answer = await computePosition(reference, floating, {
+      const { getOverflowAncestors } = await floatingUi();
+      if (placement !== epoch) return null;
+      // Solver coordinates and native scroll origins are one measurement. A solve
+      // can finish after scrolling; freezing both makes its native attachment carry
+      // that intervening motion exactly once, regardless of when the solver reads.
+      const client = anchor && reference.getBoundingClientRect();
+      const anchorBox = anchor?.getBoundingClientRect();
+      const measured = anchor
+        ? {
+            contextElement: reference.contextElement ?? beside,
+            getBoundingClientRect: () => client,
+          }
+        : reference;
+      const carried = new Set(anchor ? getOverflowAncestors(anchor) : []);
+      const motions = [];
+      if (context)
+        for (const source of getOverflowAncestors(context)) {
+          if (!(source instanceof Element) || carried.has(source)) continue;
+          const axes = scrollAxes(source);
+          for (const [axis, scroll, extent] of [
+            ["x", source.scrollLeft, source.scrollWidth - source.clientWidth],
+            ["y", source.scrollTop, source.scrollHeight - source.clientHeight],
+          ])
+            if (extent)
+              motions.push({
+                source,
+                axis,
+                scroll,
+                extent,
+                vector: axes[axis],
+              });
+        }
+      const canFollow =
+        anchor && (!motions.length || typeof window.ScrollTimeline === "function");
+      motionFrame(canFollow ? motions : []);
+      const answer = await computePosition(measured, frame, {
         ...options,
         strategy: "fixed",
-        middleware: [...options.middleware, held, anchorAt(reference, anchor)],
+        middleware: [
+          ...options.middleware,
+          held,
+          anchorAt(measured, anchor, anchorBox),
+        ],
       });
       if (placement !== epoch) return null;
+      // An unchanged native graph keeps following while a solve is in flight. Retire
+      // its previous effects only when this answer can replace their measurement.
+      for (const animation of scrollAnimations) animation.cancel();
+      scrollAnimations = [];
       const at = answer.middlewareData.anchorAt;
       const plane =
-        at?.x !== undefined && planeOf(answer) === "page" ? "page" : "window";
+        canFollow && at?.x !== undefined && planeOf(answer) === "page"
+          ? "page"
+          : "window";
       keeps(floating, "data-lf-plane", plane);
+      stopScrollInvalidation?.();
+      stopScrollInvalidation = null;
+      if (plane === "window") {
+        // The existing compute/observe path remains the capability fallback. It also
+        // hears a reference's own inner scroll when its semantic host does not move.
+        const sources = context ? [...new Set(getOverflowAncestors(context))] : [];
+        for (const source of sources)
+          source.addEventListener("scroll", update, { passive: true });
+        stopScrollInvalidation = () => {
+          for (const source of sources) source.removeEventListener("scroll", update);
+        };
+      }
+      if (plane === "page")
+        motions.forEach(({ source, axis, scroll, extent, vector }, i) => {
+          const value = (amount) =>
+            `translate(${amount * vector.x}px, ${amount * vector.y}px)`;
+          scrollAnimations.push(
+            layers[i].animate(
+              [{ transform: value(scroll) }, { transform: value(scroll - extent) }],
+              {
+                timeline: new window.ScrollTimeline({ source, axis }),
+                duration: "auto",
+                fill: "both",
+                composite: "replace",
+              },
+            ),
+          );
+        });
       stand = plane === "page" ? anchoredAt(anchor, at) : placedAt;
       // anchorAt proves the solver's containing block is the window. Other
       // containing blocks have no declared prediction in this selection.
@@ -190,6 +342,8 @@ export function floatingPlacement({ floating, update }) {
     },
     stand(answer) {
       stand(answer);
+      restoreNativeFocus?.();
+      restoreNativeFocus = null;
       if (!placementProof) {
         stood.delete(floating);
         tenure = Object.freeze({});
@@ -233,12 +387,28 @@ export function floatingPlacement({ floating, update }) {
     },
     stop() {
       epoch += 1;
+      for (const animation of scrollAnimations) animation.cancel();
+      scrollAnimations = [];
       stopWatching?.();
+      stopScrollInvalidation?.();
+      stopScrollInvalidation = null;
       stopWatching = null;
       watched = null;
+      observer = null;
       tenure = Object.freeze({});
       placementProof = null;
       stood.delete(floating);
+      if (frame !== floating) {
+        const restore = frame.contains(floating) && holdFocus(floating);
+        if (frame.contains(floating)) frame.before(floating);
+        frame.remove();
+        frame = floating;
+        layers = [];
+        graph = [];
+        floating.style.removeProperty("position");
+        restore?.();
+      }
+      restoreNativeFocus = null;
       delete floating.dataset.lfPlane;
       for (const property of ["position-anchor", ...INSETS])
         floating.style.removeProperty(property);

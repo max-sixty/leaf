@@ -330,10 +330,10 @@ def test_a_block_leaving_the_viewport_keeps_its_focused_comment(browser, serve):
     expect(field).to_have_js_property("value", draft + " What must Finance decide?")
 
 
-def test_a_comment_box_stays_with_the_writer_when_its_passage_scrolls_away(
+def test_a_comment_box_follows_its_passage_and_resume_returns_the_writer(
     browser, serve
 ):
-    """A writer keeps the same focused box when its passage scrolls out of view."""
+    """Resume writing recovers the same native field and words with its passage."""
     source = next(source for source in EXAMPLES if source.stem == "triage-board")
     page = open_page(browser, serve(source))
     resized(page, 1280, 500)
@@ -350,8 +350,14 @@ def test_a_comment_box_stays_with_the_writer_when_its_passage_scrolls_away(
     )
     rendered(page)
     expect(field).to_be_focused()
-    expect(bar).to_have_attribute("data-lf-plane", "window")
+    expect(bar).to_have_attribute("data-lf-plane", "page")
+    away = bar.bounding_box()
+    assert away["y"] + away["height"] < 0, away
     page.keyboard.type("x")
+    page.keyboard.press("Escape")
+    page.keyboard.press("g")
+    page.keyboard.press("i")
+    expect(field).to_be_focused()
     page.wait_for_function(
         """() => {
           const bar = document.querySelector('.lf-fab-bar').getBoundingClientRect();
@@ -362,7 +368,7 @@ def test_a_comment_box_stays_with_the_writer_when_its_passage_scrolls_away(
     expect(bar).to_be_visible()
     expect(field).to_have_js_property("value", "x")
     assert page.locator("#triage-lede").evaluate(
-        "node => node.getBoundingClientRect().bottom < 0"
+        "node => { const r = node.getBoundingClientRect(); return r.bottom > 48 && r.top < innerHeight; }"
     )
 
 

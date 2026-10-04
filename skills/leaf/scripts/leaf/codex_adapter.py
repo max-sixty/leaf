@@ -70,7 +70,7 @@ from .codex import (
 from .codex_state import delivery_lock_path, hook_turn, step_delivery_turn
 from .detached import Handshake, starting_detached
 from .event_log import read_cursor
-from .host import CodexHarness, session_harness
+from .harness import CodexHarness, session_harness
 from .leases import (
     adapter_is_live,
     adapter_lease_path,
@@ -353,7 +353,7 @@ class TaskConnection:
 
         A resume may omit older turns. Exhaust its explicit pagination before
         abandoning an absent delivery; summaries or unloaded items cannot prove
-        absence. Abandonment gives up this host's attempt, never the provider turn.
+        absence. Abandonment gives up this harness's attempt, never the provider turn.
         """
         codex.settle_answered_deliveries(self.thread_id)
         with flocked(delivery_lock_path(self.thread_id)):
@@ -903,12 +903,15 @@ def run_adapter(
         failures = 0
         while True:
             try:
-                recovered = _recover_receipt(harness.session)
+                # Receipt recovery judges page ownership as retirement does, so
+                # both wait out a starter's claim handoff under the start lock
+                # (`session-lifetime.md`, "Carriers").
+                with flocked(start_lock):
+                    recovered = _recover_receipt(harness.session)
+                    if not recovered and not owned_pages(harness.session):
+                        retire()
+                        return 0
                 if not recovered:
-                    with flocked(start_lock):
-                        if not owned_pages(harness.session):
-                            retire()
-                            return 0
                     recovered = _offer_queued_delivery(
                         codex_path,
                         harness.session,
@@ -987,7 +990,7 @@ def preparing_adapter(codex_path: str | None = None, app_server: str | None = No
     The same task start lock serializes carrier startup and no-page retirement.
     Holding it across the caller's publication lets delivery prepare before any
     claim exists, without a carrier retiring in that gap. A new carrier captures
-    the launching host's canonical session generation before subscribing to turns.
+    the launching harness's canonical session generation before subscribing to turns.
     """
     harness = session_harness()
     if harness is None or harness.name != CodexHarness.name:
@@ -1014,7 +1017,7 @@ def preparing_adapter(codex_path: str | None = None, app_server: str | None = No
             yield {"task": session_id, "app_server": running, "started": False}
             return
         # The connection captures its causal lifecycle before observing turns.
-        # Establish it in the launching host, independently of page ownership.
+        # Establish it in the launching harness, independently of page ownership.
         ensure_session(session_id, harness.lifetime())
         with starting_detached(
             [

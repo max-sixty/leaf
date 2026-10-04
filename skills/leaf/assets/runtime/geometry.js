@@ -130,6 +130,78 @@ export function boxAt(chip, at) {
   );
 }
 
+// One local scroll pixel's viewport displacement. Scroll offsets are in layout pixels;
+// a scaled or rotated scrollport carries its contents along transformed axes. Browser
+// matrices compose through the same rendered ancestry used by clipping, across slots
+// and shadow roots. Origins and translations do not change these direction vectors.
+export function scrollAxes(source) {
+  if (source === source.ownerDocument.scrollingElement)
+    return { x: { x: 1, y: 0 }, y: { x: 0, y: 1 } };
+  let matrix = new window.DOMMatrix();
+  for (let node = source; node instanceof Element; node = renderedParent(node)) {
+    const style = getComputedStyle(node);
+    let local = new window.DOMMatrix();
+    if (style.rotate !== "none") {
+      const parts = style.rotate.split(" ");
+      const angle = parts.pop();
+      const degrees =
+        parseFloat(angle) *
+        (angle.endsWith("turn")
+          ? 360
+          : angle.endsWith("grad")
+            ? 0.9
+            : angle.endsWith("rad")
+              ? 180 / Math.PI
+              : 1);
+      const axis =
+        parts.length === 3
+          ? parts.map(Number)
+          : parts[0] === "x"
+            ? [1, 0, 0]
+            : parts[0] === "y"
+              ? [0, 1, 0]
+              : [0, 0, 1];
+      local = local.rotateAxisAngle(...axis, degrees);
+    }
+    if (style.scale !== "none") {
+      const scale = style.scale.split(" ").map(Number);
+      local = local.scale(scale[0], scale[1] ?? scale[0], scale[2] ?? 1);
+    }
+    if (style.transform !== "none")
+      local = local.multiply(new window.DOMMatrix(style.transform));
+    const zoom = Number(style.zoom);
+    local = local.scale(zoom, zoom);
+    matrix = local.multiply(matrix);
+  }
+  return { x: { x: matrix.a, y: matrix.b }, y: { x: matrix.c, y: matrix.d } };
+}
+
+// Convert a viewport reveal movement into the scrollport's own layout offsets. A
+// one-axis scroller uses that axis's projected displacement; a two-axis scroller uses
+// the inverse basis, so rotated horizontal motion never becomes a vertical-only guess.
+export function localScrollBy(source, { x, y }) {
+  const axes = scrollAxes(source);
+  const horizontal = source.scrollWidth > source.clientWidth;
+  const vertical = source.scrollHeight > source.clientHeight;
+  const along = (axis) => {
+    const amounts = [
+      ...(x && axis.x ? [x / axis.x] : []),
+      ...(y && axis.y ? [y / axis.y] : []),
+    ];
+    return amounts.reduce(
+      (move, amount) => (Math.abs(amount) > Math.abs(move) ? amount : move),
+      0,
+    );
+  };
+  if (!horizontal) return { left: 0, top: vertical ? along(axes.y) : 0 };
+  if (!vertical) return { left: along(axes.x), top: 0 };
+  const determinant = axes.x.x * axes.y.y - axes.x.y * axes.y.x;
+  return {
+    left: (x * axes.y.y - y * axes.y.x) / determinant,
+    top: (y * axes.x.x - x * axes.x.y) / determinant,
+  };
+}
+
 // What a container lets the user see of what it holds, or null where it shows all of
 // it. Overflow is one of three ways to draw nothing past an edge: paint containment and
 // content-visibility both clip while overflow computes `visible`, and a box under either

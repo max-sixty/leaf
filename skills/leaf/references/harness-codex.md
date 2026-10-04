@@ -4,7 +4,7 @@ This contract is for a Codex task that Leaf reaches through Codex's durable queu
 the desktop app, an IDE extension, or a terminal CLI started the ordinary way. A task
 whose environment sets `LEAF_CODEX_APP_SERVER`, as a `leaf codex launch` terminal
 does, or whose App Server endpoint the user gave you, is one Leaf reaches over Codex
-App Server instead, and follows `references/host-codex-app-server.md`. The desktop
+App Server instead, and follows `references/harness-codex-app-server.md`. The desktop
 app runs an App Server of its own, but Leaf cannot connect to it, so a desktop task
 follows this contract.
 

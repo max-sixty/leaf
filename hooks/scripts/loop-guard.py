@@ -8,7 +8,7 @@ environment manager.
 This supervisor calls `bin/leaf hook --watch`. Claude's asyncRewake registration
 wakes on exit 2, a status uv can also use for startup failures, so only a clean
 Leaf return with a nonempty result becomes stderr and exit 2 here. Every other
-ending is silent. The host's timeout signal is forwarded to the child, allowing
+ending is silent. The harness's timeout signal is forwarded to the child, allowing
 the watch to release its lease. The registration gates on CLAUDECODE because
 Codex ignores asyncRewake and would wait on this long-running command.
 """
@@ -28,7 +28,7 @@ def watch(payload: str) -> None:
     own failures, so the status alone would wake the session with an error at
     every turn's end."""
     children = []
-    # The host stops the hook at its timeout; the watch has to let its lease go
+    # The harness stops the hook at its timeout; the watch has to let its lease go
     # with it, and a signal before it starts must not leave it starting unwatched.
     for ending in (signal.SIGTERM, signal.SIGHUP):
         signal.signal(

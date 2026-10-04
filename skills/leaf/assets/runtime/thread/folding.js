@@ -9,6 +9,7 @@ import { newAttempt } from "../drafts.js";
 import { paintKeys } from "../keyboard/scopes.js";
 import { FOLD_MS, motion } from "../motion.js";
 import { pendingForParent } from "../pending/model.js";
+import { bindQueuedWork } from "../queued-work.js";
 import { whenDocumentPresented } from "../semantic-state.js";
 
 const pendingSettlement = (entries, id) =>
@@ -31,23 +32,29 @@ export async function settleThread({
     : actions.resolve(key, { attempt });
   if (!answer) return;
   if (landing) retainReversal(attempt, landing.reverse);
+  const land = async (step) => {
+    try {
+      return Boolean(await step?.());
+    } catch {
+      return false;
+    } // The thread ticket reports presentation failures.
+  };
+  // These are the command's two deferred invocations, rather than the native async
+  // tail that waits for them. Capture both before presentation yields the gesture.
+  const startLanding = bindQueuedWork(() =>
+    pendingSettlement(pendingEntries(), parent()) ? land(landing?.optimistic) : false,
+  );
+  const finishLanding = bindQueuedWork((accepted, landed) => {
+    if (!accepted) return land(landing?.reverse);
+    if (!landed) return land(landing?.optimistic);
+  });
   const presentation = whenDocumentPresented();
   paintKeys();
   try {
     await presentation;
-    const land = async (step) => {
-      try {
-        return Boolean(await step?.());
-      } catch {
-        return false;
-      } // The thread ticket reports presentation failures.
-    };
-    let landed = false;
-    if (pendingSettlement(pendingEntries(), parent()))
-      landed = await land(landing?.optimistic);
+    const landed = await startLanding();
     const accepted = await answer;
-    if (!accepted) await land(landing?.reverse);
-    else if (!landed) await land(landing?.optimistic);
+    await finishLanding(accepted, landed);
   } finally {
     paintKeys();
   }

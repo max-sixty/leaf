@@ -70,7 +70,7 @@ export function holdReplyCompositions(threads, realize) {
     if (!session.owner || session.continuing) continue;
     const owner = session.owner;
     const editing = captureDraftEditing(owner.controls.input) ?? session.editing;
-    if (!editing || !draftHasContent(context)) continue;
+    if (!editing) continue;
     session.editing = editing;
     const intent = restrictUserIntent(
       retainUserIntent(),
@@ -111,7 +111,7 @@ export function holdReplyCompositions(threads, realize) {
   };
 }
 
-export const hasReplyComposition = () => [...compositions.keys()].some(draftHasContent);
+export const hasReplyComposition = () => compositions.size > 0;
 
 // A composition is the row's mechanical session, not the saved draft and not focus.
 // Native Tab walks its controls and the surrounding page without dismissing it.
@@ -244,10 +244,7 @@ export const replyCompositionHasDraft = (node) => {
 
 // Editing belongs to the reply row's session, including Send and native Tab browsing.
 // Persisted words alone never reopen an editor after settlement or reload.
-export const replyIsEditing = (key) => {
-  const context = replyContext(key);
-  return compositions.has(context) && draftHasContent(context);
-};
+export const replyIsEditing = (key) => compositions.has(replyContext(key));
 
 // Every reply renderer and route shares the same admission: open conversation,
 // or a settled conversation whose native editing session still owns its words.

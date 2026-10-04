@@ -4767,11 +4767,29 @@ def test_an_external_resolution_keeps_a_panel_reply_until_it_is_sent(
         expect(reply).to_have_js_property("value", "")
         return
     if finish == "filter":
+        withdrawn_words = (
+            f'typed words left the screen without a key or press: "{words}" in '
+            + reply.evaluate("field => window.lfPlace(field)")
+        )
         find = page.get_by_role("searchbox", name="Find in threads")
         find.click()
         find.fill("No such discussion")
         rendered(page)
         expect(card).to_be_hidden()
+        # The real Find press ends this composition before narrowing hides its
+        # retained words. That later inactive withdrawal is the fixture's intent.
+        page.evaluate("lfWordsJudged()")
+        errors = take_browser_errors(page)
+        assert errors in ([], [withdrawn_words]), errors
+        find.fill("")
+        rendered(page)
+        expect(reply).to_have_count(0)
+        page.locator(".lf-thread-filter-toggle").click()
+        page.locator('[data-filter-value="resolved"]').click()
+        expect(card).to_be_visible()
+        with sending(page, "reopen the deliberately dismissed reply"):
+            card.get_by_role("button", name="Reopen", exact=True).click()
+        expect(reply).to_have_js_property("value", words)
         return
 
     page.keyboard.type(" still")

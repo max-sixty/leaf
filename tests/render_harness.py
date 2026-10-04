@@ -1400,6 +1400,23 @@ def consume_browser_errors(page, *expected):
     return errors
 
 
+def xfail_browser_problem(page, *expected, reason):
+    """Quarantine one verified main defect after the journey's assertions finish.
+
+    A fixed defect passes. Any other browser problem, including another report of
+    the named loss, fails. Keep the assertion after xfail so --runxfail exposes
+    the original failure rather than clearing it into a pass.
+    """
+    assert expected, "known browser problems cannot be empty"
+    page.evaluate("lfWordsJudged()")
+    errors = take_browser_errors(page)
+    if not errors:
+        return
+    assert errors == list(expected), errors
+    pytest.xfail(reason)
+    raise AssertionError(errors)
+
+
 # What navigate reports when a ResizeObserver loop notice comes back on the confirming
 # navigation, so a one-off notice is dropped and a recurring one fails the test.
 RECURRING_RESIZE_NOTICE = (

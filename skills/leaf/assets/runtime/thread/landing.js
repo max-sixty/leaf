@@ -40,6 +40,7 @@ import { closestAcross } from "../passages.js";
 import { reachedForWords, reveal } from "../widget-elements.js";
 import { finishFold, hasFolding, whenFolded } from "./folding.js";
 import { whenDocumentPresented } from "../semantic-state.js";
+import { bindQueuedWork } from "../queued-work.js";
 import { SAYS_IN, THREAD } from "./selectors.js";
 import { retainUserIntent } from "../user-intent.js";
 import { pageScope } from "../keyboard/register.js";
@@ -361,6 +362,17 @@ async function showThreadNow(id, focus, flash, revealThread, threadsBox, mayArri
   // A native continuation owns its presented row even after Tab moves standing.
   // The original gesture still gates focus, scrolling, and any later reveal action.
   const mayPresent = () => (focus === false ? mayArrive.available() : mayArrive());
+  // Showing held news can await presentation before a direct arrival widens the
+  // list. Bind that actual reveal now; its user-intent lease is checked when run.
+  const revealDestination = bindQueuedWork(() => {
+    const node = listNode(id, threadsBox, focus === "message");
+    const going = node?.closest(".lf-going");
+    if (node && !going) return { node };
+    if (!mayArrive()) return null;
+    if (going) finishFold(going);
+    const ready = revealThread(threadNames(allThreads()).get(id)?.id ?? id);
+    return ready ? { ready } : null;
+  });
   // A direct arrival owns the target's one transition cue. Remove a retained arrival
   // animation before an asynchronous reveal gives the browser a frame to start it.
   threadsBox
@@ -373,21 +385,11 @@ async function showThreadNow(id, focus, flash, revealThread, threadsBox, mayArri
     await whenDocumentPresented();
     if (!mayPresent()) return null;
   }
-  let node = listNode(id, threadsBox, focus === "message");
-  const going = node?.closest(".lf-going");
-  if (going) {
-    if (!mayArrive()) return null;
-    finishFold(going);
-    const revealed = revealThread(threadNames(allThreads()).get(id)?.id ?? id);
-    if (!revealed) return null;
-    await revealed;
-    if (!mayPresent()) return null;
-    node = listNode(id, threadsBox, focus === "message");
-  } else if (!node) {
-    if (!mayArrive()) return null;
-    const revealed = revealThread(threadNames(allThreads()).get(id)?.id ?? id);
-    if (!revealed) return null;
-    await revealed;
+  const destination = revealDestination();
+  if (!destination) return null;
+  let node = destination.node;
+  if (destination.ready) {
+    await destination.ready;
     if (!mayPresent()) return null;
     node = listNode(id, threadsBox, focus === "message");
   }

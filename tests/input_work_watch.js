@@ -87,6 +87,7 @@
     "keydown",
     "beforeinput",
     "input",
+    "paste",
   ];
   // Native summary activation belongs to the nearest interactive content, not an
   // enclosing summary around a button or link (HTML's interactive-content category).

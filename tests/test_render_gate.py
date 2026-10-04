@@ -4794,14 +4794,18 @@ def test_dragging_an_edge_preserves_user_state(browser, serve, edge, pointer):
     drag()
     expect(composer).to_be_visible()
     expect(composer).to_have_js_property("value", "half a comment")
+    composer.focus()
+    page.keyboard.press("Escape")
+    expect(composer).to_be_hidden()
 
     # An existing partial-word selection can come from native keyboard selection or
     # browser commands. Only a new selection gesture may expand it to a sentence.
-    page.locator("main p").nth(1).evaluate("""p => {
-        const text = p.firstChild;
-        getSelection().setBaseAndExtent(text, 3, text, 14);
-    }""")
+    paragraph = page.locator("main p").nth(1)
+    paragraph.evaluate(
+        "p => getSelection().setBaseAndExtent(p.firstChild, 3, p.firstChild, 14)"
+    )
     selected = page.evaluate("() => getSelection().toString()")
+    assert selected == paragraph.evaluate("p => p.firstChild.textContent.slice(3, 14)")
     drag()
     assert (
         page.evaluate("""async () => {

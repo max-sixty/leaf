@@ -97,6 +97,7 @@ from render_harness import (
     select,
     sending,
     stamp_page,
+    stored_draft_text,
     ticked,
     told,
     undo,
@@ -4434,6 +4435,15 @@ customElements.define('lf-feed', class extends HTMLElement {
 def test_a_failed_thread_surface_returns_its_threads_to_core_fallback(
     browser, serve, failure
 ):
+    _exercise_failed_thread_surface(browser, serve, failure, activation="pointer")
+
+
+def test_a_failed_thread_surface_continues_the_keyboard_opened_reply(browser, serve):
+    """Opening sibling reactions with the keyboard retains the active reply session."""
+    _exercise_failed_thread_surface(browser, serve, "hidden", activation="keyboard")
+
+
+def _exercise_failed_thread_surface(browser, serve, failure, *, activation):
     """An adapter failure cannot keep stale local views or stop the next widget.
 
     Two previously seated threads expose partial claims when outletFor fails on
@@ -4556,12 +4566,49 @@ customElements.define('lf-test-surface', class extends HTMLElement {
     expect(healthy).to_contain_text("Discuss healthy first")
     markers = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
     expect(markers).to_have_count(0)
-    write(broken.locator(".lf-page-thread leaf-text").first, "Keep this unsent reply.")
+    input = broken.locator(".lf-page-thread leaf-text").first
+    write(input, "Keep this unsent reply.")
+    editing = """async key => {
+      const replies = await window.__lfRuntimeImport('/runtime/thread/replies.js');
+      return replies.replyIsEditing(key);
+    }"""
+    assert page.evaluate(editing, roots[0])
+    retired_words = (
+        'typed words left the screen without a key or press: "Keep this unsent reply." in '
+        + input.evaluate("field => window.lfPlace(field)")
+    )
     strip = broken.locator(".lf-react-strip")
-    strip.locator(".lf-react-trigger").click()
+    trigger = strip.locator(".lf-react-trigger")
+    if activation == "pointer":
+        trigger.click()
+    else:
+        trigger.focus()
+        page.keyboard.press("Enter")
     expect(strip.locator(".lf-react:visible")).to_have_count(6)
+    assert page.evaluate(editing, roots[0]) == (activation == "keyboard")
+    assert stored_draft_text(page, f"reply:{roots[0]}") == "Keep this unsent reply."
 
     broken.evaluate("(widget, phase) => widget.fail(phase)", failure)
+    rendered(page)
+    page.evaluate("lfWordsJudged()")
+    if activation == "pointer":
+        # The reaction press already ended this composition, before the passive
+        # adapter fault. Retiring its unfocused view withdraws saved work, not a
+        # typing continuation. Calibrate only this exact report at that handoff;
+        # adapter faults and every other loss remain with the strict collector.
+        assert not page.evaluate(editing, roots[0])
+        assert page.lf_errors.count(retired_words) == 1, page.lf_errors
+        page.lf_errors.remove(retired_words)
+    else:
+        assert page.evaluate(editing, roots[0])
+        assert "Keep this unsent reply." in page.locator(
+            "leaf-text:visible"
+        ).evaluate_all("fields => fields.map(field => field.value)")
+        assert retired_words not in page.lf_errors, page.lf_errors
+        # This control now deliberately leaves its continuing editor before
+        # exercising the original retired-picker and explicit fallback routes.
+        page.keyboard.press("Escape")
+    assert stored_draft_text(page, f"reply:{roots[0]}") == "Keep this unsent reply."
     if failure != "disconnect":
         expect(broken.locator(".lf-page-thread")).to_have_count(0)
     append_carried_log_record(

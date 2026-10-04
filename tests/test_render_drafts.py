@@ -68,6 +68,7 @@ from render_harness import (
     panel_settled,
     primed,
     refuse,
+    reported_browser_errors,
     resized,
     round_trip,
     scroll_settled,
@@ -2848,8 +2849,16 @@ def test_poll_settlement_cannot_tombstone_a_newer_durable_generation(
     # and leaves it standing. `held_stale`'s refusal is lifted here rather than earlier,
     # with the older attempt in the log and the older generation still cached, which is
     # the only arrangement that asks anything.
+    accepted_words = (
+        f'typed words left the screen without a key or press: "{old}" in '
+        + stale_say.locator("leaf-text").evaluate("field => window.lfPlace(field)")
+    )
     stale_held.restore()
     told(stale)
+    # The fixture blocked the real storage gesture, then explicitly accepted its
+    # old generation. Polling must retire those old words in favour of the newer one.
+    stale.evaluate("lfWordsJudged()")
+    reported_browser_errors(stale, accepted_words)
     assert stored_draft_text(current, "say:jobs") == newer
     expect(stale_say.locator("leaf-text")).to_have_js_property("value", newer)
     expect(current_say.locator("leaf-text")).to_have_js_property("value", newer)
@@ -3591,7 +3600,7 @@ def test_reply_editing_and_saved_words_have_separate_resolution_lifetimes(
 
 
 @pytest.mark.parametrize("surface", ["panel", "margin"])
-@pytest.mark.parametrize("continuation", ["send", "dismiss"])
+@pytest.mark.parametrize("continuation", ["send", "dismiss", "clear"])
 def test_a_resolved_reply_composition_stays_open_until_deliberately_dismissed(
     browser, serve, surface, continuation
 ):
@@ -3621,6 +3630,18 @@ def test_a_resolved_reply_composition_stays_open_until_deliberately_dismissed(
         {"kind": "resolve", "author": "agent", "agent": "Codex", "parent": root["id"]},
     )
     told(page)
+    if continuation == "clear":
+        field = thread.locator("leaf-text")
+        field.press("ControlOrMeta+a")
+        field.press("Backspace")
+        rendered(page)
+        expect(field).to_be_visible()
+        expect(field).to_be_focused()
+        expect(field).to_have_js_property("value", "")
+        field.press("Escape")
+        expect(field).not_to_be_visible()
+        assert stored_draft_text(page, f"reply:{root['id']}") == ""
+        return
     page.keyboard.press("Tab")
     send = thread.get_by_role("button", name="Send", exact=True)
     expect(send).to_be_focused()
@@ -3707,8 +3728,9 @@ def test_send_follows_a_reply_composition_whose_diff_outlet_disappears(
 
 
 @pytest.mark.parametrize("resolved", [False, True])
+@pytest.mark.parametrize("cleared", [False, True])
 def test_tab_browsing_keeps_a_reply_when_its_diff_outlet_is_replaced(
-    browser, serve, resolved
+    browser, serve, resolved, cleared
 ):
     """External source replacement carries editing without reversing native Tab."""
     patch = (
@@ -3740,6 +3762,10 @@ def test_tab_browsing_keeps_a_reply_when_its_diff_outlet_is_replaced(
     inline = page.locator(f'lf-diff .lf-page-thread[data-thread="{root}"]')
     words = "I still need to send my answer about that line."
     write(inline.locator("leaf-text"), words)
+    if cleared:
+        page.keyboard.press("ControlOrMeta+a")
+        page.keyboard.press("Backspace")
+        words = ""
     if resolved:
         events_model.append_event(
             serve.page_dir,
@@ -3747,7 +3773,8 @@ def test_tab_browsing_keeps_a_reply_when_its_diff_outlet_is_replaced(
         )
         told(page)
     page.keyboard.press("Tab")
-    expect(inline.get_by_role("button", name="Send", exact=True)).to_be_focused()
+    if not cleared:
+        expect(inline.get_by_role("button", name="Send", exact=True)).to_be_focused()
     rendered(page)
     after = page.locator("#after-diff")
     for _ in range(20):
@@ -5315,6 +5342,10 @@ def test_delayed_thread_destination_yields_to_shared_generation_or_new_input(
     page = editing_reply_page(browser, serve, one_user)
     reply = page.locator(".lf-margin-preview .lf-thread-reply leaf-text")
     write(reply, "The exact generation whose route is waiting.")
+    known_loss = (
+        'typed words left the screen without a key or press: "The exact generation whose route is waiting." in '
+        + reply.evaluate("field => window.lfPlace(field)")
+    )
     other = open_page(browser, page.url, context=one_user)
     held = page.evaluate(
         """async()=>{
@@ -5329,6 +5360,15 @@ def test_delayed_thread_destination_yields_to_shared_generation_or_new_input(
         "A query that hides this thread"
     )
     expect(page.locator(f""".lf-thread[data-id="{held["id"]}"]""")).to_be_hidden()
+    # Find is a deliberate departure from reply editing. Its later narrowing paint
+    # may withdraw the saved inactive box after that pointer callback has ended.
+    # Calibrate only this exact withdrawal; later route and query errors stay strict.
+    assert (
+        stored_draft_text(page, held["editing"]["context"]) == held["editing"]["words"]
+    )
+    page.evaluate("lfWordsJudged()")
+    errors = take_browser_errors(page)
+    assert errors in ([], [known_loss]), errors
     hold_visible_thread_presentation(page, held["id"])
     page.evaluate(
         """async held=>{

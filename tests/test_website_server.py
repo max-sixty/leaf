@@ -3953,6 +3953,69 @@ def test_the_agent_response_clock_ignores_an_earlier_failure_receipt(browser):
     assert page.evaluate("window.__leafVerifier.visibleReplyAt('answer')") is not None
 
 
+def test_the_agent_response_clock_follows_a_stream_into_its_durable_reply(browser):
+    page = browser.new_page()
+    verify_site.observe_startup(page)
+    url = "https://site-verifier.test/completed-stream"
+    page.route(
+        url,
+        lambda route: route.fulfill(
+            content_type="text/html",
+            body="""<div class="lf-threads"><div class="lf-msg agent" data-mid="stream:turn">
+                      <span class="lf-msg-text">Answer in progress</span></div></div>""",
+        ),
+    )
+    page.goto(url)
+    page.evaluate("window.__leafVerifier.startVisibleReplyClock")
+    page.wait_for_function(
+        "window.__leafVerifier.visibleReplyRecorded", arg="stream:turn"
+    )
+
+    page.locator(".lf-msg").evaluate("""node => {
+      node.dataset.mid = 'answer';
+      node.querySelector('.lf-msg-text').textContent = 'Complete answer';
+    }""")
+    page.wait_for_function(
+        "window.__leafVerifier.visibleReplyRecorded", arg="answer", timeout=10_000
+    )
+    assert page.evaluate("window.__leafVerifier.visibleReplyAt('answer')") is not None
+
+
+def test_the_agent_verifier_opens_news_arriving_after_an_earlier_notice(
+    browser, monkeypatch
+):
+    page = browser.new_page()
+    verify_site.observe_startup(page)
+    url = "https://site-verifier.test/held-answer"
+    page.route(
+        url,
+        lambda route: route.fulfill(
+            content_type="text/html",
+            body="""<div class="lf-threads"><div class="lf-thread" data-id="comment">
+              <button class="lf-thread-news" onclick="this.remove(); setTimeout(() => {
+                const next = document.createElement('button');
+                next.className = 'lf-thread-news';
+                next.textContent = 'Final reply waiting';
+                next.onclick = () => {
+                  document.querySelector('.lf-msg').dataset.mid = 'answer';
+                  next.remove();
+                };
+                document.querySelector('.lf-thread').append(next);
+              }, 0)">Stream update waiting</button>
+              <div class="lf-msg agent" data-mid="stream:turn">
+                <span class="lf-msg-text">Complete answer</span></div>
+              </div></div>""",
+        ),
+    )
+    page.goto(url)
+    page.evaluate("window.__leafVerifier.startVisibleReplyClock")
+    monkeypatch.setattr(verify_site, "VISIBLE_REPLY_PATIENCE", 10_000)
+
+    assert verify_site.wait_for_visible_reply(page, "comment", "answer")
+    assert page.locator(".lf-thread-news").count() == 0
+    assert page.evaluate("window.__leafVerifier.visibleReplyAt('answer')") is not None
+
+
 def test_a_refused_answer_carries_what_the_server_said_about_it():
     """A status alone cannot separate one 500 from another, so the body travels with
     it, bounded so a page of HTML served by mistake does not become the run log."""

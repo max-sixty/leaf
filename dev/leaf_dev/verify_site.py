@@ -30,6 +30,7 @@ import urllib.request
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
+from time import perf_counter
 from typing import IO, NamedTuple
 from urllib.parse import urlencode, urljoin, urlsplit
 
@@ -842,31 +843,36 @@ def ask_until_answered(
 
 
 def wait_for_visible_reply(page, parent: str, answer_id: str) -> bool:
-    """Open an answered thread's held news, then require its reply on screen."""
-    try:
-        page.wait_for_function(
-            """({parent, id}) => window.__leafVerifier.visibleReplyRecorded(id) ||
-              [...document.querySelectorAll('.lf-threads > .lf-thread')].some(
-                thread => thread.dataset.id === parent &&
-                  [...thread.querySelectorAll('.lf-thread-news')].some(
-                    notice => notice.checkVisibility()))""",
-            arg={"parent": parent, "id": answer_id},
-            timeout=VISIBLE_REPLY_PATIENCE,
-        )
-        if not page.evaluate(
-            "id => window.__leafVerifier.visibleReplyRecorded(id)", answer_id
-        ):
+    """Open held news until the admitted reply is seen within one bounded wait.
+
+    The browser may hold a stream update when the server has already admitted its
+    final answer. Opening that notice before the final reading arrives can leave a
+    second notice for the answer, so one click does not settle the observation.
+    """
+    deadline = perf_counter() + VISIBLE_REPLY_PATIENCE / 1000
+    while True:
+        remaining = max(1, round((deadline - perf_counter()) * 1000))
+        if perf_counter() >= deadline:
+            return False
+        try:
+            page.wait_for_function(
+                """({parent, id}) => window.__leafVerifier.visibleReplyRecorded(id) ||
+                  [...document.querySelectorAll('.lf-threads > .lf-thread')].some(
+                    thread => thread.dataset.id === parent &&
+                      [...thread.querySelectorAll('.lf-thread-news')].some(
+                        notice => notice.checkVisibility()))""",
+                arg={"parent": parent, "id": answer_id},
+                timeout=remaining,
+            )
+            if page.evaluate(
+                "id => window.__leafVerifier.visibleReplyRecorded(id)", answer_id
+            ):
+                return True
             page.locator(
                 f'.lf-threads > .lf-thread[data-id="{parent}"] .lf-thread-news'
-            ).click()
-            page.wait_for_function(
-                "id => window.__leafVerifier.visibleReplyRecorded(id)",
-                arg=answer_id,
-                timeout=VISIBLE_REPLY_PATIENCE,
-            )
-    except PlaywrightTimeout:
-        return False
-    return True
+            ).click(timeout=remaining)
+        except PlaywrightTimeout:
+            return False
 
 
 def verify_agent_turn(

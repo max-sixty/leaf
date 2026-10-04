@@ -318,7 +318,7 @@ export function mountApplication(dependencies) {
     },
     changes: {
       toggle: dependencies.annotationCommands.toggleChangeSince,
-      shownAt: dependencies.annotationCommands.changeShownAt,
+      shownFor: dependencies.annotationCommands.changeShownFor,
       close: dependencies.annotationCommands.closeChangeSince,
     },
   };

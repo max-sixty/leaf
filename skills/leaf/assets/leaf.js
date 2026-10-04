@@ -452,7 +452,7 @@ app = mountApplication({
     inlineComparison: version.inlineComparison,
     toggleInlineComparison: version.toggleInlineComparison,
     toggleChangeSince: version.toggleChangeSince,
-    changeShownAt: version.changeShownAt,
+    changeShownFor: version.changeShownFor,
     closeChangeSince: version.closeChangeSince,
     leavePageMap: (...args) => pageMapDialog.leavePageMap(...args),
     openPageMap: (...args) => pageMapDialog.openPageMap(...args),

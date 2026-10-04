@@ -728,26 +728,31 @@ export class ThreadView {
 
   // The change opens where it happened, so the press shows the place as the quote's
   // own press does; pressed again, it puts the page's current words back alone. The
-  // reading is this card's: it leaves with the card (`dispose`).
-  #changedSection = () => {
-    const changed = this.#model?.quote?.changed;
-    return changed ? elementById(changed.section) : null;
-  };
-
+  // reading is this thread's, and the panel card is what offers it, so it leaves when
+  // the card stops offering it or leaves itself (`dispose`).
   #showChange = () => {
-    const section = this.#changedSection();
+    const changed = this.#model.quote?.changed;
+    const section = changed && elementById(changed.section);
     if (!section) return;
-    this.#commands.changes.toggle(section, this.#model.quote.changed.revision);
+    this.#commands.changes.toggle(this.#model.id, section, changed.revision);
     this.#commands.travel.scrollToThread(this.#model.id, { focus: "reply" });
   };
 
-  // Whether the reading stands is the comparison's, which a revision or a Change entry
-  // can also end, so the control reads it back whenever a comparison moves.
+  // Whether the reading stands is the comparison's, which a revision can also end, so
+  // the control reads it back whenever a comparison moves.
   #paintChangeShown = () => {
+    if (this.#model?.surface !== "panel") return;
+    if (!this.#model.quote?.changed) {
+      this.#commands.changes.close(this.#model.id);
+      return;
+    }
     const button = this.node.querySelector(".lf-thread-head > .lf-anchor-changed");
-    const section = this.#changedSection();
-    if (!button || !section) return;
-    keeps(button, "aria-expanded", String(this.#commands.changes.shownAt(section)));
+    if (button)
+      keeps(
+        button,
+        "aria-expanded",
+        String(this.#commands.changes.shownFor(this.#model.id)),
+      );
   };
 
   #wireKeys() {
@@ -883,8 +888,7 @@ export class ThreadView {
   dispose() {
     this.#heldNews?.dispose();
     document.removeEventListener("lf-comparison", this.#paintChangeShown);
-    const section = this.#changedSection();
-    if (section) this.#commands.changes.close(section);
+    if (this.#model?.surface === "panel") this.#commands.changes.close(this.#model.id);
     this.#continuity?.release();
     this.retire();
     this.#reply?.dispose();

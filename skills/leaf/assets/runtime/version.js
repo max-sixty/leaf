@@ -10,7 +10,7 @@
  * base; the row for the displayed version clears comparison. Block marks show changes,
  * and `inlineComparison` / `toggleInlineComparison` disclose a block's text diff on
  * request. `toggleChangeSince` discloses the same inline diff on one element from an
- * exact revision, without the page-wide marks; `changeShownAt` and `closeChangeSince`
+ * exact revision, without the page-wide marks; `changeShownFor` and `closeChangeSince`
  * serve the thread that pressed for it. `comparisonBase`, `comparisonChanges`,
  * and `closeVersionMenu` serve other surfaces.
  *
@@ -890,8 +890,8 @@ export function createVersionController({
   }
 
   // `before` is what the block said in the base, or null where the base held no such
-  // block; `base` names that base for the reading. `opener` says which press owns the
-  // reading: a Change entry's (`comparison`) or a thread's (`thread`).
+  // block; `base` names that base for the reading. `opener` says whose press owns the
+  // reading: the comparison's Change entries (`COMPARISON`), or one thread, by its id.
   function openInlineComparison(target, before, base, opener) {
     const reading = authoredReading(target);
     const current = currentVersionToken();
@@ -949,10 +949,12 @@ export function createVersionController({
       : `showing an inline diff from ${base}`;
   }
 
-  function closeInlineComparison(target) {
+  // `replacing` leaves the block's class to the reading about to open, which writes it
+  // once rather than taking it off and putting it back in one script.
+  function closeInlineComparison(target, replacing = false) {
     const entry = inlineOpen.get(target);
     inlineOpen.delete(target);
-    target.classList.remove("lf-version-inline");
+    if (!replacing) target.classList.remove("lf-version-inline");
     for (const node of entry?.nodes ?? []) node.remove();
     paintInlineInsertions();
     layoutChanged(target);
@@ -963,9 +965,10 @@ export function createVersionController({
   // into. A thread's reading still on its way would land on words it was not read
   // against, so it lands nowhere.
   function closeInlineComparisons() {
-    changeRequest++;
+    changeRequests.clear();
     for (const target of [...inlineOpen.keys()]) closeInlineComparison(target);
   }
+  const COMPARISON = Symbol("comparison");
   const openedBy = (target, opener) => inlineOpen.get(target)?.opener === opener;
 
   // What a text-changing marked block holds for the margin's disclosure reading. A pure
@@ -979,7 +982,7 @@ export function createVersionController({
     (diffBefore.get(target) === null || diffBefore.get(target) !== wroteLines(target))
       ? {
           id: inlineId(target),
-          open: openedBy(target, "comparison"),
+          open: openedBy(target, COMPARISON),
           offer: `v${diffBase} → ${currentVersionToken()}`,
         }
       : null;
@@ -990,15 +993,15 @@ export function createVersionController({
   function toggleInlineComparison(target) {
     if (!inlineComparison(target)) return null;
     let said;
-    if (openedBy(target, "comparison")) said = closeInlineComparison(target);
+    if (openedBy(target, COMPARISON)) said = closeInlineComparison(target);
     else {
       // A thread's reading of the same block gives way to the one pressed for.
-      if (inlineOpen.has(target)) closeInlineComparison(target);
+      if (inlineOpen.has(target)) closeInlineComparison(target, true);
       said = openInlineComparison(
         target,
         diffBefore.get(target),
         `v${diffBase}`,
-        "comparison",
+        COMPARISON,
       );
     }
     document.dispatchEvent(new CustomEvent("lf-comparison"));
@@ -1010,19 +1013,26 @@ export function createVersionController({
   // comment was written on: the same inline reading a Change entry discloses, on one
   // element and from that exact revision. It marks nothing else on the page and needs no
   // stamped version, since a comment is usually written on a draft. The revision's
-  // document is read by its number, prepared as a comparison's base is, and a press that
-  // lands after the user pressed again, after a comparison or revision replaced the
-  // readings, or after the element left, paints nothing. The thread that pressed for it
-  // takes it away again: its second press, or its card leaving (`closeChangeSince`).
-  let changeRequest = 0;
-  async function toggleChangeSince(target, revision) {
-    const mine = ++changeRequest;
-    if (openedBy(target, "thread")) {
-      closeInlineComparison(target);
-      document.dispatchEvent(new CustomEvent("lf-comparison"));
+  // document is read by its number and prepared as a comparison's base is.
+  //
+  // Each reading belongs to the thread that pressed for it, since two threads can stand
+  // on one rewritten section from different revisions. That thread alone takes it away:
+  // its second press, or `closeChangeSince` when its card leaves or stops offering it. A
+  // press still loading when its thread presses again or lets go, or when a revision
+  // replaces the words, paints nothing; another thread's press leaves it alone.
+  const changeRequests = new Map(); // thread id -> its press still loading
+  const changeOf = (thread) =>
+    [...inlineOpen].find(([, entry]) => entry.opener === thread)?.[0] ?? null;
+
+  async function toggleChangeSince(thread, target, revision) {
+    const shown = changeOf(thread);
+    if (shown) {
+      closeChangeSince(thread);
       notice("Showing the current words only");
       return;
     }
+    const mine = {};
+    changeRequests.set(thread, mine);
     // Named by what it was to the reader, since a draft's own label can be the
     // current one's too.
     const base = "the version commented on";
@@ -1031,13 +1041,16 @@ export function createVersionController({
       doc = await authoredDocument(pageUrl(`revisions/r${revision}.html`));
       await prepareDeclaredInlineMarkdown(doc);
     } catch {
-      if (mine === changeRequest) notice(`Couldn't load ${base}`);
+      if (changeRequests.get(thread) === mine) notice(`Couldn't load ${base}`);
       return;
+    } finally {
+      if (changeRequests.get(thread) === mine) changeRequests.delete(thread);
+      else doc = null;
     }
-    if (mine !== changeRequest || !target.isConnected) return;
-    if (inlineOpen.has(target)) closeInlineComparison(target);
+    if (!doc || !target.isConnected) return;
+    if (inlineOpen.has(target)) closeInlineComparison(target, true);
     const before = doc.getElementById(target.id);
-    openInlineComparison(target, before ? wroteLines(before) : null, base, "thread");
+    openInlineComparison(target, before ? wroteLines(before) : null, base, thread);
     document.dispatchEvent(new CustomEvent("lf-comparison"));
     // The page's words moved under the reader, so the press says what they now show.
     notice(
@@ -1046,10 +1059,11 @@ export function createVersionController({
         : "All of this is new since the comment",
     );
   }
-  const changeShownAt = (target) => openedBy(target, "thread");
-  function closeChangeSince(target) {
-    changeRequest++;
-    if (!openedBy(target, "thread")) return;
+  const changeShownFor = (thread) => changeOf(thread) !== null;
+  function closeChangeSince(thread) {
+    changeRequests.delete(thread);
+    const target = changeOf(thread);
+    if (!target) return;
     closeInlineComparison(target);
     document.dispatchEvent(new CustomEvent("lf-comparison"));
   }
@@ -1077,7 +1091,7 @@ export function createVersionController({
       // under a block nothing marks any more would leave half of the comparison behind.
       // A thread's reading never rested on the marks, so it stays.
       for (const target of [...inlineOpen.keys()])
-        if (openedBy(target, "comparison")) closeInlineComparison(target);
+        if (openedBy(target, COMPARISON)) closeInlineComparison(target);
       diffBefore.clear();
       for (const b of diffMarked) b.classList.remove("lf-ins-block");
       diffMarked.length = 0;
@@ -2049,7 +2063,7 @@ export function createVersionController({
     inlineComparison,
     toggleInlineComparison,
     toggleChangeSince,
-    changeShownAt,
+    changeShownFor,
     closeChangeSince,
     comparisonBase,
     comparisonChanges,

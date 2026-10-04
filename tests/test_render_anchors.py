@@ -3635,23 +3635,30 @@ def test_a_thread_whose_quote_was_rewritten_shows_what_changed(browser, serve):
     comment was written on to now: the quoted heading struck, its replacement marked,
     the untouched paragraph left alone and the heading and paragraph kept apart. A second
     press puts the current words back alone, and the words the user quoted still find
-    the thread."""
+    the thread.
+
+    Two threads quoted the same heading, so both stand on its section: each card's
+    reading is its own, and one card's press takes the place of the other's."""
     quote = "what an item is stays open"
-    url = serve(QUEUES_V1, anchored=[("queues", quote)])
+    url = serve(QUEUES_V1, anchored=[("queues", quote), ("queues", "Each side")])
     page = open_page(browser, live_url(url))
     stamp_page(serve.page_dir, QUEUES_V2, "plain headings")
     wait_for_revision(page, 2)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
 
-    card = page.locator(".lf-thread-panel .lf-thread")
-    expect(card.locator(".lf-quote")).to_contain_text("The two queues today")
-    changed = card.get_by_role("button", name="changed")
-    expect(changed).to_have_attribute("title", re.compile(re.escape(f"“{quote}”")))
+    cards = page.locator(".lf-thread-panel .lf-thread")
+    expect(cards).to_have_count(2)
+    expect(cards.locator(".lf-quote").first).to_contain_text("The two queues today")
+    first, second = (cards.nth(index).locator(".lf-anchor-changed") for index in (0, 1))
+    expect(first).to_have_text("changed")
+    # Each names the words its own comment quoted.
+    expect(page.locator(f'.lf-anchor-changed[title*="“{quote}”"]')).to_have_count(1)
+    expect(page.locator('.lf-anchor-changed[title*="“Each side”"]')).to_have_count(1)
 
-    expect(changed).to_have_attribute("aria-expanded", "false")
-    changed.click()
-    expect(changed).to_have_attribute("aria-expanded", "true")
+    expect(first).to_have_attribute("aria-expanded", "false")
+    first.click()
+    expect(first).to_have_attribute("aria-expanded", "true")
     expect(page.locator(".lf-notice")).to_have_text(
         "Showing what changed since the comment"
     )
@@ -3663,8 +3670,15 @@ def test_a_thread_whose_quote_was_rewritten_shows_what_changed(browser, serve):
     )
     assert [text.strip() for text in inserted] == ["The two queues today"], inserted
 
-    changed.click()
-    expect(changed).to_have_attribute("aria-expanded", "false")
+    cards.nth(1).locator(".lf-thread-summary").click()
+    expect(second).to_have_attribute("aria-expanded", "false")
+    second.click()
+    expect(second).to_have_attribute("aria-expanded", "true")
+    expect(first).to_have_attribute("aria-expanded", "false")
+    expect(struck).to_have_count(1)
+
+    second.click()
+    expect(second).to_have_attribute("aria-expanded", "false")
     expect(page.locator("#queues .lf-version-inline-deletion")).to_have_count(0)
     assert page.evaluate("() => CSS.highlights.has('lf-version-insert')") is False
 

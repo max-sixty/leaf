@@ -22,3 +22,24 @@ export const at = (el) => {
   }
   return tag(el);
 };
+
+// Which element a finding is about, where `at` only names it: two id-less drawings in
+// one figure share a name. The element's position under its nearest authored id, as
+// the child index at each step up and a `/` where a shadow root is crossed, so a
+// reading taken again at another width (the gate's sweep) tells one element's fault
+// met again from another element's, even after a widget redraws the same structure.
+export const place = (el) => {
+  const steps = [];
+  for (let node = el; node;) {
+    if (node.matches?.(ADDRESSABLE)) return `#${node.id}${steps.join("")}`;
+    const parent = node.parentNode;
+    if (parent instanceof ShadowRoot) {
+      steps.unshift(`/${[...parent.children].indexOf(node)}`);
+      node = parent.host;
+    } else if (parent?.children) {
+      steps.unshift(`>${[...parent.children].indexOf(node)}`);
+      node = parent.nodeType === Node.ELEMENT_NODE ? parent : null;
+    } else node = null;
+  }
+  return steps.join("");
+};

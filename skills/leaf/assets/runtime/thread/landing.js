@@ -42,6 +42,7 @@ import { finishFold, hasFolding, whenFolded } from "./folding.js";
 import { whenDocumentPresented } from "../semantic-state.js";
 import { SAYS_IN, THREAD } from "./selectors.js";
 import { retainUserIntent } from "../user-intent.js";
+import { nextRender } from "../rendering.js";
 import { pageScope } from "../keyboard/register.js";
 import { TEXT_ENTRY } from "../keyboard/text-entry.js";
 import { allThreads, threadList } from "./state.js";
@@ -328,6 +329,33 @@ export const landWalkedThread = (thread, threadsBox) =>
 // Mounted from leaf.js.
 export function wireThreadLanding(threadsBox) {
   let pressedPointer = null;
+  let visibleTitle = null;
+  const readVisibleTitle = () => {
+    const title = focused();
+    const band = landingBand(threadsBox);
+    const box = title && shownBox(title);
+    visibleTitle =
+      title?.matches?.(".lf-thread-summary") &&
+      threadsBox.contains(title) &&
+      band &&
+      box.top >= band.top - 1 &&
+      box.bottom <= band.bottom + 1
+        ? title
+        : null;
+  };
+  threadsBox.addEventListener("scroll", readVisibleTitle);
+  // A width change reflows the cards and changes the list's landing band. Native
+  // scroll anchoring keeps a pixel offset, which can leave the focused title under
+  // the panel's heading even though it remained visible before the resize.
+  addEventListener("resize", () => {
+    const title = visibleTitle;
+    nextRender(() => {
+      const thread = standing();
+      if (title && focused() === title && thread && threadsBox.contains(thread))
+        scrollThreadIntoView(thread, title, "instant");
+      readVisibleTitle();
+    });
+  });
   const finishPress = (event, shouldLand) => {
     if (event.pointerId !== pressedPointer?.id) return;
     const pressedThread = pressedPointer.thread;
@@ -350,6 +378,7 @@ export function wireThreadLanding(threadsBox) {
       };
   });
   threadsBox.addEventListener("focusin", () => {
+    nextRender(readVisibleTitle);
     if (pressedPointer !== null || keepingPlace) return;
     const thread = standing();
     // Native focus and reply entry reveal their own writing area. Re-landing the

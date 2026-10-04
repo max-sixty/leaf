@@ -9,7 +9,7 @@ from .readings import (
     margin_changes,
     open_widgets,
     overflowing_region_advice,
-    overflowing_regions,
+    settle_at,
     shrunk_label_advice,
     stacked_panes,
     sweep,
@@ -29,15 +29,12 @@ class RenderReading:
     """What the browser gate read of a version: a failure refuses it, advice does not.
     `margin_widths` are the widths, besides the fixed viewports, it rendered because the
     page's margin content changes there. `arrangement` is each swept width at which the
-    page's own arrangement is at its tightest before it changes, with what changes.
-    `overflowing` is each region of a screen that runs past its room
-    (`overflowing_regions`), which the advice also names."""
+    page's own arrangement is at its tightest before it changes, with what changes."""
 
     failures: list[str]
     advice: list[str]
     margin_widths: list[int]
     arrangement: list[tuple[int, str, str]]
-    overflowing: list[dict]
 
 
 def _viewport_label(viewport: dict) -> str:
@@ -91,19 +88,18 @@ def _render_version_attempt(
     slot words disagree with the log's decision (read once: the palettes carry no
     geometry between them), and an SVG paint token that does not resolve to valid paint
     in that scheme. Once per version, on the settled desktop page in the light scheme, it
-    reads more: as advice, whether a margin pin stands over text, whether a
-    drawing's fit to its box shrinks its labels past reading, and whether a widget
-    declaring x-height drew at a height its first paint did not hold; and then, resizing that
-    loaded page through every width from 360px to 1920px, the sideways readings again:
-    a version holds at each of them, not only at the two it renders. There it also
-    reads whether a workspace whose panes stand side by side at the desktop viewport
-    stacks them while the Layout still fills the window, which only the widths between
-    the two viewports show. That pass also
-    finds each width where the page's margin content changes (a sidebar, contents map
-    or note first standing in the margin), and the gate renders the page there too, in
-    the light scheme: what stands in the margin is layout, which the scheme does not
-    change. Last, back at the desktop viewport, it advises on each region of a screen
-    that runs past the room it has. No failures is a pass.
+    reads more: as advice, whether a widget declaring x-height drew at a height its
+    first paint did not hold; and then, resizing that loaded page through every width
+    from 360px to 1920px, the sideways readings again: a version holds at each of them,
+    not only at the two it renders. There it also reads whether a workspace whose panes
+    stand side by side at the desktop viewport stacks them while the Layout still fills
+    the window, which only the widths between the two viewports show, and, as advice
+    naming the widths each spans, whether a drawing's fit to its box shrinks its labels
+    past reading and whether a region of a screen runs past the room it has. That pass
+    also finds each width where the page's margin content changes (a sidebar, contents
+    map or note first standing in the margin), and the gate renders the page there too,
+    in the light scheme: what stands in the margin is layout, which the scheme does not
+    change. No failures is a pass.
 
     One implementation with two callers — `page check --render` on the page an agent
     just wrote, and the render suite on the shipped examples
@@ -124,31 +120,29 @@ def _render_version_attempt(
     advice = []
     changes = []
     arrangement = []
-    overflowing = []
 
     def once(page, registry):
-        # Advice first, at the viewport it is about; the sweep then resizes the page.
-        advice.extend(shrunk_label_advice(page))
+        desktop = RENDER_VIEWPORTS[0]
+        # First, at the first paint's viewport, which the sweep then leaves.
         advice.extend(
             unreserved_height_advice(
                 page, {tag: e for tag, e in registry.items() if tag.startswith("lf-")}
             )
         )
         widths = sweep(page, RENDER_VIEWPORTS, open_widgets(registry))
+        advice.extend(shrunk_label_advice(widths))
+        advice.extend(overflowing_region_advice(widths, desktop["height"]))
         swept.extend(swept_overflow(widths, RENDER_VIEWPORTS))
-        swept.extend(stacked_panes(widths, RENDER_VIEWPORTS[0]["width"]))
+        swept.extend(stacked_panes(widths, desktop["width"]))
         arrangement.extend(arrangement_changes(widths))
-        height = RENDER_VIEWPORTS[0]["height"]
         fixed = {viewport["width"] for viewport in RENDER_VIEWPORTS}
         changes.extend(
             width
-            for width in margin_changes(page, widths, height)
+            for width in margin_changes(page, widths, desktop["height"])
             if width not in fixed
         )
-        # Last, back at the desktop viewport the sweep has left.
-        regions = overflowing_regions(page, RENDER_VIEWPORTS[0])
-        overflowing.extend(regions)
-        advice.extend(overflowing_region_advice(region) for region in regions)
+        # Back to the desktop viewport for the readings `_render_scheme` takes last.
+        settle_at(page, desktop["width"], desktop["height"])
 
     def render(viewport, scheme, then=None):
         viewport_label = _viewport_label(viewport)
@@ -181,7 +175,6 @@ def _render_version_attempt(
         advice,
         changes,
         arrangement,
-        overflowing,
     )
     return reading, _findings_with_viewports(notices, rendered), all(completed)
 
@@ -219,7 +212,7 @@ def render_version(
                 "the browser gate failed while running its probe module: "
                 + str(error).strip().splitlines()[0]
             )
-            return RenderReading([failure], [], [], [], []), [], False
+            return RenderReading([failure], [], [], []), [], False
 
     first, notices, complete = attempt()
     retain(first.failures)

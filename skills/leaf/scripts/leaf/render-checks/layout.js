@@ -9,8 +9,9 @@ import {
   uiInside,
 } from "/runtime/widget-api.js";
 import { laidOutItems } from "./framing.js";
-import { at as element } from "./locate.js";
+import { at as element, place } from "./locate.js";
 import { openRoots } from "./open-roots.js";
+import { shrunkLabelReading } from "./words.js";
 
 export const rootOverflow = () => pageScroller.scrollWidth - pageScroller.clientWidth;
 const at = (el) => (el === pageScroller ? "<root scrollport>" : element(el));
@@ -25,10 +26,11 @@ export function marginResidents() {
     .join(" ");
 }
 
-// One settled-width geometry sample. These readers are synchronous and read-only:
-// taking them in one browser turn preserves their findings while removing the
-// protocol round trips between fields. Resize and rendering completion belong to the
-// caller, so a sample neither advances the page nor waits for a different layout.
+// One settled-width geometry sample: every read-only reading whose answer moves with
+// the window's width. These readers are synchronous: taking them in one browser turn
+// preserves their findings while removing the protocol round trips between fields.
+// Resize and rendering completion belong to the caller, so a sample neither advances
+// the page nor waits for a different layout.
 export function geometryReading(open) {
   return {
     overflow: rootOverflow(),
@@ -36,6 +38,8 @@ export function geometryReading(open) {
     margin: marginResidents(),
     arrangement: arrangedBoxes(open),
     panes: heldPanes(),
+    regions: overflowingRegions(),
+    labels: shrunkLabelReading(),
   };
 }
 
@@ -110,7 +114,9 @@ export function heldPanes() {
         (r) => rects.filter((o) => o.top < r.bottom - 1 && r.top < o.bottom - 1).length,
       ),
     );
-    return [{ at: element(body), held, panes: rects.length, beside }];
+    return [
+      { at: element(body), place: place(body), held, panes: rects.length, beside },
+    ];
   });
 }
 const AUTHORED_PANE = '[data-lf-reading-role="pane"]:not([data-lf-generated])';
@@ -356,11 +362,13 @@ export function misplacedBoxes() {
         : Math.round(Math.max(b.right - right, left - b.left));
     if (past > 1) over.set(el, [past, wide, frame, host]);
   }
-  // Each finding names its element and its kind beside the words, so a reader that
-  // takes this pass at several widths (the gate's sweep) can tell one fault met again
-  // from a new one without reading the sentence, whose pixel count moves with the width.
+  // Each finding carries its element's place (locate.js) and its kind beside the words,
+  // so a reader that takes this pass at several widths (the gate's sweep) can tell one
+  // fault met again from a new one without reading the sentence, whose pixel count
+  // moves with the width.
   const found = [];
-  const report = (el, kind, text) => found.push({ at: at(el), kind, text });
+  const report = (el, kind, text) =>
+    found.push({ at: at(el), place: place(el), kind, text });
   for (const [el, [past, wide, frame, host]] of over) {
     if ([...over.keys()].some((other) => other !== el && other.contains(el))) continue;
     if (host)

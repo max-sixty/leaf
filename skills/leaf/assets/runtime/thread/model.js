@@ -242,6 +242,7 @@ export function readThreadRecords(
         "addressable",
         "revision",
         "awaits",
+        "ephemeral",
         "suggestion",
       ])
         if (message[field] !== undefined) record[field] = message[field];

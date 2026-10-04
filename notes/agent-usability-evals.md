@@ -26,8 +26,8 @@ No run failed a check, so no failure calls for a new reading interface:
 | `reading` | seven questions, one per surface | 21/21 | $0.16, 100k tokens |
 | `resume` | current date, approach and next step; batch size changed where the comment points; pick marked `chosen` and still standing; thread answered; no `restated`; v3 stamped from a valid source | 3/3 each | $0.92, 752k tokens |
 
-Every reply was also read by hand, and agreed with the regex scorer on all 21 reading
-answers and all nine resume answer lines.
+Every reply was read by hand. Manual review agreed with the regex scorer on all 21
+reading answers and all nine resume answer lines.
 
 What the traces show:
 
@@ -88,7 +88,7 @@ What the traces show:
   into the markup, every run fixed the non-global regular expression the page error
   named, and every run answered the pick in markup and stamped it, with `chosen` on
   the option or `settled` on the group. The `shorten` reaction was handled both ways the instructions
-  allows: shortened in place and closed, or proposed as an `lf-suggestion` that
+  allow: shortened in place and closed, or proposed as an `lf-suggestion` that
   `resolves` it. One run named all four pieces of work in one page-wide status and
   claimed nothing on the comment's thread, so that comment read Picked up rather than
   Working until its reply landed.

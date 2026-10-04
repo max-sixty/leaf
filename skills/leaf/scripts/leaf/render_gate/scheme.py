@@ -1,5 +1,6 @@
 """Lifecycle and trusted inputs for one browser color scheme."""
 
+import re
 import time
 from pathlib import Path
 from urllib.parse import urljoin, urlsplit
@@ -81,9 +82,24 @@ def resize_observer_error(text: str) -> bool:
     return text.startswith(RESIZE_OBSERVER_ERROR)
 
 
+# The browser's own console entry for a response with an error status, in Chromium and
+# WebKit alike: it names the status but not the resource, which the entry's location
+# carries instead.
+_FAILED_LOAD = re.compile(
+    r"Failed to load resource: the server responded with a status of (\d{3})\b.*"
+)
+
+
 def console_problem(message) -> str | None:
-    """A console entry that says the page did not load cleanly."""
+    """A console entry that says the page did not load cleanly.
+
+    A response with an error status is reported as its status and URL. The console
+    entry is the browser's one report of it, from the page and every frame in it, so
+    nothing listens to responses for it: a response listener has every request of a
+    load — a few hundred modules — sent to and built in this process."""
     if message.type == "error":
+        if failed := _FAILED_LOAD.fullmatch(message.text):
+            return f"{failed[1]} {message.location['url']}"
         return message.text
     if message.type == "warning":
         return f"warning: {message.text}"
@@ -250,13 +266,6 @@ def _render_scheme(
     # The runtime writes each report to the console too, which is where this reading
     # takes it.
     answer_reports(page, lambda text: None)
-    # The console's own word for a bad response is "Failed to load resource",
-    # which names nothing; carry the status and URL so a failure says what
-    # went missing.
-    page.on(
-        "response",
-        lambda r: errors.append(f"{r.status} {r.url}") if r.status >= 400 else None,
-    )
     devtools = DevtoolsIssues(page)
     install_window_errors(page)
     try:

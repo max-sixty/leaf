@@ -642,6 +642,94 @@ stateDiagram-v2
             </p>
           </section>
 
+          <section id="working-on">
+            <h2>What the agent can be working on</h2>
+            <p>
+              If Working always names an item on the agent's queue, the line in the
+              banner points at something you can open. These are the cases:
+            </p>
+            <table id="working-on-cases" data-width="wide">
+              <thead>
+                <tr>
+                  <th scope="col">Case</th>
+                  <th scope="col">Today</th>
+                  <th scope="col">The item Working would name</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">You comment or reply in a thread</th>
+                  <td><code>status working --on</code> the thread</td>
+                  <td>
+                    Your message. It is already an item you put on the agent's queue,
+                    and its id is the item's id.
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row">You press an option, or move a card</th>
+                  <td><code>status working --on</code> the widget; a stamp ends it</td>
+                  <td>Your press, the same way.</td>
+                </tr>
+                <tr>
+                  <th scope="row">
+                    Work that outlasts the turn: a subagent, CI, a dispatched session
+                  </th>
+                  <td><code>task open</code></td>
+                  <td>That task.</td>
+                </tr>
+                <tr>
+                  <th scope="row">One turn answers five threads</th>
+                  <td>One claim per thread; the banner shows the latest sentence</td>
+                  <td>Each of the five, running; the banner names the one in hand.</td>
+                </tr>
+                <tr>
+                  <th scope="row">
+                    You asked in the terminal, not on the page (“build step 3”)
+                  </th>
+                  <td><code>status working "…"</code> with no subject</td>
+                  <td>
+                    Nothing yet. The agent puts a page-level task on its own queue, so
+                    the page shows the work and its outcome.
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row">
+                    The agent's own initiative: writing the page, revising a section
+                  </th>
+                  <td>
+                    <code>status working "…"</code>, or
+                    <code>"Writing the page"</code> at init
+                  </td>
+                  <td>A task the agent opens, on the page or the section.</td>
+                </tr>
+                <tr>
+                  <th scope="row">
+                    Housekeeping: re-vendoring, restarting the server, merging main
+                  </th>
+                  <td><code>status working "…"</code> or nothing</td>
+                  <td>
+                    None. It owes you nothing, so it isn't Working; the banner can show
+                    the observed step, as it does for Codex.
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row">Waiting for your answer</th>
+                  <td><code>status waiting "…"</code></td>
+                  <td>None on the agent's queue: the item is on yours.</td>
+                </tr>
+              </tbody>
+            </table>
+            <p id="working-on-result">
+              So every case but housekeeping already has an item, or gets one the agent
+              opens. Your moves are items you put on the agent's queue; tasks are items
+              it puts there itself. Working then becomes a state of an item, not a
+              separate claim: <code>leaf task start ID "what I'm doing"</code>, where ID
+              is your move's id or a task's, and the subject comes from the item. A
+              reply or stamp that answers a move ends it; a task still ends with
+              <code>task end</code>.
+            </p>
+          </section>
+
           <section id="pi">
             <h2>How Pi Durable models the same ground</h2>
             <p>From <a href="https://earendil.com/posts/pi-durable/">Pi Durable</a>:</p>

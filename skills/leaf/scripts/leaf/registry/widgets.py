@@ -2,6 +2,7 @@
 
 import re
 
+import turbohtml
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import SchemaError
 
@@ -159,6 +160,8 @@ def _validate_widget_structure(
             f"{path}: <{tag}> x-owners names unknown element declarations {unknown}"
         )
     properties = entry.get("properties", {})
+    if (prepaint := entry.get("x-prepaint")) is not None:
+        _validate_prepaint(tag, entry, prepaint, path)
     layout = entry.get("x-reading-role")
     if layout:
         if entry.get("x-content") != "markup":
@@ -299,6 +302,44 @@ def _validate_widget_structure(
                 "upgraded handler to resolve them"
             )
     return properties, said
+
+
+def _validate_prepaint(tag: str, entry: dict, prepaint: str, path) -> None:
+    """Hold an x-prepaint to what delivery can write into every occurrence: one plain
+    element that only a module will take out again.
+
+    It is copied into each occurrence, so an id would repeat; a custom element would
+    upgrade as a widget of its own, and a script would run. Delivery owns its
+    `data-lf-` marks (`revision_delivery.mark_declared`).
+    """
+    if entry.get("x-upgrade") is not True:
+        raise RegistryError(
+            f"{path}: <{tag}> x-prepaint requires x-upgrade: true, since only the "
+            "widget's module takes it out"
+        )
+    body = turbohtml.parse(prepaint, scripting=True).find("body")
+    nodes = [
+        node
+        for node in body.children
+        if not (isinstance(node, turbohtml.Text) and not node.text.strip())
+    ]
+    root = re.match(r"<([a-z][a-z0-9]*)", prepaint)[1]
+    if len(nodes) != 1 or getattr(nodes[0], "tag", None) != root:
+        raise RegistryError(
+            f"{path}: <{tag}> x-prepaint must be one element, which the parser keeps "
+            "where it stands"
+        )
+    for element in [nodes[0], *nodes[0].find_all(True)]:
+        attrs = element.attrs
+        if "-" in element.tag or element.tag in ("script", "style", "template", "slot"):
+            raise RegistryError(
+                f"{path}: <{tag}> x-prepaint may not hold <{element.tag}>"
+            )
+        if "id" in attrs or any(name.startswith("data-lf-") for name in attrs):
+            raise RegistryError(
+                f"{path}: <{tag}> x-prepaint may carry no id and no data-lf- "
+                f"attribute (<{element.tag}>)"
+            )
 
 
 def _validate_widget_predicates(tag: str, entry: dict, properties: dict, path) -> dict:

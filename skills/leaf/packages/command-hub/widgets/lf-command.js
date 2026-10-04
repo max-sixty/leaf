@@ -13,10 +13,12 @@
  * its replacement's. The seat is looked up in the command's own authored document, so
  * a command quoted in a message does not take the page's seat.
  *
- * The outcome stands at one size whatever the log says, and the theme holds its room in
- * the seat from the first paint. Which goals are stopped and which workers live is the
- * log's and the clock's to say, so no first paint can size the two lists under it, and
- * they would push down whatever follows the seat, the plan itself at the command's head.
+ * The outcome stands at one size whatever the log says, and its first paint already
+ * lays it out in the seat: delivery writes in its structure (`x-prepaint`), which the
+ * paint that draws the outcome takes out (`seat`). Which goals are stopped and which
+ * workers live is the log's and the clock's to say, so no first paint can size the two
+ * lists under it, and they would push down whatever follows the seat, the plan itself
+ * at the command's head.
  * So on screen they stand once the reader opens one through its count in the outcome
  * (paper, which nothing moves on, prints them whole), and from then on a reading that
  * changes their rows waits, the lists standing as they were, while that growth would
@@ -112,9 +114,14 @@ function home(plan) {
 
 // Put the drawn panels, in reading order, at the head of their home, and the band at
 // the head of the command only while it is that home. Nothing already in place is
-// moved, so a paint that changes nothing about the seat moves nothing.
+// moved, so a paint that changes nothing about the seat moves nothing. The outcome
+// delivery wrote in for the first paint (`x-prepaint`, theme.css) leaves in the same
+// step, from the seat and from the command's head, since the drawn outcome stands
+// where it stood.
 function seat(plan, at = home(plan)) {
   const own = band(plan);
+  for (const holder of [plan, at])
+    holder.querySelector(":scope > [data-lf-prepaint]")?.remove();
   keeps(at, "data-lf-open", opened.has(plan) ? "" : null);
   if (at !== own) own.remove();
   else if (plan.firstChild !== own) plan.prepend(own);
@@ -249,7 +256,12 @@ function chip(text, cls = "") {
 // A count the head offers as a view: the number is what the eye compares across tiles,
 // so it stands apart from its word, and the two still read as the one label they are.
 function countTile(count, word, name, open, cls = "") {
-  const node = viewButton(`${count} ${word}`, name, open, cls);
+  const node = viewButton(
+    `${count} ${word}`,
+    name,
+    open,
+    cls ? `lf-command-tile ${cls}` : "lf-command-tile",
+  );
   node.replaceChildren(chip(String(count), "lf-command-count"), " ", chip(word));
   return node;
 }
@@ -456,27 +468,38 @@ function renderHeader(snapshot) {
   const facts = document.createElement("div");
   facts.className = "lf-command-facts";
   // Every count stands whatever it says, so the clock making a worker quiet tints a tile
-  // rather than adding one the row would have to find room for.
+  // rather than adding one the row would have to find room for. The tiles go in pairs,
+  // which is what wraps where the four do not fit in one row (theme.css).
+  const pair = (...tiles) => {
+    const node = document.createElement("span");
+    node.className = "lf-command-pair";
+    node.append(...tiles);
+    return node;
+  };
   facts.append(
-    countTile(snapshot.running.length, "running", "running", () =>
-      openFleet(plan, "running"),
+    pair(
+      countTile(snapshot.running.length, "running", "running", () =>
+        openFleet(plan, "running"),
+      ),
+      countTile(snapshot.liveWorkers.length, "workers", "workers", () =>
+        openFleet(plan, "all"),
+      ),
     ),
-    countTile(snapshot.liveWorkers.length, "workers", "workers", () =>
-      openFleet(plan, "all"),
-    ),
-    countTile(
-      snapshot.quiet.length,
-      "quiet",
-      "quiet",
-      () => openFleet(plan, "quiet"),
-      snapshot.quiet.length ? "warn" : "",
-    ),
-    countTile(
-      snapshot.stopped.length,
-      "stopped",
-      "stopped",
-      () => openStopped(plan),
-      snapshot.stopped.length ? "danger" : "",
+    pair(
+      countTile(
+        snapshot.quiet.length,
+        "quiet",
+        "quiet",
+        () => openFleet(plan, "quiet"),
+        snapshot.quiet.length ? "warn" : "",
+      ),
+      countTile(
+        snapshot.stopped.length,
+        "stopped",
+        "stopped",
+        () => openStopped(plan),
+        snapshot.stopped.length ? "danger" : "",
+      ),
     ),
   );
   head.append(outcome, facts);

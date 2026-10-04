@@ -565,7 +565,12 @@ and a blank image stands in for any media an example names. The checks:
   first paint. Upgrade should add behavior and move nothing, so size the widget in
   the package theme, under `html[data-lf-interactive]`, which Leaf sets before first
   paint wherever its runtime will run, in a served page or an export, as its module
-  will draw it. Where the markup cannot say how tall the drawing will
+  will draw it. Where the module draws a structure of its own whose shape the log does
+  not change, such as a row of count tiles, declare that structure as `x-prepaint`
+  rather than summing its line heights in the theme: delivery writes it into each
+  occurrence for the first paint, the browser sizes and wraps it as it will the
+  drawing, and the module removes it (`:scope > [data-lf-prepaint]`) in the same step
+  that draws its replacement. Where the markup cannot say how tall the drawing will
   be, declare `x-height`, add the class `lf-rendered` once the drawing is in, and
   draw at the stated height where the drawing can take any; `page check --render`
   advises a page's author the height to state for one that cannot. Where the widget

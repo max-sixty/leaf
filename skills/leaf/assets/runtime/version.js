@@ -196,15 +196,18 @@ const versionedHeadNode = (node) =>
 // user's open disclosure, a tab stop the runtime lent, and whatever a page module
 // built. The module graph can define chrome-only elements before this clone, but authored
 // markup cannot contain those tags, so the authored main is untouched but for the marks
-// the prepaint painted for the first paint, which the copy takes off. Runtime-owned
-// head nodes carry `data-lf-runtime` and are excluded from the separate head baseline above.
-// The source and live main are therefore the same tree, which makes the pairing below a
-// plain walk of the two together.
+// the prepaint painted for the first paint and the structure delivery wrote in for it
+// (`data-lf-prepaint`), which the copy takes off. Runtime-owned head nodes carry
+// `data-lf-runtime` and are excluded from the separate head baseline above. The source
+// and live main are therefore the same tree but for what delivery wrote in, which the
+// pairing below walks past, so it is a plain walk of the two together.
 const pairSources = (source, live, pairs) => {
   pairs.set(source, live);
   const held = source.localName === "template" ? source.content : source;
   const shown = live.localName === "template" ? live.content : live;
-  const children = [...shown.childNodes];
+  const children = [...shown.childNodes].filter(
+    (child) => !child.matches?.("[data-lf-prepaint]"),
+  );
   for (const [at, child] of [...held.childNodes].entries())
     if (children[at]) pairSources(child, children[at], pairs);
   return pairs;
@@ -1096,6 +1099,9 @@ export function createVersionController({
     const doc = new DOMParser().parseFromString(await response.text(), "text/html");
     if (doc.querySelectorAll("body > main").length !== 1)
       throw new Error(`${url} has no single authored main`);
+    // Delivery wrote it in for a first paint, and no revision's author did.
+    for (const written of doc.querySelectorAll("body > main [data-lf-prepaint]"))
+      written.remove();
     return doc;
   }
   // Repeated comparisons of the same immutable revision share its document fetch.

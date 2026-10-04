@@ -395,6 +395,13 @@ EXTENSION_SCHEMA = {
             "uniqueItems": True,
         },
         "x-history": {"const": True},
+        # The markup an upgraded widget's first paint shows until its module draws:
+        # one element, the structure the module will draw, with words that size it
+        # as the drawing will. Delivery writes it as each occurrence's first child,
+        # marked `data-lf-prepaint` (`revision_delivery.mark_declared`), so the
+        # browser lays out the widget's real structure before any module runs, and
+        # the module takes it out in the step that draws its replacement.
+        "x-prepaint": {"type": "string", "pattern": r"^<[a-z][a-z0-9]*[\s>][\s\S]*>$"},
         "x-views": {"const": True},
         "x-withdrawn-as": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "x-word": {"enum": ["module"]},

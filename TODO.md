@@ -247,7 +247,8 @@ that changes size after first paint, with its cause.
   the first state answer, after first paint. Serving that state inside the page does
   not work: modules run after first paint, and a page revision is immutable while the
   log keeps changing. Follow #1566's Command Hub pattern instead: draw a summary whose
-  size is known at first paint, open the rows from it, and hold later growth with
+  structure is fixed, declared as the widget's `x-prepaint` so the first paint lays it
+  out, open the rows from it, and hold later growth with
   `HeldReading` (`runtime/thread/held-news.js`) while it would be seen. Check first
   whether a text document, which the reader came to read, can stand behind a summary.
 - **Decide the contents' form before first paint.** `lf-toc` changes size because the

@@ -499,6 +499,21 @@ export function markDeclared(root) {
   }
 }
 
+// Write each widget's declared first-paint structure (`x-prepaint`) into a message's
+// markup while it is still inert, as delivery writes it into a page's document
+// (revision_delivery.py, `mark_declared`), so a widget a message holds lays out its
+// drawing's structure before its module draws there too. Its module takes it out.
+export function writePrepaint(root) {
+  for (const tag of tagsDeclaring((entry) => entry["x-prepaint"])) {
+    const markup = document.createElement("template");
+    markup.innerHTML = registry[tag]["x-prepaint"];
+    const written = markup.content.firstElementChild;
+    written.toggleAttribute("data-lf-prepaint", true);
+    written.dataset.lfGen = "1";
+    for (const el of elementsIn(root, tag)) el.prepend(written.cloneNode(true));
+  }
+}
+
 // Words a widget says through an attribute — a metric's number, a chronology entry's time, an
 // option's chip band — rendered as text the user can reach. The theme renders the same
 // words with `content: attr()`, and a pseudo-element's glyphs are in no text node: no

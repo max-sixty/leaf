@@ -115,7 +115,9 @@ or typing carrying its field (`tests/shift_watch.js`).
 A widget paints its final box before it upgrades. The theme gives each widget, under
 `html[data-lf-interactive]`, the size its module will draw it at, so first paint
 already has the page's geometry and upgrade adds behavior without moving what follows,
-in a served page and an export alike. The
+in a served page and an export alike. Where the module draws a fixed structure, delivery
+writes that structure in for the first paint (`x-prepaint`), so the browser sizes it,
+wrapping included, rather than the theme summing its parts. The
 widget quality check `keeps-first-box` measures each widget's box at first paint and
 once the page presents (`leaf package check PACKAGE --render`,
 `scripts/leaf/render_gate/widget_quality.py`); the suite runs it over every bundled

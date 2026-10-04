@@ -6,10 +6,10 @@ config, and runs `promptfoo eval`; Promptfoo does the rest.
 
 ```sh
 npm ci --prefix evals
-uv run leaf-dev eval brief-document-needs-no-outline --host cc
-uv run leaf-dev eval reading document/resume --host codex
-uv run leaf-dev eval task-outlasts-the-turn --host cc --base
-uv run leaf-dev eval document --host both --condition both --repeat 3
+uv run leaf-dev eval brief-document-needs-no-outline --harness cc
+uv run leaf-dev eval reading document/resume --harness codex
+uv run leaf-dev eval task-outlasts-the-turn --harness cc --base
+uv run leaf-dev eval document --harness both --condition both --repeat 3
 npm run view --prefix evals
 ```
 
@@ -22,10 +22,10 @@ npm run view --prefix evals
   as a second arm, and `--base REF` adds that ref; put cases before it. An arm
   holds only the plugin payload, with no git history, so an agent can't look up
   another version of Leaf through it.
-- **Hosts.** `--host cc`, `codex` or `both`, with no default. Run the host the
-  motivating failure came from, or the one you are working in when no session
-  failed. Run `both` when the change is about how the hosts differ, such as a host
-  contract.
+- **Harnesses.** `--harness cc`, `codex` or `both`, with no default. Run the harness
+  the motivating failure came from, or the one you are working in when no session
+  failed. Run `both` when the change is about how the harnesses differ, such as a
+  harness contract.
 - **Conditions.** `--condition html` runs the plain HTML control on the tasks that
   declare one (document, dashboard and queue); `both` runs it beside Leaf. The
   control gets the same request and judge with no Leaf skill, runtime or widgets.
@@ -34,7 +34,7 @@ npm run view --prefix evals
 
 ## Reading the results
 
-Promptfoo prints a table with a row per test and a column per provider: a host on
+Promptfoo prints a table with a row per test and a column per provider: a harness on
 one arm (`cc/candidate`, `codex/base`), suffixed `/workflow` for complete tasks, and
 `cc/html/workflow` for the HTML control. Each assertion's `metric` is a named score,
 so a comparison reads per metric across columns.
@@ -65,7 +65,7 @@ through resumed phases or live user rounds, and returns a boolean per check; its
 check that never ran fails rather than disappearing. An executor whose output lists
 screenshots, beside the request they answer, also declares `rubrics`: `agent-rubric`
 assertions a screenshot judge grades by opening them. `metadata.conditions` and
-`metadata.hosts` restrict where it runs.
+`metadata.harnesses` restrict where it runs.
 
 | Executor | Runs |
 | --- | --- |

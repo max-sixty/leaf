@@ -33,7 +33,7 @@ variants:
         seeded count defect.
       conditions:
       - leaf
-      hosts:
+      harnesses:
       - cc
   reader-clean:
     metadata:
@@ -43,5 +43,5 @@ variants:
         correct count.
       conditions:
       - leaf
-      hosts:
+      harnesses:
       - cc

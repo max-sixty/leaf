@@ -35,7 +35,7 @@
    whose thread stands for the element it is about (`landSent`). */
 import { landingBand, seenRect, shownBox } from "../geometry.js";
 import { documentFocused, focused } from "../keyboard/scopes.js";
-import { focusDestination, restoringFocus, takesLetters } from "../focus.js";
+import { focusDestination, restoringFocus, takesLetters, whenLeft } from "../focus.js";
 import { scrollBehavior } from "../motion.js";
 import { bringBackSurfaceOf } from "../off-flow.js";
 import { closestAcross } from "../passages.js";
@@ -248,9 +248,7 @@ function prepareLanding({ held = null, box, route = null }) {
   if (!held) return false;
   if (route && !held.hasAttribute("tabindex")) {
     threadReturns.set(box, route);
-    box.addEventListener("blur", () => threadReturns.delete(box), {
-      once: true,
-    });
+    whenLeft(box, () => threadReturns.delete(box));
   }
   return { held, box };
 }

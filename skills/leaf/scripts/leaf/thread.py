@@ -1,4 +1,4 @@
-"""Thread writes and the host-neutral delivery-bound reply lifecycle."""
+"""Thread writes and the harness-neutral delivery-bound reply lifecycle."""
 
 import sys
 from pathlib import Path
@@ -14,7 +14,7 @@ from leaf.files import (
     require_revision,
     revision_path,
 )
-from leaf.host import message_identity
+from leaf.harness import message_identity
 from leaf.leases import contract_writer
 from leaf.passages import SourceReading
 from leaf.projection import (
@@ -90,7 +90,7 @@ def release_delivery_reply(session_id: str, delivery_id: str, target: dict) -> N
     Reserving the address is what stops a second writer answering a delivery the
     provider is about to answer itself. A delivery that ends without ever reaching a
     provider turn has no such answer coming, and until the reservation is given up it
-    also blocks the host from saying so, so the user is left with neither.
+    also blocks the harness from saying so, so the user is left with neither.
     """
     _clear_delivery_reply(session_id, delivery_reply_attempt(delivery_id), target)
 
@@ -421,7 +421,7 @@ def cmd_reply(
     answers twice; ``skip`` omits a receipt when no answer is owed. The default ``refuse`` rejects a stale
     response address from an ordinary CLI writer.
 
-    ``failure`` records a host-owned failure code alongside its presentation text;
+    ``failure`` records a harness-owned failure code alongside its presentation text;
     ordinary agent answers omit it.
 
     ``ephemeral`` posts progress at the same response address without answering it.
@@ -718,7 +718,7 @@ def fail_answer(
 ) -> dict | None:
     """Tell the user no answer to one move is coming, in the move's own terms.
 
-    A host that gives up on a move settles the obligation the move's workflow
+    A harness that gives up on a move settles the obligation the move's workflow
     `answer` names and hands the next step back to the user, so a failed move is
     never left owed with nobody to answer it:
 

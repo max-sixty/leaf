@@ -151,7 +151,7 @@ URL; each start rebuilds the page from the fixture, and `--slot <name>` runs ano
 A plain preview takes no task claim, so its presses reach only the page's log;
 use it for screenshots and browser checks. `--user` claims the page at
 the directory printed at startup (`.tmp/previews/<example>-user` by default;
-`--slot` chooses the directory name) so the user's comments reach the host, which
+`--slot` chooses the directory name) so the user's comments reach the harness, which
 also makes every click this session drives there read as an unanswered user
 move. So drive only claimless previews, start any `--user` preview from the
 session the user talks to, and answer the user's feedback before restarting
@@ -259,7 +259,7 @@ base and the working tree:
 
 ```bash
 npm ci --prefix evals
-uv run leaf-dev eval [CASE]... --base --host cc|codex [--repeat N]
+uv run leaf-dev eval [CASE]... --base --harness cc|codex [--repeat N]
 npm run view --prefix evals
 ```
 
@@ -314,7 +314,7 @@ them when they fail (`tests/AGENTS.md`, "Run the narrowest useful surface").
 `wt merge` checks the rebased tree and lands it; `✗ Can't push to local main branch`
 is a fast-forward failure.
 
-Installed sessions load host caches, not the checkout. Claude Code picks up a
+Installed sessions load harness caches, not the checkout. Claude Code picks up a
 push on its marketplace sweep; the post-merge hook refreshes an installed Codex
 plugin, and after a merge that skipped hooks, run
 `codex plugin marketplace upgrade leaf`.

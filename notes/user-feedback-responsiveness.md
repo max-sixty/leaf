@@ -14,7 +14,7 @@ prove external work succeeded, and page activity does not imply work on every me
 
 ## Evaluation
 
-Run `leaf-dev eval 'document/idle' 'document/mid-turn' --host cc` for agent ordering and `leaf-dev bench-latency` for
+Run `leaf-dev eval 'document/idle' 'document/mid-turn' --harness cc` for agent ordering and `leaf-dev bench-latency` for
 in-tab feedback. Neither is a gate. Begin with a direct delivery, a queued pointer,
 input arriving during other work, and an already-settled retry.
 
@@ -54,7 +54,7 @@ as well as its reply so improving feedback does not delay the answer.
 
 ## Proposed improvements
 
-- **Cheap claims:** test a typed host operation against the CLI path before adding
+- **Cheap claims:** test a typed harness operation against the CLI path before adding
   another interface. The [Codex brief](codex-integration.md#typed-operations) owns
   that experiment.
 - **Claim admission:** check whether the claim door can atomically require an

@@ -535,7 +535,7 @@ asks = createAskView({
   focusForNavigation: app.overlay?.focusForNavigation ?? focusDestination,
   presentedControl: app.overlay?.presentedControl,
   setPanel: (...args) => threadPanelController.setPanel(...args),
-  trip: anchorTravel.trip,
+  prepareTrip: anchorTravel.prepareTrip,
   arrive: anchorTravel.arrive,
   refreshThread: () => app.refreshThread(),
   announce,

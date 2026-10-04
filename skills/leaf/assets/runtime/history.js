@@ -4,6 +4,8 @@
  * leaving the entry the user stood on with the scroll offset the browser saves on it;
  * `replaceEntry` renames the entry the user stands on and keeps its state. A new entry
  * starts with no state of its own, since state belongs to the entry that set it.
+ * Travel prepares its outgoing checkpoint before revealing a destination and commits
+ * it only after arrival succeeds. Failed or canceled routes add no return stop.
  *
  * The browser restores a saved offset on traversal, except that Chrome answers a
  * traversal to an entry whose fragment names an element by scrolling to that element
@@ -98,6 +100,28 @@ export function pushEntry(url, state = null) {
 
 export function replaceEntry(url, state = history.state) {
   write("replaceState", state, url);
+}
+
+// A route can reveal or hydrate before it knows whether arrival will succeed. Capture
+// its outgoing checkpoint now, but write only on success. A synchronous round trip to
+// the source offset lets native history save that offset too, without an intermediate
+// paint, including in browsers without the Navigation API. The Navigation listener's
+// live focus reading is replaced with the original working place after the write.
+export function prepareEntry() {
+  const key = window.navigation?.currentEntry.key;
+  const place = readPlace();
+  const offset = [scrollX, scrollY];
+  return (url, state, replace) => {
+    if (replace) {
+      replaceEntry(url, state);
+      return;
+    }
+    const arrival = [scrollX, scrollY];
+    window.scrollTo({ left: offset[0], top: offset[1], behavior: "instant" });
+    pushEntry(url, state);
+    window.scrollTo({ left: arrival[0], top: arrival[1], behavior: "instant" });
+    if (key) places.set(key, place);
+  };
 }
 
 // `claim(url)` returns the handler that places the page at a traversal to `url`, or

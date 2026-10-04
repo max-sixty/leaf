@@ -93,7 +93,7 @@
    view first for the sake of an ask inside a nested scroller, which that placement
    would never reach. An Ask whose region already stands clear of the banner, and
    which travel reads as whole on every edge once whatever surface hid it is cleared
-   (anchor-travel.js, `trip`), is not travelled to at all: the press moves the ring and
+   (anchor-travel.js, `prepareTrip`), is not travelled to at all: the press moves the ring and
    the focus and leaves the page still. A thread ask keeps its centred arrival in the
    panel's own list. */
 
@@ -145,7 +145,7 @@ import { hostIn, under, upFrom } from "../shadow.js";
 export function createAskView({
   panelIsOpen,
   setPanel,
-  trip,
+  prepareTrip,
   arrive,
   refreshThread,
   focusForNavigation,
@@ -716,12 +716,12 @@ export function createAskView({
     // A page Ask starts below the banner so its context comes before its control, and
     // what counts as its context is arrivalRegion's answer: the region an author declared,
     // or the one the document supplies for a change that cannot declare one. Whether this
-    // press moves the page is `framed`'s answer, and travel's `trip` owns what follows
+    // press moves the page is `framed`'s answer, and travel's departure owns what follows
     // from it: clearing a surface that hides the Ask (a covering drawer, or the thread
     // panel standing over it), and whether the press is a departure. It runs before the
     // focus lands, since focus sent behind a covering surface is sent back into it.
-    // Nothing above has moved the page: reveal opens what holds the Ask in place, so the
-    // entry a departure records still holds where the user was reading. A thread Ask is
+    // Capture the outgoing place before reveal can reshape it; only a successful
+    // arrival commits the departure. A thread Ask is
     // in the panel's own list, whose arrival stays centred in that region and is no
     // trip. Which box either travel moves is the travel's own question (scrollerFor)
     // rather than a second one asked here.
@@ -732,6 +732,10 @@ export function createAskView({
       const box = !inChrome(target) && scrollerFor(target);
       return { target, box, region: box && arrivalRegion(target, box) };
     };
+    const departure = prepareTrip({
+      landing: () => askNode(next),
+      intent: mayArrive,
+    });
     const arrived = await arrive(
       () => {
         const here = destination();
@@ -760,6 +764,7 @@ export function createAskView({
       },
       {
         intent: mayArrive,
+        departure,
         keep: true,
         present: async () => {
           // The Ask's source owns its answer and may hold a disclosure inside
@@ -773,9 +778,7 @@ export function createAskView({
           const { target, box, region } = here;
           moving = Boolean(
             box &&
-            trip(target, {
-              landing: () => askNode(next),
-              intent: mayArrive,
+            departure.plan(target, {
               there: (readable) => framed(next, region, target, box, readable),
             }),
           );

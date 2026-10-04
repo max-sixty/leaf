@@ -11290,6 +11290,115 @@ def test_restore_selection_reveals_a_filtered_diff_datum(browser, serve):
     assert take_browser_errors(page) == []
 
 
+@pytest.mark.parametrize("cancel", [False, True])
+def test_restore_selection_failed_datum_hydration_leaves_history_untouched(
+    browser, serve, cancel
+):
+    """A retained line key with new words is not an arrival, even after lazy loading."""
+    authored = leaf_page(
+        "Selected data line",
+        '<h1>Review</h1><lf-diff id="patch" source="review-patch"><pre></pre>'
+        '</lf-diff><div style="height:1600px"></div><p id="away">Read here.</p>',
+    )
+    patch = (
+        "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"
+        '@@ -1 +1 @@\n-return "old"\n+return "amber"\n'
+    )
+    url = serve(authored)
+    data_model.cmd_data_set(serve.page_dir, "review-patch", patch)
+    page = open_page(browser, live_url(url))
+    line = page.locator('lf-diff [data-lf-datum=\'["app.py","new",1]\']')
+    expect(line).to_contain_text("amber")
+    point = _word_point(line, "amber")
+    page.mouse.dblclick(point["x"], point["y"])
+    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    page.keyboard.press("Escape")
+    page.locator("lf-diff summary").click()
+    page.evaluate("""() => {
+      const fetch = window.fetch.bind(window);
+      window.fetch = (input, init) => {
+        const url = new URL(input instanceof Request ? input.url : String(input), location.href);
+        if (url.pathname === '/api/deferred') return new Promise(resolve => {
+          window.releaseSelectionDatum = () => resolve(fetch(input, init));
+        });
+        return fetch(input, init);
+      };
+    }""")
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "review-patch",
+        {
+            "files": [
+                {
+                    "key": "app.py",
+                    "path": "app.py",
+                    "kind": "patch",
+                    "additions": 1,
+                    "deletions": 1,
+                    "patch": patch.replace("amber", "violet"),
+                }
+            ]
+        },
+    )
+    told(page)
+    expect(line).to_have_count(0)
+    page.locator("#away").scroll_into_view_if_needed()
+    before = page.evaluate("({length:history.length,key:navigation.currentEntry.key})")
+    page.keyboard.press("g")
+    page.keyboard.press("v")
+    page.wait_for_function("typeof releaseSelectionDatum === 'function'")
+    assert (
+        page.evaluate("({length:history.length,key:navigation.currentEntry.key})")
+        == before
+    )
+    if cancel:
+        page.keyboard.press("Escape")
+    page.evaluate("releaseSelectionDatum()")
+    expect(line).to_contain_text("violet")
+    if not cancel:
+        expect(
+            page.get_by_text(
+                "That selected passage is unavailable on this version", exact=True
+            )
+        ).to_be_visible()
+    page.evaluate(
+        "() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))"
+    )
+    assert (
+        page.evaluate("({length:history.length,key:navigation.currentEntry.key})")
+        == before
+    )
+    assert page.evaluate("() => getSelection().toString()") == ""
+    assert take_browser_errors(page) == []
+
+
+@pytest.mark.parametrize("navigation_api", [False, True])
+def test_restore_selection_back_keeps_the_offset_before_reveal(
+    browser, serve, navigation_api
+):
+    """Disclosure can reshape the source before successful arrival commits its entry."""
+    page = open_page(
+        browser,
+        serve(RESTORE_SELECTION_PAGE),
+        init_script=None
+        if navigation_api
+        else "Object.defineProperty(window, 'navigation', {value:undefined});",
+    )
+    page.emulate_media(reduced_motion="reduce")
+    _select_remembered_backwards(page)
+    page.keyboard.press("Escape")
+    page.locator("#selected-details summary").click()
+    page.locator("#away").scroll_into_view_if_needed()
+    before = page.evaluate("scrollY")
+    page.keyboard.press("g")
+    page.keyboard.press("v")
+    page.wait_for_function("() => getSelection().toString().includes('amber passage')")
+    assert page.evaluate("scrollY") < before - 300
+    page.go_back()
+    page.wait_for_function("offset => Math.abs(scrollY-offset)<2", arg=before)
+    assert take_browser_errors(page) == []
+
+
 def test_restore_selection_tracks_late_native_adjustment_and_retires_write_provenance(
     browser, serve
 ):

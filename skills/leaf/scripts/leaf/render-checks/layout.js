@@ -136,9 +136,11 @@ export function overflowingRegions() {
     (host.parentElement === main &&
       getComputedStyle(host).getPropertyValue("--lf-reading-region").trim() ===
         "layout");
+  // Shown ones only: a queue's closed items hold open Asks too, and a region that
+  // already is the queue is not stacking them.
   const asks = openAsks()
     .map((ask) => document.getElementById(ask.id))
-    .filter(Boolean);
+    .filter((ask) => ask?.checkVisibility());
   return readingRegions().flatMap((region) => {
     if (!main.contains(region.host) || !screenRegion(region.host)) return [];
     if (!shownRegionBounds(region) || readingPosture(region) !== "bounded") return [];

@@ -131,6 +131,9 @@ into rows, and the swept widths where that changes, and it fails a workspace who
 stand side by side at the desktop viewport and stack in one column at a width where the
 Layout still fills the window, since stacked there they share one window's height. A
 body of rows at the desktop viewport is a design of rows, whatever a wider window does.
+At each swept width it also reads, as advice, each drawing whose fit to its box draws
+labels under 10px and each region of a full-height workspace that runs past its room,
+and names each with the widths it spans and its reading at the narrowest.
 
 A version that passes gets screens for the author to read (`render_gate/screens.py`):
 the page's first eight screens down from its top at the desktop viewport, at the

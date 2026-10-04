@@ -273,10 +273,11 @@ def _pane_regions(columns: str, media: str) -> str:
 
 def test_a_screen_region_that_runs_past_its_room_gets_advice(browser, serve):
     """A workspace is a screen the reader moves through, so a region of it that has to
-    scroll is the exception, and the gate names each one at the desktop viewport, as
-    advice: the page still passes. Here the detail pane runs past its room and the
-    queue fits, so only the detail is named. Once the detail stacks two open Asks, it
-    is a queue read as one scroll, and the advice names the side-list queue instead."""
+    scroll is the exception, and the gate names each one with the swept widths it runs
+    past its room at, as advice: the page still passes. Here the detail pane runs past
+    its room and the queue fits, so only the detail is named. Once the detail stacks two
+    open Asks, it is a queue read as one scroll, and the advice names the side-list
+    queue instead."""
     source = leaf_page(
         "screen regions",
         """
@@ -296,9 +297,13 @@ def test_a_screen_region_that_runs_past_its_room_gets_advice(browser, serve):
     reading = render_gate_model.render_version(browser, serve(source, packages=()))
 
     assert reading.failures == []
-    assert [region["id"] for region in reading.overflowing] == ["detail"]
-    (advice,) = [line for line in reading.advice if "past the region" in line]
-    assert advice.startswith("at 1200x900 <lf-pane id=detail> runs "), advice
+    (advice,) = reading.advice
+    spans = re.match(
+        r"at (\d+)–1920px wide and 900px tall <lf-pane id=detail> runs past the region "
+        r"it scrolls in, \d+px at \1px: ",
+        advice,
+    )
+    assert spans and int(spans[1]) < 1200, advice
     assert "lf-tabs" not in advice, advice
 
     asks = "".join(
@@ -384,10 +389,13 @@ DRAWN_LABELS_PAGE = leaf_page(
 def test_a_drawing_fitted_until_its_labels_are_unreadable_gets_advice_and_still_passes(
     browser, serve
 ):
-    """Drawn size decides, and only the fit is advised about: the halved 28px labels
-    read fine, the 9px glyph at its natural size is a size the source chose, and words
-    the drawing never paints have no drawn size at all. The drawing whose 11px labels
-    came out at 5px is named once, with its smallest."""
+    """Drawn size decides, and only the fit is advised about: the 9px glyph at its
+    natural size is a size the source chose, and words the drawing never paints have
+    no drawn size at all. Each shrunk drawing is named once, with the swept widths it
+    spans and its smallest label at the narrowest of them: the drawing whose 11px
+    labels came out at 5px on the desktop at every width, and the one whose halved
+    28px labels read fine on the desktop only where a narrower window takes them
+    under 10px."""
     url = serve(DRAWN_LABELS_PAGE, packages=())
     page = open_page(browser, url)
     drawn = page.evaluate(
@@ -415,12 +423,18 @@ def test_a_drawing_fitted_until_its_labels_are_unreadable_gets_advice_and_still_
     reading = render_gate_model.render_version(browser, url)
 
     assert reading.failures == []
-    (advice,) = reading.advice
-    assert advice.startswith(
-        "at 1200px wide <svg> in <figure id=squeezed> draws 3 label(s) below 10px, "
-        "the smallest ("
-    ), advice
-    assert "from the 11px it was set at" in advice, advice
+    squeezed, large = reading.advice
+    assert squeezed.startswith(
+        "at 360–1920px wide <svg> in <figure id=squeezed> draws labels below 10px, "
+        "3 at 360px, the smallest ("
+    ), squeezed
+    assert "from the 11px it was set at" in squeezed, squeezed
+    spans = re.match(
+        r"at 360–(\d+)px wide <svg> in <figure id=large> draws labels below 10px, "
+        r"2 at 360px, the smallest \(.*\) at [\d.]+px from the 28px it was set at",
+        large,
+    )
+    assert spans and 540 <= int(spans[1]) < 1200, large
 
 
 def test_user_view_checks_read_current_geometry_without_changing_the_page(

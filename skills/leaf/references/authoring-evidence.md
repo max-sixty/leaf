@@ -49,11 +49,11 @@ layout, geometry, a wireframe, or a thumbnail inside an option, as the `svg.draw
 idiom in a `<figure>` with an `id`, and give the figure `data-width="wide"` when it
 needs the room. The figure scales the drawing to its width, labels included, so draw
 the `viewBox` near the width it is shown at: 1600 units in a 720px column draw an 11px
-label at 5px, and `page check --render` advises when a label is drawn under 10px.
-Keep it schematic: a window is a rounded box, a line of text a grey bar, a marker a
-dot, and only what the figure is about takes the accent colour. Put the states being
-compared side by side in one figure at one scale, drawn alike except where they
-differ. The idiom's classes paint in theme tokens, so the drawing follows
+label at 5px, and `page check --render` advises when a label is drawn under 10px at any
+window width from 360px to 1920px, naming the widths. Keep it schematic: a window is a
+rounded box, a line of text a grey bar, a marker a dot, and only what the figure is
+about takes the accent colour. Put the states being compared side by side in one figure
+at one scale, drawn alike except where they differ. The idiom's classes paint in theme tokens, so the drawing follows
 the light and dark schemes; an SVG file added with `leaf page media` loads as an image
 and cannot read them. Give a mark particular to the subject a page-local class on the
 same tokens. Keep the `<figcaption>` for what the drawing cannot show, and inspect

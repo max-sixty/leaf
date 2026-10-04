@@ -11,6 +11,7 @@ import {
 import { laidOutItems } from "./framing.js";
 import { at as element } from "./locate.js";
 import { openRoots } from "./open-roots.js";
+import { shrunkLabelReading } from "./words.js";
 
 export const rootOverflow = () => pageScroller.scrollWidth - pageScroller.clientWidth;
 const at = (el) => (el === pageScroller ? "<root scrollport>" : element(el));
@@ -25,10 +26,11 @@ export function marginResidents() {
     .join(" ");
 }
 
-// One settled-width geometry sample. These readers are synchronous and read-only:
-// taking them in one browser turn preserves their findings while removing the
-// protocol round trips between fields. Resize and rendering completion belong to the
-// caller, so a sample neither advances the page nor waits for a different layout.
+// One settled-width geometry sample: every read-only reading whose answer moves with
+// the window's width. These readers are synchronous: taking them in one browser turn
+// preserves their findings while removing the protocol round trips between fields.
+// Resize and rendering completion belong to the caller, so a sample neither advances
+// the page nor waits for a different layout.
 export function geometryReading(open) {
   return {
     overflow: rootOverflow(),
@@ -36,6 +38,8 @@ export function geometryReading(open) {
     margin: marginResidents(),
     arrangement: arrangedBoxes(open),
     panes: heldPanes(),
+    regions: overflowingRegions(),
+    labels: shrunkLabelReading(),
   };
 }
 

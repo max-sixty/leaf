@@ -328,18 +328,10 @@ height and where a switch lands wait on the workspace decision under Layout.
   App Server's behavior before changing delivery policy; the
   [Codex brief](notes/codex-integration.md#delivery-start-race) owns the experiment.
 
-- **Take every render-check reading at every width the check renders.** The check
-  lays the page out at 1200px and 540px and sweeps it from 360px to 1920px
-  (`render_gate/version.py`, `readings.py`), but reads drawing label size only at
-  the desktop width (`shrunk_label_advice`), though a narrower window scales a
-  drawing further still. Tiny text at 900px and on a phone recurs in the judge's
-  reasons in the arrangement eval (`notes/arrangement-eval/`, `r3-main-0feb`). Take
-  each reading the sweep can take at every swept
-  width, and report each fault at the narrowest width it starts, as
-  `swept_overflow` does for sideways overflow. Separately verify the Ask's premise,
-  controls and resulting evidence below the first pane screen, as the arrangement
-  eval exposed. The readings stay advice: which
-  widths a page answers for is the author's call.
+- **Verify the Ask's premise, controls and resulting evidence below the first pane
+  screen**, as the arrangement eval exposed (`notes/arrangement-eval/`,
+  `r3-main-0feb`). The reading stays advice: which widths a page answers for is the
+  author's call.
 - **Read the full render gate after handover.** Actual user views now supply passive
   geometry checks as agent context (`conversation-loop.md`, "The user's view"). The
   broader headless gate still runs on request. `page check --render` blocks the

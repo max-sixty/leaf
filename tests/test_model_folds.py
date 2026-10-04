@@ -108,7 +108,54 @@ def test_summary_leaves_messages_after_its_range_visible():
 
     thread = model.threads(state)["e1"]
     assert thread["summaries"][0]["covers"] == ["e1", "e2"]
+    assert thread["summaries"][0]["label"] == "Earlier discussion"
     assert thread["msgs"][-1]["text"] == "new message"
+
+
+def test_folds_without_summary_prose_keep_corrected_originals():
+    identity = {"author": "agent", "agent": "Agent", "session": "session-1"}
+    state = model.reading(
+        HUB,
+        (
+            {"kind": "comment", "text": "one"},
+            {"kind": "reply", "parent": "e1", "text": "two"},
+            {"kind": "reply", "parent": "e1", "text": "three"},
+            {"kind": "reply", "parent": "e1", "text": "four"},
+            {
+                "kind": "summary",
+                **identity,
+                "thread": "e1",
+                "from": "e1",
+                "through": "e2",
+                "label": "Previous updates",
+                "text": "",
+            },
+            {
+                "kind": "summary",
+                **identity,
+                "thread": "e1",
+                "from": "e3",
+                "through": "e4",
+                "text": "The later exchange.",
+            },
+            {"kind": "edit", **identity, "message": "e2", "text": "two, revised"},
+            {"kind": "edit", **identity, "message": "e4", "text": "four, revised"},
+        ),
+    )
+
+    thread = model.threads(state)["e1"]
+    [fold] = thread["summaries"]
+    assert (fold["covers"], fold["label"], fold["text"]) == (
+        ["e1", "e2"],
+        "Previous updates",
+        "",
+    )
+    assert [message["text"] for message in thread["msgs"]] == [
+        "one",
+        "two, revised",
+        "three",
+        "four, revised",
+    ]
 
 
 def test_a_decision_on_any_message_settles_the_thread_it_belongs_to():

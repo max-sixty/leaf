@@ -1,0 +1,41 @@
+# Added with optional summary labels and explicit empty summary text. This measures
+# command selection from the shipped thread instructions, not automatic progress
+# lifecycles or execution of the returned command.
+# Against dd9304c34, each host scored 0/1 by using the label as summary prose;
+# the candidate scored 1/1 on each host with --label and explicit empty --text.
+description: thread-fold-without-summary-prose
+metadata:
+  purpose: Fold earlier thread updates under a requested label without summary prose, preserving their originals.
+  tags:
+  - threads
+vars:
+  prompt: |
+    You own a live Leaf page at ~/.local/state/leaf/pages/layout-review.
+    Thread layout-thread already contains these messages, in order:
+
+    user-request (user): "Stop the reply box jumping when I switch drafts."
+    progress-one (agent): "I'm checking what changes the reply box's height."
+    progress-two (agent): "The label row changes height. I'm testing a fixed row."
+    final-answer (agent): "The label row keeps its height now. Desktop and phone checked."
+
+    Fold only the two progress updates behind a disclosure labeled "Previous
+    updates". Do not add retrospective summary prose. Keep both originals
+    retrievable and leave the user's request and final answer visible.
+
+    Nothing here can execute writes. Read the relevant Leaf instructions, then
+    reply with the exact one-line CLI command you would run.
+assert:
+- type: javascript
+  metric: loads-leaf
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/SKILL\.md
+- type: javascript
+  metric: reads-threads
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/references/threads\.md
+- type: regex
+  metric: folds-original-updates-without-prose
+  value: >-
+    (?:^|\n)[^\n]*\bleaf\s+thread\s+summarize\b(?=[^\n]*--from(?:=|\s+)['"]?progress-one\b)(?=[^\n]*--through(?:=|\s+)['"]?progress-two\b)(?=[^\n]*--label(?:=|\s+)(?:'Previous updates'|"Previous updates"))(?=[^\n]*--text(?:=|\s+)(?:''|""))[^\n]*

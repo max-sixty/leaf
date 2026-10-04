@@ -2,10 +2,14 @@
  *
  * `banner.js` derives one immutable reading. This synchronous light-DOM Lit view
  * retains the native disclosure controls while placing them in the ordinary and
- * publication layouts; no outside code writes or reparents anything inside it.
+ * publication layouts; no outside code writes or reparents anything inside it. The
+ * queue counts (`queues`) stand outside the press, at the status's trailing edge, in a
+ * box reserved for the counts they usually reach (`queuesWidest`), so the sentence
+ * changing never carries them and their changing moves nothing. Counts past that
+ * widen the box once, and it keeps the width while the page is open.
  */
 import { html, nothing, render } from "../vendor/browser-runtime.js";
-import { el } from "./widget-elements.js";
+import { el, reserve } from "./widget-elements.js";
 import { keeps } from "./keeps.js";
 
 // `lf-*` is reserved for authored widgets. This is generated runtime chrome.
@@ -13,6 +17,8 @@ const TAG = "leaf-banner-status";
 const INITIAL = Object.freeze({
   tone: "",
   summary: "Connecting…",
+  queues: "",
+  queuesWidest: "",
   explanation: "Connecting…",
   publication: null,
 });
@@ -22,6 +28,9 @@ class BannerStatusView extends HTMLElement {
   #detail = el("div", "lf-ui lf-status-detail");
   #dot = el("span", "lf-dot");
   #onToggle = null;
+  #queues = el("span", "lf-status-queues");
+  #queuesWidest = "";
+  #queuesReserved = "";
   #text = el("span", "lf-status-text");
 
   constructor() {
@@ -92,9 +101,30 @@ class BannerStatusView extends HTMLElement {
       return;
     }
 
-    render(html`${this.#button}${this.#detail}`, this);
+    render(
+      html`${this.#button}${model.queues ? this.#queues : nothing}${this.#detail}`,
+      this,
+    );
     render(html`${this.#dot}${this.#text}`, this.#button);
     render(model.summary, this.#text);
+    render(model.queues, this.#queues);
+    // The reservation only grows: its digits are tabular, so the longest counts yet
+    // shown are the widest, and a box that shrank back would move them on the next.
+    if (model.queues) {
+      const kept =
+        model.queuesWidest === this.#queuesWidest
+          ? this.#queuesReserved
+          : model.queuesWidest;
+      const reserved = model.queues.length > kept.length ? model.queues : kept;
+      if (
+        model.queuesWidest !== this.#queuesWidest ||
+        reserved !== this.#queuesReserved
+      ) {
+        this.#queuesWidest = model.queuesWidest;
+        this.#queuesReserved = reserved;
+        reserve(this.#queues, [reserved]);
+      }
+    }
   }
 }
 

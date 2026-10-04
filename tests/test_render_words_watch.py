@@ -669,3 +669,101 @@ def test_words_a_native_passive_await_stays_passive_inside_a_press(browser, defe
     consume_browser_errors(page, "typed words left the screen without a key or press")
     page.evaluate("completeSend()")
     page.wait_for_function("window.done === true")
+
+
+# A reactive element in the shape Lit gives one: `requestUpdate` starts an update that a
+# native `await` defers to `scheduleUpdate`, and the first update, requested while the
+# element is constructed, waits for it to be connected. Its value is drawn into a field
+# in its shadow tree, as a Web Awesome input draws the Threads search. Escape clears the
+# host's value; `k` makes an element whose first update clears it, which a passive
+# timer later connects; and a passive timer, armed when the page loads, clears it on cue.
+REACTIVE = """<!doctype html><body>
+<reactive-field id="host"></reactive-field><button id="elsewhere">Elsewhere</button>
+<script>
+  class ReactiveField extends HTMLElement {
+    isUpdatePending = false;
+    hasUpdated = false;
+    #value = "";
+    #enable = null;
+    #enabled = new Promise((resolve) => (this.#enable = resolve));
+    constructor() {
+      super();
+      this.attachShadow({ mode: "open" }).innerHTML = '<input id="inner">';
+      this.shadowRoot.firstChild.addEventListener("input", (event) => {
+        this.#value = event.target.value;
+      });
+      this.requestUpdate();
+    }
+    connectedCallback() { this.#enable(); }
+    get value() { return this.#value; }
+    set value(next) { this.#value = next; this.requestUpdate(); }
+    requestUpdate() {
+      if (this.isUpdatePending) return;
+      this.isUpdatePending = true;
+      this.updated = this.enqueueUpdate();
+    }
+    async enqueueUpdate() {
+      await this.#enabled;
+      this.scheduleUpdate();
+    }
+    scheduleUpdate() {
+      this.isUpdatePending = false;
+      const first = !this.hasUpdated;
+      this.hasUpdated = true;
+      this.shadowRoot.firstChild.value = this.#value;
+      if (first && this.dataset.clears)
+        document.getElementById(this.dataset.clears).value = "";
+      if (!first && this.id === "host") window.cleared = this.#value === "";
+    }
+  }
+  customElements.define("reactive-field", ReactiveField);
+  addEventListener("keydown", (event) => {
+    if (event.key === "Escape") document.getElementById("host").value = "";
+    if (event.key === "k") {
+      window.made = document.createElement("reactive-field");
+      made.dataset.clears = "host";
+    }
+  });
+  window.connectPassively = () => setTimeout(() => document.body.append(made), 0);
+  new Promise((resolve) => (window.releasePassive = resolve)).then(() => {
+    setTimeout(() => { document.getElementById("host").value = ""; }, 0);
+  });
+</script>"""
+
+
+def reactive_page(browser):
+    page = browser.new_page()
+    page.goto("data:text/html," + quote(REACTIVE))
+    page.locator("#inner").fill("Half a thought")
+    return page
+
+
+def test_words_a_reactive_update_a_key_requested_is_that_keys(browser):
+    """An element's update that a key requested belongs to that key, though the element
+    defers it behind a native `await`: the key put the words away."""
+    page = reactive_page(browser)
+    page.keyboard.press("Escape")
+    page.wait_for_function("window.cleared === true")
+    judge_watches()
+
+
+@pytest.mark.parametrize("cause", ["released", "connected"])
+def test_words_a_reactive_update_nothing_requested_still_fails(browser, cause):
+    """The same deferred update, requested by work no input caused, loses the words.
+    So does an element's first update when a key made the element and passive work
+    connected it later: that update runs when it is connected, not when it was made."""
+    page = reactive_page(browser)
+    if cause == "released":
+        page.evaluate("releasePassive()")
+    else:
+        page.locator("#elsewhere").focus()
+        page.keyboard.press("k")
+        page.wait_for_function("window.made !== undefined")
+        page.evaluate("connectPassively()")
+    page.wait_for_function("window.cleared === true")
+    judge_watches()
+    consume_browser_errors(
+        page,
+        'typed words left the screen without a key or press: "Half a thought"'
+        " in input#inner in shadow of reactive-field#host",
+    )

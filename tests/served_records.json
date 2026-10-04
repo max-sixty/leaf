@@ -179,6 +179,502 @@
           "holds_thread": false
         }
       ]
+    },
+    "queues on both sides": {
+      "asks": [
+        {
+          "id": "pick-ask",
+          "tag": "lf-ask",
+          "source": "pick",
+          "source_tag": "lf-options",
+          "thread": null
+        }
+      ],
+      "threads": [
+        {
+          "id": "e1",
+          "root": {
+            "id": "e1",
+            "seq": 1,
+            "ts": "2026-09-19T12:00:00+00:00",
+            "author": "user",
+            "revision": 1,
+            "kind": "comment",
+            "text": "Weekly?",
+            "attention": true,
+            "agent": null
+          },
+          "title": null,
+          "anchor": null,
+          "detached_from": null,
+          "msgs": [
+            {
+              "id": "e1",
+              "seq": 1,
+              "ts": "2026-09-19T12:00:00+00:00",
+              "author": "user",
+              "revision": 1,
+              "kind": "comment",
+              "text": "Weekly?",
+              "attention": true,
+              "agent": null
+            },
+            {
+              "id": "e2",
+              "seq": 2,
+              "ts": "2026-09-19T12:00:00+00:00",
+              "author": "agent",
+              "revision": 1,
+              "kind": "reply",
+              "agent": "Agent",
+              "parent": "e1",
+              "responds": "e1",
+              "text": "Weekly or daily?",
+              "awaits": true,
+              "attention": false
+            }
+          ],
+          "resolved": null,
+          "user_prompt": {
+            "message": "e2",
+            "version": "e2"
+          },
+          "bare_reaction": false,
+          "seat": null,
+          "summaries": [],
+          "unread": [
+            {
+              "message": "e2",
+              "version": "e2"
+            }
+          ],
+          "attention": {
+            "kind": "needs_user",
+            "reason": "ask",
+            "workflow": null
+          }
+        },
+        {
+          "id": "e3",
+          "root": {
+            "id": "e3",
+            "seq": 3,
+            "ts": "2026-09-19T12:00:00+00:00",
+            "author": "user",
+            "revision": 1,
+            "kind": "comment",
+            "text": "Tighten this.",
+            "attention": true,
+            "agent": null
+          },
+          "title": null,
+          "anchor": null,
+          "detached_from": null,
+          "msgs": [
+            {
+              "id": "e3",
+              "seq": 3,
+              "ts": "2026-09-19T12:00:00+00:00",
+              "author": "user",
+              "revision": 1,
+              "kind": "comment",
+              "text": "Tighten this.",
+              "attention": true,
+              "agent": null
+            }
+          ],
+          "resolved": null,
+          "user_prompt": null,
+          "bare_reaction": false,
+          "seat": null,
+          "summaries": [],
+          "unread": [],
+          "attention": {
+            "kind": "waiting",
+            "reason": "workflow",
+            "workflow": "e3"
+          }
+        },
+        {
+          "id": "e4",
+          "root": {
+            "id": "e4",
+            "seq": 4,
+            "ts": "2026-09-19T12:00:00+00:00",
+            "author": "user",
+            "revision": 1,
+            "kind": "comment",
+            "text": "Rebuild the chart.",
+            "attention": true,
+            "agent": null
+          },
+          "title": null,
+          "anchor": null,
+          "detached_from": null,
+          "msgs": [
+            {
+              "id": "e4",
+              "seq": 4,
+              "ts": "2026-09-19T12:00:00+00:00",
+              "author": "user",
+              "revision": 1,
+              "kind": "comment",
+              "text": "Rebuild the chart.",
+              "attention": true,
+              "agent": null
+            },
+            {
+              "id": "e5",
+              "seq": 5,
+              "ts": "2026-09-19T12:00:00+00:00",
+              "author": "agent",
+              "revision": 1,
+              "kind": "reply",
+              "agent": "Agent",
+              "parent": "e4",
+              "responds": "e4",
+              "text": "On it after CI.",
+              "attention": false
+            }
+          ],
+          "resolved": null,
+          "user_prompt": null,
+          "bare_reaction": false,
+          "seat": null,
+          "summaries": [],
+          "unread": [
+            {
+              "message": "e5",
+              "version": "e5"
+            }
+          ],
+          "attention": {
+            "kind": "waiting",
+            "reason": "workflow",
+            "workflow": "claim:claim-1"
+          }
+        },
+        {
+          "id": "e7",
+          "root": {
+            "id": "e7",
+            "seq": 7,
+            "ts": "2026-09-19T12:00:00+00:00",
+            "author": "user",
+            "revision": 1,
+            "kind": "comment",
+            "text": "Retitle it.",
+            "attention": true,
+            "agent": null
+          },
+          "title": null,
+          "anchor": null,
+          "detached_from": null,
+          "msgs": [
+            {
+              "id": "e7",
+              "seq": 7,
+              "ts": "2026-09-19T12:00:00+00:00",
+              "author": "user",
+              "revision": 1,
+              "kind": "comment",
+              "text": "Retitle it.",
+              "attention": true,
+              "agent": null
+            },
+            {
+              "id": "e8",
+              "seq": 8,
+              "ts": "2026-09-19T12:00:00+00:00",
+              "author": "agent",
+              "revision": 1,
+              "kind": "reply",
+              "agent": "Agent",
+              "parent": "e7",
+              "responds": "e7",
+              "failure": "turn_failed",
+              "text": "No answer is coming.",
+              "attention": false
+            }
+          ],
+          "resolved": null,
+          "user_prompt": null,
+          "bare_reaction": false,
+          "seat": null,
+          "summaries": [],
+          "unread": [
+            {
+              "message": "e8",
+              "version": "e8"
+            }
+          ],
+          "attention": {
+            "kind": "needs_user",
+            "reason": "recovery",
+            "workflow": "e7"
+          }
+        }
+      ],
+      "workflows": [
+        {
+          "id": "e9",
+          "input": "e9",
+          "seq": 9,
+          "revision": 1,
+          "subject": {
+            "kind": "widget",
+            "id": "ship"
+          },
+          "coordinate": [
+            "ship",
+            "ship",
+            "choose"
+          ],
+          "answer": null,
+          "stage": "answered",
+          "ts": "2026-09-19T12:00:00+00:00",
+          "delivery_seq": null,
+          "delivery_session": null,
+          "delivery_turn": null,
+          "detail": null,
+          "agent": null,
+          "session": "served-records",
+          "activity": [
+            {
+              "kind": "response",
+              "detail": null,
+              "ts": "2026-09-19T12:00:00+00:00",
+              "session": "served-records",
+              "turn": "turn-1"
+            }
+          ],
+          "condition": {
+            "kind": "failed",
+            "operation": "response"
+          },
+          "next_actor": "user",
+          "response": {
+            "id": "e10",
+            "attempt": null,
+            "state": "failed",
+            "responds": "e9"
+          },
+          "claimed_by": [],
+          "thread": null,
+          "holds_thread": false
+        },
+        {
+          "id": "e7",
+          "input": "e7",
+          "seq": 7,
+          "revision": 1,
+          "subject": {
+            "kind": "thread",
+            "id": "e7"
+          },
+          "coordinate": [
+            "thread",
+            "e7"
+          ],
+          "answer": null,
+          "stage": "answered",
+          "ts": "2026-09-19T12:00:00+00:00",
+          "delivery_seq": null,
+          "delivery_session": null,
+          "delivery_turn": null,
+          "detail": null,
+          "agent": "Agent",
+          "session": null,
+          "activity": [
+            {
+              "kind": "response",
+              "detail": null,
+              "ts": "2026-09-19T12:00:00+00:00",
+              "session": null,
+              "turn": null
+            }
+          ],
+          "condition": {
+            "kind": "failed",
+            "operation": "response"
+          },
+          "next_actor": "user",
+          "response": {
+            "id": "e8",
+            "attempt": null,
+            "state": "failed",
+            "responds": "e7"
+          },
+          "claimed_by": [],
+          "thread": "e7",
+          "holds_thread": true
+        },
+        {
+          "id": "claim:claim-1",
+          "input": null,
+          "seq": 6,
+          "revision": null,
+          "subject": {
+            "kind": "thread",
+            "id": "e4"
+          },
+          "coordinate": [
+            "thread",
+            "e4"
+          ],
+          "answer": null,
+          "stage": "working",
+          "ts": "2026-09-19T12:00:00+00:00",
+          "detail": "Redrawing the chart",
+          "agent": "Agent",
+          "session": "served-records",
+          "activity": [
+            {
+              "kind": "working",
+              "detail": "Redrawing the chart",
+              "ts": "2026-09-19T12:00:00+00:00",
+              "session": "served-records",
+              "turn": "turn-1"
+            }
+          ],
+          "condition": null,
+          "next_actor": "agent",
+          "response": null,
+          "claimed_by": [],
+          "thread": "e4",
+          "holds_thread": true
+        },
+        {
+          "id": "e3",
+          "input": "e3",
+          "seq": 3,
+          "revision": 1,
+          "subject": {
+            "kind": "thread",
+            "id": "e3"
+          },
+          "coordinate": [
+            "thread",
+            "e3"
+          ],
+          "answer": {
+            "kind": "reply",
+            "to": "e3",
+            "for": "e3"
+          },
+          "stage": "sent",
+          "ts": "2026-09-19T12:00:00+00:00",
+          "delivery_seq": null,
+          "delivery_session": null,
+          "delivery_turn": null,
+          "detail": null,
+          "agent": null,
+          "session": null,
+          "activity": [],
+          "condition": null,
+          "next_actor": "agent",
+          "response": null,
+          "claimed_by": [],
+          "thread": "e3",
+          "holds_thread": true
+        }
+      ],
+      "tasks": [
+        {
+          "id": "e6",
+          "subject": {
+            "kind": "thread",
+            "id": "e4"
+          },
+          "title": "Rebuild the chart",
+          "state": "open",
+          "seq": 6,
+          "ts": "2026-09-19T12:00:00+00:00",
+          "agent": "Agent",
+          "session": "served-records",
+          "outcome": null,
+          "thread": "e4"
+        }
+      ],
+      "queues": {
+        "on_you": [
+          {
+            "kind": "ask",
+            "id": "pick-ask",
+            "subject": {
+              "kind": "widget",
+              "id": "pick-ask"
+            },
+            "thread": null
+          },
+          {
+            "kind": "question",
+            "id": "e1",
+            "subject": {
+              "kind": "thread",
+              "id": "e1"
+            },
+            "thread": "e1"
+          },
+          {
+            "kind": "recovery",
+            "id": "e7",
+            "subject": {
+              "kind": "thread",
+              "id": "e7"
+            },
+            "thread": "e7"
+          },
+          {
+            "kind": "recovery",
+            "id": "e9",
+            "subject": {
+              "kind": "widget",
+              "id": "ship"
+            },
+            "thread": null
+          }
+        ],
+        "on_agent": [
+          {
+            "kind": "work",
+            "id": "claim:claim-1",
+            "subject": {
+              "kind": "thread",
+              "id": "e4"
+            },
+            "thread": "e4",
+            "detail": "Redrawing the chart"
+          },
+          {
+            "kind": "answer",
+            "id": "e3",
+            "subject": {
+              "kind": "thread",
+              "id": "e3"
+            },
+            "thread": "e3",
+            "answer": {
+              "kind": "reply",
+              "to": "e3",
+              "for": "e3"
+            },
+            "stage": "sent"
+          },
+          {
+            "kind": "task",
+            "id": "e6",
+            "subject": {
+              "kind": "thread",
+              "id": "e4"
+            },
+            "thread": "e4",
+            "title": "Rebuild the chart",
+            "agent": "Agent",
+            "session": "served-records"
+          }
+        ]
+      }
     }
   }
 }

@@ -15,7 +15,7 @@ from typing import NamedTuple
 from .detached import StartRefused
 from .event_log import read_events
 from .files import file_stamp, next_reading, read_json
-from .host import Harness, claim_harness, session_harness
+from .harness import Harness, claim_harness, session_harness
 from .leases import release_lease, take_lease, waiter_lease_path
 from .locations import path_location, paths_same
 from .machine import state_home
@@ -222,13 +222,14 @@ class Watch:
         lands during the pass moves the stamps `await_news` compares against."""
         return (list(self.watched), self.reading())
 
-    def await_news(self, mark: tuple, timeout: float = REVIVAL_CHECK_S) -> None:
-        """Return once anything the pass since `mark` read has moved, or after
-        `timeout` with nothing moved. A pass that found a different set of pages
-        returns at once: `mark` stamped the old set."""
+    def await_news(self, mark: tuple, timeout: float = REVIVAL_CHECK_S) -> bool:
+        """Return True once anything the pass since `mark` read has moved, or False
+        after `timeout` with nothing moved. A pass that found a different set of
+        pages returns True at once: `mark` stamped the old set."""
         watched, before = mark
-        if self.watched == watched:
-            next_reading(self.reading, before, timeout=timeout)
+        if self.watched != watched:
+            return True
+        return next_reading(self.reading, before, timeout=timeout) != before
 
     def tick(self):
         """Yield each page while its ownership and delivery lock is held."""
@@ -483,7 +484,7 @@ def _ended_watch(readings: list[PageTick], page_dir: Path | None) -> int:
 
 
 def new_input_line(page_dir: Path) -> str:
-    """What a watch says on finding input where the host's prompt hook carries it
+    """What a watch says on finding input where the harness's prompt hook carries it
     into the turn: it only wakes the session."""
     return (
         f"{page_dir} has new input; Leaf's prompt hook puts it in your context with "
@@ -546,23 +547,29 @@ def _log_end(page_dir: Path) -> int:
     return 0
 
 
-def watch_between_turns(harness: Harness) -> str | None:
-    """The session's watch run by the host's own Stop hook, which the host starts
+def watch_between_turns(harness: Harness, *, interrupted: bool = False) -> str | None:
+    """The session's watch run by the harness's own Stop hook, which the harness starts
     in the background as each turn ends (`Harness.watches_between_turns`), and
     what it wakes the session with, or None where it ends without waking it.
 
     It wakes the session for a page with new input, which the prompt hook then
     hands over as the turn the wake opens begins, and for live pages none of whose
     servers can be brought back. It ends silently where another watch already
-    holds the session's lease, no page is left to watch, or the host process that
-    started it has gone (`Harness.host_runs`), leaving the session's input to its
+    holds the session's lease, no page is left to watch, or the harness process that
+    started it has gone (`Harness.process_runs`), leaving the session's input to its
     `nudge`.
 
     Input that was already pending as the turn ended waits for the Stop hook
     beside this one, which hands it to the turn it continues. It is the wake's to
     carry only once that hook let the turn end over it, or failed to answer within
     its own timeout. Input arriving later wakes the session at once, between two
-    turns or within one, where it reaches the turn at its next tool result."""
+    turns or within one, where it reaches the turn at its next tool result.
+
+    A watch started as the user interrupted the turn wakes only for that later
+    input: the turn the pending input was handed to is the one the user stopped,
+    and their next prompt carries it. Input admitted between the interruption and
+    the watch's first look at the log waits for that prompt too, since nothing
+    records what the stopped turn was handed."""
     watch = Watch(harness)
     if not watch.acquire():
         return None
@@ -582,6 +589,8 @@ def watch_between_turns(harness: Harness) -> str | None:
         claim = reading.transaction.active_claim
         last = reading.batch[-1]["seq"]
         end, settled = first_sight(reading.page_dir, last)
+        if interrupted:
+            return last > end
         return (
             (claim is not None and claim.get("turn_closed") is not None)
             or last > end
@@ -589,7 +598,7 @@ def watch_between_turns(harness: Harness) -> str | None:
         )
 
     try:
-        while harness.host_runs():
+        while harness.process_runs():
             mark = watch.mark()
             reading = read_watch_pass(
                 watch, None, lambda tick: woke.append(tick.page_dir), ready

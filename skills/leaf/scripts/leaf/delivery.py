@@ -1,4 +1,4 @@
-"""Host-neutral capture, reading, and receipt of immutable Leaf deliveries.
+"""Harness-neutral capture, reading, and receipt of immutable Leaf deliveries.
 
 A delivery is transport-independent input: one or more complete page batches,
 each preserving the page's monotonic event order. Thread membership is
@@ -6,7 +6,7 @@ context, not a partition key, and response requirements are a snapshot of the
 standing projection at capture. Response commands validate the current page
 again when they write, so this snapshot never becomes settlement authority.
 Receipt validates the current receiver and captured event identities under the
-page transaction before advancing its cursor. Pickup records host acceptance or
+page transaction before advancing its cursor. Pickup records harness acceptance or
 turn entry separately; neither settles the user's response requirement.
 Each batch carries distinct handling clause texts once, with ordered references
 on the events they apply to. Clause identities belong only to that batch.
@@ -16,7 +16,7 @@ two facts that differ by carrier are stated once for the whole delivery rather
 than per event. `acknowledge` says who confirms receipt: the reader of a `leaf
 wait`, in the way its harness runs that command, or nobody, where the carrier
 confirmed it itself. A hook names the reader's confirmation route where its
-host cannot establish receipt; Codex's pointer read establishes it directly.
+harness cannot establish receipt; Codex's pointer read establishes it directly.
 A carrier whose turn speaks for the delivery, App Server,
 turns the one thread reply the delivery owes into a `turn` answer, which that
 turn's own messages write; every other carrier leaves it a `reply` for `leaf thread
@@ -34,7 +34,7 @@ from contextlib import contextmanager, nullcontext
 from pathlib import Path
 
 from .files import read_json
-from .host import claim_harness, session_harness
+from .harness import claim_harness, session_harness
 from .machine import state_home
 from .schema import CURSOR_FILE
 from .service import (
@@ -47,7 +47,7 @@ from .service import (
 from .state import flocked, session_lock_path, session_record, write_json
 
 DELIVERY_FORMAT = "leaf-delivery-v3"
-# The routes that carry a delivery to an agent: `leaf wait`'s output, a host hook's
+# The routes that carry a delivery to an agent: `leaf wait`'s output, a harness hook's
 # context for the turn it opens, a pointer queued with `codex queue`, and a turn
 # Leaf starts over Codex App Server.
 CARRIERS = ("wait", "hook", "queue", "app-server")
@@ -304,7 +304,7 @@ def freeze_delivery(
     will deliver it hands it over.
 
     `acknowledge` supplies the delivery-specific instruction for reader
-    confirmation after the complete envelope reaches context. When the host
+    confirmation after the complete envelope reaches context. When the harness
     establishes receipt directly, omit it and the envelope records `null`."""
     if carrier not in CARRIERS:
         raise ValueError(f"unknown delivery carrier {carrier!r}")
@@ -376,7 +376,7 @@ def record_pickup(
     """Durably record one delivery transition for exact attention-bearing inputs.
 
     ``queued`` means Codex's durable same-task queue accepted the batch;
-    ``opened`` means the batch entered an agent turn; ``failed`` means the host
+    ``opened`` means the batch entered an agent turn; ``failed`` means the harness
     gave up on the moves with the named ``failure`` and no answer is coming.
     Queued and opened are transport evidence, not authored work claims. A queued
     transition may therefore be followed by an opened transition for the same
@@ -488,7 +488,7 @@ def receive_one(batch: dict, session_id: str | None) -> Path:
             observed = session_record(session_id)
             if observed["turn_closed"] is not None:
                 raise ReceiptRefused("the receiving provider turn has ended")
-            # Receipt observes the already-open consumer turn. Host prompt and
+            # Receipt observes the already-open consumer turn. Harness prompt and
             # provider-start boundaries own lifecycle; an ack never opens it.
             turn = observed["turn"]
         record_pickup(page, events, session=session_id, turn=turn)

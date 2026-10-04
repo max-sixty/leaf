@@ -1,4 +1,4 @@
-"""Local website hosts and Worker runs own the listeners they announce."""
+"""Local website harnesses and Worker runs own the listeners they announce."""
 
 import json
 import os
@@ -14,7 +14,7 @@ from interact_support import wait_for
 from leaf_dev import ROOT, verify_site
 
 
-def test_default_website_hosts_keep_independent_app_servers(tmp_path, monkeypatch):
+def test_default_website_harnesses_keep_independent_app_servers(tmp_path, monkeypatch):
     monkeypatch.setenv("LEAF_SITE_ROOT", str(tmp_path))
     executable = tmp_path / "codex"
     executable.write_text(
@@ -28,8 +28,8 @@ while True:
 """
     )
     executable.chmod(0o755)
-    first = leaf_website.WebsiteCodexHost(str(executable))
-    second = leaf_website.WebsiteCodexHost(str(executable))
+    first = leaf_website.WebsiteCodexHarness(str(executable))
+    second = leaf_website.WebsiteCodexHarness(str(executable))
     try:
         first_process = first._ensure_server()
         second_process = second._ensure_server()
@@ -49,24 +49,24 @@ while True:
     assert not second.socket_path.parent.exists()
 
 
-def test_a_delayed_prewarm_cannot_revive_a_closed_website_host():
-    host = leaf_website.WebsiteCodexHost("unused")
+def test_a_delayed_prewarm_cannot_revive_a_closed_website_harness():
+    harness = leaf_website.WebsiteCodexHarness("unused")
     scheduled = Event()
 
     def delayed():
         assert scheduled.wait(10)
-        host._prewarm()
+        harness._prewarm()
 
     worker = Thread(target=delayed)
     worker.start()
     try:
-        host.close()
+        harness.close()
     finally:
         scheduled.set()
         worker.join(timeout=10)
     assert not worker.is_alive()
-    assert host.process is None
-    assert not host.socket_path.parent.exists()
+    assert harness.process is None
+    assert not harness.socket_path.parent.exists()
 
 
 def test_local_worker_wrapper_announces_independent_bound_ports(tmp_path, spawn):

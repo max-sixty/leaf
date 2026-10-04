@@ -42,7 +42,12 @@ export function createThreadActions({ post, withdraw, sendReaction, currentRevis
     });
   };
 
-  const toggleReaction = (key, messageId, token) => {
+  // A press means what its control drew: it takes the reaction off where the control
+  // drew it standing, and puts it on where it drew none. A package's control draws the
+  // current reading, which `drawn` defaults to. The thread's own strip can draw an
+  // earlier one while news waits behind its notice (held-news.js), and a reaction that
+  // already stands as the press means sends nothing.
+  const toggleReaction = (key, messageId, token, drawn) => {
     const thread = find(key);
     const message = thread?.msgs.find((item) => item.id === messageId);
     const choice =
@@ -50,7 +55,8 @@ export function createThreadActions({ post, withdraw, sendReaction, currentRevis
       reactionReading(thread, message, true)?.choices.find(
         (item) => item.name === token,
       );
-    if (!choice) return null;
+    if (!choice || (drawn ?? Boolean(choice.standing)) !== Boolean(choice.standing))
+      return null;
     if (choice.standing) return withdraw(choice.standing);
     return sendReaction(
       {

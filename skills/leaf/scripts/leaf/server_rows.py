@@ -6,7 +6,7 @@ working directory. The record is bound to service.server_id, so another server
 incarnation cannot inherit it; the server lease decides whether any row exists.
 Deleting every row only hides neighbors until their next maintenance look.
 
-A per-page producer checks this page's file stamps every 100 ms and live host,
+A per-page producer checks this page's file stamps every 100 ms and live harness,
 process and waiter facts every presence-cache interval. Changed inputs or the fold's next
 transition trigger a local transaction and fold; quiet looks never reread the
 log or document. Only changed row content is replaced. Neighbor consumers read

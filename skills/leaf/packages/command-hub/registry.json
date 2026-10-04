@@ -1,11 +1,11 @@
 {
   "$data": {
-    "description": "Reusable contracts for observed Command Hub facts supplied by the host rather than authored into a version.",
+    "description": "Reusable contracts for observed Command Hub facts supplied by the harness rather than authored into a version.",
     "contracts": {
       "lf-worktree": {
         "description": "Current worktree evidence keyed by the id of its authored lf-worktree seat.",
         "instructions": {
-          "coordinator": "After worktree evidence changes, replace the complete page-bound source snapshot rather than republishing it as prose or appending an event:\n\n```bash\nleaf data set \"$PAGE\" <source-id> --file worktrees.json\n```\n\nRead `data_bindings` from `leaf page state \"$PAGE\"` to find source ids using the `lf-worktree` contract and their consuming widget ids. `worktrees.json` is an object keyed by authored worktree widget id. Each value carries `branch`, `base`, `head`, non-negative `ahead`, `behind`, `additions`, `deletions`, and `commits`, a `tests` value of `passing`, `failing`, `running`, or `not-run`, an RFC 3339 `observedAt` timestamp with a timezone, and optional `files` and `diff` strings. Keep a key stable for the same worktree, and give a different worktree a new authored lf-worktree id; a reused id would attach old comments to the wrong worktree. Gather these facts with host tools; Leaf validates, transports, and presents them but does not run git or inspect worker directories."
+          "coordinator": "After worktree evidence changes, replace the complete page-bound source snapshot rather than republishing it as prose or appending an event:\n\n```bash\nleaf data set \"$PAGE\" <source-id> --file worktrees.json\n```\n\nRead `data_bindings` from `leaf page state \"$PAGE\"` to find source ids using the `lf-worktree` contract and their consuming widget ids. `worktrees.json` is an object keyed by authored worktree widget id. Each value carries `branch`, `base`, `head`, non-negative `ahead`, `behind`, `additions`, `deletions`, and `commits`, a `tests` value of `passing`, `failing`, `running`, or `not-run`, an RFC 3339 `observedAt` timestamp with a timezone, and optional `files` and `diff` strings. Keep a key stable for the same worktree, and give a different worktree a new authored lf-worktree id; a reused id would attach old comments to the wrong worktree. Gather these facts with harness tools; Leaf validates, transports, and presents them but does not run git or inspect worker directories."
         },
         "schema": {
           "type": "object",
@@ -399,8 +399,8 @@
     }
   },
   "lf-worktree": {
-    "description": "A stable, commentable address for observed worktree evidence supplied by the host.",
-    "x-instructions": "Keep one empty, stable element beside each worker whose evidence the host can inspect, binding source to the worktree snapshot. Reuse a source id when widgets read the same snapshot; give independent feeds different ids. Give a replacement worktree a new element id so old comments cannot attach to different work.",
+    "description": "A stable, commentable address for observed worktree evidence supplied by the harness.",
+    "x-instructions": "Keep one empty, stable element beside each worker whose evidence the harness can inspect, binding source to the worktree snapshot. Reuse a source id when widgets read the same snapshot; give independent feeds different ids. Give a replacement worktree a new element id so old comments cannot attach to different work.",
     "type": "object",
     "properties": {
       "id": {

@@ -16,7 +16,7 @@ vars:
     cache as a Leaf page they can comment on. You have written the page at
     ~/.local/state/leaf/pages/cache-plan and `leaf server start` printed its URL,
     http://127.0.0.1:8123/?t=abc. Now hand it off, following the leaf skill for this
-    host; the user expects to comment a few hours from now.
+    harness; the user expects to comment a few hours from now.
 
     Read whatever instructions you need. Only Skill and Read run here, so write out each
     other tool call you would make before your closing message, as the tool's name
@@ -28,10 +28,10 @@ assert:
   config:
     path: skills/leaf/SKILL\.md
 - type: javascript
-  metric: reads-claude-code-host
+  metric: reads-claude-code-harness
   value: file://reference-read.cjs
   config:
-    path: skills/leaf/references/host-claude-code\.md
+    path: skills/leaf/references/harness-claude-code\.md
 - type: llm-rubric
   metric: judgment
   value: |

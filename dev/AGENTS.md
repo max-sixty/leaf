@@ -26,7 +26,7 @@ arm or serving a page, lives in one module here and the others import it. Code
 reaches a module by importing it from this package, never through `sys.path`,
 `PYTHONPATH` or a file path.
 
-- `harness.py`: arms (the plugin payload at a ref, or as the working tree has it) and
+- `arms.py`: arms (the plugin payload at a ref, or as the working tree has it) and
   an A/B's pair of them, whose base defaults to the merge base with `main`
   (`base_ref`); pages served from an authored source on an arm; the machine's load
   average a timed command prints; the isolated `claude -p` children evals run; and
@@ -78,10 +78,9 @@ reaches a module by importing it from this package, never through `sys.path`,
   examples, base plugin against HEAD's, with no model, and prints each arm's wall
   time. Its arms, pages and state stay in its own run directory under
   `.tmp/bench-check/`.
-- `leaf-dev eval [CASE]...` scores the task catalog on Claude Code and Codex.
-  Tasks include short native Promptfoo tests and authored, resumed or live workflows;
-  explicit contexts select focused regressions, and `--condition both` includes HTML
-  where meaningful. `evals/README.md` owns the format and execution contract.
+- `leaf-dev eval [CASE]...` runs the eval catalog through Promptfoo on Claude Code
+  and Codex, on the working tree and with `--base` the merge base too.
+  `evals/README.md` owns the format and how to read the results.
 
 ## Examples and previews
 

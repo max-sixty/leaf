@@ -4,7 +4,7 @@
     <title>leaf event log</title>
     <meta
       name="description"
-      content="How Leaf records every widget move as an event in an append-only log, how a package declares the verbs, and how the fold turns the standing events into the page's state, shown with a real captured log and a sample you can operate."
+      content="How Leaf records comments, widget actions, agent replies, reports, and versions in an append-only log, and derives widget state from authored markup and surviving actions, with a captured log and a sample you can operate."
     />
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
   </head>
@@ -22,12 +22,17 @@
         <p class="eyebrow">how it works</p>
         <h1>The event log</h1>
         <p class="lede" id="lede">
-          Every move a user makes on a Leaf page, and every message, report, and version
-          the agent adds, is one JSON record appended to the page's
-          <code>events.jsonl</code>, and nothing is ever removed from it. A widget's
-          state is the authored markup plus a fold of that log: at each
-          <code>[widget, unit, verb]</code> coordinate, the latest action still standing
-          wins.
+          Leaf appends comments, widget actions, agent replies, reports, and version
+          records to <code>events.jsonl</code>. Earlier records remain when an action is
+          undone or retracted.
+        </p>
+        <p id="lede-state">
+          A widget's state starts with its authored markup. Leaf keys each action by
+          <code>[widget, unit, verb]</code>: the owning widget, the part of its state
+          being changed, and the operation. For each key, the latest action that has not
+          been undone or retracted sets that part of the state. Repeated choices in an
+          options group change the same selection unit, so a new pick replaces the
+          previous pick.
         </p>
         <p id="lede-contracts">
           This page explains the mechanism. The rules themselves live in the
@@ -56,11 +61,11 @@
         </p>
         <lf-diagram
           id="layers-flow"
-          data-height="252"
+          data-height="720"
           parts="node:Widget node:Door node:Log node:Fold"
         >
           <pre>
-flowchart LR
+flowchart TD
   Widget["Widget"] -- "verb" --&gt; Door{"Append door"}
   Door -- "record" --&gt; Log[("events.jsonl")]
   Log -- "fold" --&gt; Fold["State"]

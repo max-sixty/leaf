@@ -2,7 +2,7 @@
 
 A carrier is whatever keeps a Codex task reachable on Leaf's behalf: the detached
 process in `codex_adapter.py`, which observes a task it does not own, and the
-website's embedded host in `leaf_website` (`worker/`), which owns the tasks it starts.
+website's embedded harness in `leaf_website` (`worker/`), which owns the tasks it starts.
 What both need is here — the App Server connection and the request shapes one Leaf
 turn is opened with, the per-turn fold from a turn's notifications into its
 activity, its reply and its ending (`TurnFold`), the loop that reads a started
@@ -53,7 +53,7 @@ from .delivery import (
     validate_delivery_id,
 )
 from .files import read_json
-from .host import Harness
+from .harness import Harness
 from .leases import sessions_home
 from .schema import THREAD_ANSWER_KINDS
 from .service import (
@@ -875,7 +875,7 @@ def _locked_task_pages(session_id: str, *, expected: dict | None):
     """Lock this task's current page set in its stable path order.
 
     Ownership is the whole test. Both carriers that reach here — the detached
-    adapter and an embedded host — write App Server readings onto the pages
+    adapter and an embedded harness — write App Server readings onto the pages
     their own session holds, and the claim's session id says which those are.
     Discovery is only a candidate read, so each claim is checked again under
     its lock. A provider writer supplies its admitted lifecycle publication;
@@ -1607,7 +1607,7 @@ UNCONFIRMED_TEXT = (
 
 
 def settle_answered_deliveries(session_id: str) -> bool:
-    """Retire unknown host attempts already answered manually, even while offline."""
+    """Retire unknown harness attempts already answered manually, even while offline."""
     with flocked(delivery_lock_path(session_id)):
         pending = [
             path.stem
@@ -1720,7 +1720,7 @@ def stream_reply_target(payload: dict) -> dict | None:
     a turn Leaf observes picks it up. A move's response address is not the move: a
     widget gesture inside a frozen thread is answered on the thread
     that holds it. Reading both halves from the delivery keeps every writer — the
-    provider's own final answer and a host receipt written when there will be no
+    provider's own final answer and a harness receipt written when there will be no
     final answer — addressing the same place.
     """
     targets = [

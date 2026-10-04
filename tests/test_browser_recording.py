@@ -7,11 +7,10 @@ from zipfile import ZipFile
 
 import pytest
 from click.testing import CliRunner
-from PIL import Image
-
+from interact_support import running_http_server
 from leaf_dev.probe import probe
 from leaf_dev.recording import write_gif
-from interact_support import running_http_server
+from PIL import Image
 
 
 def test_gif_retains_the_viewport_when_startup_frame_dimensions_change(tmp_path):

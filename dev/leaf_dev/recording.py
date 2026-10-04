@@ -14,11 +14,12 @@ import io
 import time
 from collections.abc import Iterable
 from contextlib import contextmanager
+from itertools import pairwise
 from pathlib import Path
 
 from PIL import Image
-from playwright.sync_api import Page
 from playwright.sync_api import Error as PlaywrightError
+from playwright.sync_api import Page
 
 
 def write_gif(
@@ -105,7 +106,7 @@ def recording(page: Page, directory: Path, *, gif=False, actions=False):
             timestamps = [frame["timestamp"] for frame in frames] + [time.time() * 1000]
             durations = [
                 max(10, round((end - start) / 10) * 10)
-                for start, end in zip(timestamps, timestamps[1:], strict=False)
+                for start, end in pairwise(timestamps)
             ]
             write_gif(images, durations, directory / "recording.gif")
         if page.is_closed() and completed:

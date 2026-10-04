@@ -260,9 +260,8 @@ def probe(
                 except click.ClickException as error:
                     reading["failed"] = f"{doing}: {error.format_message()}"
                 except (PlaywrightError, PageNotReady, AssertionError) as error:
-                    reading["failed"] = (
-                        f"{doing}: {str(error).split("\n", 1)[0] or type(error).__name__}"
-                    )
+                    message = str(error).split("\n", 1)[0] or type(error).__name__
+                    reading["failed"] = f"{doing}: {message}"
                 failed |= "failed" in reading
                 click.echo(json.dumps({"arm": arm, "ran": ran, **reading}))
     if failed:

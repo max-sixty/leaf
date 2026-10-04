@@ -13,7 +13,7 @@ import {
   showNews,
 } from "./banner-toolbar.js";
 import { latestChip, versionBtn } from "./version-picker.js";
-import { asksBtn, othersBtn } from "./drawers.js";
+import { othersBtn, queueBtn } from "./drawers.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { repaint } from "./repaint.js";
 import { announce, notice } from "./notifications.js";
@@ -84,9 +84,9 @@ registerBannerControl({
   urgent: true,
 });
 registerBannerControl({
-  key: "asks",
-  control: asksBtn,
-  rank: BANNER_CONTROL_RANK.asks,
+  key: "queue",
+  control: queueBtn,
+  rank: BANNER_CONTROL_RANK.queue,
   conditional: true,
 });
 registerBannerControl({
@@ -695,7 +695,7 @@ export function mountBanner({ approveVersion, paintApproval }) {
   watchProjection(document.body, paintApproval);
   // The queues move with the application's publication, not only with a state answer.
   watchSemantic(() => lastStatus && presentStatus(lastStatus));
-  for (const control of [asksBtn, othersBtn]) showNews(control, false);
+  for (const control of [queueBtn, othersBtn]) showNews(control, false);
   banner.append(bannerStatus, bannerActions);
   reserveBannerControls();
   approveBtn.onclick = async () => {

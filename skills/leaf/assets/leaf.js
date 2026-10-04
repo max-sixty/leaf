@@ -93,6 +93,7 @@ import { createThreadPanelElements } from "./runtime/thread/panel-elements.js";
 import { createPageMapDialog } from "./runtime/page-map-dialog.js";
 import { createAskView } from "./runtime/asks/view.js";
 import { createQueueWalk } from "./runtime/queue-walk.js";
+import { createQueuePanel } from "./runtime/queue-panel.js";
 import { ASK_CONTROL } from "./runtime/asks/view-elements.js";
 import {
   commandHintLayer,
@@ -103,9 +104,9 @@ import { createChromeLayout } from "./runtime/chrome-layout.js";
 import { createThreadPanelController } from "./runtime/thread-panel.js";
 import {
   createDrawers,
-  asksPanel,
   currentDrawer,
   othersPanel,
+  queuePanel,
 } from "./runtime/drawers.js";
 import { createAuxiliarySurfaces } from "./runtime/auxiliary-surfaces.js";
 import { restoreUserView } from "./runtime/restore-state.js";
@@ -556,6 +557,11 @@ const queueWalk = createQueueWalk({
   readableDestination: anchorTravel.readableDestination,
   announce,
 });
+const queue = createQueuePanel({
+  arriveAtItem: queueWalk.arriveAtItem,
+  askAnswer: asks.answerOf,
+  announce,
+});
 
 const commandHints = createCommandHints({
   presentedControl: (control) => app.overlay?.presentedControl(control) ?? control,
@@ -760,7 +766,7 @@ drawers = createDrawers({
   closePreview: app.overlay?.closePreview,
   leavesOffered,
   presentLeaves,
-  syncAsks: asks.syncAsks,
+  presentQueue: queue.present,
 });
 const writingResume = createWritingResume({
   arriveEditor: anchorTravel.arriveEditor,
@@ -840,7 +846,7 @@ if (!offlineInteractive) {
     overflowMenu,
     versionMenu,
     othersPanel,
-    asksPanel,
+    queuePanel,
     panel,
     legendRoot,
     goToHintLayer,
@@ -887,6 +893,7 @@ if (!offlineInteractive) {
   pageMapDialog.mount(chromeRoot);
   asks.mount();
   queueWalk.mount();
+  queue.mount();
   commandHints.mount();
   app.mountAnnotations();
   app.overlay?.mount();

@@ -786,7 +786,8 @@ contract passes `true` as `offer()`'s fifth `pressable` argument; its tag then s
 same addressable marker as a native control.
 
 When the scope belongs to an Ask, `options.answer` may read its concise current answer for
-the answered row in the Asks drawer. Leaf normalizes whitespace and bounds the displayed
+the answered Ask's row under Done in the Queue panel. The Queue panel is experimental and
+expected to change a lot. Leaf normalizes whitespace and bounds the displayed
 answer; the package owns its meaning and words. Attach the answer reader to one stable scope
 owned by the Ask, even when several descendant scopes contribute controls. Answer metadata
 stays readable after a scope's availability condition closes, while the command rows remain gated.

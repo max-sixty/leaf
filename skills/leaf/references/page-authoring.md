@@ -474,7 +474,7 @@ whitespace. Verbatim source quotations keep their exact text; logs and transcrip
 stay literal and uncolored when they are not source code.
 
 The runtime injects the status banner, thread panel, Versions menu, keyboard
-shortcuts, live-leaves drawer, and active-asks drawer, which lists the page's open Asks.
+shortcuts, live-leaves drawer, and Queue panel, which lists the page's open Asks.
 Do not duplicate that chrome or keep a second list of the Asks in the page.
 
 Keep content within its allocated column, visual surface, or pane. The theme scrolls a `<pre>` or a table

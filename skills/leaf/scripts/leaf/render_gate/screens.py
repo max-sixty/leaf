@@ -67,10 +67,10 @@ def _down_the_page(page, into: Path, stem: str) -> tuple[list[Path], int]:
 
 
 # Where a press of `a` left the user: the Ask they stand in, as the runtime marks it
-# (the outermost element wearing its ring, outside the Asks drawer, which mirrors the
+# (the outermost element wearing its ring, outside the Queue panel, which mirrors the
 # same reading), or else the thread holding focus, the walk's other kind of stop.
 STANDING_ITEM = """() => {
-  const ask = [...document.querySelectorAll('[data-lf-ask]:not(.lf-asks-row)')]
+  const ask = [...document.querySelectorAll('[data-lf-ask]:not(.lf-queue-row)')]
     .find((el) => !el.parentElement?.closest('[data-lf-ask]'))?.id;
   if (ask) return {ask: true, id: ask};
   let held = document.activeElement;

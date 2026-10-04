@@ -119,9 +119,9 @@ the run summary rather than treating it as having no changes.
 Open an issue only for a concrete, material opportunity or incompatibility in
 Leaf's current code or agent workflow. Check the affected implementation and
 upstream documentation before deciding. Hooks, waking agents, background work,
-plugins, MCP, and permissions can affect Leaf's host integration; a release
+plugins, MCP, and permissions can affect Leaf's harness integration; a release
 mentioning one of them does not by itself justify an issue. Claude Code's
-`asyncWake` is the calibration example: a host capability that could improve
+`asyncWake` is the calibration example: a harness capability that could improve
 Leaf's comment-to-agent wake loop warrants investigation. Routine fixes,
 cosmetic changes, and speculative relevance do not.
 

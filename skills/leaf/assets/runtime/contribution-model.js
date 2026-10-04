@@ -94,7 +94,7 @@ export const KINDS = Object.freeze(
         indication: true,
       },
       // Every receipt whose progress stopped short: one past the pickup grace, one
-      // whose turn ended or went quiet, one the host failed. A single receipt reads
+      // whose turn ended or went quiet, one the harness failed. A single receipt reads
       // under its own label; this names a group of them.
       waiting: {
         label: "Stalled update",

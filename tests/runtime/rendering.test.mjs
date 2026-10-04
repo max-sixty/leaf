@@ -26,8 +26,16 @@ globalThis.ResizeObserver = class {
   disconnect() {}
 };
 
-const { nextRender, nextFrame, cancelRender, sizeObserver, renderingSettled } =
-  await import("/runtime/rendering.js");
+const {
+  nextRender,
+  nextFrame,
+  cancelRender,
+  afterScript,
+  sizeObserver,
+  renderingSettled,
+} = await import("/runtime/rendering.js");
+
+const { observeQueuedWork } = await import("/runtime/queued-work.js");
 
 async function update({ delivering = [] } = {}) {
   const due = [...queued.values()];
@@ -104,6 +112,86 @@ test("each callback reads what the microtasks before it did", async () => {
   nextRender(() => (seen = published));
   await update();
   assert.equal(seen, true);
+});
+
+test("a rendering turn drains direct publication before the next callback, not a deeper tail", async () => {
+  const seen = [];
+  let state = "before";
+  nextRender(() =>
+    queueMicrotask(() => {
+      state = "published";
+      queueMicrotask(() => {
+        state = "tail";
+      });
+    }),
+  );
+  nextRender(() => seen.push(state));
+  await update();
+  assert.deepEqual(seen, ["published"]);
+  assert.equal(state, "tail");
+});
+
+test("job observation follows an enqueued cohort through cancellation and failure", async () => {
+  const events = [];
+  const phases = new Map();
+  const stop = observeQueuedWork((phase, job) => {
+    assert.equal(Object.isFrozen(job), true);
+    const heard = phases.get(job) ?? [];
+    heard.push(phase);
+    phases.set(job, heard);
+    events.push([phase, job.callback]);
+  });
+  const cancelled = () => assert.fail("cancelled work ran");
+  const failure = new Error("observed callback failure");
+  const broken = () => {
+    throw failure;
+  };
+  const id = nextRender(cancelled);
+  nextRender(broken);
+  stop();
+  cancelRender(id);
+  nextRender(() => {});
+  await update();
+  assert.deepEqual(
+    [...phases.values()],
+    [
+      ["enqueue", "cancel"],
+      ["enqueue", "run", "finish"],
+    ],
+  );
+  assert.deepEqual(
+    events.map(([phase, callback]) => [
+      phase,
+      callback === cancelled ? "cancelled" : "broken",
+    ]),
+    [
+      ["enqueue", "cancelled"],
+      ["enqueue", "broken"],
+      ["cancel", "cancelled"],
+      ["run", "broken"],
+      ["finish", "broken"],
+    ],
+  );
+  assert.deepEqual(reported.splice(0), [failure]);
+});
+
+test("afterScript observes one coalesced job and jobs its callback appends", async () => {
+  const events = [];
+  const stop = observeQueuedWork((phase, job) => events.push([phase, job.callback]));
+  const appended = () => {};
+  const first = () => afterScript(appended);
+  afterScript(first);
+  afterScript(first);
+  await Promise.resolve();
+  stop();
+  assert.deepEqual(events, [
+    ["enqueue", first],
+    ["run", first],
+    ["enqueue", appended],
+    ["finish", first],
+    ["run", appended],
+    ["finish", appended],
+  ]);
 });
 
 test("a callback cancelled by an earlier one in the same pass does not run", async () => {

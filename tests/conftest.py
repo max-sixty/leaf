@@ -286,19 +286,21 @@ def pytest_collection_modifyitems(config, items):
 def _shard(config, items, spec):
     """Keep one of N slices of the selection, so N runners split one suite.
 
-    Each test goes, in collection order, to the slice holding the fewest tests so far,
+    Each test goes, in collection order, to the slice holding the least work so far,
     which deals each file, and each parametrization of a test, across every slice:
     neighbouring tests cost about the same, so the slices come out close in time without
     a record of past durations. An xdist group goes whole to one slice, since
-    `--dist loadgroup` promises its tests one worker, and its tests count against that
-    slice like any others. Every xdist worker collects the same order, so each one deals
-    the same slices."""
+    `--dist loadgroup` promises its tests one worker. It runs on that worker alone while
+    the slice's other workers share everything else, so each of its tests counts as
+    much work as one test on every worker. Every xdist worker collects the same order
+    and is told the same worker count, so each one deals the same slices."""
     try:
         index, count = (int(part) for part in spec.split("/"))
     except ValueError:
         raise pytest.UsageError(f"--shard {spec}: expected K/N") from None
     if not 1 <= index <= count:
         raise pytest.UsageError(f"--shard {spec}: K must be between 1 and N")
+    workers = getattr(config, "workerinput", {}).get("workercount", 1)
     groups, sizes = {}, [0] * count
     kept, other = [], []
     for item in items:
@@ -309,7 +311,7 @@ def _shard(config, items, spec):
             slice_ = sizes.index(min(sizes))
             if name:
                 groups[name] = slice_
-        sizes[slice_] += 1
+        sizes[slice_] += workers if name else 1
         (kept if slice_ == index - 1 else other).append(item)
     items[:] = kept
     config.hook.pytest_deselected(items=other)

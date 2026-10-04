@@ -26,6 +26,7 @@ Each is kept in the memory of the page it was read from, for as long as the proc
 keeps that page (`page_memory`).
 """
 
+import errno
 import hashlib
 import json
 import os
@@ -380,15 +381,19 @@ def _parse_css(source: str, declarations: bool):
 class _CssReading:
     """One stylesheet's parse, kept as its serialization around the URLs it loads.
 
-    `references` holds each URL token in document order as its value, its written
-    representation and its type; `segments` is the serialized sheet split around
-    them, one more segment than references, or None where the split cannot be made
-    (`_read_css`). Joining the segments with each reference's representation is the
-    serialization `rewrite_css` would write with that reference changed, so a
-    re-addressing costs a join rather than a parse."""
+    `references` holds each URL token as `_css_references` finds it, as its value,
+    its written representation and its type. `segments` is the serialized sheet
+    split around them, one more segment than references, or None where the split
+    cannot be made (`_read_css`), and `order` names the reference between each pair
+    of segments: the walk visits an `image-set`'s strings before its `url()`s, so
+    the order a sheet writes its URLs in is not the order they are found in.
+    Joining the segments with each reference's representation is the serialization
+    `rewrite_css` would write with that reference changed, so a re-addressing costs
+    a join rather than a parse."""
 
     references: tuple[tuple[str, str, str], ...]
     segments: tuple[str, ...] | None
+    order: tuple[int, ...] = ()
 
 
 # Delimits each URL in a sheet's serialization while `_read_css` splits it. Private
@@ -417,10 +422,13 @@ def _read_css(source: str, declarations: bool) -> _CssReading:
         return _CssReading(references, None)
     for index, token in enumerate(found):
         token.representation = f"{_CSS_MARK[0]}{index}{_CSS_MARK[1]}"
-    pieces = re.split(f"{_CSS_MARK[0]}[0-9]+{_CSS_MARK[1]}", tinycss2.serialize(tokens))
-    if len(pieces) != len(found) + 1:
+    parts = re.split(
+        f"{_CSS_MARK[0]}([0-9]+){_CSS_MARK[1]}", tinycss2.serialize(tokens)
+    )
+    order = tuple(int(index) for index in parts[1::2])
+    if sorted(order) != list(range(len(found))):
         return _CssReading(references, None)
-    return _CssReading(references, tuple(pieces))
+    return _CssReading(references, tuple(parts[0::2]), order)
 
 
 def _css_dependencies(source: str, declarations: bool = False) -> tuple[str, ...]:
@@ -443,9 +451,8 @@ def rewrite_css(source: str, address, *, declarations: bool = False) -> str:
         return source
     if reading.segments is not None and None not in targets.values():
         written = [reading.segments[0]]
-        for (value, representation, kind), segment in zip(
-            reading.references, reading.segments[1:], strict=True
-        ):
+        for index, segment in zip(reading.order, reading.segments[1:], strict=True):
+            value, representation, kind = reading.references[index]
             target = targets[value]
             if target != value:
                 quoted = '"' + serialize_string_value(target) + '"'
@@ -817,11 +824,10 @@ def stage_artifact(page_dir: Path, revision: int, artifact: RevisionArtifact) ->
             for path, resource in artifact.resources.items():
                 target = staged / ("resources" + path)
                 target.parent.mkdir(parents=True, exist_ok=True)
-                if (earlier := captured.get(resource.digest)) is not None:
-                    os.link(earlier, target)
-                    written.append(target)
-                else:
-                    written.append(_write_durably(target, resource.data))
+                earlier = captured.get(resource.digest)
+                if earlier is None or not _linked(earlier, target):
+                    _write_durably(target, resource.data)
+                written.append(target)
             fsync_parents(written + list(staged.rglob("*")))
             os.rename(staged, destination)
             fsync_parents([destination])
@@ -839,14 +845,27 @@ def _write_durably(target: Path, data: bytes) -> Path:
     return target
 
 
+def _linked(earlier: Path, target: Path) -> bool:
+    """Link `target` to a file an earlier bundle captured, unless that file has as
+    many links as its filesystem allows (ext4 stops at 65,000, which a page that
+    never re-vendors reaches after as many revisions)."""
+    try:
+        os.link(earlier, target)
+    except OSError as error:
+        if error.errno != errno.EMLINK:
+            raise
+        return False
+    return True
+
+
 def _captured_files(page_dir: Path) -> dict[str, Path]:
     """The resource files the newest revision captured, by digest.
 
     Successive revisions of a page capture mostly the same layer, a few hundred files
     and several megabytes, so a new bundle links each resource the newest one already
     holds rather than writing and syncing its bytes again. Sharing an inode is safe
-    because a captured file is never written after its bundle is made: a bundle is
-    immutable, and nothing outside `revisions/` links into one."""
+    because nothing writes a captured file after its bundle is made; whatever else
+    links to one, such as a site build's deduplication, only reads it."""
     revision = latest_revision(page_dir)
     if revision is None:
         return {}

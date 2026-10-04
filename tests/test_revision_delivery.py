@@ -107,6 +107,7 @@ def test_stylesheets_rebase_nested_imports_urls_and_preserve_inert_values():
   filter: url(#local);
   content: "url(../not-an-asset.png)";
   --embedded: url("data:image/svg+xml;base64,PHN2Zy8+");
+  background-image: image-set(url(../images/1x.png) 1x, "../images/2x.png" 2x);
 } }
 """
     delivered = deliver_resource(
@@ -122,6 +123,10 @@ def test_stylesheets_rebase_nested_imports_urls_and_preserve_inert_values():
     assert "filter: url(#local)" in delivered
     assert 'content: "url(../not-an-asset.png)";' in delivered
     assert 'url("data:image/svg+xml;base64,PHN2Zy8+")' in delivered
+    assert (
+        f'image-set(url("{ROOT}/page/images/1x.png") 1x, '
+        f'"{ROOT}/page/images/2x.png" 2x)'
+    ) in delivered
     assert "/* url(../not-an-asset.png) */" in delivered
     assert not any(
         token.type == "error" for token in tinycss2.parse_stylesheet(delivered)

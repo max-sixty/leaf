@@ -439,6 +439,10 @@
               state. The banner shows completed/total. Press <kbd>a</kbd> for the next
               Ask waiting on you; open <strong>Asks</strong>, or press <kbd>g</kbd> then
               <kbd>Shift+A</kbd>, to review every active Ask and its current answer.
+              Within a view, <kbd>a</kbd> scrolls to the question. When it opens another
+              view, the question appears immediately and its tab name briefly
+              highlights. <kbd>Shift+A</kbd> walks back. Reduced motion removes the
+              glide and highlight.
             </p>
             <lf-ask id="bg-choice-ask">
               <h3>Which map should the sample team carry?</h3>
@@ -475,7 +479,7 @@
             <p id="bg-history-return-guide">
               Follow
               <a id="bg-history-reference" href="#bg-kept-draft"
-                >the kept-draft sample</a
+                >the Resume writing sample</a
               >, then use browser Back. The viewport and focus return to this link;
               press <kbd>c</kbd> to comment on the link. Forward returns to the sample.
             </p>
@@ -665,9 +669,27 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               </p>
             </section>
 
+            <section id="bg-restored-selection">
+              <h3>
+                <strong>Restore selection</strong
+                ><span class="bg-feature-detail"
+                  >: return to the words you selected</span
+                >
+              </h3>
+              <p id="bg-restored-selection-guide">
+                Select a passage here, then press <kbd>Escape</kbd> and read somewhere
+                else. Press <kbd>g</kbd> and <kbd>v</kbd>, or choose Restore selection
+                in More page controls: the page reveals the passage and selects the same
+                words with the same working end. A live revision can replace their
+                markup; removed or ambiguous words report that the passage is
+                unavailable. Selecting inside an editor keeps its native meaning.
+                <kbd>g</kbd> then <kbd>V</kbd> still opens versions.
+              </p>
+            </section>
+
             <section id="bg-kept-draft">
               <h3>
-                <strong>Kept draft</strong
+                <strong>Resume writing</strong
                 ><span class="bg-feature-detail"
                   >: come back to words the box put away</span
                 >
@@ -676,11 +698,16 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 Select a few words here, press <kbd>c</kbd>, and type a sentence without
                 sending it. Press <kbd>Escape</kbd>: the box goes, the words stay, and a
                 notice names the destination that returns to them. Scroll somewhere
-                else, then press <kbd>g</kbd> and <kbd>Shift+D</kbd> — the page travels
-                back to this passage and reopens the box on the sentence. That
-                destination stands in the sequence only while a kept draft does, so
-                pressing <kbd>g</kbd> with nothing written offers no such place to go.
+                else, then press <kbd>g</kbd> and <kbd>i</kbd>, or choose Resume writing
+                in More: the page returns to this editor and restores the caret. Send
+                the comment, move elsewhere and use Resume writing again: its
+                conversation opens ready for your next reply. Editing a reply or the
+                draft block below makes that editor the destination; focusing a box
+                alone leaves it alone.
               </p>
+              <lf-draft id="bg-resume-edit">
+                <pre>The revised message belongs here.</pre>
+              </lf-draft>
               <p id="bg-kept-draft-move">
                 To carry unfinished words to another item, press <kbd>s</kbd> and choose
                 the paragraph above, then type without sending. Move focus to
@@ -844,7 +871,10 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               which puts the thread spoken in last first under its day. Collapsed titles
               retain their message count, last message activity, and current status; “On
               you” also names the action owed. Each thread has a short title chosen by
-              the agent; open one to read the full messages beneath it.
+              the agent; open one to read the full messages beneath it. Reply follows a
+              short conversation directly; in a long conversation it stays visible while
+              you scroll. While you write in a short thread, an arriving reply waits
+              behind “new reply” until you open it.
             </p>
             <p id="bg-thread-notices">
               <strong>New information.</strong> Have the agent add a message after the

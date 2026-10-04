@@ -2090,6 +2090,9 @@ def test_thread_readiness_waits_for_the_keyed_thread_list(browser, serve):
             window.threadListReleased = true;
             release();
           };
+          document.addEventListener('keydown', event => {
+            if (event.key === 'F9') window.releaseThreadList();
+          });
           application.createComment({
             attempt: 'held-thread-list',
             text: 'A second thread arrives.',
@@ -2109,7 +2112,8 @@ def test_thread_readiness_waits_for_the_keyed_thread_list(browser, serve):
     expect(pending_card).to_have_count(0)
     assert_draft_retained()
 
-    page.evaluate("releaseThreadList()")
+    # The synthetic release needs an input edge to distinguish it from passive news.
+    page.keyboard.press("F9")
     wait_until_ready(page, through="presented")
     expect(pending_card).to_have_count(1)
     assert_draft_retained()

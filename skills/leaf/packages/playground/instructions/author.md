@@ -12,7 +12,7 @@ The playground draws its own regions: the preview is a stage, and the controls a
 instruction to the agent stand in a rail beside it, on the same `2fr 1fr` tracks as a
 wide page's body and rail, wherever it has 43.5rem; narrower, they stack. A preview that needs
 width, such as two candidates side by side, belongs on a wide page (`<main
-class="layout-wide">`), or on a workspace page (`<main class="layout-workspace">`) whose
+class="layout-wide">`), or on a workspace page (`<main class="layout-workspace density-working">`) whose
 body is the playground's Ask, where the stage grows to the window's height. Draw
 candidates on the stage without a card of their own; the stage is their surface.
 

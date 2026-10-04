@@ -43,10 +43,10 @@ boundary: every immutable historical document shows the same markup. It must the
 validate against every pinned revision's captured registry, not only the active
 registry. Use only widget vocabulary shared by those registries. If no shared widget
 fits, ask in prose with `--text` (and `--awaits` on a reply), or use a page widget
-when the question and its answer belong in the final record. Markup holding a data
-widget, such as a chart, is drawn once in the host's browser before it is posted, and
-refused with the error the page would show if its body does not draw. A host with no
-browser posts it undrawn.
+when the question and its answer belong in the final record. Markup is checked as it
+is posted but not drawn, so a data widget, such as a chart, whose body does not draw
+reaches you as an `error` event when the user opens its thread; answer with a corrected
+reply.
 
 The thread panel is a narrow column over the right of the page, so a paragraph that
 reads fine in chat is a wall there. A reply says what changed or where to look: a sentence or

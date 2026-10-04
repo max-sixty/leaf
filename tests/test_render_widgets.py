@@ -17,7 +17,6 @@ from leaf.render_checks import rendered, wait_until_ready
 from leaf.render_gate import version as render_gate_model
 from leaf.schema import ELEMENT_ID
 from leaf_dev.example_data import patch_manifest
-from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_interaction import (
     ALL_ASKS_IN_ORDER,
@@ -191,10 +190,10 @@ def test_bounded_text_document_keeps_its_caption_above_the_scrolling_source(
 def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fit(
     browser, serve
 ):
-    """The workspace Layout stands in the wide page's frame and takes the window's
-    height below the banner: each pane's body scrolls on its own. Its header is one row,
-    the title at a heading's ordinary size with the status beside it, so the panes keep
-    the window. A window too short to hold it hands the scroll to the page."""
+    """The workspace Layout takes the whole window, wider than the wide page's capped
+    frame, and its height below the banner: each pane's body scrolls on its own. Its
+    header is one row, the title with the status beside it, so the panes keep the
+    window. A window too short to hold it hands the scroll to the page."""
     frame = """() => {
       const main = document.querySelector('main');
       const style = getComputedStyle(main);
@@ -208,11 +207,11 @@ def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fi
             WORKSPACE_PAGE.replace('class="layout-workspace"', 'class="layout-wide"')
         ),
     )
-    resized(declared, 1280, 720)
+    resized(declared, 1920, 720)
     wide = declared.evaluate(frame)
     declared.close()
     page = open_page(browser, serve(WORKSPACE_PAGE))
-    resized(page, 1280, 720)
+    resized(page, 1920, 720)
     workspace = page.locator("main")
     queue_pane = page.locator("#queue")
     queue = page.locator("#queue > :not(header, footer)")
@@ -220,23 +219,17 @@ def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fi
 
     pane_posture(page, queue_pane, "bounded")
     fills_the_window(page, workspace, True)
-    assert page.evaluate(frame) == wide
-    assert wide[1] > 1080, wide
+    own = page.evaluate(frame)
+    assert own[0] < wide[0] and own[1] > wide[1], (own, wide)
     header = page.evaluate(
         """() => {
           const title = document.querySelector('main > header h1');
           const status = document.getElementById('review-status');
-          const probe = document.createElement('h2');
-          probe.textContent = 'x';
-          document.querySelector('#queue').append(probe);
-          const heading = getComputedStyle(probe).fontSize;
-          probe.remove();
           const t = title.getBoundingClientRect(), s = status.getBoundingClientRect();
-          return {title: getComputedStyle(title).fontSize, heading,
-                  oneRow: s.top < t.bottom && s.left >= t.right};
+          return {oneRow: s.top < t.bottom && s.left >= t.right};
         }"""
     )
-    assert header["title"] == header["heading"] and header["oneRow"], header
+    assert header["oneRow"], header
     assert page.evaluate("() => document.scrollingElement.scrollTop") == 0
     readings = page.evaluate(
         """() => {
@@ -762,14 +755,6 @@ def test_page_tabs_take_the_page_width_and_its_one_left_edge(browser, serve):
     assert boxes["title"]["left"] == boxes["content"]["left"], boxes
 
 
-@pytest.mark.xfail(
-    reason=(
-        "Main bb629cfca: a nested workspace Ask's option cannot receive a pointer "
-        "press because its tab, Ask, and option-group ancestors intercept it"
-    ),
-    raises=PlaywrightTimeout,
-    strict=False,
-)
 def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     """`list="side"` stands a tab set's list beside its panels: a queue whose items open
     one at a time. Where the set holds both the list is a column left of the open panel,
@@ -952,6 +937,17 @@ def test_an_ordinary_two_part_ask_retains_document_flow(browser, serve):
     page = open_page(browser, serve(held))
     resized(page, 1280, 720)
     expect(page.locator("#session-triage-decision")).to_have_css("display", "flex")
+    page.close()
+
+    # The workspace's full height reaches every Ask in it; an Ask held in a pane is
+    # that pane's content, not the body, and keeps its document flow.
+    in_pane = held.replace(
+        '<lf-ask id="session-triage-decision">',
+        '<lf-pane id="triage-pane" label="Triage"><div>\n<lf-ask id="session-triage-decision">',
+    ).replace("</lf-ask>\n", "</lf-ask>\n</div></lf-pane>\n")
+    page = open_page(browser, serve(in_pane))
+    resized(page, 1280, 720)
+    expect(page.locator("#session-triage-decision")).to_have_css("display", "block")
 
 
 def clear_of_the_bottom_chrome(page, selector):

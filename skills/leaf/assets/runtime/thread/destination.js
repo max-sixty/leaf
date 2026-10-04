@@ -54,7 +54,7 @@ export function createThreadDestinations({
         if (travel) {
           if (!(await scrollToThread(id, { focus: localFocus, intent }))) return null;
         } else {
-          await reveal(surfaceFocusTarget(id, { focus: localFocus }), intent);
+          await reveal(surfaceFocusTarget(id, { focus: localFocus }), intent).ready;
           const current = surfaceFocusTarget(id, { focus: localFocus });
           if (
             !current ||

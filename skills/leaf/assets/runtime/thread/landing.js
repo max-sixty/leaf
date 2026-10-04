@@ -198,6 +198,7 @@ const resolutionControl = (thread) =>
   thread?.querySelector(
     ":scope .lf-thread-meta-actions > .lf-resolve, " +
       ":scope .lf-thread-meta-actions > .lf-reopen, " +
+      ":scope .lf-thread-root-meta > .lf-reopen, " +
       ":scope > .lf-thread-actions > .lf-reopen, " +
       ":scope > .lf-page-thread-resolved .lf-reopen",
   ) ?? null;
@@ -359,6 +360,10 @@ async function showThreadNow(id, focus, flash, revealThread, threadsBox, mayArri
     )
     ?.classList.toggle("grow", false);
   threadsBox.revealNavigation(threadNames(allThreads()).get(id)?.id ?? id);
+  if (threadsBox.showNews(id)) {
+    await whenDocumentPresented();
+    if (!mayArrive()) return null;
+  }
   let node = listNode(id, threadsBox, focus === "message");
   const going = node?.closest(".lf-going");
   if (going) {
@@ -379,7 +384,7 @@ async function showThreadNow(id, focus, flash, revealThread, threadsBox, mayArri
   node = listNode(id, threadsBox, focus === "message");
   if (!node || !mayArrive()) return null;
   if (node.closest(".lf-summary-originals[hidden]")) {
-    await reveal(node, mayArrive);
+    await reveal(node, mayArrive).ready;
     if (!mayArrive()) return null;
   }
   // A render still in flight holds the list's place as it finishes, and that write

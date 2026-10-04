@@ -643,6 +643,57 @@ export function pageRange(sel) {
   return range;
 }
 
+// Native page selections share one endpoint writer, including their provenance.
+// Native selectionchange arrives asynchronously, so its endpoints say whether it is
+// still the programmatic write or a later user adjustment (including touch handles).
+let writtenSelection = null;
+let writtenBackward = false;
+export function selectEnds(anchor, focus) {
+  const selection = getSelection();
+  const from = document.createRange(),
+    to = document.createRange();
+  from.setStart(...anchor);
+  to.setStart(...focus);
+  writtenBackward = from.compareBoundaryPoints(Range.START_TO_START, to) > 0;
+  selection.setBaseAndExtent(...anchor, ...focus);
+  writtenSelection = selectionEnds(selection);
+}
+const selectionEnds = (selection) => {
+  const range = selection.rangeCount ? pageRange(selection) : null;
+  return [
+    selection.anchorNode,
+    selection.anchorOffset,
+    selection.focusNode,
+    selection.focusOffset,
+    range?.startContainer,
+    range?.startOffset,
+    range?.endContainer,
+    range?.endOffset,
+  ];
+};
+export function programmaticSelection(selection) {
+  if (!writtenSelection) return false;
+  if (selectionEnds(selection).every((end, i) => end === writtenSelection[i]))
+    return true;
+  writtenSelection = null;
+  return false;
+}
+
+// Boundary points retain the working end even where the platform reports "none"
+// after setBaseAndExtent. A composed selection clamped in light DOM instead uses
+// the platform's direction for the range inside its declared shadow tree.
+export function selectionBackward(selection, range = pageRange(selection)) {
+  if (
+    selection.anchorNode.getRootNode() !== range.commonAncestorContainer.getRootNode()
+  )
+    return programmaticSelection(selection)
+      ? writtenBackward
+      : selection.direction === "backward";
+  const probe = document.createRange();
+  probe.setStart(selection.anchorNode, selection.anchorOffset);
+  return probe.compareBoundaryPoints(Range.START_TO_START, range) > 0;
+}
+
 // Whether a range covers a node, asked so a shadow tree answers the same as the light
 // DOM it renders in place of. `intersectsNode` compares within one tree, so every node
 // inside an x-shadow widget says no to a range drawn out in the document — and a drag

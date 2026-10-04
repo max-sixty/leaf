@@ -11,12 +11,12 @@
    the complete map, which is why codes are assigned here rather than by the session.
 
    Lowercase `g`, `j`, `k`, and `p` retain their structural meanings, while `a`, `f`, `h`,
-   `m`, and `t` name filters; all nine are excluded from the generated alphabet. `g g` and
+   `m`, and `t` name filters; `i` resumes writing and `v` restores selection; these are excluded from the generated alphabet. `g g` and
    `g G` glide to the page edges; from a focused thread, `g k` and `g j` place its card at
    an edge of the list; `g p` returns focus to the page while leaving open surfaces
    standing. Uppercase mnemonics remain named
    global destinations: `g T` Threads, `g A` Asks, `g L` All leaves, `g M` the searchable
-   Page Map, `g V` Versions, and `g D` the unsent draft the composer put away. A named
+   Page Map and `g V` Versions. A named
    panel destination toggles that panel, matching its visible control. Completing one that
    opens a surface leaves the user in that surface, whose own Escape step is the way out
    of it — the same step for a surface the user already had, and none of this sequence's
@@ -340,6 +340,7 @@ export function createGoToSequence({
       ...PAGE_RETURN_KEYS,
       ...PAGE_EDGE_KEYS,
       ...FILTER_KEYS,
+      ...directDestinations().flatMap((row) => bindings(row)),
     ].filter((key) => /^[a-z]$/.test(key)),
   );
   const GO_TO_HINT_KEYS = HINT_KEYS.filter((key) => !STRUCTURAL_KEYS.has(key));
@@ -706,6 +707,9 @@ export function createGoToSequence({
         // owner that can keep them true.
         ...directDestinations().map((destination) => ({
           ...destination,
+          // A direct destination's finger route is its standing page command in
+          // More. Arming this keyboard sequence doesn't seat another gesture control.
+          touch: false,
           when: () => atGoToTargets() && live(destination),
           run: (binding) => {
             setGoToSequence(false);
@@ -789,6 +793,9 @@ export function createGoToSequence({
 
   pageScope("go to", GO_TO_SCOPE);
   pageCommand(OPEN_GO_TO);
+  for (const destination of directDestinations())
+    if (destination.touch)
+      pageCommand({ ...destination, keys: [], lineWhen: () => false });
 
   return {
     goToStatus,

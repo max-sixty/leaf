@@ -9,7 +9,12 @@ from pathlib import Path
 
 import pytest
 from conftest import LEAF_COMMAND
-from interact_support import add_test_widget, append_carried_log_record, install_payload
+from interact_support import (
+    add_test_widget,
+    append_carried_log_record,
+    install_payload,
+    wait_for,
+)
 from leaf import event_log as events_model
 from leaf import render_checks as render_checks_model
 from leaf.render_gate import browser as browser_model
@@ -35,10 +40,12 @@ from render_harness import (
     SAMPLE_MARKUP,
     SAMPLE_TEXT,
     SETTLED_PAGE,
+    consume_browser_errors,
     example_media,
     leaf_page,
     open_page,
     page_registry,
+    panel_settled,
     primed,
     resized,
     scroll_settled,
@@ -1250,53 +1257,42 @@ def test_plain_check_runs_the_code_a_page_authored(serve, tmp_path, headless_she
     )
 
 
-def test_a_message_is_refused_where_its_widget_would_fail(
-    serve, tmp_path, headless_shell
+def test_a_widget_that_fails_in_a_message_reports_when_its_thread_draws(
+    browser, serve, tmp_path
 ):
-    """A message's markup is frozen once it is in the log, and a chart in a reply has
-    no box to draw in while its thread is shut, so the post is the one moment its author
-    can fix it and the page check will never see it. The post runs a data widget once
-    and refuses the message on the error the page would report, and posts one that
-    draws. Markup with no data widget posts without a browser, and so does a data
-    widget on a host with none, with a note that it went undrawn."""
-    serve(LONG_PAGE)
+    """A message's markup is validated as it is posted, and drawn only where a browser
+    shows it, so a reply carrying a chart posts as fast as one without and needs no
+    browser. A body its module cannot draw reports to the author when the user opens
+    its thread, as the page's own widgets do, naming the widget; the log freezes the
+    message, so the author answers with a corrected reply."""
+    url = serve(LONG_PAGE)
     d = serve.page_dir
-
-    def open_thread(markup, browser=headless_shell):
-        return subprocess.run(
-            [*LEAF_COMMAND, "thread", "open", str(d), "--text", "See this."]
-            + ["--markup", markup],
-            capture_output=True,
-            text=True,
-            check=False,
-            env=unnamed_browser() | {"LEAF_BROWSER_EXECUTABLE": str(browser)},
-        )
-
-    before = events_model.read_events(d)
-    refused = open_thread('<lf-chart id="t-bad"><pre>\n{ marks: [ }\n</pre></lf-chart>')
-    assert refused.returncode == 1, refused.stdout + refused.stderr
-    assert "✗ comment markup: 1 error(s)" in refused.stderr
-    assert '<lf-chart id="t-bad"> failed: ' in refused.stderr
-    assert "does not parse" in refused.stderr
-    assert events_model.read_events(d) == before
-
-    drawn = open_thread(
-        '<lf-chart id="t-good"><pre>\n{ ariaLabel: "Nothing yet", marks: [] }\n</pre>'
-        "</lf-chart>"
+    posted = subprocess.run(
+        [*LEAF_COMMAND, "thread", "open", str(d), "--text", "See this."]
+        + ["--markup", '<lf-chart id="t-bad"><pre>\n{ marks: [ }\n</pre></lf-chart>'],
+        capture_output=True,
+        text=True,
+        check=False,
+        env=unnamed_browser() | {"LEAF_BROWSER_EXECUTABLE": str(tmp_path / "none")},
     )
-    assert drawn.returncode == 0, drawn.stdout + drawn.stderr
-    [posted] = [json.loads(line) for line in drawn.stdout.splitlines()]
-    assert 'id="t-good"' in posted["markup"]
+    assert posted.returncode == 0, posted.stdout + posted.stderr
+    assert not posted.stderr, "posting asks for no browser"
 
-    choice = open_thread(
-        '<lf-options id="t-pick"><lf-option id="t-pick-a">A</lf-option></lf-options>',
-        browser=tmp_path / "not-a-browser",
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    expect(page.locator(".lf-thread-panel #t-bad .lf-error")).to_contain_text(
+        "does not parse"
     )
-    assert choice.returncode == 0, choice.stdout + choice.stderr
-
-    undrawn = open_thread(
-        '<lf-chart id="t-unrun"><pre>\n{ marks: [ }\n</pre></lf-chart>',
-        browser=tmp_path / "not-a-browser",
+    report = '<lf-chart id="t-bad"> failed: '
+    consume_browser_errors(page, report)
+    reported = wait_for(
+        lambda: [
+            event["text"]
+            for event in events_model.read_events(d)
+            if event["kind"] == "error"
+        ],
+        bool,
+        failure="the page never reported the chart",
     )
-    assert undrawn.returncode == 0, undrawn.stdout + undrawn.stderr
-    assert "· comment markup: not run, no browser launched: " in undrawn.stderr
+    assert len(reported) == 1 and reported[0].startswith(report), reported

@@ -841,6 +841,34 @@ def ask_until_answered(
         )
 
 
+def wait_for_visible_reply(page, parent: str, answer_id: str) -> bool:
+    """Open an answered thread's held news, then require its reply on screen."""
+    try:
+        page.wait_for_function(
+            """({parent, id}) => window.__leafVerifier.visibleReplyRecorded(id) ||
+              [...document.querySelectorAll('.lf-threads > .lf-thread')].some(
+                thread => thread.dataset.id === parent &&
+                  [...thread.querySelectorAll('.lf-thread-news')].some(
+                    notice => notice.checkVisibility()))""",
+            arg={"parent": parent, "id": answer_id},
+            timeout=VISIBLE_REPLY_PATIENCE,
+        )
+        if not page.evaluate(
+            "id => window.__leafVerifier.visibleReplyRecorded(id)", answer_id
+        ):
+            page.locator(
+                f'.lf-threads > .lf-thread[data-id="{parent}"] .lf-thread-news'
+            ).click()
+            page.wait_for_function(
+                "id => window.__leafVerifier.visibleReplyRecorded(id)",
+                arg=answer_id,
+                timeout=VISIBLE_REPLY_PATIENCE,
+            )
+    except PlaywrightTimeout:
+        return False
+    return True
+
+
 def verify_agent_turn(
     browser,
     release: str | None,
@@ -875,26 +903,22 @@ def verify_agent_turn(
         state,
         direct_agent=direct_agent,
     )
-    try:
-        page.wait_for_function(
-            "window.__leafVerifier.visibleReplyRecorded",
-            timeout=VISIBLE_REPLY_PATIENCE,
-        )
-    except PlaywrightTimeout:
-        pass
-    visible_reply_at = page.evaluate("window.__leafVerifier.visibleReplyAt")
+    check_turn_answered(url, heading, turn, asks, revision)
+    published, answer = turn.published, turn.answer
+    reply_visible = wait_for_visible_reply(page, answer["parent"], answer["id"])
+    visible_reply_at = page.evaluate(
+        "id => window.__leafVerifier.visibleReplyAt(id)", answer["id"]
+    )
     if visible_reply_at is not None:
         profile.milestones["response visible"] = (
             visible_reply_at - profile.visible_reply_started_ms
         ) / 1000
     print(json.dumps(agent_profile(profile), indent=2), file=sys.stderr)
-    check_turn_answered(url, heading, turn, asks, revision)
-    published, answer = turn.published, turn.answer
-    if visible_reply_at is None:
+    if not reply_visible or visible_reply_at is None:
         debug = page.evaluate("window.__leafVerifier.visibleReplyDebug")
         raise RuntimeError(
-            f"{url} reply never became visible in Threads within "
-            f"{VISIBLE_REPLY_PATIENCE // 1000} s; the answer was read out of "
+            f"{url} reply never became visible in Threads after opening its "
+            f"held news; the answer was read out of "
             f"{turn.state['reading']}, and the page reports {json.dumps(debug)}"
         )
     reloaded = page.reload(wait_until="load", timeout=120_000)

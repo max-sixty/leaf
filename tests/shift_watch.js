@@ -425,7 +425,7 @@
     }
     return { left, top, right: left + rect.width, bottom: top + rect.height };
   };
-  // Each input's rendering: when it began; the start of its second frame; the motion
+  // Each input's rendering: when it began; the latest frame it owns; the motion
   // it began, and the start of the latest frame that motion moved; whether news has
   // landed since; and a keystroke's typing, which holds its field; the box of the field
   // and of each element holding it at the key; the animations already moving any of
@@ -451,7 +451,7 @@
     open = {
       start,
       first: true,
-      second: Infinity,
+      through: Infinity,
       moved: -Infinity,
       own: new Set(),
       motion: false,
@@ -480,9 +480,15 @@
       // callbacks may still move a box, so the rendering runs through the next.
       else open.last = settled() && !motion;
     }
-    // Replacement does not erase a prior gesture's first two frame readings.
+    // A gesture owns its counted rendering until canonical completion. News seals
+    // that credit; continuing motion retains its separate ownership below. A newer
+    // input still leaves the prior gesture its first two frame readings.
     for (const rendering of renderings) {
-      if (!rendering.first && rendering.second === Infinity) rendering.second = at;
+      if (
+        !rendering.first &&
+        (rendering.through === Infinity || (rendering === open && !rendering.told))
+      )
+        rendering.through = at;
       rendering.first = false;
     }
     const motion = frames.at(-1).motion;
@@ -886,7 +892,9 @@
     // Gesture ownership is its bounded rendering, not Chrome's half-second credit.
     if (
       presenting(entry) ||
-      renderings.some((gesture) => frame >= gesture.start && frame <= gesture.second) ||
+      renderings.some(
+        (gesture) => frame >= gesture.start && frame <= gesture.through,
+      ) ||
       (rendering && frame <= rendering.moved)
     )
       return;

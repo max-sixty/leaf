@@ -162,12 +162,6 @@ and its chrome coordinate.
   (`syncLayoutRegion`) and the render check's held-panes reading (`heldPanes`), which
   both look only at `main`, have to look at that block too. It waits for a page that
   needs it; a workspace page's own pane grid stays plain CSS.
-- **Make the outcome checks the gate.** `page check` passed a page that scrolled
-  sideways at 520px. Check sideways scroll and leaking minimums (a box whose content,
-  not its declared minimum, sets its holder's floor) across swept widths. The corpus
-  (`leaf-dev corpus`) sets every example's body in one column page, so only the
-  nightly `test_page_fixture_renders` reads a sidebar, workspace or wide example in its
-  own Layout.
 - **Show each floating surface across the content it can hold.** `leaf-dev stills`
   screenshots the same states on the base and the branch, so it reports a change but
   misses a surface that is wrong on both. Until PR 1440 a margin thread card took all
@@ -206,24 +200,6 @@ and its chrome coordinate.
   a cold agent asked for "a dashboard", the likeliest trigger for over-tiling. Run it
   with the agent-usability baseline (#19), by extending the
   [arrangement eval](notes/arrangement-eval/README.md).
-- **Fit an Ask and what it turns on into one window.** `a` puts an Ask's heading at
-  the top, and `authoring-asks.md` has the `lf-ask` hold its premise and evidence,
-  but stacked they often outrun the window: on a findings page one Ask with its
-  claim, figure and options took 760px of a 900px window, and `alert-review`'s 466px option lists
-  leave no room for the facts and evidence each one turns on, which that example
-  still keeps above its Asks. A page-CSS prototype that set the options in a sticky
-  14–18rem track beside the premise and figure showed the question, claim, figure
-  and every option in one window at 900 and 1200px, and kept the options in view
-  while the user scrolled a 700px demo below. Unsettled: a breakout block (a
-  `data-width="available"` specimen) runs under the sticky track, the focus ring
-  spans the whole Ask, a figure in the narrower track shrinks its text, and the
-  width at which it stacks. A further step is selection and detail, where the
-  focused option chooses which evidence the wide track shows; focus rather than
-  hover, so it has a keyboard route. Try both as playground presets over
-  `alert-review` and a findings page before making either the wide-window form of
-  `lf-ask`, which admits no class today, so a page can only opt in by id. Extending
-  `arrivalRegion`'s widening to declared Asks helps only where the run-up above an
-  Ask already fits.
 - **Layout values that wait for a task:** a selection-and-detail component whose phone
   form shows one side at a time; canvas regions, whose reading position is
   two-dimensional; slides as a presentation of `lf-tabs`.
@@ -255,15 +231,6 @@ Boxes that still move without input, which the "Stability" rule in
 `skills/leaf/assets/AGENTS.md` forbids. `tests/known_widget_findings.py` lists each widget
 that changes size after first paint, with its cause.
 
-- **Keep the feature gallery's Undo reachable after Reject.**
-  `test_the_feature_gallery_keeps_its_real_actions_reachable` is a non-strict xfail in
-  `tests/test_render_margin.py`, and #1669 found it still failing. The diagnosis in
-  [notes/margin-stuck-style.md](notes/margin-stuck-style.md) names two defects: the
-  span around the rejected insertion keeps reporting a computed `anchor-name: none`,
-  so the row carrying Undo stays at its off-screen fallback, and after Undo the suggestion has a 0x0 box. #1687
-  then stopped hiding an emptied suggestion with `display: none`, which may have fixed
-  the 0x0 box; the note predates it. Check first whether the xfail now passes on
-  `main` under load, then follow the note's next step for the stuck span.
 - **Draw the playground at its final size from first paint.** `lf-playground`,
   `lf-playground-control`, `-output`, `-preview` and `-value` are `keeps-first-box`
   findings: the module builds each control's inputs and the words of the instruction it
@@ -307,16 +274,21 @@ height and where a switch lands wait on the workspace decision under Layout.
   measures from focus (`askPosition` in `asks/view.js`), and the row precedes every
   panel; `t` and `T` measure the same way. A tab could stand at the view it opens for
   the walks (`standing-target.js`), while `c` on a row still names the row.
-- **Show answers in the list.** Every row of a one-Ask-per-item queue wears the same
-  warning-toned "1", and a pick clears it to nothing, so the list shows no progress. A
-  row whose Asks are answered could show the picked option's title where the count
-  stood.
 - **Let a queue group its items.** The author sorted the items into merge, close,
   design and FYI, but `lf-tabs` takes only `lf-tab` members, so the page showed 21
   undifferentiated rows. A side list could take group headings between its items,
   skipped by the arrow walk.
 - **Put the open item first on a phone.** At 390px the stacked list comes before any
   item, so 20 rows fill two screens before the first one.
+
+### Recorded interaction review
+
+- **Bring richer trace inspection into Leaf's commentable timeline.** Review a
+  recording through its actual actions, timestamps and captured frames, with
+  playback, scrubbing, Before/Action/After snapshots, source, console and network
+  context. Keep comments attached to the immutable recording and action or frame;
+  opening a thread restores that moment. Reuse Playwright's capture and inspection
+  capabilities, and keep a direct link to its full viewer beside the Leaf timeline.
 
 ### The agent's text interface
 
@@ -332,9 +304,15 @@ height and where a switch lands wait on the workspace decision under Layout.
   App Server's behavior before changing delivery policy; the
   [Codex brief](notes/codex-integration.md#delivery-start-race) owns the experiment.
 
-- **Verify the Ask's premise, controls and resulting evidence below the first pane
-  screen**, as the arrangement eval exposed (`notes/arrangement-eval/`,
-  `r3-main-0feb`).
+- **Measure how often agents produce bad pages.** Write `evals/` cases in which agents
+  author ordinary pages, and have a judge read each result at wide, middle and phone
+  widths for defects a user would notice. Record beside each defect whether
+  `page check` reported it and whether the agent changed the page in response. That
+  gives the rate of bad pages and how much the checks catch. Fix a recurring defect in
+  the widget, Layout or theme that produced it, so pages need fewer checks, rather
+  than adding readings or widths to the check. In `r3-main-0feb` every one of the 36
+  runs passed the gate, yet the judge still found tiny text at 900px and phone
+  defects (`notes/arrangement-eval/`).
 - **Read the full render gate after handover.** Actual user views now supply passive
   geometry checks as agent context (`conversation-loop.md`, "The user's view"). The
   broader headless gate still runs on request. `page check --render` blocks the

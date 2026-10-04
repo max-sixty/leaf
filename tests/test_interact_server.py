@@ -115,7 +115,7 @@ def test_interaction_trace_records_browser_entries_and_every_request_outcome(
         fetch(
             f"{server}/api/interaction", data=json.dumps(payload).encode(), token=None
         )[0]
-        == 403
+        == 401
     )
     assert fetch(f"{server}/missing")[0] == 404
 
@@ -137,7 +137,7 @@ def test_interaction_trace_records_browser_entries_and_every_request_outcome(
     assert {(row["method"], row["path"], row["status"]) for row in server_rows} >= {
         ("POST", "/api/interaction", 204),
         ("POST", "/api/interaction", 400),
-        ("POST", "/api/interaction", 403),
+        ("POST", "/api/interaction", 401),
         ("GET", "/missing", 404),
     }
     assert all("?" not in row["path"] and row["durationMs"] >= 0 for row in server_rows)
@@ -458,7 +458,7 @@ def test_samples_seed_only_the_declared_threads_and_reset_by_recreation(
     assert event_model.read_events(page_dir) == before
     status, raw = fetch(f"{server}/api/samples", data=b'{"template":"missing"}')
     assert status == 400 and "unknown sample template" in json.loads(raw)["error"]
-    assert fetch(children[0] + "/api/state", token=None)[0] == 403
+    assert fetch(children[0] + "/api/state", token=None)[0] == 401
 
 
 def test_sample_template_lookup_stays_within_the_requesting_page(server, page_dir):
@@ -671,7 +671,7 @@ def test_authored_recordings_are_served_with_seekable_captured_bytes(
                 ) == (200, b"", "10")
                 conn.request("GET", route)
                 answer = conn.getresponse()
-                assert answer.status == 403
+                assert answer.status == 401
                 answer.read()
             finally:
                 conn.close()
@@ -1857,6 +1857,29 @@ def test_the_live_root_places_its_delivery_at_the_parsers_head_boundary(
         f'<link rel="stylesheet" href="{artifact_root}/theme.css" data-lf-runtime>'
         in body
     )
+
+
+def test_a_revision_s_resources_are_cached_and_its_document_is_not(server, page_dir):
+    """A revision's resources are named by its digest, so the browser keeps them for
+    every document that imports them, a gallery's live samples included. The document
+    and the page's state stay uncached: each read asks what the page is now, and so
+    does a path under the namespace that names nothing."""
+    publish(page_dir)
+    root = "/revisions/" + files_model.revision_path(page_dir, 1).stem
+
+    def cache_control(path):
+        try:
+            with urllib.request.urlopen(f"{server}{path}?t={TOKEN}") as response:
+                return response.status, response.headers["Cache-Control"]
+        except urllib.error.HTTPError as error:
+            return error.code, error.headers["Cache-Control"]
+
+    immutable = "private, max-age=31536000, immutable"
+    assert cache_control(f"{root}/leaf.js") == (200, immutable)
+    assert cache_control(f"{root}/theme.css") == (200, immutable)
+    assert cache_control("/") == (200, "no-store")
+    assert cache_control("/api/state") == (200, "no-store")
+    assert cache_control(f"{root}/no-such-module.js") == (404, "no-store")
 
 
 def test_server_takes_an_approval_only_where_the_version_asked_for_one(
@@ -3843,9 +3866,9 @@ def test_a_user_without_the_key_reads_and_writes_nothing(server, page_dir):
     log outranks the document and takes appends from anyone who can POST."""
     publish(page_dir)
 
-    assert fetch(f"{server}/versions/v1.html", token=None)[0] == 403
-    assert fetch(f"{server}/api/state", token=None)[0] == 403
-    assert fetch(f"{server}/", token=None)[0] == 403
+    assert fetch(f"{server}/versions/v1.html", token=None)[0] == 401
+    assert fetch(f"{server}/api/state", token=None)[0] == 401
+    assert fetch(f"{server}/", token=None)[0] == 401
     status, body = fetch(
         f"{server}/api/event",
         data=json.dumps(
@@ -3853,12 +3876,10 @@ def test_a_user_without_the_key_reads_and_writes_nothing(server, page_dir):
         ).encode(),
         token=None,
     )
-    assert status == 403
-    assert json.loads(body) == {
-        "ok": False,
-        "error": schema_model.NO_KEY,
-        "final": True,
-    }
+    # A refused key judges no event: it answers in the gate's own shape, without the
+    # `final` that would have the browser drop the gesture it is still holding for the
+    # moment the user opens the printed link.
+    assert (status, json.loads(body)) == (401, {"error": schema_model.NO_KEY})
 
     # The key gate precedes the body read. A peer that cannot open the page must not
     # get to choose how much a handler allocates or park it waiting for bytes that never
@@ -3879,14 +3900,11 @@ def test_a_user_without_the_key_reads_and_writes_nothing(server, page_dir):
             refusal = json.loads(refused.read())
         finally:
             peer.close()
-    assert (refused.status, refusal) == (
-        403,
-        {"ok": False, "error": schema_model.NO_KEY, "final": True},
-    )
+    assert (refused.status, refusal) == (401, {"error": schema_model.NO_KEY})
     assert refused.version == 11
     assert refused.getheader("Connection") == "close"
     assert refused.will_close
-    assert fetch(f"{server}/versions/v1.html", token="not-the-key")[0] == 403
+    assert fetch(f"{server}/versions/v1.html", token="not-the-key")[0] == 401
 
     assert [
         e for e in event_model.read_events(page_dir) if e["kind"] == "comment"
@@ -3904,10 +3922,11 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
 
     The state-dependent refusals were written through `event_rejection` from the start
     and the gates in front of them were not, which is the split this asserts away: the
-    key, the read-only preview server, and each shape gate answer in the door's own
-    shape rather than in the shape of whichever branch decided them. The key gate runs
-    before the body read, so its refusal is safely attempt-less; every authenticated
-    refusal can and must name the attempt it read. A page's runtime is vendored at
+    read-only preview server and each shape gate answer in the door's own shape rather
+    than in the shape of whichever branch decided them, and each names the attempt it
+    read. The key gate is not among them: it reads no event and lasts only until the
+    printed link is opened (`test_a_user_without_the_key_reads_and_writes_nothing`). A
+    page's runtime is vendored at
     `page init` and the layer around it moves, so the shape gates are reachable by an
     older page's honest event, not only by a hand-written POST."""
     publish(page_dir)
@@ -3936,18 +3955,6 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
         ),
     )
     with running_http_server(preview):
-        status, body = fetch(
-            f"{server}/api/event", data=json.dumps(comment).encode(), token=None
-        )
-        answer = json.loads(body)
-        assert (status, answer.get("ok"), answer.get("final")) == (
-            403,
-            False,
-            True,
-        )
-        assert "attempt" not in answer
-        assert answer.get("error") == schema_model.NO_KEY
-
         refusals = [
             (
                 "the preview server",
@@ -4417,7 +4424,7 @@ def test_the_key_arrives_in_the_query_and_stays_in_the_cookie(server, page_dir):
         fetch(f"{server}/api/state", token=None, headers={"Cookie": f"lf_key={TOKEN}"})[
             0
         ]
-        == 403
+        == 401
     )
 
     # No query this time: the runtime's own fetches never carry one.
@@ -4899,7 +4906,7 @@ def test_an_upgrade_is_answered_by_the_key_gate_like_any_other_request(server):
         body = answered.read()
     finally:
         speaker.close()
-    assert answered.status == 403, (answered.status, body[:400])
+    assert answered.status == 401, (answered.status, body[:400])
     assert b"Traceback" not in body, body[:400]
     assert b"it carries the key" in body, body[:400]
 
@@ -5179,7 +5186,7 @@ def test_one_key_reads_every_page_this_machine_serves(page_dir, tmp_path):
             assert arrival.status == 200
         with pytest.raises(urllib.error.HTTPError) as unvisited:
             opener.open(f"{other}/api/state")
-        assert unvisited.value.code == 403
+        assert unvisited.value.code == 401
         with opener.open(f"{other}/api/state?t={key}") as onward:
             assert onward.status == 200
         for origin in (first, other):

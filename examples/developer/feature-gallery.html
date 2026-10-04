@@ -832,7 +832,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 </p>
                 <p id="bg-thread-updates">
                   <strong>Previous updates.</strong> Open the folded checks above the
-                  answer.
+                  answer. These ephemeral updates folded when the answer arrived.
                 </p>
               </template>
             </lf-sample>
@@ -1025,9 +1025,10 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 the disclosure.
               </p>
               <p id="bg-thread-updates">
-                <strong>Previous updates.</strong> The schedule checks fold above their
-                final answer without adding a digest. Choose “Previous updates” in the
-                practice page, then expand the folded checks with a press or Enter.
+                <strong>Previous updates.</strong> The ephemeral schedule checks fold
+                automatically when their final answer arrives, without adding a digest.
+                Choose “Previous updates” in the practice page, then expand the folded
+                checks with a press or Enter.
               </p>
               <p id="bg-thread-unread">
                 <strong>Unread replies.</strong> The seeded agent replies start unread.
@@ -1114,14 +1115,73 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             </table>
           </section>
 
+          <section id="bg-ask-track">
+            <p class="eyebrow bg-feature-elements">lf-ask · lf-chart · lf-options</p>
+            <h2>
+              <strong>An Ask beside its figure</strong
+              ><span class="bg-feature-detail">: the options track</span>
+            </h2>
+            <p id="bg-ask-track-guide">
+              This Ask holds a chart and ends in one option list, and it takes the wide
+              measure. In a window wide enough for both, the list stands in a column
+              beside the chart and stays put while the evidence scrolls past it; narrow
+              the window and the list drops below the chart again.
+            </p>
+            <lf-ask id="bg-track-ask" data-width="wide">
+              <h3>Which trail should the sample team hike on Saturday?</h3>
+              <p id="bg-track-premise">
+                The team walks at a sample pace of 300 m of climb an hour, and the last
+                bus leaves the trailhead at 17:00.
+              </p>
+              <lf-chart id="bg-track-climb" data-height="180">
+                <pre>
+{
+  ariaLabel: "Climb by sample trail: Ridge loop 900 m, Lake path 350 m, Pass traverse 1,250 m",
+  marginLeft: 100,
+  x: {grid: true, label: "climb (m)"},
+  y: {label: null},
+  marks: [
+    Plot.barX(
+      [
+        {trail: "Ridge loop", climb: 900},
+        {trail: "Lake path", climb: 350},
+        {trail: "Pass traverse", climb: 1250},
+      ],
+      {y: "trail", x: "climb", fill: "var(--series-1)"},
+    ),
+    Plot.ruleX([0]),
+  ],
+}
+</pre>
+              </lf-chart>
+              <p id="bg-track-reading">
+                The traverse's climb takes a little over four hours on its own, which
+                leaves no margin before the bus.
+              </p>
+              <lf-options id="bg-track-choice" choose>
+                <lf-option id="bg-track-ridge">
+                  <strong>Ridge loop</strong> Three hours of climbing with views the
+                  whole way.
+                </lf-option>
+                <lf-option id="bg-track-lake">
+                  <strong>Lake path</strong> An easy morning, back long before the bus.
+                </lf-option>
+                <lf-option id="bg-track-pass">
+                  <strong>Pass traverse</strong> The longest day, and a tight finish.
+                </lf-option>
+              </lf-options>
+            </lf-ask>
+          </section>
+
           <section id="bg-side-list">
             <p class="eyebrow">list="side"</p>
             <h2><strong>A queue beside the item it opens</strong></h2>
             <p id="bg-side-list-guide">
               The tab list stands left of the open item, each row its name and summary.
-              Walk it with the up and down arrows. Open an item to answer its Ask;
+              Walk it with the up and down arrows. Answer the first item's Ask and its
+              row shows a check and the option you picked, and undo takes them away;
               narrow the window below the set's 36rem and the list becomes a row above
-              the item.
+              the item, its rows keeping only the check.
             </p>
             <lf-tabs id="bg-side-queue" list="side">
               <lf-tab

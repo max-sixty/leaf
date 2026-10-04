@@ -284,9 +284,9 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     base_target, candidate_target, corrected_target = targets
     denied = browser.new_page()
     response = denied.goto(f"{base_target.origin}/versions/v1.html")
-    assert response and response.status == 403
+    assert response and response.status == 401
     # The refusal is the point of this page: the reviewer has no capture credential.
-    consume_browser_errors(denied, "403")
+    consume_browser_errors(denied, "401")
     denied.close()
 
     context = browser.new_context(
@@ -388,7 +388,7 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     user = open_page(browser, review_url)
     resized(user, 1366, 768)
     response = user.context.request.get(f"{target_base}v1.html")
-    assert response.status == 403
+    assert response.status == 401
     widget = user.locator("#journey")
     fills_the_window(user, widget, True)
     first = widget.locator('[data-lf-datum="open-release-list"]')

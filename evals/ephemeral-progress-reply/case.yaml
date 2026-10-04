@@ -1,0 +1,39 @@
+# Added with opt-in ephemeral progress replies. This measures command selection
+# from shipped instructions; CLI and browser tests cover execution and folding.
+description: ephemeral-progress-reply
+metadata:
+  purpose: Post interim progress in an owed thread without answering the input, then let the final reply fold it.
+  tags:
+  - threads
+vars:
+  prompt: |
+    You own a live Leaf page at ~/.local/state/leaf/pages/layout-review.
+    A delivered user message user-request in thread layout-thread asks:
+    "Stop the reply box jumping when I switch drafts."
+    Its current answer is {"kind":"reply","to":"user-request","for":"user-request"}.
+
+    You are still testing the fix. Send an interim message in that thread saying
+    "Checking the keyboard route." Keep the user's actual answer due. When your
+    final answer later arrives in the same thread, this interim message should
+    automatically collapse into retrievable earlier updates, without summary prose.
+
+    Nothing here can execute writes. Read the relevant Leaf instructions, then
+    reply with the exact one-line CLI command you would run now.
+assert:
+- type: javascript
+  metric: loads-leaf
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/SKILL\.md
+- type: javascript
+  metric: reads-threads
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/references/threads\.md
+- type: regex
+  metric: declares-progress-without-answering
+  value: >-
+    (?:^|\n)[^\n]*\bleaf\s+thread\s+reply\b(?=[^\n]*--ephemeral\b)(?=[^\n]*--for(?:=|\s+)['"]?user-request\b)(?=[^\n]*--text(?:=|\s+))[^\n]*
+- type: not-regex
+  metric: leaves-question-and-summary-out-of-progress
+  value: (?:^|\n)\s*(?:\S*/)?leaf\s+thread\s+(?:reply\b[^\n]*--awaits|summarize\b)

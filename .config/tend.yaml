@@ -1,6 +1,8 @@
 bot_name: leaf-agent
 harness: codex
 model: gpt-6-sol
+codex:
+  auth_refresh: false
 merge: yolo
 
 # Everything in this repo runs through `uv` (AGENTS.md): the suite is

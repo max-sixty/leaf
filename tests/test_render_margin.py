@@ -5259,7 +5259,7 @@ def test_a_thread_uses_a_free_margin_and_tracks_its_source(browser, serve):
 
 def test_a_thread_beside_its_words_takes_the_room_to_the_visible_edge(browser, serve):
     """Room right of a thread's words short of the card's measure narrows the card, not
-    its height.
+    its height, and the card spends none of that room keeping its cluster clear.
 
     The width is the arrangement: this thread is on the gallery's right-hand title
     comparison, so the room right of it grows with half the viewport, and the case only says
@@ -5283,13 +5283,13 @@ def test_a_thread_beside_its_words_takes_the_room_to_the_visible_edge(browser, s
           const list = cardNode.querySelector('.lf-thread-transcript');
           const card = cardNode.getBoundingClientRect();
           const words = document.querySelector('#bg-thread-text').getBoundingClientRect();
-          // The pin on the words reaches past them, and the card clears it too.
           const pin = document.querySelector('[data-lf-margin-for="bg-thread-text"]')
             .getBoundingClientRect();
           const style = getComputedStyle(cardNode);
           return {placement: cardNode.dataset.lfThreadPlacement,
                   cardLeft: card.left, cardRight: card.right, cardWidth: card.width,
-                  wordsRight: Math.max(words.right, pin.right), viewport: innerWidth,
+                  wordsRight: words.right, pinLeft: pin.left, pinRight: pin.right,
+                  viewport: innerWidth,
                   preferred: parseFloat(style.getPropertyValue('--thread-card')),
                   minimum: parseFloat(style.getPropertyValue('--thread-card-min')),
                   clipped: list.scrollHeight - list.clientHeight};
@@ -5297,13 +5297,18 @@ def test_a_thread_beside_its_words_takes_the_room_to_the_visible_edge(browser, s
     )
     # The room between the words and the visible edge is what the card has to fit
     # into, and this case is the one where that room falls short of the preferred
-    # measure without falling short of the minimum.
+    # measure without falling short of the minimum. The pin on the words reaches past
+    # them, and the room past it falls short of the measure too.
     room = geometry["viewport"] - 8 - (geometry["wordsRight"] + 8)
     assert geometry["minimum"] <= room < geometry["preferred"], geometry
+    assert geometry["pinRight"] > geometry["wordsRight"], geometry
+    # Clearing the pin would cost the card width, so the card stands over it, beside
+    # the words, and takes the whole room to the visible edge (comment-placement.js).
     assert geometry["placement"] == "right", geometry
     assert geometry["cardLeft"] == pytest.approx(geometry["wordsRight"] + 8, abs=0.5), (
         geometry
     )
+    assert geometry["cardLeft"] < geometry["pinRight"], geometry
     assert geometry["cardRight"] == pytest.approx(geometry["viewport"] - 8, abs=0.5), (
         geometry
     )
@@ -6604,11 +6609,11 @@ def test_a_thread_card_is_unseen_until_its_first_placement_lands(browser, serve)
         context.unroute_all(behavior="wait")
 
 
-@pytest.mark.parametrize("width", [1440, 1920])
+@pytest.mark.parametrize("width", [1440, 1920, 2400])
 def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(
     browser, serve, width
 ):
-    """The anchored thread is a complete thread clear of its source controls."""
+    """The anchored thread is a complete thread beside its source."""
     page = open_page(browser, serve(ASK_PAGE, events=[PARAGRAPH_ON_ASK]))
     resized(page, width, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds="comment"]')
@@ -6674,18 +6679,22 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(
                   viewport: innerWidth};
         }"""
     )
-    # Where the room past the cluster holds the card's minimum, the card stands there,
-    # clear of it; short of that, it stands beside the words instead, across the
-    # cluster (comment-placement.js). Either way it takes the room to the visible edge.
-    past = geometry["viewport"] - 8 - (geometry["controlsRight"] + 8) >= 320
-    assert past == (width == 1920), geometry
+    # Where the room past the cluster holds the card's whole measure, the card stands
+    # there, clear of it; short of that, clearing it would narrow the card, so the card
+    # stands beside the words instead, across the cluster (comment-placement.js).
+    past = geometry["viewport"] - 8 - (geometry["controlsRight"] + 8) >= 592
+    assert past == (width == 2400), geometry
     assert geometry["cardLeft"] == pytest.approx(
         (geometry["controlsRight"] if past else page.evaluate(WORDS_RIGHT)) + 8,
         abs=0.5,
     ), geometry
-    assert geometry["cardRight"] == pytest.approx(geometry["viewport"] - 8, abs=0.5), (
-        geometry
-    )
+    # Short of its measure, the card takes the room to the visible edge.
+    assert geometry["cardRight"] == pytest.approx(
+        geometry["viewport"] - 8
+        if geometry["viewport"] - 8 - geometry["cardLeft"] < 592
+        else geometry["cardLeft"] + 592,
+        abs=0.5,
+    ), geometry
     expect(thread.locator(".lf-page-thread")).to_be_focused()
     assert page.evaluate("() => window.__firstReplyHint") == "Reply c"
     expect(reply).to_have_attribute("placeholder", "Reply c")

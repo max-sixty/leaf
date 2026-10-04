@@ -34,12 +34,13 @@
    clipping `clear` does not.
 
    Beside, the surface's top stands level with `row`, and past its margin row where that
-   reaches past `clear` and the room beyond it holds the card's minimum, so the row its
-   thread has or will have stays in view, at the cost of the card's width; where it
-   does not, the surface stands over the row. Neither choice reads the surface's own
-   width or height, so the box and the card make the same one. Under or over, its inline
-   start follows `column`, independently of the block it keeps clear, and it keeps
-   that start as it widens.
+   reaches past `clear` and the room beyond it holds the card's preferred measure
+   (`--thread-card`), so the row its thread has or will have stays in view where that
+   costs the card none of its width. Where it would cost width, the surface stands over
+   the row: the card carries its own close and step controls, and the row shows again
+   once it closes. Neither choice reads the surface's own width or height, so the box
+   and the card make the same one. Under or over, its inline start follows `column`,
+   independently of the block it keeps clear, and it keeps that start as it widens.
 
    It grows away from what it is about, down beside or under and up over it (floating.js,
    `held`), and the boundary holds it in only while what it stands by is in the window:
@@ -196,8 +197,8 @@ export function commentSide({ clear, extent, boundary, width, scroller, coarse }
     : "top";
 }
 
-// The card's minimum width, which chooses the side for both surfaces and whether they
-// stand past the margin row, and its preferred measure.
+// The card's minimum width, which chooses the side for both surfaces, and its preferred
+// measure, which decides whether they stand past the margin row.
 const rootLength = (name) =>
   parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name));
 export const cardMinimum = () => rootLength("--thread-card-min");
@@ -352,12 +353,12 @@ export function commentPlacement() {
       seen ||=
         !unanchored && clear.bottom > boundary.top && clear.top < boundary.bottom;
       // Beside on the right, the margin row is kept clear too where the room past it
-      // holds the card's minimum; where it does not, the surface stands over it.
+      // holds the card's whole measure; where it does not, the surface stands over it.
       const past =
         side === "right" &&
         margin &&
         margin.right > clear.right + 0.5 &&
-        boundary.right - margin.right - COMMENT_GAP >= minimumWidth
+        boundary.right - margin.right - COMMENT_GAP >= cardMeasure()
           ? margin.right
           : null;
       const box =

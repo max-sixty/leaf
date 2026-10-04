@@ -17,24 +17,25 @@
    The thread card stands where the comment box its thread began in stood, by the one
    rule `comment-placement.js` states for both: beside what it is about, level with the
    words it quotes or the row a pointing gesture named, where that room takes the card's
-   minimum measure, and past its cluster where the room beyond takes that too;
-   otherwise under or over what it is about. A thread with no target stands by its
-   cluster. The card is as wide as its thread up to the room its side gives, and keeps
-   its height in every case; one too tall for its spot slides inside the boundary
-   rather than shrinking. This module supplies what the card stands by, the visible
-   boundary — the reading region or the viewport under the banner and over the bottom
-   chrome — and the card's size for the room; Floating UI (floating.js) places it and
-   follows what moves its target. A card leaving with what it is about passes under the
-   chrome, which stacks over it, and a reading region clips it at its edge. The card
-   contains the complete inline thread view; the Threads panel remains the complete
-   index and takes over when already open. Once placed, the card keeps its side and
-   holds one edge at its distance from the line it stands level with (`previewHold`):
-   its top, so a turn arriving or the reply gaining a line leaves the transcript and the
-   reply's first lines where the user reads them, and the reply's foot and Send move
-   down a line per wrap; its foot, with the reply row on it, for the turn that joins the
-   transcript while the user drafts or sends, and where the card stands over what it is
-   about and is read. Opening it on another thread lets it choose its spot afresh. A scroll
-   never closes it: the card leaves with what it is about and comes back with it.
+   minimum measure, and past its cluster where the room beyond takes its whole measure,
+   else over the cluster; otherwise under or over what it is about. A thread with no
+   target stands by its cluster. The card is as wide as its thread up to the room its
+   side gives, and keeps its height in every case; one too tall for its spot slides
+   inside the boundary rather than shrinking. This module supplies what the card stands
+   by, the visible boundary — the reading region or the viewport under the banner and
+   over the bottom chrome — and the card's size for the room; Floating UI (floating.js)
+   places it and follows what moves its target. A card leaving with what it is about
+   passes under the chrome, which stacks over it, and a reading region clips it at its
+   edge. The card contains the complete inline thread view; the Threads panel remains
+   the complete index and takes over when already open. Once placed, the card keeps its
+   side and holds one edge at its distance from the line it stands level with
+   (`previewHold`): its top, so a turn arriving or the reply gaining a line leaves the
+   transcript and the reply's first lines where the user reads them, and the reply's
+   foot and Send move down a line per wrap; its foot, with the reply row on it, for the
+   turn that joins the transcript while the user drafts or sends, and where the card
+   stands over what it is about and is read. Opening it on another thread lets it choose
+   its spot afresh. A scroll never closes it: the card leaves with what it is about and
+   comes back with it.
 
    Floating UI supplies the height available at the held edge. Native grid tracks
    share that room between the transcript and reply, each growing to its words and

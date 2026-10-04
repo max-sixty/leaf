@@ -103,6 +103,14 @@ refuse, naming `leaf page init <page>`, and the page stays down until the sequen
 above re-vendors it. A wait whose revival was refused prints that refusal before
 reporting the server not running.
 
+Leaf is changing quickly, so a page made under an earlier version can fail in ways
+a re-vendor doesn't fix: init refuses vocabulary the page's log can no longer read,
+or the page misbehaves after an update. When a Leaf update is causing problems like
+this, recreate the page on the current version: initialize a new page directory,
+copy in the current `index.html`, write into its content anything the old page's
+open threads still carry, and hand the user the new URL. Later versions will
+upgrade pages more robustly.
+
 ## Page lifetime
 
 Serving from an agent session claims the page and prepares the host's feedback

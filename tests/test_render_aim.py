@@ -3882,8 +3882,16 @@ def test_open_draft_stays_visible_when_existing_subject_hides(browser, serve):
         (
             "inactive-tab",
             "#tab-word",
-            "document.getElementById('other-view').dispatchEvent(new CustomEvent('lf-reveal',{bubbles:true}))",
-            "document.getElementById('active-view').dispatchEvent(new CustomEvent('lf-reveal',{bubbles:true}))",
+            """async () => {
+              const {reveal} = await window.__lfRuntimeImport('/runtime/widget-elements.js');
+              const {retainUserIntent} = await window.__lfRuntimeImport('/runtime/user-intent.js');
+              reveal(document.getElementById('other-view'), retainUserIntent());
+            }""",
+            """async () => {
+              const {reveal} = await window.__lfRuntimeImport('/runtime/widget-elements.js');
+              const {retainUserIntent} = await window.__lfRuntimeImport('/runtime/user-intent.js');
+              reveal(document.getElementById('active-view'), retainUserIntent());
+            }""",
         ),
         (
             "offscreen",

@@ -7763,9 +7763,11 @@ def test_a_widget_that_renames_its_role_keeps_the_press_offer_gave_it(browser, s
     # Reveal the second panel without moving focus, so the focused tab is not the selected
     # one and Enter has something to do.
     page.evaluate(
-        """() => document.querySelector('#tab-bath')
-                 .dispatchEvent(new CustomEvent('lf-reveal',
-                   {bubbles: true, detail: {target: document.querySelector('#tab-bath')}}))"""
+        """async () => {
+          const {reveal} = await window.__lfRuntimeImport('/runtime/widget-elements.js');
+          const {retainUserIntent} = await window.__lfRuntimeImport('/runtime/user-intent.js');
+          await reveal(document.querySelector('#tab-bath'), retainUserIntent()).ready;
+        }"""
     )
     expect(tabs.first).to_be_focused()
     expect(tabs.nth(1)).to_have_attribute("aria-selected", "true")

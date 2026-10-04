@@ -435,7 +435,11 @@ def test_root_tabs_switch_views_without_moving_the_strip_and_follow_history(
     # A reveal (a comment anchor, find-in-page) opens another view, and the entry the
     # user stands on then names it, so pressing away and coming Back returns there.
     page.evaluate(
-        "document.querySelector('#evidence-tab').dispatchEvent(new CustomEvent('lf-reveal'))"
+        """async () => {
+          const {reveal} = await window.__lfRuntimeImport('/runtime/widget-elements.js');
+          const {retainUserIntent} = await window.__lfRuntimeImport('/runtime/user-intent.js');
+          await reveal(document.querySelector('#evidence-tab'), retainUserIntent()).ready;
+        }"""
     )
     expect(evidence).to_have_attribute("aria-selected", "true")
     assert page.url.endswith("#evidence-tab")

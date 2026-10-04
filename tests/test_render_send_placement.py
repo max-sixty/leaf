@@ -31,7 +31,9 @@ the diff beside those pictures:
 
 import base64
 import io
+import json
 import re
+from pathlib import Path
 
 import pytest
 from interact_support import wait_for, yaml_document
@@ -709,7 +711,35 @@ def test_a_wheel_return_attaches_the_comment_box_in_the_first_visible_frame(
             layout="workspace",
         )
         size, wheel, scroller = (1440, 600), 1200, "#paint-pane > div"
-    page = open_page(browser, serve(source))
+    page = open_page(
+        browser,
+        serve(source),
+        init_script="""window.attachmentHistory = [];
+          const identify = node => node instanceof Element
+            ? {tag:node.localName, id:node.id, class:node.getAttribute('class')}
+            : null;
+          new MutationObserver(records => {
+            const bar = document.querySelector('.lf-fab-bar');
+            if (!bar) return;
+            for (const record of records) {
+              if (!(record.target instanceof Element)) continue;
+              const moved = [...record.addedNodes, ...record.removedNodes]
+                .some(node => node === bar || node.contains(bar));
+              if (record.target !== bar && !record.target.contains(bar) && !moved)
+                continue;
+              attachmentHistory.push({at:performance.now(), kind:record.type,
+                node:identify(record.target), name:record.attributeName,
+                old:record.oldValue, style:record.target.getAttribute('style'),
+                plane:record.target.getAttribute('data-lf-plane'), moved});
+            }
+          }).observe(document, {subtree:true, childList:true, attributes:true,
+            attributeOldValue:true,
+            attributeFilter:['style','data-lf-plane','data-lf-placement']});
+          document.addEventListener('scroll', event => attachmentHistory.push({
+            at:performance.now(), eventAt:event.timeStamp, kind:'scroll',
+            node:identify(event.target)}), {capture:true, passive:true});
+        """,
+    )
     resized(page, *size)
     target = page.locator(
         '#paint-code .lf-code-line[data-line="6"]'
@@ -798,10 +828,14 @@ def test_a_wheel_return_attaches_the_comment_box_in_the_first_visible_frame(
     cdp.send(
         "Tracing.start",
         {
-            "categories": "disabled-by-default-devtools.screenshot,benchmark",
+            "categories": "disabled-by-default-devtools.screenshot,benchmark,blink.user_timing",
             "transferMode": "ReportEvents",
         },
     )
+    trace_clock = page.evaluate("""() => {
+      performance.mark('leaf-wheel-trace-clock');
+      return performance.now();
+    }""")
     if region == "combined":
         page.mouse.move(880, 650)
         page.mouse.wheel(0, 350)
@@ -858,40 +892,86 @@ def test_a_wheel_return_attaches_the_comment_box_in_the_first_visible_frame(
                 box_top * scale if box_top is not None else None,
             )
         )
-    shown = [
-        (target_top, box_top)
-        for target_top, box_top in readings
-        if target_top is not None and box_top is not None
-    ]
-    assert len(shown) >= 2 and any(top is None for top, _ in readings), readings
-    # Chrome downsamples trace screenshots, so two samples allow the antialiased
-    # background/outline edges. This is pixel sampling tolerance, not a motion budget.
-    tolerance = max(tolerances)
-    # The final frame must independently attach, as well as the first visible frame.
-    final_target, final_box = readings[-1]
-    assert final_target is not None and final_box is not None, readings
-    assert abs(final_target - (before_target["y"] - marker_outset)) <= tolerance, (
-        readings
-    )
-    assert abs(final_box - final_target - expected_offset) <= tolerance, readings
+    try:
+        shown = [
+            (target_top, box_top)
+            for target_top, box_top in readings
+            if target_top is not None and box_top is not None
+        ]
+        assert len(shown) >= 2 and any(top is None for top, _ in readings), readings
+        # Chrome downsamples trace screenshots, so two samples allow the antialiased
+        # background/outline edges. This is pixel sampling tolerance, not a motion budget.
+        tolerance = max(tolerances)
+        # The final frame must independently attach, as well as the first visible frame.
+        final_target, final_box = readings[-1]
+        assert final_target is not None and final_box is not None, readings
+        assert abs(final_target - (before_target["y"] - marker_outset)) <= tolerance, (
+            readings
+        )
+        assert abs(final_box - final_target - expected_offset) <= tolerance, readings
 
-    departed = False
-    returned = []
-    for target_top, box_top in readings:
-        if target_top is None:
-            departed = True
-        elif departed:
-            returned.append((target_top, box_top))
-    assert returned, readings
-    first_target, first_box = returned[0]
-    assert (
-        first_box is not None
-        and abs(first_box - first_target - expected_offset) <= tolerance
-    ), (expected_offset, readings)
-    assert all(
-        box_top is not None and abs(box_top - target_top - expected_offset) <= tolerance
-        for target_top, box_top in returned
-    ), readings
+        departed = False
+        returned = []
+        for target_top, box_top in readings:
+            if target_top is None:
+                departed = True
+            elif departed:
+                returned.append((target_top, box_top))
+        assert returned, readings
+        first_target, first_box = returned[0]
+        assert (
+            first_box is not None
+            and abs(first_box - first_target - expected_offset) <= tolerance
+        ), (expected_offset, readings)
+        assert all(
+            box_top is not None
+            and abs(box_top - target_top - expected_offset) <= tolerance
+            for target_top, box_top in returned
+        ), readings
+
+    except AssertionError as error:
+        # Preserve the frames that failed, rather than painting a later screenshot.
+        # The journal records raw attributes/events only; nothing reads layout during
+        # the returning wheel. Its final read cannot change the completed trace.
+        evidence = (
+            Path(__file__).resolve().parent.parent
+            / ".tmp"
+            / "test-results"
+            / f"wheel-return-{region}-{route}"
+        )
+        evidence.mkdir(parents=True, exist_ok=True)
+        for index, event in enumerate(frames):
+            (evidence / f"frame-{index:03}.jpg").write_bytes(
+                base64.b64decode(event["args"]["snapshot"])
+            )
+        (evidence / "trace.json").write_text(
+            json.dumps(
+                {
+                    "region": region,
+                    "route": route,
+                    "viewport": size,
+                    "expected_offset": expected_offset,
+                    "initial_target": before_target,
+                    "initial_box": before_box,
+                    "clock": {
+                        "performance_ms": trace_clock,
+                        "trace_microseconds": next(
+                            event["ts"]
+                            for event in events
+                            if event["name"] == "leaf-wheel-trace-clock"
+                        ),
+                    },
+                    "frames": [
+                        {"at": event["ts"], "painted_tops": reading}
+                        for event, reading in zip(frames, readings, strict=True)
+                    ],
+                    "history": page.evaluate("attachmentHistory"),
+                },
+                indent=2,
+            )
+        )
+        error.add_note(f"Original compositor frames and raw history: {evidence}")
+        raise
 
     if region == "combined":
         field = page.locator(".lf-fab-input")

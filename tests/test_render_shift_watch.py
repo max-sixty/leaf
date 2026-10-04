@@ -1150,7 +1150,8 @@ def test_typing_root_scroll_keeps_a_fixed_field_but_not_its_local_carry(browser,
 @pytest.mark.parametrize(
     "fault", ["", "portal_x", "portal_y", "anchor_x", "anchor_y", "declared_unused"]
 )
-def test_native_anchor_scroll_retains_local_motion_proof(browser, fault):
+@pytest.mark.parametrize("transform", ["none", "scale(.8)", "scale(.8) rotate(10deg)"])
+def test_native_anchor_scroll_retains_local_motion_proof(browser, fault, transform):
     field_style = "position:fixed;position-anchor:--target;left:calc(anchor(left) + 100px);top:calc(anchor(top) + 10px)"
     if fault == "declared_unused":
         field_style = "position:fixed;position-anchor:--target;left:100px;top:50px"
@@ -1166,19 +1167,22 @@ def test_native_anchor_scroll_retains_local_motion_proof(browser, fault):
     page.goto(
         "data:text/html,"
         + quote(f"""<!doctype html><body style="margin:0">
+<div style="transform:{transform};transform-origin:left top">
 <div id="scroller" style="height:140px;width:300px;overflow:auto">
-<div style="height:300px"><div id="target" style="anchor-name:--target;margin-top:60px;width:70px;height:30px">The target</div></div></div>
+<div style="width:600px;height:300px"><div id="target" style="anchor-name:--target;margin-top:60px;width:70px;height:30px">The target</div></div></div></div>
 <textarea id="field" style="{field_style}"></textarea>
 <p id="evidence" style="position:absolute;left:10px;top:400px">Independent painted source</p>
-<script>field.addEventListener('beforeinput',()=>{{scroller.scrollTop+=20;evidence.style.left='30px';{change}}})</script></body>""")
+<script>field.addEventListener('beforeinput',()=>{{scroller.scrollLeft+=20;scroller.scrollTop+=20;evidence.style.left='30px';{change}}})</script></body>""")
     )
-    page.evaluate("scroller.scrollTop=20")
+    page.evaluate("scroller.scrollLeft=20;scroller.scrollTop=20")
     paint(page)
     before = page.locator("#field").bounding_box()
     page.locator("#field").fill("a")
     page.screenshot()
     page.evaluate(PAINTED)
     after = page.locator("#field").bounding_box()
+    assert page.evaluate("[scroller.scrollLeft,scroller.scrollTop]") == [40, 40]
+    assert before != after
     judge_watches()
     errors = take_browser_errors(page)
     if fault:

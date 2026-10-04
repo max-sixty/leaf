@@ -294,6 +294,14 @@
         exposed(element) &&
         paintedElement.checkVisibility({ checkOpacity: true });
       const clipping = clippingAxes(style);
+      const axes =
+        node instanceof Element &&
+        (node.scrollLeft ||
+          node.scrollTop ||
+          node.scrollWidth > node.clientWidth ||
+          node.scrollHeight > node.clientHeight)
+          ? scrollAxes(node)
+          : null;
       const paint = {
         parent: up(node),
         anchor: range
@@ -314,6 +322,10 @@
         insetX: range ? null : `${node.style.left}|${node.style.right}`,
         insetY: range ? null : `${node.style.top}|${node.style.bottom}`,
         position: range ? "static" : style.position,
+        scrollXx: axes?.x.x ?? 1,
+        scrollXy: axes?.x.y ?? 0,
+        scrollYx: axes?.y.x ?? 0,
+        scrollYy: axes?.y.y ?? 1,
         block:
           !range && ["fixed", "absolute"].includes(style.position)
             ? node.offsetParent
@@ -405,12 +417,25 @@
   // Layout coordinates remove scrolling, which Chrome also removes from its shifts.
   const scrollAt = (node, at) =>
     scrolled.get(node)?.findLast((item) => item.at <= at)?.scroll;
+  // Scroll offsets are local layout pixels; protected poses are viewport pixels.
+  // Retain each source's axes with its pose so a later transform cannot rewrite
+  // the coordinate space in which an earlier scroll was observed.
+  const viewportScroll = (node, at, offset = scrollAt(node, at)) => {
+    const paint = paintAt(node, at);
+    const left = offset?.left ?? 0,
+      top = offset?.top ?? 0;
+    return {
+      left: left * paint.scrollXx + top * paint.scrollYx,
+      top: left * paint.scrollXy + top * paint.scrollYy,
+    };
+  };
   const layoutAt = (node, at) => {
     const rect = boxAt(node, at);
     if (!rect) return null;
     // The root border box travels with its own native scroll; nested scrollport
     // borders stay put while their contents move.
-    const rootScroll = node === document.scrollingElement ? scrollAt(node, at) : null;
+    const rootScroll =
+      node === document.scrollingElement ? viewportScroll(node, at) : null;
     let left = rect.left + (rootScroll?.left ?? 0),
       top = rect.top + (rootScroll?.top ?? 0);
     for (
@@ -419,9 +444,9 @@
       child = parent, parent = paintAt(parent, at).parent
     ) {
       if (paintAt(child, at).position === "fixed") break;
-      const scroll = scrollAt(parent, at);
-      left += scroll?.left ?? 0;
-      top += scroll?.top ?? 0;
+      const scroll = viewportScroll(parent, at);
+      left += scroll.left;
+      top += scroll.top;
     }
     return { left, top, right: left + rect.width, bottom: top + rect.height };
   };
@@ -699,7 +724,15 @@
       const scroll = ancestryAt(sticky, to).reduce((sum, owner) => {
         const prior = scrollAt(owner, from),
           next = scrollAt(owner, to);
-        return sum + (prior && next ? next[axis] - prior[axis] : 0);
+        return (
+          sum +
+          (prior && next
+            ? viewportScroll(owner, to, {
+                left: next.left - prior.left,
+                top: next.top - prior.top,
+              })[axis]
+            : 0)
+        );
       }, 0);
       const shifted = after[axis] - before[axis];
       // Scroll carries the sticky owner on that axis, through at most its native

@@ -123,6 +123,9 @@ def composer(page: Page) -> None:
     page.mouse.down()
     page.mouse.move(box["x"] + 200, y, steps=8)
     page.mouse.up()
+    # Under a finger a selection offers Comment in the banner rather than a field.
+    if page.get_by_role("button", name="Comment on selection").is_visible():
+        page.get_by_role("button", name="Comment on selection").click()
     page.locator(".lf-fab-input").click()
     page.locator(".lf-composer leaf-text").focus()
     page.keyboard.insert_text("A comment being drafted on the selected words")
@@ -148,7 +151,12 @@ def composer_long(page: Page) -> None:
 def composer_sent(page: Page) -> None:
     """That comment just sent: its card keeps the draft's wrapping while it stands."""
     composer_long(page)
-    page.keyboard.press("Enter")
+    if page.evaluate("matchMedia('(pointer: coarse)').matches"):
+        page.locator(".lf-fab-bar").get_by_role(
+            "button", name="Comment", exact=True
+        ).tap()
+    else:
+        page.keyboard.press("Enter")
     page.locator(".lf-margin-preview[data-lf-comment-frame]").wait_for()
     page.wait_for_function(
         "() => !document.querySelector('.lf-margin-preview [aria-busy=\"true\"]')"

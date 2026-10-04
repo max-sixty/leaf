@@ -680,7 +680,10 @@ stateDiagram-v2
                 <tr>
                   <th scope="row">One turn answers five threads</th>
                   <td>One claim per thread; the banner shows the latest sentence</td>
-                  <td>Each of the five, running; the banner names the one in hand.</td>
+                  <td>
+                    Each of the five, running. The agent picks what the banner says;
+                    until it does, the banner names the item in hand.
+                  </td>
                 </tr>
                 <tr>
                   <th scope="row">
@@ -727,6 +730,12 @@ stateDiagram-v2
               is your move's id or a task's, and the subject comes from the item. A
               reply or stamp that answers a move ends it; a task still ends with
               <code>task end</code>.
+            </p>
+            <p id="working-on-banner">
+              <strong>Later:</strong> the banner line is a field the agent sees and
+              sets. Leaf fills it from the item in hand when the agent is answering
+              something quickly, and the agent can replace it, for example with one line
+              covering five threads at once.
             </p>
           </section>
 

@@ -3625,17 +3625,16 @@ QUEUES_V1 = leaf_page(
 QUEUES_V2 = QUEUES_V1.replace(
     "Each side has a queue of open items, and what an item is stays open",
     "The two queues today",
-)
+).replace("anything open that", "anything that")
 
 
 def test_a_thread_whose_quote_was_rewritten_shows_what_changed(browser, serve):
     """A version that rewrites the words a comment quoted leaves its thread on their
-    section, which the panel names by the section's new words. The card says the
-    passage changed and, pressed, shows that edit in place, from the revision the
-    comment was written on to now: the quoted heading struck, its replacement marked,
-    the untouched paragraph left alone and the heading and paragraph kept apart. A second
-    press puts the current words back alone, and the words the user quoted still find
-    the thread.
+    section. The card keeps naming the quoted words, says they changed and, pressed,
+    shows their edit in place, from the revision the comment was written on to now:
+    the quoted heading struck and its replacement marked, while the same version's
+    edit to the paragraph below stays unmarked. A second press puts the current words
+    back alone, and the words the user quoted still find the thread.
 
     Two threads quoted the same heading, so both stand on its section: each card's
     reading is its own, and one card's press takes the place of the other's."""
@@ -3649,12 +3648,10 @@ def test_a_thread_whose_quote_was_rewritten_shows_what_changed(browser, serve):
 
     cards = page.locator(".lf-thread-panel .lf-thread")
     expect(cards).to_have_count(2)
-    expect(cards.locator(".lf-quote").first).to_contain_text("The two queues today")
+    expect(cards.locator(".lf-quote", has_text=f"“{quote}”")).to_have_count(1)
+    expect(cards.locator(".lf-quote", has_text="§ section")).to_have_count(0)
     first, second = (cards.nth(index).locator(".lf-anchor-changed") for index in (0, 1))
     expect(first).to_have_text("changed")
-    # Each names the words its own comment quoted.
-    expect(page.locator(f'.lf-anchor-changed[title*="“{quote}”"]')).to_have_count(1)
-    expect(page.locator('.lf-anchor-changed[title*="“Each side”"]')).to_have_count(1)
 
     expect(first).to_have_attribute("aria-expanded", "false")
     first.click()

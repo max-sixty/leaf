@@ -39,21 +39,24 @@ import { ReplyContinuity } from "./reply-continuity.js";
 
 function quoteReading(thread, anchors) {
   const placement = anchors.placedAt(thread.id);
-  const label = anchorLabel(thread.detached_from ?? thread.anchor, thread.root.about);
+  // Where a later version rewrote the words the opening comment quoted, the head keeps
+  // naming those words rather than the section the page kept the thread on, and offers
+  // what became of them since the revision the comment was written on.
+  const from = rewrittenFrom(thread);
+  const label = from
+    ? `“${from.passage.quote}”`
+    : anchorLabel(thread.detached_from ?? thread.anchor, thread.root.about);
   if (!label) return null;
   const anchored = Boolean(thread.anchor) || Boolean(thread.detached_from);
   const found = !thread.detached_from && Boolean(placement);
   const outdated = anchored && placement?.status === "outdated";
-  // Where a later version rewrote the words the opening comment quoted, the head says so
-  // and offers what changed in their section since the revision the comment was written
-  // on.
-  const from = rewrittenFrom(thread);
   const changed =
     from && found && from.revision !== null
       ? Object.freeze({
           section: thread.anchor.section,
           revision: from.revision,
-          title: `The comment was on “${from.quote}”. Show what changed here since.`,
+          passage: from.passage,
+          title: "Show how these words changed since the comment",
         })
       : null;
   return Object.freeze({
@@ -738,7 +741,12 @@ export class ThreadView {
     const changed = this.#model.quote?.changed;
     const section = changed && elementById(changed.section);
     if (!section) return;
-    this.#commands.changes.toggle(this.#model.id, section, changed.revision);
+    this.#commands.changes.toggle(
+      this.#model.id,
+      section,
+      changed.revision,
+      changed.passage,
+    );
     this.#commands.travel.scrollToThread(this.#model.id, { focus: "reply" });
   };
 

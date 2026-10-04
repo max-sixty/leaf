@@ -106,7 +106,7 @@ import {
   watchReadingRegionTransitions,
 } from "./reading-regions.js";
 import { LIVE_ROOT, PAGE_SCOPE, tabStore, unmarkedCopy } from "./storage.js";
-import { alignInlineText } from "./text-alignment.js";
+import { alignInlineText, runsAbout } from "./text-alignment.js";
 import { el, layoutChanged, quoted, reveal } from "./widget-elements.js";
 import { keeps } from "./keeps.js";
 import { returnToBannerControl, showNews } from "./banner-toolbar.js";
@@ -892,7 +892,8 @@ export function createVersionController({
   // `before` is what the block said in the base, or null where the base held no such
   // block; `base` names that base for the reading. `opener` says whose press owns the
   // reading: the comparison's Change entries (`COMPARISON`), or one thread, by its id.
-  function openInlineComparison(target, before, base, opener) {
+  // A `passage` narrows the reading to the edit of those words (`runsAbout`).
+  function openInlineComparison(target, before, base, opener, passage = null) {
     const reading = authoredReading(target);
     const current = currentVersionToken();
     const label = el(
@@ -913,9 +914,15 @@ export function createVersionController({
     const insertions = [{ offset: 0, node: label }];
     let afterOffset = 0;
     let hasTextChange = false;
-    for (const run of before === null ? [] : alignInlineText(before, reading.text)) {
+    const runs = before === null ? [] : alignInlineText(before, reading.text);
+    for (const run of passage ? runsAbout(runs, before, passage) : runs) {
       if (run.kind === "delete") {
-        const dropped = el("span", "lf-ui lf-version-inline-deletion");
+        // A deletion running to a block's end was a block of its own, so it stands on
+        // its own line rather than running into the block after it.
+        const dropped = el(
+          "span",
+          `lf-ui lf-version-inline-deletion${run.text.endsWith("\n") ? " lf-version-inline-block" : ""}`,
+        );
         dropped.append(el("del", "", run.text));
         nodes.push(dropped);
         insertions.push({ offset: afterOffset, node: dropped });
@@ -1012,8 +1019,10 @@ export function createVersionController({
   // What a thread's place says now against what it said in the revision its opening
   // comment was written on: the same inline reading a Change entry discloses, on one
   // element and from that exact revision. It marks nothing else on the page and needs no
-  // stamped version, since a comment is usually written on a draft. The revision's
-  // document is read by its number and prepared as a comparison's base is.
+  // stamped version, since a comment is usually written on a draft. It shows only the
+  // edit of the words the comment quoted (`passage`), since the section around them may
+  // have changed for other reasons. The revision's document is read by its number and
+  // prepared as a comparison's base is.
   //
   // Each reading belongs to the thread that pressed for it, since two threads can stand
   // on one rewritten section from different revisions. That thread alone takes it away:
@@ -1024,7 +1033,7 @@ export function createVersionController({
   const changeOf = (thread) =>
     [...inlineOpen].find(([, entry]) => entry.opener === thread)?.[0] ?? null;
 
-  async function toggleChangeSince(thread, target, revision) {
+  async function toggleChangeSince(thread, target, revision, passage) {
     // A press while its reading stands, or is still loading, takes it away.
     if (changeOf(thread) || changeRequests.has(thread)) {
       closeChangeSince(thread);
@@ -1050,7 +1059,13 @@ export function createVersionController({
     if (!doc || !target.isConnected) return;
     if (inlineOpen.has(target)) closeInlineComparison(target, true);
     const before = doc.getElementById(target.id);
-    openInlineComparison(target, before ? wroteLines(before) : null, base, thread);
+    openInlineComparison(
+      target,
+      before ? wroteLines(before) : null,
+      base,
+      thread,
+      passage,
+    );
     document.dispatchEvent(new CustomEvent("lf-comparison"));
     // The page's words moved under the reader, so the press says what they now show.
     notice(

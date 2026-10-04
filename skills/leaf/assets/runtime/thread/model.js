@@ -173,7 +173,7 @@ export function rewrittenFrom(thread) {
   const now = thread.anchor;
   if (!opening?.quote || !now || now.quote || now.section !== opening.section)
     return null;
-  return { quote: opening.quote, revision: thread.root.revision ?? null };
+  return { passage: opening, revision: thread.root.revision ?? null };
 }
 
 // When a message last moved: its latest edit, else its own arrival. Every ordering that

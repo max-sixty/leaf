@@ -100,18 +100,80 @@ export function alignInlineText(before, after) {
       continue;
     }
     const next = coarse[++at];
-    const fine = alignText(run.text, next.text);
-    const retained = fine
-      .filter((part) => part.kind === "same")
-      .reduce((length, part) => length + part.text.length, 0);
-    if (retained >= Math.min(run.text.length, next.text.length) * 0.6)
-      fine.forEach(push);
-    else {
-      push(run);
-      push(next);
+    // Consecutive replaced sentences arrive as one run each way. Where both hold as
+    // many sentences, each is weighed against its counterpart, so a rewritten heading
+    // stays whole beside the lightly edited sentence after it.
+    const [old, now] = [run.text, next.text].map((text) =>
+      [...sentenceUnits.segment(text)].map((part) => part.segment),
+    );
+    const pairs =
+      old.length === now.length
+        ? old.map((sentence, index) => [sentence, now[index]])
+        : [[run.text, next.text]];
+    for (const [was, is] of pairs) {
+      const fine = alignText(was, is);
+      const retained = fine
+        .filter((part) => part.kind === "same")
+        .reduce((length, part) => length + part.text.length, 0);
+      if (retained >= Math.min(was.length, is.length) * 0.6) fine.forEach(push);
+      else {
+        push({ kind: "delete", text: was });
+        push({ kind: "insert", text: is });
+      }
     }
   }
   return runs;
+}
+
+// The runs of an alignment that concern one passage of `before`: the deletions that
+// overlap it, and the insertions inside it or beside one of those deletions. Every
+// other deletion is dropped and every other insertion reads as unchanged, so a reader
+// asking what became of those words sees their edit and nothing else the same
+// revisions changed. `passage` is an anchor's `{quote, prefix, suffix}`, found in
+// `before` regardless of how its whitespace breaks; where `before` holds none of it,
+// every run stands.
+export function runsAbout(runs, before, passage) {
+  const span = passageIn(before, passage);
+  if (!span) return runs;
+  let at = 0;
+  const placed = runs.map((run) => {
+    const from = at;
+    if (run.kind !== "insert") at += run.text.length;
+    return { run, from, to: at };
+  });
+  const overlaps = (mark) =>
+    mark?.run.kind === "delete" && mark.from < span.end && mark.to > span.start;
+  return placed.flatMap((mark, index) => {
+    const { run, from } = mark;
+    if (run.kind === "same") return [run];
+    if (run.kind === "delete") return overlaps(mark) ? [run] : [];
+    const kept =
+      (from >= span.start && from <= span.end) ||
+      overlaps(placed[index - 1]) ||
+      overlaps(placed[index + 1]);
+    return [kept ? run : { kind: "same", text: run.text }];
+  });
+}
+
+// Where an anchor's quote stands in a text: the occurrence its neighbouring words agree
+// with best, the first of equals.
+function passageIn(text, { quote, prefix = "", suffix = "" }) {
+  const flat = (words) => words.replace(/\s/g, " ");
+  const haystack = flat(text);
+  const needle = flat(quote).trim();
+  let best = null;
+  for (
+    let start = haystack.indexOf(needle);
+    start !== -1;
+    start = haystack.indexOf(needle, start + 1)
+  ) {
+    const end = start + needle.length;
+    const score =
+      Number(haystack.slice(0, start).trimEnd().endsWith(flat(prefix).trim())) +
+      Number(haystack.slice(end).trimStart().startsWith(flat(suffix).trim()));
+    if (!best || score > best.score) best = { start, end, score };
+  }
+  return best;
 }
 
 // The alignment as elements: `same` is plain text, what the later text dropped is a

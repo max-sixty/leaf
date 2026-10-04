@@ -235,6 +235,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
    inherits the document's face, keeping the diff one passage. */
 .lf-ins-block.lf-version-inline { background: transparent; box-shadow: none; }
 .lf-version-inline-deletion { font: inherit; line-height: inherit; }
+.lf-version-inline-deletion.lf-version-inline-block { display: block; }
 .lf-version-inline-deletion del { margin-inline-end: .28em;
   background: var(--del-tint); color: var(--danger-ink); }
 /* The unanswered decision the user is standing in (markHere), worn by the decision rather than

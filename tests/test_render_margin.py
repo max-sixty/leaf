@@ -8027,6 +8027,54 @@ def test_an_agent_reply_leaves_the_reply_being_typed_where_it_stands(
     assert preview.evaluate(DRAFTING_CARD) == before
 
 
+def test_an_agent_reply_into_an_open_card_cues_only_its_own_words(browser, serve):
+    """A turn arriving in a card the user has open wears the cue a sent turn wears,
+    once and on its own words; opening the card cues nothing it already held."""
+    page = open_page(browser, serve(LONG_THREAD_PAGE, events=[LONG_THREAD_ROOT]))
+    page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
+    preview = page.locator(".lf-margin-preview")
+    expect(preview).to_be_visible()
+    rendered(page)
+    cued = """preview => [...preview.querySelectorAll('.lf-msg')].filter(message =>
+      message.getAnimations().some(animation =>
+        animation.effect.getKeyframes().some(frame => frame.backgroundColor)))
+      .map(message => message.textContent.includes('arriving') ? 'reply' : 'root')"""
+    assert preview.evaluate(cued) == []
+    # Pause the cue at its first frame, before driver latency can let it finish.
+    preview.evaluate(
+        """preview => {
+          window.__arrival = null;
+          const observer = new MutationObserver(() => {
+            const message = [...preview.querySelectorAll('.lf-msg')].find(node =>
+              node.textContent.includes('arriving'));
+            if (!message) return;
+            const cue = message.getAnimations().find(animation =>
+              animation.effect.getKeyframes().some(frame => frame.backgroundColor));
+            if (cue) { cue.pause(); cue.currentTime = 0; }
+            window.__arrival = Boolean(cue);
+            observer.disconnect();
+          });
+          observer.observe(preview, {subtree: true, childList: true, attributes: true});
+        }"""
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "revision": 1,
+            "parent": LONG_THREAD_ROOT["id"],
+            "responds": LONG_THREAD_ROOT["id"],
+            "text": "An agent answer arriving while the card is open.",
+        },
+    )
+    told(page)
+    page.wait_for_function("() => window.__arrival !== null")
+    assert page.evaluate("() => window.__arrival")
+    assert preview.evaluate(cued) == ["reply"]
+
+
 @pytest.mark.parametrize("how", ["key", "press"])
 @pytest.mark.parametrize("size", [(1200, 900), (800, 520)])
 def test_a_sent_reply_leaves_the_reply_row_where_it_stands(browser, serve, size, how):

@@ -145,7 +145,7 @@ jobs:
         with:
           name: pytest-results-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
-            .tmp/test-results/results.xml
+            .tmp/test-results/
             .tmp/thread-snapshots/runs/
           if-no-files-found: ignore
           retention-days: 30

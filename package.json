@@ -5,6 +5,10 @@
   "engines": {
     "node": ">=22.18"
   },
+  "pi": {
+    "extensions": ["./hooks/pi.ts"],
+    "skills": ["./skills"]
+  },
   "scripts": {
     "build:browser": "node build/browser/build.mjs",
     "check:browser": "node build/browser/build.mjs --check",

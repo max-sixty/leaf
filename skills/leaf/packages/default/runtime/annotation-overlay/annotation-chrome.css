@@ -132,7 +132,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      and the bottom bar the way they do. Its insets are its placement's alone:
      floating.js writes the edges that hold it and clears the others, so an edge the
      stylesheet set would stretch a card held by its foot. */
-  .lf-margin-preview { position: fixed;
+  .lf-margin-preview { position: fixed; pointer-events: auto;
     z-index: var(--lf-z-margin-preview);
     /* As wide as its thread, between the bounds its placement gives it
        (margin-projection.js, `placeThreadPreview`). */

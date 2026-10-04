@@ -42,6 +42,7 @@ import {
   clippedContents,
   clipsPast,
   landingBand,
+  localScrollBy,
   placeHolder,
   shownBox,
   shownRect,
@@ -211,7 +212,9 @@ export function createAnchorTravel({
                   { at: input, block: "nearest" },
                   {
                     at: current.where,
-                    when: () => !readableDestination(input),
+                    when: () =>
+                      !readableDestination(current.where) ||
+                      !readableDestination(input),
                   },
                 ]
               : [{ at: current.where }],
@@ -224,6 +227,10 @@ export function createAnchorTravel({
         present: async () => {
           const current = resolve();
           if (!current) return;
+          if (!readableDestination(current.where))
+            mayArrive.handoff(() => {
+              scrollRevealedPlace(current.where, current.where, "instant", "center");
+            });
           if (current.open)
             mayArrive.handoff(() => {
               release = current.open();
@@ -473,7 +480,11 @@ export function createAnchorTravel({
       const byY = inside
         ? nearestBy(destination.top, destination.bottom, top, bottom)
         : 0;
-      if (byX || byY) box.scrollBy({ left: byX, top: byY, behavior: "instant" });
+      if (byX || byY)
+        box.scrollBy({
+          ...localScrollBy(box, { x: byX, y: byY }),
+          behavior: "instant",
+        });
       if (box === pageScroller || getComputedStyle(box).position === "fixed") break;
     }
     scrollIntoReadingBand(alignment, holder, block, behavior);

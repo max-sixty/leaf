@@ -546,7 +546,7 @@ def _log_end(page_dir: Path) -> int:
     return 0
 
 
-def watch_between_turns(harness: Harness) -> str | None:
+def watch_between_turns(harness: Harness, *, interrupted: bool = False) -> str | None:
     """The session's watch run by the host's own Stop hook, which the host starts
     in the background as each turn ends (`Harness.watches_between_turns`), and
     what it wakes the session with, or None where it ends without waking it.
@@ -562,7 +562,13 @@ def watch_between_turns(harness: Harness) -> str | None:
     beside this one, which hands it to the turn it continues. It is the wake's to
     carry only once that hook let the turn end over it, or failed to answer within
     its own timeout. Input arriving later wakes the session at once, between two
-    turns or within one, where it reaches the turn at its next tool result."""
+    turns or within one, where it reaches the turn at its next tool result.
+
+    A watch started as the user interrupted the turn wakes only for that later
+    input: the turn the pending input was handed to is the one the user stopped,
+    and their next prompt carries it. Input admitted between the interruption and
+    the watch's first look at the log waits for that prompt too, since nothing
+    records what the stopped turn was handed."""
     watch = Watch(harness)
     if not watch.acquire():
         return None
@@ -582,6 +588,8 @@ def watch_between_turns(harness: Harness) -> str | None:
         claim = reading.transaction.active_claim
         last = reading.batch[-1]["seq"]
         end, settled = first_sight(reading.page_dir, last)
+        if interrupted:
+            return last > end
         return (
             (claim is not None and claim.get("turn_closed") is not None)
             or last > end

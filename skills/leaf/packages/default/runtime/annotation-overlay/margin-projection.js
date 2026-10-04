@@ -148,7 +148,8 @@ import { repaint } from "/runtime/repaint.js";
 import { chromeRoot } from "/runtime/chrome.js";
 import { versionBtn } from "/runtime/version-picker.js";
 import { motion, scrollBehavior } from "/runtime/motion.js";
-import { declareSide, placeOf } from "/runtime/standing-target.js";
+import { askHolding, declareSide, placeOf } from "/runtime/standing-target.js";
+import { allAsks } from "/runtime/asks/model.js";
 import { closestAcross, inChrome } from "/runtime/passages.js";
 import { visualAt } from "/runtime/anchor-resolution.js";
 import { paintTrace } from "/runtime/target-paint.js";
@@ -210,6 +211,7 @@ export function createMarginProjection({
     entryPlace,
     sourceItem,
     workflowReceipt,
+    threadIdsAt,
     threadItem: marginThreadItem,
   } = inventory;
   const nav = el("nav", "lf-ui lf-margin-projection");
@@ -427,6 +429,7 @@ export function createMarginProjection({
     );
   }
   let previewEntry = null;
+  let previewAccompanies = false;
   let previewThreadItem = null;
   let previewLatest = null;
   let previewMarginEntry = null;
@@ -795,7 +798,12 @@ export function createMarginProjection({
         watch(ui);
         return previewPlacement.position(
           ui.computePosition,
-          { contextElement: place.element, getBoundingClientRect: () => reference },
+          {
+            contextElement: place.element,
+            contextNode:
+              side === "left" || side === "right" ? place.contextNode : place.element,
+            getBoundingClientRect: () => reference,
+          },
           { placement, middleware },
           plane,
           place.element,
@@ -1901,11 +1909,18 @@ export function createMarginProjection({
     highlight(drawingOnly ? null : (targetFor(entry) ?? null));
   }
 
-  function showPreview(entry, button, threadItem = null, origin = null) {
+  function showPreview(
+    entry,
+    button,
+    threadItem = null,
+    origin = null,
+    accompanies = false,
+  ) {
     if (!entry || designModeActive()) return;
     if (forcedInlineKey && forcedInlineKey !== entry.key) forcedInlineKey = null;
     if (previewEntry && previewEntry.key !== entry.key) clearThreadTransition();
     previewEntry = entry;
+    previewAccompanies = accompanies;
     transferThreadCard(button);
     buildThreadCard(entry, threadItem, origin);
     keepsHidden(preview, false);
@@ -2203,7 +2218,7 @@ export function createMarginProjection({
       return null;
     }
     pinnedKey = entry.key;
-    const initiallyPositioned = showPreview(entry, button, itemId, transition);
+    const initiallyPositioned = showPreview(entry, button, itemId, transition, !unfold);
     const item = [...previewList.children].find(
       (candidate) => candidate.lfMarginItem === itemId,
     );
@@ -2282,27 +2297,17 @@ export function createMarginProjection({
   // A target with pointed threads (groupFor) has a row for each: standing inside a
   // pointed row takes that thread, and standing elsewhere on the target takes its own
   // row, or a pointed one where it has none.
-  const pointRank = (entry, place) => {
-    const point = entryPoint(entry);
-    return !point ? 1 : under(place, point) ? 2 : 0;
-  };
+  // Subject identity comes from the inventory even where a widget owns its seat.
   const threadEntryAt = (node) => {
-    const place = placeOf(node);
-    let standing = null;
-    for (const entry of pageInventory) {
-      const target = targetFor(entry);
-      if (!target || !threadReading(entry) || !under(place, target)) continue;
-      if (seatedOnPage(threadIdOf(entry))) continue;
-      const held = standing && targetFor(standing);
-      if (
-        !standing ||
-        (target === held
-          ? pointRank(entry, place) >= pointRank(standing, place)
-          : under(target, held))
-      )
-        standing = entry;
-    }
-    return standing;
+    const ids = threadIdsAt(node);
+    return (
+      pageInventory.find(
+        (entry) =>
+          threadReading(entry) &&
+          threadIdsOf(entry).some((id) => ids.includes(id)) &&
+          !seatedOnPage(threadIdOf(entry)),
+      ) ?? null
+    );
   };
   // A folded cluster opens while the keyboard stands at its target, as it does when
   // the keyboard arrives on its toggle: what the user stands at offers its actions, and
@@ -2350,6 +2355,13 @@ export function createMarginProjection({
     )
       return;
     const host = closestAcross(active, "[data-lf-margin-for]");
+    // Working an Ask keeps its decisions clear; explicit discussion remains open.
+    if (askHolding(allAsks(), placeOf(active))) {
+      const entry = threadEntryAt(active);
+      if (previewOpen() && (previewAccompanies || previewEntry?.key !== entry?.key))
+        closePreview();
+      return;
+    }
     // With Threads open the panel is where a target's threads show, and its one expanded
     // thread is the card: arriving at a target by the keyboard expands its thread there.
     // Nothing closes, since the list stays whole wherever the user stands.

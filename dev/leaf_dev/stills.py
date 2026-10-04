@@ -4,7 +4,7 @@ show which ones changed.
     uv run leaf-dev stills [BASE_REF]
 
 BASE_REF defaults to the merge base of HEAD and `main`; each arm is the payload at its
-commit (`leaf_dev.harness.build_pair`), so commit what you want compared. Each page is
+commit (`leaf_dev.arms.build_pair`), so commit what you want compared. Each page is
 built from this checkout's example source and served by the arm's own launcher, so
 only the runtime, theme and server differ between the two stills of a state.
 Message delivery belongs to thread_journey and test_render_thread_snapshots: its
@@ -38,8 +38,8 @@ from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import Page
 
 from leaf_dev import ROOT
+from leaf_dev.arms import build_pair, run_directory, serving_source
 from leaf_dev.browser import BESIDE, DESKTOP, chrome, load, settle, tab
-from leaf_dev.harness import build_pair, run_directory, serving_source
 
 OUT = ROOT / ".tmp" / "stills"
 CROP_MARGIN = 32

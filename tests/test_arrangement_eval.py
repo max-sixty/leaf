@@ -3,8 +3,8 @@
 import json
 
 from leaf_dev import ROOT, arrangement_plain
+from leaf_dev.arms import read_trace
 from leaf_dev.arrangement_eval import WIDTHS, capture_reads, first_prompt, valid_verdict
-from leaf_dev.harness import read_trace
 
 
 def test_html_control_uses_browser_without_leaf_payload(tmp_path):
@@ -81,7 +81,7 @@ def test_judge_requires_successful_capture_reads_and_complete_quality_verdict(tm
 def test_comparison_snapshots_exclude_later_leaf_feedback(tmp_path, monkeypatch):
     """Script the external model; real admission and publication preserve user input."""
     from leaf_dev import arrangement_eval
-    from leaf_dev.harness import run_leaf
+    from leaf_dev.arms import run_leaf
 
     evidence = tmp_path / "evidence"
     evidence.mkdir()

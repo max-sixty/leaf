@@ -151,7 +151,7 @@ URL; each start rebuilds the page from the fixture, and `--slot <name>` runs ano
 A plain preview takes no task claim, so its presses reach only the page's log;
 use it for screenshots and browser checks. `--user` claims the page at
 the directory printed at startup (`.tmp/previews/<example>-user` by default;
-`--slot` chooses the directory name) so the user's comments reach the host, which
+`--slot` chooses the directory name) so the user's comments reach the harness, which
 also makes every click this session drives there read as an unanswered user
 move. So drive only claimless previews, start any `--user` preview from the
 session the user talks to, and answer the user's feedback before restarting
@@ -261,13 +261,13 @@ that bear on an instruction change:
 
 ```bash
 npm ci --prefix evals
-uv run leaf-dev eval [CASE]... [--base REF] [--host cc|codex|both] [--runs N]
+uv run leaf-dev eval [CASE]... [--base REF] [--harness cc|codex|both] [--runs N]
 ```
 
-The defaults are both hosts, one run, and the merge base with `main`. Each sample
-has a fresh workspace and home with the host's account login. Promptfoo owns the
+The defaults are both harnesses, one run, and the merge base with `main`. Each sample
+has a fresh workspace and home with the harness's account login. Promptfoo owns the
 assertions, judgments, traces, and HTML report under `.tmp/eval/`;
-the runner prints passes separately for each host and base/candidate arm. Read
+the runner prints passes separately for each harness and base/candidate arm. Read
 `evals/README.md` for the provider models and case format.
 
 A reference-read assertion requires successful tool output, rather than counting
@@ -332,7 +332,7 @@ them when they fail (`tests/AGENTS.md`, "Run the narrowest useful surface").
 `wt merge` checks the rebased tree and lands it; `✗ Can't push to local main branch`
 is a fast-forward failure.
 
-Installed sessions load host caches, not the checkout. Claude Code picks up a
+Installed sessions load harness caches, not the checkout. Claude Code picks up a
 push on its marketplace sweep; the post-merge hook refreshes an installed Codex
 plugin, and after a merge that skipped hooks, run
 `codex plugin marketplace upgrade leaf`.

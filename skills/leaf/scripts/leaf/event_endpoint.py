@@ -17,7 +17,7 @@ from .event_contracts import (
     browser_command_error,
 )
 from .event_log import AttemptConflict
-from .host import claim_harness
+from .harness import claim_harness
 from .leases import wait_is_live
 from .page_view import PageView
 from .presence import claimant_reading
@@ -142,7 +142,7 @@ def _execute_event(
             # Input no carrier will pick up: the claimant takes no input, by the
             # activity fold's own reading (`activity.takes_input`), because its
             # turn was seen to end — closed by the Stop hook, or interrupted as
-            # its host's record says — and no wait lease is held. A turn Leaf
+            # its harness's record says — and no wait lease is held. A turn Leaf
             # only stopped believing in may still be running a long step, and a
             # running turn needs no nudge, because its Stop hook refuses to end
             # with the input unpicked. Each ending gets one nudge per page, named
@@ -158,7 +158,7 @@ def _execute_event(
                 nudge_unwatched(page)
             if event["kind"] == "comment" and claim:
                 opened = admitted["id"], claim
-    # A comment opens a thread with no name, and the claimant's host names it from
+    # A comment opens a thread with no name, and the claimant's harness names it from
     # these words while the agent is still reading them. The request reads the
     # thread under the page's lock, so it starts once the lock is given back.
     if opened and (generate := claim_harness(opened[1]).title_generator()):

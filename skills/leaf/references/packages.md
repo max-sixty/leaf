@@ -1034,7 +1034,7 @@ ids.
 <lf-builds id="release-builds" source="release-ci"></lf-builds>
 ```
 
-The host gathers the value; Leaf does not run a provider or fetch a package URL. Set a
+The harness gathers the value; Leaf does not run a provider or fetch a package URL. Set a
 complete value using the page's source id:
 
 ```bash

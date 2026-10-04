@@ -139,7 +139,7 @@ reading interface.
 ## First executable slice
 
 [`leaf_dev.usability_eval`](../dev/leaf_dev/usability_eval.py) owns the case definitions,
-fixture builder, controlled trajectories, and semantic scoring. The shared host
+fixture builder, controlled trajectories, and semantic scoring. The shared harness
 interface runs these on Claude Code or Codex and retains each native trace.
 Promptfoo owns arms, repetition, concurrency, assertions, and reports. The cases cover:
 
@@ -167,7 +167,7 @@ uv run leaf-dev eval short-chat-answer reading document/resume
 ```
 
 The default runs each selected case once against the merge base and working tree.
-Each sample includes all resumed phases or live feedback rounds, with a fresh selected-host
+Each sample includes all resumed phases or live feedback rounds, with a fresh selected-harness
 session and isolated state. Every declared check stays in the report, including
 missing rounds and incomplete phases, which fail instead of disappearing.
 Traces and fixture pages stay under `.tmp/eval/`; read the replies alongside

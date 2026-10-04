@@ -2,8 +2,8 @@
 
 Native tests keep native stateless providers. Tasks needing a directory or feedback
 name an executor; it owns its steps and semantic checks, not matrix or reporting.
-Contexts expand under task/context without dropping their distinct evidence. Host,
-Leaf revision and HTML condition are independent: HTML is sampled once per host,
+Contexts expand under task/context without dropping their distinct evidence. Harness,
+Leaf revision and HTML condition are independent: HTML is sampled once per harness,
 not once per Leaf revision. Every model sample has an isolated authenticated home.
 """
 
@@ -20,12 +20,12 @@ import click
 import yaml
 
 from leaf_dev import ROOT
-from leaf_dev.harness import base_ref, build_arm, claude_child, codex_home
+from leaf_dev.arms import base_ref, build_arm, claude_child, codex_home
 from leaf_dev.leaf_assets import pinned_copy
 from leaf_dev.promptfoo import output_directory, report, run
 
 ARMS = ("base", "candidate")
-HOSTS = ("cc", "codex")
+HARNESSES = ("cc", "codex")
 PACKAGE_INSTRUCTION_PATH = re.compile(
     r"packages/[a-z][a-z0-9-]*/instructions/[a-z][a-z0-9-]*(?:\\)?\.md"
 )
@@ -96,9 +96,9 @@ def read_case(case_file: Path, payload: Path) -> dict:
     return yaml.safe_load(PACKAGE_INSTRUCTION_PATH.sub(resolved, source))
 
 
-def provider(host: str, payload: Path, work: Path) -> dict:
+def provider(harness: str, payload: Path, work: Path) -> dict:
     """Native providers; only the supplied skill and local account login are shared."""
-    if host == "cc":
+    if harness == "cc":
         child = claude_child(work)
         return {
             "id": "anthropic:claude-agent-sdk",
@@ -161,13 +161,13 @@ def prepare(
     cases: list[str],
     arms: dict[str, Path],
     scratch: Path,
-    hosts: tuple[str, ...],
+    harnesses: tuple[str, ...],
     runs: int,
     *,
     out: Path | None = None,
     conditions: tuple[str, ...] = ("leaf",),
 ) -> dict:
-    """Build only meaningful host/condition/revision cells for selected tasks."""
+    """Build only meaningful harness/condition/revision cells for selected tasks."""
     definitions = catalog()
     tests, providers = [], []
     for address in cases:
@@ -211,18 +211,20 @@ def prepare(
                         assertion["value"] = (
                             f"file://{ROOT / 'evals' / value.removeprefix('file://')}"
                         )
-                for host in hosts:
-                    if host not in metadata.get("hosts", HOSTS):
+                for harness in harnesses:
+                    if harness not in metadata.get("harnesses", HARNESSES):
                         continue
                     for repetition in range(1, runs + 1):
-                        label = f"{host}/{arm}/{address}/{repetition}"
-                        work = scratch / "work" / host / arm / address / str(repetition)
+                        label = f"{harness}/{arm}/{address}/{repetition}"
+                        work = (
+                            scratch / "work" / harness / arm / address / str(repetition)
+                        )
                         work.mkdir(parents=True)
                         if executor:
                             evidence = (
                                 (out or scratch)
                                 / "samples"
-                                / host
+                                / harness
                                 / arm
                                 / address
                                 / str(repetition)
@@ -235,7 +237,7 @@ def prepare(
                                         str(Path.home() / ".claude"),
                                     ),
                                     "executor": executor,
-                                    "host": host,
+                                    "harness": harness,
                                     "condition": condition,
                                     "payload": str(payload),
                                     "pythonExecutable": sys.executable,
@@ -254,7 +256,7 @@ def prepare(
                                 shutil.copytree(
                                     images, work / "evals" / task, dirs_exist_ok=True
                                 )
-                            configured = provider(host, payload, work)
+                            configured = provider(harness, payload, work)
                             variables = {
                                 **source["vars"],
                                 "prompt": "Use the Leaf skill ($leaf in Codex; leaf:leaf in Claude Code).\n\n"
@@ -270,7 +272,7 @@ def prepare(
                                 "metadata": {
                                     **metadata,
                                     "case": address,
-                                    "host": host,
+                                    "harness": harness,
                                     "arm": arm,
                                     "condition": condition,
                                 },
@@ -278,8 +280,8 @@ def prepare(
                         )
     if not tests:
         raise click.BadParameter(
-            "selected cases have no requested host/condition",
-            param_hint="--host/--condition",
+            "selected cases have no requested harness/condition",
+            param_hint="--harness/--condition",
         )
     return {
         "description": "Leaf tasks",
@@ -306,7 +308,10 @@ def prepare(
 @click.argument("case_globs", metavar="[CASE]...", nargs=-1)
 @click.option("--base", help="Base ref; defaults to the merge base with main.")
 @click.option(
-    "--host", type=click.Choice([*HOSTS, "both"]), default="both", show_default=True
+    "--harness",
+    type=click.Choice([*HARNESSES, "both"]),
+    default="both",
+    show_default=True,
 )
 @click.option(
     "--condition",
@@ -316,9 +321,13 @@ def prepare(
 )
 @click.option("--runs", type=click.IntRange(min=1), default=1, show_default=True)
 def eval(
-    case_globs: tuple[str, ...], base: str | None, host: str, condition: str, runs: int
+    case_globs: tuple[str, ...],
+    base: str | None,
+    harness: str,
+    condition: str,
+    runs: int,
 ):
-    """Score CASE globs or task/context on both hosts and Leaf revisions."""
+    """Score CASE globs or task/context on both harnesses and Leaf revisions."""
     cases = select_cases(case_globs)
     out = output_directory("eval")
     with tempfile.TemporaryDirectory(prefix="leaf-eval-") as temporary:
@@ -332,7 +341,7 @@ def eval(
             cases,
             arms,
             scratch,
-            HOSTS if host == "both" else (host,),
+            HARNESSES if harness == "both" else (harness,),
             runs,
             out=out,
             conditions=("leaf", "html") if condition == "both" else (condition,),

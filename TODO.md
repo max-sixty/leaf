@@ -293,7 +293,7 @@ height and where a switch lands wait on the workspace decision under Layout.
 ### The agent's text interface
 
 - **Keep a blocked stop from hiding the agent's answer.** When Leaf's Stop hook blocks
-  a stop, the agent writes one more message, and where the host shows only the last
+  a stop, the agent writes one more message, and where the harness shows only the last
   message (Claude Code's focus mode) that message replaces the answer: a user who typed
   `/whereami` twice saw two notes about a missing watcher and never the briefing. #1502
   removed that trigger, since the hook now does the watching. **Unconfirmed:** check
@@ -347,7 +347,7 @@ height and where a switch lands wait on the workspace decision under Layout.
 
 Revisit these when their stated trigger becomes real; they are not an active queue.
 
-### Product and host ideas
+### Product and harness ideas
 
 - **Revisit a pin's icons if they read unclearly.** A pin shows the rail's outline
   icon in white on its fill, at 26px. A filled icon reads more clearly at that size,
@@ -364,10 +364,10 @@ Revisit these when their stated trigger becomes real; they are not an active que
   building a feed or presence on it.
 - **#23 — Workspace persistence:** use repeated real tasks to decide whether
   users return and how much customization Leaf should own.
-- **Visual review beside Leaf:** coordinate a real browser target through the host
+- **Visual review beside Leaf:** coordinate a real browser target through the harness
   when review work needs it; expand inspection only when focused workspaces fail a
   real task.
-- **Other hosts:** add a blocking `leaf wait` route when another agent host needs
+- **Other harnesses:** add a blocking `leaf wait` route when another agent harness needs
   foreground handoff.
 - **Decide whether an exported page carries its threads.** `leaf page
   export` writes a file that boots the page's own runtime offline, and that file

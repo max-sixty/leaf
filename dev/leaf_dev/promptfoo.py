@@ -14,7 +14,7 @@ from pathlib import Path
 import click
 
 from leaf_dev import ROOT
-from leaf_dev.harness import environment
+from leaf_dev.arms import environment
 
 
 def output_directory(suite: str) -> Path:
@@ -82,22 +82,22 @@ def summarize(result: dict) -> list[tuple[str, str, str, str]]:
     grouped: dict[tuple[str, str, str], list[dict]] = {}
     for row in result["results"]["results"]:
         metadata = row["testCase"]["metadata"]
-        key = (metadata["case"], metadata["host"], metadata["arm"])
+        key = (metadata["case"], metadata["harness"], metadata["arm"])
         grouped.setdefault(key, []).append(row)
     rows = []
-    for (case, host, arm), samples in sorted(grouped.items()):
+    for (case, harness, arm), samples in sorted(grouped.items()):
         passed = sum(sample["success"] for sample in samples)
         errors = sum(sample.get("failureReason") == 2 for sample in samples)
         count = f"{passed}/{len(samples)}"
         rows.append(
-            (case, host, arm, count + (f" ({errors} errors)" if errors else ""))
+            (case, harness, arm, count + (f" ({errors} errors)" if errors else ""))
         )
     return rows
 
 
 def report(result: dict, status: int, out: Path) -> None:
-    for case, host, arm, count in summarize(result):
-        click.echo(f"{case}  {host}  {arm}  {count}")
+    for case, harness, arm, count in summarize(result):
+        click.echo(f"{case}  {harness}  {arm}  {count}")
     click.echo(f"report: file://{out / 'report.html'}")
     if status:
         raise click.ClickException(f"Evaluation has failures; see {out / 'run.log'}")

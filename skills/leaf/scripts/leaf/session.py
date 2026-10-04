@@ -15,7 +15,7 @@ from typing import NamedTuple
 from .detached import StartRefused
 from .event_log import read_events
 from .files import file_stamp, next_reading, read_json
-from .host import Harness, claim_harness, session_harness
+from .harness import Harness, claim_harness, session_harness
 from .leases import release_lease, take_lease, waiter_lease_path
 from .locations import path_location, paths_same
 from .machine import state_home
@@ -483,7 +483,7 @@ def _ended_watch(readings: list[PageTick], page_dir: Path | None) -> int:
 
 
 def new_input_line(page_dir: Path) -> str:
-    """What a watch says on finding input where the host's prompt hook carries it
+    """What a watch says on finding input where the harness's prompt hook carries it
     into the turn: it only wakes the session."""
     return (
         f"{page_dir} has new input; Leaf's prompt hook puts it in your context with "
@@ -547,15 +547,15 @@ def _log_end(page_dir: Path) -> int:
 
 
 def watch_between_turns(harness: Harness) -> str | None:
-    """The session's watch run by the host's own Stop hook, which the host starts
+    """The session's watch run by the harness's own Stop hook, which the harness starts
     in the background as each turn ends (`Harness.watches_between_turns`), and
     what it wakes the session with, or None where it ends without waking it.
 
     It wakes the session for a page with new input, which the prompt hook then
     hands over as the turn the wake opens begins, and for live pages none of whose
     servers can be brought back. It ends silently where another watch already
-    holds the session's lease, no page is left to watch, or the host process that
-    started it has gone (`Harness.host_runs`), leaving the session's input to its
+    holds the session's lease, no page is left to watch, or the harness process that
+    started it has gone (`Harness.process_runs`), leaving the session's input to its
     `nudge`.
 
     Input that was already pending as the turn ended waits for the Stop hook
@@ -589,7 +589,7 @@ def watch_between_turns(harness: Harness) -> str | None:
         )
 
     try:
-        while harness.host_runs():
+        while harness.process_runs():
             mark = watch.mark()
             reading = read_watch_pass(
                 watch, None, lambda tick: woke.append(tick.page_dir), ready

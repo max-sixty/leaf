@@ -148,7 +148,7 @@ sequenceDiagram
   Agent-&gt;&gt;Leaf: authored files · commands
   Leaf-&gt;&gt;Browser: page + current state
   Browser-&gt;&gt;Leaf: comments · drags · picks
-  Leaf-&gt;&gt;Agent: the host's carrier brings the event batch
+  Leaf-&gt;&gt;Agent: the harness's carrier brings the event batch
 </pre>
             </lf-diagram>
           </section>
@@ -331,7 +331,7 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
           </section>
 
           <section id="delivery">
-            <h2>Each host delivers the same envelope</h2>
+            <h2>Each harness delivers the same envelope</h2>
             <p id="wait-trick">
               In Claude Code, a Leaf hook watches in the background from the end of each
               turn and wakes the agent when feedback arrives, and Leaf's prompt hook
@@ -340,7 +340,7 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
               queues it as the task's next message, or, where Leaf is a client of the
               task's Codex App Server, starts a turn with it. Every route carries a
               delivery of the same shape, which names the route and says who
-              acknowledges it. The host owns delivery, so an open page does not prove
+              acknowledges it. The harness owns delivery, so an open page does not prove
               that an agent received your comments.
             </p>
             <p id="receipt-work-response-lede">
@@ -658,7 +658,7 @@ flowchart LR
                 </tr>
                 <tr id="updates-observed-queued">
                   <td>Queued</td>
-                  <td>The agent's host queued it for the agent's next turn.</td>
+                  <td>The agent's harness queued it for the agent's next turn.</td>
                 </tr>
                 <tr id="updates-observed-picked">
                   <td>Picked up</td>
@@ -698,17 +698,17 @@ flowchart LR
                 <tr id="updates-observed-failed">
                   <td>Interrupted, Not answered</td>
                   <td>
-                    The host stopped the turn, or reported that it failed, before it
+                    The harness stopped the turn, or reported that it failed, before it
                     answered.
                   </td>
                 </tr>
               </tbody>
             </table>
-            <p id="updates-observed-hosts">
-              A label the agent's host does not report never appears. Queued comes from
+            <p id="updates-observed-harnesses">
+              A label the agent's harness does not report never appears. Queued comes from
               Codex's own queue. Replying, Interrupted, and Codex's step readings need
               Leaf connected to the task's Codex App Server, and Not answered needs a
-              host that records its failures, as the leaf.page website's does. Claude
+              harness that records its failures, as the leaf.page website's does. Claude
               Code tells Leaf when a turn ended and when it waits on a dialog.
             </p>
           </section>
@@ -767,7 +767,7 @@ flowchart LR
                 <strong>The turn.</strong> Leaf's hooks and carriers stamp a turn as it
                 opens and closes. An open turn is believed while something in it renewed
                 it within a quarter of an hour: its opening, a status, or a step the
-                host reports. Claude Code also publishes each session's state, which
+                harness reports. Claude Code also publishes each session's state, which
                 tells Leaf when a turn waits on a dialog such as a permission prompt,
                 and when a turn ended without a hook, so an interrupted turn reads as
                 ended the moment you press Escape.
@@ -808,7 +808,7 @@ flowchart TD
             </lf-diagram>
             <p id="updates-believed">
               Work is believed when a working status or <code>--on</code> line is still
-              inside the rule above, when the host reports a step for the running turn,
+              inside the rule above, when the harness reports a step for the running turn,
               or when a move that asks for an answer was delivered into the running
               turn. Input has stalled when it stayed Sent for two minutes, or when the
               turn that picked it up ended without answering it. Once a working reading
@@ -833,7 +833,7 @@ flowchart TD
                 <tr id="updates-reading-steps">
                   <td>Codex thinking, Codex using a tool, Claude waiting for you</td>
                   <td>
-                    The host reported what the session is doing now. Waiting for you,
+                    The harness reported what the session is doing now. Waiting for you,
                     for input, or for approval means the agent waits on you in its own
                     window, and the page announces it.
                   </td>
@@ -924,7 +924,7 @@ flowchart TD
                 <tr id="updates-notice-failure">
                   <td>Response failed, Response interrupted</td>
                   <td>
-                    The agent's host reports that an answer to you failed or stopped.
+                    The agent's harness reports that an answer to you failed or stopped.
                   </td>
                 </tr>
                 <tr id="updates-notice-active">

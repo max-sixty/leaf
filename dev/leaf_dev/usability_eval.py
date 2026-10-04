@@ -20,7 +20,7 @@ import click
 from leaf.service import requires_agent_attention
 
 from leaf_dev import ROOT
-from leaf_dev.harness import (
+from leaf_dev.arms import (
     URL,
     LiveChild,
     PageClient,
@@ -268,7 +268,7 @@ class Run:
     case: str
     payload: Path
     dir: Path
-    host: str = "cc"
+    harness: str = "cc"
 
     @property
     def state(self) -> Path:
@@ -645,7 +645,7 @@ def execute_live(run: Run, case: Case, work: Path, page: Path) -> None:
                 timed_out=run.dir / "timed-out",
                 dirs=[run.payload],
                 env={"XDG_STATE_HOME": str(run.state)},
-                host=run.host,
+                harness=run.harness,
             ) as child,
             (run.dir / "stream-1.jsonl").open("w") as stream,
         ):
@@ -740,7 +740,7 @@ def observed_active_turn(run: Run, page: Path, child) -> str | None:
     """
     state = page_state(run, page)
     turn = state["claim_turn"] if state["turn_closed"] is None else None
-    if run.host == "codex" and turn not in child.task.running:
+    if run.harness == "codex" and turn not in child.task.running:
         return None
     return turn
 
@@ -822,7 +822,7 @@ def execute_phases(run: Run, case: Case, work: Path, page: Path) -> None:
             err=run.dir / f"err-{phase}.txt",
             dirs=[run.payload],
             env={"XDG_STATE_HOME": str(run.state)},
-            host=run.host,
+            harness=run.harness,
         )
         session = trace_result(trace).get("session_id")
         if not session:
@@ -1745,13 +1745,13 @@ def execute_scenario(
     payload: Path,
     work: Path,
     *,
-    host: str = "cc",
+    harness: str = "cc",
     condition: str = "leaf",
 ) -> dict:
     """One Promptfoo provider call owns all phases, live rounds, and evidence."""
     if condition != "leaf":
         raise ValueError("Seeded Leaf state checks require the Leaf condition")
-    run = Run(case, payload, work, host)
+    run = Run(case, payload, work, harness)
     execute(run)
     traces = run.traces()
     phases = [trace_scores(t) for t in traces]

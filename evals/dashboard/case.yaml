@@ -33,5 +33,5 @@ variants:
         and clean control.
       conditions:
       - leaf
-      hosts:
+      harnesses:
       - cc

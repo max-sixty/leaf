@@ -25,7 +25,7 @@ from .delivery import (
     freeze_delivery,
     record_pickup,
 )
-from .host import Harness, claim_harness
+from .harness import Harness, claim_harness
 from .schema import (
     ANSWER_ASK_INSTRUCTION,
     PREVIEW_FILE,
@@ -154,7 +154,7 @@ def stop_continues(plans: list[PagePlan], *, repeated: bool) -> bool:
 def remedies(
     plans: list[PagePlan], handing: list[dict] = ()
 ) -> list[tuple[str, str | None]]:
-    """Format remedies from already-read facts, with host wording at the edge."""
+    """Format remedies from already-read facts, with harness wording at the edge."""
     handed = {
         (batch["page"], event["id"]) for batch in handing for event in batch["events"]
     }
@@ -250,7 +250,7 @@ HOOK_CONTEXT_LIMIT = 10_000
 
 
 def hook_acknowledgement(delivery_id: str) -> str:
-    """Only the reader can prove a host hook's context reached its turn."""
+    """Only the reader can prove a harness hook's context reached its turn."""
     return (
         "Once this complete delivery is in your context, confirm it with "
         f"`leaf delivery ack {delivery_id}`. Until then, the user's moves read Sent."
@@ -260,7 +260,7 @@ def hook_acknowledgement(delivery_id: str) -> str:
 def compose(batches: list[dict], attention: list[str]) -> str:
     """Publish one reader-confirmed envelope inline, or its exact pointer.
 
-    Hook completion cannot establish receipt: a host timeout discards stdout,
+    Hook completion cannot establish receipt: a harness timeout discards stdout,
     and large context may be truncated. The model acknowledges only after the
     complete immutable delivery reached its context on either path.
     """
@@ -336,7 +336,7 @@ def carry_turn(
         else []
     )
     # Publishing context proves no receipt. Its reader acknowledges the exact
-    # envelope after the host accepted this output into its turn.
+    # envelope after the harness accepted this output into its turn.
     message = compose(batches, attention)
     with flocked(session_lock_path(sid)):
         if session_record(sid) != expected:

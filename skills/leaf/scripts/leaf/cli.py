@@ -41,7 +41,7 @@ def _leaf_version(ctx: click.Context, _param: click.Parameter, value: bool) -> N
 def _leaf_root(ctx: click.Context, _param: click.Parameter, value: bool) -> None:
     """Print which copy of leaf this is, and stop.
 
-    A host session runs the payload its plugin cache holds, not the checkout,
+    A harness session runs the payload its plugin cache holds, not the checkout,
     and the two are only ever the same by accident: the cache is a snapshot from
     whenever the marketplace last swept, and `bin/leaf` is identical across
     versions, so a stale copy answers exactly like a current one. The payload
@@ -456,12 +456,12 @@ def events(dir: str, after: int, follow: bool) -> None:
 @click.argument("dir", metavar="PAGE")
 def claim(dir: str) -> None:
     """Make PAGE this session's, as a named `leaf wait PAGE` does before it
-    watches, for a host whose own hook watches between turns. A watch another
+    watches, for a harness whose own hook watches between turns. A watch another
     session runs stops watching it."""
     from leaf.service import claim_page
 
     if not claim_page(resolve_dir(dir)):
-        sys.exit("only an agent host session can claim a page")
+        sys.exit("only an agent harness session can claim a page")
 
 
 @page.command(short_help="Print the page's exchange as Markdown.")
@@ -473,7 +473,7 @@ def transcript(dir: str) -> None:
     cmd_transcript(resolve_dir(dir))
 
 
-@cli.group(short_help="Read input delivered by any Leaf host.")
+@cli.group(short_help="Read input delivered by any Leaf harness.")
 def delivery() -> None:
     """Handle transport-independent Leaf deliveries."""
 
@@ -618,7 +618,7 @@ def serve_flags(command):
 def start(dir: str, host: str | None, standing: bool) -> None:
     """Start a page's server and print its URL.
 
-    Returns once the server and this host's feedback route are ready; the server itself keeps running in a
+    Returns once the server and this harness's feedback route are ready; the server itself keeps running in a
     session of its own. `leaf server stop` takes one down, and a session server
     goes down with the session that claimed it besides. A page already served
     reconnects delivery and prints that server's URL. `--standing` claims no
@@ -1010,7 +1010,7 @@ def task_end(dir: str, task_id: str, outcome: str, detail: str | None) -> None:
     help="Watch the session's pages until input, printing what wakes the session.",
 )
 def hook(watch: bool) -> None:
-    """Answer an agent-host hook on stdin."""
+    """Answer an agent-harness hook on stdin."""
     from leaf.hooks import main
 
     main(watch=watch)
@@ -1018,7 +1018,7 @@ def hook(watch: bool) -> None:
 
 @cli.command(hidden=True)
 def session_end() -> None:
-    """Release ownership for the host's SessionEnd payload on stdin."""
+    """Release ownership for the harness's SessionEnd payload on stdin."""
     from leaf.state import main
 
     main()

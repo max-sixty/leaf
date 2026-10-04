@@ -74,8 +74,8 @@ from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
 from leaf import events as event_folds_model
 from leaf import files as files_model
+from leaf import harness as harness_model
 from leaf import hooks as hooks_model
-from leaf import host as host_model
 from leaf import media as media_model
 from leaf import page_view as page_view_model
 from leaf import passages as passages_model
@@ -3830,7 +3830,7 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
     capsys.readouterr()
     assert session_model.cmd_wait(page_dir) == 0
     assert "has new input" in capsys.readouterr().out
-    envelope = consume_pending_input(host_model.session_harness().session)
+    envelope = consume_pending_input(harness_model.session_harness().session)
     record = json.loads(logged)
     [batch] = envelope["batches"]
     [delivered] = batch["events"]
@@ -3932,7 +3932,7 @@ page's path are pinned, so the file stays the same from run to run.
 A carrier is the route that takes new user input to the agent's task:
 
   leaf wait          The agent runs `leaf wait` in the background. It prints
-                     the delivery as JSON and exits, and the host hands that
+                     the delivery as JSON and exits, and the harness hands that
                      output to the agent as the command's result, which wakes
                      it. The agent acknowledges the delivery itself, with
                      `leaf wait --ack <delivery-id>`, and answers with
@@ -3964,7 +3964,7 @@ all four, and it names its `carrier`. Two things differ, each stated once:
 carrier confirmed it; and the comment's `answer` is a `reply`, for `leaf thread reply`,
 except on App Server, where it is a `turn` the turn's own messages write. The
 `handling` follows from the answer, so each agent is told only its own route.
-The agent's standing instructions (its host contract, and on leaf.page the
+The agent's standing instructions (its harness contract, and on leaf.page the
 developer instructions) are not part of a delivery; test_website_server records
 leaf.page's.
 
@@ -4017,7 +4017,7 @@ def test_each_carrier_hands_the_agent_what_the_snapshot_shows(
     session_model.cmd_status(page_dir, "waiting", "")
     capsys.readouterr()
     # A bare shell's wait, the printing kind, which claims nothing.
-    session = host_model.session_harness().session
+    session = harness_model.session_harness().session
     for name in ("CLAUDE_CODE_SESSION_ID", "CLAUDE_PID"):
         monkeypatch.delenv(name)
     assert session_model.cmd_wait(page_dir) == 0
@@ -4039,7 +4039,7 @@ def test_each_carrier_hands_the_agent_what_the_snapshot_shows(
 
     thread = "codex-thread"
     prepared = codex_model.prepare_codex_delivery(
-        page_dir, host_model.EmbeddedHarness(thread, "Codex", os.getpid())
+        page_dir, harness_model.EmbeddedHarness(thread, "Codex", os.getpid())
     )
     started = codex_model.app_server_turn_start_params(thread, prepared.payload)
     delivery_model.cmd_delivery_read(prepared.payload["id"])
@@ -4230,7 +4230,9 @@ def test_event_kinds_are_the_kernel_contract_not_a_layer_extension(page_dir, tmp
         registry_validation.validate_registry(registry, "incoming")
 
 
-def test_an_empty_host_name_uses_the_host_default(page_dir, sessionless, monkeypatch):
+def test_an_empty_agent_name_uses_the_harness_default(
+    page_dir, sessionless, monkeypatch
+):
     published(page_dir)
     monkeypatch.setenv("LEAF_SESSION_ID", "worker-1")
     monkeypatch.setenv("LEAF_AGENT", "")

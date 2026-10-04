@@ -39,8 +39,8 @@ from playwright.sync_api import APIResponse, BrowserContext, Page
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
 from leaf_dev import ROOT
+from leaf_dev.arms import codex_home, copy_working, environment, run_directory
 from leaf_dev.browser import chrome
-from leaf_dev.harness import codex_home, copy_working, environment, run_directory
 from leaf_dev.site import asset_site
 from leaf_dev.startup import observe_startup as record_startup
 from leaf_dev.startup import startup_reading
@@ -593,12 +593,12 @@ def startup_failed(replies: list[dict]) -> bool:
 
 
 def turn_failed(replies: list[dict]) -> bool:
-    """Whether the host closed the turn with one of its failure receipts."""
+    """Whether the harness closed the turn with one of its failure receipts."""
     return any("failure" in reply for reply in replies)
 
 
 def deployment_answer(replies: list[dict]) -> dict | None:
-    """Return a real agent reply rather than a host-generated failure receipt."""
+    """Return a real agent reply rather than a harness-generated failure receipt."""
     return next((reply for reply in replies if "failure" not in reply), None)
 
 
@@ -759,7 +759,7 @@ def await_turn(
         if published is not None and answer is not None:
             profile.mark("answered")
             break
-        # A host failure receipt closes the turn; otherwise either half of a success
+        # A harness failure receipt closes the turn; otherwise either half of a success
         # can arrive first, so one waits for the other.
         if turn_failed(replies):
             break

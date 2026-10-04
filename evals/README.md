@@ -5,10 +5,10 @@ One task catalog runs through Promptfoo on Claude Code and Codex. Start small:
 ```sh
 npm ci --prefix evals
 uv run leaf-dev eval brief-document-needs-no-outline
-uv run leaf-dev eval reading --host codex
+uv run leaf-dev eval reading --harness codex
 uv run leaf-dev eval document --condition both
-uv run leaf-dev eval document/mid-turn --host both --runs 2
-uv run leaf-dev eval dashboard/reader --host cc
+uv run leaf-dev eval document/mid-turn --harness both --runs 2
+uv run leaf-dev eval dashboard/reader --harness cc
 ```
 
 `leaf-dev eval [CASE]...` accepts case globs or a task/context address. No argument
@@ -17,16 +17,16 @@ its complete workflow; `document/*` selects its isolated diagnostic contexts.
 `reading` asks about every reading surface together; `reading/plain` isolates one.
 Grouping contexts saves catalog duplication, not model calls.
 
-The defaults are both hosts, one repetition, and Leaf at the merge base with
+The defaults are both harnesses, one repetition, and Leaf at the merge base with
 `main` versus the working tree. `--base REF` selects another baseline. `--condition
 html` runs an available plain HTML control; `--condition both` runs it beside the
-Leaf revisions. HTML is sampled once per host and repetition, because it does not
+Leaf revisions. HTML is sampled once per harness and repetition, because it does not
 consume Leaf's version. Cases without an HTML condition run only on Leaf. A
 selection with no requested condition fails before executing model calls.
 
 Every sample gets a fresh workspace and authenticated home outside the repository.
 Claude Code uses Opus; Codex uses `gpt-6.1-sol` at medium reasoning. Native rubric
-assertions use the same Sonnet judge for either author host; complete composition
+assertions use the same Sonnet judge for either author harness; complete composition
 workflows also use a fixed judge. Runs spend the signed-in accounts' usage.
 
 Results, generated config, native traces, page evidence and an HTML report go under
@@ -71,16 +71,16 @@ coverage.
 Plain HTML and Leaf receive the same user request, data, revision and quality
 criteria; the HTML agent receives no Leaf skill, runtime or widgets. Composition
 checks judge the resulting page, not just a promised action. Leaf-only checks are
-only generated for the Leaf condition. Host and model vary together, so a CC/Codex
+only generated for the Leaf condition. Harness and model vary together, so a CC/Codex
 comparison measures the combined author configuration.
 
 `dashboard/reader` independently calibrates the fixed Claude reader using the
 shipped triage-board example: a seeded counting defect beside its corrected count control. It scores count
 detection and false alarms; general usability verdicts remain diagnostics. Accepting
 the count control does not establish that the entire page satisfies the request.
-It uses host CC and the Leaf condition; both Leaf revisions render the controls.
+It uses harness CC and the Leaf condition; both Leaf revisions render the controls.
 It does not test the dashboard author. Selecting only Codex for this calibration
-fails selection. Author comparisons still support both hosts.
+fails selection. Author comparisons still support both harnesses.
 
 ## Assertions and evidence
 
@@ -101,8 +101,8 @@ against independent judgments.
 
 `dev/leaf_dev/eval.py` owns catalog selection and the meaningful matrix.
 `promptfoo.py` owns native invocation and reporting. `scenario_provider.py` forwards
-one complete task to its declared executor with an explicit host and condition.
-Host sessions are shared by those executors rather than reimplemented per task.
+one complete task to its declared executor with an explicit harness and condition.
+Harness sessions are shared by those executors rather than reimplemented per task.
 
 ```sh
 npm test --prefix evals

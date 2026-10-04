@@ -5,7 +5,7 @@ Everything here is bound to the machine rather than to a page. The state home
 holds this machine's claims, leases, page records, packages, and serving key,
 while the process readings say whether a pid a record names still runs and
 which programs run above this one — the walk a Codex session's lifetime comes
-from when its host states no pid.
+from when its harness states no pid.
 
 psutil owns the process readings. It asks the kernel directly, which is what
 these need: the portable tool is `ps`, macOS ships it setuid root, and the

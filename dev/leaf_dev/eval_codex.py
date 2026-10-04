@@ -175,7 +175,7 @@ class CodexChild:
     """
 
     def __init__(self, cwd, prompt, *args, stderr, limit, timed_out, dirs=(), env=None):
-        from leaf_dev.harness import codex_home, environment, now
+        from leaf_dev.arms import codex_home, environment, now
 
         self.cwd, self.prompt = cwd, prompt
         self.stderr, self.timed_out = stderr, timed_out
@@ -245,7 +245,7 @@ class CodexChild:
                         "input_tokens": self.usage["inputTokens"],
                         "output_tokens": self.usage["outputTokens"],
                     }
-            self.queue.append({**record, "host": "codex", "received_at": self.now()})
+            self.queue.append({**record, "harness": "codex", "received_at": self.now()})
 
     def __enter__(self):
         self.stderr.write_text("")

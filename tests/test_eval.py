@@ -110,8 +110,8 @@ def test_missing_instruction_reference_fails_preparation_without_rewriting_case(
     assert case.read_text() == source
 
 
-def test_native_matrix_isolates_every_host_arm_and_repetition(tmp_path, monkeypatch):
-    login = tmp_path / "host-login"
+def test_native_matrix_isolates_every_harness_arm_and_repetition(tmp_path, monkeypatch):
+    login = tmp_path / "harness-login"
     login.mkdir()
     (login / "auth.json").write_text('{"fixture": "local-login"}')
     monkeypatch.setenv("CODEX_HOME", str(login))
@@ -138,9 +138,9 @@ def test_native_matrix_isolates_every_host_arm_and_repetition(tmp_path, monkeypa
     assert len(workspaces) == 8
     homes = []
     for provider in config["providers"]:
-        host, arm, _, _ = provider["label"].split("/")
+        harness, arm, _, _ = provider["label"].split("/")
         settings = provider["config"]
-        if host == "cc":
+        if harness == "cc":
             homes.append(settings["env"]["HOME"])
             assert settings["plugins"][0]["path"] == str(arms[arm])
             assert settings["setting_sources"] == []
@@ -166,19 +166,19 @@ def test_native_matrix_isolates_every_host_arm_and_repetition(tmp_path, monkeypa
         ]
 
 
-def test_summary_distinguishes_host_arm_and_execution_errors():
+def test_summary_distinguishes_harness_arm_and_execution_errors():
     result = {
         "results": {
             "results": [
                 {
                     "testCase": {
-                        "metadata": {"host": "cc", "arm": "base", "case": "example"}
+                        "metadata": {"harness": "cc", "arm": "base", "case": "example"}
                     },
                     "success": True,
                 },
                 {
                     "testCase": {
-                        "metadata": {"host": "cc", "arm": "base", "case": "example"}
+                        "metadata": {"harness": "cc", "arm": "base", "case": "example"}
                     },
                     "success": False,
                     "failureReason": 1,
@@ -186,7 +186,7 @@ def test_summary_distinguishes_host_arm_and_execution_errors():
                 {
                     "testCase": {
                         "metadata": {
-                            "host": "codex",
+                            "harness": "codex",
                             "arm": "candidate",
                             "case": "example",
                         }
@@ -295,15 +295,15 @@ def test_workflow_matrix_selects_meaningful_conditions_and_routes_fixed_checks(
         configured = next(
             p for p in config["providers"] if p["label"] == test["providers"][0]
         )["config"]
-        assert configured["host"] == metadata["host"]
+        assert configured["harness"] == metadata["harness"]
         assert configured["condition"] == metadata["condition"]
         assert Path(test["vars"]["work"]).is_relative_to(tmp_path / "results")
     assert sum(test["metadata"]["arm"] == "html" for test in config["tests"]) == 4
-    with pytest.raises(click.BadParameter, match="no requested host/condition"):
+    with pytest.raises(click.BadParameter, match="no requested harness/condition"):
         prepare(["reading"], arms, tmp_path, ("cc",), 1, conditions=("html",))
 
 
-def test_python_provider_routes_host_condition_and_case_without_parsing_prompt(
+def test_python_provider_routes_harness_condition_and_case_without_parsing_prompt(
     tmp_path,
     monkeypatch,
 ):
@@ -313,8 +313,8 @@ def test_python_provider_routes_host_condition_and_case_without_parsing_prompt(
 
     class Executor:
         @staticmethod
-        def execute_scenario(case, payload, out, *, host, condition):
-            observed.append((case, payload, out, host, condition))
+        def execute_scenario(case, payload, out, *, harness, condition):
+            observed.append((case, payload, out, harness, condition))
             return {"output": '{"checks":{"completed":true}}'}
 
     monkeypatch.setattr(scenario_provider, "import_module", lambda executor: Executor)
@@ -323,7 +323,7 @@ def test_python_provider_routes_host_condition_and_case_without_parsing_prompt(
             "executor": "leaf_dev.journey_eval",
             "payload": str(tmp_path / "payload"),
             "claude_config_dir": str(tmp_path / "login"),
-            "host": "codex",
+            "harness": "codex",
             "condition": "html",
         }
     }
@@ -348,12 +348,12 @@ def test_fixed_reader_calibration_compares_runtime_evidence_with_one_judge(tmp_p
         conditions=("leaf", "html"),
     )
     assert len(config["tests"]) == len(config["providers"]) == 2
-    assert {test["metadata"]["host"] for test in config["tests"]} == {"cc"}
+    assert {test["metadata"]["harness"] for test in config["tests"]} == {"cc"}
     assert {test["metadata"]["arm"] for test in config["tests"]} == {
         "base",
         "candidate",
     }
-    with pytest.raises(click.BadParameter, match="no requested host/condition"):
+    with pytest.raises(click.BadParameter, match="no requested harness/condition"):
         prepare(
             ["dashboard/reader"], arms, tmp_path, ("codex",), 1, conditions=("leaf",)
         )

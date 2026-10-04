@@ -1,6 +1,6 @@
 """Native Promptfoo Python provider for a catalog task's complete workflow.
 
-Executors own the steps and fixed checks. The catalog supplies explicit host,
+Executors own the steps and fixed checks. The catalog supplies explicit harness,
 condition, payload and evidence addresses; errors remain provider errors.
 """
 
@@ -17,6 +17,6 @@ def call_api(prompt: str, options: dict, context: dict) -> dict:
         variables["case"],
         Path(config["payload"]),
         Path(variables["work"]),
-        host=config["host"],
+        harness=config["harness"],
         condition=config["condition"],
     )

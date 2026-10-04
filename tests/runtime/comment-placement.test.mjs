@@ -154,24 +154,47 @@ test("a growing card holds its top while read and its foot for the turn that joi
     return edge;
   };
   const turn = (key, author) => ({ key, author });
-  assert.equal(place({ transcript: 100, drafting: false, latest: turn("a", "agent") }), "top");
+  assert.equal(
+    place({ transcript: 100, drafting: false, latest: turn("a", "agent") }),
+    "top",
+  );
   // The user starts a reply: its first line holds the top.
   assert.equal(
-    place({ transcript: 100, drafting: true, latest: turn("a", "agent"), draftText: "Hi" }),
+    place({
+      transcript: 100,
+      drafting: true,
+      latest: turn("a", "agent"),
+      draftText: "Hi",
+    }),
     "top",
   );
   // An agent turn joins while they draft: the reply row holds, keyed to that turn.
   assert.equal(
-    place({ transcript: 160, drafting: true, latest: turn("b", "agent"), draftText: "Hi" }),
+    place({
+      transcript: 160,
+      drafting: true,
+      latest: turn("b", "agent"),
+      draftText: "Hi",
+    }),
     "foot",
   );
   assert.equal(
-    place({ transcript: 160, drafting: true, latest: turn("b", "agent"), draftText: "Hi" }),
+    place({
+      transcript: 160,
+      drafting: true,
+      latest: turn("b", "agent"),
+      draftText: "Hi",
+    }),
     "foot",
   );
   // A new edit releases it.
   assert.equal(
-    place({ transcript: 160, drafting: true, latest: turn("b", "agent"), draftText: "Hi!" }),
+    place({
+      transcript: 160,
+      drafting: true,
+      latest: turn("b", "agent"),
+      draftText: "Hi!",
+    }),
     "top",
   );
   assert.deepEqual(card.heldAt("top"), { top: -8 });

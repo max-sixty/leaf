@@ -36,8 +36,8 @@
             </dl>
             <p>
               Forty-four of the 47 pages came within three minutes of a deploy, while
-              the restarting canary missed one probe; the 10:00, 14:00 and 18:00
-              trains alone account for 39. It was never down long enough to act on.
+              the restarting canary missed one probe; the 10:00, 14:00 and 18:00 trains
+              alone account for 39. It was never down long enough to act on.
             </p>
             <lf-chart id="ar-canary-hours" data-height="200">
               <pre>
@@ -79,13 +79,12 @@
               <lf-option id="ar-canary-suppress">
                 <lf-chip>last week: 3 pages</lf-chip>
                 <strong>Mute for five minutes after each deploy</strong> Keeps
-                single-probe sensitivity between trains, but depends on deploy
-                events arriving on time.
+                single-probe sensitivity between trains, but depends on deploy events
+                arriving on time.
               </lf-option>
               <lf-option id="ar-canary-keep">
                 <lf-chip>last week: 47 pages</lf-chip>
-                <strong>Keep paging on one failed probe</strong> No change to the
-                rule.
+                <strong>Keep paging on one failed probe</strong> No change to the rule.
               </lf-option>
             </lf-options>
           </lf-ask>
@@ -97,9 +96,7 @@
         >
           <lf-ask id="ar-latency-decision">
             <h4>What should the latency alert page on?</h4>
-            <p>
-              Checkout's latency objective is 1.2 seconds at p99 over ten minutes.
-            </p>
+            <p>Checkout's latency objective is 1.2 seconds at p99 over ten minutes.</p>
             <dl class="facts">
               <dt>Rule</dt>
               <dd><code>checkout_latency_p99_high</code></dd>
@@ -109,16 +106,16 @@
               <dd>31, one of which needed a person</dd>
             </dl>
             <p>
-              Most pages came from the lunchtime traffic peak and recovered on their
-              own in a median of four minutes. The one real page was Thursday's
-              database failover, which the 5xx alert also caught a minute earlier.
+              Most pages came from the lunchtime traffic peak and recovered on their own
+              in a median of four minutes. The one real page was Thursday's database
+              failover, which the 5xx alert also caught a minute earlier.
             </p>
             <lf-options id="ar-latency-choice" choose>
               <lf-option id="ar-latency-objective">
                 <lf-chip>last week: 1 page</lf-chip>
                 <lf-chip tone="ok">recommended</lf-chip>
-                <strong>Page on the objective itself</strong> 1.2 seconds sustained
-                for ten minutes; peaks that recover stop paging.
+                <strong>Page on the objective itself</strong> 1.2 seconds sustained for
+                ten minutes; peaks that recover stop paging.
               </lf-option>
               <lf-option id="ar-latency-hours">
                 <lf-chip>last week: 12 pages</lf-chip>
@@ -139,9 +136,7 @@
         >
           <lf-ask id="ar-webhooks-decision">
             <h4>What should the webhook alert measure?</h4>
-            <p>
-              Depth tracks partner traffic; age tracks whether we are keeping up.
-            </p>
+            <p>Depth tracks partner traffic; age tracks whether we are keeping up.</p>
             <dl class="facts">
               <dt>Rule</dt>
               <dd><code>webhook_queue_depth_high</code></dd>
@@ -152,21 +147,20 @@
             </dl>
             <p>
               Twenty pages were one partner's bulk retries, which drained within ten
-              minutes each time. The two that mattered were Wednesday's stuck
-              consumer: the queue was short, but its oldest delivery was 40 minutes
-              old.
+              minutes each time. The two that mattered were Wednesday's stuck consumer:
+              the queue was short, but its oldest delivery was 40 minutes old.
             </p>
             <lf-options id="ar-webhooks-choice" choose>
               <lf-option id="ar-webhooks-age">
                 <lf-chip>last week: 2 pages</lf-chip>
                 <lf-chip tone="ok">recommended</lf-chip>
-                <strong>Page on the oldest delivery's age</strong> Ten minutes old
-                trips it; a burst that drains does not.
+                <strong>Page on the oldest delivery's age</strong> Ten minutes old trips
+                it; a burst that drains does not.
               </lf-option>
               <lf-option id="ar-webhooks-depth">
                 <lf-chip>last week: 6 pages</lf-chip>
-                <strong>Raise the depth to 20,000</strong> Fewer burst pages, and
-                still blind to a stuck consumer on a short queue.
+                <strong>Raise the depth to 20,000</strong> Fewer burst pages, and still
+                blind to a stuck consumer on a short queue.
               </lf-option>
               <lf-option id="ar-webhooks-keep">
                 <lf-chip>last week: 22 pages</lf-chip>
@@ -192,9 +186,9 @@
               <dd>18, none of which needed a person</dd>
             </dl>
             <p>
-              Every page fell between 01:00 and 03:00 UTC, while the nightly
-              settlement batch holds the ledger lock. The lag cleared by 03:20 each
-              night without anyone touching it.
+              Every page fell between 01:00 and 03:00 UTC, while the nightly settlement
+              batch holds the ledger lock. The lag cleared by 03:20 each night without
+              anyone touching it.
             </p>
             <lf-chart id="ar-export-hours" data-height="220">
               <pre>
@@ -261,14 +255,14 @@
             </dl>
             <p>
               Autovacuum reclaimed the space within the hour every time. Growth is
-              already tracked in the monthly capacity review, and the 95% critical
-              alert on the same disk stays either way.
+              already tracked in the monthly capacity review, and the 95% critical alert
+              on the same disk stays either way.
             </p>
             <lf-options id="ar-disk-choice" choose>
               <lf-option id="ar-disk-delete">
                 <lf-chip tone="ok">recommended</lf-chip>
-                <strong>Delete it</strong> The capacity review and the 95% alert
-                cover the disk.
+                <strong>Delete it</strong> The capacity review and the 95% alert cover
+                the disk.
               </lf-option>
               <lf-option id="ar-disk-ninety">
                 <strong>Raise it to 90%</strong> Leaves an hour's warning before the
@@ -304,12 +298,12 @@
             <lf-options id="ar-cert-choice" choose>
               <lf-option id="ar-cert-platform">
                 <lf-chip tone="ok">recommended</lf-chip>
-                <strong>Route it to Platform's queue</strong> The team that can
-                renew it sees it; payments stops paging.
+                <strong>Route it to Platform's queue</strong> The team that can renew it
+                sees it; payments stops paging.
               </lf-option>
               <lf-option id="ar-cert-both">
-                <strong>Page both teams until it renews</strong> Payments keeps
-                waking up for a fix it cannot make.
+                <strong>Page both teams until it renews</strong> Payments keeps waking
+                up for a fix it cannot make.
               </lf-option>
             </lf-options>
           </lf-ask>
@@ -338,12 +332,11 @@
             <lf-options id="ar-settlement-choice" choose>
               <lf-option id="ar-settlement-retry">
                 <lf-chip tone="ok">recommended</lf-chip>
-                <strong>Page when the retry fails too</strong> Real failures arrive
-                five minutes later.
+                <strong>Page when the retry fails too</strong> Real failures arrive five
+                minutes later.
               </lf-option>
               <lf-option id="ar-settlement-keep">
-                <strong>Keep paging on the first failure</strong> No change to the
-                rule.
+                <strong>Keep paging on the first failure</strong> No change to the rule.
               </lf-option>
             </lf-options>
           </lf-ask>
@@ -448,12 +441,11 @@
             <lf-options id="ar-3ds-choice" choose>
               <lf-option id="ar-3ds-spread">
                 <lf-chip tone="ok">recommended</lf-chip>
-                <strong>Page when three or more issuers fail</strong> A single
-                bank's outage opens a ticket instead.
+                <strong>Page when three or more issuers fail</strong> A single bank's
+                outage opens a ticket instead.
               </lf-option>
               <lf-option id="ar-3ds-keep">
-                <strong>Keep paging on the overall rate</strong> No change to the
-                rule.
+                <strong>Keep paging on the overall rate</strong> No change to the rule.
               </lf-option>
             </lf-options>
           </lf-ask>

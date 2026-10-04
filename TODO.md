@@ -114,6 +114,15 @@ and its chrome coordinate.
   margin thread card's reply, with its target in a pane that scrolls on its own, moves
   the whole card (`shift_watch.js`: "typing in leaf-text moved
   aside#lf-margin-preview"), on `main` too.
+- **Decide whether a thread card may cover the margin rail.** A card beside its
+  target starts right of the target's margin marker whenever the room past the marker
+  still holds the card's minimum width (`comment-placement.js`, where `options` reads
+  `margin`), so the marker stays visible. The card therefore opens well right of the
+  text and narrower than it could be; starting it beside the text would cover the
+  rail's markers for as long as it is open. Weigh that trade, then settle how Leaf
+  states which elements a floating surface may cover. Today each placement names the
+  boxes it keeps clear of (`clear`, `margin`) in its own code, so no element can declare
+  that it may be covered, or must never be.
 - **Give the phone banner one row.** Decided, not built
   ([plan](notes/chrome-and-covers.md)): one 53px row holding the status in words, cut
   short with an ellipsis, with a passing notice taking that slot for a few seconds;

@@ -29,7 +29,9 @@
     const started = sessionStorage.getItem(visibleReplyStartedKey);
     if (started === null || visibleReplyObservers) return;
 
-    const seen = new WeakSet();
+    // A streamed draft and its durable answer reuse the same message node. Observing
+    // that node once would keep the stream's id even after its data-mid changes.
+    const seen = new WeakMap();
     const intersections = new IntersectionObserver((entries) => {
       const replies = visibleReplies();
       for (const { isIntersecting, target } of entries) {
@@ -52,10 +54,11 @@
         ".lf-threads .lf-msg.agent[data-mid]",
       )) {
         if (
-          !seen.has(message) &&
+          seen.get(message) !== message.dataset.mid &&
           message.querySelector(".lf-msg-text")?.textContent.trim()
         ) {
-          seen.add(message);
+          if (seen.has(message)) intersections.unobserve(message);
+          seen.set(message, message.dataset.mid);
           intersections.observe(message);
         }
       }

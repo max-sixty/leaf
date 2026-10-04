@@ -26,17 +26,16 @@ Every carrier presents an immutable object of the same shape:
 The id is eight lowercase hexadecimal characters and addresses this envelope in the
 machine's immutable delivery store.
 
-Some hosts deliver it inline; others deliver a pointer that `leaf delivery read <id>`
-resolves to the same object. Your host contract names which. The shape is the same on
+Some harnesses deliver it inline; others deliver a pointer that `leaf delivery read <id>`
+resolves to the same object. Your harness contract names which. The shape is the same on
 every carrier, and `carrier` names the one that delivered it: `wait` for `leaf
-wait`'s output, `hook` for the context a host hook adds to the turn it opens,
-`queue` for a pointer Codex queued, `app-server` for a turn Leaf started. Two things differ by carrier, and the envelope states each once:
+wait`'s output, `hook` for the context a harness hook adds to the turn it opens,
+`queue` for a pointer Codex queued, `app-server` for a turn Leaf started. The envelope states receipt and response routes once:
 
-- `acknowledge` says who confirms receipt and how. On `wait` it is the reader of
-  wait, in the way your host runs the next one. On `hook`, its reader confirms
-  with `leaf delivery ack <id>` after the complete envelope is in context,
-  whether it arrived inline or through `leaf delivery read <id>`. On `queue`
-  and `app-server`, the durable consumer confirmed receipt and it is `null`.
+- `acknowledge` says how to confirm receipt after the complete envelope is in
+  context. Follow that instruction, not a rule inferred from `carrier`. When it
+  is `null`, your harness confirms receipt; run no separate acknowledgement command.
+  Your harness contract explains its mechanism.
 - A thread reply's `answer` is `turn` on `app-server`, whose turn writes it with
   its own messages, and `reply`, for `leaf thread reply`, everywhere else.
 
@@ -62,7 +61,7 @@ retry key `attempt`, then adds these delivery readings:
 - `answer`, when present, freezes the answer the event owed at capture: its
   `kind` (`reply`, `turn` or `markup`) with the address it is written
   under, the same object `leaf page state` lists for the move's workflow. The
-  event's `answering` clauses say how to write it. Until the answer is written,
+  event's `handling` clauses say how to write it. Until the answer is written,
   `leaf status idle` refuses, and the Stop hook holds the turn open unless that turn
   claimed the move's work (`references/conversation-loop.md`, "Long-running work").
   Re-read current state before writing because later evidence may already have
@@ -88,17 +87,17 @@ only for raw-log diagnostics. `leaf page transcript
 <page>` is the human-facing Markdown export.
 
 Long-thread context may include `summary_hint`, naming a contiguous message range to
-summarize, and a reply in that thread carries a `handling` clause asking for it.
-Treat it as navigation maintenance alongside the user's request, not a request to
-resolve the thread. Follow
+summarize, and new input in that thread carries a `handling` clause suggesting it.
+Choose whether and when it would help the user; it adds no response obligation and
+does not resolve the thread. To write a summary, follow
 [threads](threads.md#summarize-a-long-discussion): read
 the covered originals, write the summary, and keep outcomes in the document.
 
 ## Delivery and acknowledgement
 
-Printing and hook completion are not receipt. Follow the envelope's
-`acknowledge` only after every batch is in context: a hook delivery uses
-`leaf delivery ack <id>`, while a direct wait uses the host's next wait:
+Printing and hook completion are not receipt. Once every batch is in context,
+follow the envelope's `acknowledge` instruction. A reader-confirmed hook names
+`leaf delivery ack <id>`; a direct wait names the harness's next wait:
 
 ```bash
 leaf wait --ack <delivery-id>
@@ -114,19 +113,19 @@ the events. `leaf page events` reads the
 full log without acking it.
 
 Receipt and work have separate evidence. Confirming a direct delivery records its
-moves as **Picked up** in the current turn. Other hosts record that opening when
+moves as **Picked up** in the current turn. Other harnesses record that opening when
 they observe the delivery entering a turn. Leaf derives overall page activity from
 that evidence. Naming the move's thread or widget with `leaf status … --on`
 ([conversation handoff](conversation-loop.md#status-and-handoff)) strengthens its
 receipt to **Working** while it remains outstanding. That neither acknowledges the
 delivery nor answers the move.
 
-Whatever the host, treat a page-and-sequence pair already handled in this task as a
-retry, even if a later delivery also includes newer events; your host contract owns
+Whatever the harness, treat a page-and-sequence pair already handled in this task as a
+retry, even if a later delivery also includes newer events; your harness contract owns
 the wait and acknowledgement route.
 
 `leaf wait` ends one of two ways: exit 0 with the next input, or exit 2 with the
-ending named on stderr. The input is one JSON envelope, or, where the host's hook
+ending named on stderr. The input is one JSON envelope, or, where the harness's hook
 carries input, one line naming the page with new input. Exit 1 from `leaf wait
 --ack` means the acknowledgement was refused. A wait that restarted a dead server
 says so on stderr. The exit 2 endings:
@@ -145,17 +144,17 @@ says so on stderr. The exit 2 endings:
 - another `leaf wait` is already active: that process holds the session's lease.
   Leave it running rather than starting another.
 
-Empty stdout alone is not evidence that the host stopped the process, and no reason
-to run a named wait again. Resume with an unnamed wait only when the host itself
-reports that it canceled or killed the command, or on a signal your host contract
+Empty stdout alone is not evidence that the harness stopped the process, and no reason
+to run a named wait again. Resume with an unnamed wait only when the harness itself
+reports that it canceled or killed the command, or on a signal your harness contract
 names.
 
 ## After the batch
 
 Acknowledgement is transport receipt, not semantic settlement. Write every
 still-current `answer` with the operation its kind names, naming the work each one
-starts with a `working` status as its `answering` clauses say
-(`references/conversation-loop.md`, "When to write"), then re-enter the host's wait
+starts with a `working` status as its `handling` clauses say
+(`references/conversation-loop.md`, "When to write"), then re-enter the harness's wait
 loop: `waiting` after every obligation has been answered and the user owns the next
 move, `working` while you continue.
 `page state` lists every standing reaction under `reactions`.

@@ -116,6 +116,7 @@ from render_harness import (
     post_event,
     refuse,
     regions_side_by_side,
+    reported_browser_errors,
     resized,
     root_overflow,
     round_trip,
@@ -1765,7 +1766,15 @@ def test_a_large_diff_filters_navigates_and_replays_explicit_file_reviews(
 
     resized(page, 390, 900)
     assert root_overflow(page) == 0
+    printed_query = (
+        'typed words left the screen without a key or press: "second" in '
+        + search.evaluate("field => window.lfPlace(field)")
+    )
     page.emulate_media(media="print")
+    # This fixture explicitly enters print rendering, where search tools disappear;
+    # no native Print gesture is delivered by media emulation.
+    page.evaluate("lfWordsJudged()")
+    reported_browser_errors(page, printed_query)
     expect(diff.locator(".lf-diff-tools")).to_be_hidden()
     for index in range(3):
         expect(summaries.nth(index)).to_be_visible()
@@ -6682,12 +6691,12 @@ def test_a_pending_suggestion_can_be_discussed_instead_of_decided(browser, serve
     page = open_page(browser, serve(SUGGESTION_PAGE))
     resized(page, 1920, 900)
     page.evaluate("""() => {
-        const r = document.createRange();
-        r.selectNodeContents(document.querySelector('#sug-refill lf-new'));
+        const range = document.createRange();
+        range.selectNodeContents(document.querySelector('#sug-refill lf-new'));
         getSelection().removeAllRanges();
-        getSelection().addRange(r);
-        document.body.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
+        getSelection().addRange(range);
     }""")
+    page.keyboard.press("c")
     page.wait_for_selector(".lf-fab-input", state="visible")
     page.locator(".lf-fab-input").click()
     page.wait_for_selector(".lf-composer", state="visible")

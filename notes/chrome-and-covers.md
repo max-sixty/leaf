@@ -5,7 +5,7 @@ The banner has a stated height, sticky headers stack through `--lf-top`, and the
 workspace row rule applies to pane grids without squeezing a widget's own rows.
 These contracts live in [layouts.css](../skills/leaf/assets/layouts.css),
 [theme.css](../skills/leaf/assets/theme.css), and the
-[package header contract](../skills/leaf/references/packages.md).
+[module reading-region contract](../skills/leaf/references/module-authoring.md#reading-regions).
 
 ## Decided: a workspace is a screen
 
@@ -21,7 +21,7 @@ scroll better, which is not what they are for.
 
 The aim is pages that need little scrolling, composed simply, rather than better
 scrolling inside regions. `page check --render` names each pane or body of a screen
-that runs past its room, so an author trims or splits it (`overflowing_regions`).
+that runs past its room, so an author trims or splits it (`overflowing_region_advice`).
 
 A branch that made a side list (`lf-tabs list="side"`) a screen was built and
 abandoned (`screen-workspace-review`, October 2026): it gave the list and the open

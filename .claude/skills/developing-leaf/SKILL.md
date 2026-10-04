@@ -94,14 +94,40 @@ Playwright script: it builds the page from this working tree, runs the input ste
 you give it, and prints what a JavaScript expression returns, with `--base` for the
 merge base beside it (`dev/AGENTS.md`).
 
-Compare against the merge base with `main`. `uv run leaf-dev stills`
-screenshots a catalogue of states on both runtimes and crops each one that
-changed into a before/after pair; commit first, since it compares commits. The
-catalogue holds states a user reaches by acting as well as pages at rest, because
-a change can alter what only such a state draws: a padding moved for layout once
-put a row over a focus ring drawn only while the element is focused. Where a
-change reaches a state the catalogue lacks, add it to `STATES` instead of driving
-the state by hand.
+When a complex interaction depends on a sequence of inputs or changes over time,
+show a recorded journey with a timeline so the user can inspect intermediate
+states and motion. Use that same probe with `--record .tmp/recordings/NAME`.
+Its Playwright trace has an action timeline, a screenshot
+filmstrip, DOM snapshots, console and network; its WebM shows the actual frames.
+Add `--gif` for a short shareable loop, or `--actions` to decorate clicks and keys.
+`--journey FILE` runs a Python file's `run(page)` using Playwright's full API,
+including assertions; it returns a JSON reading. Capture keeps the journey's
+timing without adding pauses, and defaults to normal motion. `--actions` is for
+demonstrations: Playwright waits 500 ms before each annotated input, so omit it
+from timing-sensitive reproductions. Native video holds the final frame for at
+least one second. `--motion reduce`
+reproduces the reduced-motion preference. A failed journey keeps its recording
+and exits unsuccessfully. The same command takes any HTTP(S) URL for general
+browser work. Keep the page and context open until the recorder finalizes:
+Playwright cannot save screencast video after its page closes. Serve the trace in
+a browser tab with:
+
+```bash
+uv run playwright show-trace --host 127.0.0.1 --port 0 \
+  .tmp/recordings/NAME/worktree/trace.zip
+```
+
+When showing a timeline in Leaf, place a direct link to the same recording in the
+running Trace Viewer beside its controls. The viewer supplies action details,
+Before/Action/After DOM snapshots, source, console and network inspection; Leaf
+supplies the anchored discussion. Keep both previews running and verify that the
+viewer URL reaches the user's browser before handing it over.
+
+`uv run leaf-dev stills` compares HEAD with the merge base with `main` and crops
+each changed catalogue state into a before/after pair. Commit first, since it
+compares commits. Include pages at rest and states reached by interaction,
+including focus states where layout can cover a focus ring. Add missing states
+to `STATES` rather than driving them by hand.
 
 For every difference a still can show, the handoff carries one sentence and
 matched before/after screenshots, embedded in the reply or as one `lf-shot`; a
@@ -125,7 +151,7 @@ URL; each start rebuilds the page from the fixture, and `--slot <name>` runs ano
 A plain preview takes no task claim, so its presses reach only the page's log;
 use it for screenshots and browser checks. `--user` claims the page at
 the directory printed at startup (`.tmp/previews/<example>-user` by default;
-`--slot` chooses the directory name) so the user's comments reach the host, which
+`--slot` chooses the directory name) so the user's comments reach the harness, which
 also makes every click this session drives there read as an unanswered user
 move. So drive only claimless previews, start any `--user` preview from the
 session the user talks to, and answer the user's feedback before restarting
@@ -228,28 +254,18 @@ A page that explains how a Leaf interface behaves lets the user operate it
 
 ## Score an instruction change
 
-Each `evals/<case>/case.yaml` is a native Promptfoo test. The runner gives Claude
-Code and Codex the same task, the same assertions, and a staged copy of Leaf's
-instructions. Install the separate eval dependencies once, then select the cases
-that bear on an instruction change:
+Score an instruction change by running the cases that bear on it on both the merge
+base and the working tree:
 
 ```bash
 npm ci --prefix evals
-uv run leaf-dev eval [CASE]... [--base REF] [--host cc|codex|both] [--runs N]
+uv run leaf-dev eval [CASE]... --base [--harness cc|codex] [--repeat N]
+npm run view --prefix evals
 ```
 
-The defaults are both hosts, one run, and the merge base with `main`. Each sample
-has a fresh workspace and home with the host's account login. Promptfoo owns the
-assertions, judgments, traces, and HTML report under `.tmp/eval/`;
-the runner prints passes separately for each host and base/candidate arm. Read
-`evals/README.md` for the provider models and case format.
-
-A reference-read assertion requires successful tool output, rather than counting
-a denied attempt. Claude exposes Read/Skill results; Codex shell evidence requires
-a completed successful command naming the file and returning text. Shell matching
-is a heuristic, so inspect traces before treating a reference-read pass as proof.
-These static cases test instruction use, while `leaf-dev verify-codex-task` owns
-plugin installation, discovery, and hooks.
+`evals/README.md` owns selection, arms, conditions, the case format, where the
+results go and how far a pass can be trusted. Read the outputs as well as the pass
+counts.
 
 The suite is a library that grows with the instructions, so a later edit, whether a fix
 or a cut, is scored against the behaviors earlier edits had to produce. Add to it
@@ -259,27 +275,19 @@ criterion, or context in its prompt, so coverage grows without the cases
 proliferating; add a new case only where no existing one can carry the behavior.
 Keep a case small: one prompt carrying only the context the behavior needs, and a
 few assertions. Measure with whatever scenarios and guardrails the change needs, and
-keep what you add whether or not it separated the arms. The leading comment says where the case came from and what it measured, so a
-reader can tell a case that told two wordings apart from one that has only guarded;
-`metadata.purpose` names the clause it pins, and `metadata.tags` its area.
+keep what you add whether or not it separated the arms. The leading comment says
+whether the case told two wordings apart or has only guarded.
 
-A prompt ends by asking for the HTML in the reply, since the child has no page
-directory. It can read the staged skill and its references. A prompt pointing at
-a file beyond the references names that file from the skill's base directory. The
-prompt never states the behavior under test. Grade a fixed form with a `regex`
-assertion, and a judgment with an `llm-rubric` assertion whose `value` states the
-passing reading without requiring particular wording.
+The prompt never states the behavior under test. A prompt pointing at a file beyond
+the references names that file from the skill's base directory. Grade a fixed form
+with a `regex` assertion, and a judgment with an `llm-rubric` assertion whose `value`
+states the passing reading without requiring particular wording.
 
 Run cold, a case that states the situation plainly usually passes on both arms: the
 failing session had its own earlier turns or a competing instruction pulling the
 other way, so paste those into the prompt. A rule that loses only to a long
-session's context needs a replay of that session instead.
-Complete workflows use the same catalog and command. `leaf-dev eval document`
-authors and revises a document; `document/resume`
-selects a controlled state-reading context. `--condition both` compares the authored example with
-ordinary HTML. `evals/README.md` owns selection, conditions and evidence limits.
-Keep focused contexts until a combined workflow detects their original failures.
-No grader has been calibrated against human judgments, so a pass is weak evidence.
+session's context needs a replay of that session instead. Keep a task's diagnostic
+contexts until its complete workflow detects their original failures.
 
 ## Refresh the public catalog stills
 
@@ -302,11 +310,11 @@ change; `dev/leaf_dev/thread_snapshots.py` owns the pinned-image capture and acc
 A red gate is the branch's to fix. A pull request's `test` job and the local
 pre-merge `tests` run the broad selection and the nightly tests the branch edits;
 the rest of the nightly-marked tests run once main moves, and `tend-ci-fix` answers
-them when they fail (`tests/AGENTS.md`, "Run the narrowest useful surface").
+them when they fail (`tests/AGENTS.md`, "Run what the change needs").
 `wt merge` checks the rebased tree and lands it; `✗ Can't push to local main branch`
 is a fast-forward failure.
 
-Installed sessions load host caches, not the checkout. Claude Code picks up a
+Installed sessions load harness caches, not the checkout. Claude Code picks up a
 push on its marketplace sweep; the post-merge hook refreshes an installed Codex
 plugin, and after a merge that skipped hooks, run
 `codex plugin marketplace upgrade leaf`.

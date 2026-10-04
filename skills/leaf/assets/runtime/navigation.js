@@ -24,6 +24,8 @@ import { THREAD } from "./thread/selectors.js";
 import { under } from "./shadow.js";
 import { announce } from "./notifications.js";
 import { focusThread } from "./thread/focus.js";
+import { showHeld } from "./thread/held-news.js";
+import { landWalkedThread } from "./thread/landing.js";
 import { beginWalk, listWalkPosition, walkPositionLabel } from "./walk-position.js";
 
 const walkableThreads = (panelIsOpen, { threadsBox, openThreads }) =>
@@ -75,17 +77,21 @@ function threadFrom(threads, place, dir, threadTarget) {
 // Both paths are clamped, not wrapped.
 function stepThread(dir, destinations, panelIsOpen, narrowing, list) {
   const { threadsBox } = list;
-  const { openPageThread, scrollToThread, threadHere, threadTarget } = destinations;
+  const { openPageThread, scrollToThread, threadHere, threadAtStanding, threadTarget } =
+    destinations;
   const threads = walkableThreads(panelIsOpen, list);
   const current = currentThread(threads, threadHere);
+  const targetId = !current && threadAtStanding();
+  const atTarget = targetId && threads.find((thread) => thread.dataset.id === targetId);
   const next = current
     ? clampedRow(threads, current, dir)
-    : threadFrom(
+    : (atTarget ??
+      threadFrom(
         threads,
         !panelIsOpen() || narrowing.listedInPageOrder() ? walkOrigin() : null,
         dir,
         threadTarget,
-      );
+      ));
   if (!next) return;
   if (!panelIsOpen()) {
     void openPageThread(next.dataset.id, { focus: "thread" });
@@ -101,11 +107,13 @@ function stepThread(dir, destinations, panelIsOpen, narrowing, list) {
   // thread the user already stands on, moves no focus and gives the list nothing to
   // land: the press lands that thread itself. The page half travels either way, and
   // keeps the panel the walk is in: it moves the page only where moving it shows the
-  // passage better beside the panel (anchor-travel.js, `arrive`).
+  // passage better beside the panel (anchor-travel.js, `arrive`). The press takes the
+  // user to the thread, so it shows what the thread held (held-news.js) before landing.
+  showHeld(next.dataset.id);
   threadsBox.revealNavigation(next.dataset.id);
   const standing = next.contains(document.activeElement);
   focusThread(next, { preventScroll: true });
-  if (standing) next.scrollIntoView({ behavior: scrollBehavior(), block: "nearest" });
+  if (standing) landWalkedThread(next, threadsBox);
   scrollToThread(next.dataset.id, { keep: true });
   announce(
     beginWalk("thread", "Thread", () =>

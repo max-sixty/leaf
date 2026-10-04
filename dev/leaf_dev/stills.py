@@ -4,9 +4,11 @@ show which ones changed.
     uv run leaf-dev stills [BASE_REF]
 
 BASE_REF defaults to the merge base of HEAD and `main`; each arm is the payload at its
-commit (`leaf_dev.harness.build_pair`), so commit what you want compared. Each page is
+commit (`leaf_dev.arms.build_pair`), so commit what you want compared. Each page is
 built from this checkout's example source and served by the arm's own launcher, so
-only the runtime, theme and server differ between the two stills of a state.
+only the runtime, theme and server differ between the two stills of a state. Each
+capture starts with a fresh authored fixture and event log, so a prior gesture cannot
+change another state's initial condition.
 Message delivery belongs to thread_journey and test_render_thread_snapshots: its
 held checkpoints replace the former panel/card sent stills, whose unrestricted
 POSTs could complete before capture.
@@ -38,8 +40,8 @@ from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import Page
 
 from leaf_dev import ROOT
+from leaf_dev.arms import build_pair, run_directory, serving_source
 from leaf_dev.browser import BESIDE, DESKTOP, chrome, load, settle, tab
-from leaf_dev.harness import build_pair, run_directory, serving_source
 
 OUT = ROOT / ".tmp" / "stills"
 CROP_MARGIN = 32
@@ -93,6 +95,14 @@ def card_reply_large(page: Page) -> None:
     """A pasted reply exhausting the room below the thread, with its caret at the end."""
     card_reply(page)
     page.keyboard.insert_text("\n" + "\n".join(f"Reply line {n}" for n in range(40)))
+
+
+def card_reply_resolved(page: Page) -> None:
+    """The user resolves a thread while its unsent reply has words."""
+    card_reply(page)
+    page.locator(".lf-margin-preview").get_by_role(
+        "button", name="Resolve thread", exact=True
+    ).click()
 
 
 def threads_panel(page: Page) -> None:
@@ -272,6 +282,7 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
         card_more_room,
         card_reply,
         card_reply_large,
+        card_reply_resolved,
         threads_panel,
         panel_by_keyboard,
         composer,
@@ -372,6 +383,7 @@ STATES = (
         viewport=(390, 844),
         touch=True,
     ),
+    State("plan-card-reply-resolved", "review-a-plan", card_reply_resolved),
     State("triage", "triage-board", at_rest),
     State("triage-composer", "triage-board", composer),
     State("triage-grabbed", "triage-board", card_grabbed),
@@ -503,24 +515,23 @@ def stills(base_ref: str | None) -> None:
         scratch = Path(built)
         arms, commits = build_pair(base_ref, scratch)
         with chrome() as browser:
-            for source in dict.fromkeys(state.source for state in STATES):
+            for state in STATES:
                 for arm, arm_dir in arms.items():
+                    # Every state starts from its authored fixture. A prior Send or
+                    # Resolve must not become the next state's initial event log.
                     with serving_source(
                         arm_dir,
-                        ROOT / "examples" / f"{source}.html",
-                        scratch / f"{arm}-{source}",
+                        ROOT / "examples" / f"{state.source}.html",
+                        scratch / f"{arm}-{state.name}",
                     ) as address:
-                        for state in STATES:
-                            if state.source != source:
-                                continue
-                            folder = out / state.name
-                            folder.mkdir(exist_ok=True)
-                            try:
-                                capture(browser, address, state, folder / f"{arm}.png")
-                            except (PlaywrightError, PageNotReady) as error:
-                                failed[state.name] = (
-                                    f"on {arm}: {str(error).splitlines()[0]}"
-                                )
+                        folder = out / state.name
+                        folder.mkdir(exist_ok=True)
+                        try:
+                            capture(browser, address, state, folder / f"{arm}.png")
+                        except (PlaywrightError, PageNotReady) as error:
+                            failed[state.name] = (
+                                f"on {arm}: {str(error).splitlines()[0]}"
+                            )
             read = differences(
                 browser,
                 [state.name for state in STATES if state.name not in failed],

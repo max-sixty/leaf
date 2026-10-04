@@ -84,7 +84,7 @@
 /* A goal row packs its chips from the left and breaks their words by the room the
    command has, which a command inside a worker's disclosure or beside an open drawer
    has less of than the window says. */
-:scope:is(lf-command) { container: lf-command / inline-size; }
+:scope:is(lf-command) { container: lf-command lf-command-seat / inline-size; }
 :scope:is(lf-task) { display: block; position: relative; padding-left: 26px; margin: 8px 0; }
 :scope:is(lf-task)::before { content: ""; position: absolute; left: 6px; top: 5px;
                   width: 10px; height: 10px; border-radius: 50%;
@@ -138,27 +138,32 @@
  * it stand on screen once the reader opens one through its count (`data-lf-open`). The
  * room is the
  * sum of the outcome's rules below, which `leaf package check --render`'s
- * keeps-first-box reads against the panel drawn. Without a runtime nothing fills a
- * seat, so it holds no room. */
-:scope:is(lf-command-readings) { display: grid; align-content: start; gap: var(--sp-4); }
+ * keeps-first-box reads against the panel drawn, plus a second row of tiles in a narrow
+ * seat (`--lf-command-tile-wrap`, set where the tiles wrap). Without a runtime nothing
+ * fills a seat, so it holds no room. */
+:scope:is(lf-command-readings) { display: grid; align-content: start; gap: var(--sp-4);
+  container: lf-command-seat / inline-size; }
 :scope:is(lf-command), :scope:is(lf-command-readings) {
+  --lf-command-tile-size: calc(
+    2px + 2 * var(--sp-2)                          /* a tile's frame */
+    + var(--t-2) * 1.1 + 2px + var(--t-6) * 1.2);  /* its count and word */
   --lf-command-outcome-size: calc(
     2px + 14px + 16px                              /* section.panel's border, padding */
     + var(--t-6) * 1.3 + 10px                      /* its title */
     + var(--t-3) * 1.25 + 6px + var(--t-6) * 1.3 + 2 * var(--sp-2) /* .lf-command-outcome */
-    + var(--sp-3) + 2px + 2 * var(--sp-2)          /* .lf-command-facts, a tile's frame */
-    + var(--t-2) * 1.1 + 2px + var(--t-6) * 1.2); }  /* a tile's count and word */
+    + var(--sp-3) + var(--lf-command-tile-size)); } /* .lf-command-facts, one row */
 :scope:is(lf-command-readings) > section.panel { margin: 0; }
 :scope:is(lf-command) > lf-command-readings { margin-bottom: var(--sp-4); }
 @media screen {
   @scope (html[data-lf-interactive] :scope) {
     :scope:is(lf-command-readings):not(:has(> .lf-command-head))::before{
-      content: ""; display: block; block-size: var(--lf-command-outcome-size); }
+      content: ""; display: block;
+      block-size: calc(var(--lf-command-outcome-size) + var(--lf-command-tile-wrap, 0px)); }
   }
   @scope (html[data-lf-interactive] :scope) {
     :scope:is(lf-command):not([readings], :has(> lf-command-readings))::before{
       content: ""; display: block; margin-bottom: var(--sp-4);
-      block-size: var(--lf-command-outcome-size); }
+      block-size: calc(var(--lf-command-outcome-size) + var(--lf-command-tile-wrap, 0px)); }
   }
   :scope:is(lf-command-readings):not([data-lf-open]) > :is(.lf-stopped-view, .lf-fleet-view) {
     display: none; }
@@ -177,11 +182,19 @@
     var(--chip) 0); }
 /* Each count is a tile: the number is what the eye compares, set large and in tabular
  * figures; the word under it names the view the tile opens. Only a count that needs
- * attention wears a tint. The four tiles share the panel's width in one row, the row
- * the seat holds room for: a row that wrapped where the panel is narrow would stand
- * taller than that room, and moved what follows. */
+ * attention wears a tint. The four tiles share the panel's width in one row. In a seat
+ * narrower than 380px, a quarter of the panel is too narrow for the longest word,
+ * "stopped" (about 45px on macOS, more in a wider face), so the tiles stand in two rows
+ * of two. A width query chooses the rows rather than the tiles' content, because the
+ * seat reserves room for them before first paint; a row that wrapped by its content
+ * would stand taller than that room and move what follows. */
 .lf-command-facts { display: grid; gap: var(--sp-2); margin-top: var(--sp-3);
   grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@container lf-command-seat (width < 380px) {
+  .lf-command-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  :scope:is(lf-command, lf-command-readings)::before {
+    --lf-command-tile-wrap: calc(var(--sp-2) + var(--lf-command-tile-size)); }
+}
 .lf-command-facts > [role="button"] { display: grid; align-content: start; gap: 2px;
   box-sizing: border-box; padding: var(--sp-2) var(--sp-2) var(--sp-2) var(--sp-3);
   border: 1px solid var(--rule); border-radius: var(--r); background: var(--paper);

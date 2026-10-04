@@ -72,9 +72,9 @@ from leaf import event_endpoint as endpoint_model
 from leaf import event_log as events_model
 from leaf import event_meaning as event_meaning_model
 from leaf import files as files_model
+from leaf import harness as harness_model
 from leaf import hook_carrier as hook_carrier_model
 from leaf import hooks as hooks_model
-from leaf import host as host_model
 from leaf import hosting as hosting_model
 from leaf import layer as layer_model
 from leaf import leases as leases_model
@@ -131,7 +131,7 @@ def woken(output: str, session: str | None = None) -> tuple[dict, dict, list[dic
 
 def continued(output: str | dict) -> str:
     """What a Claude Code session's Stop hook continues the turn with. It speaks
-    through the host's non-error channel, so the user reads "Stop hook additional
+    through the harness's non-error channel, so the user reads "Stop hook additional
     context" rather than "Stop hook error"."""
     answer = json.loads(output) if isinstance(output, str) else output
     assert "decision" not in answer, answer
@@ -140,7 +140,7 @@ def continued(output: str | dict) -> str:
 
 
 def printed(output: str) -> tuple[dict, dict, list[dict]]:
-    """Read the one delivery a wait printed, for a host whose wait is its carrier
+    """Read the one delivery a wait printed, for a harness whose wait is its carrier
     (a bare shell, a Codex watcher): its reader confirms it with `wait --ack`."""
     payload = json.loads(output)
     assert payload["format"] == delivery_model.DELIVERY_FORMAT
@@ -151,7 +151,7 @@ def printed(output: str) -> tuple[dict, dict, list[dict]]:
 
 @pytest.fixture
 def codex_loop(monkeypatch):
-    """A Codex task running its own `leaf wait`/`leaf wait --ack` loop, the host
+    """A Codex task running its own `leaf wait`/`leaf wait --ack` loop, the harness
     session whose wait prints each delivery for its reader to confirm. This process,
     and every command it spawns, carries the task's identity in place of Claude
     Code's. Call the value with a page to record the task's claim on it: a claim
@@ -165,7 +165,7 @@ def codex_loop(monkeypatch):
 
 
 def codex_start_announcement(process) -> str:
-    """Wait for committed CLI output before transferring the fake host lifetime."""
+    """Wait for committed CLI output before transferring the fake harness lifetime."""
     assert select.select([process.stdout], [], [], 30)[0], (
         "Codex start did not report completion"
     )
@@ -260,7 +260,7 @@ def reaper_retires(page: Path, monkeypatch) -> bool:
 
 
 def freeze_events(page_dir: Path, events: list[dict]) -> dict:
-    """Freeze selected page events through the host-neutral delivery boundary."""
+    """Freeze selected page events through the harness-neutral delivery boundary."""
     with service_model.PageTransaction(page_dir) as transaction:
         stored = {event["id"]: event for event in transaction.events}
         batch = delivery_model.batch_data(
@@ -436,7 +436,7 @@ def test_consecutive_user_inputs_share_one_exact_response_obligation(page_dir):
     assert page_state(page_dir)["workflows"] == []
 
 
-def test_terminal_host_failure_keeps_exact_user_recovery_without_stop_obligation(
+def test_terminal_harness_failure_keeps_exact_user_recovery_without_stop_obligation(
     page_dir,
 ):
     publish(page_dir)
@@ -730,7 +730,7 @@ def test_frozen_widget_workflow_contributes_to_its_thread_attention(page_dir):
         "workflow": answered["id"],
     }
 
-    # A host that gives up answers the move with a failure reply, which hands it
+    # A harness that gives up answers the move with a failure reply, which hands it
     # back to the user rather than settling it.
     append_carried_log_record(
         page_dir,
@@ -1078,7 +1078,7 @@ def test_embedded_codex_delivery_is_durable_and_idempotent(page_dir):
         page_dir,
         {"kind": "comment", "author": "user", "text": "make this editable"},
     )
-    harness = host_model.EmbeddedHarness("hosted-thread", "Leaf guide", os.getpid())
+    harness = harness_model.EmbeddedHarness("hosted-thread", "Leaf guide", os.getpid())
 
     prompt = codex_model.prepare_codex_delivery(page_dir, harness)
     assert codex_model.prepare_codex_delivery(page_dir, harness) == prompt
@@ -1223,7 +1223,7 @@ def test_embedded_codex_delivery_keeps_non_obligation_events_in_the_page_batch(
 
     prepared = codex_model.prepare_codex_delivery(
         page_dir,
-        host_model.EmbeddedHarness("hosted-thread", "Leaf guide", os.getpid()),
+        harness_model.EmbeddedHarness("hosted-thread", "Leaf guide", os.getpid()),
     )
 
     [batch] = prepared.payload["batches"]
@@ -1235,7 +1235,7 @@ def test_embedded_codex_delivery_keeps_non_obligation_events_in_the_page_batch(
 
 
 def test_embedded_codex_delivery_keeps_steered_input_in_one_claim_turn(page_dir):
-    harness = host_model.EmbeddedHarness("hosted-thread", "Leaf guide", os.getpid())
+    harness = harness_model.EmbeddedHarness("hosted-thread", "Leaf guide", os.getpid())
     first = append_carried_log_record(
         page_dir,
         {"kind": "comment", "author": "user", "text": "make this editable"},
@@ -1275,7 +1275,7 @@ def test_embedded_codex_delivery_retries_the_same_immutable_pointer(page_dir):
         page_dir,
         {"kind": "comment", "author": "user", "text": "make this editable"},
     )
-    harness = host_model.EmbeddedHarness("hosted-thread", "Leaf guide", os.getpid())
+    harness = harness_model.EmbeddedHarness("hosted-thread", "Leaf guide", os.getpid())
     first = codex_model.prepare_codex_delivery(page_dir, harness)
 
     second = codex_model.prepare_codex_delivery(page_dir, harness)
@@ -1294,7 +1294,7 @@ def test_embedded_codex_delivery_abandons_only_its_mutable_delivery_record(page_
         page_dir,
         {"kind": "comment", "author": "user", "text": "first"},
     )
-    harness = host_model.EmbeddedHarness("hosted-thread", "Leaf guide", os.getpid())
+    harness = harness_model.EmbeddedHarness("hosted-thread", "Leaf guide", os.getpid())
     first_prompt = codex_model.prepare_codex_delivery(page_dir, harness)
     [(first_path, _)] = codex_model.delivery_records("hosted-thread")
     first_payload = delivery_model.delivery_path(first_path.stem)
@@ -1342,7 +1342,7 @@ def test_embedded_codex_delivery_keeps_settled_input_in_the_complete_page_batch(
 
     codex_model.prepare_codex_delivery(
         page_dir,
-        host_model.EmbeddedHarness("hosted-thread", "Leaf guide", os.getpid()),
+        harness_model.EmbeddedHarness("hosted-thread", "Leaf guide", os.getpid()),
     )
 
     [(path, _queue)] = codex_model.delivery_records("hosted-thread")
@@ -1377,7 +1377,7 @@ def test_embedded_codex_delivery_keeps_page_actions_before_a_comment(page_dir):
 
     codex_model.prepare_codex_delivery(
         page_dir,
-        host_model.EmbeddedHarness("hosted-thread", "Leaf guide", os.getpid()),
+        harness_model.EmbeddedHarness("hosted-thread", "Leaf guide", os.getpid()),
     )
 
     [(path, _queue)] = codex_model.delivery_records("hosted-thread")
@@ -1484,7 +1484,7 @@ def test_an_app_server_turn_names_the_untitled_thread_it_answers(page_dir, app_s
     )
     prepared = codex_model.prepare_codex_delivery(
         page_dir,
-        host_model.EmbeddedHarness("hosted-thread", "Leaf guide", os.getpid()),
+        harness_model.EmbeddedHarness("hosted-thread", "Leaf guide", os.getpid()),
     )
     [batch] = prepared.payload["batches"]
     [delivered] = batch["events"]
@@ -1541,7 +1541,7 @@ def test_a_title_is_drawn_from_the_opening_message_not_the_latest(page_dir, app_
     )
     prepared = codex_model.prepare_codex_delivery(
         page_dir,
-        host_model.EmbeddedHarness("hosted-thread", "Leaf guide", os.getpid()),
+        harness_model.EmbeddedHarness("hosted-thread", "Leaf guide", os.getpid()),
     )
     endpoint, received = titling_app_server(app_server, '{"title": "Export speed"}')
     records = []
@@ -1565,7 +1565,7 @@ def test_a_generated_title_yields_to_one_the_agent_wrote_first(page_dir, app_ser
     )
     prepared = codex_model.prepare_codex_delivery(
         page_dir,
-        host_model.EmbeddedHarness("hosted-thread", "Leaf guide", os.getpid()),
+        harness_model.EmbeddedHarness("hosted-thread", "Leaf guide", os.getpid()),
     )
     append_command(
         page_dir,
@@ -1692,7 +1692,7 @@ def test_a_title_request_that_outlives_its_session_leaves_no_log(claimed):
     assert "thread_title" not in kinds
 
 
-def test_both_hosts_are_asked_for_a_title_in_the_same_words(
+def test_both_harnesses_are_asked_for_a_title_in_the_same_words(
     page_dir, app_server, tmp_path, monkeypatch, snapshot
 ):
     """Claude Code's `claude -p` and an App Server carrier are sent the same system
@@ -2491,12 +2491,12 @@ def test_claude_codes_own_record_adds_what_no_hook_sees(claimed, capsys, dead_pi
     only while something renewed the turn within the working grace, so a delivered
     move no Stop closed cannot read working forever."""
     serving(claimed, 1)
-    registry = host_model.claude_code_sessions()
+    registry = harness_model.claude_code_sessions()
     registry.mkdir(parents=True, exist_ok=True)
 
     live = os.getpid()
 
-    def host_says(status, *, pid=live, ago=0):
+    def harness_says(status, *, pid=live, ago=0):
         cleanup_model.write_json(
             registry / f"{pid}.json",
             {
@@ -2525,8 +2525,8 @@ def test_claude_codes_own_record_adds_what_no_hook_sees(claimed, capsys, dead_pi
 
     # The stamps answer, and nothing renews this turn past the grace; `busy`, and
     # a record whose process is gone, change nothing.
-    host_says("busy")
-    host_says("waiting", pid=dead_pid)
+    harness_says("busy")
+    harness_says("waiting", pid=dead_pid)
     assert _activity_at(claimed)["kind"] == "working"
     unrenewed = _activity_at(claimed, 16)
     assert unrenewed["counts"]["handling"] == 0
@@ -2536,13 +2536,13 @@ def test_claude_codes_own_record_adds_what_no_hook_sees(claimed, capsys, dead_pi
     }
 
     # A dialog in the terminal is observed work the page announces.
-    host_says("waiting")
+    harness_says("waiting")
     waiting = _activity_at(claimed)
     assert (waiting["kind"], waiting["observed_kind"]) == ("working", "awaiting_user")
 
     # Escape: the turn ended with no Stop hook, and the move it held reads Turn
     # ended at once.
-    host_says("idle")
+    harness_says("idle")
     assert service_model.page_claim(claimed)["turn_closed"] is None
     assert _activity_at(claimed)["obligations"][0]["condition"] == {
         "kind": "ended",
@@ -2551,7 +2551,7 @@ def test_claude_codes_own_record_adds_what_no_hook_sees(claimed, capsys, dead_pi
 
     # The next prompt renews the turn the interrupt left open, and the move it
     # holds is handled in it again.
-    host_says("busy")
+    harness_says("busy")
     hooks_model.cmd_hook({"hook_event_name": "UserPromptSubmit", "session_id": "s1"})
     capsys.readouterr()
     assert _activity_at(claimed)["counts"]["handling"] == 1
@@ -2559,10 +2559,10 @@ def test_claude_codes_own_record_adds_what_no_hook_sees(claimed, capsys, dead_pi
     # A status the agent writes after that renews the turn, and work claimed in it
     # stops being believed once the renewal grace has passed since the next
     # interrupt.
-    host_says("idle", ago=5)
+    harness_says("idle", ago=5)
     session_model.cmd_status(claimed, "working", "Cutting the lede", on=comment["id"])
     assert _activity_at(claimed)["counts"]["active"] == 1
-    host_says("idle")
+    harness_says("idle")
     assert _activity_at(claimed)["kind"] == "working"
     ended = _activity_at(claimed, 3)
     assert (ended["kind"], ended["dropped"]) == ("away", True)
@@ -2571,9 +2571,9 @@ def test_claude_codes_own_record_adds_what_no_hook_sees(claimed, capsys, dead_pi
         "operation": "work",
     }
 
-    # A status the host has no word on is no reading at all.
-    host_says("compacting")
-    assert host_model.ClaudeCodeHarness("s1", "Claude").live_turn() is None
+    # A status the harness has no word on is no reading at all.
+    harness_says("compacting")
+    assert harness_model.ClaudeCodeHarness("s1", "Claude").live_turn() is None
 
 
 def test_away_asks_for_a_nudge_only_once_input_is_overdue(claimed, capsys):
@@ -2624,7 +2624,7 @@ def test_away_asks_for_a_nudge_only_once_input_is_overdue(claimed, capsys):
     assert (stranded["kind"], stranded["counts"]["overdue"]) == ("away", 1)
 
 
-def test_a_host_step_waiting_on_the_user_outlasts_the_working_grace():
+def test_a_harness_step_waiting_on_the_user_outlasts_the_working_grace():
     """An App Server observer renews its step on every event, and a wait on the
     user sends none until the user answers, so that step stands for as long as
     its observer holds the lease. A turn that completed with no final answer
@@ -3900,7 +3900,7 @@ def test_a_task_connection_streams_and_commits_its_delivery_reply(
     )
     prepared = codex_model.prepare_codex_delivery(
         page_dir,
-        host_model.EmbeddedHarness("codex-thread", "Codex", os.getpid()),
+        harness_model.EmbeddedHarness("codex-thread", "Codex", os.getpid()),
     )
     claim = service_model.page_claim(page_dir)
     lease = leases_model.take_lease(
@@ -4133,7 +4133,7 @@ def test_a_queued_app_server_turn_uses_its_delivery_id_for_the_final_reply(page_
     )
     prepared = codex_model.prepare_codex_delivery(
         page_dir,
-        host_model.EmbeddedHarness("codex-thread", "Codex", os.getpid()),
+        harness_model.EmbeddedHarness("codex-thread", "Codex", os.getpid()),
     )
     client = codex_adapter_model.TaskConnection("ws://127.0.0.1:1", "codex-thread")
     pointer = {
@@ -4198,7 +4198,7 @@ def test_an_observed_queue_pointer_leaves_its_reply_to_leaf_reply(page_dir):
     )
     with service_model.PageTransaction(page_dir) as transaction:
         transaction.take_claim(
-            host_model.EmbeddedHarness("codex-thread", "Codex", os.getpid())
+            harness_model.EmbeddedHarness("codex-thread", "Codex", os.getpid())
         )
         path, _, _ = codex_model.append_batch(
             "codex-thread",
@@ -4267,7 +4267,7 @@ def test_reconnect_binds_a_delivery_a_followed_turn_carried_unseen(page_dir, sta
     )
     prepared = codex_model.prepare_codex_delivery(
         page_dir,
-        host_model.EmbeddedHarness("codex-thread", "Codex", os.getpid()),
+        harness_model.EmbeddedHarness("codex-thread", "Codex", os.getpid()),
     )
     observer = _observer()
     observer._read(
@@ -4328,7 +4328,7 @@ def test_reconnect_recovers_a_completed_delivery_reply(page_dir):
     )
     prepared = codex_model.prepare_codex_delivery(
         page_dir,
-        host_model.EmbeddedHarness("codex-thread", "Codex", os.getpid()),
+        harness_model.EmbeddedHarness("codex-thread", "Codex", os.getpid()),
     )
     client = codex_adapter_model.TaskConnection("ws://127.0.0.1:1", "codex-thread")
 
@@ -4749,7 +4749,7 @@ def test_a_turn_that_ended_unseen_is_recorded_without_reopening(page_dir):
         },
     )
     prepared = codex_model.prepare_codex_delivery(
-        page_dir, host_model.EmbeddedHarness("codex-thread", "Codex", os.getpid())
+        page_dir, harness_model.EmbeddedHarness("codex-thread", "Codex", os.getpid())
     )
     assert codex_model.stream_reply_target(prepared.payload) is None
     cleanup_model.close_session_turn("codex-thread")
@@ -4796,7 +4796,7 @@ def test_a_reply_binding_lapses_when_a_turn_it_does_not_name_opens(page_dir):
         page_dir, {"kind": "comment", "author": "user", "text": "Answer me"}
     )
     prepared = codex_model.prepare_codex_delivery(
-        page_dir, host_model.EmbeddedHarness("codex-thread", "Codex", os.getpid())
+        page_dir, harness_model.EmbeddedHarness("codex-thread", "Codex", os.getpid())
     )
     target = codex_model.stream_reply_target(prepared.payload)
     thread_model.reserve_delivery_reply("codex-thread", prepared.payload["id"], target)
@@ -4874,7 +4874,7 @@ def test_a_reply_binding_lapses_when_its_turn_closes(page_dir):
         page_dir, {"kind": "comment", "author": "user", "text": "Answer me"}
     )
     prepared = codex_model.prepare_codex_delivery(
-        page_dir, host_model.EmbeddedHarness("codex-thread", "Codex", os.getpid())
+        page_dir, harness_model.EmbeddedHarness("codex-thread", "Codex", os.getpid())
     )
     target = codex_model.stream_reply_target(prepared.payload)
     thread_model.reserve_delivery_reply("codex-thread", prepared.payload["id"], target)
@@ -5051,7 +5051,7 @@ def _codex_delivery(page_dir, text="Answer this"):
     )
     return codex_model.prepare_codex_delivery(
         page_dir,
-        host_model.EmbeddedHarness("codex-thread", "Codex", os.getpid()),
+        harness_model.EmbeddedHarness("codex-thread", "Codex", os.getpid()),
     )
 
 
@@ -5867,7 +5867,12 @@ def test_each_delivered_event_says_only_what_its_own_case_asks(page_dir, capsys)
         **page_pick,
         "meaning": {**page_pick["meaning"], "scope": "thread"},
     }
-    drawing = {"format": "leaf-drawing/2", "strokes": [[[0, 0], [10, 10]]]}
+    drawing = {
+        "format": "leaf-drawing/2",
+        "strokes": [[[0, 0], [10, 10]]],
+        "viewport": [1200, 900],
+        "scheme": "light",
+    }
     for event in (
         {"kind": "comment", "id": "c1", "author": "user", "text": "hi"},
         {"kind": "comment", "id": "c2", "author": "user", "drawing": drawing},
@@ -5956,7 +5961,12 @@ def test_codex_delivery_carries_only_the_selected_events_handling(page_dir):
         {
             "kind": "comment",
             "text": "later drawing",
-            "drawing": {"format": "leaf-drawing/2", "strokes": [[[0, 0], [1, 1]]]},
+            "drawing": {
+                "format": "leaf-drawing/2",
+                "strokes": [[[0, 0], [1, 1]]],
+                "viewport": [1200, 900],
+                "scheme": "light",
+            },
         },
     ):
         append_carried_log_record(page_dir, {"author": "user", **event})
@@ -6658,7 +6668,7 @@ def test_summary_hint_keeps_the_latest_spoken_exchange_outside_reactions(page_di
         {"kind": "comment", "author": "user", "text": "turn 1"},
     )
     spoken = [root]
-    for number in range(2, 9):
+    for number in range(2, 5):
         spoken.append(
             append_carried_log_record(
                 page_dir,
@@ -6674,7 +6684,7 @@ def test_summary_hint_keeps_the_latest_spoken_exchange_outside_reactions(page_di
         page_dir,
         {"kind": "reply", "author": "user", "parent": root["id"], "token": "mark"},
     )
-    for number in range(9, 11):
+    for number in range(5, 7):
         spoken.append(
             append_carried_log_record(
                 page_dir,
@@ -6701,12 +6711,84 @@ def test_summary_hint_keeps_the_latest_spoken_exchange_outside_reactions(page_di
 
     assert digest["summary_hint"] == {
         "from": spoken[0]["id"],
-        "through": spoken[7]["id"],
+        "through": spoken[3]["id"],
     }
     assert digest["summary_hint"]["through"] not in {
         middle_reaction["id"],
         trailing_reaction["id"],
     }
+
+
+def test_summary_hint_does_not_cross_a_fold_of_ephemeral_updates(page_dir):
+    root = append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "x" * 1000}
+    )
+    updates = [
+        append_carried_log_record(
+            page_dir,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "parent": root["id"],
+                "text": "Checking details.",
+                "ephemeral": True,
+            },
+        )
+        for _ in range(2)
+    ]
+    older = append_carried_log_record(
+        page_dir,
+        {"kind": "reply", "author": "agent", "parent": root["id"], "text": "y" * 1000},
+    )
+    for author in ("agent", "user"):
+        latest = append_carried_log_record(
+            page_dir,
+            {"kind": "reply", "author": author, "parent": root["id"], "text": "Next?"},
+        )
+    within = page_view_model.PageView(page_dir).within
+    events = events_model.read_events(page_dir)
+    update_ids = {update["id"] for update in updates}
+    [unfolded] = thread_context_model.batch_threads(
+        [event for event in events if event["id"] not in update_ids], [latest], within
+    )
+    assert unfolded["summary_hint"] == {"from": root["id"], "through": older["id"]}
+    [folded] = thread_context_model.batch_threads(events, [latest], within)
+    assert folded["summaries"][0]["covers"] == [update["id"] for update in updates]
+    assert "summary_hint" not in folded
+
+
+def test_summary_hint_chooses_a_qualifying_run_over_more_short_messages(page_dir):
+    root = append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "x" * 1000}
+    )
+    long_reply = append_carried_log_record(
+        page_dir,
+        {"kind": "reply", "author": "agent", "parent": root["id"], "text": "y" * 1000},
+    )
+    for _ in range(2):
+        append_carried_log_record(
+            page_dir,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "parent": root["id"],
+                "text": "Checking details.",
+                "ephemeral": True,
+            },
+        )
+    # Three short older messages form a longer run, but the earlier two long
+    # messages are the only run that qualifies for a suggestion.
+    for author in ("agent", "user", "agent", "agent", "user"):
+        latest = append_carried_log_record(
+            page_dir,
+            {"kind": "reply", "author": author, "parent": root["id"], "text": "Next?"},
+        )
+    [digest] = thread_context_model.batch_threads(
+        events_model.read_events(page_dir),
+        [latest],
+        page_view_model.PageView(page_dir).within,
+    )
+    assert digest["summary_hint"] == {"from": root["id"], "through": long_reply["id"]}
 
 
 def test_reply_is_fenced_to_the_exact_current_obligation(page_dir):
@@ -7312,6 +7394,8 @@ SETTLING_DECISION = {
     "drawing": {
         "format": "leaf-drawing/2",
         "strokes": [[[-20, 74], [50, 10], [120, 74]]],
+        "viewport": [1200, 900],
+        "scheme": "light",
     },
 }
 SETTLING_ACCEPT = {
@@ -7925,7 +8009,7 @@ def test_ack_rearms_the_wait_after_releasing_the_cursor_transaction(
         env=os.environ,
     )
     lease_path = leases_model.waiter_lease_path(
-        page_dir, host_model.session_harness().session
+        page_dir, harness_model.session_harness().session
     )
     wait_for(
         lambda: (leases_model.lock_is_held(lease_path), acknowledging.poll()),
@@ -7961,7 +8045,7 @@ def test_ack_success_outlives_a_refused_rearm(page_dir, snapshot):
     append_carried_log_record(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hi"}
     )
-    identity = host_model.session_harness()
+    identity = harness_model.session_harness()
     lease = leases_model.take_lease(
         leases_model.waiter_lease_path(page_dir, identity.session)
     )
@@ -8054,7 +8138,7 @@ def test_ack_rearm_keeps_the_other_pages_when_its_batch_page_transfers(
         text=True,
     )
     writer = fifo_writer(status_path, "the rearm never selected its batch page")
-    identity = host_model.session_harness()
+    identity = harness_model.session_harness()
     lease_path = leases_model.waiter_lease_path(page_dir, identity.session)
     assert files_model.read_json(page_dir / "cursor.json") == {"seq": 1}
     assert leases_model.lock_is_held(lease_path)
@@ -8107,7 +8191,7 @@ def test_ack_rearm_reports_when_its_only_page_transfers_after_selection(
         text=True,
     )
     writer = fifo_writer(status_path, "the rearm never selected its batch page")
-    identity = host_model.session_harness()
+    identity = harness_model.session_harness()
     lease_path = leases_model.waiter_lease_path(page_dir, identity.session)
     assert files_model.read_json(page_dir / "cursor.json") == {"seq": 1}
     assert leases_model.lock_is_held(lease_path)
@@ -8302,7 +8386,7 @@ def test_a_wait_on_a_page_never_served_ends_at_once(page_dir, capsys, wait):
 
     named = page_dir if wait == "named" else None
     watch = session_model.Watch(
-        host_model.session_harness(), pages=(page_dir,) if named else ()
+        harness_model.session_harness(), pages=(page_dir,) if named else ()
     )
     try:
         assert watch.acquire()
@@ -8704,7 +8788,7 @@ def test_wait_does_not_revive_a_page_another_leaf_vendored(page_dir, capsys):
 
     # One pass first, so a revival that went through fails here rather than
     # leaving the wait below holding a live page open for input.
-    watch = session_model.Watch(host_model.session_harness(), pages=(page_dir,))
+    watch = session_model.Watch(harness_model.session_harness(), pages=(page_dir,))
     try:
         assert watch.acquire()
         reading = next(watch.tick())
@@ -8908,7 +8992,7 @@ def test_one_wait_watches_every_page_the_session_holds(
     them, and the line that wakes the session says which page spoke."""
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s9")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
-    leases_model.mark_hooks("s9")  # its host runs Leaf's hooks
+    leases_model.mark_hooks("s9")  # its harness runs Leaf's hooks
     second = tmp_path / "second"
     vendoring_model.cmd_init(second)
     capsys.readouterr()
@@ -8948,7 +9032,7 @@ def test_the_stop_hook_watch_wakes_the_session_only_for_input(
     between turns, and the model keeps no `leaf wait` alive. It wakes for input,
     holds input that was already pending as the turn ended until the Stop hook
     beside it has answered, and ends silently where it has nothing to do."""
-    leases_model.mark_hooks("s1")  # its host runs Leaf's hooks
+    leases_model.mark_hooks("s1")  # its harness runs Leaf's hooks
     serving(claimed, 1)
     session_model.cmd_status(claimed, "waiting", "")
     stop = {"hook_event_name": "Stop", "session_id": "s1"}
@@ -8960,13 +9044,13 @@ def test_the_stop_hook_watch_wakes_the_session_only_for_input(
     lease.close()
     assert hooks_model.cmd_watch({**stop, "session_id": "s2"}) is None
     # Under plain `--print` Claude Code would wait on the hook, holding the turn.
-    launched = host_model.process_argv
+    launched = harness_model.process_argv
     argv = ["claude", "-p", "hello"]
-    monkeypatch.setattr(host_model, "process_argv", lambda pid: argv)
+    monkeypatch.setattr(harness_model, "process_argv", lambda pid: argv)
     assert hooks_model.cmd_watch(stop) is None
     argv = ["claude", "-p", "--input-format", "stream-json"]
-    assert host_model.session_harness().watches_between_turns()
-    monkeypatch.setattr(host_model, "process_argv", launched)
+    assert harness_model.session_harness().watches_between_turns()
+    monkeypatch.setattr(harness_model, "process_argv", launched)
 
     initialized = threading.Event()
     await_news = session_model.Watch.await_news
@@ -9020,7 +9104,7 @@ def test_the_stop_hook_watch_wakes_the_session_only_for_input(
     [woke] = outcome
     assert woke.startswith(f"{claimed} has new input")
 
-    # A watch whose host process has gone, as a retired background job's worker
+    # A watch whose harness process has gone, as a retired background job's worker
     # leaves it, ends silently and lets the lease go. Input admitted while it held
     # the lease was not nudged, so it nudges that input itself.
     cleanup_model.close_session_turn("s1")
@@ -9029,7 +9113,7 @@ def test_the_stop_hook_watch_wakes_the_session_only_for_input(
     )
     nudged = []
     monkeypatch.setattr(
-        host_model.ClaudeCodeHarness,
+        harness_model.ClaudeCodeHarness,
         "nudge",
         lambda harness, page: nudged.append(page) or True,
     )
@@ -9046,6 +9130,54 @@ def test_the_stop_hook_watch_wakes_the_session_only_for_input(
     assert hooks_model.cmd_watch(stop) is None
 
 
+def test_a_watch_at_an_interrupted_ending_wakes_only_for_later_input(
+    claimed, monkeypatch
+):
+    """A harness that says its turn was interrupted, as Pi's extension does when an
+    Escape settles a run, starts the watch with that Interrupt payload. The user
+    stopped the turn the pending input was handed to, so that input waits for
+    their next prompt, and only input arriving after the watch starts wakes the
+    session. A watch at a Stop ending wakes for the same pending input at once."""
+    leases_model.mark_hooks("s1")
+    serving(claimed, 1)
+    session_model.cmd_status(claimed, "waiting", "")
+    cleanup_model.prompt_turn("s1")
+    append_carried_log_record(
+        claimed, {"kind": "comment", "author": "user", "text": "handed over"}
+    )
+    cleanup_model.close_session_turn("s1")
+
+    waiting = threading.Event()
+    await_news = session_model.Watch.await_news
+
+    def after_a_pass(watch, mark, *args, **kwargs):
+        waiting.set()
+        return await_news(watch, mark, *args, **kwargs)
+
+    monkeypatch.setattr(session_model.Watch, "await_news", after_a_pass)
+    outcome = []
+    watch = threading.Thread(
+        target=lambda: outcome.append(
+            hooks_model.cmd_watch({"hook_event_name": "Interrupt", "session_id": "s1"})
+        )
+    )
+    watch.start()
+    # A watch decides on its first pass; this one went on to wait for news.
+    assert waiting.wait(STATED_TIMEOUT), "the watch never completed its first pass"
+    assert outcome == []
+    append_carried_log_record(
+        claimed, {"kind": "comment", "author": "user", "text": "after"}
+    )
+    watch.join(timeout=STATED_TIMEOUT)
+    [woke] = outcome
+    assert woke.startswith(f"{claimed} has new input")
+
+    waiting.clear()
+    stop = {"hook_event_name": "Stop", "session_id": "s1"}
+    assert hooks_model.cmd_watch(stop).startswith(f"{claimed} has new input")
+    assert not waiting.is_set()
+
+
 def test_a_page_served_mid_wait_joins_the_running_watch(
     page_dir, tmp_path, monkeypatch, capsys
 ):
@@ -9054,7 +9186,7 @@ def test_a_page_served_mid_wait_joins_the_running_watch(
     puts the page in front of the running wait."""
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s10")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
-    leases_model.mark_hooks("s10")  # its host runs Leaf's hooks
+    leases_model.mark_hooks("s10")  # its harness runs Leaf's hooks
     serving(page_dir, 1)
     assert service_model.claim_page(page_dir)
     joined = tmp_path / "joined"
@@ -9189,7 +9321,7 @@ def test_a_bare_shell_receipt_rearms_every_page_in_its_delivery(
 
 
 def test_an_unnamed_bare_shell_wait_has_no_watch_set(page_dir, sessionless, capsys):
-    """Without a host identity or a named page, there is nothing to watch."""
+    """Without a harness identity or a named page, there is nothing to watch."""
     session_model.cmd_status(page_dir, "waiting", "")
     serving(page_dir, 1)
     record_claim(page_dir, id="foreign-session")
@@ -9204,8 +9336,8 @@ def test_an_unnamed_bare_shell_wait_has_no_watch_set(page_dir, sessionless, caps
     assert "nothing to watch" in printed.err
 
 
-def test_a_host_claim_supersedes_a_bare_shell_wait(page_dir, sessionless, spawn):
-    """A page has one wait owner even when the first has no host identity."""
+def test_a_harness_claim_supersedes_a_bare_shell_wait(page_dir, sessionless, spawn):
+    """A page has one wait owner even when the first has no harness identity."""
     session_model.cmd_status(page_dir, "waiting", "")
     serving(page_dir, 1)
     bare = spawn(
@@ -9221,14 +9353,14 @@ def test_a_host_claim_supersedes_a_bare_shell_wait(page_dir, sessionless, spawn)
         failure="the bare wait never took its lease",
     )
 
-    host_env = os.environ | {
-        "CLAUDE_CODE_SESSION_ID": "host-owner",
+    harness_env = os.environ | {
+        "CLAUDE_CODE_SESSION_ID": "harness-owner",
         "CLAUDE_PID": str(os.getpid()),
     }
-    leases_model.mark_hooks("host-owner")  # its host runs Leaf's hooks
-    host = spawn(
+    leases_model.mark_hooks("harness-owner")  # its harness runs Leaf's hooks
+    harness = spawn(
         [*LEAF_COMMAND, "wait", str(page_dir)],
-        env=host_env,
+        env=harness_env,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
@@ -9237,12 +9369,12 @@ def test_a_host_claim_supersedes_a_bare_shell_wait(page_dir, sessionless, spawn)
         lambda: service_model.page_claim(page_dir),
         lambda claim: bool(
             claim
-            and claim["id"] == "host-owner"
+            and claim["id"] == "harness-owner"
             and leases_model.lock_is_held(
                 leases_model.waiter_lease_path(page_dir, claim["id"])
             )
         ),
-        failure="the host wait never claimed the page and took its lease",
+        failure="the harness wait never claimed the page and took its lease",
     )
 
     append_carried_log_record(
@@ -9250,12 +9382,12 @@ def test_a_host_claim_supersedes_a_bare_shell_wait(page_dir, sessionless, spawn)
         {"kind": "comment", "id": "once", "author": "user", "text": "hi"},
     )
     bare_out, bare_err = bare.communicate(timeout=10)
-    host_out, host_err = host.communicate(timeout=10)
+    harness_out, harness_err = harness.communicate(timeout=10)
 
     assert (bare.returncode, bare_out) == (2, ""), bare_err
     assert "no longer owns it" in bare_err
-    assert host.returncode == 0, host_err
-    _, _, shown = woken(host_out, "host-owner")
+    assert harness.returncode == 0, harness_err
+    _, _, shown = woken(harness_out, "harness-owner")
     assert [event["id"] for event in shown] == ["once"]
 
 
@@ -9987,10 +10119,10 @@ def test_a_codex_ending_closes_a_page_claimed_before_its_first_tool_hook(
         }
     )
     monkeypatch.setattr(
-        host_model.CodexHarness, "lifetime", lambda self: {"pid": os.getpid()}
+        harness_model.CodexHarness, "lifetime", lambda self: {"pid": os.getpid()}
     )
     with service_model.PageTransaction(page_dir) as page:
-        page.take_claim(host_model.session_harness())
+        page.take_claim(harness_model.session_harness())
     assert service_model.page_claim(page_dir)["turn"] == "user-turn"
     # A preview owes no watcher, so Stop may end without a carrier lease.
     (page_dir / "preview.json").write_text("{}")
@@ -10337,7 +10469,8 @@ def test_embedded_codex_acceptance_retries_its_unfinished_receipt(
         page_dir, {"kind": "comment", "author": "user", "text": "Recover this reply"}
     )
     prepared = codex_model.prepare_codex_delivery(
-        page_dir, host_model.EmbeddedHarness("hosted-thread", "Leaf guide", os.getpid())
+        page_dir,
+        harness_model.EmbeddedHarness("hosted-thread", "Leaf guide", os.getpid()),
     )
     cleanup_model.open_session_turn("hosted-thread", "provider-turn")
 
@@ -10463,7 +10596,7 @@ def test_a_later_codex_start_names_the_running_transport(
     codex_claimed_page, under_codex, codex_env, tmp_path
 ):
     """A later start joins the running adapter and names its transport, which is how
-    the host contracts tell the queue from App Server; one asking for an App Server
+    the harness contracts tell the queue from App Server; one asking for an App Server
     this adapter is not on is refused rather than ignored."""
     page = codex_claimed_page
     program, log = fake_codex_cli(tmp_path)
@@ -10474,7 +10607,7 @@ def test_a_later_codex_start_names_the_running_transport(
         "FAKE_CODEX_EXPECT_CWD": str(machine_model.state_home()),
     }
 
-    # All three tool calls belong to one standing host process. Three separate
+    # All three tool calls belong to one standing harness process. Three separate
     # under_codex calls would introduce three genuine task lifetimes, rather than
     # asking whether another command in this task joins its existing carrier.
     command = [
@@ -10502,7 +10635,7 @@ def test_a_later_codex_start_names_the_running_transport(
         [(status, first, err), (refused, _, refusal), (joined, again, _)] = wait_for(
             lambda: files_model.read_json(results),
             lambda reading: reading is not None,
-            failure="the standing Codex host did not finish its three start commands",
+            failure="the standing Codex harness did not finish its three start commands",
         )
         assert status == 0, err
         assert json.loads(first) == {
@@ -10843,7 +10976,7 @@ def test_an_offline_sibling_does_not_stop_browser_comments_reaching_codex(
     program, log = fake_codex_cli(tmp_path)
     session_model.cmd_status(live, "waiting", "current review")
     release_start = tmp_path / "release-codex-start"
-    # Both page claims and the carrier belong to the same actual task host.
+    # Both page claims and the carrier belong to the same actual task harness.
     # A second fake Codex process would declare a replacement session lifetime.
     prepare = """\
 import sys
@@ -11394,6 +11527,65 @@ def test_a_codex_claim_records_the_session_not_the_shell_it_ran_through(
     assert service_model.page_claim(page)["pid"] == session.pid
 
 
+def test_the_nearest_harness_runs_a_command_that_inherits_another(under_codex):
+    """A command inherits the identity of every harness above it: Codex run from a
+    Claude Code shell states both sessions, as this suite's Claude Code identity
+    reaches the Codex it starts. The harness whose process is nearest above the
+    command is the one running it, so a Codex task's command is Codex's; with no
+    codex above it, the same environment is Claude Code's."""
+    probe = (
+        "from leaf.harness import session_harness; h = session_harness(); "
+        "print(type(h).__name__, h.session)"
+    )
+    env = os.environ | {"CODEX_THREAD_ID": "inner-codex"}
+    ran = under_codex(
+        shlex.join([sys.executable, "-c", probe]),
+        env,
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    out, _ = ran.communicate(timeout=STATED_TIMEOUT)
+    assert ran.returncode == 0
+    assert out.split() == ["CodexHarness", "inner-codex"]
+
+    # Claude Code run from that Codex task's shell: the shell is its harness.
+    inner = shlex.join([sys.executable, "-c", probe])
+    ran = under_codex(
+        f"CLAUDE_CODE_SESSION_ID=inner-claude CLAUDE_PID=$$ {inner}",
+        env,
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    out, _ = ran.communicate(timeout=STATED_TIMEOUT)
+    assert ran.returncode == 0
+    assert out.split() == ["ClaudeCodeHarness", "inner-claude"]
+
+    # With no codex above it, the same environment is Claude Code's, and a
+    # process the Codex task detaches inherits only the identity chosen there.
+    nearer = subprocess.run(
+        [sys.executable, "-c", probe],
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert nearer.returncode == 0, nearer.stderr
+    assert nearer.stdout.split() == ["ClaudeCodeHarness", f"pytest-{os.getpid()}"]
+    detached = (
+        "from leaf.harness import detached_environment as d; "
+        "print(sorted(set(d()) & {'CODEX_THREAD_ID', 'CLAUDE_CODE_SESSION_ID'}))"
+    )
+    ran = under_codex(
+        shlex.join([sys.executable, "-c", detached]),
+        env,
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    out, _ = ran.communicate(timeout=STATED_TIMEOUT)
+    assert ran.returncode == 0
+    assert out.strip() == "['CODEX_THREAD_ID']"
+
+
 def test_a_codex_session_id_with_no_codex_above_it_is_refused(page_dir, monkeypatch):
     """A hand-built environment: CODEX_THREAD_ID states a Codex session and
     nothing running Codex is above this process, so there is no process whose
@@ -11403,7 +11595,7 @@ def test_a_codex_session_id_with_no_codex_above_it_is_refused(page_dir, monkeypa
     append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "hi"}
     )
-    for name in host_model.IDENTITY_VARIABLES:
+    for name in harness_model.IDENTITY_VARIABLES:
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("CODEX_THREAD_ID", "thread-nobody")
     monkeypatch.setattr(machine_model, "process_info", lambda _pid: (1, "python"))
@@ -11534,7 +11726,7 @@ def test_the_codex_environment_defaults_the_name_but_a_worker_keeps_its_own(
     tmp_path, under_codex, codex_env
 ):
     """A Codex worker launched with LEAF_AGENT set keeps that voice rather than
-    the host's default name."""
+    the harness's default name."""
     page = tmp_path / "worker-page"
     env = codex_env | {"CODEX_THREAD_ID": "thread-9", "LEAF_AGENT": "Indexer"}
     subprocess.run([*LEAF_COMMAND, "page", "init", page], env=env, check=True)
@@ -11546,12 +11738,12 @@ def test_the_codex_environment_defaults_the_name_but_a_worker_keeps_its_own(
     assert session["agent"] == "Indexer" and session["harness"] == "codex"
 
 
-def test_hook_remedies_follow_the_host_not_the_display_name(
+def test_hook_remedies_follow_the_harness_not_the_display_name(
     tmp_path, under_codex, codex_env, capsys
 ):
     """LEAF_AGENT names the voice the banner and threads show; which
     machinery the hook prescribes (unified exec vs background tasks) keys on the
-    recorded host, so a renamed Codex worker still gets Codex remedies."""
+    recorded harness, so a renamed Codex worker still gets Codex remedies."""
     page = tmp_path / "worker-page"
     env = codex_env | {"CODEX_THREAD_ID": "w1", "LEAF_AGENT": "Indexer"}
     subprocess.run([*LEAF_COMMAND, "page", "init", page], env=env, check=True)
@@ -11625,7 +11817,7 @@ def test_stop_hook_keeps_codex_inside_the_exact_wait_session(
     assert "rearmed `leaf wait --ack` afterward" in reason
     assert "background" not in reason
     acknowledge = session_model.wait_acknowledgement(
-        host_model.CodexHarness("codex-thread", "Codex")
+        harness_model.CodexHarness("codex-thread", "Codex")
     )("0a1b2c3d")
     assert "run `leaf wait --ack 0a1b2c3d` in unified exec" in acknowledge
     assert "background" not in acknowledge
@@ -11797,8 +11989,8 @@ sys.exit(session.cmd_wait(Path(sys.argv[1])))
 @pytest.mark.parametrize(
     "identity_names",
     [
-        pytest.param(host_model.IDENTITY_VARIABLES, id="bare-shell"),
-        pytest.param((), id="host-session"),
+        pytest.param(harness_model.IDENTITY_VARIABLES, id="bare-shell"),
+        pytest.param((), id="harness-session"),
     ],
 )
 def test_wait_lease_is_exact_and_excludes_another_wait(
@@ -11812,7 +12004,7 @@ def test_wait_lease_is_exact_and_excludes_another_wait(
         monkeypatch.delenv(name, raising=False)
     serving(page_dir, 1)
     session_model.cmd_status(page_dir, "waiting", "comment on the prototype")
-    # A bare waiter may hold an unclaimed page; a host waiter claims the page
+    # A bare waiter may hold an unclaimed page; a harness waiter claims the page
     # from its prior owner before taking its session-scoped lease.
     if not identity_names:
         record_claim(page_dir, id="past-session")
@@ -11820,7 +12012,7 @@ def test_wait_lease_is_exact_and_excludes_another_wait(
         page_dir / "waiter.lock"
         if identity_names
         else leases_model.waiter_lease_path(
-            page_dir, host_model.session_harness().session
+            page_dir, harness_model.session_harness().session
         )
     )
     first = spawn(
@@ -12032,7 +12224,7 @@ def test_a_new_claim_cannot_borrow_the_previous_sessions_wait_lease(
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "first")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     assert service_model.claim_page(page_dir)
-    first = host_model.session_harness()
+    first = harness_model.session_harness()
     first_turn = service_model.page_claim(page_dir)["turn"]
     lease = leases_model.take_lease(
         leases_model.waiter_lease_path(page_dir, first.session)
@@ -12072,7 +12264,7 @@ def test_stop_hook_does_not_borrow_a_foreign_bare_waiter_lease(page_dir, monkeyp
     assert bare
     try:
         assert page_state(page_dir)["listening"]
-        monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "host-owner")
+        monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "harness-owner")
         monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
         assert service_model.claim_page(page_dir)
         claim = service_model.page_claim(page_dir)
@@ -12477,7 +12669,7 @@ def test_a_wait_only_wakes_a_session_its_hooks_have_run_for(
     page_dir, monkeypatch, capsys
 ):
     """The wake line assumes a hook will hand the input over, which holds only
-    where the host runs Leaf's hooks for the session. Until one has run, the wait
+    where the harness runs Leaf's hooks for the session. Until one has run, the wait
     prints the delivery for its reader to confirm, as it does for a bare shell, so
     a session launched without the hooks still reads its input. The mark lasts for
     the session, and SessionEnd removes it."""
@@ -12838,7 +13030,7 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
             "text": "but why not C?",
         },
     )
-    # The host opens the follow-up turn; its Stop carries the new input, and a
+    # The harness opens the follow-up turn; its Stop carries the new input, and a
     # later Stop holds for an answer to the last word.
     cleanup_model.prompt_turn("s1")
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
@@ -13031,7 +13223,7 @@ def test_a_background_job_no_worker_hosts_is_resumed_with_its_input(
     (bin_dir / "claude").chmod(0o755)
     monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ['PATH']}")
     page = tmp_path / "page"
-    job = host_model.ClaudeCodeHarness(
+    job = harness_model.ClaudeCodeHarness(
         session="s9", agent="Claude", job=str(tmp_path / "job")
     )
 
@@ -13061,7 +13253,7 @@ def test_a_background_job_no_worker_hosts_is_resumed_with_its_input(
     )
     assert not job.nudge(page)
     record.unlink()
-    assert not host_model.ClaudeCodeHarness(session="s9", agent="Claude").nudge(page)
+    assert not harness_model.ClaudeCodeHarness(session="s9", agent="Claude").nudge(page)
     assert not argv.exists()
 
 
@@ -13268,7 +13460,7 @@ def test_a_claim_an_older_leaf_wrote_is_dropped_rather_than_read_or_raised_on(
     which leaves its page unclaimed and every other page working."""
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s8")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
-    leases_model.mark_hooks("s8")  # its host runs Leaf's hooks
+    leases_model.mark_hooks("s8")  # its harness runs Leaf's hooks
     # The walk is in path order, so a name ahead of the user's page is what
     # puts the unreadable record in front of the batch the session came for.
     stale = tmp_path / "held-preview"
@@ -13300,13 +13492,13 @@ def test_a_claim_an_older_leaf_wrote_is_dropped_rather_than_read_or_raised_on(
 
     # The same reading answers for the two records a later rename leaves behind,
     # and the Stop hook shows both: a harness name outside this version's table
-    # raises in `host.claim_harness`, which dispatches on that value rather than
+    # raises in `harness.claim_harness`, which dispatches on that value rather than
     # reading it, and a record missing a field a user brackets is taken for a
     # live claim, putting its page back in front of the guard — and in front of
     # `event_endpoint`'s nudge, which brackets `turn_closed` under the append
     # lock.
     for unreadable in (
-        {**claim, "harness": "some-host-a-later-leaf-named"},
+        {**claim, "harness": "some-harness-a-later-leaf-named"},
         {key: value for key, value in claim.items() if key != "generation"},
     ):
         cleanup_model.write_json(service_model.claim_path(stale), unreadable)
@@ -13401,7 +13593,7 @@ def test_a_claim_is_active_while_the_lifetime_it_names_holds(
     (job / "state.json").unlink()
     assert not service_model.claim_is_active(service_model.page_claim(page))
 
-    # A host that multiplexes every session into one process states no process at
+    # A harness that multiplexes every session into one process states no process at
     # all, so the claim stands on when the page was last touched. Both halves of
     # that reading: the claim's own stamp carries a page nothing has written to,
     # and a file under it carries one the session or a user has since moved.
@@ -13447,7 +13639,7 @@ def test_a_claim_is_active_while_the_lifetime_it_names_holds(
 
 
 def _registered_hook_command(event):
-    """The synchronous command the installed host runs for this event."""
+    """The synchronous command the installed harness runs for this event."""
     registrations = json.loads((PLUGIN_ROOT / "hooks/hooks.json").read_text())["hooks"][
         event
     ]
@@ -13465,7 +13657,7 @@ def test_the_registered_watch_hook_wakes_only_under_claude_code(claimed, tmp_pat
     and its exit 2 with stderr is the whole wake.
 
     Codex runs the same `hooks.json` and ignores `asyncRewake`, so it would wait
-    on the hook: the command itself gates on `$CLAUDECODE`. Driven the way a host
+    on the hook: the command itself gates on `$CLAUDECODE`. Driven the way a harness
     drives it, through a shell with the payload on stdin, because the wiring (the
     gate, the guard script, uv, the exit status it passes through) is the
     subject."""
@@ -13477,7 +13669,7 @@ def test_the_registered_watch_hook_wakes_only_under_claude_code(claimed, tmp_pat
     ]
     base = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
     base["CLAUDE_PLUGIN_ROOT"] = str(PLUGIN_ROOT)
-    leases_model.mark_hooks("s1")  # its host runs Leaf's hooks
+    leases_model.mark_hooks("s1")  # its harness runs Leaf's hooks
     serving(claimed, 1)
     session_model.cmd_status(claimed, "waiting", "")
     cleanup_model.close_session_turn("s1")
@@ -13519,7 +13711,7 @@ def test_the_registered_watch_hook_wakes_only_under_claude_code(claimed, tmp_pat
 
 
 def test_the_registered_hook_answers_out_of_interact_or_says_nothing(claimed, tmp_path):
-    """The host command calls Leaf's launcher, and Leaf answers under uv.
+    """The harness command calls Leaf's launcher, and Leaf answers under uv.
 
     Exercise the exact registration, stdin, environment selection and returned
     context. Startup failure and malformed input must leave the turn alone.
@@ -13599,7 +13791,7 @@ def test_the_registered_hook_leaves_library_execution_to_uv(event, watch, tmp_pa
     python.chmod(0o755)
     python_called = tmp_path / "python-called"
     called, received = tmp_path / "uv-called", tmp_path / "uv-input"
-    payload = json.dumps({"hook_event_name": event, "session_id": "hook-host"})
+    payload = json.dumps({"hook_event_name": event, "session_id": "hook-harness"})
     done = subprocess.run(
         (
             [sys.executable, "-S", str(guard), "--watch"]
@@ -13641,7 +13833,7 @@ def test_the_registered_hook_leaves_library_execution_to_uv(event, watch, tmp_pa
 def test_the_registered_session_end_releases_shared_claims_without_an_environment(
     page_dir, tmp_path
 ):
-    """A fresh install releases another checkout's claims within host shutdown.
+    """A fresh install releases another checkout's claims within harness shutdown.
 
     Only the launcher and standalone stdlib cleanup exist in this install. No
     package can be imported and uv refuses to run; macOS's system Python 3.9
@@ -13754,7 +13946,7 @@ def test_the_registered_session_end_releases_shared_claims_without_an_environmen
 def test_a_hook_in_a_session_holding_no_page_imports_no_page_reading_or_server(
     page_dir,
 ):
-    """A host runs Leaf's hooks at every turn of every session the plugin is
+    """A harness runs Leaf's hooks at every turn of every session the plugin is
     installed in, and most hold no page. Each waits on `import leaf.hooks`, so
     that import, and a prompt or Stop hook in a session holding nothing, loads
     neither the page servers nor page reading: markup, registry schemas, and
@@ -13797,7 +13989,7 @@ print(json.dumps(imported))
     )
     heavy = (
         "leaf.cli",
-        "leaf.host",
+        "leaf.harness",
         "psutil",
         "click",
         "leaf.hosting",
@@ -14460,11 +14652,13 @@ def test_a_sessionless_server_ignores_a_stale_claim_and_requires_explicit_stop(
     server.wait(timeout=5)
 
 
-def test_server_run_standing_declines_the_claim_a_host_session_offers(page_dir, spawn):
-    """`--standing` from inside a host is the bare-shell statement made
+def test_server_run_standing_declines_the_claim_a_harness_session_offers(
+    page_dir, spawn
+):
+    """`--standing` from inside a harness is the bare-shell statement made
     explicit: the launch declines the claim it could have made, so the server
     records the standing lifetime and the page stays nobody's — no watcher
-    thread to stop it when the host pid goes, no SessionEnd reaper. The host is
+    thread to stop it when the harness pid goes, no SessionEnd reaper. The harness is
     the suite's own session, which every command here already runs under."""
     process = spawn(
         [
@@ -14488,7 +14682,7 @@ def test_server_run_temporary_uses_the_browser_harness_boundary(page_dir, spawn)
     """A temporary serve is real HTTP with process-owned lifetime and access.
 
     It writes neither half of durable delivery: no service for a later wait to revive,
-    and no claim for this test's host session to watch.
+    and no claim for this test's harness session to watch.
     """
     process = spawn(
         [*LEAF_COMMAND, "server", "run", "--temporary", str(page_dir)],
@@ -14848,13 +15042,106 @@ def test_agent_sees_codex_watcher_recovery(codex_claimed_page, capsys, snapshot)
     )
 
 
+@pytest.mark.parametrize(
+    ("older_texts", "suggested"),
+    [
+        pytest.param(["x" * 2000], False, id="one-message-is-too-few"),
+        pytest.param(["x" * 1000, "x" * 999], False, id="below-character-threshold"),
+        pytest.param(["x" * 1000, "x" * 1000], True, id="two-long-messages"),
+        pytest.param(["Earlier detail."] * 3, False, id="three-short-messages"),
+        pytest.param(["Earlier detail."] * 4, True, id="four-short-messages"),
+    ],
+)
+def test_summary_suggestions_only_accompany_new_input(claimed, older_texts, suggested):
+    publish(claimed)
+    root = append_carried_log_record(
+        claimed, {"kind": "comment", "author": "user", "text": older_texts[0]}
+    )
+    older = [root]
+    for number, text in enumerate(older_texts[1:], start=1):
+        older.append(
+            append_carried_log_record(
+                claimed,
+                {
+                    "kind": "reply",
+                    "author": "agent" if number % 2 else "user",
+                    "parent": root["id"],
+                    "text": text,
+                },
+            )
+        )
+    updates = [
+        append_carried_log_record(
+            claimed,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "parent": root["id"],
+                "text": "Checking the rollout details." * 100,
+                "ephemeral": True,
+            },
+        )
+        for _ in range(2)
+    ]
+    previous = append_carried_log_record(
+        claimed,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "parent": root["id"],
+            "text": "The newest exchange stays readable." * 100,
+        },
+    )
+    receive_through(claimed, last_deliverable_seq(claimed))
+    assert delivery_model.pending_batches("s1") == []
+
+    current = append_carried_log_record(
+        claimed,
+        {
+            "kind": "reply",
+            "author": "user",
+            "parent": root["id"],
+            "text": "What do you recommend now?" * 100,
+        },
+    )
+    payload = consume_pending_input("s1")
+    [batch] = payload["batches"]
+    assert [event["id"] for event in batch["events"]] == [current["id"]]
+    [thread] = batch["threads"]
+    assert {
+        message["id"] for message in thread["messages"] if message.get("ephemeral")
+    } == {update["id"] for update in updates}
+    assert ("summary_hint" in thread) is suggested
+    if suggested:
+        assert thread["summary_hint"] == {
+            "from": older[0]["id"],
+            "through": older[-1]["id"],
+        }
+        assert previous["id"] != thread["summary_hint"]["through"]
+    assert consume_pending_input("s1") is None
+
+    # An answer clears the response obligation even when the agent leaves the
+    # optional suggestion alone. It produces no separate summary delivery.
+    thread_model.cmd_reply(
+        claimed,
+        current["id"],
+        "Proceed with the rollout.",
+        None,
+        for_event=current["id"],
+    )
+    assert delivery_model.pending_batches("s1") == []
+    [plan] = hook_carrier_model.read_plans("s1")
+    assert not plan.owed
+    assert plan.state["activity"]["obligations"] == []
+
+
 def test_agent_sees_a_real_summary_suggestion(page_dir, capsys, snapshot):
     publish(page_dir)
     serving(page_dir, 1)
     root = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "Which rollout?"}
     )
-    for number in range(1, 11):
+    for number in range(1, 5):
         append_carried_log_record(
             page_dir,
             {
@@ -14880,7 +15167,7 @@ def test_agent_sees_a_real_summary_suggestion(page_dir, capsys, snapshot):
     [batch] = envelope["batches"]
     assert batch["threads"][0]["summary_hint"]
     # The event carries the ask as well as the digest, so an agent that reads only
-    # what is new is still told the thread wants summarizing.
+    # what is new can still choose whether to summarize the older discussion.
     [event] = batch["events"]
     assert any("summary_hint" in batch["handling"][h] for h in event["handling"])
     snapshot.check(
@@ -15369,7 +15656,8 @@ def test_one_subscription_recovers_delivery_without_a_second_start(
             },
         )
         prepared = codex_model.prepare_codex_delivery(
-            page_dir, host_model.EmbeddedHarness("codex-thread", "Codex", os.getpid())
+            page_dir,
+            harness_model.EmbeddedHarness("codex-thread", "Codex", os.getpid()),
         )
         assert codex_model.stream_reply_target(prepared.payload) is None
     payload = prepared.payload
@@ -15589,7 +15877,7 @@ def test_an_uncertain_start_without_a_reply_seat_survives_adapter_restart(
         },
     )
     prepared = codex_model.prepare_codex_delivery(
-        page_dir, host_model.EmbeddedHarness("codex-thread", "Codex", os.getpid())
+        page_dir, harness_model.EmbeddedHarness("codex-thread", "Codex", os.getpid())
     )
     assert codex_model.stream_reply_target(prepared.payload) is None
     starts = []
@@ -15783,7 +16071,7 @@ def test_abandonment_recovery_releases_the_seat_and_preserves_manual_answers(
     )
     assert codex_adapter_model.read_cursor(page_dir) > 0
     # Late provider evidence keeps its exact delivery identity but cannot replace
-    # the manual answer that won before this host retired its unknown attempt.
+    # the manual answer that won before this harness retired its unknown attempt.
     if manual:
         connection = _observer()
         connection._resume(
@@ -16219,7 +16507,7 @@ def test_manual_answer_retires_an_unknown_start_before_the_provider_becomes_idle
         markup="",
         for_event=target["responds"],
     )
-    # The watcher settles the host attempt without contacting the provider;
+    # The watcher settles the harness attempt without contacting the provider;
     # prolonged disconnect cannot block later input behind the manual winner.
     assert codex_adapter_model._recover_receipt("codex-thread")
     assert (
@@ -16284,7 +16572,7 @@ def test_session_lifecycle_is_shared_without_rewriting_page_claims(
 
 
 def test_cold_session_end_does_not_wait_for_a_page_transaction(claimed):
-    """A held page lock cannot consume the host's three-second SessionEnd deadline."""
+    """A held page lock cannot consume the harness's three-second SessionEnd deadline."""
     with service_model.PageTransaction(claimed):
         done = subprocess.run(
             [
@@ -16427,7 +16715,7 @@ def test_newer_prompt_supersedes_hook_policy_before_effects(
 
 def test_claim_rollback_tracks_acquisition_independently_of_turn(claimed):
     previous = service_model.page_claim(claimed)
-    harness = host_model.session_harness()
+    harness = harness_model.session_harness()
     with service_model.PageTransaction(claimed) as page:
         _, expected = page.take_claim(harness)
         cleanup_model.prompt_turn("s1", "provider")
@@ -16475,7 +16763,7 @@ def test_hook_publication_never_receipts_input_before_its_reader(
             page, {"kind": "comment", "author": "user", "text": "Please answer"}
         )
     # A lock taken after planning would block the former receipt loop after its
-    # first write, allowing a host timeout to discard context already receipted.
+    # first write, allowing a harness timeout to discard context already receipted.
     compose = hook_carrier_model.compose
     held = service_model.PageTransaction(sibling)
 
@@ -16493,7 +16781,7 @@ def test_hook_publication_never_receipts_input_before_its_reader(
         assert all(events_model.read_cursor(page) == 0 for page in (claimed, sibling))
     finally:
         held.__exit__(None, None, None)
-    # Discard the first output just as the host does on timeout. A later prompt
+    # Discard the first output just as the harness does on timeout. A later prompt
     # publishes the same input; only its reader's exact ack advances cursors.
     monkeypatch.setattr(hook_carrier_model, "compose", compose)
     hooks_model.cmd_hook({"hook_event_name": "UserPromptSubmit", "session_id": "s1"})
@@ -16529,7 +16817,7 @@ def test_reader_ack_refuses_a_closed_turn_without_reopening_it(
     assert cleanup_model.session_record("s1") == closed
     assert events_model.read_cursor(claimed) < event["seq"]
     assert not any(e["kind"] == "pickup" for e in events_model.read_events(claimed))
-    # A real subsequent host prompt admits the same immutable input to its reader.
+    # A real subsequent harness prompt admits the same immutable input to its reader.
     cleanup_model.prompt_turn("s1", "next-provider" if turn_id else None)
     assert (
         CliRunner().invoke(cli_model.cli, ["delivery", "ack", envelope["id"]]).exit_code
@@ -16924,7 +17212,7 @@ def test_old_fold_cannot_change_activity_in_a_reused_session_generation(
     cleanup_model.prompt_turn("codex-thread", "same-turn")
     with service_model.PageTransaction(page_dir) as page:
         page.take_claim(
-            host_model.EmbeddedHarness("codex-thread", "Codex", os.getpid())
+            harness_model.EmbeddedHarness("codex-thread", "Codex", os.getpid())
         )
         page.set_status("working", "New generation")
     codex_model.set_stream_activity(
@@ -17022,7 +17310,7 @@ def test_a_rejected_started_fold_cannot_publish_initial_working_activity(
         cleanup_model.prompt_turn("codex-thread", turn_id)
         with service_model.PageTransaction(page_dir) as page:
             page.take_claim(
-                host_model.EmbeddedHarness("codex-thread", "Codex", os.getpid())
+                harness_model.EmbeddedHarness("codex-thread", "Codex", os.getpid())
             )
             page.set_status("working", "New generation")
         codex_model.set_stream_activity(
@@ -17078,7 +17366,7 @@ def test_fresh_resume_replaces_a_fold_from_an_earlier_session_generation(page_di
     cleanup_model.prompt_turn("codex-thread", "same-turn")
     with service_model.PageTransaction(page_dir) as page:
         page.take_claim(
-            host_model.EmbeddedHarness("codex-thread", "Codex", os.getpid())
+            harness_model.EmbeddedHarness("codex-thread", "Codex", os.getpid())
         )
         page.set_status("working", "New generation")
     expected = cleanup_model.session_record("codex-thread")

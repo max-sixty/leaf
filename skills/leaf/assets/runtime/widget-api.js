@@ -31,7 +31,7 @@ export { landingInsets, shownBand, shownBox, shownParts } from "./geometry.js";
 export { placeKeeper } from "./user-place.js";
 export { inUi, uiInside, upFrom } from "./shadow.js";
 // Putting the user on an element that may be no tab stop of its own, which is what a
-// widget landing them anywhere but a control needs: the lend leaves with the first blur.
+// widget landing them anywhere but a control needs: the lend leaves when they move off.
 // Holding the user's place, caret included, across a move or re-render of the node they
 // stand on. TEXT_FIELD is the tag of the box a widget offers for the user to write
 // Markdown in; TEXT_BOX matches it and any native textarea.
@@ -41,6 +41,7 @@ export { TEXT_BOX, TEXT_FIELD } from "./control-selectors.js";
 // user standing in a node it moves.
 export { setChildren, setRenderedChildren } from "./dom-children.js";
 export { openAsks, watchAsks } from "./application.js";
+export { answersWithin, watchAnswers } from "./asks/answer.js";
 export { registerVisualParts } from "./visual-parts.js";
 export {
   threadBox,

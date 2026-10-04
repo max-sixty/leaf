@@ -287,6 +287,7 @@ export function mountApplication(dependencies) {
     actions: threadActions,
     wireInput: dependencies.wireInput,
     landSent: dependencies.landSent,
+    changed: refreshThread,
   };
   const settlementView = {
     pendingEntries: ledger.snapshot,
@@ -383,6 +384,7 @@ export function mountApplication(dependencies) {
     scrollToElement: dependencies.anchorTravel.scrollToElement,
   });
   const threadDestinations = createThreadDestinations({
+    threadIdsAt: annotations.threadIdsAt,
     placedAt: dependencies.anchorPlacement.placedAt,
     panelIsOpen: dependencies.panelIsOpen,
     showThread: dependencies.showThread,
@@ -407,6 +409,15 @@ export function mountApplication(dependencies) {
     // stopped drawing: the surface drawing it, its margin card, or the panel.
     openThread: (id, options) =>
       threadDestinations.openPageThread(id, { ...options, travel: false }),
+    // A native Tab visit outside a displaced row retains editing without taking focus.
+    continueThread: (id, intent) =>
+      threadDestinations.openPageThread(id, {
+        focus: false,
+        travel: false,
+        flash: false,
+        carried: true,
+        intent,
+      }),
     read,
   });
   const registerThreadPanel = ({ controller, threadsBox, view, required = false }) => {

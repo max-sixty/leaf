@@ -33,17 +33,26 @@
  * focus from the destination or delaying it. Reduced motion keeps the selected state
  * without the highlight; switching again or disconnecting cancels an unfinished cue.
  * Every tab's accessible name is its label; what else the tab shows describes it. A
- * side list's row adds the panel's `summary` under the name. While the version diff is on,
- * each tab counts the marked passages its panel holds, including inactive panels. Unupgraded,
+ * side list's row adds the panel's `summary` under the name, and beside the name, once
+ * every Ask its panel holds is answered, a check with the answer's own words where the
+ * panel holds one Ask, or the check alone where it holds several. So a queue shows how
+ * far the user has worked through it, and an undo that reopens an Ask takes the check
+ * away again. Which Asks a panel holds and their answers are `answersWithin`'s, read
+ * from the admitted Ask inventory. A row whose panel authors an Ask keeps the check's
+ * room either way, so an answer moves no row. While the
+ * version diff is on, each tab counts the marked passages its panel holds, including
+ * inactive panels. Unupgraded,
  * panels stack as labeled sections; authored content is never replaced, so
  * there is no failSoft. */
 import {
   HIDDEN,
   PRESS,
+  answersWithin,
   beginWalk,
   capturePlace,
   claimTraversals,
   commands,
+  elementsDeclaring,
   keepView,
   keeps,
   keepsText,
@@ -63,6 +72,7 @@ import {
   selectableOffer,
   setRuntimeRootStyle,
   tabStore,
+  watchAnswers,
 } from "/runtime/widget-api.js";
 
 // The page's navigation strip, where one stands: the first tab set in main, drawn as
@@ -87,6 +97,7 @@ customElements.define(
   class extends HTMLElement {
     #buttons = new Map(); // panel → its strip button
     #diffEvents = null;
+    #stopAsks = null;
     #historyEvents = null;
     #active = null;
     #root = false;
@@ -102,6 +113,7 @@ customElements.define(
         this.#watchRootContext();
         this.#syncRootContext();
         this.#listenForHistory();
+        this.#listenForAsks();
         return this.#listenForDiff();
       }
       // Own panels only (a nested lf-tabs wires its own).
@@ -142,6 +154,18 @@ customElements.define(
           summary.className = "lf-tab-summary";
           relabel(summary, panel.getAttribute("summary"), { says: true });
           btn.append(summary);
+        }
+        // The row's answer, unsaid until every Ask in the panel is answered (`#marks`),
+        // stands where the panel authors an Ask; before the Δ count, which takes the
+        // next column.
+        if (side && elementsDeclaring(panel, "x-awaits").length) {
+          const answer = document.createElement("span");
+          answer.className = "lf-tab-answer";
+          answer.setAttribute("aria-hidden", "true");
+          const words = document.createElement("span");
+          words.className = "lf-tab-answer-words";
+          answer.append(words);
+          btn.append(answer);
         }
         const chip = document.createElement("span");
         chip.className = "lf-tabdiff";
@@ -241,6 +265,7 @@ customElements.define(
       }
       // The Δ count follows the version diff; the runtime announces each toggle.
       this.#listenForDiff();
+      this.#listenForAsks();
     }
 
     disconnectedCallback() {
@@ -248,6 +273,8 @@ customElements.define(
       this.#revealMotion = null;
       this.#diffEvents?.abort();
       this.#diffEvents = null;
+      this.#stopAsks?.();
+      this.#stopAsks = null;
       this.#historyEvents?.abort();
       this.#historyEvents = null;
       this.#contextObserver?.disconnect();
@@ -265,8 +292,9 @@ customElements.define(
       }
     }
 
-    // The version diff's marked passages in each panel, said with its summary as
-    // the tab's description.
+    // What each panel holds, said with its summary as the tab's description: the
+    // version diff's marked passages, and in a side list the answer once its Asks are
+    // all answered.
     #marks() {
       for (const [panel, btn] of this.#buttons) {
         const changed = panel.querySelectorAll(".lf-ins-block").length;
@@ -274,14 +302,46 @@ customElements.define(
           btn.querySelector(":scope > .lf-tabdiff"),
           changed ? `Δ${changed}` : "",
         );
+        const slot = btn.querySelector(":scope > .lf-tab-answer");
+        const answers = slot ? this.#answers(panel) : [];
+        const answered = answers.length > 0 && !answers.includes(null);
+        const answer = answered && answers.length === 1 ? answers[0] : "";
+        if (slot) {
+          keeps(slot, "data-lf-answered", answered ? "" : null);
+          keepsText(slot.firstElementChild, answer);
+        }
         const description = [
           panel.getAttribute("summary"),
           changed === 1 ? "1 change" : changed ? `${changed} changes` : "",
+          !answered
+            ? ""
+            : answers.length > 1
+              ? `All ${answers.length} Asks answered`
+              : answer
+                ? `Answered: ${answer}`
+                : "Answered",
         ]
           .filter(Boolean)
           .join(". ");
         keeps(btn, "aria-description", description || null);
       }
+    }
+
+    // One panel's Ask answers. A widget breaking the answer contract is reported and
+    // costs only its own row the answer, so every other row still paints.
+    #answers(panel) {
+      try {
+        return answersWithin(panel);
+      } catch (error) {
+        reportError(error);
+        return [];
+      }
+    }
+
+    // A side list's answers follow the page's Ask reading.
+    #listenForAsks() {
+      if (!this.#side || !this.#buttons.size || this.#stopAsks) return;
+      this.#stopAsks = watchAnswers(this, this, () => this.#marks());
     }
 
     #listenForDiff() {

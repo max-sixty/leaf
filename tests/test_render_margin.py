@@ -18,7 +18,6 @@ from leaf import service as service_model
 from leaf import session as session_model
 from leaf.render_checks import rendered
 from leaf.served_state import context as served_context
-from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 from playwright.sync_api import expect
 from render_cases_interaction import (
     ASK_PAGE,
@@ -1312,14 +1311,6 @@ def _unfold_suggestion_undo(page, target):
     return control
 
 
-@pytest.mark.xfail(
-    strict=False,
-    raises=(AssertionError, PlaywrightTimeoutError),
-    reason=(
-        "Verified on main ef89dfd3e: gallery suggestion actions can disappear after "
-        "Undo under concurrent original journeys; see notes/margin-stuck-style.md"
-    ),
-)
 @pytest.mark.parametrize("width", [1440, 1200, 700, 390])
 def test_the_feature_gallery_keeps_its_real_actions_reachable(browser, serve, width):
     """The developer sampler stays usable after edits, verdicts, and Page Map actions."""
@@ -1454,7 +1445,6 @@ def test_a_decision_undone_leaves_every_suggestion_pin_where_it_stood(browser, s
     margins_laid_out(page)
     ids = ["bg-replace", "bg-insert", "bg-delete"]
     before = page.evaluate(SUGGESTION_PINS, ids)
-    retirement_failure = None
     for target, outcome in (
         ("bg-replace", "accept"),
         ("bg-insert", "reject"),
@@ -1474,10 +1464,7 @@ def test_a_decision_undone_leaves_every_suggestion_pin_where_it_stood(browser, s
         if target == "bg-insert":
             inserted = page.locator("#bg-insert lf-new")
             expect(inserted).to_have_attribute("data-lf-retired", "")
-            try:
-                expect(inserted).to_be_hidden()
-            except AssertionError as error:
-                retirement_failure = error
+            expect(inserted).to_be_hidden()
         margins_laid_out(page)
         undo_control = _unfold_suggestion_undo(page, target)
         applied += 1
@@ -1511,17 +1498,6 @@ def test_a_decision_undone_leaves_every_suggestion_pin_where_it_stood(browser, s
                     before,
                     after,
                 )
-    # Complete every pin round trip before quarantining the independently observed
-    # retirement defect; a restoration or geometry failure is still a failure.
-    if retirement_failure is not None:
-        pytest.xfail(
-            "Main 085938106 intermittently paints the retired gallery insertion "
-            "after rejection despite completed rendering and no live animation; "
-            "raw Chromium captures reproduce the stale native style. "
-            "See notes/margin-stuck-style.md"
-        )
-        # --runxfail disables xfail(), so it must still expose the original fault.
-        raise retirement_failure
 
 
 def test_the_feature_gallery_displays_the_complete_margin_entry_inventory(
@@ -8027,6 +8003,54 @@ def test_an_agent_reply_leaves_the_reply_being_typed_where_it_stands(
     assert preview.evaluate(DRAFTING_CARD) == before
 
 
+def test_an_agent_reply_into_an_open_card_cues_only_its_own_words(browser, serve):
+    """A turn arriving in a card the user has open wears the cue a sent turn wears,
+    once and on its own words; opening the card cues nothing it already held."""
+    page = open_page(browser, serve(LONG_THREAD_PAGE, events=[LONG_THREAD_ROOT]))
+    page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
+    preview = page.locator(".lf-margin-preview")
+    expect(preview).to_be_visible()
+    rendered(page)
+    cued = """preview => [...preview.querySelectorAll('.lf-msg')].filter(message =>
+      message.getAnimations().some(animation =>
+        animation.effect.getKeyframes().some(frame => frame.backgroundColor)))
+      .map(message => message.textContent.includes('arriving') ? 'reply' : 'root')"""
+    assert preview.evaluate(cued) == []
+    # Pause the cue at its first frame, before driver latency can let it finish.
+    preview.evaluate(
+        """preview => {
+          window.__arrival = null;
+          const observer = new MutationObserver(() => {
+            const message = [...preview.querySelectorAll('.lf-msg')].find(node =>
+              node.textContent.includes('arriving'));
+            if (!message) return;
+            const cue = message.getAnimations().find(animation =>
+              animation.effect.getKeyframes().some(frame => frame.backgroundColor));
+            if (cue) { cue.pause(); cue.currentTime = 0; }
+            window.__arrival = Boolean(cue);
+            observer.disconnect();
+          });
+          observer.observe(preview, {subtree: true, childList: true, attributes: true});
+        }"""
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "revision": 1,
+            "parent": LONG_THREAD_ROOT["id"],
+            "responds": LONG_THREAD_ROOT["id"],
+            "text": "An agent answer arriving while the card is open.",
+        },
+    )
+    told(page)
+    page.wait_for_function("() => window.__arrival !== null")
+    assert page.evaluate("() => window.__arrival")
+    assert preview.evaluate(cued) == ["reply"]
+
+
 @pytest.mark.parametrize("how", ["key", "press"])
 @pytest.mark.parametrize("size", [(1200, 900), (800, 520)])
 def test_a_sent_reply_leaves_the_reply_row_where_it_stands(browser, serve, size, how):
@@ -10099,13 +10123,6 @@ def test_a_row_behind_an_inactive_tab_is_withheld(browser, serve):
     expect(row).to_be_visible()
 
 
-@pytest.mark.xfail(
-    reason="Current main dde1a5ae7 gives a page-flow tab a block frame, confining the "
-    "gallery's available-width figure to the column and leaving its marker in the rail "
-    "(CI 37081158751; native scope allocation defect)",
-    raises=AssertionError,
-    strict=False,
-)
 def test_the_feature_gallery_shows_a_pin_on_a_wide_figure_and_o_hides_it(
     browser, serve
 ):

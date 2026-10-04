@@ -26,7 +26,7 @@ arm or serving a page, lives in one module here and the others import it. Code
 reaches a module by importing it from this package, never through `sys.path`,
 `PYTHONPATH` or a file path.
 
-- `harness.py`: arms (the plugin payload at a ref, or as the working tree has it) and
+- `arms.py`: arms (the plugin payload at a ref, or as the working tree has it) and
   an A/B's pair of them, whose base defaults to the merge base with `main`
   (`base_ref`); pages served from an authored source on an arm; the machine's load
   average a timed command prints; the isolated `claude -p` children evals run; and
@@ -41,6 +41,18 @@ reaches a module by importing it from this package, never through `sys.path`,
   evidence uses the same recorder as site verification: phases, resources, and
   native initial layout shifts with affected nodes and before/after rectangles.
   Those shifts are diagnostic, never a stability gate.
+- `leaf-dev probe` also accepts an HTTP(S) URL. `--journey FILE` loads a Python
+  file defining `run(page)`, after the `--do` steps; it can use the full Playwright
+  API and return a JSON reading. `--record .tmp/recordings/NAME` saves `trace.zip`
+  and `video.webm` per arm, even on a failed assertion. `--gif` adds a looping GIF
+  for short journeys; `--actions` opts into visible click/key decorations.
+  Recordings default to normal motion; `--motion reduce` reproduces that preference.
+  Plain recording inserts no pauses. `--actions` is for demonstrations: Playwright
+  waits 500 ms before each annotated input. Native video holds its final frame for
+  at least one second. Read the timeline, filmstrip, DOM snapshots,
+  console and network with `uv run playwright show-trace DIR/worktree/trace.zip`.
+  `recording.py` owns capture and GIF encoding, including the demo's encoder;
+  its `recording(page, directory)` context works in any Playwright script.
 - `leaf-dev stills [BASE_REF]` screenshots a catalogue of UI states, at rest and
   reached by input, on a base runtime and HEAD's, and crops each state that changed
   into a before/after pair in its own run directory under `.tmp/stills/`.
@@ -66,10 +78,9 @@ reaches a module by importing it from this package, never through `sys.path`,
   examples, base plugin against HEAD's, with no model, and prints each arm's wall
   time. Its arms, pages and state stay in its own run directory under
   `.tmp/bench-check/`.
-- `leaf-dev eval [CASE]...` scores the task catalog on Claude Code and Codex.
-  Tasks include short native Promptfoo tests and authored, resumed or live workflows;
-  explicit contexts select focused regressions, and `--condition both` includes HTML
-  where meaningful. `evals/README.md` owns the format and execution contract.
+- `leaf-dev eval [CASE]...` runs the eval catalog through Promptfoo on Claude Code
+  and Codex, on the working tree and with `--base` the merge base too.
+  `evals/README.md` owns the format and how to read the results.
 
 ## Examples and previews
 

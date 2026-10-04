@@ -13,7 +13,9 @@ other page files and the external state listed below.
   the first 16 hex characters of the artifact-manifest digest. Its sibling
   revisions/rN-H/ captures index.html, manifest.json, registry, and every dependency
   needed to deliver that revision. The complete bundle is durable before the marker
-  appears. Identical artifacts reuse a revision; changed inputs create one. See
+  appears. Identical artifacts reuse a revision; changed inputs create one. A bundle
+  hard-links each resource whose bytes the previous revision captured, so its files
+  share inodes and are never written in place. See
   “Revision delivery” below for document replacement and widget retention.
 
 - `/versions/v1.html…` — virtual public addresses. Each `note` event maps a version to
@@ -67,7 +69,8 @@ other page files and the external state listed below.
   interactions, including refused requests. It is separate from `events.jsonl` and
   never enters page state or acknowledgement, and no command reads it: a reader
   follows the file itself (`tail -F`). The server appends request method, path without query, status, and
-  duration; `/api/interaction` appends browser batches with a session id, scoped
+  duration for every request except a successful `/api/news` look or delivery of a
+  resource's bytes (a module, stylesheet, or media file); `/api/interaction` appends browser batches with a session id, scoped
   page address, and server receipt time. Sample activity remains in its parent
   page's trace. The diagnostic file changes neither page/source reading nor
   presence cache keys. It is private page data and is never served as an asset.
@@ -102,7 +105,7 @@ other page files and the external state listed below.
   `thread.py` owns response reservations and their release. Every reader loads it
   through `service.read_status`, which reads a missing file as no declaration.
 
-- `waiter.lock` — stable bare-shell wait lease file; host sessions instead
+- `waiter.lock` — stable bare-shell wait lease file; harness sessions instead
   use `<state-home>/sessions/<session>.wait`. See [session-lifetime.md](session-lifetime.md).
 
 - `viewed.json` — last visible browser attention, written by the server and absent until
@@ -193,7 +196,7 @@ the vocabulary.
 
 Immutable deliveries live outside page directories at
 `<state-home>/deliveries/<id>.json`, because one envelope can contain complete
-batches from several pages and must resolve identically in every host. The file's
+batches from several pages and must resolve identically in every harness. The file's
 `leaf-delivery-v3` format, id, capture time, carrier, acknowledgement, and
 batches never change. Delivery
 records are separate mutable transport state; acknowledgement can archive

@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 
 from leaf.files import stamped_version
-from leaf.host import message_identity
+from leaf.harness import message_identity
 from leaf.leases import contract_writer
 from leaf.projection import folded_value, markup_value, page_reading
 from leaf.revisioning import planned_activation, publish_checked_event

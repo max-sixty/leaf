@@ -13,7 +13,7 @@ from typing import NamedTuple
 import pytest
 from leaf import codex_adapter as codex_adapter_model
 from leaf import files as files_model
-from leaf import host as host_model
+from leaf import harness as harness_model
 from leaf import leases as leases_model
 from leaf import machine as machine_model
 from leaf import state as cleanup_model
@@ -24,7 +24,7 @@ from playwright.sync_api import sync_playwright
 
 __all__ = ["LEAF_COMMAND"]
 
-# The canonical subprocess command. Tests of the installed host boundary invoke
+# The canonical subprocess command. Tests of the installed harness boundary invoke
 # that payload's `bin/leaf`; every other process test runs the checkout directly.
 # Start every child the way a terminal starts one. A run launched as a shell's
 # background job is handed SIGINT set to SIG_IGN, and an inherited SIG_IGN
@@ -279,7 +279,8 @@ def pytest_collection_modifyitems(config, items):
 
 def _changed_test_lines(root, since):
     """The lines under `tests/` that `since...HEAD` adds or edits, by file. A deletion
-    counts as the line it leaves behind."""
+    counts as the lines on either side of it, so deleting a test's decorators or its
+    last lines both touch the test."""
     diff = subprocess.run(
         ["git", "diff", "--unified=0", f"{since}...HEAD", "--", "tests"],
         cwd=root,
@@ -297,7 +298,7 @@ def _changed_test_lines(root, since):
             lines = changed.setdefault(root / line.removeprefix("+++ b/"), set())
         elif hunk := re.match(r"@@ -\S+ \+(\d+)(?:,(\d+))? @@", line):
             start, count = int(hunk[1]), int(hunk[2] or 1)
-            lines.update(range(start, start + max(count, 1)))
+            lines.update(range(start, start + count) if count else (start, start + 1))
     return changed
 
 
@@ -309,11 +310,12 @@ def _touches(item, changed):
     return not changed[item.path].isdisjoint(range(first, first + len(source)))
 
 
-# A host session states its identity in the environment, under names of its own
-# (`host.IDENTITY_VARIABLES`). The suite is a Claude Code session, and
-# `session_harness` reads that set first, so a test about a Codex session takes
-# this away, and a test about no session at all takes the whole set (`sessionless`).
-CLAUDE_IDENTITY = host_model.ClaudeCodeHarness.identity_variables
+# A harness session states its identity in the environment, under names of its own
+# (`harness.IDENTITY_VARIABLES`). The suite is a Claude Code session, and
+# `session_harness` answers with it wherever no nearer harness's process runs above
+# the command, so a test about a Codex session takes this away, and a test about
+# no session at all takes the whole set (`sessionless`).
+CLAUDE_IDENTITY = harness_model.ClaudeCodeHarness.identity_variables
 # The Claude Code sessions `isolated_session` marks as hooked: the worker's own
 # and the id lifecycle fixtures claim under (`record_claim`).
 HOOKED_SESSIONS = (f"pytest-{os.getpid()}", "s1")
@@ -327,7 +329,7 @@ def failing_claude(tmp_path_factory):
     thread that can outlive the test that posted the comment, so no teardown may
     restore the real one under it; a test about titling puts its own `claude`
     first."""
-    programs = tmp_path_factory.mktemp("host-programs")
+    programs = tmp_path_factory.mktemp("harness-programs")
     claude = programs / "claude"
     claude.write_text("#!/bin/sh\nexit 1\n")
     claude.chmod(0o755)
@@ -353,7 +355,7 @@ def isolated_session(tmp_path_factory, monkeypatch):
     outright (tests/AGENTS.md, "A process the suite starts ends with the run"). A
     run started from a background job leaves that job's directory behind too, as
     it would any other fact about the developer's session. A test about a
-    command run from outside a host session strips the identity:
+    command run from outside a harness session strips the identity:
     `sessionless`.
 
     The state home is the fixture's value, for `_no_page_outlives_its_test`:
@@ -363,15 +365,15 @@ def isolated_session(tmp_path_factory, monkeypatch):
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path_factory.mktemp("state")))
     monkeypatch.setenv("CODEX_HOME", str(tmp_path_factory.mktemp("codex")))
     monkeypatch.delenv(codex_adapter_model.APP_SERVER_ENV, raising=False)
-    for name in host_model.IDENTITY_VARIABLES:
+    for name in harness_model.IDENTITY_VARIABLES:
         monkeypatch.delenv(name, raising=False)
     # Claude Code's session registry, where a live turn is read
-    # (`host.claude_code_session_records`): empty, so no session of the developer's
+    # (`harness.claude_code_session_records`): empty, so no session of the developer's
     # answers for a test's.
     monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path_factory.mktemp("claude")))
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", f"pytest-{os.getpid()}")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
-    # A Claude Code session whose host runs Leaf's hooks, as the plugin installs
+    # A Claude Code session whose harness runs Leaf's hooks, as the plugin installs
     # them, so its `leaf wait` only wakes it (`Harness.hooks_carry`).
     for session in HOOKED_SESSIONS:
         leases_model.mark_hooks(session)
@@ -380,8 +382,8 @@ def isolated_session(tmp_path_factory, monkeypatch):
 
 @pytest.fixture
 def sessionless(monkeypatch):
-    """A command run from outside any host session: a terminal, a login item."""
-    for name in host_model.IDENTITY_VARIABLES:
+    """A command run from outside any harness session: a terminal, a login item."""
+    for name in harness_model.IDENTITY_VARIABLES:
         monkeypatch.delenv(name, raising=False)
 
 
@@ -389,7 +391,8 @@ def sessionless(monkeypatch):
 def codex_env():
     """The environment a Codex session's commands run in, for the tests that put
     a real one above a leaf: everything this process holds but the Claude Code
-    identity, which `session_harness` would answer with instead."""
+    identity, which `session_harness` answers with wherever no codex runs above
+    the command, as for a process the Codex task detaches."""
     return {k: v for k, v in os.environ.items() if k not in CLAUDE_IDENTITY}
 
 
@@ -455,7 +458,7 @@ def _browser(_playwright):
 
     With no channel named, Playwright uses its separate headless shell rather than
     installed Chrome's platform-window path. Session scope gives xdist one browser
-    per worker that requests it; the everyday smoke requests one, and the complete
+    per worker that requests it; the broad selection's smoke requests one, and the complete
     run can occupy all eight.
 
     Each test receives this process through the function-scoped `browser` fixture,
@@ -552,7 +555,7 @@ def headless_shell():
 
     Playwright reports where its full Chromium build would be whether or not that
     build is installed, and the documented setup installs the shell alone
-    (tests/AGENTS.md, "Run the narrowest useful surface"). Both sit under one
+    (tests/AGENTS.md, "Run what the change needs"). Both sit under one
     registry root at one build number, so the shell's path follows from Chromium's;
     where a developer installed the full build instead, that is the browser to hand
     over and the same tests hold on it. The `chromium-<build>` directory is found by

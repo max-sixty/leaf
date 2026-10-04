@@ -7,13 +7,14 @@ import re
 import shutil
 import textwrap
 import threading
-import time
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 from pathlib import Path
 
 import model_folds as model
 import pytest
+import tinycss2
+import tinycss2.parser
 from click.testing import CliRunner
 from interact_support import (
     ACCEPT,
@@ -74,8 +75,8 @@ from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
 from leaf import events as event_folds_model
 from leaf import files as files_model
+from leaf import harness as harness_model
 from leaf import hooks as hooks_model
-from leaf import host as host_model
 from leaf import media as media_model
 from leaf import page_view as page_view_model
 from leaf import passages as passages_model
@@ -3718,7 +3719,12 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
         "comment over App Server": {"kind": "comment", **untitled, **owes("turn")},
         "comment with a drawing": {
             "kind": "comment",
-            "drawing": {"format": "leaf-drawing/2", "strokes": [[[0, 0], [9, 9]]]},
+            "drawing": {
+                "format": "leaf-drawing/2",
+                "strokes": [[[0, 0], [9, 9]]],
+                "viewport": [1200, 900],
+                "scheme": "light",
+            },
             **owes("reply"),
         },
         "comment with a pasted image": {
@@ -3830,7 +3836,7 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
     capsys.readouterr()
     assert session_model.cmd_wait(page_dir) == 0
     assert "has new input" in capsys.readouterr().out
-    envelope = consume_pending_input(host_model.session_harness().session)
+    envelope = consume_pending_input(harness_model.session_harness().session)
     record = json.loads(logged)
     [batch] = envelope["batches"]
     [delivered] = batch["events"]
@@ -3932,7 +3938,7 @@ page's path are pinned, so the file stays the same from run to run.
 A carrier is the route that takes new user input to the agent's task:
 
   leaf wait          The agent runs `leaf wait` in the background. It prints
-                     the delivery as JSON and exits, and the host hands that
+                     the delivery as JSON and exits, and the harness hands that
                      output to the agent as the command's result, which wakes
                      it. The agent acknowledges the delivery itself, with
                      `leaf wait --ack <delivery-id>`, and answers with
@@ -3964,7 +3970,7 @@ all four, and it names its `carrier`. Two things differ, each stated once:
 carrier confirmed it; and the comment's `answer` is a `reply`, for `leaf thread reply`,
 except on App Server, where it is a `turn` the turn's own messages write. The
 `handling` follows from the answer, so each agent is told only its own route.
-The agent's standing instructions (its host contract, and on leaf.page the
+The agent's standing instructions (its harness contract, and on leaf.page the
 developer instructions) are not part of a delivery; test_website_server records
 leaf.page's.
 
@@ -4017,7 +4023,7 @@ def test_each_carrier_hands_the_agent_what_the_snapshot_shows(
     session_model.cmd_status(page_dir, "waiting", "")
     capsys.readouterr()
     # A bare shell's wait, the printing kind, which claims nothing.
-    session = host_model.session_harness().session
+    session = harness_model.session_harness().session
     for name in ("CLAUDE_CODE_SESSION_ID", "CLAUDE_PID"):
         monkeypatch.delenv(name)
     assert session_model.cmd_wait(page_dir) == 0
@@ -4039,7 +4045,7 @@ def test_each_carrier_hands_the_agent_what_the_snapshot_shows(
 
     thread = "codex-thread"
     prepared = codex_model.prepare_codex_delivery(
-        page_dir, host_model.EmbeddedHarness(thread, "Codex", os.getpid())
+        page_dir, harness_model.EmbeddedHarness(thread, "Codex", os.getpid())
     )
     started = codex_model.app_server_turn_start_params(thread, prepared.payload)
     delivery_model.cmd_delivery_read(prepared.payload["id"])
@@ -4230,7 +4236,9 @@ def test_event_kinds_are_the_kernel_contract_not_a_layer_extension(page_dir, tmp
         registry_validation.validate_registry(registry, "incoming")
 
 
-def test_an_empty_host_name_uses_the_host_default(page_dir, sessionless, monkeypatch):
+def test_an_empty_agent_name_uses_the_harness_default(
+    page_dir, sessionless, monkeypatch
+):
     published(page_dir)
     monkeypatch.setenv("LEAF_SESSION_ID", "worker-1")
     monkeypatch.setenv("LEAF_AGENT", "")
@@ -4759,26 +4767,35 @@ def test_sample_checks_available_history_beside_forward_thread_references(
     )
 
 
-def test_check_reads_only_the_page_stylesheet_and_stays_near_free(page_dir):
-    """A version's CSS is what its <style> blocks hold. Reading the whole file as one
-    made a megabyte of base64 (one screenshot as a data: URI) into a stylesheet to
-    tokenize, and the rule scanner reading it used to backtrack quadratically across any
-    long brace-free run, which took the better part of an hour. The clock bound is three
-    orders of magnitude above the fixed cost, so it fails on a re-introduced quadratic
-    and not on a slow machine; the assertion above it fails on the shape that fed it the
-    page."""
+def test_check_tokenizes_only_the_page_stylesheet(page_dir, monkeypatch):
+    """A version's CSS is what its <style> blocks and style="" attributes hold.
+    Reading the whole file as one stylesheet made a megabyte of base64 (one
+    screenshot as a data: URI) into CSS to tokenize, and the hand-written rule
+    scanner that read it backtracked quadratically across the long brace-free run,
+    which took the better part of an hour. tinycss2 now owns the CSS grammar and
+    its linear cost, so what leaf owns is what it hands the tokenizer: every string
+    any check stage tokenizes is recorded, and none may carry the data URI."""
     blob = "A" * 1_000_000
     html = PAGE.replace(
         "<h2>Plan</h2>",
-        f'<h2>Plan</h2><p><img alt="shot" src="data:image/png;base64,{blob}"></p>',
+        f'<h2>Plan</h2><p style="color: rebeccapurple"><img alt="shot" '
+        f'src="data:image/png;base64,{blob}"></p>',
     )
     (page_dir / "index.html").write_text(html)
-    parser = structure_model.SourceDocument(html)
-    assert parser.css == ""
+    tokenized = []
+    tokenize = tinycss2.parse_component_value_list
 
-    started = time.monotonic()
+    def recording(css, *args, **kwargs):
+        tokenized.append(css)
+        return tokenize(css, *args, **kwargs)
+
+    # Every tinycss2 entry point tokenizes a string through this one function.
+    monkeypatch.setattr(tinycss2.parser, "parse_component_value_list", recording)
+    monkeypatch.setattr(tinycss2, "parse_component_value_list", recording)
+
     assert check(page_dir).exit_code == 0
-    assert time.monotonic() - started < 10
+    assert "color: rebeccapurple" in tokenized
+    assert not [len(css) for css in tokenized if blob in css]
 
 
 def test_check_reports_css_syntax_errors_in_every_source_the_page_writes(page_dir):

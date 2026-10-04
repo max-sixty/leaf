@@ -13,8 +13,8 @@ The user follows your work on the page:
 
 Leaf itself marks each user move **Sent**, **Queued**, and **Picked up**, including
 a move that owes you nothing, such as a moved card. A pick before the Done its Ask
-waits for is marked with that Done. Your host
-contract may add its own current step to the banner. Chat stays in the host and never
+waits for is marked with that Done. Your harness
+contract may add its own current step to the banner. Chat stays in the harness and never
 reaches the page.
 
 Readings in `leaf page state <page>` describe the user's side between their
@@ -79,7 +79,7 @@ User input comes before the work in hand, in this order:
    already. Until you write a status, the banner can say only that you are working
    on their update.
 2. Name the work each move asks for on the page before starting it. Each delivered
-   event's `answering` clauses say how: for a comment, a status claim on its
+   event's `handling` clauses say how: for a comment, a status claim on its
    thread, with the reply carrying the result once it lands. A move that asks for
    no work, such as a question, is answered by its reply at once.
 3. If the move interrupted other work, write the page status again once its own
@@ -125,19 +125,19 @@ the page-wide detail when neither admits a local claim.
 
 Use `status --on` for work on a thread or widget, whether a delivered move asked
 for it or you began it yourself. It takes whatever id a delivered event's
-`answering` clauses name as its address: a thread by any message in it, a page
+`handling` clauses name as its address: a thread by any message in it, a page
 widget, or a widget in a thread message. The delivered move then reads
 **Working**.
 
 ## Long-running work
 
-New user input reaches you only between your own operations; your host contract
+New user input reaches you only between your own operations; your harness contract
 names exactly when. A long foreground operation, such as a test suite or a subagent
 you wait on, leaves the user's comment unanswered for its whole length.
 
 For work that will run longer than a few minutes, coordinate it rather than perform
 it. Hand the reading, editing, and testing to background subagents or background
-commands, and end your turn as the host contract says, so the watcher's next delivery
+commands, and end your turn as the harness contract says, so the watcher's next delivery
 reaches you while the work runs instead of waiting behind it. When a worker reports
 back, put its result on the page; the thread that asked for it then gets a reply
 saying what changed and linking to it.

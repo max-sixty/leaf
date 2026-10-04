@@ -58,7 +58,7 @@ from leaf import document_reading as document_reading_model
 from leaf import event_log as event_model
 from leaf import events as event_folds_model
 from leaf import files as files_model
-from leaf import host as host_model
+from leaf import harness as harness_model
 from leaf import hosting as hosting_model
 from leaf import http as http_model
 from leaf import interaction_log as interaction_model
@@ -115,7 +115,7 @@ def test_interaction_trace_records_browser_entries_and_every_request_outcome(
         fetch(
             f"{server}/api/interaction", data=json.dumps(payload).encode(), token=None
         )[0]
-        == 403
+        == 401
     )
     assert fetch(f"{server}/missing")[0] == 404
 
@@ -137,7 +137,7 @@ def test_interaction_trace_records_browser_entries_and_every_request_outcome(
     assert {(row["method"], row["path"], row["status"]) for row in server_rows} >= {
         ("POST", "/api/interaction", 204),
         ("POST", "/api/interaction", 400),
-        ("POST", "/api/interaction", 403),
+        ("POST", "/api/interaction", 401),
         ("GET", "/missing", 404),
     }
     assert all("?" not in row["path"] and row["durationMs"] >= 0 for row in server_rows)
@@ -458,7 +458,7 @@ def test_samples_seed_only_the_declared_threads_and_reset_by_recreation(
     assert event_model.read_events(page_dir) == before
     status, raw = fetch(f"{server}/api/samples", data=b'{"template":"missing"}')
     assert status == 400 and "unknown sample template" in json.loads(raw)["error"]
-    assert fetch(children[0] + "/api/state", token=None)[0] == 403
+    assert fetch(children[0] + "/api/state", token=None)[0] == 401
 
 
 def test_sample_template_lookup_stays_within_the_requesting_page(server, page_dir):
@@ -671,7 +671,7 @@ def test_authored_recordings_are_served_with_seekable_captured_bytes(
                 ) == (200, b"", "10")
                 conn.request("GET", route)
                 answer = conn.getresponse()
-                assert answer.status == 403
+                assert answer.status == 401
                 answer.read()
             finally:
                 conn.close()
@@ -1475,6 +1475,8 @@ def test_server_round_trip(server, page_dir):
         "strokes": [[[-20, 74], [50, 10], [120, 74]]],
         "box": [640.5, 96],
         "says": "to reap every process … before exporting",
+        "viewport": [1280, 720],
+        "scheme": "dark",
     }
     status, _ = fetch(
         f"{server}/api/event",
@@ -1644,8 +1646,10 @@ def test_server_round_trip(server, page_dir):
             "anchor": {"section": "feeder-board"},
             "drawing": {**drawing, "strokes": [[[float("nan"), 0.2], [0.5, 0.2]]]},
         },
-        # The box is a size and the words are bounded: both come off the rendered page,
-        # so their shape is all the door can hold them to.
+        # The box and the window are sizes, the words are bounded and the scheme is one
+        # of two: all come off the rendered page, so their shape is all the door can
+        # hold them to. The window is always recorded, since the agent's picture of the
+        # drawing is laid out in it.
         *(
             {
                 "kind": "comment",
@@ -1661,7 +1665,22 @@ def test_server_round_trip(server, page_dir):
                 {"says": ""},
                 {"says": "x" * 501},
                 {"says": ["to reap"]},
+                {"viewport": [1280, 0]},
+                {"viewport": [1280]},
+                {"scheme": "sepia"},
             )
+        ),
+        *(
+            {
+                "kind": "comment",
+                "revision": 2,
+                "text": "x",
+                "anchor": {"section": "feeder-board"},
+                "drawing": {
+                    key: value for key, value in drawing.items() if key != missing
+                },
+            }
+            for missing in ("viewport", "scheme")
         ),
         # Design is the field's only subject: the retired ownership alias and a browser
         # inventing a second subject are both refused at the door.
@@ -1857,6 +1876,29 @@ def test_the_live_root_places_its_delivery_at_the_parsers_head_boundary(
         f'<link rel="stylesheet" href="{artifact_root}/theme.css" data-lf-runtime>'
         in body
     )
+
+
+def test_a_revision_s_resources_are_cached_and_its_document_is_not(server, page_dir):
+    """A revision's resources are named by its digest, so the browser keeps them for
+    every document that imports them, a gallery's live samples included. The document
+    and the page's state stay uncached: each read asks what the page is now, and so
+    does a path under the namespace that names nothing."""
+    publish(page_dir)
+    root = "/revisions/" + files_model.revision_path(page_dir, 1).stem
+
+    def cache_control(path):
+        try:
+            with urllib.request.urlopen(f"{server}{path}?t={TOKEN}") as response:
+                return response.status, response.headers["Cache-Control"]
+        except urllib.error.HTTPError as error:
+            return error.code, error.headers["Cache-Control"]
+
+    immutable = "private, max-age=31536000, immutable"
+    assert cache_control(f"{root}/leaf.js") == (200, immutable)
+    assert cache_control(f"{root}/theme.css") == (200, immutable)
+    assert cache_control("/") == (200, "no-store")
+    assert cache_control("/api/state") == (200, "no-store")
+    assert cache_control(f"{root}/no-such-module.js") == (404, "no-store")
 
 
 def test_server_takes_an_approval_only_where_the_version_asked_for_one(
@@ -3105,8 +3147,8 @@ def test_every_kind_of_user_move_is_named_in_eight_characters(server, page_dir):
     """An id is something the agent reads back and retypes. One user comment
     shows the agent its id five times over and is answered with `leaf thread reply --for
     <id>`, so an id is eight hex characters. No kind is carved out of that: an
-    id a host keys an operation on is unique within this page either way, so the
-    host pairs it with the page rather than being handed a wider id and left to
+    id a harness keys an operation on is unique within this page either way, so the
+    harness pairs it with the page rather than being handed a wider id and left to
     assume it is distinctive on its own."""
     version = page_dir / "index.html"
     version.write_text(
@@ -3408,11 +3450,11 @@ def test_a_server_keeps_its_row_fresh_without_browser_visits(page_dir, spawn):
     session = cleanup_model.session_record("invisible")
     cleanup_model.write_session({**session, "turn_closed": cleanup_model.now_iso()})
     await_row(lambda row: row["activity"]["kind"] == "away")
-    # The host's dialog changes outside the page, with no lifecycle rewrite.
-    host_record = host_model.claude_code_sessions() / f"{agent.pid}.json"
-    host_record.parent.mkdir(parents=True, exist_ok=True)
+    # The harness's dialog changes outside the page, with no lifecycle rewrite.
+    harness_record = harness_model.claude_code_sessions() / f"{agent.pid}.json"
+    harness_record.parent.mkdir(parents=True, exist_ok=True)
     cleanup_model.write_json(
-        host_record,
+        harness_record,
         {
             "pid": agent.pid,
             "sessionId": "invisible",
@@ -3421,7 +3463,7 @@ def test_a_server_keeps_its_row_fresh_without_browser_visits(page_dir, spawn):
         },
     )
     await_row(lambda row: row["activity"]["observed_kind"] == "awaiting_user")
-    host_record.unlink()
+    harness_record.unlink()
     await_row(lambda row: row["activity"]["kind"] == "away")
     waiter = leases_model.take_lease(
         leases_model.waiter_lease_path(neighbor, "invisible")
@@ -3843,9 +3885,9 @@ def test_a_user_without_the_key_reads_and_writes_nothing(server, page_dir):
     log outranks the document and takes appends from anyone who can POST."""
     publish(page_dir)
 
-    assert fetch(f"{server}/versions/v1.html", token=None)[0] == 403
-    assert fetch(f"{server}/api/state", token=None)[0] == 403
-    assert fetch(f"{server}/", token=None)[0] == 403
+    assert fetch(f"{server}/versions/v1.html", token=None)[0] == 401
+    assert fetch(f"{server}/api/state", token=None)[0] == 401
+    assert fetch(f"{server}/", token=None)[0] == 401
     status, body = fetch(
         f"{server}/api/event",
         data=json.dumps(
@@ -3853,12 +3895,10 @@ def test_a_user_without_the_key_reads_and_writes_nothing(server, page_dir):
         ).encode(),
         token=None,
     )
-    assert status == 403
-    assert json.loads(body) == {
-        "ok": False,
-        "error": schema_model.NO_KEY,
-        "final": True,
-    }
+    # A refused key judges no event: it answers in the gate's own shape, without the
+    # `final` that would have the browser drop the gesture it is still holding for the
+    # moment the user opens the printed link.
+    assert (status, json.loads(body)) == (401, {"error": schema_model.NO_KEY})
 
     # The key gate precedes the body read. A peer that cannot open the page must not
     # get to choose how much a handler allocates or park it waiting for bytes that never
@@ -3879,14 +3919,11 @@ def test_a_user_without_the_key_reads_and_writes_nothing(server, page_dir):
             refusal = json.loads(refused.read())
         finally:
             peer.close()
-    assert (refused.status, refusal) == (
-        403,
-        {"ok": False, "error": schema_model.NO_KEY, "final": True},
-    )
+    assert (refused.status, refusal) == (401, {"error": schema_model.NO_KEY})
     assert refused.version == 11
     assert refused.getheader("Connection") == "close"
     assert refused.will_close
-    assert fetch(f"{server}/versions/v1.html", token="not-the-key")[0] == 403
+    assert fetch(f"{server}/versions/v1.html", token="not-the-key")[0] == 401
 
     assert [
         e for e in event_model.read_events(page_dir) if e["kind"] == "comment"
@@ -3904,10 +3941,11 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
 
     The state-dependent refusals were written through `event_rejection` from the start
     and the gates in front of them were not, which is the split this asserts away: the
-    key, the read-only preview server, and each shape gate answer in the door's own
-    shape rather than in the shape of whichever branch decided them. The key gate runs
-    before the body read, so its refusal is safely attempt-less; every authenticated
-    refusal can and must name the attempt it read. A page's runtime is vendored at
+    read-only preview server and each shape gate answer in the door's own shape rather
+    than in the shape of whichever branch decided them, and each names the attempt it
+    read. The key gate is not among them: it reads no event and lasts only until the
+    printed link is opened (`test_a_user_without_the_key_reads_and_writes_nothing`). A
+    page's runtime is vendored at
     `page init` and the layer around it moves, so the shape gates are reachable by an
     older page's honest event, not only by a hand-written POST."""
     publish(page_dir)
@@ -3936,18 +3974,6 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
         ),
     )
     with running_http_server(preview):
-        status, body = fetch(
-            f"{server}/api/event", data=json.dumps(comment).encode(), token=None
-        )
-        answer = json.loads(body)
-        assert (status, answer.get("ok"), answer.get("final")) == (
-            403,
-            False,
-            True,
-        )
-        assert "attempt" not in answer
-        assert answer.get("error") == schema_model.NO_KEY
-
         refusals = [
             (
                 "the preview server",
@@ -4417,7 +4443,7 @@ def test_the_key_arrives_in_the_query_and_stays_in_the_cookie(server, page_dir):
         fetch(f"{server}/api/state", token=None, headers={"Cookie": f"lf_key={TOKEN}"})[
             0
         ]
-        == 403
+        == 401
     )
 
     # No query this time: the runtime's own fetches never carry one.
@@ -4861,9 +4887,9 @@ def test_stop_does_not_wait_forever_on_a_server_started_after_its_transition(
         if owned:
             with service_model.PageTransaction(page_dir) as transaction:
                 transaction.take_claim(
-                    host_model.session_harness()
+                    harness_model.session_harness()
                     if same_session
-                    else host_model.ClaudeCodeHarness("successor", "Claude")
+                    else harness_model.ClaudeCodeHarness("successor", "Claude")
                 )
         assert hosting_model.start_server(page_dir, standing=True)
         resume.set()
@@ -4899,7 +4925,7 @@ def test_an_upgrade_is_answered_by_the_key_gate_like_any_other_request(server):
         body = answered.read()
     finally:
         speaker.close()
-    assert answered.status == 403, (answered.status, body[:400])
+    assert answered.status == 401, (answered.status, body[:400])
     assert b"Traceback" not in body, body[:400]
     assert b"it carries the key" in body, body[:400]
 
@@ -5179,7 +5205,7 @@ def test_one_key_reads_every_page_this_machine_serves(page_dir, tmp_path):
             assert arrival.status == 200
         with pytest.raises(urllib.error.HTTPError) as unvisited:
             opener.open(f"{other}/api/state")
-        assert unvisited.value.code == 403
+        assert unvisited.value.code == 401
         with opener.open(f"{other}/api/state?t={key}") as onward:
             assert onward.status == 200
         for origin in (first, other):

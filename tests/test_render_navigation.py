@@ -6092,18 +6092,17 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     # walking the page's clips came back with the whole reply box clipped away.
     resized(page, 1280, 800)
 
-    # The complete reference and the armed line are two projections of the register. Keep
-    # the command identities from the reference so the assertion below fails when a new
-    # live continuation reaches dispatch and help but not the visible sequence menu.
+    # The complete reference shows each command once, preferring an executable intrinsic
+    # route over its contextual Go-to route. Keep identities across all sections so that
+    # a command such as Align current item can be covered by its standing page route.
     page.keyboard.press("?")
     page.keyboard.press("?")
     goto = command_reference_rows(page, "Go to")
     reference_commands = set(
-        goto.locator("tr[data-lf-command]").evaluate_all(
+        page.locator(".lf-command-reference tr[data-lf-command]").evaluate_all(
             "rows => rows.map(row => row.dataset.lfCommand)"
         )
     )
-    assert reference_commands, "the page must contribute live Go to commands"
     overlaps = goto.locator("tr[data-lf-command]").evaluate_all(
         """rows => rows.flatMap(row => {
           const [key, action] = row.querySelectorAll(':scope > td');
@@ -6123,6 +6122,23 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     resized(page, 2560, 800)
     page.keyboard.press("g")
     shortcut_bar_text(page)
+    live_commands = set(
+        page.evaluate(
+            """async () => {
+              const {pageScopes} = await window.__lfRuntimeImport('runtime/keyboard/register.js');
+              const {live, commandPresentations} = await window.__lfRuntimeImport('runtime/keyboard/bindings.js');
+              const scope = pageScopes().find(scope => scope.rows?.some(
+                row => row.id === 'navigation.target'));
+              return scope.rows.filter(live).flatMap(row =>
+                commandPresentations(row).map(({id}) => id));
+            }"""
+        )
+    )
+    assert live_commands, "the page must contribute live Go to commands"
+    assert live_commands <= reference_commands, (
+        f"live Go to commands missing from the complete reference: "
+        f"{sorted(live_commands - reference_commands)}"
+    )
     visible_sequence = line.locator(".lf-shortcut:not([hidden])")
     visible_commands = set(
         visible_sequence.evaluate_all(
@@ -6130,9 +6146,9 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
               (hint.dataset.lfCommandIds || '').split(' ').filter(Boolean))"""
         )
     )
-    assert visible_commands == reference_commands, (
+    assert visible_commands == live_commands, (
         "the armed line and live Go to register diverged: "
-        f"line={sorted(visible_commands)}, reference={sorted(reference_commands)}"
+        f"line={sorted(visible_commands)}, register={sorted(live_commands)}"
     )
     for command, steps, states, words in [
         (
@@ -11575,6 +11591,78 @@ def test_align_current_tall_block_reveals_its_opening_through_outer_scrollers(
     assert page.evaluate("[history.length,navigation.currentEntry.key]") == history
 
 
+@pytest.mark.parametrize("quarter_turn", ["owning", "enclosing"])
+@pytest.mark.parametrize("alignment", ["nearest", "start"])
+def test_vertical_landing_crosses_a_quarter_turn_without_changing_horizontal_reading(
+    browser, serve, quarter_turn, alignment
+):
+    """A local vertical axis that cannot move screen Y leaves travel to the outer region."""
+    target = (
+        '<p id="quarter-target" tabindex="0" '
+        'style="width:120px;height:30px;margin:0 0 0 40px">Opening words</p>'
+        '<div style="width:600px;height:1200px"></div>'
+    )
+    inner = (
+        '<div id="quarter-inner" data-bound="start" '
+        'style="width:180px;height:180px;overflow:auto;margin-left:40px;'
+        'transform:translateY(180px) rotate(-90deg);transform-origin:left top">'
+        + target
+        + '</div><div style="width:600px;height:1200px"></div>'
+    )
+    source = leaf_page(
+        "Vertical travel through a quarter turn",
+        '<h1>Reveal the reading place</h1><div style="height:900px"></div>'
+        '<div id="quarter-port" data-bound="start" '
+        'style="width:300px;height:300px;overflow:auto;'
+        'transform:translateX(300px) rotate(90deg);transform-origin:left top">'
+        + (target if quarter_turn == "owning" else inner)
+        + '</div><div style="height:1600px"></div>',
+    )
+    page = open_page(browser, serve(source))
+    page.emulate_media(reduced_motion="reduce")
+    before = page.evaluate("""async () => {
+      const {scrollAxes} = await window.__lfRuntimeImport('/runtime/geometry.js');
+      const {scrollersOf} = await window.__lfRuntimeImport('/runtime/reading-regions.js');
+      const target = document.querySelector('#quarter-target');
+      const boxes = [...scrollersOf(target)].filter(box => box !== document.scrollingElement);
+      for (const box of boxes) box.scrollLeft = 13;
+      target.focus({preventScroll:true});
+      return {top:target.getBoundingClientRect().top, height:innerHeight,
+        axes:boxes.map(box => scrollAxes(box).y.y),
+        offsets:boxes.map(box => [box.scrollLeft, box.scrollTop]),
+        history:[history.length, navigation.currentEntry.key, location.href]};
+    }""")
+    assert before["top"] > before["height"]
+    assert before["axes"] == ([0] if quarter_turn == "owning" else [1, 0])
+    assert all(left > 0 for left, _ in before["offsets"])
+    if alignment == "start":
+        page.keyboard.press("g")
+        page.keyboard.press("z")
+    else:
+        page.evaluate("""async () => {
+          const {scrollIntoReadingBand} = await window.__lfRuntimeImport('/runtime/landing-scroll.js');
+          const target = document.querySelector('#quarter-target');
+          scrollIntoReadingBand(target, target, 'nearest', 'instant');
+        }""")
+    after = page.evaluate("""async () => {
+      const {landingBand} = await window.__lfRuntimeImport('/runtime/geometry.js');
+      const {scrollersOf} = await window.__lfRuntimeImport('/runtime/reading-regions.js');
+      const target = document.querySelector('#quarter-target');
+      return {rect:target.getBoundingClientRect().toJSON(), band:landingBand(document.scrollingElement),
+        offsets:[...scrollersOf(target)].filter(box => box !== document.scrollingElement)
+          .map(box => [box.scrollLeft, box.scrollTop]),
+        history:[history.length, navigation.currentEntry.key, location.href]};
+    }""")
+    assert after["rect"]["top"] >= after["band"]["top"] - 1
+    extent = (
+        after["rect"]["top"] + 1 if alignment == "start" else after["rect"]["bottom"]
+    )
+    assert extent <= after["band"]["bottom"] + 1
+    assert after["offsets"] == before["offsets"]
+    assert after["history"] == before["history"]
+    expect(page.locator("#quarter-target")).to_be_focused()
+
+
 def test_align_current_item_does_not_follow_old_page_caret_from_empty_threads(
     browser, serve
 ):
@@ -13713,8 +13801,109 @@ ASK_THREAD_PAGE = leaf_page(
 )
 
 
+@pytest.mark.parametrize("width", [390, 1200])
+@pytest.mark.parametrize("route", ["comment", "thread", "marker"])
+def test_ask_work_keeps_its_discussion_closed_until_requested(
+    browser, serve, width, route
+):
+    """An Ask arrival leaves its choices clear; explicit routes retain discussion identity."""
+    source = ASK_THREAD_PAGE.replace(
+        "<h2>Which cache should we keep?</h2>",
+        "<h2>Which cache should we keep?</h2>"
+        + "<p>Compare the memory and disk constraints carefully.</p>" * 14,
+    )
+    url = serve(source)
+    root = panel_comment(
+        serve.page_dir, "The disk cache costs more.", {"section": "cache-ask"}
+    )
+    page = open_page(browser, url)
+    page.set_viewport_size({"width": width, "height": 900})
+    page.keyboard.press("a")
+    expect(page.locator("#cache-ask")).to_be_focused()
+    rendered(page)
+    expect(page.locator(".lf-margin-preview")).to_be_hidden()
+    page.keyboard.press("1")
+    expect(page.locator("#cache-disk")).to_have_attribute("chosen", "")
+    if route == "comment":
+        page.keyboard.press("c")
+    elif route == "thread":
+        page.keyboard.press("t")
+    else:
+        page.locator(
+            '[data-lf-margin-for="cache-ask"] .lf-margin-marker[data-lf-kinds~="comment"]'
+        ).click()
+    thread = page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]')
+    expect(thread).to_be_visible()
+    if route == "comment":
+        expect(thread.locator("leaf-text")).to_be_focused()
+        expect(page.locator(".lf-fab-input")).to_be_hidden()
+
+
+@pytest.mark.parametrize("family", ["decision", "suggestion"])
+def test_ask_controls_do_not_automatically_open_discussion(browser, serve, family):
+    """Working an Ask retains its surface; passive passage arrival still accompanies."""
+    if family == "decision":
+        ask = '<lf-ask id="work"><h2>Keep the plan?</h2><lf-options id="decision" choose><lf-option id="yes">Yes</lf-option><lf-option id="no">No</lf-option></lf-options></lf-ask>'
+    else:
+        ask = '<lf-suggestion id="work"><lf-old>Old plan</lf-old><lf-new>New plan</lf-new></lf-suggestion>'
+    source = leaf_page(
+        "Work and discussion",
+        '<p id="passage" tabindex="0">Read this background before deciding.</p>' + ask,
+    )
+    url = serve(source)
+    passive = panel_comment(
+        serve.page_dir, "Remember the background.", {"section": "passage"}
+    )
+    root = panel_comment(
+        serve.page_dir, "Please compare the alternatives.", {"section": "work"}
+    )
+    page = open_page(browser, url)
+    page.keyboard.press("Shift")
+    page.locator("#passage").focus()
+    expect(
+        page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{passive}"]')
+    ).to_be_visible()
+    page.keyboard.press("a")
+    expect(page.locator("#work")).to_be_focused()
+    rendered(page)
+    expect(page.locator(".lf-margin-preview")).to_be_hidden()
+    if family == "decision":
+        page.keyboard.press("Tab")
+    else:
+        suggestion_control(page, "work", "accept").focus()
+    assert (
+        page.evaluate(
+            'async () => (await window.__lfRuntimeImport("/runtime/standing-target.js")).heldAsk()?.id'
+        )
+        == "work"
+    )
+    rendered(page)
+    expect(page.locator(".lf-margin-preview")).to_be_hidden()
+    page.keyboard.press("c")
+    reply = page.locator(
+        f'.lf-margin-preview .lf-page-thread[data-thread="{root}"] leaf-text'
+    )
+    expect(reply).to_be_focused()
+    control = (
+        page.locator("#yes lf-option-control")
+        if family == "decision"
+        else suggestion_control(page, "work", "accept")
+    )
+    control.focus()
+    expect(control).to_be_focused()
+    assert (
+        page.evaluate(
+            'async () => (await window.__lfRuntimeImport("/runtime/standing-target.js")).heldAsk()?.id'
+        )
+        == "work"
+    )
+    # A deliberately opened discussion stays while the keyboard returns to its Ask.
+    rendered(page)
+    expect(page.locator(".lf-margin-preview")).to_be_visible()
+
+
 def test_an_ask_and_its_thread_are_one_standing_target(browser, serve):
-    """An Ask whose own thread the card shows is one place held from two sides
+    """An Ask and its deliberately opened thread are one place held from two sides
     (glossary, Standing target). From the Ask, `c` continues that thread and `t` steps
     on past it; from its thread, in the card or in the Threads list, the Ask keeps its
     ring and its digits. A thread about an enclosing block is that block's, so an Ask
@@ -13737,11 +13926,12 @@ def test_an_ask_and_its_thread_are_one_standing_target(browser, serve):
     ask = page.locator("#cache-ask")
     ask_thread = card.locator(f'.lf-page-thread[data-thread="{about_ask}"]')
 
-    # From the Ask, the card beside it holds its thread, and `c` continues that thread
-    # rather than starting a second one.
+    # Ask work keeps the decision clear. Comment deliberately opens its existing
+    # discussion, preserving the subject without needing an already visible card.
     page.keyboard.press("a")
     expect(ask).to_be_focused()
-    expect(ask_thread).to_be_visible()
+    rendered(page)
+    expect(card).to_be_hidden()
     expect(line).to_contain_text("comment on the thread")
     page.keyboard.press("c")
     expect(ask_thread.locator("leaf-text")).to_be_focused()
@@ -13761,12 +13951,13 @@ def test_an_ask_and_its_thread_are_one_standing_target(browser, serve):
     expect(ask).to_have_attribute("data-lf-ask", "1")
     expect(line).to_contain_text("Keep the disk cache")
 
-    # The nested Ask's card shows its task's thread, which is about the task.
+    # Working the nested Ask leaves its enclosing task's discussion closed.
     page.keyboard.press("a")
     expect(page.locator("#ship-ask")).to_be_focused()
     page.keyboard.press("a")
     expect(page.locator("#retry-ask")).to_be_focused()
-    expect(card.locator(f'.lf-page-thread[data-thread="{about_task}"]')).to_be_visible()
+    rendered(page)
+    expect(card).to_be_hidden()
     expect(line).to_contain_text("comment on the ask")
     page.keyboard.press("Escape")
 

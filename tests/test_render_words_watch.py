@@ -1,12 +1,20 @@
 """The browser fixture fails the loss the "Words stay where they were typed" rule
 forbids (`words_watch.js`): typed words leaving the screen without a key or press."""
 
+import base64
 from html import escape
 from urllib.parse import quote
 
 import pytest
 from playwright.sync_api import expect
-from render_harness import consume_browser_errors, judge_watches
+from render_harness import (
+    consume_browser_errors,
+    example_media,
+    judge_watches,
+    leaf_page,
+    open_page,
+    write,
+)
 
 # A box holding a field, on a page long enough to scroll. What the page does to the box
 # when the user scrolls, presses Escape, or presses elsewhere is the page's `data-on`.
@@ -101,6 +109,75 @@ def test_words_a_handler_clears_in_their_own_turn_fail(browser, announced):
     )
 
 
+@pytest.mark.parametrize(
+    "operation", ["text", "cancelled", "image", "no-edit", "untrusted"]
+)
+def test_words_a_native_paste_observes_only_its_actual_editor_edit(
+    browser, serve, operation
+):
+    """The closed editor's paste is an edit; unused paste cannot hide later loss."""
+    page = open_page(browser, serve(leaf_page("Paste", "<h1>Paste a reply</h1>")))
+    page.evaluate("""() => {
+      const field = document.createElement('leaf-text');
+      field.id = 'field'; document.querySelector('main').append(field);
+    }""")
+    field = page.locator("#field")
+    write(field, "Keep these words")
+    page.context.grant_permissions(["clipboard-read", "clipboard-write"])
+    pixels = base64.b64encode(
+        (example_media() / "051bee487bfb5d13.png").read_bytes()
+    ).decode()
+    page.evaluate(
+        """async ({operation,pixels}) => {
+      window.clipboardBeforeWordTest = await navigator.clipboard.read();
+      if (operation === 'image') {
+        const bytes = Uint8Array.from(atob(pixels), char => char.charCodeAt(0));
+        await navigator.clipboard.write([new ClipboardItem({
+          'image/png': new Blob([bytes], {type:'image/png'})
+        })]);
+      } else await navigator.clipboard.writeText('Pasted words');
+      if (['cancelled','image','no-edit'].includes(operation))
+        field.addEventListener('paste', event => {
+          event.preventDefault(); event.stopImmediatePropagation();
+          if (operation === 'image') window.pastedPicture = event.clipboardData.files.length;
+          if (operation === 'no-edit') field.dispatchEvent(new Event('input', {bubbles:true}));
+        }, true);
+    }""",
+        {"operation": operation, "pixels": pixels},
+    )
+    try:
+        field.focus()
+        page.keyboard.press("ControlOrMeta+a")
+        if operation == "untrusted":
+            field.evaluate("""field => {
+              field.dispatchEvent(new ClipboardEvent('paste', {bubbles:true}));
+            }""")
+        else:
+            page.keyboard.press("ControlOrMeta+v")
+        expect(field).to_have_js_property(
+            "value", "Pasted words" if operation == "text" else "Keep these words"
+        )
+        if operation == "image":
+            assert page.evaluate("window.pastedPicture") == 1
+        judge_watches()
+        # Even the successful paste must resume watching its newly edited words.
+        field.evaluate("""field => {
+          field.value = ''; field.dispatchEvent(new Event('input', {bubbles:true}));
+        }""")
+        judge_watches()
+        words = "Pasted words" if operation == "text" else "Keep these words"
+        consume_browser_errors(
+            page,
+            f'typed words left the screen without a key or press: "{words}" in leaf-text#field',
+        )
+    finally:
+        page.evaluate("""async () => {
+          const previous = window.clipboardBeforeWordTest;
+          if (previous.length) await navigator.clipboard.write(previous);
+          else await navigator.clipboard.writeText('');
+        }""")
+
+
 def test_words_scrolled_out_of_view_stay(browser):
     page = box_page(browser, "")
     scrolled(page)
@@ -129,6 +206,35 @@ def test_words_a_press_elsewhere_puts_away_are_put_away(browser):
     page = box_page(browser, "press-hides")
     page.locator("#elsewhere").click()
     judge_watches()
+
+
+def test_words_a_passive_selection_change_cannot_close_a_draft(browser):
+    """A programmatic selection cannot put away words held in another field."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote("""<textarea id=field></textarea><p id=passage>A partial word remains selected.</p>
+          <script>
+          window.selectPassage = () => {
+            getSelection().setBaseAndExtent(passage.firstChild, 3, passage.firstChild, 14);
+          };
+          document.addEventListener('selectionchange', () => {
+            if (getSelection().isCollapsed) return;
+            window.selectedWords = getSelection().toString();
+            field.value = '';
+          });
+          </script>""")
+    )
+    page.locator("#field").fill("Half a thought")
+    page.evaluate("selectPassage()")
+    expect(page.locator("#field")).to_have_value("")
+    assert page.evaluate("window.selectedWords") == "artial word"
+    judge_watches()
+    consume_browser_errors(
+        page,
+        'typed words left the screen without a key or press: "Half a thought"'
+        " in textarea#field",
+    )
 
 
 @pytest.mark.parametrize("route", ["press", "keyboard"])
@@ -400,6 +506,96 @@ def test_words_a_slow_send_retains_its_input(browser, delay):
     page.locator("#send").click()
     page.wait_for_function("window.done === true")
     judge_watches()
+
+
+@pytest.mark.parametrize("scheduler", ["nextRender", "afterScript", "presenter"])
+@pytest.mark.parametrize("order", ["passive-first", "input-first"])
+def test_coalesced_rendering_jobs_keep_their_own_input_source(
+    browser, serve, scheduler, order
+):
+    """One pass may contain input and passive jobs; neither lends the other its cause."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Rendering job input ownership",
+                '<textarea id="native"></textarea><textarea id="passive"></textarea>'
+                '<button id="send">Put my words away</button>',
+            )
+        ),
+    )
+    page.evaluate(
+        """async ({scheduler,order}) => {
+          const module=await __lfRuntimeImport('/runtime/rendering.js');
+          let schedule=module[scheduler];
+          if(scheduler==='presenter') {
+            const {bindQueuedWork}=await __lfRuntimeImport('/runtime/queued-work.js');
+            const {createPresentationSchedule}=await __lfRuntimeImport('/vendor/browser-runtime.js');
+            const presentations=createPresentationSchedule(bindQueuedWork);
+            schedule=callback=>presentations.presenter({attach:()=>null,paint:callback}).sync(null);
+          }
+          const passive=lfInputWork.capture(()=>schedule(()=>{
+            document.getElementById('passive').remove();window.passiveDone=true;
+          }));
+          document.getElementById('send').onclick=()=>{
+            if(order==='passive-first')passive();
+            schedule(()=>{document.getElementById('native').remove();window.nativeDone=true;});
+            if(order==='input-first')passive();
+          };
+        }""",
+        {"scheduler": scheduler, "order": order},
+    )
+    page.locator("#native").fill("Words deliberately put away")
+    page.locator("#passive").fill("Words lost without permission")
+    page.locator("#send").click()
+    page.wait_for_function("window.nativeDone && window.passiveDone")
+    judge_watches()
+    consume_browser_errors(
+        page,
+        'typed words left the screen without a key or press: "Words lost without permission"',
+    )
+
+
+@pytest.mark.parametrize("scheduler", ["nextRender", "presenter"])
+def test_a_rendering_jobs_returned_async_tail_stays_passive(browser, serve, scheduler):
+    """A rendering callback's synchronous turn ends before its uncaptured native await."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Native rendering tail",
+                '<textarea id="field" style="position:absolute;left:40px;top:100px"></textarea><button id="send" style="position:fixed;right:0;top:100px">Send</button>',
+            )
+        ),
+    )
+    page.evaluate(
+        """async scheduler => {
+      const {nextRender}=await __lfRuntimeImport('/runtime/rendering.js');
+      let schedule=nextRender;
+      if(scheduler==='presenter') {
+        const {bindQueuedWork}=await __lfRuntimeImport('/runtime/queued-work.js');
+        const {createPresentationSchedule}=await __lfRuntimeImport('/vendor/browser-runtime.js');
+        const presentations=createPresentationSchedule(bindQueuedWork);
+        schedule=callback=>presentations.presenter({attach:()=>null,paint:callback}).sync(null);
+      }
+      document.getElementById('send').onclick=()=>schedule(async()=>{
+        await new Promise(resolve=>window.finishTail=resolve);
+        document.getElementById('field').remove();window.done=true;
+      });
+    }""",
+        scheduler,
+    )
+    page.locator("#field").fill("This awaited work has no input owner")
+    page.locator("#send").click()
+    page.wait_for_function("typeof window.finishTail === 'function'")
+    judge_watches()
+    page.evaluate("finishTail()")
+    page.wait_for_function("window.done === true")
+    judge_watches()
+    consume_browser_errors(
+        page,
+        'typed words left the screen without a key or press: "This awaited work has no input owner"',
+    )
 
 
 def test_words_a_held_interval_send_retains_its_input(browser):

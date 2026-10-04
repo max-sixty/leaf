@@ -289,7 +289,7 @@ function copyControl(trigger, success, error) {
 }
 
 // How old a Leaf payload is, so a user who meets a problem can tell whether it
-// predates the fixes since. A payload read from Git carries its commit's date; a host's
+// predates the fixes since. A payload read from Git carries its commit's date; a harness's
 // plugin cache, which drops `.git`, carries the time it copied the commit, one update
 // sweep after it landed (`layer.payload_provenance`).
 const payloadAge = (provenance) => ago(provenance.committed ?? provenance.installed);
@@ -357,7 +357,7 @@ function renderPreview(state) {
 }
 
 // The vendored layer is the Leaf version this page actually runs. It can remain older
-// than the plugin now installed on the host, so this reads the provenance captured by
+// than the plugin now installed in the harness, so this reads the provenance captured by
 // `page init` rather than a live package or server version. Pages built outside Git
 // retain a stable identity through the composed layer fingerprint.
 let layerReferenceElement = null;
@@ -427,6 +427,11 @@ function renderLayerReference(state) {
 // Status sentences for an unreachable server or a state the page cannot apply.
 const OFFLINE_LINE =
   "Server offline — reconnecting. Keep this page open so pending changes can send.";
+// A refused key leaves the page as cut off as a dead server, but the server is up and
+// only the user can end it. Opening the link in another tab sets the key this tab's
+// next request carries, so its pending changes send without a reload.
+const KEY_REFUSED_LINE =
+  "The server no longer accepts this tab's key. Open the link Leaf printed in a new tab, and keep this one open so pending changes can send.";
 const BROKEN_LINE = "Page couldn't apply current state — reload";
 // A published page states who replies and where to install Leaf.
 const publicationWords = (published) => [
@@ -562,8 +567,15 @@ function renderStatusNow(state) {
     presentStatus({
       kind: "unreachable",
       tone: "offline",
-      summary: "Server offline — reconnecting; keep page open",
-      explanation: OFFLINE_LINE,
+      ...(runtime.keyRefused
+        ? {
+            summary: "Key refused — open Leaf's link in a new tab",
+            explanation: KEY_REFUSED_LINE,
+          }
+        : {
+            summary: "Server offline — reconnecting; keep page open",
+            explanation: OFFLINE_LINE,
+          }),
     });
     return;
   }

@@ -19,8 +19,9 @@ npm run view --prefix evals
   its complete workflow; `task/context` (`document/resume`) runs one of its
   diagnostic contexts, declared under `variants`. No argument runs every task.
 - **Arms.** The working tree always runs. `--base` adds the merge base with `main`
-  as a second arm, and `--base REF` adds that ref. Each arm is the plugin payload
-  alone, so a child can't read its way to the other arm.
+  as a second arm, and `--base REF` adds that ref; put cases before it. An arm
+  holds only the plugin payload, with no git history, so an agent can't look up
+  another version of Leaf through it.
 - **Hosts.** `--host cc`, `codex` or `both` (the default).
 - **Conditions.** `--condition html` runs the plain HTML control on the tasks that
   declare one (document, dashboard and queue); `both` runs it beside Leaf. The
@@ -41,7 +42,8 @@ output, assertion reasons, metadata, cost and tokens, and compares runs.
 
 Complete tasks keep their evidence (prompts, native traces, page directories,
 screenshots, judge verdicts) under `.tmp/eval/<run>/samples/<column>/`, and each
-sample's metadata names its directory. `results.json` there holds the whole run.
+sample's `metadata.work` names its directory. `results.json` there holds the whole
+run.
 
 ## Case format
 
@@ -54,7 +56,7 @@ the case came from and what it measured, `metadata.purpose` the behavior it pins
 and `metadata.tags` its area.
 
 A complete task instead names `metadata.executor`, a `leaf_dev` module, and
-`metadata.scenario`, its scenario there. The executor builds fixtures, runs the agent
+`metadata.scenario`, a key of that module's `CASES`. The executor builds fixtures, runs the agent
 through resumed phases or live user rounds, and returns a boolean per check; its
 `expected_checks` declares the check names, which become one assertion each, so a
 check that never ran fails rather than disappearing. `metadata.conditions` and
@@ -76,8 +78,8 @@ the trace when it matters); `text-regex.cjs` is a regex with flags and negation;
 
 Every provider runs in a fresh workspace outside the repository, under a home of its
 own holding only a copy of the host's login, so runs spend the signed-in accounts'
-usage and never an API key. Claude Code runs Opus and Codex runs `gpt-6.1-sol` at
-medium reasoning (`harness.MODELS`); `llm-rubric` assertions use Sonnet. No judge
+usage and never an API key. `harness.MODELS` pins the models: Opus for Claude
+Code, `gpt-6.1-sol` at medium reasoning for Codex, Sonnet behind `llm-rubric`. No judge
 has been calibrated against human judgments, so treat a judged pass as weak
 evidence and read the outputs.
 

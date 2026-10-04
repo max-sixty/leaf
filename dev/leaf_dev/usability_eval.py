@@ -1768,6 +1768,6 @@ def execute_scenario(
         **({"tokenUsage": usage} if usage else {}),
         "metadata": {
             "checks": checks,
-            "diagnostics": {"score": score, "phases": phases, "work": str(work)},
+            "diagnostics": {"score": score, "phases": phases},
         },
     }

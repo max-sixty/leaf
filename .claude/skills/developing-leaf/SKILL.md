@@ -237,10 +237,9 @@ uv run leaf-dev eval [CASE]... --base [--host cc|codex] [--repeat N]
 npm run view --prefix evals
 ```
 
-`evals/README.md` owns selection, arms, conditions, the case format and where the
-results go. Read the outputs as well as the pass counts: a regex can reject a correct
-answer, a Codex reference read is matched heuristically, and no judge has been
-calibrated against human judgments.
+`evals/README.md` owns selection, arms, conditions, the case format, where the
+results go and how far a pass can be trusted. Read the outputs as well as the pass
+counts.
 
 The suite is a library that grows with the instructions, so a later edit, whether a fix
 or a cut, is scored against the behaviors earlier edits had to produce. Add to it

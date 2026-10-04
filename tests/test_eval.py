@@ -238,8 +238,10 @@ def test_python_provider_gives_each_call_its_own_evidence(tmp_path, monkeypatch)
             }
         },
     }
-    for _ in range(2):
-        assert scenario_provider.call_api("", options, context) == {"output": "{}"}
+    responses = [scenario_provider.call_api("", options, context) for _ in range(2)]
+    assert [response["metadata"]["work"] for response in responses] == [
+        str(work) for _, _, work, _, _ in observed
+    ]
     first, second = observed
     assert first[2] != second[2]
     for case, payload, work, host, condition in observed:
@@ -251,3 +253,54 @@ def test_python_provider_gives_each_call_its_own_evidence(tmp_path, monkeypatch)
         )
         assert work.parent == tmp_path / "samples"
         assert work.name.startswith("document-resume-")
+
+
+def test_command_passes_promptfoo_options_and_status_without_api_keys(
+    tmp_path, monkeypatch
+):
+    """The command's own edges: case/option split, the optional base arm, the
+    environment Promptfoo gets, and its exit status."""
+    from click.testing import CliRunner
+    from leaf_dev import eval as module
+
+    promptfoo = tmp_path / "promptfoo"
+    calls = tmp_path / "calls"
+    promptfoo.write_text(
+        f'#!/bin/sh\necho "$* key=${{OPENAI_API_KEY:-none}}" >> {calls}\nexit 100\n'
+    )
+    promptfoo.chmod(0o755)
+    built = []
+
+    def build_arm(ref, dest):
+        (dest / "skills" / "leaf").mkdir(parents=True)
+        built.append(ref)
+        return "0123456789abcdef"
+
+    monkeypatch.setattr(module, "PROMPTFOO", promptfoo)
+    monkeypatch.setattr(module, "RUNS", tmp_path / "runs")
+    monkeypatch.setattr(module, "build_arm", build_arm)
+    monkeypatch.setenv("OPENAI_API_KEY", "must-not-reach-promptfoo")
+
+    def run(*args):
+        return CliRunner().invoke(module.eval, ["--host", "cc", *args])
+
+    result = run("task-outlasts-the-turn", "--repeat", "3")
+    assert result.exit_code == 100, result.output
+    assert built == [None]
+    assert calls.read_text().strip().endswith("--repeat 3 key=none")
+    config = json.loads(
+        next((tmp_path / "runs").glob("*/promptfooconfig.json")).read_text()
+    )
+    assert [p["label"] for p in config["providers"]] == ["cc/candidate"]
+    assert config["description"].endswith(
+        "(working tree on 012345678): task-outlasts-the-turn"
+    )
+
+    built.clear()
+    assert run("task-outlasts-the-turn", "--base").exit_code == 100
+    assert built[0] and built[1] is None
+
+    built.clear()
+    result = run("--base", "task-outlasts-the-turn")
+    assert result.exit_code == 2 and "put cases before --base" in result.output
+    assert built == []

@@ -3,8 +3,9 @@
 What earlier eval runs found about agents authoring, reading and revising Leaf pages,
 and what remains unmeasured. The runs used harnesses the catalog has since absorbed
 (`evals/README.md`); their scenarios survive as the `usability_eval` and
-`arrangement_eval` executors. The per-run JSON results are in git history before
-this note was condensed.
+`arrangement_eval` executors. The per-run results were under
+`notes/usability-eval/results/` and `notes/arrangement-eval/results/` until this
+note was condensed; `git log --` on those paths finds them.
 
 ## Current observations
 
@@ -17,7 +18,7 @@ still [#19](workspace-followups.md#item-19).
 ### First baseline, 2026-09-27
 
 At 387dfed45 with Opus 5.5, three scored runs per case after one pilot that fixed each
-fixture and scorer; $18.12 scored. Every check passed:
+fixture and scorer; $5.85 scored. Every check passed:
 
 | Case | Checks | Result |
 | --- | --- | --- |
@@ -67,7 +68,8 @@ sharper `lf-worktree` description) changed neither result, and both were reverte
 
 `page state` carrying the page's construction tree tied, on correctness, a candidate
 that read the active HTML beside compact state (`resume`, `constructs`, `board`,
-three runs per arm, all checks passed), while the tree made up most of the output:
+three runs per arm, all checks passed, $12.27), while the tree made up most of the
+output:
 24,422 against 4,755 bytes on the reading fixture and 122,280 against 10,360 on
 `command-hub`. The page-level tree was removed; a thread keeps its construction
 reading, since its frozen markup has no separate HTML file.
@@ -80,7 +82,8 @@ compared pairwise by a blinded Claude judge on screenshots. Every page passed th
 render check in both arms. With the vocabulary, agents wrote about half the CSS
 (62 against 135 lines over the first versions, 92 against 219 after the revision).
 On the first versions the judge preferred the queue with the vocabulary in all three
-pairs, the document without it in all three, and split on the dashboard. After the
+pairs and the document without it in all three; on the dashboard the version without
+it won one pair and the judge split on the other two. After the
 revision the vocabulary won 3, 2 and 1 of the three queue, dashboard and document
 pairs, and every revision met the width preference.
 Its reasons kept naming tiny text at 900px and on a phone, which the render check

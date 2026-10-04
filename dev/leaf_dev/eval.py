@@ -38,8 +38,8 @@ from leaf_dev.harness import (
 from leaf_dev.leaf_assets import pinned_copy
 
 HOSTS = ("cc", "codex")
-JUDGE = "sonnet"
 PROMPTFOO = ROOT / "evals/node_modules/.bin/promptfoo"
+RUNS = ROOT / ".tmp/eval"
 SKILL_PREFIX = "Use the Leaf skill ($leaf in Codex; leaf:leaf in Claude Code).\n\n"
 
 
@@ -265,7 +265,7 @@ def prepare(
                 "provider": {
                     "id": "anthropic:claude-agent-sdk",
                     "config": {
-                        "model": JUDGE,
+                        "model": MODELS["judge"],
                         "apiKeyRequired": False,
                         "setting_sources": [],
                         "persist_session": False,
@@ -276,16 +276,18 @@ def prepare(
     }
 
 
-def describe(commits: dict[str, str], cases: list[str]) -> str:
-    """The run's name in Promptfoo's viewer: branch, arms and cases."""
+def describe(base: str | None, head: str, globs: tuple[str, ...]) -> str:
+    """The run's name in Promptfoo's viewer: branch, arms and the cases asked for."""
     branch = subprocess.run(
         ["git", "-C", ROOT, "rev-parse", "--abbrev-ref", "HEAD"],
         capture_output=True,
         text=True,
         check=True,
     ).stdout.strip()
-    arms = " vs ".join(f"{arm} {commit[:9]}" for arm, commit in commits.items())
-    return f"{branch} ({arms}): {' '.join(cases)}"
+    arms = f"working tree on {head[:9]}"
+    if base:
+        arms = f"base {base[:9]} vs {arms}"
+    return f"{branch} ({arms}): {' '.join(globs) or 'all tasks'}"
 
 
 @click.command(
@@ -316,21 +318,36 @@ def eval(args: tuple[str, ...], base: str | None, host: str, condition: str):
     `npm run view --prefix evals` opens the results.
     """
     split = next((i for i, arg in enumerate(args) if arg.startswith("-")), len(args))
-    cases, promptfoo_args = select_cases(args[:split]), args[split:]
+    globs, promptfoo_args = args[:split], args[split:]
+    cases = select_cases(globs)
+    conditions = ("leaf", "html") if condition == "both" else (condition,)
+    # Only the Leaf condition runs on more than the working tree.
+    if base is not None and "leaf" in conditions:
+        base = base_ref(base)
+        # An optional value takes the next word, so `--base CASE` names a ref.
+        if subprocess.run(
+            ["git", "-C", ROOT, "rev-parse", "--verify", "-q", f"{base}^{{commit}}"],
+            capture_output=True,
+            check=False,
+        ).returncode:
+            raise click.BadParameter(
+                f"no commit {base!r}; put cases before --base", param_hint="--base"
+            )
+    else:
+        base = None
     if not PROMPTFOO.is_file():
         raise click.ClickException(
             "Install eval dependencies first: npm ci --prefix evals"
         )
-    parent = ROOT / ".tmp" / "eval"
-    parent.mkdir(parents=True, exist_ok=True)
+    RUNS.mkdir(parents=True, exist_ok=True)
     out = Path(
         tempfile.mkdtemp(
-            prefix=f"{datetime.now().astimezone():%Y%m%d-%H%M%S}-", dir=parent
+            prefix=f"{datetime.now().astimezone():%Y%m%d-%H%M%S}-", dir=RUNS
         )
     )
     with tempfile.TemporaryDirectory(prefix="leaf-eval-") as temporary:
         scratch = Path(temporary)
-        refs = {"base": base_ref(base)} if base is not None else {}
+        refs = {"base": base} if base else {}
         refs["candidate"] = None
         commits = {arm: build_arm(ref, scratch / arm) for arm, ref in refs.items()}
         config = prepare(
@@ -338,10 +355,12 @@ def eval(args: tuple[str, ...], base: str | None, host: str, condition: str):
             {arm: scratch / arm for arm in commits},
             scratch,
             HOSTS if host == "both" else (host,),
-            ("leaf", "html") if condition == "both" else (condition,),
+            conditions,
             out / "samples",
         )
-        config["description"] = describe(commits, cases)
+        config["description"] = describe(
+            commits.get("base"), commits["candidate"], globs
+        )
         config_file = out / "promptfooconfig.json"
         config_file.write_text(json.dumps(config, indent=2) + "\n")
         # Promptfoo resolves the agent SDK packages from the config's directory.

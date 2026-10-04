@@ -57,8 +57,9 @@ PAYLOAD = (
     "worker/pyproject.toml",
 )
 
-# The model each host's eval children run: authors, readers and judges alike.
-MODELS = {"cc": "opus", "codex": "gpt-6.1-sol"}
+# The models evals run, pinned so runs on different days compare: each host's
+# agents, and the judge behind `llm-rubric` assertions.
+MODELS = {"cc": "claude-opus-5-5", "codex": "gpt-6.1-sol", "judge": "claude-sonnet-5-5"}
 
 
 def run_directory(parent: Path) -> Path:

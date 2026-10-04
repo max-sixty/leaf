@@ -10998,12 +10998,12 @@ def test_a_queued_codex_delivery_leaves_the_turn_ended_stamp_standing(
         closed = service_model.page_claim(page)["turn_closed"]
         assert closed
 
-        append_carried_log_record(
+        hello = append_carried_log_record(
             page, {"kind": "comment", "author": "user", "text": "hello adapter"}
         )
         wait_for(
             lambda: files_model.read_json(page / "cursor.json"),
-            lambda cursor: cursor == {"seq": 1},
+            lambda cursor: cursor == {"seq": hello["seq"]},
             failure="the queued delivery cursor did not advance",
         )
 
@@ -11978,10 +11978,8 @@ def test_the_stop_hook_records_the_ending_of_the_turn_behind_a_claim(claimed, ca
     assert closed
     assert presence_model.presence(claimed, events)["turn_closed"] == closed
     # And what the agent said it was doing is untouched by the observation of it.
-    assert (
-        files_model.read_json(claimed / "status.json")["detail"]
-        == "reading the reconnect traces"
-    )
+    [task] = page_state(claimed)["browser"]["tasks"]
+    assert task["running"]["text"] == "reading the reconnect traces"
 
     # Re-entry after a block stands the guard down before it would speak; the stamp is
     # the turn's own and is taken on that ending too.
@@ -12084,13 +12082,13 @@ def test_the_prompt_hook_opens_the_turn_on_every_page_the_session_holds(
     assert service_model.page_claim(claimed)["turn_closed"]
     assert service_model.page_claim(sibling)["turn_closed"]
 
-    status_before = (claimed / "status.json").read_bytes()
+    status_before = files_model.read_json(claimed / "status.json")
     hooks_model.cmd_hook({"hook_event_name": "UserPromptSubmit", "session_id": "s1"})
     capsys.readouterr()
     assert service_model.page_claim(claimed)["turn_closed"] is None
     assert service_model.page_claim(sibling)["turn_closed"] is None
     # Only the stamp moves: what the agent said it was doing stays the agent's.
-    assert (claimed / "status.json").read_bytes() == status_before
+    assert files_model.read_json(claimed / "status.json") == status_before
 
     # Another session's prompt says nothing about this one's pages.
     hooks_model.cmd_hook(
@@ -12123,12 +12121,12 @@ def test_a_named_wait_claim_does_not_invent_turn_entry(claimed, capsys):
     append_carried_log_record(
         claimed, {"kind": "comment", "id": "c1", "author": "user", "text": "one"}
     )
-    status_before = (claimed / "status.json").read_bytes()
+    status_before = files_model.read_json(claimed / "status.json")
 
     assert session_model.cmd_wait(claimed) == 0
     capsys.readouterr()
     assert service_model.page_claim(claimed)["turn_closed"]
-    assert (claimed / "status.json").read_bytes() == status_before
+    assert files_model.read_json(claimed / "status.json") == status_before
     assert files_model.read_json(claimed / "cursor.json") is None
     assert not any(
         event["kind"] == "pickup" for event in events_model.read_events(claimed)

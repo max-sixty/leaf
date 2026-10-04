@@ -299,6 +299,15 @@ height and where a switch lands wait on the workspace decision under Layout.
 - **Put the open item first on a phone.** At 390px the stacked list comes before any
   item, so 20 rows fill two screens before the first one.
 
+### Recorded interaction review
+
+- **Bring richer trace inspection into Leaf's commentable timeline.** Review a
+  recording through its actual actions, timestamps and captured frames, with
+  playback, scrubbing, Before/Action/After snapshots, source, console and network
+  context. Keep comments attached to the immutable recording and action or frame;
+  opening a thread restores that moment. Reuse Playwright's capture and inspection
+  capabilities, and keep a direct link to its full viewer beside the Leaf timeline.
+
 ### The agent's text interface
 
 - **Keep a blocked stop from hiding the agent's answer.** When Leaf's Stop hook blocks

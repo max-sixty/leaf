@@ -280,7 +280,8 @@ export class HeldNews {
             resolved: true,
             resolvedBy: was.resolvedBy,
             settlement: null,
-            reply: false,
+            reply: was.reply,
+            kept: was.kept,
           }),
           news: { reopened, replies: held.size },
         };

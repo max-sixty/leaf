@@ -198,6 +198,7 @@ const resolutionControl = (thread) =>
   thread?.querySelector(
     ":scope .lf-thread-meta-actions > .lf-resolve, " +
       ":scope .lf-thread-meta-actions > .lf-reopen, " +
+      ":scope .lf-thread-root-meta > .lf-reopen, " +
       ":scope > .lf-thread-actions > .lf-reopen, " +
       ":scope > .lf-page-thread-resolved .lf-reopen",
   ) ?? null;

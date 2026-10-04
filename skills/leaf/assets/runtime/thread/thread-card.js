@@ -369,13 +369,13 @@ export class ThreadView {
     }
     const wanted = new Set(model.messages.map((message) => message.key));
     for (const [key, view] of this.#messages) if (!wanted.has(key)) view.retire();
-    const settlement = model.settlement ? this.#settlement(model) : nothing;
+    const settlement = model.settlement ? this.#settlement(model) : null;
     const marginControls = model.surface === "margin" ? this.#marginControls : null;
     let headerActions = null;
     if (!model.resolved || reply || model.folding || marginControls) {
       const actions = marginControls
         ? [marginControls.nav, settlement, marginControls.close].filter(Boolean)
-        : [settlement];
+        : [settlement].filter(Boolean);
       for (const child of [...this.#metadataActions.children])
         if (!actions.includes(child)) child.remove();
       actions.forEach((control, index) => {

@@ -400,8 +400,8 @@
      quarter of the accent, beside a border already tinted with it, and in dark that
      ring all but vanished where every other control wore the solid band.
 
-     Naming this token is how a shadow-drawn ring joins the population the corpus floor
-     divides by, exactly as naming --focus-ring is for an outline-drawn one; the ring
+     Naming this token is how the suite's ring samples recognise a shadow-drawn ring,
+     exactly as naming --focus-ring is for an outline-drawn one; the ring
      itself is still what the box paints, not what it names. */
   --focus-shadow: 0 0 0 var(--focus-ring-w) var(--accent);
   --target-trace-w: 1.5px;
@@ -501,8 +501,9 @@ html:not([data-lf-live]) { --lf-banner-h: 0px; --lf-bottom-bar-h: 0px; }
    spelled out in full — falls back to `none` rather than reading as one.
 
    Naming is not how the layer says a ring is there; the outline is, and nothing the
-   product ships reads this. What holds the layer to naming what it draws is the corpus
-   floor, in the suite, which divides by these names and credits what the page paints. */
+   product ships reads this. What holds the layer to naming what it draws is the suite's
+   ring samples, which require every rule drawing the ring to name it and credit what
+   the page paints. */
 @property --lf-focus-ring {
   syntax: "<custom-ident>";
   inherits: false;

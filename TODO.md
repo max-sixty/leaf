@@ -200,24 +200,6 @@ and its chrome coordinate.
   a cold agent asked for "a dashboard", the likeliest trigger for over-tiling. Run it
   with the agent-usability baseline (#19), by extending the
   [arrangement eval](notes/arrangement-eval/README.md).
-- **Fit an Ask and what it turns on into one window.** `a` puts an Ask's heading at
-  the top, and `authoring-asks.md` has the `lf-ask` hold its premise and evidence,
-  but stacked they often outrun the window: on a findings page one Ask with its
-  claim, figure and options took 760px of a 900px window, and `alert-review`'s 466px option lists
-  leave no room for the facts and evidence each one turns on, which that example
-  still keeps above its Asks. A page-CSS prototype that set the options in a sticky
-  14–18rem track beside the premise and figure showed the question, claim, figure
-  and every option in one window at 900 and 1200px, and kept the options in view
-  while the user scrolled a 700px demo below. Unsettled: a breakout block (a
-  `data-width="available"` specimen) runs under the sticky track, the focus ring
-  spans the whole Ask, a figure in the narrower track shrinks its text, and the
-  width at which it stacks. A further step is selection and detail, where the
-  focused option chooses which evidence the wide track shows; focus rather than
-  hover, so it has a keyboard route. Try both as playground presets over
-  `alert-review` and a findings page before making either the wide-window form of
-  `lf-ask`, which admits no class today, so a page can only opt in by id. Extending
-  `arrivalRegion`'s widening to declared Asks helps only where the run-up above an
-  Ask already fits.
 - **Layout values that wait for a task:** a selection-and-detail component whose phone
   form shows one side at a time; canvas regions, whose reading position is
   two-dimensional; slides as a presentation of `lf-tabs`.

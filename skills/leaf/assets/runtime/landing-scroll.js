@@ -6,7 +6,7 @@
  * shadow boundary or smooth motion never takes away sideways reading position.
  * CSS scroll-padding and the destination's scroll-margin clear pinned headers.
  */
-import { landingBand, shownBox } from "./geometry.js";
+import { landingBand, shownBox, scrollAxes } from "./geometry.js";
 import { scrollersOf } from "./reading-regions.js";
 import { moveScrollerBy, reachable } from "./scrolling.js";
 
@@ -27,15 +27,18 @@ function placementBy(where, block, box) {
     where instanceof Range
       ? 0
       : Number.parseFloat(getComputedStyle(where).scrollMarginTop) || 0;
-  if (block === "nearest" && !(where instanceof Range))
-    return nearestBy({ top: rect.top - margin, bottom: rect.bottom }, band);
+
   const place =
     where instanceof Range
       ? (room - rect.height) / 2
       : block === "start"
         ? margin
         : Math.max((room - rect.height) / 2, margin);
-  return rect.top - band.top - place;
+  const movement =
+    block === "nearest" && !(where instanceof Range)
+      ? nearestBy({ top: rect.top - margin, bottom: rect.bottom }, band)
+      : rect.top - band.top - place;
+  return movement / scrollAxes(box).y.y;
 }
 
 export function scrollIntoReadingBand(where, holder, block, behavior) {
@@ -44,7 +47,7 @@ export function scrollIntoReadingBand(where, holder, block, behavior) {
   const rect = where instanceof Range ? where.getBoundingClientRect() : shownBox(where);
   let { top, bottom } = rect;
   const by = placementBy(where, block, box);
-  let moved = reachable(box, by);
+  let moved = reachable(box, by) * scrollAxes(box).y.y;
   if (Math.abs(moved) >= 1) moveScrollerBy(box, by, behavior);
   for (const outer of around) {
     top -= moved;
@@ -52,7 +55,9 @@ export function scrollIntoReadingBand(where, holder, block, behavior) {
     const band = landingBand(outer);
     if (!band) return;
     const by = nearestBy({ top, bottom }, band);
-    moved = reachable(outer, by);
-    if (Math.abs(moved) >= 1) moveScrollerBy(outer, moved, behavior);
+    const scale = scrollAxes(outer).y.y;
+    const local = reachable(outer, by / scale);
+    moved = local * scale;
+    if (Math.abs(moved) >= 1) moveScrollerBy(outer, local, behavior);
   }
 }

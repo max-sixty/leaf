@@ -39,6 +39,7 @@ from render_harness import (
     panel_settled,
     resized,
     round_trip,
+    scroll_settled,
     select,
     sending,
     shortcut_bar_text,
@@ -1878,13 +1879,11 @@ diff --git a/value.txt b/value.txt
     expect(second).to_be_focused()
 
 
-def test_a_visual_action_follows_its_own_scroller_until_the_target_is_gone(
+def test_a_visual_action_follows_its_own_scroller_even_when_the_target_is_gone(
     browser, serve
 ):
-    """The shared placement path listens to nested scroll boxes and clips target
-    geometry to what is actually shown. While its editor is open, the bar stays
-    available in the window when the target scrolls away, then rejoins the target
-    when it returns."""
+    """An editing field keeps the native attachment through its visual's scroller,
+    including beyond the visible part of the diagram, and returns with its target."""
     page = open_page(browser, serve(PART_DIAGRAM_PAGE))
     diagram = page.locator("#flow")
     start = diagram.locator('g[data-id="S"]')
@@ -1924,13 +1923,37 @@ def test_a_visual_action_follows_its_own_scroller_until_the_target_is_gone(
     ), (before_target, before_bar, after_target, after_bar)
 
     diagram.evaluate("element => { element.scrollLeft = element.scrollWidth; }")
-    expect(bar).to_have_attribute("data-lf-plane", "window")
-    expect(bar).to_be_visible()
+    expect(bar).to_have_attribute("data-lf-plane", "page")
+    scroll_settled(page, "#flow")
+    away_target, away_bar = start.bounding_box(), bar.bounding_box()
+    assert (
+        abs((away_bar["x"] - before_bar["x"]) - (away_target["x"] - before_target["x"]))
+        <= 2
+    ), (before_target, before_bar, away_target, away_bar)
     expect(page.locator(".lf-fab-input")).to_be_focused()
     diagram.evaluate("element => { element.scrollLeft = 0; }")
     expect(bar).to_be_visible()
     expect(bar).to_have_attribute("data-lf-plane", "page")
     expect(page.locator(".lf-fab-input")).to_be_focused()
+
+    # The registered provider declares geometry changes inside the same SVG host.
+    # That publication invalidates the native attachment without a scroll callback.
+    before_part, before_field = start.bounding_box(), bar.bounding_box()
+    page.evaluate("""() => {
+      const diagram = document.querySelector('#flow');
+      const part = diagram.visualParts.get('node:S').element;
+      part.setAttribute('transform', (part.getAttribute('transform') ?? '') + ' translate(0 60)');
+      return diagram.visualPartRegistration.update();
+    }""")
+    rendered(page)
+    after_part, after_field = start.bounding_box(), bar.bounding_box()
+    assert (
+        abs(
+            (after_field["y"] - before_field["y"])
+            - (after_part["y"] - before_part["y"])
+        )
+        <= 2
+    ), (before_part, before_field, after_part, after_field)
 
 
 def test_dragging_a_diagram_label_keeps_the_passage_and_plain_click_dismisses_it(

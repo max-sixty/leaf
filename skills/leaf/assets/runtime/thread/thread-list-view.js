@@ -26,7 +26,7 @@ import { html, repeat } from "../../vendor/browser-runtime.js";
 import { focused } from "../keyboard/scopes.js";
 import { RetainedFace } from "../retained-face.js";
 import { ThreadView } from "./thread-card.js";
-import { replyHasWords } from "./replies.js";
+import { draftHasContent } from "../drafts.js";
 import { focusThread } from "./focus.js";
 import { passOn, retainUserIntent } from "../user-intent.js";
 import { layoutChanged } from "../widget-elements.js";
@@ -135,7 +135,7 @@ class ThreadListView extends RetainedFace {
     const seen = view.node.open
       ? this.checkVisibility()
       : Boolean(seenRect(view.node, new Map()));
-    const draft = replyHasWords(key);
+    const draft = draftHasContent("reply:" + key);
     if (news && (seen || draft)) return "news";
     return draft ? "draft" : null;
   }
@@ -367,13 +367,10 @@ class ThreadListView extends RetainedFace {
     this.#draftViews.add(view);
     this.#draftFrame ||= nextRender(() => {
       this.#draftFrame = 0;
-      let reconcile = false;
       for (const changed of this.#draftViews)
         if ([...this.#views.values()].includes(changed)) {
           changed.repaint();
-          reconcile ||= changed.model.resolved;
         }
-      if (reconcile) this.#commands.repaintThread();
       this.#draftViews.clear();
     });
   }

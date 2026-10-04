@@ -19,6 +19,8 @@
    continues in the open Threads panel, widening a filter that would hide it. A landing
    waits for the render in flight and for a resolution fold to end, since both move what
    it would measure. Where a thread lands in its scroller is `reply-landing.js`'s.
+   With `focus: false`, native editing continuation owns only the presented row: a
+   newer Tab can keep its caret while superseding the old focus and scroll intent.
 
    `backFromBox` and `standingThread` climb the same thread relation, so
    “comment on the thread” going in and “back to thread” coming out name one element. It
@@ -42,6 +44,7 @@ import { SAYS_IN, THREAD } from "./selectors.js";
 import { retainUserIntent } from "../user-intent.js";
 import { pageScope } from "../keyboard/register.js";
 import { TEXT_ENTRY } from "../keyboard/text-entry.js";
+import { dismissReplyAt, replyDraftContext } from "./replies.js";
 import { allThreads, threadList } from "./state.js";
 import { threadNames } from "./model.js";
 import {
@@ -132,7 +135,9 @@ export const boxHandsBack = () =>
 
 // A box words are typed into takes character keys and the keys that edit it: Enter,
 // deletion, caret movement, Home/End, and page movement, including their modified forms.
-// Escape remains the box's to declare or pass on. What it declares is the way back out — to
+// Escape leaves the reply's whole composition row, including its Send control, through
+// this declared command, after any nearer interaction has had its own Escape. It is
+// the way back out — to
 // the thread a reply belongs to, so Esc then Enter round-trips, or to the list, so t/T walk
 // on from where the backing-out started. Drafts are kept at every rung.
 //
@@ -142,8 +147,8 @@ export const boxHandsBack = () =>
 pageScope("text entry", {
   title: "In a text box",
   root: focused,
-  at: () => takesLetters(focused()),
-  claims: TEXT_ENTRY,
+  at: () => takesLetters(focused()) || replyDraftContext(focused()) !== null,
+  claims: (binding) => takesLetters(focused()) && TEXT_ENTRY(binding),
   rows: [
     {
       id: "text.leave",
@@ -156,6 +161,7 @@ pageScope("text entry", {
       when: boxHandsBack,
       run: () => {
         const back = backFromBox();
+        dismissReplyAt(focused());
         const panelList = documentFocused()
           ?.closest?.(".lf-thread-panel")
           ?.querySelector(".lf-threads");
@@ -352,6 +358,9 @@ const listNode = (id, threadsBox, preferMessage = false) => {
 // controls or a resolved thread. A thread arrives ready for a reply; a message keeps
 // focus at its own words so Tab reaches its controls.
 async function showThreadNow(id, focus, flash, revealThread, threadsBox, mayArrive) {
+  // A native continuation owns its presented row even after Tab moves standing.
+  // The original gesture still gates focus, scrolling, and any later reveal action.
+  const mayPresent = () => (focus === false ? mayArrive.available() : mayArrive());
   // A direct arrival owns the target's one transition cue. Remove a retained arrival
   // animation before an asynchronous reveal gives the browser a frame to start it.
   threadsBox
@@ -362,37 +371,41 @@ async function showThreadNow(id, focus, flash, revealThread, threadsBox, mayArri
   threadsBox.revealNavigation(threadNames(allThreads()).get(id)?.id ?? id);
   if (threadsBox.showNews(id)) {
     await whenDocumentPresented();
-    if (!mayArrive()) return null;
+    if (!mayPresent()) return null;
   }
   let node = listNode(id, threadsBox, focus === "message");
   const going = node?.closest(".lf-going");
   if (going) {
+    if (!mayArrive()) return null;
     finishFold(going);
     const revealed = revealThread(threadNames(allThreads()).get(id)?.id ?? id);
     if (!revealed) return null;
     await revealed;
-    if (!mayArrive()) return null;
+    if (!mayPresent()) return null;
     node = listNode(id, threadsBox, focus === "message");
   } else if (!node) {
+    if (!mayArrive()) return null;
     const revealed = revealThread(threadNames(allThreads()).get(id)?.id ?? id);
     if (!revealed) return null;
     await revealed;
-    if (!mayArrive()) return null;
+    if (!mayPresent()) return null;
     node = listNode(id, threadsBox, focus === "message");
   }
-  threadsBox.revealNavigation(threadNames(allThreads()).get(id)?.id ?? id);
+  if (mayArrive())
+    threadsBox.revealNavigation(threadNames(allThreads()).get(id)?.id ?? id);
   node = listNode(id, threadsBox, focus === "message");
-  if (!node || !mayArrive()) return null;
+  if (!node || !mayPresent()) return null;
   if (node.closest(".lf-summary-originals[hidden]")) {
-    await reveal(node, mayArrive);
     if (!mayArrive()) return null;
+    await reveal(node, mayArrive);
+    if (!mayPresent()) return null;
   }
   // A render still in flight holds the list's place as it finishes, and that write
   // cancels a smooth landing already under way: a thread sent from the panel's foot was
   // left below it. Land on the list the render leaves.
   await whenDocumentPresented().catch(() => {});
   node = listNode(id, threadsBox, focus === "message");
-  if (!node || !mayArrive()) return null;
+  if (!node || !mayPresent()) return null;
   const thread = node.closest(".lf-thread");
   if (focus) {
     const destination =
@@ -412,23 +425,24 @@ async function showThreadNow(id, focus, flash, revealThread, threadsBox, mayArri
   const target = aim.node ?? thread;
   const long = directThread && (target !== thread || aim.block === "end");
   const start = long ? threadLandingStart(thread, target, threadsBox) : null;
-  (start ?? target).scrollIntoView({
-    behavior: scrollBehavior(),
-    // A long thread begins at the clean content boundary chosen above. A short card
-    // is context in full; a requested message keeps the least-moving direct route.
-    block: start
-      ? "start"
-      : long
-        ? (aim.block ?? "start")
-        : target === thread
-          ? "center"
-          : "nearest",
-  });
+  if (mayArrive())
+    (start ?? target).scrollIntoView({
+      behavior: scrollBehavior(),
+      // A long thread begins at the clean content boundary chosen above. A short card
+      // is context in full; a requested message keeps the least-moving direct route.
+      block: start
+        ? "start"
+        : long
+          ? (aim.block ?? "start")
+          : target === thread
+            ? "center"
+            : "nearest",
+    });
   const revealed =
     (aim.block === "end" && thread.querySelector(":scope > .lf-thread-reply")) ||
     target;
   revealed.classList.toggle("grow", false);
-  if (flash) {
+  if (flash && mayArrive()) {
     revealed.classList.toggle("flash", true);
     setTimeout(() => revealed.classList.toggle("flash", false), 1300);
   }

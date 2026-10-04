@@ -61,17 +61,21 @@ function threadFrom(threads, place, dir, threadTarget) {
 // Both paths are clamped, not wrapped.
 function stepThread(dir, destinations, panelIsOpen, narrowing, list) {
   const { threadsBox } = list;
-  const { openPageThread, scrollToThread, threadHere, threadTarget } = destinations;
+  const { openPageThread, scrollToThread, threadHere, threadAtStanding, threadTarget } =
+    destinations;
   const threads = walkableThreads(panelIsOpen, list);
   const current = currentThread(threads, threadHere);
+  const targetId = !current && threadAtStanding();
+  const atTarget = targetId && threads.find((thread) => thread.dataset.id === targetId);
   const next = current
     ? clampedRow(threads, current, dir)
-    : threadFrom(
+    : (atTarget ??
+      threadFrom(
         threads,
         !panelIsOpen() || narrowing.listedInPageOrder() ? walkOrigin() : null,
         dir,
         threadTarget,
-      );
+      ));
   if (!next) return;
   if (!panelIsOpen()) {
     void openPageThread(next.dataset.id, { focus: "thread" });

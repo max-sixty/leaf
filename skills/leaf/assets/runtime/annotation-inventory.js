@@ -7,7 +7,7 @@
    No renderer folds events or owns a second target inventory. The Thread coordinator
    refreshes after current widget claims and required conversation commits. Mechanical
    paints and immediate contribution updates refresh this same directory. */
-import { replyHasWords } from "./thread/replies.js";
+import { replyAvailable } from "./thread/replies.js";
 import { KINDS, excerptWords, labelWords } from "./contribution-model.js";
 import { contributionEntries } from "./contributions.js";
 import { marginInventory } from "./margin-model.js";
@@ -34,7 +34,8 @@ import {
   threadAttention,
   workflowLabel,
 } from "./thread/workflow.js";
-import { renderedParent, shadowHost } from "./shadow.js";
+import { renderedParent, shadowHost, under } from "./shadow.js";
+import { placeOf } from "./standing-target.js";
 import { scrollBehavior } from "./motion.js";
 
 export function createAnnotationInventory({
@@ -230,6 +231,38 @@ export function createAnnotationInventory({
   let entries = Object.freeze([]);
   const watchers = new Set();
 
+  // Saved words and an editing session are distinct: only an active session keeps a
+  // settled reply open. A widget-held conversation retains its existing notice.
+  const threadHasDiscussion = (thread) => replyAvailable(thread) || heldOut(thread.id);
+
+  // A command's subject does not depend on whether an overlay or exact widget seat
+  // has realized its discussion. Attachment place and pointed row share the same
+  // resolved record as collection, navigation and paint.
+  function threadIdsAt(node) {
+    const place = placeOf(node);
+    let standing = null;
+    for (const thread of threadList()) {
+      if (!threadHasDiscussion(thread)) continue;
+      const placement = placedAt(thread.id);
+      const target = placement?.place;
+      if (!target || !under(place, target)) continue;
+      const point = standingPoint(target, placement.point);
+      const rank = !point ? 1 : under(place, point) ? 2 : 0;
+      if (standing && target === standing.target && point === standing.point) {
+        standing.ids.push(thread.id);
+        continue;
+      }
+      if (
+        !standing ||
+        (target === standing.target
+          ? rank >= standing.rank
+          : under(target, standing.target))
+      )
+        standing = { target, point, rank, ids: [thread.id] };
+    }
+    return standing?.ids ?? [];
+  }
+
   function collectEntries() {
     const groups = new Map();
     const receiptByCoordinate = new Map();
@@ -238,10 +271,8 @@ export function createAnnotationInventory({
     }
     const representedThreads = new Set();
     for (const thread of threadList()) {
-      // A settled thread keeps its marker while the user has words for it, or while a
-      // widget holds it out of its flow behind that marker (thread/held-news.js).
-      const kept = replyHasWords(threadKey(thread)) || heldOut(thread.id);
-      if ((thread.resolved && !kept) || !thread.anchor || claimed(thread.id)) continue;
+      if (!threadHasDiscussion(thread) || !thread.anchor || claimed(thread.id))
+        continue;
       const id = thread.id;
       const target = placedAt(id)?.place;
       if (target?.isConnected && !inChrome(target)) representedThreads.add(id);
@@ -548,6 +579,7 @@ export function createAnnotationInventory({
     workflowReceipt,
     targetPath,
     threadItem: marginThreadItem,
+    threadIdsAt,
     activate: (item) => sourceItem(item)?.activate(),
   });
 }

@@ -19,6 +19,7 @@ import { closestAcross, elementById, inChrome } from "../passages.js";
 import { threadState, readThreads } from "./state.js";
 import { watchThreads } from "./watch.js";
 import { holdReply } from "./focus.js";
+import { holdReplyCompositions } from "./replies.js";
 import {
   renderSeats,
   beginThreadSeats,
@@ -61,6 +62,7 @@ export function createThreadPresentation({
   renderAnnotations,
   renderSurfaces,
   openThread,
+  continueThread,
   read,
 }) {
   const panels = new Set();
@@ -159,6 +161,7 @@ export function createThreadPresentation({
       const collection = readThreads();
       const threads = phase === "ready" ? all : [];
       const listed = collection.threads;
+      const continueReplies = holdReplyCompositions(threads, continueThread);
       renderHolds(threads);
       const readTargets = () => {
         const anchors = anchorPlacement.read({
@@ -210,7 +213,11 @@ export function createThreadPresentation({
       pageGeometry.pageShifted();
       finishListRecovery(candidates);
       read.present();
-      restoreReply?.();
+      // Continuity may reveal a route needing this very presenter. Its work starts
+      // after the cohort commits, and never joins the ticket it is completing.
+      void continueReplies(restoreReply).catch((error) =>
+        reportPageError(`Reply continuation failed: ${error?.message ?? error}`),
+      );
     } catch (error) {
       surfaces?.cancel();
       if (!current()) throw error;

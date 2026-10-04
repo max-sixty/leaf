@@ -12665,8 +12665,109 @@ ASK_THREAD_PAGE = leaf_page(
 )
 
 
+@pytest.mark.parametrize("width", [390, 1200])
+@pytest.mark.parametrize("route", ["comment", "thread", "marker"])
+def test_ask_work_keeps_its_discussion_closed_until_requested(
+    browser, serve, width, route
+):
+    """An Ask arrival leaves its choices clear; explicit routes retain discussion identity."""
+    source = ASK_THREAD_PAGE.replace(
+        "<h2>Which cache should we keep?</h2>",
+        "<h2>Which cache should we keep?</h2>"
+        + "<p>Compare the memory and disk constraints carefully.</p>" * 14,
+    )
+    url = serve(source)
+    root = panel_comment(
+        serve.page_dir, "The disk cache costs more.", {"section": "cache-ask"}
+    )
+    page = open_page(browser, url)
+    page.set_viewport_size({"width": width, "height": 900})
+    page.keyboard.press("a")
+    expect(page.locator("#cache-ask")).to_be_focused()
+    rendered(page)
+    expect(page.locator(".lf-margin-preview")).to_be_hidden()
+    page.keyboard.press("1")
+    expect(page.locator("#cache-disk")).to_have_attribute("chosen", "")
+    if route == "comment":
+        page.keyboard.press("c")
+    elif route == "thread":
+        page.keyboard.press("t")
+    else:
+        page.locator(
+            '[data-lf-margin-for="cache-ask"] .lf-margin-marker[data-lf-kinds~="comment"]'
+        ).click()
+    thread = page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]')
+    expect(thread).to_be_visible()
+    if route == "comment":
+        expect(thread.locator("leaf-text")).to_be_focused()
+        expect(page.locator(".lf-fab-input")).to_be_hidden()
+
+
+@pytest.mark.parametrize("family", ["decision", "suggestion"])
+def test_ask_controls_do_not_automatically_open_discussion(browser, serve, family):
+    """Working an Ask retains its surface; passive passage arrival still accompanies."""
+    if family == "decision":
+        ask = '<lf-ask id="work"><h2>Keep the plan?</h2><lf-options id="decision" choose><lf-option id="yes">Yes</lf-option><lf-option id="no">No</lf-option></lf-options></lf-ask>'
+    else:
+        ask = '<lf-suggestion id="work"><lf-old>Old plan</lf-old><lf-new>New plan</lf-new></lf-suggestion>'
+    source = leaf_page(
+        "Work and discussion",
+        '<p id="passage" tabindex="0">Read this background before deciding.</p>' + ask,
+    )
+    url = serve(source)
+    passive = panel_comment(
+        serve.page_dir, "Remember the background.", {"section": "passage"}
+    )
+    root = panel_comment(
+        serve.page_dir, "Please compare the alternatives.", {"section": "work"}
+    )
+    page = open_page(browser, url)
+    page.keyboard.press("Shift")
+    page.locator("#passage").focus()
+    expect(
+        page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{passive}"]')
+    ).to_be_visible()
+    page.keyboard.press("a")
+    expect(page.locator("#work")).to_be_focused()
+    rendered(page)
+    expect(page.locator(".lf-margin-preview")).to_be_hidden()
+    if family == "decision":
+        page.keyboard.press("Tab")
+    else:
+        suggestion_control(page, "work", "accept").focus()
+    assert (
+        page.evaluate(
+            'async () => (await window.__lfRuntimeImport("/runtime/standing-target.js")).heldAsk()?.id'
+        )
+        == "work"
+    )
+    rendered(page)
+    expect(page.locator(".lf-margin-preview")).to_be_hidden()
+    page.keyboard.press("c")
+    reply = page.locator(
+        f'.lf-margin-preview .lf-page-thread[data-thread="{root}"] leaf-text'
+    )
+    expect(reply).to_be_focused()
+    control = (
+        page.locator("#yes lf-option-control")
+        if family == "decision"
+        else suggestion_control(page, "work", "accept")
+    )
+    control.focus()
+    expect(control).to_be_focused()
+    assert (
+        page.evaluate(
+            'async () => (await window.__lfRuntimeImport("/runtime/standing-target.js")).heldAsk()?.id'
+        )
+        == "work"
+    )
+    # A deliberately opened discussion stays while the keyboard returns to its Ask.
+    rendered(page)
+    expect(page.locator(".lf-margin-preview")).to_be_visible()
+
+
 def test_an_ask_and_its_thread_are_one_standing_target(browser, serve):
-    """An Ask whose own thread the card shows is one place held from two sides
+    """An Ask and its deliberately opened thread are one place held from two sides
     (glossary, Standing target). From the Ask, `c` continues that thread and `t` steps
     on past it; from its thread, in the card or in the Threads list, the Ask keeps its
     ring and its digits. A thread about an enclosing block is that block's, so an Ask
@@ -12689,11 +12790,12 @@ def test_an_ask_and_its_thread_are_one_standing_target(browser, serve):
     ask = page.locator("#cache-ask")
     ask_thread = card.locator(f'.lf-page-thread[data-thread="{about_ask}"]')
 
-    # From the Ask, the card beside it holds its thread, and `c` continues that thread
-    # rather than starting a second one.
+    # Ask work keeps the decision clear. Comment deliberately opens its existing
+    # discussion, preserving the subject without needing an already visible card.
     page.keyboard.press("a")
     expect(ask).to_be_focused()
-    expect(ask_thread).to_be_visible()
+    rendered(page)
+    expect(card).to_be_hidden()
     expect(line).to_contain_text("comment on the thread")
     page.keyboard.press("c")
     expect(ask_thread.locator("leaf-text")).to_be_focused()
@@ -12713,12 +12815,13 @@ def test_an_ask_and_its_thread_are_one_standing_target(browser, serve):
     expect(ask).to_have_attribute("data-lf-ask", "1")
     expect(line).to_contain_text("Keep the disk cache")
 
-    # The nested Ask's card shows its task's thread, which is about the task.
+    # Working the nested Ask leaves its enclosing task's discussion closed.
     page.keyboard.press("a")
     expect(page.locator("#ship-ask")).to_be_focused()
     page.keyboard.press("a")
     expect(page.locator("#retry-ask")).to_be_focused()
-    expect(card.locator(f'.lf-page-thread[data-thread="{about_task}"]')).to_be_visible()
+    rendered(page)
+    expect(card).to_be_hidden()
     expect(line).to_contain_text("comment on the ask")
     page.keyboard.press("Escape")
 

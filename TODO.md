@@ -112,17 +112,6 @@ and its chrome coordinate.
   newcomer out of view rather than pushing down the card being read. The user sees
   it only in the count; give that arrival a visible route while preserving the
   current reading.
-- **Bring a comment box back where it stood after one wheel jump.** Scrolling back to
-  a comment's target in a single wheel step draws the box about 60px off for a frame
-  before it lands, on `main` too and for selected words as well as items; a script's
-  instant scroll does not show it. Floating UI's `shift` limiter held the box at the
-  target's far edge while the target left the window, and the correction lands a frame
-  after the scroll (`placeFab`, `composing/surface.js`); a real-wheel test under
-  `shift_watch.js` reproduces it.
-- **Keep a thread card still while the user types in it inside a pane.** Typing in a
-  margin thread card's reply, with its target in a pane that scrolls on its own, moves
-  the whole card (`shift_watch.js`: "typing in leaf-text moved
-  aside#lf-margin-preview"), on `main` too.
 - **Give the phone banner one row.** Decided, not built
   ([plan](notes/chrome-and-covers.md)): one 53px row holding the status in words, cut
   short with an ellipsis, with a passing notice taking that slot for a few seconds;

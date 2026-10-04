@@ -138,16 +138,17 @@ failure.
 
 ### Words stay where they were typed
 
-What the user has typed stays in front of them until they put it away. A box holding
+What the user has typed stays with its native editor until they put it away. A box holding
 words closes only in answer to a key or a press that means to close it (Send,
 Cancel, Escape, a press elsewhere, another target) or when its subject leaves the
 document; a scroll, a resize, a panel, a closed disclosure, a timer, or the server's
 news never closes it. Geometry decides where a box stands, never whether: a box
-whose existing subject loses its visible attachment stays in the usable window,
-keeping its words, anchor, and focus, and reattaches when that target returns.
-Only where no usable window remains does it wait out of view with its words,
-anchor, and caret, standing again, focus returned, when room returns (`standFab`,
-`runtime/composing/surface.js`). A re-render that replaces a box's node hands its
+follows its passage through every scrolling ancestor, including out of view,
+keeping its words, anchor, and caret. Resume writing (`g i`) reveals that same
+editor and its passage. Native CSS attachment carries continuous scroll; target
+or field resize invalidates physical placement (`floating-response.js`).
+Only where no usable room remains does the presenter withhold the box; its
+words and caret remain with its native node (`standFab`, `runtime/composing/surface.js`). A re-render that replaces a box's node hands its
 words and caret to the replacement. The suite's browser fixture fails any test
 whose page loses typed words without a key or press (`tests/words_watch.js`), and
 every corpus page is scrolled to both ends and back with each typed box open

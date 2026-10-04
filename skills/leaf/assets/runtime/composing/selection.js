@@ -141,7 +141,7 @@ export function createSelectionComposer({
   openPageThread,
   threadTransitionOrigin,
   anchorStands,
-  anchorTargetAt,
+  anchorTravelAt,
   bringForward,
   fabAnchorAt,
   fabPointAt,
@@ -605,7 +605,7 @@ export function createSelectionComposer({
     const record = composerRecord(ctx);
     if (!record || !anchorStands(record.anchor)) return null;
     return {
-      where: anchorTargetAt(record.anchor),
+      where: anchorTravelAt(record.anchor),
       input: () =>
         composerOpen && composerCtx(pendingAnchor) === ctx ? composerInput : null,
       open: () => {

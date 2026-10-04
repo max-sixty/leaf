@@ -59,7 +59,12 @@ import {
 } from "../banner-toolbar.js";
 import { seenRect } from "../geometry.js";
 import { cancelRender, nextRender } from "../rendering.js";
-import { targetElement, targetPlace, targetSegments } from "../resolved-target.js";
+import {
+  targetElement,
+  targetPlace,
+  targetSegments,
+  targetRange,
+} from "../resolved-target.js";
 import {
   composer,
   composerOpen,
@@ -114,12 +119,15 @@ export function createResponseSurface({
   landIn,
   setPanel,
   threadHere,
+  threadAtStanding,
+  replyThreadAtStanding,
   threadTarget,
   standingTarget,
   composerHolds,
   responseOptionsAreOpen,
   markAt,
   scrollToElement,
+  scrollToRange,
   visualActionAnchor,
   hideComposer,
   openComposer,
@@ -233,7 +241,7 @@ export function createResponseSurface({
   function restoreFab({ place = true } = {}) {
     if (
       (placement || !place || !fabAnchor || !composerOpen) &&
-      fabBar.parentElement === responseHome &&
+      (fabBar.parentElement === responseHome || placement?.holdsHome(responseHome)) &&
       (!fabInlineOutlet || fabInlineOutlet === responseHome)
     )
       return false;
@@ -310,6 +318,7 @@ export function createResponseSurface({
       dismiss: () => showFab(null, { returnFocus: "page" }),
       standsIn,
       scrollToElement,
+      scrollToRange,
     }) ?? null;
   // Where a bar on this anchor hands the user back: the control the gesture stood them
   // on, or the visual proxy for the same anchor where that control has gone, found
@@ -451,8 +460,9 @@ export function createResponseSurface({
   // Stands the bar the user already has again. Geometry says where it stands, never
   // whether: the bar goes when a gesture puts it away or when its subject leaves the
   // document, and never because a scroll, a resize, a panel or a closed disclosure left
-  // it no attachment. An open editor uses the window while its subject is hidden;
-  // a bar with no usable room is withheld, draft, anchor and all, and the next
+  // it no attachment. The default floating editor follows its passage out of view;
+  // Resume writing reveals that same field. A bar with no usable room is withheld,
+  // draft, anchor and all, and the next
   // placement that finds room stands it again.
   function standFab() {
     if (!anchorStands(fabAnchor)) {
@@ -481,11 +491,14 @@ export function createResponseSurface({
     if (!place) return null;
     return shadowHost(place.getRootNode()) ?? place;
   };
+  const anchorTravelAt = (anchor) =>
+    (anchor?.quote && targetRange(resolveAnchor(anchor, pageText()))) ||
+    anchorTargetAt(anchor);
   const fabTargetAt = () => anchorTargetAt(fabAnchor);
   const fabReturnTo = () => returnDestination(fabAnchor, fabOrigin);
 
   // Opening Comment is an overlay gesture. Any visible part of its subject is
-  // enough: placement clips the attachment and keeps the field in the usable window.
+  // enough to open it: the physical presenter owns its attachment and measure.
   // Only stale standing or a resumed draft whose subject is wholly out of view needs
   // travel (including revealing a closed ancestor), before placement measures it.
   function bringForward(addressable) {
@@ -1103,15 +1116,21 @@ export function createResponseSurface({
     // takes a thread of its own, and a selection still starts one on its words.
 
     const inline = threadHere();
-    const target = inline && threadTarget(inline);
+    const threadId = threadAtStanding();
+    const replyId = replyThreadAtStanding();
+    const target = threadId && threadTarget(threadId);
     const inlineBox =
       inline &&
+      (inline.dataset.thread ?? inline.dataset.id) === threadId &&
       (!here ||
         inline.contains(focused()) ||
         (target && under(target, heldAsk() ?? here.element))) &&
       threadInput(inline);
     const said =
       standingThread() ?? (inlineBox ? { held: inline, box: inlineBox } : null);
+    const subject =
+      threadId && (!here || (target && under(target, heldAsk() ?? here.element)));
+    const replySubject = subject && replyId;
     // A captured passage outranks the focus it preceded, but a kept draft is not a
     // standing target. Read both page and thread standing before choosing the aim.
     // After the user lands elsewhere, Comment names that new place;
@@ -1121,7 +1140,7 @@ export function createResponseSurface({
       anchor &&
       (pageSelection() ||
         fabHoldsCapturedPassage() ||
-        (!said && (!here || here.element === fabTargetAt())))
+        (!said && !subject && (!here || here.element === fabTargetAt())))
     )
       return {
         ...commenting(
@@ -1139,6 +1158,20 @@ export function createResponseSurface({
         go: () => {
           carryComposerToReply(replyDraftContext(said.box));
           landIn(said);
+        },
+      };
+    if (replySubject)
+      return {
+        ...commenting("thread"),
+        box: null,
+        go: async () => {
+          const destination = await openPageThread(threadId, {
+            focus: "reply",
+            travel: false,
+          });
+          if (!destination) return;
+          carryComposerToReply(replyDraftContext(destination));
+          landIn({ box: destination });
         },
       };
     if (here)
@@ -1260,6 +1293,7 @@ export function createResponseSurface({
     dismissFab,
     refreshFab,
     anchorTargetAt,
+    anchorTravelAt,
     fabTargetAt,
     fabReturnTo,
     bringForward,

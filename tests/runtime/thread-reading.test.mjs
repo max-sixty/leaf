@@ -33,6 +33,7 @@ test("Thread destinations without a page preview retain canonical targets and sh
   document.body.append(owner);
   const arrivals = [];
   const destinations = createThreadDestinations({
+    threadIdsAt: () => [],
     placedAt: (id) => (id === thread.dataset.thread ? { place: owner } : null),
     panelIsOpen: () => false,
     showThread: async (id, options) => {
@@ -42,6 +43,7 @@ test("Thread destinations without a page preview retain canonical targets and sh
   });
   control.focus();
   assert.equal(destinations.threadHere(), thread);
+  assert.equal(destinations.threadAtStanding(), thread.dataset.thread);
   assert.equal(destinations.threadTarget(thread.dataset.thread), owner);
   assert.equal(destinations.threadTarget("detached"), null);
   assert.equal(destinations.threadFocusTarget(thread.dataset.thread), null);
@@ -101,7 +103,7 @@ test("two mounted panel controllers keep independent visibility and keyboard run
       auxiliarySurfaces,
       elements: { ...elements, toggleBtn: document.createElement("button") },
       narrowing: { narrowed: () => false, threadSearchActive: () => false },
-      threadHere: () => null,
+      threadAtStanding: () => null,
       showThread: () => {},
       refreshThread: () => {},
       closeReactionMode: () => {},

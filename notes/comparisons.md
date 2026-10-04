@@ -228,7 +228,6 @@ suggestions, live cursors, named versions, and interactive fences for boards,
 chat, sheets, charts, and status. HTTP, CLI, MCP, webhooks, and event watches
 connect agents that run on the user's compute.
 
-<<<<<<< HEAD
 The October documentation describes coordination beyond the July summary:
 atomic claims on Asks, escalation of unclaimed or stale requests, an agent
 registry with heartbeats, and account/folder watches spanning documents.
@@ -304,19 +303,6 @@ asynchronous Send callbacks.
 Agentation embeds precise annotation into an existing application. It is a
 reference for selecting rendered targets and connecting feedback to a host,
 rather than a document revision or persistent agent-workspace model.
-||||||| 95c3d8ab6
-Its shared editing and hosting are a different product boundary from Leaf's
-agent-authored page for one principal. HTTP access broadens the set of clients;
-Leaf's host adapters place deliveries into the user's existing coding task.
-Collaborative document editing remains the relevant comparison, rather than the
-mechanism of one blocking poll.
-=======
-Its shared editing and hosting are a different product boundary from Leaf's
-agent-authored page for one principal. HTTP access broadens the set of clients;
-Leaf's harness adapters place deliveries into the user's existing coding task.
-Collaborative document editing remains the relevant comparison, rather than the
-mechanism of one blocking poll.
->>>>>>> origin/main
 
 ## html-effectiveness
 

@@ -47,6 +47,7 @@ import { pageScope } from "../keyboard/register.js";
 import { TEXT_ENTRY } from "../keyboard/text-entry.js";
 import { allThreads, threadList } from "./state.js";
 import { threadNames } from "./model.js";
+import { showHeld } from "./held-news.js";
 import {
   focusedThreadTarget,
   focusThread,
@@ -410,10 +411,6 @@ async function showThreadNow(id, focus, flash, revealThread, threadsBox, mayArri
     )
     ?.classList.toggle("grow", false);
   threadsBox.revealNavigation(threadNames(allThreads()).get(id)?.id ?? id);
-  if (threadsBox.showNews(id)) {
-    await whenDocumentPresented();
-    if (!mayArrive()) return null;
-  }
   let node = listNode(id, threadsBox, focus === "message");
   const going = node?.closest(".lf-going");
   if (going) {
@@ -558,6 +555,7 @@ export function createThreadLanding({
     {
       focus = "reply",
       flash = true,
+      carried = false,
       intent = retainUserIntent({
         source: focused(),
         available: () => threadsBox.isConnected,
@@ -566,6 +564,7 @@ export function createThreadLanding({
     } = {},
   ) => {
     if (!intent.handoff(() => setPanel(true))) return Promise.resolve(null);
+    if (!carried) showHeld(id);
     const ready = showThreadNow(id, focus, flash, revealThread, threadsBox, intent);
     // Pointer and keyboard routes deliberately discard this ticket. The thread
     // coordinator reports its one failure; the landing result keeps that rejection out

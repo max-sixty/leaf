@@ -9,7 +9,9 @@
    carry no native `name`: its exclusivity closes a card the moment it is named beside
    an open one, which the list's own choice then opens again. This mechanical state
    never publishes a new application epoch. Narrowing keeps the
-   selected card when visible and otherwise selects the first visible card.
+   selected card when visible and otherwise selects the first visible card. A thread
+   that leaves the reading returns selection to the most recent surviving choice, so
+   refusing a provisional thread preserves the conversation the user had selected.
 
    Focus given to the list goes on to that card's title, whatever gave it — `g T`, an
    Escape from the panel's general box, a fold that took the focused card — so
@@ -26,7 +28,7 @@ import { RetainedFace } from "../retained-face.js";
 import { ThreadView } from "./thread-card.js";
 import { replyHasWords } from "./replies.js";
 import { focusThread } from "./focus.js";
-import { passOn } from "../user-intent.js";
+import { passOn, retainUserIntent } from "../user-intent.js";
 import { layoutChanged } from "../widget-elements.js";
 import { nextRender } from "../rendering.js";
 import { foldOut, finishFold, isFolding } from "./folding.js";
@@ -49,7 +51,11 @@ function gesturedOn(thread) {
         messages.has(document.descriptors.get(event.widget)?.document.message)),
   );
 }
-const EMPTY_MODEL = Object.freeze({ rows: Object.freeze([]), pageSeats: new Map() });
+const EMPTY_MODEL = Object.freeze({
+  rows: Object.freeze([]),
+  count: null,
+  pageSeats: new Map(),
+});
 
 class ThreadListView extends RetainedFace {
   #commands = null;
@@ -59,7 +65,8 @@ class ThreadListView extends RetainedFace {
   #rows = [];
   #retaining = false;
   #rollbackFocus = null;
-  #expandedKey = null;
+  #passingFocus = false;
+  #selection = [];
   #draftViews = new Set();
   #draftFrame = 0;
   #intent = null;
@@ -77,20 +84,30 @@ class ThreadListView extends RetainedFace {
     return this.#rows.filter((row) => row.kind === "thread" && eligible.has(row.key));
   }
 
-  #showExpanded() {
+  #select(key) {
+    this.#selection = [key, ...this.#selection.filter((chosen) => chosen !== key)];
+  }
+
+  #expandedRow() {
+    const present = new Set(this.model.rows.map((row) => row.key));
+    const preferred = this.#selection.find((key) => present.has(key));
     const visible = this.#visibleRows();
-    if (!visible.length) return;
-    const chosen = visible.find((row) => row.key === this.#expandedKey) ?? visible[0];
-    this.#expandedKey = chosen.key;
-    for (const row of visible) row.node.toggleAttribute("open", row === chosen);
+    return visible.find((row) => row.key === preferred) ?? visible[0];
+  }
+
+  #showExpanded() {
+    const chosen = this.#expandedRow();
+    if (!chosen) return;
+    for (const row of this.#visibleRows())
+      row.node.toggleAttribute("open", row === chosen);
   }
 
   // An open title is still the user's focus stop for the thread. A second press leaves
   // it selected; choosing another title moves disclosure.
   #choose(card) {
     const row = this.#visibleRows().find((row) => row.node === card);
-    if (!row || row.key === this.#expandedKey) return;
-    this.#expandedKey = row.key;
+    if (!row) return;
+    this.#select(row.key);
     this.#showExpanded();
   }
 
@@ -161,17 +178,34 @@ class ThreadListView extends RetainedFace {
     // Narrowing owns hidden rows. Its completed reveal calls back here; opening
     // one before that would paint no disclosure and invalidate the same transition.
     if (!row || card.hidden) return;
-    this.#expandedKey = row.key;
+    this.#select(row.key);
     this.#showExpanded();
+  }
+
+  // Explicit navigation may name a message whose news has not been drawn yet.
+  // Locate it in the complete received reading, then release its retained card.
+  showNews(id) {
+    const row = this.model.rows.find(
+      (row) =>
+        row.kind === "thread" &&
+        (row.descriptor.id === id ||
+          row.descriptor.messages.some((message) => message.id === id)),
+    );
+    return row ? (this.#views.get(row.key)?.showNews() ?? false) : false;
   }
 
   constructor() {
     super(EMPTY_MODEL);
     this.addEventListener("focus", () => {
       this.#showExpanded();
-      const open = this.#visibleRows().find((row) => row.key === this.#expandedKey);
+      const open = this.#expandedRow();
       if (!open) return;
-      focusThread(open.node, { preventScroll: true });
+      this.#passingFocus = true;
+      try {
+        focusThread(open.node, { preventScroll: true });
+      } finally {
+        this.#passingFocus = false;
+      }
       passOn(this, focused());
     });
     // A title pressed by a pointer takes focus on the way down and opens on its click,
@@ -179,7 +213,11 @@ class ThreadListView extends RetainedFace {
     // thread-list.js); every other focus opens it as it arrives.
     this.addEventListener("focusin", (event) => {
       const title = event.target;
-      if (title.matches?.(".lf-thread-summary") && !title.matches(":active"))
+      if (
+        !this.#passingFocus &&
+        title.matches?.(".lf-thread-summary") &&
+        !title.matches(":active")
+      )
         this.#choose(title.parentElement);
     });
   }
@@ -193,7 +231,13 @@ class ThreadListView extends RetainedFace {
   // Forward gestures paint their complete generated result in their sending turn.
   async present(model) {
     const generation = ++this.#generation;
-    this.#rollbackFocus ??= this.contains(focused()) ? focused() : null;
+    if (!this.#rollbackFocus && this.contains(focused())) {
+      const node = focused();
+      this.#rollbackFocus = {
+        node,
+        mayRestore: retainUserIntent({ source: node, fallback: this }),
+      };
+    }
     await this.paint(model, { now: true });
     return generation === this.#generation && this.model === model;
   }
@@ -204,6 +248,14 @@ class ThreadListView extends RetainedFace {
     const wanted = new Set(
       model.rows.filter((row) => row.kind === "thread").map((row) => row.key),
     );
+    // Unknown counts describe unavailable placeholders, not removed identities.
+    // Candidate fallback is only paint; the complete committed reading retires
+    // departed choices and adopts the choice its narrowing left visible.
+    if (model.count !== null) {
+      this.#selection = this.#selection.filter((key) => wanted.has(key));
+      const chosen = this.#expandedRow();
+      if (chosen) this.#select(chosen.key);
+    }
     for (const [key, view] of this.#views) {
       if (wanted.has(key)) view.commit();
       else {
@@ -222,8 +274,9 @@ class ThreadListView extends RetainedFace {
     try {
       await this.paint(this.committed, { now: true });
       if (generation !== this.#generation) return false;
-      if (this.#rollbackFocus?.isConnected)
-        this.#rollbackFocus.focus({ preventScroll: true });
+      const focus = this.#rollbackFocus;
+      if (focus?.node.isConnected && focus.mayRestore())
+        focus.node.focus({ preventScroll: true });
       this.#rollbackFocus = null;
       return this.committed;
     } finally {
@@ -251,8 +304,8 @@ class ThreadListView extends RetainedFace {
         // task; the browser's own opening (find-in-page) is heard on its toggle.
         const opened = () => {
           const row = this.#visibleRows().find((row) => row.node === view.node);
-          if (!view.node.open || !row || row.key === this.#expandedKey) return;
-          this.#expandedKey = row.key;
+          if (!view.node.open || !row || row.key === this.#expandedRow()?.key) return;
+          this.#select(row.key);
           this.#showExpanded();
         };
         view.node.addEventListener("lf-reveal", opened);
@@ -317,7 +370,7 @@ class ThreadListView extends RetainedFace {
       let reconcile = false;
       for (const changed of this.#draftViews)
         if ([...this.#views.values()].includes(changed)) {
-          changed.present(changed.model);
+          changed.repaint();
           reconcile ||= changed.model.resolved;
         }
       if (reconcile) this.#commands.repaintThread();

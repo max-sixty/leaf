@@ -1,6 +1,8 @@
-Use `lf-playground` when several values or behaviors need to be explored together before
-the user chooses one configuration. Put it inside `lf-ask`, declare controls and
-optional presets, then include exactly one preview and one output.
+Give each design decision one selection surface. For a choice among visible, fixed
+candidates, put the candidates in `lf-options` inside `lf-ask` so the user selects
+the example they want. Use `lf-playground` when the user needs to tune a configuration
+before choosing it, and include exactly one preview and one output. Use `lf-ask`
+to frame the question and context when they live outside the playground.
 
 Interactive behavior does not by itself justify a package; `references/packages.md`
 says where page-only and reused behavior belong. A page module can define custom
@@ -51,13 +53,12 @@ the configuration; applying a preset preserves the case; all compared candidates
 the same case. When editing
 the data is itself the task, that data belongs in the configuration.
 
-Controls and presets do different jobs. Controls span the configuration space: give
-each part or parameter they might want to vary a control of its own, even when that
-makes many, and put candidates that differ only as wholes in one `choice`. Presets are
-the candidates you put forward: one for each proposal you would build, commonly three to
-six, none a variant of another. Design each preset as one look, composing its parts so
-they read together on every surface they change, rather than taking each control's best
-value on its own. Free combinations of controls may clash; a preset may not, because the
+Controls expose parameters the user can vary independently. Offer presets when
+combining several such parameters gives the user useful starting points for further
+tuning. Choose presets that differ across several parameters, and compose each
+as one look so its parts read together on every surface they change, rather than
+taking each control's best value on its own. Free combinations of controls may clash;
+a preset may not, because the
 user judges its idea by how it looks. Before handoff, look at each preset where the user
 will see it, on every surface it changes and in both themes, and rework or drop any you
 would not ship. A preset sets every control its look depends on, since a control it

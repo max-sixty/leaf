@@ -5,7 +5,7 @@ from pathlib import Path
 
 from leaf.activity import answer_command, reply_binding_stands
 from leaf.asks import local_ask_entry
-from leaf.delivery import current_responses, record_pickup
+from leaf.delivery import ReceiptRefused, current_responses, record_pickup
 from leaf.event_contracts import append_admitted
 from leaf.event_log import read_events
 from leaf.events import build_threads
@@ -31,7 +31,6 @@ from leaf.validation.admission import (
     check_markup,
     logged_id,
     read_text_arg,
-    run_markup,
     thread_obligation,
 )
 
@@ -274,12 +273,14 @@ def _current_anchor(
     section: str,
     part: str,
     revision: int | None = None,
+    *,
+    transaction=None,
 ) -> tuple[int, dict | None]:
     """Capture one optional target against the page's active reading."""
     if revision is None:
         from leaf.revisioning import activate_source
 
-        activation = activate_source(page_dir)
+        activation = activate_source(page_dir, transaction=transaction)
         if activation.error and (quote or section or part):
             sys.exit(f"cannot use invalid index.html: {activation.error}")
         revision = require_revision(page_dir)
@@ -346,14 +347,13 @@ def cmd_comment(
     revision they are looking at and read as they see it: a slot
     their decision retired is off the page, and a draft they edited holds their words,
     so a quote is met here the way it would land there."""
-    # Reading a body may wait on stdin, and running markup reads the log; do both
-    # before taking the page lease.
+    # Reading a body may wait on stdin; do that before taking the page lease.
     body = read_text_arg(page_dir, text)
-    if markup:
-        run_markup(page_dir, "comment", markup)
     with PageTransaction(page_dir) as page:
         events = page.events
-        revision, anchor = _current_anchor(page_dir, events, quote, section, part)
+        revision, anchor = _current_anchor(
+            page_dir, events, quote, section, part, transaction=page
+        )
         if markup:
             check_markup(page_dir, "comment", markup, events)
         event = {
@@ -368,6 +368,20 @@ def cmd_comment(
         if markup:
             event["markup"] = markup
         return append_admitted(page, event)
+
+
+def answered_by_reply(events: list[dict], for_event: str) -> bool:
+    """A successful exact reply wins over every later delivery completion.
+
+    Failure receipts and user settlement do not assert a provider answer, so a
+    recovered final message may still answer that original delivered address.
+    """
+    return any(
+        event["kind"] == "reply"
+        and event.get("responds") == for_event
+        and "failure" not in event
+        for event in events
+    )
 
 
 @contract_writer
@@ -410,14 +424,12 @@ def cmd_reply(
     ordinary agent answers omit it.
     """
     body = read_text_arg(page_dir, text)
-    if markup:
-        run_markup(page_dir, "reply", markup)
     posting_identity = message_identity() if identity is None else identity
     with PageTransaction(page_dir) as page:
         if claimed_session is not None:
             claim = page.active_claim
             if claim is None or claim["id"] != claimed_session:
-                raise RuntimeError(
+                raise ReceiptRefused(
                     f"page is no longer claimed by session {claimed_session!r}"
                 )
             posting_identity = {"agent": claim["agent"], "session": claim["id"]}
@@ -442,12 +454,7 @@ def cmd_reply(
         if (
             when_settled == "post"
             and for_event is not None
-            and any(
-                event["kind"] == "reply"
-                and event.get("responds") == for_event
-                and "failure" not in event
-                for event in events
-            )
+            and answered_by_reply(events, for_event)
         ):
             return None
         responses = current_responses(page_dir, events)
@@ -570,21 +577,19 @@ def cmd_reply(
                 and (page_dir / "index.html").read_bytes()
                 == revision_path(page_dir, active).read_bytes()
             )
-            if detach or section:
+            if relocating:
                 source_events = [
                     *events,
                     {
                         "kind": "reply",
                         "id": "prospective-anchor-transition",
+                        "author": "agent",
+                        "text": body,
+                        "seq": events[-1]["seq"] + 1,
+                        "ts": "pending",
                         "parent": to,
-                        "anchor": (
-                            None
-                            if detach
-                            else {
-                                "section": section,
-                                **({"visual": part} if part else {}),
-                            }
-                        ),
+                        "anchor": None,
+                        **({"responds": for_event} if for_event is not None else {}),
                     },
                 ]
             if source_matches_active:
@@ -635,20 +640,20 @@ def cmd_reply(
                     f"({', '.join(f'<{tag}>' for tag in structural)})"
                 )
         if not source_matches_active:
-            from leaf.revisioning import activate_checked_source
+            from leaf.revisioning import planned_activation
 
-            activation = activate_checked_source(page_dir, checked)
-            if activation.error:
-                operation = "reply" if validate_source else "detach"
-                sys.exit(
-                    f"cannot {operation} while index.html is invalid: {activation.error}"
-                )
-            reply_revision = activation.revision
+            reply_revision = planned_activation(page_dir, checked).revision
         if prospective_anchor is not None:
             revision, anchor = reply_revision, prospective_anchor
         elif moving:
             revision, anchor = _current_anchor(
-                page_dir, events, quote, section, part, revision=reply_revision
+                page_dir,
+                events,
+                quote,
+                section,
+                part,
+                revision=reply_revision,
+                transaction=page,
             )
         elif detach:
             revision, anchor = reply_revision, None
@@ -674,6 +679,10 @@ def cmd_reply(
             event["revision"] = revision or latest_revision(page_dir)
         if relocating:
             event["anchor"] = anchor
+        if not source_matches_active:
+            from leaf.revisioning import publish_checked_event
+
+            return publish_checked_event(page, checked, event)
         return append_admitted(page, event)
 
 
@@ -686,6 +695,7 @@ def fail_answer(
     attempt: str,
     identity: dict,
     only_if_unclaimed: bool,
+    claimed_session: str | None = None,
 ) -> dict | None:
     """Tell the user no answer to one move is coming, in the move's own terms.
 
@@ -704,9 +714,18 @@ def fail_answer(
     some turn already picked up to the writer following that turn.
     """
     with PageTransaction(page_dir) as page:
+        if (
+            claimed_session is not None
+            and (page.active_claim or {}).get("id") != claimed_session
+        ):
+            raise ReceiptRefused(
+                f"page is no longer claimed by session {claimed_session!r}"
+            )
         answer = current_responses(page_dir, page.events).get(responds)
     if answer is not None and answer["kind"] == "markup":
-        return _fail_markup_answer(page_dir, responds, failure, only_if_unclaimed)
+        return _fail_markup_answer(
+            page_dir, responds, failure, only_if_unclaimed, claimed_session
+        )
     return cmd_reply(
         page_dir,
         None,
@@ -718,15 +737,27 @@ def fail_answer(
         only_if_unclaimed=only_if_unclaimed,
         failure=failure,
         identity=identity,
+        claimed_session=claimed_session,
     )
 
 
 @contract_writer
 def _fail_markup_answer(
-    page_dir: Path, responds: str, failure: str, only_if_unclaimed: bool
+    page_dir: Path,
+    responds: str,
+    failure: str,
+    only_if_unclaimed: bool,
+    claimed_session: str | None,
 ) -> dict | None:
     """Record a failed pickup of a page move, rechecking its answer under the lock."""
     with PageTransaction(page_dir) as page:
+        if (
+            claimed_session is not None
+            and (page.active_claim or {}).get("id") != claimed_session
+        ):
+            raise ReceiptRefused(
+                f"page is no longer claimed by session {claimed_session!r}"
+            )
         events = page.events
         answer = current_responses(page_dir, events).get(responds)
         if answer is None or (
@@ -914,7 +945,7 @@ def cmd_report(
             sys.exit(f"detail fields are name=value, got {field!r}")
         detail[name] = value
     with PageTransaction(page_dir) as page:
-        activate_source(page_dir)
+        activate_source(page_dir, transaction=page)
         event = {
             "kind": "report",
             "author": "agent",

@@ -779,9 +779,7 @@ def test_a_written_comment_keeps_its_originating_agent(browser, serve, monkeypat
     page = open_page(browser, url)
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
     toggle = page.locator(".lf-threads-toggle")
-    expect(toggle).to_have_text(
-        "Open threads: 1"
-    )  # counted as open, like any other thread
+    expect(toggle).to_have_text("Threads: 1")  # counted as open, like any other thread
     toggle.click()
     page.locator(".lf-thread-summary").first.click()
     thread = page.locator(".lf-thread").first
@@ -825,7 +823,7 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
         },
     )
     page = open_page(browser, live_url(url))
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Open threads: 1")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 1")
     stamp_page(d, TWIN_V2, "a twin")
     wait_for_revision(page, 2)
     expect(page.locator(".lf-notice")).not_to_have_class(re.compile(r"\bshow\b"))
@@ -2033,6 +2031,54 @@ def test_authored_blocks_choose_column_wide_or_available_space(browser, serve):
     )
     assert narrow["box"] < narrow["viewport"]
     assert root_overflow(page) == 0
+
+
+def test_named_wide_is_the_evidence_width_in_every_layout(browser, serve):
+    """`wide` is the shared capped evidence width wherever a block stands. A wide
+    Layout's track and a workspace pane are wider than `--wide` at a large window, so
+    the breakout's growth alone left a named-wide block at the holder's width there:
+    1598px in `layout-wide` and 1442px in a pane at 1726px. The cap holds an authored
+    occurrence and a package default (a board) alike, at the page's own `--wide`, while
+    a block that names no width still fills its holder and `available` takes it all. A
+    narrow window's pane still bounds the wide block."""
+    blocks = """
+<div id="named" data-width="wide">Named wide.</div>
+<lf-board id="board"><lf-column id="todo" label="Todo"><lf-card id="card">One</lf-card></lf-column></lf-board>
+<div id="plain">No width named.</div>
+<div id="available" data-width="available">Available.</div>
+"""
+    wide_page = leaf_page("Wide track", blocks, layout="wide")
+    workspace_page = leaf_page(
+        "Workspace pane",
+        f'<lf-pane id="pane" label="Evidence"><div id="holder">{blocks}</div></lf-pane>',
+        layout="workspace",
+    )
+    configured = leaf_page(
+        "Configured width",
+        blocks,
+        head="<style>:root { --wide: 900px; }</style>",
+        layout="wide",
+    )
+    measure = """() => Object.fromEntries(
+      ['named', 'board', 'plain', 'available'].map(id => {
+        const box = document.getElementById(id).getBoundingClientRect();
+        return [id, {width: Math.round(box.width), left: Math.round(box.left)}];
+      }))"""
+    for source, cap in ((wide_page, 1080), (workspace_page, 1080), (configured, 900)):
+        page = open_page(browser, serve(source))
+        resized(page, 1726, 900)
+        at = page.evaluate(measure)
+        assert at["plain"]["width"] > cap + 200, at
+        assert at["available"]["width"] == at["plain"]["width"], at
+        for capped in ("named", "board"):
+            assert at[capped]["width"] == pytest.approx(cap, abs=1), (capped, at)
+            assert at[capped]["left"] == at["plain"]["left"], (capped, at)
+        assert root_overflow(page) == 0
+
+        resized(page, 540, 720)
+        narrow = page.evaluate(measure)
+        assert narrow["named"]["width"] == narrow["plain"]["width"] < 540, narrow
+        assert root_overflow(page) == 0
 
 
 def test_a_sample_fills_the_room_its_authored_width_takes(browser, serve):
@@ -3545,6 +3591,7 @@ DISCLOSURES = """() => [...document.querySelectorAll('details')]
   .filter(d => !d.closest('.lf-chrome'))
   .map(d => ({
     open: d.open,
+    displayed: d.checkVisibility(),
     summary: (d.querySelector('summary')?.textContent || '').trim().slice(0, 40),
     shown: [...d.children].filter(c => c.tagName !== 'SUMMARY' && !c.hasAttribute('data-lf-gen'))
       .every(c => c.checkVisibility()),
@@ -3602,7 +3649,11 @@ def test_paper_takes_the_press_off_everything_it_cannot_press(browser, serve):
         f"{len(dressed)} of the {len(printed)} controls paper kept still promise a press "
         f"nothing on a sheet can answer:\n  " + "\n  ".join(dressed)
     )
-    on_paper = [d for d in page.evaluate(DISCLOSURES) if not d["open"]]
+    # A disclosure omitted from paper altogether, such as a draft's edit history,
+    # is not a visible summary concealing content from a reader of the sheet.
+    on_paper = [
+        d for d in page.evaluate(DISCLOSURES) if d["displayed"] and not d["open"]
+    ]
     assert on_paper and all(d["shown"] for d in on_paper), (
         f"a shut disclosure printed as a summary and a stub, with no press on the sheet "
         f"to open it: {[d for d in on_paper if not d['shown']]}"

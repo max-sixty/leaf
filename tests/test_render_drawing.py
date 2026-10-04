@@ -1133,3 +1133,36 @@ def test_a_posted_drawing_stands_down_without_a_false_page_reference(browser, se
     references = page.locator(".lf-drawing-reference")
     expect(references.first).to_have_text("Drawing comment")
     assert set(references.all_text_contents()) == {"Drawing comment"}
+
+
+def test_page_mode_keeps_visible_native_ink_and_exact_drawing_comment(browser, serve):
+    source = leaf_page(
+        "Page ink",
+        '<h1>Page ink</h1><p id="subject" style="height:160px">Draw the bend beside these words.</p>',
+    ).replace("<body>", '<body data-annotations="page">')
+    page = open_page(browser, serve(source))
+    target = page.locator("#subject")
+    draw_over(page, target)
+    pending = page.locator(".lf-drawing-pending")
+    expect(pending).to_have_count(1)
+    assert pending.evaluate(
+        "el => el.getBoundingClientRect().width > 0 && getComputedStyle(el.querySelector('path')).strokeWidth === '3px'"
+    )
+    editor = page.locator(".lf-fab-input")
+    expect(editor).to_be_focused()
+    write(editor, "The bend I mean")
+    with sending(page, "the exact page-owned drawing"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    event = events_model.read_events(serve.page_dir)[-1]
+    assert event["kind"] == "comment"
+    assert event["anchor"] == {"section": "subject"}
+    assert event["drawing"]["strokes"]
+    expect(page.locator(".lf-drawing-pending")).to_have_count(0)
+    expect(page.locator(".lf-drawing-posted")).to_have_count(0)
+    expect(
+        page.locator(".lf-thread-panel .lf-msg").filter(has_text="The bend I mean")
+    ).to_be_visible()
+    physical = page.evaluate(
+        "() => performance.getEntriesByType('resource').some(e=>new URL(e.name).pathname.includes('/annotation-overlay/'))"
+    )
+    assert not physical

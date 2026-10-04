@@ -327,15 +327,20 @@ detail matching the declared browser schema; `says()` over `textContent`; `offer
 scroll against the resulting layout); asynchronous visible preparation is registered
 through `controller.present(promise)`; box-derived apparatus takes its first visible
 reading synchronously from `PRESENTATION` and observes later changes through the normal
-layout signals (each helper's header under `runtime/` says why), scheduling a paint with
-`nextRender`/`cancelRender` and watching a size with `sizeObserver` rather than the
-browser's own, so that a reader waiting for the page to settle after a gesture — a
+layout signals. Apparatus derived from the authored structure reconciles at
+`PAGE_INTERFACE`, which runs at startup and each in-place revision activation;
+it retains surviving nodes with `setChildren` so focus and native view state survive.
+Each helper's header under `runtime/` says why. Use `nextRender`/`cancelRender` for
+paints and `sizeObserver` for size observation, so that a reader waiting for the
+page to settle after a gesture — a
 check, a test — waits for that work too (`nextRender` asked for from another rendering
 callback runs in that callback's frame, and otherwise in the next frame; a step that
 must not run in the frame that asked for it, such as an animation tick, asks for
 `nextFrame`; a playback loop that runs until
 the user stops it stays on `requestAnimationFrame`, or the page never settles while it
 plays);
+`afterScript(callback)` coalesces a stable callback at the current script's microtask
+checkpoint when several synchronous updates produce one final mechanical reading;
 `keeps(node, name,
 value)` for any name or state a reactive render writes, handed the boolean or count raw,
 since an unconditional `setAttribute` restates itself on every publication and
@@ -530,7 +535,7 @@ A module that names an element away from it, in a feed row or a summary, reads t
 shared names rather than its own. `addressableLabel(element)` is what the chrome calls
 it: first the name the authoring contract gives it (the attribute its entry declares
 with `x-name`, else a leading `<summary>`, heading, or titled member's `<strong>`,
-inside a leading `<header>` too), else its caption or `aria-label`. An element whose
+inside a leading `<header>` or `<hgroup>` too), else its caption or `aria-label`. An element whose
 words are its own, such as a paragraph or a list item, is otherwise named by those
 words cut short; any other element takes the name of the nearest element holding it
 that has one, so a question's options are named by the question. Past that, plain
@@ -696,29 +701,60 @@ again.
 ### Commands and keyboard routes
 
 A widget contributes each command once with `commands(source, title, rows, options)`.
-The dispatcher, shortcut bar, command reference, `aria-keyshortcuts`, and Ask projection all
-consume those same live rows. Set a row or route's `decision` to its concise, non-empty
-action-name string—or a function returning one—and give it `control` for the visible
-element that performs the action. A Decision action begins an answer, answers, advances,
-or revises the Ask containing `source`. The action name is separate from `label`, which
-remains the command register's own-scope keycap override. A row with no bindings when
-`commands()` registers it must provide a non-empty string `label`, a `label` function, or
-a Decision action name. This also applies when computed `keys` is initially empty and
-gains bindings later. The command reference uses a keyless Decision command's action name
-rather than a blank keycap.
-Every ordered Decision receives one of the Ask's contextual `1` through `9` routes while
-capacity remains, independently of any intrinsic widget binding. The Ask digit and the
-widget binding share one command id and source-scoped command reference. Invoking either
-therefore rechecks the original scope and liveness and calls the original `run` (or
-clicks a run-less native control). A focused widget declaration
-wins when it collides with an Ask digit; undeclared digits continue to the Ask.
+The dispatcher, shortcut bar, command reference, `aria-keyshortcuts`, and inline hints
+consume those same declarations. Every row and route has a stable dotted `id` and a
+required concise `title`, such as `"Pass"`; the title may be a function when state changes
+the action name. An optional `description` supplies extra detail in the reference.
+The bar defaults to the title; `line` overrides its short wording and `line: false`
+keeps a reference-only command out of the bar. `label` overrides the keycap, not the
+action name. A keyless command still has its title in the reference.
 
-`bindingBadge` may name an empty face a widget already positions. Each supplied face
-belongs to one action; core writes the reachable Ask digit there while the whole face is
-connected, visible, and uncovered. Otherwise core paints its own binding badge at the
-visible control. Routes let one parameterized row contribute distinct controls and
-intrinsic bindings. Do not maintain a second Ask-control list or declare the Ask's
-contextual digits in the package.
+Declare ordinary local bindings in `keys` and explicitly forwardable aliases in
+`contextKeys`. Both arrays work inside the widget. Only context aliases are exposed at
+the enclosing Ask's opening and its associated margin controls and threads. A route can
+declare its own `contextKeys`; an ordinary key on another route is never forwarded.
+Numbers are widget choices, not an Ask allocation: options own their stable numeric
+assignments, and a swipe deck declares Pass as `1` and Keep as `2`. The page owns `a`
+and `Shift+a` navigation between Asks. Do not assign numbers based on currently available
+actions: disabling `1` must not turn `2` into a different action.
+
+```javascript
+const actions = commandScope("In a swipe deck", [
+  {
+    id: "swipe.pass",
+    title: "Pass",
+    keys: ["ArrowLeft"],
+    contextKeys: ["1"],
+    decision: true,
+    control: passButton,
+    bindingBadge: passHint,
+    when: canSwipe,
+    run: () => passButton.click(),
+  },
+]);
+commands(deck, actions);
+```
+
+Set `decision: true` and provide `control` when a command starts, advances, answers, or
+revises the Ask containing `source`. This semantic role neither assigns a binding nor
+makes ordinary keys forwardable. A numeric command need not be a Decision. Forwarding
+retains the original source, scope, row, and route identity, rechecks their current
+availability, and invokes the original callback or native control. Replacing or removing
+the source attachment withdraws its old routes. A nearer widget owns its declared keys;
+an unavailable implemented binding reserves its key against a different outer meaning.
+
+Declare `bindingBadge` on a row or route to request an inline shortcut hint, whether or
+not the command is a Decision. An element names an empty face the widget positions;
+`null` requests a badge at the control's corner. Each supplied face belongs to one
+action. The shared keyboard presenter writes its first reachable binding while the
+whole face is connected, visible, and uncovered; a reachable Ask alias takes precedence
+over an intrinsic binding for the same command. Otherwise it paints a corner badge at
+the visible control. Commands without `bindingBadge` do not request an inline hint.
+The presenter reads the dispatcher's effective bindings, so hints withdraw outside the
+scope, during native text entry, or when the command is unavailable. A widget owns the
+face's placement, not its text or active state. Routes let one parameterized row
+contribute distinct controls and intrinsic bindings. Do not maintain a second
+Ask-control list or paint binding text in the package.
 
 Command scopes compose by focused ancestry. The exact control scope is nearest, followed
 by containing widget scopes and Leaf's outer page scopes. A scope owns only the bindings
@@ -730,7 +766,8 @@ different meaning, and a dead inner Escape declaration passes the key to the nex
 return rather than stranding it. A row without
 `run` only presents native behavior or a shared outer handler and does not shadow it. Text
 fields and other native interactions retain their editing keys ahead of ancestor widget
-scopes.
+scopes and all context aliases, including aliases attached directly to an editor. Ordinary
+exact-control keys keep their existing precedence for Save, Escape, or submit.
 
 Use `commandScope(title, rows, options)` when Leaf, rather than the widget, creates the
 focusable control. Put the returned capability on a margin-entry record's `scope`; each
@@ -772,7 +809,7 @@ controller.
 Every row passed to `commands()` has a stable dotted `id`, such as `draft.save`. Keep that
 identity when its key or wording changes: the command browser and repeated widget
 instances use it instead of display prose. If one compact row binds keys with different
-meanings, add `routes` with an `id`, `binding`, and action sentence for each meaning. The
+meanings, add `routes` with an `id`, `title`, and ordinary `binding` or explicit `contextKeys` for each meaning. The
 shortcut bar stays compact, while the command reference lists and runs each route on its own.
 Use `runFromCommandReference: false` only for a parameterized step that cannot be run without a
 choice the command reference does not have, such as a generated hint tied to the live viewport. An
@@ -796,6 +833,10 @@ projections. A direct editor that needs more commands, such as Save and Cancel,
 registers those rows on its box with the same text-entry meanings. `TEXT_BOX` matches
 the text field and any native textarea, for code asking whether an element takes typed
 paragraphs.
+
+A field has `:state(ready)` once its editor view exists. When it replaces a reading
+surface, keep that surface in flow until the field is ready: measuring a connecting
+empty field must not shrink the scrollport and lose the user's reading position.
 
 The call returns the box's one seam onto its draft, and a box holds more than its
 `.value`: an image pasted into one is kept as Markdown and shown as a thumbnail beside
@@ -837,7 +878,6 @@ declares one verb on `lf-swipe-deck` and the condition that answers its Ask, and
     }
   },
   "x-awaits": {
-    "region": true,
     "answered": {
       "swipe": { "empty": { "within": "lf-swipe-pile", "when": { "verdict": ["unseen"] } } }
     }
@@ -1288,6 +1328,49 @@ by the widget. Core captures its full datum coordinate, including external-data 
 revision, opens the ordinary anchored draft, and seats the response bar in the consumer's
 outlet when the datum still resolves exactly. `origin` is the widget control to which
 Escape may return focus. Widgets do not receive draft, submission, or event APIs.
+
+## Page annotation presentation
+
+With `data-annotations="page"` on `body`, one connected Element may register
+`consumePageThreads(owner, render)` to nominate page-owned conversation outlets.
+Its callback receives the current immutable Thread collection and the same
+`target`, `place`, `composition` and `placeComposition` capabilities as a
+widget-local surface. Page targets include exact passages and visual details,
+as well as projected data. `target(key)` expresses candidacy: widget-local
+outlets that survive final validation take priority. A held widget arrival stays
+with its existing notice until the user opens it. Source-target coverage and
+outlet containment are separate: the source may be elsewhere in the document,
+but the outlet must stay inside its registered owner. Core validates both again
+at the sole conversation/composer commit. Failure of this selected page callback
+fails presentation instead of claiming an empty successful view.
+
+The same owner can register `consumeAnnotations(owner, render)` for Asks,
+updates, status and contributed actions. It receives the current immutable
+inventory after the conversation cohort commits, plus these capabilities:
+
+- `view.items(entry)` gives generated items not already represented by an owner's
+  visible native contribution controls. `view.activate(item)` uses the current
+  canonical action; a view never sends an event itself. Retain items by the
+  exported `contributionItemKey(item)`: each contribution owns its reading IDs.
+- `view.controls(entry)` returns the retained native contribution controls in
+  canonical order. Seat those actual nodes; their registration owns activation,
+  command scopes, disabled state and focus. `view.controlKey(control)` identifies
+  that current control by its contribution owner and entry key;
+  `view.controlRecord(control)` reads its canonical immutable contribution entry,
+  including its owner. Do not copy markup.
+- `view.arriving` says an explicit contribution focus is arriving at this view.
+  Release held layout before seating that current reading so its control is reachable.
+- `view.place(entry, row)` associates a contained row with its current source for
+  commenting, standing and Escape. `view.target(entry)` reads that exact target.
+
+Annotation paint is synchronous and joins the existing conversation presentation
+proof. `controls` and `place` accept only entries in that paint's current reading;
+holding layout never authorizes old actions. Both handles provide `read()`,
+`update()` and `unregister()`. Unregister on disconnect. Retain keyed rows and
+hold visible size changes with the shared `HeldReading` mechanism. Hold only layout
+identities and allocations, while updating surviving records and controls immediately;
+retired slots retain space with no interactive descendants. The bundled `lf-annotation-rail` is the worked
+implementation. Omitting either consumer retains the core Threads and Asks routes.
 
 ## Seeing it
 

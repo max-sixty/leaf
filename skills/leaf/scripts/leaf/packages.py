@@ -37,9 +37,7 @@ from .locations import (
 )
 from .machine import package_store
 from .schema import (
-    ASSETS,
     BROWSER_DIRS,
-    DEFAULT_PACKAGE,
     ELEMENT_ID,
     HTML_NAME,
     PACKAGE_DIRS,
@@ -339,12 +337,12 @@ def validate_package_dir(package: Path) -> list:
 
 
 def package_layer_inputs(package: Path) -> list[Path]:
-    """The composition context in which this package normally appears."""
+    """The complete mandatory layer, with this package when it is not already in it."""
     inputs = layer_inputs()
-    for index, root in enumerate(inputs):
+    for root in inputs:
         if paths_same(package, root):
-            return inputs[: index + 1]
-    return [ASSETS, DEFAULT_PACKAGE, package]
+            return inputs
+    return [*inputs, package]
 
 
 def check_package(

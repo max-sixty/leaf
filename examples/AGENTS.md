@@ -93,7 +93,7 @@ The bytes an `lf-shot` or a seeded message names live under `examples/media/` in
 `max-sixty/leaf-assets`, not in the tree, content-addressed as `leaf page media` names
 them. `example_media()` (`dev/leaf_dev/page_fixtures.py`) returns the pinned copy, and
 every builder of a page directory lays them in: `prepare_page`, and any test that
-builds a page by hand. `uv run leaf-dev publish-media IMAGE...` adds images, moves the
+builds a page by hand. `uv run leaf-dev publish-media FILE...` adds media, moves the
 pin, and prints the `/media/` path each page names; commit the pin, not the image.
 
 Draw a before/after pair rather than capturing it. Draw both images at one height,

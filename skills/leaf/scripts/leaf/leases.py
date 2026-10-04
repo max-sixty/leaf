@@ -13,7 +13,9 @@ import functools
 import os
 import signal
 import sys
+from collections.abc import Callable
 from pathlib import Path
+from typing import BinaryIO
 
 from leaf.event_log import EventRefused
 from leaf.machine import state_home
@@ -57,7 +59,7 @@ def lock_is_held(path: Path) -> bool:
         return False
 
 
-def take_lease(path: Path):
+def take_lease(path: Path, *, prepare: Callable[[BinaryIO], None] | None = None):
     """Take the exclusive lease on this file and return it held, or None when
     another process holds it.
 
@@ -72,10 +74,33 @@ def take_lease(path: Path):
     shared lock is momentary. A shared lock of its own tells them apart, since
     only a lease refuses one, so a question asked at the instant a lease is taken
     does not turn that lease away.
+
+    A producer that must prepare descriptor metadata supplies `prepare`. It runs
+    under a shared lock before promotion to the live exclusive lease, so probes
+    see preparation as unheld and can never pair old metadata with a new holder.
+    The caller serializes those preparations; promotion waits for the momentary
+    shared probes rather than refusing a legitimate lease.
     """
     require_cross_process_locking()
     while True:
         record = open(path, "a+b")  # noqa: SIM115 - returned and held by the caller
+        if prepare is not None:
+            try:
+                fcntl.flock(record, fcntl.LOCK_SH | fcntl.LOCK_NB)
+            except BlockingIOError:
+                record.close()
+                return None
+            try:
+                if still_named(record.fileno(), path):
+                    prepare(record)
+                    fcntl.flock(record, fcntl.LOCK_EX)
+                    if still_named(record.fileno(), path):
+                        return record
+            except BaseException:
+                record.close()
+                raise
+            record.close()
+            continue
         try:
             fcntl.flock(record, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:

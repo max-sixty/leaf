@@ -288,20 +288,20 @@ def check(dir: str, render: bool) -> None:
     sys.exit(cmd_check(resolve_dir(dir), render))
 
 
-@page.command(short_help="Add images and print their page paths.")
+@page.command()
 @click.argument("dir", metavar="PAGE")
 @click.argument(
     "files",
     nargs=-1,
     required=True,
     type=click.Path(exists=True, dir_okay=False),
-    metavar="IMAGE...",
+    metavar="FILE...",
 )
 def media(dir: str, files) -> None:
-    """Add images and print their page paths.
+    """Add images, video, or audio and print their page paths.
 
-    Copies each image into the page under a content-addressed name and prints
-    one JSON line per image: its page `path` and its `source` file.
+    Copies each file into the page under a content-addressed name and prints
+    one JSON line per file: its page `path` and its `source` file.
     """
     from leaf.media import cmd_media
 
@@ -616,11 +616,12 @@ def start(dir: str, host: str | None, standing: bool) -> None:
     from leaf.hosting import claim_and_start
 
     try:
-        url, note = claim_and_start(resolve_dir(dir), host, standing)
+        with claim_and_start(resolve_dir(dir), host, standing) as started:
+            pass
     except RuntimeError as error:
         raise SystemExit(str(error)) from None
-    print(json.dumps({"url": url}))
-    print(note, file=sys.stderr)
+    print(json.dumps({"url": started.url}))
+    print(started.note, file=sys.stderr)
 
 
 @server.command(short_help="Serve a page in the foreground until stopped.")
@@ -639,7 +640,6 @@ def run(dir: str, host: str | None, standing: bool, temporary: bool) -> None:
     `server start`. A page already served prints that server's URL and exits.
     """
     from leaf.hosting import cmd_serve, cmd_serve_temporary
-    from leaf.service import starting_claim
 
     page_dir = resolve_dir(dir)
     if temporary:
@@ -650,8 +650,7 @@ def run(dir: str, host: str | None, standing: bool, temporary: bool) -> None:
         cmd_serve_temporary(page_dir)
         return
     try:
-        with starting_claim(page_dir, standing=standing):
-            cmd_serve(page_dir, host, standing)
+        cmd_serve(page_dir, host, standing, acquire=True)
     except RuntimeError as error:
         raise SystemExit(str(error)) from None
 
@@ -660,16 +659,32 @@ def run(dir: str, host: str | None, standing: bool, temporary: bool) -> None:
 @click.argument("dir", metavar="PAGE")
 @serve_flags
 @click.option("--revive", is_flag=True, hidden=True)
+@click.option("--acquire", is_flag=True, hidden=True)
+@click.option("--claim", hidden=True)
 @click.option("--handshake", type=int, required=True, hidden=True)
 def _serve(
-    dir: str, host: str | None, standing: bool, revive: bool, handshake: int
+    dir: str,
+    host: str | None,
+    standing: bool,
+    revive: bool,
+    acquire: bool,
+    claim: str | None,
+    handshake: int,
 ) -> None:
     """Private child process spawned by server start and Watch revival."""
     from leaf.detached import Handshake
     from leaf.hosting import cmd_serve
 
     with Handshake(handshake) as answer:
-        cmd_serve(resolve_dir(dir), host, standing, revive, handshake=answer)
+        cmd_serve(
+            resolve_dir(dir),
+            host,
+            standing,
+            revive,
+            handshake=answer,
+            acquire=acquire,
+            prepared_claim=json.loads(claim) if claim is not None else None,
+        )
 
 
 @server.command(short_help="Stop a page's server.")

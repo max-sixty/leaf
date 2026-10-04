@@ -1462,6 +1462,49 @@
           box.scrollTop += r.top - b.top - b.height / 3;
       });
     </script>
+<!-- annotation-workspace.html authored styles -->
+<style>
+      #aw-regions {
+        display: grid;
+        grid-template-columns: minmax(0, 2fr) minmax(20rem, 1fr);
+        gap: var(--sp-4);
+        min-block-size: 0;
+      }
+      #aw-research,
+      #aw-conversations {
+        min-inline-size: 0;
+        min-block-size: 0;
+      }
+      #aw-conversations {
+        display: flex;
+        flex-direction: column;
+        gap: var(--sp-3);
+      }
+      #aw-conversations > h2 {
+        margin: 0;
+        flex: none;
+      }
+      #aw-annotations {
+        inline-size: 100%;
+        block-size: 100%;
+        min-block-size: 0;
+        flex: 1 1 0;
+      }
+      #aw-navigation {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--sp-3);
+      }
+      @media (width < 720px), (height < 480px) {
+        #aw-regions {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        #aw-annotations {
+          block-size: clamp(18rem, 55svh, 30rem);
+          flex: none;
+        }
+      }
+    </style>
 <!-- current-proposed-comparison.html authored styles -->
 <style>
       /* The regions side by side, stacked where the workspace flows. */
@@ -1819,7 +1862,22 @@
     </script>
 <!-- feature-gallery.html authored script -->
 <script type="module">
-      import { afterPresentation } from "/runtime/widget-api.js";
+      import { afterPresentation, commands } from "/runtime/widget-api.js";
+
+      const localNote = document.querySelector("#bg-shortcut-note");
+      const focusNote = document.querySelector("#bg-shortcut-focus-note");
+      focusNote.addEventListener("click", () => localNote.focus());
+      commands(document.querySelector("#bg-local-shortcuts"), "In the note sample", [
+        {
+          id: "note.focus",
+          contextKeys: ["1"],
+          control: focusNote,
+          bindingBadge: null,
+          title: "Write note",
+          description: "Focus the sample note",
+          run: () => focusNote.click(),
+        },
+      ]);
 
       const pageRoot = document.querySelector(
         'link[rel="canonical"][data-lf-runtime]',
@@ -1857,83 +1915,24 @@
 
       const sample = document.querySelector("#bg-panel-sample");
       let selected = null;
-      let selectionVersion = 0;
-      const pendingPaints = new Set();
-
-      function whenPanelMatches(child, isReady) {
-        if (isReady()) return Promise.resolve();
-        return new Promise((resolve) => {
-          const finish = () => {
-            observer.disconnect();
-            pendingPaints.delete(finish);
-            resolve();
-          };
-          const observer = new MutationObserver(() => {
-            if (isReady()) finish();
-          });
-          pendingPaints.add(finish);
-          for (const selector of ["leaf-thread-narrowing", "leaf-thread-list"])
-            observer.observe(child.querySelector(selector), {
-              attributes: true,
-              childList: true,
-              subtree: true,
-            });
-        });
-      }
-
-      async function showPanelView(view, version, ready = sample.ready) {
-        const child = await ready;
-        if (!sample.isConnected || version !== selectionVersion) return;
-        const panel = child.querySelector(".lf-thread-panel");
-        if (!panel.open) child.querySelector(".lf-threads-toggle").click();
-        child.querySelector(".lf-thread-filter-reset")?.click();
-        await whenPanelMatches(child, () =>
-          child
-            .querySelector(".lf-thread-filter-reset")
-            .hasAttribute("data-lf-unoffered"),
-        );
-        if (version !== selectionVersion) return;
-        if (view === "you" || view === "resolved") {
-          const filter = child.querySelector(".lf-thread-filter-toggle");
-          if (filter.getAttribute("aria-expanded") !== "true") filter.click();
-          const [kind, value] =
-            view === "you" ? ["waiting", "user"] : ["status", "resolved"];
-          const choice = child.querySelector(
-            `[data-filter-kind="${kind}"][data-filter-value="${value}"]`,
-          );
-          choice.click();
-          await whenPanelMatches(
-            child,
-            () => choice.getAttribute("aria-pressed") === "true",
-          );
-          if (version !== selectionVersion) return;
-        }
-        const root = {
-          overview: "72e031c5bf0d485ba9054628e09869d4",
-          you: "2be2443f0bb6cc49fc86b52f340e6073",
-          resolved: "bab3cdfcfb8c02aacbb27da731de947a",
-          summary: "9ee465bb3f9c1fa309ea9cb1767fa365",
-        }[view];
-        const row = child.querySelector(`.lf-thread[data-id="${root}"]`);
-        await whenPanelMatches(child, () => !row.hidden);
-        if (version !== selectionVersion) return;
-        if (!row.open) row.querySelector(".lf-thread-summary").click();
-        const filter = child.querySelector(".lf-thread-filter-toggle");
-        if (filter.getAttribute("aria-expanded") === "true") filter.click();
-        const list = child.querySelector("leaf-thread-list");
-        list.scrollTop +=
-          row.getBoundingClientRect().top - list.getBoundingClientRect().top;
-      }
-
-      function selectPanelView(view, ready = sample.ready) {
+      function selectPanelView(view) {
         selected = view;
         for (const button of document.querySelectorAll("#bg-panel-presets button")) {
           const pressed = String(button.dataset.view === view);
           if (button.getAttribute("aria-pressed") !== pressed)
             button.setAttribute("aria-pressed", pressed);
         }
-        for (const finish of pendingPaints) finish();
-        void showPanelView(view, ++selectionVersion, ready);
+        const thread = {
+          overview: "72e031c5bf0d485ba9054628e09869d4",
+          you: "2be2443f0bb6cc49fc86b52f340e6073",
+          resolved: "bab3cdfcfb8c02aacbb27da731de947a",
+          summary: "9ee465bb3f9c1fa309ea9cb1767fa365",
+        }[view];
+        void sample.showThread(thread, {
+          surface: "panel",
+          status: view === "resolved" ? "resolved" : "open",
+          waiting: view === "you" ? "user" : "all",
+        });
       }
 
       for (const button of document.querySelectorAll("#bg-panel-presets button")) {
@@ -2325,7 +2324,7 @@ catalog.</p>
         <h2>CLI</h2>
         <lf-draft id="rn-cli">
           <pre>
-Adds --dry-run to every command that changes state. Existing scripts continue to work without it.
+Adds `--dry-run` to every command that changes state. Existing scripts continue to work without it.
 </pre>
         </lf-draft>
       </section>
@@ -5772,6 +5771,90 @@ stateDiagram-v2
       </aside>
 </lf-tab>
 
+<lf-tab id="corpus-annotation-workspace" label="Annotation workspace">
+<header>
+        <h1>Measurement review</h1>
+        <nav id="aw-navigation" aria-label="Review regions">
+          <a href="#aw-finding">Finding</a>
+          <a href="#aw-next-run">Next run</a>
+          <a href="#aw-conversations">Conversations</a>
+        </nav>
+      </header>
+
+      <div id="aw-regions">
+        <lf-pane id="aw-research" label="Sampling evidence">
+          <header><h2>Repeat before changing the calibration</h2></header>
+          <div id="aw-evidence">
+            <p id="aw-finding">
+              The third block has a wider range. Repeat with unchanged calibration
+              before treating it as a persistent change.
+            </p>
+            <table id="aw-measurements">
+              <caption>
+                Illustrative sensor readings from one bench session
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">Block</th>
+                  <th scope="col">Readings (mV)</th>
+                  <th scope="col">Range (mV)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">First</th>
+                  <td>10.1, 10.2, 10.0, 10.1</td>
+                  <td>0.2</td>
+                </tr>
+                <tr>
+                  <th scope="row">Second</th>
+                  <td>10.2, 10.1, 10.3, 10.2</td>
+                  <td>0.2</td>
+                </tr>
+                <tr>
+                  <th scope="row">Third</th>
+                  <td>9.7, 10.5, 10.0, 10.6</td>
+                  <td>0.9</td>
+                </tr>
+              </tbody>
+            </table>
+            <section id="aw-run-decision">
+              <lf-ask id="aw-next-run">
+                <h3>How should the repeat be sampled?</h3>
+                <p>
+                  Keep the sensor, calibration and interval fixed. Four readings match
+                  the earlier blocks; eight give more evidence about the range.
+                </p>
+                <lf-options id="aw-sampling" choose>
+                  <lf-option id="aw-four-readings">
+                    Four readings · two minutes
+                  </lf-option>
+                  <lf-option id="aw-eight-readings">
+                    Eight readings · four minutes
+                  </lf-option>
+                </lf-options>
+              </lf-ask>
+            </section>
+          </div>
+        </lf-pane>
+
+        <aside
+          id="aw-conversations"
+          aria-labelledby="aw-conversations-heading"
+          tabindex="-1"
+        >
+          <h2 id="aw-conversations-heading">Conversations and actions</h2>
+          <lf-annotation-rail id="aw-annotations"></lf-annotation-rail>
+        </aside>
+      </div>
+      <footer>
+        <p id="aw-comment-route">
+          Select a reading or passage to comment on it. Conversations stay in this
+          workspace; Threads opens the complete discussion.
+        </p>
+      </footer>
+</lf-tab>
+
 <lf-tab id="corpus-current-proposed-comparison" label="Current Proposed Comparison">
 <header>
         <p class="eyebrow">release review · decision recorded</p>
@@ -6442,15 +6525,27 @@ observe --cohort staff</code></pre>
       </lf-tabs>
 </lf-tab>
 
+<lf-tab id="corpus-thread-journey-inline" label="Thread Journey Inline">
+<h1 id="title">Review the changed line</h1>
+      <p id="plan">Keep the shipping order visible while we discuss this change.</p>
+      <lf-diff id="journey-patch" source="review-patch"><pre></pre></lf-diff>
+      <p id="tail">The rollout can proceed once the changed line is reviewed.</p>
+</lf-tab>
+
 <lf-tab id="corpus-feature-gallery" label="Core features">
-<h1 id="bg-title">Leaf core product gallery</h1>
+<hgroup id="bg-title">
+        <p class="eyebrow">Leaf core product</p>
+        <h1>Leaf core product gallery</h1>
+      </hgroup>
       <p class="lede" id="bg-lede">
         Try Leaf chrome and the default package on one synthetic page. Optional widgets
         have focused working pages in the package catalog.
       </p>
       <p id="bg-start">
-        Choose a view below. Its contents spine and Page Map lead to each feature; the
-        eyebrow above a sample names the <code>lf-*</code> elements it exercises.
+        Choose a view below. Its contents spine and Page Map lead to each feature. The
+        top link brings the eyebrow and heading together; the first dot sits at the
+        spine’s origin. Each sample’s eyebrow names the <code>lf-*</code> elements it
+        exercises.
       </p>
 
       <lf-tabs id="bg-gallery-tabs">
@@ -6479,6 +6574,22 @@ observe --cohort staff</code></pre>
                 <lf-option id="bg-choice-trail">Trail map</lf-option>
               </lf-options>
             </lf-ask>
+            <section id="bg-widget-shortcut-hints">
+              <h3>Inline hints outside an Ask</h3>
+              <p>
+                Tab into this sample to see <kbd>1</kbd> beside its button. Press it to
+                focus the note: the hint disappears and digits type normally. Leaving
+                the sample withdraws its binding. This command has no Decision role; the
+                shared keyboard renderer paints its requested control-corner hint from
+                the same binding that dispatches the key.
+              </p>
+              <div id="bg-local-shortcuts" tabindex="0">
+                <button id="bg-shortcut-focus-note" type="button">
+                  Write sample note
+                </button>
+                <label>Sample note <input id="bg-shortcut-note" type="text" /></label>
+              </div>
+            </section>
             <p id="bg-core-controls-guide">
               The banner also shows <strong>Threads</strong>, the
               <strong>Versions</strong> menu, <strong>Page Map</strong> (<kbd>g</kbd>
@@ -6491,7 +6602,7 @@ observe --cohort staff</code></pre>
             <p id="bg-history-return-guide">
               Follow
               <a id="bg-history-reference" href="#bg-kept-draft"
-                >the kept-draft sample</a
+                >the Resume writing sample</a
               >, then use browser Back. The viewport and focus return to this link;
               press <kbd>c</kbd> to comment on the link. Forward returns to the sample.
             </p>
@@ -6555,12 +6666,13 @@ observe --cohort staff</code></pre>
               ><span class="bg-feature-detail">: editable passages and history</span>
             </h2>
             <p id="bg-editing-guide">
-              “Edit” opens a draft. “Save” records the new text; “Cancel” closes the
-              editor. “Changes” lists saved versions, and “Restore” reapplies one.
+              “Edit” opens the shared Markdown editor. Try emphasis or inline code;
+              “Save” records the exact source, and “Cancel” discards the unsaved edit.
+              “Changes” lists saved versions, and “Restore” reapplies one.
             </p>
             <lf-draft id="bg-draft">
               <pre>
-Write a different invitation here. Try a few lines to see the editor grow.</pre>
+Write a **different invitation** here. Try a few lines to see the editor grow.</pre>
             </lf-draft>
             <p id="bg-history-guide">
               <strong>Picked up</strong> means the saved edit entered an agent turn. The
@@ -6682,7 +6794,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
 
             <section id="bg-kept-draft">
               <h3>
-                <strong>Kept draft</strong
+                <strong>Resume writing</strong
                 ><span class="bg-feature-detail"
                   >: come back to words the box put away</span
                 >
@@ -6691,11 +6803,16 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
                 Select a few words here, press <kbd>c</kbd>, and type a sentence without
                 sending it. Press <kbd>Escape</kbd>: the box goes, the words stay, and a
                 notice names the destination that returns to them. Scroll somewhere
-                else, then press <kbd>g</kbd> and <kbd>Shift+D</kbd> — the page travels
-                back to this passage and reopens the box on the sentence. That
-                destination stands in the sequence only while a kept draft does, so
-                pressing <kbd>g</kbd> with nothing written offers no such place to go.
+                else, then press <kbd>g</kbd> and <kbd>i</kbd>, or choose Resume writing
+                in More: the page returns to this editor and restores the caret. Send
+                the comment, move elsewhere and use Resume writing again: its
+                conversation opens ready for your next reply. Editing a reply or the
+                draft block below makes that editor the destination; focusing a box
+                alone leaves it alone.
               </p>
+              <lf-draft id="bg-resume-edit">
+                <pre>The revised message belongs here.</pre>
+              </lf-draft>
               <p id="bg-kept-draft-move">
                 To carry unfinished words to another item, press <kbd>s</kbd> and choose
                 the paragraph above, then type without sending. Move focus to
@@ -6791,6 +6908,46 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
             </lf-sample>
           </section>
 
+          <section id="bg-page-annotations">
+            <p class="eyebrow bg-feature-elements">lf-annotation-rail</p>
+            <h3>Page-owned annotations</h3>
+            <p>
+              Alt-click the recommendation in this practice window to comment. The reply
+              and actions stay in the allocated annotation area. Choose a route, then
+              use Undo to return to the open question.
+            </p>
+            <lf-sample
+              id="bg-page-annotations-sample"
+              label="practice route review"
+              window
+            >
+              <template
+                id="bg-page-annotations-page"
+                data-sample
+                data-annotations="page"
+              >
+                <style>
+                  #bg-page-annotations-rail {
+                    display: block;
+                    inline-size: 100%;
+                    block-size: 20rem;
+                  }
+                </style>
+                <h1>Workshop route</h1>
+                <p id="bg-page-annotations-finding">
+                  The shorter path leaves more time to inspect the cooling loop.
+                </p>
+                <lf-ask id="bg-page-annotations-ask">
+                  <h2>Which path should the inspection take?</h2>
+                  <lf-options id="bg-page-annotations-options" choose>
+                    <lf-option id="bg-page-annotations-short">Short path</lf-option>
+                    <lf-option id="bg-page-annotations-long">Full circuit</lf-option>
+                  </lf-options>
+                </lf-ask>
+                <lf-annotation-rail id="bg-page-annotations-rail"> </lf-annotation-rail>
+              </template>
+            </lf-sample>
+          </section>
           <section id="bg-threads">
             <h2>
               <strong>Threads</strong
@@ -6807,7 +6964,10 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
               which puts the thread spoken in last first under its day. Collapsed titles
               retain their message count, last message activity, and current status; “On
               you” also names the action owed. Each thread has a short title chosen by
-              the agent; open one to read the full messages beneath it.
+              the agent; open one to read the full messages beneath it. Reply follows a
+              short conversation directly; in a long conversation it stays visible while
+              you scroll. While you write in a short thread, an arriving reply waits
+              behind “new reply” until you open it.
             </p>
             <p id="bg-thread-notices">
               <strong>New information.</strong> Have the agent add a message after the
@@ -6832,18 +6992,29 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
               the words on this passage, where opening the composer again finds them;
               the general box in Threads gets them back in place.
             </p>
+            <p id="bg-revised-quotes-guide">
+              <strong>A revised passage.</strong> Select “first draft” and send a
+              comment, then select “early estimate” and send another. Keep both threads
+              open and have the agent replace both phrases in the paragraph below. Each
+              thread stays attached to that paragraph, without an answer being invented.
+              Its Thread control opens the same conversation; a reply choosing new words
+              can give it a precise passage again.
+            </p>
+            <p id="bg-revised-quotes">
+              The first draft uses an early estimate for the rollout.
+            </p>
             <p id="bg-wide-passage-guide">
               <strong>A passage in a wide block.</strong> Select the words in the
-              <code>does</code> value below. The comment field follows the passage's
-              inline start while standing clear of the code block. Send a comment: its
-              thread keeps that attachment.
+              <code>description</code> value below. The comment field follows the
+              passage's inline start while standing clear of the code block. Send a
+              comment: its thread keeps that attachment.
             </p>
             <pre
               id="bg-wide-passage"
               data-width="wide"
-            ><code class="language-javascript">const decision = {
-  label: "Keep",
-  does: "keep the active card",
+            ><code class="language-javascript">const command = {
+  title: "Keep",
+  description: "keep the active card",
 };</code></pre>
             <p id="bg-markdown-draft">
               <strong>Markdown as you type.</strong> Every box Leaf gives you to write
@@ -6941,6 +7112,27 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
         </lf-tab>
 
         <lf-tab id="bg-view-page" label="Page & layout">
+          <section id="bg-theme-hierarchy">
+            <h2><strong>Callouts carry emphasis; disclosures hold support</strong></h2>
+            <p id="bg-theme-hierarchy-guide">
+              Compare the filled conclusion with its unfilled supporting detail in
+              either color scheme. Open the disclosure by click, tap, or Tab and Enter:
+              its hairline and chevron remain, and the conclusion keeps the stronger
+              fill.
+            </p>
+            <details id="bg-theme-support">
+              <summary>Inspect the supporting calculation</summary>
+              <p id="bg-theme-calculation">The sample totals agree across both runs.</p>
+            </details>
+            <details id="bg-theme-method" open>
+              <summary>Inspect the comparison method</summary>
+              <p id="bg-theme-method-copy">Both runs use the same input window.</p>
+            </details>
+            <div class="callout" id="bg-theme-conclusion">
+              <p id="bg-theme-conclusion-copy">The comparison is ready for review.</p>
+            </div>
+          </section>
+
           <section id="bg-user-view">
             <h2><strong>The user's observed view</strong></h2>
             <p id="bg-user-view-guide">
@@ -7765,9 +7957,44 @@ gallery/
                   </template>
                 </lf-sample>
               </section>
+              <section id="bg-recorded-media">
+                <h3>Recorded video and audio</h3>
+                <p>
+                  Play the eight-second test pattern, then drag its native timeline to a
+                  later frame. Pause and resume with the keyboard after tabbing to the
+                  player. The recording also plays in an offline export.
+                </p>
+                <video
+                  id="bg-recording"
+                  controls
+                  playsinline
+                  preload="none"
+                  width="320"
+                  height="180"
+                  aria-label="Eight-second moving test pattern"
+                  poster="/media/d7cf2b4e22c063dd.png"
+                  src="/media/2930ad3df7819c50.mp4"
+                ></video>
+                <p>
+                  Play or seek the eight-second tone with the audio player's controls.
+                  Both recordings are fixed evidence; the samples above stay
+                  interactive.
+                </p>
+                <audio
+                  id="bg-audio"
+                  controls
+                  preload="none"
+                  aria-label="Eight-second 440 hertz test tone"
+                  style="max-width: 100%"
+                >
+                  <source src="/media/b5eb956d4548b3b0.mp3" type="audio/mpeg" />
+                </audio>
+              </section>
               <p id="bg-shot-guide">
                 Sample labels invented content. Choose “Before” or “After” above the
-                image, or press the Shot control or image to flip. This pair carries
+                image, or press the Shot control or image to flip. The selected label is
+                red for Before and green for After; a split colors both labels without
+                selecting either. This pair carries
                 <code>outlines</code>, so outlines mark each region where the two images
                 differ, on both sides of the divider, and the rail counts them.
               </p>

@@ -915,7 +915,10 @@ export default [
     },
   },
   {
-    files: ["skills/leaf/assets/runtime/**/*.js"],
+    files: [
+      "skills/leaf/assets/runtime/**/*.js",
+      "skills/leaf/packages/*/runtime/**/*.js",
+    ],
     plugins: { architecture: architecturePlugin },
     rules: {
       ...ownerBoundary,

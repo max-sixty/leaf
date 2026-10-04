@@ -44,6 +44,9 @@ reaches a module by importing it from this package, never through `sys.path`,
 - `leaf-dev stills [BASE_REF]` screenshots a catalogue of UI states, at rest and
   reached by input, on a base runtime and HEAD's, and crops each state that changed
   into a before/after pair in its own run directory under `.tmp/stills/`.
+- `leaf-dev thread-snapshots` owns reviewed message-delivery images in leaf-assets;
+  `thread_snapshots.py` owns capture and acceptance. Its shared journey replaces
+  the former panel/card sent stills.
 - `suite.py` runs a selection of the suite in a checkout and reads each test's
   outcome from pytest's junit report, refusing a selection pytest would not run.
 - `leaf-dev flake NODEID...` runs tests from the working tree as 18 copies, six at a
@@ -63,12 +66,10 @@ reaches a module by importing it from this package, never through `sys.path`,
   examples, base plugin against HEAD's, with no model, and prints each arm's wall
   time. Its arms, pages and state stay in its own run directory under
   `.tmp/bench-check/`.
-- `leaf-dev scenario-eval SUITE [CASE]...` scores complete usability, arrangement
-  and live delivery trajectories through Promptfoo. Scenario modules own execution;
-  `promptfoo.py` owns the native runner and reports, shared with instruction evals.
-- `leaf-dev instructions-eval [CASE]...` runs native Promptfoo cases in `evals/` on
-  Claude Code and Codex, against the merge base and working tree, and prints passes
-  per host and arm (`/developing-leaf`, "Score an instruction change").
+- `leaf-dev eval [CASE]...` scores the task catalog on Claude Code and Codex.
+  Tasks include short native Promptfoo tests and authored, resumed or live workflows;
+  explicit contexts select focused regressions, and `--condition both` includes HTML
+  where meaningful. `evals/README.md` owns the format and execution contract.
 
 ## Examples and previews
 
@@ -103,7 +104,7 @@ in `leaf-assets.json` and the README's image URLs that name it.
   previews under its `examples/`, republishes them, and moves the pin.
 - `leaf-dev record-demo` regenerates the README's demo GIF and stills and the site's
   card under its `demo/`, and publishes them the same way.
-- `leaf-dev publish-media IMAGE...` adds images the example pages show under its
+- `leaf-dev publish-media FILE...` adds media the example pages show under its
   `examples/media/`, and moves the pin.
 
 ## Codex
@@ -114,3 +115,5 @@ in `leaf-assets.json` and the README's image URLs that name it.
   not answered exactly once, queue-backed work does not pick up and answer a comment
   in the same active turn, or the page's claim does not name the task's last turn,
   closed. It spends the host's Codex login, so CI does not run it.
+  `--preview` runs that journey through `leaf-dev preview --user`, also checking
+  the retained keyed URL and feedback after automatic page-server recovery.

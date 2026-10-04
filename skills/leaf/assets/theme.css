@@ -114,23 +114,41 @@
    offer/said declaration is fixed where the label is created, not by naming its widget
    in print CSS. */
 
+/* A computed row count is shared by the document's reservation and chrome's
+   style query. Registering its type makes the query read the calculated integer. */
+@property --lf-banner-rows {
+  syntax: "<integer>";
+  inherits: true;
+  initial-value: 1;
+}
+
 :root {
   position: static !important;
   color-scheme: light dark;
   /* The fixed banner's height also reserves the document's head. It lives in the
      render-blocking theme so the initial document and eventual chrome share one box.
      It is stated rather than measured: the control run shares the status's line, or
-     takes a 36px-lower line of its own, as the window's pointer and width and the page's
-     sign-off decide (below), and the banner lays itself out by that decision
+     takes a lower line of its own, as the window's width and interface type
+     decide, and the banner lays itself out by that decision
      (chrome.css). Nothing the runtime draws later can change the rows, so the document
      is placed once, before the banner arrives. */
   --lf-safe-top: env(safe-area-inset-top, 0px);
   --lf-safe-right: env(safe-area-inset-right, 0px);
   --lf-safe-bottom: env(safe-area-inset-bottom, 0px);
   --lf-safe-left: env(safe-area-inset-left, 0px);
-  --lf-banner-row: 42px;
-  --lf-banner-rows: 1;
-  --lf-banner-h: calc(36px * (var(--lf-banner-rows) - 1) + var(--lf-banner-row)
+  /* A button's line plus its 10px padding/border, the toolbar's 8px padding,
+     and the banner's rule. The aim floor may make the button taller. */
+  --lf-banner-row: max(42px, calc(var(--t-5) * var(--lf-ui-lh) + 19px),
+    calc(var(--aim-floor) + 9px));
+  --lf-banner-status-row: max(36px, calc(var(--t-5) * var(--lf-ui-lh) + 4px));
+  /* The complete toolbar owns 30em of UI type and leaves 210px for
+     status, insets, and the gap. Both rooms are independent of page capabilities.
+     A larger UI font raises the same capacity boundary before first paint. */
+  --lf-banner-actions-w: calc(30 * var(--t-5));
+  --lf-banner-rows: clamp(1, round(up,
+    calc((var(--lf-banner-actions-w) + 210px + var(--lf-safe-left)
+      + var(--lf-safe-right)) / 100vw)), 2);
+  --lf-banner-h: calc(var(--lf-banner-status-row) * (var(--lf-banner-rows) - 1) + var(--lf-banner-row)
     + var(--lf-safe-top));
   /* The bottom bar: the keyboard's line and the status, held at the window's foot at one
      stated height, as the banner is at its head. The page ends above it and a held
@@ -283,6 +301,7 @@
      come apart: a third copy of 1.45 is exactly the drift the reserve comment in
      chrome.css is about, and this one would show as the picker sinking again. */
   --lf-ui-lh: 1.45;
+  --details-padding-block: 8px; --details-margin-block: 18px; --details-border: 1px;
   /* The ladder, body at --t-4. Measured on Charter at 17px: 7.9px a character, so
      the column below holds about 74 of them. The numbered rungs are the prose's hierarchy;
      --t-working-label is the shared compact heading between its two smallest rungs. A size
@@ -305,7 +324,7 @@
   --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
 
   --card: light-dark(#fffefb, #201e1a);   /* raised surfaces: cards, panels, controls */
-  --field: light-dark(#f4f1e8, #232019);  /* tinted fields: details, callouts, notes */
+  --field: light-dark(#f4f1e8, #232019);  /* tinted fields and callout emphasis */
   /* The ink every raised surface casts its shadow in. One per scheme, because the two
      grounds want opposite amounts of it and a shadow written once as rgba(0,0,0,α) can
      only be right about one of them: at .12 over the light paper a menu lifts 10 L*, and
@@ -436,24 +455,9 @@
 }
 /* The narrow face a phone held upright wears (chrome.css) holds forty-pixel controls,
    and a finger's row 44px aims wherever it stands. */
-@media screen and (width <= 480px) { :root { --lf-banner-row: 52px; } }
-@media screen and (pointer: coarse) { :root { --lf-banner-row: 53px; } }
-/* The rows. More and Threads stand on the row, and Approval where the page asks for
-   sign-off (banner.js), each held at its widest words, so the run's width is known;
-   beside it the status wants a readable start of its sentence, about 24ch. Chrome on
-   macOS finds no room for both at 436px and narrower under a fine pointer and 456px
-   under a coarse one, or 636px and 644px with Approval. Each bound here sits a few
-   pixels under its measure, so no window takes a second row it could do without; the
-   status there starts a little short of 24ch, as it does beside a classic scrollbar. A
-   finger's steps, such as page search's, stand in the reading loop's place and fit the
-   same row (banner-toolbar.js). Delivery writes the declaration on the root
-   (`data-lf-review`), since a :has() reading the page's meta from the root would restyle
-   the whole page on every change below it. */
-@media screen and (width <= 430px), screen and (pointer: coarse) and (width <= 450px) {
-  :root { --lf-banner-rows: 2; }
-}
-@media screen and (width <= 630px), screen and (pointer: coarse) and (width <= 640px) {
-  html[data-lf-review="sign-off"] { --lf-banner-rows: 2; }
+@media screen and (width <= 480px) {
+  :root { --lf-banner-row: max(52px, calc(var(--t-5) * var(--lf-ui-lh) + 19px),
+    calc(var(--aim-floor) + 9px)); }
 }
 /* Only a live page draws the banner. Without one, what sticks below the banner sticks
    to the top of the window. */
@@ -972,8 +976,11 @@ th:not([scope="row"]) { font-size: var(--t-working-label);
      color: var(--muted); font-weight: 600;
      border-bottom-color: var(--border-2); }
 th[scope="row"] { font-weight: 600; }
-details { background: var(--field); border: 1px solid var(--rule);
-          border-radius: var(--r); padding: 8px 14px; margin: 18px 0; --lf-block-frame: 1; }
+/* Supporting detail stays unfilled whether closed or open. Its chevron and hairline
+   offer inspection; the stronger fill belongs to the callout's emphasis. */
+details { border: var(--details-border) solid var(--rule);
+          border-radius: var(--r); padding: var(--details-padding-block) 14px;
+          margin: var(--details-margin-block) 0; --lf-block-frame: 1; }
 summary { cursor: pointer; font-weight: 600; font-size: var(--t-5); }
 details pre { margin: 10px 0 6px; }
 dl { margin: 10px 0; }
@@ -1372,88 +1379,11 @@ lf-suggestion:has(> :is(lf-old, lf-new) > :not(a, abbr, area, audio, b, bdi, bdo
 lf-old, lf-new { transition: padding .22s ease; }
 lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
   background: none; color: inherit; text-decoration: none; padding: 0; }
-/* The margin projection is a retained projection with one cluster per page target. Its
- * primary margin entry, optional `…`, and the secondary margin entries that ellipsis
- * unfolds share one host. Every cluster lives in the chrome's margin layer and stands by
- * its target through anchor positioning (margin-layout.js); nothing is inserted into the
- * page's content and nothing here moves it.
- *
- * The layer and its lanes are static and zero-height, so the initial containing block is
- * every cluster's: any element of the page is an anchor it may stand by, and the browser
- * moves it with its target through every scroll between the two, a pane's or a board's.
- * A positioned wrapper would become the clusters' containing block and make every target
- * outside it an invalid anchor. The layer lays its lanes out as flex items, which take a
- * z-index without being positioned. A lane holds the clusters of one pane that scrolls on
- * its own, and the layout clips it to what the pane shows.
- *
- * Nothing clamps a pin to the window: the browser applies a clamp before it moves the pin
- * with its scrolled target, so a card in a board scrolled sideways would stand its pin
- * off its corner. A target scrolled out of its scroller withholds its row instead.
- *
- * A cluster stands level with its target's top (`--lf-inset-top` where it anchors to a
- * box holding the target), pushed down by packing (`--lf-push`). In
- * the rail it hangs `--rail-hang` off `main`'s edge and unfolds rightward. As a pin it
- * stands where the layout seats it, `--pin-inset` plus `--lf-inset-right` in from the
- * right edge of the box it anchors to: inside its target's top-right corner, or in room
- * beside its target where that corner would cover words. It unfolds leftward. Every position function falls back to a place off screen: an anchor can be
- * invalid (a target inside `content-visibility: hidden` or gone), and
- * `position-visibility` hides a cluster only when its anchor is valid and scrolled out of
- * view. */
-.lf-margin-projection { display: flex; height: 0; pointer-events: none; }
-.lf-margin-projection[hidden] { display: none; }
-.lf-margin-toolbar, .lf-margin-lane { height: 0; }
-.lf-margin-lane { z-index: 2; }
-.lf-margin-cluster { position: absolute; z-index: 2;
-    top: calc(anchor(top, -9999px) + var(--lf-inset-top, 0px) + var(--lf-push, 0px));
-    position-visibility: anchors-visible;
-    display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;
-    padding-right: var(--focus-ring-room); pointer-events: auto; }
-/* Keep a new row measurable, but unpainted until layout gives it a posture. */
-.lf-margin-cluster:not([data-lf-place]) { visibility: hidden; }
-.lf-margin-cluster[data-lf-place="rail"] {
-    left: calc(anchor(--lf-page right, -9999px) + var(--rail-hang) + var(--lf-step, 0px)); }
-.lf-margin-cluster[data-lf-place="pin"] {
-    right: calc(anchor(right, 9999px) + var(--pin-inset) + var(--lf-inset-right, 0px)); }
-/* A pin folded for want of room (`seatRows`, margin-placement.js) opens over whatever
- * stands beside it, which keeps its place. */
-.lf-margin-cluster[data-lf-place="pin"][data-lf-folded][data-lf-options-open] {
-    z-index: 3; }
-/* With the annotation layer hidden (`o`, annotation-layer.js) every pin goes, whatever it
- * holds, and the rail stays, since it covers nothing. A row the user asked for by name
- * (`data-lf-revealed`) stays while they stand in it. Hidden rather than taken out of
- * layout, so nothing moves and nothing is measured again. */
-:root[data-lf-annotations="hidden"]
-  .lf-margin-cluster[data-lf-place="pin"]:not([data-lf-revealed]) { visibility: hidden; }
-/* A pin's count stands on its left, over the block it is about: at the window's edge the
- * page's `overflow-x: hidden` would clip one on the right. */
-.lf-margin-cluster[data-lf-place="pin"] .lf-margin-count { right: auto; left: -7px; }
-/* What a hovered or focused item says about the target it acts on is said on the target:
- * `highlight` (margin-projection.js) hands every item to target paint, which traces the
- * region's own shape. The item draws no leader out to it.
- * A leader would have to be measured, because the target's right edge is its own — a
- * framed widget, a blockquote and a paragraph each end somewhere different — and a
- * constant one is a hairline ending in the gutter, pointing at nothing. What it would
- * buy once measured is a second statement of the fact the target trace already makes, which is
- * why the item's raise is the whole of its own hover paint. The raise is the runtime
- * sheet's (chrome.css), which states it above the page paint the item summons; a second
- * one here would tie it and win or lose by where each sheet stands. */
-.lf-margin-cluster.lf-withheld { display: none; }
-.lf-margin-inline { display: block; }
-.lf-margin-options { display: inline-flex; align-items: center; gap: 4px;
-    white-space: nowrap; }
-.lf-margin-options[hidden] { display: none; }
 /* The visible label becomes transient hover and focus chrome once the runtime's
  * stylesheet arrives. The accessible name comes from the entry reading. */
 .lf-margin-entry > :is(.lf-margin-entry-space, .lf-margin-entry-label) {
   display: none;
 }
-/* The ink this rule used to state alongside its pointer never reached an entry: every
- * entry carries a behavior, and each of the three states a colour one class heavier
- * than this, so all it ever settled was the pointer. */
-.lf-margin-marker { pointer-events: auto; }
-.lf-margin-reading-option { position: relative; }
-.lf-margin-more { letter-spacing: .04em; }
-.lf-margin-marker[hidden] { display: none; }
 /* The pluggable RHS margin entry. Contributors choose glyph, label, tone, and behavior
    through contributionEntry(); this declaration owns every visual and interactive
    constant that makes unlike verbs read as one family.
@@ -1465,13 +1395,14 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
    `…` never took the ink its own rule asked for on hover. Here the order is the
    file's, and a package theme concatenated after this one can answer any of it.
    The states below stay in document order for the same reason: each reads the one
-   above it. */
+   above it. A surface supplying --lf-entry-ink retains that ink through the shared
+   states, without competing with their selector specificity. */
 .lf-margin-entry {
   position: relative; box-sizing: border-box;
   width: var(--margin-entry); min-width: var(--margin-entry);
   height: var(--margin-entry); min-height: var(--margin-entry); padding: 0;
   border: 1px solid var(--border-2); border-radius: 50%;
-  background: var(--lf-entry-tint, var(--paper)); color: var(--ink-2); flex: 0 0 auto;
+  background: var(--lf-entry-tint, var(--paper)); color: var(--lf-entry-ink, var(--ink-2)); flex: 0 0 auto;
   display: inline-flex; align-items: center; justify-content: center; gap: 0;
   font: 600 var(--t-6)/1 var(--sans); white-space: nowrap;
   scroll-margin-block: var(--focus-ring-room);
@@ -1484,15 +1415,15 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
    while the static status alone has no raised or responsive material. */
 .lf-margin-entry[data-lf-behavior="action"] {
   border-width: 2px;
-  color: var(--ink);
+  color: var(--lf-entry-ink, var(--ink));
   box-shadow: 0 1px 0 var(--border-2), 0 3px 6px var(--shade);
 }
 .lf-margin-entry[data-lf-behavior="disclosure"] {
   border-color: color-mix(in srgb, var(--ink) 34%, var(--paper));
-  color: var(--ink-2); box-shadow: none;
+  color: var(--lf-entry-ink, var(--ink-2)); box-shadow: none;
 }
 .lf-margin-entry[data-lf-behavior="status"] {
-  border-color: var(--rule); color: var(--ink-2);
+  border-color: var(--rule); color: var(--lf-entry-ink, var(--ink-2));
   box-shadow: none; cursor: default;
 }
 /* Tone keeps an action's meaning on its icon throughout delivery and agent work. */
@@ -1521,7 +1452,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
    than the resting rule here, and the `…` carried exactly as many, so it lost on this
    sheet being adopted. One home for the state, and both say the same thing. */
 .lf-margin-entry[data-lf-behavior="disclosure"]:is(button, [role="button"]):is(:hover, :focus-visible, .lf-focus-visible, [aria-expanded="true"]):not([aria-disabled="true"]) {
-  border-color: var(--accent); color: var(--ink);
+  border-color: var(--accent); color: var(--lf-entry-ink, var(--ink));
 }
 /* A selected page reading and its compact Page Map projection share one accent. Reuse
    the entry's existing contour: category still owns its weight, and keyboard focus can
@@ -1539,7 +1470,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
    disclosure accent (above), stated beside it so the two meet on their selectors; the
    mark does not gain a second ring or pretend the reaction itself changed. */
 .lf-react-mark[data-lf-behavior="disclosure"] {
-  border-width: 2px; border-color: var(--border-2); color: var(--ink);
+  border-width: 2px; border-color: var(--border-2); color: var(--lf-entry-ink, var(--ink));
   box-shadow: 0 1px 0 var(--border-2), 0 3px 6px var(--shade);
 }
 /* Margin and Page Map share the same attention reading. Blue is the ordinary
@@ -1630,83 +1561,10 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
   > .lf-margin-entry-label {
   transition: none;
 }
-.lf-margin-options [data-lf-margin-entry-overflow] { display: none; }
-/* A pin's marker is filled where a rail marker is paper: it stands on the block it is
-   about, over the block's own words, so it is a solid teardrop pointing into the block
-   with a paper edge that parts it from whatever it covers. It is smaller than a rail
-   marker with a mouse, because it covers what it stands on, and keeps the full aim floor
-   under a finger, so what the user sees is what they press.
-
-   The fill is the pin, so the states a rail marker paints on its paper take the pin's
-   attention color: a thread on the user has a green fill, while every other thread
-   stays blue. Work progress keeps the same fill and reports its stage in words.
-   A read-only status keeps the rail's paper face, since a fill would say
-   it can be pressed. Stated after the entry's states, whose hover and focus contours it
-   has to outrank. */
-.lf-margin-cluster[data-lf-place="pin"] { --margin-entry: max(26px, var(--aim-floor)); }
-/* A pin folded for want of room wears the marker's face on its toggle, the kind it folds
-   (margin-model.js, `clusterProjection`), so it reads as what it stands for. */
-.lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker,
-.lf-margin-cluster[data-lf-place="pin"][data-lf-folded] > .lf-margin-entry.lf-margin-more {
-  border-radius: 50% 50% 50% 3px; }
-.lf-margin-cluster[data-lf-place="pin"][data-lf-folded] > .lf-margin-entry.lf-margin-more,
-.lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker:not([data-lf-behavior="status"]) {
-  --lf-pin-edge: var(--paper);
-  border: 2px solid var(--lf-pin-edge);
-  background: var(--lf-pin-face, var(--pin-fill)); color: #fff;
-  box-shadow: 0 1px 2px var(--shade), 0 3px 8px var(--shade); }
-.lf-margin-cluster[data-lf-place="pin"][data-lf-folded] > .lf-margin-entry.lf-margin-more
-  > :is(.lf-margin-entry-icon, .lf-margin-entry-glyph),
-.lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker:not([data-lf-behavior="status"])
-  > :is(.lf-margin-entry-icon, .lf-margin-entry-glyph) {
-  color: #fff; inline-size: 14px; block-size: 14px; }
-.lf-margin-cluster[data-lf-place="pin"][data-lf-folded] > .lf-margin-entry.lf-margin-more:is(:hover, :focus-visible, .lf-focus-visible, [aria-expanded="true"]),
-.lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker:not([data-lf-behavior="status"]):is(:hover, :focus-visible, .lf-focus-visible, [aria-expanded="true"], [data-lf-target-selected]) {
-  border-color: var(--lf-pin-edge); }
-.lf-margin-cluster[data-lf-place="pin"][data-lf-folded] > .lf-margin-entry.lf-margin-more:is(:hover, [aria-expanded="true"]),
-.lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker:not([data-lf-behavior="status"]):is(:hover, [aria-expanded="true"]) {
-  background: color-mix(in srgb, var(--lf-pin-face, var(--pin-fill)) 82%, #000); }
-.lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker[data-lf-turn="user"] {
-  --lf-pin-face: var(--pin-on-user); }
-.lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry.lf-margin-marker[data-lf-unread]::after {
-  box-shadow: 0 0 0 2px var(--paper); }
-.lf-margin-receipt { color: var(--ink-2); font-weight: 600; }
-.lf-margin-receipt[data-lf-margin-receipt="negative"] { color: var(--danger-ink); }
 .lf-margin-count { position: absolute; top: -7px; right: -7px; min-width: 16px;
     height: 16px; padding: 0 3px; box-sizing: border-box; border-radius: 999px;
     border: 1px solid var(--paper); background: var(--ink); color: var(--paper);
     font: 600 10px/14px var(--sans); text-align: center; }
-/* Margin rows stand where the page leaves room for them, measured beside `main` by the
- * runtime (margin-layout.js), and as pins where it leaves none. A page that wants them
- * in one column declares a rail, `data-rail="right"` on `body`: the shell gives up the
- * rail's width on its right, so the page's own layout sees a narrower window and every
- * row stands in the strip. A block may still run under it on purpose, and its rows pin.
- * The declaration stands on the shell it pads rather than on `main`: a `:has()` on the
- * body re-checks it on every write below (assets/AGENTS.md).
- *
- * The strip is given up only above a phone's width, where the page keeps a usable
- * column beside it; on a phone the rows pin as they do on any page with no room beside
- * it. The shell is the container a narrow column asks (`lf-shell`, 640), and a box
- * cannot ask its own container, so the rule that pads the shell asks the window. */
-@media screen and (width > 640px) {
-  html[data-lf-live] body[data-rail="right"] {
-    padding-inline-end: var(--rail);
-  }
-}
-/* How far a rail marker hangs off the column. A finger's larger entries spend the rail's
- * room themselves, so the hang shrinks with them. */
-:root { --rail-hang: 22px; }
-@media (pointer: coarse) {
-  :root { --rail-hang: 10px; }
-}
-@media print {
-  .lf-margin-projection, .lf-margin-marker.lf-margin-entry { display: none !important; }
-}
-/* A browser without anchor positioning cannot stand a row by its target, so it shows none
- * and the banner offers the Page Map in their place (chrome.css). */
-@supports not (anchor-name: --lf-page) {
-  .lf-margin-projection { display: none !important; }
-}
 /* Where a widget upgrade fails, it fails soft into this box. */
 .lf-error { border: 1px solid var(--danger); background: var(--danger-tint);
             color: var(--danger-ink); border-radius: var(--r); padding: 8px 12px;

@@ -6,12 +6,11 @@
    through `display: contents`; only `.lf-fab-input` draws. `showComposer` states the
    whole visible outcome from `composerOpen`, `pendingAnchor`, and `fabAnchor`;
    `openComposer`'s `focus` option decides focus independently. Outside clicks and
-   Escape hide without discarding words. A successful send or an explicit draft close
-   discards the local record.
+   Escape hide without discarding words. A successful send settles only the submitted draft generation.
 
    A hidden draft is news and a place: hiding one that still holds words says so once,
-   and `KEPT_DRAFT` is the address that brings it back — the same stored record startup
-   reopens (`openDraft`), reached mid-session. Every path that discards words empties
+   and Resume writing brings its editor back. Startup reopens a stored composer
+   record through `openDraft`. Every path that discards words empties
    the box first, so those hide silently.
 
    Boot constructs the command owner with explicit travel, delivery, and repaint
@@ -28,6 +27,8 @@ import {
   sendMessage,
   transferDraft,
   watchDraft,
+  rememberWriting,
+  registerWritingDestination,
 } from "../drafts.js";
 
 import { pageSelection, rangeAnchor } from "./capture.js";
@@ -150,7 +151,6 @@ export function createSelectionComposer({
   endFabFocus,
   landFabFocus,
   showFab,
-  formatGoToAddress,
   createComment,
   landSent,
   refreshThread,
@@ -386,7 +386,7 @@ export function createSelectionComposer({
     if (composerOpen && !open && composerHolds())
       notice(
         anchorStands(pendingAnchor)
-          ? `Draft kept — ${formatGoToAddress(KEPT_DRAFT)} returns to it`
+          ? `Draft kept — g i resumes writing`
           : "Draft kept — it returns when its passage does",
       );
     composerOpen = open;
@@ -492,8 +492,10 @@ export function createSelectionComposer({
       drawingSupplied &&
       JSON.stringify(composerRecord(ctx)?.drawing ?? null) !==
         JSON.stringify(pendingDrawing)
-    )
+    ) {
       saveComposerDraft();
+      rememberWriting(composerInput);
+    }
   }
   // The box is one view of the draft standing on this passage, and it follows the plain
   // boxes' rule with one thing of its own: the composer is chrome as well as a box, so a
@@ -588,48 +590,32 @@ export function createSelectionComposer({
   // about the mode a draft was written in. A record whose passage does not stand opens
   // nothing: the box would go straight back down, saying its words were kept, and they
   // return when the passage does.
-  function openDraft(record = pendingComposer()) {
+  function openDraft(record = pendingComposer(), { focus = true } = {}) {
     if (!record || !anchorStands(record.anchor)) return false;
     openComposer(record.anchor, record.text, {
       suggest: Boolean(record.suggest),
       about: record.about ?? null,
       drawing: record.drawing ?? null,
+      focus,
     });
     return true;
   }
 
-  // `g D`: the draft the composer put away, as a place. Hiding the box keeps its words and
-  // the only route back was to reselect that exact passage on that exact version — durable
-  // and unreachable, which is the same as lost for a user who does not know where the
-  // words went. A destination rather than a page letter: the page's alphabet is small, and
-  // what this press does is travel to a passage and open the box standing on it, which is
-  // what every other uppercase mnemonic in the sequence does with its own auxiliary surface.
-  //
-  // Dead while the composer is up, because then the draft is already in front of the
-  // user and `c` is the press that enters it. Live off the stored record rather than
-  // this module's own state: a draft written in another tab, or before a reload, is the
-  // same draft and answers the same address.
-  //
-  // Dead too where this version no longer holds the passage the draft is about. Those
-  // words survive the version they were written against and come back when their passage
-  // does; until then there is nowhere to stand the box, and a destination that lands
-  // nowhere is worse than none.
-  const KEPT_DRAFT = {
-    id: "composer.kept-draft",
-    keys: ["Shift+d"],
-    does: "Go to the draft you have not sent",
-    line: "your draft",
-    when: () => !composerOpen && keptDraft() !== null,
-    run: () => {
-      const record = keptDraft();
-      if (!record) return;
-      // The box is placed against its passage, so the passage has to be somewhere the
-      // user can see before the box is measured — the same travel `c` makes to an item
-      // it is about to open a box on.
-      bringForward(anchorTargetAt(record.anchor));
-      openDraft(record);
-    },
-  };
+  registerWritingDestination(COMPOSER_KEY, (ctx) => {
+    const record = composerRecord(ctx);
+    if (!record || !anchorStands(record.anchor)) return null;
+    return {
+      where: anchorTargetAt(record.anchor),
+      input: () =>
+        composerOpen && composerCtx(pendingAnchor) === ctx ? composerInput : null,
+      open: () => {
+        openDraft(composerRecord(ctx), { focus: false });
+        const handoff = beginFabFocus();
+        return () => endFabFocus(handoff);
+      },
+      present: fabPositioned,
+    };
+  });
 
   function mount() {
     declareResponseOptionKeys();
@@ -657,7 +643,7 @@ export function createSelectionComposer({
         // The accepted comment becomes a thread, drawn as a card beside the passage unless
         // Threads is open. Carry the submitted field's geometry into the new card, which
         // stands where the field did: by the row a pointing gesture named.
-        const transition = threadTransitionOrigin(composerInput, fabFrameAt());
+        const transition = threadTransitionOrigin?.(composerInput, fabFrameAt());
         const point = fabPointAt();
         const epoch = composerEpoch;
         const currentIntent = retainUserIntent();
@@ -696,6 +682,7 @@ export function createSelectionComposer({
           const destination = await openPageThread(sent.id, {
             focus: shouldReveal ? "thread" : false,
             travel: false,
+            flash: false,
             intent: shouldReveal
               ? restrictUserIntent(currentIntent, revealAvailable)
               : currentIntent,
@@ -732,35 +719,35 @@ export function createSelectionComposer({
   const RESPONSE_REACTION = {
     id: "response.reaction.choose",
     keys: () =>
-      responseReactionButtons()
+      reactionTokens()
         .slice(0, 9)
         .map((_, index) => String(index + 1)),
     label: () => {
-      const count = Math.min(responseReactionButtons().length, 9);
+      const count = Math.min(reactionTokens().length, 9);
       return count > 1 ? `1–${count}` : "1";
     },
-    does: () =>
+    description: () =>
       `Put a reaction on the response target: ${reactionTokens()
         .slice(0, 9)
         .map(([name, entry], index) => `${index + 1} ${entry.glyph} ${name}`)
         .join(", ")}`,
-    line: "react",
+    title: "react",
     when: () => !takesLetters(focused()) && responseReactionButtons().length > 0,
     run: (binding) => responseReactionButtons()[+binding - 1]?.click(),
   };
   const RESPONSE_TAB = {
     id: "response.tab",
     keys: ["Tab", "Shift+Tab"],
-    does: "Move between the comment and other responses",
-    line: "move",
+    description: "Move between the comment and other responses",
+    title: "move",
     repeat: true,
     run: stepResponseOptions,
   };
   const RESPONSE_MOVE = {
     id: "response.move",
     keys: ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"],
-    does: "Move through other responses",
-    line: "move",
+    description: "Move through other responses",
+    title: "move",
     repeat: true,
     when: () => focusedResponseOption(),
     run: stepResponseOptions,
@@ -768,16 +755,16 @@ export function createSelectionComposer({
   const RESPONSE_ACTIVATE = {
     id: "response.activate",
     keys: PRESS,
-    does: "Use the focused response",
-    line: "choose",
+    description: "Use the focused response",
+    title: "choose",
     when: () => focusedResponseOption(),
     run: () => focused()?.click(),
   };
   const RESPONSE_CLOSE = {
     id: "response.close",
     keys: ["Escape"],
-    does: "Close other responses",
-    line: "close",
+    description: "Close other responses",
+    title: "close",
     run: () => setResponseOptions(false, { returnFocus: true }),
   };
   const responseOptionRows = () => [
@@ -820,7 +807,6 @@ export function createSelectionComposer({
     detachComposer,
     carryComposerToReply,
     openDraft,
-    KEPT_DRAFT,
     mount,
   };
 }

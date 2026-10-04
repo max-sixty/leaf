@@ -1,7 +1,9 @@
 /* A document's disposable view context for its author. Nothing here changes page
    state, layout, or the event log. Geometry stays with its mechanical owners;
    passive checks run only after presentation, never as a presentation prerequisite.
-   A document id is deliberately not stored: duplicated tabs must never share a lease. */
+   An unallocated document has no view to report; normal observation resumes when
+   its viewport has room. A document id is deliberately not stored: duplicated tabs
+   must never share a lease. */
 import { offlineInteractive, passiveSample, pageUrl, runtime } from "./context.js";
 import { seenRect, shownWindow } from "./geometry.js";
 import { sessionIsActive } from "./layer-client.js";
@@ -30,6 +32,17 @@ export function observeUserView() {
 
   function context() {
     const visual = window.visualViewport;
+    const viewport = {
+      width: document.documentElement.clientWidth,
+      height: document.documentElement.clientHeight,
+    };
+    if (
+      viewport.width <= 0 ||
+      viewport.height <= 0 ||
+      visual.width <= 0 ||
+      visual.height <= 0
+    )
+      return null;
     const clips = new Map();
     const schemes = getComputedStyle(document.documentElement).colorScheme.split(/\s+/);
     return {
@@ -38,10 +51,7 @@ export function observeUserView() {
       visible: document.visibilityState !== "hidden",
       revision: runtime.currentRevision,
       through_seq: runtime.lastEventSeq,
-      viewport: {
-        width: document.documentElement.clientWidth,
-        height: document.documentElement.clientHeight,
-      },
+      viewport,
       visual_viewport: {
         width: visual.width,
         height: visual.height,
@@ -81,6 +91,7 @@ export function observeUserView() {
     if (!sessionIsActive()) return;
     if (!Number.isInteger(runtime.currentRevision)) return;
     const view = context();
+    if (!view) return;
     const basis = JSON.stringify([
       view.revision,
       view.through_seq,
@@ -139,7 +150,7 @@ export function observeUserView() {
   window.addEventListener("pagehide", () => {
     if (!sessionIsActive()) return;
     const view = context();
-    send({ ...view, visible: false }, true);
+    if (view) send({ ...view, visible: false }, true);
   });
   document.addEventListener("lf-session-active", schedule);
   watchSemantic(() => {

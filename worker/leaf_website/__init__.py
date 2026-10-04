@@ -25,10 +25,6 @@ from html import escape
 from pathlib import Path
 
 import click
-
-# The stream-activity writers are called as `codex.<name>`, so `leaf.codex` holds their
-# one binding: whatever takes a turn's readings there takes the host's too.
-from leaf import codex
 from leaf.codex import (
     LEAF_THREAD_CONFIG,
     CarriedTurn,
@@ -61,7 +57,13 @@ from leaf.service import (
     page_claim,
     restore_page_claim,
 )
-from leaf.state import close_session_turn
+from leaf.state import (
+    advance_turn,
+    close_session_turn,
+    flocked,
+    session_lock_path,
+    session_record,
+)
 from leaf.thread import (
     fail_answer,
     release_delivery_reply,
@@ -341,7 +343,7 @@ def pending_agent_inputs(page_dir: Path) -> dict[str, str | None]:
     have taken another input first.
     """
     with PageTransaction(page_dir) as page:
-        activation = activate_source(page_dir)
+        activation = activate_source(page_dir, transaction=page)
         if activation.error:
             raise ValueError(activation.error)
         # Obligations already are canonical workflows, including their delivery
@@ -406,11 +408,18 @@ class HostedTurn(CarriedTurn):
         turn_id: str,
         socket=None,
         *,
+        lifecycle: dict,
         reply_target: dict | None = None,
         buffered=(),
     ):
         super().__init__(
-            thread_id, socket, turn_id, delivery_id, reply_target, buffered
+            thread_id,
+            socket,
+            turn_id,
+            delivery_id,
+            reply_target,
+            buffered,
+            lifecycle=lifecycle,
         )
         self.host = host
         self.page_dir = page_dir
@@ -457,7 +466,7 @@ class HostedTurn(CarriedTurn):
         )
         self.record("turn_delivery_bound", deliveryId=self.delivery_id)
         self.open_reply()
-        codex.set_stream_activity(self.session_id, self.turn_id, {"kind": "working"})
+        self.set_activity({"kind": "working"})
 
     def observe(self, message: dict, update: dict | None) -> None:
         """Record what one notification said, before its readings reach the page."""
@@ -552,9 +561,11 @@ class HostedTurn(CarriedTurn):
         try:
             if reply_error is not None:
                 self.record("turn_reply_commit_failed", **fault_fields(reply_error))
-            self.host._finish_turn(self.page_dir, self.session_id, terminal)
+            self.host._finish_turn(
+                self.page_dir, self.session_id, terminal, expected=self.activity_epoch()
+            )
         finally:
-            codex.clear_stream_activity(self.session_id, self.turn_id)
+            self.clear_activity()
             self._receipt_unanswered()
 
     def _receipt_unanswered(self) -> None:
@@ -851,6 +862,8 @@ class WebsiteCodexHost:
         page_dir: Path,
         thread_id: str,
         turn: dict,
+        *,
+        expected: dict | None,
     ) -> None:
         """Close one observed provider turn without inventing a Leaf response."""
         status = turn.get("status")
@@ -865,16 +878,19 @@ class WebsiteCodexHost:
             )
 
         with PageTransaction(page_dir) as page:
-            activation = activate_source(page_dir)
-            claim = page.claim
-            if (
-                claim
-                and claim.get("released") is None
-                and claim.get("id") == thread_id
-                and claim.get("turn") == turn["id"]
-            ):
-                page.set_status("waiting", "")
-                page.close_turn(thread_id)
+            activation = activate_source(page_dir, transaction=page)
+            with flocked(session_lock_path(thread_id)):
+                current = session_record(thread_id)
+                claim = page.active_claim
+                if (
+                    expected is not None
+                    and current == expected
+                    and claim
+                    and claim["id"] == thread_id
+                    and claim["turn"] == turn["id"]
+                ):
+                    page.set_status("waiting", "")
+                    advance_turn(thread_id, turn["id"], running=False)
         if activation.error:
             raise ValueError(activation.error)
 
@@ -965,7 +981,7 @@ class WebsiteCodexHost:
         log_agent("turn_start_started", **agent_event_fields(prepared_events))
         reply_target = stream_reply_target(prepared.payload)
         try:
-            turn_id = start_app_server_delivery(
+            admitted = start_app_server_delivery(
                 lambda method, params: self._send(socket, method, params, pending),
                 thread_id,
                 prepared.payload,
@@ -985,6 +1001,7 @@ class WebsiteCodexHost:
             raise RuntimeError(f"Codex App Server did not start a turn: {error}") from (
                 error
             )
+        turn_id = admitted["turn"]
         log_agent(
             "turn_start_acknowledged",
             **agent_event_fields(prepared_events),
@@ -1011,6 +1028,7 @@ class WebsiteCodexHost:
             prepared_events,
             turn_id,
             socket,
+            lifecycle=admitted,
             reply_target=reply_target,
             buffered=tuple(pending or ()),
         )

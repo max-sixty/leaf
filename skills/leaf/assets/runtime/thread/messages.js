@@ -5,7 +5,9 @@
    declare their stationary text-reflow boundary; a hoisted root header leaves that
    declaration to the thread's complete metadata row. An
    immutable descriptor changes prose without reconnecting the validated authored
-   fragment. The fragment is captured inertly before its first upgrade; panel
+   fragment. A locally sent message cues its own words once on first presentation,
+   in every surface; admission and later descriptor paints never replay the cue.
+   The fragment is captured inertly before its first upgrade; panel
    presentation waits for preparation before capturing typed authored state. */
 import { html, render, nothing } from "../../vendor/browser-runtime.js";
 import {
@@ -36,6 +38,7 @@ import {
 import { rememberPassageParts } from "../widget-loader.js";
 import { ReactionStripView } from "./reaction-strips.js";
 import { keeps } from "../keeps.js";
+import { motion } from "../motion.js";
 
 export const loadMarked = () =>
   loadMarkdown((error) =>
@@ -179,6 +182,7 @@ export class MessageView {
   #reaction = null;
   #authored = null;
   #dressed = false;
+  #sendMotion = null;
   #header = document.createElement("div");
 
   constructor(commands) {
@@ -296,6 +300,16 @@ export class MessageView {
       this.node.querySelector(":scope > .lf-msg-body"),
       model,
     );
+    if (!prior && model.pending) {
+      // A background cue can finish while the message remains unconfirmed. The
+      // shared motion gate answers for restoration and reduced motion; opacity
+      // continues to describe delivery independently (marks.css).
+      this.#sendMotion = motion(
+        this.node,
+        [{ backgroundColor: "var(--hi-tint)" }, { backgroundColor: "transparent" }],
+        1200,
+      );
+    }
     return this.node;
   }
 
@@ -323,6 +337,7 @@ export class MessageView {
   }
 
   retire() {
+    this.#sendMotion?.cancel();
     this.#reaction?.retire();
     this.#commands.read.forgetBody(this.node);
   }

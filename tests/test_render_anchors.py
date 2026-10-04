@@ -20,6 +20,7 @@ from leaf import structure as structure_model
 from leaf.registry import storage as registry_storage
 from leaf.render_checks import rendered, wait_until_ready
 from leaf.schema import ELEMENT_ID
+from leaf_dev.thread_journey import watch_message_arrival
 from PIL import Image
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
@@ -64,6 +65,7 @@ from render_cases_navigation import (
 )
 from render_harness import (
     EXAMPLES,
+    FEATURE_GALLERY,
     INLINE_PAGE,
     LONG_PAGE,
     PASSAGE_SOURCES,
@@ -89,7 +91,6 @@ from render_harness import (
     ticked,
     told,
     wait_for_revision,
-    watch_message_arrival,
     write,
 )
 
@@ -160,9 +161,26 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
     wait_until_ready(page)
     result = page.evaluate(
         """async () => {
-        const {TEXT_BLOCK} = await window.__lfRuntimeImport('/runtime/passages.js');
+        const {TEXT_BLOCK, pageRange} = await window.__lfRuntimeImport('/runtime/passages.js');
+        const {nextRender, renderingSettled} =
+            await window.__lfRuntimeImport('/runtime/rendering.js');
         const tick = () => new Promise(r => setTimeout(r, 0));
-        const composer = document.querySelector('.lf-composer');
+        const rendered = async () => {
+            let timer;
+            const deadline = new Promise((_, reject) => {
+                timer = setTimeout(() => reject(
+                    new Error('Selection rendering did not settle')), 10000);
+            });
+            try {
+                await Promise.race([deadline, (async () => {
+                    await tick();
+                    await new Promise(resolve => nextRender(resolve));
+                    while (!renderingSettled()) await tick();
+                })()]);
+            } finally {
+                clearTimeout(timer);
+            }
+        };
         const fab = document.querySelector('.lf-fab-input');
         const speaks = el => {
             const near = el.closest('.lf-ui, [data-lf-said]');
@@ -188,7 +206,7 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
                 const pointer = {bubbles: true, composed: true, isPrimary: true,
                                  pointerType: 'mouse', button: 0};
                 blocks[i].dispatchEvent(new PointerEvent('pointerdown', pointer));
-                const range = document.createRange();
+                let range = document.createRange();
                 range.setStart(blocks[i], 0);
                 range.setEnd(end, end.childNodes.length);
                 const sel = getSelection();
@@ -196,14 +214,16 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
                 sel.addRange(range);
                 end.dispatchEvent(new PointerEvent('pointerup', pointer));
                 end.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
-                await tick();
+                await rendered();
+                // Mouse release snaps the native selection to word and sentence edges.
+                // The mark must match the selection the reader now sees.
+                range = pageRange(sel);
                 // Counted, not shrugged off: a selection the button declines to offer is
                 // a passage silently outside this sweep, and the sweep is the coverage.
                 if (fab.style.display !== 'block') {
                     skipped.push(range.toString().replace(/\\s+/g, ' ').trim().slice(0, 70));
                     continue;
                 }
-                await tick();
                 const painted = CSS.highlights.get('lf-pending');
                 // The captured quote, read off the node whether or not the user can
                 // see it: the composer shows it only where the page has no mark to give,
@@ -229,8 +249,8 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
                         return !n || !range.intersectsNode(n);
                     }))
                     astray.push(quoted.slice(0, 70));
-                composer.style.display = 'none';
                 sel.removeAllRanges();
+                await rendered();
             }
         }
         return {attempted, missed, skipped, astray};
@@ -484,6 +504,62 @@ def test_browser_and_file_captures_stop_at_the_same_widget_fences(
         # send landed on the passage, and letting go of it takes the card.
         page.keyboard.press("Escape")
         expect(page.locator(".lf-margin-preview")).to_be_hidden()
+
+
+def test_gallery_revision_preserves_every_open_quoted_thread(browser, serve):
+    """A served gallery revision keeps two discussions beside their revised subject."""
+    url = live_url(serve(FEATURE_GALLERY))
+    roots = []
+    for quote in ("first draft", "early estimate"):
+        result = CliRunner().invoke(
+            cli_model.cli,
+            [
+                "thread",
+                "open",
+                str(serve.page_dir),
+                "--section",
+                "bg-revised-quotes",
+                "--quote",
+                quote,
+                "--text",
+                "Discuss the release wording.",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        roots.append(json.loads(result.output))
+    page = open_page(browser, url)
+    page.locator("#bg-gallery-tabs").get_by_role("tab", name="Threads").click()
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    for root in roots:
+        expect(
+            page.locator(f'.lf-thread[data-id="{root["id"]}"] .lf-quote')
+        ).to_have_text(f"“{root['anchor']['quote']}”")
+    source = (serve.page_dir / "index.html").read_text()
+    updated = source.replace(
+        "The first draft uses an early estimate",
+        "The revised plan uses the current forecast",
+    )
+    note = stamp_page(serve.page_dir, updated, "Refined the rollout wording.")
+    wait_for_revision(page, note["revision"])
+    page.locator("#bg-gallery-tabs").get_by_role("tab", name="Threads").click()
+    expect(page.locator("#bg-revised-quotes")).to_have_text(
+        "The revised plan uses the current forecast for the rollout."
+    )
+    for root in roots:
+        thread = page.locator(f'.lf-thread[data-id="{root["id"]}"]')
+        expect(thread).to_be_visible()
+        expect(thread.locator(".lf-quote")).to_contain_text("§ paragraph")
+        expect(thread.locator(".lf-quote")).to_contain_text("The revised plan")
+        expect(thread.locator(".lf-quote.detached")).to_have_count(0)
+        expect(thread.locator(".lf-msg")).to_have_count(1)
+    moves = [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "reanchor"
+    ]
+    assert {event["thread"] for event in moves} == {root["id"] for root in roots}
+    assert all(event["anchor"] == {"section": "bg-revised-quotes"} for event in moves)
 
 
 @pytest.mark.parametrize("panes", [False, True], ids=["ask", "panes"])
@@ -2595,7 +2671,7 @@ def test_staged_widget_controls_name_the_presses_their_owners_make(browser, serv
     handle.scroll_into_view_if_needed()
     handle.focus()
     expect(line).to_contain_text("adjust the comparison")
-    expect(line).to_contain_text("jump to an endpoint")
+    expect(line).to_contain_text("show before or after")
     page.keyboard.press("ArrowRight")
     expect(comparison).to_have_attribute("position", "51")
     page.keyboard.press("End")
@@ -3101,11 +3177,13 @@ def test_a_repeated_passage_anchors_where_it_was_picked(browser, serve):
     )
 
 
-def test_an_ambiguous_revised_passage_detaches_until_the_agent_moves_it(browser, serve):
+def test_an_ambiguous_revised_passage_keeps_its_section_until_the_agent_moves_it(
+    browser, serve
+):
     """Context tells two copies apart; it must not relocate a comment when the page moves
     on. If a later version rewrites the words beside the anchored copy, that copy confirms
     almost nothing while another copy remains. Neither is now identifiable: document
-    order is not evidence, so the comment first detaches visibly. An anchored agent reply
+    order is not evidence, so the thread falls back to its section. An anchored agent reply
     then names the revised passage explicitly, and the complete thread moves there."""
     url = serve(DRIFT_V1)
     page = open_page(browser, live_url(url))
@@ -3138,11 +3216,12 @@ def test_an_ambiguous_revised_passage_detaches_until_the_agent_moves_it(browser,
     d = serve.page_dir
     stamp_page(d, DRIFT_V2, "revised")
     wait_for_revision(page, 2)
-    expect(page.locator(".lf-thread .lf-quote.detached")).to_have_count(1)
+    expect(page.locator(".lf-thread .lf-quote.detached")).to_have_count(0)
     assert page.evaluate("() => CSS.highlights.get('lf-mark')?.size ?? 0") == 0
-    expect(page.locator(".lf-thread .lf-quote")).to_have_attribute(
-        "title", re.compile("can't be identified")
-    )
+    [transition] = [
+        event for event in events_model.read_events(d) if event["kind"] == "reanchor"
+    ]
+    assert transition["anchor"] == {"section": "drift"}
 
     [root] = [
         event for event in events_model.read_events(d) if event["kind"] == "comment"
@@ -3495,8 +3574,7 @@ def test_one_neighbour_is_not_enough_to_identify_a_revised_comment(browser, serv
     there. A passage at the edge of its section has just one, and one is a bar another copy
     clears — so a revision that rewrites the commented copy's only neighbour would hand the
     comment to a copy it was never made on, silently, a version after anyone was looking.
-    The cost of refusing is visible instead: the thread detaches until a later version
-    makes its passage unique again."""
+    The thread keeps its section until the agent chooses its replacement passage."""
     url = serve(THIN_V1)
     page = open_page(browser, live_url(url))
     with sending(page, "the comment on the passage with one neighbour"):
@@ -3526,8 +3604,12 @@ def test_one_neighbour_is_not_enough_to_identify_a_revised_comment(browser, serv
     d = serve.page_dir
     stamp_page(d, THIN_V2, "revised")
     wait_for_revision(page, 2)
-    expect(page.locator(".lf-thread .lf-quote.detached")).to_have_count(1)
+    expect(page.locator(".lf-thread .lf-quote.detached")).to_have_count(0)
     assert page.evaluate("() => CSS.highlights.get('lf-mark')?.size ?? 0") == 0
+    [transition] = [
+        event for event in events_model.read_events(d) if event["kind"] == "reanchor"
+    ]
+    assert transition["anchor"] == {"section": "thin"}
 
 
 def test_a_revised_example_travels_between_its_own_versions(browser, serve):
@@ -4159,7 +4241,7 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve, color_sch
     expect(page.locator(".lf-command-reference")).to_contain_text("Earlier version")
     expect(page.locator(".lf-command-reference")).to_contain_text("Latest version")
     expect(page.locator(".lf-command-reference")).to_contain_text("Earliest version")
-    expect(page.locator(".lf-command-reference")).to_contain_text("Open v1")
+    expect(page.locator(".lf-command-reference")).to_contain_text("open v1")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-command-reference")).not_to_have_class(re.compile("open"))
     expect(menu).to_be_hidden()
@@ -4591,7 +4673,7 @@ def test_a_row_the_platform_activates_names_both_of_its_keys(browser, serve):
     page.keyboard.press("?")
     page.keyboard.press("?")
     expect(page.locator(".lf-command-reference")).to_contain_text("⏎ / space")
-    expect(page.locator(".lf-command-reference")).to_contain_text("Open that version")
+    expect(page.locator(".lf-command-reference")).to_contain_text("open that version")
     page.keyboard.press("Escape")
 
     # And the key the row had been leaving unnamed does what the row now says it does,
@@ -4738,7 +4820,7 @@ def test_the_current_page_has_a_menu_local_key(browser, serve):
     # walk it saves.
     page.keyboard.press("?")
     page.keyboard.press("?")
-    expect(help_el).to_contain_text("Open the current page")
+    expect(help_el).to_contain_text("open the current page")
     page.keyboard.press("Escape")
 
     # The first press opens and goes nowhere. A whole tick passes before the reading,
@@ -4767,7 +4849,7 @@ def test_the_current_page_has_a_menu_local_key(browser, serve):
     page.keyboard.press("?")
     page.keyboard.press("?")
     expect(help_el).to_be_visible()
-    expect(help_el).to_contain_text("Open the current page")
+    expect(help_el).to_contain_text("open the current page")
 
 
 def test_comparison_selection_moves_before_its_documents_finish_loading(browser, serve):
@@ -5894,7 +5976,11 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     holding(page, held, 1, "the inline reply")
     pending = thread.locator('.lf-msg[aria-busy="true"]')
     expect(pending).to_contain_text("Confirmed from the inline thread.")
-    assert page.evaluate("window.__messageArrival") == 0.5
+    assert page.evaluate("window.__messageArrival") == {
+        "opacity": 0.5,
+        "busy": True,
+        "words": "Confirmed from the inline thread.",
+    }
     expect(pending).to_have_css("opacity", "0.5")
     held.pop(0).continue_()
     page.unroute("**/api/event")

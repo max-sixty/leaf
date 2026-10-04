@@ -52,7 +52,7 @@ other page files and the external state listed below.
   only; delivery reads their captured revision copies, never these mutable files
   directly.
 
-- `media/` — content-addressed page images, shared across revisions. `media.py` owns
+- `media/` — content-addressed page media, shared across revisions. `media.py` owns
   ingestion through `page media` and `/api/media`. Browser drafts and messages refer to
   them with Markdown; a public filename always identifies the same bytes. That name is
   `schema.MEDIA_DIGEST`'s, the one `media.media_name` mints and the server serves;
@@ -116,7 +116,7 @@ other page files and the external state listed below.
   hands the file to the page whole. Its presence exempts the page from the handoff's watcher guard.
 
 - `service.json` — desired server address, enabled state, lifetime, and runtime
-  provenance, plus a `restart` mark while `page init` holds a served page down to
+  provenance and current serving incarnation (`server_id`), plus a `restart` mark while `page init` holds a served page down to
   re-vendor it, which any other stop replaces so the restart leaves that stop
   alone. `hosting.py` owns start/stop, restart, and revival;
   [session-lifetime.md, “Lifetime”](session-lifetime.md#lifetime) owns the lifetime rule.
@@ -126,14 +126,22 @@ other page files and the external state listed below.
   it to serialize service changes, re-vendoring, and contract-bearing writes, so it
   writes nothing and ends with the page.
 
-- `server.lock` — process-held server lease. `hosting.py` waits for its release on stop,
-  after the server has closed its sockets. The file remains after release; its
-  exclusive kernel lock, rather than its existence, proves a live server.
+- `server.lock` — process-held serving incarnation lease. Its bytes name the
+  HTTP server's `server_id`; only an exclusive kernel lock with the same identity
+  as the enabled service proves that service is live. Preparation clears retained
+  metadata under a shared lock before taking the exclusive lease, so a private
+  listener cannot advertise a prior incarnation. `hosting.py` waits for release
+  on stop, after sockets close. The stable file remains after release.
 
 - `<state-home>/claims/` — one atomic claim per resolved page, independent of its page
   directory. Scans ignore claims for missing pages; fresh page initialization clears
   the prior claim under the page lock. [session-lifetime.md](session-lifetime.md) owns
   claimant identity, release, harness, and lifetime.
+
+- `<state-home>/rows/<page-key>.json` — disposable delivery output of a serving
+  page's own canonical activity. `server_rows.py` owns the record, producer and
+  freshness contract. It is never read by a page's semantic fold; losing it only
+  hides that neighbor until the server's next maintenance look.
 
 ## Revision delivery
 
@@ -191,3 +199,12 @@ batches never change. Delivery
 records are separate mutable transport state; acknowledgement can archive
 those records without moving or rewriting the delivery addressed by `leaf
 delivery read <id>`.
+
+A publication with dependent log transitions stages its immutable bundle before
+admitting its prerequisite. A `publication` coordinate on the note, replacement
+reply, or first automatic reanchor names that exact bundle. The HTML marker
+appears only after every required transition is durable. Entering a page
+transaction completes any journaled publication whose marker is missing, using
+the staged inputs and prior immutable revision. A staged bundle with no admitted
+prerequisite is absent; a later mutable source edit never substitutes for the
+journaled input (`revisioning.finish_publications`).

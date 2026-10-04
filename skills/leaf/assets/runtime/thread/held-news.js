@@ -1,4 +1,4 @@
-/* News a seat in the page's flow holds back while it would move what the reader reads.
+/* News a thread surface holds back while it would move what the reader reads.
 
    A seat draws its threads in the page's flow (inline.js: a widget's seat, or a widget's
    outlet such as a diff line's), so whatever the agent adds grows the page there: a turn
@@ -21,6 +21,9 @@
      opens in the flow, with no row in it to say what waits, so the widget is not handed
      the thread to place (surfaces.js), and the margin draws it as it draws any thread
      no widget places, out of the flow.
+
+   A natural panel thread uses the same hold for new or changed message bodies.
+   A reply pinned to its scrollport can instead absorb news above it by scrolling.
 
    `HeldNews` is that one owner for a seat, and `HeldArrivals` for the seats a widget has
    not opened. Each reads every reading against the one it drew last and holds what is
@@ -46,6 +49,7 @@ import { turns } from "./model.js";
 import { THREAD } from "./selectors.js";
 import { closestAcross } from "../passages.js";
 import { readApplication } from "../semantic-state.js";
+import { replyPinned } from "./reply-landing.js";
 
 // Whether a turn is the user's gesture: one this page's ledger still holds the attempt
 // of, as it does in the turn they send it. Their words from another tab, or a turn a
@@ -112,8 +116,8 @@ export function newsNotice() {
     {
       id: "thread.news",
       keys: PRESS,
-      does: "Show what is waiting",
-      line: "show it",
+      description: "Show what is waiting",
+      title: "show it",
       run: () => node.click(),
     },
   ]);
@@ -153,7 +157,8 @@ export class HeldNews {
   #changed;
   // The reading last drawn; every thread and turn the seat has taken in, drawn or held,
   // so a reading after a release finds nothing new in what it shows; and what is held
-  // back: each thread's held turns, the threads drawn resolved though a held turn reopened
+  // back: each thread's held turns (null for an arrival, its prior descriptor for an
+  // edit), the threads drawn resolved though a held turn reopened
   // them, and the threads not drawn.
   #shown = null;
   #known = new Map();
@@ -187,7 +192,7 @@ export class HeldNews {
     this.#known = new Map(
       reading.threads.map(({ key, messages }) => [
         key,
-        new Set(messages.map((message) => message.key)),
+        new Map(messages.map((message) => [message.key, message.body])),
       ]),
     );
     const shown = this.#draw(prior, reading);
@@ -215,18 +220,37 @@ export class HeldNews {
     for (const thread of reading.threads) {
       const was = drawn.get(thread.key);
       if (!was) continue;
+      const waiting = this.#turns.get(thread.key);
+      if (waiting) {
+        const present = new Set(thread.messages.map(({ key }) => key));
+        for (const key of waiting.keys()) if (!present.has(key)) waiting.delete(key);
+        if (!waiting.size) this.#turns.delete(thread.key);
+      }
       const known = this.#known.get(thread.key);
-      const added = thread.messages.filter(({ key }) => !known.has(key));
+      const added = thread.messages.filter(
+        (message) =>
+          !known.has(message.key) ||
+          JSON.stringify(known.get(message.key)) !== JSON.stringify(message.body),
+      );
       // A thread settled again stands as drawn.
       if (thread.resolved) this.#reopened.delete(thread.key);
       if (!added.length) continue;
-      if (added.some(own) || !growthAfterIsSeen(this.#view(thread.key)?.foot)) {
+      const view = this.#view(thread.key);
+      // A reply actually pinned to its scrollport can absorb news above it. A short
+      // thread's sticky row still stands in flow and has no such space to give.
+      if (
+        added.some(own) ||
+        !growthAfterIsSeen(view?.foot) ||
+        replyPinned(view?.node.querySelector(":scope > .lf-thread-reply"))
+      ) {
         this.#turns.delete(thread.key);
         this.#reopened.delete(thread.key);
         continue;
       }
-      const held = this.#turns.get(thread.key) ?? new Set();
-      for (const { key } of added) held.add(key);
+      const held = this.#turns.get(thread.key) ?? new Map();
+      const previous = new Map(was.messages.map((message) => [message.key, message]));
+      for (const { key } of added)
+        if (!held.has(key)) held.set(key, previous.get(key) ?? null);
       this.#turns.set(thread.key, held);
       if (was.resolved && !thread.resolved) this.#reopened.add(thread.key);
     }
@@ -243,14 +267,21 @@ export class HeldNews {
         const was = drawn.get(thread.key);
         return {
           ...thread,
-          messages: thread.messages.filter(({ key }) => !held.has(key)),
+          messages: thread.messages.flatMap((message) =>
+            !held.has(message.key)
+              ? [message]
+              : held.get(message.key)
+                ? [held.get(message.key)]
+                : [],
+          ),
           // The reopening waits too: the thread stands as drawn, resolved, and its notice
           // stands where Reopen did, since opening it is what reopening would show.
           ...(reopened && {
             resolved: true,
             resolvedBy: was.resolvedBy,
             settlement: null,
-            reply: false,
+            reply: was.reply,
+            kept: was.kept,
           }),
           news: { reopened, replies: held.size },
         };
@@ -338,6 +369,13 @@ export class HeldReading {
   }
 
   hold(reading) {
+    // Preparation can draw partial authored contributions before the complete log
+    // arrives. That is no baseline for news: the first ready reading stands whole.
+    if (readApplication().phase !== "ready") {
+      this.#shown = null;
+      this.#stop();
+      return reading;
+    }
     const nodes = this.#region();
     if (
       this.#released ||

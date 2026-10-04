@@ -1,0 +1,50 @@
+# User-requested widget digits exposed Ask-owned allocation and duplicated hints.
+# This case checks explicit context aliases, stable roles, and Leaf-owned presentation.
+description: widget-owned-context-keys
+metadata:
+  purpose: A widget declares local keys and explicitly forwardable context aliases once.
+  tags:
+  - packages
+  - keyboard
+vars:
+  prompt: |
+    An existing Leaf package widget owns a swipe deck with passButton and keepButton,
+    canSwipe(), and existing button click handlers. Add its keyboard integration:
+    Left/Right act only inside the deck, while 1/2 also work at its enclosing Ask's
+    opening and associated thread or margin representative. The deck also works
+    standalone. Disabled actions must retain their numbers, and typing digits in
+    an editor must remain native. Show a concise JavaScript registration snippet.
+    Both controls need inline hints. Leaf must own dispatch, forwarding, and hint
+    visibility. Only shipped references are available; runtime source and execution
+    are unavailable. Do not implement new runtime machinery or a page adapter.
+assert:
+- type: javascript
+  metric: loads-leaf
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/SKILL\.md
+- type: javascript
+  metric: reads-packages
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/references/packages\.md
+- type: regex
+  metric: declares-context-aliases
+  value: 'contextKeys\s*:'
+- type: llm-rubric
+  metric: judgment
+  value: |
+    Pass only if the snippet uses the public commands/commandScope API imported
+    from /runtime/widget-api.js and declares one command per existing action.
+    Pass and Keep have stable dotted ids, concise titles, ordinary ArrowLeft and
+    ArrowRight keys, explicit contextKeys 1 and 2, decision: true, their real
+    controls, requested bindingBadge seats or explicit null, canSwipe availability,
+    and invocation through the existing button click paths. It attaches the
+    declaration to the deck and calls paintKeys when availability changes.
+    It does not attach the complete local-arrow scope to the Ask, assign numbers
+    from live actions, duplicate callbacks into a second Ask row list, install
+    keydown listeners, or calculate focus/hint visibility itself. It leaves native
+    input precedence and forwarding to Leaf. Optional description or short line
+    wording is fine but no duplicate action-name decision string or does field.
+    The controls and widget lifecycle already exist; execution is unavailable,
+    so not running checks is not a failure.

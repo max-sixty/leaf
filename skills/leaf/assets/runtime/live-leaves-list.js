@@ -49,8 +49,8 @@ const openCommand = Object.freeze([
   Object.freeze({
     id: "leaf.open",
     keys: ["Enter"],
-    does: "Open that leaf in a tab",
-    line: "open it in a tab",
+    description: "Open that leaf in a tab",
+    title: "open it in a tab",
   }),
 ]);
 

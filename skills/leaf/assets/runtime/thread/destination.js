@@ -1,7 +1,9 @@
 /* Core Thread destinations and held identity.
 
    The open Threads panel wins; otherwise the current exact outlet wins, then an
-   available page preview, then Threads. The optional preview supplies physical
+   available page preview, then a deliberately revealed widget seat, then Threads.
+   A compact preview keeps held widget arrivals held until its own release gesture.
+   The optional preview supplies physical
    opening, placement proof, current focus node and target accompaniment; it owns
    no destination policy. A command retains its original intent through placement
    and returns its actual focus destination. Surface defaults enter the reply,
@@ -15,7 +17,8 @@ import { focusDestination } from "../focus.js";
 import { scrollBehavior } from "../motion.js";
 import { retainUserIntent } from "../user-intent.js";
 import { heldThread } from "./focus.js";
-import { focusSurface, surfaceFocusTarget } from "./surfaces.js";
+import { revealHeld, surfaceFocusTarget } from "./surfaces.js";
+import { reveal } from "../widget-elements.js";
 
 export function createThreadDestinations({
   placedAt,
@@ -38,6 +41,7 @@ export function createThreadDestinations({
     {
       focus = null,
       travel = true,
+      flash = true,
       intent = retainUserIntent(),
       transition = null,
     } = {},
@@ -45,14 +49,25 @@ export function createThreadDestinations({
     if (!intent()) return null;
     if (!panelIsOpen() && focus !== "message") {
       const localFocus = focus ?? "reply";
-      if (surfaceFocusTarget(id, { focus: localFocus })) {
+      const openSurface = async () => {
         if (preview) intent.handoff(preview.close);
         if (travel) {
           if (!(await scrollToThread(id, { focus: localFocus, intent }))) return null;
-        } else if (!intent.handoff(() => focusSurface(id, { focus: localFocus })))
-          return null;
+        } else {
+          await reveal(surfaceFocusTarget(id, { focus: localFocus }), intent);
+          const current = surfaceFocusTarget(id, { focus: localFocus });
+          if (
+            !current ||
+            !intent.handoff(() => {
+              focusDestination(current);
+              current.scrollIntoView({ block: "nearest" });
+            })
+          )
+            return null;
+        }
         return surfaceFocusTarget(id, { focus: localFocus });
-      }
+      };
+      if (surfaceFocusTarget(id, { focus: localFocus })) return openSurface();
       let opened = null;
       if (preview)
         intent.handoff(() => {
@@ -82,8 +97,14 @@ export function createThreadDestinations({
         }
         return threadFocusTarget(id, { focus });
       }
+      const held = revealHeld([id]);
+      if (held) {
+        await held.presented;
+        if (!intent()) return null;
+      }
+      if (surfaceFocusTarget(id, { focus: localFocus })) return openSurface();
     }
-    return showThread(id, { focus: focus ?? "reply", intent });
+    return showThread(id, { focus: focus ?? "reply", flash, intent });
   }
   return { openPageThread, threadFocusTarget, threadHere, threadTarget };
 }

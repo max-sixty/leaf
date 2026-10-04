@@ -61,10 +61,10 @@ its playground when it owns the same decision.
 A playground is one HTML file, like a standalone sketch. Write it under `.tmp/`
 and serve it with `uv run leaf-dev preview --source <file> --user` ("Preview a
 page"), which builds the page from that file alone. Its CSS reads the live
-theme's tokens, and the `playground` package's elements
-(`<root>/skills/leaf/packages/playground/instructions/author.md`) wrap the
-candidates: the controls and presets the user explores them with, the
-candidates in its preview, and an output saying what to build.
+theme's tokens. Follow
+`<root>/skills/leaf/packages/playground/instructions/author.md` to choose the
+selection and exploration elements, present the candidates, and submit a task
+saying what to build.
 
 When the subject already exists and the candidates are to be implemented,
 implement each in the runtime and theme that own the surface and present it
@@ -177,6 +177,11 @@ App Server's id. Run it after a change to `codex.py`,
 `service.py`; the suite scripts App Server, and only this run shows what Codex
 itself sends. It spends a few turns on the host's Codex login, and CI has none.
 
+For a change to preview startup or lifetime, add `--preview`. It starts the
+canonical user preview in each task, checks the keyed URL across those turns,
+and interrupts its isolated server between turns to prove that the preview
+restores both the address and working feedback without a source edit.
+
 ## Compare checkout versions
 
 Build the baseline in a detached worktree at the merge base:
@@ -230,12 +235,12 @@ that bear on an instruction change:
 
 ```bash
 npm ci --prefix evals
-uv run leaf-dev instructions-eval [CASE]... [--base REF] [--host cc|codex|both] [--runs N]
+uv run leaf-dev eval [CASE]... [--base REF] [--host cc|codex|both] [--runs N]
 ```
 
 The defaults are both hosts, one run, and the merge base with `main`. Each sample
 has a fresh workspace and home with the host's account login. Promptfoo owns the
-assertions, judgments, traces, and HTML report under `.tmp/instructions-eval/`;
+assertions, judgments, traces, and HTML report under `.tmp/eval/`;
 the runner prints passes separately for each host and base/candidate arm. Read
 `evals/README.md` for the provider models and case format.
 
@@ -269,11 +274,12 @@ Run cold, a case that states the situation plainly usually passes on both arms: 
 failing session had its own earlier turns or a competing instruction pulling the
 other way, so paste those into the prompt. A rule that loses only to a long
 session's context needs a replay of that session instead.
-`leaf-dev scenario-eval usability [CASE]...` runs cases that need a page directory
-and `leaf`, through the same Promptfoo reporting and assertion framework.
-`scenario-eval arrangement` owns paired composition studies, and `scenario-eval
-delivery` owns live feedback timing. Those existing trajectories use Claude Code.
-No grader has been checked against a person's judgment, so a pass is weak evidence.
+Complete workflows use the same catalog and command. `leaf-dev eval document`
+authors and revises a document; `document/resume`
+selects a controlled state-reading context. `--condition both` compares the authored example with
+ordinary HTML. `evals/README.md` owns selection, conditions and evidence limits.
+Keep focused contexts until a combined workflow detects their original failures.
+No grader has been calibrated against human judgments, so a pass is weak evidence.
 
 ## Refresh the public catalog stills
 
@@ -288,6 +294,10 @@ if Worktrunk asks to approve the project commands, ask the user to run
 `wt config approvals add`.
 
 ## Land a change
+
+Thread appearance changes run `tests/test_render_thread_snapshots.py` through the
+ordinary gate. Review the failure's captured images before accepting an intentional
+change; `dev/leaf_dev/thread_snapshots.py` owns the pinned-image capture and acceptance workflow.
 
 A red gate is the branch's to fix. A pull request's `test` job and the local
 pre-merge `tests` run the broad selection and the nightly tests the branch edits;

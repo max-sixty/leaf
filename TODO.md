@@ -43,6 +43,15 @@ has tried; settle that before building it.
 
 ### Agent and author experience
 
+- **Keep functional test results independent of execution speed.** Follow
+  [the clock guidance](tests/AGENTS.md#functional-results-do-not-depend-on-execution-speed).
+  The shift watcher still expires unfinished input rendering after one second;
+  the words watcher accepts dismissal only within two seconds before disappearance
+  or 200 ms after it. Its same trusted Send journey passes with a 300 ms completion
+  and falsely reports lost words at 3000 ms. Replace elapsed-time association with
+  causal completion, and retain passive-fault controls. Audit the watcher’s capped
+  drain and evidence retention, and replace process-race sleeps with acquisition or
+  completed-scan acknowledgements so slow execution cannot skip the claimed race.
 - **Compare Leaf authoring with plain HTML (#19).** The
   [agent-usability baseline](notes/agent-usability-evals.md#second-slice-2026-09-27)
   now covers the live loop, a mixed batch, an elided thread, an unfamiliar package and a
@@ -55,24 +64,13 @@ has tried; settle that before building it.
   multi-step work, and delegation. Show the plan as well as the current step;
   check that the hosted website agent's status is readable without delaying its
   reply. Keep delegated work visible while its watcher is live.
-- **#24 — Measure the fresh-reader review.** "Pre-handover review" has a subagent with only
-  the user's request and the check's screens work the page as the user would, since
-  the author resolves every name from notes the user never saw. On the triage page
-  that reader caught the scrolled-off context, a heading answering the author's own
-  research question, and header counts that didn't add up; a reader also given the
-  research reports caught those but missed the shorthand the reports explain.
-  **Unconfirmed:** one page, one run each. Measure across pages whether authors run
-  it, what it costs (about 110k tokens and two minutes there), and what it catches
-  beyond the author's own reading. `evals/record-read-without-the-notes` checks only
-  that an author says it will. Add a live `leaf-dev scenario-eval usability` case
-  with a seeded reader-visible defect and a clean control. Give the reviewer only
-  the request and screens; score whether it finds the defect without inventing one
-  in the control. Record author invocation and review cost separately.
-- **#25 — Run live scenarios on Codex as well as Claude Code.** Static instruction
-  cases already compare both hosts; the page, revision and feedback scenarios
-  still execute Claude Code. Start with the existing `near-miss` scenario on both
-  hosts, retaining the same checks and evidence. Extend the shared scenario
-  executor after that control works, rather than introducing another eval runner.
+- **#24 — Measure the fresh-reader review across pages.** The catalog's
+  `dashboard/reader` context gives a fixed reader only the request and screenshots
+  of a seeded count defect and a corrected count control. The narrow calibration
+  scores count detection and false alarms separately from other page defects;
+  it does not establish overall page acceptance. Measure
+  whether authors invoke the review, its cost and what it catches across actual
+  pages. Author delegation traces and independent judge cost are separate evidence.
 
 ### Prose
 
@@ -109,17 +107,11 @@ The page arranges itself in CSS, starting from the Layout classes
 (`skills/leaf/assets/layouts.css`), and Leaf keeps the contracts where pages, widgets
 and its chrome coordinate.
 
-- **Find a better shape for news in a short Threads list.** In a list too short to
-  scroll, any news moves something on screen, so the open card fills the list with
-  its reply box at the foot (#1480). A reply lands in the room above the box, and a
-  thread returning above the open card makes the list scrollable, so the place hold
-  scrolls the newcomer out of view rather than pushing down the card being read. It
-  is the best tradeoff found, not a perfect one: a short list's open card is as tall
-  as the panel, later cards wait below the fold, and a thread that returns above lands
-  scrolled past, so the user sees it only in the count. The rejected alternatives
-  were holding replies behind an "N new replies" chip, which hides the answer the user
-  is waiting for, and letting a list that can't scroll push its contents down, which
-  needs the shift watch to stop checking such lists.
+- **Show returning threads without moving the current reading.** A thread returning
+  above the open card makes the list scrollable, so the place hold scrolls the
+  newcomer out of view rather than pushing down the card being read. The user sees
+  it only in the count; give that arrival a visible route while preserving the
+  current reading.
 - **Bring a comment box back where it stood after one wheel jump.** Scrolling back to
   a comment's target in a single wheel step draws the box about 60px off for a frame
   before it lands, on `main` too and for selected words as well as items; a script's
@@ -257,6 +249,58 @@ and its chrome coordinate.
   The frame now takes its page's height, so nothing scrolls inside it; check that the
   report no longer reproduces once the scrolling changes land.
 
+### Layout stability
+
+Boxes that still move without input, which the "Stability" rule in
+`skills/leaf/assets/AGENTS.md` forbids. `tests/known_widget_findings.py` lists each widget
+that changes size after first paint, with its cause.
+
+- **Keep the feature gallery's Undo reachable after Reject.**
+  `test_the_feature_gallery_keeps_its_real_actions_reachable` is a non-strict xfail in
+  `tests/test_render_margin.py`, and #1669 found it still failing. The diagnosis in
+  [notes/margin-stuck-style.md](notes/margin-stuck-style.md) names two defects: the
+  span around the rejected insertion keeps reporting a computed `anchor-name: none`,
+  so the row carrying Undo stays at its off-screen fallback, and after Undo the suggestion has a 0x0 box. #1687
+  then stopped hiding an emptied suggestion with `display: none`, which may have fixed
+  the 0x0 box; the note predates it. Check first whether the xfail now passes on
+  `main` under load, then follow the note's next step for the stuck span.
+- **Draw the playground at its final size from first paint.** `lf-playground`,
+  `lf-playground-control`, `-output`, `-preview` and `-value` are `keeps-first-box`
+  findings: the module builds each control's inputs and the words of the instruction it
+  copies after first paint. Put each control's initial value and text in the authored markup, so
+  the module fills in what is there rather than adding it. Check first how values a
+  viewer restores from the tab's storage change the size, since markup carries only
+  the authored defaults.
+- **Size the activity feed and text documents at first paint.** `lf-activity` draws the
+  log's history and `lf-text-document` its bound source's value, and both arrive with
+  the first state answer, after first paint. Serving that state inside the page does
+  not work: modules run after first paint, and a page revision is immutable while the
+  log keeps changing. Follow #1566's Command Hub pattern instead: draw a summary whose
+  size is known at first paint, open the rows from it, and hold later growth with
+  `HeldReading` (`runtime/thread/held-news.js`) while it would be seen. Check first
+  whether a text document, which the reader came to read, can stand behind a summary.
+- **Decide the contents' form before first paint.** `lf-toc` changes size because the
+  margin pass decides after first paint whether it is the fixed map in the margin or
+  the outline in the flow (`data-lf-margin`, `margin-layout.js`), from the room
+  it measures at that point. A held summary does not answer that cause. Check first whether a
+  container or media query on the space beside the column can make the same decision
+  in CSS.
+- **Find a first-paint fix for the gallery's margin entry and for targeting.**
+  `lf-margin-entry-gallery` wraps words whose height follows the viewer's fonts (22px
+  to 45px taller on CI's Linux than on macOS), so no height its examples state holds
+  everywhere. `lf-targeting` has no recorded cause; read `lf-targeting.js` for what it
+  builds after first paint before choosing an approach.
+- **Unconfirmed: Command Hub's outcome tiles at 320px.** The word "stopped" may touch
+  its tile's edge in a 320px window. The tiles share one row of four
+  (`.lf-command-facts` in `skills/leaf/packages/command-hub/theme.css`), and the only
+  narrow rule, `@container lf-command (width <= 520px)`, covers task metadata. Render
+  it before changing anything.
+- **Check that margin markers paint in place in their first frame.** The shift watch
+  exempts the page until it is presented (`tests/shift_watch.js`), and #1603 records
+  startup shifts only as diagnostics, so a marker drawn in the wrong place in its first
+  frame and then moved would fail nothing. Read `leaf-dev probe`'s startup readings on
+  a page with margin markers at a few widths.
+
 ### Queues
 
 A queue is one `lf-tabs list="side"` beside its open item (`page-authoring.md`, "A
@@ -320,6 +364,15 @@ height and where a switch lands wait on the workspace decision under Layout.
   `triage-board` and 12.6 s on the corpus, measured by tracing the check's passes.
   The price is that dark mode and the narrow width would no longer be checked from
   a fresh start. Decide whether that coverage is worth the time before building it.
+- **Decide what plain `page check` runs in a browser from the mistakes agents make.**
+  It runs a page once in the host's browser, about 1.3 s, where the page has a script
+  or places a page widget or a data widget (`needs_browser`,
+  `render_gate/page_code.py`); any other page checks in about 0.15 s. Widgets that fail on their attribute values
+  (`lf-playground`, `lf-targeting`, `lf-shot`, `lf-visual-review`, `lf-text-document`)
+  and every widget in thread markup report through `leaf wait` once a browser draws
+  them, but nothing runs them first. Write `evals/` cases in which agents author each
+  kind and measure how often what they write fails to draw, then run the kinds agents
+  get wrong and stop running those they reliably get right.
 - **Scale a drawing by the box it was drawn in.** On replay, scale the strokes by
   the anchored element's size over the recorded `box`, so a mark stays on its
   element in a narrower window; reflowed text still moves under it. Verify replay

@@ -48,7 +48,15 @@ const replyRowOf = (held, control) => {
 // A reply row pinned to its scroller's foot (a panel card's) stands in the band
 // while the thread's end lies below it, so aiming a scroll at it moves nothing: its place
 // in the transcript is the thread's end.
-const pinned = (reply) => reply && getComputedStyle(reply).position === "sticky";
+export function replyPinned(reply) {
+  if (!reply || getComputedStyle(reply).position !== "sticky") return false;
+  const scroller = scrollerFor(reply);
+  const floor =
+    scroller.getBoundingClientRect().bottom -
+    parseFloat(getComputedStyle(scroller).paddingBottom) -
+    parseFloat(getComputedStyle(reply).bottom);
+  return Math.abs(reply.getBoundingClientRect().bottom - floor) < 1;
+}
 // The common transcript is a separate reading region only when its container bounds it.
 const separateTranscript = (held) => {
   const transcript = held.querySelector(":scope > .lf-thread-transcript");
@@ -84,7 +92,7 @@ export const landingTarget = (held, control) => {
   if (shownBox(held).height <= room) return { node: held };
   const reply = replyRowOf(held, control);
   // The thread itself, landed as a whole, is not a way into its pinned reply.
-  if (pinned(reply))
+  if (replyPinned(reply))
     return control === held ? { node: null } : { node: held, block: "end" };
   if (reply && shownBox(reply).height <= room) return { node: reply };
   if (control === held && onScreen(held)) return { node: null };
@@ -178,7 +186,7 @@ export function followBoxGrowth(input) {
     if (!onScreen(reply)) revealWritingArea(held, input, reply);
     return;
   }
-  if (!pinned(reply)) return revealWritingArea(held, input, reply);
+  if (!replyPinned(reply)) return revealWritingArea(held, input, reply);
   const height = reply.getBoundingClientRect().height;
   const grew = height - (rowHeights.get(input) ?? height);
   rowHeights.set(input, height);
@@ -192,7 +200,8 @@ export function followBoxGrowth(input) {
 export function readBoxPlace(input) {
   const held = input.closest(SAYS_IN);
   const reply = held && replyRowOf(held, input);
-  if (pinned(reply)) rowHeights.set(input, reply.getBoundingClientRect().height);
+  // The edit may be the one that takes a natural row to its sticky floor.
+  if (reply) rowHeights.set(input, reply.getBoundingClientRect().height);
   const transcript = held && separateTranscript(held);
   if (transcript)
     transcriptPlaces.set(input, {
@@ -213,7 +222,8 @@ export function readBoxPlace(input) {
 // whatever it cannot: a bounded block not yet full grows in the page instead.
 export function holdBox(control) {
   const held = control?.closest?.(SAYS_IN);
-  if (!held || pinned(replyRowOf(held, control)) || !onScreen(control)) return () => {};
+  if (!held || replyPinned(replyRowOf(held, control)) || !onScreen(control))
+    return () => {};
   const top = control.getBoundingClientRect().top;
   return () => {
     if (focused() !== control || !control.isConnected) return;

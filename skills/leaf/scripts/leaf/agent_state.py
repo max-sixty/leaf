@@ -59,7 +59,7 @@ def cmd_page_state(
     page's, or the part `target` names — a thread with a page of its history, or a
     widget."""
     with PageTransaction(page_dir) as page:
-        activation = activate_source(page_dir)
+        activation = activate_source(page_dir, transaction=page)
         _write_page_state(
             page_dir,
             page.events,

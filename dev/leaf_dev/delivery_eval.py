@@ -1,4 +1,4 @@
-"""Live Claude Code feedback trajectories, graded through Promptfoo.
+"""Live agent feedback trajectories, graded through Promptfoo.
 
 Idle posts two successive comments; mid-turn posts during the setup turn. Each
 trajectory uses an isolated home, page and state directory, and retains streams
@@ -10,7 +10,6 @@ several operations, so its trace alone cannot prove their internal order.
 
 import json
 import re
-import threading
 from datetime import datetime
 from functools import partial
 from pathlib import Path
@@ -18,15 +17,10 @@ from pathlib import Path
 from leaf.event_log import read_events
 
 from leaf_dev.harness import (
-    URL,
-    LiveChild,
-    PageClient,
     accepted_thread_claims,
     blocks,
     completed,
     hook_delivered,
-    inputs_received,
-    now,
     read_trace,
     run_leaf,
     scratch,
@@ -34,7 +28,6 @@ from leaf_dev.harness import (
 )
 from leaf_dev.review_scenario import REQUEST, prepare
 
-TURN_LIMIT = 600
 # When each of a case's comments is posted: `idle` at the end of a turn, `running`
 # once the setup turn has the page's URL.
 CASES = {"idle": ("idle", "idle"), "mid-turn": ("running",)}
@@ -58,19 +51,6 @@ def moment(record: dict) -> float:
     return datetime.fromisoformat(record["received_at"]).timestamp()
 
 
-def post_comment(url: str, n: int) -> None:
-    """Post comment `n` as the page does, on its served revision."""
-    page = PageClient(url)
-    page.post(
-        {
-            "kind": "comment",
-            "revision": page.state()["active"]["revision"],
-            "attempt": attempt(n),
-            **COMMENTS[n - 1],
-        }
-    )
-
-
 def stop_blocked(record: dict) -> bool:
     """Whether one stream record is the Stop hook holding a turn open: any output
     it gives does, whether through a block or Claude Code's non-error context."""
@@ -81,87 +61,39 @@ def stop_blocked(record: dict) -> bool:
     )
 
 
-def run_session(arm: Path, case: str, run: Path) -> None:
-    """One Claude Code session: serve, wait, receive the case's comments, handle them."""
+def run_session(arm: Path, case: str, run: Path, *, host: str = "cc") -> None:
+    """Drive delivery timing through the same feedback loop as larger examples."""
+    from leaf_dev.usability_eval import Case, Run, execute_live
+
     run.mkdir(parents=True)
     work = scratch()
     (run / "work-dir").write_text(f"{work}\n")
     page, state = work / "page", run / "state"
     prepare(arm, state, page)
     leaf = partial(run_leaf, arm, state)
-    url, waits, due, posted = None, set(), list(CASES[case]), 0
-    closing = False
-    try:
-        with (
-            LiveChild(
-                work,
-                REQUEST,
-                "--plugin-dir",
-                str(arm),
-                stderr=run / "stderr.txt",
-                limit=TURN_LIMIT,
-                timed_out=run / "timed-out",
-                dirs=[arm, state],
-                env={"XDG_STATE_HOME": str(state)},
-            ) as child,
-            (run / "stream.jsonl").open("w") as stream,
-        ):
-
-            def post() -> None:
-                nonlocal posted
-                posted += 1
-                post_comment(url, posted)
-                marker = {"type": "eval_comment", "n": posted, "received_at": now()}
-                stream.write(json.dumps(marker) + "\n")
-                due.pop(0)
-
-            for record in child.records():
-                stream.write(json.dumps(record) + "\n")
-                waits.update(waits_started(record))
-                content = (record.get("message") or {}).get("content")
-                for block in content if isinstance(content, list) else ():
-                    if block.get("type") != "tool_result":
-                        continue
-                    if not url and (
-                        found := URL.search(json.dumps(block.get("content")))
-                    ):
-                        url = found.group(0)
-                    if due[:1] == ["running"] and url:
-                        # The page is served and the setup turn is not over.
-                        post()
-                if record.get("type") != "result":
-                    continue
-                if due[:1] == ["idle"] and url:
-                    # A turn is over and the session idles on its page.
-                    post()
-                elif not due and not closing:
-                    # A completed response turn and exact opened receipts prove
-                    # every input reached its reader, independent of transport
-                    # spelling or an inline/pointer presentation. A trailing
-                    # wake may follow; keep the established grace before close.
-                    attempts = {attempt(n) for n in range(1, posted + 1)}
-                    if inputs_received(read_events(page), attempts):
-                        closing = True
-                        threading.Timer(20, child.close).start()
-        (run / "events.jsonl").write_text(
-            leaf("page", "events", str(page), check=True).stdout
-        )
-    finally:
-        # The agent's server outlives its session.
-        leaf("server", "stop", str(page))
+    rounds = tuple(
+        (dict(COMMENTS[n], kind="comment", attempt=attempt(n + 1)),)
+        for n in range(len(CASES[case]))
+    )
+    scenario = Case(case, (REQUEST,), rounds=rounds, injection=CASES[case])
+    execute_live(Run(case, arm, run, host), scenario, work, page)
+    (run / "events.jsonl").write_text(
+        leaf("page", "events", str(page), check=True).stdout
+    )
 
 
 def score(run: Path) -> list[dict]:
     """Read one run's page log and stream into one reading per comment it was sent."""
     events = read_events(run)
-    stream = read_trace(run / "stream.jsonl")
+    stream = read_trace(run / "stream-1.jsonl")
     waits = {wait for r in stream for wait in waits_started(r)}
     timed_out = (run / "timed-out").exists()
     turns = [record for record in stream if record["type"] == "result"]
     session_completed = bool(turns) and all(completed([turn]) for turn in turns)
     readings = []
-    for marker in (r for r in stream if r["type"] == "eval_comment"):
-        comment = next(e for e in events if e.get("attempt") == attempt(marker["n"]))
+    for marker in (r for r in stream if r["type"] == "eval_post"):
+        number = marker["round"]
+        comment = next(e for e in events if e.get("attempt") == attempt(number))
         posted = datetime.fromisoformat(comment["ts"]).timestamp()
         pickup = next(
             (
@@ -182,13 +114,18 @@ def score(run: Path) -> list[dict]:
         # agent ran before claiming its work, and the claim.
         delivery, route, before_claim, claimed, ended = None, None, [], None, None
         turn_completed = False
+        handling = False
         accepted = accepted_thread_claims(stream, comment["id"])
         for record in stream[stream.index(marker) + 1 :]:
-            if record["type"] == "result" and delivery:
+            handling = handling or any(
+                b.get("type") == "tool_result" and b.get("tool_use_id") in accepted
+                for b in blocks([record])
+            )
+            if record["type"] == "result" and handling:
                 ended = moment(record)
                 turn_completed = completed([record])
                 break
-            if delivery and not claimed:
+            if not claimed:
                 for block in blocks([record]):
                     if (
                         block.get("type") == "tool_result"
@@ -219,7 +156,13 @@ def score(run: Path) -> list[dict]:
         start = moment(marker)
         readings.append(
             {
-                "comment": marker["n"],
+                "comment": number,
+                "injection": marker["injection"],
+                "active_turn": marker["active_turn"],
+                "after_completion": any(
+                    record["type"] == "result"
+                    for record in stream[: stream.index(marker)]
+                ),
                 "timed_out": timed_out,
                 "turn_completed": turn_completed,
                 "session_completed": session_completed,
@@ -255,13 +198,19 @@ def short(ran: str) -> str:
     return re.sub(r"(?<![\w$])/[^\s;&|]*/", "", ran)
 
 
-def expected_checks(case: str) -> list[str]:
+def expected_checks(case: str, *, condition: str = "leaf") -> list[str]:
     return [
         "completed",
         *[
             f"{check}-{n}"
             for n in range(1, len(CASES[case]) + 1)
-            for check in ("picked-up", "claimed", "replied", "turn-ended")
+            for check in (
+                "injected-as-requested",
+                "picked-up",
+                "claimed",
+                "replied",
+                "turn-ended",
+            )
         ],
     ]
 
@@ -283,6 +232,12 @@ def grade(case: str, readings: list[dict]) -> dict[str, bool]:
         if n not in by_comment:
             continue
         r = by_comment[n]
+        injection = CASES[case][n - 1]
+        checks[f"injected-as-requested-{n}"] = (
+            r["injection"] == injection
+            and (r["after_completion"] is (injection == "idle"))
+            and bool(r["active_turn"]) is (injection == "running")
+        )
         checks[f"picked-up-{n}"] = r["pickup_s"] is not None
         checks[f"claimed-{n}"] = r["claim_s"] is not None
         checks[f"replied-{n}"] = r["done_s"] is not None
@@ -290,8 +245,12 @@ def grade(case: str, readings: list[dict]) -> dict[str, bool]:
     return checks
 
 
-def execute_scenario(case: str, payload: Path, work: Path) -> dict:
-    run_session(payload, case, work)
+def execute_scenario(
+    case: str, payload: Path, work: Path, *, host: str = "cc", condition: str = "leaf"
+) -> dict:
+    if condition != "leaf":
+        raise ValueError("Leaf delivery admission checks require the Leaf condition")
+    run_session(payload, case, work, host=host)
     readings = score(work)
     return {
         "output": json.dumps(readings),

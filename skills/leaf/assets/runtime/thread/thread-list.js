@@ -9,7 +9,7 @@
    A new agent turn, or growth of the last one, follows while the user has not named
    another card and the previous last message is visible in the panel's landing band.
    Where the list scrolls, that thread's tail must still reach the landing edge.
-   Following keeps the reply box where it stands at the list's foot, and the turn's
+   Following keeps a pinned reply box at the list's foot, and the turn's
    newest words end above it however tall the turn has grown.
    Reading earlier turns keeps the place hold, and a reply in another thread does not
    move this one.
@@ -200,9 +200,8 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
   // it stood, so nothing after it moves, and the newest words end above the reply box,
   // however tall the turn has grown. The box stands at the list's foot (chrome.css), pinned
   // there while the card's end lies below it, so the words may reach past where it stood
-  // by more than the card grew. The scroll lands in the render's own frame. In a list too
-  // short to scroll, the open card fills the list and the reply takes the free room above
-  // its box, so neither the card's end nor the box moves and there is nothing to follow.
+  // by more than the card grew. The scroll lands in the render's own frame. A short card has no
+  // scroll room to absorb news; HeldNews keeps it behind the existing notice instead.
   function followThreadEnd(newest, incoming) {
     const card = newest.closest(".lf-thread");
     const by = Math.max(
@@ -310,6 +309,7 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
           ...commands.card,
           openThreads,
           listRoot: threadsBox,
+          repaintThread: commands.repaintThread,
         },
         repaintThread: commands.repaintThread,
         presentSummary: (model) => postPaint(model, commands),
@@ -330,7 +330,7 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
     commands.onListChanged();
     // Narrowing and reconciliation can move another card under a pointer that did not
     // move. Read :hover after the browser has laid out this list, in refreshHover's frame.
-    commands.refreshAnchorHover();
+    commands.refreshAnchorHover?.();
   }
 
   async function prepareFrozenWidgets(current) {

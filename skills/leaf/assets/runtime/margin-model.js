@@ -42,6 +42,17 @@ const FOLDED = Object.freeze(
 );
 const EXPANDED_MARGIN_ENTRY_BUDGET = 6;
 
+// A contributed native control represents its owner's generated reading. Complete
+// views retain owned readings only while that owner supplies no visible control.
+export function annotationItems(entry) {
+  const represented = new Set(
+    entry.offers.flatMap(({ reading }) =>
+      reading.entries.filter((record) => record.visible).map((record) => record.owner),
+    ),
+  );
+  return entry.items.filter((item) => !item.owner || !represented.has(item.owner));
+}
+
 const noticeItems = (entry) =>
   entry.offers.flatMap((offered) => {
     const notice = offered.reading.notice;
@@ -295,7 +306,7 @@ function optionGroupProjection(
   });
 }
 
-const focusedOfferOf = (entry, expandedKey, expandedOwner) =>
+export const focusedOfferOf = (entry, expandedKey, expandedOwner) =>
   expandedKey === entry.key && expandedOwner
     ? (entry.offers.find((offered) => offered.key === expandedOwner) ?? null)
     : null;

@@ -69,16 +69,17 @@ SECTIONING_TAGS = {"section", "article", "main", "body"}
 # The allocations a page occurrence may state, each attribute with the values it takes:
 # a block's width in the page's flow, whether it bounds its own height, the height in
 # CSS pixels of a widget that draws into a box of a stated height (x-height), and, on
-# `body` alone, whether the page claims the rail its margin rows stand in or keeps that
-# margin for its own residents.
+# `body` alone, the selected annotation presentation and whether the page claims the
+# overlay rail or keeps that margin for its own residents.
 AUTHORED_ALLOCATIONS = {
     "data-width": ("column", "wide", "available"),
     "data-bound": ("start", "end"),
     "data-height": re.compile("[1-9][0-9]*"),
     "data-rail": ("right", "none"),
+    "data-annotations": ("overlay", "page"),
 }
-# The allocations only the page's `body` states, being about the page as a whole.
-PAGE_ALLOCATIONS = frozenset({"data-rail"})
+# Page-wide declarations. A sample template carries these onto its child's body.
+PAGE_ALLOCATIONS = frozenset({"data-rail", "data-annotations"})
 
 
 def allocation_expects(attr: str, value: str) -> str | None:
@@ -231,10 +232,13 @@ def attribute_references(tag: str, attrs: dict, name: str, value: str):
 
 def rewrite_attribute_references(
     tag: str, attrs: dict, name: str, value: str, rewrite
-) -> str:
+) -> str | None:
     """Rewrite just the URL spans `attribute_references` reads in one value."""
     for start, end in reversed(tuple(attribute_references(tag, attrs, name, value))):
-        value = value[:start] + rewrite(value[start:end]) + value[end:]
+        replacement = rewrite(value[start:end])
+        if replacement is None:
+            return None
+        value = value[:start] + replacement + value[end:]
     return value
 
 
@@ -462,7 +466,11 @@ class SourceDocument:
                 {"tag": tag, "line": line, "style": attrs["style"]}
             )
         for attr in AUTHORED_ALLOCATIONS:
-            if attr in attrs:
+            if attr in attrs and not (
+                tag == "template"
+                and "data-sample" in attrs
+                and attr in PAGE_ALLOCATIONS
+            ):
                 self.authored_allocations.append(
                     {"tag": tag, "line": line, "attr": attr, "value": attrs[attr]}
                 )
@@ -481,7 +489,7 @@ class SourceDocument:
             for start, end in attribute_references(tag, attrs, name, value)
         ]
         self.media_refs.update(
-            reference
+            urlsplit(reference).path
             for _, reference in references
             if reference.startswith(f"/{MEDIA_DIR}/")
         )
@@ -546,7 +554,11 @@ class SourceDocument:
             )
 
     def _sample_resources(self, template) -> None:
-        """Read the complete child document without merging its identity space."""
+        """Read the complete child document without merging its identity space.
+
+        The template owns the child's body declarations; their values are validated
+        once on that synthesized body by the ordinary child document reader.
+        """
         attrs = element_attrs(template)
         location = template.source_location
         content_start = self._source_index(
@@ -562,12 +574,17 @@ class SourceDocument:
             self.errors.append(
                 f"<template data-sample> at line {line}: needs a stable id"
             )
+        body = "".join(
+            f' {name}="{escape(value)}"'
+            for name, value in attrs.items()
+            if name in PAGE_ALLOCATIONS
+        )
         source = (
             '<!doctype html><html lang="en"><head>'
             '<meta name="viewport" content="width=device-width, initial-scale=1">'
             f"<title>{escape(attrs.get('id', 'Sample'))}</title></head>"
             # A sample shows a column page; the template is its content, not its frame.
-            '<body><main class="layout-column">'
+            f'<body{body}><main class="layout-column">'
             # Preserve authored lines, including multiline tags in nested samples.
             + "\n" * (location.start_tag.end_line - 1)
             + self._source[content_start:content_end]
@@ -786,6 +803,16 @@ def links_with_rel(links: list[dict], rel: str) -> list[dict]:
     """The indexed links declaring one relation. `rel` carries a space-separated
     token list, so a relation is a token in it rather than a substring of it."""
     return [link for link in links if rel.lower() in rel_tokens(link["attrs"])]
+
+
+def annotation_mode(document: SourceDocument) -> str:
+    """The document's selected annotation presentation; omission keeps the overlay.
+
+    This is immutable boot configuration, distinct from the tab's current annotation
+    visibility. A revision that changes it replaces the executable document lifetime.
+    """
+    body = document.tree.select_one("body")
+    return element_attrs(body).get("data-annotations", "overlay") if body else "overlay"
 
 
 def review_mode(document: SourceDocument):

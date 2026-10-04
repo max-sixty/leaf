@@ -19,6 +19,7 @@ import subprocess
 import sys
 import time
 from collections.abc import Callable
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -99,6 +100,16 @@ class Harness:
         Hosts whose hooks or embedding own delivery need no separate process.
         A detached carrier starts or joins its task-wide watch here.
         """
+
+    @contextmanager
+    def preparing_delivery(self):
+        """Prepare delivery and retain it until the caller publishes its page.
+
+        Detached carriers prevent no-page retirement throughout this boundary.
+        A failed preparation therefore precedes any page ownership transition.
+        """
+        self.ensure_delivery()
+        yield
 
     def hooks_carry(self) -> bool:
         """Whether this session's hooks carry its input: its host runs hooks that
@@ -360,13 +371,19 @@ class CodexHarness(EnvironmentHarness):
     identity_variables = session_variables
 
     def ensure_delivery(self) -> None:
-        from .codex_adapter import ensure_adapter
+        with self.preparing_delivery():
+            pass
 
-        # A direct wait already selected by this task remains its carrier. It
-        # holds the current turn open rather than starting later turns.
+    @contextmanager
+    def preparing_delivery(self):
+        from .codex_adapter import preparing_adapter
+
+        # A direct wait already selected by this task remains its carrier.
         if wait_is_live(None, self.session) and not adapter_is_live(self.session):
+            yield
             return
-        ensure_adapter()
+        with preparing_adapter():
+            yield
 
     def lifetime(self) -> dict:
         """Codex states no process, so this one is discovered: the nearest

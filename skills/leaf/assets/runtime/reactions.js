@@ -325,11 +325,11 @@ export function createReactionController({
   function raiseMarginSurface() {
     const anchor = fabAnchorAt();
     const target = anchor && fabTargetAt();
-    if (!pageCommands || !target) return false;
+    if (!pageCommands || !target || !openMarginEntryOptions) return false;
     // `e` is an explicit reaction mode. Comment remains on `c`, so this temporary
     // contribution contains reactions alone.
     fabBar.dataset.lfMarginRaised = "1";
-    const standing = unfoldedMarginEntries()?.lfTarget === target;
+    const standing = unfoldedMarginEntries?.()?.lfTarget === target;
     marginAnchor = structuredClone(anchor);
     marginOffer = registerContribution({
       key: "responses",
@@ -570,12 +570,12 @@ export function createReactionController({
           const n = Math.min(reactionTokens().length, 9);
           return n > 1 ? `1–${n}` : "1";
         },
-        does: () =>
+        description: () =>
           `Put a reaction on ${reactTargetWord()}: ${reactionTokens()
             .slice(0, 9)
             .map(([name, entry], i) => `${i + 1} ${entry.glyph} ${name}`)
             .join(", ")}`,
-        line: "react",
+        title: "react",
         run: (binding) => {
           if (reactSurface === marginSurface) {
             const ordinal = +binding - 1;
@@ -597,8 +597,8 @@ export function createReactionController({
         id: "reaction.move",
         runFromCommandReference: false,
         keys: ["Tab", "Shift+Tab", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"],
-        does: "Move through reactions",
-        line: "move",
+        description: "Move through reactions",
+        title: "move",
         repeat: true,
         run: stepResponse,
       },
@@ -606,16 +606,16 @@ export function createReactionController({
         id: "response.activate",
         runFromCommandReference: false,
         keys: PRESS,
-        does: "Use the focused response",
-        line: "choose",
+        description: "Use the focused response",
+        title: "choose",
         when: () => responseChoices(reactSurface).includes(focused()),
         run: () => focused()?.click(),
       },
       {
         id: "reaction.cancel",
         keys: ["Escape"],
-        does: "Close response choices",
-        line: "cancel",
+        description: "Close response choices",
+        title: "cancel",
         run: () => setReact(false),
       },
     ],
@@ -625,7 +625,7 @@ export function createReactionController({
   const reactionContextContains = (node) =>
     reactArmed &&
     reactSurface === marginSurface &&
-    marginEntryContextContains(fabTargetAt(), node);
+    marginEntryContextContains?.(fabTargetAt(), node);
 
   function mount() {
     holdToRead();
@@ -650,14 +650,14 @@ export function createReactionController({
     id: "reaction.open",
     touch: false,
     keys: ["e"],
-    does: () =>
+    description: () =>
       `Open reactions — ${reactionTokens()
         .slice(0, 9)
         .map(([name, entry]) => `${entry.glyph} ${name}`)
         .join(
           ", ",
         )} — for the selection, the item you are standing on, or the reply you are reading`,
-    line: "react",
+    title: "reactions",
     // Reachable from a reply in a Threads panel covering the page, as `c` is; under a
     // covering surface the page's own targets are out of reach.
     covering: true,

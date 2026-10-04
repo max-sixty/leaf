@@ -84,8 +84,10 @@ other control stays reachable through Tab, native activation, Ask digits, or
 Go-to hints. `register.js`'s `PAGE_COMMANDS` is the canonical page vocabulary in
 shortcut-line order. Lowercase advances a walk and Shift goes back. A surface may
 reuse a page key for the same intent with a nearer destination. While the user
-stands in an Ask, core projects its widget's Decision commands onto `1`–`9`; a
-widget's own binding wins while focus is inside it.
+stands in an Ask or its associated margin/thread representative, core forwards only
+the widget's explicit `contextKeys`. Widgets own `1`–`9` assignments; Decision is a
+semantic role, not an allocator. Ordinary local keys take precedence over context
+aliases in the same attachment, and every context alias follows native editing.
 
 ## Touch routes
 
@@ -122,6 +124,7 @@ scopes), `register.js` (scope order, page commands, the Escape ladder),
 `page.js` (the page's own parts and the foot of the ladder), `go-to-sequence.js`
 (the `g` grammar), `control-keys.js`,
 `presentation.js`, `shortcut-bar.js`, `command-reference.js`, `hints.js`,
+`command-hints.js` (inline hints from reachable command bindings),
 `key-badge-placement.js`, `disclosure.js`, and `touch-controls.js` (a finger's stand-ins
 for the keys).
 

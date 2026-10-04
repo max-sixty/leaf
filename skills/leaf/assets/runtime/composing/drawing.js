@@ -20,11 +20,10 @@ import { clippedContents, documentPoint, shownBox } from "../geometry.js";
 import { clamp, overlaps } from "../rect.js";
 import { COLLAPSE } from "../collapse.js";
 import {
-  closestAcross,
   cut,
   elementFromPointAcross,
   elementOver,
-  inChrome,
+  leafSurface,
   pageText,
   quoteFrom,
 } from "../passages.js";
@@ -198,7 +197,7 @@ export function createDrawingController({
     const atPointer = pointer();
     if (atPointer.x < 0) return null;
     const at = elementFromPointAcross(atPointer.x, atPointer.y);
-    if (!at || inChrome(at)) return null;
+    if (!at || leafSurface(at)) return null;
     return (
       aimTargetAt(at) ?? targetAlongside(atPointer) ?? { anchor: null, element: null }
     );
@@ -307,9 +306,8 @@ export function createDrawingController({
   function begin(event) {
     if (!drawModeOn || !event.isPrimary || event.button !== 0) return;
     const origin = event.composedPath()[0];
-    // Inline threads remain comment controls even when a shadow host seats them
-    // in the page, so ownership follows the composed origin.
-    if (inChrome(origin) || closestAcross(origin, ".lf-thread-seat")) return;
+    // Runtime surfaces remain operable wherever their owner seats them.
+    if (leafSurface(origin)) return;
     claimThroughClick = true;
     claimedPointer = event.pointerId;
     claim(event);
@@ -482,13 +480,14 @@ export function createDrawingController({
         id: "draw.mode.stroke",
         keys: [],
         label: "drag",
-        does: "Draw anywhere on the page; each stroke adds to one drawing",
+        title: "Draw on the page",
+        description: "Each stroke adds to one drawing",
+        line: false,
       },
       {
         id: "draw.mode.exit",
         keys: ["w"],
-        does: "Exit Draw mode",
-        line: "exit Draw mode",
+        title: "exit Draw mode",
         touch: "Exit Draw mode",
         run: () => setDrawMode(false),
       },
@@ -499,8 +498,8 @@ export function createDrawingController({
   pageRung("draw mode", () =>
     drawModeActive()
       ? {
-          says: "exit Draw mode",
-          does: "Exit Draw mode",
+          title: "exit Draw mode",
+
           out: () => setDrawMode(false),
         }
       : null,
@@ -508,8 +507,8 @@ export function createDrawingController({
   pageCommand({
     id: "draw.mode.enter",
     keys: ["w"],
-    does: "Draw on the page and attach the drawing to a comment",
-    line: "draw",
+    description: "Draw on the page and attach the drawing to a comment",
+    title: "draw mode",
     touch: "Draw mode",
     when: () => anchoringIsReady() && !drawModeOn,
     run: () => setDrawMode(true),
@@ -520,7 +519,14 @@ export function createDrawingController({
     destroy,
     drawModeActive,
     setDrawMode,
-    activeDrawing,
-    draftDrawings,
+    drawings: () => {
+      const active = activeDrawing();
+      return active
+        ? [{ ...active, className: "lf-drawing-active" }]
+        : draftDrawings().map((draft) => ({
+            ...draft,
+            className: "lf-drawing-pending",
+          }));
+    },
   };
 }

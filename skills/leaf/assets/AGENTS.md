@@ -72,8 +72,9 @@ The page holds still under the user's aim. A state change may repaint any box bu
 must not move controls next to the gesture that caused it. Without a gesture, a box
 may grow or shrink into free room, but reading content and controls stay put.
 Runtime regions declare bounded internal reflow with `data-lf-reflow`. A `text`
-region, such as a conversation header, declares its own stationary box: labels may
-repack inside it while every contained control stays put. A `controls` region,
+region, such as a conversation header or the banner's status, declares its own
+stationary box: labels may repack inside it while every contained control stays put,
+growing or shrinking at one edge as any box may but never carried. A `controls` region,
 such as the adaptive shortcut bar, permits its hints and controls to repack inside
 its stationary box. Declare the box that owns the available room, rather than an
 auto-sized inner label group or a boxless wrapper. A nested region must hold its own

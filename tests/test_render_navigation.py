@@ -2777,7 +2777,7 @@ def test_keys_answer_a_question_from_its_marks(browser, serve):
 
     page.keyboard.press("a")
     position = page.locator(".lf-walk-position")
-    expect(position).to_have_text("Ask 1 of 4 waiting on you")
+    expect(position).to_have_text("1 of 4 waiting on you · Ask")
     expect(position).to_have_attribute("aria-hidden", "true")
     expect(position.locator("xpath=parent::*")).to_have_class(
         re.compile("lf-bottom-status")
@@ -2808,7 +2808,7 @@ def test_keys_answer_a_question_from_its_marks(browser, serve):
     ).to_have_text(["1", "2"])
     page.keyboard.press("Tab")
     expect(marks.first).to_be_focused()
-    expect(position).to_have_text("Ask 1 of 4 waiting on you")
+    expect(position).to_have_text("1 of 4 waiting on you · Ask")
     expect(
         page.locator(
             "#live-question > lf-option > .lf-key-badge[data-lf-binding-badge]"
@@ -2867,7 +2867,7 @@ def test_the_ask_walk_position_shares_the_shortcut_line(browser, serve):
     expect(page.locator(".lf-banner-menu > .lf-asks")).to_have_count(1)
 
     page.keyboard.press("a")
-    expect(position).to_have_text("Ask 1 of 4 waiting on you")
+    expect(position).to_have_text("1 of 4 waiting on you · Ask")
     expect(position).to_be_visible()
     resized(page, 1200, 780)
     expect(position).to_be_visible()
@@ -2926,12 +2926,12 @@ def test_the_ask_walk_position_shares_the_shortcut_line(browser, serve):
 
     for index in range(2, 5):
         page.keyboard.press("a")
-        expect(position).to_have_text(f"Ask {index} of 4 waiting on you")
+        expect(position).to_have_text(f"{index} of 4 waiting on you · Ask")
     expect(position).not_to_have_attribute("data-lf-boundary", "")
     status = page.locator(".lf-bottom-status")
     ordinary = status.evaluate("node => getComputedStyle(node).color")
     page.keyboard.press("a")
-    expect(position).to_have_text("Ask 4 of 4 waiting on you")
+    expect(position).to_have_text("4 of 4 waiting on you · Ask")
     expect(position).to_have_attribute("data-lf-boundary", "")
     assert (
         status.evaluate("node => node.getBoundingClientRect().left")
@@ -2954,7 +2954,7 @@ def test_a_failed_ask_reveal_does_not_register_an_arrival(browser, serve):
     page = open_page(browser, serve(ASKS_PAGE))
     position = page.locator(".lf-walk-position")
     page.keyboard.press("a")
-    expect(position).to_have_text("Ask 1 of 4 waiting on you")
+    expect(position).to_have_text("1 of 4 waiting on you · Ask")
     page.evaluate(
         """async () => {
           const {attachApplicationPresentation} = await window.__lfRuntimeImport(
@@ -2978,7 +2978,7 @@ def test_a_failed_ask_reveal_does_not_register_an_arrival(browser, serve):
         page.evaluate("() => { rejectAskReveal(new Error('ask reveal probe')); }")
         page.wait_for_function("window.askRevealRejected === true", timeout=3000)
         shortcut_bar_text(page)
-        assert position.text_content() == "Ask 1 of 4 waiting on you"
+        assert position.text_content() == "1 of 4 waiting on you · Ask"
         assert position.get_attribute("data-lf-boundary") is None
         expect(page.locator("#live-question-decision")).to_be_focused()
         assert take_browser_errors(page) == [
@@ -2995,7 +2995,7 @@ def test_a_delayed_ask_reveal_yields_to_programmatic_user_focus(browser, serve):
     position = page.locator(".lf-walk-position")
     page.keyboard.press("a")
     expect(page.locator("#live-question-decision")).to_be_focused()
-    expect(position).to_have_text("Ask 1 of 4 waiting on you")
+    expect(position).to_have_text("1 of 4 waiting on you · Ask")
     page.evaluate(
         """() => {
           const held = new Promise(resolve => { window.releaseAskReveal = resolve; });
@@ -3018,7 +3018,7 @@ def test_a_delayed_ask_reveal_yields_to_programmatic_user_focus(browser, serve):
     rendered(page)
 
     expect(page.locator(".lf-threads-toggle")).to_be_focused()
-    assert position.text_content() == "Ask 1 of 4 waiting on you"
+    assert position.text_content() == "1 of 4 waiting on you · Ask"
     assert position.get_attribute("data-lf-boundary") is None
 
 
@@ -3073,8 +3073,8 @@ def test_a_walks_what_waits_on_you_and_the_banner_counts_both_queues(browser, se
         },
     )
     page = open_page(browser, url)
-    status = page.locator(".lf-status-text")
-    expect(status).to_have_text(re.compile(r" · 2 on you · 1 on \S+$"))
+    status = page.locator(".lf-status-queues")
+    expect(status).to_have_text(re.compile(r"^2 on you · 1 on \S+$"))
     expect(page.locator(".lf-status-button")).to_have_attribute(
         "title", re.compile(r" Waiting on you: 1 Ask, 1 question\. .*: 1 reply\.$")
     )
@@ -3082,26 +3082,35 @@ def test_a_walks_what_waits_on_you_and_the_banner_counts_both_queues(browser, se
     position = page.locator(".lf-walk-position")
     thread = page.locator(f'.lf-page-thread[data-thread="{asked["id"]}"]')
     page.keyboard.press("a")
-    expect(position).to_have_text("Thread 1 of 2 waiting on you")
+    expect(position).to_have_text("1 of 2 waiting on you · Thread")
     expect(thread).to_be_focused()
     page.keyboard.press("a")
-    expect(position).to_have_text("Ask 2 of 2 waiting on you")
+    expect(position).to_have_text("2 of 2 waiting on you · Ask")
     expect(page.locator("#channel-ask")).to_be_focused()
     page.keyboard.press("a")
     expect(position).to_have_attribute("data-lf-boundary", "")
     page.keyboard.press("Shift+a")
-    expect(position).to_have_text("Thread 1 of 2 waiting on you")
+    expect(position).to_have_text("1 of 2 waiting on you · Thread")
     expect(thread).to_be_focused()
 
     page.keyboard.press("Enter")
     box = thread.locator("leaf-text")
     write(box, "Weekly.")
-    with sending(page, "the reply"):
-        page.keyboard.press("ControlOrMeta+Enter")
-    expect(status).to_have_text(re.compile(r" · 1 on you · 2 on \S+$"))
+    # The reply moves from one count to the other in the turn it is sent, before the
+    # server has answered for it.
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    page.keyboard.press("ControlOrMeta+Enter")
+    holding(page, held, 1, "the reply")
+    expect(status).to_have_text(re.compile(r"^1 on you · 2 on \S+$"))
+    page.unroute("**/api/event")
+    for route in held:
+        route.continue_()
+    round_trip(page)
+    expect(status).to_have_text(re.compile(r"^1 on you · 2 on \S+$"))
     page.locator("#h").click()
     page.keyboard.press("a")
-    expect(position).to_have_text("Ask 1 of 1 waiting on you")
+    expect(position).to_have_text("1 of 1 waiting on you · Ask")
     page.locator("#h").click()
     page.keyboard.press("t")
     expect(position).to_have_text("Thread 1 of 2")
@@ -7763,13 +7772,13 @@ def test_registered_shortcuts_are_exposed_to_assistive_technology(browser, serve
     expect(
         page.locator(
             ".lf-command-reference tr",
-            has_text="Next Ask or thread waiting on you",
+            has_text="Next Ask, thread or move to resend waiting on you",
         ).locator("kbd")
     ).to_have_text("a")
     expect(
         page.locator(
             ".lf-command-reference tr",
-            has_text="Previous Ask or thread waiting on you",
+            has_text="Previous Ask, thread or move to resend waiting on you",
         ).locator("kbd")
     ).to_have_text("A")
     page.keyboard.press("Escape")
@@ -10628,7 +10637,7 @@ def test_a_coarse_pointer_keeps_useful_status_without_keyboard_hints(browser, se
     line = page.locator(".lf-shortcut-bar")
     expect(line).to_be_hidden()
     position = page.locator(".lf-walk-position")
-    expect(position).to_have_text("Ask 1 of 4 waiting on you")
+    expect(position).to_have_text("1 of 4 waiting on you · Ask")
     expect(position).to_be_visible()
     active_room = page.evaluate(
         """() => {
@@ -12252,7 +12261,7 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     expect(help_el).not_to_contain_text("Next open thread")
     expect(help_el).not_to_contain_text("Previous open thread")
     expect(help_el).not_to_contain_text("In a thread")
-    expect(help_el).not_to_contain_text("Ask or thread waiting on you")
+    expect(help_el).not_to_contain_text("thread or move to resend waiting on you")
     # A first version has a menu and a way out, but no neighbouring version to walk.
     expect(help_el).to_contain_text("The versions, and what each one changed")
     expect(help_el).to_contain_text("Close the versions menu")
@@ -12291,7 +12300,7 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
         )
     ).to_have_attribute("aria-label", "g then Shift+t")
     expect(help_el).not_to_contain_text("link on screen")
-    expect(help_el).not_to_contain_text("Ask or thread waiting on you")
+    expect(help_el).not_to_contain_text("thread or move to resend waiting on you")
     expect(help_el).to_contain_text("Next open thread")
     expect(help_el).to_contain_text("Previous open thread")
     expect(

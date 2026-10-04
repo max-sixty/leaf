@@ -291,8 +291,9 @@ def queues(
 
     The browser selects the same two lists from its own reading of these four
     (`runtime/queues.js`), with the tab's unresolved sends already folded into the
-    threads' attention and the workflows; `served_records.py` holds a reading the
-    two must agree on."""
+    threads' attention and the workflows, and a thread message the tab is still
+    sending counted on the agent; `served_records.py` holds a reading the two must
+    agree on."""
     asked = {ask["thread"] for ask in asks}
     on_you = [
         {

@@ -2399,8 +2399,7 @@ def test_banner_status_is_compact_with_accessible_details(browser, serve, other_
         assert read["down"]["shown"] == pytest.approx(read["lineHeight"], abs=1), read
         assert read["down"]["shown"] == read["down"]["needed"], read
         assert read["ellipsis"] == "ellipsis", read
-        # The page's four Asks wait on the user, and the sentence ends by saying so.
-        assert read["text"] == f"Agent working — {detail.rstrip()} · 4 on you", read
+        assert read["text"] == f"Agent working — {detail}", read
         assert detail.strip() in read["title"], read
         assert read["actions"]["shown"] >= read["actions"]["needed"], read
         expect(door).to_have_attribute("aria-describedby", "lf-status-detail")
@@ -4137,10 +4136,9 @@ def test_the_status_press_grows_into_free_room_and_moves_nothing(browser, serve,
     def say(detail):
         session_model.cmd_status(serve.page_dir, "working", detail)
         told(page)
-        # The page's suggestions wait on the user, so the sentence ends with that count.
         page.wait_for_function(
             "(words) => document.querySelector('.lf-status-text').textContent === words",
-            arg=f"Agent working — {detail} · 3 on you",
+            arg=f"Agent working — {detail}",
         )
         page_at_rest(page)
         return page.evaluate(STATUS_PRESS)
@@ -4154,6 +4152,9 @@ def test_the_status_press_grows_into_free_room_and_moves_nothing(browser, serve,
     beside = page.evaluate(BANNER_WATCH, f":is({NEIGHBOUR}):not(.lf-status-button)")
     assert any("lf-banner-more" in name for name in beside["names"]), beside["names"]
 
+    # The page's suggestions wait on the user, so the queue count follows the
+    # sentence in the press and takes its share of the room.
+    expect(page.locator(".lf-status-queues")).to_have_text("3 on you")
     longer = say("running tests")
     assert longer["shown"] >= longer["needed"], longer
     assert (longer["left"], longer["top"]) == (short["left"], short["top"])
@@ -4166,6 +4167,13 @@ def test_the_status_press_grows_into_free_room_and_moves_nothing(browser, serve,
         f"a sentence longer than the room was shown whole: {endless}"
     )
     assert endless["right"] <= endless["roomRight"] + 0.5, endless
+    # The sentence gives up its room first: the count stays whole beside it.
+    counts = page.locator(".lf-status-queues").evaluate(
+        "node => ({shown: node.clientWidth, needed: node.scrollWidth,"
+        " right: node.getBoundingClientRect().right})"
+    )
+    assert counts["shown"] >= counts["needed"] > 0, counts
+    assert counts["right"] <= endless["roomRight"] + 0.5, (counts, endless)
     assert (endless["left"], endless["top"]) == (short["left"], short["top"])
     moved = displaced(beside, page.evaluate("() => window.__lfBoxes()"))
     assert not moved, "a status past its room pushed the banner:\n  " + "\n  ".join(

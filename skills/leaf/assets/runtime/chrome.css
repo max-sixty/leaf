@@ -472,6 +472,11 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     border-right: 1px solid var(--muted); border-bottom: 1px solid var(--muted);
     transform: rotate(45deg); margin: -3px 0 0 -4px; }
   .lf-status-button > .lf-status-text { order: 1; }
+  /* The queue counts follow the sentence at their own width: the sentence truncates
+     first, and the counts read as its last clause. */
+  .lf-status-button > .lf-status-queues { order: 2; flex: none; white-space: nowrap;
+    line-height: 1.35; margin-inline-start: calc(0.3em - var(--lf-banner-gap)); }
+  .lf-status-queues::before { content: "· "; }
   .lf-status-button:hover { color: var(--ink); }
   .lf-status-button:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring);
     outline-offset: 2px; --lf-focus-ring: status; }

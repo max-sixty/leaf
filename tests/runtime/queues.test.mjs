@@ -15,10 +15,23 @@ test("the browser selects the same two queues page state prints", () => {
   });
 });
 
-test("a reply the user is sending takes its thread off their queue at once", () => {
+// A send this tab has not delivered, in the shape the publisher gives it.
+const sending = (id, subject, thread) =>
+  servedWorkflow({
+    id: `pending:${id}`,
+    subject,
+    thread,
+    holds_thread: subject.kind === "thread",
+    answer: null,
+    stage: "sending",
+    condition: null,
+    next_actor: "agent",
+  });
+
+test("a reply the user is sending moves its thread to the agent's queue at once", () => {
   const served = reading();
   // The publisher folds the pending reply into its thread, which then waits on the
-  // agent; the reply's own workflow is still the tab's, owing nothing it can name.
+  // agent, and lists the reply's own workflow after the served ones.
   const [thread] = served.threads.filter((candidate) => candidate.id === "e1");
   const threads = foldThreads(
     served.threads,
@@ -37,11 +50,34 @@ test("a reply the user is sending takes its thread off their queue at once", () 
     [],
     new Set(),
   );
-  const { onYou } = selectQueues({ ...served, threads });
+  const workflows = [
+    ...served.workflows,
+    sending("a1", { kind: "thread", id: "e1" }, "e1"),
+  ];
+  const { onYou, onAgent } = selectQueues({ ...served, threads, workflows });
   assert.deepEqual(kinds(onYou), [
     ["ask", "pick-ask"],
     ["recovery", "e7"],
+    ["recovery", "e9"],
   ]);
+  assert.deepEqual(onAgent.at(-2), {
+    kind: "answer",
+    id: "pending:a1",
+    subject: { kind: "thread", id: "e1" },
+    thread: "e1",
+    answer: null,
+    stage: "sending",
+  });
+});
+
+test("a pick the user is sending owes nothing yet and leaves its Ask open", () => {
+  const served = reading();
+  const workflows = [
+    ...served.workflows,
+    sending("a2", { kind: "widget", id: "pick" }, null),
+  ];
+  const queues = selectQueues({ ...served, workflows });
+  assert.deepEqual(queues, selectQueues(served));
 });
 
 test("a thread holding an open Ask is on the user once, as that Ask", () => {
@@ -51,28 +87,6 @@ test("a thread holding an open Ask is on the user once, as that Ask", () => {
     ["ask", "pick-ask"],
     ["ask", "seated"],
     ["recovery", "e7"],
+    ["recovery", "e9"],
   ]);
-});
-
-test("a page move handed back to the user is on their queue by its widget", () => {
-  const served = reading();
-  const refused = servedWorkflow({
-    id: "rejected:a2",
-    subject: { kind: "widget", id: "pick" },
-    thread: null,
-    holds_thread: false,
-    answer: null,
-    condition: { kind: "failed", operation: "delivery" },
-    next_actor: "user",
-  });
-  const { onYou } = selectQueues({
-    ...served,
-    workflows: [...served.workflows, refused],
-  });
-  assert.deepEqual(onYou.at(-1), {
-    kind: "recovery",
-    id: "rejected:a2",
-    subject: { kind: "widget", id: "pick" },
-    thread: null,
-  });
 });

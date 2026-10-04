@@ -15,10 +15,16 @@
    `onAgent` holds each move the agent owes an answer (`answer`), each subject it has
    claimed work on with nothing owed (`work`), and each open task (`task`). An item
    has the fields Python's has. `tests/served_records.py` folds a reading both
-   selections must agree on. */
-import { awaitsUser } from "./thread/model.js";
+   selections must agree on.
 
-const atWork = (workflow) => ["working", "replying"].includes(workflow.stage);
+   One item is the browser's alone: a message this tab is still sending, whose thread
+   its attention already hands to the agent, is an `answer` the agent will owe, with
+   no answer named yet and the stage `sending`. So the reply leaves the user's count
+   and joins the agent's in the same turn. A widget move still sending is not: until
+   the server reads it, it is not known to owe anything, and an Ask it answers still
+   stands open. */
+import { awaitsUser } from "./thread/model.js";
+import { atWork } from "./thread/workflow.js";
 
 export function selectQueues({ asks, threads, workflows, tasks }) {
   const asked = new Set(asks.map((ask) => ask.thread));
@@ -46,7 +52,10 @@ export function selectQueues({ asks, threads, workflows, tasks }) {
     // A move handed back in a thread is that thread's item above.
     if (workflow.next_actor === "user") {
       if (workflow.thread === null) onYou.push({ kind: "recovery", ...item });
-    } else if (workflow.answer !== null)
+    } else if (
+      workflow.answer !== null ||
+      (workflow.stage === "sending" && workflow.subject.kind === "thread")
+    )
       onAgent.push({
         kind: "answer",
         ...item,

@@ -350,12 +350,8 @@
           ],
           "attention": {
             "kind": "waiting",
-            "reason": "task",
-            "workflow": null,
-            "task": {
-              "id": "e6",
-              "title": "Rebuild the chart"
-            }
+            "reason": "workflow",
+            "workflow": "claim:claim-1"
           }
         },
         {
@@ -421,6 +417,53 @@
       ],
       "workflows": [
         {
+          "id": "e9",
+          "input": "e9",
+          "seq": 9,
+          "revision": 1,
+          "subject": {
+            "kind": "widget",
+            "id": "ship"
+          },
+          "coordinate": [
+            "ship",
+            "ship",
+            "choose"
+          ],
+          "answer": null,
+          "stage": "answered",
+          "ts": "2026-09-19T12:00:00+00:00",
+          "delivery_seq": null,
+          "delivery_session": null,
+          "delivery_turn": null,
+          "detail": null,
+          "agent": null,
+          "session": "served-records",
+          "activity": [
+            {
+              "kind": "response",
+              "detail": null,
+              "ts": "2026-09-19T12:00:00+00:00",
+              "session": "served-records",
+              "turn": "turn-1"
+            }
+          ],
+          "condition": {
+            "kind": "failed",
+            "operation": "response"
+          },
+          "next_actor": "user",
+          "response": {
+            "id": "e10",
+            "attempt": null,
+            "state": "failed",
+            "responds": "e9"
+          },
+          "claimed_by": [],
+          "thread": null,
+          "holds_thread": false
+        },
+        {
           "id": "e7",
           "input": "e7",
           "seq": 7,
@@ -464,6 +507,41 @@
           },
           "claimed_by": [],
           "thread": "e7",
+          "holds_thread": true
+        },
+        {
+          "id": "claim:claim-1",
+          "input": null,
+          "seq": 6,
+          "revision": null,
+          "subject": {
+            "kind": "thread",
+            "id": "e4"
+          },
+          "coordinate": [
+            "thread",
+            "e4"
+          ],
+          "answer": null,
+          "stage": "working",
+          "ts": "2026-09-19T12:00:00+00:00",
+          "detail": "Redrawing the chart",
+          "agent": "Agent",
+          "session": "served-records",
+          "activity": [
+            {
+              "kind": "working",
+              "detail": "Redrawing the chart",
+              "ts": "2026-09-19T12:00:00+00:00",
+              "session": "served-records",
+              "turn": "turn-1"
+            }
+          ],
+          "condition": null,
+          "next_actor": "agent",
+          "response": null,
+          "claimed_by": [],
+          "thread": "e4",
           "holds_thread": true
         },
         {
@@ -546,9 +624,28 @@
               "id": "e7"
             },
             "thread": "e7"
+          },
+          {
+            "kind": "recovery",
+            "id": "e9",
+            "subject": {
+              "kind": "widget",
+              "id": "ship"
+            },
+            "thread": null
           }
         ],
         "on_agent": [
+          {
+            "kind": "work",
+            "id": "claim:claim-1",
+            "subject": {
+              "kind": "thread",
+              "id": "e4"
+            },
+            "thread": "e4",
+            "detail": "Redrawing the chart"
+          },
           {
             "kind": "answer",
             "id": "e3",

@@ -235,13 +235,14 @@ function paintTab() {
 let saidKind;
 let saidActionableWork;
 
-// The page's two queues (`runtime/queues.js`) end the sentence: how much waits on the
-// user, which `a` walks, and how much waits on the agent, with the disclosure naming
-// their kinds. They are the sentence's own words rather than a box beside it, so a count
-// changing or a sentence growing moves nothing; on a row too short for both, the
-// ellipsis takes the counts first and the disclosure still says them. They are read
-// from the application's publication rather than the state answer, so a reply the user
-// sends moves its thread from one count to the other in the turn it is sent.
+// The page's two queues (`runtime/queues.js`) follow the sentence in the same press:
+// how much waits on the user, which `a` walks, and how much waits on the agent, which
+// is the row's whole account of the agent's side, with the disclosure naming their
+// kinds and each open task's title. The counts stand at their own width after the
+// sentence, which gives up its room to the ellipsis first, so on a narrow row the
+// counts stay whole; nothing outside the press moves for either. They are read from
+// the application's publication rather than the state answer: a reply the user sends
+// leaves their count and joins the agent's in the turn it is sent.
 const QUEUE_WORDS = Object.freeze({
   ask: ["Ask", "Asks"],
   question: ["question", "questions"],
@@ -251,11 +252,17 @@ const QUEUE_WORDS = Object.freeze({
   task: ["task", "tasks"],
 });
 function queueKinds(items) {
-  const counts = new Map();
-  for (const { kind } of items) counts.set(kind, (counts.get(kind) ?? 0) + 1);
-  return [...counts].map(
-    ([kind, count]) => `${count} ${QUEUE_WORDS[kind][count === 1 ? 0 : 1]}`,
-  );
+  const byKind = new Map();
+  for (const item of items)
+    byKind.set(item.kind, [...(byKind.get(item.kind) ?? []), item]);
+  return [...byKind].map(([kind, all]) => {
+    const words = `${all.length} ${QUEUE_WORDS[kind][all.length === 1 ? 0 : 1]}`;
+    // A task outlasts the turns and the thread that opened it (`tasks.py`), so each
+    // open one is named, including one on a thread the user has resolved.
+    return kind === "task"
+      ? `${words} (${all.map((task) => task.title).join(" · ")})`
+      : words;
+  });
 }
 function queueWords() {
   const { onYou, onAgent } = readApplication().effective.queues;
@@ -272,15 +279,13 @@ const WITHOUT_QUEUES = new Set(["broken", "unreachable", "publication"]);
 let lastStatus = null;
 const presentStatus = (status) => {
   lastStatus = status;
-  const { kind, tone, publication = null, actionableWork = null } = status;
-  let { summary, explanation } = status;
-  if (!WITHOUT_QUEUES.has(kind)) {
-    const queues = queueWords();
-    if (queues.summary) {
-      summary = `${summary.trimEnd()} · ${queues.summary}`;
-      explanation = `${explanation}${explanation.endsWith(".") ? "" : "."} ${queues.explanation}`;
-    }
-  }
+  const { kind, tone, summary, publication = null, actionableWork = null } = status;
+  let { explanation } = status;
+  const queues = WITHOUT_QUEUES.has(kind)
+    ? { summary: "", explanation: "" }
+    : queueWords();
+  if (queues.explanation)
+    explanation = `${explanation}${explanation.endsWith(".") ? "" : "."} ${queues.explanation}`;
   let publicationModel = null;
   if (publication) {
     // A publication's introduction and links remain an ordinary reading row.
@@ -300,6 +305,7 @@ const presentStatus = (status) => {
     Object.freeze({
       tone,
       summary,
+      queues: queues.summary,
       explanation,
       publication: publicationModel,
     }),
@@ -479,7 +485,9 @@ const publicationWords = (published) => [
 ];
 
 // Both levels of wording follow server-owned activity. Short summaries retain the
-// actionable distinction: listening, saved for a later session, or browser-only work.
+// actionable distinction: working, listening, away, or nobody holding the page. How many
+// updates are waiting or saved is the disclosure's; the row counts what waits on each
+// side instead (`queueWords`).
 function statusWords({
   age,
   agent,
@@ -490,16 +498,13 @@ function statusWords({
   kind,
   listening,
   overdue,
-  progressSummary,
   saved,
-  total,
   work,
 }) {
-  const savedSummary = total ? ` · ${total} saved` : "";
   if (kind === "closed") return ["Leaf closed", "Leaf closed"];
   if (kind === "unheld")
     return [
-      `No session${savedSummary}`,
+      "No session",
       `No session holds this page. ${saved} It picks up again when a session does.`,
     ];
   // The agent's own sentence is the reason to look at the row while it works, so the
@@ -515,7 +520,7 @@ function statusWords({
     const held = handling === 1 ? "your update" : `your ${handling} updates`;
     const said = detail ? " — " + detail : handling ? " — on " + held : "";
     return [
-      `${agent} ${work}${age && age !== JUST_NOW ? " · " + age : ""}${said}${progressSummary}`,
+      `${agent} ${work}${age && age !== JUST_NOW ? " · " + age : ""}${said}`,
       detail || !handling
         ? `${agent} is ${work}${said}`
         : `${agent} is ${work} on ${held}, and hasn't said what it is doing yet`,
@@ -526,10 +531,7 @@ function statusWords({
   if (kind === "listening") {
     const awaits = `${agent} awaits — ${detail || "select text to comment"}`;
     return listening
-      ? [
-          `${agent} listening${progressSummary}`,
-          `${agent} is listening${detail ? " — " + detail : ""}.`,
-        ]
+      ? [`${agent} listening`, `${agent} is listening${detail ? " — " + detail : ""}.`]
       : [awaits, awaits];
   }
   if (kind === "stalled")
@@ -539,11 +541,11 @@ function statusWords({
   // can reach once it has seen the turn end.
   return overdue
     ? [
-        `Nudge ${agent} in terminal${savedSummary}`,
+        `Nudge ${agent} in terminal`,
         `${dated}. ${saved} Nothing is answering them, so nudge it in the terminal.`,
       ]
     : [
-        `${agent} away${savedSummary}`,
+        `${agent} away`,
         `${agent} isn't watching right now. ${saved} It picks them up next turn.`,
       ];
 }
@@ -625,10 +627,6 @@ function renderStatusNow(state) {
     : "Your comments are saved.";
   const checkedIn = `${agent} last checked in ${facts.silentSince}`;
   const age = kind === "working" && activity.ts ? ago(activity.ts) : "";
-  const progress = [];
-  if (activity.counts.queued) progress.push(`${activity.counts.queued} queued`);
-  if (activity.counts.pending) progress.push(`${activity.counts.pending} waiting`);
-  const progressSummary = progress.length ? ` · ${progress.join(" · ")}` : "";
   const [summary, text] = statusWords({
     age,
     agent,
@@ -639,10 +637,8 @@ function renderStatusNow(state) {
     detail,
     handling: activity.counts.handling,
     kind,
-    total: activity.counts.total,
     listening: facts.listening,
     overdue: activity.counts.overdue,
-    progressSummary,
     saved,
     work: facts.work,
   });
@@ -654,11 +650,6 @@ function renderStatusNow(state) {
     explanation += ` · ${activity.observed}`;
   if (facts.waiting.length && ["working", "listening"].includes(kind))
     explanation += `${explanation.endsWith(".") ? "" : "."} ${facts.waiting.join(" · ")}.`;
-  // A task outlasts the turns and the thread that opened it (`tasks.py`), so the
-  // banner names every open one, including one on a thread the user has resolved.
-  const tasks = state.browser?.tasks ?? [];
-  if (tasks.length)
-    explanation += `${explanation.endsWith(".") ? "" : "."} Open task${tasks.length === 1 ? "" : "s"}: ${tasks.map((task) => task.title).join(" · ")}.`;
   const actionableWork = [
     "awaiting_approval",
     "awaiting_input",

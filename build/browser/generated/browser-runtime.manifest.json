@@ -14,7 +14,8 @@
     "skills/leaf/assets/runtime/projection/model.js",
     "skills/leaf/assets/runtime/queues.js",
     "skills/leaf/assets/runtime/thread/identity.js",
-    "skills/leaf/assets/runtime/thread/model.js"
+    "skills/leaf/assets/runtime/thread/model.js",
+    "skills/leaf/assets/runtime/thread/workflow.js"
   ],
   "entryPoints": {
     "skills/leaf/assets/vendor/browser-runtime.js": "build/browser/index.ts",
@@ -162,12 +163,12 @@
   "pageModules": "Browser-ready authored page modules are captured with their revision; they are not contributor-build inputs.",
   "outputs": {
     "skills/leaf/assets/vendor/browser-runtime.js": {
-      "bytes": 28431,
-      "sha256": "61f6691e8ebf752b7fc2018112542a5189b0db38a25ab277c535480bebd2a895"
+      "bytes": 28731,
+      "sha256": "2d46373cae64cc635dda9ca0705a61b1a05b1fa70baf7d4396c2772d6d4219ba"
     },
     "build/browser/generated/browser-runtime.js.map": {
-      "bytes": 181682,
-      "sha256": "b3427067b82b26e14695662456076990007667e88343e6f4cda8e04fc189b7fb"
+      "bytes": 187611,
+      "sha256": "e6786861ddf08358933e4759046459283318c656b2f98ea7bb178c0c725a5a8b"
     },
     "skills/leaf/assets/vendor/lit.js": {
       "bytes": 32081,

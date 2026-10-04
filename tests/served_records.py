@@ -80,9 +80,10 @@ def build() -> dict:
                     },
                 )
             ),
-            # Something on each side: an open Ask, a question left in prose and a
-            # reply that failed are on the user; a comment owed a reply and a task
-            # on an answered thread are on the agent.
+            # Something of every kind on each side: an open Ask, a question left in
+            # prose, a reply that failed and a page move whose pickup failed are on the
+            # user; a comment owed a reply, a task, and work claimed on an answered
+            # thread are on the agent.
             "queues on both sides": _queued(
                 (
                     {"kind": "comment", "text": "Weekly?"},
@@ -123,7 +124,35 @@ def build() -> dict:
                         "failure": "turn_failed",
                         "text": "No answer is coming.",
                     },
-                )
+                    {
+                        "kind": "action",
+                        "widget": "ship",
+                        "action": "choose",
+                        "detail": {"options": ["ship-now"]},
+                    },
+                    {
+                        "kind": "pickup",
+                        "author": "page",
+                        "attention": False,
+                        "events": ["e9"],
+                        "phase": "failed",
+                        "failure": "turn_failed",
+                        "session": "served-records",
+                        "turn": "turn-1",
+                    },
+                ),
+                work=(
+                    {
+                        "id": "claim-1",
+                        "subject": {"kind": "thread", "id": "e4"},
+                        "after": 6,
+                        "detail": "Redrawing the chart",
+                        "ts": "2026-09-19T12:00:00+00:00",
+                        "agent": "Agent",
+                        "session": "served-records",
+                        "turn": "turn-1",
+                    },
+                ),
             ),
         },
     }
@@ -133,14 +162,17 @@ ASK_PAGE = leaf_page(
     "Served queues",
     '<lf-ask id="pick-ask"><h2>Which one?</h2><lf-options id="pick" choose>'
     '<lf-option id="one">One</lf-option><lf-option id="two">Two</lf-option>'
+    "</lf-options></lf-ask>"
+    '<lf-ask id="ship-ask"><h2>Ship it?</h2><lf-options id="ship" choose>'
+    '<lf-option id="ship-now">Now</lf-option><lf-option id="ship-later">Later</lf-option>'
     "</lf-options></lf-ask>",
 )
 
 
-def _queued(events: tuple[dict, ...]) -> dict:
+def _queued(events: tuple[dict, ...], work: tuple[dict, ...] = ()) -> dict:
     """The four readings `agent_state.queues` selects from, as the browser is handed
     them, and the two queues Python selects from them."""
-    state = reading(ASK_PAGE, events)
+    state = reading(ASK_PAGE, events, work=work)
     asks = state["views"]["1"]["document"]["asks"]["user"]
     asks += state["thread"]["asks"]["user"]
     served = {

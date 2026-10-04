@@ -606,6 +606,19 @@
           screen.every((rect) => !moved(rect, screen[2])))
       );
     };
+    // A control in a text region stays put as any box does: it may grow or shrink at
+    // one edge, as a press does with its words, but is not carried.
+    const standing = (node) => {
+      const still = (rects) =>
+        rects.every(
+          (rect) =>
+            !carried(rect, rects[2], "left", "right") &&
+            !carried(rect, rects[2], "top", "bottom"),
+        );
+      const rects = around.map(({ at }) => layoutAt(node, at));
+      const screen = around.map(({ at }) => boxAt(node, at));
+      return rects.every(Boolean) && (still(rects) || still(screen));
+    };
     // Each declaration owns its actual box. Nested regions keep every enclosing
     // guarantee, without borrowing a valid boundary to excuse an invalid one.
     for (const region of regions) {
@@ -625,7 +638,7 @@
             if (
               paintAt(control, at)?.control &&
               ancestryAt(control, at).includes(region) &&
-              !stationary(control)
+              !standing(control)
             )
               return false;
       }

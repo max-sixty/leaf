@@ -87,7 +87,7 @@ export function* blocksOnScreen(region = null, blocks = textBlocks()) {
   }
 }
 // The one block the user is on, which is the first the walk above yields. Two
-// things outside ask it — where an Ask walk starts, and where the keyboard
+// things outside ask it — where a page walk starts, and where the keyboard
 // reference hands a user back to — and they were asking it in two places with the
 // same expression written out twice.
 export const readingBlock = () => blocksOnScreen().next().value?.[0] ?? null;

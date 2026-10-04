@@ -169,23 +169,32 @@ export function createQueueWalk({
     return arriveAtWidget(stop.id);
   }
 
+  // Where the walk stands in the whole queue, and the kind of item it stands on: the
+  // count is of every kind, so the kind follows it rather than naming the list.
+  function position() {
+    const list = stops();
+    const here = standingStop(list);
+    const at = listWalkPosition(list, here, { identity: (stop) => stop.key });
+    return at && { ...at, qualifier: `${QUALIFIER} · ${NOUNS[here.kind]}` };
+  }
+
   function walk(dir) {
     const list = stops();
     if (!list.length) return;
     const next = step(list, dir);
-    const noun = NOUNS[next.kind];
     // The walk reads the standing destination, so begin it once the arrival has moved
     // focus. A failed arrival has not arrived and must not register the prior item as
     // this walk's destination.
     const ready = arriveAt(next).then((arrived) => {
       if (!arrived) return;
       announce(
-        beginWalk("queue", noun, () =>
-          listWalkPosition(stops(), standingStop(stops()), {
-            identity: (stop) => stop.key,
-            qualifier: QUALIFIER,
-          }),
-        ) ?? walkPositionLabel(noun, list.indexOf(next) + 1, list.length, QUALIFIER),
+        beginWalk("queue", null, position) ??
+          walkPositionLabel(
+            null,
+            list.indexOf(next) + 1,
+            list.length,
+            `${QUALIFIER} · ${NOUNS[next.kind]}`,
+          ),
       );
     });
     void ready.catch(() => {});
@@ -214,17 +223,17 @@ export function createQueueWalk({
         id: "queue.next",
         binding: "a",
         title: "Next waiting on you",
-        description: "Next Ask or thread waiting on you",
+        description: "Next Ask, thread or move to resend waiting on you",
       },
       {
         id: "queue.previous",
         binding: "Shift+a",
         title: "Previous waiting on you",
-        description: "Previous Ask or thread waiting on you",
+        description: "Previous Ask, thread or move to resend waiting on you",
       },
     ],
     title: "Waiting on you",
-    description: "Next / previous Ask or thread waiting on you",
+    description: "Next / previous Ask, thread or move to resend waiting on you",
     line: "on you",
     when: offered,
     repeat: true,

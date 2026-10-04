@@ -5,6 +5,7 @@ from itertools import pairwise
 from pathlib import Path
 
 import pytest
+import turbohtml
 from interact_support import append_carried_log_record, append_command
 from leaf import data as data_model
 from leaf import delivery as delivery_model
@@ -111,6 +112,7 @@ from render_harness import (
     undo,
     wait_for_revision,
     write,
+    xfail_browser_problem,
 )
 
 DRAG_HELD = (
@@ -435,8 +437,13 @@ def test_root_tabs_switch_views_without_moving_the_strip_and_follow_history(
     # A reveal (a comment anchor, find-in-page) opens another view, and the entry the
     # user stands on then names it, so pressing away and coming Back returns there.
     page.evaluate(
-        "document.querySelector('#evidence-tab').dispatchEvent(new CustomEvent('lf-reveal'))"
+        """async () => {
+          const {reveal} = await window.__lfRuntimeImport('/runtime/widget-elements.js');
+          const {retainUserIntent} = await window.__lfRuntimeImport('/runtime/user-intent.js');
+          reveal(document.querySelector('#evidence-tab'), retainUserIntent());
+        }"""
     )
+    rendered(page)
     expect(evidence).to_have_attribute("aria-selected", "true")
     assert page.url.endswith("#evidence-tab")
     switch(plan)
@@ -753,6 +760,82 @@ def test_page_tabs_take_the_page_width_and_its_one_left_edge(browser, serve):
     assert boxes["panel"] == boxes["content"], boxes
     assert boxes["strip"]["left"] == boxes["content"]["left"], boxes
     assert boxes["title"]["left"] == boxes["content"]["left"], boxes
+
+
+@pytest.mark.parametrize("layout", ["column", "wide", "workspace"])
+def test_wide_evidence_in_a_page_tab_takes_the_room_it_would_outside_one(
+    browser, serve, layout
+):
+    """A page tab is a section of the page, so a `wide` or `available` table in its
+    open panel takes the box and the column widths its twin outside the set takes: at
+    first paint, before the runtime has drawn the strip, then at a desktop window, with
+    the thread panel open over it, and on a phone. A boxed set's panel draws a frame,
+    so the same table there stays inside it."""
+
+    def tables(where):
+        return "".join(
+            f'<table id="{where}-{space}" data-width="{space}"><thead><tr><th>Case</th>'
+            "<th>Result</th></tr></thead><tbody><tr><td>One</td><td>Two</td></tr>"
+            "</tbody></table>"
+            for space in ("wide", "available")
+        )
+
+    source = leaf_page(
+        "Evidence in page tabs",
+        f'<h1 id="t">Evidence in page tabs</h1><p id="prose">Prose.</p>{tables("out")}'
+        f'<lf-tabs id="root-tabs"><lf-tab id="compare" label="Compare">{tables("in")}'
+        '</lf-tab><lf-tab id="notes" label="Notes"><p>Notes.</p></lf-tab></lf-tabs>'
+        f'<section><lf-tabs id="boxed"><lf-tab id="boxed-open" label="Boxed">{tables("boxed")}'
+        '</lf-tab><lf-tab id="boxed-other" label="Other"><p>Other.</p></lf-tab></lf-tabs>'
+        "</section>",
+        layout=layout,
+    )
+    boot = []
+    context = browser.new_context(viewport={"width": 1600, "height": 900})
+    page = context.new_page()
+    page.route("**/leaf.js", lambda route: boot.append(route))
+    measure = """() => Object.fromEntries(
+      ['prose', 'out-wide', 'out-available', 'in-wide', 'in-available', 'boxed-open',
+       'boxed-wide', 'boxed-available'].map(id => {
+        const el = document.getElementById(id), box = el.getBoundingClientRect();
+        return [id, {left: Math.round(box.left), width: Math.round(box.width),
+          columns: Math.round(el.querySelector('thead')?.getBoundingClientRect().width ?? 0)}];
+      }))"""
+
+    def twins(state):
+        at = page.evaluate(measure)
+        for space in ("wide", "available"):
+            assert at[f"in-{space}"] == at[f"out-{space}"], (state, space, at)
+            boxed, panel = at[f"boxed-{space}"], at["boxed-open"]
+            assert boxed["left"] >= panel["left"], (state, space, at)
+            assert boxed["left"] + boxed["width"] <= panel["left"] + panel["width"], (
+                state,
+                space,
+                at,
+            )
+        assert root_overflow(page) == 0, state
+        return at
+
+    try:
+        with page.expect_request("**/leaf.js"):
+            page.goto(serve(source), wait_until="commit")
+        displayed(page)
+        assert boot, "the runtime was not held"
+        first = twins("first paint")
+        boot.pop().continue_()
+        wait_until_ready(page)
+    finally:
+        for route in boot:
+            route.continue_()
+        page.unroute_all(behavior="wait")
+    expect(page.locator("#root-tabs")).to_have_attribute("data-lf-tabs-flow", "page")
+    assert twins("desktop") == first
+    assert first["in-wide"]["width"] > first["prose"]["width"], first
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    twins("panel open")
+    resized(page, 390, 800)
+    twins("phone")
 
 
 def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
@@ -4239,9 +4322,11 @@ def test_a_playground_keeps_one_typed_working_state_until_the_user_chooses(
     playground.get_by_role("radio", name="Quiet", exact=True).press("ArrowRight")
     picker = playground.locator("wa-color-picker")
     picker.get_by_role("button", name="Accent", exact=True).click()
-    picker.get_by_role("textbox").fill("#8b4a5f")
-    picker.get_by_role("textbox").press("Enter")
-    picker.get_by_role("textbox").press("Escape")
+    color_field = picker.get_by_role("textbox")
+    color_field.fill("#8b4a5f")
+    color_field_place = color_field.evaluate("field => window.lfPlace(field)")
+    color_field.press("Enter")
+    color_field.press("Escape")
     page.locator('lf-playground-control[name="title"] input').fill("Ridge note; alert")
 
     assert len(events_model.read_events(serve.page_dir)) == before
@@ -4296,6 +4381,18 @@ def test_a_playground_keeps_one_typed_working_state_until_the_user_chooses(
     undo(page)
     expect(page.locator("#card-instruction")).to_contain_text("12px radius")
     assert playground.evaluate("root => root.values")["compact"] is False
+    # The same native-close loss was present on pre-1711 main (35d91df, Linux run
+    # 37183384374), before this branch's changes.
+    xfail_browser_problem(
+        page,
+        f'typed words left the screen without a key or press: "#8b4a5f" in '
+        f"{color_field_place}",
+        reason=(
+            "WebAwesome hides the native color field after Escape's popup animation, "
+            "outside the words watch's trusted-input lifetime; reproduced on pre-1711 "
+            "main at 35d91df (Linux run 37183384374)."
+        ),
+    )
 
 
 def test_notification_playground_sets_regions_side_by_side_while_its_workspace_is_full_height(
@@ -4975,41 +5072,31 @@ body { font-family: system-ui, sans-serif; }
 </html>
 """
     artifact.write_text(first_artifact, encoding="utf-8")
-    artifact_binding = """            <section id="notification-artifact" hidden>
-              <lf-text-document
-                id="notification-artifact-source"
-                source="notification-artifact"
-                language="html"
-              ></lf-text-document>
-            </section>
-"""
     # The result is a document: the configuration folds away above the artifact, so
-    # the page leaves the workspace Layout.
-    result_source = (
-        source.replace(artifact_binding, "")
-        .replace(
-            '    <main class="layout-workspace" id="notification-workspace">',
-            """    <main class="layout-column">
-      <h1>Review the deployment notification</h1>
-      <details id="notification-configuration">
-        <summary>Original configuration</summary>""",
+    # the page leaves the workspace Layout. Select the authored identities rather
+    # than copying their class lists and source whitespace into this revision writer.
+    result = turbohtml.parse(source)
+    for control in result.select("#notification-playground lf-playground-control"):
+        value = action["detail"]["values"][control.attrs["name"]]
+        control.attrs["value"] = (
+            str(value).lower() if isinstance(value, bool) else str(value)
         )
-        .replace(
-            "      </lf-ask>\n    </main>",
-            """      </lf-ask>
-      </details>
-      <section id="notification-artifact">
-        <lf-text-document
-          id="notification-artifact-source"
-          source="notification-artifact"
-          label="deployment-notification.html"
-          language="html"
-        ></lf-text-document>
-      </section>
-    </main>""",
-            1,
-        )
+    workspace = result.select_one("#notification-workspace")
+    workspace.attrs["class"] = "layout-column"
+    artifact_section = result.select_one("#notification-artifact")
+    configuration = turbohtml.E(
+        "details",
+        {"id": "notification-configuration", "open": ""},
+        turbohtml.E("summary", "Original configuration"),
     )
+    result.select_one("#notification-ask").wrap(configuration)
+    configuration.insert_before(turbohtml.E("h1", "Review the deployment notification"))
+    artifact_section.attrs.pop("hidden")
+    artifact_section.select_one("#notification-artifact-source").attrs["label"] = (
+        "deployment-notification.html"
+    )
+    workspace.append(artifact_section)
+    result_source = result.serialize()
     assert "notification-configuration" in result_source
     assert "layout-workspace" not in result_source
     assert 'notification-artifact" hidden' not in result_source
@@ -5040,6 +5127,9 @@ body { font-family: system-ui, sans-serif; }
 
     configuration = page.locator("#notification-configuration")
     expect(configuration).to_have_attribute("open", "")
+    expect(
+        configuration.locator('lf-playground-control[name="title"] input')
+    ).to_have_value("Checkout needs attention")
     configuration.locator(":scope > summary").click()
     expect(configuration).not_to_have_attribute("open", "")
     configuration.locator(":scope > summary").click()
@@ -9307,6 +9397,8 @@ def test_an_agent_message_edit_updates_the_panel_and_its_inline_thread(browser, 
         },
     )
     told(page)
+    panel_thread.get_by_role("button", name="1 new reply", exact=True).click()
+    inline_thread.get_by_role("button", name="1 new reply", exact=True).click()
 
     expect(inline.locator(".lf-msg-body")).to_contain_text("The north bracket fits.")
     expect(panel.locator(".lf-msg-text")).to_contain_text("The north bracket fits.")
@@ -10232,6 +10324,7 @@ def test_the_walk_travels_to_an_ask_a_page_left_boxless(browser, serve):
     expect(page.locator("#live-question-decision")).to_have_attribute(
         "data-lf-ask", "1"
     )
+    scroll_settled(page)
     was = page.evaluate("() => document.scrollingElement.scrollTop")
     assert was > 0, "the user must have somewhere to have come from"
 

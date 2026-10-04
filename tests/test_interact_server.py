@@ -1,6 +1,7 @@
 """HTTP event and service-address tests."""
 
 import errno
+import fcntl
 import html
 import http.client
 import http.cookiejar
@@ -30,6 +31,7 @@ from conftest import LEAF_COMMAND
 from interact_support import (
     PAGE,
     PAGE_PACKAGES,
+    STATED_TIMEOUT,
     TOKEN,
     append_carried_log_record,
     append_command,
@@ -113,7 +115,7 @@ def test_interaction_trace_records_browser_entries_and_every_request_outcome(
         fetch(
             f"{server}/api/interaction", data=json.dumps(payload).encode(), token=None
         )[0]
-        == 403
+        == 401
     )
     assert fetch(f"{server}/missing")[0] == 404
 
@@ -135,7 +137,7 @@ def test_interaction_trace_records_browser_entries_and_every_request_outcome(
     assert {(row["method"], row["path"], row["status"]) for row in server_rows} >= {
         ("POST", "/api/interaction", 204),
         ("POST", "/api/interaction", 400),
-        ("POST", "/api/interaction", 403),
+        ("POST", "/api/interaction", 401),
         ("GET", "/missing", 404),
     }
     assert all("?" not in row["path"] and row["durationMs"] >= 0 for row in server_rows)
@@ -456,7 +458,7 @@ def test_samples_seed_only_the_declared_threads_and_reset_by_recreation(
     assert event_model.read_events(page_dir) == before
     status, raw = fetch(f"{server}/api/samples", data=b'{"template":"missing"}')
     assert status == 400 and "unknown sample template" in json.loads(raw)["error"]
-    assert fetch(children[0] + "/api/state", token=None)[0] == 403
+    assert fetch(children[0] + "/api/state", token=None)[0] == 401
 
 
 def test_sample_template_lookup_stays_within_the_requesting_page(server, page_dir):
@@ -669,7 +671,7 @@ def test_authored_recordings_are_served_with_seekable_captured_bytes(
                 ) == (200, b"", "10")
                 conn.request("GET", route)
                 answer = conn.getresponse()
-                assert answer.status == 403
+                assert answer.status == 401
                 answer.read()
             finally:
                 conn.close()
@@ -3641,8 +3643,23 @@ def test_temporary_server_close_waits_for_active_request(page_dir, monkeypatch):
     entered = threading.Event()
     release = threading.Event()
     closed = threading.Event()
+    joining = threading.Event()
     responses = []
+    errors = []
     original_get = http_model.PageEndpoint._get
+
+    def join_requests(*args, **kwargs):
+        if not joining.is_set():
+            assert server._thread.is_alive()
+            joining.set()
+        # Expire any proposed wall deadline while the request is still held. A
+        # completion join waits for the request whatever the scheduling speed.
+        bounded = bool(args) or kwargs.get("timeout") is not None
+        if bounded:
+            native_join(timeout=0)
+        else:
+            native_join()
+        assert not server._thread.is_alive(), "close's join ended before its requests"
 
     def delayed_get(endpoint):
         entered.set()
@@ -3654,8 +3671,11 @@ def test_temporary_server_close_waits_for_active_request(page_dir, monkeypatch):
         responses.append(fetch(f"{server.origin}/api/state"))
 
     def close():
-        server.close()
-        closed.set()
+        try:
+            server.close()
+            closed.set()
+        except Exception as error:  # noqa: BLE001 - asserted by the owning test thread
+            errors.append(error)
 
     monkeypatch.setattr(http_model.PageEndpoint, "_get", delayed_get)
     requester = threading.Thread(target=request, daemon=True)
@@ -3663,19 +3683,21 @@ def test_temporary_server_close_waits_for_active_request(page_dir, monkeypatch):
     try:
         server.start()
         requester.start()
-        assert entered.wait(timeout=5), "the server did not accept the request"
+        assert entered.wait(STATED_TIMEOUT), "the server did not accept the request"
+        native_join = server._thread.join
+        monkeypatch.setattr(server._thread, "join", join_requests)
         closer.start()
-        assert not closed.wait(timeout=0.1), (
-            "close returned with a request still active"
-        )
+        assert joining.wait(STATED_TIMEOUT), "close never joined its active request"
+        assert not closed.is_set(), "close returned with a request still active"
         release.set()
-        closer.join(timeout=5)
-        requester.join(timeout=5)
+        closer.join(timeout=STATED_TIMEOUT)
+        requester.join(timeout=STATED_TIMEOUT)
     finally:
         release.set()
         server.close()
     assert not closer.is_alive()
     assert not requester.is_alive()
+    assert errors == []
     assert len(responses) == 1 and responses[0][0] == 200
     assert files_model.read_json(page_dir / "request-finished.json") == {"done": True}
 
@@ -3821,9 +3843,9 @@ def test_a_user_without_the_key_reads_and_writes_nothing(server, page_dir):
     log outranks the document and takes appends from anyone who can POST."""
     publish(page_dir)
 
-    assert fetch(f"{server}/versions/v1.html", token=None)[0] == 403
-    assert fetch(f"{server}/api/state", token=None)[0] == 403
-    assert fetch(f"{server}/", token=None)[0] == 403
+    assert fetch(f"{server}/versions/v1.html", token=None)[0] == 401
+    assert fetch(f"{server}/api/state", token=None)[0] == 401
+    assert fetch(f"{server}/", token=None)[0] == 401
     status, body = fetch(
         f"{server}/api/event",
         data=json.dumps(
@@ -3831,12 +3853,10 @@ def test_a_user_without_the_key_reads_and_writes_nothing(server, page_dir):
         ).encode(),
         token=None,
     )
-    assert status == 403
-    assert json.loads(body) == {
-        "ok": False,
-        "error": schema_model.NO_KEY,
-        "final": True,
-    }
+    # A refused key judges no event: it answers in the gate's own shape, without the
+    # `final` that would have the browser drop the gesture it is still holding for the
+    # moment the user opens the printed link.
+    assert (status, json.loads(body)) == (401, {"error": schema_model.NO_KEY})
 
     # The key gate precedes the body read. A peer that cannot open the page must not
     # get to choose how much a handler allocates or park it waiting for bytes that never
@@ -3857,14 +3877,11 @@ def test_a_user_without_the_key_reads_and_writes_nothing(server, page_dir):
             refusal = json.loads(refused.read())
         finally:
             peer.close()
-    assert (refused.status, refusal) == (
-        403,
-        {"ok": False, "error": schema_model.NO_KEY, "final": True},
-    )
+    assert (refused.status, refusal) == (401, {"error": schema_model.NO_KEY})
     assert refused.version == 11
     assert refused.getheader("Connection") == "close"
     assert refused.will_close
-    assert fetch(f"{server}/versions/v1.html", token="not-the-key")[0] == 403
+    assert fetch(f"{server}/versions/v1.html", token="not-the-key")[0] == 401
 
     assert [
         e for e in event_model.read_events(page_dir) if e["kind"] == "comment"
@@ -3882,10 +3899,11 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
 
     The state-dependent refusals were written through `event_rejection` from the start
     and the gates in front of them were not, which is the split this asserts away: the
-    key, the read-only preview server, and each shape gate answer in the door's own
-    shape rather than in the shape of whichever branch decided them. The key gate runs
-    before the body read, so its refusal is safely attempt-less; every authenticated
-    refusal can and must name the attempt it read. A page's runtime is vendored at
+    read-only preview server and each shape gate answer in the door's own shape rather
+    than in the shape of whichever branch decided them, and each names the attempt it
+    read. The key gate is not among them: it reads no event and lasts only until the
+    printed link is opened (`test_a_user_without_the_key_reads_and_writes_nothing`). A
+    page's runtime is vendored at
     `page init` and the layer around it moves, so the shape gates are reachable by an
     older page's honest event, not only by a hand-written POST."""
     publish(page_dir)
@@ -3914,18 +3932,6 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
         ),
     )
     with running_http_server(preview):
-        status, body = fetch(
-            f"{server}/api/event", data=json.dumps(comment).encode(), token=None
-        )
-        answer = json.loads(body)
-        assert (status, answer.get("ok"), answer.get("final")) == (
-            403,
-            False,
-            True,
-        )
-        assert "attempt" not in answer
-        assert answer.get("error") == schema_model.NO_KEY
-
         refusals = [
             (
                 "the preview server",
@@ -4395,7 +4401,7 @@ def test_the_key_arrives_in_the_query_and_stays_in_the_cookie(server, page_dir):
         fetch(f"{server}/api/state", token=None, headers={"Cookie": f"lf_key={TOKEN}"})[
             0
         ]
-        == 403
+        == 401
     )
 
     # No query this time: the runtime's own fetches never carry one.
@@ -4877,7 +4883,7 @@ def test_an_upgrade_is_answered_by_the_key_gate_like_any_other_request(server):
         body = answered.read()
     finally:
         speaker.close()
-    assert answered.status == 403, (answered.status, body[:400])
+    assert answered.status == 401, (answered.status, body[:400])
     assert b"Traceback" not in body, body[:400]
     assert b"it carries the key" in body, body[:400]
 
@@ -5157,7 +5163,7 @@ def test_one_key_reads_every_page_this_machine_serves(page_dir, tmp_path):
             assert arrival.status == 200
         with pytest.raises(urllib.error.HTTPError) as unvisited:
             opener.open(f"{other}/api/state")
-        assert unvisited.value.code == 403
+        assert unvisited.value.code == 401
         with opener.open(f"{other}/api/state?t={key}") as onward:
             assert onward.status == 200
         for origin in (first, other):
@@ -5495,11 +5501,24 @@ def test_stamp_keeps_its_checked_log_snapshot_until_the_note(monkeypatch, page_d
     )
     entered = threading.Event()
     release = threading.Event()
+    requested = threading.Event()
     original = publishing_model.check_source
+    native_flock = fcntl.flock
+
+    def observed_flock(fd, operation):
+        if (
+            threading.current_thread() is writer
+            and operation == fcntl.LOCK_EX
+            and not requested.is_set()
+        ):
+            with pytest.raises(BlockingIOError):
+                native_flock(fd, operation | fcntl.LOCK_NB)
+            requested.set()
+        return native_flock(fd, operation)
 
     def paused_check(*args, **kwargs):
         entered.set()
-        assert release.wait(5)
+        assert release.wait(STATED_TIMEOUT), "the publication check was never released"
         return original(*args, **kwargs)
 
     monkeypatch.setattr(publishing_model, "check_source", paused_check)
@@ -5521,14 +5540,19 @@ def test_stamp_keeps_its_checked_log_snapshot_until_the_note(monkeypatch, page_d
     }
     publisher = threading.Thread(target=run_stamp)
     publisher.start()
-    assert entered.wait(5)
+    assert entered.wait(STATED_TIMEOUT)
     writer = threading.Thread(target=lambda: append_command(page_dir, action))
-    writer.start()
-    time.sleep(0.05)
-    assert writer.is_alive(), "the browser writer crossed the checked snapshot"
-    release.set()
-    publisher.join(5)
-    writer.join(5)
+    monkeypatch.setattr(fcntl, "flock", observed_flock)
+    try:
+        writer.start()
+        assert requested.wait(STATED_TIMEOUT), (
+            "the browser writer never attempted the held snapshot lock"
+        )
+        assert writer.is_alive(), "the browser writer crossed the checked snapshot"
+    finally:
+        release.set()
+        publisher.join(STATED_TIMEOUT)
+        writer.join(STATED_TIMEOUT)
 
     assert not failures
     assert not publisher.is_alive() and not writer.is_alive()

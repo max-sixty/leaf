@@ -90,6 +90,27 @@ test("thread attention gives a standing user Ask precedence over agent work", ()
   });
 });
 
+test("a thread an open task holds waits on the agent under the task's title", () => {
+  // The server's reading once the reply settled the comment and the task stood.
+  const thread = {
+    resolved: null,
+    workflows: [],
+    attention: {
+      kind: "waiting",
+      reason: "task",
+      workflow: null,
+      task: { id: "t1", title: "Rebuild the banner quieter" },
+    },
+  };
+  assert.deepEqual(threadAttention(thread), {
+    kind: "waiting",
+    label: "Task open",
+    workflow: null,
+    secondary: "Rebuild the banner quieter",
+  });
+  assert.ok(awaitsAgent(thread));
+});
+
 test("a frozen move that owes nothing leaves an owed thread on the user alone", () => {
   // The server's reading: the agent asked over a board it sent, and the user moved a
   // card without answering. The move stands in the thread but does not hold it.

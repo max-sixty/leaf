@@ -195,6 +195,19 @@ included. A key that typed is editing rather than putting away, and a scroll, a
 resize, a script, and the server's news are none of them, so a test that closes a box
 must do it the way a user does.
 
+Health sensors use `watch_platform.js` for native paint scheduling and its matching
+performance clock. A controlled page clock advances product callbacks; Chrome's
+layout-shift records still carry native timestamps. Do not mix those clocks when
+associating input, sampled geometry, and painted movement. `input_work_watch.js`
+retains the trusted input behind timers, animation frames, microtasks, and explicit
+Promise callbacks the page schedules, so delayed Send work keeps its cause and an
+unrelated timer does not acquire one by running nearby. Native `await` continuations
+do not expose their input context to JavaScript instrumentation. A native sensor
+fixture captures its DOM commit callback with `lfInputWork.capture` during the
+trusted handler and invokes that callback after `await`; the capture states the
+cause instead of guessing among concurrent operations. Leaf's draft sends put words
+away synchronously before awaiting delivery.
+
 Leaf's own widgets are held to the widget quality report `package check --render`
 gives a package's author (`leaf/render_gate/widget_quality.py`):
 `test_widget_quality.py` runs it over the base layer and every bundled package.

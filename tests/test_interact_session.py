@@ -20,6 +20,7 @@ import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from pathlib import Path
+from types import SimpleNamespace
 from xml.etree import ElementTree
 
 import pytest
@@ -218,6 +219,44 @@ print("queued")
     )
     program.chmod(0o755)
     return program, log
+
+
+def reaper_retires(page: Path, monkeypatch) -> bool:
+    """Run the real lifetime decision for three cycles, advancing its grace clock.
+
+    The HTTP process remains real and owns its own clock. Here the same reaper reads
+    the real service and claim with controlled product time, so survival is observed
+    after completed decisions rather than after a scheduling allowance.
+    """
+    clock = SimpleNamespace(now=0, cycles=0)
+
+    class ChecksComplete(Exception):
+        pass
+
+    def next_check(_seconds):
+        clock.cycles += 1
+        clock.now += schema_model.ORPHAN_GRACE_SECS + 1
+        if clock.cycles == 3:
+            raise ChecksComplete
+
+    def retire(code):
+        assert code == 0
+        raise SystemExit(code)
+
+    with monkeypatch.context() as controlled:
+        controlled.setattr(
+            server_model,
+            "time",
+            SimpleNamespace(monotonic=lambda: clock.now, sleep=next_check),
+        )
+        controlled.setattr(server_model, "os", SimpleNamespace(_exit=retire))
+        try:
+            server_model.stop_when_service_ends(page)
+        except ChecksComplete:
+            return False
+        except SystemExit:
+            return True
+    raise AssertionError("the reaper neither completed its checks nor retired")
 
 
 def freeze_events(page_dir: Path, events: list[dict]) -> dict:
@@ -909,12 +948,24 @@ def test_thread_attention_names_the_workflow_the_thread_waits_on():
             threads,
             {"user": []},
             browser_served_model.served_workflows(workflows, frozen),
+            [{"id": "t1", "title": "Rebuild", "thread": "root"}],
         )
         assert threads[0]["attention"] == {
             "kind": "waiting",
             "reason": "workflow",
             "workflow": expected,
         }
+    # With no workflow holding it, an open task keeps the thread on the agent.
+    threads = [{"id": "root", "resolved": None, "user_prompt": None}]
+    browser_served_model._apply_thread_attention(
+        threads, {"user": []}, [], [{"id": "t1", "title": "Rebuild", "thread": "root"}]
+    )
+    assert threads[0]["attention"] == {
+        "kind": "waiting",
+        "reason": "task",
+        "workflow": None,
+        "task": {"id": "t1", "title": "Rebuild"},
+    }
 
 
 def test_served_workflows_list_the_strongest_first():
@@ -6540,13 +6591,74 @@ def test_thread_summary_is_admitted_as_one_ordered_thread_range(page_dir):
     assert browser_thread["summaries"] == [projected]
 
 
+@pytest.mark.parametrize("label", [None, "Previous updates"])
+def test_summary_cli_can_fold_without_prose_only_when_explicit(page_dir, label):
+    root = append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "Fix the layout."}
+    )
+    reply = append_carried_log_record(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "parent": root["id"],
+            "text": "Checking the label row.",
+        },
+    )
+    command = [
+        "thread",
+        "summarize",
+        str(page_dir),
+        "--from",
+        root["id"],
+        "--through",
+        reply["id"],
+    ]
+    if label is not None:
+        command.extend(["--label", label])
+
+    missing = CliRunner().invoke(cli_model.cli, command)
+    assert missing.exit_code != 0
+    assert "empty text" in missing.output
+
+    result = CliRunner().invoke(cli_model.cli, [*command, "--text", ""])
+    assert result.exit_code == 0, result.output
+    event = json.loads(result.output)
+    assert event["text"] == ""
+    if label is None:
+        assert "label" not in event
+    else:
+        assert event["label"] == label
+    read = CliRunner().invoke(
+        cli_model.cli, ["page", "state", str(page_dir), root["id"]]
+    )
+    assert read.exit_code == 0, read.output
+    [agent_fold] = json.loads(read.output)["thread"]["summaries"]
+    [thread] = page_state(page_dir)["browser"]["thread"]["threads"]
+    [fold] = thread["summaries"]
+    assert fold == agent_fold
+    assert (fold["label"], fold["text"], fold["covers"]) == (
+        label if label is not None else "Earlier discussion",
+        "",
+        [root["id"], reply["id"]],
+    )
+    assert [message["text"] for message in thread["msgs"]] == [
+        "Fix the layout.",
+        "Checking the label row.",
+    ]
+
+    # Allowing an empty summary body must not admit an empty reply.
+    with pytest.raises(SystemExit, match="empty text"):
+        thread_model.cmd_reply(page_dir, root["id"], "", None, for_event=root["id"])
+
+
 def test_summary_hint_keeps_the_latest_spoken_exchange_outside_reactions(page_dir):
     root = append_carried_log_record(
         page_dir,
         {"kind": "comment", "author": "user", "text": "turn 1"},
     )
     spoken = [root]
-    for number in range(2, 9):
+    for number in range(2, 5):
         spoken.append(
             append_carried_log_record(
                 page_dir,
@@ -6562,7 +6674,7 @@ def test_summary_hint_keeps_the_latest_spoken_exchange_outside_reactions(page_di
         page_dir,
         {"kind": "reply", "author": "user", "parent": root["id"], "token": "mark"},
     )
-    for number in range(9, 11):
+    for number in range(5, 7):
         spoken.append(
             append_carried_log_record(
                 page_dir,
@@ -6589,12 +6701,84 @@ def test_summary_hint_keeps_the_latest_spoken_exchange_outside_reactions(page_di
 
     assert digest["summary_hint"] == {
         "from": spoken[0]["id"],
-        "through": spoken[7]["id"],
+        "through": spoken[3]["id"],
     }
     assert digest["summary_hint"]["through"] not in {
         middle_reaction["id"],
         trailing_reaction["id"],
     }
+
+
+def test_summary_hint_does_not_cross_a_fold_of_ephemeral_updates(page_dir):
+    root = append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "x" * 1000}
+    )
+    updates = [
+        append_carried_log_record(
+            page_dir,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "parent": root["id"],
+                "text": "Checking details.",
+                "ephemeral": True,
+            },
+        )
+        for _ in range(2)
+    ]
+    older = append_carried_log_record(
+        page_dir,
+        {"kind": "reply", "author": "agent", "parent": root["id"], "text": "y" * 1000},
+    )
+    for author in ("agent", "user"):
+        latest = append_carried_log_record(
+            page_dir,
+            {"kind": "reply", "author": author, "parent": root["id"], "text": "Next?"},
+        )
+    within = page_view_model.PageView(page_dir).within
+    events = events_model.read_events(page_dir)
+    update_ids = {update["id"] for update in updates}
+    [unfolded] = thread_context_model.batch_threads(
+        [event for event in events if event["id"] not in update_ids], [latest], within
+    )
+    assert unfolded["summary_hint"] == {"from": root["id"], "through": older["id"]}
+    [folded] = thread_context_model.batch_threads(events, [latest], within)
+    assert folded["summaries"][0]["covers"] == [update["id"] for update in updates]
+    assert "summary_hint" not in folded
+
+
+def test_summary_hint_chooses_a_qualifying_run_over_more_short_messages(page_dir):
+    root = append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "x" * 1000}
+    )
+    long_reply = append_carried_log_record(
+        page_dir,
+        {"kind": "reply", "author": "agent", "parent": root["id"], "text": "y" * 1000},
+    )
+    for _ in range(2):
+        append_carried_log_record(
+            page_dir,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "parent": root["id"],
+                "text": "Checking details.",
+                "ephemeral": True,
+            },
+        )
+    # Three short older messages form a longer run, but the earlier two long
+    # messages are the only run that qualifies for a suggestion.
+    for author in ("agent", "user", "agent", "agent", "user"):
+        latest = append_carried_log_record(
+            page_dir,
+            {"kind": "reply", "author": author, "parent": root["id"], "text": "Next?"},
+        )
+    [digest] = thread_context_model.batch_threads(
+        events_model.read_events(page_dir),
+        [latest],
+        page_view_model.PageView(page_dir).within,
+    )
+    assert digest["summary_hint"] == {"from": root["id"], "through": long_reply["id"]}
 
 
 def test_reply_is_fenced_to_the_exact_current_obligation(page_dir):
@@ -10603,55 +10787,70 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
 
 
 def test_codex_adapter_follows_ownership_across_idle_and_server_stop(
-    codex_claimed_page, under_codex, codex_env, tmp_path
+    codex_claimed_page, codex_env, tmp_path, spawn
 ):
     """Status and server changes do not end a route still owned by the task."""
     page = codex_claimed_page
     program, log = fake_codex_cli(tmp_path)
-    release_start = tmp_path / "release-start"
     session_model.cmd_status(page, "waiting", "comment on the prototype")
     assert hosting_model.cmd_stop(page) is True
-
-    started = under_codex(
-        shlex.join(
-            [
-                *LEAF_COMMAND,
-                "codex",
-                "start",
-                str(page),
-                "--codex-path",
-                str(program),
-            ]
-        ),
-        codex_env
-        | {
-            "CODEX_THREAD_ID": "codex-thread",
-            "FAKE_CODEX_LOG": str(log),
-        },
-        hold_until=release_start,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
+    checks = tmp_path / "adapter-checks.json"
+    adapter = spawn_probe(
+        spawn,
+        page,
+        """\
+from leaf import codex_adapter as adapter
+from leaf.files import read_json
+from leaf.state import write_json
+native_read = adapter.read_watch_pass
+passes = 0
+def completed_read(*args, **kwargs):
+    global passes
+    page = Path(os.environ["PAGE"])
+    state = read_json(page / "status.json")["state"]
+    enabled = read_json(page / "service.json")["enabled"]
+    result = native_read(*args, **kwargs)
+    passes += 1
+    write_json(Path(os.environ["CHECKS"]), {
+        "passes": passes, "state": state, "enabled": enabled,
+    })
+    return result
+adapter.read_watch_pass = completed_read
+raise SystemExit(adapter.run_adapter(os.environ["CODEX_PATH"]))
+""",
+        **codex_env,
+        CLAUDE_CODE_SESSION_ID="",
+        CLAUDE_PID="",
+        CLAUDE_JOB_DIR="",
+        CODEX_THREAD_ID="codex-thread",
+        CODEX_PATH=program,
+        FAKE_CODEX_LOG=log,
+        CHECKS=checks,
     )
-    # The start claims the page for its own short-lived Codex; hand the claim to
-    # this process, whose life a real task's Codex stands for, before it exits.
-    wait_for(
-        lambda: codex_adapter_model.adapter_is_live("codex-thread"),
-        bool,
-        failure="the detached Codex carrier did not start",
-    )
-    announcement = codex_start_announcement(started)
-    release_codex_command(page, release_start)
-    out, err = started.communicate(timeout=60)
-    out = announcement + out
-    assert started.returncode == 0, f"{out}{err}"
     try:
-        # The adapter passes over its pages once a second; two of them have read
-        # the stopped page by now.
-        time.sleep(2.5)
+        waiting = wait_for(
+            lambda: files_model.read_json(checks),
+            lambda reading: (
+                reading is not None
+                and reading["passes"] >= 2
+                and reading["state"] == "waiting"
+                and not reading["enabled"]
+            ),
+            failure=lambda: (
+                "the adapter never completed two reads of the stopped page"
+                + (adapter.stderr.read() if adapter.poll() is not None else "")
+            ),
+        )
         assert codex_adapter_model.adapter_is_live("codex-thread")
-
         session_model.cmd_status(page, "idle", "")
+        wait_for(
+            lambda: files_model.read_json(checks),
+            lambda reading: (
+                reading["passes"] >= waiting["passes"] + 2
+                and reading["state"] == "idle"
+            ),
+            failure="the adapter never completed its idle-page reads",
+        )
         assert codex_adapter_model.adapter_is_live("codex-thread")
         session_model.cmd_status(page, "waiting", "resumed review")
         asked = append_carried_log_record(
@@ -10673,6 +10872,8 @@ def test_codex_adapter_follows_ownership_across_idle_and_server_stop(
             lambda live: not live,
             failure="the adapter did not retire after ownership ended",
         )
+        out, err = adapter.communicate(timeout=STATED_TIMEOUT)
+        assert adapter.returncode == 0, f"{out}{err}"
         assert (
             sum(
                 event["kind"] == "pickup" and asked["id"] in event["events"]
@@ -11340,14 +11541,35 @@ def test_a_fresh_init_does_not_delete_a_concurrently_created_pages_claim(
         assert reached_layer.wait(timeout=10), (
             "the first init never reached its held read"
         )
-        second = spawn(
-            [*LEAF_COMMAND, "page", "init", page],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
+        requested = tmp_path / "second-init-requested"
+        second = spawn_probe(
+            spawn,
+            page,
+            """\
+import fcntl
+native_flock = fcntl.flock
+identity = Path(os.environ["PAGE"]).stat()
+def observed_flock(fd, operation):
+    descriptor = fd if isinstance(fd, int) else fd.fileno()
+    if operation == fcntl.LOCK_EX and os.path.samestat(os.fstat(descriptor), identity):
+        try:
+            native_flock(fd, operation | fcntl.LOCK_NB)
+        except BlockingIOError:
+            Path(os.environ["REQUESTED"]).write_text("blocked")
+        else:
+            raise AssertionError("the overlapping init bypassed the page lease")
+    return native_flock(fd, operation)
+fcntl.flock = observed_flock
+sys.argv = ["leaf", "page", "init", os.environ["PAGE"]]
+cli_model.cli()
+""",
+            REQUESTED=requested,
         )
-        time.sleep(0.1)
-        assert second.poll() is None, "the overlapping init bypassed the page lease"
+        wait_for(
+            requested.exists,
+            bool,
+            failure="the overlapping init never attempted the held page lease",
+        )
         resume.set()
         first.result(timeout=10)
         second_out, second_err = second.communicate(timeout=10)
@@ -11815,7 +12037,9 @@ def test_a_crashed_lease_holder_releases_the_stable_file_for_a_successor(
     assert os.path.samestat(identity, path.stat())
 
 
-def test_a_page_lock_is_its_directory_and_follows_a_page_made_again(tmp_path):
+def test_a_page_lock_is_its_directory_and_follows_a_page_made_again(
+    tmp_path, monkeypatch
+):
     """The page lock is the page directory, so it leaves nothing in the state home
     and ends with the page. A taker that waited on a directory deleted and made
     again at the same path locks the new one, so it excludes the next taker; a
@@ -11826,27 +12050,48 @@ def test_a_page_lock_is_its_directory_and_follows_a_page_made_again(tmp_path):
 
     entered = threading.Event()
     release = threading.Event()
+    requested = threading.Event()
+    native_flock = fcntl.flock
+
+    def observed_flock(fd, operation):
+        if threading.current_thread() is taker and not requested.is_set():
+            assert os.path.samestat(os.fstat(fd), page.stat())
+            with pytest.raises(BlockingIOError):
+                native_flock(fd, operation | fcntl.LOCK_NB)
+            requested.set()
+        return native_flock(fd, operation)
+
+    monkeypatch.setattr(fcntl, "flock", observed_flock)
 
     def take():
         with leases_model.page_locked(page):
             entered.set()
-            assert release.wait(10)
+            assert release.wait(STATED_TIMEOUT), (
+                "the replacement lock was never released"
+            )
 
     taker = threading.Thread(target=take)
-    with leases_model.page_locked(page):
-        taker.start()
-        time.sleep(0.2)  # the taker opens the directory and waits on this lock
-        shutil.rmtree(page)
-        page.mkdir()
-    assert entered.wait(10)
-    fd = os.open(page, os.O_RDONLY)
     try:
-        with pytest.raises(BlockingIOError):
-            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        with leases_model.page_locked(page):
+            taker.start()
+            assert requested.wait(STATED_TIMEOUT), (
+                "the taker never opened the old directory"
+            )
+            shutil.rmtree(page)
+            page.mkdir()
+        assert entered.wait(STATED_TIMEOUT), (
+            "the taker never locked the replacement directory"
+        )
+        fd = os.open(page, os.O_RDONLY)
+        try:
+            with pytest.raises(BlockingIOError):
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        finally:
+            os.close(fd)
     finally:
-        os.close(fd)
-    release.set()
-    taker.join(10)
+        release.set()
+        taker.join(STATED_TIMEOUT)
+    assert not taker.is_alive(), "the taker retained the replacement directory lock"
 
     page.rmdir()
     with pytest.raises(FileNotFoundError), leases_model.page_locked(page):
@@ -13947,14 +14192,13 @@ def test_a_background_jobs_server_lives_as_long_as_the_job(
     assert service_model.claim_page(page_dir)
     assert hosting_model.start_server(page_dir)
     assert files_model.read_json(page_dir / "service.json")["lifetime"] == "session"
-    # Longer than the reaper's grace, so a server that was going to retire on the
-    # dead pid has had the chance.
-    time.sleep(schema_model.ORPHAN_GRACE_SECS + 0.5)
+    assert not reaper_retires(page_dir, monkeypatch)
     assert server_model.running_server(page_dir)
     assert service_model.owned_pages("bg-job") == [page_dir.resolve()]
     assert presence_model.presence(page_dir, [])["session_alive"] is True
 
     (job / "state.json").unlink()
+    assert reaper_retires(page_dir, monkeypatch)
     wait_for(
         lambda: server_model.running_server(page_dir),
         lambda running: not running,
@@ -14278,16 +14522,11 @@ def test_server_stop_closes_accepted_keep_alive_connections(page_dir, standing_s
 
 
 def test_a_sessionless_server_ignores_a_stale_claim_and_requires_explicit_stop(
-    page_dir, dead_pid, standing_server
+    page_dir, dead_pid, standing_server, monkeypatch
 ):
     record_claim(page_dir, id="old-session", pid=dead_pid, agent="Codex")
     server = standing_server(page_dir)
-    # The only held window in the suite, because it is the only assertion with nothing
-    # to consume: a watcher that never starts states nothing, and the server going on
-    # living is not an event to wait for (tests/AGENTS.md, "A wait consumes a fact the
-    # system states"). So the window is the grace a watcher would have acted after,
-    # plus room to act — long enough that the bug, had it been here, would have shown.
-    time.sleep(schema_model.ORPHAN_GRACE_SECS + 0.5)
+    assert not reaper_retires(page_dir, monkeypatch)
     assert server.poll() is None, "a manual server inherited the stale session claim"
     assert hosting_model.cmd_stop(page_dir) is True
     server.wait(timeout=5)
@@ -14681,13 +14920,106 @@ def test_agent_sees_codex_watcher_recovery(codex_claimed_page, capsys, snapshot)
     )
 
 
+@pytest.mark.parametrize(
+    ("older_texts", "suggested"),
+    [
+        pytest.param(["x" * 2000], False, id="one-message-is-too-few"),
+        pytest.param(["x" * 1000, "x" * 999], False, id="below-character-threshold"),
+        pytest.param(["x" * 1000, "x" * 1000], True, id="two-long-messages"),
+        pytest.param(["Earlier detail."] * 3, False, id="three-short-messages"),
+        pytest.param(["Earlier detail."] * 4, True, id="four-short-messages"),
+    ],
+)
+def test_summary_suggestions_only_accompany_new_input(claimed, older_texts, suggested):
+    publish(claimed)
+    root = append_carried_log_record(
+        claimed, {"kind": "comment", "author": "user", "text": older_texts[0]}
+    )
+    older = [root]
+    for number, text in enumerate(older_texts[1:], start=1):
+        older.append(
+            append_carried_log_record(
+                claimed,
+                {
+                    "kind": "reply",
+                    "author": "agent" if number % 2 else "user",
+                    "parent": root["id"],
+                    "text": text,
+                },
+            )
+        )
+    updates = [
+        append_carried_log_record(
+            claimed,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "parent": root["id"],
+                "text": "Checking the rollout details." * 100,
+                "ephemeral": True,
+            },
+        )
+        for _ in range(2)
+    ]
+    previous = append_carried_log_record(
+        claimed,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "parent": root["id"],
+            "text": "The newest exchange stays readable." * 100,
+        },
+    )
+    receive_through(claimed, last_deliverable_seq(claimed))
+    assert delivery_model.pending_batches("s1") == []
+
+    current = append_carried_log_record(
+        claimed,
+        {
+            "kind": "reply",
+            "author": "user",
+            "parent": root["id"],
+            "text": "What do you recommend now?" * 100,
+        },
+    )
+    payload = consume_pending_input("s1")
+    [batch] = payload["batches"]
+    assert [event["id"] for event in batch["events"]] == [current["id"]]
+    [thread] = batch["threads"]
+    assert {
+        message["id"] for message in thread["messages"] if message.get("ephemeral")
+    } == {update["id"] for update in updates}
+    assert ("summary_hint" in thread) is suggested
+    if suggested:
+        assert thread["summary_hint"] == {
+            "from": older[0]["id"],
+            "through": older[-1]["id"],
+        }
+        assert previous["id"] != thread["summary_hint"]["through"]
+    assert consume_pending_input("s1") is None
+
+    # An answer clears the response obligation even when the agent leaves the
+    # optional suggestion alone. It produces no separate summary delivery.
+    thread_model.cmd_reply(
+        claimed,
+        current["id"],
+        "Proceed with the rollout.",
+        None,
+        for_event=current["id"],
+    )
+    assert delivery_model.pending_batches("s1") == []
+    [plan] = hook_carrier_model.read_plans("s1")
+    assert not plan.owed
+    assert plan.state["activity"]["obligations"] == []
+
+
 def test_agent_sees_a_real_summary_suggestion(page_dir, capsys, snapshot):
     publish(page_dir)
     serving(page_dir, 1)
     root = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "Which rollout?"}
     )
-    for number in range(1, 11):
+    for number in range(1, 5):
         append_carried_log_record(
             page_dir,
             {
@@ -14713,7 +15045,7 @@ def test_agent_sees_a_real_summary_suggestion(page_dir, capsys, snapshot):
     [batch] = envelope["batches"]
     assert batch["threads"][0]["summary_hint"]
     # The event carries the ask as well as the digest, so an agent that reads only
-    # what is new is still told the thread wants summarizing.
+    # what is new can still choose whether to summarize the older discussion.
     [event] = batch["events"]
     assert any("summary_hint" in batch["handling"][h] for h in event["handling"])
     snapshot.check(

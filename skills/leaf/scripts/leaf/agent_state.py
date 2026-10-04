@@ -17,6 +17,7 @@ from .registry.storage import layer_metadata, require_registry
 from .revision_artifact import active_enclosing
 from .revisioning import activate_source
 from .schema import DATA_DIR, DATA_FILE
+from .served_state.browser import at_work
 from .served_state.context import read_page
 from .served_state.page import read_served_page
 from .server import running_server
@@ -112,6 +113,11 @@ def _base_state(
         "data_bindings": page_data_binding_inventory(page_dir, registry, events),
         "measurement_lag": [],
         "asks": [],
+        # What is on the user and what is on the agent, each item naming its
+        # subject (`queues` below); and the tasks the agent has
+        # open on the page (`tasks`).
+        "queues": {"on_you": [], "on_agent": []},
+        "tasks": [],
         # Current semantic facts only. A thread's history belongs to
         # `page state PAGE THREAD`; keeping its sequence list here would make this
         # default snapshot grow with every thread turn. A reaction nobody
@@ -266,6 +272,79 @@ def _widget_state(state: dict, page_dir: Path, widget: str, enclosing: dict) -> 
     }
 
 
+def queues(
+    asks: list[dict], threads: list[dict], workflows: list[dict], tasks: list[dict]
+) -> dict:
+    """What is on the user and what is on the agent, as two lists of items, for an
+    agent reading the page whole.
+
+    `on_you` holds each open Ask on the page or in a thread (`ask`); each thread
+    whose attention is the user's for a question its agent turn leaves in prose
+    with no Ask in it (`question`); and each move whose response failed, for the
+    user to send again (`recovery`). `on_agent` holds each move the agent owes an
+    answer (`answer`), each subject it has claimed work on with nothing owed
+    (`work`), and each open task (`task`). Every item names its `subject` and the
+    `thread` it stands in, or null on the page. Each is selected from a reading
+    the served state already made: the Asks, each thread's `attention`, the
+    workflows, and the open tasks."""
+    asked = {ask["thread"] for ask in asks}
+    on_you = [
+        {
+            "kind": "ask",
+            "id": ask["id"],
+            "subject": {"kind": "widget", "id": ask["id"]},
+            "thread": ask["thread"],
+        }
+        for ask in asks
+    ]
+    on_you += [
+        {
+            "kind": "question",
+            "id": thread["id"],
+            "subject": {"kind": "thread", "id": thread["id"]},
+            "thread": thread["id"],
+        }
+        for thread in threads
+        if thread["attention"] is not None
+        and (thread["attention"]["kind"], thread["attention"]["reason"])
+        == ("needs_user", "ask")
+        and thread["id"] not in asked
+    ]
+    on_agent = []
+    for workflow in workflows:
+        item = {
+            "id": workflow["id"],
+            "subject": workflow["subject"],
+            "thread": workflow["thread"],
+        }
+        if workflow["next_actor"] == "user":
+            on_you.append({"kind": "recovery", **item})
+        elif workflow["answer"] is not None:
+            on_agent.append(
+                {
+                    "kind": "answer",
+                    **item,
+                    "answer": workflow["answer"],
+                    "stage": workflow["stage"],
+                }
+            )
+        elif at_work(workflow):
+            on_agent.append({"kind": "work", **item, "detail": workflow["detail"]})
+    on_agent += [
+        {
+            "kind": "task",
+            "id": task["id"],
+            "subject": task["subject"],
+            "thread": task["thread"],
+            "title": task["title"],
+            "agent": task["agent"],
+            "session": task["session"],
+        }
+        for task in tasks
+    ]
+    return {"on_you": on_you, "on_agent": on_agent}
+
+
 def _write_page_state(
     page_dir: Path,
     events: list,
@@ -282,8 +361,10 @@ def _write_page_state(
     the user's standing state and the reports standing on the agent channel,
     authored measurements whose live source has run again
     (`measurement_lag_entries`), the open Asks on the page and in threads (the
-    banner's own count), each comment thread's current state and the agent messages
-    in it the user has not read, and presence beside what answers for it. It is a
+    banner's own count), each comment thread's current state, attention, and the
+    agent messages in it the user has not read, the agent's open tasks, the two
+    queues they and the workflows add up to (`queues`), and presence beside what
+    answers for it. It is a
     selection from the reading /api/state serves (`read_served_page`), computed on
     demand from the log, revision, registry, and source store — no derived reading is
     stored, and none is folded a second time here, so there is no second copy of the
@@ -361,6 +442,14 @@ def _write_page_state(
             thread["unread"] = [
                 item["message"] for item in served_threads[thread["id"]]["unread"]
             ]
+            thread["attention"] = served_threads[thread["id"]]["attention"]
+        state["tasks"] = browser["tasks"]
+        state["queues"] = queues(
+            state["asks"],
+            browser["thread"]["threads"],
+            state["workflows"],
+            state["tasks"],
+        )
     subject = None
     if target is not None:
         subject = page_subject(page_dir, events, target)
@@ -448,6 +537,7 @@ def _write_page_state(
                 "session",
                 "parent",
                 "responds",
+                "ephemeral",
                 "revision",
             ):
                 if key in event:
@@ -497,5 +587,6 @@ def _write_page_state(
                 ],
             },
             "workflows": workflows,
+            "tasks": [task for task in state["tasks"] if task["thread"] == thread_id],
         }
     print(json.dumps(state, indent=2, ensure_ascii=False))

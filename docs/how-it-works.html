@@ -230,8 +230,8 @@ Leaf: /home/you/review has new input; Leaf's prompt hook puts it in your context
         "h2": "If you need clarification, ask in a thread on the picked option. To override the pick in a later version, mark the element `restated` and say why in the version note.",
         "h3": "It answers the page's Ask, so the page shows it as waiting on you until the markup records it. Name the work it selects or unblocks with `leaf status &lt;page&gt; working \"&lt;the work, in a line&gt;\"` before starting it, then do it, write it in, and stamp a version.",
         "h4": "This event's thread has no title yet: name it by adding `--title \"&lt;a few words&gt;\"` to the reply that answers it, so the thread panel lists its subject rather than its opening words. If Leaf has named it from its opening message by then, that name stands.",
-        "h5": "When the event asks for work, name that work before any other, including reading the source it concerns: `leaf status &lt;page&gt; working \"&lt;the work, in a line&gt;\" --on &lt;address&gt;`, where `&lt;address&gt;` is the event's `answer.to`. The move then reads Working, and the line stands beside the thread and in the banner until you answer. Do the work and put its result on the page, with whatever shows it (captures, a figure, the numbers), then answer with `leaf thread reply &lt;page&gt; --for &lt;event-id&gt;`: what changed, in a sentence or two, linking the section that shows it. When the event asks for no work, as a question may not, answer it with that reply at once. The page carries the work, and the thread only the conversation about it. `leaf thread reply` checks any saved page edit and makes it live before posting. If a revision removes what the thread is anchored on, move the thread in the reply that reports it with `--section &lt;id&gt;` (narrowed by `--quote` or `--part` if needed), or `--detach` it if its subject has left the page. Add `--awaits` only if your reply's prose asks the user something.",
-        "h6": "Your reply renders as Markdown, so show code or markup in a fenced block."
+        "h5": "When the event asks for work, name that work before any other, including reading the source it concerns: `leaf status &lt;page&gt; working \"&lt;the work, in a line&gt;\" --on &lt;address&gt;`, where `&lt;address&gt;` is the event's `answer.to`. The move then reads Working, and the line stands beside the thread and in the banner until you answer. Do the work and put its result on the page, with whatever shows it (captures, a figure, the numbers), then answer with `leaf thread reply &lt;page&gt; --for &lt;event-id&gt; &lt; reply.md`: what changed, in a sentence or two, linking the section that shows it. When the event asks for no work, as a question may not, answer it with that reply at once. The page carries the work, and the thread only the conversation about it. `leaf thread reply` checks any saved page edit and makes it live before posting. If a revision removes what the thread is anchored on, move the thread in the reply that reports it with `--section &lt;id&gt;` (narrowed by `--quote` or `--part` if needed), or `--detach` it if its subject has left the page. Add `--awaits` only if your reply's prose asks the user something.",
+        "h6": "Your reply renders as Markdown in a narrow column: give each point its own short paragraph or list item, link a page section as `[its name](#section-id)`, and fence code or markup."
       },
       "events": [
         {
@@ -1652,11 +1652,11 @@ flowchart TD
             <h2>Wide pages</h2>
             <p id="wide-page-what">
               Every Layout on <code>main</code> other than <code>layout-column</code>
-              makes a wide page. A wide page fills the window up to 1600px, inside a
-              gutter that grows from 24px to 64px. Every block, the title included,
-              starts at the same left edge, and paragraphs still wrap at 720px. The
-              title is set larger than on a column page; a workspace sets it smaller, so
-              its header stays one row.
+              makes a wide page. Every block, the title included, starts at the same
+              left edge, and paragraphs still wrap at 720px. A wide, sidebar or tiles
+              page fills the window up to 1600px, inside a gutter that grows from 24px
+              to 64px, with its title set larger than on a column page. A workspace
+              takes the whole window inside a 12px gutter, and its title is the theme's.
             </p>
             <p id="wide-page-tracks">
               <code>layout-wide</code> holds a single flow at that width.
@@ -1960,7 +1960,9 @@ flowchart TD
               </figure>
             </div>
 
-            <pre id="workspace-markup"><code>&lt;main class="layout-workspace"&gt;
+            <pre
+              id="workspace-markup"
+            ><code>&lt;main class="layout-workspace density-working"&gt;
   &lt;header&gt;&lt;h1&gt;Payments alerts&lt;/h1&gt;&lt;/header&gt;
   &lt;div id="regions"&gt;
     &lt;lf-pane label="Queue"&gt;…&lt;/lf-pane&gt;
@@ -1969,7 +1971,7 @@ flowchart TD
 &lt;/main&gt;
 
 &lt;style&gt;
-  #regions { display: grid; grid-template-columns: 1fr 2fr; gap: var(--sp-4); }
+  #regions { display: grid; grid-template-columns: 1fr 2fr; }
   @media (width &lt; 720px) { #regions { grid-template-columns: 1fr; } }
 &lt;/style&gt;</code></pre>
             <p id="workspace-examples">

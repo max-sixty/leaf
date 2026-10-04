@@ -16,6 +16,7 @@ Commands:
   page      Create, check, stamp, and read pages.
   server    Start, run, or stop the local server.
   status    Set the agent's banner state.
+  task      Open or end a task the agent has taken on.
   thread    Open, answer, edit, summarize, or resolve a thread.
   wait      Confirm a delivery, if given, then wait for the next batch.
 

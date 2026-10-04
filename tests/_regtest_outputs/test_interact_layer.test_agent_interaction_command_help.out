@@ -54,7 +54,9 @@ Usage: leaf thread summarize [OPTIONS] PAGE
 Options:
   --from MESSAGE     [required]
   --through MESSAGE  [required]
-  --text TEXT        summary Markdown (default: stdin)
+  --text TEXT        summary Markdown; pass '' to fold without prose (default:
+                     stdin)
+  --label TEXT       disclosure label (default: Earlier discussion)
   --help             Show this message and exit.
 
 ## leaf status --help
@@ -122,6 +124,8 @@ Options:
   --text TEXT     reply text (default: stdin)
   --markup TEXT   widget markup to render after the text, validated here
   --awaits        the reply's prose asks the user a question
+  --ephemeral     progress update; folds when the next ordinary agent reply
+                  arrives
   --title TEXT    name the thread for the panel unless it has a name: a few
                   words, at most 80 characters
   --help          Show this message and exit.

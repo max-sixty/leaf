@@ -330,6 +330,9 @@ def record(
     if page.url != live_url:
         raise RuntimeError(f"the live page navigated from {live_url} to {page.url}")
     wait_until_ready(page)
+    page.locator(".lf-thread").get_by_role(
+        "button", name="1 new reply", exact=True
+    ).click()
     page.wait_for_selector(".lf-thread .lf-msg.agent")
     shot(2300)
 

@@ -536,6 +536,8 @@ def test_package_thread_widgets_keep_local_filters_and_independent_subscriptions
             "node => node.reading.threads.some(thread => thread.root.body.text.trim() === 'Cedar')"
         )
 
+    # Clear the user's filter before this lifecycle test removes its widget.
+    second.locator("input").fill("")
     # The widget taken out stands last, so taking it out moves nothing else.
     removed = second.element_handle()
     second.evaluate("node => node.remove()")
@@ -642,6 +644,8 @@ def test_package_thread_mirrors_share_core_conversation_without_claiming_placeme
     expect(second.locator(".lf-thread-news")).to_have_text("1 new reply")
     expect(second.locator(".lf-page-thread")).not_to_contain_text("While held")
 
+    # This lifecycle removal follows the user's clearing their local filter.
+    second.locator("input").fill("")
     second_handle = second.element_handle()
     second.evaluate("node => node.remove()")
     stopped_at = second_handle.evaluate("node => node.updates")
@@ -2090,6 +2094,9 @@ def test_thread_readiness_waits_for_the_keyed_thread_list(browser, serve):
             window.threadListReleased = true;
             release();
           };
+          document.addEventListener('keydown', event => {
+            if (event.key === 'F9') window.releaseThreadList();
+          });
           application.createComment({
             attempt: 'held-thread-list',
             text: 'A second thread arrives.',
@@ -2109,7 +2116,8 @@ def test_thread_readiness_waits_for_the_keyed_thread_list(browser, serve):
     expect(pending_card).to_have_count(0)
     assert_draft_retained()
 
-    page.evaluate("releaseThreadList()")
+    # The synthetic release needs an input edge to distinguish it from passive news.
+    page.keyboard.press("F9")
     wait_until_ready(page, through="presented")
     expect(pending_card).to_have_count(1)
     assert_draft_retained()

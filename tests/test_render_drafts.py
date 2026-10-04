@@ -12,7 +12,7 @@ from leaf import cli as cli_model
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import service as service_model
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.render_checks import one_frame, rendered, wait_until_ready
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -66,6 +66,7 @@ from render_harness import (
     panel_settled,
     primed,
     refuse,
+    reported_browser_errors,
     resized,
     round_trip,
     scroll_settled,
@@ -79,6 +80,7 @@ from render_harness import (
     until_draft_settled,
     wait_for_revision,
     write,
+    xfail_browser_problem,
 )
 from test_render_application_boundary import THREAD_MIRROR, THREAD_MIRROR_DECLARATION
 from test_render_threads import hold_visible_thread_presentation
@@ -1906,6 +1908,15 @@ def test_a_comment_hidden_by_narrowing_is_revealed_in_the_open_panel(
     else:
         expect(thread.locator(":scope > .lf-thread-summary")).to_be_focused()
 
+    xfail_browser_problem(
+        page,
+        'typed words left the screen without a key or press: "Comment 0" in '
+        + page.get_by_role("searchbox", name="Find in threads").evaluate(
+            "field => window.lfPlace(field)"
+        ),
+        reason="Verified on main 35d91df64 (run 37183384374): native awaited thread arrival clears the query outside its input callback; PR #1705 owns the queued/presentation boundary.",
+    )
+
 
 def test_an_untouched_inline_reply_follows_but_an_emptied_draft_holds(browser, serve):
     """An untouched reply is not a draft; an edit to empty is."""
@@ -2401,10 +2412,6 @@ def test_a_late_refusal_cannot_restore_an_attempt_another_tab_settled(
         expected_error = f"400 {refused.value.url}"
         first_errors = first.lf_errors
         first_errors.remove(expected_error)
-        first_errors.remove(
-            "Failed to load resource: the server responded with a status of 400 "
-            "(Bad Request)"
-        )
         expect(first_say.locator("leaf-text")).to_have_js_property("value", newer or "")
 
         held_state.pop(0).continue_()
@@ -2737,8 +2744,16 @@ def test_poll_settlement_cannot_tombstone_a_newer_durable_generation(
     # and leaves it standing. `held_stale`'s refusal is lifted here rather than earlier,
     # with the older attempt in the log and the older generation still cached, which is
     # the only arrangement that asks anything.
+    accepted_words = (
+        f'typed words left the screen without a key or press: "{old}" in '
+        + stale_say.locator("leaf-text").evaluate("field => window.lfPlace(field)")
+    )
     stale_held.restore()
     told(stale)
+    # The fixture blocked the real storage gesture, then explicitly accepted its
+    # old generation. Polling must retire those old words in favour of the newer one.
+    stale.evaluate("lfWordsJudged()")
+    reported_browser_errors(stale, accepted_words)
     assert stored_draft_text(current, "say:jobs") == newer
     expect(stale_say.locator("leaf-text")).to_have_js_property("value", newer)
     expect(current_say.locator("leaf-text")).to_have_js_property("value", newer)
@@ -4582,6 +4597,10 @@ def test_delayed_thread_destination_yields_to_shared_generation_or_new_input(
     page = editing_reply_page(browser, serve, one_user)
     reply = page.locator(".lf-margin-preview .lf-thread-reply leaf-text")
     write(reply, "The exact generation whose route is waiting.")
+    known_loss = (
+        'typed words left the screen without a key or press: "The exact generation whose route is waiting." in '
+        + reply.evaluate("field => window.lfPlace(field)")
+    )
     other = open_page(browser, page.url, context=one_user)
     held = page.evaluate(
         """async()=>{
@@ -4640,6 +4659,12 @@ def test_delayed_thread_destination_yields_to_shared_generation_or_new_input(
         expect(page.locator("#held-reply-route")).to_be_focused()
     else:
         expect(page.locator("#authored-draft")).to_be_focused()
+
+    xfail_browser_problem(
+        page,
+        known_loss,
+        reason="Verified on main 35d91df64 (run 37183384374): a changed narrowing intent hides the retained reply while Find is edited; PR #1705 owns reply editing lifetime.",
+    )
 
 
 @pytest.mark.parametrize("kind", ["edit", "first-message", "option"])
@@ -4955,20 +4980,32 @@ def test_resume_writing_is_a_touch_action_and_does_not_steal_hint_addresses(
     expect(general).to_have_js_property("value", "A touch draft")
 
 
+@pytest.mark.parametrize("hidden_tab", [False, True])
 def test_resume_writing_reveals_page_editor_from_a_covering_panel_and_keeps_back(
-    browser, serve
+    browser, serve, hidden_tab
 ):
-    """Returning to an offscreen editor clears its cover and keeps the outgoing reading."""
+    """Resume exposes a hidden editor's place immediately and keeps the outgoing reading."""
+    writing = (
+        '<details id="fold" open><summary>Editable content</summary>'
+        '<lf-draft id="editable"><pre>Initial words</pre></lf-draft></details>'
+    )
+    reading = (
+        '<div style="height:2200px"></div><h2 id="elsewhere">Elsewhere</h2>'
+        "<p>Keep this reading position.</p>"
+    )
+    body = writing + reading
+    if hidden_tab:
+        body = (
+            '<lf-tabs id="views"><lf-tab id="writing-view" label="Writing">'
+            + writing
+            + '<div style="height:3300px"></div>'
+            '</lf-tab><lf-tab id="reading-view" label="Reading">'
+            + reading
+            + "</lf-tab></lf-tabs>"
+        )
     page = open_page(
         browser,
-        serve(
-            leaf_page(
-                "Resume travel",
-                '<h1 id="top">Resume travel</h1><details id="fold" open><summary>Editable content</summary>'
-                '<lf-draft id="editable"><pre>Initial words</pre></lf-draft></details>'
-                '<div style="height:2200px"></div><h2 id="elsewhere">Elsewhere</h2><p>Keep this reading position.</p>',
-            )
-        ),
+        serve(leaf_page("Resume travel", '<h1 id="top">Resume travel</h1>' + body)),
     )
     page.locator("#editable .lf-draft-body").click()
     edit = page.locator("#editable .lf-draft-edit")
@@ -4977,6 +5014,8 @@ def test_resume_writing_reveals_page_editor_from_a_covering_panel_and_keeps_back
     page.keyboard.press("ArrowRight")
     page.keyboard.press("Escape")
     page.locator("#fold > summary").click()
+    if hidden_tab:
+        page.get_by_role("tab", name="Reading", exact=True).click()
     page.locator("#elsewhere").click()
     resized(page, 390, 844)
     scroll_settled(page)
@@ -4984,8 +5023,33 @@ def test_resume_writing_reveals_page_editor_from_a_covering_panel_and_keeps_back
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     expect(page.locator(".lf-thread-panel")).to_be_visible()
-    page.keyboard.press("g")
-    page.keyboard.press("i")
+    if hidden_tab:
+        page.evaluate("""() => {
+          const held = new Promise(resolve => { window.releaseResumeLayout = resolve; });
+          document.querySelector('#views').addEventListener('lf-layout', event => {
+            event.detail.present(held);
+            window.resumeLayoutStarted = true;
+          }, {once: true});
+        }""")
+        try:
+            page.keyboard.press("g")
+            page.keyboard.press("i")
+            page.wait_for_function("window.resumeLayoutStarted === true")
+            one_frame(page)
+            expect(page.locator("#writing-view")).to_be_visible()
+            first_view = page.locator("#editable").evaluate("""async draft => {
+              const {landingBand} = await window.__lfRuntimeImport('/runtime/geometry.js');
+              const rect = draft.getBoundingClientRect();
+              const band = landingBand(document.scrollingElement);
+              return {top: rect.top, bottom: rect.bottom, low: band.top, high: band.bottom};
+            }""")
+            assert first_view["top"] >= first_view["low"], first_view
+            assert first_view["bottom"] <= first_view["high"], first_view
+        finally:
+            page.evaluate("releaseResumeLayout()")
+    else:
+        page.keyboard.press("g")
+        page.keyboard.press("i")
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
     expect(edit).to_be_focused()
     expect(edit).to_be_in_viewport()
@@ -5002,6 +5066,8 @@ def test_resume_writing_reveals_page_editor_from_a_covering_panel_and_keeps_back
     edit.press("ControlOrMeta+a")
     edit.press("Backspace")
     page.keyboard.press("Escape")
+    if hidden_tab:
+        page.get_by_role("tab", name="Reading", exact=True).click()
     page.locator("#elsewhere").click()
     page.keyboard.press("g")
     page.keyboard.press("i")

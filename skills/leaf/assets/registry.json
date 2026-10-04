@@ -227,7 +227,7 @@
               ]
             }
           },
-          "text": "This event's thread has grown long, and its entry in the batch's `threads` carries a `summary_hint`. Once you have replied, read the messages from its `from` through its `through` and summarize them with `leaf thread summarize <page> --from <from> --through <through>`, as the Leaf skill's `references/threads.md`, \"Summarize a long discussion\", says."
+          "text": "This thread has enough earlier discussion to consider a summary; its entry in the batch's `threads` carries a `summary_hint`. If a summary would help the user navigate it, read the originals from `from` through `through` and use `leaf thread summarize <page> --from <from> --through <through>`, following the Leaf skill's `references/threads.md`, \"Summarize a long discussion\". Choose whether and when to summarize; this hint adds no response obligation."
         },
         {
           "when": {
@@ -391,10 +391,10 @@
     "answering": {
       "reply": [
         {
-          "text": "When the event asks for work, name that work before any other, including reading the source it concerns: `leaf status <page> working \"<the work, in a line>\" --on <address>`, where `<address>` is the event's `answer.to`. The move then reads Working, and the line stands beside the thread and in the banner until you answer. Do the work and put its result on the page, with whatever shows it (captures, a figure, the numbers), then answer with `leaf thread reply <page> --for <event-id>`: what changed, in a sentence or two, linking the section that shows it. When the event asks for no work, as a question may not, answer it with that reply at once. The page carries the work, and the thread only the conversation about it. `leaf thread reply` checks any saved page edit and makes it live before posting. If a revision removes what the thread is anchored on, move the thread in the reply that reports it with `--section <id>` (narrowed by `--quote` or `--part` if needed), or `--detach` it if its subject has left the page. Add `--awaits` only if your reply's prose asks the user something."
+          "text": "When the event asks for work, name that work before any other, including reading the source it concerns: `leaf status <page> working \"<the work, in a line>\" --on <address>`, where `<address>` is the event's `answer.to`. The move then reads Working, and the line stands beside the thread and in the banner until you answer. Do the work and put its result on the page, with whatever shows it (captures, a figure, the numbers), then answer with `leaf thread reply <page> --for <event-id> < reply.md`: what changed, in a sentence or two, linking the section that shows it. When the event asks for no work, as a question may not, answer it with that reply at once. The page carries the work, and the thread only the conversation about it. `leaf thread reply` checks any saved page edit and makes it live before posting. If a revision removes what the thread is anchored on, move the thread in the reply that reports it with `--section <id>` (narrowed by `--quote` or `--part` if needed), or `--detach` it if its subject has left the page. Add `--awaits` only if your reply's prose asks the user something."
         },
         {
-          "text": "Your reply renders as Markdown, so show code or markup in a fenced block."
+          "text": "Your reply renders as Markdown in a narrow column: give each point its own short paragraph or list item, link a page section as `[its name](#section-id)`, and fence code or markup."
         },
         {
           "when": {
@@ -422,7 +422,7 @@
           "text": "Your turn's first and final messages are the reply, and `leaf thread reply` refuses this event. Before your first tool call, open with a short message to the user: the answer, or what you are about to do. Leaf streams it into the thread at once, and later working messages stay in Codex. Finish the reply in your final message: the answer, or what changed and where it appears. The reply leaves the thread on its anchor."
         },
         {
-          "text": "Your reply renders as Markdown, so show code or markup in a fenced block."
+          "text": "Your reply renders as Markdown in a narrow column: give each point its own short paragraph or list item, link a page section as `[its name](#section-id)`, and fence code or markup."
         },
         {
           "when": {
@@ -611,6 +611,7 @@
             "session": {"type": "string", "minLength": 1},
             "markup": {"type": "string", "minLength": 1},
             "awaits": {"const": true},
+            "ephemeral": {"const": true},
             "failure": {"type": "string", "minLength": 1},
             "responds": {"type": "string", "minLength": 1},
             "attempt": {"type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$"}
@@ -620,6 +621,11 @@
           "oneOf": [{"required": ["text"]}, {"required": ["token"]}],
           "dependentSchemas": {
             "publication": {"required": ["revision"], "properties": {"author": {"const": "agent"}}},
+            "ephemeral": {
+              "required": ["text"],
+              "properties": {"author": {"const": "agent"}},
+              "not": {"anyOf": [{"required": ["responds"]}, {"required": ["awaits"]}, {"required": ["markup"]}, {"required": ["failure"]}, {"required": ["anchor"]}]}
+            },
             "token": {"not": {"required": ["markup"]}},
             "failure": {"required": ["text", "responds"], "properties": {"author": {"const": "agent"}}},
             "anchor": {
@@ -630,7 +636,7 @@
         },
         "browser": {
           "required": ["kind", "parent", "revision"],
-          "not": {"anyOf": [{"required": ["markup"]}, {"required": ["awaits"]}, {"required": ["anchor"]}, {"required": ["responds"]}, {"required": ["failure"]}]}
+          "not": {"anyOf": [{"required": ["markup"]}, {"required": ["awaits"]}, {"required": ["anchor"]}, {"required": ["responds"]}, {"required": ["failure"]}, {"required": ["ephemeral"]}]}
         }
       },
       "edit": {
@@ -665,7 +671,8 @@
             "thread": {"type": "string", "minLength": 1},
             "from": {"type": "string", "minLength": 1},
             "through": {"type": "string", "minLength": 1},
-            "text": {"type": "string", "minLength": 1},
+            "text": {"type": "string"},
+            "label": {"type": "string", "minLength": 1},
             "agent": {"type": "string", "minLength": 1},
             "session": {"type": "string", "minLength": 1}
           },
@@ -721,6 +728,53 @@
             "session": {"type": "string", "minLength": 1}
           },
           "required": ["attention", "id", "ts", "author", "kind", "seq", "thread", "title", "agent", "session"],
+          "additionalProperties": false
+        }
+      },
+      "task": {
+        "record": {
+          "type": "object",
+          "properties": {
+            "attention": {"type": "boolean"},
+            "id": {"type": "string", "minLength": 1},
+            "ts": {"type": "string", "minLength": 1},
+            "author": {"const": "agent"},
+            "kind": {"const": "task"},
+            "seq": {"type": "integer", "minimum": 1},
+            "subject": {
+              "type": "object",
+              "properties": {
+                "kind": {"const": "thread"},
+                "id": {"type": "string", "minLength": 1}
+              },
+              "required": ["kind", "id"],
+              "additionalProperties": false
+            },
+            "title": {"type": "string", "minLength": 1, "maxLength": 80, "pattern": "\\S", "not": {"pattern": "[\\r\\n]"}},
+            "agent": {"type": "string", "minLength": 1},
+            "session": {"type": "string", "minLength": 1}
+          },
+          "required": ["attention", "id", "ts", "author", "kind", "seq", "subject", "title", "agent", "session"],
+          "additionalProperties": false
+        }
+      },
+      "task_end": {
+        "record": {
+          "type": "object",
+          "properties": {
+            "attention": {"type": "boolean"},
+            "id": {"type": "string", "minLength": 1},
+            "ts": {"type": "string", "minLength": 1},
+            "author": {"const": "agent"},
+            "kind": {"const": "task_end"},
+            "seq": {"type": "integer", "minimum": 1},
+            "task": {"type": "string", "minLength": 1},
+            "outcome": {"enum": ["done", "failed", "dropped"]},
+            "detail": {"type": "string", "minLength": 1, "maxLength": 500, "pattern": "\\S"},
+            "agent": {"type": "string", "minLength": 1},
+            "session": {"type": "string", "minLength": 1}
+          },
+          "required": ["attention", "id", "ts", "author", "kind", "seq", "task", "outcome", "agent", "session"],
           "additionalProperties": false
         }
       },

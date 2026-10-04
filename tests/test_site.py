@@ -1190,7 +1190,9 @@ def test_the_public_catalog_paints_in_its_final_position_before_leaf_loads(
 def test_published_workspaces_keep_their_allocation_without_site_note(
     hosted, browser, name
 ):
-    """A published workspace owns main and keeps its bounded reading regions."""
+    """A published workspace owns main and keeps its bounded reading regions: the
+    page does not scroll, and each region scrolls on its own, whether that is a pane's
+    body or the workspace's body itself, as where a side-list queue is the body."""
     page = open_page(browser, f"{hosted}/examples/{name}/")
     page.set_viewport_size({"width": 1200, "height": 900})
     expect(page.locator("body > main.layout-workspace")).to_have_count(1)
@@ -1198,12 +1200,17 @@ def test_published_workspaces_keep_their_allocation_without_site_note(
     page.wait_for_function(
         """() => {
           const page = document.documentElement;
-          const regions = document.querySelectorAll(
-            'body > main.layout-workspace [data-lf-reading-role="pane"]');
-          const bodies = [...regions].map(region =>
-            [...region.children].find(child => !child.matches('header, footer')));
-          return page.scrollHeight === page.clientHeight && bodies.length > 0
-            && bodies.every(body => getComputedStyle(body).overflowY === 'auto');
+          const main = document.querySelector('body > main.layout-workspace');
+          const pane = '[data-lf-reading-role="pane"]';
+          const bodyOf = (box) =>
+            [...box.children].find(child => !child.matches('header, footer'));
+          const regions = [
+            ...[...main.children].filter(
+              child => !child.matches('header, footer') && !child.matches(pane)),
+            ...[...main.querySelectorAll(pane)].map(bodyOf),
+          ];
+          return page.scrollHeight === page.clientHeight && regions.length > 0
+            && regions.every(region => getComputedStyle(region).overflowY === 'auto');
         }"""
     )
 

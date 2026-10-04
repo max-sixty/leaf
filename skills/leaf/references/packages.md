@@ -188,7 +188,9 @@ under `$idioms` in the package's
 
 A rule that draws a box's inset — padding, border, or tinted field — declares
 `--lf-block-frame: 1` in the same rule. The shared layout uses that declaration to trim child
-margins and bound wide content. The trim follows the frame's edge down through each
+margins and bound wide content. A box that is a section of the page's own flow rather than a
+box on it, as a page tab's panel is, also declares `--lf-page-flow: 1`, so wide content in
+it takes the page's room and a table in it keeps to its content. The trim follows the frame's edge down through each
 first or last child, so a wrapper between the frame and the margin it trims declares
 nothing. A box that lays its children
 out side by side (a flex row, a grid) declares `--lf-holds-edge: 1`, so the trim stops at
@@ -580,11 +582,14 @@ as described above.
 
 When Leaf travels to a target, such as a comment anchor or an Ask, it first dispatches
 `lf-reveal` on each ancestor of the target and the target itself, outermost first, with
-`detail: {target, mayReveal, present}`. A widget that folds content listens for it and
-opens whatever holds `target`. `mayReveal` is the traveller's retained intent: an
-asynchronous listener checks it after each wait. A listener whose opening settles
-asynchronously passes that promise to `present(promise)`, so the travel waits for the
-target's geometry. `lf-tabs` is the worked example.
+`detail: {target, mayReveal, present, replacedView}`. A widget that folds content listens
+for it and opens whatever holds `target`. `mayReveal` is the traveller's retained intent:
+an asynchronous listener checks it after each wait. A widget replacing a mutually
+exclusive visible view opens it and calls `replacedView()` synchronously during dispatch.
+Travel places that destination immediately. Expanding content within the current view
+does not report replacement and retains ordinary scrolling. A listener joins later
+layout completion through `present(promise)`; travel waits for those promises and reads
+fresh geometry for its final placement. `lf-tabs` is the worked example.
 
 `registerContribution({key, target, source?, read, activate})` is the package boundary for
 shared page actions and statuses. `read()` returns the contribution's complete current reading,

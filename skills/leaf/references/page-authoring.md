@@ -178,8 +178,9 @@ Two arrange a box's children, on `main` or on any block:
 
 On `main`, every class but `layout-column` makes a wide page: every block, the title
 included, starts at one left edge and takes the page's width, and text keeps the
-reading measure. The title is set larger, and a workspace sets it smaller so its
-header stays one row. `layout-column` on a block keeps the measure but gives it no
+reading measure. A wide, sidebar or tiles page is capped at the widest page and
+sets its title larger; a workspace takes the whole window and leaves its title to the
+theme. `layout-column` on a block keeps the measure but gives it no
 room to break out into, since that room is the page's.
 
 A Layout is a starting point. The page's own `<style>` comes after it in the cascade, so
@@ -248,7 +249,7 @@ widget that composes its own regions, or the page's own grid of panes, such as a
 log beside the chart it explains, which the page's `<style>` places:
 
 ```html
-<main class="layout-workspace">
+<main class="layout-workspace density-working">
   <header><h1>…</h1><p><span class="tag warn">…</span></p></header>
   <div id="regions">
     <lf-pane id="log" label="Log">…</lf-pane>
@@ -258,12 +259,16 @@ log beside the chart it explains, which the page's `<style>` places:
 ```
 
 ```css
-#regions { display: grid; grid-template-columns: minmax(16rem, 1fr) 2fr; gap: var(--sp-4); }
+#regions { display: grid; grid-template-columns: minmax(16rem, 1fr) 2fr; }
 @media (width < 720px) { #regions { grid-template-columns: 1fr; } }
 ```
 
 Stack the panes below 720px, where the Layout lets the page scroll: panes stacked in a
 wider window still share its one height, and `page check --render` refuses them.
+
+`density-working` is a style, not a Layout: on any block it sets smaller type, tighter
+spacing and options as rows, for a surface the reader operates rather than reads down.
+A workspace usually takes it, and so can a dense pane or table on a column page.
 
 A queue whose items open one at a time beside it, such as tickets, cases or findings to
 decide, is one `lf-tabs list="side"` as the body: its list is the queue and each item an
@@ -279,10 +284,10 @@ their natural height and the page scrolls.
 
 Make a region show what it holds, so scrolling one stays the exception: a region a
 reader has to scroll through to reach its decision is read in two halves. `page check
---render` names each pane or body that runs past its region at a desktop size; trim it
-to what the region shows, or split it. A pane that is a reader for something long, such
-as a source file or a log, is the exception the region scrolls for, and the advice on it
-can stand.
+--render` names each pane or body that runs past its region, with the window widths it
+does so at; trim it to what the region shows, or split it. A pane that is a reader for
+something long, such as a source file or a log, is the exception the region scrolls
+for, and the advice on it can stand.
 
 ### Bounds and widths
 

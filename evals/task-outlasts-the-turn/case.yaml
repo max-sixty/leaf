@@ -1,0 +1,45 @@
+# Added with `leaf task`: work a background worker carries past the turn is held as a
+# task on the user's thread, since the reply settles the comment and a `working` claim
+# lapses with the turn. Scores conversation-loop.md, "Long-running work". Base at
+# 5984ca1c9, which has no task, passed 0 of 2 runs on Claude Code; the change 2 of 2.
+description: task-outlasts-the-turn
+metadata:
+  purpose: 'Conversation loop: work a background worker carries past the turn gets a `leaf task` on the
+    thread it answers, beside the reply, and the task is ended once the result lands.'
+  tags:
+  - wait-loop
+vars:
+  prompt: |
+    You are a Claude Code session driving a live Leaf page at
+    ~/.local/state/leaf/pages/design, served with `leaf server start`. A delivery
+    just brought one user comment, id 7c41d0e2, opening thread 7c41d0e2 on the
+    banner: "Make the banner quieter, and drop its border." Its answering clause calls
+    for `leaf thread reply --for 7c41d0e2`.
+
+    The rebuild takes about twenty minutes, so you start a background subagent on it
+    and will end your turn while it runs. Its result will wake a later turn, in which
+    you will stamp version 4 with the quieter banner.
+
+    Read whatever instructions you need. Only Skill and Read run here, so write out,
+    in order, each command you would run on the page in this turn, and then each one
+    you would run in the later turn after stamping version 4.
+assert:
+- type: javascript
+  metric: loads-leaf
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/SKILL\.md
+- type: javascript
+  metric: reads-conversation-loop
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/references/conversation-loop\.md
+- type: llm-rubric
+  metric: judgment
+  value: |
+    Pass only if, in this turn, the commands include `leaf task open` on the page
+    naming 7c41d0e2 (the comment or its thread) with a title for the rebuild, and a
+    `leaf thread reply` answering 7c41d0e2; and if, in the later turn, they include
+    `leaf task end` naming that task with outcome `done` and a detail pointing at
+    version 4. A `leaf status working` claim alongside is fine. Fail if no task is
+    opened, if the task is opened only in the later turn, or if it is never ended.

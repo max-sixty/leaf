@@ -85,7 +85,16 @@ import {
   pageScope,
 } from "../keyboard/register.js";
 
-import { elementById, inChrome, pageRange, pageText, pageWords } from "../passages.js";
+import {
+  elementById,
+  inChrome,
+  pageRange,
+  pageText,
+  pageWords,
+  programmaticSelection,
+  selectEnds,
+  selectionBackward,
+} from "../passages.js";
 import {
   leftThePage,
   pageSelection,
@@ -111,6 +120,7 @@ import { retainUserIntent, restrictUserIntent } from "../user-intent.js";
 export function createResponseSurface({
   panelElements: { generalInput, panel, threadsBox, inPanel },
   panelIsOpen,
+  rememberSelection,
   landIn,
   setPanel,
   threadHere,
@@ -634,31 +644,31 @@ export function createResponseSurface({
   // ordering freely. The press under way owns the selection and queues its own step on
   // its own release, so standing down here drops no work.
   //
-  // Which press is under way is asked as "has one begun since this was queued" rather
-  // than as "is one down now". A press whose release never reaches the document — a
-  // handler that stops it, a button let go off-window — leaves a pressed flag standing
-  // for the rest of the page's life, and read here that would put every later selection
-  // out too: the next drag would raise no field and read as a drag that selected
-  // nothing. A count compared against the one this step was queued behind cannot get
-  // stuck, because the step queued by the next release carries the count it finds.
+  // The shared retained intent asks whether a newer gesture has begun, including
+  // Escape before the queued frame. A pressed flag cannot answer that: a release
+  // stopped by a widget or let go off-window could leave it standing indefinitely.
   let selectionUpdate = null;
-  let pressesBegun = 0;
+  let selectionIntent = null;
   const deferSelectionUpdate = (update) => {
-    const queuedBehind = pressesBegun;
+    const mayUpdate = retainUserIntent();
+    selectionIntent = mayUpdate;
     cancelRender(selectionUpdate);
     selectionUpdate = nextRender(() => {
       selectionUpdate = null;
-      if (pressesBegun !== queuedBehind) return;
+      selectionIntent = null;
+      if (!mayUpdate()) return;
       update();
     });
   };
   const scheduleSelectionUpdate = () => {
-    if (selectionUpdate) return;
+    // Keep this gesture's pending snap, but replace work a newer gesture retired.
+    if (selectionUpdate && selectionIntent()) return;
     deferSelectionUpdate(updateFab);
   };
   let pointerSelecting = false;
   let selectionDragged = false;
   let selectionRangeDuringPress = null;
+  let selectionBackwardDuringPress = false;
   let selectionPressPoint = null;
   // A widget may turn a press over page words into a different gesture after pointerdown.
   // `preventDefault` on its bubbling pointermove is the shared claim boundary: the
@@ -772,7 +782,10 @@ export function createResponseSurface({
     const selection = pageSelection();
     if (!selection || leftThePage(selection)) return;
     const anchor = selectionAnchor(selection);
-    if (hasQuote(anchor)) selectionRangeDuringPress = pageRange(selection).cloneRange();
+    if (hasQuote(anchor)) {
+      selectionRangeDuringPress = pageRange(selection).cloneRange();
+      selectionBackwardDuringPress = selectionBackward(selection);
+    }
   };
 
   const finishPointerSelection = (ev) => {
@@ -806,7 +819,10 @@ export function createResponseSurface({
       releasePress();
       return;
     }
-    if (primaryPointerPressed) scheduleSelectionUpdate();
+    if (primaryPointerPressed) {
+      if (pointerSelecting && !selectionGestureClaimed) rememberSelection();
+      scheduleSelectionUpdate();
+    }
     primaryPointerPressed = false;
     pointerSelecting = false;
     selectionGestureClaimed = false;
@@ -887,7 +903,6 @@ export function createResponseSurface({
       (ev) => {
         if (drawModeActive()) return;
         primaryPointerPressed = ev.isPrimary && ev.button === 0;
-        if (primaryPointerPressed) pressesBegun++;
         pointerSelecting = primaryPointerPressed && pageWords(ev.target);
         selectionDragged = false;
         selectionRangeDuringPress = null;
@@ -926,8 +941,11 @@ export function createResponseSurface({
     document.addEventListener("pointerup", finishPointerSelection);
     document.addEventListener("pointercancel", finishPointerSelection);
     document.addEventListener("selectionchange", () => {
+      const automatic = programmaticSelection(getSelection());
       if (primaryPointerPressed) {
         rememberPointerSelection();
+        if (coarsePointer.matches && pointerSelecting && !selectionGestureClaimed)
+          rememberSelection();
         const stands = Boolean(pageSelection());
         if (stands !== selectionStood) {
           selectionStood = stands;
@@ -944,6 +962,9 @@ export function createResponseSurface({
       // so nothing was left to re-read and the target never moved.
       if (actionPress || targetActivation || takesLetters(document.activeElement))
         return;
+      const selection = pageSelection();
+      if (coarsePointer.matches && selection && !automatic)
+        rememberSelection(selection);
       scheduleSelectionUpdate();
     });
     document.addEventListener("mouseup", (ev) => {
@@ -978,11 +999,17 @@ export function createResponseSurface({
         selectionDragged && (escaped || !hasQuote(selected))
           ? selectionRangeDuringPress
           : null;
+      const selectedByGesture =
+        selectionDragged || ev.detail > 1 || selection?.toString() !== wordsAtPress;
+      // Keep the user's completed selection before its deferred snap. Escape or a
+      // next gesture can legitimately arrive before that frame; it must still have
+      // selected a passage. The completed snap below refines that same gesture.
+      if (selectedByGesture && hasQuote(selected) && !escaped) rememberSelection();
       deferSelectionUpdate(() => {
         if (completed) {
-          const restored = getSelection();
-          restored.removeAllRanges();
-          restored.addRange(completed);
+          const head = [completed.startContainer, completed.startOffset];
+          const tail = [completed.endContainer, completed.endOffset];
+          selectEnds(...(selectionBackwardDuringPress ? [tail, head] : [head, tail]));
         } else if (escaped) {
           // A drag that crossed out before it covered anything has no passage to offer and
           // no words to put back. The browser's own selection stays where it is — the user
@@ -991,6 +1018,7 @@ export function createResponseSurface({
           return;
         }
         if (ev.button === 0) snapSelection();
+        if (selectedByGesture) rememberSelection();
         updateFab();
       });
     });
@@ -1002,6 +1030,21 @@ export function createResponseSurface({
       if (isReactArmed()) return;
       if (takesLetters(ev.target) || inChrome(ev.target)) return;
       if (!pageWords(ev.target) && !pageSelection()) return;
+      if (
+        (ev.shiftKey &&
+          [
+            "ArrowLeft",
+            "ArrowRight",
+            "ArrowUp",
+            "ArrowDown",
+            "Home",
+            "End",
+            "PageUp",
+            "PageDown",
+          ].includes(ev.key)) ||
+        (ev.key.toLowerCase() === "a" && (ev.metaKey || ev.ctrlKey))
+      )
+        rememberSelection();
       scheduleSelectionUpdate();
     });
     document.addEventListener("mousedown", (ev) => {

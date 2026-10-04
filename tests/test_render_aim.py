@@ -789,7 +789,7 @@ def test_a_side_comment_grows_down_from_the_line_it_was_opened_on(
     write(field, "First line\nSecond line\nThird line")
     page.reload()
     rendered(page)
-    page.locator("#passage").click(modifiers=["Alt"])
+    # Startup recovery has already reopened the editor at its saved passage.
     field = open_compact_comment(page)
     expect(field).to_have_js_property("value", "First line\nSecond line\nThird line")
     rendered(page)
@@ -3882,8 +3882,16 @@ def test_open_draft_stays_visible_when_existing_subject_hides(browser, serve):
         (
             "inactive-tab",
             "#tab-word",
-            "document.getElementById('other-view').dispatchEvent(new CustomEvent('lf-reveal',{bubbles:true}))",
-            "document.getElementById('active-view').dispatchEvent(new CustomEvent('lf-reveal',{bubbles:true}))",
+            """async () => {
+              const {reveal} = await window.__lfRuntimeImport('/runtime/widget-elements.js');
+              const {retainUserIntent} = await window.__lfRuntimeImport('/runtime/user-intent.js');
+              reveal(document.getElementById('other-view'), retainUserIntent());
+            }""",
+            """async () => {
+              const {reveal} = await window.__lfRuntimeImport('/runtime/widget-elements.js');
+              const {retainUserIntent} = await window.__lfRuntimeImport('/runtime/user-intent.js');
+              reveal(document.getElementById('active-view'), retainUserIntent());
+            }""",
         ),
         (
             "offscreen",

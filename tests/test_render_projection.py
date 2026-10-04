@@ -116,6 +116,7 @@ from render_harness import (
     post_event,
     refuse,
     regions_side_by_side,
+    reported_browser_errors,
     resized,
     root_overflow,
     round_trip,
@@ -1416,10 +1417,12 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
           const mark = link.querySelector('.lf-external-mark').getBoundingClientRect();
           const box = link.getBoundingClientRect();
           return {width: mark.width, markMid: mark.top + mark.height / 2,
-                  linkMid: box.top + box.height / 2};
+                  linkMid: box.top + box.height / 2,
+                  text: parseFloat(getComputedStyle(link).fontSize)};
         }"""
     )
-    assert icon_geometry["width"] >= 12
+    # Sized to the link's words at whatever density the page sets them.
+    assert icon_geometry["width"] >= 0.85 * icon_geometry["text"], icon_geometry
     assert icon_geometry["markMid"] == pytest.approx(icon_geometry["linkMid"], abs=1)
     expect(case.get_by_text("Capture details", exact=True)).to_be_visible()
     expect(case.locator(".lf-vr-provenance")).to_be_hidden()
@@ -1763,7 +1766,15 @@ def test_a_large_diff_filters_navigates_and_replays_explicit_file_reviews(
 
     resized(page, 390, 900)
     assert root_overflow(page) == 0
+    printed_query = (
+        'typed words left the screen without a key or press: "second" in '
+        + search.evaluate("field => window.lfPlace(field)")
+    )
     page.emulate_media(media="print")
+    # This fixture explicitly enters print rendering, where search tools disappear;
+    # no native Print gesture is delivered by media emulation.
+    page.evaluate("lfWordsJudged()")
+    reported_browser_errors(page, printed_query)
     expect(diff.locator(".lf-diff-tools")).to_be_hidden()
     for index in range(3):
         expect(summaries.nth(index)).to_be_visible()

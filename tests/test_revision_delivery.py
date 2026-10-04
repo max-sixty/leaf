@@ -7,7 +7,9 @@ from urllib.parse import urljoin, urlsplit
 import pytest
 import tinycss2
 from interact_support import PAGE
+from leaf import revisioning as revisioning_model
 from leaf.exporting import AssetInliner
+from leaf.files import revision_path
 from leaf.http import scope_page_urls
 from leaf.revision_artifact import ArtifactError, Resource, capture_artifact
 from leaf.revision_delivery import (
@@ -105,6 +107,7 @@ def test_stylesheets_rebase_nested_imports_urls_and_preserve_inert_values():
   filter: url(#local);
   content: "url(../not-an-asset.png)";
   --embedded: url("data:image/svg+xml;base64,PHN2Zy8+");
+  background-image: image-set(url(../images/1x.png) 1x, "../images/2x.png" 2x);
 } }
 """
     delivered = deliver_resource(
@@ -120,6 +123,10 @@ def test_stylesheets_rebase_nested_imports_urls_and_preserve_inert_values():
     assert "filter: url(#local)" in delivered
     assert 'content: "url(../not-an-asset.png)";' in delivered
     assert 'url("data:image/svg+xml;base64,PHN2Zy8+")' in delivered
+    assert (
+        f'image-set(url("{ROOT}/page/images/1x.png") 1x, '
+        f'"{ROOT}/page/images/2x.png" 2x)'
+    ) in delivered
     assert "/* url(../not-an-asset.png) */" in delivered
     assert not any(
         token.type == "error" for token in tinycss2.parse_stylesheet(delivered)
@@ -164,6 +171,38 @@ main { background: image-set("./a.png" 1x, url(./b.png) 2x); }
 
     AssetInliner(reader).css(sheet, "/page/style.css")
     assert set(read) == expected
+
+
+def test_a_revision_shares_the_files_it_captured_unchanged(page_dir):
+    """A new revision links each resource the one before it captured with the same
+    bytes, and writes the ones that changed."""
+    sheet = page_dir / "page" / "style.css"
+    sheet.parent.mkdir(exist_ok=True)
+    source = PAGE.replace(
+        "</head>", '<link rel="stylesheet" href="page/style.css"></head>'
+    )
+
+    def activate(text, css):
+        sheet.write_text(css)
+        (page_dir / "index.html").write_text(source.replace("Ship dark.", text))
+        activated = revisioning_model.activate_source(page_dir)
+        assert activated.error is None, activated.error
+        bundle = revision_path(page_dir, activated.revision).with_suffix("")
+        manifest = json.loads((bundle / "manifest.json").read_bytes())
+        return {
+            logical: bundle / ("resources" + logical)
+            for logical in manifest["resources"]
+        }
+
+    first = activate("Ship dark.", "main { color: red; }")
+    second = activate("Ship it dark.", "main { color: blue; }")
+
+    changed = {"/page/style.css"}
+    assert changed < set(first) and set(first) == set(second)
+    shared = {p for p in first if first[p].stat().st_ino == second[p].stat().st_ino}
+    assert shared == set(first) - changed
+    assert second["/page/style.css"].read_text() == "main { color: blue; }"
+    assert first["/page/style.css"].read_text() == "main { color: red; }"
 
 
 def test_page_widget_alias_uses_its_captured_path_for_import_resolution():

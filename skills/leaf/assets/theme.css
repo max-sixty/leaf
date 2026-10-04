@@ -33,8 +33,9 @@
  * The stylesheet uses declarations as open selectors too. A box that draws a frame
  * declares `--lf-block-frame: 1` in the rule that draws it. Style queries use that custom
  * property to trim child margins and to bound wide content. A project box then receives
- * the same behavior without joining a tag list. `main` hands wide room back to its
- * contents explicitly because it is the outer page frame.
+ * the same behavior without joining a tag list. A frame that holds the page's own flow,
+ * `main` or a page tab's panel, also declares `--lf-page-flow: 1`, so it passes wide
+ * room on to its contents rather than withholding it.
  *
  * Where the fact belongs to the registry rather than to the rule that draws the box,
  * delivery paints it into the served document (revision_delivery.py, `mark_declared`;
@@ -278,6 +279,11 @@
      A second copy of 720 would be a release behind the first. */
   --col: 720px;
   --col-pad: 24px;
+  /* A pane's insets: its header and footer's, and its body's on every side. Tokens
+     rather than numbers in the pane rules, so a density restates them and the rules
+     keep the zero specificity a package restyling a pane relies on. */
+  --pane-bar-pad: 10px 14px;
+  --pane-inset: 14px;
   /* How wide evidence with `x-space: wide` may stand — one number for the whole
      vocabulary, because a set of widths is
      what makes mixed measures read as a design rather than as an accident, and a width
@@ -406,7 +412,9 @@
      back in a calc, and the option that holds a column for one is in another layer's
      stylesheet entirely. Written as a number there, the column stayed at the size the
      chip was when it was measured, and a package redeclaring the ladder grows the chip
-     into whatever the column was holding beside it. */
+     into whatever the column was holding beside it. Declared again on
+     `.density-working` (below), since a custom property resolves where it is
+     declared and a scope restating the ladder inherits the root's result. */
   --lf-key-badge-size: calc(round(var(--t-6) * 1.478 + 2px, 1px));
   /* A pressable never wears the accent as a solid fill: the accent is its ink and its
      hairline, and this tint is the disc or ground that rises under it on hover. */
@@ -779,6 +787,7 @@ body {
 main {
   position: relative;
   --lf-block-frame: 1;
+  --lf-page-flow: 1;
   container-name: lf-content-frame;
   padding-block: 72px 96px;
   --lf-free-l: 0px;
@@ -792,6 +801,11 @@ main {
  * grew out of it. Outside the page, where nothing states them, neither side holds a
  * widget back. */
 @property --lf-width { syntax: "<length>"; inherits: true; initial-value: 0px; }
+/* A box that frames its blocks for the trim and holds the page's own flow: `main`, and a
+ * page tab's panel. It passes the page's room to what it holds rather than withholding it
+ * (layouts.css), and a table in it keeps to its content rather than filling it (below).
+ * Not inherited, so a box inside one answers only for itself. */
+@property --lf-page-flow { syntax: "<integer>"; inherits: false; initial-value: 0; }
 /* Where a box sticking here stops: the sticky headers standing over the top of its
  * scroller, stacked. On the root it starts at the banner's height (above); a box the
  * theme makes scroll that can hold a header starts it again from its own top (a bounded
@@ -845,10 +859,48 @@ h2 { font-size: var(--t-2); line-height: 1.25; letter-spacing: -0.008em;
      margin: 48px 0 12px; text-wrap: balance; }
 h3 { font-size: var(--t-3); line-height: 1.3; margin: 32px 0 8px;
      text-wrap: balance; }
+/* A page as wide as the window (`--lf-wide-page`, set by the wide Layouts on `main`)
+ * sets its title a size up and tighter, to hold its line above panels as wide as the
+ * window. The Layout says how wide the page is; the size is answered here. */
+@container style(--lf-wide-page: 1) {
+  h1 { font-size: clamp(36px, 3.2cqi, 46px); font-weight: 700; letter-spacing: -0.02em;
+       line-height: 1.1; }
+}
 p { margin: 13px 0; }
 ul, ol { margin: 10px 0; padding-left: 24px; }
 li { margin: 6px 0; }
 hr { border: none; border-top: 1px solid var(--rule); margin: 40px 0; }
+/* Working density: the same faces, set for operating a surface rather than reading
+ * down it, on whatever block takes the class. A workspace's `main` is the usual one,
+ * and a dense pane or table on a column page is another, since how much a block holds
+ * per line is a style and not where the block stands. The ladder and the spacing scale
+ * are restated for the block's subtree, so every rule that reads them, a Layout's gutter
+ * and a widget's padding included, sets at working size; shadow trees too, since custom
+ * properties cross into them. A token derived from the ladder at the root is declared
+ * again here, since it resolves where it is declared. The flow's own margins are numbers
+ * rather than tokens, so they are restated here.
+ *
+ * `--lf-density` names the setting for what a size alone cannot carry: a widget whose
+ * form changes, such as an option card becoming a row, reads it with a style query, as
+ * it reads any other token, and never asks what holds it. */
+.density-working {
+  --lf-density: working;
+  --t-1: 22px; --t-2: 18px; --t-3: 15.5px; --t-4: 14px; --t-5: 12.5px; --t-6: 10.5px;
+  --t-working-label: 12px;
+  --sp-1: 3px; --sp-2: 6px; --sp-3: 10px; --sp-4: 14px;
+  --code-size: 12px; --code-line: 17px;
+  --lf-key-badge-size: calc(round(var(--t-6) * 1.478 + 2px, 1px));
+  --pane-bar-pad: 6px 12px;
+  --pane-inset: 12px;
+  font-size: var(--t-4);
+  line-height: 1.45;
+}
+.density-working :is(p, ul, ol) { margin-block: 6px; }
+.density-working li { margin-block: 3px; }
+.density-working h2 { margin: 18px 0 6px; }
+.density-working h3 { margin: 12px 0 4px; }
+.density-working h4 { margin: 10px 0 4px; }
+.density-working :is(th, td) { padding: 4px 10px; }
 /* Syntax roles. The runtime writes these into any code block that names a language —
    a <pre><code class="language-*"> or a lf-code with `language` — having collapsed the
    tokenizer's scopes into six of leaf's own first. Styled at document level like
@@ -921,8 +973,8 @@ table { display: block; overflow-x: auto; container-type: inline-size; --lf-top:
    frame's inner edge is a line the eye measures the rules against, so a table that
    kept to its content there read as cut short: live-progress's Checks rules stopped
    158px before the panel's edge. In the column the same shortfall is only the measure,
-   and the rule above keeps it, which is why `main`, the one frame that draws nothing,
-   hands the table back.
+   and the rule above keeps it, so a frame that holds the page's own flow (`main`, a page
+   tab's panel; `--lf-page-flow`) draws nothing to fill and leaves the table to its content.
 
    The grid is an anonymous box inside the block that scrolls, which no rule can size,
    and a table box doesn't stretch as a flex or grid item. What it does do is grow to
@@ -933,10 +985,9 @@ table { display: block; overflow-x: auto; container-type: inline-size; --lf-top:
    Registered so the claim stays on the table and a table nested deeper in it asks its
    own holder. */
 @property --lf-fills-frame { syntax: "<integer>"; inherits: false; initial-value: 0; }
-@container style(--lf-block-frame: 1) {
+@container style(--lf-block-frame: 1) and (not style(--lf-page-flow: 1)) {
   table { --lf-fills-frame: 1; }
 }
-main > table { --lf-fills-frame: 0; }
 @container style(--lf-fills-frame: 1) {
   table::before { content: ""; display: table-caption; min-inline-size: 100cqi; }
 }
@@ -1117,77 +1168,19 @@ section.panel > :last-child { margin-bottom: 0; }
   border-color: color-mix(in srgb, var(--lf-tone-ink) 22%, transparent); }
 .callout:is(.ok, .warn, .danger) > strong:first-child { color: var(--lf-tone-ink); }
 /* A sidebar is page-level supporting material rather than an annotation on one block:
-   contents, a facts list, a short aside. In flow it is a block where it was written. A
-   column's first sidebar is a margin resident, as is every sidenote: each states which it
-   is (`--lf-resident`), and the margin pass admits it where the room beside the column
-   holds it (margin-layout.js, `settleResidency`), moving the column over where one side
-   lacks it. Each names the postures it may take, in order of preference; the stylesheet
-   reads the answer off `main`'s `data-lf-margin`, one token per posture standing. Screen
-   only: paper has no drawer and no margin to grant. A sidebar in the margin stands sticky
-   below the banner in the room its --sidebar takes left of the column box. A contents
-   map rests as a spine a few pixels wide and reveals its labels over the page, so with a
-   fine pointer a sidebar holding one stands as the map alone, in --map, where the
-   sidebar does not fit or the map is all it holds. Direct-child margins are trimmed because a sidebar is a
-   placement wrapper, not a second rhythm around what it holds. */
-@property --lf-resident { syntax: "*"; inherits: false; }
+   contents, a facts list, a short aside. In flow it is a block where it was written;
+   where a column's sidebar or a sidenote stands in the margin is the column Layout's
+   (layouts.css). Direct-child margins are trimmed because a sidebar is a placement
+   wrapper, not a second rhythm around what it holds. */
 aside.sidebar { display: flow-root; margin: var(--sp-4) 0 30px; }
 aside.sidebar > :first-child { margin-top: 0; }
 aside.sidebar > :last-child { margin-bottom: 0; }
-/* An empty map-only slot is already in its eventual margin posture: no margin
- * and no formatting context separating the blocks on either side of it. */
-main.layout-column > aside.sidebar:nth-child(1 of aside.sidebar):has(> lf-toc:only-child:empty) {
-  display: block; margin-block: 0; }
 main > aside.sidebar:nth-child(1 of aside.sidebar) { --lf-sidebar-slot: margin; }
-main.layout-column > aside.sidebar:nth-child(1 of aside.sidebar) { --lf-resident: sidebar; }
-main.layout-column aside.sidenote { --lf-resident: note; }
-@media screen {
-  /* Sticky, it can stand level with any band of the page, so it takes its whole side: a
-   * breakout grows only rightward past it. */
-  main.layout-column[data-lf-margin~="sidebar"] {
-    --lf-sidebar-posture: margin; --lf-taken-l: calc(var(--lf-beside) + var(--lf-shift)); }
-  main.layout-column[data-lf-margin~="sidebar"] > aside.sidebar:nth-child(1 of aside.sidebar) {
-    float: left; clear: left; position: sticky;
-    top: calc(var(--lf-top) + var(--sp-4));
-    width: calc(var(--sidebar) - var(--sp-4));
-    max-height: calc(var(--lf-view-height) - 2 * var(--sp-4));
-    overflow-y: auto;
-    margin: 0 var(--sp-4) var(--sp-4) calc(-1 * var(--sidebar));
-  }
-}
-/* A contents map in that slot rests as a spine a few pixels wide and reveals its labels
- * over the page; the default package draws it there once this says the slot is in the
- * margin, as the map alone or in a sidebar standing there. */
-@media screen and (hover: hover) and (pointer: fine) {
-  main.layout-column > aside.sidebar:nth-child(1 of aside.sidebar):has(lf-toc) {
-    --lf-resident: sidebar map; }
-  /* A sidebar holding only the map has nothing for a float to hold, so the map alone. */
-  main.layout-column > aside.sidebar:nth-child(1 of aside.sidebar):has(> lf-toc:only-child) {
-    --lf-resident: map; }
-  main.layout-column[data-lf-margin~="map"] { --lf-sidebar-posture: margin; }
-  /* At rest the map is its spine, chrome fixed in the left margin, so a breakout stops
-   * short of it (layouts.css, the column's free room); its labels reveal over the page. */
-  main.layout-column:is([data-lf-margin~="map"], [data-lf-margin~="sidebar"]):has(
-    > aside.sidebar:nth-child(1 of aside.sidebar) lf-toc) { --lf-taken-l: var(--map); }
-  /* Standing alone, a map that was all its sidebar held leaves nothing in the flow, so the
-   * sidebar takes no room there: without margins or a formatting context of its own, the
-   * blocks on either side meet as they do where the sidebar floats. */
-  main.layout-column[data-lf-margin~="map"]
-    > aside.sidebar:nth-child(1 of aside.sidebar):has(> lf-toc:only-child) {
-    display: block; margin-block: 0; }
-}
-/* A sidenote hangs in the column's right margin where the margin pass admits it (above),
-   and is a small indented block where it was written otherwise, and on paper. It claims
-   nothing: a wide exhibit level with a note drops below it (`clear`) and then takes the
-   room, and a margin row level with a note stands on it as a pin (margin-layout.js). */
+
+/* A sidenote is a small indented block where it was written, and on paper; where it hangs
+   in the column's margin is the column Layout's (layouts.css). */
 aside.sidenote { font-size: var(--t-5); line-height: 1.45; color: var(--muted);
                  margin: 12px 0 12px var(--sp-4); }
-@media screen {
-  main.layout-column[data-lf-margin~="note"] [data-lf-space]:not([data-lf-space="column"]) {
-    clear: right; }
-  main.layout-column[data-lf-margin~="note"] aside.sidenote {
-    float: right; clear: right; width: calc(var(--note) - var(--sp-4));
-    margin: 0 calc(-1 * var(--note)) 12px 0; }
-}
 .facts { display: grid; grid-template-columns: max-content 1fr; align-items: baseline;
          gap: var(--sp-1) var(--sp-3); margin: 14px 0; }
 .facts dt { color: var(--muted); font-weight: 400; font-size: var(--t-5); }
@@ -1664,7 +1657,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
   background: var(--paper);
 }
 :where([data-lf-reading-role="pane"]) > header {
-  padding: 10px 14px;
+  padding: var(--pane-bar-pad);
   border-bottom: 1px solid var(--rule);
   font: 600 var(--t-5)/1.4 var(--sans);
   --lf-block-frame: 1;
@@ -1680,7 +1673,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
   color: var(--muted);
 }
 :where([data-lf-reading-role="pane"]) > footer {
-  padding: 10px 14px;
+  padding: var(--pane-bar-pad);
   border-top: 1px solid var(--rule);
   --lf-block-frame: 1;
 }
@@ -1701,8 +1694,8 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
  * the box; the workspace hands the inset back through `--lf-top` (layouts.css). A package
  * that pads a pane body another way sets `--lf-pane-top` with it. */
 :where([data-lf-reading-role="pane"]) > :not(header, footer) {
-  --lf-pane-top: 14px;
-  padding: var(--lf-pane-top) 14px 14px;
+  --lf-pane-top: var(--pane-inset);
+  padding: var(--lf-pane-top) var(--pane-inset) var(--pane-inset);
   container-type: inline-size;
   --lf-block-frame: 1;
 }

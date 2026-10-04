@@ -1,5 +1,11 @@
-/* This module owns selection capture and snapping: the anchor a selection makes, and
- * the selection the page hands back to the user. */
+/* Selection capture, snapping and the last passage the user selected.
+ *
+ * The response surface calls `remember` only at genuine selection gestures, refining
+ * a completed pointer selection after snapping. One semantic anchor and direction survive same-page revisions;
+ * neither editor selections nor programmatic restoration choose that passage.
+ * Browser history separately owns the native working place at each return checkpoint.
+ * Restore selection resolves current words through shared travel, refusing a missing
+ * or ambiguous passage rather than choosing another occurrence. */
 import { COLLAPSE } from "../collapse.js";
 import {
   closestAcross,
@@ -11,6 +17,8 @@ import {
   pageWords,
   pointAt,
   quoteFrom,
+  selectEnds,
+  selectionBackward,
   segmentBlock,
   segmentsIn,
   spanIn,
@@ -18,6 +26,10 @@ import {
 import { upFrom } from "../shadow.js";
 import { textUnits } from "../text-alignment.js";
 import { ADDRESSABLE, anchorForDatum, anchoringIsReady } from "../anchor-resolution.js";
+import { takesLetters } from "../focus.js";
+import { focused } from "../keyboard/scopes.js";
+import { notice } from "../notifications.js";
+import { retainUserIntent } from "../user-intent.js";
 
 // How much of a passage's surroundings an anchor writes down. Only the capture decides
 // this; the search asks for whatever a given anchor happens to hold.
@@ -93,6 +105,35 @@ export const pageSelection = () => {
   const sel = getSelection();
   return drawn(sel) && pageWords(sel.anchorNode) ? sel : null;
 };
+
+export function createPassageSelection({ restore }) {
+  let previous = null;
+  return {
+    remember(selection = pageSelection()) {
+      if (!anchoringIsReady() || !selection || takesLetters(focused())) return;
+      const anchor = selectionAnchor(selection);
+      if (anchor.quote) previous = { anchor, backward: selectionBackward(selection) };
+    },
+    command: {
+      id: "selection.restore",
+      keys: ["v"],
+      title: "Restore selection",
+      description: "Restore the last selected passage",
+      touch: "Restore selection",
+      covering: true,
+      when: () => previous !== null,
+      run: async () => {
+        const intent = retainUserIntent();
+        const restored = await restore(previous.anchor, {
+          backward: previous.backward,
+          intent,
+        });
+        if (!restored && intent())
+          notice("That selected passage is unavailable on this version");
+      },
+    },
+  };
+}
 // Where a selection ends, as against where it began: the near end is what `pageSelection`
 // asks about, and the far end is the one a drag can throw. The layer stands after and to
 // the right of the document, so a hand that overshoots it puts the browser's own extension
@@ -306,22 +347,6 @@ export function snapSelection() {
       : [first.node, first.offset];
   const tail =
     hi === stop ? [range.endContainer, range.endOffset] : [last.node, last.offset + 1];
-  // Backward means the anchor sits past the range's start — asked of boundary points,
-  // because node order misreads containment: a focus on the element holding the anchor's
-  // text node both precedes and contains it.
-  //
-  // Both points have to be in one tree to be compared at all. Inside an x-shadow widget
-  // they are not: the selection's own anchorNode is the light-DOM one Chrome clamped to
-  // the host, while the range is the composed one this snapped from, and comparing them
-  // throws rather than answering. A selection that never left the widget has no direction
-  // worth recovering — there is one text node under the pointer either way — so it snaps
-  // forward, which is what a drag inside one block does regardless.
-  const probe = document.createRange();
-  probe.setStart(sel.anchorNode, sel.anchorOffset);
-  const comparable =
-    sel.anchorNode.getRootNode() === range.commonAncestorContainer.getRootNode();
-  const backward =
-    comparable && probe.compareBoundaryPoints(Range.START_TO_START, range) > 0;
-  if (backward) sel.setBaseAndExtent(...tail, ...head);
-  else sel.setBaseAndExtent(...head, ...tail);
+  if (selectionBackward(sel, range)) selectEnds(tail, head);
+  else selectEnds(head, tail);
 }

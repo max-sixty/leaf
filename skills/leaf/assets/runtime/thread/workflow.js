@@ -104,6 +104,15 @@ export function threadAttention(thread) {
         .join(" · "),
     });
   }
+  // A task the agent opened on the thread holds it after the move it answered has
+  // settled; its title says what the agent still owes.
+  if (thread.attention?.kind === "waiting" && thread.attention.reason === "task")
+    return Object.freeze({
+      kind: "waiting",
+      label: "Task open",
+      workflow: null,
+      secondary: thread.attention.task.title,
+    });
   if (thread.attention?.kind === "waiting")
     return Object.freeze({
       kind: "waiting",

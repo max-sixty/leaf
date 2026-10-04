@@ -85,6 +85,8 @@ const RUNG_LADDER = [
 
 const PAGE_COMMANDS = [
   "comment.create",
+  "writing.resume",
+  "selection.restore",
   "target.picker.open",
   "reaction.open",
   "page.search.open",
@@ -95,6 +97,7 @@ const PAGE_COMMANDS = [
   // the rows marked `covering` while the modal floor suspends the rest of page scope.
   "page.move",
   "scroll.move",
+  "reading.align.top",
   "history.undo",
   // Below the walks that reach one list at a time, because `g` opens a door to all of
   // them: on a narrow window the sequence hides a second way to somewhere the user can

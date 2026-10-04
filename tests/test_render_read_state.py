@@ -113,11 +113,11 @@ def test_unread_summary_keeps_hidden_original_unread(browser, serve):
     card = page.locator(f'.lf-thread[data-id="{root}"]')
     card.locator(":scope > .lf-thread-summary").click()
     checkpoint = card.locator(".lf-thread-checkpoint")
-    expect(checkpoint.locator(".lf-summary-unread")).to_contain_text(
-        "1 unread original"
-    )
     expect(checkpoint.locator(".lf-summary-originals")).to_be_hidden()
     expect(card.locator(".lf-unread-label")).to_have_count(0)
+    page.locator(".lf-first-unread").click()
+    expect(checkpoint).to_have_attribute("data-expanded", "true")
+    expect(card.locator(f'.lf-msg[data-mid="{first}"]')).to_be_focused()
 
 
 def test_first_unread_reveals_resolved_summary_original(browser, serve):
@@ -527,12 +527,20 @@ def test_automatic_read_refusal_keeps_message_unread(browser, serve):
 
 def test_visible_message_waits_for_whole_document_presentation(browser, serve):
     url = serve(PANEL_PAGE)
-    root = panel_comment(serve.page_dir, "Please report the result.")
+    # A long user opening pins the reply row, so the incoming answer can paint
+    # immediately while the whole-document presentation proof is held below.
+    root = panel_comment(
+        serve.page_dir, "\n\n".join(["Please report the result with its context."] * 20)
+    )
     page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     card = page.locator(f'.lf-thread[data-id="{root}"]')
     card.locator(":scope > .lf-thread-summary").click()
+    assert (
+        card.bounding_box()["height"]
+        > page.locator(".lf-threads").bounding_box()["height"]
+    )
     page.evaluate("""() => {
       const list = document.querySelector('leaf-thread-list');
       const present = list.present.bind(list);

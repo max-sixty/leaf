@@ -2831,9 +2831,13 @@ def test_a_rejected_streamed_reply_still_releases_its_website_turn(page_dir):
     assert socket.closed
 
 
-@pytest.mark.parametrize("read_elsewhere", [False, True])
+@pytest.mark.parametrize(
+    ("read_elsewhere", "reopen"),
+    [(False, "click"), (False, "r"), (False, "Enter"), (True, None)],
+    ids=["click", "card-r", "card-enter", "elsewhere"],
+)
 def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
-    browser, serve, read_elsewhere
+    browser, serve, read_elsewhere, reopen
 ):
     """A resolve during a turn cannot hide its completed answer from Open Threads.
 
@@ -2901,8 +2905,33 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
         expect(thread.locator(".lf-msg.agent")).to_be_hidden()
         assert set(current_responses(page_dir, read_events(page_dir))) == {other["id"]}
     else:
-        page.wait_for_function("window.__leafVerifier.visibleReplyRecorded")
-        assert page.evaluate("window.__leafVerifier.visibleReplyAt") is not None
+        # The short thread's reopened answer would move its writing box, so the
+        # reader explicitly opens the news before the visibility clock can see it.
+        news = thread.locator(".lf-thread-news")
+        expect(news).to_be_visible()
+        expect(
+            thread.locator(".lf-msg.agent").filter(has_text="deployment verified")
+        ).to_have_count(0)
+        answer_id = next(
+            event["id"]
+            for event in read_events(page_dir)
+            if event["kind"] == "reply" and event["parent"] == comment["id"]
+        )
+        if reopen == "click":
+            assert verify_site.wait_for_visible_reply(page, comment["id"], answer_id)
+        else:
+            title = thread.locator(":scope > .lf-thread-summary")
+            title.focus()
+            expect(title).to_be_focused()
+            expect(thread).to_have_attribute("open", "")
+            page.keyboard.press(reopen)
+        expect(news).to_have_count(0)
+        page.wait_for_function(
+            "window.__leafVerifier.visibleReplyRecorded", arg=answer_id
+        )
+        assert (
+            page.evaluate("window.__leafVerifier.visibleReplyAt", answer_id) is not None
+        )
         assert current_responses(page_dir, read_events(page_dir)) == {}
     [answer] = [event for event in read_events(page_dir) if event["kind"] == "reply"]
     assert answer["parent"] == comment["id"]
@@ -3886,18 +3915,42 @@ def test_the_agent_response_clock_waits_until_the_reply_is_on_screen(browser):
             content_type="text/html",
             body="""<div class="lf-threads" style="height: 100px; overflow: auto">
                   <div style="height: 500px"></div>
-                  <div class="lf-msg agent"><span class="lf-msg-text">Visible reply</span></div>
+                  <div class="lf-msg agent" data-mid="answer"><span class="lf-msg-text">Visible reply</span></div>
                 </div>""",
         ),
     )
     page.goto(url)
     page.evaluate("window.__leafVerifier.startVisibleReplyClock")
     page.wait_for_timeout(100)
-    assert page.evaluate("window.__leafVerifier.visibleReplyAt") is None
+    assert page.evaluate("window.__leafVerifier.visibleReplyAt('answer')") is None
 
     page.locator(".lf-msg.agent").scroll_into_view_if_needed()
-    page.wait_for_function("window.__leafVerifier.visibleReplyRecorded")
-    assert page.evaluate("window.__leafVerifier.visibleReplyAt") is not None
+    page.wait_for_function("window.__leafVerifier.visibleReplyRecorded", arg="answer")
+    assert page.evaluate("window.__leafVerifier.visibleReplyAt('answer')") is not None
+
+
+def test_the_agent_response_clock_ignores_an_earlier_failure_receipt(browser):
+    page = browser.new_page()
+    verify_site.observe_startup(page)
+    url = "https://site-verifier.test/retried-response"
+    page.route(
+        url,
+        lambda route: route.fulfill(
+            content_type="text/html",
+            body="""<div class="lf-threads"><div class="lf-msg agent" data-mid="failed">
+                      <span class="lf-msg-text">Could not start</span></div>
+                    <div class="lf-msg agent" data-mid="answer" style="display: none">
+                      <span class="lf-msg-text">Deployment verified</span></div></div>""",
+        ),
+    )
+    page.goto(url)
+    page.evaluate("window.__leafVerifier.startVisibleReplyClock")
+    page.wait_for_function("window.__leafVerifier.visibleReplyRecorded", arg="failed")
+    assert not page.evaluate("window.__leafVerifier.visibleReplyRecorded('answer')")
+
+    page.locator('[data-mid="answer"]').evaluate("node => node.style.display = 'block'")
+    page.wait_for_function("window.__leafVerifier.visibleReplyRecorded", arg="answer")
+    assert page.evaluate("window.__leafVerifier.visibleReplyAt('answer')") is not None
 
 
 def test_a_refused_answer_carries_what_the_server_said_about_it():
@@ -4475,7 +4528,10 @@ class _DeployedPage:
     def wait_for_function(
         self, expression: str, *, arg: int | None = None, timeout: int
     ) -> None:
-        if expression == "window.__leafVerifier.visibleReplyRecorded":
+        if "window.__leafVerifier.visibleReplyRecorded(id) ||" in expression:
+            self.visible_reply_waits.append(timeout)
+            return
+        if expression == "id => window.__leafVerifier.visibleReplyRecorded(id)":
             self.visible_reply_waits.append(timeout)
             return
         assert expression == "window.__leafVerifier.revisionAtLeast" and arg is not None
@@ -4495,10 +4551,12 @@ class _DeployedPage:
         assert selector == "body[data-lf-presented]"
         return _PresentationWait(self.presentation_waits)
 
-    def evaluate(self, script: str):
+    def evaluate(self, script: str, arg=None):
+        if script == "id => window.__leafVerifier.visibleReplyRecorded(id)":
+            return True
         if script == "window.__leafVerifier.startVisibleReplyClock":
             return 100.0
-        if script == "window.__leafVerifier.visibleReplyAt":
+        if script == "id => window.__leafVerifier.visibleReplyAt(id)":
             return 12_600.0
         if script == "window.__leafStartup.reading":
             presented_at = (
@@ -4800,7 +4858,12 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
                 },
                 published,
                 [{"kind": "reply", "text": "deployment verified"}],
-                {"kind": "reply", "text": "deployment verified"},
+                {
+                    "kind": "reply",
+                    "id": "test-answer",
+                    "parent": "test-comment",
+                    "text": "deployment verified",
+                },
             ),
             1,
             1,
@@ -4941,7 +5004,12 @@ def test_a_reload_that_presented_offline_reports_the_banner_it_presented_under(
                 },
                 published,
                 [{"kind": "reply", "text": "deployment verified"}],
-                {"kind": "reply", "text": "deployment verified"},
+                {
+                    "kind": "reply",
+                    "id": "test-answer",
+                    "parent": "test-comment",
+                    "text": "deployment verified",
+                },
             ),
             1,
             1,

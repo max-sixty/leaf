@@ -367,10 +367,10 @@ def test_a_tall_local_comment_survives_its_panes_posture_and_return(browser, ser
 
     page.keyboard.press("Escape")
     expect(page.locator(".lf-composer")).to_be_hidden()
-    expect(page.locator(".lf-notice")).to_have_text("Draft kept — g D returns to it")
+    expect(page.locator(".lf-notice")).to_have_text("Draft kept — g i resumes writing")
     page.keyboard.press("g")
-    assert "your draft" in shortcut_bar_text(page)
-    page.keyboard.press("Shift+d")
+    assert "Resume writing" in shortcut_bar_text(page)
+    page.keyboard.press("i")
     expect(field).to_be_focused()
     expect(field).to_have_js_property("value", draft)
     assert "Left end" in pending_text(page)
@@ -2334,6 +2334,254 @@ def test_the_gallery_tab_set_uses_the_boundary_of_its_composition(
         expect(tabs.get_by_role("tab").nth(1)).to_have_attribute(
             "aria-selected", "true"
         )
+
+
+@pytest.mark.parametrize("reduced", [False, True])
+@pytest.mark.parametrize("nested_source", [False, True])
+def test_an_ask_walk_glides_within_a_view_and_opens_other_tabs_at_the_question(
+    browser, serve, reduced, nested_source
+):
+    """A disclosure extends one reading; a mutually exclusive tab opens at its Ask.
+
+    Capture frames rather than just scroll events: a new panel must already show the
+    question in its first painted frame, not appear elsewhere and glide afterwards.
+    """
+
+    def question(name):
+        options = (
+            f'<lf-options id="choice-{name}" choose>'
+            f'<lf-option id="yes-{name}">Yes</lf-option>'
+            f'<lf-option id="no-{name}">No</lf-option></lf-options>'
+        )
+        if name == "first" and nested_source:
+            options = (
+                '<lf-tabs id="source-views"><lf-tab id="source-context" label="Context">'
+                "<p>The evidence precedes the decision.</p></lf-tab>"
+                '<lf-tab id="source-answer" label="Answer">'
+                + options
+                + "</lf-tab></lf-tabs>"
+            )
+        return f'<lf-ask id="ask-{name}"><h2>Choose {name}?</h2>{options}</lf-ask>'
+
+    first = question("first")
+    if not nested_source:
+        first = (
+            '<details id="question-fold"><summary>First proposal</summary>'
+            + first
+            + "</details>"
+        )
+    source = leaf_page(
+        "Ask travel across tabs",
+        '<h1>Review the two proposals</h1><lf-tabs id="views">'
+        '<lf-tab id="first" label="First">'
+        '<div style="height: 1800px"></div>'
+        + first
+        + '<div style="height: 1000px"></div></lf-tab>'
+        '<lf-tab id="second" label="Second">'
+        + question("second")
+        + '<div style="height: 3800px"></div></lf-tab></lf-tabs>',
+    )
+    page = open_page(browser, serve(source))
+    page.emulate_media(reduced_motion="reduce" if reduced else "no-preference")
+
+    def start_trace():
+        page.evaluate("""() => {
+          window.askFrames = [];
+          window.askTabCues = [];
+          const record = () => {
+            const tab = document.querySelector('#views > .lf-tabstrip [aria-selected="true"]');
+            const selected = tab.getAttribute('aria-controls');
+            const ask = document.getElementById(`ask-${selected}`);
+            const source = document.querySelector('#source-views [aria-selected="true"]');
+            askFrames.push({selected, scroll: scrollY,
+                           source: source?.getAttribute('aria-controls'),
+                           top: ask.getBoundingClientRect().top});
+            window.askFrame = requestAnimationFrame(record);
+          };
+          window.askFrame = requestAnimationFrame(record);
+          window.askTabObserver = new MutationObserver(records => {
+            for (const {target} of records) {
+              if (target.getAttribute('aria-selected') === 'true' &&
+                  target.closest('lf-tabs').id === 'views') {
+                const name = target.querySelector('.lf-tab-name');
+                askTabCues.push(name.getAnimations().length);
+              }
+            }
+          });
+          askTabObserver.observe(document.querySelector('#views'), {
+            subtree: true, attributes: true, attributeFilter: ['aria-selected']
+          });
+        }""")
+
+    def finish_trace():
+        return page.evaluate("""() => {
+          cancelAnimationFrame(askFrame);
+          askTabObserver.disconnect();
+          return {frames: askFrames, cues: askTabCues};
+        }""")
+
+    # The Ask's source may switch an inner view even when its outer wrapper stays.
+    # A disclosure, by contrast, extends the current view and preserves its glide.
+    if nested_source:
+        expect(
+            page.locator('#source-views [aria-controls="source-context"]')
+        ).to_have_attribute("aria-selected", "true")
+    else:
+        expect(page.locator("#question-fold")).not_to_have_attribute("open", "")
+    before = page.evaluate("scrollY")
+    start_trace()
+    page.keyboard.press("a")
+    expect(page.locator("#ask-first")).to_be_focused()
+    if nested_source:
+        expect(
+            page.locator('#source-views [aria-controls="source-answer"]')
+        ).to_have_attribute("aria-selected", "true")
+    else:
+        expect(page.locator("#question-fold")).to_have_attribute("open", "")
+    expect(
+        page.locator('#views > .lf-tabstrip [aria-controls="first"]')
+    ).to_have_attribute("aria-selected", "true")
+    scroll_settled(page)
+    after = page.evaluate("scrollY")
+    trace = finish_trace()
+    assert after - before > 1000, (before, after)
+    intermediate = [
+        frame for frame in trace["frames"] if before + 50 < frame["scroll"] < after - 50
+    ]
+    assert bool(intermediate) == (not reduced and not nested_source), trace
+    assert trace["cues"] == [], trace
+    if nested_source:
+        edge = page.evaluate(
+            "parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop)"
+        )
+        arrived = [
+            frame for frame in trace["frames"] if frame["source"] == "source-answer"
+        ]
+        assert arrived, trace
+        assert all(abs(frame["top"] - (edge + 5)) <= 3 for frame in arrived), trace
+
+    for key, target, tab in [("a", "second", "Second"), ("Shift+a", "first", "First")]:
+        before = page.evaluate("scrollY")
+        start_trace()
+        if target == "second":
+            # A revealed view may finish presentation later than its new geometry.
+            # Record its first painted frame while that completion is held.
+            page.evaluate("""() => {
+              const held = new Promise(resolve => { window.releaseAskTabLayout = resolve; });
+              document.querySelector('#views').addEventListener('lf-layout', event => {
+                event.detail.present(held);
+                window.askTabLayoutStarted = true;
+              }, {once: true});
+            }""")
+            try:
+                page.keyboard.press(key)
+                page.wait_for_function("window.askTabLayoutStarted === true")
+                one_frame(page)
+            finally:
+                page.evaluate("releaseAskTabLayout()")
+        else:
+            page.keyboard.press(key)
+        expect(page.locator(f"#ask-{target}")).to_be_focused()
+        selected = page.locator("#views > .lf-tabstrip").get_by_role(
+            "tab", name=tab, exact=True
+        )
+        expect(selected).to_have_attribute("aria-selected", "true")
+        scroll_settled(page)
+        after = page.evaluate("scrollY")
+        trace = finish_trace()
+        assert abs(after - before) > 1000, (before, after)
+        edge = page.evaluate(
+            "parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop)"
+        )
+        arrived = [frame for frame in trace["frames"] if frame["selected"] == target]
+        assert arrived, trace
+        assert all(abs(frame["top"] - (edge + 5)) <= 3 for frame in arrived), trace
+        assert trace["cues"] == [0 if reduced else 1], trace
+        top = page.locator(f"#ask-{target}").bounding_box()["y"]
+        assert top == pytest.approx(edge + 5, abs=3), (top, edge)
+
+    # Leave the previous arrival entirely: the next trip must preserve this reading
+    # as its own Back destination, including the tab that owned the outgoing offset.
+    page.mouse.move(400, 400)
+    page.mouse.wheel(0, 1100)
+    expect(page.locator("#ask-first")).not_to_be_in_viewport()
+    scroll_settled(page)
+    reading = page.evaluate("scrollY")
+    page.keyboard.press("a")
+    expect(page.locator("#ask-second")).to_be_focused()
+    scroll_settled(page)
+    page.go_back()
+    page.wait_for_function("navigation.transition === null")
+    returned = page.evaluate("""() => ({
+      scroll: scrollY, fragment: location.hash,
+      selected: document.querySelector('#views > .lf-tabstrip [aria-selected="true"]')
+        .getAttribute('aria-controls')
+    })""")
+    assert returned["selected"] == "first", {"reading": reading, "returned": returned}
+    assert returned["scroll"] == pytest.approx(reading, abs=2), returned
+
+
+def test_an_ask_walk_reveals_the_owning_regions_horizontal_destination(browser, serve):
+    """Arrival keeps horizontal inspection reachable without snapping document Y."""
+    source = leaf_page(
+        "Ask in horizontal inspection",
+        '<h1>Inspect the wide proposal</h1><div id="inspection" data-bound="start" '
+        'style="width:220px; height:280px; overflow:auto">'
+        '<div style="width:1600px; padding-left:900px; box-sizing:border-box">'
+        '<lf-ask id="wide-ask"><h2>Choose the wider plan?</h2>'
+        '<lf-options id="wide-choice" choose>'
+        '<lf-option id="wide-yes">Yes</lf-option>'
+        '<lf-option id="wide-no">No</lf-option></lf-options></lf-ask>'
+        "</div></div>",
+    )
+    page = open_page(browser, serve(source))
+    inspection = page.locator("#inspection")
+    assert inspection.evaluate("el => el.scrollLeft") == 0
+    page.keyboard.press("a")
+    expect(page.locator("#wide-ask")).to_be_focused()
+    scroll_settled(page, "#inspection", axis="x")
+    assert inspection.evaluate("el => el.scrollLeft") > 500
+    visible = page.locator("#wide-ask").evaluate("""ask => {
+      const box = ask.closest('#inspection').getBoundingClientRect();
+      const target = ask.getBoundingClientRect();
+      return target.left >= box.left && target.left < box.right;
+    }""")
+    assert visible
+
+
+@pytest.mark.parametrize("clipped", [False, True])
+def test_an_ask_walk_reveals_its_scrollport_before_aligning_outside_context(
+    browser, serve, clipped
+):
+    """Context above a bounded inspection never leaves its Ask clipped inside it."""
+    source = leaf_page(
+        "Ask with outside context",
+        '<h1 id="context">Review the proposed edit</h1>'
+        '<div id="inspection" data-bound="start" '
+        'style="height:180px; overflow:auto">'
+        '<div style="height:270px"></div>'
+        '<p id="edit-context">The proposed amount is '
+        '<lf-suggestion id="edit"><lf-old>ten</lf-old>'
+        "<lf-new>twelve</lf-new></lf-suggestion>.</p>"
+        '<div style="height:300px"></div></div>',
+    )
+    page = open_page(browser, serve(source))
+    if clipped:
+        page.locator("#inspection").evaluate("""box => {
+          const ask = box.querySelector('#edit').getBoundingClientRect();
+          box.scrollTop += ask.top - box.getBoundingClientRect().top + ask.height / 2;
+        }""")
+    page.keyboard.press("a")
+    expect(page.locator("#edit")).to_be_focused()
+    scroll_settled(page, "#inspection")
+    scroll_settled(page)
+    visible = page.locator("#edit").evaluate("""ask => {
+      const box = ask.closest('#inspection').getBoundingClientRect();
+      const target = ask.getBoundingClientRect();
+      return {top: target.top, bottom: target.bottom, low: box.top, high: box.bottom};
+    }""")
+    assert visible["top"] >= visible["low"], visible
+    assert visible["bottom"] <= visible["high"], visible
 
 
 @pytest.mark.parametrize("intervene", [False, True])
@@ -7490,8 +7738,7 @@ def test_the_reference_reads_the_same_way_twice(browser, serve):
 
 
 def test_a_widget_that_renames_its_role_keeps_the_press_offer_gave_it(browser, serve):
-    """A tab is built by `offer("button", …)` and then wears `role="tab"`, because that is
-    what its strip is. The press it keeps is the strip's own row, declared beside the
+    """A selectable tab's press is the strip's own row, declared beside the
     arrows and Home/End that walk it, and it is the only thing that consumes Space —
     which is otherwise the page's scroll.
 
@@ -7511,16 +7758,22 @@ def test_a_widget_that_renames_its_role_keeps_the_press_offer_gave_it(browser, s
     tabs = page.locator("#projects .lf-tab-btn")
     expect(tabs).to_have_count(2)
 
+    def reveal_other():
+        # Reveal the other panel without moving focus: each press must select a
+        # different tab, rather than merely reaffirm the already selected one.
+        page.evaluate(
+            """async () => {
+              const {reveal} = await window.__lfRuntimeImport('/runtime/widget-elements.js');
+              const {retainUserIntent} = await window.__lfRuntimeImport('/runtime/user-intent.js');
+              reveal(document.querySelector('#tab-bath'), retainUserIntent());
+            }"""
+        )
+        rendered(page)
+        expect(tabs.first).to_be_focused()
+        expect(tabs.nth(1)).to_have_attribute("aria-selected", "true")
+
     tabs.first.focus()
-    # Reveal the second panel without moving focus, so the focused tab is not the selected
-    # one and Enter has something to do.
-    page.evaluate(
-        """() => document.querySelector('#tab-bath')
-                 .dispatchEvent(new CustomEvent('lf-reveal',
-                   {bubbles: true, detail: {target: document.querySelector('#tab-bath')}}))"""
-    )
-    expect(tabs.first).to_be_focused()
-    expect(tabs.nth(1)).to_have_attribute("aria-selected", "true")
+    reveal_other()
 
     # The line names the press, and the press re-selects the tab the user is standing on.
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("open the tab")
@@ -7528,8 +7781,7 @@ def test_a_widget_that_renames_its_role_keeps_the_press_offer_gave_it(browser, s
     expect(tabs.first).to_have_attribute("aria-selected", "true")
 
     # And Space is consumed rather than scrolling the page out from under the press.
-    page.evaluate("() => document.querySelector('#tab-bath').click()")
-    tabs.first.focus()
+    reveal_other()
     before = page.evaluate("() => document.scrollingElement.scrollTop")
     page.keyboard.press(" ")
     expect(tabs.first).to_have_attribute("aria-selected", "true")
@@ -7623,12 +7875,29 @@ def test_generated_hints_branch_after_the_single_letter_alphabet(browser, serve)
     assert all(
         not other.startswith(code) for code in codes for other in codes if code != other
     )
-    assert not set("afghjkmpt") & {code for code in codes if len(code) == 1}
-    assert sum(len(code) == 1 for code in codes) == 16
+    # Named routes own their letters even when unavailable in this scene. Read the
+    # declared grammar so a new destination cannot stale a copied alphabet or count.
+    reserved = page.evaluate(
+        """async () => {
+          const {pageScopes} = await window.__lfRuntimeImport('/runtime/keyboard/register.js');
+          const {bindings} = await window.__lfRuntimeImport('/runtime/keyboard/bindings.js');
+          const generated = 'navigation.target';
+          const scope = pageScopes().find(scope => scope.rows?.some(row => row.id === generated));
+          return [...new Set(scope.rows.filter(row => row.id !== generated)
+            .flatMap(bindings).filter(key => /^[a-z]$/.test(key)))];
+        }"""
+    )
+    assert reserved
+    assert not set("".join(codes)) & set(reserved)
+    single_letters = {code for code in codes if len(code) == 1}
     branched = [code for code in codes if len(code) == 2]
-    assert len(branched) == 7 and len({code[0] for code in branched}) == 1
+    assert len(single_letters) + len(branched) == len(codes)
+    assert len(branched) > 1 and len({code[0] for code in branched}) == 1
 
     prefix = branched[0][0]
+    assert single_letters | {prefix} == set("abcdefghijklmnopqrstuvwxyz") - set(
+        reserved
+    )
     continuing_hint = page.locator(
         f'{CHIPS}[data-lf-hint-code="{branched[0]}"] .lf-binding-sequence'
     )
@@ -7647,7 +7916,7 @@ def test_generated_hints_branch_after_the_single_letter_alphabet(browser, serve)
         "line": shortcut_bar_text(page),
         "live": page.locator(".lf-live").text_content(),
     }
-    expect(page.locator(".lf-live")).to_have_text("7 targets remain.")
+    expect(page.locator(".lf-live")).to_have_text(f"{len(branched)} targets remain.")
     expect(line).to_contain_text("back one letter")
     target_route = line.locator(
         '.lf-shortcut:not([hidden])[data-lf-command-ids~="navigation.target"]'
@@ -11019,6 +11288,785 @@ def test_reactionless_other_responses_can_turn_the_compact_field_into_a_suggesti
     )
     rendered(page)
     expect(box).to_have_attribute("placeholder", re.compile(r"^Replacement text .*⏎$"))
+
+
+RESTORE_SELECTION_PAGE = leaf_page(
+    "restore selection",
+    """
+    <h1>Selected words</h1>
+    <section id="passages">
+      <details id="selected-details" open><summary>The selected passage</summary>
+        <p id="remembered">The amber passage keeps <strong>its own identity</strong>.</p>
+      </details>
+      <p id="other">The violet passage belongs to another subject.</p>
+    </section>
+    <textarea id="native" aria-label="Native editor">Editor words</textarea>
+    <div style="height: 1400px"></div><p id="away">Another reading place.</p>
+    <a id="away-link" href="#remembered">Back to the passage</a>
+    """,
+)
+
+
+def _select_remembered_backwards(page):
+    """A native backwards drag, including the passage's inline markup."""
+    box = page.locator("#remembered").evaluate("""node => {
+        const range = document.createRange(); range.selectNodeContents(node);
+        const box = range.getBoundingClientRect();
+        return {left: box.left, right: box.right, y: box.top + box.height / 2};
+    }""")
+    select(page, (box["right"] - 1, box["y"]), (box["left"], box["y"]))
+    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    page.wait_for_function(
+        "() => getSelection().toString() === "
+        "'The amber passage keeps its own identity.'"
+    )
+    assert page.evaluate("""() => {
+        const selection = getSelection(), probe = document.createRange();
+        probe.setStart(selection.anchorNode, selection.anchorOffset);
+        return probe.compareBoundaryPoints(Range.START_TO_START, selection.getRangeAt(0)) > 0;
+    }""")
+
+
+def _word_point(locator, word):
+    """Place an actual gesture over letters, avoiding blank space in a block's box."""
+    return locator.evaluate(
+        """(node, sought) => {
+      const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
+      let word; while ((word = walker.nextNode()) && !word.data.includes(sought)) {}
+      const range = document.createRange(), start = word.data.indexOf(sought);
+      range.setStart(word, start); range.setEnd(word, start + sought.length);
+      const box = range.getBoundingClientRect();
+      return {x: box.left + box.width / 2, y: box.top + box.height / 2};
+    }""",
+        word,
+    )
+
+
+ALIGN_CURRENT_PAGE = leaf_page(
+    "Align the current item",
+    '<h1>Keep the same reading place</h1><div style="height:700px"></div>'
+    '<lf-ask id="align-ask"><h2>Which plan should we keep?</h2>'
+    '<lf-options id="align-options" choose><lf-option id="align-yes">Yes</lf-option>'
+    '<lf-option id="align-no">No</lf-option></lf-options></lf-ask>'
+    '<h2 id="align-heading" tabindex="0">The current heading</h2>'
+    '<p id="remembered">The amber passage keeps <strong>its own identity</strong>.</p>'
+    '<textarea id="native" aria-label="Native editor">Editor words</textarea>'
+    '<a href="#align-heading">A Go-to destination</a><div style="height:1400px"></div>',
+)
+
+
+def _expect_aligned(page, target, scroller="document.scrollingElement"):
+    """The item's opening clears its reading area's pinned furniture."""
+    page.wait_for_function(
+        """async ({target, scroller}) => {
+          const {landingBand, shownBox} = await window.__lfRuntimeImport('/runtime/geometry.js');
+          const item = document.querySelector(target), box = eval(scroller);
+          return Math.abs(shownBox(item).top - landingBand(box).top -
+            (parseFloat(getComputedStyle(item).scrollMarginTop) || 0)) < 2;
+        }""",
+        arg={"target": target, "scroller": scroller},
+    )
+
+
+def test_align_current_item_keeps_ask_control_heading_selection_and_history(
+    browser, serve
+):
+    page = open_page(browser, serve(ALIGN_CURRENT_PAGE))
+    page.keyboard.press("a")
+    expect(page.locator("#align-ask")).to_be_focused()
+    page.locator("#align-yes").get_by_role("checkbox").focus()
+    expect(page.locator("#align-yes").get_by_role("checkbox")).to_be_focused()
+    page.evaluate("scrollBy(0, -180)")
+    history = page.evaluate(
+        "[history.length, navigation.currentEntry.key, location.href]"
+    )
+    page.keyboard.press("g")
+    page.keyboard.press("z")
+    _expect_aligned(page, "#align-ask")
+    expect(page.locator("#align-yes").get_by_role("checkbox")).to_be_focused()
+    assert (
+        page.evaluate("[history.length, navigation.currentEntry.key, location.href]")
+        == history
+    )
+    page.locator("#align-heading").focus()
+    page.keyboard.press("g")
+    page.keyboard.press("z")
+    _expect_aligned(page, "#align-heading")
+    expect(page.locator("#align-heading")).to_be_focused()
+    page.locator("#remembered").scroll_into_view_if_needed()
+    _select_remembered_backwards(page)
+    page.evaluate("""() => {
+      const selection = getSelection();
+      window.beforeAlign = [selection.anchorNode, selection.anchorOffset,
+        selection.focusNode, selection.focusOffset, document.activeElement];
+      scrollBy(0, -120);
+    }""")
+    page.keyboard.press("g")
+    page.keyboard.press("z")
+    _expect_aligned(page, "#remembered")
+    assert page.evaluate("""() => {
+      const selection = getSelection();
+      return [selection.anchorNode, selection.anchorOffset, selection.focusNode,
+        selection.focusOffset, document.activeElement].every((v,i) => v === beforeAlign[i]);
+    }""")
+    page.locator("#native").focus()
+    page.keyboard.type("gz")
+    expect(page.locator("#native")).to_have_value("gzEditor words")
+
+
+def test_align_current_item_uses_bounded_reading_region_and_preserves_horizontal_position(
+    browser, serve
+):
+    source = leaf_page(
+        "Bounded alignment",
+        "<h1>Outside reading</h1><p>Unrelated page words remain where they were.</p>"
+        '<div id="inspection" data-bound="start" style="height:300px;overflow:auto;scroll-padding-top:36px">'
+        '<div style="height:300px;width:1400px"></div>'
+        '<h2 id="nested-heading" tabindex="0">An inspection heading</h2>'
+        '<p id="nested-reading">A bounded paragraph stays with its own reading region.</p>'
+        '<div style="height:900px"></div></div><div style="height:900px"></div>',
+    )
+    page = open_page(browser, serve(source))
+    page.locator("#nested-heading").focus()
+    page.locator("#inspection").evaluate(
+        "box => {box.scrollTop=180; box.scrollLeft=90}"
+    )
+    root_y = page.evaluate("scrollY")
+    page.keyboard.press("g")
+    page.keyboard.press("z")
+    _expect_aligned(page, "#nested-heading", "document.querySelector('#inspection')")
+    assert page.locator("#inspection").evaluate("box => box.scrollLeft") == 90
+    assert page.evaluate("scrollY") == root_y
+    expect(page.locator("#nested-heading")).to_be_focused()
+    # A click and collapsed caret still identify the paragraph in this region.
+    point = _word_point(page.locator("#nested-reading"), "bounded")
+    page.mouse.click(point["x"], point["y"])
+    page.keyboard.press("g")
+    page.keyboard.press("z")
+    _expect_aligned(page, "#nested-reading", "document.querySelector('#inspection')")
+
+
+def test_align_current_item_more_restores_touch_context_and_reserves_z(browser, serve):
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True
+    )
+    page = open_page(browser, serve(ALIGN_CURRENT_PAGE), context=context)
+    page.keyboard.press("a")
+    page.locator("#align-yes").get_by_role("checkbox").focus()
+    expect(page.locator("#align-yes").get_by_role("checkbox")).to_be_focused()
+    page.evaluate("scrollBy(0,-160)")
+    page.get_by_role("button", name="More page controls", exact=True).tap()
+    control = page.get_by_role("button", name="Align current item at top", exact=True)
+    expect(control).to_be_enabled()
+    control.tap()
+    _expect_aligned(page, "#align-ask")
+    expect(page.locator("#align-yes").get_by_role("checkbox")).to_be_focused()
+    page.locator("#align-heading").focus()
+    page.keyboard.press("g")
+    expect(page.locator(CHIPS).first).to_be_visible()
+    codes = page.locator(CHIPS).evaluate_all(
+        "nodes => nodes.map(node => node.dataset.lfHintCode)"
+    )
+    assert codes and all("z" not in code for code in codes)
+    page.keyboard.press("Escape")
+    point = _word_point(page.locator("#remembered"), "amber")
+    page.mouse.dblclick(point["x"], point["y"])
+    page.evaluate("""() => {
+      const s = getSelection();
+      window.beforeAlign = [s.anchorNode,s.anchorOffset,s.focusNode,s.focusOffset];
+      scrollBy(0,-80);
+    }""")
+    page.get_by_role("button", name="More page controls", exact=True).tap()
+    control.tap()
+    _expect_aligned(page, "#remembered")
+    assert page.evaluate("""() => {
+      const s = getSelection();
+      return [s.anchorNode,s.anchorOffset,s.focusNode,s.focusOffset].every((v,i) => v === beforeAlign[i]);
+    }""")
+    page.locator("#native").focus()
+    page.keyboard.type("gz")
+    expect(page.locator("#native")).to_have_value("gzEditor words")
+    page.locator("#native").evaluate("input => input.setSelectionRange(1,3,'backward')")
+    page.get_by_role("button", name="More page controls", exact=True).tap()
+    expect(control).to_be_enabled()
+    control.tap()
+    _expect_aligned(page, "#native")
+    expect(page.locator("#native")).to_be_focused()
+    expect(page.locator("#native")).to_have_value("gzEditor words")
+    assert page.locator("#native").evaluate(
+        "input => [input.selectionStart,input.selectionEnd,input.selectionDirection]"
+    ) == [1, 3, "backward"]
+    page.locator("#align-heading").focus()
+    page.get_by_role("button", name="More page controls", exact=True).tap()
+    expect(control).to_be_enabled()
+    control.tap()
+    _expect_aligned(page, "#align-heading")
+    expect(page.locator("#align-heading")).to_be_focused()
+
+
+def test_align_current_thread_stays_in_its_panel_without_travel(browser, serve):
+    page = open_page(
+        browser, serve(ALIGN_CURRENT_PAGE, anchored=[("remembered", "amber")] * 8)
+    )
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    panel_settled(page, True)
+    thread = page.locator(".lf-threads > .lf-thread").nth(4)
+    summary = thread.locator(":scope > summary")
+    summary.focus()
+    rendered(page)
+    thread_id = thread.get_attribute("data-id")
+    page.locator(".lf-threads").evaluate(
+        "box => box.scrollTop = Math.max(0, box.scrollTop-100)"
+    )
+    before = page.evaluate(
+        "[scrollY,history.length,navigation.currentEntry.key,location.href]"
+    )
+    page.keyboard.press("g")
+    page.keyboard.press("z")
+    _expect_aligned(
+        page,
+        f'.lf-threads > .lf-thread[data-id="{thread_id}"]',
+        "document.querySelector('.lf-threads')",
+    )
+    expect(summary).to_be_focused()
+    expect(thread).to_have_attribute("open", "")
+    panel_settled(page, True)
+    assert (
+        page.evaluate(
+            "[scrollY,history.length,navigation.currentEntry.key,location.href]"
+        )
+        == before
+    )
+
+
+def test_align_current_tall_block_reveals_its_opening_through_outer_scrollers(
+    browser, serve
+):
+    source = leaf_page(
+        "A tall current item",
+        '<h1>Read the opening</h1><div style="height:600px"></div>'
+        '<div id="inspection" data-bound="start" style="height:300px;overflow:auto;scroll-padding-top:24px">'
+        '<pre id="tall" tabindex="0">'
+        + "A line in the current item.\n"
+        * 80
+        + '</pre><div style="height:600px"></div></div>'
+        '<div style="height:1400px"></div>',
+    )
+    page = open_page(browser, serve(source))
+    page.emulate_media(reduced_motion="reduce")
+    page.locator("#tall").focus()
+    page.evaluate("""async () => {
+      const {landingBand} = await window.__lfRuntimeImport('/runtime/geometry.js');
+      const box = document.querySelector('#inspection');
+      const docY = box.getBoundingClientRect().top + scrollY;
+      scrollTo(0, docY - landingBand(document.scrollingElement).top + 80);
+      box.scrollTop = 300;
+    }""")
+    scroll_settled(page)
+    history = page.evaluate("[history.length,navigation.currentEntry.key]")
+    assert page.locator("#tall").bounding_box()["y"] < 0
+    page.keyboard.press("g")
+    page.keyboard.press("z")
+    scroll_settled(page, "#inspection")
+    _expect_aligned(page, "#tall")
+    expect(page.locator("#tall")).to_be_focused()
+    assert page.locator("#inspection").evaluate("box => box.scrollTop") == 0
+    assert page.evaluate("[history.length,navigation.currentEntry.key]") == history
+
+
+def test_align_current_item_does_not_follow_old_page_caret_from_empty_threads(
+    browser, serve
+):
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True
+    )
+    page = open_page(browser, serve(ALIGN_CURRENT_PAGE), context=context)
+    page.locator("#remembered").scroll_into_view_if_needed()
+    point = _word_point(page.locator("#remembered"), "amber")
+    page.mouse.click(point["x"], point["y"])
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    panel_settled(page, True)
+    expect(page.locator(".lf-threads")).to_be_focused()
+    page.wait_for_function("getSelection().isCollapsed")
+    before = page.evaluate("[scrollY,history.length,navigation.currentEntry.key]")
+    page.keyboard.press("g")
+    page.keyboard.press("z")
+    expect(page.locator(".lf-threads")).to_be_focused()
+    assert (
+        page.evaluate("[scrollY,history.length,navigation.currentEntry.key]") == before
+    )
+
+
+def test_align_current_ask_in_a_reply_keeps_its_question_extent(browser, serve):
+    url = serve(ALIGN_CURRENT_PAGE, anchored=[("remembered", "amber")] * 8)
+    roots = [
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "parent": roots[4],
+            "revision": 1,
+            "text": "Choose the follow-up.",
+            "markup": '<lf-ask id="reply-ask"><h3>Which follow-up should be ready?</h3>'
+            '<lf-options id="reply-options" choose><lf-option id="reply-yes">Ready</lf-option>'
+            '<lf-option id="reply-no">Wait</lf-option></lf-options></lf-ask>',
+        },
+    )
+    page = open_page(browser, url)
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    summary = page.locator(f'.lf-threads > .lf-thread[data-id="{roots[4]}"] > summary')
+    summary.focus()
+    control = page.locator('.lf-threads lf-option[id="reply-yes"]').get_by_role(
+        "checkbox"
+    )
+    control.focus()
+    before = page.evaluate("[scrollY,history.length,navigation.currentEntry.key]")
+    page.keyboard.press("g")
+    page.keyboard.press("z")
+    _expect_aligned(
+        page,
+        '.lf-threads lf-ask[id="reply-ask"]',
+        "document.querySelector('.lf-threads')",
+    )
+    expect(control).to_be_focused()
+    assert (
+        page.evaluate("[scrollY,history.length,navigation.currentEntry.key]") == before
+    )
+
+
+def test_restore_selection_reveals_backward_passage_and_keeps_native_editing(
+    browser, serve
+):
+    """A remembered semantic passage returns through shared travel, with its working end."""
+    page = open_page(browser, serve(RESTORE_SELECTION_PAGE))
+    _select_remembered_backwards(page)
+    page.keyboard.press("Escape")
+    page.locator("#selected-details summary").click()
+    page.locator("#away").scroll_into_view_if_needed()
+    page.keyboard.press("g")
+    # Direct destinations own the hint alphabet: lower-case v cannot name a page item.
+    expect(page.locator(CHIPS).first).to_be_visible()
+    codes = page.locator(CHIPS).evaluate_all(
+        "nodes => nodes.map(node => node.dataset.lfHintCode)"
+    )
+    assert codes
+    assert all("v" not in code for code in codes)
+    page.keyboard.press("v")
+    expect(page.locator("#selected-details")).to_have_attribute("open", "")
+    page.wait_for_function(
+        "() => getSelection().toString() === "
+        "'The amber passage keeps its own identity.'"
+    )
+    assert page.evaluate("""() => {
+        const selection = getSelection(), probe = document.createRange();
+        probe.setStart(selection.anchorNode, selection.anchorOffset);
+        return probe.compareBoundaryPoints(Range.START_TO_START, selection.getRangeAt(0)) > 0;
+    }""")
+    assert page.locator("#remembered").bounding_box()["y"] < 700
+
+    # Programmatic Back restores the source place but must not choose a new passage.
+    page.go_back()
+    page.wait_for_function("() => scrollY > 700")
+    page.keyboard.press("g")
+    page.keyboard.press("v")
+    page.wait_for_function(
+        "() => getSelection().toString() === "
+        "'The amber passage keeps its own identity.'"
+    )
+
+    # A native editor owns its letters and selections; leaving it keeps the prose target.
+    native = page.locator("#native")
+    native.focus()
+    native.select_text()
+    page.keyboard.type("gv")
+    expect(native).to_have_value("gv")
+    page.keyboard.press("Escape")
+    page.locator("h1").click()
+    page.keyboard.press("g")
+    page.keyboard.press("v")
+    page.wait_for_function(
+        "() => getSelection().toString() === "
+        "'The amber passage keeps its own identity.'"
+    )
+    assert page.evaluate("""() => {
+        const selection = getSelection(), probe = document.createRange();
+        probe.setStart(selection.anchorNode, selection.anchorOffset);
+        return probe.compareBoundaryPoints(Range.START_TO_START, selection.getRangeAt(0)) > 0;
+    }""")
+    # Native extension acts on the restored working end. A keyboard selection then
+    # becomes the next remembered passage, with the same direction.
+    page.keyboard.press("Shift+ArrowRight")
+    page.wait_for_function(
+        "() => getSelection().toString() === 'he amber passage keeps its own identity.'"
+    )
+    page.keyboard.press("Escape")
+    page.keyboard.press("g")
+    page.keyboard.press("v")
+    page.wait_for_function(
+        "() => getSelection().toString() === 'he amber passage keeps its own identity.'"
+    )
+    assert take_browser_errors(page) == []
+
+
+def test_restore_selection_rebinds_revisions_and_refuses_missing_words(browser, serve):
+    """A replaced node is irrelevant; deletion refuses without choosing another subject."""
+    url = serve(RESTORE_SELECTION_PAGE)
+    page = open_page(browser, live_url(url))
+    _select_remembered_backwards(page)
+    page.keyboard.press("Escape")
+    revised = RESTORE_SELECTION_PAGE.replace(
+        "<strong>its own identity</strong>", "<em>its own identity</em>"
+    )
+    _publish(serve.page_dir, 2, revised, "new inline markup")
+    told(page)
+    expect(page.locator("#remembered em")).to_be_visible()
+    page.keyboard.press("g")
+    page.keyboard.press("v")
+    page.wait_for_function(
+        "() => getSelection().toString() === "
+        "'The amber passage keeps its own identity.'"
+    )
+    assert page.evaluate("""() => {
+        const selection = getSelection(), probe = document.createRange();
+        probe.setStart(selection.anchorNode, selection.anchorOffset);
+        return probe.compareBoundaryPoints(Range.START_TO_START, selection.getRangeAt(0)) > 0;
+    }""")
+    page.keyboard.press("Escape")
+    missing = revised.replace(
+        "The amber passage keeps <em>its own identity</em>.",
+        "The original subject was removed.",
+    )
+    _publish(serve.page_dir, 3, missing, "removed that passage")
+    told(page)
+    expect(page.locator("#remembered")).to_have_text(
+        "The original subject was removed."
+    )
+    page.keyboard.press("g")
+    page.keyboard.press("v")
+    notice = page.locator(".lf-notice")
+    expect(notice).to_have_text("That selected passage is unavailable on this version")
+    expect(notice).to_be_visible()
+    assert page.evaluate("() => getSelection().toString()") == ""
+
+    # Both copies have the original context. Refusal keeps the remembered identity
+    # rather than choosing the first occurrence by order.
+    duplicated = revised.replace(
+        '<p id="remembered">The amber passage keeps <em>its own identity</em>.</p>',
+        '<p id="remembered">The selected passage '
+        "The amber passage keeps <em>its own identity</em>. "
+        "The violet passage belongs to another subject. The selected passage "
+        '<span id="copy">The amber passage keeps <em>its own identity</em>.</span> '
+        "The violet passage belongs to another subject.</p>",
+    )
+    _publish(serve.page_dir, 4, duplicated, "ambiguous repeated words")
+    told(page)
+    expect(page.locator("#copy")).to_be_visible()
+    page.keyboard.press("g")
+    page.keyboard.press("v")
+    notice = page.locator(".lf-notice")
+    expect(notice).to_have_text("That selected passage is unavailable on this version")
+    expect(notice).to_be_visible()
+    assert page.evaluate("() => getSelection().toString()") == ""
+    assert take_browser_errors(page) == []
+
+
+def test_restore_selection_has_touch_route_and_does_not_carry_draft(browser, serve):
+    """Selecting prose is independent of the words kept in another subject's editor."""
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True
+    )
+    page = open_page(browser, serve(RESTORE_SELECTION_PAGE), context=context)
+    point = _word_point(page.locator("#remembered"), "amber")
+    page.mouse.dblclick(point["x"], point["y"])
+    expect(
+        page.get_by_role("button", name="Comment on selection", exact=True)
+    ).to_be_visible()
+    selected = page.evaluate("() => getSelection().toString()")
+    assert selected
+    rendered(page)
+    page.keyboard.press("Escape")
+    page.locator("#other").click(modifiers=["Alt"])
+    editor = page.locator(".lf-fab-input")
+    write(editor, "Words about the violet subject")
+    page.keyboard.press("Escape")
+    page.locator("#away").scroll_into_view_if_needed()
+    page.locator(".lf-threads-toggle").tap()
+    expect(page.locator("[data-lf-covering-surface]")).to_have_attribute(
+        "data-lf-covering-surface", "lf-threads"
+    )
+    page.keyboard.press("g")
+    page.keyboard.press("v")
+    page.wait_for_function(
+        "expected => getSelection().toString() === expected", arg=selected
+    )
+    page.keyboard.press("Escape")
+    page.locator("#away").scroll_into_view_if_needed()
+    page.get_by_role("button", name="More page controls", exact=True).tap()
+    page.get_by_role("button", name="Restore selection", exact=True).tap()
+    page.wait_for_function(
+        "expected => getSelection().toString() === expected", arg=selected
+    )
+    expect(page.locator("[data-lf-covering-surface]")).to_have_count(0)
+    page.keyboard.press("Escape")
+    page.keyboard.press("g")
+    page.keyboard.press("i")
+    expect(editor).to_be_focused()
+    expect(editor).to_have_js_property("value", "Words about the violet subject")
+    expect(editor).to_have_attribute("aria-label", re.compile("violet"))
+    page.keyboard.type("gv")
+    expect(editor).to_have_js_property("value", "Words about the violet subjectgv")
+    page.keyboard.press("Escape")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+v")
+    expect(page.locator(".lf-version-menu")).to_be_visible()
+    assert take_browser_errors(page) == []
+
+
+def test_restore_selection_reveals_a_filtered_diff_datum(browser, serve):
+    """The addressed widget owns filter clearance before its selected words can return."""
+    page = open_page(browser, serve(DIFF_PAGE))
+    line = page.locator("lf-diff [data-line]").filter(has_text="window: 60").first
+    line.scroll_into_view_if_needed()
+    point = _word_point(line, "window")
+    page.mouse.dblclick(point["x"], point["y"])
+    selected = page.evaluate("() => getSelection().toString()")
+    assert selected
+    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    page.keyboard.press("Escape")
+    search = page.locator('lf-diff wa-input[name="diff-search"]')
+    write(search, "Dockerfile")
+    expect(line).not_to_be_visible()
+    page.locator("h1").click()
+    page.keyboard.press("g")
+    page.keyboard.press("v")
+    expect(line).to_be_visible()
+    expect(search).to_have_js_property("value", "")
+    page.wait_for_function(
+        "expected => getSelection().toString() === expected", arg=selected
+    )
+    assert take_browser_errors(page) == []
+
+
+@pytest.mark.parametrize("cancel", [False, True])
+def test_restore_selection_failed_datum_hydration_leaves_history_untouched(
+    browser, serve, cancel
+):
+    """A retained line key with new words is not an arrival, even after lazy loading."""
+    authored = leaf_page(
+        "Selected data line",
+        '<h1>Review</h1><lf-diff id="patch" source="review-patch"><pre></pre>'
+        '</lf-diff><div style="height:1600px"></div><p id="away">Read here.</p>',
+    )
+    patch = (
+        "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"
+        '@@ -1 +1 @@\n-return "old"\n+return "amber"\n'
+    )
+    url = serve(authored)
+    data_model.cmd_data_set(serve.page_dir, "review-patch", patch)
+    page = open_page(browser, live_url(url))
+    line = page.locator('lf-diff [data-lf-datum=\'["app.py","new",1]\']')
+    expect(line).to_contain_text("amber")
+    point = _word_point(line, "amber")
+    page.mouse.dblclick(point["x"], point["y"])
+    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    page.keyboard.press("Escape")
+    page.locator("lf-diff summary").click()
+    page.evaluate("""() => {
+      const fetch = window.fetch.bind(window);
+      window.fetch = (input, init) => {
+        const url = new URL(input instanceof Request ? input.url : String(input), location.href);
+        if (url.pathname === '/api/deferred') return new Promise(resolve => {
+          window.releaseSelectionDatum = () => resolve(fetch(input, init));
+        });
+        return fetch(input, init);
+      };
+    }""")
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "review-patch",
+        {
+            "files": [
+                {
+                    "key": "app.py",
+                    "path": "app.py",
+                    "kind": "patch",
+                    "additions": 1,
+                    "deletions": 1,
+                    "patch": patch.replace("amber", "violet"),
+                }
+            ]
+        },
+    )
+    told(page)
+    expect(line).to_have_count(0)
+    page.locator("#away").scroll_into_view_if_needed()
+    before = page.evaluate("({length:history.length,key:navigation.currentEntry.key})")
+    page.keyboard.press("g")
+    page.keyboard.press("v")
+    page.wait_for_function("typeof releaseSelectionDatum === 'function'")
+    assert (
+        page.evaluate("({length:history.length,key:navigation.currentEntry.key})")
+        == before
+    )
+    if cancel:
+        page.keyboard.press("Escape")
+    page.evaluate("releaseSelectionDatum()")
+    expect(line).to_contain_text("violet")
+    if not cancel:
+        notice = page.locator(".lf-notice")
+        expect(notice).to_have_text(
+            "That selected passage is unavailable on this version"
+        )
+        expect(notice).to_be_visible()
+    page.evaluate(
+        "() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))"
+    )
+    assert (
+        page.evaluate("({length:history.length,key:navigation.currentEntry.key})")
+        == before
+    )
+    assert page.evaluate("() => getSelection().toString()") == ""
+    assert take_browser_errors(page) == []
+
+
+@pytest.mark.parametrize("navigation_api", [False, True])
+def test_restore_selection_back_keeps_the_offset_before_reveal(
+    browser, serve, navigation_api
+):
+    """Disclosure can reshape the source before successful arrival commits its entry."""
+    page = open_page(
+        browser,
+        serve(RESTORE_SELECTION_PAGE),
+        init_script=None
+        if navigation_api
+        else "Object.defineProperty(window, 'navigation', {value:undefined});",
+    )
+    page.emulate_media(reduced_motion="reduce")
+    _select_remembered_backwards(page)
+    page.keyboard.press("Escape")
+    page.locator("#selected-details summary").click()
+    page.locator("#away").scroll_into_view_if_needed()
+    before = page.evaluate("scrollY")
+    page.keyboard.press("g")
+    page.keyboard.press("v")
+    page.wait_for_function("() => getSelection().toString().includes('amber passage')")
+    assert page.evaluate("scrollY") < before - 300
+    page.go_back()
+    page.wait_for_function("offset => Math.abs(scrollY-offset)<2", arg=before)
+    assert take_browser_errors(page) == []
+
+
+def test_restore_selection_across_views_keeps_the_source_history_entry(browser, serve):
+    """Exposure may rename the current URL, but Back still belongs to the source view."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Return across views",
+                '<h1>Review two views</h1><lf-tabs id="views">'
+                '<lf-tab id="first" label="First"><p id="remembered">'
+                "The amber passage keeps <strong>its own identity</strong>.</p>"
+                '<div style="height:3000px"></div></lf-tab>'
+                '<lf-tab id="second" label="Second"><div style="height:1800px"></div>'
+                '<p id="away">Read this other view.</p><div style="height:1300px"></div>'
+                "</lf-tab></lf-tabs>",
+            )
+        ),
+    )
+    _select_remembered_backwards(page)
+    page.keyboard.press("Escape")
+    page.get_by_role("tab", name="Second", exact=True).click()
+    page.locator("#away").click()
+    before = page.evaluate(
+        "({url:location.href,offset:scrollY,length:history.length,key:navigation.currentEntry.key})"
+    )
+    assert before["url"].endswith("#second")
+    page.keyboard.press("g")
+    page.keyboard.press("v")
+    page.wait_for_function("() => getSelection().toString().includes('amber passage')")
+    expect(page.get_by_role("tab", name="First", exact=True)).to_have_attribute(
+        "aria-selected", "true"
+    )
+    assert page.evaluate("location.hash") == "#first"
+    assert page.evaluate("history.length") == before["length"] + 1
+    page.go_back()
+    expect(page.get_by_role("tab", name="Second", exact=True)).to_have_attribute(
+        "aria-selected", "true"
+    )
+    assert page.url == before["url"]
+    page.wait_for_function("offset => Math.abs(scrollY-offset)<2", arg=before["offset"])
+    assert page.evaluate("navigation.currentEntry.key") == before["key"]
+    page.go_forward()
+    expect(page.get_by_role("tab", name="First", exact=True)).to_have_attribute(
+        "aria-selected", "true"
+    )
+    page.wait_for_function("() => getSelection().toString().includes('amber passage')")
+    assert take_browser_errors(page) == []
+
+
+def test_restore_selection_tracks_late_native_adjustment_and_retires_write_provenance(
+    browser, serve
+):
+    """The platform can extend a touch selection after the initial pointer ended.
+
+    Selection.extend exercises that native endpoint transition without inventing
+    page pointer events; Leaf's own writer remains a separate provenance boundary.
+    Returning to a previous programmatic range is a fresh adjustment after divergence.
+    """
+    context = browser.new_context(
+        viewport={"width": 1200, "height": 900}, has_touch=True
+    )
+    page = open_page(browser, serve(RESTORE_SELECTION_PAGE), context=context)
+    point = _word_point(page.locator("#remembered"), "identity")
+    page.mouse.dblclick(point["x"], point["y"])
+    expect(
+        page.get_by_role("button", name="Comment on selection", exact=True)
+    ).to_be_visible()
+    initial = page.evaluate("() => getSelection().toString()")
+    assert initial and initial != "amber"
+    page.evaluate("""async () => {
+      const {selectEnds} = await window.__lfRuntimeImport('/runtime/passages.js');
+      const word = document.querySelector('#remembered').firstChild;
+      const changed = new Promise(resolve => document.addEventListener('selectionchange', resolve, {once:true}));
+      selectEnds([word, 4], [word, 9]);
+      await changed;
+    }""")
+    page.keyboard.press("Escape")
+    page.keyboard.press("g")
+    page.keyboard.press("v")
+    page.wait_for_function(
+        "expected => getSelection().toString() === expected", arg=initial
+    )
+    page.evaluate("""async () => {
+      const {selectEnds} = await window.__lfRuntimeImport('/runtime/passages.js');
+      const word = document.querySelector('#remembered').firstChild;
+      const changed = new Promise(resolve => document.addEventListener('selectionchange', resolve, {once:true}));
+      selectEnds([word, 4], [word, 9]);
+      await changed;
+    }""")
+    for end in (17, 9):
+        page.evaluate(
+            """async end => {
+          const changed = new Promise(resolve => document.addEventListener('selectionchange', resolve, {once:true}));
+          getSelection().extend(document.querySelector('#remembered').firstChild, end);
+          await changed;
+        }""",
+            end,
+        )
+    page.keyboard.press("Escape")
+    page.keyboard.press("g")
+    page.keyboard.press("v")
+    page.wait_for_function("() => getSelection().toString() === 'amber'")
+    assert take_browser_errors(page) == []
 
 
 def test_a_passage_selection_keeps_native_copy_and_context_menu(browser, serve):

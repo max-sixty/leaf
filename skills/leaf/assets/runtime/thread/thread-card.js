@@ -33,7 +33,7 @@ import { seenRect } from "../geometry.js";
 import { ago, shortAgo } from "../presence.js";
 import { retainUserIntent } from "../user-intent.js";
 import { scrollThreadIntoView } from "./reply-landing.js";
-import { newsNotice } from "./held-news.js";
+import { HeldNews, newsNotice } from "./held-news.js";
 import { ReplyContinuity } from "./reply-continuity.js";
 
 function quoteReading(thread, anchors) {
@@ -122,7 +122,8 @@ export function threadReading(
     // says that.
     statusFolded:
       attention?.kind === "waiting" &&
-      messages.some((message) => message.workflow?.id === attention.workflow?.id),
+      attention.workflow !== null &&
+      messages.some((message) => message.workflow?.id === attention.workflow.id),
     resolvedBy:
       thread.resolved?.author === "agent"
         ? `✓ Resolved by ${thread.resolved.agent}`
@@ -240,14 +241,17 @@ export class ThreadView {
   #news = newsNotice();
   #lastMessage = null;
   #continuity = null;
+  #heldNews = null;
+  #received = null;
 
   constructor(surface, commands) {
     this.#commands = commands;
     this.node = document.createElement(
       surface === "outlet" || surface === "panel" ? "details" : "div",
     );
-    if (surface === "page" || surface === "outlet" || surface === "margin")
-      this.#continuity = new ReplyContinuity(this.node);
+    this.#continuity = new ReplyContinuity(this.node);
+    if (surface === "panel")
+      this.#heldNews = new HeldNews(this.node, () => this, commands.repaintThread);
     // A panel card's disclosure is the thread list's to write, from its one choice.
     if (surface !== "panel") {
       this.node.tabIndex = -1;
@@ -272,7 +276,7 @@ export class ThreadView {
       const id = message?.dataset.lfSummary;
       if (!id || this.#expandedSummaries.has(id)) return;
       this.#expandedSummaries.add(id);
-      this.present(this.#model);
+      this.repaint();
     });
   }
 
@@ -288,6 +292,18 @@ export class ThreadView {
     return this.#model;
   }
 
+  showNews() {
+    if (!this.#model?.news) return false;
+    this.#model.news.open();
+    return true;
+  }
+
+  // Local disclosure and draft changes repaint the complete received descriptor,
+  // never feed a held presentation back into the news owner's input.
+  repaint() {
+    this.present(this.#received);
+  }
+
   // The last of the thread a reader can see, after which its news grows: a folded
   // outlet's summary, and otherwise its last message.
   get foot() {
@@ -297,6 +313,11 @@ export class ThreadView {
   }
 
   present(model) {
+    this.#received = model;
+    if (this.#heldNews)
+      model = Object.freeze(
+        this.#heldNews.hold({ threads: [model] }, { row: false }).threads[0],
+      );
     const bodyPlace = this.#continuity?.before();
     const prior = this.#model;
     const restoreFocus = holdFocus(this.node);
@@ -349,13 +370,13 @@ export class ThreadView {
     }
     const wanted = new Set(model.messages.map((message) => message.key));
     for (const [key, view] of this.#messages) if (!wanted.has(key)) view.retire();
-    const settlement = model.settlement ? this.#settlement(model) : nothing;
+    const settlement = model.settlement ? this.#settlement(model) : null;
     const marginControls = model.surface === "margin" ? this.#marginControls : null;
     let headerActions = null;
     if (!model.resolved || reply || model.folding || marginControls) {
       const actions = marginControls
         ? [marginControls.nav, settlement, marginControls.close].filter(Boolean)
-        : [settlement];
+        : [settlement].filter(Boolean);
       for (const child of [...this.#metadataActions.children])
         if (!actions.includes(child)) child.remove();
       actions.forEach((control, index) => {
@@ -517,7 +538,6 @@ export class ThreadView {
 
   #summaryRange(range, markerFor) {
     const count = range.messages.length;
-    const unread = range.messages.filter((message) => message.unread).length;
     const id = range.summary.id;
     const originalsId = `lf-summary-originals-${this.#viewId}-${id}`;
     return html`<section
@@ -526,33 +546,35 @@ export class ThreadView {
       data-expanded=${String(range.expanded)}
     >
       <div class="lf-summary-checkpoint">
-        <div class="lf-summary-label">
-          Earlier
-          discussion${
-            unread && !range.expanded
-              ? html`<span class="lf-summary-unread">
-                  · ${unread} unread original${unread === 1 ? "" : "s"}</span
-                >`
-              : nothing
+        <div class="lf-summary-header">
+          <div class="lf-summary-label">${range.summary.label}</div>
+          ${
+            range.forced
+              ? nothing
+              : html`<button
+                  type="button"
+                  class="lf-summary-expand"
+                  aria-expanded=${String(range.expanded)}
+                  aria-controls=${originalsId}
+                  @click=${() => this.#setSummaryExpanded(id, !range.expanded)}
+                >
+                  ${range.expanded ? "Collapse" : "Show"} ${count} earlier
+                  message${count === 1 ? "" : "s"}
+                </button>`
           }
         </div>
-        <div
-          class="lf-summary-text"
-          .innerHTML=${renderMarkdown(range.summary.text)}
-        ></div>
+        ${
+          range.summary.text
+            ? html`<div
+                class="lf-summary-text"
+                .innerHTML=${renderMarkdown(range.summary.text)}
+              ></div>`
+            : nothing
+        }
         ${
           range.forced
             ? html`<div class="lf-summary-required">${range.requiredText}</div>`
-            : html`<button
-                type="button"
-                class="lf-summary-expand"
-                aria-expanded=${String(range.expanded)}
-                aria-controls=${originalsId}
-                @click=${() => this.#setSummaryExpanded(id, !range.expanded)}
-              >
-                ${range.expanded ? "Collapse" : "Show"} ${count} earlier
-                message${count === 1 ? "" : "s"}
-              </button>`
+            : nothing
         }
       </div>
       <div id=${originalsId} class="lf-summary-originals" ?hidden=${!range.expanded}>
@@ -569,7 +591,7 @@ export class ThreadView {
   #setSummaryExpanded(id, expanded) {
     if (expanded) this.#expandedSummaries.add(id);
     else this.#expandedSummaries.delete(id);
-    this.present(this.#model);
+    this.repaint();
     this.node
       .querySelector(
         `.lf-thread-checkpoint[data-summary-id="${CSS.escape(id)}"] .lf-summary-expand`,
@@ -704,7 +726,7 @@ export class ThreadView {
         else if (this.#replyShown !== (this.#model.reply || replyHasWords(model.key)))
           this.#draftFrame ||= nextRender(() => {
             this.#draftFrame = 0;
-            if (this.#reply) this.present(this.#model);
+            if (this.#reply) this.repaint();
           });
       },
     });
@@ -785,6 +807,7 @@ export class ThreadView {
   }
 
   dispose() {
+    this.#heldNews?.dispose();
     this.#continuity?.release();
     this.retire();
     this.#reply?.dispose();

@@ -1,0 +1,37 @@
+# Cross-tab arrival exposed a missing package signal: replacing a view must not
+# animate from the previous view's scroll offset. This checks the reveal contract
+# independently of Leaf's own tabs.
+description: view-reveal-arrival
+metadata:
+  purpose: A widget distinguishes replacing a view from expanding the current view during navigation.
+  tags:
+  - packages
+  - navigation
+vars:
+  prompt: |
+    I'm writing a Leaf widget with two mutually exclusive panels. It listens for
+    navigation to an anchor inside a hidden panel. Opening the panel changes its
+    visibility synchronously, then layoutChanged returns a promise while its
+    descendants finish arranging. A sibling details-style disclosure opens
+    additional content without replacing a panel.
+
+    Read the package reference and show the navigation handlers for these two
+    surfaces. The new panel should appear at the requested passage, without
+    scrolling from the old panel's reading position. The disclosure should keep
+    ordinary scrolling through the current view. Return the handlers in your reply.
+assert:
+- type: javascript
+  metric: reads-packages
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/references/packages\.md
+- type: llm-rubric
+  metric: distinguishes-view-replacement
+  value: |
+    Pass only if the mutually exclusive panel's lf-reveal handler calls the event
+    detail's replacedView() when it changes the active visible panel, while the
+    expanding disclosure does not report replacement. Both handlers join any
+    asynchronous layout completion through detail.present(promise). Fail if the
+    handlers implement scrolling themselves, delay replacement until layout
+    finishes, treat every reveal as a replacement, or claim the replacement's
+    initial placement waits for those layout promises.

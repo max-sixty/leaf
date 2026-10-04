@@ -286,7 +286,17 @@ customElements.define(
           else if (this.#editor && this.#editor.value !== text)
             this.#editor.value = text;
         },
-        { input: this.#editor },
+        {
+          input: () => this.#editor,
+          resume: () =>
+            this.#available()
+              ? {
+                  where: this,
+                  input: () => this.#editor,
+                  open: () => this.#open(undefined, undefined, false),
+                }
+              : null,
+        },
       );
     }
 

@@ -1,12 +1,26 @@
-/* This module owns user travel. */
+/* Reading movement: walks, scrolling, and aligning the current item without travel.
+ * Alignment reads the browser's current selection/focus and the owning reading region;
+ * it changes only vertical scroll, retaining focus, selection and browser history. */
 import { cancelRender, nextFrame } from "./rendering.js";
 import { clampedRow } from "./keyboard/bindings.js";
 import { coveringAuxiliarySurface, pageCommand } from "./keyboard/register.js";
 import { reducedMotion, scrollBehavior } from "./motion.js";
 import { pageScroller } from "./scrolling.js";
 import { landingBand } from "./geometry.js";
-import { effectiveScroller, userReadingRegion } from "./reading-regions.js";
-import { walkOrigin } from "./standing-target.js";
+import {
+  effectiveScroller,
+  userReadingRegion,
+  readingRegionFor,
+  scrollersOf,
+} from "./reading-regions.js";
+import { walkOrigin, heldAsk, placeOf } from "./standing-target.js";
+import { focused } from "./keyboard/scopes.js";
+import { bannerStanding } from "./banner-toolbar.js";
+import { pageSelection } from "./composing/capture.js";
+import { blockAt, closestAcross, pageRange } from "./passages.js";
+import { readingBlock } from "./reading-place.js";
+import { scrollIntoReadingBand } from "./landing-scroll.js";
+import { THREAD } from "./thread/selectors.js";
 import { under } from "./shadow.js";
 import { announce } from "./notifications.js";
 import { focusThread } from "./thread/focus.js";
@@ -227,6 +241,48 @@ export function createNavigation({
   coveringAuxiliaryScroller,
   threadDestinations,
 }) {
+  const currentItem = () => {
+    const at = bannerStanding()?.node ?? focused();
+    // More's retained node is the same browser standing, read without moving focus
+    // merely to paint whether its control is available.
+    const ask = heldAsk(at);
+    if (ask && under(at, ask)) return ask;
+    const thread = closestAcross(at, THREAD);
+    if (thread) return thread;
+    const region = readingRegionFor(at) ?? userReadingRegion();
+    const inReading = (node) => !region || under(node, region.body);
+    const place = placeOf(at);
+    const focusedItem = blockAt(place) ?? place;
+    if (
+      focusedItem &&
+      inReading(focusedItem) &&
+      place !== region?.host &&
+      place !== region?.body
+    )
+      return focusedItem;
+    const selection = pageSelection();
+    const start = selection && pageRange(selection).startContainer;
+    if (start && inReading(start)) return blockAt(start);
+    const caret = getSelection()?.focusNode;
+    return (inReading(caret) && blockAt(placeOf(caret))) || readingBlock(region);
+  };
+  const alignTop = {
+    id: "reading.align.top",
+    keys: ["z"],
+    title: "Align current item at top",
+    description:
+      "Align the current reading item at the top, keeping focus and selection",
+    touch: "Align current item at top",
+    retainStanding: true,
+    covering: true,
+    when: () => Boolean(currentItem()),
+    run: () => {
+      const item = currentItem();
+      if (!item) return;
+      for (const box of scrollersOf(item)) stopGlide(box);
+      scrollIntoReadingBand(item, item, "start", scrollBehavior());
+    },
+  };
   const inPanel = () => panelFocusIsInside(panelIsOpen);
   const move = (amount, unit) => stepReading(amount, unit, coveringAuxiliaryScroller);
   const walkThreads = (dir) =>
@@ -316,6 +372,7 @@ export function createNavigation({
   });
 
   return {
+    alignTop,
     seenScroller: () => seenScroller(coveringAuxiliaryScroller),
     stepReading: move,
     stepThread: walkThreads,

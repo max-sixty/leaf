@@ -12,7 +12,7 @@ from leaf import cli as cli_model
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import service as service_model
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.render_checks import one_frame, rendered, wait_until_ready
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -1423,6 +1423,10 @@ def test_a_refused_selection_comment_leaves_the_words_on_their_passage(
     page.keyboard.press("ControlOrMeta+Enter")
     holding(page, held, 1, "the selection comment")
 
+    page.keyboard.press("g")
+    page.keyboard.press("i")
+    expect(page.locator('leaf-text[name="reply"]:focus')).to_be_visible()
+    page.keyboard.press("ArrowRight")  # caret movement is not a later composition
     attempt = held[0].request.post_data_json["attempt"]
     with page.expect_response(lambda response: "/api/event" in response.url):
         held.pop(0).fulfill(
@@ -1437,7 +1441,10 @@ def test_a_refused_selection_comment_leaves_the_words_on_their_passage(
     expect(page.locator(".lf-notice")).to_contain_text("Couldn't send")
 
     # Their passage still holds their draft, so opening it again finds the words.
-    compose(page, "#p3")
+    page.locator("h1").click()
+    page.keyboard.press("g")
+    page.keyboard.press("i")
+    expect(page.locator(".lf-composer leaf-text")).to_be_focused()
     expect(page.locator(".lf-composer leaf-text")).to_have_js_property("value", words)
     assert not [
         event
@@ -2857,9 +2864,7 @@ def test_a_draft_the_chrome_stands_down_says_so_and_keeps_an_address(browser, se
     # Nothing written, nothing to return to: the sequence does not offer the destination.
     page.keyboard.press("g")
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("Threads panel")
-    draft_route = page.locator(
-        '.lf-shortcut[data-lf-command-ids~="composer.kept-draft"]'
-    )
+    draft_route = page.locator('.lf-shortcut[data-lf-command-ids~="writing.resume"]')
     expect(draft_route).to_have_count(0)
     page.keyboard.press("Escape")
 
@@ -2872,13 +2877,13 @@ def test_a_draft_the_chrome_stands_down_says_so_and_keeps_an_address(browser, se
     assert pending_text(page) == "", "a box off screen left its passage marked"
     notice = page.locator(".lf-notice")
     expect(notice).to_have_class(re.compile(r"\bshow\b"))
-    assert notice.inner_text() == "Draft kept — g D returns to it"
+    assert notice.inner_text() == "Draft kept — g i resumes writing"
 
     page.keyboard.press("g")
     shortcut_bar_text(page)
     # The one-row line can trim this destination while leaving it in the register.
     expect(draft_route).to_have_count(1)
-    page.keyboard.press("Shift+d")
+    page.keyboard.press("i")
     expect(page.locator(".lf-composer")).to_be_visible()
     expect(page.locator(".lf-fab-input")).to_be_focused()
     expect(page.locator(".lf-fab-input")).to_have_js_property("value", kept)
@@ -2945,6 +2950,20 @@ def test_picture_paste_belongs_to_the_composer_not_the_shared_text_field(
         with page.expect_response(lambda response: response.url.endswith("/api/media")):
             paste(composer, "Pasted words", True)
         expect(page.locator(".lf-composer-media img")).to_have_count(1)
+        expect(composer).to_have_js_property("value", "Keep WORD tail")
+        # Editing another surface chooses it; attachment removal is an edit that
+        # chooses this composer again even though focusing it alone did not.
+        page.keyboard.press("Escape")
+        draft_control(page, "edit", "text-only").click()
+        write(editor, "A later document edit")
+        page.keyboard.press("Escape")
+        compose(page, "#passage")
+        page.get_by_role("button", name="Remove pasted image 1", exact=True).click()
+        expect(page.locator(".lf-composer-media img")).to_have_count(0)
+        page.locator("h1").click()
+        page.keyboard.press("g")
+        page.keyboard.press("i")
+        expect(composer).to_be_focused()
         expect(composer).to_have_js_property("value", "Keep WORD tail")
     finally:
         page.evaluate("""async () => {
@@ -3036,13 +3055,13 @@ def test_a_pasted_image_is_a_whole_draft_and_leaves_with_the_send_that_took_it(
     panel_settled(page)
     expect(page.locator(".lf-composer")).to_be_hidden()
     notice = page.locator(".lf-notice")
-    assert notice.inner_text() == "Draft kept — g D returns to it"
+    assert notice.inner_text() == "Draft kept — g i resumes writing"
     page.keyboard.press("g")
     shortcut_bar_text(page)
     expect(
-        page.locator('.lf-shortcut[data-lf-command-ids~="composer.kept-draft"]')
+        page.locator('.lf-shortcut[data-lf-command-ids~="writing.resume"]')
     ).to_have_count(1)
-    page.keyboard.press("Shift+d")
+    page.keyboard.press("i")
     expect(page.locator(".lf-composer")).to_be_visible()
     expect(page.locator(".lf-fab-input")).to_have_js_property("value", "")
     expect(shelf.locator("img")).to_be_visible()
@@ -3136,6 +3155,8 @@ def test_comment_follows_a_new_standing_instead_of_an_earlier_draft(browser, ser
     words = "Carry these unfinished words to the item I am at now."
     choose_comment_target(page, "#p3")
     write(page.locator(".lf-fab-input"), words)
+    page.keyboard.press("Home")
+    page.keyboard.press("ArrowRight")
     page.keyboard.press("Shift+Tab")
     page.locator("#later-link").scroll_into_view_if_needed()
     go_to_address(page, "Link", "later-link")
@@ -3151,6 +3172,13 @@ def test_comment_follows_a_new_standing_instead_of_an_earlier_draft(browser, ser
     expect(field).to_be_focused()
     expect(field).to_have_js_property("value", words)
     expect(field).to_have_attribute("aria-label", re.compile("Paragraph 41"))
+    page.keyboard.press("Escape")
+    page.keyboard.press("g")
+    page.keyboard.press("i")
+    expect(field).to_be_focused()
+    expect(field).to_have_js_property("value", words)
+    expect(field).to_have_attribute("aria-label", re.compile("Paragraph 41"))
+    expect(field).to_have_js_property("selectionStart", 1)
     with sending(page, "comment"):
         page.keyboard.press("Enter")
     sent = [
@@ -3178,6 +3206,8 @@ def test_comment_follows_a_thread_standing_instead_of_an_earlier_draft(
     words = "These words belong to my earlier unfinished comment."
     choose_comment_target(page, "#p3")
     write(page.locator(".lf-fab-input"), words)
+    page.keyboard.press("Home")
+    page.keyboard.press("ArrowRight")
     page.keyboard.press("Shift+Tab")
     page.keyboard.press("t")
     expect(thread).to_be_focused()
@@ -3193,10 +3223,17 @@ def test_comment_follows_a_thread_standing_instead_of_an_earlier_draft(
     if existing_reply:
         page.keyboard.press("Escape")
         page.keyboard.press("g")
-        page.keyboard.press("Shift+d")
+        page.keyboard.press("i")
         expect(page.locator(".lf-fab-input")).to_be_focused()
         expect(page.locator(".lf-fab-input")).to_have_js_property("value", words)
     else:
+        page.keyboard.press("Escape")
+        page.keyboard.press("g")
+        page.keyboard.press("i")
+        reply = page.locator("leaf-text[name=reply]:focus")
+        expect(reply).to_be_focused()
+        expect(reply).to_have_js_property("value", words)
+        expect(reply).to_have_js_property("selectionStart", 1)
         with sending(page, "carried reply"):
             page.keyboard.press("Enter")
         replies = [
@@ -4786,3 +4823,228 @@ def test_first_draft_save_and_refusal_keep_the_history_allocation(browser, serve
     expect(history).to_have_text("Changes · 0 edits")
     assert page.locator("#following").bounding_box() == before
     consume_browser_errors(page, "400")
+
+
+def test_resume_writing_keeps_editor_identity_caret_and_sent_conversation(
+    browser, serve
+):
+    """Resume follows actual edits across comment, reply and document editors."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Resume writing",
+                '<h1>Resume writing</h1><p id="subject">A passage worth discussing.</p>'
+                '<lf-draft id="editable"><pre>Original page text</pre></lf-draft>',
+            )
+        ),
+    )
+    compose(page, "#subject", "My original comment")
+    box = page.locator(".lf-fab-input")
+    page.keyboard.press("Home")
+    page.keyboard.press("ArrowRight")
+    page.keyboard.press("ArrowRight")
+    caret = box.evaluate("el => el.selectionStart")
+    page.keyboard.press("Escape")
+    page.locator("#editable .lf-draft-body").click()
+    expect(page.locator("#editable .lf-draft-edit")).to_be_focused()
+    page.keyboard.press("Escape")  # focusing an editor is not an edit
+    page.keyboard.press("g")
+    page.keyboard.press("i")
+    expect(box).to_be_focused()
+    expect(box).to_have_js_property("value", "My original comment")
+    assert box.evaluate("el => el.selectionStart") == caret
+    # Native input still owns the letters; gi must never run inside an editor.
+    page.keyboard.type("gi")
+    expect(box).to_have_js_property("value", "Mygi original comment")
+    page.keyboard.press("Escape")
+    held = []
+    page.route("**/api/state", lambda route: held.append(route))
+    page.reload()
+    holding(page, held, 1, "the reloaded page's initial state")
+    # A user gesture while presentation waits supersedes automatic draft recovery.
+    # It must not later steal focus and turn the page shortcut into typed letters.
+    page.keyboard.press("Escape")
+    held[0].continue_()
+    page.unroute("**/api/state")
+    wait_until_ready(page)
+    expect(box).not_to_be_focused()
+    page.keyboard.press("g")
+    page.keyboard.press("i")
+    expect(box).to_be_focused()
+    expect(box).to_have_js_property("value", "Mygi original comment")
+    expect(box).to_have_js_property("selectionStart", caret + 2)
+    with sending(page, "first comment"):
+        page.keyboard.press("Enter")
+    page.keyboard.press("Escape")
+    page.keyboard.press("g")
+    page.keyboard.press("i")
+    reply = page.locator("leaf-text[name=reply]:focus")
+    expect(reply).to_be_visible()
+    expect(reply).to_have_js_property("value", "")
+    write(reply, "Continue this thread")
+    page.keyboard.press("Home")
+    page.keyboard.press("ArrowRight")
+    page.keyboard.press("Escape")
+    page.keyboard.press("g")
+    page.keyboard.press("i")
+    expect(page.locator("leaf-text[name=reply]:focus")).to_have_js_property(
+        "value", "Continue this thread"
+    )
+    assert (
+        page.locator("leaf-text[name=reply]:focus").evaluate("el => el.selectionStart")
+        == 1
+    )
+    page.keyboard.press("Escape")
+    page.locator("#editable .lf-draft-body").click()
+    edit = page.locator("#editable .lf-draft-edit")
+    write(edit, "Rewritten page text")
+    page.keyboard.press("Home")
+    page.keyboard.press("ArrowRight")
+    page.keyboard.press("Escape")
+    # The desktop More reference invokes the same semantic command as gi.
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+    page.get_by_role("combobox", name="Search commands").fill("Resume writing")
+    page.get_by_role("button", name="Resume writing", exact=True).click()
+    expect(edit).to_be_focused()
+    expect(edit).to_have_js_property("value", "Rewritten page text")
+    assert edit.evaluate("el => el.selectionStart") == 1
+
+
+def test_resume_writing_is_a_touch_action_and_does_not_steal_hint_addresses(
+    browser, serve
+):
+    """A finger can resume the general box; gi never collides with generated hints."""
+    source = leaf_page(
+        "Resume targets",
+        '<h1 id="heading">Resume targets</h1>'
+        + "".join(
+            f'<p><a id="link{index}" href="#heading">Jump {index}</a></p>'
+            for index in range(30)
+        ),
+    )
+    page = open_page(browser, serve(source))
+    page.locator(".lf-threads-toggle").click()
+    general = page.locator(".lf-general leaf-text")
+    write(general, "A page-wide draft")
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    page.keyboard.press("g")
+    expect(page.locator(".lf-go-to-hint[data-lf-hint-code]").first).to_be_visible()
+    labels = page.locator(".lf-go-to-hint[data-lf-hint-code]").evaluate_all(
+        "els => els.map(el => el.dataset.lfHintCode)"
+    )
+    assert labels and all("i" not in label for label in labels)
+    page.keyboard.press("i")
+    expect(general).to_be_focused()
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    context = browser.new_context(
+        is_mobile=True, has_touch=True, viewport={"width": 390, "height": 844}
+    )
+    touch = open_page(browser, serve(LONG_PAGE), context=context)
+    touch.keyboard.press("c")
+    general = touch.locator(".lf-general leaf-text")
+    write(general, "A touch draft")
+    touch.keyboard.press("Escape")
+    touch.keyboard.press("Escape")
+    touch.get_by_role("button", name="More page controls", exact=True).click()
+    touch.get_by_role("button", name="Resume writing", exact=True).click()
+    expect(general).to_be_focused()
+    expect(general).to_have_js_property("value", "A touch draft")
+
+
+@pytest.mark.parametrize("hidden_tab", [False, True])
+def test_resume_writing_reveals_page_editor_from_a_covering_panel_and_keeps_back(
+    browser, serve, hidden_tab
+):
+    """Resume exposes a hidden editor's place immediately and keeps the outgoing reading."""
+    writing = (
+        '<details id="fold" open><summary>Editable content</summary>'
+        '<lf-draft id="editable"><pre>Initial words</pre></lf-draft></details>'
+    )
+    reading = (
+        '<div style="height:2200px"></div><h2 id="elsewhere">Elsewhere</h2>'
+        "<p>Keep this reading position.</p>"
+    )
+    body = writing + reading
+    if hidden_tab:
+        body = (
+            '<lf-tabs id="views"><lf-tab id="writing-view" label="Writing">'
+            + writing
+            + '<div style="height:3300px"></div>'
+            '</lf-tab><lf-tab id="reading-view" label="Reading">'
+            + reading
+            + "</lf-tab></lf-tabs>"
+        )
+    page = open_page(
+        browser,
+        serve(leaf_page("Resume travel", '<h1 id="top">Resume travel</h1>' + body)),
+    )
+    page.locator("#editable .lf-draft-body").click()
+    edit = page.locator("#editable .lf-draft-edit")
+    write(edit, "Last edit")
+    page.keyboard.press("Home")
+    page.keyboard.press("ArrowRight")
+    page.keyboard.press("Escape")
+    page.locator("#fold > summary").click()
+    if hidden_tab:
+        page.get_by_role("tab", name="Reading", exact=True).click()
+    page.locator("#elsewhere").click()
+    resized(page, 390, 844)
+    scroll_settled(page)
+    source_entry = page.evaluate("navigation.currentEntry.key")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    expect(page.locator(".lf-thread-panel")).to_be_visible()
+    if hidden_tab:
+        page.evaluate("""() => {
+          const held = new Promise(resolve => { window.releaseResumeLayout = resolve; });
+          document.querySelector('#views').addEventListener('lf-layout', event => {
+            event.detail.present(held);
+            window.resumeLayoutStarted = true;
+          }, {once: true});
+        }""")
+        try:
+            page.keyboard.press("g")
+            page.keyboard.press("i")
+            page.wait_for_function("window.resumeLayoutStarted === true")
+            one_frame(page)
+            expect(page.locator("#writing-view")).to_be_visible()
+            first_view = page.locator("#editable").evaluate("""async draft => {
+              const {landingBand} = await window.__lfRuntimeImport('/runtime/geometry.js');
+              const rect = draft.getBoundingClientRect();
+              const band = landingBand(document.scrollingElement);
+              return {top: rect.top, bottom: rect.bottom, low: band.top, high: band.bottom};
+            }""")
+            assert first_view["top"] >= first_view["low"], first_view
+            assert first_view["bottom"] <= first_view["high"], first_view
+        finally:
+            page.evaluate("releaseResumeLayout()")
+    else:
+        page.keyboard.press("g")
+        page.keyboard.press("i")
+    expect(page.locator(".lf-thread-panel")).to_be_hidden()
+    expect(edit).to_be_focused()
+    expect(edit).to_be_in_viewport()
+    expect(edit).to_have_js_property("value", "Last edit")
+    assert edit.evaluate("el => el.selectionStart") == 1
+    page.go_back()
+    scroll_settled(page)
+    expect(page.locator("#elsewhere")).to_be_in_viewport()
+    assert page.evaluate("navigation.currentEntry.key") == source_entry
+    # Clearing every word still records a real editor destination.
+    page.keyboard.press("g")
+    page.keyboard.press("i")
+    expect(edit).to_be_focused()
+    edit.press("ControlOrMeta+a")
+    edit.press("Backspace")
+    page.keyboard.press("Escape")
+    if hidden_tab:
+        page.get_by_role("tab", name="Reading", exact=True).click()
+    page.locator("#elsewhere").click()
+    page.keyboard.press("g")
+    page.keyboard.press("i")
+    expect(edit).to_be_focused()
+    expect(edit).to_have_js_property("value", "")

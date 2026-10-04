@@ -195,6 +195,19 @@ included. A key that typed is editing rather than putting away, and a scroll, a
 resize, a script, and the server's news are none of them, so a test that closes a box
 must do it the way a user does.
 
+Health sensors use `watch_platform.js` for native paint scheduling and its matching
+performance clock. A controlled page clock advances product callbacks; Chrome's
+layout-shift records still carry native timestamps. Do not mix those clocks when
+associating input, sampled geometry, and painted movement. `input_work_watch.js`
+retains the trusted input behind timers, animation frames, microtasks, and explicit
+Promise callbacks the page schedules, so delayed Send work keeps its cause and an
+unrelated timer does not acquire one by running nearby. Native `await` continuations
+do not expose their input context to JavaScript instrumentation. A native sensor
+fixture captures its DOM commit callback with `lfInputWork.capture` during the
+trusted handler and invokes that callback after `await`; the capture states the
+cause instead of guessing among concurrent operations. Leaf's draft sends put words
+away synchronously before awaiting delivery.
+
 Leaf's own widgets are held to the widget quality report `package check --render`
 gives a package's author (`leaf/render_gate/widget_quality.py`):
 `test_widget_quality.py` runs it over the base layer and every bundled package.
@@ -218,6 +231,33 @@ pre-runtime measurement.
 
 ## A wait consumes a fact the system states
 
+### Functional results do not depend on execution speed
+
+A correctly functioning system running ten times slower must preserve a functional
+test's result and still exercise the causal situation the test claims to cover.
+This applies to fixtures and health watchers as well as the test body. Measure a
+performance contract separately under controlled conditions.
+
+Separate product time from execution time. Control or explicitly advance the clock
+that decides an age, lease, grace period, or timer behavior. A fixed `Date.now()`
+does not stop timers, animation frames, browser paint, or observer delivery; control
+the mechanism the assertion depends on. Use real monotonic deadlines to bound hangs,
+with scheduling room for slower execution, and report the completion fact still
+missing when they expire.
+
+Synchronize on the operation's declared completion or an acknowledgement of the
+causal edge. A sleep does not prove another process acquired a lock, completed a
+scan, or attempted a blocked operation. Instrumentation must keep input ownership
+and unjudged evidence until their declared completion; a time cap must not turn
+unfinished work into a successful reading or an unrelated effect.
+
+When testing a scheduling race, hold and release the relevant request, callback,
+frame, or acquisition explicitly. Check the same outcome with completion delayed
+tenfold, and retain a fault control that still fails. Increasing sleeps or retries
+does not repair a missing synchronization fact.
+
+### Completion comes from the operation
+
 Elapsed time, matching samples, a fixed count of animation frames, and network quiet
 all describe a page that has not started an effect as well as one that has finished
 it. Wait on a fact the system states instead; count frames (`one_frame` in
@@ -226,8 +266,9 @@ reports the animated value, so ask `getAnimations()` where the subject may be in
 transit. `page.evaluate` takes no timeout; state readiness synchronously in the page
 and poll it with `wait_for_probe`.
 
-An absence that rests on a mechanism acting only after a grace period holds a window
-derived from that product constant plus scheduling room.
+For an absence after a product grace period, advance that mechanism's clock past the
+boundary and observe its completed decision. A real-time integration test waits for
+the decision with a hang deadline that allows the grace period and scheduling room.
 
 A new wait fixes its deadline when it begins and names the missing evidence on
 timeout. Pure-Python state polls use `interact_support.wait_for`.
@@ -330,7 +371,8 @@ keyboard affordances),
 or `live_counts` climb on every trip; a resize fails where a width says something
 other than it said on the way out; and a box the user types in fails where sending
 every scroller to either end and back loses its words. The last four read a
-`still_page`, whose reduced motion and stopped clock leave only what the test did.
+`still_page`, whose reduced motion and fixed wall-clock date keep age labels stable;
+its timers and browser rendering still run.
 All of them run on every corpus page, so a new widget or page joins without a case of
 its own; a new surface joins the round trips by its keys, and a new box the typed
 boxes by its route. Run generated-markup probes (`undeclaredAttrs`,

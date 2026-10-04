@@ -31,7 +31,6 @@ from leaf.validation.admission import (
     check_markup,
     logged_id,
     read_text_arg,
-    run_markup,
     thread_obligation,
 )
 
@@ -348,11 +347,8 @@ def cmd_comment(
     revision they are looking at and read as they see it: a slot
     their decision retired is off the page, and a draft they edited holds their words,
     so a quote is met here the way it would land there."""
-    # Reading a body may wait on stdin, and running markup reads the log; do both
-    # before taking the page lease.
+    # Reading a body may wait on stdin; do that before taking the page lease.
     body = read_text_arg(page_dir, text)
-    if markup:
-        run_markup(page_dir, "comment", markup)
     with PageTransaction(page_dir) as page:
         events = page.events
         revision, anchor = _current_anchor(
@@ -428,8 +424,6 @@ def cmd_reply(
     ordinary agent answers omit it.
     """
     body = read_text_arg(page_dir, text)
-    if markup:
-        run_markup(page_dir, "reply", markup)
     posting_identity = message_identity() if identity is None else identity
     with PageTransaction(page_dir) as page:
         if claimed_session is not None:
@@ -889,12 +883,14 @@ def cmd_summarize(
     from_message: str,
     through_message: str,
     text,
+    *,
+    label: str | None = None,
 ) -> dict:
     """Append a presentation summary over one contiguous message range, in the
     thread its first message sits in."""
     from leaf.registry.storage import require_registry
 
-    body = read_text_arg(page_dir, text)
+    body = read_text_arg(page_dir, text, allow_empty=text == "")
     with PageTransaction(page_dir) as page:
         require_registry(page_dir)
         return append_admitted(
@@ -907,6 +903,7 @@ def cmd_summarize(
                 "from": from_message,
                 "through": through_message,
                 "text": body,
+                **({"label": label} if label is not None else {}),
             },
         )
 

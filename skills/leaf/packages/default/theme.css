@@ -219,7 +219,21 @@
   :scope:is(lf-options):has(> lf-option > strong) > lf-option { border: 1px solid var(--rule);
               border-radius: var(--r); background: var(--card); }
 }
-:scope:is(lf-option) > strong { display: block; margin: 0 0 4px; }
+/* A titled option's title heads its card, or, at working density (`--lf-density`,
+ * theme.css) in a group wide enough to hold a row, runs into its consequence on one
+ * row with its chips at the row's end. A narrow group, such as an Ask's options track,
+ * keeps cards at any density: a row there broke the title around the floated chips.
+ * The group is the query's container (container-type above), so both conditions read
+ * the same box. Each form says its own, so neither resets the other. */
+@container not (style(--lf-density: working) and (width >= 30rem)) {
+  :scope:is(lf-option) > strong { display: block; margin: 0 0 4px; }
+}
+@container style(--lf-density: working) and (width >= 30rem) {
+  :scope:is(lf-options):has(> lf-option > strong) > lf-option {
+    & > strong { margin-inline-end: .35em; }
+    & > lf-chip { float: inline-end; margin: 0 0 0 6px; }
+  }
+}
 /* A chip is an element, so nothing here renders it and nothing declares it words: it is
  * the author's own markup, quotable and diffable like any other content. The chip is the
  * shared one — inline-block there, which is what leaves each form free to decide where

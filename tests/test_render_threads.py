@@ -76,6 +76,7 @@ from render_harness import (
 
 pytestmark = pytest.mark.nightly
 
+
 # Where focus given to the Threads list lands while it shows a thread: the title of the
 # thread it shows open (thread-list-view.js).
 OPEN_TITLE = ".lf-threads > .lf-thread:not([hidden])[open] > .lf-thread-summary"
@@ -2450,6 +2451,81 @@ def test_a_stream_growing_keeps_the_panel_editor_still(
             expect(body).to_have_text(latest)
         assert field.evaluate("""field => field === window.__heldStreamEditor
           && field.value === 'half newer a thought'""")
+
+
+@pytest.mark.watch_shifts
+def test_news_from_elsewhere_moves_nothing_in_a_short_panel_thread(browser, serve):
+    """A reaction made in another tab waits behind a short card's notice, as a reply does.
+
+    Its strip would add a row under the answer and push Reply down. While it waits, a
+    press on the strip means what the strip drew, so choosing the reaction that already
+    stands sends nothing, and shows what waits. A count news changes keeps its filter's
+    width."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "Keep the discussion here.")
+    answer = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "revision": 1,
+            "parent": root,
+            "text": "An answer to react to.",
+        },
+    )["id"]
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    thread = page.locator(f'.lf-threads > .lf-thread[data-id="{root}"]')
+    if thread.get_attribute("open") is None:
+        thread.locator(".lf-thread-summary").click()
+    page.locator(".lf-thread-filter-toggle").click()
+    strip = thread.locator(f'.lf-msg[data-mid="{answer}"] > .lf-react-strip')
+    keep = strip.locator('.lf-react[data-token="keep"]')
+    field = thread.locator("leaf-text")
+    filters = page.locator(".lf-thread-filter:visible")
+    rendered(page)
+    # Chrome reports no shift within 500ms of input, so the news lands after it.
+    page.wait_for_function(
+        "at => performance.now() - at > 500", arg=page.evaluate("performance.now()")
+    )
+    before = field.bounding_box()
+    widths = filters.evaluate_all("bs => bs.map(b => b.getBoundingClientRect().width)")
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "user",
+            "revision": 1,
+            "parent": answer,
+            "token": "keep",
+        },
+    )
+    panel_comment(serve.page_dir, "A second thread raises a count.", author="agent")
+    told(page)
+    notice = thread.get_by_role("button", name="1 reaction changed", exact=True)
+    expect(notice).to_be_visible()
+    expect(keep).to_have_attribute("aria-pressed", "false")
+    expect(page.get_by_role("button", name="Open (2)", exact=True)).to_be_visible()
+    rendered(page)
+    assert field.bounding_box() == before
+    assert (
+        filters.evaluate_all("bs => bs.map(b => b.getBoundingClientRect().width)")
+        == widths
+    )
+
+    # The press means the face it drew, so the reaction already standing sends
+    # nothing, and acting in the thread shows what it holds.
+    logged = len(events_model.read_events(serve.page_dir))
+    thread.locator(f'.lf-msg[data-mid="{answer}"]').hover()
+    strip.locator(".lf-react-trigger").click()
+    keep.click()
+    expect(notice).to_have_count(0)
+    expect(keep).to_have_attribute("aria-pressed", "true")
+    expect(keep).to_be_visible()
+    rendered(page)
+    assert len(events_model.read_events(serve.page_dir)) == logged
 
 
 @pytest.mark.parametrize("destination", ["message", "ask"])

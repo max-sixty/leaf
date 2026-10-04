@@ -29,9 +29,11 @@
    not opened. Each reads every reading against the one it drew last and holds what is
    news. What it holds shows when the user opens the notice, when they add a turn of
    their own here (a reply in the thread, or a thread they start in the seat, which
-   answers what came before it and so follows it), or when none of the seat shows in the
-   window, where the growth moves nothing they see. Anything held in a seat is not
-   drawn, so it stays unread until it shows.
+   answers what came before it and so follows it), when the thread itself opens (a
+   folded outlet, or a panel card the list opens, as a walk to it does), whose opening
+   moves everything after it anyway, or when none of the seat shows in the window, where
+   the growth moves nothing they see. Anything held in a seat is not drawn, so it stays
+   unread until it shows.
 
    `HeldReading` is the same rule for a widget's region whose rows only the log or the
    clock decides, such as a command's lists of stopped goals and live workers: a reading
@@ -289,13 +291,20 @@ export class HeldNews {
     const waiting = this.#threads.size;
     const host = threads.at(-1);
     if (waiting && host) host.news = { ...host.news, threads: waiting };
-    for (const thread of threads)
+    for (const thread of threads) {
+      // Progress folds belong to the completing reply. If that reply is held,
+      // the updates keep their existing presentation until it is shown too.
+      const shown = new Set(thread.messages.map(({ id }) => id));
+      thread.summaries = thread.summaries.filter(
+        (summary) => !summary.trigger || shown.has(summary.trigger),
+      );
       if (thread.news)
         thread.news = {
           label: newsLabel(thread.news),
           reopened: Boolean(thread.news.reopened),
           open: () => this.#open(thread.key, thread === host && waiting),
         };
+    }
     // A thread arriving with no thread drawn is held only where the seat drew its
     // first-message row, so its notice stands in that row's place.
     const news =

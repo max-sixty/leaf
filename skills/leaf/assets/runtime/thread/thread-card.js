@@ -138,7 +138,7 @@ export function threadReading(
       icon: !resolved || Boolean(kept),
     }),
     reply: !resolved || Boolean(kept),
-    summaries: panel ? Object.freeze(thread.summaries) : Object.freeze([]),
+    summaries: Object.freeze(thread.summaries),
     messages: Object.freeze(messages),
   });
 }
@@ -263,8 +263,9 @@ export class ThreadView {
     this.#metadataActions.className = "lf-thread-meta-actions";
     // Native disclosure opens at the attribute checkpoint; queued toggle may arrive
     // after paint. Release held news here so the first opened body is current,
-    // whether a summary or a programmatic native open revealed it.
-    if (surface === "outlet")
+    // whether a summary, the panel list's choice (a walk to the card) or a
+    // programmatic native open revealed it.
+    if (surface === "outlet" || surface === "panel")
       new MutationObserver(() => {
         if (this.node.open) this.#model?.news?.open();
       }).observe(this.node, { attributeFilter: ["open"] });
@@ -326,13 +327,18 @@ export class ThreadView {
     // Only a summary that was not standing before can swallow what the user
     // holds or is reading, and reading geometry here forces layout.
     if (prior && model.summaries.some(({ id }) => !priorSummaries.has(id))) {
-      const heldMessage = standing?.closest?.(".lf-msg[data-mid]")?.dataset.mid;
+      const heldMessage = prior.messages.find(({ key }) =>
+        this.#messages.get(key)?.node.contains(standing),
+      )?.id;
       // Being read is being on screen, on whichever surface holds the card.
       const clips = new Map();
       const beingRead = new Set(
-        [...this.node.querySelectorAll(":scope .lf-msg[data-mid]")]
-          .filter((message) => seenRect(message, clips))
-          .map((message) => message.dataset.mid),
+        prior.messages
+          .filter(({ key }) => {
+            const node = this.#messages.get(key)?.node;
+            return node?.isConnected && seenRect(node, clips);
+          })
+          .map(({ id }) => id),
       );
       for (const summary of model.summaries) {
         if (priorSummaries.has(summary.id)) continue;
@@ -413,7 +419,10 @@ export class ThreadView {
       let view = this.#messages.get(message.key);
       if (!view)
         this.#messages.set(message.key, (view = new MessageView(this.#commands)));
-      view.present(message, index === 0 && Boolean(headerActions));
+      view.present(message, {
+        externalHeader: index === 0 && Boolean(headerActions),
+        arrived: Boolean(prior),
+      });
       return { key: message.key, node: view.node, header: view.header };
     });
     this.#lastMessage = messages.at(-1)?.node ?? null;

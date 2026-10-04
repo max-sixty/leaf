@@ -1578,15 +1578,12 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
     border-bottom-color: currentColor;
     background: transparent;
   }
+    /* A page tab is a section of the page, not a box on it: it declares the frame only
+     * so its first line trims under the strip and, like `main`, holds the page's flow,
+     * so a wide exhibit in a page tab grows out as it would on a page without tabs. */
   :scope:is(lf-tabs).lf-rendered[data-lf-tabs-flow="page"] > lf-tab:not([hidden]) {
     padding: var(--sp-4) 0 0;
-  }
-    /* A page tab is a section of the page, not a box on it: it declares the frame only
-     * so its first line trims under the strip and, like `main`, hands the room back to
-     * what it holds, so a wide exhibit in a page tab grows out as it would on a page
-     * without tabs. */
-  :scope:is(lf-tabs).lf-rendered[data-lf-tabs-flow="page"] > lf-tab:not([hidden]) > * {
-    --lf-room: inherit;
+    --lf-page-flow: 1;
   }
   :scope:is(lf-tabs).lf-rendered[data-lf-tabs-flow="page"] > lf-tab[hidden] {
     align-self: start;
@@ -1624,7 +1621,7 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
       margin-block: 0 32px; border: 0; border-radius: 0; background: transparent;
       --lf-block-frame: 0;
       &::before { border-radius: 0; background: var(--paper); }
-      & > lf-tab { padding: var(--sp-4) 0 0; }
+      & > lf-tab { padding: var(--sp-4) 0 0; --lf-page-flow: 1; }
     }
   }
   @scope (html[data-lf-interactive] :scope) {

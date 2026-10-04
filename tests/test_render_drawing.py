@@ -273,6 +273,60 @@ def around(page, box):
     )
 
 
+def test_an_anchored_drawing_scales_with_the_box_it_was_drawn_in(browser, serve):
+    """An anchored drawing replays at its element's current size, each axis by its own
+    ratio to the recorded box, so the mark keeps its share of the element in a narrower
+    window. A stroke drawn after the element resized joins at the new size, and the
+    record's box is that size."""
+    page = open_page(browser, serve(TARGETS_PAGE))
+    prose = page.locator("#prose")
+    wide = page.viewport_size
+    draw_over(page, prose)
+    expect(page.locator(".lf-drawing-pending")).to_have_count(1)
+    drawn_at = prose.bounding_box()
+
+    page.set_viewport_size({"width": 420, "height": wide["height"]})
+    narrow = prose.bounding_box()
+    assert narrow["width"] < 0.8 * drawn_at["width"]
+    assert narrow["height"] > drawn_at["height"], "the paragraph must reflow"
+    stroke_over(page, prose, points=((0.3, 0.3), (0.5, 0.7), (0.7, 0.3)))
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_focused()
+    with sending(page, "the resized drawing"):
+        page.keyboard.press("ControlOrMeta+Enter")
+
+    event = events_model.read_events(serve.page_dir)[-1]
+    drawing = event["drawing"]
+    assert drawing["box"] == pytest.approx(
+        [narrow["width"], narrow["height"]], abs=0.01
+    )
+    first, second = drawing["strokes"]
+    # Each stroke is a share of the one box, whichever size it was drawn at.
+    assert first[0][0] / drawing["box"][0] == pytest.approx(STROKE[0][0], abs=0.02)
+    assert first[0][1] / drawing["box"][1] == pytest.approx(STROKE[0][1], abs=0.02)
+    assert second[0][0] / drawing["box"][0] == pytest.approx(0.3, abs=0.02)
+
+    posted = f'.lf-drawing-posted[data-thread="{event["id"]}"]'
+    expect(page.locator(posted)).to_have_count(1)
+
+    def shares():
+        """The mark's offset and size as shares of the element's current box."""
+        rendered(page)
+        dx, dy, width, height = mark_relation(page, posted, "#prose")
+        box = prose.bounding_box()
+        return [
+            dx / box["width"],
+            dy / box["height"],
+            width / box["width"],
+            height / box["height"],
+        ]
+
+    at_narrow = shares()
+    page.set_viewport_size(wide)
+    assert prose.bounding_box()["width"] == pytest.approx(drawn_at["width"], abs=0.5)
+    assert shares() == pytest.approx(at_narrow, abs=0.01)
+
+
 def test_a_drawing_says_the_words_it_stands_over_and_the_box_it_was_drawn_in(
     browser, serve
 ):

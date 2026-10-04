@@ -6,16 +6,18 @@
    its lifecycle state. A thread reached in the complete panel opens in its reply box;
    the compact margin view opens on its card and reveals that box only when the user
    asks to reply. A resolved thread opens on its card. A message takes focus at its own
-   words so Tab reaches its controls. A
-   thread too tall for its scrollport starts at the earliest complete content block
-   that still leaves its reply area visible. That puts the first visible content on a
-   clean boundary instead of leaving an arbitrary partial message line below the pinned
-   heading. The transient arrival flash belongs to the revealed target — short card,
-   reply area, message, or oversized editor — rather than to a long card spanning
-   beyond the scrollport. The explicit `t`/`T` walk remains on a thread's native title
-   in the panel and on the card root inline, and a title arriving by key shows a thread
-   too tall for the list from its start; Enter and Space choose a closed panel thread,
-   and Enter on an open one's title writes a reply. An accepted anchored comment
+   words so Tab reaches its controls. A thread too tall for its scrollport lands on its
+   latest message, the turn a user comes back to a conversation for: it starts at the
+   earliest complete content block that still leaves the thread's end and its reply
+   area visible, or at the latest message's head where that message alone overflows
+   the list. That puts the first visible content on a clean boundary instead of leaving
+   an arbitrary partial message line below the pinned heading. The transient arrival
+   flash belongs to the revealed target — short card, reply area, message, or
+   oversized editor — rather than to a long card spanning beyond the scrollport. The
+   explicit `t`/`T` walk remains on a thread's native title in the panel and on the
+   card root inline, and a title arriving by key lands a thread too tall for the list
+   as a direct arrival does; Enter and Space choose a closed panel thread, and Enter on
+   an open one's title writes a reply. An accepted anchored comment
    continues in the open Threads panel, widening a filter that would hide it. A landing
    waits for the render in flight and for a resolution fold to end, since both move what
    it would measure. Where a thread lands in its scroller is `reply-landing.js`'s.
@@ -63,13 +65,24 @@ const threadReturns = new WeakMap();
 // stands over that end. Native nearest-edge scrolling guarantees the target is visible,
 // but it can put the sticky heading through the middle of a text line. The thread
 // header and message bodies expose complete block boundaries; use those rather than
-// attempting to infer line boxes from prose.
+// attempting to infer line boxes from prose. Landing the thread's end never starts
+// below the latest turn's head, a message or the summary standing for earlier ones: a
+// turn taller than the list is read from its head, with the pinned reply row still
+// standing at the foot.
 const threadLandingStart = (held, target, threadsBox) => {
   const band = landingBand(threadsBox);
   if (!band) return null;
   const room = band.bottom - band.top;
   const targetBox = shownBox(target);
   const last = target === held ? targetBox.bottom : targetBox.top;
+  const latest =
+    target === held
+      ? [
+          ...held.querySelectorAll(
+            ".lf-thread-transcript > :is(.lf-msg, .lf-thread-checkpoint)",
+          ),
+        ].at(-1)
+      : null;
   const candidates = [
     ...held.querySelectorAll(
       ":scope > *, :scope > .lf-thread-content > *, " +
@@ -77,12 +90,14 @@ const threadLandingStart = (held, target, threadsBox) => {
         ".lf-thread-transcript .lf-msg .lf-msg-text > *",
     ),
     target,
+    ...(latest ? [latest] : []),
   ]
     .filter((node) => node !== held)
     .map((node) => ({ node, box: shownBox(node) }))
     .filter(
       ({ node, box }) =>
         node === target ||
+        node === latest ||
         (getComputedStyle(node).display !== "contents" &&
           box.height > 0 &&
           box.top <= last &&
@@ -90,6 +105,13 @@ const threadLandingStart = (held, target, threadsBox) => {
     )
     .sort((a, b) => a.box.top - b.box.top);
   return candidates[0]?.node ?? null;
+};
+
+// A long thread arrived at in the list lands on its latest message, from the clean start
+// `threadLandingStart` picks, or with its end at the list's foot where none is needed.
+const landLatest = (thread, threadsBox, behavior = scrollBehavior()) => {
+  const start = threadLandingStart(thread, thread, threadsBox);
+  (start ?? thread).scrollIntoView({ behavior, block: start ? "start" : "end" });
 };
 
 export function threadInput(node) {
@@ -269,7 +291,7 @@ export const retainPanelLanding = (source, panelIsOpen, threadsBox) =>
 // the same shape one scope out.
 const standing = () => closestAcross(focused(), ".lf-thread");
 let keepingPlace = false;
-const land = (thread, behavior, threadsBox, block) => {
+const land = (thread, behavior, threadsBox, arriving = false) => {
   if (!thread || !threadsBox.contains(thread)) return;
   if (takesLetters(focused())) return;
   // A fold still holds the room it is giving back, so a landing measured now aims past
@@ -287,18 +309,19 @@ const land = (thread, behavior, threadsBox, block) => {
       .catch(() => {})
       .then(() => {
         if (mayLand() && standing() === thread)
-          land(thread, behavior, threadsBox, block);
+          land(thread, behavior, threadsBox, arriving);
       });
     return;
   }
-  scrollThreadIntoView(thread, focused(), behavior, block);
+  if (arriving && !fitsWhole(thread)) landLatest(thread, threadsBox, behavior);
+  else scrollThreadIntoView(thread, focused(), behavior);
 };
-// A key arriving on the title of a thread too tall to show whole shows it from its start:
-// the nearest edge put the title at the list's foot with none of the thread under it.
-const arrivalBlock = (thread) =>
-  focused()?.matches?.(".lf-thread-summary") && !fitsWhole(thread)
-    ? "start"
-    : "nearest";
+// A key arriving on a thread's title is an arrival at the thread, so one too tall to
+// show whole lands on its latest message, as a direct arrival does.
+const arrivingAtTitle = () => Boolean(focused()?.matches?.(".lf-thread-summary"));
+// A walk's press at either end moves no focus, so it lands its thread itself.
+export const landWalkedThread = (thread, threadsBox) =>
+  land(thread, undefined, threadsBox, arrivingAtTitle());
 // The primary pointer owns the provisional landing until that same gesture ends. A
 // cancellation means the browser took it for something else — commonly a touch scroll —
 // so release the hold without undoing the gesture by landing the thread.
@@ -331,7 +354,7 @@ export function wireThreadLanding(threadsBox) {
     const thread = standing();
     // Native focus and reply entry reveal their own writing area. Re-landing the
     // thread here would turn that focus move into a second navigation gesture.
-    if (thread) land(thread, undefined, threadsBox, arrivalBlock(thread));
+    if (thread) land(thread, undefined, threadsBox, arrivingAtTitle());
   });
 }
 

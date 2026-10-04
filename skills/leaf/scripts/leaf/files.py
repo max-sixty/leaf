@@ -13,6 +13,7 @@ from stat import S_ISDIR, S_ISREG
 from typing import TypeVar
 
 from .locations import path_location
+from .page_memory import Slot, memo
 from .schema import REVISION_NAME, VERSION_NAME
 from .state import replace_bytes
 
@@ -170,29 +171,54 @@ def revision_num(name: str) -> int:
     return int(REVISION_FILE.fullmatch(name).group("revision"))
 
 
-def list_revisions(page_dir: Path) -> list[int]:
-    revisions_dir = page_dir / "revisions"
-    if not revisions_dir.exists():
-        return []
-    revisions = sorted(
-        revision_num(path.name)
-        for path in revisions_dir.iterdir()
-        if path.is_file() and REVISION_FILE.fullmatch(path.name)
-    )
-    if len(revisions) != len(set(revisions)):
+class _RevisionFiles(Slot):
+    """The revision markers a page's `revisions/` holds, by order, kept under that
+    directory's stamp. A marker appears by a link into the directory
+    (`revision_artifact.publish_artifact`), and every entry added, removed or renamed
+    there moves the stamp, so a held listing is the directory's current one. A server
+    answers each of a document's few hundred module requests from this listing,
+    which would otherwise be a directory scan apiece."""
+
+
+def _revision_files(page_dir: Path) -> dict[int, tuple[str, ...]]:
+    """Each revision's marker file names, in revision order."""
+    directory = page_dir / "revisions"
+    stamp = file_stamp(directory)
+    if stamp is None:
+        return {}
+    return memo(page_dir, _RevisionFiles).get(stamp, lambda: _scan_revisions(directory))
+
+
+def _scan_revisions(directory: Path) -> dict[int, tuple[str, ...]]:
+    found: dict[int, list[str]] = {}
+    with os.scandir(directory) as entries:
+        for entry in entries:
+            if REVISION_FILE.fullmatch(entry.name) and entry.is_file():
+                found.setdefault(revision_num(entry.name), []).append(entry.name)
+    return {revision: tuple(sorted(found[revision])) for revision in sorted(found)}
+
+
+def revision_names(page_dir: Path) -> dict[int, str]:
+    """Each revision's immutable marker file name, in revision order."""
+    markers = _revision_files(page_dir)
+    if any(len(names) > 1 for names in markers.values()):
         sys.exit("more than one immutable revision has the same order")
-    return revisions
+    return {revision: names[0] for revision, names in markers.items()}
+
+
+def list_revisions(page_dir: Path) -> list[int]:
+    return list(revision_names(page_dir))
 
 
 def revision_path(page_dir: Path, revision: int) -> Path:
     """Resolve one ordered revision to its content-addressed immutable file."""
-    matches = sorted((page_dir / "revisions").glob(f"r{revision}-*.html"))
-    matches = [path for path in matches if REVISION_FILE.fullmatch(path.name)]
-    if len(matches) != 1:
-        if not matches:
-            sys.exit(f"no revision r{revision} in {page_dir / 'revisions'}")
+    revisions = page_dir / "revisions"
+    names = _revision_files(page_dir).get(revision, ())
+    if len(names) != 1:
+        if not names:
+            sys.exit(f"no revision r{revision} in {revisions}")
         sys.exit(f"more than one immutable file records revision r{revision}")
-    return matches[0]
+    return revisions / names[0]
 
 
 def latest_revision(page_dir: Path) -> int | None:

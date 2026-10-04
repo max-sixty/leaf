@@ -6658,7 +6658,7 @@ def test_summary_hint_keeps_the_latest_spoken_exchange_outside_reactions(page_di
         {"kind": "comment", "author": "user", "text": "turn 1"},
     )
     spoken = [root]
-    for number in range(2, 9):
+    for number in range(2, 5):
         spoken.append(
             append_carried_log_record(
                 page_dir,
@@ -6674,7 +6674,7 @@ def test_summary_hint_keeps_the_latest_spoken_exchange_outside_reactions(page_di
         page_dir,
         {"kind": "reply", "author": "user", "parent": root["id"], "token": "mark"},
     )
-    for number in range(9, 11):
+    for number in range(5, 7):
         spoken.append(
             append_carried_log_record(
                 page_dir,
@@ -6701,12 +6701,84 @@ def test_summary_hint_keeps_the_latest_spoken_exchange_outside_reactions(page_di
 
     assert digest["summary_hint"] == {
         "from": spoken[0]["id"],
-        "through": spoken[7]["id"],
+        "through": spoken[3]["id"],
     }
     assert digest["summary_hint"]["through"] not in {
         middle_reaction["id"],
         trailing_reaction["id"],
     }
+
+
+def test_summary_hint_does_not_cross_a_fold_of_ephemeral_updates(page_dir):
+    root = append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "x" * 1000}
+    )
+    updates = [
+        append_carried_log_record(
+            page_dir,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "parent": root["id"],
+                "text": "Checking details.",
+                "ephemeral": True,
+            },
+        )
+        for _ in range(2)
+    ]
+    older = append_carried_log_record(
+        page_dir,
+        {"kind": "reply", "author": "agent", "parent": root["id"], "text": "y" * 1000},
+    )
+    for author in ("agent", "user"):
+        latest = append_carried_log_record(
+            page_dir,
+            {"kind": "reply", "author": author, "parent": root["id"], "text": "Next?"},
+        )
+    within = page_view_model.PageView(page_dir).within
+    events = events_model.read_events(page_dir)
+    update_ids = {update["id"] for update in updates}
+    [unfolded] = thread_context_model.batch_threads(
+        [event for event in events if event["id"] not in update_ids], [latest], within
+    )
+    assert unfolded["summary_hint"] == {"from": root["id"], "through": older["id"]}
+    [folded] = thread_context_model.batch_threads(events, [latest], within)
+    assert folded["summaries"][0]["covers"] == [update["id"] for update in updates]
+    assert "summary_hint" not in folded
+
+
+def test_summary_hint_chooses_a_qualifying_run_over_more_short_messages(page_dir):
+    root = append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "x" * 1000}
+    )
+    long_reply = append_carried_log_record(
+        page_dir,
+        {"kind": "reply", "author": "agent", "parent": root["id"], "text": "y" * 1000},
+    )
+    for _ in range(2):
+        append_carried_log_record(
+            page_dir,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "parent": root["id"],
+                "text": "Checking details.",
+                "ephemeral": True,
+            },
+        )
+    # Three short older messages form a longer run, but the earlier two long
+    # messages are the only run that qualifies for a suggestion.
+    for author in ("agent", "user", "agent", "agent", "user"):
+        latest = append_carried_log_record(
+            page_dir,
+            {"kind": "reply", "author": author, "parent": root["id"], "text": "Next?"},
+        )
+    [digest] = thread_context_model.batch_threads(
+        events_model.read_events(page_dir),
+        [latest],
+        page_view_model.PageView(page_dir).within,
+    )
+    assert digest["summary_hint"] == {"from": root["id"], "through": long_reply["id"]}
 
 
 def test_reply_is_fenced_to_the_exact_current_obligation(page_dir):
@@ -14848,13 +14920,106 @@ def test_agent_sees_codex_watcher_recovery(codex_claimed_page, capsys, snapshot)
     )
 
 
+@pytest.mark.parametrize(
+    ("older_texts", "suggested"),
+    [
+        pytest.param(["x" * 2000], False, id="one-message-is-too-few"),
+        pytest.param(["x" * 1000, "x" * 999], False, id="below-character-threshold"),
+        pytest.param(["x" * 1000, "x" * 1000], True, id="two-long-messages"),
+        pytest.param(["Earlier detail."] * 3, False, id="three-short-messages"),
+        pytest.param(["Earlier detail."] * 4, True, id="four-short-messages"),
+    ],
+)
+def test_summary_suggestions_only_accompany_new_input(claimed, older_texts, suggested):
+    publish(claimed)
+    root = append_carried_log_record(
+        claimed, {"kind": "comment", "author": "user", "text": older_texts[0]}
+    )
+    older = [root]
+    for number, text in enumerate(older_texts[1:], start=1):
+        older.append(
+            append_carried_log_record(
+                claimed,
+                {
+                    "kind": "reply",
+                    "author": "agent" if number % 2 else "user",
+                    "parent": root["id"],
+                    "text": text,
+                },
+            )
+        )
+    updates = [
+        append_carried_log_record(
+            claimed,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "parent": root["id"],
+                "text": "Checking the rollout details." * 100,
+                "ephemeral": True,
+            },
+        )
+        for _ in range(2)
+    ]
+    previous = append_carried_log_record(
+        claimed,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "parent": root["id"],
+            "text": "The newest exchange stays readable." * 100,
+        },
+    )
+    receive_through(claimed, last_deliverable_seq(claimed))
+    assert delivery_model.pending_batches("s1") == []
+
+    current = append_carried_log_record(
+        claimed,
+        {
+            "kind": "reply",
+            "author": "user",
+            "parent": root["id"],
+            "text": "What do you recommend now?" * 100,
+        },
+    )
+    payload = consume_pending_input("s1")
+    [batch] = payload["batches"]
+    assert [event["id"] for event in batch["events"]] == [current["id"]]
+    [thread] = batch["threads"]
+    assert {
+        message["id"] for message in thread["messages"] if message.get("ephemeral")
+    } == {update["id"] for update in updates}
+    assert ("summary_hint" in thread) is suggested
+    if suggested:
+        assert thread["summary_hint"] == {
+            "from": older[0]["id"],
+            "through": older[-1]["id"],
+        }
+        assert previous["id"] != thread["summary_hint"]["through"]
+    assert consume_pending_input("s1") is None
+
+    # An answer clears the response obligation even when the agent leaves the
+    # optional suggestion alone. It produces no separate summary delivery.
+    thread_model.cmd_reply(
+        claimed,
+        current["id"],
+        "Proceed with the rollout.",
+        None,
+        for_event=current["id"],
+    )
+    assert delivery_model.pending_batches("s1") == []
+    [plan] = hook_carrier_model.read_plans("s1")
+    assert not plan.owed
+    assert plan.state["activity"]["obligations"] == []
+
+
 def test_agent_sees_a_real_summary_suggestion(page_dir, capsys, snapshot):
     publish(page_dir)
     serving(page_dir, 1)
     root = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "Which rollout?"}
     )
-    for number in range(1, 11):
+    for number in range(1, 5):
         append_carried_log_record(
             page_dir,
             {
@@ -14880,7 +15045,7 @@ def test_agent_sees_a_real_summary_suggestion(page_dir, capsys, snapshot):
     [batch] = envelope["batches"]
     assert batch["threads"][0]["summary_hint"]
     # The event carries the ask as well as the digest, so an agent that reads only
-    # what is new is still told the thread wants summarizing.
+    # what is new can still choose whether to summarize the older discussion.
     [event] = batch["events"]
     assert any("summary_hint" in batch["handling"][h] for h in event["handling"])
     snapshot.check(

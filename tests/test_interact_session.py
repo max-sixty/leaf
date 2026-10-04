@@ -13755,7 +13755,7 @@ def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
     assert "1 update nobody has picked up" in refused.output
     # The claimant's harness names the remedy: Claude Code's hook carries them.
     assert "Leaf's hook puts them in your context" in refused.output
-    assert files_model.read_json(claimed / "status.json")["state"] != "idle"
+    assert service_model.read_status(claimed)["state"] != "idle"
 
     # `leaf wait` wakes the session at once, and the prompt hook hands the input
     # to the turn and confirms it. Reading it is not answering it, though: the
@@ -13766,7 +13766,7 @@ def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
     refused = CliRunner().invoke(cli_model.cli, ["status", str(claimed), "idle"])
     assert refused.exit_code == 1
     assert "1 acknowledged user move with no answer" in refused.output
-    assert files_model.read_json(claimed / "status.json")["state"] != "idle"
+    assert service_model.read_status(claimed)["state"] != "idle"
 
     comment = events_model.read_events(claimed)[0]["id"]
     assert (
@@ -14174,7 +14174,7 @@ def test_init_restarts_a_served_page_onto_the_replacement_contract(
     assert server_model.running_server(page_dir)["url"] == url
     assert files_model.read_json(page_dir / "service.json")["lifetime"] == lifetime
     assert service_model.page_claim(page_dir) == prior_owner
-    restored = files_model.read_json(page_dir / "status.json")
+    restored = service_model.read_status(page_dir)
     assert restored == prior_status
 
     status, body = fetch(endpoint, data=json.dumps(comment).encode(), token=None)

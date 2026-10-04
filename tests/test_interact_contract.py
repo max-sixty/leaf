@@ -2003,6 +2003,8 @@ def test_a_widget_data_input_is_one_complete_contract(page_dir, change, message)
         ("<span>0 running</span>", False, "requires x-upgrade: true"),
         ("<span>0</span><span>1</span>", True, "must be one element"),
         ("<td>0</td>", True, "must be one element"),
+        ("<div>", True, "must be one element"),
+        ("<div><span>0</div>", True, "must be one element"),
         ('<div><span id="count">0</span></div>', True, "no id"),
         ("<div><lf-chip>0</lf-chip></div>", True, "may not hold <lf-chip>"),
         ({"as": "lf-nothing"}, True, "declares no x-prepaint markup"),

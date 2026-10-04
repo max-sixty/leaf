@@ -316,7 +316,11 @@ def _validate_prepaint(tag: str, entry: dict, prepaint: str, path) -> None:
     """Hold an x-prepaint to what delivery can write into every occurrence: one plain
     element that only a module will take out again.
 
-    It is copied into each occurrence, so an id would repeat; a custom element would
+    Delivery and the message path insert its bytes as written, so they must be the
+    element the parser reads back, byte for byte: markup the parser would close,
+    reorder or drop, such as a root left open, would take in the occurrence's own
+    children once inserted, and taking the prepaint out would take those with it. It
+    is copied into each occurrence, so an id would repeat; a custom element would
     upgrade as a widget of its own, and a script would run. Delivery owns its
     `data-lf-` marks (`revision_delivery.mark_declared`).
     """
@@ -325,17 +329,11 @@ def _validate_prepaint(tag: str, entry: dict, prepaint: str, path) -> None:
             f"{path}: <{tag}> x-prepaint requires x-upgrade: true, since only the "
             "widget's module takes it out"
         )
-    body = turbohtml.parse(prepaint, scripting=True).find("body")
-    nodes = [
-        node
-        for node in body.children
-        if not (isinstance(node, turbohtml.Text) and not node.text.strip())
-    ]
-    root = re.match(r"<([a-z][a-z0-9]*)", prepaint)[1]
-    if len(nodes) != 1 or getattr(nodes[0], "tag", None) != root:
+    nodes = list(turbohtml.parse(prepaint, scripting=True).find("body").children)
+    if len(nodes) != 1 or getattr(nodes[0], "html", None) != prepaint:
         raise RegistryError(
-            f"{path}: <{tag}> x-prepaint must be one element, which the parser keeps "
-            "where it stands"
+            f"{path}: <{tag}> x-prepaint must be one element written as the parser "
+            "reads it back, every element closed"
         )
     for element in [nodes[0], *nodes[0].find_all(True)]:
         attrs = element.attrs

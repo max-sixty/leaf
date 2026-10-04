@@ -405,7 +405,8 @@ EXTENSION_SCHEMA = {
         # stand in it: a command with no seat draws a readings seat at its head.
         "x-prepaint": {
             "oneOf": [
-                {"type": "string", "pattern": r"^<[a-z][a-z0-9]*[\s>][\s\S]*>$"},
+                # Its form is held where it is parsed (`registry/widgets.py`).
+                {"type": "string"},
                 {
                     "type": "object",
                     "properties": {

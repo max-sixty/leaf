@@ -419,7 +419,7 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
 
 
 def _overflow(overflow: int, misplaced: list) -> list[tuple[tuple[str, str], str]]:
-    """The sideways readings at one width, each keyed by its element and kind."""
+    """The sideways readings at one width, each keyed by its element's place and kind."""
     found = []
     if overflow > 0:
         found.append(
@@ -428,7 +428,7 @@ def _overflow(overflow: int, misplaced: list) -> list[tuple[tuple[str, str], str
                 f"the page scrolls sideways by {overflow}px",
             )
         )
-    return found + [((m["at"], m["kind"]), m["text"]) for m in misplaced]
+    return found + [((m["place"], m["kind"]), m["text"]) for m in misplaced]
 
 
 # The widths the sweep takes a loaded page through: a version holds at every width from
@@ -482,19 +482,29 @@ def _span(widths) -> str:
 
 
 def _swept(readings, faults) -> list[tuple[list[int], object]]:
-    """Each fault the sweep meets, with the widths it is met at and what it reads at
-    the narrowest of them, in the order the sweep first meets one.
+    """Each unbroken run of sweep steps a fault stands across, widest first, with
+    its widths and what the fault reads at the narrowest of them.
 
-    `faults` names each fault in one width's reading as (key, reading); a key met at
-    several widths is one fault, and the last of `sweep`'s widest-first readings
-    holding it is its narrowest. A window that narrows leaves less room for what the
-    page holds, so the narrowest width is where a fault usually stands at its worst."""
-    seen = {}
-    for width, reading in readings:
+    `faults` names each fault in one width's reading as (key, reading), keyed by the
+    element's place (locate.js) rather than its name, which two elements can share. A
+    fault that clears at some width and returns at a narrower one is two runs, each
+    reported on its own. A window that narrows leaves less room for what the page
+    holds, so a run's narrowest width is where its fault usually stands at its
+    worst."""
+    runs = []
+    latest = {}
+    for step, (width, reading) in enumerate(readings):
         for key, fault in faults(reading):
-            widths = seen[key][0] if key in seen else []
-            seen[key] = ([*widths, width], fault)
-    return list(seen.values())
+            last = latest.get(key)
+            if last is not None and last[0] == step - 1:
+                run = last[1]
+                run[0].append(width)
+                run[1] = fault
+            else:
+                run = [[width], fault]
+                runs.append(run)
+            latest[key] = (step, run)
+    return [(widths, fault) for widths, fault in runs]
 
 
 def arrangement_changes(readings) -> list[tuple[int, str, str]]:
@@ -532,7 +542,7 @@ def stacked_panes(readings, desktop: int) -> list[str]:
     which the page is, so a body of rows that adds columns only in an ultrawide window
     is not in question."""
     meant = {
-        body["at"]
+        body["place"]
         for width, reading in readings
         if width == desktop
         for body in reading["panes"]
@@ -541,9 +551,9 @@ def stacked_panes(readings, desktop: int) -> list[str]:
     stacked = _swept(
         readings,
         lambda reading: (
-            (body["at"], body)
+            (body["place"], body)
             for body in reading["panes"]
-            if body["held"] and body["beside"] == 1 and body["at"] in meant
+            if body["held"] and body["beside"] == 1 and body["place"] in meant
         ),
     )
     return [
@@ -578,11 +588,11 @@ def margin_changes(page, readings, height: int) -> list[int]:
 
 
 def swept_overflow(readings, viewports) -> list[str]:
-    """Sideways overflow the fixed viewports miss, with the widths it spans and what
-    it reads at the narrowest.
+    """Sideways overflow the fixed viewports miss, with the widths each run of it
+    spans and what it reads at the narrowest.
 
-    A fault met at a fixed width is dropped here, because that viewport's own reading
-    already reports it in both schemes."""
+    A run that takes in a fixed width is dropped here, because that viewport's own
+    reading already reports it in both schemes."""
     fixed = {viewport["width"] for viewport in viewports}
     return [
         f"at {_span(widths)} wide, {text}"
@@ -609,7 +619,7 @@ def shrunk_label_advice(readings) -> list[str]:
     drawings = _swept(
         readings,
         lambda reading: (
-            (d["at"], (d, reading["labels"]["threshold_px"]))
+            (d["place"], (d, reading["labels"]["threshold_px"]))
             for d in reading["labels"]["drawings"]
         ),
     )

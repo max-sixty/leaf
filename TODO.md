@@ -330,8 +330,7 @@ height and where a switch lands wait on the workspace decision under Layout.
 
 - **Verify the Ask's premise, controls and resulting evidence below the first pane
   screen**, as the arrangement eval exposed (`notes/arrangement-eval/`,
-  `r3-main-0feb`). The reading stays advice: which widths a page answers for is the
-  author's call.
+  `r3-main-0feb`).
 - **Read the full render gate after handover.** Actual user views now supply passive
   geometry checks as agent context (`conversation-loop.md`, "The user's view"). The
   broader headless gate still runs on request. `page check --render` blocks the

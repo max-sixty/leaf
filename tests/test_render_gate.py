@@ -25,6 +25,7 @@ from leaf import render_checks as render_checks_model
 from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf.render_checks import rendered, wait_until_ready
+from leaf.render_gate import readings as render_gate_readings
 from leaf.render_gate import scheme as render_gate_scheme
 from leaf.render_gate import version as render_gate_model
 from leaf.schema import ELEMENT_ID
@@ -435,6 +436,85 @@ def test_a_drawing_fitted_until_its_labels_are_unreadable_gets_advice_and_still_
         large,
     )
     assert spans and 540 <= int(spans[1]) < 1200, large
+
+
+def test_two_id_less_drawings_in_one_figure_are_advised_on_apart(browser, serve):
+    """Side by side in one figure, two id-less drawings share the name the advice gives
+    them, and each is still told its own smallest label: the one fitted from 1600 units
+    as well as the one fitted from 900."""
+    source = leaf_page(
+        "compared drawings",
+        """
+<h1>Before and after</h1>
+<figure id="compare">
+  <svg class="drawing" viewBox="0 0 900 120" role="img" aria-label="Before">
+    <text x="20" y="40">before</text>
+  </svg>
+  <svg class="drawing" viewBox="0 0 1600 120" role="img" aria-label="After">
+    <text x="20" y="40">canary</text>
+    <text x="560" y="40">region</text>
+    <text x="1100" y="40">global</text>
+  </svg>
+</figure>
+""",
+    )
+
+    reading = render_gate_model.render_version(browser, serve(source, packages=()))
+
+    assert reading.failures == []
+    assert len(reading.advice) == 2, reading.advice
+    named = "<svg> in <figure id=compare> draws labels below 10px, "
+    assert all(named in advice for advice in reading.advice), reading.advice
+    assert {re.search(r"\(('\w+')\)", advice)[1] for advice in reading.advice} == {
+        "'before'",
+        "'canary'",
+    }, reading.advice
+
+
+def test_swept_faults_are_reported_by_element_and_by_unbroken_run():
+    """The sweep names a fault per element and per unbroken run of widths, with its
+    reading at the run's narrowest. Here a spill clears between 1520px and 640px and
+    returns below; the run taking in the 540px viewport is that viewport's to report,
+    and the wide run is still the sweep's. Two drawings that share a name are told
+    apart by their place."""
+    widths = sorted({*render_gate_readings.SWEEP_WIDTHS, 540}, reverse=True)
+
+    def at(width):
+        spill = 1560 <= width <= 1600 or width <= 600
+        drawings = [
+            {"at": "<svg> in <figure id=f>", "place": place, "labels": n, "drawn": d}
+            | {"set": 11, "words": words}
+            for place, n, d, words in ((">0", 1, 8.8, "mild"), (">1", 3, 5, "worst"))
+            if width <= 800
+        ]
+        return {
+            "overflow": 0,
+            "misplaced": [
+                {
+                    "at": "<pre>",
+                    "place": "#x>0",
+                    "kind": "column",
+                    "text": f"<pre> spills at {width}px",
+                }
+            ]
+            if spill
+            else [],
+            "labels": {"threshold_px": 10, "drawings": drawings},
+        }
+
+    readings = [(width, at(width)) for width in widths]
+    fixed = [{"width": 1200}, {"width": 540}]
+
+    assert render_gate_readings.swept_overflow(readings, fixed) == [
+        "at 1560–1600px wide, <pre> spills at 1560px"
+    ]
+    advice = render_gate_readings.shrunk_label_advice(readings)
+    shown = r"at 360–800px wide <svg> in <figure id=f> draws labels below 10px, "
+    smallest = r"(\d) at 360px, the smallest \('(\w+)'\) at ([\d.]+)px from the 11px"
+    assert [re.match(shown + smallest, line).groups() for line in advice] == [
+        ("1", "mild", "8.8"),
+        ("3", "worst", "5"),
+    ], advice
 
 
 def test_user_view_checks_read_current_geometry_without_changing_the_page(

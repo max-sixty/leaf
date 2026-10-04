@@ -171,9 +171,8 @@ export function createAskView({
   // node, so materialize the existing thread projection there rather than
   // narrowing the semantic inventory to what happens to be in the DOM.
   async function materializeAsk(ask, intent = null) {
-    // Going to a thread's Ask, or answering it, takes the user to that thread, so it
-    // shows what the thread holds back, the Ask included where a held turn carries it.
-    if (ask.thread) showHeld(ask.thread);
+    // An Ask a held turn carries has no node until its thread shows what it holds.
+    if (ask.thread && !askNode(ask)) showHeld(ask.thread);
     let target = askNode(ask);
     let source = sourceNode(ask);
     if ((!target || !source) && ask.thread) {

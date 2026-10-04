@@ -24,10 +24,9 @@
    it stands, drawn resolved, until its going would move nothing the user sees. */
 import { html, repeat } from "../../vendor/browser-runtime.js";
 import { focused } from "../keyboard/scopes.js";
-import { holdFocus, restoringFocus } from "../focus.js";
+import { holdFocus } from "../focus.js";
 import { RetainedFace } from "../retained-face.js";
 import { ThreadView } from "./thread-card.js";
-import { showHeld } from "./held-news.js";
 import { draftHasContent } from "../drafts.js";
 import { focusThread } from "./focus.js";
 import { passOn, retainUserIntent } from "../user-intent.js";
@@ -36,23 +35,10 @@ import { nextRender } from "../rendering.js";
 import { foldOut, finishFold, isFolding } from "./folding.js";
 import { threadKey } from "./model.js";
 import { seenRect, whenOffScreen } from "../geometry.js";
-import { readApplication } from "../semantic-state.js";
+import { ownGestures } from "./held-news.js";
 
 const TAG = "leaf-thread-list";
 
-// Whether this page's ledger holds a gesture of the user's on `thread`: a settlement,
-// reply or reaction on one of its messages, a move on a widget one of them holds, or
-// the refusal that takes one back.
-function gesturedOn(thread) {
-  const { unresolved, document } = readApplication();
-  const messages = new Set(thread.msgs.map(({ id }) => id));
-  return unresolved.some(
-    ({ event }) =>
-      messages.has(event.parent) ||
-      (event.widget &&
-        messages.has(document.descriptors.get(event.widget)?.document.message)),
-  );
-}
 const EMPTY_MODEL = Object.freeze({
   rows: Object.freeze([]),
   count: null,
@@ -109,33 +95,32 @@ class ThreadListView extends RetainedFace {
   #choose(card) {
     const row = this.#visibleRows().find((row) => row.node === card);
     if (!row) return;
-    // A title choice is an arrival; restoring that title after paint is not.
-    if (!restoringFocus()) showHeld(card.dataset.id);
     this.#select(row.key);
     this.#showExpanded();
   }
 
   // Why a shown card the view no longer admits stays shown, or null where it goes: the
-  // narrowing says which threads the view admits (narrowing.js), this says when a card
-  // it stops admitting leaves, and the model builder combines the two into one reading.
-  // A change of view puts any card away. What took the card out of the view is read in
-  // the render that first does, and its card carries the answer while it stays. The
-  // user's own gesture on the thread (`gesturedOn`) takes the card in the turn it is
+  // narrowing says which threads the view admits (narrowing.js), this says when a card it
+  // stops admitting leaves, and the model builder combines the two into one reading. A
+  // change of view puts any card away. What took the card out of the view is read in the
+  // render that first does, and its card carries the answer while it stays. The user's own
+  // gesture on the thread (`ownGestures`, held-news.js) takes the card in the turn it is
   // drawn, or, while its reply holds words, once the words go ("draft"), so settlement
-  // never puts a draft away; a settlement folds it out (willUpdate). Anything else is
-  // news ("news"), and its card stays, drawn as the news left it, while its going would
-  // move something the user sees: while any of it shows, since every card after it
-  // would rise, and, as the card the list shows open, while the panel shows, since
-  // another card would open in its place. Out of sight it stays only for its words,
-  // with the cause that first excluded it still carried. Its
-  // leaving the window asks for the render that lets it go (`#watchKept`), as does its
-  // closing when the user opens another card.
+  // never puts a draft away; a settlement folds it out (willUpdate). Anything else is news
+  // ("news"), and its card stays, drawn as the news left it, while its going would move
+  // something the user sees: while any of it shows, since every card after it would rise,
+  // and, as the card the list shows open, while the panel shows, since another card would
+  // open in its place. Out of sight it stays only for its words, with the cause that first
+  // excluded it still carried. Its leaving the window asks for the render that lets it go
+  // (`#watchKept`), as does its closing when the user opens another card.
   keeping(thread, intent) {
     const key = threadKey(thread);
     const view = this.#views.get(`thread:${key}`);
     if (this.#intent !== intent || !view?.model.visible || view.model.folding)
       return null;
-    const news = view.model.kept ? view.model.kept === "news" : !gesturedOn(thread);
+    const news = view.model.kept
+      ? view.model.kept === "news"
+      : !ownGestures().on(thread);
     const seen = view.node.open
       ? this.checkVisibility()
       : Boolean(seenRect(view.node, new Map()));

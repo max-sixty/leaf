@@ -2567,8 +2567,13 @@ def test_explicit_navigation_reveals_held_panel_news(browser, serve, destination
         expect(message).to_be_focused()
     else:
         # The Ask walk, not the drawer: opening the drawer covers the card, and a held
-        # reply nobody can see shows anyway.
+        # reply nobody can see shows anyway. The walk starts outside the thread, so it
+        # arrives there.
         page.keyboard.press("Escape")
+        page.keyboard.press("Shift+Tab")
+        page.wait_for_function(
+            "id => !document.activeElement?.closest?.(`[data-id='${id}']`)", arg=root
+        )
         page.keyboard.press("a")
         expect(thread.locator("#held-question")).to_be_focused()
     expect(message).to_be_visible()
@@ -2588,6 +2593,7 @@ def test_explicit_navigation_reveals_held_panel_news(browser, serve, destination
         (3, "widget", "back"),
         (1, None, "onto"),
         (3, None, "onto"),
+        (1, None, "return"),
     ],
 )
 def test_walking_to_a_thread_shows_the_replies_it_held(
@@ -2596,9 +2602,10 @@ def test_walking_to_a_thread_shows_the_replies_it_held(
     """Replies held while their thread stood open in front of the user show once the
     user walks away and back to that thread with t/T. The walk away closes the card and
     the walk back opens it, and an opening moves every card after it anyway, so the
-    card opens with what it held, landed where the newest reply shows. Walking onto
-    the same thread at the end of the list releases news without closing its card.
-    One reply fits
+    card opens with what it held, landed where the newest reply shows. Pressing onto
+    the thread the user already stands in, at the end of the list, moves them nowhere,
+    so its news stays held; leaving the thread with Shift+Tab and walking back onto its
+    card, which stood open throughout ("return"), arrives there, and shows it. One reply fits
     with the root; several require measuring the released transcript to land its end.
     Disclosure itself draws that body before a delayed public proof, so a newer Tab
     reaches its current controls and supersedes the older title's pending landing.
@@ -2662,11 +2669,27 @@ def test_walking_to_a_thread_shows_the_replies_it_held(
         ).to_be_focused()
         expect(thread).not_to_have_attribute("open", "")
         expect(message).to_have_count(0)
+    if walk == "return":
+        page.keyboard.press("Shift+Tab")
+        page.wait_for_function(
+            "id => !document.activeElement?.closest?.(`[data-id='${id}']`)", arg=root
+        )
+        expect(thread).to_have_attribute("open", "")
+        page.keyboard.press("t")
+        expect(summary).to_be_focused()
+        expect(message).to_be_visible()
+        expect(thread.locator(".lf-thread-news")).to_have_count(0)
+        return
     if new_input:
         rendered(page)
         hold_visible_thread_presentation(page, root)
     page.keyboard.press("Shift+t")
     expect(summary).to_be_focused()
+    if walk == "onto":
+        rendered(page)
+        expect(thread.get_by_role("button", name=notice, exact=True)).to_be_visible()
+        expect(message).to_have_count(0)
+        return
     expect(message).to_be_visible()
     expect(thread.locator(".lf-thread-news")).to_have_count(0)
     if new_input:

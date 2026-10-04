@@ -950,6 +950,41 @@ def thread_resolve(dir: str, thread: str) -> None:
     _print_records(cmd_resolve(resolve_dir(dir), thread))
 
 
+@cli.group(short_help="Open or end a task the agent has taken on.")
+def task() -> None:
+    """Hold work the agent owes on the page until it ends.
+
+    A task stays on the agent's queue through replies, resolutions, versions and
+    the end of the session that opened it; only `leaf task end` ends it. Every
+    write prints the record it appended, one JSON line, as `page events` prints it.
+    """
+
+
+@task.command("open", short_help="Take on work a thread asked for.")
+@click.argument("dir", metavar="PAGE")
+@click.argument("subject", metavar="SUBJECT")
+@click.argument("title", metavar="TITLE")
+def task_open(dir: str, subject: str, title: str) -> None:
+    """Open a task titled TITLE on the open thread SUBJECT names, by any message in
+    it or a widget its messages carry. Its id is the printed record's `id`."""
+    from leaf.tasks import cmd_open
+
+    _print_records(cmd_open(resolve_dir(dir), subject, title))
+
+
+@task.command("end", short_help="End a task: done, failed, or dropped.")
+@click.argument("dir", metavar="PAGE")
+@click.argument("task_id", metavar="TASK")
+@click.argument("outcome", type=click.Choice(["done", "failed", "dropped"]))
+@click.argument("detail", metavar="[DETAIL]", required=False)
+def task_end(dir: str, task_id: str, outcome: str, detail: str | None) -> None:
+    """End TASK with OUTCOME. DETAIL says where the result is, such as the
+    version or reply holding it, or why there is none."""
+    from leaf.tasks import cmd_end
+
+    _print_records(cmd_end(resolve_dir(dir), task_id, outcome, detail))
+
+
 @cli.command(hidden=True)
 @click.option(
     "--watch",

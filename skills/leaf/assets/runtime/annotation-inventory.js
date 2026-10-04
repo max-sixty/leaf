@@ -279,7 +279,7 @@ export function createAnnotationInventory({
           unread,
           // Page Map lists each thread on its own row, so the word goes on the row
           // rather than on an aggregate.
-          ...(onUser
+          ...(onUser || thread.attention?.reason === "task"
             ? { mapContext: attention.label }
             : unread
               ? { mapContext: `${unread} unread` }

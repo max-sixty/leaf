@@ -8014,9 +8014,11 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
     # The overlay and the shortcut bar offer it because there is something to reach.
     page.keyboard.press("?")
     page.keyboard.press("?")
-    expect(page.locator(".lf-command-reference")).to_contain_text("waiting on you for")
+    expect(page.locator(".lf-command-reference")).to_contain_text(
+        "Ask or thread waiting on you"
+    )
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-shortcut-bar")).to_contain_text("asks")
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("on you")
 
     # Leaving the ask takes the place off the count the way it takes the ring off the
     # page: a click into the prose is the user standing nowhere in the list.
@@ -10151,6 +10153,7 @@ def test_the_ring_is_one_box_around_the_whole_change(browser, serve):
     # true by a few dozen pixels, which made it a fact about how tall the blocks above the
     # change happened to be. Giving the question above it a label set one more line and
     # the precondition stopped holding, with nothing wrong anywhere.
+    scroll_settled(page)
     was = page.evaluate("() => document.scrollingElement.scrollTop")
     assert was > 0, "the user must have somewhere to have come from"
 
@@ -10232,6 +10235,7 @@ def test_the_walk_travels_to_an_ask_a_page_left_boxless(browser, serve):
     expect(page.locator("#live-question-decision")).to_have_attribute(
         "data-lf-ask", "1"
     )
+    scroll_settled(page)
     was = page.evaluate("() => document.scrollingElement.scrollTop")
     assert was > 0, "the user must have somewhere to have come from"
 

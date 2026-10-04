@@ -2399,7 +2399,8 @@ def test_banner_status_is_compact_with_accessible_details(browser, serve, other_
         assert read["down"]["shown"] == pytest.approx(read["lineHeight"], abs=1), read
         assert read["down"]["shown"] == read["down"]["needed"], read
         assert read["ellipsis"] == "ellipsis", read
-        assert read["text"] == f"Agent working — {detail}", read
+        # The page's four Asks wait on the user, and the sentence ends by saying so.
+        assert read["text"] == f"Agent working — {detail.rstrip()} · 4 on you", read
         assert detail.strip() in read["title"], read
         assert read["actions"]["shown"] >= read["actions"]["needed"], read
         expect(door).to_have_attribute("aria-describedby", "lf-status-detail")
@@ -4136,9 +4137,10 @@ def test_the_status_press_grows_into_free_room_and_moves_nothing(browser, serve,
     def say(detail):
         session_model.cmd_status(serve.page_dir, "working", detail)
         told(page)
+        # The page's suggestions wait on the user, so the sentence ends with that count.
         page.wait_for_function(
             "(words) => document.querySelector('.lf-status-text').textContent === words",
-            arg=f"Agent working — {detail}",
+            arg=f"Agent working — {detail} · 3 on you",
         )
         page_at_rest(page)
         return page.evaluate(STATUS_PRESS)
@@ -4152,7 +4154,7 @@ def test_the_status_press_grows_into_free_room_and_moves_nothing(browser, serve,
     beside = page.evaluate(BANNER_WATCH, f":is({NEIGHBOUR}):not(.lf-status-button)")
     assert any("lf-banner-more" in name for name in beside["names"]), beside["names"]
 
-    longer = say("running the browser suite")
+    longer = say("running tests")
     assert longer["shown"] >= longer["needed"], longer
     assert (longer["left"], longer["top"]) == (short["left"], short["top"])
     assert longer["right"] > short["right"], (short, longer)

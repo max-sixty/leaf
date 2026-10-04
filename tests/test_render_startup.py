@@ -3226,10 +3226,13 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         told(page)
 
     declare("working", "revising the plan")
-    expect(summary).to_have_text("Claude working — revising the plan · 1 waiting")
+    expect(summary).to_have_text(
+        "Claude working — revising the plan · 1 waiting · 1 on Claude"
+    )
     expect(text).to_have_text(
         re.compile(
-            r"^Claude is working — revising the plan \(.+\)\. 1 update waiting\.$"
+            r"^Claude is working — revising the plan \(.+\)\. 1 update waiting\."
+            r" Waiting on Claude: 1 reply\.$"
         )
     )
     expect(dot).to_have_class(re.compile(r"\bworking\b"))
@@ -3237,11 +3240,13 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     # and a quiet agent read differently without opening the disclosure.
     declare("working", "revising the plan", quiet_for=5 * 60)
     expect(summary).to_have_text(
-        "Claude working · 5m ago — revising the plan · 1 waiting"
+        "Claude working · 5m ago — revising the plan · 1 waiting · 1 on Claude"
     )
     expect(dot).to_have_class(re.compile(r"\bworking\b"))
     declare("working", "revising the plan")
-    expect(summary).to_have_text("Claude working — revising the plan · 1 waiting")
+    expect(summary).to_have_text(
+        "Claude working — revising the plan · 1 waiting · 1 on Claude"
+    )
 
     [first_comment] = [
         event for event in events_model.read_events(d) if event["kind"] == "comment"
@@ -3251,7 +3256,8 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     told(page)
     expect(text).to_have_text(
         re.compile(
-            r"^Claude is working — revising the plan \(.+\)\. " r"1 update queued\.$"
+            r"^Claude is working — revising the plan \(.+\)\. "
+            r"1 update queued\. Waiting on Claude: 1 reply\.$"
         )
     )
     expect(dot).to_have_class(re.compile(r"\bworking\b"))
@@ -3264,7 +3270,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
             transaction, [first_comment], phase="opened", session="s", turn="turn-1"
         )
     declare("waiting", "your read on the plan")
-    expect(summary).to_have_text("Claude working — on your update")
+    expect(summary).to_have_text("Claude working — on your update · 1 on Claude")
     expect(text).to_have_text(
         re.compile(
             r"^Claude is working on your update, and hasn't said what it is doing yet"
@@ -3293,12 +3299,14 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         expect(text).to_have_text(
             re.compile(
                 r"^Claude is working — revising the plan \(.+\)\. "
-                r"1 update waiting\.$"
+                r"1 update waiting\. Waiting on Claude: 1 reply\.$"
             )
         )
         expect(dot).to_have_class(re.compile(r"\bworking\b"))
 
-        expect(summary).to_have_text("Claude working — revising the plan · 1 waiting")
+        expect(summary).to_have_text(
+            "Claude working — revising the plan · 1 waiting · 1 on Claude"
+        )
 
         # A transport that can watch the session's own steps reports one, and the agent
         # says what the work is. The row keeps the sentence written for the user; the
@@ -3309,12 +3317,12 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
             stream={"kind": "tool", "detail": "Running the tests"},
         )
         expect(summary).to_have_text(
-            "Claude using a tool — revising the plan · 1 waiting"
+            "Claude using a tool — revising the plan · 1 waiting · 1 on Claude"
         )
         expect(text).to_have_text(
             re.compile(
                 r"^Claude is using a tool — revising the plan \(.+\) · "
-                r"Running the tests\. 1 update waiting\.$"
+                r"Running the tests\. 1 update waiting\. Waiting on Claude: 1 reply\.$"
             )
         )
         expect(dot).to_have_class(re.compile(r"\bworking\b"))
@@ -3327,7 +3335,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         ]:
             declare("working", "revising the plan", stream=stream)
             expect(summary).to_have_text(
-                f"Claude {words} — revising the plan · 1 waiting"
+                f"Claude {words} — revising the plan · 1 waiting · 1 on Claude"
             )
 
         # A claim of work that has gone quiet is still a claim of work, and a live
@@ -3340,15 +3348,19 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         declare("working", "revising the plan", quiet_for=20 * 60)
         expect(text).to_have_text(
             "Claude last checked in 20m ago: revising the plan. 1 update is saved."
+            " Waiting on Claude: 1 reply."
         )
         expect(dot).to_have_class(re.compile(r"\baway\b"))
 
-        expect(summary).to_have_text("Claude last checked in 20m ago")
+        expect(summary).to_have_text("Claude last checked in 20m ago · 1 on Claude")
 
         # And with no detail it is the bare silence, which is the same sentence with
         # nothing to say after the colon rather than a second wording for it.
         declare("working", quiet_for=20 * 60)
-        expect(text).to_have_text("Claude last checked in 20m ago. 1 update is saved.")
+        expect(text).to_have_text(
+            "Claude last checked in 20m ago. 1 update is saved."
+            " Waiting on Claude: 1 reply."
+        )
 
         # The same silence reached by evidence rather than by the clock. A claim is
         # written by a model's turn, and a turn ends without running anything — so
@@ -3360,11 +3372,11 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         declare("working", "revising the plan", quiet_for=6 * 60, turn_ended=5 * 60)
         expect(text).to_have_text(
             "Claude left this when its turn ended 5m ago: revising the plan."
-            " 1 update is saved."
+            " 1 update is saved. Waiting on Claude: 1 reply."
         )
         expect(dot).to_have_class(re.compile(r"\baway\b"))
 
-        expect(summary).to_have_text("Claude’s turn ended 5m ago")
+        expect(summary).to_have_text("Claude’s turn ended 5m ago · 1 on Claude")
 
         # The agent's own last word about the work and the ending of the turn that
         # wrote it land in the same second, which is what an ordinary turn looks like:
@@ -3373,7 +3385,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         declare("working", "revising the plan", quiet_for=5 * 60, turn_ended=5 * 60)
         expect(text).to_have_text(
             "Claude left this when its turn ended 5m ago: revising the plan."
-            " 1 update is saved."
+            " 1 update is saved. Waiting on Claude: 1 reply."
         )
 
         # A turn that has only just ended still holds it. An agent that ends its turn
@@ -3397,19 +3409,22 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         declare("waiting", "pick a storage engine")
         expect(text).to_have_text(
             "Claude is listening — pick a storage engine. 1 update waiting."
+            " Waiting on Claude: 1 reply."
         )
         expect(page.locator(".lf-status-button")).to_have_attribute(
-            "title", "Claude is listening — pick a storage engine. 1 update waiting."
+            "title",
+            "Claude is listening — pick a storage engine. 1 update waiting."
+            " Waiting on Claude: 1 reply.",
         )
 
     # No watcher, but Claude checked in moments ago, so it is between turns.
     declare("waiting")
     expect(text).to_have_text(
         "Claude isn't watching right now. 1 update is saved."
-        " It picks them up next turn."
+        " It picks them up next turn. Waiting on Claude: 1 reply."
     )
 
-    expect(summary).to_have_text("Claude away · 1 saved")
+    expect(summary).to_have_text("Claude away · 1 saved · 1 on Claude")
 
     # With nobody listening and the turn over, an update that has only just arrived
     # still reads away: the session's next turn takes it, and a harness Leaf can
@@ -3417,7 +3432,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     declare("working", "running the migration", quiet_for=6 * 60, turn_ended=5 * 60)
     expect(text).to_have_text(
         "Claude isn't watching right now. 1 update is saved."
-        " It picks them up next turn."
+        " It picks them up next turn. Waiting on Claude: 1 reply."
     )
     expect(dot).to_have_class(re.compile(r"\baway\b"))
 
@@ -3438,8 +3453,9 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     expect(text).to_have_text(
         "Claude left this when its turn ended 5m ago. 2 updates are saved."
         " Nothing is answering them, so nudge it in the terminal."
+        " Waiting on Claude: 2 replies."
     )
-    expect(summary).to_have_text("Nudge Claude in terminal · 2 saved")
+    expect(summary).to_have_text("Nudge Claude in terminal · 2 saved · 2 on Claude")
     expect(dot).to_have_class(re.compile(r"\baway\b"))
 
     # Claude's own status gets a far longer rope: the same silence is just a long turn.
@@ -3450,8 +3466,8 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     # A dead session needs no timeout at all — the owning pid is simply gone, so the
     # claim it left has nothing behind it however lately it was written.
     declare("working", "running the migration", session_pid=dead_pid)
-    expect(text).to_have_text(UNHELD)
-    expect(summary).to_have_text("No session · 2 saved")
+    expect(text).to_have_text(UNHELD + " Waiting on Claude: 2 replies.")
+    expect(summary).to_have_text("No session · 2 saved · 2 on Claude")
     # Grey, not the amber a session falling behind wears: nobody is on the line, which
     # is a page's reading arrangement rather than something for the user to chase.
     expect(dot).to_have_class(re.compile(r"^lf-dot\s*$"))
@@ -3464,13 +3480,13 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     # Once that claim goes quiet there is nothing left holding the page, and an hour of
     # silence on a page that stands for weeks is not a fault to report.
     declare("working", "running the migration", quiet_for=60 * 60, claimed=False)
-    expect(text).to_have_text(UNHELD)
+    expect(text).to_have_text(UNHELD + " Waiting on Agent: 2 replies.")
 
     declare("working", "revising the plan", agent="Codex")
     expect(text).to_have_text(re.compile(r"^Codex is working — revising the plan"))
 
     declare("idle")
-    expect(text).to_have_text("Leaf closed")
+    expect(text).to_have_text("Leaf closed. Waiting on Claude: 2 replies.")
 
 
 def test_the_page_dates_a_claim_by_the_clock_that_wrote_it(browser, serve):
@@ -3582,7 +3598,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     expect(other_workflow).to_have_text("Sent")
     expect(page.locator(".lf-status-detail")).to_have_text(
         "Claude is working on your update, and hasn't said what it is doing yet"
-        " (just now). 1 update waiting."
+        " (just now). 1 update waiting. Waiting on Claude: 2 replies."
     )
     expect(page.locator(".lf-others-self .lf-others-line")).to_have_text(
         "Working · 1 update waiting"
@@ -3596,7 +3612,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     expect(held_workflow).to_have_text("Picked up")
     expect(page.locator(".lf-status-detail")).to_have_text(
         "Claude is working on your update, and hasn't said what it is doing yet"
-        " (just now). 1 update waiting."
+        " (just now). 1 update waiting. Waiting on Claude: 2 replies."
     )
 
     with service_model.PageTransaction(d) as transaction:
@@ -3612,6 +3628,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     expect(page.locator(".lf-status-detail")).to_have_text(
         "Claude last checked in just now. 2 updates are saved. "
         "Nothing is answering them, so nudge it in the terminal."
+        " Waiting on Claude: 2 replies."
     )
     with service_model.PageTransaction(d) as transaction:
         transaction.open_turn("s")
@@ -3779,16 +3796,21 @@ def test_feature_gallery_workflow_and_banner_share_agent_activity(browser, serve
         f'.lf-thread[data-id="{comment["id"]}"] > .lf-thread-content > .lf-thread-root-meta .lf-msg-sending'
     )
     expect(workflow).to_have_text("Picked up")
+    # The gallery's own queues end the disclosure, after the activity it shares.
     expect(page.locator(".lf-status-detail")).to_have_text(
-        "Claude is working — Writing the page (just now)"
+        re.compile(
+            r"^Claude is working — Writing the page \(just now\)\. Waiting on you"
+        )
     )
 
     session_model.cmd_status(page_dir, "waiting", "review the gallery")
     told(page)
     expect(workflow).to_have_text("Picked up")
     expect(page.locator(".lf-status-detail")).to_have_text(
-        "Claude is working on your update, and hasn't said what it is doing yet"
-        " (just now)"
+        re.compile(
+            r"^Claude is working on your update, and hasn't said what it is doing yet"
+            r" \(just now\)\. Waiting on you"
+        )
     )
 
 
@@ -3815,11 +3837,12 @@ def test_ended_pickup_preserves_the_declared_invitation_in_banner_and_leaves(
         assert result.exit_code == 0, result.output
         told(page)
 
+        # The picked-up comment still owes its reply, which the sentence ends by counting.
         expect(page.locator(".lf-status-text")).to_have_text(
-            "Claude awaits — pick a storage engine"
+            "Claude awaits — pick a storage engine · 1 on Claude"
         )
         expect(page.locator(".lf-status-detail")).to_have_text(
-            "Claude awaits — pick a storage engine"
+            "Claude awaits — pick a storage engine. Waiting on Claude: 1 reply."
         )
         expect(page.locator(".lf-others-self .lf-others-line")).to_have_text(
             "Awaits — pick a storage engine"

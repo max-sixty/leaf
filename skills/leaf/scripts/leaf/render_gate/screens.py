@@ -9,7 +9,9 @@ label saying how many of the page's screens they are; one screen at each width
 where the page's own arrangement is at its tightest before it changes, or where its
 margin content changes, with that box in view; and, on a page with Asks, the desktop
 window at each of its first eight open ones as `a` arrives there from the top, which is
-how a user working the page reads each question, with the view that holds it opened. The screens go to one directory per page
+how a user working the page reads each question, with the view that holds it opened;
+`a` walks everything waiting on the user, so a thread it stops at on the way gets no
+screen. The screens go to one directory per page
 under the state home's screens/, which the check names; a check writes a fresh
 directory beside it and then puts it in its place, so a reader never meets half of one
 check's screens and half of another's. The page directory is the page's record, and a
@@ -64,28 +66,39 @@ def _down_the_page(page, into: Path, stem: str) -> tuple[list[Path], int]:
     return shots, total
 
 
-# The Ask the user stands in, as the runtime marks it: the outermost element wearing its
-# ring, outside the Asks drawer, which mirrors the same reading.
-STANDING_ASK = """() => [...document.querySelectorAll('[data-lf-ask]:not(.lf-asks-row)')]
-  .find((el) => !el.parentElement?.closest('[data-lf-ask]'))?.id ?? null"""
+# Where a press of `a` left the user: the Ask they stand in, as the runtime marks it
+# (the outermost element wearing its ring, outside the Asks drawer, which mirrors the
+# same reading), or else the thread holding focus, the walk's other kind of stop.
+STANDING_ITEM = """() => {
+  const ask = [...document.querySelectorAll('[data-lf-ask]:not(.lf-asks-row)')]
+    .find((el) => !el.parentElement?.closest('[data-lf-ask]'))?.id;
+  if (ask) return {ask: true, id: ask};
+  let held = document.activeElement;
+  while (held?.shadowRoot?.activeElement) held = held.shadowRoot.activeElement;
+  const thread = held?.closest?.('.lf-thread, .lf-page-thread');
+  const id = thread?.dataset.id ?? thread?.dataset.thread;
+  return id ? {ask: false, id} : null;
+}"""
 
 
 def _asks_in_turn(page, into: Path) -> tuple[list[Path], bool]:
     """The window at each open Ask `a` reaches from the top, as far as MOST_SCREENS,
     and whether the walk goes on past them. Which Ask a press reached is the runtime's
     own mark, so the walk covers whatever `a` does, a suggestion as much as an
-    `lf-ask`. The walk stops at the last open Ask rather than wrapping, so a press that
-    stays on the same Ask has reached the end."""
+    `lf-ask`. The walk stops at its last item rather than wrapping, so a press that
+    stays on the same item has reached the end."""
     shots, seen = [], None
     while True:
         page.keyboard.press("a")
         rendered(page)
-        here = page.evaluate(STANDING_ASK)
+        here = page.evaluate(STANDING_ITEM)
         if here is None or here == seen:
             return shots, False
+        seen = here
+        if not here["ask"]:
+            continue
         if len(shots) == MOST_SCREENS:
             return shots, True
-        seen = here
         shot = into / f"{page.viewport_size['width']}px-ask-{len(shots) + 1}.png"
         page.screenshot(path=shot)
         shots.append(shot)

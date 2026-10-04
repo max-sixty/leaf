@@ -15,6 +15,7 @@ import json
 from pathlib import Path
 
 from interact_support import model_layer
+from leaf.agent_state import queues
 from model_folds import leaf_page, reading
 
 RECORDS = Path(__file__).with_name("served_records.json")
@@ -79,8 +80,76 @@ def build() -> dict:
                     },
                 )
             ),
+            # Something on each side: an open Ask, a question left in prose and a
+            # reply that failed are on the user; a comment owed a reply and a task
+            # on an answered thread are on the agent.
+            "queues on both sides": _queued(
+                (
+                    {"kind": "comment", "text": "Weekly?"},
+                    {
+                        "kind": "reply",
+                        "author": "agent",
+                        "agent": "Agent",
+                        "parent": "e1",
+                        "responds": "e1",
+                        "text": "Weekly or daily?",
+                        "awaits": True,
+                    },
+                    {"kind": "comment", "text": "Tighten this."},
+                    {"kind": "comment", "text": "Rebuild the chart."},
+                    {
+                        "kind": "reply",
+                        "author": "agent",
+                        "agent": "Agent",
+                        "parent": "e4",
+                        "responds": "e4",
+                        "text": "On it after CI.",
+                    },
+                    {
+                        "kind": "task",
+                        "author": "agent",
+                        "agent": "Agent",
+                        "session": "served-records",
+                        "subject": {"kind": "thread", "id": "e4"},
+                        "title": "Rebuild the chart",
+                    },
+                    {"kind": "comment", "text": "Retitle it."},
+                    {
+                        "kind": "reply",
+                        "author": "agent",
+                        "agent": "Agent",
+                        "parent": "e7",
+                        "responds": "e7",
+                        "failure": "turn_failed",
+                        "text": "No answer is coming.",
+                    },
+                )
+            ),
         },
     }
+
+
+ASK_PAGE = leaf_page(
+    "Served queues",
+    '<lf-ask id="pick-ask"><h2>Which one?</h2><lf-options id="pick" choose>'
+    '<lf-option id="one">One</lf-option><lf-option id="two">Two</lf-option>'
+    "</lf-options></lf-ask>",
+)
+
+
+def _queued(events: tuple[dict, ...]) -> dict:
+    """The four readings `agent_state.queues` selects from, as the browser is handed
+    them, and the two queues Python selects from them."""
+    state = reading(ASK_PAGE, events)
+    asks = state["views"]["1"]["document"]["asks"]["user"]
+    asks += state["thread"]["asks"]["user"]
+    served = {
+        "asks": asks,
+        "threads": state["thread"]["threads"],
+        "workflows": state["workflows"],
+        "tasks": state["tasks"],
+    }
+    return {**served, "queues": queues(**served)}
 
 
 def serialized() -> str:

@@ -715,7 +715,7 @@ the enclosing Ask's opening and its associated margin controls and threads. A ro
 declare its own `contextKeys`; an ordinary key on another route is never forwarded.
 Numbers are widget choices, not an Ask allocation: options own their stable numeric
 assignments, and a swipe deck declares Pass as `1` and Keep as `2`. The page owns `a`
-and `Shift+a` navigation between Asks. Do not assign numbers based on currently available
+and `Shift+a` navigation between Asks and the other things waiting on the user. Do not assign numbers based on currently available
 actions: disabling `1` must not turn `2` into a different action.
 
 ```javascript

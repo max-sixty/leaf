@@ -21,6 +21,7 @@ import { watchProjection } from "./projection-watch.js";
 import { createBannerApprovalFace } from "./banner-approval.js";
 import { createBannerStatusView } from "./banner-status-view.js";
 import { declareBanner } from "./geometry.js";
+import { readApplication, watchSemantic } from "./semantic-state.js";
 
 export const banner = el("header", "lf-ui lf-banner");
 banner.id = "lf-banner";
@@ -233,14 +234,53 @@ function paintTab() {
 // begins waiting for user input or approval, not on every observed work step or poll.
 let saidKind;
 let saidActionableWork;
-const presentStatus = ({
-  kind,
-  tone,
-  summary,
-  explanation,
-  publication = null,
-  actionableWork = null,
-}) => {
+
+// The page's two queues (`runtime/queues.js`) end the sentence: how much waits on the
+// user, which `a` walks, and how much waits on the agent, with the disclosure naming
+// their kinds. They are the sentence's own words rather than a box beside it, so a count
+// changing or a sentence growing moves nothing; on a row too short for both, the
+// ellipsis takes the counts first and the disclosure still says them. They are read
+// from the application's publication rather than the state answer, so a reply the user
+// sends moves its thread from one count to the other in the turn it is sent.
+const QUEUE_WORDS = Object.freeze({
+  ask: ["Ask", "Asks"],
+  question: ["question", "questions"],
+  recovery: ["move to send again", "moves to send again"],
+  answer: ["reply", "replies"],
+  work: ["claim", "claims"],
+  task: ["task", "tasks"],
+});
+function queueKinds(items) {
+  const counts = new Map();
+  for (const { kind } of items) counts.set(kind, (counts.get(kind) ?? 0) + 1);
+  return [...counts].map(
+    ([kind, count]) => `${count} ${QUEUE_WORDS[kind][count === 1 ? 0 : 1]}`,
+  );
+}
+function queueWords() {
+  const { onYou, onAgent } = readApplication().effective.queues;
+  const agent = readApplication().authoritative?.agent || "the agent";
+  const said = (items, whom) => (items.length ? `${items.length} on ${whom}` : "");
+  const named = (items, whom) =>
+    items.length ? `Waiting on ${whom}: ${queueKinds(items).join(", ")}.` : "";
+  return {
+    summary: [said(onYou, "you"), said(onAgent, agent)].filter(Boolean).join(" · "),
+    explanation: [named(onYou, "you"), named(onAgent, agent)].filter(Boolean).join(" "),
+  };
+}
+const WITHOUT_QUEUES = new Set(["broken", "unreachable", "publication"]);
+let lastStatus = null;
+const presentStatus = (status) => {
+  lastStatus = status;
+  const { kind, tone, publication = null, actionableWork = null } = status;
+  let { summary, explanation } = status;
+  if (!WITHOUT_QUEUES.has(kind)) {
+    const queues = queueWords();
+    if (queues.summary) {
+      summary = `${summary.trimEnd()} · ${queues.summary}`;
+      explanation = `${explanation}${explanation.endsWith(".") ? "" : "."} ${queues.explanation}`;
+    }
+  }
   let publicationModel = null;
   if (publication) {
     // A publication's introduction and links remain an ordinary reading row.
@@ -655,6 +695,8 @@ export function mountBanner({ approveVersion, paintApproval }) {
   signoff = isSignoffDeclared();
   showBannerControl(approveBtn, signoff);
   watchProjection(document.body, paintApproval);
+  // The queues move with the application's publication, not only with a state answer.
+  watchSemantic(() => lastStatus && presentStatus(lastStatus));
   for (const control of [asksBtn, othersBtn]) showNews(control, false);
   banner.append(bannerStatus, bannerActions);
   reserveBannerControls();

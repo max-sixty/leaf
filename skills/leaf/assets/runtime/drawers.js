@@ -74,7 +74,7 @@ function drawerFurniture(panel, name, list = el("div", "lf-drawer-list")) {
 }
 
 // Every active Ask and the route back through its current answer. The banner says
-// completed/total (sayAsks); a/A still walks only the open worklist.
+// completed/total (sayAsks); a/A walks only what is waiting on the user (queue-walk.js).
 export const asksBtn = el("button", "lf-btn lf-asks", "");
 // The machine's live leaves and what each is doing: a left panel of rows, each a
 // link opening that page in its own tab, saying what that page's agent last declared

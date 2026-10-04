@@ -748,8 +748,8 @@ For a page with Asks, the check also saves the window at each of the first eight
 as `a` reaches it from the top, which is how a user working the page meets each
 question. At each arrival, confirm that the question, shared premise, alternatives,
 and evidence that distinguishes them are visible together, the displayed numbers
-match the available actions, and the next press of `a` reaches the next open Ask
-while the complete page remains visible.
+match the available actions, and the next press of `a` reaches the next open Ask, or
+a thread waiting on the user, while the complete page remains visible.
 
 Without a way to inspect the rendered page, read `leaf page state <page>`'s
 `state` and `asks` alongside the active HTML to review the words, evidence, and

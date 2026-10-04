@@ -42,8 +42,8 @@
    from a list of ask tags. Where a source is nested in an `x-ask-surface` region,
    the row names the region: its heading, context, and evidence are the ask the user
    is being sent to, while the source remains the owner of the answer.
-   `addressableLabel` supplies each row's own label and the owned command scope's
-   `options.answer` supplies its current answer. Selecting a drawer row travels through
+   `addressableLabel` supplies each row's own label and `askAnswers` (answer.js) its
+   current answer. Selecting a drawer row travels through
    the same ask-arrival function as `a` and `A`, so the panel and directional walk
    agree about focus, reveal, and arrival placement; only the drawer's list is
    wider, preserving answered routes for review and revision.
@@ -115,7 +115,6 @@ import {
 import { beginWalk, listWalkPosition, walkPositionLabel } from "../walk-position.js";
 import {
   commandDeclarationsWithin,
-  commandScopesWithin,
   commandsWithin,
   documentFocused,
   focused,
@@ -126,6 +125,7 @@ import { addressableLabel, addressableWord } from "../anchor-resolution.js";
 import { PAGE_PAINT_ATTRIBUTE } from "../page-paint.js";
 import { scrollBehavior } from "../motion.js";
 import { ASK_CONTROL } from "./view-elements.js";
+import { askAnswers, ownedAskControl } from "./answer.js";
 import { ASK_AT } from "./drawer-list.js";
 import { askHolding, declareSide, placeOf, walkOrigin } from "../standing-target.js";
 import { pageCommand } from "../keyboard/register.js";
@@ -270,38 +270,16 @@ export function createAskView({
   // these counts once the state its POST returns has been adopted.
   let shortcutsOffered = false;
   let rowWalkOffered = false;
-  const answerWords = (value) =>
-    String(value ?? "")
-      .replace(/\s+/g, " ")
-      .trim();
-  function currentAskAnswer(ask) {
-    const source = sourceNode(ask);
-    if (!source) return "";
-    const readers = [
-      ...new Set(
-        commandScopesWithin(source)
-          .filter(
-            ({ source: commandSource, answer }) =>
-              answer && ownedAskControl(source, commandSource),
-          )
-          .map(({ answer }) => answer),
-      ),
-    ];
-    if (readers.length > 1)
-      throw new TypeError(`Ask ${ask.id} has more than one answer reader`);
-    return answerWords(readers[0]?.());
-  }
-  const rowModel = (ask, unanswered) => {
+  const rowModel = (ask, answer) => {
     const node = askNode(ask);
     const kind = addressableWord(node) || ask.tag.replace(/^lf-/, "");
     const says = addressableLabel(node) || ask.id;
-    const answered = !unanswered.has(ask.id);
-    const answer = answered ? currentAskAnswer(ask) : "";
+    const answered = answer !== null;
     return Object.freeze({
       id: ask.id,
       kind,
       says,
-      answer,
+      answer: answer ?? "",
       answerState: answered ? "answered" : "open",
       title: `${kind} · ${says}${answer ? ` · ${answer}` : ""}`,
     });
@@ -319,7 +297,9 @@ export function createAskView({
     const open = drawerIsOpen("asks");
     const listModel = Object.freeze({
       open,
-      rows: Object.freeze(open ? all.map((ask) => rowModel(ask, unanswered)) : []),
+      rows: Object.freeze(
+        open ? askAnswers(all).map((answer, at) => rowModel(all[at], answer)) : [],
+      ),
     });
     const bannerModel = Object.freeze({
       progress: askProgressModel(completed, all.length, offered),
@@ -429,10 +409,6 @@ export function createAskView({
   // Widgets own context aliases. Ask selects declarations through the same standing
   // relation that maps a margin entry or thread back to its source; the generic
   // compiler retains original command identity and availability.
-  function ownedAskControl(source, commandSource) {
-    const selector = tagsDeclaring((entry) => entry["x-awaits"]).join(",");
-    return !selector || closestAcross(commandSource, selector) === source;
-  }
   const actionsFor = (source) =>
     decisionControls(commandsWithin(source), `Ask ${source.id}`).filter(
       ({ source: commandSource, control }) =>

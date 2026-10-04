@@ -275,6 +275,15 @@ them:
   without prose. Editing a covered message invalidates a summary containing prose;
   a fold without prose keeps the revised originals. A summary answers, resolves,
   and settles nothing.
+- An agent `reply` with `ephemeral: true` is retained progress text. It carries no
+  `responds`, `awaits`, markup, failure or anchor transition and participates in no
+  semantic turn, work settlement or reopening. The next ordinary agent reply in
+  its thread derives empty-prose “Previous updates” folds over the preceding
+  uncovered contiguous runs of ephemeral messages, including a single message.
+  User messages break those runs and remain outside them. Explicit summaries own
+  overlapping ranges. Each derived fold names its completing reply as `trigger`,
+  so a surface holding that reply also holds the fold; nothing is appended for
+  this presentation change.
 - An agent `reply` may carry an `anchor` captured against its `revision`, or a null
   anchor when its subject has left that revision. The fold takes the latest such value
   as the thread's current location and exposes the prior one as `detached_from` while

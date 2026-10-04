@@ -7,8 +7,8 @@ from leaf.events import (
     action_rests_on,
     active_summaries,
     build_threads,
+    conversation_turns,
     event_coordinate,
-    spoken_turns,
     taken_back,
 )
 from leaf.schema import MESSAGE_KINDS
@@ -281,6 +281,7 @@ MESSAGE_FIELDS = (
     "author",
     "agent",
     "text",
+    "ephemeral",
     # A reaction says its word where a comment says its text, so a thread that
     # grew out of a mark reads as the mark it started from rather than as a
     # message with nothing in it.
@@ -440,21 +441,29 @@ def batch_threads(events: list, batch: list, within: dict) -> list:
         # Keep the newest exchange verbatim. The suggested range is one exact,
         # contiguous uncovered run before it, so following the hint can never hide
         # a new message or create a summary on top of one already standing.
-        prefix = spoken_turns(threads[t])[:-2]
+        prefix = {message["id"] for message in conversation_turns(threads[t])[:-2]}
         runs = []
         run = []
-        for message in prefix:
+        for message in threads[t]["msgs"]:
             if message["id"] in covered:
                 if run:
                     runs.append(run)
                     run = []
-            else:
+            elif message["id"] in prefix:
                 run.append(message)
         if run:
             runs.append(run)
-        candidate = max(runs, key=len, default=[])
-        characters = sum(len(message.get("text", "")) for message in candidate)
-        if len(candidate) >= 2 and (len(candidate) >= 8 or characters >= 4000):
+        candidates = [
+            run
+            for run in runs
+            if len(run) >= 2
+            and (
+                len(run) >= 4
+                or sum(len(message.get("text", "")) for message in run) >= 2000
+            )
+        ]
+        candidate = max(candidates, key=len, default=[])
+        if candidate:
             # The range only: what the agent does with it is a `handling` clause.
             digest["summary_hint"] = {
                 "from": candidate[0]["id"],

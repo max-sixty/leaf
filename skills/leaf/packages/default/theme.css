@@ -2122,21 +2122,29 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
  * Beside the list, the free room is set to zero, so nothing in the context reaches
  * under the track. */
 @property --lf-ask-room { syntax: "<length-percentage>"; inherits: true; initial-value: 0px; }
+/* The Ask that qualifies says so to its own children (`--lf-ask-track`, which does not
+ * inherit), and each rule below asks its parent with a style query. An ordinary Ask held
+ * inside one, among its evidence or in an option, finds the same named container, but
+ * its children's parent is that Ask, which never says so. */
+@property --lf-ask-track { syntax: "<integer>"; inherits: false; initial-value: 0; }
 :scope:is(lf-ask):has(> :is(h1, h2, h3, h4, h5, h6):first-child ~ :is(figure, img, svg, table, lf-chart, lf-shot) ~ lf-options:last-child) {
   container: lf-ask / inline-size;
   --lf-ask-room: var(--lf-room, 0px);
+  --lf-ask-track: 1;
   & > :is(h1, h2, h3, h4, h5, h6):first-child { margin-block-start: 0; }
-  /* Nested, so each rule binds to this Ask's own children: an ordinary Ask inside one
-   * finds the same named container and would otherwise take the track too. */
-  @container lf-ask (width >= 0) {
-    & > * { --lf-room: var(--lf-ask-room); }
-    & > lf-options { margin-block-end: 0; }
+}
+@container lf-ask (width >= 0) {
+  @container style(--lf-ask-track: 1) {
+    :scope:is(lf-ask) > * { --lf-room: var(--lf-ask-room); }
+    :scope:is(lf-ask) > lf-options { margin-block-end: 0; }
   }
-  @container lf-ask (width >= 50rem) {
+}
+@container lf-ask (width >= 50rem) {
+  @container style(--lf-ask-track: 1) {
     /* `:nth-child(n)` outranks what sets a block's own width and margins, such as a
      * declared width (`[data-lf-space]`) or `.facts`. The heading's end margin stands
      * above the first block and the list alike. */
-    & > :not(:first-child, lf-options):nth-child(n) {
+    :scope:is(lf-ask) > :not(:first-child, lf-options):nth-child(n) {
       float: inline-start;
       clear: inline-start;
       inline-size: calc(100% - 16rem - var(--sp-4));
@@ -2144,15 +2152,15 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
       --lf-free-l: 0px;
       --lf-free-r: 0px;
     }
-    & > :nth-child(2) { margin-block-start: 0; }
-    & > lf-options {
+    :scope:is(lf-ask) > :nth-child(2) { margin-block-start: 0; }
+    :scope:is(lf-ask) > lf-options {
       inline-size: 16rem;
       margin-block-start: 0;
       margin-inline-start: auto;
       position: sticky;
       top: calc(var(--lf-top) + var(--sp-3));
     }
-    &::after { content: ""; display: block; clear: both; }
+    :scope:is(lf-ask)::after { content: ""; display: block; clear: both; }
   }
 }
 :where(:scope:is(lf-ask):has(> :is(h1, h2, h3, h4, h5, h6):first-child ~ :is(figure, img, svg, table, lf-chart, lf-shot) ~ lf-options:last-child)) {

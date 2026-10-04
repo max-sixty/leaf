@@ -16,11 +16,11 @@ const boundary = new DOMRect(8, 50, 1284, 797);
 // A paragraph `width` wide from x = `left`, from y = `top` to `bottom`.
 const block = (left, width, top, bottom) => new DOMRect(left, top, width, bottom - top);
 // A page scrolled `scrollTop` into a document `height` tall, in an 850px scrollport.
-const scroller = (scrollTop, height = 3000) => ({
-  scrollTop,
-  scrollHeight: height,
-  clientHeight: 850,
-});
+const scroller = (scrollTop, height = 3000) => {
+  const box = { scrollTop, scrollHeight: height, clientHeight: 850 };
+  box.ownerDocument = { scrollingElement: box };
+  return box;
+};
 const side = (clear, { scrolled = 1000, document = 3000, coarse = false } = {}) =>
   commentSide({
     clear,

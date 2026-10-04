@@ -2,8 +2,9 @@
  *
  * `strokes` are offsets from the target's top-left corner and may run past its edges; a
  * page drawing has no target, and its strokes are offsets from the document's origin.
- * `box` is an anchored drawing's target size when drawn, and `says` is the page's words
+ * `box` is the target's size the strokes were drawn at, and `says` is the page's words
  * the drawing stands over: together the reading for whoever cannot see the page.
+ * `strokesIn` scales the strokes to the target's current size.
  */
 export const DRAWING_FORMAT = "leaf-drawing/2";
 export const MAX_DRAWING_STROKES = 32;
@@ -49,5 +50,19 @@ export function validDrawing(drawing) {
     drawing.strokes.every(validStroke) &&
     (drawing.box === undefined || validBox(drawing.box)) &&
     (drawing.says === undefined || validWords(drawing.says)),
+  );
+}
+
+// The strokes at the target's current `size`: each axis scales by the target's side over
+// the side of the `box` they were drawn in, so a mark keeps its share of the element
+// whichever way the element was resized. A page drawing, which has no box, stands as drawn.
+export function strokesIn(drawing, size) {
+  if (!drawing.box || !size) return drawing.strokes;
+  const across = size.width / drawing.box[0];
+  const down = size.height / drawing.box[1];
+  if (across === 1 && down === 1) return drawing.strokes;
+  const at = (value) => Number(value.toFixed(4));
+  return drawing.strokes.map((stroke) =>
+    stroke.map(([x, y]) => [at(x * across), at(y * down)]),
   );
 }

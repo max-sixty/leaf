@@ -93,6 +93,7 @@ from render_harness import (
     panel_settled,
     primed,
     refuse,
+    reported_browser_errors,
     round_trip,
     select,
     sending,
@@ -103,6 +104,7 @@ from render_harness import (
     wait_for_revision,
     watched,
     write,
+    xfail_browser_problem,
 )
 
 DRAG_HELD = (
@@ -4571,12 +4573,22 @@ customElements.define('lf-test-surface', class extends HTMLElement {
     expect(healthy).to_contain_text("Discuss healthy first")
     markers = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
     expect(markers).to_have_count(0)
-    write(broken.locator(".lf-page-thread leaf-text").first, "Keep this unsent reply.")
+    input = broken.locator(".lf-page-thread leaf-text").first
+    write(input, "Keep this unsent reply.")
+    retired_words = (
+        'typed words left the screen without a key or press: "Keep this unsent reply." in '
+        + input.evaluate("field => window.lfPlace(field)")
+    )
     strip = broken.locator(".lf-react-strip")
     strip.locator(".lf-react-trigger").click()
     expect(strip.locator(".lf-react:visible")).to_have_count(6)
 
     broken.evaluate("(widget, phase) => widget.fail(phase)", failure)
+    if failure in {"disconnect", "target-removed"}:
+        # These fixture faults remove the widget or its actual datum, ending the
+        # draft's subject. Other adapter failures still owe a visible handoff.
+        page.evaluate("lfWordsJudged()")
+        reported_browser_errors(page, retired_words)
     if failure != "disconnect":
         expect(broken.locator(".lf-page-thread")).to_have_count(0)
     append_carried_log_record(
@@ -4683,7 +4695,20 @@ customElements.define('lf-test-surface', class extends HTMLElement {
             if failure == "moved"
             else f"surface fixture: {expected_phase}"
         )
+        # Keep the known handoff loss separate from the adapter's intentional fault.
+        page.evaluate("lfWordsJudged()")
+        handoff_losses = [error for error in page.lf_errors if error == retired_words]
+        for error in handoff_losses:
+            page.lf_errors.remove(error)
         consume_browser_errors(page, expected)
+        page.lf_errors.extend(handoff_losses)
+
+    if failure not in {"disconnect", "target-removed"}:
+        xfail_browser_problem(
+            page,
+            retired_words,
+            reason="Verified on main 35d91df64 (run 37183384374): surface fallback preserves the draft but its unfocused reply has no drawn heir; PR #1705 owns reply editing handoff.",
+        )
 
 
 def test_a_declared_external_projection_must_receive_its_snapshot(browser, serve):

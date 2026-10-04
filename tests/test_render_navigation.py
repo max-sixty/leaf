@@ -6206,18 +6206,17 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     # walking the page's clips came back with the whole reply box clipped away.
     resized(page, 1280, 800)
 
-    # The complete reference and the armed line are two projections of the register. Keep
-    # the command identities from the reference so the assertion below fails when a new
-    # live continuation reaches dispatch and help but not the visible sequence menu.
+    # The complete reference shows each command once, preferring an executable intrinsic
+    # route over its contextual Go-to route. Keep identities across all sections so that
+    # a command such as Align current item can be covered by its standing page route.
     page.keyboard.press("?")
     page.keyboard.press("?")
     goto = command_reference_rows(page, "Go to")
     reference_commands = set(
-        goto.locator("tr[data-lf-command]").evaluate_all(
+        page.locator(".lf-command-reference tr[data-lf-command]").evaluate_all(
             "rows => rows.map(row => row.dataset.lfCommand)"
         )
     )
-    assert reference_commands, "the page must contribute live Go to commands"
     overlaps = goto.locator("tr[data-lf-command]").evaluate_all(
         """rows => rows.flatMap(row => {
           const [key, action] = row.querySelectorAll(':scope > td');
@@ -6237,6 +6236,23 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     resized(page, 2560, 800)
     page.keyboard.press("g")
     shortcut_bar_text(page)
+    live_commands = set(
+        page.evaluate(
+            """async () => {
+              const {pageScopes} = await window.__lfRuntimeImport('runtime/keyboard/register.js');
+              const {live, commandPresentations} = await window.__lfRuntimeImport('runtime/keyboard/bindings.js');
+              const scope = pageScopes().find(scope => scope.rows?.some(
+                row => row.id === 'navigation.target'));
+              return scope.rows.filter(live).flatMap(row =>
+                commandPresentations(row).map(({id}) => id));
+            }"""
+        )
+    )
+    assert live_commands, "the page must contribute live Go to commands"
+    assert live_commands <= reference_commands, (
+        f"live Go to commands missing from the complete reference: "
+        f"{sorted(live_commands - reference_commands)}"
+    )
     visible_sequence = line.locator(".lf-shortcut:not([hidden])")
     visible_commands = set(
         visible_sequence.evaluate_all(
@@ -6244,9 +6260,9 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
               (hint.dataset.lfCommandIds || '').split(' ').filter(Boolean))"""
         )
     )
-    assert visible_commands == reference_commands, (
+    assert visible_commands == live_commands, (
         "the armed line and live Go to register diverged: "
-        f"line={sorted(visible_commands)}, reference={sorted(reference_commands)}"
+        f"line={sorted(visible_commands)}, register={sorted(live_commands)}"
     )
     for command, steps, states, words in [
         (

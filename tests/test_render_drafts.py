@@ -77,6 +77,7 @@ from render_harness import (
     stamp_page,
     stored_draft_settled,
     stored_draft_text,
+    take_browser_errors,
     ticked,
     told,
     until_draft_settled,
@@ -368,23 +369,30 @@ def cancel_draft(page, draft_id="draft-ops"):
     draft_control(page, "cancel", draft_id).click()
 
 
-@pytest.mark.parametrize("gesture", ["mouse", "keyboard"])
+@pytest.mark.parametrize("gesture", ["mouse", "mouse-in-scroller", "keyboard"])
 def test_completed_page_selection_opens_its_own_comment(browser, serve, gesture):
     """A real page selection opens Comment without focusing it or carrying earlier words."""
+    later = '<p id="later">A later passage keeps native selection.</p>'
+    if gesture == "mouse-in-scroller":
+        later = (
+            '<p id="later" style="height:72px;overflow:auto">'
+            "A later passage keeps native selection.<br>"
+            + "Another line of evidence.<br>" * 40
+            + "</p>"
+        )
     page = open_page(
         browser,
         serve(
             leaf_page(
                 "Selection gestures",
-                '<p id="earlier">Earlier subject.</p>'
-                '<p id="later">A later passage keeps native selection.</p>',
+                '<p id="earlier">Earlier subject.</p>' + later,
             )
         ),
     )
     page.locator("#earlier").click(modifiers=["Alt"])
     field = page.locator(".lf-fab-input")
     write(field, "Words about the earlier subject")
-    if gesture == "mouse":
+    if gesture.startswith("mouse"):
         line = page.locator("#later").evaluate("""p => {
             const range = document.createRange();
             range.selectNodeContents(p);
@@ -393,6 +401,9 @@ def test_completed_page_selection_opens_its_own_comment(browser, serve, gesture)
         y = line["y"] + line["height"] / 2
         hold_selection(page, (line["x"] + 2, y), (line["x"] + line["width"] - 2, y))
         page.mouse.up()
+        if gesture == "mouse-in-scroller":
+            # A bounded reading region takes native focus as the drag begins.
+            expect(page.locator("#later")).to_be_focused()
     else:
         page.locator("#later").click()
         page.keyboard.press("ControlOrMeta+a")
@@ -3530,6 +3541,7 @@ def test_reply_editing_and_saved_words_have_separate_resolution_lifetimes(
     else:
         if resolution == "inactive-agent":
             page.keyboard.press("Escape")
+            assert take_browser_errors(page) == []
         events_model.append_event(
             serve.page_dir,
             {
@@ -3550,6 +3562,17 @@ def test_reply_editing_and_saved_words_have_separate_resolution_lifetimes(
     else:
         expect(thread.locator("leaf-text")).not_to_be_visible()
     assert stored_draft_text(page, f"reply:{root['id']}") == words
+    if resolution == "inactive-agent":
+        # An unresolved thread still draws its inactive reply box after Escape.
+        # Agent settlement then closes it, as this lifecycle deliberately requires.
+        # The generic words sensor cannot infer that ending the editing session made
+        # this later passive close legitimate. Calibrate only this exact loss here;
+        # Escape itself, active settlement, and every other field remain strict.
+        errors = consume_browser_errors(
+            page,
+            f'typed words left the screen without a key or press: "{words}" in leaf-text.lf-ui',
+        )
+        assert len(errors) == 1
 
     page.reload()
     wait_until_ready(page)

@@ -194,30 +194,33 @@ export function createThreadPresentation({
       renderSeats(listed, inlineView);
       // Capture every core message and approval age before yielding to a package.
       // Their shared clock refreshes this whole presentation, including its outlets.
-      const result = await Promise.race([
+      // Register the cohort's commit before yielding: its synchronous writes belong
+      // to this requested reading, while preparation and continuity remain separate.
+      await Promise.race([
         Promise.all([surfaces.completion, prepared]),
         cancelled.then(() => null),
-      ]);
-      if (!result) return;
-      const [, candidates] = result;
-      if (!current()) return;
-      for (const candidate of candidates) candidate?.commit();
-      // Preparation may materialize or retire targets without another publication.
-      // Preserve immediate semantic paint, then refresh the same directory and its
-      // retained decoration before any nominated surface actually moves.
-      readTargets();
-      surfaces.commit();
-      commitThreadSeats(batch);
-      surfaceView.composition.finishPlacement();
-      renderAnnotations();
-      pageGeometry.pageShifted();
-      finishListRecovery(candidates);
-      read.present();
-      // Continuity may reveal a route needing this very presenter. Its work starts
-      // after the cohort commits, and never joins the ticket it is completing.
-      void continueReplies(restoreReply).catch((error) =>
-        reportPageError(`Reply continuation failed: ${error?.message ?? error}`),
-      );
+      ]).then((result) => {
+        if (!result) return;
+        const [, candidates] = result;
+        if (!current()) return;
+        for (const candidate of candidates) candidate?.commit();
+        // Preparation may materialize or retire targets without another publication.
+        // Preserve immediate semantic paint, then refresh the same directory and its
+        // retained decoration before any nominated surface actually moves.
+        readTargets();
+        surfaces.commit();
+        commitThreadSeats(batch);
+        surfaceView.composition.finishPlacement();
+        renderAnnotations();
+        pageGeometry.pageShifted();
+        finishListRecovery(candidates);
+        read.present();
+        // Continuity may reveal a route needing this very presenter. Its work starts
+        // after the cohort commits, and never joins the ticket it is completing.
+        void continueReplies(restoreReply).catch((error) =>
+          reportPageError(`Reply continuation failed: ${error?.message ?? error}`),
+        );
+      });
     } catch (error) {
       surfaces?.cancel();
       if (!current()) throw error;

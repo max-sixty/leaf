@@ -29,6 +29,7 @@ import {
 } from "./runtime/presentation.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./runtime/page-paint.js";
 import { nextFrame, renderingSettled } from "./runtime/rendering.js";
+import { observeQueuedWork } from "./runtime/queued-work.js";
 import { mountApplication } from "./runtime/application.js";
 import {
   applicationState,
@@ -135,10 +136,12 @@ holdArrivingBounds();
 // scene readings answer different questions: which readiness fact the page has yet to state
 // (`pageReadiness`), and whether its chrome and geometry have caught up with the input
 // handled since, and which native layers currently expose reading and controls.
+// Job lifecycle tracing binds at enqueue without replacing any rendering callback.
 const validationEntry = document.querySelector("script[data-lf-entry]");
 if (validationEntry) {
   validationEntry.lfReadiness = pageReadiness;
   validationEntry.lfRenderingSettled = renderingSettled;
+  validationEntry.lfObserveQueuedWork = observeQueuedWork;
   validationEntry.lfNativeLayers = nativeLayers;
 }
 import { overflowMenu } from "./runtime/banner-toolbar.js";

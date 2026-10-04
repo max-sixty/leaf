@@ -688,8 +688,10 @@ export function createResponseSurface({
     deferSelectionUpdate(updateFab);
   };
   let pointerSelecting = false;
-  // A control can consume the release after the document observed its press. The
-  // retained input generation ends that selection ownership even without a release.
+  // A selecting press belongs to the content it began on. A bounded reading region
+  // can take native focus after pointerdown; the previous focus is not its owner.
+  // A control can consume the release, so retained input also ends this ownership
+  // without depending on a matching release.
   let selectionPressIntent = null;
   let selectionDragged = false;
   let selectionRangeDuringPress = null;
@@ -940,7 +942,9 @@ export function createResponseSurface({
         if (drawModeActive()) return;
         primaryPointerPressed = ev.isPrimary && ev.button === 0;
         pointerSelecting = primaryPointerPressed && pageWords(ev.target);
-        selectionPressIntent = pointerSelecting ? retainUserIntent() : null;
+        selectionPressIntent = pointerSelecting
+          ? retainUserIntent({ source: ev.target })
+          : null;
         selectionDragged = false;
         selectionRangeDuringPress = null;
         selectionGestureClaimed = false;
@@ -975,11 +979,11 @@ export function createResponseSurface({
           ev.clientY - selectionPressPoint.y,
         ) > 3;
     });
-    document.addEventListener("touchstart", () => {
+    document.addEventListener("touchstart", (ev) => {
       // The native touch event follows pointerdown and is the same selecting press.
       // Capture its input generation at that producer, before handles can adjust it.
       if (primaryPointerPressed && pointerSelecting)
-        selectionPressIntent = retainUserIntent();
+        selectionPressIntent = retainUserIntent({ source: ev.target });
     });
     document.addEventListener("pointerup", finishPointerSelection);
     document.addEventListener("pointercancel", finishPointerSelection);

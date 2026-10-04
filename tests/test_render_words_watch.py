@@ -4,7 +4,7 @@ forbids (`words_watch.js`): typed words leaving the screen without a key or pres
 from urllib.parse import quote
 
 import pytest
-from render_harness import consume_browser_errors, judge_watches
+from render_harness import consume_browser_errors, judge_watches, leaf_page, open_page
 
 # A box holding a field, on a page long enough to scroll. What the page does to the box
 # when the user scrolls, presses Escape, or presses elsewhere is the page's `data-on`.
@@ -162,6 +162,96 @@ def test_words_a_slow_send_retains_its_input(browser, delay):
     page.locator("#send").click()
     page.wait_for_function("window.done === true")
     judge_watches()
+
+
+@pytest.mark.parametrize("scheduler", ["nextRender", "afterScript", "presenter"])
+@pytest.mark.parametrize("order", ["passive-first", "input-first"])
+def test_coalesced_rendering_jobs_keep_their_own_input_source(
+    browser, serve, scheduler, order
+):
+    """One pass may contain input and passive jobs; neither lends the other its cause."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Rendering job input ownership",
+                '<textarea id="native"></textarea><textarea id="passive"></textarea>'
+                '<button id="send">Put my words away</button>',
+            )
+        ),
+    )
+    page.evaluate(
+        """async ({scheduler,order}) => {
+          const module=await __lfRuntimeImport('/runtime/rendering.js');
+          let schedule=module[scheduler];
+          if(scheduler==='presenter') {
+            const {bindQueuedWork}=await __lfRuntimeImport('/runtime/queued-work.js');
+            const {createPresentationSchedule}=await __lfRuntimeImport('/vendor/browser-runtime.js');
+            const presentations=createPresentationSchedule(bindQueuedWork);
+            schedule=callback=>presentations.presenter({attach:()=>null,paint:callback}).sync(null);
+          }
+          const passive=lfInputWork.capture(()=>schedule(()=>{
+            document.getElementById('passive').remove();window.passiveDone=true;
+          }));
+          document.getElementById('send').onclick=()=>{
+            if(order==='passive-first')passive();
+            schedule(()=>{document.getElementById('native').remove();window.nativeDone=true;});
+            if(order==='input-first')passive();
+          };
+        }""",
+        {"scheduler": scheduler, "order": order},
+    )
+    page.locator("#native").fill("Words deliberately put away")
+    page.locator("#passive").fill("Words lost without permission")
+    page.locator("#send").click()
+    page.wait_for_function("window.nativeDone && window.passiveDone")
+    judge_watches()
+    consume_browser_errors(
+        page,
+        'typed words left the screen without a key or press: "Words lost without permission"',
+    )
+
+
+@pytest.mark.parametrize("scheduler", ["nextRender", "presenter"])
+def test_a_rendering_jobs_returned_async_tail_stays_passive(browser, serve, scheduler):
+    """A rendering callback's synchronous turn ends before its uncaptured native await."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Native rendering tail",
+                '<textarea id="field" style="position:absolute;left:40px;top:100px"></textarea><button id="send" style="position:fixed;right:0;top:100px">Send</button>',
+            )
+        ),
+    )
+    page.evaluate(
+        """async scheduler => {
+      const {nextRender}=await __lfRuntimeImport('/runtime/rendering.js');
+      let schedule=nextRender;
+      if(scheduler==='presenter') {
+        const {bindQueuedWork}=await __lfRuntimeImport('/runtime/queued-work.js');
+        const {createPresentationSchedule}=await __lfRuntimeImport('/vendor/browser-runtime.js');
+        const presentations=createPresentationSchedule(bindQueuedWork);
+        schedule=callback=>presentations.presenter({attach:()=>null,paint:callback}).sync(null);
+      }
+      document.getElementById('send').onclick=()=>schedule(async()=>{
+        await new Promise(resolve=>window.finishTail=resolve);
+        document.getElementById('field').remove();window.done=true;
+      });
+    }""",
+        scheduler,
+    )
+    page.locator("#field").fill("This awaited work has no input owner")
+    page.locator("#send").click()
+    page.wait_for_function("typeof window.finishTail === 'function'")
+    judge_watches()
+    page.evaluate("finishTail()")
+    page.wait_for_function("window.done === true")
+    judge_watches()
+    consume_browser_errors(
+        page,
+        'typed words left the screen without a key or press: "This awaited work has no input owner"',
+    )
 
 
 def test_words_a_held_interval_send_retains_its_input(browser):

@@ -82,6 +82,28 @@ INPUT_WORK_WATCH_SOURCE = Path(__file__).with_name("input_work_watch.js")
 WATCH_PLATFORM_SOURCE = Path(__file__).with_name("watch_platform.js")
 
 
+def rendering_job_binding_source():
+    """Bind generic input scopes to the runtime's synchronous job lifecycle seam."""
+    return """Object.defineProperty(HTMLScriptElement.prototype, 'lfObserveQueuedWork', {
+      configurable: true,
+      set(observe) {
+        Object.defineProperty(this, 'lfObserveQueuedWork', {
+          value: observe, writable: true, enumerable: true, configurable: true,
+        });
+        const captured = new WeakMap(), entered = new WeakMap();
+        observe((phase, job) => {
+          if (phase === 'enqueue') captured.set(job, lfInputWork.captureScope());
+          else if (phase === 'run') entered.set(job, captured.get(job)());
+          else if (phase === 'finish') {
+            entered.get(job)();
+            entered.delete(job);
+            captured.delete(job);
+          } else if (phase === 'cancel') captured.delete(job);
+        });
+      },
+    });"""
+
+
 @cache
 def shift_watch_source():
     """Bind the sensor to the runtime's control, clipping, and scroll-space readings."""
@@ -1296,6 +1318,8 @@ def watched(page):
                 WORDS_WATCH_SOURCE,
             )
         )
+        + "\n"
+        + rendering_job_binding_source()
     )
     if _TEST is None or watches_shifts(_TEST):
         page.add_init_script(script=shift_watch_source())

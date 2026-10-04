@@ -1,5 +1,5 @@
 """Browser probe readings for one settled color scheme, the once-per-version width
-sweep, the advice read from the desktop page and from the sweep, and the finding each
+sweep, the advice read from the sweep and from the desktop page, and the finding each
 becomes.
 
 A reading refuses a version only for a fault its author can fix by editing the page.
@@ -419,7 +419,7 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
 
 
 def _overflow(overflow: int, misplaced: list) -> list[tuple[tuple[str, str], str]]:
-    """The sideways readings at one width, each keyed by its element and kind."""
+    """The sideways readings at one width, each keyed by its element's place and kind."""
     found = []
     if overflow > 0:
         found.append(
@@ -428,7 +428,7 @@ def _overflow(overflow: int, misplaced: list) -> list[tuple[tuple[str, str], str
                 f"the page scrolls sideways by {overflow}px",
             )
         )
-    return found + [((m["at"], m["kind"]), m["text"]) for m in misplaced]
+    return found + [((m["place"], m["kind"]), m["text"]) for m in misplaced]
 
 
 # The widths the sweep takes a loaded page through: a version holds at every width from
@@ -439,7 +439,7 @@ def _overflow(overflow: int, misplaced: list) -> list[tuple[tuple[str, str], str
 SWEEP_WIDTHS = range(360, 1921, 40)
 
 
-def _settle_at(page, width: int, height: int) -> None:
+def settle_at(page, width: int, height: int) -> None:
     page.set_viewport_size({"width": width, "height": height})
     # What the resize set moving in script (an observer, the layout that observer's
     # write causes, and whatever that chains into) has run and been laid out.
@@ -458,7 +458,8 @@ def open_widgets(registry: dict) -> list[str]:
 def sweep(page, viewports, open_tags) -> list[tuple[int, dict]]:
     """The loaded page's geometry at every sweep width, widest first.
 
-    Resizes the loaded page rather than rendering it again, and reads only geometry:
+    Resizes the loaded page rather than rendering it again, and reads only geometry,
+    every read-only reading whose answer moves with the width (`geometryReading`):
     the rest of the gate reads words, paint and state, which the fixed viewports
     already see. The fixed widths are swept too. The sweep runs at the desktop height,
     so a fault only a phone-height workspace posture shows is the phone viewport's to
@@ -470,9 +471,40 @@ def sweep(page, viewports, open_tags) -> list[tuple[int, dict]]:
     # than from the desktop: a jump from 1200px straight to 360px left an lf-shot laid
     # out for the desktop for a frame under load, and the sweep read that frame.
     for width in sorted({*SWEEP_WIDTHS, *fixed}, reverse=True):
-        _settle_at(page, width, height)
+        settle_at(page, width, height)
         readings.append((width, evaluate_probe(page, "geometryReading", open_tags)))
     return readings
+
+
+def _span(widths) -> str:
+    low, high = min(widths), max(widths)
+    return f"{low}px" if low == high else f"{low}–{high}px"
+
+
+def _swept(readings, faults) -> list[tuple[list[int], object]]:
+    """Each unbroken run of sweep steps a fault stands across, widest first, with
+    its widths and what the fault reads at the narrowest of them.
+
+    `faults` names each fault in one width's reading as (key, reading), keyed by the
+    element's place (locate.js) rather than its name, which two elements can share. A
+    fault that clears at some width and returns at a narrower one is two runs, each
+    reported on its own. A window that narrows leaves less room for what the page
+    holds, so a run's narrowest width is where its fault usually stands at its
+    worst."""
+    runs = []
+    latest = {}
+    for step, (width, reading) in enumerate(readings):
+        for key, fault in faults(reading):
+            last = latest.get(key)
+            if last is not None and last[0] == step - 1:
+                run = last[1]
+                run[0].append(width)
+                run[1] = fault
+            else:
+                run = [[width], fault]
+                runs.append(run)
+            latest[key] = (step, run)
+    return [(widths, fault) for widths, fault in runs]
 
 
 def arrangement_changes(readings) -> list[tuple[int, str, str]]:
@@ -510,27 +542,26 @@ def stacked_panes(readings, desktop: int) -> list[str]:
     which the page is, so a body of rows that adds columns only in an ultrawide window
     is not in question."""
     meant = {
-        body["at"]
+        body["place"]
         for width, reading in readings
         if width == desktop
         for body in reading["panes"]
         if body["beside"] > 1
     }
-    stacked = {}
-    for width, reading in readings:
-        for body in reading["panes"]:
-            if body["held"] and body["beside"] == 1 and body["at"] in meant:
-                stacked.setdefault(body["at"], []).append(width)
-    found = []
-    for at, widths in stacked.items():
-        low, high = min(widths), max(widths)
-        span = f"{low}px" if low == high else f"{low}–{high}px"
-        found.append(
-            f"at {span} wide, {at} stacks its panes in one column while the workspace "
-            "fills the window, so they share one window's height; stack them only "
-            "where the Layout stops holding it (page-authoring.md, A workspace)"
-        )
-    return found
+    stacked = _swept(
+        readings,
+        lambda reading: (
+            (body["place"], body)
+            for body in reading["panes"]
+            if body["held"] and body["beside"] == 1 and body["place"] in meant
+        ),
+    )
+    return [
+        f"at {_span(widths)} wide, {body['at']} stacks its panes in one column while "
+        "the workspace fills the window, so they share one window's height; stack "
+        "them only where the Layout stops holding it (page-authoring.md, A workspace)"
+        for widths, body in stacked
+    ]
 
 
 def margin_changes(page, readings, height: int) -> list[int]:
@@ -547,7 +578,7 @@ def margin_changes(page, readings, height: int) -> list[int]:
             continue
         while high - low > 1:
             middle = (low + high) // 2
-            _settle_at(page, middle, height)
+            settle_at(page, middle, height)
             if evaluate_probe(page, "marginResidents") == above:
                 high = middle
             else:
@@ -557,94 +588,98 @@ def margin_changes(page, readings, height: int) -> list[int]:
 
 
 def swept_overflow(readings, viewports) -> list[str]:
-    """Sideways overflow the fixed viewports miss, at the narrowest width it starts.
+    """Sideways overflow the fixed viewports miss, with the widths each run of it
+    spans and what it reads at the narrowest.
 
-    A fault met at a fixed width is dropped here, because that viewport's own reading
-    already reports it in both schemes."""
+    A run that takes in a fixed width is dropped here, because that viewport's own
+    reading already reports it in both schemes."""
     fixed = {viewport["width"] for viewport in viewports}
-    seen = {}
-    for width, reading in readings:
-        for key, text in _overflow(reading["overflow"], reading["misplaced"]):
-            widths, _text = seen.setdefault(key, ([], text))
-            widths.append(width)
-    found = []
-    for widths, text in seen.values():
-        if fixed & set(widths):
-            continue
-        low, high = min(widths), max(widths)
-        span = f"{low}px" if low == high else f"{low}–{high}px"
-        found.append(f"at {span} wide, {text}")
-    return found
+    return [
+        f"at {_span(widths)} wide, {text}"
+        for widths, text in _swept(
+            readings,
+            lambda reading: _overflow(reading["overflow"], reading["misplaced"]),
+        )
+        if not fixed & set(widths)
+    ]
 
 
-def shrunk_label_advice(page) -> list[str]:
+# The advice below is read from the sweep, at every swept width, since a narrower window
+# can draw a page worse than either fixed viewport does. Each item names the widths it
+# spans and what it reads at the narrowest. Which of those widths a page answers for is
+# the author's call, so none of it refuses a version.
+
+
+def shrunk_label_advice(readings) -> list[str]:
     """Advice naming each drawing whose fit to its box draws labels too small to read.
 
-    Read at the desktop viewport, where the other advice is: a narrower window scales a
-    drawing further still, and which of its widths a page answers for is not settled here.
     Advice rather than a failure because the remedy is a choice of composition — larger
     labels, fewer of them, a narrower drawing, more room — that only the author can make,
     and a page that makes none of them still says everything it says."""
-    width = page.viewport_size["width"]
-    reading = evaluate_probe(page, "shrunkLabelReading")
-    threshold = reading["threshold_px"]
+    drawings = _swept(
+        readings,
+        lambda reading: (
+            (d["place"], (d, reading["labels"]["threshold_px"]))
+            for d in reading["labels"]["drawings"]
+        ),
+    )
     return [
-        f"at {width}px wide {d['at']} draws {d['labels']} label(s) below "
-        f"{threshold}px, the smallest ({d['words']!r}) at {d['drawn']:g}px from "
-        f"the {d['set']:g}px it was set at: the drawing is scaled to fit its box and its "
-        "labels with it, so set them larger in the viewBox's units, draw the viewBox "
-        "nearer the width it is shown at, or give it more room "
-        "(authoring-evidence.md, Interactive and visual evidence)"
-        for d in reading["drawings"]
+        f"at {_span(widths)} wide {d['at']} draws labels below {threshold}px, "
+        f"{d['labels']} at {min(widths)}px, the smallest ({d['words']!r}) at "
+        f"{d['drawn']:g}px from the {d['set']:g}px it was set at: the drawing is "
+        "scaled to fit its box and its labels with it, so set them larger in the "
+        "viewBox's units, draw the viewBox nearer the width it is shown at, or give it "
+        "more room (authoring-evidence.md, Interactive and visual evidence)"
+        for widths, (d, threshold) in drawings
     ]
 
 
-def overflowing_regions(page, viewport: dict) -> list[dict]:
-    """Each region of a screen that runs past the room it has, as `overflowingRegions`
-    reads it, with the viewport it was read at.
+def overflowing_region_advice(readings, height: int) -> list[str]:
+    """Advice naming each region of a screen that runs past the room it has, as
+    `overflowingRegions` reads it in a sweep taken at `height`.
 
     A full-height workspace is a screen the reader moves through rather than scrolls,
     so its regions should show what they hold, and one that scrolls is the exception
-    (page-authoring.md, A workspace). Read at the desktop viewport, a size a reader
-    works at. Advice rather than a failure: a region that scrolls still shows
-    everything, and whether to trim it or split it is the author's call."""
-    _settle_at(page, viewport["width"], viewport["height"])
-    return [
-        {**region, "viewport": viewport}
-        for region in evaluate_probe(page, "overflowingRegions")
-    ]
-
-
-def overflowing_region_advice(region: dict) -> str:
-    """The advice an overflowing region (`overflowing_regions`) is given. A region
-    holding more than one open Ask is a queue of items to decide stacked into one
-    scroll, so its advice names the queue form instead of trimming."""
-    viewport = region["viewport"]
-    where = (
-        f"at {viewport['width']}x{viewport['height']} {region['at']} runs "
-        f"{region['over']}px past the region it scrolls in"
+    (page-authoring.md, A workspace). Advice rather than a failure: a region that
+    scrolls still shows everything, and whether to trim it or split it is the author's
+    call. A region holding more than one open Ask is a queue of items to decide
+    stacked into one scroll, so its advice names the queue form instead of trimming."""
+    found = []
+    regions = _swept(
+        readings,
+        lambda reading: ((region["id"], region) for region in reading["regions"]),
     )
-    if region["asks"] > 1:
-        return (
-            f"{where} and holds {region['asks']} open Asks: a reader decides them "
-            'one at a time, so make the items a queue, one `lf-tabs list="side"` '
-            "whose tabs each hold one (page-authoring.md, A workspace)"
+    for widths, region in regions:
+        where = (
+            f"at {_span(widths)} wide and {height}px tall {region['at']} runs past "
+            f"the region it scrolls in, {region['over']}px at {min(widths)}px"
         )
-    return (
-        f"{where}: a workspace is a screen the reader moves through, so trim it to "
-        "what the region shows or split it, unless the region is a reader for "
-        "something long, such as a source file or a log (page-authoring.md, A "
-        "workspace)"
-    )
+        if region["asks"] > 1:
+            found.append(
+                f"{where}, and holds {region['asks']} open Asks: a reader decides "
+                "them one at a time, so make the items a queue, one "
+                '`lf-tabs list="side"` whose tabs each hold one (page-authoring.md, '
+                "A workspace)"
+            )
+        else:
+            found.append(
+                f"{where}: a workspace is a screen the reader moves through, so trim "
+                "it to what the region shows or split it, unless the region is a "
+                "reader for something long, such as a source file or a log "
+                "(page-authoring.md, A workspace)"
+            )
+    return found
 
 
 def unreserved_height_advice(page, declarations: dict) -> list[str]:
     """Advice naming each widget whose module drew it at a height its first paint did
     not reserve (x-height), with the data-height that would have.
 
-    Read at the desktop viewport, where the other advice is. Advice rather than a
-    failure: the page reads the same once the drawing lands, and only the moment it
-    lands moves what follows it."""
+    Read at the desktop viewport the page first painted at, before the sweep resizes
+    it: the reading compares each box with its first paint, and at another width a
+    box's height moves with its reflow whatever its first paint reserved. Advice
+    rather than a failure: the page reads the same once the drawing lands, and only
+    the moment it lands moves what follows it."""
     return [
         f"<{w['tag']} id={w['id']!r}> draws {w['drawn']}px tall where its first paint "
         + (

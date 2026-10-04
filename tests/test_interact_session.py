@@ -5867,7 +5867,12 @@ def test_each_delivered_event_says_only_what_its_own_case_asks(page_dir, capsys)
         **page_pick,
         "meaning": {**page_pick["meaning"], "scope": "thread"},
     }
-    drawing = {"format": "leaf-drawing/2", "strokes": [[[0, 0], [10, 10]]]}
+    drawing = {
+        "format": "leaf-drawing/2",
+        "strokes": [[[0, 0], [10, 10]]],
+        "viewport": [1200, 900],
+        "scheme": "light",
+    }
     for event in (
         {"kind": "comment", "id": "c1", "author": "user", "text": "hi"},
         {"kind": "comment", "id": "c2", "author": "user", "drawing": drawing},
@@ -5956,7 +5961,12 @@ def test_codex_delivery_carries_only_the_selected_events_handling(page_dir):
         {
             "kind": "comment",
             "text": "later drawing",
-            "drawing": {"format": "leaf-drawing/2", "strokes": [[[0, 0], [1, 1]]]},
+            "drawing": {
+                "format": "leaf-drawing/2",
+                "strokes": [[[0, 0], [1, 1]]],
+                "viewport": [1200, 900],
+                "scheme": "light",
+            },
         },
     ):
         append_carried_log_record(page_dir, {"author": "user", **event})
@@ -6658,7 +6668,7 @@ def test_summary_hint_keeps_the_latest_spoken_exchange_outside_reactions(page_di
         {"kind": "comment", "author": "user", "text": "turn 1"},
     )
     spoken = [root]
-    for number in range(2, 9):
+    for number in range(2, 5):
         spoken.append(
             append_carried_log_record(
                 page_dir,
@@ -6674,7 +6684,7 @@ def test_summary_hint_keeps_the_latest_spoken_exchange_outside_reactions(page_di
         page_dir,
         {"kind": "reply", "author": "user", "parent": root["id"], "token": "mark"},
     )
-    for number in range(9, 11):
+    for number in range(5, 7):
         spoken.append(
             append_carried_log_record(
                 page_dir,
@@ -6701,12 +6711,84 @@ def test_summary_hint_keeps_the_latest_spoken_exchange_outside_reactions(page_di
 
     assert digest["summary_hint"] == {
         "from": spoken[0]["id"],
-        "through": spoken[7]["id"],
+        "through": spoken[3]["id"],
     }
     assert digest["summary_hint"]["through"] not in {
         middle_reaction["id"],
         trailing_reaction["id"],
     }
+
+
+def test_summary_hint_does_not_cross_a_fold_of_ephemeral_updates(page_dir):
+    root = append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "x" * 1000}
+    )
+    updates = [
+        append_carried_log_record(
+            page_dir,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "parent": root["id"],
+                "text": "Checking details.",
+                "ephemeral": True,
+            },
+        )
+        for _ in range(2)
+    ]
+    older = append_carried_log_record(
+        page_dir,
+        {"kind": "reply", "author": "agent", "parent": root["id"], "text": "y" * 1000},
+    )
+    for author in ("agent", "user"):
+        latest = append_carried_log_record(
+            page_dir,
+            {"kind": "reply", "author": author, "parent": root["id"], "text": "Next?"},
+        )
+    within = page_view_model.PageView(page_dir).within
+    events = events_model.read_events(page_dir)
+    update_ids = {update["id"] for update in updates}
+    [unfolded] = thread_context_model.batch_threads(
+        [event for event in events if event["id"] not in update_ids], [latest], within
+    )
+    assert unfolded["summary_hint"] == {"from": root["id"], "through": older["id"]}
+    [folded] = thread_context_model.batch_threads(events, [latest], within)
+    assert folded["summaries"][0]["covers"] == [update["id"] for update in updates]
+    assert "summary_hint" not in folded
+
+
+def test_summary_hint_chooses_a_qualifying_run_over_more_short_messages(page_dir):
+    root = append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "x" * 1000}
+    )
+    long_reply = append_carried_log_record(
+        page_dir,
+        {"kind": "reply", "author": "agent", "parent": root["id"], "text": "y" * 1000},
+    )
+    for _ in range(2):
+        append_carried_log_record(
+            page_dir,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "parent": root["id"],
+                "text": "Checking details.",
+                "ephemeral": True,
+            },
+        )
+    # Three short older messages form a longer run, but the earlier two long
+    # messages are the only run that qualifies for a suggestion.
+    for author in ("agent", "user", "agent", "agent", "user"):
+        latest = append_carried_log_record(
+            page_dir,
+            {"kind": "reply", "author": author, "parent": root["id"], "text": "Next?"},
+        )
+    [digest] = thread_context_model.batch_threads(
+        events_model.read_events(page_dir),
+        [latest],
+        page_view_model.PageView(page_dir).within,
+    )
+    assert digest["summary_hint"] == {"from": root["id"], "through": long_reply["id"]}
 
 
 def test_reply_is_fenced_to_the_exact_current_obligation(page_dir):
@@ -7312,6 +7394,8 @@ SETTLING_DECISION = {
     "drawing": {
         "format": "leaf-drawing/2",
         "strokes": [[[-20, 74], [50, 10], [120, 74]]],
+        "viewport": [1200, 900],
+        "scheme": "light",
     },
 }
 SETTLING_ACCEPT = {
@@ -9044,6 +9128,54 @@ def test_the_stop_hook_watch_wakes_the_session_only_for_input(
     receive_through(claimed, last_deliverable_seq(claimed))
     session_model.cmd_status(claimed, "idle", "")
     assert hooks_model.cmd_watch(stop) is None
+
+
+def test_a_watch_at_an_interrupted_ending_wakes_only_for_later_input(
+    claimed, monkeypatch
+):
+    """A host that says its turn was interrupted, as Pi's extension does when an
+    Escape settles a run, starts the watch with that Interrupt payload. The user
+    stopped the turn the pending input was handed to, so that input waits for
+    their next prompt, and only input arriving after the watch starts wakes the
+    session. A watch at a Stop ending wakes for the same pending input at once."""
+    leases_model.mark_hooks("s1")
+    serving(claimed, 1)
+    session_model.cmd_status(claimed, "waiting", "")
+    cleanup_model.prompt_turn("s1")
+    append_carried_log_record(
+        claimed, {"kind": "comment", "author": "user", "text": "handed over"}
+    )
+    cleanup_model.close_session_turn("s1")
+
+    waiting = threading.Event()
+    await_news = session_model.Watch.await_news
+
+    def after_a_pass(watch, mark, *args, **kwargs):
+        waiting.set()
+        return await_news(watch, mark, *args, **kwargs)
+
+    monkeypatch.setattr(session_model.Watch, "await_news", after_a_pass)
+    outcome = []
+    watch = threading.Thread(
+        target=lambda: outcome.append(
+            hooks_model.cmd_watch({"hook_event_name": "Interrupt", "session_id": "s1"})
+        )
+    )
+    watch.start()
+    # A watch decides on its first pass; this one went on to wait for news.
+    assert waiting.wait(STATED_TIMEOUT), "the watch never completed its first pass"
+    assert outcome == []
+    append_carried_log_record(
+        claimed, {"kind": "comment", "author": "user", "text": "after"}
+    )
+    watch.join(timeout=STATED_TIMEOUT)
+    [woke] = outcome
+    assert woke.startswith(f"{claimed} has new input")
+
+    waiting.clear()
+    stop = {"hook_event_name": "Stop", "session_id": "s1"}
+    assert hooks_model.cmd_watch(stop).startswith(f"{claimed} has new input")
+    assert not waiting.is_set()
 
 
 def test_a_page_served_mid_wait_joins_the_running_watch(
@@ -11392,6 +11524,65 @@ def test_a_codex_claim_records_the_session_not_the_shell_it_ran_through(
     session = under_codex(shlex.join([*LEAF_COMMAND, "wait", str(page)]), env)
     assert session.wait(timeout=60) == 0
     assert service_model.page_claim(page)["pid"] == session.pid
+
+
+def test_the_nearest_host_runs_a_command_that_inherits_another(under_codex):
+    """A command inherits the identity of every host above it: Codex run from a
+    Claude Code shell states both sessions, as this suite's Claude Code identity
+    reaches the Codex it starts. The host whose process is nearest above the
+    command is the one running it, so a Codex task's command is Codex's; with no
+    codex above it, the same environment is Claude Code's."""
+    probe = (
+        "from leaf.host import session_harness; h = session_harness(); "
+        "print(type(h).__name__, h.session)"
+    )
+    env = os.environ | {"CODEX_THREAD_ID": "inner-codex"}
+    ran = under_codex(
+        shlex.join([sys.executable, "-c", probe]),
+        env,
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    out, _ = ran.communicate(timeout=STATED_TIMEOUT)
+    assert ran.returncode == 0
+    assert out.split() == ["CodexHarness", "inner-codex"]
+
+    # Claude Code run from that Codex task's shell: the shell is its host.
+    inner = shlex.join([sys.executable, "-c", probe])
+    ran = under_codex(
+        f"CLAUDE_CODE_SESSION_ID=inner-claude CLAUDE_PID=$$ {inner}",
+        env,
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    out, _ = ran.communicate(timeout=STATED_TIMEOUT)
+    assert ran.returncode == 0
+    assert out.split() == ["ClaudeCodeHarness", "inner-claude"]
+
+    # With no codex above it, the same environment is Claude Code's, and a
+    # process the Codex task detaches inherits only the identity chosen there.
+    nearer = subprocess.run(
+        [sys.executable, "-c", probe],
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert nearer.returncode == 0, nearer.stderr
+    assert nearer.stdout.split() == ["ClaudeCodeHarness", f"pytest-{os.getpid()}"]
+    detached = (
+        "from leaf.host import detached_environment as d; "
+        "print(sorted(set(d()) & {'CODEX_THREAD_ID', 'CLAUDE_CODE_SESSION_ID'}))"
+    )
+    ran = under_codex(
+        shlex.join([sys.executable, "-c", detached]),
+        env,
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    out, _ = ran.communicate(timeout=STATED_TIMEOUT)
+    assert ran.returncode == 0
+    assert out.strip() == "['CODEX_THREAD_ID']"
 
 
 def test_a_codex_session_id_with_no_codex_above_it_is_refused(page_dir, monkeypatch):
@@ -14848,13 +15039,106 @@ def test_agent_sees_codex_watcher_recovery(codex_claimed_page, capsys, snapshot)
     )
 
 
+@pytest.mark.parametrize(
+    ("older_texts", "suggested"),
+    [
+        pytest.param(["x" * 2000], False, id="one-message-is-too-few"),
+        pytest.param(["x" * 1000, "x" * 999], False, id="below-character-threshold"),
+        pytest.param(["x" * 1000, "x" * 1000], True, id="two-long-messages"),
+        pytest.param(["Earlier detail."] * 3, False, id="three-short-messages"),
+        pytest.param(["Earlier detail."] * 4, True, id="four-short-messages"),
+    ],
+)
+def test_summary_suggestions_only_accompany_new_input(claimed, older_texts, suggested):
+    publish(claimed)
+    root = append_carried_log_record(
+        claimed, {"kind": "comment", "author": "user", "text": older_texts[0]}
+    )
+    older = [root]
+    for number, text in enumerate(older_texts[1:], start=1):
+        older.append(
+            append_carried_log_record(
+                claimed,
+                {
+                    "kind": "reply",
+                    "author": "agent" if number % 2 else "user",
+                    "parent": root["id"],
+                    "text": text,
+                },
+            )
+        )
+    updates = [
+        append_carried_log_record(
+            claimed,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "parent": root["id"],
+                "text": "Checking the rollout details." * 100,
+                "ephemeral": True,
+            },
+        )
+        for _ in range(2)
+    ]
+    previous = append_carried_log_record(
+        claimed,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "parent": root["id"],
+            "text": "The newest exchange stays readable." * 100,
+        },
+    )
+    receive_through(claimed, last_deliverable_seq(claimed))
+    assert delivery_model.pending_batches("s1") == []
+
+    current = append_carried_log_record(
+        claimed,
+        {
+            "kind": "reply",
+            "author": "user",
+            "parent": root["id"],
+            "text": "What do you recommend now?" * 100,
+        },
+    )
+    payload = consume_pending_input("s1")
+    [batch] = payload["batches"]
+    assert [event["id"] for event in batch["events"]] == [current["id"]]
+    [thread] = batch["threads"]
+    assert {
+        message["id"] for message in thread["messages"] if message.get("ephemeral")
+    } == {update["id"] for update in updates}
+    assert ("summary_hint" in thread) is suggested
+    if suggested:
+        assert thread["summary_hint"] == {
+            "from": older[0]["id"],
+            "through": older[-1]["id"],
+        }
+        assert previous["id"] != thread["summary_hint"]["through"]
+    assert consume_pending_input("s1") is None
+
+    # An answer clears the response obligation even when the agent leaves the
+    # optional suggestion alone. It produces no separate summary delivery.
+    thread_model.cmd_reply(
+        claimed,
+        current["id"],
+        "Proceed with the rollout.",
+        None,
+        for_event=current["id"],
+    )
+    assert delivery_model.pending_batches("s1") == []
+    [plan] = hook_carrier_model.read_plans("s1")
+    assert not plan.owed
+    assert plan.state["activity"]["obligations"] == []
+
+
 def test_agent_sees_a_real_summary_suggestion(page_dir, capsys, snapshot):
     publish(page_dir)
     serving(page_dir, 1)
     root = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "Which rollout?"}
     )
-    for number in range(1, 11):
+    for number in range(1, 5):
         append_carried_log_record(
             page_dir,
             {
@@ -14880,7 +15164,7 @@ def test_agent_sees_a_real_summary_suggestion(page_dir, capsys, snapshot):
     [batch] = envelope["batches"]
     assert batch["threads"][0]["summary_hint"]
     # The event carries the ask as well as the digest, so an agent that reads only
-    # what is new is still told the thread wants summarizing.
+    # what is new can still choose whether to summarize the older discussion.
     [event] = batch["events"]
     assert any("summary_hint" in batch["handling"][h] for h in event["handling"])
     snapshot.check(

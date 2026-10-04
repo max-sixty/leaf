@@ -7,13 +7,14 @@ import re
 import shutil
 import textwrap
 import threading
-import time
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 from pathlib import Path
 
 import model_folds as model
 import pytest
+import tinycss2
+import tinycss2.parser
 from click.testing import CliRunner
 from interact_support import (
     ACCEPT,
@@ -3718,7 +3719,12 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
         "comment over App Server": {"kind": "comment", **untitled, **owes("turn")},
         "comment with a drawing": {
             "kind": "comment",
-            "drawing": {"format": "leaf-drawing/2", "strokes": [[[0, 0], [9, 9]]]},
+            "drawing": {
+                "format": "leaf-drawing/2",
+                "strokes": [[[0, 0], [9, 9]]],
+                "viewport": [1200, 900],
+                "scheme": "light",
+            },
             **owes("reply"),
         },
         "comment with a pasted image": {
@@ -4759,26 +4765,35 @@ def test_sample_checks_available_history_beside_forward_thread_references(
     )
 
 
-def test_check_reads_only_the_page_stylesheet_and_stays_near_free(page_dir):
-    """A version's CSS is what its <style> blocks hold. Reading the whole file as one
-    made a megabyte of base64 (one screenshot as a data: URI) into a stylesheet to
-    tokenize, and the rule scanner reading it used to backtrack quadratically across any
-    long brace-free run, which took the better part of an hour. The clock bound is three
-    orders of magnitude above the fixed cost, so it fails on a re-introduced quadratic
-    and not on a slow machine; the assertion above it fails on the shape that fed it the
-    page."""
+def test_check_tokenizes_only_the_page_stylesheet(page_dir, monkeypatch):
+    """A version's CSS is what its <style> blocks and style="" attributes hold.
+    Reading the whole file as one stylesheet made a megabyte of base64 (one
+    screenshot as a data: URI) into CSS to tokenize, and the hand-written rule
+    scanner that read it backtracked quadratically across the long brace-free run,
+    which took the better part of an hour. tinycss2 now owns the CSS grammar and
+    its linear cost, so what leaf owns is what it hands the tokenizer: every string
+    any check stage tokenizes is recorded, and none may carry the data URI."""
     blob = "A" * 1_000_000
     html = PAGE.replace(
         "<h2>Plan</h2>",
-        f'<h2>Plan</h2><p><img alt="shot" src="data:image/png;base64,{blob}"></p>',
+        f'<h2>Plan</h2><p style="color: rebeccapurple"><img alt="shot" '
+        f'src="data:image/png;base64,{blob}"></p>',
     )
     (page_dir / "index.html").write_text(html)
-    parser = structure_model.SourceDocument(html)
-    assert parser.css == ""
+    tokenized = []
+    tokenize = tinycss2.parse_component_value_list
 
-    started = time.monotonic()
+    def recording(css, *args, **kwargs):
+        tokenized.append(css)
+        return tokenize(css, *args, **kwargs)
+
+    # Every tinycss2 entry point tokenizes a string through this one function.
+    monkeypatch.setattr(tinycss2.parser, "parse_component_value_list", recording)
+    monkeypatch.setattr(tinycss2, "parse_component_value_list", recording)
+
     assert check(page_dir).exit_code == 0
-    assert time.monotonic() - started < 10
+    assert "color: rebeccapurple" in tokenized
+    assert not [len(css) for css in tokenized if blob in css]
 
 
 def test_check_reports_css_syntax_errors_in_every_source_the_page_writes(page_dir):

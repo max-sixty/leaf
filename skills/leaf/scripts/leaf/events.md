@@ -48,12 +48,17 @@ A `drawing` is up to 32 freehand strokes (`strokes`, each a list of points) atta
 an ordinary comment, and may be that comment's only content. Its first stroke decides
 whether it anchors on an element or on the page, and with it the browser records `box`
 and `says`; the drawing's clause in `$events.handling.comment` tells the agent how
-to read the three. The
-browser reads them off the rendered page, which holds words and geometry no file
-reading can produce, so the door bounds their shape, the stroke count and 500
+to read them. The browser also records `viewport`, the layout viewport's width and
+height, and `scheme`, `light` or `dark`, the window the drawing was made in. The
+browser reads all of these off the rendered page, which holds words and geometry no
+file reading can produce, so the door bounds their shape, the stroke count and 500
 characters of `says`, and does not re-read them. Leaf derives the drawing's frame and
-owns ink, weight, SVG construction, and replay. A drawing is immutable once sent,
-follows the thread's resolution state.
+owns ink, weight, SVG construction, and replay. A drawing is immutable once sent, and
+its ink follows the thread's resolution state.
+
+`leaf page picture PAGE ID` draws a drawing comment's revision again in that window,
+with its ink over it; `render_gate/picture.py` says what the picture reproduces and
+what it cannot.
 
 
 A publishing note, replacement reply, or the first automatic `reanchor` may carry
@@ -275,6 +280,15 @@ them:
   without prose. Editing a covered message invalidates a summary containing prose;
   a fold without prose keeps the revised originals. A summary answers, resolves,
   and settles nothing.
+- An agent `reply` with `ephemeral: true` is retained progress text. It carries no
+  `responds`, `awaits`, markup, failure or anchor transition and participates in no
+  semantic turn, work settlement or reopening. The next ordinary agent reply in
+  its thread derives empty-prose “Previous updates” folds over the preceding
+  uncovered contiguous runs of ephemeral messages, including a single message.
+  User messages break those runs and remain outside them. Explicit summaries own
+  overlapping ranges. Each derived fold names its completing reply as `trigger`,
+  so a surface holding that reply also holds the fold; nothing is appended for
+  this presentation change.
 - An agent `reply` may carry an `anchor` captured against its `revision`, or a null
   anchor when its subject has left that revision. The fold takes the latest such value
   as the thread's current location and exposes the prior one as `detached_from` while

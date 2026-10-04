@@ -95,14 +95,12 @@ stands alone, since whoever reads it there has none of the page around it.
 
 ## Composing a page
 
-A page is a stack of blocks, and most pages are a reading column,
-`<main class="layout-column">`: text keeps the column's measure, and a block that needs
-more room grows out of the column into the room beside it without moving the prose. A
-`main` with no Layout class has no arrangement at all, and its blocks run the window's
-width. A diagram, a board or a
-wide table states that width in its registry entry, and `data-width` asks the same of
-any other block ("Bounds and widths", below). Most pages need nothing more. Compose
-the stack from these:
+Most pages use a reading column, `<main class="layout-column">`. Text stays within
+the column's measure; wider blocks extend beside it without moving the prose.
+Without a Layout class, `main`'s blocks fill the window's width. A diagram, board,
+or wide table declares its preferred width in the registry; `data-width` makes
+the same request for other blocks ("Bounds and widths", below). Compose the page
+from these:
 
 - **Prose read in order** — a plan, a review, a write-up, a decision — is plain
   semantic HTML, with nothing declared.
@@ -136,10 +134,9 @@ page with several contributors, such as a working board, command hub, or long
 review, can use `lf-activity` to show recent changes; a read-once page needs no
 activity feed.
 
-The banner and the bottom bar at the foot of the window are fixed reservations, so
-the room a page has depends only on the window, and nothing Leaf draws moves the page's
-content: the rail stands in room the page leaves beside its column ("The rail and the
-margin", below).
+The banner and bottom bar reserve fixed space in the window. Leaf's annotation
+rail occupies the margin beside the column without moving its content ("The rail
+and the margin", below).
 
 ### Contents navigation
 
@@ -272,8 +269,10 @@ A workspace usually takes it, and so can a dense pane or table on a column page.
 
 A queue whose items open one at a time beside it, such as tickets, cases or findings to
 decide, is one `lf-tabs list="side"` as the body: its list is the queue and each item an
-`lf-tab`, so one opens beside the list and a link or an Ask opens its own. Write no
-script to select or hide an item; the tab set does both.
+`lf-tab`, so one opens beside the list and a link or an Ask opens its own, and a row
+whose item's Asks are all answered shows a check, with the picked answer beside it
+where the item holds one Ask. Write no script to select, hide or mark an item; the tab
+set does all three.
 
 The page itself does not scroll; a region does, where what it holds runs past it. Each
 pane's body scrolls on its own, and a widget that fills the body, such as a playground's
@@ -282,12 +281,10 @@ Layout allocate the height: page-specific positioning should not be needed to ke
 pane or footer reachable. Where the window is too small to hold the regions, they take
 their natural height and the page scrolls.
 
-Make a region show what it holds, so scrolling one stays the exception: a region a
-reader has to scroll through to reach its decision is read in two halves. `page check
---render` names each pane or body that runs past its region at a desktop size; trim it
-to what the region shows, or split it. A pane that is a reader for something long, such
-as a source file or a log, is the exception the region scrolls for, and the advice on it
-can stand.
+Keep a region's decision visible with its supporting content. `page check
+--render` reports panes or bodies that overflow their regions and the window
+widths where this happens; trim or split them. A region for reading long content,
+such as a source file or log, can keep its scrolling and the advisory finding.
 
 ### Bounds and widths
 
@@ -397,7 +394,7 @@ remaining targets. The Threads panel remains the complete conversation index.
 
 Omitting the rail is valid. Comments open in Threads, and selection offers the
 banner's Comment on selection control. A custom package can supply the same
-page presentation through "Page annotation presentation" in `packages.md`;
+page presentation through "Page annotation presentation" in `module-authoring.md`;
 do not reconstruct the event log or annotation inventory in page code.
 
 ## Draw the subject
@@ -512,7 +509,7 @@ instances and arbitrary module state do not survive the reload. Both update path
 wait while the user is composing, dragging, or undoing, has a gesture the server
 has not yet admitted, or has the version menu open.
 
-Page modules follow `references/packages.md`, "What a behavior module owes". In
+Page modules follow `references/module-authoring.md`, "What a behavior module owes". In
 particular, its `once()`, `quoted()`, `offer()`, `layoutChanged()`, and durable-state
 rules keep authored controls correct after reconnection and thread quoting.
 
@@ -717,28 +714,21 @@ leaf page check <page> --render
 It runs the browser gate in both color schemes, including when the host gives you
 no separate browser tool. Fix every failure; a screenshot is not a substitute.
 
-A clean check then saves screens of the page and names them: down the page three times,
-on a desktop, in the widest window, where whatever scales with the window is at its
-largest, and on a phone, each as far as its first eight screens (the check says when the
-page runs on past them, and a long page's end then needs its own look); and one screen
-at each width where the page's own arrangement is at its tightest before it changes,
-such as a sidebar page just before its track stacks or a row of tiles just before it
-wraps. Read every one. The gate finds what is broken; only a reading finds a drawing
-whose labels shrink past reading in a narrow body or grow past the page's text in a wide
-one, a row that wraps to leave one tile alone, a pin over the end of a heading, or a
-summary the phone puts after everything else. Fix what the page can fix, and check
-again.
+A clean check saves labeled screens at desktop, widest-window, and phone widths,
+up to eight screens down the page at each width. If the page extends beyond those,
+inspect its end separately. It also saves a screen just before each layout
+transition, such as a sidebar stacking or tiles wrapping. Read every screen for
+illegible or oversized drawing labels, isolated tiles, pins covering headings,
+and summaries arriving too late on a phone. Fix problems the page controls, then
+check again.
 
-Once the check is clean, and before the page goes to the user, have someone read it
-as the user will meet it. You wrote it from research, notes and questions the user
-never saw, so its names and shorthand resolve for you and not for them. Give a
-subagent the user's request and the saved screens with their labels, and nothing
-else, and have it read the page as the user would, reporting each place it could not
-follow or had to guess. Fix what it reports. Your own reading still checks that each
-heading gives the finding it promises, each claim has its evidence and each decision
-its control, each drawing adds information, no passage describes a shape the page
-could draw, and everything standing open in the column is there because the user
-needs it.
+Before handoff, give a subagent only the user's request and the labeled saved
+screens. Have it report anything it cannot follow or must guess; fix those
+findings. The reader needs none of your research or notes, since the user has
+not seen them either. In your own reading, check that headings state their
+findings, claims have evidence, decisions have controls, drawings add
+information, and visible prose is needed by the user. Draw any subject the page
+currently explains only in words when a picture would convey it.
 
 Follow the page's links and operate its navigation with pointer and keyboard.
 At each destination, check that the visible content and focus leave the user

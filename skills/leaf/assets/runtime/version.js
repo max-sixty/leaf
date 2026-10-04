@@ -71,6 +71,7 @@ import {
   restoreDraftEditing,
 } from "./drafts.js";
 import { heldThreadId, replyDestination } from "./thread/focus.js";
+import { restoreReplyEditing } from "./thread/replies.js";
 import { focusDestination } from "./focus.js";
 import { restrictUserIntent, retainUserIntent } from "./user-intent.js";
 import { patchTree } from "./dom-children.js";
@@ -228,6 +229,7 @@ const initialPairs = servedMain
 export function createVersionController({
   compositionInput,
   openThread,
+  refreshThread,
   midComposition,
   hasPending,
   readAndApply,
@@ -1290,7 +1292,14 @@ export function createVersionController({
     if (!mayRestore()) return;
     if (restoreDraftEditing(draftEditing, focused())) return;
     const input = replyThread
-      ? await replyDestination(replyThread, openThread, mayRestore)
+      ? await restoreReplyEditing(draftEditing, async () => {
+          // Mechanical recovery changes which settled discussion currently stands.
+          // Present that session before its route reads the annotation directory.
+          await refreshThread();
+          return mayRestore()
+            ? replyDestination(replyThread, openThread, mayRestore)
+            : null;
+        })
       : draftEditingDestination(draftEditing);
     if (!replyThread && input) mayRestore.handoff(() => focusDestination(input));
     if (mayRestore()) restoreDraftEditing(draftEditing, input);

@@ -507,10 +507,7 @@ def test_automatic_read_refusal_keeps_message_unread(browser, serve):
     )
     expect(card.locator(".lf-mark-read")).to_have_count(0)
     assert _read_events(serve.page_dir) == []
-    assert take_browser_errors(page) == [
-        f"400 {request.request.url}",
-        "Failed to load resource: the server responded with a status of 400 (Bad Request)",
-    ]
+    assert take_browser_errors(page) == [f"400 {request.request.url}"]
     page.unroute("**/api/event")
     with sending(page, "read on a new visit"):
         page.evaluate("""() => {
@@ -870,15 +867,15 @@ TASK_SEAT_PAGE = leaf_page(
 )
 
 
-@pytest.mark.parametrize("end", ["opened", "replied", "left"])
+@pytest.mark.parametrize("end", ["opened", "walked", "replied", "left"])
 def test_replies_held_in_a_page_seat_show_when_the_user_turns_to_them(
     browser, serve, end
 ):
     """Replies landing while a seated thread's foot is on screen wait behind one
     notice that counts them, and show together, in the order they came: when the user
-    presses the notice, when they send a turn of their own, which answers the replies
-    and so follows them, and when they scroll the thread below the window, where its
-    growth moves nothing they see. Nothing before the ending is input, so the browser
+    presses the notice, when a t press walks them to the thread, when they send a turn
+    of their own, which answers the replies and so follows them, and when they scroll
+    the thread below the window, where its growth moves nothing they see. Nothing before the ending is input, so the browser
     fixture's shift watch also checks that holding the replies moved nothing."""
     url = serve(TASK_SEAT_PAGE)
     root = append_carried_log_record(
@@ -892,7 +889,7 @@ def test_replies_held_in_a_page_seat_show_when_the_user_turns_to_them(
         },
     )["id"]
     page = open_page(browser, url)
-    thread = page.locator(f'.lf-page-thread[data-thread="{root}"]')
+    thread = page.locator(f'.lf-thread-seat .lf-page-thread[data-thread="{root}"]')
     thread.evaluate(
         """thread => document.scrollingElement.scrollBy({
           top: thread.getBoundingClientRect().top - innerHeight / 3,
@@ -924,6 +921,8 @@ def test_replies_held_in_a_page_seat_show_when_the_user_turns_to_them(
 
     if end == "opened":
         news.click()
+    elif end == "walked":
+        page.keyboard.press("t")
     elif end == "replied":
         write(
             thread.locator(":scope > .lf-thread-reply leaf-text"),

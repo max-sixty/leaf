@@ -2,8 +2,9 @@
 
 The Layout-tab and factual-correction phase landed in
 [PR #1476](https://github.com/max-sixty/leaf/pull/1476). The maintainer rewrite is
-written but unlanded; agent instructions are next. Site, UI vocabulary and example
-selection wait on decisions A–E below. Retire this note when the phases land and
+written but unlanded. Author instructions have received a focused clarity pass;
+the broader rewrite remains open. Site, UI vocabulary and example selection
+depend on decisions A–E below. Retire this note when the phases land and
 any standing rule has moved into its owning instructions.
 
 Each phase recovers what its reader needs, rewrites the prose, and checks dropped
@@ -32,23 +33,20 @@ Apply the same reader-based rewrite to `skills/leaf/SKILL.md`, the routed refere
 and package instructions. Score with `leaf-dev eval` before and after, following
 “Score an instruction change” in `/developing-leaf`. This phase needs no product decision.
 
-- Make package discovery and behavior-module obligations easy to scan in `packages.md`.
 - Give host selection, initial work status and the URL-in-every-message rule one
   canonical home each. Host contracts should point to those homes.
-- Put event-handling instructions before transport details. `event-batches.md` and
-  `conversation-loop.md` still name `answering` clauses where deliveries expose
-  merged `handling`; reconcile the instruction with the actual delivery shape.
+- Put event-handling instructions before transport details.
 - Reduce revision-state and margin instructions to what the author acts on. Keep package
   record semantics in their existing owner.
 - Separate agent operation from user setup and maintainer mechanisms in serving
   and host references. Check uncertain setup passages against an actual fresh host.
 - In command-hub instructions, distinguish a leaf goal from a Leaf page.
 
-Recheck source claims at the start of the phase. Earlier “version check” and data-write
-findings have already been corrected in their author-facing references; they are not
-remaining prose tasks.
-
 ## Phases 3 and 4: Site readers and structure
+
+The site currently serves primarily to summarize Leaf's design and interfaces.
+Consider further refinements closer to release; the route map below is a proposal
+for that stage.
 
 The proposed site gives each page one reader:
 
@@ -102,13 +100,12 @@ instructions, examples and eval cases together; score instructions before and af
 ## Phase 6: Example subjects
 
 Rewrite examples around a plausible task rather than an explanation of Leaf controls.
-Recheck the original review's factual candidates before changing them: log retention's
-400-day survivorship argument, ship review's copied runs table, repeated release-note
-suggestion text, and the PR walkthrough's invented labels and Rust assertions.
+Check the PR walkthrough's invented labels and Rust assertions against its linked
+source before changing them.
 
 Generate catalog descriptions from each page's existing description rather than
-maintain a second summary. Give the command hub a concrete importer-rewrite task.
-Keep seeded comments in the user's voice and verify their claims.
+maintain a second summary. Keep seeded comments in the user's voice and verify
+their claims.
 
 **Decision E — playground examples.** Recommend keeping the notification playground
 in the catalog with a real subject, and moving code comparison and data explorer to

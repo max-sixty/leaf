@@ -112,7 +112,9 @@ def cmd_watch(payload: dict) -> str | None:
     where it ends without waking it (`session.watch_between_turns`).
 
     It watches only where this process is the session the hook names and its
-    harness watches between turns, and only while the session holds a page."""
+    harness watches between turns, and only while the session holds a page. A
+    watch started with an Interrupt payload, as Pi's extension starts one when an
+    Escape settles a run, is a watch at an interrupted ending."""
     sid = payload.get("session_id") or ""
     if not owned_pages(sid):
         return None
@@ -123,7 +125,9 @@ def cmd_watch(payload: dict) -> str | None:
         return None
     from .session import watch_between_turns
 
-    return watch_between_turns(harness)
+    return watch_between_turns(
+        harness, interrupted=payload.get("hook_event_name") == "Interrupt"
+    )
 
 
 def main(*, watch: bool = False) -> None:

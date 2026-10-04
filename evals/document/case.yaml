@@ -9,47 +9,47 @@ metadata:
   - leaf
   - html
   executor: leaf_dev.arrangement_eval
-  case: document
+  scenario: document
 variants:
   resume:
     metadata:
       executor: leaf_dev.usability_eval
-      case: resume
+      scenario: resume
       purpose: Resume a document with standing decisions.
       conditions:
       - leaf
   decision:
     metadata:
       executor: leaf_dev.usability_eval
-      case: cold-decision
+      scenario: cold-decision
       purpose: Offer one evidence-backed decision.
       conditions:
       - leaf
   handoff:
     metadata:
       executor: leaf_dev.usability_eval
-      case: handoff
+      scenario: handoff
       purpose: Hand off and answer successive user rounds.
       conditions:
       - leaf
   elided:
     metadata:
       executor: leaf_dev.usability_eval
-      case: elided
+      scenario: elided
       purpose: Recover the premise of an elided thread.
       conditions:
       - leaf
   idle:
     metadata:
       executor: leaf_dev.delivery_eval
-      case: idle
+      scenario: idle
       purpose: Answer feedback arriving between turns.
       conditions:
       - leaf
   mid-turn:
     metadata:
       executor: leaf_dev.delivery_eval
-      case: mid-turn
+      scenario: mid-turn
       purpose: Answer feedback arriving during work.
       conditions:
       - leaf

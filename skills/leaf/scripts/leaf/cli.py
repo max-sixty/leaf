@@ -408,6 +408,23 @@ def export(dir: str, out: Path, version: int) -> None:
     sys.exit(cmd_export(resolve_dir(dir), out, version))
 
 
+@page.command(short_help="Picture a drawing comment as the user saw it.")
+@click.argument("dir", metavar="PAGE")
+@click.argument("message", metavar="ID")
+def picture(dir: str, message: str) -> None:
+    """Draw comment ID's drawing over the page as the user saw it, and print the
+    path of the PNG.
+
+    Opens the comment's revision in the host's browser, with the log applied
+    through the comment, at the window size and color scheme the drawing was
+    made in, and crops to the ink and the page around it. Bound data is read as
+    it stands now, and the host's fonts may differ from the user's.
+    """
+    from leaf.render_gate.picture import cmd_picture
+
+    sys.exit(cmd_picture(resolve_dir(dir), message))
+
+
 @page.command(short_help="Report a state change onto a page widget, as a worker.")
 @click.argument("dir", metavar="PAGE")
 @click.argument("widget", metavar="WIDGET")
@@ -869,6 +886,11 @@ def thread_open(
 @click.option(
     "--awaits", is_flag=True, help="the reply's prose asks the user a question"
 )
+@click.option(
+    "--ephemeral",
+    is_flag=True,
+    help="progress update; folds when the next ordinary agent reply arrives",
+)
 @_title_option
 def thread_reply(
     dir: str,
@@ -881,6 +903,7 @@ def thread_reply(
     text: str,
     markup: str,
     awaits: bool,
+    ephemeral: bool,
     title: str | None,
 ) -> None:
     """Post a threaded reply as the agent (--text or stdin).
@@ -912,6 +935,7 @@ def thread_reply(
         part=part,
         detach=detach,
         validate_source=True,
+        ephemeral=ephemeral,
     )
     _print_records(accepted)
     _name(page_dir, accepted["id"], title)

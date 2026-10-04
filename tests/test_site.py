@@ -37,7 +37,7 @@ from leaf import schema as schema_model
 from leaf.event_log import _parse_events, read_events
 from leaf.events import bare_reaction, build_threads
 from leaf.passages import enclosing_ids
-from leaf.render_checks import wait_until_ready
+from leaf.render_checks import HANDOVER_DEADLINE_MS, wait_until_ready
 from leaf.render_gate import version as render_gate_model
 from leaf.structure import SourceDocument
 from leaf_dev import site as site_build
@@ -50,7 +50,6 @@ from render_cases_layout import banner_control
 # The suite's own page primitives, so a navigation here waits on what every other
 # navigation waits on. tests/AGENTS.md, "A wait consumes a fact the system states".
 from render_harness import (
-    HANDOVER_DEADLINE_MS,
     consume_browser_errors,
     displayed,
     expect_banner_control_offered,
@@ -1761,7 +1760,7 @@ def test_interaction_gallery_contains_page_chrome(serve, browser):
     # restored reading position leaves it is not something this test arranges.
     comment_tab.click()
     page.reload(wait_until="domcontentloaded")
-    wait_until_ready(page, timeout_ms=HANDOVER_DEADLINE_MS)
+    wait_until_ready(page)
     gallery = page.locator("#bg-interactions")
     status = gallery.locator("[data-interaction-status]")
     expect(status).to_have_text(
@@ -1812,7 +1811,7 @@ def test_interaction_gallery_waits_for_a_restored_frame_tab(serve, browser):
     assert held, "the restored frame never requested its state"
     held.pop().continue_()
     page.wait_for_load_state("load", timeout=HANDOVER_DEADLINE_MS)
-    wait_until_ready(page, timeout_ms=HANDOVER_DEADLINE_MS)
+    wait_until_ready(page)
     page.unroute("**/api/state*", hold_restored_state)
     expect(gallery.locator("[data-interaction-status]")).to_have_text(
         "Ready — motion will start only when you press Play", timeout=15_000

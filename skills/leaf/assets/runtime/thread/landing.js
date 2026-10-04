@@ -31,7 +31,7 @@
    supplies the caller-owned return target through `landInThread`. A send from a
    thread's box leaves it the same way, onto the thread, except in the margin card,
    whose thread stands for the element it is about (`landSent`). */
-import { landingBand, seenRect, shownBox } from "../geometry.js";
+import { landingBand, seenRect, shownBox, shownWindow } from "../geometry.js";
 import { documentFocused, focused } from "../keyboard/scopes.js";
 import { focusDestination, takesLetters } from "../focus.js";
 import { scrollBehavior } from "../motion.js";
@@ -522,17 +522,21 @@ export function createThreadLanding({
     box.lfRevealReply?.();
     // Entering a reply is a focus move, not a trip to its thread or passage.
     // Reveal only the writing area; an already visible box leaves every scroller
-    // where the reader put it, including the transcript inside a margin card.
+    // where the reader put it, including the transcript inside a margin card. A box
+    // longer than the window along an axis can never show whole there, so partly in
+    // view it is already as shown as it can be: a thread standing in for the control
+    // its render took away jumped to its head, 700px past where the user had pressed.
     bringBackSurfaceOf(box);
     box.focus({ preventScroll: true });
     const shown = shownBox(box);
     const visible = seenRect(box, new Map());
+    const room = shownWindow();
     if (
       !visible ||
-      visible.top > shown.top ||
-      visible.bottom < shown.bottom ||
-      visible.left > shown.left ||
-      visible.right < shown.right
+      (shown.height <= room.height &&
+        (visible.top > shown.top || visible.bottom < shown.bottom)) ||
+      (shown.width <= room.width &&
+        (visible.left > shown.left || visible.right < shown.right))
     )
       box.scrollIntoView({
         block: "nearest",

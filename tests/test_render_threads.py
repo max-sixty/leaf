@@ -8409,11 +8409,6 @@ def test_an_agent_turn_arriving_holds_still_the_page_box_being_typed_in(
 
 
 @pytest.mark.parametrize("kind", ["task", "verdict"])
-@pytest.mark.xfail(
-    reason="Main: resolving an inline thread moves the page 689px when focus returns to the card",
-    raises=AssertionError,
-    strict=False,
-)
 def test_resolving_a_long_page_thread_by_its_button_leaves_the_page_still(
     browser, serve, kind
 ):

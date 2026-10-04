@@ -1,6 +1,7 @@
 """HTTP event and service-address tests."""
 
 import errno
+import fcntl
 import html
 import http.client
 import http.cookiejar
@@ -30,6 +31,7 @@ from conftest import LEAF_COMMAND
 from interact_support import (
     PAGE,
     PAGE_PACKAGES,
+    STATED_TIMEOUT,
     TOKEN,
     append_carried_log_record,
     append_command,
@@ -3641,8 +3643,23 @@ def test_temporary_server_close_waits_for_active_request(page_dir, monkeypatch):
     entered = threading.Event()
     release = threading.Event()
     closed = threading.Event()
+    joining = threading.Event()
     responses = []
+    errors = []
     original_get = http_model.PageEndpoint._get
+
+    def join_requests(*args, **kwargs):
+        if not joining.is_set():
+            assert server._thread.is_alive()
+            joining.set()
+        # Expire any proposed wall deadline while the request is still held. A
+        # completion join waits for the request whatever the scheduling speed.
+        bounded = bool(args) or kwargs.get("timeout") is not None
+        if bounded:
+            native_join(timeout=0)
+        else:
+            native_join()
+        assert not server._thread.is_alive(), "close's join ended before its requests"
 
     def delayed_get(endpoint):
         entered.set()
@@ -3654,8 +3671,11 @@ def test_temporary_server_close_waits_for_active_request(page_dir, monkeypatch):
         responses.append(fetch(f"{server.origin}/api/state"))
 
     def close():
-        server.close()
-        closed.set()
+        try:
+            server.close()
+            closed.set()
+        except Exception as error:  # noqa: BLE001 - asserted by the owning test thread
+            errors.append(error)
 
     monkeypatch.setattr(http_model.PageEndpoint, "_get", delayed_get)
     requester = threading.Thread(target=request, daemon=True)
@@ -3663,19 +3683,21 @@ def test_temporary_server_close_waits_for_active_request(page_dir, monkeypatch):
     try:
         server.start()
         requester.start()
-        assert entered.wait(timeout=5), "the server did not accept the request"
+        assert entered.wait(STATED_TIMEOUT), "the server did not accept the request"
+        native_join = server._thread.join
+        monkeypatch.setattr(server._thread, "join", join_requests)
         closer.start()
-        assert not closed.wait(timeout=0.1), (
-            "close returned with a request still active"
-        )
+        assert joining.wait(STATED_TIMEOUT), "close never joined its active request"
+        assert not closed.is_set(), "close returned with a request still active"
         release.set()
-        closer.join(timeout=5)
-        requester.join(timeout=5)
+        closer.join(timeout=STATED_TIMEOUT)
+        requester.join(timeout=STATED_TIMEOUT)
     finally:
         release.set()
         server.close()
     assert not closer.is_alive()
     assert not requester.is_alive()
+    assert errors == []
     assert len(responses) == 1 and responses[0][0] == 200
     assert files_model.read_json(page_dir / "request-finished.json") == {"done": True}
 
@@ -5495,11 +5517,24 @@ def test_stamp_keeps_its_checked_log_snapshot_until_the_note(monkeypatch, page_d
     )
     entered = threading.Event()
     release = threading.Event()
+    requested = threading.Event()
     original = publishing_model.check_source
+    native_flock = fcntl.flock
+
+    def observed_flock(fd, operation):
+        if (
+            threading.current_thread() is writer
+            and operation == fcntl.LOCK_EX
+            and not requested.is_set()
+        ):
+            with pytest.raises(BlockingIOError):
+                native_flock(fd, operation | fcntl.LOCK_NB)
+            requested.set()
+        return native_flock(fd, operation)
 
     def paused_check(*args, **kwargs):
         entered.set()
-        assert release.wait(5)
+        assert release.wait(STATED_TIMEOUT), "the publication check was never released"
         return original(*args, **kwargs)
 
     monkeypatch.setattr(publishing_model, "check_source", paused_check)
@@ -5521,14 +5556,19 @@ def test_stamp_keeps_its_checked_log_snapshot_until_the_note(monkeypatch, page_d
     }
     publisher = threading.Thread(target=run_stamp)
     publisher.start()
-    assert entered.wait(5)
+    assert entered.wait(STATED_TIMEOUT)
     writer = threading.Thread(target=lambda: append_command(page_dir, action))
-    writer.start()
-    time.sleep(0.05)
-    assert writer.is_alive(), "the browser writer crossed the checked snapshot"
-    release.set()
-    publisher.join(5)
-    writer.join(5)
+    monkeypatch.setattr(fcntl, "flock", observed_flock)
+    try:
+        writer.start()
+        assert requested.wait(STATED_TIMEOUT), (
+            "the browser writer never attempted the held snapshot lock"
+        )
+        assert writer.is_alive(), "the browser writer crossed the checked snapshot"
+    finally:
+        release.set()
+        publisher.join(STATED_TIMEOUT)
+        writer.join(STATED_TIMEOUT)
 
     assert not failures
     assert not publisher.is_alive() and not writer.is_alive()

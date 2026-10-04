@@ -536,6 +536,8 @@ def test_package_thread_widgets_keep_local_filters_and_independent_subscriptions
             "node => node.reading.threads.some(thread => thread.root.body.text.trim() === 'Cedar')"
         )
 
+    # Clear the user's filter before this lifecycle test removes its widget.
+    second.locator("input").fill("")
     # The widget taken out stands last, so taking it out moves nothing else.
     removed = second.element_handle()
     second.evaluate("node => node.remove()")
@@ -642,6 +644,8 @@ def test_package_thread_mirrors_share_core_conversation_without_claiming_placeme
     expect(second.locator(".lf-thread-news")).to_have_text("1 new reply")
     expect(second.locator(".lf-page-thread")).not_to_contain_text("While held")
 
+    # This lifecycle removal follows the user's clearing their local filter.
+    second.locator("input").fill("")
     second_handle = second.element_handle()
     second.evaluate("node => node.remove()")
     stopped_at = second_handle.evaluate("node => node.updates")

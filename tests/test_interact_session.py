@@ -20,6 +20,7 @@ import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from pathlib import Path
+from types import SimpleNamespace
 from xml.etree import ElementTree
 
 import pytest
@@ -218,6 +219,44 @@ print("queued")
     )
     program.chmod(0o755)
     return program, log
+
+
+def reaper_retires(page: Path, monkeypatch) -> bool:
+    """Run the real lifetime decision for three cycles, advancing its grace clock.
+
+    The HTTP process remains real and owns its own clock. Here the same reaper reads
+    the real service and claim with controlled product time, so survival is observed
+    after completed decisions rather than after a scheduling allowance.
+    """
+    clock = SimpleNamespace(now=0, cycles=0)
+
+    class ChecksComplete(Exception):
+        pass
+
+    def next_check(_seconds):
+        clock.cycles += 1
+        clock.now += schema_model.ORPHAN_GRACE_SECS + 1
+        if clock.cycles == 3:
+            raise ChecksComplete
+
+    def retire(code):
+        assert code == 0
+        raise SystemExit(code)
+
+    with monkeypatch.context() as controlled:
+        controlled.setattr(
+            server_model,
+            "time",
+            SimpleNamespace(monotonic=lambda: clock.now, sleep=next_check),
+        )
+        controlled.setattr(server_model, "os", SimpleNamespace(_exit=retire))
+        try:
+            server_model.stop_when_service_ends(page)
+        except ChecksComplete:
+            return False
+        except SystemExit:
+            return True
+    raise AssertionError("the reaper neither completed its checks nor retired")
 
 
 def freeze_events(page_dir: Path, events: list[dict]) -> dict:
@@ -10603,55 +10642,70 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
 
 
 def test_codex_adapter_follows_ownership_across_idle_and_server_stop(
-    codex_claimed_page, under_codex, codex_env, tmp_path
+    codex_claimed_page, codex_env, tmp_path, spawn
 ):
     """Status and server changes do not end a route still owned by the task."""
     page = codex_claimed_page
     program, log = fake_codex_cli(tmp_path)
-    release_start = tmp_path / "release-start"
     session_model.cmd_status(page, "waiting", "comment on the prototype")
     assert hosting_model.cmd_stop(page) is True
-
-    started = under_codex(
-        shlex.join(
-            [
-                *LEAF_COMMAND,
-                "codex",
-                "start",
-                str(page),
-                "--codex-path",
-                str(program),
-            ]
-        ),
-        codex_env
-        | {
-            "CODEX_THREAD_ID": "codex-thread",
-            "FAKE_CODEX_LOG": str(log),
-        },
-        hold_until=release_start,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
+    checks = tmp_path / "adapter-checks.json"
+    adapter = spawn_probe(
+        spawn,
+        page,
+        """\
+from leaf import codex_adapter as adapter
+from leaf.files import read_json
+from leaf.state import write_json
+native_read = adapter.read_watch_pass
+passes = 0
+def completed_read(*args, **kwargs):
+    global passes
+    page = Path(os.environ["PAGE"])
+    state = read_json(page / "status.json")["state"]
+    enabled = read_json(page / "service.json")["enabled"]
+    result = native_read(*args, **kwargs)
+    passes += 1
+    write_json(Path(os.environ["CHECKS"]), {
+        "passes": passes, "state": state, "enabled": enabled,
+    })
+    return result
+adapter.read_watch_pass = completed_read
+raise SystemExit(adapter.run_adapter(os.environ["CODEX_PATH"]))
+""",
+        **codex_env,
+        CLAUDE_CODE_SESSION_ID="",
+        CLAUDE_PID="",
+        CLAUDE_JOB_DIR="",
+        CODEX_THREAD_ID="codex-thread",
+        CODEX_PATH=program,
+        FAKE_CODEX_LOG=log,
+        CHECKS=checks,
     )
-    # The start claims the page for its own short-lived Codex; hand the claim to
-    # this process, whose life a real task's Codex stands for, before it exits.
-    wait_for(
-        lambda: codex_adapter_model.adapter_is_live("codex-thread"),
-        bool,
-        failure="the detached Codex carrier did not start",
-    )
-    announcement = codex_start_announcement(started)
-    release_codex_command(page, release_start)
-    out, err = started.communicate(timeout=60)
-    out = announcement + out
-    assert started.returncode == 0, f"{out}{err}"
     try:
-        # The adapter passes over its pages once a second; two of them have read
-        # the stopped page by now.
-        time.sleep(2.5)
+        waiting = wait_for(
+            lambda: files_model.read_json(checks),
+            lambda reading: (
+                reading is not None
+                and reading["passes"] >= 2
+                and reading["state"] == "waiting"
+                and not reading["enabled"]
+            ),
+            failure=lambda: (
+                "the adapter never completed two reads of the stopped page"
+                + (adapter.stderr.read() if adapter.poll() is not None else "")
+            ),
+        )
         assert codex_adapter_model.adapter_is_live("codex-thread")
-
         session_model.cmd_status(page, "idle", "")
+        wait_for(
+            lambda: files_model.read_json(checks),
+            lambda reading: (
+                reading["passes"] >= waiting["passes"] + 2
+                and reading["state"] == "idle"
+            ),
+            failure="the adapter never completed its idle-page reads",
+        )
         assert codex_adapter_model.adapter_is_live("codex-thread")
         session_model.cmd_status(page, "waiting", "resumed review")
         asked = append_carried_log_record(
@@ -10673,6 +10727,8 @@ def test_codex_adapter_follows_ownership_across_idle_and_server_stop(
             lambda live: not live,
             failure="the adapter did not retire after ownership ended",
         )
+        out, err = adapter.communicate(timeout=STATED_TIMEOUT)
+        assert adapter.returncode == 0, f"{out}{err}"
         assert (
             sum(
                 event["kind"] == "pickup" and asked["id"] in event["events"]
@@ -11340,14 +11396,35 @@ def test_a_fresh_init_does_not_delete_a_concurrently_created_pages_claim(
         assert reached_layer.wait(timeout=10), (
             "the first init never reached its held read"
         )
-        second = spawn(
-            [*LEAF_COMMAND, "page", "init", page],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
+        requested = tmp_path / "second-init-requested"
+        second = spawn_probe(
+            spawn,
+            page,
+            """\
+import fcntl
+native_flock = fcntl.flock
+identity = Path(os.environ["PAGE"]).stat()
+def observed_flock(fd, operation):
+    descriptor = fd if isinstance(fd, int) else fd.fileno()
+    if operation == fcntl.LOCK_EX and os.path.samestat(os.fstat(descriptor), identity):
+        try:
+            native_flock(fd, operation | fcntl.LOCK_NB)
+        except BlockingIOError:
+            Path(os.environ["REQUESTED"]).write_text("blocked")
+        else:
+            raise AssertionError("the overlapping init bypassed the page lease")
+    return native_flock(fd, operation)
+fcntl.flock = observed_flock
+sys.argv = ["leaf", "page", "init", os.environ["PAGE"]]
+cli_model.cli()
+""",
+            REQUESTED=requested,
         )
-        time.sleep(0.1)
-        assert second.poll() is None, "the overlapping init bypassed the page lease"
+        wait_for(
+            requested.exists,
+            bool,
+            failure="the overlapping init never attempted the held page lease",
+        )
         resume.set()
         first.result(timeout=10)
         second_out, second_err = second.communicate(timeout=10)
@@ -11815,7 +11892,9 @@ def test_a_crashed_lease_holder_releases_the_stable_file_for_a_successor(
     assert os.path.samestat(identity, path.stat())
 
 
-def test_a_page_lock_is_its_directory_and_follows_a_page_made_again(tmp_path):
+def test_a_page_lock_is_its_directory_and_follows_a_page_made_again(
+    tmp_path, monkeypatch
+):
     """The page lock is the page directory, so it leaves nothing in the state home
     and ends with the page. A taker that waited on a directory deleted and made
     again at the same path locks the new one, so it excludes the next taker; a
@@ -11826,27 +11905,48 @@ def test_a_page_lock_is_its_directory_and_follows_a_page_made_again(tmp_path):
 
     entered = threading.Event()
     release = threading.Event()
+    requested = threading.Event()
+    native_flock = fcntl.flock
+
+    def observed_flock(fd, operation):
+        if threading.current_thread() is taker and not requested.is_set():
+            assert os.path.samestat(os.fstat(fd), page.stat())
+            with pytest.raises(BlockingIOError):
+                native_flock(fd, operation | fcntl.LOCK_NB)
+            requested.set()
+        return native_flock(fd, operation)
+
+    monkeypatch.setattr(fcntl, "flock", observed_flock)
 
     def take():
         with leases_model.page_locked(page):
             entered.set()
-            assert release.wait(10)
+            assert release.wait(STATED_TIMEOUT), (
+                "the replacement lock was never released"
+            )
 
     taker = threading.Thread(target=take)
-    with leases_model.page_locked(page):
-        taker.start()
-        time.sleep(0.2)  # the taker opens the directory and waits on this lock
-        shutil.rmtree(page)
-        page.mkdir()
-    assert entered.wait(10)
-    fd = os.open(page, os.O_RDONLY)
     try:
-        with pytest.raises(BlockingIOError):
-            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        with leases_model.page_locked(page):
+            taker.start()
+            assert requested.wait(STATED_TIMEOUT), (
+                "the taker never opened the old directory"
+            )
+            shutil.rmtree(page)
+            page.mkdir()
+        assert entered.wait(STATED_TIMEOUT), (
+            "the taker never locked the replacement directory"
+        )
+        fd = os.open(page, os.O_RDONLY)
+        try:
+            with pytest.raises(BlockingIOError):
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        finally:
+            os.close(fd)
     finally:
-        os.close(fd)
-    release.set()
-    taker.join(10)
+        release.set()
+        taker.join(STATED_TIMEOUT)
+    assert not taker.is_alive(), "the taker retained the replacement directory lock"
 
     page.rmdir()
     with pytest.raises(FileNotFoundError), leases_model.page_locked(page):
@@ -13947,14 +14047,13 @@ def test_a_background_jobs_server_lives_as_long_as_the_job(
     assert service_model.claim_page(page_dir)
     assert hosting_model.start_server(page_dir)
     assert files_model.read_json(page_dir / "service.json")["lifetime"] == "session"
-    # Longer than the reaper's grace, so a server that was going to retire on the
-    # dead pid has had the chance.
-    time.sleep(schema_model.ORPHAN_GRACE_SECS + 0.5)
+    assert not reaper_retires(page_dir, monkeypatch)
     assert server_model.running_server(page_dir)
     assert service_model.owned_pages("bg-job") == [page_dir.resolve()]
     assert presence_model.presence(page_dir, [])["session_alive"] is True
 
     (job / "state.json").unlink()
+    assert reaper_retires(page_dir, monkeypatch)
     wait_for(
         lambda: server_model.running_server(page_dir),
         lambda running: not running,
@@ -14278,16 +14377,11 @@ def test_server_stop_closes_accepted_keep_alive_connections(page_dir, standing_s
 
 
 def test_a_sessionless_server_ignores_a_stale_claim_and_requires_explicit_stop(
-    page_dir, dead_pid, standing_server
+    page_dir, dead_pid, standing_server, monkeypatch
 ):
     record_claim(page_dir, id="old-session", pid=dead_pid, agent="Codex")
     server = standing_server(page_dir)
-    # The only held window in the suite, because it is the only assertion with nothing
-    # to consume: a watcher that never starts states nothing, and the server going on
-    # living is not an event to wait for (tests/AGENTS.md, "A wait consumes a fact the
-    # system states"). So the window is the grace a watcher would have acted after,
-    # plus room to act — long enough that the bug, had it been here, would have shown.
-    time.sleep(schema_model.ORPHAN_GRACE_SECS + 0.5)
+    assert not reaper_retires(page_dir, monkeypatch)
     assert server.poll() is None, "a manual server inherited the stale session claim"
     assert hosting_model.cmd_stop(page_dir) is True
     server.wait(timeout=5)

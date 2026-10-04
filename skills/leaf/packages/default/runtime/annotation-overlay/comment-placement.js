@@ -228,10 +228,9 @@ export const cardMeasure = () => rootLength("--thread-card");
    `choose` holds a side, choosing one where none is held or the boundary or `extent`'s
    width has changed, and says whether it chose afresh. `options` then gives
    `computePosition` the reference to stand by, its placement and its middleware.
-   `landed` takes the answer's inline start, and returns what the answer says about the
-   surface: its `scale` and where the rule stood its held edge before the boundary
-   shifted it in (`spot`, `{ top }` and `{ foot }` from the rule's line), which is what a
-   `hold` returns to keep it there. `plane` reads whether the boundary holds the surface
+   `landed` takes the answer's inline start and where the rule stood the surface's top
+   and foot before the boundary shifted it in, from the rule's line, which `heldAt`
+   then offers a `hold` to keep it there; it returns the surface's `scale`. `plane` reads whether the boundary holds the surface
    at the window edge, in client coordinates, and chooses the page or window plane
    (floating.js). `line` is where, in client pixels, the held side's line stands now.
    `forget` drops the side so the next placement chooses again, and `scrolled` keeps it
@@ -607,7 +606,7 @@ export function commentPlacement() {
       // The reading this placement answered, so a turn that joined while it was worked
       // out is one the next placement still sees join.
       if (reading) held = { ...spot, ...reading };
-      return { scale, spot };
+      return { scale };
     },
   };
 }

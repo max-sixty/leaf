@@ -63,7 +63,7 @@ export function createAnnotationInventory({
     if (target.id) return `${prefix}id:${target.id}`;
     const steps = [];
     let from = "path:";
-    for (let node = target; node;) {
+    for (let node = target; node; ) {
       // A projected datum's node is generated, so it stands at no authored position
       // among its siblings; it is named by its projection and key, which also survive a
       // renderer replacing it (projection/data.js).
@@ -98,7 +98,7 @@ export function createAnnotationInventory({
     // tree from a later target inside one of its nested shadow hosts.
     const ancestry = (target) => {
       const chain = [];
-      for (let node = target; node;) {
+      for (let node = target; node; ) {
         chain.push(node);
         node = renderedParent(node);
       }
@@ -279,7 +279,7 @@ export function createAnnotationInventory({
           unread,
           // Page Map lists each thread on its own row, so the word goes on the row
           // rather than on an aggregate.
-          ...(onUser
+          ...(onUser || thread.attention?.reason === "task"
             ? { mapContext: attention.label }
             : unread
               ? { mapContext: `${unread} unread` }

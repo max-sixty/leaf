@@ -77,8 +77,16 @@
 <lf-tab id="tab-plan" label="Plan">
 <section id="plan">
   <h2>One record, a task, gives you and the agent a queue each, and it ships in four steps</h2>
+  <div class="callout" id="plan-status">
+    <p><strong>Steps 1 and 2 are built</strong> on the <code>what-needs-you</code> branch, not yet landed.</p>
+    <ul>
+      <li><strong>Queues.</strong> <code>leaf page state</code> now carries <code>queues</code>: <code>on_you</code> (open Asks, prose questions, failed replies to resend) and <code>on_agent</code> (owed answers, claimed work, open tasks). Each thread in <code>page state</code> also carries its <code>attention</code>, which only the browser had.</li>
+      <li><strong>Tasks.</strong> <code>leaf task open &lt;page&gt; &lt;id&gt; "&lt;title&gt;"</code> and <code>leaf task end &lt;page&gt; &lt;task&gt; done|failed|dropped "&lt;detail&gt;"</code> write <code>task</code> and <code>task_end</code> events. An open task keeps its thread on the agent through replies and the end of the session: the card reads “Task open”, under the panel's Waiting on: Agent filter. The banner's explanation names every open task, including one on a thread you have resolved.</li>
+      <li><strong>Changed from the plan.</strong> No separate <code>leaf needs</code> command: the queues are part of <code>page state</code>. <kbd>a</kbd> still walks Asks only; the threads panel's Waiting on filter already lists the threads on each side. Tasks have no foreground or background mode, and the <code>status --on</code> claim stays as the turn's own “working now”: a claim lasts a turn, a task lasts until it's ended. A task stands on a thread only, not on a page widget. A task whose session has ended still reads open: marking it unobserved is step 4.</li>
+    </ul>
+  </div>
   <p><a href="https://earendil.com/posts/pi-durable/">Pi Durable</a> runs every unit of work as a task with an owner and an outcome. In Leaf a task is one thing someone owes. An Ask is a task on you. Your message opens a task on the agent. A subagent, a CI wait or a dispatched session is a task the agent runs in the background. Your queue is your open tasks, and the agent's queue is its open tasks.</p>
-  <p>This is C (Loops) in Pi's terms, with two simplifications. The agent opens tasks with a command, so nothing infers a split from your prose and no chips appear. And the same record replaces the <code>work</code> seats in <code>status.json</code>, which is the job model the Pi session proposed for the agent's background work, so two open designs become one.</p>
+  <p>This is C (Loops) in Pi's terms, with two simplifications. The agent opens tasks with a command, so nothing infers a split from your prose and no chips appear. And it is the job model the Pi session proposed for the agent's background work, so two open designs become one. A <code>status --on</code> claim stays as the turn's own “working now”: a claim lasts a turn, and a task lasts until it's ended.</p>
 
   <table id="task-record">
     <thead><tr><th scope="col">Field</th><th scope="col">Holds</th><th scope="col">Example</th></tr></thead>
@@ -86,7 +94,6 @@
       <tr><th scope="row"><code>owner</code></th><td>Who must act: you, the agent, or a named session</td><td><code>agent</code></td></tr>
       <tr><th scope="row"><code>on</code></th><td>The message, thread or Ask it answers</td><td>your comment on §Banner</td></tr>
       <tr><th scope="row"><code>parent</code></th><td>The task it was split from or handed on by</td><td>none</td></tr>
-      <tr><th scope="row"><code>mode</code></th><td><em>foreground</em>: the agent is on it now, and its turn can't end on it. <em>background</em>: it runs past the turn</td><td><code>background</code>, while a subagent rebuilds</td></tr>
       <tr><th scope="row"><code>state</code></th><td>open, running, waiting (on named tasks), done, failed, dropped, or unobserved (its owner's session ended with no outcome)</td><td><code>done</code></td></tr>
       <tr><th scope="row"><code>result</code></th><td>Where the outcome is: a version, a reply, another page</td><td>version 4</td></tr>
       <tr><th scope="row"><code>history</code></th><td>Each move: who made it, and when</td><td>open → running → done → reopened → done</td></tr>
@@ -124,8 +131,8 @@ stateDiagram-v2
 
   <h3 id="plan-steps">Four steps, each useful alone</h3>
   <ol class="steps" id="plan-step-list">
-    <li><strong>Two queues from what Leaf already knows</strong> (days). A command, say <code>leaf needs</code>, returns <code>on_you</code> and <code>on_agent</code>: open Asks, threads whose attention is <code>needs_user</code>, and the agent's owed workflows, which today only the browser assembles. <kbd>a</kbd> walks <code>on_you</code>, and the banner counts <code>on_agent</code>. It adds no events and loses what today loses, but every surface then reads one query, and each later step only adds rows to it.</li>
-    <li><strong>Agent tasks in the log</strong> (about a week). <code>leaf task open --on &lt;message&gt; [--background]</code> and <code>leaf task done --cites v4</code>, <code>--failed</code> or <code>--dropped</code> become log events. An open task keeps its message on the agent after any reply, Resolve never settles it, and the Stop hook asks each foreground task to end or go background. The <code>work</code> seats in <code>status.json</code> go. This fixes flows 1 and 3 and the CI wait.</li>
+    <li><strong>Two queues from what Leaf already knows</strong> (built). <code>leaf page state</code> returns <code>on_you</code> and <code>on_agent</code>: open Asks, threads whose attention is <code>needs_user</code>, and the agent's owed workflows, which only the browser assembled. Still to do: <kbd>a</kbd> walking all of <code>on_you</code>, and the banner counting <code>on_agent</code>. It adds no events and loses what today loses, but every surface then reads one query, and each later step only adds rows to it.</li>
+    <li><strong>Agent tasks in the log</strong> (built). <code>leaf task open &lt;page&gt; &lt;id&gt; "&lt;title&gt;"</code> and <code>leaf task end &lt;page&gt; &lt;task&gt; done|failed|dropped "&lt;detail&gt;"</code> write log events. An open task keeps its thread on the agent after any reply, and Resolve never settles it. This fixes flows 1 and 3 and the CI wait.</li>
     <li><strong>Done becomes something for you to review</strong> (days). A task the agent finishes puts its result on your queue, and reading it accepts it. Drop withdraws a task of yours from the agent.</li>
     <li><strong>Handing a task to another session</strong> (about a week). The dispatched session owns the task and may write its outcome to this page. An owner whose session ends with no outcome makes the task unobserved, and it lands on you. This fixes flow 2.</li>
   </ol>
@@ -134,7 +141,7 @@ stateDiagram-v2
   <lf-ask id="plan-start">
     <h3 id="plan-start-heading">Should I start building?</h3>
     <lf-options id="plan-start-pick" choose>
-      <lf-option id="plan-start-two"><strong>Steps 1 and 2</strong> Two queues now, then agent tasks in the log. Recommended: step 2 is where work stops being lost.</lf-option>
+      <lf-option id="plan-start-two" chosen><strong>Steps 1 and 2</strong> Two queues now, then agent tasks in the log. Recommended: step 2 is where work stops being lost.</lf-option>
       <lf-option id="plan-start-one"><strong>Step 1 only</strong> The two queues, then look again.</lf-option>
       <lf-option id="plan-start-rethink"><strong>Not yet</strong> Something about the model is wrong; say what in a comment.</lf-option>
     </lf-options>

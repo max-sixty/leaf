@@ -407,9 +407,9 @@ function renderLayerReference(state) {
   const named = `Leaf ${identity}${age ? ` · ${age}` : ""}`;
   layerReferenceElementCopy.copyLabel = `${named} · copy version`;
   render(
-    html`Leaf <code class="lf-layer-version">${identity}</code>${
-        age ? ` · ${age}` : nothing
-      }`,
+    html`Leaf <code class="lf-layer-version">${identity}</code>${age
+        ? ` · ${age}`
+        : nothing}`,
     layerReferenceElement,
   );
   keeps(
@@ -614,6 +614,15 @@ function renderStatusNow(state) {
     explanation += ` · ${activity.observed}`;
   if (facts.waiting.length && ["working", "listening"].includes(kind))
     explanation += `${explanation.endsWith(".") ? "" : "."} ${facts.waiting.join(" · ")}.`;
+  // A task outlasts the turns and the thread that opened it (`tasks.py`), so the
+  // banner names every open one, including one on a thread the user has resolved.
+  const tasks = state.browser?.tasks ?? [];
+  if (tasks.length)
+    explanation += `${explanation.endsWith(".") ? "" : "."} ${
+      tasks.length > 2
+        ? `${tasks.length} open tasks`
+        : `Open task${tasks.length === 1 ? "" : "s"}: ${tasks.map((task) => task.title).join(" · ")}`
+    }.`;
   const actionableWork = [
     "awaiting_approval",
     "awaiting_input",

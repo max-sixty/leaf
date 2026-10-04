@@ -122,7 +122,8 @@ export function threadReading(
     // says that.
     statusFolded:
       attention?.kind === "waiting" &&
-      messages.some((message) => message.workflow?.id === attention.workflow?.id),
+      attention.workflow !== null &&
+      messages.some((message) => message.workflow?.id === attention.workflow.id),
     resolvedBy:
       thread.resolved?.author === "agent"
         ? `✓ Resolved by ${thread.resolved.agent}`

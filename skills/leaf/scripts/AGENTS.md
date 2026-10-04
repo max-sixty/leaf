@@ -84,10 +84,10 @@ the served response, `reading` names filesystem changes for freshness reads, and
 
 Within `render_gate/`, `scheme` owns one browser and color lifecycle, `readings` owns
 the probe readings and their findings, `version` owns retry policy, `page_code` owns
-the run plain `page check` and message markup take, `preview` owns ephemeral servers, `browser` owns the
-browser launch, `screens` owns the screens a passing check saves for the author, and
-`command` owns the CLI boundary, and `widget_quality` owns the report `package check
---render` gives a widget's author, which refuses nothing.
+the run plain `page check` takes, `preview` owns ephemeral servers, `browser` owns the
+browser's launch and end, `screens` owns the screens a passing check saves for the
+author, and `command` owns the CLI boundary, and `widget_quality` owns the report
+`package check --render` gives a widget's author, which refuses nothing.
 
 Within `validation/`, `markup` owns shared document structure, `instances` owns
 registry-declared instance rules, `admission` owns what an agent's writer hands in,

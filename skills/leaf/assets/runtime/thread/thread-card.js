@@ -250,8 +250,14 @@ export class ThreadView {
       surface === "outlet" || surface === "panel" ? "details" : "div",
     );
     this.#continuity = new ReplyContinuity(this.node);
+    // A card draws what its hold releases at once, so an arrival lands on the thread
+    // as it now stands (`showHeld`).
     if (surface === "panel")
-      this.#heldNews = new HeldNews(this.node, () => this, commands.repaintThread);
+      this.#heldNews = new HeldNews(
+        this.node,
+        () => this,
+        () => this.repaint(),
+      );
     // A panel card's disclosure is the thread list's to write, from its one choice.
     if (surface !== "panel") {
       this.node.tabIndex = -1;
@@ -291,12 +297,6 @@ export class ThreadView {
 
   get model() {
     return this.#model;
-  }
-
-  showNews() {
-    if (!this.#model?.news) return false;
-    this.#model.news.open();
-    return true;
   }
 
   // Local disclosure and draft changes repaint the complete received descriptor,

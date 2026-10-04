@@ -9,6 +9,10 @@
    and returns its actual focus destination. Surface defaults enter the reply,
    compact previews default to the thread, and Threads defaults to the reply.
    `travel: false` keeps the page under the gesture while revealing its destination.
+   An arrival first shows what any seat holds of the thread (`showHeld`, held-news.js),
+   since the gesture takes the user to it. `carried` puts back a user whose reply box a
+   surface stopped drawing (focus.js, `replyDestination`): no gesture of theirs asked
+   for the thread, so it shows nothing the thread holds back.
 
    Held identity is the focused Thread across shadow roots. An unheld preview or
    panel conversation may accompany its page target. Canonical page targets always
@@ -17,6 +21,7 @@ import { focusDestination } from "../focus.js";
 import { scrollBehavior } from "../motion.js";
 import { retainUserIntent } from "../user-intent.js";
 import { heldThread } from "./focus.js";
+import { showHeld } from "./held-news.js";
 import { revealHeld, surfaceFocusTarget } from "./surfaces.js";
 import { reveal } from "../widget-elements.js";
 
@@ -44,9 +49,11 @@ export function createThreadDestinations({
       flash = true,
       intent = retainUserIntent(),
       transition = null,
+      carried = false,
     } = {},
   ) {
     if (!intent()) return null;
+    if (!carried) showHeld(id);
     if (!panelIsOpen() && focus !== "message") {
       const localFocus = focus ?? "reply";
       const openSurface = async () => {
@@ -104,7 +111,7 @@ export function createThreadDestinations({
       }
       if (surfaceFocusTarget(id, { focus: localFocus })) return openSurface();
     }
-    return showThread(id, { focus: focus ?? "reply", flash, intent });
+    return showThread(id, { focus: focus ?? "reply", flash, intent, carried });
   }
   return { openPageThread, threadFocusTarget, threadHere, threadTarget };
 }

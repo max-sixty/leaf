@@ -431,6 +431,8 @@ class _AskReducer:
             if self.exists[id(record)] and self.local[id(record)]:
                 active.append(record)
                 continue
+            # Interim: this "decided" reading also keeps the Ask in the Asks drawer and
+            # the banner's count. The forthcoming Tasks model replaces it.
             if self.exists[id(record)] and self._answered_by_user(record):
                 active.append(record)
                 continue

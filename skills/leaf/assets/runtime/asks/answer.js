@@ -62,7 +62,9 @@ const asksWithin = (root) =>
   });
 
 // The answers of the Asks whose source stands inside `root`, across declared shadow
-// roots, in inventory order.
+// roots, in inventory order. Interim: the inventory's "decided" reading behind it,
+// which keeps an answered Ask a revision settled, is replaced by the forthcoming Tasks
+// model.
 export const answersWithin = (root) => askAnswers(asksWithin(root));
 
 // Calls `read` whenever the Ask reading changes, and again once the widgets answering

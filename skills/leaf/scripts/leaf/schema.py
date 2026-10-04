@@ -238,10 +238,6 @@ AWAITS_SCHEMA = {
     "properties": {
         "when": AWAITING_CONDITION,
         "answered": ANSWERED_SCHEMA,
-        # This widget supplies the answer control but not its own question title.
-        # A matching instance therefore stands inside an x-ask-surface region, whose direct
-        # heading owns the reading and arrival.
-        "region": {"const": True},
         "all": {"type": "string", "pattern": f"^{HTML_NAME}$"},
     },
     "additionalProperties": False,
@@ -477,7 +473,7 @@ PACKAGE_DIRS = (*BROWSER_DIRS, INSTRUCTIONS_DIR)
 SCRIPTS_DIR = "scripts"
 INSTRUCTIONS_FILE = re.compile(rf"{HTML_NAME}\.md")
 LAYER_PLACEHOLDER = b'"__LEAF_LAYER_GENERATION__"'
-# Images the page shows, named by the hash of their bytes (`page media`). Not vendored
+# Media the page shows, named by the hash of their bytes (`page media`). Not vendored
 # — they are the page's content, not the layer's — but served like it, and the
 # naming is what keeps the directory's promise: same name, same bytes, so a
 # version the user approved cannot show them something else later.
@@ -489,6 +485,12 @@ MEDIA_TYPES = {
     ".gif": "image/gif",
     ".webp": "image/webp",
     ".svg": "image/svg+xml",
+    ".mp4": "video/mp4",
+    ".webm": "video/webm",
+    ".mp3": "audio/mpeg",
+    ".m4a": "audio/mp4",
+    ".ogg": "audio/ogg",
+    ".wav": "audio/wav",
 }
 # A media file's name is the first MEDIA_DIGEST hex characters of its bytes' SHA-256
 # and a lowercase MEDIA_TYPES suffix: `media.media_name` mints it, `DIR_FILES` serves

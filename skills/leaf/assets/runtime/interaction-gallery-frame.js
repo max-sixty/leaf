@@ -5,11 +5,13 @@
  * Passive sample startup loads this module. The shared host owns readiness;
  * this adapter choreographs production transitions without recording gestures. */
 
+import { retainUserIntent } from "./user-intent.js";
+
 let commands;
 
 function neutralChrome() {
   commands.detachComposer();
-  commands.closePreview();
+  commands.closePreview?.();
   commands.setPanel(false, { remember: false });
   if (commands.currentDrawer()) commands.setOpenDrawer(null, { remember: false });
 }
@@ -25,12 +27,19 @@ export function mountReplay(capabilities) {
       return commands.fabInput;
     },
     submitComment(threadId) {
-      const transition = commands.threadTransitionOrigin(
+      const intent = retainUserIntent();
+      const transition = commands.threadTransitionOrigin?.(
         commands.fabInput,
         commands.fabFrameAt(),
       );
       commands.detachComposer();
-      return () => commands.openInlineThread(threadId, { transition });
+      return () =>
+        commands.openThread(threadId, {
+          travel: false,
+          flash: false,
+          intent,
+          transition,
+        });
     },
     resetThreads() {
       neutralChrome();

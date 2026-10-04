@@ -53,6 +53,7 @@ subpackage's initializer is only a marker, never a second API.
   claims and serialized transactions, server state, HTTP servers, and detached
   starts;
 - `presence`: page, claim, and neighboring-leaf presence;
+- `server_rows`: each serving page's disposable canonical neighbor-row publication;
 - `user_views`: disposable per-document browser observations and passive check context;
 - `samples`, `sample_content`: disposable child pages built from captured templates,
   and their initial histories admitted from parent threads or authored fixture commands;

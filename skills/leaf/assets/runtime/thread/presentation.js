@@ -170,7 +170,7 @@ export function createThreadPresentation({
           anchorPaint?.paint(anchors);
           anchorControls.render(anchors);
         }
-        drawingPaint.paint(threads);
+        drawingPaint.paint();
       };
       readTargets();
       surfaces = renderSurfaces(collection, anchorPlacement, surfaceView);
@@ -205,6 +205,7 @@ export function createThreadPresentation({
       readTargets();
       surfaces.commit();
       commitThreadSeats(batch);
+      surfaceView.composition.finishPlacement();
       renderAnnotations();
       pageGeometry.pageShifted();
       finishListRecovery(candidates);

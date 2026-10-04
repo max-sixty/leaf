@@ -16,6 +16,10 @@
       "file": "pr-walkthrough-prepared-diff.rs",
       "lines": "1:169"
     },
+    "review-patch": {
+      "file": "../tests/fixtures/pages/thread-journey-inline.patch",
+      "format": "unified-diff"
+    },
     "gallery-source": {
       "file": "developer/feature-gallery-source.toml",
       "lines": "1:4"

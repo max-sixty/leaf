@@ -3,13 +3,19 @@
 from pathlib import Path
 from typing import NamedTuple
 
-from leaf.events import anchored_parts, retractions
+from leaf.anchor_capture import resolve_quote
+from leaf.events import anchored_parts, bare_reaction, build_threads, retractions
 from leaf.files import list_revisions
-from leaf.passages import SourceReading
+from leaf.passages import SourceReading, page_passages
 from leaf.projection import (
     StateProjection,
+    frozen_thread_reading,
+    generated_children,
+    page_reading,
     protected_ids,
     retirement_holders,
+    retirement_outcomes,
+    rewritten_bodies,
     state_projection,
 )
 from leaf.registry.contract import visual_parts
@@ -59,6 +65,10 @@ class PredecessorReading(NamedTuple):
     # document where there is none.
     previous: SourceReading
 
+    @property
+    def candidate(self) -> int:
+        return self.active if self.unchanged else self.active + 1
+
 
 class TransitionReading(NamedTuple):
     """The current document's words and standing projection at its predecessor."""
@@ -72,6 +82,93 @@ class TransitionReading(NamedTuple):
 # sample's child, and the reading of a source that could not be read at all.
 EMPTY_READING = SourceReading(SourceDocument(""), {})
 NO_PREDECESSOR = PredecessorReading(0, False, False, 0, EMPTY_READING)
+
+
+def quote_reanchors(
+    events: list,
+    reading: SourceReading,
+    revision: PredecessorReading,
+    *,
+    candidate_revision: int,
+) -> tuple[dict, list[str], list[str]]:
+    """Keep every open quoted thread attached when authored words change.
+
+    An existing section is the only replacement the document establishes without
+    inferring the subject. The author can choose a more precise passage in a reply.
+    Runtime-produced words absent from the predecessor's file reading are outside
+    this check; their widget remains the owner of those coordinates.
+    """
+    if not revision.predecessor:
+        return {}, [], []
+    previous = page_reading(revision.previous, events, revision.predecessor)
+    current = page_reading(reading, events, candidate_revision)
+
+    def passages(page):
+        desired = page.projection.desired
+        return page_passages(
+            page.document,
+            page.registry,
+            retirement_outcomes(page.projection.actions),
+            rewritten_bodies(page.projection.actions),
+            generated_children(desired, page.document.ids),
+        )
+
+    previous_passages, current_passages = passages(previous), passages(current)
+    moves, errors, advice = {}, [], []
+    threads = build_threads(events, previous.within)
+    workflows = None
+    for thread in threads.values():
+        anchor = thread["anchor"]
+        if (
+            thread["resolved"]
+            or bare_reaction(thread)
+            or not anchor
+            or not anchor.get("quote")
+        ):
+            continue
+        if anchor.get("source") or anchor.get("datum") or anchor.get("part"):
+            continue
+        if (
+            resolve_quote(previous_passages, anchor) is None
+            or resolve_quote(current_passages, anchor) is not None
+        ):
+            continue
+        identity, section = thread["id"], anchor.get("section")
+        if workflows is None:
+            from leaf.workflows import canonical_workflows
+
+            workflows = canonical_workflows(
+                [],
+                threads,
+                frozen_thread_reading(events, previous.registry),
+                page=previous,
+            )
+        answer = next(
+            (
+                workflow["answer"]
+                for workflow in workflows
+                if workflow["subject"] == {"kind": "thread", "id": identity}
+                and workflow["answer"]
+            ),
+            None,
+        )
+        address = f"--for {answer['for']}" if answer else identity
+        command = f"leaf thread reply <page> {address} --section <replacement-id> --quote <new-passage>"
+        if (
+            section
+            and section in current_passages.enclosing
+            and section not in current_passages.retired
+            and section not in current_passages.gone
+        ):
+            moves[identity] = {"section": section}
+            advice.append(
+                f"open thread {identity} quote {anchor['quote']!r} no longer resolves; activation will move it to section {section!r}. To choose its replacement passage: {command}; detach only if its subject left the page"
+            )
+        else:
+            errors.append(
+                f"open thread {identity} quote {anchor['quote']!r} no longer resolves and has no surviving section; move it with {command}, or --detach if its subject left the page"
+            )
+    return moves, errors, advice
 
 
 def predecessor_reading(

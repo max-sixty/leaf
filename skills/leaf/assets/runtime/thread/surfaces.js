@@ -10,7 +10,7 @@
 
    A thread the widget would draw in a seat it has not opened yet, while that would move
    what the reader reads, is held out of what the widget is handed (`HeldArrivals`,
-   held-news.js): `target` answers null for it, so the margin draws it, and `showHeld`
+   held-news.js): `target` answers null for it, so the selected annotation presentation notices it, and `revealHeld`
    is how the margin's marker shows it. */
 import { reportPageError } from "../layer-client.js";
 import { aimTargetAt, datumAimTarget } from "../anchor-resolution.js";
@@ -25,7 +25,6 @@ import { HeldArrivals } from "./held-news.js";
 import { under } from "../shadow.js";
 import { declareSide } from "../standing-target.js";
 import { whenDocumentPresented } from "../semantic-state.js";
-import { retainUserIntent } from "../user-intent.js";
 
 const registrations = new Map();
 let claimedIds = new Set();
@@ -461,25 +460,21 @@ export const claimed = (id) => claimedIds.has(id);
 export const heldOut = (id) =>
   [...registrations.values()].some(({ held }) => held?.holds(id));
 
-// Shows the threads `ids` names that a widget holds out of its flow, and lands on the
-// first where its widget then draws it, since the marker the user pressed goes with
-// what it held, unless a newer gesture has taken them elsewhere. Returns whether a
-// widget held any.
-export function showHeld(ids) {
+// Release the named held arrivals through their widget's existing render proof.
+// This owner decides admission and returns readiness; the core destination owns the
+// gesture's original intent and its focus after the current outlet has committed.
+export function revealHeld(ids) {
   for (const registration of registrations.values()) {
     const [id] = registration.held?.show(ids) ?? [];
     if (id) {
-      void presentHeld(registration, id, retainUserIntent());
-      return true;
+      const presented = (async () => {
+        await registration.invalidate();
+        await whenDocumentPresented();
+      })();
+      return { id, presented };
     }
   }
-  return false;
-}
-
-async function presentHeld(registration, id, mayLand) {
-  await registration.invalidate();
-  await whenDocumentPresented();
-  if (mayLand()) focusSurface(id, { focus: "thread" });
+  return null;
 }
 
 // Resolve after reveal/presentation: a datum's outlet may have been replaced. Travel
@@ -498,14 +493,4 @@ export function surfaceFocusTarget(id, { focus = "reply" } = {}) {
     return threadFocusDestination(thread, { focus });
   }
   return null;
-}
-
-// A surface can also be entered in place, without a page trip (a press on its words).
-// That mechanical focus move shares the same target reading as travel.
-export function focusSurface(id, options) {
-  const target = surfaceFocusTarget(id, options);
-  if (!target) return null;
-  target.focus({ preventScroll: true });
-  target.scrollIntoView({ block: "nearest" });
-  return target;
 }

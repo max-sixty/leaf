@@ -2789,8 +2789,93 @@ def test_a_page_at_rest_does_nothing(browser, serve, source):
 
     The reader has asked for reduced motion, which is when a page owes stillness: one who
     allows motion may be shown a page's own film playing itself (rust-sort's)."""
-    findings = at_rest(still_page(browser, serve(source)))
+    page = still_page(browser, serve(source))
+    if source == FEATURE_GALLERY:
+        gallery_frames = page.locator("[data-interaction-frame]")
+        assert gallery_frames.count() > 0
+        expect(
+            page.locator("[data-interaction-frame][data-interaction-ready]")
+        ).to_have_count(gallery_frames.count())
+    findings = at_rest(page)
     assert findings == [], "\n".join(findings)
+
+
+def test_rest_waits_for_contained_arrival_before_arming(browser, serve):
+    source = leaf_page(
+        "Contained arrival",
+        '<lf-sample id="sample"><template id="content" data-sample>'
+        "<p>Example</p></template></lf-sample>",
+    )
+    page = still_page(browser, serve(source))
+    child = page.frames[1]
+    wait_until_ready(child)
+    child.evaluate(
+        """async () => {
+            const {deferredArrival} = await window.__lfRuntimeImport('/runtime/presentation.js');
+            const entry = document.querySelector('script[data-lf-entry]');
+            deferredArrival(new Promise(resolve => {
+                entry.releaseArrival = () => {
+                    document.body.setAttribute('data-arrived', 'yes');
+                    resolve();
+                };
+            }));
+        }"""
+    )
+
+    page.clock.run_for(1100)
+    assert (
+        child.evaluate(
+            "() => document.querySelector('script[data-lf-entry]').lfReadiness(null)"
+        )
+        == "arrived"
+    )
+    child.evaluate(
+        """() => {
+            const entry = document.querySelector('script[data-lf-entry]');
+            const readiness = entry.lfReadiness;
+            entry.lfReadiness = (...args) => {
+                entry.lfReadiness = readiness;
+                queueMicrotask(entry.releaseArrival);
+                return readiness(...args);
+            };
+        }"""
+    )
+    assert at_rest(page) == []
+    assert child.locator("body").get_attribute("data-arrived") == "yes"
+
+
+def test_rest_watches_a_frame_created_by_contained_arrival(browser, serve):
+    source = leaf_page(
+        "Nested arrival",
+        '<lf-sample id="sample"><template id="content" data-sample>'
+        "<p>Example</p></template></lf-sample>",
+    )
+    page = still_page(browser, serve(source))
+    child = page.frames[1]
+    wait_until_ready(child)
+    child.evaluate(
+        """async () => {
+            const {deferredArrival} = await window.__lfRuntimeImport('/runtime/presentation.js');
+            deferredArrival(new Promise(resolve => setTimeout(() => {
+                const nested = document.createElement('iframe');
+                nested.srcdoc = `<body><script>
+                    Object.defineProperty(window, 'lfRest', {
+                        configurable: true,
+                        set(rest) {
+                            Object.defineProperty(window, 'lfRest', {
+                                value: rest, writable: true, configurable: true
+                            });
+                            queueMicrotask(() => document.body.setAttribute('data-late', 'yes'));
+                        }
+                    });
+                <\\/script></body>`;
+                document.body.append(nested);
+                nested.addEventListener('load', resolve, {once: true});
+            }, 1000)));
+        }"""
+    )
+
+    assert any("data-late" in finding for finding in at_rest(page))
 
 
 def test_reader_state_observes_behavior_without_freezing_the_dom(browser, serve):
@@ -3107,8 +3192,10 @@ def test_a_resized_page_comes_back_as_it_was(browser, serve, source):
     """What a page says at a width depends on the width, not on the widths it passed
     through: a page taken through a resize and back says at each width on the way back
     what it said there on the way out, including accessible controls and their layout,
-    read from the same document scroll position. Native scroll anchoring can move the
-    viewpoint during a resize; this journey holds that independent input fixed.
+    after asking the document and every reading region to scroll to their start.
+    Resize continuity can move each region's viewpoint independently; this journey
+    resets those inputs after the resize has rendered and compares their actual
+    positions too, since native scroll snapping can settle away from zero.
     Both ends are tried: a state written on the way down and one written on the
     way up are cleared by different widths.
 
@@ -3120,10 +3207,36 @@ def test_a_resized_page_comes_back_as_it_was(browser, serve, source):
 
     def at_width(page, width):
         resized(page, width, 900)
-        page.evaluate("() => window.scrollTo({left: 0, top: 0, behavior: 'instant'})")
-        scroll_settled(page)
         rendered(page)
-        return reader_state(page)
+        page.wait_for_function(
+            """async () => {
+            const {readingRegions} = await window.__lfRuntimeImport('/runtime/reading-regions.js');
+            const boxes = new Set([document.scrollingElement, ...readingRegions().map(region => region.body)]);
+            for (const box of boxes) box.scrollTo({left: 0, top: 0, behavior: 'instant'});
+            return true;
+        }""",
+            timeout=render_checks_model.SERVED_TIMEOUT_MS,
+        ).dispose()
+        rendered(page)
+        reading = page.wait_for_function(
+            """async () => {
+            const {readingRegions} = await window.__lfRuntimeImport('/runtime/reading-regions.js');
+            const position = box => [box.scrollLeft, box.scrollTop];
+            return Object.fromEntries([
+                ['$page', position(document.scrollingElement)],
+                ...readingRegions().map(region => [region.id, position(region.body)]),
+            ]);
+        }""",
+            timeout=render_checks_model.SERVED_TIMEOUT_MS,
+        )
+        try:
+            positions = reading.json_value()
+        finally:
+            reading.dispose()
+        return [
+            *reader_state(page),
+            "scroll positions: " + json.dumps(positions, sort_keys=True),
+        ]
 
     for path in (RESIZE_PATH, RESIZE_PATH[::-1]):
         page = still_page(browser, url, width=path[0])
@@ -3184,10 +3297,16 @@ SCROLL_ALL_BACK = """() => {
 
 
 def into_the_page(page):
-    """Tab to the first stop inside the page's content, where `c` names its item."""
+    """Tab to a page control where `c` names its item rather than edits its text."""
     for _ in range(12):
         page.keyboard.press("Tab")
-        if page.evaluate("() => Boolean(document.activeElement?.closest('main'))"):
+        if page.evaluate("""async () => {
+            const {focused} = await window.__lfRuntimeImport('/runtime/keyboard/scopes.js');
+            const {takesLetters} = await window.__lfRuntimeImport('/runtime/focus.js');
+            const {closestAcross} = await window.__lfRuntimeImport('/runtime/passages.js');
+            const at = focused();
+            return Boolean(at && closestAcross(at, 'main') && !takesLetters(at));
+        }"""):
             return True
     return False
 
@@ -4420,8 +4539,8 @@ def test_the_render_gate_reports_a_box_its_container_clips_away(browser, serve):
     assert not [f for f in failures if "id=hung>" in f and "id=holding>" in f], (
         "a placed box was laid at the door of a static box that never held it"
     )
-    assert not [f for f in failures if "id=told>" in f], (
-        "a box that marks its own cut was refused for making it"
+    assert not [f for f in failures if "<span id=told> is drawn" in f], (
+        f"a box that marks its own cut was refused for making it: {failures}"
     )
     assert not [f for f in failures if "foreignobject" in f], (
         "a drawing's own accounting inside its svg read as the page losing words"

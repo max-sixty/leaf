@@ -4,9 +4,8 @@
 `activity`, one server projection over that declaration and the page's stronger
 evidence: claim and turn identity, watcher lifetime, exact pickup transitions,
 and unsettled user moves. `/api/state` and agent-facing page state carry this
-same projection. A neighboring-page entry carries only the declaration, in the
-same shape (`activity.declared_activity`), until each page's judgment is shared
-rather than repeated by every server (`presence.other_leaves`). Browser code
+same projection. A neighboring-page entry carries the serving page's own compact
+canonical publication (`server_rows.py`), read alongside its server lease. Browser code
 paints it and requests another reading at its next deadline; it does not run a
 second fold.
 
@@ -52,8 +51,8 @@ itself remains Picked up. `counts.overdue` counts the owed moves that stalled wi
 the agent to act, still Sent past the pickup grace or left by a turn that ended or
 was interrupted before answering; over an `away` page they are when the banner asks
 the user to nudge the session. The banner consumes this same reading and presents
-delivery counts separately; the Leaves drawer's row for another page reads only that
-page's declaration.
+delivery counts separately; the Leaves drawer consumes each serving page's own
+canonical publication.
 
 `workflows` is the shared projection for exact user inputs and proactive subject
 work. Each entry names its `input` event when it has one, its `thread` or `widget`
@@ -426,23 +425,32 @@ Reply binding is the hook's contract above and, for the agent,
 the same delivery, page claim, event log, and activity projection, not another
 thread store or response policy.
 
-`server start` spawns the service into a session of its own and hands back the
-URL that process announced and the lifetime it recorded, so a killed carrier costs
-only delivery and leaves every page up. A claimed handoff prepares the host's
-delivery after releasing the page locks and before reporting its URL. In Codex,
-that starts or joins the task-wide adapter; an existing direct wait is honored.
-`server run` does the same before announcing a foreground or reused service.
-Standing and temporary serves prepare no delivery. `leaf codex start` explicitly
-claims a page and starts or joins the adapter without serving.
+`server start` prepares the service in a detached process. A claimed handoff
+prepares delivery before any page acquisition: Codex holds its adapter-start lock
+until the serving producer commits the claim, so a newly ready carrier cannot
+retire for lack of pages during that handoff. An existing direct wait is honored.
+`server run` prepares the same delivery before binding in the foreground. Standing
+and temporary serves prepare no delivery. `leaf codex start` prepares the adapter
+under its start lock and then publishes the page claim, without serving.
 
-The server and adapter go through `detached`, whose handshake makes the caller's commit the
-end of a start: the child announces, and the caller acknowledges as the last thing
-it does. A child whose caller leaves before acknowledging withdraws — a service
-disables the record it wrote, an adapter releases its leases — since the caller's
-cleanup may already have run: a stop that found nothing to stop, or the claim the
-start took given back. That claim is `service.starting_claim`, the one transition
-`server start`, `server run`, a `--user` preview's first start, and `leaf codex
-start` take, and it is restored only if no successor has replaced it.
+A serving producer holds the page transition lock from private bind or reuse
+through acceptance. A second start and an explicit stop wait for that transition;
+neither can adopt an uncommitted listener. Binding refusal, delivery refusal and
+cancellation before acceptance leave the previous claim, service and preview
+watcher intact. The acquisition is prepared in the launching process, where
+session lifetime and cwd are known, and validated under the session lock at
+publication. The short page→session commit publishes the service before the claim
+as its final mutation; it performs no host or network work while those locks stand.
+
+`detached.starting_detached` first yields the child's private announcement. The
+caller captures ownership inside that context, then accepts on normal exit. The
+child publishes and confirms before the context returns. `hosting.claim_and_start`
+exposes that prepared `PageStart`; a preview captures its exact acquisition before
+acceptance, and CLI/demo callers report the URL only after confirmation. A child
+abandoned before acceptance closes its private socket and lease without publishing.
+After acceptance, lost confirmation is uncertain commitment, and cleanup uses the
+captured acquisition. It cannot restore a superseded owner. Revival acquires
+nothing and preserves both the recorded address and the existing acquisition.
 
 ## Lifetime
 

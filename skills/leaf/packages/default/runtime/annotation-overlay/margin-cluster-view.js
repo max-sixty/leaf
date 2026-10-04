@@ -5,17 +5,17 @@
  * controls across direct and disclosed positions. The overlay owns selection, keyboard state, and
  * whole-host placement; no other code inserts, moves, or removes a child inside a view.
  */
-import { html, nothing, render, repeat } from "../vendor/browser-runtime.js";
+import { html, nothing, render, repeat } from "/vendor/browser-runtime.js";
 import {
   clearContributionControls,
   materializeContributionControls,
   contributionEntry,
   presentContributionEntry,
-} from "./contribution-controls.js";
-import { contributionSource } from "./contributions.js";
-import { el, offer } from "./widget-elements.js";
-import { keeps, keepsHidden } from "./keeps.js";
-import { holdFocus } from "./focus.js";
+} from "/runtime/contribution-controls.js";
+import { contributionSource } from "/runtime/contributions.js";
+import { el, offer } from "/runtime/widget-elements.js";
+import { keeps, keepsHidden } from "/runtime/keeps.js";
+import { holdFocus } from "/runtime/focus.js";
 
 // `lf-*` is reserved for authored widgets. This is generated runtime chrome.
 const TAG = "leaf-margin-cluster";
@@ -35,6 +35,14 @@ class MarginClusterView extends HTMLElement {
     this.#marker = marker;
     this.#more = more;
     this.#optionsId = optionsId;
+  }
+
+  get marker() {
+    return this.#marker;
+  }
+
+  get more() {
+    return this.#more;
   }
 
   get options() {

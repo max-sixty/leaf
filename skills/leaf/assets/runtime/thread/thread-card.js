@@ -33,7 +33,8 @@ import { seenRect } from "../geometry.js";
 import { ago, shortAgo } from "../presence.js";
 import { retainUserIntent } from "../user-intent.js";
 import { scrollThreadIntoView } from "./reply-landing.js";
-import { newsNotice } from "./held-news.js";
+import { HeldNews, newsNotice } from "./held-news.js";
+import { ReplyContinuity } from "./reply-continuity.js";
 
 function quoteReading(thread, anchors) {
   const placement = anchors.placedAt(thread.id);
@@ -232,19 +233,24 @@ export class ThreadView {
   #settlements = new Map();
   #metadataActions = document.createElement("span");
   #expandedSummaries = new Set();
-  #growing = false;
   #navigation = null;
   #marginControls = null;
   #viewId = ++nextViewId;
   // What a thread in the page's flow holds back says so in its control row (held-news.js).
   #news = newsNotice();
   #lastMessage = null;
+  #continuity = null;
+  #heldNews = null;
+  #received = null;
 
   constructor(surface, commands) {
     this.#commands = commands;
     this.node = document.createElement(
       surface === "outlet" || surface === "panel" ? "details" : "div",
     );
+    this.#continuity = new ReplyContinuity(this.node);
+    if (surface === "panel")
+      this.#heldNews = new HeldNews(this.node, () => this, commands.repaintThread);
     // A panel card's disclosure is the thread list's to write, from its one choice.
     if (surface !== "panel") {
       this.node.tabIndex = -1;
@@ -254,13 +260,14 @@ export class ThreadView {
       this.node.dataset.lfOffer = "";
     }
     this.#metadataActions.className = "lf-thread-meta-actions";
-    // A folded outlet's summary is its control row: opening it shows what it holds.
+    // Native disclosure opens at the attribute checkpoint; queued toggle may arrive
+    // after paint. Release held news here so the first opened body is current,
+    // whether a summary or a programmatic native open revealed it.
     if (surface === "outlet")
-      this.node.addEventListener("toggle", () => {
+      new MutationObserver(() => {
         if (this.node.open) this.#model?.news?.open();
-      });
+      }).observe(this.node, { attributeFilter: ["open"] });
     this.node.addEventListener("animationend", () => {
-      this.#growing = false;
       this.node.classList.toggle("grow", false);
     });
     this.node.addEventListener("lf-reveal", (event) => {
@@ -268,7 +275,7 @@ export class ThreadView {
       const id = message?.dataset.lfSummary;
       if (!id || this.#expandedSummaries.has(id)) return;
       this.#expandedSummaries.add(id);
-      this.present(this.#model);
+      this.repaint();
     });
   }
 
@@ -284,6 +291,18 @@ export class ThreadView {
     return this.#model;
   }
 
+  showNews() {
+    if (!this.#model?.news) return false;
+    this.#model.news.open();
+    return true;
+  }
+
+  // Local disclosure and draft changes repaint the complete received descriptor,
+  // never feed a held presentation back into the news owner's input.
+  repaint() {
+    this.present(this.#received);
+  }
+
   // The last of the thread a reader can see, after which its news grows: a folded
   // outlet's summary, and otherwise its last message.
   get foot() {
@@ -293,6 +312,12 @@ export class ThreadView {
   }
 
   present(model) {
+    this.#received = model;
+    if (this.#heldNews)
+      model = Object.freeze(
+        this.#heldNews.hold({ threads: [model] }, { row: false }).threads[0],
+      );
+    const bodyPlace = this.#continuity?.before();
     const prior = this.#model;
     const restoreFocus = holdFocus(this.node);
     const standing = focused();
@@ -328,10 +353,12 @@ export class ThreadView {
     const hiding = !model.visible && !model.folding && !this.node.hidden;
     if (hiding) this.retire();
     keepsHidden(this.node, !model.visible && !model.folding);
-    this.#growing ||= !prior && model.grow;
     this.node.classList.toggle("lf-going", model.folding);
     this.node.classList.toggle("lf-thread", panel && !model.folding);
-    this.node.classList.toggle("grow", this.#growing && !model.folding);
+    // Entry motion belongs to the retained node. Navigation can cancel it; a
+    // later descriptor repaint must not resurrect that canceled native cue.
+    if (model.folding) this.node.classList.toggle("grow", false);
+    else if (!prior && model.grow) this.node.classList.toggle("grow", true);
     this.node.toggleAttribute("inert", model.folding);
     keeps(this.node, panel ? "data-id" : "data-thread", model.id);
     keeps(this.node, "data-resolved", model.resolved);
@@ -342,13 +369,13 @@ export class ThreadView {
     }
     const wanted = new Set(model.messages.map((message) => message.key));
     for (const [key, view] of this.#messages) if (!wanted.has(key)) view.retire();
-    const settlement = model.settlement ? this.#settlement(model) : nothing;
+    const settlement = model.settlement ? this.#settlement(model) : null;
     const marginControls = model.surface === "margin" ? this.#marginControls : null;
     let headerActions = null;
     if (!model.resolved || reply || model.folding || marginControls) {
       const actions = marginControls
         ? [marginControls.nav, settlement, marginControls.close].filter(Boolean)
-        : [settlement];
+        : [settlement].filter(Boolean);
       for (const child of [...this.#metadataActions.children])
         if (!actions.includes(child)) child.remove();
       actions.forEach((control, index) => {
@@ -473,6 +500,7 @@ export class ThreadView {
             : nothing
         }
         ${panel ? html`<div class="lf-thread-content">${body}</div>` : body}
+        ${reply ? (this.#continuity?.gap ?? nothing) : nothing}
         ${reply ? this.#reply.node : nothing}
         ${
           model.resolved && !reply && !model.folding && !marginControls
@@ -495,6 +523,7 @@ export class ThreadView {
       `,
       this.node,
     );
+    this.#continuity?.after(bodyPlace);
     this.#wireKeys();
     // A summary gathering the message the user stands on moves it; a page thread whose
     // render took their place puts them in its reply, or on the thread itself.
@@ -560,7 +589,7 @@ export class ThreadView {
   #setSummaryExpanded(id, expanded) {
     if (expanded) this.#expandedSummaries.add(id);
     else this.#expandedSummaries.delete(id);
-    this.present(this.#model);
+    this.repaint();
     this.node
       .querySelector(
         `.lf-thread-checkpoint[data-summary-id="${CSS.escape(id)}"] .lf-summary-expand`,
@@ -588,8 +617,8 @@ export class ThreadView {
         {
           id: reopen ? "thread.reopen" : "thread.resolve",
           keys: PRESS,
-          does: `${word} it`,
-          line: word.toLowerCase(),
+          description: `${word} it`,
+          title: word.toLowerCase(),
           when: () => !this.#model.settlement?.pending,
           run: () => button.click(),
         },
@@ -664,8 +693,8 @@ export class ThreadView {
         {
           id: "passage.return",
           keys: PRESS,
-          does: "Return to the quoted passage on the page",
-          line: "return to the passage",
+          description: "Return to the quoted passage on the page",
+          title: "return to the passage",
           when: () => Boolean(this.#model.quote?.found),
           run: () => quote.click(),
         },
@@ -695,7 +724,7 @@ export class ThreadView {
         else if (this.#replyShown !== (this.#model.reply || replyHasWords(model.key)))
           this.#draftFrame ||= nextRender(() => {
             this.#draftFrame = 0;
-            if (this.#reply) this.present(this.#model);
+            if (this.#reply) this.repaint();
           });
       },
     });
@@ -776,6 +805,8 @@ export class ThreadView {
   }
 
   dispose() {
+    this.#heldNews?.dispose();
+    this.#continuity?.release();
     this.retire();
     this.#reply?.dispose();
     this.#reply = null;

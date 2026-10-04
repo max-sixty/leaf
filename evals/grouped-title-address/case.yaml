@@ -1,0 +1,28 @@
+# Added while making an eyebrow and heading one navigation destination with hgroup.
+# Measures whether shipped authoring instructions express a complete title boundary
+# rather than relying on a pixel offset or making eyebrow text part of the heading.
+description: grouped-title-address
+metadata:
+  purpose: 'Stable anchors: a title and its eyebrow share one addressed group.'
+  tags:
+    - authoring
+    - navigation
+vars:
+  prompt: |
+    Write a Leaf report with the eyebrow "Eval consolidation" above the page
+    title "One catalog, with short cases and complete workflows". The eyebrow
+    belongs to the title and they should have one stable link destination, so
+    following the title link brings the eyebrow too. Keep the heading's text
+    alone as its outline label. Include three substantial sections about one
+    case catalog, complete workflows, and comparable evidence, with an ordinary
+    contents outline. Reply with the complete index.html; the page directory
+    is not reachable from here.
+assert:
+  - type: javascript
+    metric: reads-page-authoring
+    value: file://reference-read.cjs
+    config:
+      path: skills/leaf/references/page-authoring\.md
+  - type: regex
+    metric: grouped-title
+    value: '<hgroup\b[^>]*\bid="[^"]+"[^>]*>[\s\S]*?<p\b[^>]*>[\s\S]*?Eval consolidation[\s\S]*?</p>[\s\S]*?<h1\b[^>]*>One catalog, with short cases and complete workflows</h1>[\s\S]*?</hgroup>'

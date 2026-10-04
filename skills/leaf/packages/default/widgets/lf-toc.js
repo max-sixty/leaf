@@ -4,8 +4,10 @@
  * words, so the nav wears .lf-ui. When a heading titles an identified section, that
  * section is the destination: an eyebrow and heading arrive as one title, and the public
  * fragment names the section rather than its label. Otherwise the heading's id is the
- * destination, and a heading without one is lent an `lf-` id, which no reader of the
- * page's ids takes for one its author wrote (`ADDRESSABLE`). The id goes on the heading
+ * destination, or an hgroup owns its heading's destination,
+ * so an eyebrow and title share one address and measured box, for h1 as for every level.
+ * A destination without an id is lent an `lf-` id, which no reader of the
+ * page's ids takes for one its author wrote (`ADDRESSABLE`). The id goes on the destination
  * rather than on an element inserted beside it, because an inserted element changes
  * which child a page rule finds first or last and what an `h2 + p` rule finds next to
  * the heading.
@@ -15,7 +17,11 @@
  * of the section it leads as its flex share, so the quiet spine describes the document
  * before its labels appear. Crowded destinations are fitted together just enough for
  * their labels to remain distinct; destination marker, label, and viewport lens all
- * use that one fitted scale, so revealing the outline neither moves it nor withholds
+ * use that one fitted scale. A marker's center is its coordinate; its label's first line
+ * is centered there too, and the viewport lens reads those same coordinates. The first
+ * label can extend above the track into the map's existing padding, rather than moving
+ * the document's origin to make room for type. The map ends inside main's trailing
+ * padding. Revealing the outline neither moves it nor withholds
  * its words.
  * A destination inside a closed disclosure or inactive tab joins the margin map when it
  * joins the displayed document; the ordinary outline keeps its native fragment link.
@@ -30,9 +36,8 @@
  * descendants without changing its own size emits the shared layout signal. The map
  * writes only to itself, never the main box it observes, and never the track either. The
  * ordinary in-flow list remains the narrow and paper form.
- * Fitting the map into a scrollable outline preserves that outline's native reading
- * position. Only a new focus or link gesture reveals its destination; a measurement
- * never returns the outline to a link the reader has already scrolled away from.
+ * Fitting the map into a scrollable outline preserves its reading position, except
+ * when a viewport change would put the focused link outside the outline's window.
  *
  * Every link is a real fragment link. The
  * browser owns its navigation, history, :target state, wheel input, and scroll
@@ -49,14 +54,16 @@ import {
   layoutPx,
   nextRender,
   once,
+  PAGE_INTERFACE,
   PRESENTATION,
   relabel,
   scrollerFor,
   sizeObserver,
+  setChildren,
   wrote,
 } from "/runtime/widget-api.js";
 
-const HEADING_SELECTOR = "h2, h3, h4, h5, h6";
+const HEADING_SELECTOR = "h1, h2, h3, h4, h5, h6";
 // The lens is never shorter than this, or than 1.2% of the map, so it stays in sight.
 const LENS_FLOOR = 14;
 
@@ -66,6 +73,8 @@ customElements.define(
     #main;
     #nav;
     #rows;
+    #list;
+    #start;
     #lens = null;
     #lensMotion = null;
     #lensInputs = "";
@@ -83,17 +92,30 @@ customElements.define(
     #renamed;
     #measureFrame = 0;
     #paintFrame = 0;
+    #navHeight = 0;
+    #focusedLink = null;
+    #focusedVisible = false;
 
     #onScroll = () => this.#schedulePaint();
     #onResize = () => this.#scheduleMeasure();
     #onToggle = () => this.#scheduleMeasure();
     #onLoad = () => this.#scheduleMeasure();
     #onLayout = () => this.#scheduleMeasure();
+    #onInterface = () => {
+      this.#reconcile();
+      this.#measure();
+    };
     #onPresentation = () => this.#measure();
+    #onNavScroll = () => {
+      // A resize may clamp scrollTop before the measurement that restores focus.
+      if (this.#nav.getBoundingClientRect().height === this.#navHeight)
+        this.#rememberFocus();
+    };
+    #onFocus = () => this.#rememberFocus();
 
     connectedCallback() {
       if (once(this)) this.#build();
-      if (!this.#nav || !this.#sections.length) return;
+      if (!this.#nav) return;
       this.#watch();
     }
 
@@ -103,10 +125,13 @@ customElements.define(
       this.#renamed?.disconnect();
       this.#renamed = null;
       this.#scrollSource?.removeEventListener("scroll", this.#onScroll);
+      this.#nav?.removeEventListener("scroll", this.#onNavScroll);
+      this.#nav?.removeEventListener("focusin", this.#onFocus);
       this.#main?.removeEventListener("toggle", this.#onToggle, true);
       this.#main?.removeEventListener("load", this.#onLoad, true);
       this.#main?.removeEventListener(LAYOUT, this.#onLayout);
       document.removeEventListener(PRESENTATION, this.#onPresentation);
+      document.removeEventListener(PAGE_INTERFACE, this.#onInterface);
       window.removeEventListener("resize", this.#onResize);
       cancelRender(this.#measureFrame);
       cancelRender(this.#paintFrame);
@@ -120,14 +145,6 @@ customElements.define(
     #build() {
       this.#main = this.closest("main");
       if (!this.#main) return;
-
-      const maxLevel = Number(this.getAttribute("max-level") ?? 6);
-      const headings = [...this.#main.querySelectorAll(HEADING_SELECTOR)]
-        .filter((heading) => !inChrome(heading) && !heading.closest("lf-toc"))
-        .filter((heading) => Number(heading.localName.slice(1)) <= maxLevel)
-        .map((heading) => ({ heading, label: wrote(heading).trim() }))
-        .filter(({ label }) => label);
-      if (!headings.length) return;
 
       this.#nav = document.createElement("nav");
       this.#nav.className = "lf-toc-nav lf-ui";
@@ -144,63 +161,98 @@ customElements.define(
       lens.className = "lf-toc-window";
       lens.setAttribute("aria-hidden", "true");
 
-      const pageTitle = [...this.#main.querySelectorAll("h1")].find(
-        (candidate) => !inChrome(candidate),
-      );
-      const start = document.createElement("div");
-      start.className = "lf-toc-start";
-      start.dataset.lfDepth = "0";
-      const startLink = document.createElement("a");
-      const startSource = pageTitle ?? this.#main;
-      const startDestination = startSource.id
-        ? startSource
-        : this.#targetFor(startSource, 0);
-      startLink.href = `#${startDestination.id}`;
-      // The row's word is its text, as every other row's is. It was an attribute the rail
-      // form drew with `content: attr()`, which meant the link had no text at all: every
-      // reading that asks a link what it says — the accessible name it falls back to, a
-      // text dump of the page, the outline this widget keeps below — got an empty string
-      // for the one row that names the whole document.
-      //
-      // `wrote` is authored text alone, so a title whose words are all generated leaves
-      // nothing, and a row is worth having only where it says something: the heading rows
-      // drop for that reason (the filter above) and this one falls back to the word it
-      // uses for a page with no title at all.
-      startLink.textContent = (pageTitle ? wrote(pageTitle).trim() : "") || "Top";
-      start.append(startLink);
-
-      const list = document.createElement("ol");
-      const floor = Math.min(
-        ...headings.map(({ heading: item }) => Number(item.localName.slice(1))),
-      );
-      const items = headings.map(({ heading: item, label }, index) => {
-        const destination = this.#destinationFor(item, index + 1);
-        const row = document.createElement("li");
-        row.dataset.lfDepth = String(
-          Math.min(Number(item.localName.slice(1)) - floor, 4),
-        );
-        const link = document.createElement("a");
-        link.href = `#${destination.id}`;
-        link.textContent = label;
-        row.append(link);
-        list.append(row);
-        // The heading as well as the destination, because they answer different
-        // questions: the destination is where the link goes, and the heading is the box
-        // the map watches (`#watch`).
-        return { destination, heading: item, row, link };
-      });
-
-      this.#sections = [
-        { destination: startDestination, row: start, link: startLink },
-        ...items,
-      ];
+      const row = document.createElement("div");
+      row.className = "lf-toc-start";
+      row.dataset.lfDepth = "0";
+      const link = document.createElement("a");
+      row.append(link);
+      this.#start = { row, link };
+      this.#list = document.createElement("ol");
       if ("ScrollTimeline" in globalThis) {
         this.#lens = lens;
         this.#rows.append(lens);
       }
-      this.#rows.append(start, list);
+      this.#rows.append(this.#start.row, this.#list);
       this.#nav.append(heading, this.#rows);
       this.append(this.#nav);
+      this.#reconcile();
+    }
+
+    // Authored revisions retain this widget when its own markup did not change.
+    // Re-read the outline at activation, retaining each surviving link by its title
+    // or address. The shared child reconciler preserves focus and native node state.
+    #reconcile() {
+      const maxLevel = Number(this.getAttribute("max-level") ?? 6);
+      const headings = [...this.#main.querySelectorAll(HEADING_SELECTOR)]
+        .filter((heading) => heading.localName !== "h1")
+        .filter((heading) => !inChrome(heading) && !heading.closest("lf-toc"))
+        .filter((heading) => Number(heading.localName.slice(1)) <= maxLevel)
+        .map((heading) => ({ heading, label: wrote(heading).trim() }))
+        .filter(({ label }) => label);
+
+      const pageTitle = [...this.#main.querySelectorAll("h1")].find(
+        (candidate) => !inChrome(candidate),
+      );
+      const startDestination = pageTitle
+        ? this.#destinationFor(pageTitle, 0)
+        : this.#main.id
+          ? this.#main
+          : this.#targetFor(this.#main, 0);
+      const previous = this.#sections.map(({ destination }) => destination);
+      const available = new Set(this.#sections.slice(1));
+      const floor = Math.min(
+        ...headings.map(({ heading }) => Number(heading.localName.slice(1))),
+      );
+      const items = headings.map(({ heading, label }, index) => {
+        const destination = this.#destinationFor(heading, index + 1);
+        let item = [...available].find(
+          (held) =>
+            held.heading === heading ||
+            (heading.id && held.heading.id === heading.id) ||
+            held.destination.id === destination.id,
+        );
+        if (item) available.delete(item);
+        else {
+          const row = document.createElement("li");
+          const link = document.createElement("a");
+          row.append(link);
+          item = { row, link };
+        }
+        item.heading = heading;
+        item.destination = destination;
+        keeps(
+          item.row,
+          "data-lf-depth",
+          String(Math.min(Number(heading.localName.slice(1)) - floor, 4)),
+        );
+        keeps(item.link, "href", `#${destination.id}`);
+        if (item.link.textContent !== label) item.link.textContent = label;
+        return item;
+      });
+      this.#start.destination = startDestination;
+      keeps(this.#start.link, "href", `#${startDestination.id}`);
+      const title = (pageTitle ? wrote(pageTitle).trim() : "") || "Top";
+      if (this.#start.link.textContent !== title) this.#start.link.textContent = title;
+      this.#sections = headings.length ? [this.#start, ...items] : [];
+      this.toggleAttribute("data-lf-toc-empty", !headings.length);
+      setChildren(
+        this.#list,
+        items.map(({ row }) => row),
+      );
+      this.#observeDestinations(previous);
+    }
+
+    #observeDestinations(previous = []) {
+      if (!this.#watching) return;
+      for (const destination of previous)
+        if (destination !== this.#main) this.#watching.unobserve(destination);
+      this.#renamed.disconnect();
+      // The complete destination reports section growth and title-group layout,
+      // including an eyebrow changing size while its heading stays the same.
+      for (const { destination } of this.#sections) {
+        if (destination !== this.#main) this.#watching.observe(destination);
+        this.#renamed.observe(destination, { attributeFilter: ["id"] });
+      }
     }
 
     #watch() {
@@ -215,29 +267,19 @@ customElements.define(
         this.#scroller === document.scrollingElement ? document : this.#scroller;
       this.#watching = sizeObserver(() => this.#scheduleMeasure());
       this.#watching.observe(this.#main);
-      // Watched at the heading rather than at the destination the row points to. A
-      // section that grows — an image arriving, a fold opening — moves every marker
-      // below it, and the heading is the box that reports that.
-      for (const { destination, heading } of this.#sections) {
-        const watched = heading ?? destination;
-        if (watched !== this.#main) this.#watching.observe(watched);
-      }
-      // A row's link follows its destination's id. A revision can give a heading an id
-      // of its own over the one this widget lent it, or take an authored one away, and
-      // the widget stays built across a revision that leaves its own markup alone.
-      this.#renamed = new MutationObserver(() =>
-        this.#sections.forEach(({ destination, link }, position) => {
-          if (!destination.id) this.#targetFor(destination, position);
-          keeps(link, "href", `#${destination.id}`);
-        }),
-      );
-      for (const { destination } of this.#sections)
-        this.#renamed.observe(destination, { attributeFilter: ["id"] });
+      this.#renamed = new MutationObserver(() => {
+        this.#reconcile();
+        this.#scheduleMeasure();
+      });
+      this.#observeDestinations();
       this.#scrollSource.addEventListener("scroll", this.#onScroll, { passive: true });
+      this.#nav.addEventListener("scroll", this.#onNavScroll, { passive: true });
+      this.#nav.addEventListener("focusin", this.#onFocus);
       this.#main.addEventListener("toggle", this.#onToggle, true);
       this.#main.addEventListener("load", this.#onLoad, true);
       this.#main.addEventListener(LAYOUT, this.#onLayout);
       document.addEventListener(PRESENTATION, this.#onPresentation);
+      document.addEventListener(PAGE_INTERFACE, this.#onInterface);
       window.addEventListener("resize", this.#onResize);
       this.#scheduleMeasure();
     }
@@ -252,6 +294,12 @@ customElements.define(
 
     #measure() {
       if (!this.#main || !this.#scroller || !this.#rows) return;
+      if (!this.#sections.length) {
+        this.#positions = [];
+        this.#shown = [];
+        this.#paint();
+        return;
+      }
       const mainTop = this.#documentTop(this.#main);
       let previous = this.#documentTop(this.#sections[0].destination);
       this.#shown = this.#sections.map(
@@ -267,7 +315,10 @@ customElements.define(
       });
       this.#contentStart = this.#positions[0];
       this.#contentEnd = Math.max(
-        mainTop + this.#main.scrollHeight,
+        mainTop +
+          this.#main.clientTop +
+          this.#main.scrollHeight -
+          parseFloat(getComputedStyle(this.#main).paddingBottom),
         this.#positions.at(-1) + 1,
       );
       this.#sections.forEach(({ row }, index) => {
@@ -280,6 +331,7 @@ customElements.define(
         );
       });
       this.#fitRows();
+      this.#rememberFocus();
       this.#lensInputs = "";
       this.#paint();
     }
@@ -294,6 +346,20 @@ customElements.define(
           row.style.setProperty("--lf-toc-row-shift", `${shifts.get(index)}px`);
         else row.style.removeProperty("--lf-toc-row-shift");
       });
+    }
+
+    #rememberFocus() {
+      const viewport = this.#nav.getBoundingClientRect();
+      const active = document.activeElement;
+      const focused = this.#nav.contains(active)
+        ? active.getBoundingClientRect()
+        : null;
+      this.#navHeight = viewport.height;
+      this.#focusedLink = active;
+      this.#focusedVisible =
+        !!focused &&
+        focused.top >= viewport.top - 1 &&
+        focused.bottom <= viewport.bottom + 1;
     }
 
     // Each fitted row's shift, by section index.
@@ -313,6 +379,7 @@ customElements.define(
                   index,
                   ideal: row.getBoundingClientRect().top - track.top,
                   height: link.getBoundingClientRect().height,
+                  center: parseFloat(getComputedStyle(link).lineHeight) / 2,
                 },
               ]
             : [],
@@ -320,28 +387,46 @@ customElements.define(
         const lineHeight = parseFloat(getComputedStyle(this.#nav).lineHeight);
         const preferredGap = Number.isFinite(lineHeight) ? lineHeight * 0.5 : 0;
         const labelHeight = labels.reduce((sum, label) => sum + label.height, 0);
+        const firstCenter = labels[0]?.center ?? 0;
+        const availableHeight = track.height + firstCenter;
         const availableGap =
-          labels.length > 1 ? (track.height - labelHeight) / (labels.length - 1) : 0;
+          labels.length > 1 ? (availableHeight - labelHeight) / (labels.length - 1) : 0;
         return {
           labels,
           labelHeight,
+          firstCenter,
+          availableHeight,
           preferredGap,
           gap: Math.max(0, Math.min(preferredGap, availableGap)),
         };
       };
 
       let layout = readLabels();
+      if (!layout.labels.length) return shifts;
       if (
         layout.labelHeight +
           layout.preferredGap * Math.max(0, layout.labels.length - 1) >
-        track.height + 1
+        layout.availableHeight + 1
       ) {
         this.setAttribute("data-lf-compact", "");
         layout = readLabels();
       }
-      if (layout.labelHeight > track.height + 1) {
+      if (layout.labelHeight > layout.availableHeight + 1) {
         this.removeAttribute("data-lf-compact");
         this.setAttribute("data-lf-outline", "");
+        if (
+          this.#nav.contains(document.activeElement) &&
+          this.#focusedLink === document.activeElement &&
+          this.#focusedVisible &&
+          this.#nav.getBoundingClientRect().height < this.#navHeight - 1
+        ) {
+          const focused = document.activeElement.getBoundingClientRect();
+          const viewport = this.#nav.getBoundingClientRect();
+          if (focused.bottom > viewport.bottom)
+            this.#nav.scrollTop += focused.bottom - viewport.bottom;
+          else if (focused.top < viewport.top)
+            this.#nav.scrollTop += focused.top - viewport.top;
+        }
         return shifts;
       }
 
@@ -352,8 +437,9 @@ customElements.define(
       }
       const occupiedHeight = Math.max(0, prefix - layout.gap);
 
-      // A row's collision-free top is its document-scale top minus the height of every
-      // label before it. Pool adjacent violations and share their correction, so a
+      // Fit label boxes around their marker centers. A collision-free label top is its
+      // document coordinate minus its first-line center and every preceding label's
+      // height. Pool adjacent violations and share their correction, so a
       // crowded group bends one monotone scale around its destinations instead of
       // accumulating displacement below them.
       const blocks = [];
@@ -361,7 +447,7 @@ customElements.define(
         blocks.push({
           start: at,
           end: at,
-          top: label.ideal - label.prefix,
+          top: label.ideal - label.center - label.prefix,
           count: 1,
         });
         while (blocks.length > 1 && blocks.at(-2).top > blocks.at(-1).top) {
@@ -377,12 +463,13 @@ customElements.define(
         }
       });
 
-      const slack = Math.max(0, track.height - occupiedHeight);
+      const floor = -layout.firstCenter;
+      const ceiling = track.height - occupiedHeight;
       for (const block of blocks) {
-        const top = Math.max(0, Math.min(slack, block.top));
+        const top = Math.max(floor, Math.min(ceiling, block.top));
         for (let at = block.start; at <= block.end; at += 1) {
           const label = layout.labels[at];
-          const fitted = top + label.prefix;
+          const fitted = top + label.prefix + label.center;
           this.#mapPositions[label.index] = fitted;
           shifts.set(label.index, fitted - label.ideal);
         }
@@ -447,7 +534,17 @@ customElements.define(
     }
 
     #paint() {
-      if (!this.#rows || !this.#scroller || !this.#positions.length) return;
+      if (!this.#rows || !this.#scroller) return;
+      let current = this.#shown.findIndex(Boolean);
+      if (current < 0) {
+        this.#currentLink?.removeAttribute("aria-current");
+        this.#currentLink = null;
+        this.#lensMotion?.cancel();
+        this.#lensMotion = null;
+        this.#lensInputs = "";
+        if (this.#lens) keeps(this.#lens, "style", "display: none;");
+        return;
+      }
       // What the user can read is the scroller's landing band, clear of the banner over
       // its top and the bottom bar over its bottom.
       const clear = landingInsets(this.#scroller);
@@ -457,7 +554,6 @@ customElements.define(
       this.#standLens(clear);
 
       const threshold = visibleStart + Math.min(32, (visibleEnd - visibleStart) * 0.08);
-      let current = 0;
       this.#positions.forEach((position, index) => {
         if (this.#shown[index] && position <= threshold) current = index;
       });
@@ -531,8 +627,8 @@ customElements.define(
     #destinationFor(heading, position) {
       const section = heading.closest("section[id]");
       if (section?.querySelector(HEADING_SELECTOR) === heading) return section;
-      if (heading.id) return heading;
-      return this.#targetFor(heading, position);
+      const destination = heading.closest("hgroup") ?? heading;
+      return destination.id ? destination : this.#targetFor(destination, position);
     }
 
     #targetFor(heading, position) {

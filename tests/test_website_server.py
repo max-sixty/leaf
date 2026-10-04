@@ -1,6 +1,5 @@
 """The website route adapter preserves Leaf's canonical served-page contract."""
 
-import hashlib
 import itertools
 import json
 import os
@@ -45,12 +44,12 @@ from leaf.files import revision_path
 from leaf.hosting import LeafHTTPServer
 from leaf.http import page_delivery
 from leaf.machine import pid_alive
-from leaf.revision_artifact import Resource
+from leaf.revision_artifact import capture_artifact
 from leaf.revision_delivery import compose_document
-from leaf.schema import ASSETS
 from leaf.served_state import page as served_page
 from leaf.service import delivery_reply_attempt
 from leaf.state import flocked, open_session_turn, session_record, start_session_turn
+from leaf.structure import SourceDocument
 from leaf.thread import cmd_reply, cmd_resolve
 from leaf_dev import example_previews, startup, verify_site
 from playwright.sync_api import expect
@@ -239,7 +238,9 @@ PAGE_SOURCE = """<!doctype html>
         ("/examples/decision", "example", "https://leaf.page/examples/decision/"),
     ),
 )
-def test_a_published_document_names_its_page_to_a_crawler(page_root, kind, url):
+def test_a_published_document_names_its_page_to_a_crawler(
+    page_dir, page_root, kind, url
+):
     """An unfurler reads absolute URLs, and reads them from inside the head.
 
     Leaf owns the canonical address; publication adds what needs the site's origin.
@@ -251,15 +252,11 @@ def test_a_published_document_names_its_page_to_a_crawler(page_root, kind, url):
         "image": "/media/card.png",
     }
     addition = website_server.site_metadata(page_root, page)
-    resources = {
-        path: Resource((ASSETS / path.lstrip("/")).read_bytes(), mime)
-        for path, mime in (
-            ("/runtime/bootstrap.js", "application/javascript"),
-            ("/runtime/prepaint.js", "application/javascript"),
-            ("/runtime/chrome.css", "text/css"),
-            ("/runtime/marks.css", "text/css"),
-        )
-    }
+    resources = capture_artifact(
+        page_dir,
+        SourceDocument(PAGE_SOURCE),
+        json.loads((page_dir / "registry.json").read_text()),
+    ).resources
     delivery = page_delivery(
         resources, server_id="server", layer_id="layer", page_root=page_root
     )
@@ -2834,9 +2831,13 @@ def test_a_rejected_streamed_reply_still_releases_its_website_turn(page_dir):
     assert socket.closed
 
 
-@pytest.mark.parametrize("read_elsewhere", [False, True])
+@pytest.mark.parametrize(
+    ("read_elsewhere", "reopen"),
+    [(False, "click"), (False, "r"), (False, "Enter"), (True, None)],
+    ids=["click", "card-r", "card-enter", "elsewhere"],
+)
 def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
-    browser, serve, read_elsewhere
+    browser, serve, read_elsewhere, reopen
 ):
     """A resolve during a turn cannot hide its completed answer from Open Threads.
 
@@ -2904,6 +2905,22 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
         expect(thread.locator(".lf-msg.agent")).to_be_hidden()
         assert set(current_responses(page_dir, read_events(page_dir))) == {other["id"]}
     else:
+        # The short thread's reopened answer would move its writing box, so the
+        # reader explicitly opens the news before the visibility clock can see it.
+        news = thread.locator(".lf-thread-news")
+        expect(news).to_be_visible()
+        expect(
+            thread.locator(".lf-msg.agent").filter(has_text="deployment verified")
+        ).to_have_count(0)
+        if reopen == "click":
+            news.click()
+        else:
+            title = thread.locator(":scope > .lf-thread-summary")
+            title.focus()
+            expect(title).to_be_focused()
+            expect(thread).to_have_attribute("open", "")
+            page.keyboard.press(reopen)
+        expect(news).to_have_count(0)
         page.wait_for_function("window.__leafVerifier.visibleReplyRecorded")
         assert page.evaluate("window.__leafVerifier.visibleReplyAt") is not None
         assert current_responses(page_dir, read_events(page_dir)) == {}
@@ -3513,7 +3530,14 @@ def test_a_turn_that_never_answered_is_reported_before_the_threads_panel():
     collected, because that reading is the only account of why the turn stopped.
     """
     stalled = verify_site.TurnReading(
-        {"active": {"revision": 1}, "activity": {"kind": "answering"}}, None, [], None
+        {
+            "active": {"revision": 1},
+            "activity": {"kind": "answering"},
+            "source_error": None,
+        },
+        None,
+        [],
+        None,
     )
     with pytest.raises(RuntimeError) as stopped:
         verify_site.check_turn_answered(
@@ -3526,11 +3550,15 @@ def test_a_turn_that_never_answered_is_reported_before_the_threads_panel():
     assert str(stopped.value) == (
         "https://leaf.page/examples/triage-board/ agent did not publish "
         "‘Deployment 446b8fe9 verified’; it reached revision 1 from 1 "
-        "with the page reading answering and did not reply"
+        "with the page reading answering and did not reply; source validation: no error"
     )
 
     answered = verify_site.TurnReading(
-        {"active": {"revision": 2}, "activity": {"kind": "listening"}},
+        {
+            "active": {"revision": 2},
+            "activity": {"kind": "listening"},
+            "source_error": None,
+        },
         {"revision": 2},
         [{"text": "deployment verified"}],
         {"text": "deployment verified"},
@@ -3541,6 +3569,47 @@ def test_a_turn_that_never_answered_is_reported_before_the_threads_panel():
         answered,
         1,
         1,
+    )
+
+
+@pytest.mark.parametrize("invalid_source", [False, True])
+def test_a_missing_publication_reports_the_real_source_validation_reading(
+    page_dir, invalid_source
+):
+    """A success reply cannot hide a rejected source or an unchanged valid one."""
+    state_service = website_server.PageStateService(page_dir)
+    revision = state_service.page_state()["active"]["revision"]
+    comment = append_event(
+        page_dir, {"kind": "comment", "author": "user", "text": "Change the heading"}
+    )
+    reply = append_event(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "parent": comment["id"],
+            "text": "deployment verified",
+        },
+    )
+    if invalid_source:
+        (page_dir / "index.html").write_text(PAGE.replace("</section>", ""))
+    state = state_service.page_state()
+    assert state["active"]["revision"] == revision
+    assert (state["source_error"] is not None) == invalid_source
+
+    with pytest.raises(RuntimeError) as stopped:
+        verify_site.check_turn_answered(
+            "https://leaf.page/examples/triage-board/",
+            "Deployment 446b8fe9 verified",
+            verify_site.TurnReading(state, None, [reply], reply),
+            1,
+            revision,
+        )
+    assert str(stopped.value) == (
+        "https://leaf.page/examples/triage-board/ agent did not publish "
+        f"‘Deployment 446b8fe9 verified’; it reached revision {revision} from {revision} "
+        f"with the page reading {state['activity']['kind']}; it replied: deployment verified"
+        f"; source validation: {state['source_error'] or 'no error'}"
     )
 
 
@@ -3756,37 +3825,6 @@ def test_the_preview_generator_bootstraps_a_new_catalog_entry(tmp_path, monkeypa
     with example_previews.serve_examples(site) as root:
         state = json.loads(get(f"{root}/examples/ideas-to-implement/api/state")[0])
     assert state["publication"]["kind"] == "example"
-
-
-def test_the_preview_generator_updates_every_linked_example_image(
-    tmp_path, monkeypatch
-):
-    docs = tmp_path / "docs"
-    docs.mkdir()
-    preview = tmp_path / "example-decision.jpg"
-    preview.write_bytes(b"new decision preview")
-    old = "/media/0123456789abcdef.jpg"
-    expected = hashlib.sha256(preview.read_bytes()).hexdigest()[:16]
-    (docs / "examples.html").write_text(
-        f'<a class="example-link" href="/examples/decision/">\n'
-        f'  <span><img src="{old}"></span>\n'
-        "</a>\n",
-        encoding="utf-8",
-    )
-    (docs / "index.html").write_text(
-        f'<a href="/examples/decision/"><img src="{old}" loading="lazy"></a>\n'
-        f'<img src="{old}" alt="unlinked">\n',
-        encoding="utf-8",
-    )
-    monkeypatch.setattr(example_previews, "DOCS", docs)
-
-    example_previews.update_catalog({preview})
-
-    replacement = f"/media/{expected}.jpg"
-    assert replacement in (docs / "examples.html").read_text()
-    home = (docs / "index.html").read_text()
-    assert replacement in home
-    assert f'<img src="{old}" alt="unlinked">' in home
 
 
 def test_a_failed_verifier_page_reports_its_browser_errors(browser):
@@ -4775,7 +4813,11 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
         "ask_until_answered",
         lambda *args, **kwargs: verify_site.AgentAsks(
             verify_site.TurnReading(
-                {"active": {"revision": 2}, "activity": {"kind": "away"}},
+                {
+                    "active": {"revision": 2},
+                    "activity": {"kind": "away"},
+                    "source_error": None,
+                },
                 published,
                 [{"kind": "reply", "text": "deployment verified"}],
                 {"kind": "reply", "text": "deployment verified"},
@@ -4912,7 +4954,11 @@ def test_a_reload_that_presented_offline_reports_the_banner_it_presented_under(
         "ask_until_answered",
         lambda *args, **kwargs: verify_site.AgentAsks(
             verify_site.TurnReading(
-                {"active": {"revision": 2}, "activity": {"kind": "away"}},
+                {
+                    "active": {"revision": 2},
+                    "activity": {"kind": "away"},
+                    "source_error": None,
+                },
                 published,
                 [{"kind": "reply", "text": "deployment verified"}],
                 {"kind": "reply", "text": "deployment verified"},

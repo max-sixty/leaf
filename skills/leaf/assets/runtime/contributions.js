@@ -18,10 +18,11 @@ const contributionSources = new WeakMap();
 export const contributionSource = (model) => contributionSources.get(model);
 function publishReading(offered) {
   const declared = offered.read();
+  const normalized = normalizeReading(declared, offered.key);
   offered.readingActions = new Map(
     (declared.readings ?? []).map(({ id, activate }) => [id, activate]),
   );
-  offered.reading = normalizeReading(declared, offered.key);
+  offered.reading = normalized;
   const { readings, ...reading } = offered.reading;
   offered.model = Object.freeze({
     key: offered.key,
@@ -75,7 +76,24 @@ export function registerContribution({ key, target, source = target, read, activ
   const landFocus = () => {
     const key = owedFocus;
     owedFocus = null;
+    offered.focusRequest = null;
     if (key != null) registration.focus(key);
+  };
+  // An explicit arrival materializes the current surface before its retained control
+  // is read. The request is mechanical and never enters the immutable contribution.
+  const arrive = (entryKey, surface, move) => {
+    const request = { key: text(entryKey), surface };
+    const previous = offered.focusRequest;
+    offered.focusRequest = request;
+    try {
+      changed();
+      settle({ immediate: true });
+      const destination = control(request.key, surface, true);
+      if (!destination) return false;
+      return move(destination);
+    } finally {
+      if (offered.focusRequest === request) offered.focusRequest = previous;
+    }
   };
   const registration = Object.freeze({
     entry(entryKey) {
@@ -95,11 +113,9 @@ export function registerContribution({ key, target, source = target, read, activ
       )
         return false;
       const originOwnsFocus = context.origin == null || context.origin === focused();
-      const focusCurrentSurface =
-        context.focus ??
-        ((key) => {
-          const destination = control(key, context.surface ?? null, true);
-          if (!destination) return false;
+      const focusCurrentSurface = (key) =>
+        arrive(key, context.surface ?? null, (destination) => {
+          if (context.focus) return context.focus(key);
           destination.focus({ preventScroll: true });
           return true;
         });
@@ -117,23 +133,24 @@ export function registerContribution({ key, target, source = target, read, activ
       return true;
     },
     focus(entryKey, surface = null) {
-      const destination = control(text(entryKey), surface, true);
-      if (!destination) return false;
-      destination.focus({ preventScroll: true });
-      return true;
+      return arrive(entryKey, surface, (destination) => {
+        destination.focus({ preventScroll: true });
+        return true;
+      });
     },
     // A focus asked for with an update lands when the script's render does, on the
     // control that render leaves: two updates in one script (an undo shown pending, then
     // its publication) render once rather than painting the step between them.
     update({ immediate = false, focus = null } = {}) {
       publishReading(offered);
+      if (focus != null) {
+        owedFocus = text(focus);
+        offered.focusRequest = { key: owedFocus, surface: null };
+        afterScript(landFocus);
+      }
       changed();
       if (immediate) {
         settle({ immediate: true });
-      }
-      if (focus != null) {
-        owedFocus = focus;
-        afterScript(landFocus);
       }
     },
     unregister() {

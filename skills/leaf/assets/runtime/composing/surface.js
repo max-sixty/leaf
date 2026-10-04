@@ -58,6 +58,7 @@ import {
   showBannerControl,
 } from "../banner-toolbar.js";
 import { seenRect } from "../geometry.js";
+import { cancelRender, nextRender } from "../rendering.js";
 import { targetElement, targetPlace, targetSegments } from "../resolved-target.js";
 import {
   composer,
@@ -105,6 +106,7 @@ import { allThreads } from "../thread/state.js";
 
 import { standingPoint } from "../pointed-place.js";
 import { keeps } from "../keeps.js";
+import { retainUserIntent, restrictUserIntent } from "../user-intent.js";
 
 export function createResponseSurface({
   panelElements: { generalInput, panel, threadsBox, inPanel },
@@ -141,6 +143,7 @@ export function createResponseSurface({
   refreshThread,
   dismissThreadView,
   responseHome,
+  revealResponseHome = null,
   createPlacement = null,
 }) {
   const hideReference = () => closeCommandReference(false);
@@ -173,11 +176,16 @@ export function createResponseSurface({
   const fabPositioned = () =>
     !fabAnchor
       ? Promise.resolve(false)
-      : ((fabInlineOutlet?.isConnected && fabBar.parentElement === fabInlineOutlet) ||
-            placement?.ready()) &&
-          fabDrawn()
-        ? Promise.resolve(true)
-        : new Promise((resolve) => fabPositionWaiters.push(resolve));
+      : !placement &&
+          fabInlineOutlet === responseHome &&
+          !fabDrawn() &&
+          !fabFocusHandoff?.intent()
+        ? Promise.resolve(false)
+        : ((fabInlineOutlet?.isConnected && fabBar.parentElement === fabInlineOutlet) ||
+              placement?.ready()) &&
+            fabDrawn()
+          ? Promise.resolve(true)
+          : new Promise((resolve) => fabPositionWaiters.push(resolve));
   const stopFabPositioning = ({ reset = false, repositioning = false } = {}) => {
     placement?.stop({ reset, repositioning });
     if (reset && !repositioning) answerFabPosition(false);
@@ -369,7 +377,9 @@ export function createResponseSurface({
           ? previousOrigin
           : null;
     fabBar.toggleAttribute("data-lf-target-only", Boolean(fabAnchor && !composerOpen));
-    fabBar.style.display = fabAnchor ? "inline-flex" : "none";
+    fabBar.style.display = fabAnchor
+      ? "var(--lf-response-display, inline-flex)"
+      : "none";
     fabInput.style.display = fabAnchor && composerOpen ? "block" : "none";
     syncResponseOptions(fabAnchor);
     // Comment returns from the bar's choice state to this same field. With only a target
@@ -491,7 +501,7 @@ export function createResponseSurface({
     { anchor, element = null, point = null },
     { origin = null } = {},
   ) {
-    clearTimeout(selectionUpdate);
+    cancelRender(selectionUpdate);
     selectionUpdate = null;
     bringForward(element);
     targetActivation = true;
@@ -512,7 +522,7 @@ export function createResponseSurface({
   // the collapse re-read it as no selection dismisses the field the user just entered.
   function focusFabComment() {
     if (!fabAnchor) return;
-    clearTimeout(selectionUpdate);
+    cancelRender(selectionUpdate);
     selectionUpdate = null;
     const handoff = beginFabFocus();
     if (!composerOpen) {
@@ -560,7 +570,7 @@ export function createResponseSurface({
     const anchor = touchSelectionAnchor;
     if (!anchor) return;
     dismissBannerControls();
-    clearTimeout(selectionUpdate);
+    cancelRender(selectionUpdate);
     selectionUpdate = null;
     getSelection()?.removeAllRanges();
     offerTouchSelection(null);
@@ -576,7 +586,7 @@ export function createResponseSurface({
     const sel = pageSelection();
     const anchor = sel ? selectionAnchor(sel) : null;
     if (
-      coarsePointer.matches &&
+      (coarsePointer.matches || !placement) &&
       hasQuote(anchor) &&
       (!fabHoldsCapturedPassage() || !sameAnchor(anchor, fabAnchor))
     ) {
@@ -612,6 +622,8 @@ export function createResponseSurface({
   // button, because a right button's release precedes its context menu, and growing the
   // selection there rewrites what Copy was aimed at.
   //
+  // Selection opening is counted work in the next rendering pass: the native
+  // release finishes first, while the page cannot claim to be settled ahead of its field.
   // A queued step belongs to the gesture that queued it, and the next press may begin
   // before it runs. Then the selection it would act on is not the one it was queued
   // for: it is the drag under way, and `snapSelection` rewrites that drag mid-gesture.
@@ -633,8 +645,8 @@ export function createResponseSurface({
   let pressesBegun = 0;
   const deferSelectionUpdate = (update) => {
     const queuedBehind = pressesBegun;
-    clearTimeout(selectionUpdate);
-    selectionUpdate = setTimeout(() => {
+    cancelRender(selectionUpdate);
+    selectionUpdate = nextRender(() => {
       selectionUpdate = null;
       if (pressesBegun !== queuedBehind) return;
       update();
@@ -658,13 +670,20 @@ export function createResponseSurface({
   // Which handoff the mark belongs to. The mark itself is one bit, so a landing that only
   // read the bit could not tell its own handoff's mark from a later one's, and releasing
   // on the way out would drop a mark still being held for a focus yet to land.
-  let fabFocusHandoff = 0;
+  let fabFocusHandoff = null;
   const beginFabFocus = () => {
     fabInputTakingFocus = true;
-    return ++fabFocusHandoff;
+    const handoff = {};
+    handoff.intent = retainUserIntent({
+      available: () => fabFocusHandoff === handoff,
+    });
+    fabFocusHandoff = handoff;
+    return handoff;
   };
-  const endFabFocus = () => {
+  const endFabFocus = (handoff = null) => {
+    if (handoff && handoff !== fabFocusHandoff) return;
     fabInputTakingFocus = false;
+    fabFocusHandoff = null;
   };
   // Every handoff lands here. It is marked at once and lands a frame or more later, and
   // the user owns the page for the whole of that gap: a passage standing when it lands
@@ -672,19 +691,39 @@ export function createResponseSurface({
   // would collapse it before anything could read it. Standing down releases the mark with
   // it, so the collapse the mark holds out cannot outlive the focus it was holding it for.
   function landFabFocus(handoff, anchor, stands) {
+    handoff.intent = restrictUserIntent(
+      handoff.intent,
+      () => composerOpen && stands() && sameAnchor(anchor, fabAnchor),
+    );
     void fabPositioned().then((positioned) => {
       if (handoff !== fabFocusHandoff) return;
       const taken = pageSelection();
       const words = taken ? selectionAnchor(taken) : null;
-      if (
+      const landed =
         positioned &&
-        composerOpen &&
-        stands() &&
-        (!hasQuote(words) || sameAnchor(words, anchor))
-      )
-        fabInput.focus({ preventScroll: true });
-      else endFabFocus();
+        (!hasQuote(words) || sameAnchor(words, anchor)) &&
+        handoff.intent.handoff(() => fabInput.focus({ preventScroll: true }));
+      if (!landed) endFabFocus();
     });
+  }
+
+  // Only a successful current Thread cohort may reveal the fallback home. Retirement
+  // and rollback still move the native editor there without authorizing navigation.
+  // An opening gesture keeps its original input generation through that preparation.
+  function finishPlacement() {
+    if (
+      placement ||
+      !revealResponseHome ||
+      fabBar.parentElement !== responseHome ||
+      !fabAnchor ||
+      !composerOpen
+    )
+      return;
+    if (!fabFocusHandoff?.intent.handoff(revealResponseHome)) {
+      answerFabPosition(false);
+      return;
+    }
+    answerFabPosition(true);
   }
   function openComment(anchor, text, options = {}) {
     return openComposer(anchor, text, options);
@@ -700,7 +739,7 @@ export function createResponseSurface({
   // imports this module back.
   function wireFabInput() {
     fabInput.addEventListener("focus", () => {
-      clearTimeout(selectionUpdate);
+      cancelRender(selectionUpdate);
       selectionUpdate = null;
       fabInputTakingFocus = true;
     });
@@ -1013,7 +1052,7 @@ export function createResponseSurface({
       // click() to supply the keys a span doesn't come with — and the record would answer
       // for wherever the pointer is parked, so that one keeps reading the event.
       const point = ev.detail ? pointerAt() : { x: ev.clientX, y: ev.clientY };
-      const threadId = markAt(point.x, point.y);
+      const threadId = markAt?.(point.x, point.y);
       if (threadId)
         return void openPageThread(threadId, {
           focus: panel.classList.contains("open") ? "reply" : "thread",
@@ -1045,8 +1084,7 @@ export function createResponseSurface({
   // the panel names one. Every destination is a box to write in and says so in the same
   // sentence; the word is what varies.
   const commenting = (word) => ({
-    does: `Comment on the ${word}`,
-    line: `comment on the ${word}`,
+    title: `comment on the ${word}`,
   });
   function commentDestination() {
     if (touchSelectionAnchor)
@@ -1145,8 +1183,8 @@ export function createResponseSurface({
     keys: ["c"],
     // The surfaces name the destination in front of the user rather than the capability:
     // "Comment" covered all four and so promised none of them.
-    does: () => commentDestination().does,
-    line: () => commentDestination().line,
+    description: () => commentDestination().description,
+    title: () => commentDestination().title,
     // A selection made before the anchor pass has run can't be quoted yet, and commenting
     // on the page instead is not what the user asked for — so the press waits, and the
     // row's own liveness is where that is said rather than a refusal inside run that no
@@ -1175,19 +1213,19 @@ export function createResponseSurface({
       {
         id: "comment.options",
         keys: ["Tab"],
-        does: "Show other responses",
-        line: "other responses",
+        description: "Show other responses",
+        title: "other responses",
         when: () => fabOptionsAvailable() && !responseOptionsAreOpen(),
         run: () => showFabOptions(),
       },
       {
         id: "composer.close",
         keys: ["Escape"],
-        does: () =>
+        description: () =>
           composerHolds()
             ? "Close the composer, keeping the draft"
             : "Close the composer",
-        line: () => (composerHolds() ? "close — draft kept" : "close"),
+        title: () => (composerHolds() ? "close — draft kept" : "close"),
         promoteEscape: false,
         when: () => !responseOptionsAreOpen(),
         run: () => dismissFab(),
@@ -1203,8 +1241,8 @@ export function createResponseSurface({
   pageRung("selection", () =>
     pageSelection() || (fabAnchorAt() && !placement?.withheld())
       ? {
-          says: "unselect",
-          does: "Clear the selection",
+          title: "unselect",
+          description: "Clear the selection",
           promoteEscape: !Boolean(fabAnchorAt()) || reactionTokens().length === 0,
           out: dismissFab,
         }
@@ -1237,6 +1275,7 @@ export function createResponseSurface({
     fabFrameAt: () => placement?.frame() ?? null,
     seatFab,
     restoreFab,
+    finishPlacement,
     fabInlineOutlet: () => fabInlineOutlet,
     mount,
   };

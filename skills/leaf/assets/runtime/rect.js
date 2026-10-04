@@ -21,3 +21,14 @@ export function union(boxes) {
 
 // A value held between two bounds, the lower winning where they cross.
 export const clamp = (value, low, high) => Math.max(low, Math.min(high, value));
+
+// Which padding-box edges clip descendants. Overflow is per axis; paint containment
+// and content visibility clip both even when overflow computes visible.
+export const clippingAxes = (style) => {
+  const both =
+    /paint|strict|content/.test(style.contain) || style.contentVisibility !== "visible";
+  return {
+    x: both || style.overflowX !== "visible",
+    y: both || style.overflowY !== "visible",
+  };
+};

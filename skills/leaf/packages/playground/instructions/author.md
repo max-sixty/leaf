@@ -1,7 +1,8 @@
 Give each design decision one selection surface. For a choice among visible, fixed
 candidates, put the candidates in `lf-options` inside `lf-ask` so the user selects
 the example they want. Use `lf-playground` when the user needs to tune a configuration
-before choosing it. Put it inside `lf-ask` and include exactly one preview and one output.
+before choosing it, and include exactly one preview and one output. Use `lf-ask`
+to frame the question and context when they live outside the playground.
 
 Interactive behavior does not by itself justify a package; `references/packages.md`
 says where page-only and reused behavior belong. A page module can define custom

@@ -1939,7 +1939,7 @@ def test_user_overrides_identify_state_that_differs_from_authored_inputs(
 
     draft = page.locator("#draft-ops")
     draft.locator(".lf-draft-body").dblclick()
-    draft.locator("textarea").fill(DRAFT_EDITED)
+    write(draft.locator("leaf-text"), DRAFT_EDITED)
     draft_control(page, "save", "draft-ops").click()
     expect(page.locator("#draft-ops[data-lf-user-override]")).to_have_count(1)
 
@@ -2613,7 +2613,7 @@ def test_a_durable_server_restart_keeps_the_current_editor(browser, serve):
     )
     page.set_default_timeout(5000)
     page.locator("#draft .lf-draft-body").dblclick()
-    editor = page.locator("#draft textarea")
+    editor = page.locator("#draft leaf-text")
     write(editor, "An unfinished durable draft")
     editor.press("Home")
     editor.press("Shift+ArrowRight")
@@ -2644,7 +2644,7 @@ def test_a_durable_server_restart_keeps_the_current_editor(browser, serve):
         editor.evaluate("el=>[el.selectionStart,el.selectionEnd,el.selectionDirection]")
         == before
     )
-    expect(editor).to_have_value("An unfinished durable draft")
+    expect(editor).to_have_js_property("value", "An unfinished durable draft")
 
 
 def test_a_hidden_page_stops_its_freshness_reads_until_it_is_visible(browser, serve):
@@ -3122,7 +3122,7 @@ def test_the_help_overlay_answers_to_one_owner(browser, serve):
           const { commands } = await window.__lfRuntimeImport('/runtime/widget-api.js');
           commands(document.body, 'On a draft',
                [{ id: 'test.project-widget', keys: ['F2'],
-                  does: 'a project widget using the same heading' }]);
+                  title: 'a project widget using the same heading' }]);
         }"""
     )
     page.keyboard.press("?")
@@ -6156,6 +6156,78 @@ def test_user_view_context_reads_the_documents_forced_scheme(browser, serve):
     )[0]
     assert observed["color_scheme"] == "dark"
     assert observed["checks"]["color_scheme"] == "dark"
+
+
+def test_user_view_context_waits_for_a_samples_viewport_allocation(browser, serve):
+    """A connected sample reports real allocated views, never a zero-sized one."""
+    source = leaf_page(
+        "Sample view",
+        """<h1>Sample view</h1>
+<lf-sample id="practice" label="Practice">
+  <template id="practice-source" data-sample>
+    <h2>Contained page</h2><p>Read this in its allocated viewport.</p>
+  </template>
+</lf-sample>""",
+    )
+    page = open_page(browser, serve(source))
+    element = page.locator("#practice iframe")
+    frame = element.element_handle().content_frame()
+    wait_until_ready(frame)
+    rendered(frame)
+    view_url = urljoin(frame.url, "api/user-view")
+    reports = []
+    page.on(
+        "request",
+        lambda request: (
+            reports.append(request.post_data_json) if request.url == view_url else None
+        ),
+    )
+
+    def accepted(response):
+        return response.url == view_url and response.status == 204
+
+    with page.expect_response(accepted) as first:
+        element.evaluate(
+            """frame => {
+              frame.style.setProperty('width', '650px', 'important');
+              frame.style.setProperty('height', '400px', 'important');
+            }"""
+        )
+    initial = first.value.request.post_data_json
+    assert initial["viewport"]["width"] > 0
+    assert initial["viewport"]["height"] > 0
+    assert initial["visual_viewport"]["width"] > 0
+    assert initial["visual_viewport"]["height"] > 0
+    saved_style = element.evaluate("frame => frame.style.cssText")
+    before = len(reports)
+    element.evaluate(
+        """frame => {
+          for (const property of ['width', 'height', 'min-width', 'min-height', 'border-width'])
+            frame.style.setProperty(property, '0px', 'important');
+        }"""
+    )
+    frame.wait_for_function(
+        """() => window.frameElement.isConnected &&
+          document.documentElement.clientWidth === 0 &&
+          document.documentElement.clientHeight === 0 &&
+          visualViewport.width === 0 && visualViewport.height === 0"""
+    )
+    # Cover the observer's 10-second heartbeat and 300ms resize quiet interval.
+    page.wait_for_timeout(11_000)
+    assert reports[before:] == [], "the unallocated sample sent a user view"
+
+    with page.expect_response(accepted) as restored:
+        element.evaluate(
+            "(frame, style) => { frame.style.cssText = style; }", saved_style
+        )
+    recovered = restored.value.request.post_data_json
+    assert recovered["session"] == initial["session"]
+    assert recovered["sequence"] > initial["sequence"]
+    assert recovered["viewport"]["width"] > 0
+    assert recovered["viewport"]["height"] > 0
+    assert recovered["visual_viewport"]["width"] > 0
+    assert recovered["visual_viewport"]["height"] > 0
+    assert frame.evaluate("() => window.frameElement.isConnected")
 
 
 def test_user_view_context_follows_real_tabs_without_changing_the_page(browser, serve):

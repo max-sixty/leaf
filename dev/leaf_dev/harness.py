@@ -1,4 +1,4 @@
-"""Arms, served pages, and isolated `claude -p` children for the commands and eval
+"""Arms, served pages, and isolated CC and Codex sessions for the commands and eval
 harnesses that run a version of Leaf.
 
 An arm is the plugin payload (`PAYLOAD`) at one ref, or as the working tree has it, and
@@ -10,8 +10,9 @@ A child runs from a scratch cwd outside any repository, so no project instructio
 load, under a home of its own beside that cwd, so its bypassed permissions write to
 that home rather than the user's `~` (children given the user's home once appended to
 the user's `~/.claude/CLAUDE.md`). The home carries only the login. A trace is the
-child's stream-json; it counts when it reached a `result` that is not an error
-(`completed`). A `LiveChild` keeps its session open across turns, so a driver can post
+child's normalized tool/turn evidence; it counts when its actual host turn
+completed without error (`completed`). Codex raw notifications are retained too.
+A `LiveChild` keeps its session open across turns, so a driver can post
 user moves to a served page (`PageClient`) as a tab would.
 """
 
@@ -288,36 +289,80 @@ def claude_child(
     return {"args": command, "cwd": cwd, "env": child_env}
 
 
-def run_claude(
+TURN_LIMIT = 1200
+
+
+def run_agent(
     cwd: Path,
     *args: str,
     out: Path,
     err: Path,
     dirs: Iterable[Path] = (),
     env: dict | None = None,
+    host: str = "cc",
 ) -> list[dict]:
-    """Run one `claude_child` to its end; return its trace.
+    """Run an isolated host turn, optionally resuming its preceding session.
 
-    `out` receives the stream-json trace and `err` the child's stderr."""
+    `out` is normalized evidence; `err` is stderr. Codex's complete App Server
+    notifications live beside `err` with a `.codex.jsonl` suffix. Both hosts
+    have the same TURN_LIMIT; a timeout retains their partial native evidence and
+    marks `out.with_suffix(".timed-out")` without fabricating completion.
+    """
+    if host == "codex":
+        with (
+            LiveChild(
+                cwd,
+                args[0],
+                *args[1:],
+                host=host,
+                stderr=err,
+                limit=TURN_LIMIT,
+                timed_out=out.with_suffix(".timed-out"),
+                dirs=dirs,
+                env=env,
+            ) as child,
+            out.open("w") as stream,
+        ):
+            for record in child.records():
+                stream.write(json.dumps(record) + "\n")
+                if record.get("type") == "result":
+                    break
+        return read_trace(out)
+    if host != "cc":
+        raise ValueError(f"unknown eval host: {host}")
     with out.open("w") as stdout, err.open("w") as stderr:
-        subprocess.run(
-            **claude_child(cwd, *args, dirs=dirs, env=env),
-            stdin=subprocess.DEVNULL,
-            stdout=stdout,
-            stderr=stderr,
-            check=False,
-        )
+        try:
+            subprocess.run(
+                **claude_child(cwd, *args, dirs=dirs, env=env),
+                stdin=subprocess.DEVNULL,
+                stdout=stdout,
+                stderr=stderr,
+                check=False,
+                timeout=TURN_LIMIT,
+            )
+        except subprocess.TimeoutExpired:
+            out.with_suffix(".timed-out").touch()
     return read_trace(out)
 
 
 class LiveChild:
-    """A `claude_child` whose session stays open for later turns, as a context
-    manager: `prompt` is its first message, and `records` yields its stream-json,
-    hook events included, each stamped `received_at`.
+    """An isolated host session kept open for delivery and later turns.
+
+    `prompt` is its first message. `records` yields actual tool, hook and turn
+    evidence stamped `received_at`; Codex retains its raw notifications too.
 
     `claude -p` terminates its background shells, such as a `leaf wait`, once stdin
     closes, so stdin stays open until the caller calls `close`. A session still
     running `limit` seconds after it started is killed and `timed_out` touched."""
+
+    def __new__(cls, *args, host="cc", **kwargs):
+        if host == "codex":
+            from leaf_dev.eval_codex import CodexChild
+
+            return CodexChild(*args, **kwargs)
+        if host != "cc":
+            raise ValueError(f"unknown eval host: {host}")
+        return super().__new__(cls)
 
     def __init__(
         self,
@@ -329,6 +374,7 @@ class LiveChild:
         timed_out: Path,
         dirs: Iterable[Path] = (),
         env: dict | None = None,
+        host: str = "cc",
     ) -> None:
         self.prompt, self.stderr, self.timed_out = prompt, stderr, timed_out
         self.popen = claude_child(
@@ -460,13 +506,17 @@ def inputs_received(events: list[dict], attempts: set[str]) -> bool:
     """
     posted = [e for e in events if e.get("attempt") in attempts]
     inputs = {e["id"] for e in posted if e["attention"]}
-    received = {
+    return len(posted) == len(attempts) and inputs <= opened_input_ids(events)
+
+
+def opened_input_ids(events: list[dict]) -> set[str]:
+    """The admitted attention inputs whose reader recorded an opened pickup."""
+    return {
         ident
         for e in events
         if e["kind"] == "pickup" and e["phase"] == "opened"
         for ident in e["events"]
     }
-    return len(posted) == len(attempts) and inputs <= received
 
 
 def read_trace(stream: Path) -> list[dict]:
@@ -490,6 +540,37 @@ def completed(trace: list[dict]) -> bool:
     """Whether a trace counts: its model call reached a result that is not an
     error."""
     return trace_result(trace).get("is_error") is False
+
+
+def observed_sum(values: Iterable[int | float | None]) -> int | float | None:
+    """Sum complete measurements; absent or incomplete evidence stays unknown."""
+    observed = list(values)
+    return sum(observed) if observed and all(v is not None for v in observed) else None
+
+
+def token_counts(trace: list[dict]) -> dict[str, int | None]:
+    """Count observed completed turns, preserving unknown counters independently.
+
+    CC reports cache input separately; Codex includes it in input_tokens. Optional
+    cache subdivisions add to a reported input counter, never stand in for one.
+    A missing result or missing usage cannot establish zero consumption.
+    """
+    usage = [
+        record.get("usage") or {} for record in trace if record.get("type") == "result"
+    ]
+    return {
+        "input_tokens": observed_sum(
+            observed_sum(
+                [
+                    counts.get("input_tokens"),
+                    counts.get("cache_creation_input_tokens", 0),
+                    counts.get("cache_read_input_tokens", 0),
+                ]
+            )
+            for counts in usage
+        ),
+        "output_tokens": observed_sum(counts.get("output_tokens") for counts in usage),
+    }
 
 
 def accepted_thread_claims(trace: list[dict], thread: str) -> dict[str, int]:

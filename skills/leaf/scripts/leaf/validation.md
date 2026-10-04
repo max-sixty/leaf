@@ -29,6 +29,13 @@ attribute sits in the runtime's `lf-` and `data-lf-` namespaces, named today or
 not, no id takes the shape of the event ids the log mints (`schema.EVENT_ID`), since
 a command's ID names a widget or a message in one address space, and ids needed by anchored unresolved threads, standing user actions, or
 effective standing reports survive from the previous revision. A
+quoted passage is compared using the same unique-context or unique-occurrence rule
+as browser resolution. The check lists every open thread whose authored quote no
+longer resolves, and activation records its fallback to its own surviving section.
+The page transaction holds validation, revision publication and those anchor
+transitions together. With no surviving section the check requires an explicit
+replacement reply or detachment; it never guesses a replacement or the loss of a
+thread's subject. A
 declared visual part survives on the same terms as an id: while a live
 thread's current anchor names it, and no longer once every thread on it
 has moved, detached, or closed. That release is final — a revision the part has
@@ -41,6 +48,12 @@ check that way; anything needing a browser belongs in the command's browser half
 The effective registry is validated where it differs from the active revision's
 captured copy, which was validated when that revision activated; vendored sheets are
 validated when `page init` composes them, not on each check.
+The publisher additionally preflights the admitted reply or stamp's complete
+prospective log, so every thread it reopens is covered, and reads candidate
+passages at the candidate revision's cutoff. Required transitions journal the
+exact staged bundle before its marker appears. Every transaction completes
+interrupted publication from that bundle before it exposes page readings.
+
 
 That half has one piece plain `page check` runs too. A page that runs code of its
 own, a module script or a page widget the document places, or places a data widget

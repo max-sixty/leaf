@@ -27,11 +27,12 @@ async function request(url, body) {
   return answer;
 }
 
+// Presentation waits on the child's state read, which can be slow without failing.
+// The child reports startup errors; the owner cancels a replaced or detached frame.
 function presented(frame, url, signal) {
   return new Promise((resolve, reject) => {
     let observer;
     const cleanup = () => {
-      clearTimeout(timeout);
       observer?.disconnect();
       detached.disconnect();
       frame.removeEventListener("load", loaded);
@@ -50,6 +51,14 @@ function presented(frame, url, signal) {
     const loaded = () => {
       const doc = frame.contentDocument;
       if (!doc || frame.contentWindow.location.href !== url) return;
+      // A failed document response can load without any Leaf scripts to report it.
+      if (
+        !doc.documentElement.hasAttribute("data-lf-live") &&
+        !doc.documentElement.dataset.lfStartupError
+      ) {
+        finish(new Error(`Leaf sample document did not start: ${url}`));
+        return;
+      }
       const inspect = () => {
         const failure = doc.documentElement.dataset.lfStartupError;
         if (failure) finish(new Error(failure));
@@ -59,10 +68,6 @@ function presented(frame, url, signal) {
       observer.observe(doc, { attributes: true, childList: true, subtree: true });
       inspect();
     };
-    const timeout = setTimeout(
-      () => finish(new Error(`Leaf sample did not present: ${url}`)),
-      30000,
-    );
     signal.addEventListener("abort", aborted, { once: true });
     if (signal.aborted || !frame.isConnected) {
       finish(signal.reason ?? new DOMException("sample disconnected", "AbortError"));
@@ -103,6 +108,7 @@ export function mountSample(
     const parent = frame.parentNode;
     const next = frame.nextSibling;
     frame.remove();
+    delete frame.lfShowThread;
     frame.removeAttribute("src");
     frame.removeAttribute("srcdoc");
     discardPageStorage(previous);
@@ -145,6 +151,7 @@ export function mountSample(
   const host = {
     ready: null,
     reset,
+    showThread: (id, options) => frame.lfShowThread(id, options),
     destroy() {
       if (closing) return closing;
       destroyed = true;

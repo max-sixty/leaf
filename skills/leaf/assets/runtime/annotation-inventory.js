@@ -228,6 +228,7 @@ export function createAnnotationInventory({
   const marginThreadItem = (thread) => (thread ? `comment:${threadKey(thread)}` : null);
 
   let entries = Object.freeze([]);
+  const watchers = new Set();
 
   function collectEntries() {
     const groups = new Map();
@@ -514,6 +515,7 @@ export function createAnnotationInventory({
           });
         }),
     );
+    for (const watcher of watchers) watcher(entries);
     return entries;
   }
 
@@ -529,6 +531,16 @@ export function createAnnotationInventory({
   return Object.freeze({
     collect: collectEntries,
     read: () => entries,
+    watch(watcher) {
+      watchers.add(watcher);
+      try {
+        watcher(entries);
+      } catch (error) {
+        watchers.delete(watcher);
+        throw error;
+      }
+      return () => watchers.delete(watcher);
+    },
     targetFor,
     entryPoint,
     entryPlace,

@@ -1,0 +1,10 @@
+# Complete task; diagnostic contexts retain the original fixed checks.
+description: Unknown Package
+metadata:
+  purpose: Discover an unfamiliar package and use its declared widget interface.
+  tags:
+  - workflow
+  conditions:
+  - leaf
+  executor: leaf_dev.usability_eval
+  case: package

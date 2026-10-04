@@ -1743,9 +1743,10 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
         kept["id"],
     )
 
+    # One departed root and two arrivals distinguish candidate and committed counts.
     # Hold delivery while the admitted undo and arriving frozen content become one
-    # application reading. Each failed attempt paints a real candidate without the
-    # selected root before the list owner restores its complete committed reading.
+    # application reading. The failed candidate removes the selected root; retention
+    # must restore the complete committed reading before the held retry proceeds.
     held_readings = []
     page.route("**/api/state*", lambda route: held_readings.append(route))
     append_carried_log_record(
@@ -1774,10 +1775,21 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
             "markup": '<lf-local id="thread-held" choice="idle"></lf-local>',
         },
     )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "another-arriving-thread",
+            "author": "user",
+            "revision": 1,
+            "text": "Another accepted conversation arrived.",
+        },
+    )
     page.unroute("**/api/state*")
     for route in held_readings:
         route.continue_()
     page.wait_for_function("() => window.failedCandidatePresented === true")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 4")
     if place == "choose-earlier":
         selected = page.locator('.lf-thread[data-id="earlier-thread"]')
         selected.locator(".lf-thread-summary").click()
@@ -1832,7 +1844,7 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
     )
     page.wait_for_function(
         """() => document.querySelector('#thread-held') &&
-          document.querySelector('.lf-threads-toggle')?.textContent === 'Threads: 3' &&
+          document.querySelector('.lf-threads-toggle')?.textContent === 'Threads: 4' &&
           window.readLeafPresentation().pending.includes(
             'widget:thread-held:preparation'
           )""",
@@ -1846,8 +1858,8 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
     )
     expect(page.locator("#thread-held")).to_have_count(1)
     expect(page.locator('[data-id="held-widget-thread"]')).to_have_count(1)
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 3")
-    expect(page.locator(".lf-thread-view-summary")).to_have_text("3 open threads")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 4")
+    expect(page.locator(".lf-thread-view-summary")).to_have_text("4 open threads")
     if place == "choose-earlier":
         expect(selected).to_have_attribute("open", "")
     else:

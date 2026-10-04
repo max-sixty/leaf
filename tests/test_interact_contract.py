@@ -320,18 +320,30 @@ def test_a_pick_names_only_options_its_group_holds():
     assert admit([*STATED_LOG, added], pick)["detail"] == {"options": ["live-mine"]}
 
 
-def test_history_reaches_only_a_page_that_renders_it_and_keeps_a_pick_as_made():
+@pytest.mark.parametrize(
+    "option_title",
+    [
+        "<strong>Fast path</strong>",
+        '<hgroup><p class="eyebrow">Quick delivery</p><h2>Fast path</h2></hgroup>',
+        '<header><hgroup><p class="eyebrow">Quick delivery</p><h2>Fast path</h2></hgroup></header>',
+    ],
+    ids=["strong", "hgroup", "header-hgroup"],
+)
+def test_history_reaches_only_a_page_that_renders_it_and_keeps_a_pick_as_made(
+    option_title,
+):
     """The served history words a pick from the document it was made in.
 
     A later version that removes the question leaves the row naming the option the
-    user picked, by its title, and a withdrawn pick stays a row marked undone. A page
-    whose markup holds no widget declaring `x-history` is not served the reading.
+    user picked, by its title rather than its eyebrow or description, and a withdrawn
+    pick stays a row marked undone. A page whose markup holds no widget declaring
+    `x-history` is not served the reading.
     """
     question = model.leaf_page(
         "Route",
-        """<h1>Route</h1>
+        f"""<h1>Route</h1>
 <lf-options id="route" choose>
-  <lf-option id="fast"><strong>Fast path</strong> ships on Friday.</lf-option>
+  <lf-option id="fast">{option_title} ships on Friday.</lf-option>
   <lf-option id="slow">Slow path</lf-option>
 </lf-options>
 <lf-activity id="feed"></lf-activity>""",
@@ -4558,6 +4570,41 @@ def test_source_reading_keeps_a_sample_out_of_its_parent_identity_space():
     [sample] = parser.samples
     assert "nested-options" in sample["document"].by_id
     assert sample["document"].main_elements == [(1, True)]
+
+
+def test_sample_body_declarations_use_the_child_document_boundary(page_dir):
+    """A practice page selects its own mode; invalid values stay child diagnostics."""
+    for declarations, valid, mode in (
+        ('data-annotations="page" data-rail="none"', True, "page"),
+        ("", True, "overlay"),
+        ('data-annotations="unknown"', False, None),
+    ):
+        source = PAGE.replace(
+            "</main>",
+            f'<template id="practice" data-sample {declarations}>'
+            "<h1>Child page</h1></template></main>",
+        )
+        (page_dir / "index.html").write_text(source)
+        parser = structure_model.SourceDocument(source)
+        [sample] = parser.samples
+        result = check(page_dir)
+        assert (result.exit_code == 0) is valid, result.output
+        if valid:
+            assert structure_model.annotation_mode(sample["document"]) == mode
+            assert structure_model.annotation_mode(parser) == "overlay"
+        else:
+            assert "sample 'practice'" in result.output
+            assert "invalid value" in result.output
+
+    # The declaration is not allowed on arbitrary templates or content blocks.
+    (page_dir / "index.html").write_text(
+        PAGE.replace(
+            "</main>", '<template data-annotations="page">Static</template></main>'
+        )
+    )
+    result = check(page_dir)
+    assert result.exit_code != 0
+    assert "belongs on <body>" in result.output
 
 
 @pytest.mark.parametrize(

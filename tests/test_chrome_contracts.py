@@ -37,11 +37,13 @@ from render_harness import (
     clean_browser,
     compare_with,
     consume_browser_errors,
+    holding,
     leaf_page,
     open_page,
     open_versions,
     panel_settled,
     resized,
+    round_trip,
     scroll_settled,
     select,
     sending,
@@ -49,6 +51,129 @@ from render_harness import (
     watched,
     write,
 )
+
+
+@pytest.mark.parametrize("viewport", [(390, 740), (1200, 900)])
+def test_refusal_notice_clears_live_reply_through_wrapping_and_expiry(
+    browser, serve, viewport
+):
+    """Feedback clears the actual reply while its controls keep their place."""
+    url = serve(
+        leaf_page("Reply refusal", "<h1>Reply refusal</h1><p>Keep the reply live.</p>")
+    )
+    panel_comment(serve.page_dir, "A reply belongs beside this question.")
+    context = browser.new_context(
+        viewport={"width": viewport[0], "height": viewport[1]}, reduced_motion="reduce"
+    )
+    page = open_page(browser, url, context=context)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    reply = page.locator(".lf-thread[open] > .lf-thread-reply")
+    field = reply.locator("leaf-text")
+    send = reply.get_by_role("button", name="Send", exact=True)
+    words = "Keep this reply in the writing box when the server refuses it."
+    write(field, words)
+    rendered(page)
+    list_foot = page.locator(".lf-threads").evaluate(
+        "node => [getComputedStyle(node).paddingBottom, getComputedStyle(node).scrollPaddingBottom]"
+    )
+    field.evaluate("""field => {
+        window.__noticeReplyFrames = [];
+        new ResizeObserver(() => {
+            const status = document.querySelector('.lf-bottom-status');
+            if (!status.checkVisibility()) return;
+            const r = node => node.getBoundingClientRect().toJSON();
+            window.__noticeReplyFrames.push({status:r(status), field:r(field),
+                send:r(field.parentElement.querySelector('.lf-thread-send')),
+                general:r(document.querySelector('.lf-general leaf-text'))});
+        }).observe(field);
+    }""")
+
+    held = []
+
+    def hold_reply(route):
+        command = route.request.post_data_json
+        if command.get("kind") == "reply":
+            held.append(route)
+        else:
+            route.continue_()
+
+    page.route("**/api/event", hold_reply)
+    page.keyboard.press("Enter")
+    holding(page, held, 1, "the provisional reply before refusal")
+    rendered(page)
+    before = {"field": field.bounding_box(), "send": send.bounding_box()}
+    pending = held.pop()
+    pending.fulfill(
+        status=400,
+        json={
+            "ok": False,
+            "final": True,
+            "attempt": pending.request.post_data_json["attempt"],
+            "error": "This reply was refused; your words stay here so you can retry.",
+        },
+    )
+    round_trip(page)
+    consume_browser_errors(page, "400")
+    notice = page.locator(".lf-notice")
+    expect(notice).to_contain_text("Couldn't send")
+    expect(notice).to_be_visible()
+    expect(field).to_have_js_property("value", words)
+    rendered(page)
+    restored = field.bounding_box()
+    assert send.bounding_box() == before["send"]
+    assert (restored["x"], restored["width"]) == (
+        before["field"]["x"],
+        before["field"]["width"],
+    )
+    assert restored["y"] + restored["height"] == pytest.approx(
+        before["field"]["y"] + before["field"]["height"], abs=0.5
+    )
+    before = {"field": restored, "send": send.bounding_box()}
+
+    write(
+        field,
+        words + "\nKeep the feedback clear when this draft wraps onto more lines.",
+    )
+    rendered(page)
+    expect(notice).to_be_visible()
+    assert field.bounding_box()["height"] > before["field"]["height"]
+    after = {"field": field.bounding_box(), "send": send.bounding_box()}
+
+    def send_inset(pose):
+        return (
+            pose["field"]["y"]
+            + pose["field"]["height"]
+            - pose["send"]["y"]
+            - pose["send"]["height"]
+        )
+
+    assert send_inset(after) == pytest.approx(send_inset(before), abs=0.5), (
+        before,
+        after,
+    )
+    assert after["send"]["x"] == before["send"]["x"]
+    frames = page.evaluate("window.__noticeReplyFrames")
+    assert frames
+    for frame in frames:
+        for key in ("field", "send", "general"):
+            box, status = frame[key], frame["status"]
+            assert (
+                status["right"] <= box["left"]
+                or box["right"] <= status["left"]
+                or status["bottom"] <= box["top"]
+                or box["bottom"] <= status["top"]
+            ), frame
+    assert (
+        page.locator(".lf-threads").evaluate(
+            "node => [getComputedStyle(node).paddingBottom, getComputedStyle(node).scrollPaddingBottom]"
+        )
+        == list_foot
+    )
+    expect(notice).to_be_hidden(timeout=6_000)
+    rendered(page)
+    assert {"field": field.bounding_box(), "send": send.bounding_box()} == after
+    page.unroute_all(behavior="wait")
 
 
 def test_agent_reply_arrivals_keep_open_panel_drafts_and_summarize_batches(
@@ -330,7 +455,7 @@ REPLY_BOX = """card => {
     ids=[
         "alone",
         "below-a-card",
-        "pinned-below-a-card",
+        "short-after-reading-above",
         "above-cards",
         "scrolled",
         "scrolled-below-cards",
@@ -339,12 +464,9 @@ REPLY_BOX = """card => {
 def test_a_reply_lands_above_an_open_cards_reply_box_and_moves_neither_it_nor_its_caret(
     browser, serve, earlier_cards, later_cards, answers, back_to_top
 ):
-    """An open card's reply box stands at the list's foot, and a reply arriving grows
-    above it: a short one into the free room between the thread and the box, a long one
-    past it, which the list follows so its newest words end at the box. The box and the
-    caret in it stay where they stood through both, whether the thread is short enough
-    to leave free room or long enough to scroll, and where the user has scrolled the
-    card's end below the fold, pinning the box over the free room.
+    """A short card holds replies behind its notice; a long card follows them above its
+    pinned editor. Both retain the writing box and caret, including after reading
+    back toward an earlier card.
 
     The replies are news, so the browser fixture's shift watch fails any move they
     cause."""
@@ -390,7 +512,7 @@ def test_a_reply_lands_above_an_open_cards_reply_box_and_moves_neither_it_nor_it
         )
         scroll_settled(page, ".lf-threads")
     if back_to_top:
-        # Back up to the card above, which puts the open card's end below the fold.
+        # Back up toward the card above while the current short editor stays visible.
         page.mouse.wheel(0, -200)
         page.wait_for_function(
             "() => document.querySelector('.lf-threads').scrollTop === 0"
@@ -402,10 +524,14 @@ def test_a_reply_lands_above_an_open_cards_reply_box_and_moves_neither_it_nor_it
     )
     standing = card.evaluate(REPLY_BOX)
     assert standing["caret"] == [True, 8, 8]
-    # The box stands at the list's foot, the fold later cards wait below.
-    assert standing["box"][1] == pytest.approx(list_box[1], abs=7)
+    # The live field and Send remain inside the list's visible reading band.
+    assert list_box[0] <= standing["field"][0] < standing["field"][1] <= list_box[1]
+    send = card.locator(".lf-thread-send").bounding_box()
+    assert list_box[0] <= send["y"] < send["y"] + send["height"] <= list_box[1]
 
-    for text in ("A short answer.", "A long answer outgrows the free room. " * 60):
+    for news_count, text in enumerate(
+        ("A short answer.", "A long answer outgrows the free room. " * 60), start=1
+    ):
         newest = append_carried_log_record(
             serve.page_dir,
             {
@@ -417,6 +543,14 @@ def test_a_reply_lands_above_an_open_cards_reply_box_and_moves_neither_it_nor_it
             },
         )
         told(page)
+        message = page.locator(f'.lf-msg[data-mid="{newest["id"]}"]')
+        if answers == 1:
+            label = "1 new reply" if news_count == 1 else "2 new replies"
+            expect(card.get_by_role("button", name=label, exact=True)).to_be_visible()
+            expect(message).to_have_count(0)
+        else:
+            expect(message).to_be_visible()
+            expect(card.locator(".lf-thread-news")).to_have_count(0)
         rendered(page)
         # The list scrolls by whole pixels and a reply's height need not be one, so a
         # box the list follows lands within a pixel of where it stood (0.875px measured
@@ -428,17 +562,20 @@ def test_a_reply_lands_above_an_open_cards_reply_box_and_moves_neither_it_nor_it
             standing,
             now,
         )
-        tail = page.locator(f'.lf-msg[data-mid="{newest["id"]}"]').evaluate(
-            "el => el.getBoundingClientRect().bottom"
-        )
-        assert list_box[0] < tail <= standing["box"][0] + 1
+        if answers > 1:
+            tail = message.evaluate("el => el.getBoundingClientRect().bottom")
+            assert list_box[0] < tail <= standing["box"][0] + 1
 
 
-def test_typing_grows_an_open_cards_reply_box_up_into_its_free_room(browser, serve):
-    """Lines typed into an open card's reply box grow it up from the list's foot into
-    the room above it: the list does not scroll, and the thread's words stay where they
-    stood. Later cards below the fold give the list room to scroll, so a growth paid
-    for as though it covered the words would move them."""
+@pytest.mark.parametrize("contents", ["short", "long"])
+def test_typing_grows_a_panel_reply_in_flow_or_above_its_pinned_foot(
+    browser, serve, contents
+):
+    """Short editors grow down in flow; pinned editors grow up above the same foot.
+
+    Short growth leaves its preceding words and scroll still. Long growth keeps the
+    previous turn readable above the editor, with later cards supplying scroll room.
+    """
     url = serve(LONG_PAGE)
     root = panel_comment(serve.page_dir, "The thread I am answering.")
     append_carried_log_record(
@@ -448,7 +585,11 @@ def test_typing_grows_an_open_cards_reply_box_up_into_its_free_room(browser, ser
             "author": "agent",
             "agent": "Codex",
             "parent": root,
-            "text": "A short answer.",
+            "text": (
+                "A short answer."
+                if contents == "short"
+                else "\n\n".join(["Keep the last answer visible while writing."] * 20)
+            ),
         },
     )
     for index in range(3):
@@ -461,6 +602,17 @@ def test_typing_grows_an_open_cards_reply_box_up_into_its_free_room(browser, ser
     expect(card).to_have_attribute("open", "")
     card.locator(".lf-thread-reply leaf-text").click()
     rendered(page)
+    if contents == "long":
+        reply_box = card.locator(".lf-thread-reply").bounding_box()
+        latest = card.locator(".lf-msg").last.bounding_box()
+        before_scroll = page.locator(".lf-threads").evaluate("node => node.scrollTop")
+        page.mouse.move(reply_box["x"] + 20, reply_box["y"] - 20)
+        page.mouse.wheel(0, latest["y"] + latest["height"] - reply_box["y"])
+        page.wait_for_function(
+            "before => document.querySelector('.lf-threads').scrollTop > before",
+            arg=before_scroll,
+        )
+        scroll_settled(page, ".lf-threads")
     reading = """card => ({
       scroll: card.parentElement.scrollTop,
       box: (r => [r.top, r.bottom])(card.querySelector(':scope > .lf-thread-reply')
@@ -475,10 +627,16 @@ def test_typing_grows_an_open_cards_reply_box_up_into_its_free_room(browser, ser
         page.keyboard.type(line)
     rendered(page)
     after = card.evaluate(reading)
-    assert after["box"][0] < before["box"][0] - 40, (before, after)
-    assert after["box"][1] == pytest.approx(before["box"][1], abs=1)
-    assert after["scroll"] == before["scroll"]
-    assert after["words"] == pytest.approx(before["words"], abs=1)
+    if contents == "short":
+        assert after["box"][0] == pytest.approx(before["box"][0], abs=1)
+        assert after["box"][1] > before["box"][1] + 40, (before, after)
+        assert after["scroll"] == before["scroll"]
+        assert after["words"] == pytest.approx(before["words"], abs=1)
+    else:
+        assert after["box"][0] < before["box"][0] - 40, (before, after)
+        assert after["box"][1] == pytest.approx(before["box"][1], abs=1)
+        latest = card.locator(".lf-msg").last.bounding_box()
+        assert latest["y"] + latest["height"] <= after["box"][0] + 0.5, (latest, after)
 
 
 def test_incoming_reply_follows_a_visible_composer_below_earlier_words(browser, serve):
@@ -651,8 +809,8 @@ def test_incoming_reply_follows_a_selected_thread_before_later_cards(
     card.locator(".lf-msg").last.evaluate(
         "el => el.scrollIntoView({block: 'start', behavior: 'instant'})"
     )
-    # The first later card is what I read: the replies that land above it grow the
-    # selected thread into the room scrolled past, and move nothing after them.
+    # Reading later cards takes the composer away from its pinned edge, so a reply
+    # that would move it waits behind its notice and leaves the later card still.
     later = page.locator(f'.lf-thread[data-id="{selected}"] + .lf-thread')
     reading_later = later.evaluate("el => el.getBoundingClientRect().top")
     also_visible = append_carried_log_record(
@@ -662,21 +820,17 @@ def test_incoming_reply_follows_a_selected_thread_before_later_cards(
             "author": "agent",
             "agent": "Codex",
             "parent": selected,
-            "text": "This short answer is already visible while I read later cards.",
+            "text": "This short answer waits while I read later cards.",
         },
     )
     page.evaluate(
         "async () => (await window.__lfRuntimeImport('/runtime/application.js')).readAndApply()"
     )
     arriving = card.locator(f'.lf-msg[data-mid="{also_visible["id"]}"]')
-    expect(arriving).to_be_visible()
+    expect(arriving).to_have_count(0)
+    expect(card.get_by_role("button", name="1 new reply", exact=True)).to_be_visible()
     assert later.evaluate("el => el.getBoundingClientRect().top") == pytest.approx(
         reading_later, abs=2
-    )
-    assert arriving.evaluate(
-        "el => el.getBoundingClientRect().bottom"
-    ) < threads.evaluate(
-        "el => el.getBoundingClientRect().bottom - parseFloat(getComputedStyle(el).scrollPaddingBottom)"
     )
 
     if later_cards == 30:
@@ -1286,9 +1440,12 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_with_its_metadata(
     assert grown["textEnd"] <= grown["send"]["x"]
     assert grown["padding"] == pytest.approx(short["padding"], abs=1)
     assert grown["send"]["bottom"] < grown["field_box"]["bottom"]
-    # The box stands at the list's foot, so the field grows up and Submit stays put.
-    assert grown["field_box"]["y"] < short["field_box"]["y"]
-    assert grown["send"] == pytest.approx(short["send"], abs=1)
+    # The short field grows downward and Submit stays at the field's foot.
+    assert grown["field_box"]["y"] == pytest.approx(short["field_box"]["y"], abs=1)
+    growth = grown["field_box"]["height"] - short["field_box"]["height"]
+    assert growth > 0
+    assert grown["send"]["y"] - short["send"]["y"] == pytest.approx(growth, abs=1)
+    assert grown["send"]["x"] == short["send"]["x"]
     assert grown["metadataActions"] == short["metadataActions"]
     assert grown["resolve"] == short["resolve"]
     assert grown["overflow"] == 0
@@ -1958,12 +2115,16 @@ def test_a_page_module_importing_the_widget_api_hears_dom_content_loaded(
     assert page.evaluate("() => window.__leafReadyHeard")
 
 
-def test_the_delivered_stylesheets_read_exactly_as_their_files_do(browser, serve):
-    """Delivery drops the sheets' comments and re-serializes what is left, so what a page
-    adopts is not the file's own bytes. The two have to say the same thing to the browser:
-    a stylesheet oddity the serializer repairs would change the rules every page runs
-    under, and no parser here would report it."""
-    page = open_page(browser, serve(LONG_PAGE))
+@pytest.mark.parametrize("mode", ["overlay", "page"])
+def test_the_delivered_stylesheets_read_exactly_as_their_files_do(browser, serve, mode):
+    """Delivered sheets parse like their captured files in document and shadow stages.
+
+    Page mode carries and constructs no physical annotation sheet, while shared paint
+    still reaches both trees. The selected overlay adds its actual annotation sheets.
+    """
+    page = open_page(
+        browser, serve(LONG_PAGE.replace("<body>", f'<body data-annotations="{mode}">'))
+    )
     layer = urljoin(
         page.url,
         page.evaluate(
@@ -1971,8 +2132,16 @@ def test_the_delivered_stylesheets_read_exactly_as_their_files_do(browser, serve
         ),
     )
     files = {}
-    for name in ("chrome", "marks"):
-        answer = page.request.get(urljoin(layer, f"runtime/{name}.css"))
+    names = ["chrome", "marks"]
+    if mode == "overlay":
+        names.extend(["annotation-chrome", "annotation-marks"])
+    for name in names:
+        directory = (
+            "runtime/annotation-overlay"
+            if name.startswith("annotation-")
+            else "runtime"
+        )
+        answer = page.request.get(urljoin(layer, f"{directory}/{name}.css"))
         assert answer.ok, answer.status
         files[name] = answer.text()
 
@@ -1984,20 +2153,50 @@ def test_the_delivered_stylesheets_read_exactly_as_their_files_do(browser, serve
             sheet.replaceSync(text);
             return rules(sheet);
           };
-          const { chromeSheet: chrome, marksSheet: marks } =
+          const { chromeSheet: chrome, marksSheet: marks, annotationSheets,
+            annotationMarkSheets } =
             await window.__lfRuntimeImport("/runtime/stylesheets.js");
-          if (![chrome, marks].every(sheet => document.adoptedStyleSheets.includes(sheet)))
+          if (![chrome, marks, ...annotationSheets].every(sheet => document.adoptedStyleSheets.includes(sheet)))
             throw new Error("The document did not adopt its chrome and marks sheets");
-          return {
+          const {shadowStage}=await window.__lfRuntimeImport('/runtime/shadow-stage.js');
+          const host=document.createElement('div'); document.querySelector('main').append(host);
+          const root=shadowStage(host,[document.createTextNode('A declared shadow stage')]);
+          if (![marks,...annotationMarkSheets].every(sheet=>root.adoptedStyleSheets.includes(sheet)))
+            throw new Error('The shadow stage did not adopt its selected marks');
+          if (annotationSheets.length !== (files['annotation-chrome'] ? 2 : 0) ||
+              annotationMarkSheets.length !== (files['annotation-marks'] ? 1 : 0))
+            throw new Error('The document constructed an unselected annotation sheet');
+          const answer = {
             chrome: {delivered: rules(chrome), file: fromFile(files.chrome)},
             marks: {delivered: rules(marks), file: fromFile(files.marks)},
           };
+          if (annotationSheets.length) {
+            answer['annotation-chrome']={delivered:rules(annotationSheets[0]),file:fromFile(files['annotation-chrome'])};
+            answer['annotation-marks']={delivered:rules(annotationMarkSheets[0]),file:fromFile(files['annotation-marks'])};
+          }
+          return answer;
         }""",
         files,
     )
     for name, reading in readings.items():
         assert reading["delivered"], f"the page adopted no {name} rules"
         assert reading["delivered"] == reading["file"], name
+    carrier = page.locator("script[data-lf-sheets]").text_content()
+    selected = json.loads(carrier)
+    assert ("annotations" in selected) == (mode == "overlay")
+    assert page.locator("style[data-lf-annotation-theme]").count() == (
+        mode == "overlay"
+    )
+    if mode == "page":
+        assert ".lf-margin-cluster" not in carrier
+        assert ".lf-visual-mark {" not in carrier
+        assert "::highlight(lf-mark)" not in carrier
+        assert ".lf-margin-preview { position: fixed" not in carrier
+    assert ".lf-aim {" in selected["chrome"]
+    assert ".lf-target-trace {" in selected["chrome"]
+    assert ".lf-drawing-mark path" in selected["chrome"]
+    assert "::highlight(lf-version-insert)" in selected["marks"]
+    assert '.lf-msg[aria-busy="true"]' in selected["marks"]
 
 
 def test_a_traffic_wait_stops_when_repaints_outlive_its_deadline(monkeypatch):
@@ -2465,6 +2664,6 @@ def test_a_repaint_unsettles_the_rendering_until_it_lands(browser, serve):
     toggle.click()
     assert page.evaluate("window.__lfPress") == [True, False]
     rendered(page)
-    assert page.evaluate(
-        "() => document.querySelector('script[data-lf-entry]').lfRenderingSettled()"
-    )
+    # Completion is the reading rendered waited on. A later slide-end scan can
+    # queue new work, so a second reading need not still be settled.
+    expect(page.locator(".lf-thread-panel")).to_be_visible()

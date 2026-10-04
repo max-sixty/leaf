@@ -148,8 +148,8 @@ pageScope("text entry", {
     {
       id: "text.leave",
       keys: ["Escape"],
-      does: "Leave the box, keeping what is typed",
-      line: () => backFromBox()?.line ?? "back to list",
+      description: "Leave the box, keeping what is typed",
+      title: () => backFromBox()?.line ?? "back to list",
       // The thread the box belongs to, or the panel's list where it is the chrome's
       // own box. A page text box that is neither leaves the row dead and the page's rung
       // standing, which is the honest answer: nothing there to go back to.
@@ -198,6 +198,7 @@ const resolutionControl = (thread) =>
   thread?.querySelector(
     ":scope .lf-thread-meta-actions > .lf-resolve, " +
       ":scope .lf-thread-meta-actions > .lf-reopen, " +
+      ":scope .lf-thread-root-meta > .lf-reopen, " +
       ":scope > .lf-thread-actions > .lf-reopen, " +
       ":scope > .lf-page-thread-resolved .lf-reopen",
   ) ?? null;
@@ -350,7 +351,7 @@ const listNode = (id, threadsBox, preferMessage = false) => {
 // Direct navigation reveals what was requested, including a message's interactive
 // controls or a resolved thread. A thread arrives ready for a reply; a message keeps
 // focus at its own words so Tab reaches its controls.
-async function showThreadNow(id, focus, revealThread, threadsBox, mayArrive) {
+async function showThreadNow(id, focus, flash, revealThread, threadsBox, mayArrive) {
   // A direct arrival owns the target's one transition cue. Remove a retained arrival
   // animation before an asynchronous reveal gives the browser a frame to start it.
   threadsBox
@@ -359,6 +360,10 @@ async function showThreadNow(id, focus, revealThread, threadsBox, mayArrive) {
     )
     ?.classList.toggle("grow", false);
   threadsBox.revealNavigation(threadNames(allThreads()).get(id)?.id ?? id);
+  if (threadsBox.showNews(id)) {
+    await whenDocumentPresented();
+    if (!mayArrive()) return null;
+  }
   let node = listNode(id, threadsBox, focus === "message");
   const going = node?.closest(".lf-going");
   if (going) {
@@ -423,8 +428,10 @@ async function showThreadNow(id, focus, revealThread, threadsBox, mayArrive) {
     (aim.block === "end" && thread.querySelector(":scope > .lf-thread-reply")) ||
     target;
   revealed.classList.toggle("grow", false);
-  revealed.classList.toggle("flash", true);
-  setTimeout(() => revealed.classList.toggle("flash", false), 1300);
+  if (flash) {
+    revealed.classList.toggle("flash", true);
+    setTimeout(() => revealed.classList.toggle("flash", false), 1300);
+  }
   return focus ? focused() : node;
 }
 
@@ -492,7 +499,7 @@ export function createThreadLanding({
   // usually done with the thread until the agent answers, so they move on from there
   // without Escaping out of the box first.
   const landSent = (thread) => {
-    const target = cardTarget(thread);
+    const target = cardTarget?.(thread);
     if (target) focusDestination(target);
     else standOnThread(thread);
   };
@@ -500,6 +507,7 @@ export function createThreadLanding({
     id,
     {
       focus = "reply",
+      flash = true,
       intent = retainUserIntent({
         source: focused(),
         available: () => threadsBox.isConnected,
@@ -508,7 +516,7 @@ export function createThreadLanding({
     } = {},
   ) => {
     if (!intent.handoff(() => setPanel(true))) return Promise.resolve(null);
-    const ready = showThreadNow(id, focus, revealThread, threadsBox, intent);
+    const ready = showThreadNow(id, focus, flash, revealThread, threadsBox, intent);
     // Pointer and keyboard routes deliberately discard this ticket. The thread
     // coordinator reports its one failure; the landing result keeps that rejection out
     // of both discarded event-handler promises and callers that continue a delivery.
@@ -543,11 +551,11 @@ export function declareThreadKeys(landIn, narrowing) {
       {
         id: "thread.primary",
         keys: ["Enter"],
-        does: () =>
+        description: () =>
           resolutionControl(cardThread())?.matches(".lf-reopen")
             ? "Reopen it"
             : "Write a reply",
-        line: () =>
+        title: () =>
           resolutionControl(cardThread())?.matches(".lf-reopen") ? "reopen" : "reply",
         // A panel title's bar keeps its room for resolution; the reply box under it
         // already names its key, and the reference lists this row.
@@ -571,11 +579,11 @@ export function declareThreadKeys(landIn, narrowing) {
       {
         id: "thread.resolution.toggle",
         keys: ["r"],
-        does: () =>
+        description: () =>
           resolutionControl(heldThread())?.matches(".lf-reopen")
             ? "Reopen it"
             : "Resolve it",
-        line: () =>
+        title: () =>
           resolutionControl(heldThread())?.matches(".lf-reopen") ? "reopen" : "resolve",
         // Search keeps its next/previous hints; resolution remains in the reference.
         lineWhen: () => !narrowing.threadSearchActive(),

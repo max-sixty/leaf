@@ -2,7 +2,8 @@
  *
  * Owners contribute pageScope, pageCommand, and pageRung declarations during construction,
  * before the first scope read. This module stores declarations and order; owners supply
- * command behavior. Widget element scopes join STACK at ELEMENTS.
+ * command behavior. Widget element scopes join STACK at ELEMENTS. Every table ranks
+ * constructed features; an absent feature registers no scope, rung or command.
  *
  * STACK orders ordinary dispatch, innermost first; the command reference reads it in
  * reverse. Escape additionally resolves inner claims and focused-surface containment.
@@ -19,6 +20,9 @@ import {
   bindings,
   checked,
   touchPresses as pressesOf,
+  titleOf,
+  descriptionOf,
+  lineOf,
   word,
 } from "./bindings.js";
 import { focused } from "./scopes.js";
@@ -80,8 +84,8 @@ const RUNG_LADDER = [
 ];
 
 const PAGE_COMMANDS = [
-  "ask.activate-nth",
   "comment.create",
+  "writing.resume",
   "target.picker.open",
   "reaction.open",
   "page.search.open",
@@ -153,7 +157,7 @@ export function pageCommand(row) {
 }
 
 /** Declare one instance's step of Escape's fallback ladder: a function answering what the press would
- * take off right now, as `{says, does, out}` plus an optional `root` for the surface the
+ * take off right now, as `{title, description?, line?, out}` plus an optional `root` for the surface the
  * step is inside and the `lineWhen` and `promoteEscape` this step wants on the compact
  * line, or null where this step has nothing to take. `RUNG_LADDER` orders the steps. */
 export function pageRung(name, reading) {
@@ -194,26 +198,19 @@ function rung() {
 const BACK_OUT = {
   id: "navigation.back",
   keys: ["Escape"],
-  does: () => rung()?.does,
-  line: () => rung()?.says,
+  title: () => (rung() ? titleOf(rung()) : "Back"),
+  description: () => (rung() ? descriptionOf(rung()) : undefined),
+  line: () => (rung() ? lineOf(rung()) : false),
   lineWhen: () => word(rung()?.lineWhen) !== false,
   promoteEscape: () => word(rung()?.promoteEscape) !== false,
   when: () => Boolean(rung()),
   run: () => rung().out(),
 };
 
-const missing = (where, held) =>
-  where.filter((name) => typeof name === "string" && !held.has(name)).map(String);
-
 function assemble() {
-  const absent = [
-    ...missing(STACK, scopes),
-    ...missing(PAGE_COMMANDS, commands),
-    ...missing(RUNG_LADDER, rungs),
-  ];
-  if (absent.length)
-    throw new Error(`leaf: the page's keyboard has no owner for ${absent.join(", ")}`);
-  const rows = PAGE_COMMANDS.map((id) => commands.get(id));
+  const rows = PAGE_COMMANDS.flatMap((id) =>
+    commands.has(id) ? [commands.get(id)] : [],
+  );
   // Every page command answers whether a finger needs a stand-in for its keys (AGENTS.md,
   // "Touch routes"), so a new one meets the question where it is declared.
   const unanswered = rows.filter((row) => !answersTouch(row)).map((row) => row.id);
@@ -237,7 +234,7 @@ function assemble() {
         rows: covering,
       };
     if (typeof name !== "string") return name;
-    return scopes.get(name);
+    return scopes.get(name) ?? [];
   });
 }
 
@@ -263,7 +260,9 @@ export function pageScopes() {
 export function touchPresses() {
   pageScopes();
   return {
-    commands: PAGE_COMMANDS.flatMap((id) => pressesOf(commands.get(id))),
+    commands: PAGE_COMMANDS.flatMap((id) =>
+      commands.has(id) ? pressesOf(commands.get(id)) : [],
+    ),
     steps: STACK.flatMap((name) =>
       typeof name === "string"
         ? (scopes.get(name) ?? []).map((scope) => ({

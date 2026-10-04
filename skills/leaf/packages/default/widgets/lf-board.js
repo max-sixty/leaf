@@ -262,8 +262,8 @@ customElements.define(
       const grab = {
         id: "board.grab",
         keys: PRESS,
-        does: "Grab the card",
-        line: "grab the card",
+        title: "grab the card",
+
         // One gesture at a time: a grab, or a pointer drag under way, holds the board.
         when: () => this.#available() && !this.#resumeProjection,
         run: () => this.#grab(card, grip),
@@ -278,14 +278,13 @@ customElements.define(
           id: "board.move",
           keys: ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"],
           routes: [
-            { id: "board.move-up", binding: "ArrowUp", does: "Move it up" },
-            { id: "board.move-down", binding: "ArrowDown", does: "Move it down" },
-            { id: "board.move-left", binding: "ArrowLeft", does: "Move it left" },
-            { id: "board.move-right", binding: "ArrowRight", does: "Move it right" },
+            { id: "board.move-up", binding: "ArrowUp", title: "Move it up" },
+            { id: "board.move-down", binding: "ArrowDown", title: "Move it down" },
+            { id: "board.move-left", binding: "ArrowLeft", title: "Move it left" },
+            { id: "board.move-right", binding: "ArrowRight", title: "Move it right" },
           ],
           label: "arrows",
-          does: "Move it",
-          line: "move",
+          title: "move",
           when: held,
           repeat: true,
           run: (binding) =>
@@ -299,16 +298,14 @@ customElements.define(
         {
           id: "board.drop",
           keys: PRESS,
-          does: "Drop it here",
-          line: "drop",
+          title: "drop",
           when: held,
           run: () => this.#drop(),
         },
         {
           id: "board.cancel",
           keys: ["Escape"],
-          does: "Cancel the move",
-          line: "cancel the move",
+          title: "cancel the move",
           when: held,
           run: () => this.#cancel(true),
         },

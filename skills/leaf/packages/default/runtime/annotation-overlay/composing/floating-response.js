@@ -4,53 +4,47 @@
    This selected presentation reads that live response and owns only its physical
    placement: card sizing, collision geometry, off-flow reveals and withholding when
    the usable window has no room. No second anchor or editor is captured here.
+   While its passage is offscreen, the editor keeps its attached width as a cap so
+   moving into the window does not reflow its controls; a narrower window can shrink it.
    An inline seat suspends this placement; restoring the default home resumes it. */
-import { cancelRender, nextRender } from "../rendering.js";
-import { resolveAnchor } from "../anchor-resolution.js";
-import { sameAnchor } from "../anchor-coordinate.js";
-import { declareOffFlowSurface } from "../off-flow.js";
+import { cancelRender, nextRender } from "/runtime/rendering.js";
+import { resolveAnchor } from "/runtime/anchor-resolution.js";
+import { sameAnchor } from "/runtime/anchor-coordinate.js";
+import { declareOffFlowSurface } from "/runtime/off-flow.js";
 import {
   clippedContents,
   clippedRect,
   pagePlaneRect,
   shownBox,
-  shownExtent,
-  shownParts,
-  shownRect,
   skipped,
-} from "../geometry.js";
+} from "/runtime/geometry.js";
 import {
   passageGeometry,
   rangeGeometry,
   targetElement,
   targetParts,
   targetSegments,
-} from "../resolved-target.js";
-import { pageRange, pageText } from "../passages.js";
-import { pageSelection, selectionAnchor } from "./capture.js";
-import { holdFocus } from "../focus.js";
-import { coarsePointer } from "../pointer.js";
-import { overlaps, union } from "../rect.js";
-import {
-  containingReadingRegionFor,
-  effectiveScroller,
-  shownRegionBounds,
-} from "../reading-regions.js";
-import { floatingPlacement, floatingUi, heldByWindow } from "../floating.js";
+} from "/runtime/resolved-target.js";
+import { pageRange, pageText } from "/runtime/passages.js";
+import { pageSelection, selectionAnchor } from "/runtime/composing/capture.js";
+import { holdFocus } from "/runtime/focus.js";
+import { coarsePointer } from "/runtime/pointer.js";
+import { overlaps, union } from "/runtime/rect.js";
+import { shownRegionBounds } from "/runtime/reading-regions.js";
+import { floatingPlacement, floatingUi } from "../floating.js";
 import {
   cardMinimum,
-  cardMeasure,
+  commentAttachment,
   commentBoundary,
   commentPlacement,
   makeRoom,
   reachableRoom,
 } from "../comment-placement.js";
-import { marginSpot } from "../margin-layout.js";
-import { pointBand } from "../pointed-place.js";
-import { keeps } from "../keeps.js";
+import { pointBand } from "/runtime/pointed-place.js";
+import { keeps, layoutPx } from "/runtime/keeps.js";
 
 export function createFloatingResponsePlacement({
-  nodes: { bar: fabBar, input: fabInput, composer, options: fabOptions },
+  nodes: { bar: fabBar, input: fabInput },
   response,
   panel,
   panelIsOpen,
@@ -75,25 +69,7 @@ export function createFloatingResponsePlacement({
     update: () => scheduleFabPosition(),
   });
   let fabContentHeight = null;
-  // The compact row's occupied space beside the field, in CSS pixels. The frame's
-  // minimum may leave spare space, so subtracting the field from the frame mistakes
-  // that space for controls and makes successive fits widen the field in steps.
-  // Choices wrap on their own row; media shares the compact row and its footprint.
-  const fabControlsWidth = () => {
-    const style = getComputedStyle(fabBar);
-    const items = [...fabBar.children]
-      .flatMap((node) => (node === composer ? [...node.children] : [node]))
-      .filter((node) => node !== fabOptions && node.getClientRects().length);
-    return (
-      parseFloat(style.paddingInlineStart) +
-      parseFloat(style.paddingInlineEnd) +
-      parseFloat(style.columnGap) * Math.max(0, items.length - 1) +
-      items.reduce(
-        (width, node) => width + (node.contains(fabInput) ? 0 : node.offsetWidth),
-        0,
-      )
-    );
-  };
+  let unanchoredWidth = null;
   const fabFrameAt = () =>
     response.open && response.floating && !panelIsOpen()
       ? {
@@ -102,23 +78,28 @@ export function createFloatingResponsePlacement({
           placement: fabPlacement.capture(),
         }
       : null;
-  const minimumFabWidth = () =>
-    response.open
-      ? parseFloat(
-          getComputedStyle(fabInput).getPropertyValue("--lf-response-min-width"),
-        ) + fabControlsWidth()
-      : fabBar.scrollWidth;
+  // Used grid tracks exclude transformed descendant paint. A directional fit
+  // reserves the future card's footer; withholding requires only the current
+  // controls to fit, so they may borrow that transparent footer when space is short.
+  const nativeFrameSize = () => {
+    const style = getComputedStyle(fabBar);
+    const rows = style.gridTemplateRows.split(" ").map(parseFloat);
+    const rowEnd =
+      rows.reduce((height, row) => height + row, 0) +
+      parseFloat(style.rowGap) * (rows.length - 1) +
+      parseFloat(style.paddingTop);
+    return {
+      rowEnd: Math.round(rowEnd),
+      reservedHeight: Math.round(rowEnd + parseFloat(style.paddingBottom)),
+    };
+  };
   const fabFits = (bounds = null) => {
     const boundary = floatBoundary(bounds);
     return (
-      boundary.width > 0 && Math.ceil(boundary.width) >= Math.ceil(minimumFabWidth())
+      boundary.width > 0 &&
+      Math.ceil(boundary.width) >= Math.ceil(fabBar.getBoundingClientRect().width)
     );
   };
-  const minimumFabHeight = () =>
-    response.open
-      ? Math.max(0, fabBar.offsetHeight - fabInput.offsetHeight) +
-        parseFloat(getComputedStyle(fabInput).minHeight)
-      : fabBar.offsetHeight;
 
   // One lifecycle for the one floating surface. Floating UI observes the target's scroll,
   // resize, layout shift, and the bar's own content size. Leaf's explicit layout signals
@@ -132,9 +113,10 @@ export function createFloatingResponsePlacement({
     fabPositionFrame = 0;
     fabContentHeight = null;
     if (!reset) return;
+    unanchoredWidth = null;
     fabPlacement.forget();
     fabBar.removeAttribute("data-lf-placement");
-    for (const property of ["--lf-float-w", "--lf-response-room", "--lf-float-h"])
+    for (const property of ["--lf-float-w", "--lf-float-h"])
       fabBar.style.removeProperty(property);
     fabBar.style.visibility = "hidden";
   }
@@ -204,7 +186,6 @@ export function createFloatingResponsePlacement({
     if (!response.anchor) return false;
     const geometry = anchorGeometry(response.anchor);
     const target = geometry?.box;
-    const attachment = geometry?.attachment;
     const owner = response.target;
     // An open editor stays in front of its writer. Its subject still owns the draft
     // when a resize, disclosure or scroll removes the subject's visible box; only its
@@ -221,58 +202,57 @@ export function createFloatingResponsePlacement({
     const unanchored = Boolean(
       response.open && owner && !(visible && overlaps(visible, windowBoundary)),
     );
+    if (unanchored) {
+      unanchoredWidth ??= fabBar.getBoundingClientRect().width || null;
+    } else {
+      unanchoredWidth = null;
+    }
     if (!target && !unanchored) return false;
-    const block = response.anchor.quote && owner;
-    const readingRegion = !unanchored && owner && containingReadingRegionFor(owner);
-    const boundary = readingRegion
-      ? floatBoundary(shownRegionBounds(readingRegion))
-      : windowBoundary;
+    const place = commentAttachment({
+      target: owner,
+      point: response.anchor.quote ? null : response.pointIn(owner),
+      passage: geometry,
+    });
+    const boundary =
+      !unanchored && place.region
+        ? floatBoundary(shownRegionBounds(place.region))
+        : windowBoundary;
     if (boundary.width <= 0 || boundary.height <= 0) return false;
-    const point = !response.anchor.quote && owner && response.pointIn(owner);
-    const holder = block || (!point && owner);
-    const parts = holder ? shownParts(holder) : [];
-    // Room is a reading of the whole block or element, as the card reads it; clipping
-    // changes as the user scrolls. Attachment uses the visible part so the field still
-    // meets what is on screen. A pointed row is read whole already.
-    const roomRect = unanchored ? null : (holder && shownExtent(holder)) || target;
-    const keepClear = unanchored
-      ? null
-      : union(parts.map((part) => shownRect(part, clips)).filter(Boolean)) ||
-        (block ? roomRect : target);
-    const scroller = effectiveScroller(readingRegion ?? owner);
+    const roomRect = unanchored ? null : place.extent;
+    const keepClear = unanchored ? null : place.clear;
+    const scroller = place.scroller;
     const verticalRoom = (side) =>
       reachableRoom(side, roomRect, boundary, scroller).reachable;
     // Width before coordinates: the side is chosen from the card's minimum, then the size
     // pass gives CSS that side's actual inline room. If a later resize makes the chosen
     // side narrower than the bar's minimum, use the whole boundary and let shift overlap
     // the target instead of silently moving the draft.
-    const setWidth = (available) => {
-      const minimum = minimumFabWidth();
-      const width =
-        Math.ceil(available) >= Math.ceil(minimum)
-          ? available
-          : Math.max(0, boundary.width);
-      fabBar.style.setProperty("--lf-float-w", `${width}px`);
-      if (!response.open) return;
-      fabBar.style.setProperty(
-        "--lf-response-room",
-        `${Math.max(0, Math.min(width, cardMeasure()) - fabControlsWidth())}px`,
-      );
+    const setWidth = (available, scale) => {
+      // Leaving the passage does not give the user's editor a new measure.
+      const room = unanchoredWidth
+        ? Math.min(available, unanchoredWidth / scale)
+        : available;
+      fabBar.style.setProperty("--lf-float-w", layoutPx(Math.max(0, room)));
+      if (Math.ceil(fabBar.offsetWidth) > Math.ceil(room))
+        fabBar.style.setProperty(
+          "--lf-float-w",
+          layoutPx(Math.max(0, boundary.width / scale)),
+        );
     };
-    const setHeight = (available) => {
-      if (!response.open) return;
-      const extra = Math.max(0, fabBar.offsetHeight - fabInput.offsetHeight);
-      fabBar.style.setProperty("--lf-float-h", `${Math.max(0, available - extra)}px`);
-    };
-    // A side under or over is chosen from the room the page can make there, and the
-    // travel below makes it, so the bar is given that room to grow into; beside, or where
-    // that side cannot hold the bar, the whole boundary.
+    // The whole frame receives the room on its side. Native tracks reserve the
+    // furniture and give the editor what remains; a side too small for the minimum
+    // row uses the whole reading boundary, where shift can keep the surface visible.
     const vertical = (side) => /^(top|bottom)$/.test(side);
-    const heightFor = (side) => {
-      const room = !unanchored && vertical(side) ? verticalRoom(side) : 0;
-      return room >= minimumFabHeight() ? room : boundary.height;
+    const setHeight = (side, scale) => {
+      if (!response.open) return;
+      const room = !unanchored && vertical(side) ? verticalRoom(side) : boundary.height;
+      const height =
+        nativeFrameSize().reservedHeight > Math.round(room / scale)
+          ? boundary.height
+          : room;
+      fabBar.style.setProperty("--lf-float-h", layoutPx(Math.max(0, height / scale)));
     };
-    const { side, fresh } = fabPlacement.choose({
+    const { fresh } = fabPlacement.choose({
       clear: keepClear,
       extent: roomRect,
       boundary,
@@ -280,20 +260,7 @@ export function createFloatingResponsePlacement({
       scroller,
       coarse: coarsePointer.matches,
     });
-    if (fresh) {
-      fabContentHeight = null;
-      setWidth(boundary.width);
-    }
-    setHeight(heightFor(side));
-    // The choices deliberately wrap inside the response surface, so their intrinsic
-    // scroll width is not a fit requirement. Only the compact control's minimum is: a
-    // covering panel may genuinely leave less than that, while an ordinary narrow page
-    // still has a usable surface once the choices reflow below the field.
-    if (
-      boundary.height < minimumFabHeight() ||
-      Math.ceil(boundary.width) < Math.ceil(minimumFabWidth())
-    )
-      return false;
+    if (fresh) fabContentHeight = null;
 
     const epoch = fabPosition.begin();
     const stillCurrent = () =>
@@ -302,25 +269,35 @@ export function createFloatingResponsePlacement({
       .then((ui) => {
         if (!stillCurrent()) return null;
         watchFabPosition(owner ?? document.documentElement, ui.autoUpdate);
-        const { reference, placement, middleware, heldIn } = fabPlacement.options(ui, {
+        const { reference, placement, middleware, plane } = fabPlacement.options(ui, {
           clear: keepClear,
-          row: (attachment ?? target)?.top,
-          column: attachment?.left ?? null,
-          margin: !unanchored && owner && marginSpot(owner, response.pointIn(owner)),
+          row: place.row,
+          column: place.column,
+          margin: !unanchored && place.margin,
           boundary,
           minimumWidth: cardMinimum(),
           fit({ side: placed, width, scale }) {
             if (!stillCurrent()) return;
-            setWidth(width);
-            setHeight(heightFor(placed) / scale.y);
+            setWidth(width, scale.x);
+            setHeight(placed, scale.y);
+            const frame = fabBar.getBoundingClientRect();
+            if (
+              Math.ceil(frame.width) > Math.ceil(boundary.width) ||
+              Math.ceil(frame.height) > Math.ceil(boundary.height) ||
+              (response.open && nativeFrameSize().rowEnd > fabBar.clientHeight)
+            ) {
+              withholdFab();
+              return;
+            }
             // Wrapping at the fitted width determines the height that spends scroll
             // travel. Opening or re-seating preserves the reading position; later
             // intrinsic growth may use the reading region's remaining travel before
             // the field scrolls. Content, rather than placed height, keeps clipping
             // during a wheel gesture from spending that travel again.
-            const height = fabBar.offsetHeight;
+            const height = fabBar.getBoundingClientRect().height;
             const contentHeight = response.open
-              ? fabInput.scrollHeight + Math.max(0, height - fabInput.offsetHeight)
+              ? parseFloat(getComputedStyle(fabBar).height) +
+                Math.max(0, fabInput.scrollHeight - fabInput.clientHeight)
               : fabBar.scrollHeight;
             const contentChanged =
               fabContentHeight !== null &&
@@ -339,12 +316,6 @@ export function createFloatingResponsePlacement({
             }
           },
         });
-        // Held at a reading region's edge, the bar goes where the page takes the region.
-        const plane = (answer) =>
-          unanchored ||
-          (heldIn(answer) && heldByWindow(answer.y, answer.y + fabBar.offsetHeight, 8))
-            ? "window"
-            : "page";
         return fabPosition.position(
           ui.computePosition,
           {
@@ -380,11 +351,11 @@ export function createFloatingResponsePlacement({
   // Threads list takes focus. While the bar waits, its composer scope and selection
   // rung stand down; `c` brings it back.
   function withholdFab() {
+    stopFabPositioning({ reset: false });
     if (fabWithheld) return;
     fabWithheld = true;
     const held = holdFocus(fabBar);
     const toPanel = held && panelIsOpen() && !fabFits();
-    stopFabPositioning({ reset: false });
     fabBar.style.visibility = "hidden";
     if (toPanel) threadsBox.focus({ preventScroll: true });
     else fabWithheldFocus = held;

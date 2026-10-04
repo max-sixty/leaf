@@ -557,8 +557,8 @@ export function createTargetPicker({
     // A finger can select words it can see, but not find them elsewhere on a long page.
     touch: "Search page",
     keys: ["/"],
-    does: "Search all the text on the page",
-    line: "search page",
+    description: "Search all the text on the page",
+    title: "search page",
     // Once a target is in hand, its actions own the two short-line slots. Search stays
     // live to replace that target and remains in the complete reference.
     lineWhen: () => !Boolean(fabAnchorAt()),
@@ -574,16 +574,16 @@ export function createTargetPicker({
       {
         id: "page.search.next",
         binding: "n",
-        does: "Go to the next match for the last page search",
+        title: "Go to the next match for the last page search",
       },
       {
         id: "page.search.previous",
         binding: "Shift+n",
-        does: "Go to the previous match for the last page search",
+        title: "Go to the previous match for the last page search",
       },
     ],
-    does: "Next / previous match for the last page search",
-    line: "search matches",
+    description: "Next / previous match for the last page search",
+    title: "search matches",
     repeat: true,
     when: () => Boolean(repeatedSearch),
     run: (binding) => repeatSearch(binding === "n" ? 1 : -1),
@@ -595,7 +595,7 @@ export function createTargetPicker({
     // Search keeps its two unfamiliar operations on the shortcut bar; Escape remains
     // available in the complete reference.
     promoteEscape: () => !pageSearchOpen,
-    does: () =>
+    description: () =>
       pageSearchOpen
         ? searchReturnsToHints
           ? "Return to the visible target hints"
@@ -603,7 +603,7 @@ export function createTargetPicker({
         : hints.prefix()
           ? "Remove the last hint letter"
           : "Close the target picker",
-    line: () =>
+    title: () =>
       pageSearchOpen
         ? searchReturnsToHints
           ? "back to hints"
@@ -638,8 +638,8 @@ export function createTargetPicker({
         id: "target.picker.hint.type",
         keys: HINT_KEYS,
         label: "a–z",
-        does: "Type the hint for a target",
-        line: "type hint",
+        description: "Type the hint for a target",
+        title: "type hint",
         when: () => hints.candidates().length > 0,
         run: hints.type,
       },
@@ -650,16 +650,16 @@ export function createTargetPicker({
           {
             id: "target.picker.hint.next",
             binding: "Tab",
-            does: "Hear the next visible target",
+            title: "Hear the next visible target",
           },
           {
             id: "target.picker.hint.previous",
             binding: "Shift+Tab",
-            does: "Hear the previous visible target",
+            title: "Hear the previous visible target",
           },
         ],
-        does: "Hear the next / previous visible target",
-        line: "browse hints",
+        description: "Hear the next / previous visible target",
+        title: "browse hints",
         repeat: true,
         when: () => hints.candidates().length > 0,
         run: (binding) => hints.walk(binding === "Tab" ? 1 : -1),
@@ -667,8 +667,8 @@ export function createTargetPicker({
       {
         id: "target.picker.target.choose",
         keys: ["Enter"],
-        does: "Choose the target just announced",
-        line: "choose target",
+        description: "Choose the target just announced",
+        title: "choose target",
         when: hints.walking,
         run: hints.choose,
       },
@@ -685,8 +685,8 @@ export function createTargetPicker({
       {
         id: "page.search.match.select",
         keys: ["Enter"],
-        does: "Select the current search match",
-        line: "select match",
+        description: "Select the current search match",
+        title: "select match",
         touch: "Select",
         when: () => matches.length > 0,
         run: chooseMatch,
@@ -698,18 +698,18 @@ export function createTargetPicker({
           {
             id: "page.search.match.previous",
             binding: "Shift+Tab",
-            does: "Go to the previous search match",
+            title: "Go to the previous search match",
             touch: "Previous",
           },
           {
             id: "page.search.match.next",
             binding: "Tab",
-            does: "Go to the next search match",
+            title: "Go to the next search match",
             touch: "Next",
           },
         ],
-        does: "Next / previous search match",
-        line: "matches",
+        description: "Next / previous search match",
+        title: "matches",
         repeat: true,
         when: () => matches.length > 0,
         run: (binding) => moveMatch(binding === "Tab" ? 1 : -1),
@@ -744,8 +744,8 @@ export function createTargetPicker({
   pageCommand({
     id: "target.picker.open",
     keys: ["s"],
-    does: "Select an element to comment by tapping it or typing its hint",
-    line: "comment on target",
+    description: "Choose an element by tapping it or typing its hint, then comment",
+    title: "select element",
     touch: "Select element",
     // Once the field is open, its typing scope owns character keys. This gate also keeps
     // the route off the short line while a target is in hand.

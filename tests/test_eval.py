@@ -9,7 +9,7 @@ import click
 import pytest
 import yaml
 from leaf_dev import ROOT
-from leaf_dev.instructions_eval import (
+from leaf_dev.eval import (
     prepare,
     read_case,
 )
@@ -19,6 +19,10 @@ from leaf_dev.promptfoo import summarize
 @pytest.mark.parametrize("case_file", sorted((ROOT / "evals").glob("*/case.yaml")))
 def test_library_cases_supply_a_task_and_native_promptfoo_assertions(case_file):
     case = read_case(case_file, ROOT)
+    if case.get("metadata", {}).get("executor"):
+        assert case["metadata"]["case"]
+        assert case["metadata"]["conditions"]
+        return
     assert case["vars"]["prompt"].strip()
     assert case["assert"]
     assert all(assertion["type"] and assertion["value"] for assertion in case["assert"])
@@ -202,7 +206,7 @@ def test_summary_distinguishes_host_arm_and_execution_errors():
 def test_native_javascript_assertions_and_asset_addresses_survive_preparation(
     tmp_path, monkeypatch
 ):
-    import leaf_dev.instructions_eval as module
+    import leaf_dev.eval as module
 
     case = tmp_path / "evals" / "example" / "case.yaml"
     case.parent.mkdir(parents=True)
@@ -227,3 +231,129 @@ def test_native_javascript_assertions_and_asset_addresses_survive_preparation(
         "output.includes('hello')",
         f"file://{tmp_path / 'evals' / 'custom.cjs'}:check",
     ]
+
+
+def test_catalog_contexts_keep_complete_original_check_coverage():
+    from importlib import import_module
+
+    from leaf_dev.eval import catalog, select_cases
+
+    definitions = catalog()
+    assert all("/" not in address for address in select_cases(()))
+    assert {
+        "document",
+        "dashboard",
+        "queue",
+        "reading",
+        "disposable-report",
+        "short-chat-answer",
+        "unknown-package",
+    } <= set(select_cases(()))
+    assert select_cases(("reading",)) == ["reading"]
+    assert select_cases(("reading/plain",)) == ["reading/plain"]
+    assert len(select_cases(("reading/*",))) == 7
+    for owner in ("usability", "arrangement", "delivery"):
+        module = import_module(f"leaf_dev.{owner}_eval")
+        covered = {
+            definition["metadata"]["case"]
+            for definition in definitions.values()
+            if definition["metadata"].get("executor") == f"leaf_dev.{owner}_eval"
+        }
+        assert covered == set(module.CASES)
+    with pytest.raises(click.BadParameter, match="no case matches"):
+        select_cases(("no-such-task",))
+
+
+def test_workflow_matrix_selects_meaningful_conditions_and_routes_fixed_checks(
+    tmp_path,
+):
+    from leaf_dev.arrangement_eval import expected_checks
+
+    arms = {arm: tmp_path / arm for arm in ("base", "candidate")}
+    config = prepare(
+        ["document"],
+        arms,
+        tmp_path,
+        ("cc", "codex"),
+        2,
+        out=tmp_path / "results",
+        conditions=("leaf", "html"),
+    )
+    assert len(config["tests"]) == 12
+    assert len({test["vars"]["work"] for test in config["tests"]}) == 12
+    for test in config["tests"]:
+        metadata = test["metadata"]
+        assert metadata["case"] == "document"
+        assert metadata["arm"] in ("base", "candidate", "html")
+        assert [check["metric"] for check in test["assert"]] == expected_checks(
+            "document", condition=metadata["condition"]
+        )
+        metrics = {check["metric"] for check in test["assert"]}
+        assert {"choice-reader-correct", "choice-preserved"}.issubset(metrics) == (
+            metadata["condition"] == "leaf"
+        )
+        configured = next(
+            p for p in config["providers"] if p["label"] == test["providers"][0]
+        )["config"]
+        assert configured["host"] == metadata["host"]
+        assert configured["condition"] == metadata["condition"]
+        assert Path(test["vars"]["work"]).is_relative_to(tmp_path / "results")
+    assert sum(test["metadata"]["arm"] == "html" for test in config["tests"]) == 4
+    with pytest.raises(click.BadParameter, match="no requested host/condition"):
+        prepare(["reading"], arms, tmp_path, ("cc",), 1, conditions=("html",))
+
+
+def test_python_provider_routes_host_condition_and_case_without_parsing_prompt(
+    tmp_path,
+    monkeypatch,
+):
+    from leaf_dev import scenario_provider
+
+    observed = []
+
+    class Executor:
+        @staticmethod
+        def execute_scenario(case, payload, out, *, host, condition):
+            observed.append((case, payload, out, host, condition))
+            return {"output": '{"checks":{"completed":true}}'}
+
+    monkeypatch.setattr(scenario_provider, "import_module", lambda executor: Executor)
+    options = {
+        "config": {
+            "executor": "leaf_dev.journey_eval",
+            "payload": str(tmp_path / "payload"),
+            "claude_config_dir": str(tmp_path / "login"),
+            "host": "codex",
+            "condition": "html",
+        }
+    }
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path / "login"))
+    context = {"vars": {"case": "document", "work": str(tmp_path / "evidence")}}
+    assert scenario_provider.call_api("uninterpreted prompt", options, context) == {
+        "output": '{"checks":{"completed":true}}'
+    }
+    assert observed == [
+        ("document", tmp_path / "payload", tmp_path / "evidence", "codex", "html")
+    ]
+
+
+def test_fixed_reader_calibration_compares_runtime_evidence_with_one_judge(tmp_path):
+    arms = {arm: tmp_path / arm for arm in ("base", "candidate")}
+    config = prepare(
+        ["dashboard/reader"],
+        arms,
+        tmp_path,
+        ("cc", "codex"),
+        1,
+        conditions=("leaf", "html"),
+    )
+    assert len(config["tests"]) == len(config["providers"]) == 2
+    assert {test["metadata"]["host"] for test in config["tests"]} == {"cc"}
+    assert {test["metadata"]["arm"] for test in config["tests"]} == {
+        "base",
+        "candidate",
+    }
+    with pytest.raises(click.BadParameter, match="no requested host/condition"):
+        prepare(
+            ["dashboard/reader"], arms, tmp_path, ("codex",), 1, conditions=("leaf",)
+        )

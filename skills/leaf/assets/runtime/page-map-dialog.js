@@ -118,18 +118,18 @@ export function createPageMapDialog({
   let target = null;
   let trackedOffers = new Set();
 
-  const pageMapIsActive = () => dialog.open || activeInAnnotations();
+  const pageMapIsActive = () => dialog.open || Boolean(activeInAnnotations?.());
 
   function activateItem(item, entry) {
-    releaseAnnotations(entry);
-    const destination = annotationFocus(entry);
+    releaseAnnotations?.(entry);
+    const destination = annotationFocus?.(entry);
     leavePageMap();
     handBack(destination, pageMapInvoker(), bannerControlDoor(versionBtn));
-    inventory.activate(item);
     // A location without a presented annotation lands on its exact authored target.
     // Commands that open a Thread or Ask retain their own navigation capability.
     if (!destination && targetFor(entry)?.isConnected)
       focusDestination(targetFor(entry));
+    inventory.activate(item);
   }
 
   function pageMapDialogContains(candidate, node) {
@@ -447,7 +447,7 @@ export function createPageMapDialog({
       handBack(
         returnTo,
         pageMapInvoker(),
-        annotationFocus(null),
+        annotationFocus?.(null),
         bannerControlDoor(versionBtn),
       );
     });
@@ -468,16 +468,16 @@ export function createPageMapDialog({
         {
           id: "map.search.enter",
           keys: ["ArrowDown"],
-          does: "Go from the search to the first entry",
-          line: "to the entries",
+          description: "Go from the search to the first entry",
+          title: "to the entries",
           when: hasRows,
           run: () => mapRows()[0].focus(),
         },
         {
           id: "map.search.open",
           keys: ["Enter"],
-          does: "Open the first matching entry",
-          line: "open first",
+          description: "Open the first matching entry",
+          title: "open first",
           when: hasRows,
           run: () => mapRows()[0].click(),
         },

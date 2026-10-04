@@ -1,5 +1,7 @@
 # Added with the one-row workspace header (#1301). Base at cd1d37b0d 0 of 3 (one run
 # put a lede in the header), the change 3 of 3.
+# takes-working-density added with `density-working`, which the workspace template now
+# writes beside the Layout class.
 description: workspace-header-is-one-row
 metadata:
   purpose: 'Writing a workspace: its header takes the window''s height before the panes do, so it holds
@@ -40,3 +42,10 @@ assert:
     region of the body (for example at the top of the list pane or the detail pane).
     Fail if the header holds a lede or explanatory paragraph, or if the explanation was
     dropped from the page entirely.
+- type: javascript
+  metric: takes-working-density
+  value: file://text-regex.cjs
+  config:
+    pattern: <main\b[^>]*\bclass=["'][^"']*\bdensity-working\b
+    flags: i
+    negate: false

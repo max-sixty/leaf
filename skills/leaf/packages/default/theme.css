@@ -2309,19 +2309,11 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
  * the painted bar against the exhibit's own boxes over every sample the corpus has
  * (test_the_gutter_runs_beside_the_exhibit_and_no_further) — loud where the rule goes
  * quiet, and what a leading suggestion meets the day one is written. */
-:scope:is(lf-sample) { display: table; table-layout: fixed; width: 100%;
+/* A table box keeps to its content unless given a width, so the sample states the room's
+ * (`--lf-breakout-width`, layouts.css), which an authored width widens. */
+:scope:is(lf-sample) { display: table; table-layout: fixed; width: var(--lf-breakout-width);
               box-sizing: border-box; margin: 18px 0; padding-left: var(--sp-4);
               border-left: 3px solid var(--border-2); --lf-block-frame: 1; }
-/* An authored width widens a block by negative margins (theme.css, the breakout rule),
- * which an auto-width box fills and a table box with its own width does not: the sample
- * moved left by the margin and kept the column's width. So a sample given room adds the
- * surplus to its width, as the kernel's table rule does, and under the same selector.
- * Only its own breakout's: `--lf-surplus` inherits, and a sample in a list inside wide
- * evidence took the section's surplus on top of the item's width. */
-@media screen {
-  :scope:is(lf-sample)[data-lf-space]:not([data-lf-space="column"]) {
-    width: calc(100% + var(--lf-surplus)); }
-}
 /* Containment does not apply to a table, so the sample cannot be the size container
  * a framed box is (theme.css, at the pane's body). Its width is fixed, so it states the
  * cap for what it holds as a percentage instead, which resolves against its cell. */

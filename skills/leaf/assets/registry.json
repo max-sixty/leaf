@@ -774,7 +774,7 @@
             "kind": {"const": "start"},
             "seq": {"type": "integer", "minimum": 1},
             "item": {"type": "string", "minLength": 1},
-            "text": {"type": "string", "minLength": 1, "maxLength": 200, "pattern": "\\S", "not": {"pattern": "[\\r\\n]"}},
+            "text": {"type": "string", "minLength": 1, "pattern": "\\S", "not": {"pattern": "[\\r\\n]"}},
             "turn": {"type": "string", "minLength": 1},
             "agent": {"type": "string", "minLength": 1},
             "session": {"type": "string", "minLength": 1}

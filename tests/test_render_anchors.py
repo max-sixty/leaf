@@ -5848,7 +5848,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
             "task",
             "start",
             str(serve.page_dir),
-            root["id"],
+            question["id"],
             "checking the inline placement",
         ],
     )

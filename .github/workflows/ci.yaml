@@ -4,6 +4,11 @@ name: ci
 # and the website gate. Main, the daily schedule, and a manual dispatch run the
 # complete selection once, with the same runtime, browser-framework and bundle gates.
 # Relevant pushes to main run the website gate in publish-site before deploy.
+#
+# The Python suite is split across runners (`--shard`, tests/conftest.py): its tests
+# are browser journeys whose cost is CPU, so one runner's cores bound how many run at
+# once, and more runners are the only way to finish sooner. The other gates run beside
+# it as jobs of their own rather than ahead of it on the same runner.
 on:
   push:
     branches: [main]
@@ -12,13 +17,20 @@ on:
     - cron: "47 10 * * *"
   workflow_dispatch:
 
-# Only a pull request cancels its own earlier run. A push to main keeps its run: a red
-# branch is judged against the base SHA's result, a cancellation reaches tend-ci-fix as
-# something to fix, and the next merge must not end a complete suite partway through.
-# Nothing outside a pull request shares a workflow group; the complete test job owns
-# the automatic suite's queue.
+# A pull request has a slot of its own and cancels its earlier run. Everything else runs
+# the complete suite, which holds several runners from GitHub's per-account pool, shared
+# with the other repos here, so one automatic run goes at a time. A running suite is
+# never cancelled: a red branch is judged against the base SHA's result, a cancellation
+# reaches tend-ci-fix as something to fix, and the time already spent would be lost. A
+# newer commit replaces the pending run instead, under GitHub's default `queue: single`,
+# so a busy main gets the suite on its tip rather than working through commits already
+# superseded; the replaced run is recorded as cancelled, and #296 accepted that cost.
+#
+# A dispatch keeps a slot per ref. It is the control a session runs against a base SHA,
+# and two sessions judging two branches need both answers; behind main's queue either
+# one would be replaced by the next merge before it ever started.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  group: ${{ github.event_name == 'pull_request' && format('{0}-pr-{1}', github.workflow, github.event.pull_request.number) || format('{0}-nightly-{1}', github.workflow, github.event_name == 'workflow_dispatch' && github.ref || 'automatic') }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
@@ -34,40 +46,20 @@ jobs:
       - name: 🔍 Pre-commit hooks
         uses: pre-commit/action@v3.0.1
 
-  test:
-    # Scheduled and manual runs skip lint. A red or cancelled lint never starts tests.
+  # The gates that are not the Python suite: the runtime folds under Node, the browser
+  # framework, the committed bundles, and the eval assertions.
+  checks:
+    # Scheduled and manual runs skip lint. A red or cancelled lint starts nothing.
     if: >-
       !cancelled()
       && (needs.lint.result == 'success' || needs.lint.result == 'skipped')
     needs: lint
-    concurrency:
-      # One automatic suite at a time: it holds a runner for over an hour, and
-      # GitHub's concurrency pool is per-account, shared with the other repos here. A
-      # running suite is never cancelled, because that hour would be lost; a newer
-      # commit replaces the pending entry instead, under GitHub's default
-      # `queue: single`, so a busy main gets the suite on its tip rather than working
-      # through commits already superseded. Superseded pending entries are recorded as
-      # cancelled runs, and #296 accepted that cost for the same reason.
-      #
-      # A dispatch keeps a slot per ref, as it had before this job took a group of its
-      # own. It is the control a session runs against a base SHA, and two sessions
-      # judging two branches need both answers; behind main's queue either one would
-      # be replaced by the next merge before it ever started.
-      # PRs keep their own slot; the automatic and dispatch groups keep the complete
-      # suite's existing queue identity.
-      group: ${{ github.event_name == 'pull_request' && format('{0}-test-pr-{1}', github.workflow, github.event.pull_request.number) || format('{0}-nightly-{1}', github.workflow, github.event_name == 'workflow_dispatch' && github.ref || 'automatic') }}
-      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-24.04
-    env:
-      PYTEST_ADDOPTS: --durations=25 --durations-min=1
+    timeout-minutes: 30
 
     steps:
-      # A pull request's checkout is its merge commit, whose first parent is the base:
-      # the second commit is what the nightly selection below diffs against.
       - name: 📂 Checkout code
         uses: actions/checkout@v7
-        with:
-          fetch-depth: 2
 
       - uses: astral-sh/setup-uv@v7
 
@@ -77,28 +69,10 @@ jobs:
           cache: npm
           cache-dependency-path: |
             package-lock.json
-            worker/package-lock.json
             evals/package-lock.json
-
-      # The runner supplies installed Chrome for the two launcher tests. The rest of
-      # the browser suite uses the headless shell matching the locked Playwright, and
-      # the phone contract uses its WebKit, the engine iPhone browsers run on.
-      - name: Install Chromium headless shell and WebKit
-        run: uv run playwright install --with-deps chromium webkit --only-shell
-
-      - name: Install the Linux browser font contract
-        run: sudo apt-get install -y fonts-dejavu
-
-      - name: Fetch pinned image assets
-        run: uv run leaf-dev fetch-assets
 
       - name: Install browser-build dependencies
         run: npm ci
-
-      # Python exercises the real Wrangler wrapper, including on main/nightly runs.
-      - name: Install website dependencies
-        run: npm ci
-        working-directory: worker
 
       - name: Check committed browser framework
         run: npm run check:browser && npm run test:browser
@@ -117,18 +91,108 @@ jobs:
       - name: Check eval assertions without model calls
         run: npm ci --prefix evals && npm test --prefix evals
 
-      # Cheap gates fail before the complete Python suite spends its runner time.
+  test:
+    if: >-
+      !cancelled()
+      && (needs.lint.result == 'success' || needs.lint.result == 'skipped')
+    needs: lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    strategy:
+      # Every shard reports, so one red run names every failure in the suite.
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJSON(github.event_name == 'pull_request' && '[1, 2, 3]' || '[1, 2, 3, 4, 5, 6, 7, 8]') }}
+    env:
+      PYTEST_ADDOPTS: --durations=25 --durations-min=1
+      SHARDS: ${{ github.event_name == 'pull_request' && 3 || 8 }}
+
+    steps:
+      # A pull request's checkout is its merge commit, whose first parent is the base:
+      # the second commit is what the nightly selection below diffs against.
+      - name: 📂 Checkout code
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
+
+      - uses: astral-sh/setup-uv@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            worker/package-lock.json
+
+      # The runner supplies installed Chrome for the two launcher tests. The rest of
+      # the browser suite uses the headless shell matching the locked Playwright, and
+      # the phone contract uses its WebKit, the engine iPhone browsers run on.
+      - name: Install Chromium headless shell and WebKit
+        run: uv run playwright install --with-deps chromium webkit --only-shell
+
+      - name: Install the Linux browser font contract
+        run: sudo apt-get install -y fonts-dejavu
+
+      - name: Fetch pinned image assets
+        run: uv run leaf-dev fetch-assets
+
+      # `worker/bundle-runtime.mjs`, which the suite runs, imports the root install's
+      # esbuild.
+      - name: Install browser-build dependencies
+        run: npm ci
+
+      # Python exercises the real Wrangler wrapper, including on main/nightly runs.
+      - name: Install website dependencies
+        run: npm ci
+        working-directory: worker
+
       - name: 🧪 Python tests
         run: >-
           uv run pytest tests -v --junitxml=.tmp/test-results/results.xml
+          --shard ${{ matrix.shard }}/${{ env.SHARDS }}
           ${{ github.event_name == 'pull_request' && '--nightly-changed-since HEAD^1' || '--run-nightly' }}
 
+      - name: Upload pytest results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: pytest-results-${{ github.job }}-${{ matrix.shard }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            .tmp/test-results/results.xml
+            .tmp/thread-snapshots/runs/
+          if-no-files-found: ignore
+          retention-days: 30
+
+  website:
+    if: >-
+      github.event_name == 'pull_request'
+      && !cancelled()
+      && needs.lint.result == 'success'
+    needs: lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      - name: 📂 Checkout code
+        uses: actions/checkout@v7
+
+      - uses: astral-sh/setup-uv@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: worker/package-lock.json
+
+      - name: Install website dependencies
+        run: npm ci
+        working-directory: worker
+
       - name: Build website
-        if: github.event_name == 'pull_request'
         run: uv run leaf-dev site
 
       - name: 🧪 Website worker tests
-        if: github.event_name == 'pull_request'
         run: |
           npm run typecheck
           npm test
@@ -136,16 +200,4 @@ jobs:
         working-directory: worker
 
       - name: Measure the bundled release in Chrome
-        if: github.event_name == 'pull_request'
         run: uv run leaf-dev verify-site wrangler
-
-      - name: Upload pytest results
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: pytest-results-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
-          path: |
-            .tmp/test-results/results.xml
-            .tmp/thread-snapshots/runs/
-          if-no-files-found: ignore
-          retention-days: 30

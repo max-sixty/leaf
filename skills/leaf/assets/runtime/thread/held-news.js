@@ -89,7 +89,7 @@ import { replyPinned } from "./reply-landing.js";
 export function gesturedOn(thread) {
   const { unresolved, document, authoritative } = readApplication();
   const messages = new Set(thread.msgs.map(({ id }) => id));
-  const attempts = new Set(thread.msgs.map(({ attempt }) => attempt));
+  const attempts = new Set(thread.msgs.map(({ attempt }) => attempt).filter(Boolean));
   const undone = (id) =>
     unresolved.find(({ localId }) => localId === id)?.event ??
     authoritative?.events.find((event) => event.id === id);
@@ -398,7 +398,8 @@ export class HeldNews {
 
   // Whether drawing `held` would move what the reader reads: growth after a message it
   // changes, or after the thread's foot, where a message joins it or its settlement
-  // changes what follows its messages, would be seen. A reply actually pinned to its
+  // changes what follows its messages, would be seen, or the row a settlement swaps
+  // shows. A reply actually pinned to its
   // scrollport can absorb news above it, though not a settlement, which takes the reply
   // away or brings it. A short thread's sticky row still stands in flow and has no such
   // space to give.
@@ -410,10 +411,15 @@ export class HeldNews {
         replyPinned(view.node.querySelector(":scope > .lf-thread-reply")))
     )
       return false;
-    return [
-      ...[...changed].map((message) => view.messageNode(message)),
-      (news.appended || news.settled) && view.foot,
-    ].some((node) => node && growthAfterIsSeen(node));
+    return (
+      [
+        ...[...changed].map((message) => view.messageNode(message)),
+        (news.appended || news.settled) && view.foot,
+      ].some((node) => node && growthAfterIsSeen(node)) ||
+      Boolean(
+        news.settled && view.settlementRow && growthInsideIsSeen([view.settlementRow]),
+      )
+    );
   }
 
   // Shows what the seat holds of the thread `id`: its news, or, where the seat holds the

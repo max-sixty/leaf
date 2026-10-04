@@ -25,7 +25,7 @@ import { settleThread } from "./folding.js";
 import { iconTemplate } from "../icons.js";
 import { loadDraft } from "../drafts.js";
 import { SAY_BOX } from "./selectors.js";
-import { focusThread } from "./focus.js";
+import { focusThread, threadFocusStop } from "./focus.js";
 import { renderMarkdown } from "../markdown.js";
 import { summaryRanges, unreadBoundaries } from "./summary-ranges.js";
 import { threadAttention } from "./workflow.js";
@@ -338,6 +338,14 @@ export class ThreadView {
     return this.#lastMessage;
   }
 
+  // What the thread draws after its messages that its settlement swaps: the reply box
+  // while it stands open, the row holding Reopen once resolved.
+  get settlementRow() {
+    return this.node.querySelector(
+      ":scope > .lf-thread-reply, :scope > .lf-thread-actions, :scope > .lf-page-thread-resolved",
+    );
+  }
+
   // The node a message the thread draws stands in, after which a change to it grows;
   // none while the thread is folded, where no message shows.
   messageNode(key) {
@@ -573,11 +581,13 @@ export class ThreadView {
     this.#continuity?.after(bodyPlace);
     this.#wireKeys();
     // A summary gathering the message the user stands on moves it; a page thread whose
-    // render took their place puts them in its reply, or on the thread itself.
+    // render took their place puts them in its reply, or on the thread itself, and a
+    // panel card on its title, as a held settlement shown by a press on Resolve does.
     restoreFocus?.(
-      !panel &&
-        (() =>
-          this.#commands.landInThread(this.node.querySelector(SAY_BOX) ?? this.node)),
+      panel
+        ? threadFocusStop(this.node)
+        : () =>
+            this.#commands.landInThread(this.node.querySelector(SAY_BOX) ?? this.node),
     );
     return this.node;
   }

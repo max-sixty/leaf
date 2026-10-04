@@ -2859,7 +2859,9 @@ def test_walking_to_a_thread_shows_the_replies_it_held(
             )
         ).to_be_focused()
         expect(thread).not_to_have_attribute("open", "")
-        expect(message).to_have_count(0)
+        # A closed card draws one title row, so it holds nothing back; its reply waits
+        # unseen in the folded body.
+        expect(message).to_be_hidden()
     if new_input:
         rendered(page)
         hold_visible_thread_presentation(page, root)

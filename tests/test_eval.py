@@ -160,11 +160,14 @@ def test_workflows_run_declared_conditions_harnesses_and_fixed_checks(
     login.mkdir()
     (login / "auth.json").write_text('{"fixture": "local-login"}')
     monkeypatch.setenv("CODEX_HOME", str(login))
-    codex = tmp_path / "prefix" / "bin" / "codex"
-    codex.parent.mkdir(parents=True)
+    codex = tmp_path / "package" / "codex"
+    codex.parent.mkdir()
     codex.write_text("#!/bin/sh\n")
     codex.chmod(0o755)
-    monkeypatch.setenv("PATH", f"{codex.parent}:/usr/bin:/bin")
+    # Installed as a symlink beside the user's files, as Homebrew does.
+    (tmp_path / "bin").mkdir()
+    (tmp_path / "bin" / "codex").symlink_to(codex)
+    monkeypatch.setenv("PATH", f"{tmp_path / 'bin'}:/usr/bin:/bin")
     payloads = {arm: tmp_path / arm for arm in ("base", "candidate")}
     config = prepare(
         ["dashboard/reader-seeded", "document"],
@@ -197,15 +200,16 @@ def test_workflows_run_declared_conditions_harnesses_and_fixed_checks(
             *(rubric["metric"] for rubric in rubrics("document")),
         ]
         # The screenshot judge may read the run's screenshots and nothing else
-        # outside the runtime and its own install.
+        # outside the runtime and its own executable.
         judge = test["assert"][-1]["provider"]["config"]
         assert "sandbox_mode" not in judge
         profile = (Path(judge["cli_env"]["CODEX_HOME"]) / "config.toml").read_text()
         assert [line for line in profile.splitlines() if line.endswith('"read"')] == [
             '":minimal" = "read"',
             f'"{tmp_path / "screenshots"}/**" = "read"',
-            f'"{tmp_path / "prefix"}/**" = "read"',
+            f'"{codex.resolve()}" = "read"',
         ]
+        assert judge["codex_path_override"] == str(codex.resolve())
     assert "tools" not in config["defaultTest"]["options"]["provider"]["config"]
     html = next(
         provider["config"]

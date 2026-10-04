@@ -175,12 +175,13 @@ def screenshot_judge(screenshots: Path, home: Path) -> dict:
     Its permission profile lets it read the run's screenshot tree and nothing else,
     so neither a page's source, the author's transcript, nor a path naming the arm
     reaches it. `:minimal` is the runtime paths tools need, which include the temp
-    directories but not the repository, and the Codex install's prefix lets Codex
-    start its own sandbox helper. A profile replaces Codex's older sandbox settings,
-    so the provider sets no `sandbox_mode`."""
+    directories but not the repository. Codex starts its sandbox helper by executing
+    itself, so the profile also grants the executable, run by its resolved path: a
+    symlink's own location is refused. A profile replaces Codex's older sandbox
+    settings, so the provider sets no `sandbox_mode`."""
     if (installed := shutil.which("codex")) is None:
         raise click.ClickException("The screenshot judge runs on Codex; install it")
-    codex = Path(installed)
+    codex = Path(installed).resolve()
     home.mkdir(mode=0o700, parents=True)
     profile = "\n".join(
         [
@@ -188,10 +189,8 @@ def screenshot_judge(screenshots: Path, home: Path) -> dict:
             "",
             "[permissions.screenshots.filesystem]",
             '":minimal" = "read"',
-            *(
-                f'{json.dumps(f"{root}/**")} = "read"'
-                for root in (screenshots, codex.parent.parent)
-            ),
+            f'{json.dumps(f"{screenshots}/**")} = "read"',
+            f'{json.dumps(str(codex))} = "read"',
             "",
         ]
     )

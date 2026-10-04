@@ -7965,12 +7965,29 @@ def test_generated_hints_branch_after_the_single_letter_alphabet(browser, serve)
     assert all(
         not other.startswith(code) for code in codes for other in codes if code != other
     )
-    assert not set("afghijkmpt") & {code for code in codes if len(code) == 1}
-    assert sum(len(code) == 1 for code in codes) == 15
+    # Named routes own their letters even when unavailable in this scene. Read the
+    # declared grammar so a new destination cannot stale a copied alphabet or count.
+    reserved = page.evaluate(
+        """async () => {
+          const {pageScopes} = await window.__lfRuntimeImport('/runtime/keyboard/register.js');
+          const {bindings} = await window.__lfRuntimeImport('/runtime/keyboard/bindings.js');
+          const generated = 'navigation.target';
+          const scope = pageScopes().find(scope => scope.rows?.some(row => row.id === generated));
+          return [...new Set(scope.rows.filter(row => row.id !== generated)
+            .flatMap(bindings).filter(key => /^[a-z]$/.test(key)))];
+        }"""
+    )
+    assert reserved
+    assert not set("".join(codes)) & set(reserved)
+    single_letters = {code for code in codes if len(code) == 1}
     branched = [code for code in codes if len(code) == 2]
-    assert len(branched) == 8 and len({code[0] for code in branched}) == 1
+    assert len(single_letters) + len(branched) == len(codes)
+    assert len(branched) > 1 and len({code[0] for code in branched}) == 1
 
     prefix = branched[0][0]
+    assert single_letters | {prefix} == set("abcdefghijklmnopqrstuvwxyz") - set(
+        reserved
+    )
     continuing_hint = page.locator(
         f'{CHIPS}[data-lf-hint-code="{branched[0]}"] .lf-binding-sequence'
     )
@@ -7989,7 +8006,7 @@ def test_generated_hints_branch_after_the_single_letter_alphabet(browser, serve)
         "line": shortcut_bar_text(page),
         "live": page.locator(".lf-live").text_content(),
     }
-    expect(page.locator(".lf-live")).to_have_text("8 targets remain.")
+    expect(page.locator(".lf-live")).to_have_text(f"{len(branched)} targets remain.")
     expect(line).to_contain_text("back one letter")
     target_route = line.locator(
         '.lf-shortcut:not([hidden])[data-lf-command-ids~="navigation.target"]'
@@ -11412,6 +11429,307 @@ def _word_point(locator, word):
       return {x: box.left + box.width / 2, y: box.top + box.height / 2};
     }""",
         word,
+    )
+
+
+ALIGN_CURRENT_PAGE = leaf_page(
+    "Align the current item",
+    '<h1>Keep the same reading place</h1><div style="height:700px"></div>'
+    '<lf-ask id="align-ask"><h2>Which plan should we keep?</h2>'
+    '<lf-options id="align-options" choose><lf-option id="align-yes">Yes</lf-option>'
+    '<lf-option id="align-no">No</lf-option></lf-options></lf-ask>'
+    '<h2 id="align-heading" tabindex="0">The current heading</h2>'
+    '<p id="remembered">The amber passage keeps <strong>its own identity</strong>.</p>'
+    '<textarea id="native" aria-label="Native editor">Editor words</textarea>'
+    '<a href="#align-heading">A Go-to destination</a><div style="height:1400px"></div>',
+)
+
+
+def _expect_aligned(page, target, scroller="document.scrollingElement"):
+    """The item's opening clears its reading area's pinned furniture."""
+    page.wait_for_function(
+        """async ({target, scroller}) => {
+          const {landingBand, shownBox} = await window.__lfRuntimeImport('/runtime/geometry.js');
+          const item = document.querySelector(target), box = eval(scroller);
+          return Math.abs(shownBox(item).top - landingBand(box).top -
+            (parseFloat(getComputedStyle(item).scrollMarginTop) || 0)) < 2;
+        }""",
+        arg={"target": target, "scroller": scroller},
+    )
+
+
+def test_align_current_item_keeps_ask_control_heading_selection_and_history(
+    browser, serve
+):
+    page = open_page(browser, serve(ALIGN_CURRENT_PAGE))
+    page.keyboard.press("a")
+    expect(page.locator("#align-ask")).to_be_focused()
+    page.locator("#align-yes").get_by_role("checkbox").focus()
+    expect(page.locator("#align-yes").get_by_role("checkbox")).to_be_focused()
+    page.evaluate("scrollBy(0, -180)")
+    history = page.evaluate(
+        "[history.length, navigation.currentEntry.key, location.href]"
+    )
+    page.keyboard.press("g")
+    page.keyboard.press("z")
+    _expect_aligned(page, "#align-ask")
+    expect(page.locator("#align-yes").get_by_role("checkbox")).to_be_focused()
+    assert (
+        page.evaluate("[history.length, navigation.currentEntry.key, location.href]")
+        == history
+    )
+    page.locator("#align-heading").focus()
+    page.keyboard.press("g")
+    page.keyboard.press("z")
+    _expect_aligned(page, "#align-heading")
+    expect(page.locator("#align-heading")).to_be_focused()
+    page.locator("#remembered").scroll_into_view_if_needed()
+    _select_remembered_backwards(page)
+    page.evaluate("""() => {
+      const selection = getSelection();
+      window.beforeAlign = [selection.anchorNode, selection.anchorOffset,
+        selection.focusNode, selection.focusOffset, document.activeElement];
+      scrollBy(0, -120);
+    }""")
+    page.keyboard.press("g")
+    page.keyboard.press("z")
+    _expect_aligned(page, "#remembered")
+    assert page.evaluate("""() => {
+      const selection = getSelection();
+      return [selection.anchorNode, selection.anchorOffset, selection.focusNode,
+        selection.focusOffset, document.activeElement].every((v,i) => v === beforeAlign[i]);
+    }""")
+    page.locator("#native").focus()
+    page.keyboard.type("gz")
+    expect(page.locator("#native")).to_have_value("gzEditor words")
+
+
+def test_align_current_item_uses_bounded_reading_region_and_preserves_horizontal_position(
+    browser, serve
+):
+    source = leaf_page(
+        "Bounded alignment",
+        "<h1>Outside reading</h1><p>Unrelated page words remain where they were.</p>"
+        '<div id="inspection" data-bound="start" style="height:300px;overflow:auto;scroll-padding-top:36px">'
+        '<div style="height:300px;width:1400px"></div>'
+        '<h2 id="nested-heading" tabindex="0">An inspection heading</h2>'
+        '<p id="nested-reading">A bounded paragraph stays with its own reading region.</p>'
+        '<div style="height:900px"></div></div><div style="height:900px"></div>',
+    )
+    page = open_page(browser, serve(source))
+    page.locator("#nested-heading").focus()
+    page.locator("#inspection").evaluate(
+        "box => {box.scrollTop=180; box.scrollLeft=90}"
+    )
+    root_y = page.evaluate("scrollY")
+    page.keyboard.press("g")
+    page.keyboard.press("z")
+    _expect_aligned(page, "#nested-heading", "document.querySelector('#inspection')")
+    assert page.locator("#inspection").evaluate("box => box.scrollLeft") == 90
+    assert page.evaluate("scrollY") == root_y
+    expect(page.locator("#nested-heading")).to_be_focused()
+    # A click and collapsed caret still identify the paragraph in this region.
+    point = _word_point(page.locator("#nested-reading"), "bounded")
+    page.mouse.click(point["x"], point["y"])
+    page.keyboard.press("g")
+    page.keyboard.press("z")
+    _expect_aligned(page, "#nested-reading", "document.querySelector('#inspection')")
+
+
+def test_align_current_item_more_restores_touch_context_and_reserves_z(browser, serve):
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True
+    )
+    page = open_page(browser, serve(ALIGN_CURRENT_PAGE), context=context)
+    page.keyboard.press("a")
+    page.locator("#align-yes").get_by_role("checkbox").focus()
+    expect(page.locator("#align-yes").get_by_role("checkbox")).to_be_focused()
+    page.evaluate("scrollBy(0,-160)")
+    page.get_by_role("button", name="More page controls", exact=True).tap()
+    control = page.get_by_role("button", name="Align current item at top", exact=True)
+    expect(control).to_be_enabled()
+    control.tap()
+    _expect_aligned(page, "#align-ask")
+    expect(page.locator("#align-yes").get_by_role("checkbox")).to_be_focused()
+    page.locator("#align-heading").focus()
+    page.keyboard.press("g")
+    expect(page.locator(CHIPS).first).to_be_visible()
+    codes = page.locator(CHIPS).evaluate_all(
+        "nodes => nodes.map(node => node.dataset.lfHintCode)"
+    )
+    assert codes and all("z" not in code for code in codes)
+    page.keyboard.press("Escape")
+    point = _word_point(page.locator("#remembered"), "amber")
+    page.mouse.dblclick(point["x"], point["y"])
+    page.evaluate("""() => {
+      const s = getSelection();
+      window.beforeAlign = [s.anchorNode,s.anchorOffset,s.focusNode,s.focusOffset];
+      scrollBy(0,-80);
+    }""")
+    page.get_by_role("button", name="More page controls", exact=True).tap()
+    control.tap()
+    _expect_aligned(page, "#remembered")
+    assert page.evaluate("""() => {
+      const s = getSelection();
+      return [s.anchorNode,s.anchorOffset,s.focusNode,s.focusOffset].every((v,i) => v === beforeAlign[i]);
+    }""")
+    page.locator("#native").focus()
+    page.keyboard.type("gz")
+    expect(page.locator("#native")).to_have_value("gzEditor words")
+    page.locator("#native").evaluate("input => input.setSelectionRange(1,3,'backward')")
+    page.get_by_role("button", name="More page controls", exact=True).tap()
+    expect(control).to_be_enabled()
+    control.tap()
+    _expect_aligned(page, "#native")
+    expect(page.locator("#native")).to_be_focused()
+    expect(page.locator("#native")).to_have_value("gzEditor words")
+    assert page.locator("#native").evaluate(
+        "input => [input.selectionStart,input.selectionEnd,input.selectionDirection]"
+    ) == [1, 3, "backward"]
+    page.locator("#align-heading").focus()
+    page.get_by_role("button", name="More page controls", exact=True).tap()
+    expect(control).to_be_enabled()
+    control.tap()
+    _expect_aligned(page, "#align-heading")
+    expect(page.locator("#align-heading")).to_be_focused()
+
+
+def test_align_current_thread_stays_in_its_panel_without_travel(browser, serve):
+    page = open_page(
+        browser, serve(ALIGN_CURRENT_PAGE, anchored=[("remembered", "amber")] * 8)
+    )
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    panel_settled(page, True)
+    thread = page.locator(".lf-threads > .lf-thread").nth(4)
+    summary = thread.locator(":scope > summary")
+    summary.focus()
+    rendered(page)
+    thread_id = thread.get_attribute("data-id")
+    page.locator(".lf-threads").evaluate(
+        "box => box.scrollTop = Math.max(0, box.scrollTop-100)"
+    )
+    before = page.evaluate(
+        "[scrollY,history.length,navigation.currentEntry.key,location.href]"
+    )
+    page.keyboard.press("g")
+    page.keyboard.press("z")
+    _expect_aligned(
+        page,
+        f'.lf-threads > .lf-thread[data-id="{thread_id}"]',
+        "document.querySelector('.lf-threads')",
+    )
+    expect(summary).to_be_focused()
+    expect(thread).to_have_attribute("open", "")
+    panel_settled(page, True)
+    assert (
+        page.evaluate(
+            "[scrollY,history.length,navigation.currentEntry.key,location.href]"
+        )
+        == before
+    )
+
+
+def test_align_current_tall_block_reveals_its_opening_through_outer_scrollers(
+    browser, serve
+):
+    source = leaf_page(
+        "A tall current item",
+        '<h1>Read the opening</h1><div style="height:600px"></div>'
+        '<div id="inspection" data-bound="start" style="height:300px;overflow:auto;scroll-padding-top:24px">'
+        '<pre id="tall" tabindex="0">'
+        + "A line in the current item.\n"
+        * 80
+        + '</pre><div style="height:600px"></div></div>'
+        '<div style="height:1400px"></div>',
+    )
+    page = open_page(browser, serve(source))
+    page.emulate_media(reduced_motion="reduce")
+    page.locator("#tall").focus()
+    page.evaluate("""async () => {
+      const {landingBand} = await window.__lfRuntimeImport('/runtime/geometry.js');
+      const box = document.querySelector('#inspection');
+      const docY = box.getBoundingClientRect().top + scrollY;
+      scrollTo(0, docY - landingBand(document.scrollingElement).top + 80);
+      box.scrollTop = 300;
+    }""")
+    scroll_settled(page)
+    history = page.evaluate("[history.length,navigation.currentEntry.key]")
+    assert page.locator("#tall").bounding_box()["y"] < 0
+    page.keyboard.press("g")
+    page.keyboard.press("z")
+    scroll_settled(page, "#inspection")
+    _expect_aligned(page, "#tall")
+    expect(page.locator("#tall")).to_be_focused()
+    assert page.locator("#inspection").evaluate("box => box.scrollTop") == 0
+    assert page.evaluate("[history.length,navigation.currentEntry.key]") == history
+
+
+def test_align_current_item_does_not_follow_old_page_caret_from_empty_threads(
+    browser, serve
+):
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True
+    )
+    page = open_page(browser, serve(ALIGN_CURRENT_PAGE), context=context)
+    page.locator("#remembered").scroll_into_view_if_needed()
+    point = _word_point(page.locator("#remembered"), "amber")
+    page.mouse.click(point["x"], point["y"])
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    panel_settled(page, True)
+    expect(page.locator(".lf-threads")).to_be_focused()
+    page.wait_for_function("getSelection().isCollapsed")
+    before = page.evaluate("[scrollY,history.length,navigation.currentEntry.key]")
+    page.keyboard.press("g")
+    page.keyboard.press("z")
+    expect(page.locator(".lf-threads")).to_be_focused()
+    assert (
+        page.evaluate("[scrollY,history.length,navigation.currentEntry.key]") == before
+    )
+
+
+def test_align_current_ask_in_a_reply_keeps_its_question_extent(browser, serve):
+    url = serve(ALIGN_CURRENT_PAGE, anchored=[("remembered", "amber")] * 8)
+    roots = [
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "parent": roots[4],
+            "revision": 1,
+            "text": "Choose the follow-up.",
+            "markup": '<lf-ask id="reply-ask"><h3>Which follow-up should be ready?</h3>'
+            '<lf-options id="reply-options" choose><lf-option id="reply-yes">Ready</lf-option>'
+            '<lf-option id="reply-no">Wait</lf-option></lf-options></lf-ask>',
+        },
+    )
+    page = open_page(browser, url)
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    summary = page.locator(f'.lf-threads > .lf-thread[data-id="{roots[4]}"] > summary')
+    summary.focus()
+    control = page.locator('.lf-threads lf-option[id="reply-yes"]').get_by_role(
+        "checkbox"
+    )
+    control.focus()
+    before = page.evaluate("[scrollY,history.length,navigation.currentEntry.key]")
+    page.keyboard.press("g")
+    page.keyboard.press("z")
+    _expect_aligned(
+        page,
+        '.lf-threads lf-ask[id="reply-ask"]',
+        "document.querySelector('.lf-threads')",
+    )
+    expect(control).to_be_focused()
+    assert (
+        page.evaluate("[scrollY,history.length,navigation.currentEntry.key]") == before
     )
 
 

@@ -43,15 +43,6 @@ has tried; settle that before building it.
 
 ### Agent and author experience
 
-- **Keep functional test results independent of execution speed.** Follow
-  [the clock guidance](tests/AGENTS.md#functional-results-do-not-depend-on-execution-speed).
-  The shift watcher still expires unfinished input rendering after one second;
-  the words watcher accepts dismissal only within two seconds before disappearance
-  or 200 ms after it. Its same trusted Send journey passes with a 300 ms completion
-  and falsely reports lost words at 3000 ms. Replace elapsed-time association with
-  causal completion, and retain passive-fault controls. Audit the watcher’s capped
-  drain and evidence retention, and replace process-race sleeps with acquisition or
-  completed-scan acknowledgements so slow execution cannot skip the claimed race.
 - **Compare Leaf authoring with plain HTML (#19).** The
   [agent-usability baseline](notes/agent-usability-evals.md#second-slice-2026-09-27)
   now covers the live loop, a mixed batch, an elided thread, an unfamiliar package and a

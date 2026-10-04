@@ -4,7 +4,7 @@
 
 > **Experimental software; not ready for general use.**
 
-Leaf is generative UI for Claude Code and Codex. Review a plan, make a decision,
+Leaf is generative UI for Claude Code, Codex and Pi. Review a plan, make a decision,
 or follow live work in a page you can comment on and change. The agent responds by
 revising the page.
 
@@ -44,8 +44,15 @@ codex plugin marketplace add max-sixty/leaf
 codex plugin add leaf@leaf
 ```
 
+Pi (experimental):
+
+```
+pi install git:github.com/max-sixty/leaf
+```
+
 Then ask: “Use Leaf to write up the options for this change.” The explicit skill is
-`/leaf [topic]` in Claude Code and `$leaf [topic]` in Codex; without a topic, it
+`/leaf [topic]` in Claude Code, `$leaf [topic]` in Codex, and
+`/skill:leaf [topic]` in Pi; without a topic, it
 presents the work already under discussion.
 The result opens in a browser page; its comments return to the same agent task.
 

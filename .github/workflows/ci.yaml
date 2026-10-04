@@ -147,9 +147,11 @@ jobs:
         run: npm ci
         working-directory: worker
 
+      # Three workers on the runner's four cores. Two, the local default, left 40% of
+      # the CPU idle; four saturated it and slowed each test by 30-46%.
       - name: 🧪 Python tests
         run: >-
-          uv run pytest tests -v --junitxml=.tmp/test-results/results.xml
+          uv run pytest tests -v --junitxml=.tmp/test-results/results.xml -n 3
           --shard ${{ matrix.shard }}/${{ env.SHARDS }}
           ${{ github.event_name == 'pull_request' && '--nightly-changed-since HEAD^1' || '--run-nightly' }}
 

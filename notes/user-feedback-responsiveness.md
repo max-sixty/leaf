@@ -30,7 +30,7 @@ agent traces for claim ordering. Use the website verifier as the vertical smoke
 test, with causal phase traces rather than a sleep treated as proof.
 
 ```bash
-uv run leaf-dev eval 'document/idle' 'document/mid-turn' --help
+uv run leaf-dev eval --help
 uv run leaf-dev bench-latency --help
 uv run leaf-dev verify-site --help
 ```

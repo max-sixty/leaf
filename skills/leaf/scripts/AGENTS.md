@@ -88,7 +88,8 @@ Within `render_gate/`, `scheme` owns one browser and color lifecycle, `readings`
 the probe readings and their findings, `version` owns retry policy, `page_code` owns
 the run plain `page check` takes, `preview` owns ephemeral servers, `browser` owns the
 browser's launch and end, `screens` owns the screens a passing check saves for the
-author, and `command` owns the CLI boundary, and `widget_quality` owns the report
+author, `picture` owns the picture `page picture` draws of a drawing comment,
+`command` owns the CLI boundary, and `widget_quality` owns the report
 `package check --render` gives a widget's author, which refuses nothing.
 
 Within `validation/`, `markup` owns shared document structure, `instances` owns

@@ -86,11 +86,13 @@ takes the growth into what they scrolled past, or below it. A short thread's rep
 box follows its last message; a long panel thread pins the
 box at its scroller's foot. News that would move a reply in flow waits behind the
 thread's existing notice; a pinned reply lets the transcript grow above it.
-Where news would move what the reader is reading, it waits behind a control of fixed size until they
-open it: in a seat in the page's flow, an agent's reply, the reopening it brings, and a
+Where news would move what the reader is reading, it waits behind a control of fixed size:
+in a seat in the page's flow, an agent's reply, the reopening it brings, and a
 thread the agent starts wait behind a notice in a row the seat already draws, and a
 thread that would open a seat of its own, as on a diff line with no thread, waits in
-the margin behind its marker (`thread/held-news.js`). In the Threads panel, a card
+the margin behind its marker (`thread/held-news.js`). It shows once a gesture of theirs
+takes them to it: opening the notice or the thread, walking to the thread or one of its
+Asks, or replying there. In the Threads panel, a card
 news takes out of the view, as another actor resolving its thread under Open does,
 stays where it stands, drawn as the news left it in the shape it stood in, until its
 going would move nothing the user sees or they change the view
@@ -240,7 +242,7 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Child pages and gallery playback | `sample.js`, `interaction-gallery*.js` |
 | Shadow trees and styles | `shadow.js`, `shadow-stage.js`, `stylesheets.js` |
 | Elements a paint belongs to while they stand, and the stages they stand in | `arrivals.js` |
-| Utilities | `icons.js`, `markdown.js`, `syntax.js`, `motion.js`, `storage.js`, `interaction-log.js` |
+| Utilities | `icons.js`, `markdown.js`, `syntax.js`, `motion.js`, `color-scheme.js`, `storage.js`, `interaction-log.js` |
 
 The executable body declaration `data-annotations` selects the default physical
 renderer or page-owned presentation. `leaf.js` imports the default package's

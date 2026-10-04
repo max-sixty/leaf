@@ -7,4 +7,4 @@ metadata:
   conditions:
   - leaf
   executor: leaf_dev.usability_eval
-  case: cold-report
+  scenario: cold-report

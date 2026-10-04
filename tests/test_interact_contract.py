@@ -3718,7 +3718,12 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
         "comment over App Server": {"kind": "comment", **untitled, **owes("turn")},
         "comment with a drawing": {
             "kind": "comment",
-            "drawing": {"format": "leaf-drawing/2", "strokes": [[[0, 0], [9, 9]]]},
+            "drawing": {
+                "format": "leaf-drawing/2",
+                "strokes": [[[0, 0], [9, 9]]],
+                "viewport": [1200, 900],
+                "scheme": "light",
+            },
             **owes("reply"),
         },
         "comment with a pasted image": {

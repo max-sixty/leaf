@@ -108,8 +108,9 @@ when the current change leaves it as easy to make as it was before.
 ## Repository map
 
 The repository is the plugin: `.claude-plugin/marketplace.json` and
-`.agents/plugins/marketplace.json` both name `./` as the payload, so Claude Code
-and Codex install the tracked tree whole.
+`.agents/plugins/marketplace.json` both name `./` as the payload, and
+`package.json`'s `pi` key makes it a Pi package, so Claude Code, Codex and Pi
+install the tracked tree whole.
 
 - `pyproject.toml`, `uv.lock`, and `bin/leaf`: the uv project and the launcher
   that runs it;
@@ -119,7 +120,8 @@ and Codex install the tracked tree whole.
 - `skills/leaf/packages/`: the bundled content vocabularies, widgets, and modules;
 - `skills/leaf/references/`: contracts for page authors, package authors, and harnesses;
 - `.claude/skills/developing-leaf/`: the maintainer workflow and vocabulary;
-- `hooks/hooks.json`: the shared harness hooks;
+- `hooks/hooks.json`: the shared harness hooks, and `hooks/pi.ts`, the Pi extension
+  that calls the same `leaf hook` entry;
 - `evals/`: cases a headless agent answers, scoring the shipped instructions;
 - `examples/`: the authored pages the site publishes and the render corpus;
 - `tests/`: the file, CLI, browser, and published-site boundaries, and in

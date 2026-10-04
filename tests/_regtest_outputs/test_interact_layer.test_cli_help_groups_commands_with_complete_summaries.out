@@ -85,6 +85,7 @@ Commands:
   init          Create or re-vendor a page directory.
   instructions  Read instructions for selected components and audience.
   media         Add images, video, or audio and print their page paths.
+  picture       Picture a drawing comment as the user saw it.
   report        Report a state change onto a page widget, as a worker.
   stamp         Stamp the current source as the next version.
   state         Print where the page, a thread, or a widget stands.

@@ -61,10 +61,10 @@ directory explicitly; export or copy anything that must outlive the page directo
    a record. A page declaring `<meta name="lf-review" content="sign-off">` is
    always a record, since approval requires a stamped version.
 4. Read `references/conversation-loop.md` and exactly one harness contract:
-   `references/harness-claude-code.md` in Claude Code; in Codex,
-   `references/harness-codex-app-server.md` when `LEAF_CODEX_APP_SERVER` is set or the
-   user gave you the task's App Server endpoint, and `references/harness-codex.md`
-   otherwise. Set the
+   `references/harness-claude-code.md` in Claude Code; `references/harness-pi.md` in
+   Pi; in Codex, `references/harness-codex-app-server.md` when
+   `LEAF_CODEX_APP_SERVER` is set or the user gave you the task's App Server
+   endpoint, and `references/harness-codex.md` otherwise. Set the
    page's status as the conversation reference defines, hand over by the harness's
    route, name the gesture available to the user, and finish the turn with the
    exact URL, or with what the harness contract hands over instead.
@@ -159,6 +159,7 @@ so a phase does not depend on discovering a chain of references.
   work long enough to delegate.
 - `references/harness-claude-code.md`: before the first handoff in Claude Code or
   recovery of its direct wait loop.
+- `references/harness-pi.md`: before the first handoff in Pi.
 - `references/harness-codex.md`: before the first handoff in Codex reached through its
   queue, which includes the desktop app, and for the delivery its later turns receive.
 - `references/harness-codex-app-server.md`: before the first handoff in a Codex task

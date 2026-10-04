@@ -1,116 +1,36 @@
-"""A/B instruction cases refer to each payload's own package instruction files."""
+"""The catalog expands into Promptfoo tests run on one column per harness and arm."""
 
 import json
-import re
-from copy import deepcopy
 from pathlib import Path
 
 import click
 import pytest
 import yaml
-from leaf_dev import ROOT
-from leaf_dev.eval import (
-    prepare,
-    read_case,
-)
-from leaf_dev.promptfoo import summarize
+from leaf_dev.eval import catalog, prepare, select_cases
 
 
-@pytest.mark.parametrize("case_file", sorted((ROOT / "evals").glob("*/case.yaml")))
-def test_library_cases_supply_a_task_and_native_promptfoo_assertions(case_file):
-    case = read_case(case_file, ROOT)
+def arms(tmp_path, *names):
+    payloads = {}
+    for arm in names:
+        skill = tmp_path / arm / "skills" / "leaf"
+        skill.mkdir(parents=True)
+        (skill / "SKILL.md").write_text(f"{arm} instructions")
+        payloads[arm] = tmp_path / arm
+    return payloads
+
+
+@pytest.mark.parametrize("address", sorted(catalog()))
+def test_library_cases_supply_a_task_and_native_promptfoo_assertions(address):
+    case = catalog()[address]
     if case.get("metadata", {}).get("executor"):
-        assert case["metadata"]["case"]
-        assert case["metadata"]["conditions"]
+        assert case["metadata"]["scenario"]
         return
     assert case["vars"]["prompt"].strip()
     assert case["assert"]
     assert all(assertion["type"] and assertion["value"] for assertion in case["assert"])
 
 
-@pytest.mark.parametrize(
-    ("directories", "selected"),
-    [
-        (("instructions",), "instructions"),
-        (("guidance",), "guidance"),
-        (("instructions", "guidance"), "instructions"),
-    ],
-)
-def test_case_paths_resolve_per_payload_without_changing_the_task_or_scoring(
-    tmp_path, directories, selected
-):
-    source = ROOT / "evals" / "playground-presets-are-whole-designs" / "case.yaml"
-    case = tmp_path / "evals" / "case.yaml"
-    case.parent.mkdir()
-    case.write_text(source.read_text())
-    original = yaml.safe_load(case.read_text())
-    instruction_files = []
-    for directory in directories:
-        path = (
-            tmp_path
-            / "skills"
-            / "leaf"
-            / "packages"
-            / "playground"
-            / directory
-            / "author.md"
-        )
-        path.parent.mkdir(parents=True)
-        path.write_text(f"This payload's {directory} instructions.\n")
-        instruction_files.append(path)
-
-    prepared = read_case(case, tmp_path)
-    assert yaml.safe_load(case.read_text()) == original
-    assert f"packages/playground/{selected}/author.md" in prepared["vars"]["prompt"]
-    read_grader = next(
-        grader for grader in prepared["assert"] if grader["metric"].startswith("reads-")
-    )
-    target = (
-        tmp_path
-        / "skills"
-        / "leaf"
-        / "packages"
-        / "playground"
-        / selected
-        / "author.md"
-    )
-    assert re.search(read_grader["config"]["path"], str(target))
-
-    # Only resource addresses change. In particular the judge measures the same
-    # composed-design behavior, and both arms demand the same successful file read.
-    expected = deepcopy(original)
-    if selected == "guidance":
-        expected["vars"]["prompt"] = expected["vars"]["prompt"].replace(
-            "/instructions/", "/guidance/"
-        )
-        for grader in expected["assert"]:
-            if grader["metric"].startswith("reads-"):
-                grader["config"]["path"] = grader["config"]["path"].replace(
-                    "/instructions/", "/guidance/"
-                )
-    assert prepared == expected
-    for path in instruction_files:
-        assert path.read_text() == f"This payload's {path.parent.name} instructions.\n"
-    if selected == "guidance":
-        assert not (
-            tmp_path / "skills" / "leaf" / "packages" / "playground" / "instructions"
-        ).exists()
-
-
-def test_missing_instruction_reference_fails_preparation_without_rewriting_case(
-    tmp_path,
-):
-    case = tmp_path / "case.yaml"
-    source = "vars:\n  prompt: Read `packages/playground/instructions/author.md`.\n"
-    case.write_text(source)
-    with pytest.raises(
-        click.ClickException, match="package instruction file .* is absent"
-    ):
-        read_case(case, tmp_path)
-    assert case.read_text() == source
-
-
-def test_native_matrix_isolates_every_harness_arm_and_repetition(tmp_path, monkeypatch):
+def test_native_columns_isolate_each_harness_and_arm(tmp_path, monkeypatch):
     login = tmp_path / "harness-login"
     login.mkdir()
     (login / "auth.json").write_text('{"fixture": "local-login"}')
@@ -121,85 +41,49 @@ def test_native_matrix_isolates_every_harness_arm_and_repetition(tmp_path, monke
     monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(claude_login))
     monkeypatch.setenv("OPENAI_API_KEY", "must-not-enter-config")
     monkeypatch.setenv("ANTHROPIC_API_KEY", "must-not-enter-config")
-    arms = {}
-    for arm in ("base", "candidate"):
-        payload = tmp_path / arm
-        skill = payload / "skills" / "leaf"
-        skill.mkdir(parents=True)
-        (skill / "SKILL.md").write_text(f"{arm} instructions")
-        arms[arm] = payload
+    payloads = arms(tmp_path, "base", "candidate")
     config = prepare(
-        ["brief-document-needs-no-outline"], arms, tmp_path, ("cc", "codex"), 2
+        ["brief-document-needs-no-outline", "shot-pair-outlined"],
+        payloads,
+        tmp_path / "scratch",
+        ("cc", "codex"),
+        ("leaf",),
+        tmp_path / "samples",
     )
-    assert len(config["tests"]) == len(config["providers"]) == 8
-    labels = {provider["label"] for provider in config["providers"]}
-    assert {test["providers"][0] for test in config["tests"]} == labels
-    workspaces = {provider["config"]["working_dir"] for provider in config["providers"]}
-    assert len(workspaces) == 8
+    labels = ["cc/base", "cc/candidate", "codex/base", "codex/candidate"]
+    assert [provider["label"] for provider in config["providers"]] == labels
+    assert [test["providers"] for test in config["tests"]] == [labels, labels]
     homes = []
     for provider in config["providers"]:
-        harness, arm, _, _ = provider["label"].split("/")
+        harness, arm = provider["label"].split("/")
         settings = provider["config"]
+        # Cases that show images find them under the column's own workspace.
+        assert (
+            Path(settings["working_dir"]) / "evals/shot-pair-outlined/captures"
+        ).is_dir()
         if harness == "cc":
             homes.append(settings["env"]["HOME"])
-            assert settings["plugins"][0]["path"] == str(arms[arm])
+            assert settings["plugins"][0]["path"] == str(payloads[arm])
             assert settings["setting_sources"] == []
             private_config = Path(settings["env"]["HOME"]) / ".claude"
-            assert private_config != claude_login
             assert json.loads((private_config / ".credentials.json").read_text()) == {
                 "fixture": "claude-login"
             }
         else:
             homes.append(settings["cli_env"]["HOME"])
             skill = Path(settings["cli_env"]["CODEX_HOME"]) / "skills" / "leaf"
-            assert skill.resolve() == arms[arm] / "skills" / "leaf"
+            assert skill.resolve() == payloads[arm] / "skills" / "leaf"
             assert settings["persist_threads"] is False
-    assert len(set(homes)) == 8
+    assert len(set(homes)) == 4
     assert "must-not-enter-config" not in json.dumps(config)
-    for test in config["tests"]:
-        assert "Build and Verification" in test["vars"]["prompt"]
-        assert [assertion["metric"] for assertion in test["assert"]] == [
-            "loads-leaf",
-            "reads-page-authoring",
-            "no-outline",
-            "judgment",
-        ]
-
-
-def test_summary_distinguishes_harness_arm_and_execution_errors():
-    result = {
-        "results": {
-            "results": [
-                {
-                    "testCase": {
-                        "metadata": {"harness": "cc", "arm": "base", "case": "example"}
-                    },
-                    "success": True,
-                },
-                {
-                    "testCase": {
-                        "metadata": {"harness": "cc", "arm": "base", "case": "example"}
-                    },
-                    "success": False,
-                    "failureReason": 1,
-                },
-                {
-                    "testCase": {
-                        "metadata": {
-                            "harness": "codex",
-                            "arm": "candidate",
-                            "case": "example",
-                        }
-                    },
-                    "success": False,
-                    "failureReason": 2,
-                },
-            ]
-        }
-    }
-    assert summarize(result) == [
-        ("example", "cc", "base", "1/2"),
-        ("example", "codex", "candidate", "0/1 (1 errors)"),
+    brief = config["tests"][0]
+    assert brief["description"] == "brief-document-needs-no-outline"
+    assert brief["vars"]["prompt"].startswith("Use the Leaf skill")
+    assert [assertion["metric"] for assertion in brief["assert"]] == [
+        "loads-leaf",
+        "reads-page-authoring",
+        "no-outline",
+        "judgment",
     ]
 
 
@@ -224,9 +108,14 @@ def test_native_javascript_assertions_and_asset_addresses_survive_preparation(
         )
     )
     monkeypatch.setattr(module, "ROOT", tmp_path)
-    payload = tmp_path / "payload"
-    payload.mkdir()
-    config = prepare(["example"], {"candidate": payload}, tmp_path, ("cc",), 1)
+    config = prepare(
+        ["example"],
+        arms(tmp_path, "candidate"),
+        tmp_path / "scratch",
+        ("cc",),
+        ("leaf",),
+        tmp_path / "samples",
+    )
     assert [check["value"] for check in config["tests"][0]["assert"]] == [
         "output.includes('hello')",
         f"file://{tmp_path / 'evals' / 'custom.cjs'}:check",
@@ -235,8 +124,6 @@ def test_native_javascript_assertions_and_asset_addresses_survive_preparation(
 
 def test_catalog_contexts_keep_complete_original_check_coverage():
     from importlib import import_module
-
-    from leaf_dev.eval import catalog, select_cases
 
     definitions = catalog()
     assert all("/" not in address for address in select_cases(()))
@@ -255,7 +142,7 @@ def test_catalog_contexts_keep_complete_original_check_coverage():
     for owner in ("usability", "arrangement", "delivery"):
         module = import_module(f"leaf_dev.{owner}_eval")
         covered = {
-            definition["metadata"]["case"]
+            definition["metadata"]["scenario"]
             for definition in definitions.values()
             if definition["metadata"].get("executor") == f"leaf_dev.{owner}_eval"
         }
@@ -264,96 +151,157 @@ def test_catalog_contexts_keep_complete_original_check_coverage():
         select_cases(("no-such-task",))
 
 
-def test_workflow_matrix_selects_meaningful_conditions_and_routes_fixed_checks(
-    tmp_path,
-):
+def test_workflows_run_declared_conditions_harnesses_and_fixed_checks(tmp_path):
     from leaf_dev.arrangement_eval import expected_checks
 
-    arms = {arm: tmp_path / arm for arm in ("base", "candidate")}
+    payloads = {arm: tmp_path / arm for arm in ("base", "candidate")}
     config = prepare(
-        ["document"],
-        arms,
-        tmp_path,
+        ["dashboard/reader", "document"],
+        payloads,
+        tmp_path / "scratch",
         ("cc", "codex"),
-        2,
-        out=tmp_path / "results",
-        conditions=("leaf", "html"),
+        ("leaf", "html"),
+        tmp_path / "samples",
     )
-    assert len(config["tests"]) == 12
-    assert len({test["vars"]["work"] for test in config["tests"]}) == 12
-    for test in config["tests"]:
-        metadata = test["metadata"]
-        assert metadata["case"] == "document"
-        assert metadata["arm"] in ("base", "candidate", "html")
+    tests = {test["description"]: test for test in config["tests"]}
+    # The fixed reader is a Claude calibration; the HTML control has no base.
+    assert {name: test["providers"] for name, test in tests.items()} == {
+        "dashboard/reader": ["cc/base/workflow", "cc/candidate/workflow"],
+        "document": [
+            "cc/base/workflow",
+            "cc/candidate/workflow",
+            "codex/base/workflow",
+            "codex/candidate/workflow",
+        ],
+        "document (html)": ["cc/html/workflow", "codex/html/workflow"],
+    }
+    for condition, test in (
+        ("leaf", tests["document"]),
+        ("html", tests["document (html)"]),
+    ):
+        assert test["metadata"]["executor"] == "leaf_dev.arrangement_eval"
+        assert test["vars"] == {"prompt": "document"}
         assert [check["metric"] for check in test["assert"]] == expected_checks(
-            "document", condition=metadata["condition"]
+            "document", condition=condition
         )
-        metrics = {check["metric"] for check in test["assert"]}
-        assert {"choice-reader-correct", "choice-preserved"}.issubset(metrics) == (
-            metadata["condition"] == "leaf"
-        )
-        configured = next(
-            p for p in config["providers"] if p["label"] == test["providers"][0]
-        )["config"]
-        assert configured["harness"] == metadata["harness"]
-        assert configured["condition"] == metadata["condition"]
-        assert Path(test["vars"]["work"]).is_relative_to(tmp_path / "results")
-    assert sum(test["metadata"]["arm"] == "html" for test in config["tests"]) == 4
+    html = next(
+        provider["config"]
+        for provider in config["providers"]
+        if provider["label"] == "codex/html/workflow"
+    )
+    assert (html["harness"], html["condition"], html["payload"], html["samples"]) == (
+        "codex",
+        "html",
+        str(payloads["candidate"]),
+        str(tmp_path / "samples/codex/html/workflow"),
+    )
     with pytest.raises(click.BadParameter, match="no requested harness/condition"):
-        prepare(["reading"], arms, tmp_path, ("cc",), 1, conditions=("html",))
+        prepare(
+            ["dashboard/reader"],
+            payloads,
+            tmp_path / "other",
+            ("codex",),
+            ("leaf",),
+            tmp_path / "samples",
+        )
 
 
-def test_python_provider_routes_harness_condition_and_case_without_parsing_prompt(
-    tmp_path,
-    monkeypatch,
-):
+def test_python_provider_gives_each_call_its_own_evidence(tmp_path, monkeypatch):
     from leaf_dev import scenario_provider
 
     observed = []
 
     class Executor:
         @staticmethod
-        def execute_scenario(case, payload, out, *, harness, condition):
-            observed.append((case, payload, out, harness, condition))
-            return {"output": '{"checks":{"completed":true}}'}
+        def execute_scenario(case, payload, work, *, harness, condition):
+            observed.append((case, payload, work, harness, condition))
+            return {"output": "{}"}
 
     monkeypatch.setattr(scenario_provider, "import_module", lambda executor: Executor)
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path / "login"))
     options = {
         "config": {
-            "executor": "leaf_dev.journey_eval",
             "payload": str(tmp_path / "payload"),
+            "samples": str(tmp_path / "samples"),
             "claude_config_dir": str(tmp_path / "login"),
             "harness": "codex",
             "condition": "html",
         }
     }
-    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path / "login"))
-    context = {"vars": {"case": "document", "work": str(tmp_path / "evidence")}}
-    assert scenario_provider.call_api("uninterpreted prompt", options, context) == {
-        "output": '{"checks":{"completed":true}}'
+    context = {
+        "vars": {"prompt": "document/resume"},
+        "test": {
+            "metadata": {
+                "case": "document/resume",
+                "executor": "leaf_dev.usability_eval",
+                "scenario": "resume",
+            }
+        },
     }
-    assert observed == [
-        ("document", tmp_path / "payload", tmp_path / "evidence", "codex", "html")
+    responses = [scenario_provider.call_api("", options, context) for _ in range(2)]
+    assert [response["metadata"]["work"] for response in responses] == [
+        str(work) for _, _, work, _, _ in observed
     ]
-
-
-def test_fixed_reader_calibration_compares_runtime_evidence_with_one_judge(tmp_path):
-    arms = {arm: tmp_path / arm for arm in ("base", "candidate")}
-    config = prepare(
-        ["dashboard/reader"],
-        arms,
-        tmp_path,
-        ("cc", "codex"),
-        1,
-        conditions=("leaf", "html"),
-    )
-    assert len(config["tests"]) == len(config["providers"]) == 2
-    assert {test["metadata"]["harness"] for test in config["tests"]} == {"cc"}
-    assert {test["metadata"]["arm"] for test in config["tests"]} == {
-        "base",
-        "candidate",
-    }
-    with pytest.raises(click.BadParameter, match="no requested harness/condition"):
-        prepare(
-            ["dashboard/reader"], arms, tmp_path, ("codex",), 1, conditions=("leaf",)
+    first, second = observed
+    assert first[2] != second[2]
+    for case, payload, work, harness, condition in observed:
+        assert (case, payload, harness, condition) == (
+            "resume",
+            tmp_path / "payload",
+            "codex",
+            "html",
         )
+        assert work.parent == tmp_path / "samples"
+        assert work.name.startswith("document-resume-")
+
+
+def test_command_passes_promptfoo_options_and_status_without_api_keys(
+    tmp_path, monkeypatch
+):
+    """The command's own edges: case/option split, the optional base arm, the
+    environment Promptfoo gets, and its exit status."""
+    from click.testing import CliRunner
+    from leaf_dev import eval as module
+
+    promptfoo = tmp_path / "promptfoo"
+    calls = tmp_path / "calls"
+    promptfoo.write_text(
+        f'#!/bin/sh\necho "$* key=${{OPENAI_API_KEY:-none}}" >> {calls}\nexit 100\n'
+    )
+    promptfoo.chmod(0o755)
+    built = []
+
+    def build_arm(ref, dest):
+        (dest / "skills" / "leaf").mkdir(parents=True)
+        built.append(ref)
+        return "0123456789abcdef"
+
+    monkeypatch.setattr(module, "PROMPTFOO", promptfoo)
+    monkeypatch.setattr(module, "RUNS", tmp_path / "runs")
+    monkeypatch.setattr(module, "build_arm", build_arm)
+    monkeypatch.setenv("OPENAI_API_KEY", "must-not-reach-promptfoo")
+
+    def run(*args):
+        return CliRunner().invoke(module.eval, ["--harness", "cc", *args])
+
+    result = run("task-outlasts-the-turn", "--repeat", "3")
+    assert result.exit_code == 100, result.output
+    assert built == [None]
+    assert calls.read_text().strip().endswith("--repeat 3 key=none")
+    config = json.loads(
+        next((tmp_path / "runs").glob("*/promptfooconfig.json")).read_text()
+    )
+    assert [p["label"] for p in config["providers"]] == ["cc/candidate"]
+    assert config["description"].endswith(
+        "(working tree on 012345678): task-outlasts-the-turn"
+    )
+
+    built.clear()
+    # A named ref, since CI's checkout has no local main to take a merge base from.
+    assert run("task-outlasts-the-turn", "--base", "HEAD").exit_code == 100
+    assert built == ["HEAD", None]
+
+    built.clear()
+    result = run("--base", "task-outlasts-the-turn")
+    assert result.exit_code == 2 and "put cases before --base" in result.output
+    assert built == []

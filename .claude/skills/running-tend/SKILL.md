@@ -50,7 +50,9 @@ profiles from CI.
 ## Reading a red suite
 
 Nearly every test drives a real browser, so a traceback can name a symptom
-several boundaries after its cause. Two test-owned failures recur:
+several boundaries after its cause. Before updating a test to its new expectation,
+apply `tests/AGENTS.md`, **A failure is evidence about the test too**. Two
+test-owned failures recur:
 
 - **A read or press before the page said it was ready**, which a re-run hides.
   State the ordering (`tests/AGENTS.md`, **State races are arrangements, not

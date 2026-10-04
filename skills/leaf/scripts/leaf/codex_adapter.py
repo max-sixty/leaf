@@ -903,12 +903,15 @@ def run_adapter(
         failures = 0
         while True:
             try:
-                recovered = _recover_receipt(harness.session)
+                # Receipt recovery judges page ownership as retirement does, so
+                # both wait out a starter's claim handoff under the start lock
+                # (`session-lifetime.md`, "Carriers").
+                with flocked(start_lock):
+                    recovered = _recover_receipt(harness.session)
+                    if not recovered and not owned_pages(harness.session):
+                        retire()
+                        return 0
                 if not recovered:
-                    with flocked(start_lock):
-                        if not owned_pages(harness.session):
-                            retire()
-                            return 0
                     recovered = _offer_queued_delivery(
                         codex_path,
                         harness.session,

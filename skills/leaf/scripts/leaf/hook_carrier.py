@@ -1,12 +1,14 @@
-"""The prompt and Stop hooks as a Claude Code session's carrier: they carry the
-page input pending on the session's pages into its turn and enforce the agent
-conversation loop. `hooks` reaches this module only for a session holding a page.
+"""The prompt and Stop hooks as a session's carrier, under Claude Code or Pi: they
+carry the page input pending on the session's pages into its turn and enforce the
+agent conversation loop. `hooks` reaches this module only for a session holding a
+page.
 
 Claude Code runs the prompt hook as every turn begins, including a turn the end
 of a background task opens, idle or between two tool calls, and adds what the
 hook returns to that turn's context; what the Stop hook returns reaches the
-model the same way, and continues the turn (`Harness.hook_context`). So these
-two hooks are the session's carrier
+model the same way, and continues the turn (`Harness.hook_context`). Leaf's Pi
+extension calls both at the same points of a run. So these two hooks are the
+session's carrier
 (`Harness.hook_delivers`): each freezes the input pending on the session's pages and hands over its complete
 envelope or immutable pointer. The reader confirms receipt only once the whole
 delivery is in context; hook completion and stdout publication prove no receipt.

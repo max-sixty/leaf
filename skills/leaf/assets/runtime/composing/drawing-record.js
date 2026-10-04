@@ -4,6 +4,9 @@
  * page drawing has no target, and its strokes are offsets from the document's origin.
  * `box` is the target's size the strokes were drawn at, and `says` is the page's words
  * the drawing stands over: together the reading for whoever cannot see the page.
+ * `viewport` is the layout viewport's width and height, and `scheme` the color scheme,
+ * the drawing was made in: with the comment's revision they are the window the user
+ * saw, which `leaf page picture` draws again for the agent.
  * `strokesIn` scales the strokes to the target's current size.
  */
 export const DRAWING_FORMAT = "leaf-drawing/2";
@@ -11,6 +14,7 @@ export const MAX_DRAWING_STROKES = 32;
 export const MAX_DRAWING_POINTS = 256;
 export const DRAWING_COORDINATE_LIMIT = 33554432;
 export const MAX_DRAWING_SAYS_LENGTH = 500; // code points
+export const DRAWING_SCHEMES = ["light", "dark"];
 
 const bounded = (coordinate) =>
   Number.isFinite(coordinate) &&
@@ -25,7 +29,8 @@ const validStroke = (stroke) =>
     (point) => Array.isArray(point) && point.length === 2 && point.every(bounded),
   );
 
-const validBox = (box) =>
+// A box or a viewport: a width and a height, each a positive bounded number.
+const validSize = (box) =>
   Array.isArray(box) &&
   box.length === 2 &&
   box.every((side) => bounded(side) && side > 0);
@@ -41,15 +46,17 @@ export function validDrawing(drawing) {
     typeof drawing === "object" &&
     !Array.isArray(drawing) &&
     Object.keys(drawing).every((key) =>
-      ["format", "strokes", "box", "says"].includes(key),
+      ["format", "strokes", "box", "says", "viewport", "scheme"].includes(key),
     ) &&
     drawing.format === DRAWING_FORMAT &&
     Array.isArray(drawing.strokes) &&
     drawing.strokes.length >= 1 &&
     drawing.strokes.length <= MAX_DRAWING_STROKES &&
     drawing.strokes.every(validStroke) &&
-    (drawing.box === undefined || validBox(drawing.box)) &&
-    (drawing.says === undefined || validWords(drawing.says)),
+    (drawing.box === undefined || validSize(drawing.box)) &&
+    (drawing.says === undefined || validWords(drawing.says)) &&
+    validSize(drawing.viewport) &&
+    DRAWING_SCHEMES.includes(drawing.scheme),
   );
 }
 

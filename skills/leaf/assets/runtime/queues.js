@@ -24,7 +24,11 @@
    the place of the served answer, since the server owes a thread one answer, to its
    latest move. A widget move still sending is not: until
    the server reads it, it is not known to owe anything, and an Ask it answers still
-   stands open. */
+   stands open.
+
+   Experimental: the queues and the walk over them are new, and their shape is
+   expected to change a lot (notes/what-needs-you/). Change them freely.
+*/
 import { awaitsUser } from "./thread/model.js";
 import { atWork } from "./thread/workflow.js";
 

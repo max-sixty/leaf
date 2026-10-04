@@ -11481,7 +11481,6 @@ def test_align_current_item_more_restores_touch_context_and_reserves_z(browser, 
     control.tap()
     _expect_aligned(page, "#align-heading")
     expect(page.locator("#align-heading")).to_be_focused()
-    context.close()
 
 
 def test_align_current_thread_stays_in_its_panel_without_travel(browser, serve):
@@ -11577,7 +11576,6 @@ def test_align_current_item_does_not_follow_old_page_caret_from_empty_threads(
     assert (
         page.evaluate("[scrollY,history.length,navigation.currentEntry.key]") == before
     )
-    context.close()
 
 
 def test_align_current_ask_in_a_reply_keeps_its_question_extent(browser, serve):

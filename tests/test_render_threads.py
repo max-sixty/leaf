@@ -7872,9 +7872,7 @@ CARD_TOP_AUTHORS = """transcript => {
 }"""
 
 
-def test_the_thread_card_opens_on_its_latest_message_under_its_own_name(
-    browser, serve
-):
+def test_the_thread_card_opens_on_its_latest_message_under_its_own_name(browser, serve):
     """A card opened on a long thread shows its latest message, as a walk to it in the
     Threads list does, and its top row names whoever wrote the words under it. The
     card pinned the root's name beside its actions, so it opened at the top to keep

@@ -39,7 +39,7 @@ change meets the deferral condition in **Fix the underlying issue**.
 Before approving a product change, run the few tests that exercise the failures
 the diff most plausibly introduces, chosen from the product paths and contracts
 it touches rather than the test files it edits, and within the local limit in
-`tests/AGENTS.md` ("Run the narrowest useful surface"): the complete `test` job
+`tests/AGENTS.md` ("Run what the change needs"): the complete `test` job
 reports the rest once the change lands. A docs-only or generated-workflow change
 may need none; a selected failure withholds approval.
 Where a test itself is at issue, `tests/AGENTS.md` says which boundary it
@@ -50,7 +50,9 @@ profiles from CI.
 ## Reading a red suite
 
 Nearly every test drives a real browser, so a traceback can name a symptom
-several boundaries after its cause. Two test-owned failures recur:
+several boundaries after its cause. Before updating a test to its new expectation,
+apply `tests/AGENTS.md`, **A failure is evidence about the test too**. Two
+test-owned failures recur:
 
 - **A read or press before the page said it was ready**, which a re-run hides.
   State the ordering (`tests/AGENTS.md`, **State races are arrangements, not
@@ -70,8 +72,8 @@ cause that no open pull request already covers.
 
 ## A red `ci` on main is live
 
-Pull requests run the everyday and website-worker gates; main runs the complete
-suite once, alongside its runtime, browser-framework and bundle gates. A red `ci`
+Pull requests run the broad selection and the website-worker gate; main runs the
+complete suite once, alongside its runtime, browser-framework and bundle gates. A red `ci`
 on main affects whoever pulls next, so treat it as live. Main holds one complete-suite slot and a newer commit
 replaces the one waiting, which GitHub records as a cancelled run whose `test`
 job has no runner (`runner_id` 0); that is not a regression. A `test` that
@@ -114,9 +116,9 @@ the run summary rather than treating it as having no changes.
 Open an issue only for a concrete, material opportunity or incompatibility in
 Leaf's current code or agent workflow. Check the affected implementation and
 upstream documentation before deciding. Hooks, waking agents, background work,
-plugins, MCP, and permissions can affect Leaf's host integration; a release
+plugins, MCP, and permissions can affect Leaf's harness integration; a release
 mentioning one of them does not by itself justify an issue. Claude Code's
-`asyncWake` is the calibration example: a host capability that could improve
+`asyncWake` is the calibration example: a harness capability that could improve
 Leaf's comment-to-agent wake loop warrants investigation. Routine fixes,
 cosmetic changes, and speculative relevance do not.
 

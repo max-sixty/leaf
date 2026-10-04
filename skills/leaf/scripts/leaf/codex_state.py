@@ -72,7 +72,7 @@ def accept_codex_delivery_read(delivery_id: str) -> None:
     rechecked under the acceptance lock, so queue reservation or a newer turn
     invalidates this proof before any delivery record changes.
     """
-    from .host import session_harness
+    from .harness import session_harness
 
     harness = session_harness()
     if harness is None or (turn := step_delivery_turn(harness.session)) is None:

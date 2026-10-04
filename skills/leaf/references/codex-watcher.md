@@ -2,7 +2,7 @@
 
 A Codex watcher keeps a Leaf wait active after the page's task ends its turn. It
 forwards each complete batch into that task through a background follow-up. It needs
-a host that offers both task creation and background follow-ups, and it adds a
+a harness that offers both task creation and background follow-ups, and it adds a
 visible task to the user's sidebar.
 
 Create one watcher per page in the same saved project. Give it the exact page task id,
@@ -28,7 +28,7 @@ whose "Delivery and acknowledgement" section says how a wait ends. Its job is:
    uncertain, acknowledge nothing and resend the same follow-up. If the wait output was
    lost or truncated, acknowledge nothing and rerun `leaf wait <page>`, as the batch
    reference says.
-4. After the host accepts the follow-up, run `leaf wait --ack <delivery-id>` in
+4. After the harness accepts the follow-up, run `leaf wait --ack <delivery-id>` in
    unified exec. Retain and poll that command's session id: after advancing the
    cursor, it stays active as the next wait. A batch on stdout is the next
    delivery; return to step 3. An ending on stderr is one of those the batch

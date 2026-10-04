@@ -9,6 +9,8 @@ import {
   PRESENTATION_HELD,
 } from "../vendor/browser-runtime.js";
 
+import { bindQueuedWork } from "./queued-work.js";
+
 const documentToken = Object.freeze({});
 let reportPresentationFailure = (reason) =>
   console.error("leaf: presentation failed", reason);
@@ -17,7 +19,7 @@ const presentation = createPresentationCoordinator({
 });
 // A publication paints on the pass after it, so every subscriber has claimed its region
 // before any renderer touches the document.
-const schedule = createPresentationSchedule();
+const schedule = createPresentationSchedule(bindQueuedWork);
 
 export const applicationState = createSemanticApplication({
   presentation: {

@@ -30,6 +30,7 @@
 import { anchorLabel } from "./messages.js";
 import { awaitsAgent, awaitsUser } from "./model.js";
 import { retainUserIntent } from "../user-intent.js";
+import { bindQueuedWork } from "../queued-work.js";
 
 const choice = (kind, value, label, className = "") =>
   Object.freeze({ kind, value, label, className });
@@ -363,11 +364,16 @@ export function createThreadNarrowing({ view, listRoot, readThreads, ready, repa
         // lease then, but reject any user choice made while it awaits presentation.
         const preparing = before?.();
         const prepared = intent;
+        const restore = bindQueuedWork(() => {
+          if (intent !== prepared) return false;
+          intent = retained;
+          view.setSearchWords(retained.words);
+          return renarrow();
+        });
         await preparing;
-        if (intent !== prepared) return false;
-        intent = retained;
-        view.setSearchWords(retained.words);
-        await renarrow();
+        const restoring = restore();
+        if (restoring === false) return false;
+        await restoring;
         return true;
       },
     };

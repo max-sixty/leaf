@@ -1,18 +1,25 @@
-"""One task catalog and Promptfoo matrix for short replies and complete workflows.
+"""Run the eval catalog through Promptfoo on Claude Code and Codex.
 
-Native tests keep native stateless providers. Tasks needing a directory or feedback
-name an executor; it owns its steps and semantic checks, not matrix or reporting.
-Contexts expand under task/context without dropping their distinct evidence. Host,
-Leaf revision and HTML condition are independent: HTML is sampled once per host,
-not once per Leaf revision. Every model sample has an isolated authenticated home.
+This command does only what Promptfoo cannot: it builds each Leaf arm (the working
+tree, and with `--base` a ref), gives each provider a home of its own holding just the
+harness's login, and expands the catalog's task/context addresses into Promptfoo tests.
+Promptfoo owns the rest: repetition, concurrency, assertions, the console table, and
+the result database its viewer reads. Arguments after the cases go to `promptfoo eval`.
+
+A provider is one column of the results: a harness on one arm (`cc/candidate`), suffixed
+`/workflow` for the Python provider that runs complete tasks, and on arm `html` for
+the plain HTML control. A test is one catalog address under one condition.
 """
 
 import fnmatch
+import json
 import os
-import re
 import shutil
+import subprocess
 import sys
 import tempfile
+from copy import deepcopy
+from datetime import datetime
 from importlib import import_module
 from pathlib import Path
 
@@ -20,15 +27,20 @@ import click
 import yaml
 
 from leaf_dev import ROOT
-from leaf_dev.harness import base_ref, build_arm, claude_child, codex_home
-from leaf_dev.leaf_assets import pinned_copy
-from leaf_dev.promptfoo import output_directory, report, run
-
-ARMS = ("base", "candidate")
-HOSTS = ("cc", "codex")
-PACKAGE_INSTRUCTION_PATH = re.compile(
-    r"packages/[a-z][a-z0-9-]*/instructions/[a-z][a-z0-9-]*(?:\\)?\.md"
+from leaf_dev.arms import (
+    MODELS,
+    base_ref,
+    build_arm,
+    claude_child,
+    codex_home,
+    environment,
 )
+from leaf_dev.leaf_assets import pinned_copy
+
+HARNESSES = ("cc", "codex")
+PROMPTFOO = ROOT / "evals/node_modules/.bin/promptfoo"
+RUNS = ROOT / ".tmp/eval"
+SKILL_PREFIX = "Use the Leaf skill ($leaf in Codex; leaf:leaf in Claude Code).\n\n"
 
 
 def context_case(source: dict, address: str) -> dict:
@@ -72,38 +84,14 @@ def select_cases(globs: tuple[str, ...]) -> list[str]:
     ]
 
 
-def read_case(case_file: Path, payload: Path) -> dict:
-    """Use each historical payload's own package instruction addresses.
-
-    The task and assertions remain identical apart from the directory rename.
-    Missing resources fail preparation before spending any model calls.
-    """
-    source = case_file.read_text()
-
-    def resolved(match: re.Match) -> str:
-        reference = match[0]
-        path = reference.replace(r"\.", ".")
-        if (payload / "skills" / "leaf" / path).is_file():
-            return reference
-        historical = path.replace("/instructions/", "/guidance/")
-        if (payload / "skills" / "leaf" / historical).is_file():
-            return reference.replace("/instructions/", "/guidance/")
-        raise click.ClickException(
-            f"{case_file}: package instruction file {path} is absent from "
-            f"{payload} (also checked {historical})"
-        )
-
-    return yaml.safe_load(PACKAGE_INSTRUCTION_PATH.sub(resolved, source))
-
-
-def provider(host: str, payload: Path, work: Path) -> dict:
-    """Native providers; only the supplied skill and local account login are shared."""
-    if host == "cc":
+def native_provider(harness: str, payload: Path, work: Path) -> dict:
+    """A native agent provider that can read the arm's skill and nothing else of ours."""
+    if harness == "cc":
         child = claude_child(work)
         return {
             "id": "anthropic:claude-agent-sdk",
             "config": {
-                "model": "opus",
+                "model": MODELS["cc"],
                 "apiKeyRequired": False,
                 "working_dir": str(work),
                 "persist_session": False,
@@ -138,7 +126,7 @@ def provider(host: str, payload: Path, work: Path) -> dict:
     return {
         "id": "openai:codex-app-server",
         "config": {
-            "model": "gpt-6.1-sol",
+            "model": MODELS["codex"],
             "model_reasoning_effort": "medium",
             "working_dir": str(work),
             "skip_git_repo_check": True,
@@ -157,46 +145,99 @@ def provider(host: str, payload: Path, work: Path) -> dict:
     }
 
 
+def workflow_provider(
+    harness: str, condition: str, payload: Path, samples: Path
+) -> dict:
+    """The Python provider that hands one complete task to its declared executor."""
+    return {
+        "id": f"file://{ROOT / 'dev/leaf_dev/scenario_provider.py'}",
+        "config": {
+            # `eval` drops CLAUDE_CONFIG_DIR from Promptfoo's environment, so native
+            # providers can't read the user's settings; executors need it to find
+            # the login (`claude_child`).
+            "claude_config_dir": os.environ.get(
+                "CLAUDE_CONFIG_DIR", str(Path.home() / ".claude")
+            ),
+            "harness": harness,
+            "condition": condition,
+            "payload": str(payload),
+            "samples": str(samples),
+            "pythonExecutable": sys.executable,
+            "timeout": 1800000,
+        },
+    }
+
+
+def screenshot_judge(samples: Path) -> dict:
+    """The grader for an executor's `agent-rubric`s: it may open screenshots under the
+    run's samples and nothing else, so neither a page's source, the author's
+    transcript, nor a path naming the arm reaches it."""
+    work = samples.parent / "judge"
+    work.mkdir(parents=True, exist_ok=True)
+    return {
+        "id": "anthropic:claude-agent-sdk",
+        "config": {
+            "model": MODELS["cc"],
+            "apiKeyRequired": False,
+            "setting_sources": [],
+            "persist_session": False,
+            "working_dir": str(work),
+            "tools": ["Read"],
+            "custom_allowed_tools": [f"Read(/{samples}/**/*.png)"],
+            "permission_mode": "dontAsk",
+            "max_turns": 200,
+        },
+    }
+
+
 def prepare(
     cases: list[str],
     arms: dict[str, Path],
     scratch: Path,
-    hosts: tuple[str, ...],
-    runs: int,
-    *,
-    out: Path | None = None,
-    conditions: tuple[str, ...] = ("leaf",),
+    harnesses: tuple[str, ...],
+    conditions: tuple[str, ...],
+    samples: Path,
 ) -> dict:
-    """Build only meaningful host/condition/revision cells for selected tasks."""
+    """One test per selected address and condition, run on each column it applies to."""
     definitions = catalog()
-    tests, providers = [], []
+    providers: dict[str, dict] = {}
+    tests = []
     for address in cases:
-        definition = definitions[address]
-        task = address.split("/", 1)[0]
-        declared = definition.get("metadata", {}).get("conditions", ["leaf"])
+        test = definitions[address]
+        metadata = test.get("metadata", {})
+        executor = metadata.get("executor")
         for condition in conditions:
-            if condition not in declared:
+            if condition not in metadata.get("conditions", ["leaf"]):
                 continue
-            selected_arms = arms if condition == "leaf" else {"html": arms["candidate"]}
-            for arm, payload in selected_arms.items():
-                source = context_case(
-                    read_case(ROOT / "evals" / task / "case.yaml", payload), address
+            columns = arms if condition == "leaf" else {"html": arms["candidate"]}
+            labels = []
+            for harness in harnesses:
+                if harness not in metadata.get("harnesses", HARNESSES):
+                    continue
+                for arm, payload in columns.items():
+                    label = f"{harness}/{arm}" + ("/workflow" if executor else "")
+                    if label not in providers:
+                        if executor:
+                            configured = workflow_provider(
+                                harness, condition, payload, samples
+                            )
+                        else:
+                            work = scratch / "work" / label
+                            work.mkdir(parents=True)
+                            configured = native_provider(harness, payload, work)
+                        providers[label] = {**configured, "label": label}
+                    labels.append(label)
+            if not labels:
+                continue
+            sample = deepcopy(test)
+            task = address.split("/", 1)[0]
+            if executor:
+                module = import_module(executor)
+                checks = module.expected_checks(
+                    metadata["scenario"], condition=condition
                 )
-                metadata = source.get("metadata", {})
-                executor = metadata.get("executor")
-                if executor:
-                    module = import_module(executor)
-                    owner_case = metadata["case"]
-                    checks = module.expected_checks(owner_case, condition=condition)
-                    if (
-                        not checks
-                        or "completed" not in checks
-                        or len(checks) != len(set(checks))
-                    ):
-                        raise ValueError(
-                            f"{address}: checks must be unique and include completed"
-                        )
-                    source["assert"] = [
+                sample["assert"] = [
+                    *(
                         {
                             "type": "javascript",
                             "value": "file://scenario-check.cjs",
@@ -204,94 +245,61 @@ def prepare(
                             "config": {"check": check},
                         }
                         for check in checks
-                    ]
-                for assertion in source["assert"]:
-                    value = assertion.get("value")
-                    if isinstance(value, str) and value.startswith("file://"):
-                        assertion["value"] = (
-                            f"file://{ROOT / 'evals' / value.removeprefix('file://')}"
+                    ),
+                    # A judge's verdicts on the screenshots the sample lists.
+                    *(
+                        {**rubric, "provider": screenshot_judge(samples)}
+                        for rubric in getattr(module, "rubrics", lambda _: [])(
+                            metadata["scenario"]
                         )
-                for host in hosts:
-                    if host not in metadata.get("hosts", HOSTS):
-                        continue
-                    for repetition in range(1, runs + 1):
-                        label = f"{host}/{arm}/{address}/{repetition}"
-                        work = scratch / "work" / host / arm / address / str(repetition)
-                        work.mkdir(parents=True)
-                        if executor:
-                            evidence = (
-                                (out or scratch)
-                                / "samples"
-                                / host
-                                / arm
-                                / address
-                                / str(repetition)
-                            )
-                            configured = {
-                                "id": f"file://{ROOT / 'dev/leaf_dev/scenario_provider.py'}",
-                                "config": {
-                                    "claude_config_dir": os.environ.get(
-                                        "CLAUDE_CONFIG_DIR",
-                                        str(Path.home() / ".claude"),
-                                    ),
-                                    "executor": executor,
-                                    "host": host,
-                                    "condition": condition,
-                                    "payload": str(payload),
-                                    "pythonExecutable": sys.executable,
-                                    "workers": 1,
-                                    "timeout": 1800000,
-                                },
-                            }
-                            variables = {
-                                "prompt": address,
-                                "case": owner_case,
-                                "work": str(evidence),
-                            }
-                        else:
-                            images = pinned_copy(ROOT / "evals" / task)
-                            if images is not None and images.is_dir():
-                                shutil.copytree(
-                                    images, work / "evals" / task, dirs_exist_ok=True
-                                )
-                            configured = provider(host, payload, work)
-                            variables = {
-                                **source["vars"],
-                                "prompt": "Use the Leaf skill ($leaf in Codex; leaf:leaf in Claude Code).\n\n"
-                                + source["vars"]["prompt"],
-                            }
-                        configured["label"] = label
-                        providers.append(configured)
-                        tests.append(
-                            {
-                                **source,
-                                "vars": variables,
-                                "providers": [label],
-                                "metadata": {
-                                    **metadata,
-                                    "case": address,
-                                    "host": host,
-                                    "arm": arm,
-                                    "condition": condition,
-                                },
-                            }
+                    ),
+                ]
+                sample["vars"] = {"prompt": address}
+            else:
+                sample["vars"] = {
+                    **sample["vars"],
+                    "prompt": SKILL_PREFIX + sample["vars"]["prompt"],
+                }
+                images = pinned_copy(ROOT / "evals" / task)
+                if images is not None and images.is_dir():
+                    for label in labels:
+                        shutil.copytree(
+                            images,
+                            Path(providers[label]["config"]["working_dir"])
+                            / "evals"
+                            / task,
+                            dirs_exist_ok=True,
                         )
+            for assertion in sample["assert"]:
+                value = assertion.get("value")
+                if isinstance(value, str) and value.startswith("file://"):
+                    assertion["value"] = (
+                        f"file://{ROOT / 'evals' / value.removeprefix('file://')}"
+                    )
+            tests.append(
+                {
+                    **sample,
+                    "description": address
+                    + ("" if condition == "leaf" else f" ({condition})"),
+                    "providers": labels,
+                    "metadata": {**metadata, "case": address, "condition": condition},
+                }
+            )
     if not tests:
         raise click.BadParameter(
-            "selected cases have no requested host/condition",
-            param_hint="--host/--condition",
+            "selected cases have no requested harness/condition",
+            param_hint="--harness/--condition",
         )
     return {
-        "description": "Leaf tasks",
         "prompts": ["{{prompt}}"],
-        "providers": providers,
+        "providers": list(providers.values()),
         "tests": tests,
         "defaultTest": {
             "options": {
                 "provider": {
                     "id": "anthropic:claude-agent-sdk",
                     "config": {
-                        "model": "sonnet",
+                        "model": MODELS["judge"],
                         "apiKeyRequired": False,
                         "setting_sources": [],
                         "persist_session": False,
@@ -302,11 +310,37 @@ def prepare(
     }
 
 
-@click.command("eval")
-@click.argument("case_globs", metavar="[CASE]...", nargs=-1)
-@click.option("--base", help="Base ref; defaults to the merge base with main.")
+def describe(base: str | None, head: str, globs: tuple[str, ...]) -> str:
+    """The run's name in Promptfoo's viewer: branch, arms and the cases asked for."""
+    branch = subprocess.run(
+        ["git", "-C", ROOT, "rev-parse", "--abbrev-ref", "HEAD"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    arms = f"working tree on {head[:9]}"
+    if base:
+        arms = f"base {base[:9]} vs {arms}"
+    return f"{branch} ({arms}): {' '.join(globs) or 'all tasks'}"
+
+
+@click.command(
+    "eval",
+    context_settings={"ignore_unknown_options": True},
+)
+@click.argument("args", metavar="[CASE]... [PROMPTFOO_OPTION]...", nargs=-1)
 @click.option(
-    "--host", type=click.Choice([*HOSTS, "both"]), default="both", show_default=True
+    "--base",
+    is_flag=False,
+    flag_value="",
+    default=None,
+    help="Also run the merge base with main, or the ref given.",
+)
+@click.option(
+    "--harness",
+    type=click.Choice([*HARNESSES, "both"]),
+    default="both",
+    show_default=True,
 )
 @click.option(
     "--condition",
@@ -314,32 +348,90 @@ def prepare(
     default="leaf",
     show_default=True,
 )
-@click.option("--runs", type=click.IntRange(min=1), default=1, show_default=True)
-def eval(
-    case_globs: tuple[str, ...], base: str | None, host: str, condition: str, runs: int
-):
-    """Score CASE globs or task/context on both hosts and Leaf revisions."""
-    cases = select_cases(case_globs)
-    out = output_directory("eval")
+def eval(args: tuple[str, ...], base: str | None, harness: str, condition: str):
+    """Score CASE globs or task/context addresses on the working tree.
+
+    Options Promptfoo takes follow the cases, such as `--repeat 3` or `-j 4`.
+    `npm run view --prefix evals` opens the results.
+    """
+    split = next((i for i, arg in enumerate(args) if arg.startswith("-")), len(args))
+    globs, promptfoo_args = args[:split], args[split:]
+    cases = select_cases(globs)
+    conditions = ("leaf", "html") if condition == "both" else (condition,)
+    # Only the Leaf condition runs on more than the working tree.
+    if base is not None and "leaf" in conditions:
+        base = base_ref(base)
+        # An optional value takes the next word, so `--base CASE` names a ref.
+        if subprocess.run(
+            ["git", "-C", ROOT, "rev-parse", "--verify", "-q", f"{base}^{{commit}}"],
+            capture_output=True,
+            check=False,
+        ).returncode:
+            raise click.BadParameter(
+                f"no commit {base!r}; put cases before --base", param_hint="--base"
+            )
+    else:
+        base = None
+    if not PROMPTFOO.is_file():
+        raise click.ClickException(
+            "Install eval dependencies first: npm ci --prefix evals"
+        )
+    RUNS.mkdir(parents=True, exist_ok=True)
+    out = Path(
+        tempfile.mkdtemp(
+            prefix=f"{datetime.now().astimezone():%Y%m%d-%H%M%S}-", dir=RUNS
+        )
+    )
     with tempfile.TemporaryDirectory(prefix="leaf-eval-") as temporary:
         scratch = Path(temporary)
-        arms = {arm: scratch / arm for arm in ARMS}
-        commits = {
-            "base": build_arm(base_ref(base), arms["base"]),
-            "candidate": build_arm(None, arms["candidate"]),
-        }
+        refs = {"base": base} if base else {}
+        refs["candidate"] = None
+        commits = {arm: build_arm(ref, scratch / arm) for arm, ref in refs.items()}
         config = prepare(
             cases,
-            arms,
+            {arm: scratch / arm for arm in commits},
             scratch,
-            HOSTS if host == "both" else (host,),
-            runs,
-            out=out,
-            conditions=("leaf", "html") if condition == "both" else (condition,),
+            HARNESSES if harness == "both" else (harness,),
+            conditions,
+            out / "samples",
         )
-        click.echo(
-            f"base {commits['base'][:9]}; candidate working tree on {commits['candidate'][:9]}"
+        config["description"] = describe(
+            commits.get("base"), commits["candidate"], globs
         )
-        click.echo(f"{len(config['tests'])} samples; results and log: {out}")
-        result, status = run(config, out)
-    report(result, status, out)
+        config_file = out / "promptfooconfig.json"
+        config_file.write_text(json.dumps(config, indent=2) + "\n")
+        # Promptfoo resolves the agent SDK packages from the config's directory.
+        (out / "node_modules").symlink_to(ROOT / "evals/node_modules")
+        click.echo(config["description"])
+        env = environment(
+            PROMPTFOO_DISABLE_TELEMETRY="1", PROMPTFOO_DISABLE_UPDATE_CHECK="1"
+        )
+        # Local-login evals must not silently switch to ambient API billing.
+        for key in (
+            "OPENAI_API_KEY",
+            "CODEX_API_KEY",
+            "ANTHROPIC_API_KEY",
+            "CLAUDE_CONFIG_DIR",
+        ):
+            env.pop(key, None)
+        status = subprocess.run(
+            [
+                str(PROMPTFOO),
+                "eval",
+                "-c",
+                str(config_file),
+                "--no-cache",
+                "--no-share",
+                "--max-concurrency",
+                "2",
+                "-o",
+                str(out / "results.json"),
+                *promptfoo_args,
+            ],
+            cwd=ROOT / "evals",
+            env=env,
+            stdin=subprocess.DEVNULL,
+            check=False,
+        ).returncode
+    click.echo(f"evidence: {out}\nview: npm run view --prefix evals")
+    sys.exit(status)

@@ -7,7 +7,7 @@ metadata:
   purpose: 'Codex terminal setup: separate App Server and CLI processes remain independent across
     simultaneous task pairs.'
   tags:
-  - host-codex
+  - harness-codex
   - concurrency
 vars:
   prompt: |
@@ -24,10 +24,10 @@ assert:
   config:
     path: skills/leaf/SKILL\.md
 - type: javascript
-  metric: reads-app-server-host
+  metric: reads-app-server-harness
   value: file://reference-read.cjs
   config:
-    path: skills/leaf/references/host-codex-app-server\.md
+    path: skills/leaf/references/harness-codex-app-server\.md
 - type: llm-rubric
   metric: independent-transports
   value: |

@@ -1,7 +1,8 @@
 """The agent harnesses Leaf runs under, and the Claude Code messaging socket
 behind one of them.
 
-A harness is one agent host as Leaf meets it. `Harness` collects everything that
+A harness is the program an agent session runs in, such as Claude Code or Codex, as
+Leaf meets it. `Harness` collects everything that
 differs between them — session lifetime, delivery carrier, the hook's remedies,
 the way to reach a session with nothing watching — so that every module below
 this one dispatches on what a harness declares rather than on which harness it
@@ -34,7 +35,7 @@ from leaf.machine import ancestry, pid_alive, process_argv
 class Harness:
     """One agent harness, and everything Leaf's harness-neutral code differs on.
 
-    `session` is the host's own stable id for this session and `agent` the
+    `session` is the harness's own stable id for this session and `agent` the
     display name the page shows for it. Both are per-session; the rest of a
     harness is fixed for the program, and stated on its class.
 
@@ -54,10 +55,13 @@ class Harness:
       context for its reader to confirm (`hook_delivers`). A turn that ends without its Stop
       hooks, as an interrupt does, leaves nothing watching while the session lives
       on, which is why this is the harness with a `nudge`.
+    - Pi runs Leaf's extension in its own process, which calls the same hooks at
+      the same points of a run and starts the same watch as each run settles, and
+      starts the turn the watch wakes itself.
     - Codex has a detached adapter that outlives the turn and proves itself by
       holding the adapter lease. It queues each delivery with `codex queue`, or
       starts its turn over the task's App Server when Leaf can reach one.
-    - An embedded host drives Codex App Server itself and starts the turns;
+    - An embedded harness drives Codex App Server itself and starts the turns;
       nothing outside it carries input in.
     """
 
@@ -65,7 +69,7 @@ class Harness:
     agent: str
 
     name: ClassVar[str]
-    # Whether the host's hooks can carry input into the turn: they freeze and
+    # Whether the harness's hooks can carry input into the turn: they freeze and
     # hand over the whole delivery, and `leaf wait` only wakes the session.
     # `hooks_carry` says whether they do for this session.
     hook_delivers: ClassVar[bool] = False
@@ -97,9 +101,9 @@ class Harness:
         return listening or self.hooks_carry()
 
     def ensure_delivery(self) -> None:
-        """Prepare this host's input route before handing over a served page.
+        """Prepare this harness's input route before handing over a served page.
 
-        Hosts whose hooks or embedding own delivery need no separate process.
+        Harnesses whose hooks or embedding own delivery need no separate process.
         A detached carrier starts or joins its task-wide watch here.
         """
 
@@ -114,7 +118,7 @@ class Harness:
         yield
 
     def hooks_carry(self) -> bool:
-        """Whether this session's hooks carry its input: its host runs hooks that
+        """Whether this session's hooks carry its input: its harness runs hooks that
         can, and one has run for this session. Until one has, `leaf wait` prints
         the delivery for its reader to confirm, so a session whose hooks never run
         still reads its input rather than being woken to an empty turn."""
@@ -130,13 +134,13 @@ class Harness:
         raise NotImplementedError
 
     def watches_between_turns(self) -> bool:
-        """Whether this session's host runs Leaf's watch as a Stop hook it keeps in
+        """Whether this session's harness runs Leaf's watch as a Stop hook it keeps in
         the background, which wakes the session when input arrives
         (`session.watch_between_turns`); the model then starts no `leaf wait`."""
         return False
 
-    def host_runs(self) -> bool:
-        """Whether the host process whose hook started this watch still runs. A
+    def process_runs(self) -> bool:
+        """Whether the harness process whose hook started this watch still runs. A
         watch it has orphaned can wake nobody, and would hold the session's lease
         over the input a `nudge` could still deliver."""
         return True
@@ -155,13 +159,13 @@ class Harness:
         at a prompt, before the turn's work; at Stop, as new context that keeps
         the ending turn going.
 
-        Every host Leaf's hooks run under reads `additionalContext` at a prompt.
+        Every harness Leaf's hooks run under reads `additionalContext` at a prompt.
         At Stop, Claude Code continues a turn on it as it does on a block, and
         labels it "Stop hook additional context" rather than "Stop hook error":
         its schema calls that field non-error feedback after which the
         conversation continues, and a probe at 2.1.284 saw the turn go on and the
         next Stop arrive with `stop_hook_active`. Nothing Leaf's Stop hook says is
-        an error, so it takes this channel where the host has one."""
+        an error, so it takes this channel where the harness has one."""
         return {
             "hookSpecificOutput": {"hookEventName": event, "additionalContext": message}
         }
@@ -180,17 +184,17 @@ class Harness:
         """How the page server names a thread a user opens on this session's page,
         as the comment is admitted (`thread_titles`), or None where it cannot.
 
-        Only a host whose model any process on the machine can ask has one. An App
+        Only a harness whose model any process on the machine can ask has one. An App
         Server carrier names the thread instead, as it starts the turn answering
         it, since the page server cannot reach that server."""
         return None
 
     def live_turn(self) -> dict | None:
-        """What the host itself says about this session right now, or None where it
+        """What the harness itself says about this session right now, or None where it
         says nothing a reader can take.
 
         `{"state": "busy" | "waiting" | "idle", "since": <iso>}`, dated by the
-        host's own last change: `idle` once no turn runs, `waiting` while a turn
+        harness's own last change: `idle` once no turn runs, `waiting` while a turn
         holds a dialog open in the session's own window. `activity.claimant_turn`
         weighs it by that date against the claim's turn stamps, which the hooks
         write and so cannot see a turn end that runs no hook."""
@@ -200,7 +204,7 @@ class Harness:
 class EnvironmentHarness(Harness):
     """A harness the environment implies, by the variable its session id arrives
     in. It also names the display default a launch that set no LEAF_AGENT gets.
-    A harness that declares itself, as an embedded host does, states neither.
+    A harness that declares itself, as an embedded harness does, states neither.
 
     `identity_variables` is every variable the harness reads to know which
     session this is and how long it lives: its session variables, then the ones
@@ -211,9 +215,9 @@ class EnvironmentHarness(Harness):
     identity_variables: ClassVar[tuple[str, ...]]
 
     @classmethod
-    def host_pid(cls) -> int | None:
-        """The host process this environment says the session runs in, or None
-        where it says none: what `session_harness` ranks a nested host by."""
+    def process_pid(cls) -> int | None:
+        """The harness process this environment says the session runs in, or None
+        where it says none: what `session_harness` ranks a nested harness by."""
         raise NotImplementedError
 
 
@@ -267,7 +271,7 @@ class ClaudeCodeHarness(EnvironmentHarness):
         return {"pid": int(os.environ["CLAUDE_PID"])}
 
     @classmethod
-    def host_pid(cls) -> int | None:
+    def process_pid(cls) -> int | None:
         return int(pid) if (pid := os.environ.get("CLAUDE_PID")) else None
 
     @classmethod
@@ -286,7 +290,7 @@ class ClaudeCodeHarness(EnvironmentHarness):
         streaming = "stream-json" in argv or "--input-format=stream-json" in argv
         return not printing or streaming
 
-    def host_runs(self) -> bool:
+    def process_runs(self) -> bool:
         """The process the hook ran under is CLAUDE_PID. A background job's daemon
         retires the job's worker about an hour after it goes idle whether or not a
         hook runs, and the hook outlives it (measured at 2.1.286: retired at 61
@@ -371,7 +375,7 @@ class CodexHarness(EnvironmentHarness):
     identity_variables = session_variables
 
     @classmethod
-    def host_pid(cls) -> int | None:
+    def process_pid(cls) -> int | None:
         """The nearest ancestor running the `codex` program (`lifetime`)."""
         return next((pid for pid, program in ancestry() if program == "codex"), None)
 
@@ -422,7 +426,7 @@ class CodexHarness(EnvironmentHarness):
         `claim_is_active` judges it from when the page was last touched. The
         value is a note for whoever reads the record; the key is the whole of
         what anything acts on."""
-        if (pid := self.host_pid()) is not None:
+        if (pid := self.process_pid()) is not None:
             if "app-server" in (process_argv(pid) or []):
                 return {"activity": "multiplexed"}
             return {"pid": pid}
@@ -481,13 +485,71 @@ class CodexHarness(EnvironmentHarness):
         )
 
 
+class PiHarness(EnvironmentHarness):
+    """Pi (<https://pi.dev>): Leaf's extension (`hooks/pi.ts`) runs inside the Pi
+    process and is the carrier, the way Claude Code's hooks are. A highly
+    experimental trial.
+
+    Pi states the session in every shell-tool command as PI_SESSION_ID, and
+    states no process. The extension exports its own, Pi's, as LEAF_PI_PID,
+    since an extension's `process.env` reaches the shell tool's commands
+    (measured at Pi 1.0.2); the process walk would find a `node` whose
+    command line Pi has overwritten with its title.
+
+    The extension calls the prompt hook as a user's prompt starts a run, the
+    Stop hook as a run is about to settle (`agent_before_settle`, whose
+    `continue` keeps it going), and the Interrupt hook when a run settles
+    without going on from there, which is what an Escape does. As the session
+    starts and as each run settles it starts the watch (`leaf hook --watch`),
+    with the Interrupt payload after an interrupted run. When the watch wakes
+    it, it calls the prompt hook itself and sends what that returns: a message
+    an extension sends to an idle Pi starts a run without its prompt events
+    (measured at 1.0.2)."""
+
+    name = "pi"
+    default_agent = "Pi"
+    session_variables = ("PI_SESSION_ID",)
+    identity_variables = (*session_variables, "LEAF_PI_PID")
+    hook_delivers = True
+
+    @classmethod
+    def process_pid(cls) -> int | None:
+        return int(pid) if (pid := os.environ.get("LEAF_PI_PID")) else None
+
+    def lifetime(self) -> dict:
+        if (pid := self.process_pid()) is None:
+            sys.exit(
+                "PI_SESSION_ID names a Pi session but LEAF_PI_PID is unset: Leaf's "
+                "Pi extension (hooks/pi.ts) is not loaded in it"
+            )
+        return {"pid": pid}
+
+    def watches_between_turns(self) -> bool:
+        """The extension starts the watch only in a Pi that can start a run, the
+        TUI or RPC mode. Under `--print` the session ends with its run, which
+        ends its claims, so no page is left that a watch would be owed."""
+        return True
+
+    def process_runs(self) -> bool:
+        return pid_alive(int(os.environ["LEAF_PI_PID"]))
+
+    def input_unpicked(self, page_dir: Path, *, listening: bool) -> str:
+        return "Leaf's Pi extension puts them in your context at your next turn."
+
+    def nothing_listening(self, page_dir: Path, *, listening: bool) -> str:
+        return (
+            "no watcher: Leaf's Pi extension watches this session's pages as each "
+            "run settles, and has not run for this session."
+        )
+
+
 @dataclass(frozen=True)
 class EmbeddedHarness(Harness):
-    """A host that drives Codex App Server in its own process and starts the
+    """A harness that drives Codex App Server in its own process and starts the
     turns itself — the shape <https://leaf.page/> runs in its per-user
     container.
 
-    No environment implies this one: such a host knows what it is and declares
+    No environment implies this one: such a harness knows what it is and declares
     itself, supplying its own display name and the App Server process its
     session lives and dies with.
 
@@ -508,10 +570,10 @@ class EmbeddedHarness(Harness):
         return {"pid": self.pid}
 
     def input_unpicked(self, page_dir: Path, *, listening: bool) -> str:
-        return "The host holding this page starts its own turn for new input."
+        return "The harness holding this page starts its own turn for new input."
 
     def nothing_listening(self, page_dir: Path, *, listening: bool) -> str:
-        return "no embedded host is holding this page."
+        return "no embedded harness is holding this page."
 
 
 # The harnesses an environment can imply, in the order that breaks a tie in
@@ -519,16 +581,17 @@ class EmbeddedHarness(Harness):
 _ENVIRONMENT_HARNESSES: tuple[type[EnvironmentHarness], ...] = (
     ClaudeCodeHarness,
     CodexHarness,
+    PiHarness,
 )
 HARNESSES: dict[str, type[Harness]] = {
     harness.name: harness for harness in (*_ENVIRONMENT_HARNESSES, EmbeddedHarness)
 }
 # The display name a launch gives its session, whichever harness it runs under.
 AGENT_VARIABLE = "LEAF_AGENT"
-# Every variable that makes a process a host session: each harness's identity and
+# Every variable that makes a process a harness session: each harness's identity and
 # the display name. A process that must not act as the session it was started from
 # scrubs the set: a build that publishes pages (`leaf-dev site`), an eval's child
-# (`dev/leaf_dev/harness.py`), the test suite (`tests/conftest.py`).
+# (`dev/leaf_dev/arms.py`), the test suite (`tests/conftest.py`).
 IDENTITY_VARIABLES = (
     *(
         variable
@@ -540,9 +603,9 @@ IDENTITY_VARIABLES = (
 
 
 def session_harness() -> Harness | None:
-    """The harness running this command, or None outside an agent host.
+    """The harness running this command, or None outside an agent harness.
 
-    Each host states its session id in a variable of its own, and LEAF_SESSION_ID
+    Each harness states its session id in a variable of its own, and LEAF_SESSION_ID
     is the door a launch opens to name a Codex session Codex did not start. The
     display name is LEAF_AGENT where the launch set one — naming a worker in its
     environment needs no cooperation from the agent, so every command it runs
@@ -550,10 +613,10 @@ def session_harness() -> Harness | None:
     a display choice and nothing may dispatch on it, which is why the harness is
     a separate fact. What outlives the command is `Harness.lifetime`'s to find.
 
-    A command inherits the identity of every host above it: Codex run from a
-    Claude Code shell states both sessions. The host running
+    A command inherits the identity of every harness above it: Pi run from a Claude
+    Code shell, or Claude Code from Pi's, states both sessions. The harness running
     the command is the nearest one, so where more than one is implied they are
-    ranked by how far above this process each one's `host_pid` runs, and the
+    ranked by how far above this process each one's `process_pid` runs, and the
     order below breaks a tie."""
     implied = [
         (harness, session)
@@ -566,7 +629,7 @@ def session_harness() -> Harness | None:
     ]
     if len(implied) > 1:
         depth = {pid: index for index, (pid, _) in enumerate(ancestry())}
-        implied.sort(key=lambda pair: depth.get(pair[0].host_pid(), len(depth)))
+        implied.sort(key=lambda pair: depth.get(pair[0].process_pid(), len(depth)))
     if not implied:
         return None
     harness, session = implied[0]
@@ -578,9 +641,9 @@ def session_harness() -> Harness | None:
 
 def detached_environment() -> dict[str, str]:
     """The environment for a process this command detaches: its own, less the
-    identity of every host `session_harness` did not choose.
+    identity of every harness `session_harness` did not choose.
 
-    A detached process leaves the hosts above this one behind, so it could not
+    A detached process leaves the harnesses above this one behind, so it could not
     rank them by process again, and the tie order would choose for it: a server a
     Codex task under Claude Code starts would serve as the Claude Code session.
     It inherits the one identity chosen here instead."""
@@ -612,7 +675,7 @@ def message_identity() -> dict:
     name and session id, read from its own environment rather than the page's
     claim record — the claimant is whoever watches the page, and on a page
     several sessions report to, that is usually not the poster. Empty outside a
-    host session: the users' generic label covers an event with no voice, and
+    harness session: the users' generic label covers an event with no voice, and
     a stored placeholder would only impersonate a name."""
     harness = session_harness()
     if harness is None:

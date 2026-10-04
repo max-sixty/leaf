@@ -1,8 +1,8 @@
 # Added with optional summary labels and explicit empty summary text. This measures
 # command selection from the shipped thread instructions, not automatic progress
 # lifecycles or execution of the returned command.
-# Against dd9304c34, each host scored 0/1 by using the label as summary prose;
-# the candidate scored 1/1 on each host with --label and explicit empty --text.
+# Against dd9304c34, each harness scored 0/1 by using the label as summary prose;
+# the candidate scored 1/1 on each harness with --label and explicit empty --text.
 description: thread-fold-without-summary-prose
 metadata:
   purpose: Fold earlier thread updates under a requested label without summary prose, preserving their originals.

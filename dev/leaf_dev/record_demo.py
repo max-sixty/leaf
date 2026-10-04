@@ -42,6 +42,7 @@ from playwright.sync_api import Page
 from leaf_dev import LEAF_COMMAND
 from leaf_dev.browser import chrome, settle, tab
 from leaf_dev.leaf_assets import publish, stage
+from leaf_dev.recording import write_gif
 
 GIF_SIZE = (1120, 700)
 # The viewport used for the README's representative stills.
@@ -402,21 +403,6 @@ def shoot_stills(browser, url: str, page_dir: Path, into: Path) -> None:
             page.screenshot(
                 path=into / f"{name}.png", animations="disabled", caret="hide"
             )
-
-
-def write_gif(frames: list[Image.Image], durations: list[int], output: Path) -> None:
-    palette_frames = [
-        frame.quantize(colors=192, method=Image.Quantize.MEDIANCUT) for frame in frames
-    ]
-    palette_frames[0].save(
-        output,
-        save_all=True,
-        append_images=palette_frames[1:],
-        duration=durations,
-        loop=0,
-        optimize=True,
-        disposal=1,
-    )
 
 
 @click.command("record-demo")

@@ -2659,14 +2659,6 @@ def test_a_table_of_contents_can_stop_at_an_authored_heading_level(browser, serv
     expect(page.locator("h3")).to_have_attribute("id", "lf-contents-section-2")
 
 
-@pytest.mark.xfail(
-    reason=(
-        "Main 2bd9ebdc3: first authoritative presentation retains the authored "
-        "139px contents-map span after replay grows the section to 611px"
-    ),
-    raises=AssertionError,
-    strict=False,
-)
 def test_generated_page_interface_reconciles_before_semantic_interaction(
     browser, serve
 ):

@@ -112,6 +112,7 @@ from render_harness import (
     undo,
     wait_for_revision,
     write,
+    xfail_browser_problem,
 )
 
 DRAG_HELD = (
@@ -4245,9 +4246,11 @@ def test_a_playground_keeps_one_typed_working_state_until_the_user_chooses(
     playground.get_by_role("radio", name="Quiet", exact=True).press("ArrowRight")
     picker = playground.locator("wa-color-picker")
     picker.get_by_role("button", name="Accent", exact=True).click()
-    picker.get_by_role("textbox").fill("#8b4a5f")
-    picker.get_by_role("textbox").press("Enter")
-    picker.get_by_role("textbox").press("Escape")
+    color_field = picker.get_by_role("textbox")
+    color_field.fill("#8b4a5f")
+    color_field_place = color_field.evaluate("field => window.lfPlace(field)")
+    color_field.press("Enter")
+    color_field.press("Escape")
     page.locator('lf-playground-control[name="title"] input').fill("Ridge note; alert")
 
     assert len(events_model.read_events(serve.page_dir)) == before
@@ -4302,6 +4305,18 @@ def test_a_playground_keeps_one_typed_working_state_until_the_user_chooses(
     undo(page)
     expect(page.locator("#card-instruction")).to_contain_text("12px radius")
     assert playground.evaluate("root => root.values")["compact"] is False
+    # The same native-close loss was present on pre-1711 main (35d91df, Linux run
+    # 37183384374), before this branch's changes.
+    xfail_browser_problem(
+        page,
+        f'typed words left the screen without a key or press: "#8b4a5f" in '
+        f"{color_field_place}",
+        reason=(
+            "WebAwesome hides the native color field after Escape's popup animation, "
+            "outside the words watch's trusted-input lifetime; reproduced on pre-1711 "
+            "main at 35d91df (Linux run 37183384374)."
+        ),
+    )
 
 
 def test_notification_playground_sets_regions_side_by_side_while_its_workspace_is_full_height(

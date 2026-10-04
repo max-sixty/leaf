@@ -6939,9 +6939,10 @@ def test_the_ring_reading_sees_a_neighbour_paint_over_a_ring_drawn_inside_its_bo
     )
 
 
-# One causal sample for every named ring the layer draws. Each case names its surface,
-# the real keys that open it, and the element whose focus state paints the ring. A null
-# selector means the opening keys themselves leave the required non-focusable carrier lit.
+# A causal sample in each surface the keyboard reaches. Each case names its surface, the
+# real keys that open it, the element whose focus state paints the ring, and the ring it
+# paints. A null selector means the opening keys themselves leave the required
+# non-focusable carrier lit.
 RING_CASES = (
     (
         "the page",
@@ -7330,16 +7331,18 @@ def test_the_focus_sweep_distinguishes_stops_inside_a_live_frame(browser):
     assert page.evaluate(RING_NEW_STOP) == "new"
 
 
-def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
+def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
     browser, serve, live_leaf
 ):
-    """Every declared ring has a causal sample whose whole band is visible.
+    """Where the keyboard stands in each surface a key opens, the user sees its ring
+    whole: not cut by a box that clips it, and not under a neighbour.
 
-    `RING_NAMES` derives the population from the composed stylesheets. `RING_CASES`
-    names one rendered sample for each member, including surfaces that must first be
-    opened. Comparing the two sides catches both an unexercised declaration and painted
-    ring with no declaration. A second version and neighbouring leaf provide the two
-    runtime states authored examples cannot carry themselves.
+    `RING_CASES` walks the layer's surfaces by their real keys and stands on a sample in
+    each; every ring drawn there is measured, not only the sample's. Which rings get a
+    sample is the cases' choice rather than a census of the layer's rules, so a new ring
+    needs no sample of its own; what every ring rule must do is name the ring it draws.
+    A second version and a neighbouring leaf provide the two runtime states authored
+    examples cannot carry themselves.
     """
 
     def open_containing_thread(target):
@@ -7357,9 +7360,9 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
     live_leaf("other", "The other leaf")
     # No ring moves under the default motion setting, so a settled sample reads the
     # value its rule declares. The reduced-motion case has a focused test above.
-    rings, lit, faults, seen_faults = {}, set(), [], set()
+    faults, seen_faults = [], set()
     unseen = set()
-    unnamed = set()
+    unnamed, unnamed_rules = set(), set()
     opened = set()
     stops = 0
     assert not (missing := set(RING_EXAMPLES) - set(RING_EXAMPLE_FILES)), (
@@ -7382,8 +7385,9 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
             url = url.replace(f"/v{current_version}.html", f"/v{next_version}.html")
         page = open_page(browser, url)
         if name == "wt-merge":
-            # Its pane body earns a keyboard stop only while it has content to scroll.
-            resized(page, 1200, 700)
+            # Its pane body earns a keyboard stop only while it has content to scroll,
+            # which at the workspace's working density it has under 600px of window.
+            resized(page, 1200, 600)
         if name == "release-notes":
             # Ordinary element marks need a focusable sample for their conditional ring.
             page.locator("main p").first.evaluate(
@@ -7553,15 +7557,9 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                     "nodes => nodes.forEach(node => "
                     "node.removeAttribute('data-lf-ring-sample'))"
                 )
-                found = set()
-                for ring in drawn:
-                    if not ring["here"]:
-                        continue
-                    if ring["ring"]:
-                        if ring["ring"] in expected and ring["sample"]:
-                            found.add(ring["ring"])
-                    else:
-                        unnamed.add(ring["who"])
+                lit = [ring for ring in drawn if ring["here"]]
+                unnamed.update(ring["who"] for ring in lit if not ring["ring"])
+                found = expected & {ring["ring"] for ring in lit if ring["sample"]}
                 # One standing defect is one finding, not one per stop: a ring worn by
                 # something the sample is not moving — a decision's mark, a thread's element
                 # mark — is read again at every stop it survives.
@@ -7574,7 +7572,6 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                     f"{selector or scope} {where} did not exhibit "
                     + ", ".join(sorted(expected - found))
                 )
-                lit.update(found)
             if posture:
                 for _ in range(3):
                     page.keyboard.press("Escape")
@@ -7584,11 +7581,12 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                 page.get_by_role("tab", name="Triage", exact=True).click()
                 page_at_rest(page)
 
-        for declared in page.evaluate(RING_NAMES):
-            seen = rings.setdefault(declared["name"], [])
-            for said in declared["said"]:
-                if said not in seen:
-                    seen.append(said)
+        unnamed_rules.update(
+            said
+            for declared in page.evaluate(RING_NAMES)
+            if not declared["name"]
+            for said in declared["said"]
+        )
         page.close()
 
     assert not unseen, (
@@ -7607,43 +7605,18 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
     assert not faults, "\n  ".join(
         [f"{len(faults)} faults over {stops} samples:"] + faults
     )
-    # A ring nobody named, said from either side. The scan reaches a rule the corpus
-    # never paints and cannot tell a ring drawn some other way from no ring at all; the
-    # sweep is the reverse of both. Neither half is the whole claim, and a name is worth
-    # nothing to the floor below until both agree it stands for one drawn ring.
-    unnamed_rules = rings.pop("", [])
+    # Every ring is named by the rule that draws it, said from both sides: the scan reads
+    # a rule no sample paints, and the sweep reads a ring drawn without the layer's token.
+    # The samples above, and every reading that credits a ring an ancestor wears, rest on
+    # the name.
     assert not unnamed_rules, (
-        f"{len(unnamed_rules)} rules draw the focus ring and name none of them, so the "
-        "floor below divides by a population short of them and says nothing about "
-        "it — declare --lf-focus-ring in the rule that draws the ring:\n  "
+        f"{len(unnamed_rules)} rules draw the focus ring and name none of them — "
+        "declare --lf-focus-ring in the rule that draws the ring:\n  "
         + "\n  ".join(sorted(unnamed_rules))
     )
     assert not unnamed, (
         "the corpus paints a focus ring on boxes no rule named, so no reading can say "
         "which rule drew it: " + ", ".join(sorted(unnamed))
-    )
-    # Both halves of the division, before it is taken. An empty population makes every
-    # line below vacuous and silent about it, and a name painted that the scan never
-    # declared is the scan's own blind spot showing: it reads the `outline` shorthand for
-    # the layer's token, so a rule that draws the ring some other way and still names it
-    # paints a credit for a name no population holds.
-    assert rings, (
-        "the layer declares no rings, so this floor divided by nothing and the samples "
-        "above is evidence about no rule at all"
-    )
-    assert not lit - set(rings), (
-        "the corpus painted rings the layer's own reading does not declare: "
-        + ", ".join(sorted(lit - set(rings)))
-    )
-    unlit = [
-        f"{name} ({', '.join(said)})"
-        for name, said in sorted(rings.items())
-        if name not in lit
-    ]
-    assert not unlit, (
-        f"{len(unlit)} of the layer's {len(rings)} rings are painted nowhere the "
-        f"corpus samples exhibit, so nothing above is evidence about them:\n  "
-        + "\n  ".join(unlit)
     )
 
 

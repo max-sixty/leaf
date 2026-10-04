@@ -59,23 +59,21 @@ a bundled or already installed package answers to is refused rather than replace
 remove the installed directory to replace one. A page records the bare name, so
 re-vendoring it on another machine needs the same package installed there.
 
-Leaf also ships optional packages that select by bare name. `code-review` supplies
-review-authoring instructions without adding widgets; select it or your own review
-instructions package alongside the evidence packages the page needs. `diagram` adds `lf-diagram`
-and the Agentic Mermaid renderer it draws with; `diff` adds `lf-diff`, the
-`unified-diff` data contract, and the Pierre renderer; `swipe` adds a pass-or-keep
-technical backlog deck; `playground` coordinates declarative controls and page-owned
-structured contributors through one reset, restore, preview, output, and typed
-configuration action; `targeting` lets users select preview elements and submit
-structured, reversible change proposals; `command-hub` adds multi-agent
-orchestration widgets; `pr-review` adds a typed pull-request brief with a safe Markdown
-description and compact checks table, plus a data-backed unified call diff; `monitoring`
-adds instructions for a release workspace with current state, checks, a run log, and a
-rollback Ask; `visual-review` adds an ordered website run, aligned before-and-after evidence,
-automatic compare orientation, authored focus with full-frame context, local flip and
-overlay, fit and captured-size inspection, exact preview links, and case dispositions. `gallery`
-adds the static gallery of page-edge action controls, disclosure controls, and status
-indicators used only by the developer feature gallery, so ordinary pages do not select it.
+The optional bundled packages are:
+
+| Package | Adds |
+| --- | --- |
+| `code-review` | Review-authoring instructions; select alongside the evidence packages the page needs. |
+| `diagram` | `lf-diagram` and its Agentic Mermaid renderer. |
+| `diff` | `lf-diff`, the `unified-diff` data contract, and the Pierre renderer. |
+| `swipe` | A pass-or-keep technical backlog deck. |
+| `playground` | Controls and structured state with shared reset, restore, preview, output, and typed configuration submission. |
+| `targeting` | Preview-element selection and structured, reversible change proposals. |
+| `command-hub` | Multi-agent orchestration widgets. |
+| `pr-review` | A typed pull-request brief with a safe Markdown description and compact checks table, plus a data-backed unified call diff. |
+| `monitoring` | Release-workspace instructions for current state, checks, a run log, and a rollback Ask. |
+| `visual-review` | Ordered website cases with aligned before-and-after evidence, automatic comparison orientation, authored focus and full-frame context, flip and overlay, fit and captured-size inspection, exact preview links, and dispositions. |
+| `gallery` | Static action controls, disclosures, and status indicators for the developer feature gallery; ordinary pages do not select it. |
 
 The diagram and diff renderers are large and most pages draw neither, so they travel in
 their own packages rather than in `default`. Packages declare no dependencies on each
@@ -162,9 +160,6 @@ Composition order is kernel, bundled default package, selected packages in comma
 order. Later packages win collisions. `page init`
 records package selections under `$layer.packages`; a plain re-init resolves them again
 in the same order. `page init --no-packages PAGE` clears the explicit list.
-
-A package may contain zero, one, or many widgets. Those cardinalities do not change
-its contract.
 
 A replacement `runtime/layer-client.js` must retain the quoted
 `"__LEAF_LAYER_GENERATION__"` placeholder exactly once. `page init` replaces it
@@ -322,36 +317,40 @@ tabular numerals and a slot wide enough for its largest value.
 
 ### What a behavior module owes
 
-A total, idempotent `renderState(state)`; `widgetController(owner).dispatch()` for recorded user state, with a
-detail matching the declared browser schema; `says()` over `textContent`; `offer()` and
-`relabel()` on anything injected, with its room reserved from inside `measure` and
-`layoutChanged` called after a view swap (await its returned promise before restoring
-scroll against the resulting layout); asynchronous visible preparation is registered
-through `controller.present(promise)`; box-derived apparatus takes its first visible
-reading synchronously from `PRESENTATION` and observes later changes through the normal
-layout signals. Apparatus derived from the authored structure reconciles at
-`PAGE_INTERFACE`, which runs at startup and each in-place revision activation;
-it retains surviving nodes with `setChildren` so focus and native view state survive.
-Each helper's header under `runtime/` says why. Use `nextRender`/`cancelRender` for
-paints and `sizeObserver` for size observation, so that a reader waiting for the
-page to settle after a gesture — a
-check, a test — waits for that work too (`nextRender` asked for from another rendering
-callback runs in that callback's frame, and otherwise in the next frame; a step that
-must not run in the frame that asked for it, such as an animation tick, asks for
-`nextFrame`; a playback loop that runs until
-the user stops it stays on `requestAnimationFrame`, or the page never settles while it
-plays);
-`afterScript(callback)` coalesces a stable callback at the current script's microtask
-checkpoint when several synchronous updates produce one final mechanical reading;
-`keeps(node, name,
-value)` for any name or state a reactive render writes, handed the boolean or count raw,
-since an unconditional `setAttribute` restates itself on every publication and
-`toggleAttribute` already keeps the rule for flags; `once()` in a `connectedCallback` that is safe to run after reconnection, and
-hoisted chrome removed and any `indicate` cleared with `null` in `disconnectedCallback`
-when the owner disconnects;
-`commands()` at upgrade — through `DISCLOSE(el)` over anything that folds, the runtime
-owning those commands — `quoted()` before wiring input, controller command availability
-before an optimistic gesture.
+A behavior module follows these rules:
+
+- Implement a total, idempotent `renderState(state)`. Record user state through
+  `widgetController(owner).dispatch()` with detail matching the declared browser
+  schema. Use `says()` over `textContent`.
+- Use `offer()` and `relabel()` for injected UI. Reserve its space in
+  `measure`. After a view swap, call `layoutChanged` and await its promise before
+  restoring scroll. Register asynchronous visible preparation through
+  `controller.present(promise)`.
+- Read UI based on element geometry synchronously from `PRESENTATION` for its
+  first paint, then through normal layout signals. Reconcile UI derived from
+  authored structure at `PAGE_INTERFACE`, at startup and each in-place revision
+  activation. Retain surviving nodes with `setChildren` to preserve focus and
+  native view state.
+- Use `nextRender`/`cancelRender` for paints and `sizeObserver` for size
+  observation, so checks and tests wait for that work too. `nextRender` runs in
+  the current rendering callback's frame, or in the next frame when called
+  elsewhere. Use `nextFrame` for a step that must run in a later frame, such as
+  an animation tick. A playback loop keeps `requestAnimationFrame`, so playing
+  does not prevent the page from settling.
+- Use `afterScript(callback)` to coalesce a stable callback at the current
+  script's microtask checkpoint when synchronous updates yield one final
+  mechanical reading.
+- Use `keeps(node, name, value)` for names or state a reactive render writes,
+  passing booleans and counts directly. Unconditional `setAttribute` repeats
+  writes on every publication; `toggleAttribute` already handles flags.
+- Use `once()` in a `connectedCallback` that remains safe after reconnection.
+  In `disconnectedCallback`, remove hoisted UI and clear any `indicate`
+  with `null`.
+- Register `commands()` at upgrade. Use `DISCLOSE(el)` for folding controls,
+  whose commands the runtime owns. Check `quoted()` before wiring input and
+  controller command availability before an optimistic gesture.
+
+Each helper's header under `runtime/` explains its contract.
 
 `renderState` receives the state of every declared verb, keyed by verb name, including
 the initial values an undo returns to. A widget-unit verb's state is `{action, value,

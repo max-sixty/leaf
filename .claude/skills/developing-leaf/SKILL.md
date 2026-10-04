@@ -94,14 +94,11 @@ Playwright script: it builds the page from this working tree, runs the input ste
 you give it, and prints what a JavaScript expression returns, with `--base` for the
 merge base beside it (`dev/AGENTS.md`).
 
-Compare against the merge base with `main`. `uv run leaf-dev stills`
-screenshots a catalogue of states on both runtimes and crops each one that
-changed into a before/after pair; commit first, since it compares commits. The
-catalogue holds states a user reaches by acting as well as pages at rest, because
-a change can alter what only such a state draws: a padding moved for layout once
-put a row over a focus ring drawn only while the element is focused. Where a
-change reaches a state the catalogue lacks, add it to `STATES` instead of driving
-the state by hand.
+`uv run leaf-dev stills` compares HEAD with the merge base with `main` and crops
+each changed catalogue state into a before/after pair. Commit first, since it
+compares commits. Include pages at rest and states reached by interaction,
+including focus states where layout can cover a focus ring. Add missing states
+to `STATES` rather than driving them by hand.
 
 For every difference a still can show, the handoff carries one sentence and
 matched before/after screenshots, embedded in the reply or as one `lf-shot`; a

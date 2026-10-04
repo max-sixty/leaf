@@ -8,6 +8,10 @@
  *
  * Fixed, CSS-anchored marks follow their source through scroll without extending the
  * document's overflow. Equal complete descriptions retain the actual SVG node.
+ *
+ * An anchored mark is drawn at its target's current size (`strokesIn`), so it stays on
+ * its element in a narrower window. It scales with the element's box only, so text that
+ * reflows moves under the mark and a circled word can leave its circle.
  */
 
 import { cancelRender, nextRender, sizeObserver } from "../rendering.js";
@@ -16,13 +20,13 @@ import { shownBox } from "../geometry.js";
 import { atLayoutPrecision } from "../keeps.js";
 import { el } from "../widget-elements.js";
 import { anchorElement, anchorName } from "../anchor-names.js";
-import { validDrawing } from "./drawing-record.js";
+import { strokesIn, validDrawing } from "./drawing-record.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 const FRAME_MIN = 1;
 
-function drawingFrame(drawing) {
-  const points = drawing.strokes.flat();
+function drawingFrame(strokes) {
+  const points = strokes.flat();
   const xs = points.map(([x]) => x);
   const ys = points.map(([, y]) => y);
   const left = Math.min(...xs);
@@ -40,8 +44,8 @@ function drawingFrame(drawing) {
 }
 
 // One path, one subpath per stroke: each stroke lifts the pen with its own move.
-const pathData = (drawing) =>
-  drawing.strokes
+const pathData = (strokes) =>
+  strokes
     .flatMap((stroke) =>
       stroke.map(
         ([x, y], index) => `${index ? "L" : "M"} ${x.toFixed(4)} ${y.toFixed(4)}`,
@@ -73,7 +77,8 @@ export function createDrawingInk({ drawings }) {
     if (!validDrawing(drawing)) return null;
     const box = target ? shownBox(target) : { left: -scrollX, top: -scrollY };
     if (target && (!box?.width || !box?.height)) return null;
-    const frame = drawingFrame(drawing);
+    const strokes = strokesIn(drawing, target && box);
+    const frame = drawingFrame(strokes);
     const { width, height } = frame;
     if (!width || !height) return null;
     const holder = target
@@ -83,7 +88,7 @@ export function createDrawingInk({ drawings }) {
     const anchor = anchorName(holder);
     const left = atLayoutPrecision(box.left + frame.x - at.left);
     const top = atLayoutPrecision(box.top + frame.y - at.top);
-    const data = pathData(drawing);
+    const data = pathData(strokes);
     const described = JSON.stringify([
       className,
       id,

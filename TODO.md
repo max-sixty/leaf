@@ -114,6 +114,15 @@ and its chrome coordinate.
   margin thread card's reply, with its target in a pane that scrolls on its own, moves
   the whole card (`shift_watch.js`: "typing in leaf-text moved
   aside#lf-margin-preview"), on `main` too.
+- **Decide whether a thread card may cover the margin rail.** A card beside its
+  target starts right of the target's margin marker whenever the room past the marker
+  still holds the card's minimum width (`comment-placement.js`, where `options` reads
+  `margin`), so the marker stays visible. The card therefore opens well right of the
+  text and narrower than it could be; starting it beside the text would cover the
+  rail's markers for as long as it is open. Weigh that trade, then settle how Leaf
+  states which elements a floating surface may cover. Today each placement names the
+  boxes it keeps clear of (`clear`, `margin`) in its own code, so no element can declare
+  that it may be covered, or must never be.
 - **Give the phone banner one row.** Decided, not built
   ([plan](notes/chrome-and-covers.md)): one 53px row holding the status in words, cut
   short with an ellipsis, with a passing notice taking that slot for a few seconds;
@@ -153,12 +162,6 @@ and its chrome coordinate.
   (`syncLayoutRegion`) and the render check's held-panes reading (`heldPanes`), which
   both look only at `main`, have to look at that block too. It waits for a page that
   needs it; a workspace page's own pane grid stays plain CSS.
-- **Make the outcome checks the gate.** `page check` passed a page that scrolled
-  sideways at 520px. Check sideways scroll and leaking minimums (a box whose content,
-  not its declared minimum, sets its holder's floor) across swept widths. The corpus
-  (`leaf-dev corpus`) sets every example's body in one column page, so only the
-  nightly `test_page_fixture_renders` reads a sidebar, workspace or wide example in its
-  own Layout.
 - **Show each floating surface across the content it can hold.** `leaf-dev stills`
   screenshots the same states on the base and the branch, so it reports a change but
   misses a surface that is wrong on both. Until PR 1440 a margin thread card took all
@@ -281,11 +284,6 @@ that changes size after first paint, with its cause.
   to 45px taller on CI's Linux than on macOS), so no height its examples state holds
   everywhere. `lf-targeting` has no recorded cause; read `lf-targeting.js` for what it
   builds after first paint before choosing an approach.
-- **Unconfirmed: Command Hub's outcome tiles at 320px.** The word "stopped" may touch
-  its tile's edge in a 320px window. The tiles share one row of four
-  (`.lf-command-facts` in `skills/leaf/packages/command-hub/theme.css`), and the only
-  narrow rule, `@container lf-command (width <= 520px)`, covers task metadata. Render
-  it before changing anything.
 - **Check that margin markers paint in place in their first frame.** The shift watch
   exempts the page until it is presented (`tests/shift_watch.js`), and #1603 records
   startup shifts only as diagnostics, so a marker drawn in the wrong place in its first
@@ -328,18 +326,15 @@ height and where a switch lands wait on the workspace decision under Layout.
   App Server's behavior before changing delivery policy; the
   [Codex brief](notes/codex-integration.md#delivery-start-race) owns the experiment.
 
-- **Take every render-check reading at every width the check renders.** The check
-  lays the page out at 1200px and 540px and sweeps it from 360px to 1920px
-  (`render_gate/version.py`, `readings.py`), but reads drawing label size only at
-  the desktop width (`shrunk_label_advice`), though a narrower window scales a
-  drawing further still. Tiny text at 900px and on a phone recurs in the judge's
-  reasons in the arrangement eval (`notes/arrangement-eval/`, `r3-main-0feb`). Take
-  each reading the sweep can take at every swept
-  width, and report each fault at the narrowest width it starts, as
-  `swept_overflow` does for sideways overflow. Separately verify the Ask's premise,
-  controls and resulting evidence below the first pane screen, as the arrangement
-  eval exposed. The readings stay advice: which
-  widths a page answers for is the author's call.
+- **Measure how often agents produce bad pages.** Write `evals/` cases in which agents
+  author ordinary pages, and have a judge read each result at wide, middle and phone
+  widths for defects a user would notice. Record beside each defect whether
+  `page check` reported it and whether the agent changed the page in response. That
+  gives the rate of bad pages and how much the checks catch. Fix a recurring defect in
+  the widget, Layout or theme that produced it, so pages need fewer checks, rather
+  than adding readings or widths to the check. In `r3-main-0feb` every one of the 36
+  runs passed the gate, yet the judge still found tiny text at 900px and phone
+  defects (`notes/arrangement-eval/`).
 - **Read the full render gate after handover.** Actual user views now supply passive
   geometry checks as agent context (`conversation-loop.md`, "The user's view"). The
   broader headless gate still runs on request. `page check --render` blocks the
@@ -364,10 +359,6 @@ height and where a switch lands wait on the workspace decision under Layout.
   them, but nothing runs them first. Write `evals/` cases in which agents author each
   kind and measure how often what they write fails to draw, then run the kinds agents
   get wrong and stop running those they reliably get right.
-- **Scale a drawing by the box it was drawn in.** On replay, scale the strokes by
-  the anchored element's size over the recorded `box`, so a mark stays on its
-  element in a narrower window; reflowed text still moves under it. Verify replay
-  at different widths and keep that limitation explicit.
 - **Derive the waiting banner from the page's open Ask.** Consider using the Ask's
   words when no explicit waiting detail is needed. **Unconfirmed:** try pages with
   several open Asks and an informational page before choosing how the banner

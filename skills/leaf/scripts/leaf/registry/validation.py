@@ -1,12 +1,4 @@
-"""Complete registry validation orchestration.
-
-Validity is a function of a vocabulary's content alone, so the process remembers
-each vocabulary it has accepted and does not validate the same content twice. One
-server validates the same captured layer for every page it activates: a gallery's
-live samples are each a fresh page carrying their parent's vocabulary, and checking
-every widget schema again per sample held the gallery's samples back by seconds.
-A rejection is not remembered, so it is raised again in the words of its own source.
-"""
+"""Complete registry validation orchestration."""
 
 import hashlib
 import json
@@ -25,15 +17,31 @@ from .widgets import (
     validate_widget_schemas,
 )
 
-# Digests of the canonical JSON of every vocabulary this process has accepted.
-_accepted: set[str] = set()
+# The vocabularies this process has validated, by a digest of their content, oldest
+# first. Validation is a pure function of the vocabulary, `source` naming it only in a
+# rejection, and every page vendored from one layer composes the same one: the suite's
+# pages, a site build's examples, and a host's pages each validated it anew, about a
+# tenth of a second apiece for the bundled packages.
+_VALIDATED: dict[bytes, None] = {}
+_VALIDATED_LIMIT = 16
 
 
 def validate_registry(registry: dict, source) -> dict:
     """Validate one complete vocabulary in its stable rejection order."""
-    digest = hashlib.sha256(json.dumps(registry, sort_keys=True).encode()).hexdigest()
-    if digest in _accepted:
+    key = hashlib.blake2b(
+        json.dumps(registry, sort_keys=True, separators=(",", ":")).encode(),
+        digest_size=16,
+    ).digest()
+    if key in _VALIDATED:
         return registry
+    _validate(registry, source)
+    _VALIDATED[key] = None
+    while len(_VALIDATED) > _VALIDATED_LIMIT:
+        _VALIDATED.pop(next(iter(_VALIDATED)), None)
+    return registry
+
+
+def _validate(registry: dict, source) -> None:
     path = source
     kinds, names, paths, tones, data, tokens = required_layer_declarations(
         registry, path
@@ -46,5 +54,3 @@ def validate_registry(registry: dict, source) -> dict:
     slots = retirement_slots(registry)
     validate_widget_relations(registry, declarations, data, slots, path)
     validate_answered_conditions(declarations, path)
-    _accepted.add(digest)
-    return registry

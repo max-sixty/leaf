@@ -248,7 +248,7 @@ widget that composes its own regions, or the page's own grid of panes, such as a
 log beside the chart it explains, which the page's `<style>` places:
 
 ```html
-<main class="layout-workspace">
+<main class="layout-workspace density-working">
   <header><h1>…</h1><p><span class="tag warn">…</span></p></header>
   <div id="regions">
     <lf-pane id="log" label="Log">…</lf-pane>
@@ -258,12 +258,16 @@ log beside the chart it explains, which the page's `<style>` places:
 ```
 
 ```css
-#regions { display: grid; grid-template-columns: minmax(16rem, 1fr) 2fr; gap: var(--sp-4); }
+#regions { display: grid; grid-template-columns: minmax(16rem, 1fr) 2fr; }
 @media (width < 720px) { #regions { grid-template-columns: 1fr; } }
 ```
 
 Stack the panes below 720px, where the Layout lets the page scroll: panes stacked in a
 wider window still share its one height, and `page check --render` refuses them.
+
+`density-working` is a style, not a Layout: on any block it sets smaller type, tighter
+spacing and options as rows, for a surface the reader operates rather than reads down.
+A workspace usually takes it, and so can a dense pane or table on a column page.
 
 A queue whose items open one at a time beside it, such as tickets, cases or findings to
 decide, is one `lf-tabs list="side"` as the body: its list is the queue and each item an

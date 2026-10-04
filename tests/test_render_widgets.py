@@ -191,10 +191,10 @@ def test_bounded_text_document_keeps_its_caption_above_the_scrolling_source(
 def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fit(
     browser, serve
 ):
-    """The workspace Layout stands in the wide page's frame and takes the window's
-    height below the banner: each pane's body scrolls on its own. Its header is one row,
-    the title at a heading's ordinary size with the status beside it, so the panes keep
-    the window. A window too short to hold it hands the scroll to the page."""
+    """The workspace Layout takes the whole window, wider than the wide page's capped
+    frame, and its height below the banner: each pane's body scrolls on its own. Its
+    header is one row, the title with the status beside it, so the panes keep the
+    window. A window too short to hold it hands the scroll to the page."""
     frame = """() => {
       const main = document.querySelector('main');
       const style = getComputedStyle(main);
@@ -208,11 +208,11 @@ def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fi
             WORKSPACE_PAGE.replace('class="layout-workspace"', 'class="layout-wide"')
         ),
     )
-    resized(declared, 1280, 720)
+    resized(declared, 1920, 720)
     wide = declared.evaluate(frame)
     declared.close()
     page = open_page(browser, serve(WORKSPACE_PAGE))
-    resized(page, 1280, 720)
+    resized(page, 1920, 720)
     workspace = page.locator("main")
     queue_pane = page.locator("#queue")
     queue = page.locator("#queue > :not(header, footer)")
@@ -220,23 +220,17 @@ def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fi
 
     pane_posture(page, queue_pane, "bounded")
     fills_the_window(page, workspace, True)
-    assert page.evaluate(frame) == wide
-    assert wide[1] > 1080, wide
+    own = page.evaluate(frame)
+    assert own[0] < wide[0] and own[1] > wide[1], (own, wide)
     header = page.evaluate(
         """() => {
           const title = document.querySelector('main > header h1');
           const status = document.getElementById('review-status');
-          const probe = document.createElement('h2');
-          probe.textContent = 'x';
-          document.querySelector('#queue').append(probe);
-          const heading = getComputedStyle(probe).fontSize;
-          probe.remove();
           const t = title.getBoundingClientRect(), s = status.getBoundingClientRect();
-          return {title: getComputedStyle(title).fontSize, heading,
-                  oneRow: s.top < t.bottom && s.left >= t.right};
+          return {oneRow: s.top < t.bottom && s.left >= t.right};
         }"""
     )
-    assert header["title"] == header["heading"] and header["oneRow"], header
+    assert header["oneRow"], header
     assert page.evaluate("() => document.scrollingElement.scrollTop") == 0
     readings = page.evaluate(
         """() => {

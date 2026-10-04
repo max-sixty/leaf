@@ -849,6 +849,38 @@ p { margin: 13px 0; }
 ul, ol { margin: 10px 0; padding-left: 24px; }
 li { margin: 6px 0; }
 hr { border: none; border-top: 1px solid var(--rule); margin: 40px 0; }
+/* Working density: the same faces, set for operating a surface rather than reading
+ * down it, on whatever block takes the class. A workspace's `main` is the usual one,
+ * and a dense pane or table on a column page is another, since how much a block holds
+ * per line is a style and not where the block stands. The ladder and the spacing scale
+ * are restated for the block's subtree, so every rule that reads them, a Layout's gutter
+ * and a widget's padding included, sets at working size; shadow trees too, since custom
+ * properties cross into them. The flow's own margins are numbers rather than tokens, so
+ * they are restated here.
+ *
+ * `--lf-density` names the setting for what a size alone cannot carry: a widget whose
+ * form changes, such as an option card becoming a row, reads it with a style query, as
+ * it reads any other token, and never asks what holds it. */
+.density-working {
+  --lf-density: working;
+  --t-1: 22px; --t-2: 18px; --t-3: 15.5px; --t-4: 14px; --t-5: 12.5px; --t-6: 10.5px;
+  --t-working-label: 12px;
+  --sp-1: 3px; --sp-2: 6px; --sp-3: 10px; --sp-4: 14px;
+  --code-size: 12px; --code-line: 17px;
+  font-size: var(--t-4);
+  line-height: 1.45;
+}
+.density-working :is(p, ul, ol) { margin-block: 6px; }
+.density-working li { margin-block: 3px; }
+.density-working h2 { margin: 18px 0 6px; }
+.density-working h3 { margin: 12px 0 4px; }
+.density-working h4 { margin: 10px 0 4px; }
+.density-working :is(th, td) { padding: 4px 10px; }
+.density-working :is([data-lf-reading-role="pane"]) > :is(header, footer) { padding: 6px 12px; }
+.density-working :is([data-lf-reading-role="pane"]) > :not(header, footer) {
+  --lf-pane-top: 10px;
+  padding: var(--lf-pane-top) 12px 12px;
+}
 /* Syntax roles. The runtime writes these into any code block that names a language —
    a <pre><code class="language-*"> or a lf-code with `language` — having collapsed the
    tokenizer's scopes into six of leaf's own first. Styled at document level like

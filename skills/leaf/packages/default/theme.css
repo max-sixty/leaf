@@ -220,6 +220,16 @@
               border-radius: var(--r); background: var(--card); }
 }
 :scope:is(lf-option) > strong { display: block; margin: 0 0 4px; }
+/* At working density (`--lf-density`, theme.css) a titled option is a row rather than a
+ * card: its title runs into its consequence, and its chips stand at the row's end. */
+@container style(--lf-density: working) {
+  :scope:is(lf-options):has(> lf-option > strong) {
+    --lf-option-font: var(--t-4)/1.4 var(--serif);
+    & > lf-option { padding-block: 7px; }
+    & > lf-option > strong { display: inline; margin: 0 .35em 0 0; }
+    & > lf-option > lf-chip { float: inline-end; margin: 0 0 0 6px; }
+  }
+}
 /* A chip is an element, so nothing here renders it and nothing declares it words: it is
  * the author's own markup, quotable and diffable like any other content. The chip is the
  * shared one — inline-block there, which is what leaves each form free to decide where

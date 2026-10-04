@@ -420,20 +420,24 @@ def test_a_drawing_says_the_words_it_stands_over_and_the_box_it_was_drawn_in(
     )
 
 
+# The swatch sits below the fold of a pane that scrolls on its own, so a picture opened
+# at the pane's top has to bring it back into view.
 SWATCH_PAGE = leaf_page(
     "drawn swatch",
     '<h1 id="t">Swatch</h1><p id="lede">The swatch below is half the window wide.</p>'
-    '<div id="swatch"></div>',
-    head="<style>#swatch { width: 50vw; height: 160px; background: rgb(0, 200, 0) }"
-    "</style>",
+    '<div id="pane"><div id="filler"></div><div id="swatch"></div></div>',
+    head="<style>#pane { height: 320px; overflow: auto }"
+    " #filler { height: 600px }"
+    " #swatch { width: 50vw; height: 160px; background: rgb(0, 200, 0) }</style>",
 )
 
 
 def test_a_drawing_is_pictured_in_the_window_it_was_drawn_in(browser, serve):
     """`leaf page picture` lays the comment's revision out again in the window the
     drawing was made in, whatever window or version the page is in since, and paints the
-    ink over the element it was drawn on: the swatch, half the window wide, is as wide as
-    it was then, and the ink keeps its share of it."""
+    ink over the element it was drawn on, scrolled into view inside the pane holding it:
+    the swatch, half the window wide, is as wide as it was then, and the ink keeps its
+    share of it."""
     page = open_page(browser, serve(SWATCH_PAGE), color_scheme="dark")
     page.set_viewport_size({"width": 800, "height": 600})
     rendered(page)

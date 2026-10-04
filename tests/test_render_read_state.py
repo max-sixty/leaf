@@ -507,10 +507,7 @@ def test_automatic_read_refusal_keeps_message_unread(browser, serve):
     )
     expect(card.locator(".lf-mark-read")).to_have_count(0)
     assert _read_events(serve.page_dir) == []
-    assert take_browser_errors(page) == [
-        f"400 {request.request.url}",
-        "Failed to load resource: the server responded with a status of 400 (Bad Request)",
-    ]
+    assert take_browser_errors(page) == [f"400 {request.request.url}"]
     page.unroute("**/api/event")
     with sending(page, "read on a new visit"):
         page.evaluate("""() => {

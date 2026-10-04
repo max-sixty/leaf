@@ -1696,19 +1696,13 @@ def readable(page):
 
     They are therefore installed where a page is made rather than asked for by each
     test, which is what `WatchedBrowser` is for. A page that already carries them is
-    left alone, since a second response listener would report every failure twice.
+    left alone, since a second console listener would report every problem twice.
     """
     if getattr(page, "lf_errors", None) is not None:
         return page
     page.lf_traffic = Traffic(page)
     arm_interception(page)
-    errors = watched(page)
-    # The console's own word for a bad response is "Failed to load resource", which
-    # names nothing; carry the status and URL so a failure says what went missing.
-    page.on(
-        "response",
-        lambda r: errors.append(f"{r.status} {r.url}") if r.status >= 400 else None,
-    )
+    watched(page)
     return page
 
 

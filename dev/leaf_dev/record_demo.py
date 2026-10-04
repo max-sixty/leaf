@@ -23,8 +23,8 @@ from pathlib import Path
 
 import click
 from leaf.delivery import freeze_delivery, pending_batches, receive_delivery
+from leaf.harness import session_harness
 from leaf.hook_carrier import hook_acknowledgement
-from leaf.host import session_harness
 from leaf.hosting import claim_and_start, cmd_stop
 from leaf.projection import folded_positions
 from leaf.publishing import cmd_stamp
@@ -215,7 +215,7 @@ def select_text(page: Page, selector: str, text: str) -> None:
 
 
 class DemoWaiter:
-    """One background `leaf wait`, taking each delivery the way this host's agent
+    """One background `leaf wait`, taking each delivery the way this harness's agent
     does: it reads a complete delivery, explicitly acknowledges it, and
     rearms the wait. The demo itself stands in for the reader."""
 
@@ -422,7 +422,7 @@ def record_demo(output: Path | None) -> None:
         page_dir = Path(scratch) / "page"
         # A state home of its own, so the host's open pages stay out of the banner's
         # `All leaves`. Set before any leaf command so each inherits it. The agent's
-        # name shows only under a host session, which the recording keeps.
+        # name shows only under a harness session, which the recording keeps.
         os.environ["XDG_STATE_HOME"] = f"{scratch}/state"
         os.environ["LEAF_AGENT"] = "Claude"
         with redirect_stdout(io.StringIO()):

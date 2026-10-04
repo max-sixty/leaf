@@ -1,7 +1,7 @@
 """Native Promptfoo Python provider for a catalog task's complete workflow.
 
 The test's metadata names the executor and its scenario, a key of the executor's
-`CASES`; the provider column names the host, condition and arm. Each call gets a
+`CASES`; the provider column names the harness, condition and arm. Each call gets a
 fresh evidence directory, so repetitions never share one, and the response's
 `metadata.work` names it. An executor that declares `rubrics` also gets `shots`,
 the sample's directory under the run's screenshot tree, which is all its judge may
@@ -34,7 +34,7 @@ def call_api(prompt: str, options: dict, context: dict) -> dict:
         Path(config["payload"]),
         work,
         **judged,
-        host=config["host"],
+        harness=config["harness"],
         condition=config["condition"],
     )
     response.setdefault("metadata", {})["work"] = str(work)

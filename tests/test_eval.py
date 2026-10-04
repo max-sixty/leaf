@@ -1,4 +1,4 @@
-"""The catalog expands into Promptfoo tests run on one column per host and arm."""
+"""The catalog expands into Promptfoo tests run on one column per harness and arm."""
 
 import json
 from pathlib import Path
@@ -30,8 +30,8 @@ def test_library_cases_supply_a_task_and_native_promptfoo_assertions(address):
     assert all(assertion["type"] and assertion["value"] for assertion in case["assert"])
 
 
-def test_native_columns_isolate_each_host_and_arm(tmp_path, monkeypatch):
-    login = tmp_path / "host-login"
+def test_native_columns_isolate_each_harness_and_arm(tmp_path, monkeypatch):
+    login = tmp_path / "harness-login"
     login.mkdir()
     (login / "auth.json").write_text('{"fixture": "local-login"}')
     monkeypatch.setenv("CODEX_HOME", str(login))
@@ -55,13 +55,13 @@ def test_native_columns_isolate_each_host_and_arm(tmp_path, monkeypatch):
     assert [test["providers"] for test in config["tests"]] == [labels, labels]
     homes = []
     for provider in config["providers"]:
-        host, arm = provider["label"].split("/")
+        harness, arm = provider["label"].split("/")
         settings = provider["config"]
         # Cases that show images find them under the column's own workspace.
         assert (
             Path(settings["working_dir"]) / "evals/shot-pair-outlined/captures"
         ).is_dir()
-        if host == "cc":
+        if harness == "cc":
             homes.append(settings["env"]["HOME"])
             assert settings["plugins"][0]["path"] == str(payloads[arm])
             assert settings["setting_sources"] == []
@@ -151,12 +151,12 @@ def test_catalog_contexts_keep_complete_original_check_coverage():
         select_cases(("no-such-task",))
 
 
-def test_workflows_run_declared_conditions_hosts_and_fixed_checks(
+def test_workflows_run_declared_conditions_harnesses_and_fixed_checks(
     tmp_path, monkeypatch
 ):
     from leaf_dev.arrangement_eval import expected_checks, rubrics
 
-    login = tmp_path / "host-login"
+    login = tmp_path / "harness-login"
     login.mkdir()
     (login / "auth.json").write_text('{"fixture": "local-login"}')
     monkeypatch.setenv("CODEX_HOME", str(login))
@@ -212,14 +212,14 @@ def test_workflows_run_declared_conditions_hosts_and_fixed_checks(
         for provider in config["providers"]
         if provider["label"] == "codex/html/workflow"
     )
-    assert (html["host"], html["condition"], html["payload"], html["samples"]) == (
+    assert (html["harness"], html["condition"], html["payload"], html["samples"]) == (
         "codex",
         "html",
         str(payloads["candidate"]),
         str(tmp_path / "samples"),
     )
     assert html["screenshots"] == str(tmp_path / "screenshots")
-    with pytest.raises(click.BadParameter, match="no requested host/condition"):
+    with pytest.raises(click.BadParameter, match="no requested harness/condition"):
         prepare(
             ["dashboard/reader-seeded"],
             payloads,
@@ -237,15 +237,15 @@ def test_python_provider_gives_each_call_its_own_evidence(tmp_path, monkeypatch)
 
     class Executor:
         @staticmethod
-        def execute_scenario(case, payload, work, *, host, condition):
-            observed.append((case, payload, work, host, condition))
+        def execute_scenario(case, payload, work, *, harness, condition):
+            observed.append((case, payload, work, harness, condition))
             return {"output": "{}"}
 
     class Judged:
         rubrics = staticmethod(lambda scenario: [])
 
         @staticmethod
-        def execute_scenario(case, payload, work, *, shots, host, condition):
+        def execute_scenario(case, payload, work, *, shots, harness, condition):
             observed.append(shots)
             return {"output": "{}"}
 
@@ -258,7 +258,7 @@ def test_python_provider_gives_each_call_its_own_evidence(tmp_path, monkeypatch)
             "samples": str(tmp_path / "samples"),
             "screenshots": str(tmp_path / "screenshots"),
             "claude_config_dir": str(tmp_path / "login"),
-            "host": "codex",
+            "harness": "codex",
             "condition": "html",
         }
     }
@@ -278,8 +278,8 @@ def test_python_provider_gives_each_call_its_own_evidence(tmp_path, monkeypatch)
     ]
     first, second = observed
     assert first[2] != second[2]
-    for case, payload, work, host, condition in observed:
-        assert (case, payload, host, condition) == (
+    for case, payload, work, harness, condition in observed:
+        assert (case, payload, harness, condition) == (
             "resume",
             tmp_path / "payload",
             "codex",
@@ -323,7 +323,7 @@ def test_command_passes_promptfoo_options_and_status_without_api_keys(
     monkeypatch.setenv("OPENAI_API_KEY", "must-not-reach-promptfoo")
 
     def run(*args):
-        return CliRunner().invoke(module.eval, ["--host", "cc", *args])
+        return CliRunner().invoke(module.eval, ["--harness", "cc", *args])
 
     result = run("task-outlasts-the-turn", "--repeat", "3")
     assert result.exit_code == 100, result.output

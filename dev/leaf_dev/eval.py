@@ -2,11 +2,11 @@
 
 This command does only what Promptfoo cannot: it builds each Leaf arm (the working
 tree, and with `--base` a ref), gives each provider a home of its own holding just the
-host's login, and expands the catalog's task/context addresses into Promptfoo tests.
+harness's login, and expands the catalog's task/context addresses into Promptfoo tests.
 Promptfoo owns the rest: repetition, concurrency, assertions, the console table, and
 the result database its viewer reads. Arguments after the cases go to `promptfoo eval`.
 
-A provider is one column of the results: a host on one arm (`cc/candidate`), suffixed
+A provider is one column of the results: a harness on one arm (`cc/candidate`), suffixed
 `/workflow` for the Python provider that runs complete tasks, and on arm `html` for
 the plain HTML control. A test is one catalog address under one condition.
 """
@@ -27,7 +27,7 @@ import click
 import yaml
 
 from leaf_dev import ROOT
-from leaf_dev.harness import (
+from leaf_dev.arms import (
     MODELS,
     base_ref,
     build_arm,
@@ -37,7 +37,7 @@ from leaf_dev.harness import (
 )
 from leaf_dev.leaf_assets import pinned_copy
 
-HOSTS = ("cc", "codex")
+HARNESSES = ("cc", "codex")
 PROMPTFOO = ROOT / "evals/node_modules/.bin/promptfoo"
 RUNS = ROOT / ".tmp/eval"
 SKILL_PREFIX = "Use the Leaf skill ($leaf in Codex; leaf:leaf in Claude Code).\n\n"
@@ -84,9 +84,9 @@ def select_cases(globs: tuple[str, ...]) -> list[str]:
     ]
 
 
-def native_provider(host: str, payload: Path, work: Path) -> dict:
+def native_provider(harness: str, payload: Path, work: Path) -> dict:
     """A native agent provider that can read the arm's skill and nothing else of ours."""
-    if host == "cc":
+    if harness == "cc":
         child = claude_child(work)
         return {
             "id": "anthropic:claude-agent-sdk",
@@ -146,7 +146,7 @@ def native_provider(host: str, payload: Path, work: Path) -> dict:
 
 
 def workflow_provider(
-    host: str, condition: str, payload: Path, samples: Path, screenshots: Path
+    harness: str, condition: str, payload: Path, samples: Path, screenshots: Path
 ) -> dict:
     """The Python provider that hands one complete task to its declared executor."""
     return {
@@ -158,7 +158,7 @@ def workflow_provider(
             "claude_config_dir": os.environ.get(
                 "CLAUDE_CONFIG_DIR", str(Path.home() / ".claude")
             ),
-            "host": host,
+            "harness": harness,
             "condition": condition,
             "payload": str(payload),
             "samples": str(samples),
@@ -214,7 +214,7 @@ def prepare(
     cases: list[str],
     arms: dict[str, Path],
     scratch: Path,
-    hosts: tuple[str, ...],
+    harnesses: tuple[str, ...],
     conditions: tuple[str, ...],
     samples: Path,
 ) -> dict:
@@ -234,20 +234,20 @@ def prepare(
                 continue
             columns = arms if condition == "leaf" else {"html": arms["candidate"]}
             labels = []
-            for host in hosts:
-                if host not in metadata.get("hosts", HOSTS):
+            for harness in harnesses:
+                if harness not in metadata.get("harnesses", HARNESSES):
                     continue
                 for arm, payload in columns.items():
-                    label = f"{host}/{arm}" + ("/workflow" if executor else "")
+                    label = f"{harness}/{arm}" + ("/workflow" if executor else "")
                     if label not in providers:
                         if executor:
                             configured = workflow_provider(
-                                host, condition, payload, samples, screenshots
+                                harness, condition, payload, samples, screenshots
                             )
                         else:
                             work = scratch / "work" / label
                             work.mkdir(parents=True)
-                            configured = native_provider(host, payload, work)
+                            configured = native_provider(harness, payload, work)
                         providers[label] = {**configured, "label": label}
                     labels.append(label)
             if not labels:
@@ -308,8 +308,8 @@ def prepare(
             )
     if not tests:
         raise click.BadParameter(
-            "selected cases have no requested host/condition",
-            param_hint="--host/--condition",
+            "selected cases have no requested harness/condition",
+            param_hint="--harness/--condition",
         )
     return {
         "prompts": ["{{prompt}}"],
@@ -358,7 +358,10 @@ def describe(base: str | None, head: str, globs: tuple[str, ...]) -> str:
     help="Also run the merge base with main, or the ref given.",
 )
 @click.option(
-    "--host", type=click.Choice([*HOSTS, "both"]), default="both", show_default=True
+    "--harness",
+    type=click.Choice([*HARNESSES, "both"]),
+    default="both",
+    show_default=True,
 )
 @click.option(
     "--condition",
@@ -366,7 +369,7 @@ def describe(base: str | None, head: str, globs: tuple[str, ...]) -> str:
     default="leaf",
     show_default=True,
 )
-def eval(args: tuple[str, ...], base: str | None, host: str, condition: str):
+def eval(args: tuple[str, ...], base: str | None, harness: str, condition: str):
     """Score CASE globs or task/context addresses on the working tree.
 
     Options Promptfoo takes follow the cases, such as `--repeat 3` or `-j 4`.
@@ -409,7 +412,7 @@ def eval(args: tuple[str, ...], base: str | None, host: str, condition: str):
             cases,
             {arm: scratch / arm for arm in commits},
             scratch,
-            HOSTS if host == "both" else (host,),
+            HARNESSES if harness == "both" else (harness,),
             conditions,
             out / "samples",
         )

@@ -82,31 +82,60 @@ INPUT_WORK_WATCH_SOURCE = Path(__file__).with_name("input_work_watch.js")
 WATCH_PLATFORM_SOURCE = Path(__file__).with_name("watch_platform.js")
 
 
+def rendering_job_binding_source():
+    """Bind generic input scopes to the runtime's synchronous job lifecycle seam."""
+    return """Object.defineProperty(HTMLScriptElement.prototype, 'lfObserveQueuedWork', {
+      configurable: true,
+      set(observe) {
+        Object.defineProperty(this, 'lfObserveQueuedWork', {
+          value: observe, writable: true, enumerable: true, configurable: true,
+        });
+        const captured = new WeakMap(), entered = new WeakMap();
+        observe((phase, job) => {
+          if (phase === 'enqueue') captured.set(job, lfInputWork.captureScope());
+          else if (phase === 'run') entered.set(job, captured.get(job)());
+          else if (phase === 'finish') {
+            entered.get(job)();
+            entered.delete(job);
+            captured.delete(job);
+          } else if (phase === 'cancel') captured.delete(job);
+        });
+      },
+    });"""
+
+
 @cache
 def shift_watch_source():
-    """Install the sensor with the runtime's document-free control and clipping vocabulary."""
+    """Bind the sensor to the runtime's control, clipping, and scroll-space readings."""
     controls = subprocess.check_output(
         [
             "node",
+            "--import",
+            "./tests/runtime/dom.mjs",
             "--input-type=module",
             "--eval",
             (
                 'import { WORKS } from "./skills/leaf/assets/runtime/control-selectors.js";'
                 'import { clippingAxes } from "./skills/leaf/assets/runtime/rect.js";'
-                "process.stdout.write(JSON.stringify([WORKS,clippingAxes.toString()]));"
+                'import { scrollAxes } from "./skills/leaf/assets/runtime/geometry.js";'
+                'import { shadowHost, upFrom, renderedParent } from "./skills/leaf/assets/runtime/shadow.js";'
+                "process.stdout.write(JSON.stringify([WORKS,...[clippingAxes,shadowHost,upFrom,renderedParent,scrollAxes].map(fn=>fn.toString())]));"
             ),
         ],
         cwd=ROOT,
         text=True,
     )
-    interactive, clipping = json.loads(controls)
+    interactive, clipping, host, parent, rendered_parent, axes = json.loads(controls)
     return (
         WATCH_PLATFORM_SOURCE.read_text()
         + "\n"
         + "const nativePerformance = window.lfWatchPlatform.performance;\n"
         + "const nativeFrame = callback => window.lfWatchPlatform.frame(callback);\n"
         + "const nativeTask = (callback, ...args) => window.lfWatchPlatform.later(callback, ...args);\n"
-        + f"((interactive, clippingAxes) => {{\n{SHIFT_WATCH_SOURCE.read_text()}\n}})({json.dumps(interactive)}, {clipping});"
+        + f"((interactive, clippingAxes) => {{\n"
+        f"const shadowHost = {host};\nconst upFrom = {parent};\n"
+        f"const renderedParent = {rendered_parent};\nconst scrollAxes = {axes};\n"
+        f"{SHIFT_WATCH_SOURCE.read_text()}\n}})({json.dumps(interactive)}, {clipping});"
     )
 
 
@@ -1258,6 +1287,8 @@ def watched(page):
                 WORDS_WATCH_SOURCE,
             )
         )
+        + "\n"
+        + rendering_job_binding_source()
     )
     if _TEST is None or watches_shifts(_TEST):
         page.add_init_script(script=shift_watch_source())
@@ -2021,6 +2052,33 @@ def select(page, start, end, steps=8):
     """Drag and release a selection."""
     hold_selection(page, start, end, steps)
     page.mouse.up()
+
+
+def select_words(page, passage):
+    """Triple-click a passage's words, which is not the same point as its box.
+
+    Playwright aims at the element's centre, and a short paragraph in a wide column is
+    mostly empty there. The response bar the user already opened on a neighbouring
+    passage stands in that empty half — it is placed to keep its own target clear, not
+    the page — so a gesture aimed at the centre lands on the field instead of on the
+    words and never reaches the passage. The words are where a user aims, so the
+    click goes to the start of the first line the passage draws."""
+    locator = page.locator(passage)
+    locator.scroll_into_view_if_needed()
+    x, y = locator.evaluate(
+        """element => {
+          const range = element.ownerDocument.createRange();
+          range.selectNodeContents(element);
+          const [line] = range.getClientRects();
+          const box = element.getBoundingClientRect();
+          if (!line) return [box.width / 2, box.height / 2];
+          return [
+            line.left + Math.min(24, line.width / 2) - box.left,
+            line.top + line.height / 2 - box.top,
+          ];
+        }"""
+    )
+    locator.click(click_count=3, position={"x": x, "y": y})
 
 
 def write(box, text):

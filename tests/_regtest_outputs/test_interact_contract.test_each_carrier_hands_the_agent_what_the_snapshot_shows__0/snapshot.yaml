@@ -11,7 +11,7 @@
 # A carrier is the route that takes new user input to the agent's task:
 #
 #   leaf wait          The agent runs `leaf wait` in the background. It prints
-#                      the delivery as JSON and exits, and the host hands that
+#                      the delivery as JSON and exits, and the harness hands that
 #                      output to the agent as the command's result, which wakes
 #                      it. The agent acknowledges the delivery itself, with
 #                      `leaf wait --ack <delivery-id>`, and answers with
@@ -43,7 +43,7 @@
 # carrier confirmed it; and the comment's `answer` is a `reply`, for `leaf thread reply`,
 # except on App Server, where it is a `turn` the turn's own messages write. The
 # `handling` follows from the answer, so each agent is told only its own route.
-# The agent's standing instructions (its host contract, and on leaf.page the
+# The agent's standing instructions (its harness contract, and on leaf.page the
 # developer instructions) are not part of a delivery; test_website_server records
 # leaf.page's.
 #

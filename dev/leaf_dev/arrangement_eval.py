@@ -2,7 +2,7 @@
 
 Leaf and ordinary HTML receive the same task and revision request. Each sample
 contains only its selected condition; the HTML child sees no Leaf payload,
-instructions or runtime. CC and Codex authors use the shared host interface.
+instructions or runtime. CC and Codex authors use the shared harness interface.
 
 The sample's output is what a judge needs: the user's request and each version's
 screenshots by width, written to `shots`, the one directory its judge may read.
@@ -23,8 +23,7 @@ from leaf.render_checks import rendered
 from leaf.structure import SourceDocument
 
 from leaf_dev import ROOT, arrangement_plain
-from leaf_dev.browser import chrome, load, settle, tab
-from leaf_dev.harness import (
+from leaf_dev.arms import (
     blocks,
     completed,
     observed_sum,
@@ -34,7 +33,8 @@ from leaf_dev.harness import (
     serving,
     token_counts,
 )
-from leaf_dev.harness import trace_result as result
+from leaf_dev.arms import trace_result as result
+from leaf_dev.browser import chrome, load, settle, tab
 from leaf_dev.usability_eval import admit
 
 TASKS = ROOT / "evals"
@@ -73,7 +73,7 @@ class Run:
     payload: Path
     directory: Path
     shots: Path
-    host: str = "cc"
+    harness: str = "cc"
     condition: str = "leaf"
 
     @property
@@ -134,7 +134,7 @@ Do not start an agent feedback watcher or wait for input. Reply with its path.
 
 
 def author(run: Run, cwd: Path) -> None:
-    """Author and revise with the same host session, preserving the initial page."""
+    """Author and revise with the same harness session, preserving the initial page."""
     cwd.mkdir(parents=True, exist_ok=True)
     (run.directory / "work-dir").write_text(str(cwd))
     run.state.mkdir(parents=True)
@@ -152,7 +152,7 @@ def author(run: Run, cwd: Path) -> None:
             if run.condition == "leaf"
             else {}
         ),
-        "host": run.host,
+        "harness": run.harness,
     }
     first = run_agent(
         cwd,
@@ -272,7 +272,7 @@ def seed_and_read_choice(run: Run) -> None:
                     "LEAF": str(run.payload / "bin/leaf"),
                     "XDG_STATE_HOME": str(run.state),
                 },
-                host=run.host,
+                harness=run.harness,
             )
         raw = result(trace).get("result", "")
         match = re.search(r"\{.*\}", raw, re.DOTALL)
@@ -521,15 +521,15 @@ def expected_checks(case: str, *, condition="leaf") -> list[str]:
 
 
 def execute_scenario(
-    case: str, payload: Path, work: Path, *, shots: Path, host="cc", condition="leaf"
+    case: str, payload: Path, work: Path, *, shots: Path, harness="cc", condition="leaf"
 ) -> dict:
     """Execute only the selected condition; Promptfoo owns the condition matrix."""
     work.mkdir(parents=True, exist_ok=True)
     checks = dict.fromkeys(expected_checks(case, condition=condition), False)
-    run = Run(case, payload, work, shots, host, condition)
+    run = Run(case, payload, work, shots, harness, condition)
     diagnostics = {
         "subject": case,
-        "host": host,
+        "harness": harness,
         "condition": condition,
         "phases": {},
     }

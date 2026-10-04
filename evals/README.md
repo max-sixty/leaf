@@ -7,7 +7,7 @@ config, and runs `promptfoo eval`; Promptfoo does the rest.
 ```sh
 npm ci --prefix evals
 uv run leaf-dev eval brief-document-needs-no-outline
-uv run leaf-dev eval reading document/resume --host cc
+uv run leaf-dev eval reading document/resume --harness cc
 uv run leaf-dev eval task-outlasts-the-turn --base
 uv run leaf-dev eval document --condition both --repeat 3
 npm run view --prefix evals
@@ -22,7 +22,7 @@ npm run view --prefix evals
   as a second arm, and `--base REF` adds that ref; put cases before it. An arm
   holds only the plugin payload, with no git history, so an agent can't look up
   another version of Leaf through it.
-- **Hosts.** `--host cc`, `codex` or `both` (the default).
+- **Harnesses.** `--harness cc`, `codex` or `both` (the default).
 - **Conditions.** `--condition html` runs the plain HTML control on the tasks that
   declare one (document, dashboard and queue); `both` runs it beside Leaf. The
   control gets the same request and judge with no Leaf skill, runtime or widgets.
@@ -31,7 +31,7 @@ npm run view --prefix evals
 
 ## Reading the results
 
-Promptfoo prints a table with a row per test and a column per provider: a host on
+Promptfoo prints a table with a row per test and a column per provider: a harness on
 one arm (`cc/candidate`, `codex/base`), suffixed `/workflow` for complete tasks, and
 `cc/html/workflow` for the HTML control. Each assertion's `metric` is a named score,
 so a comparison reads per metric across columns.
@@ -64,7 +64,7 @@ check that never ran fails rather than disappearing. An executor whose output li
 screenshots, beside the request they answer, also declares `rubrics`: `agent-rubric`
 assertions a screenshot judge grades by opening them. It writes them to the `shots`
 directory it is given, the only place the judge may read. `metadata.conditions` and
-`metadata.hosts` restrict where it runs.
+`metadata.harnesses` restrict where it runs.
 
 | Executor | Runs |
 | --- | --- |

@@ -1,4 +1,4 @@
-"""The agent-host hooks Leaf registers, and the part of each that reads no page.
+"""The agent-harness hooks Leaf registers, and the part of each that reads no page.
 
 Every hook marks that it ran for its session (`leases.mark_hooks`), and a wait
 only wakes a session so marked (`Harness.hooks_carry`): a session launched
@@ -33,7 +33,7 @@ from .state import (
 def cmd_hook(payload: dict) -> None:
     event, sid = payload.get("hook_event_name"), payload.get("session_id") or ""
     if sid:
-        # Evidence that this host runs Leaf's hooks for the session, which is what
+        # Evidence that this harness runs Leaf's hooks for the session, which is what
         # lets its `leaf wait` only wake it (`Harness.hooks_carry`).
         mark_hooks(sid)
     if event == "SessionEnd":
@@ -107,7 +107,7 @@ def cmd_hook(payload: dict) -> None:
 
 
 def cmd_watch(payload: dict) -> str | None:
-    """The Stop hook a host runs in the background as a turn ends, watching the
+    """The Stop hook a harness runs in the background as a turn ends, watching the
     session's pages until input, and what it wakes the session with, or None
     where it ends without waking it (`session.watch_between_turns`).
 
@@ -118,7 +118,7 @@ def cmd_watch(payload: dict) -> str | None:
     sid = payload.get("session_id") or ""
     if not owned_pages(sid):
         return None
-    from .host import session_harness
+    from .harness import session_harness
 
     harness = session_harness()
     if harness is None or harness.session != sid or not harness.watches_between_turns():
@@ -131,10 +131,10 @@ def cmd_watch(payload: dict) -> str | None:
 
 
 def main(*, watch: bool = False) -> None:
-    """Read one host payload and dispatch it, without importing the CLI.
+    """Read one harness payload and dispatch it, without importing the CLI.
 
     Both the application entry and the Click command enter here.
-    A watch owns leases, so it releases them when the host terminates it.
+    A watch owns leases, so it releases them when the harness terminates it.
     """
     import json
     import sys
@@ -142,7 +142,7 @@ def main(*, watch: bool = False) -> None:
     try:
         payload = json.load(sys.stdin)
     except json.JSONDecodeError as error:
-        sys.exit(f"hook expects the host's JSON payload on stdin ({error.msg})")
+        sys.exit(f"hook expects the harness's JSON payload on stdin ({error.msg})")
     if watch:
         from .leases import release_on_termination
 

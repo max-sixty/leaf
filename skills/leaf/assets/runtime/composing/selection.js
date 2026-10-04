@@ -39,6 +39,7 @@ import { PRESS } from "../keyboard/bindings.js";
 import { takesLetters } from "../focus.js";
 import { repaint } from "../repaint.js";
 import { restrictUserIntent, retainUserIntent } from "../user-intent.js";
+import { bindQueuedWork } from "../queued-work.js";
 
 import { closestAcross, elementById, inChrome } from "../passages.js";
 
@@ -141,7 +142,7 @@ export function createSelectionComposer({
   openPageThread,
   threadTransitionOrigin,
   anchorStands,
-  anchorTargetAt,
+  anchorTravelAt,
   bringForward,
   fabAnchorAt,
   fabPointAt,
@@ -605,7 +606,7 @@ export function createSelectionComposer({
     const record = composerRecord(ctx);
     if (!record || !anchorStands(record.anchor)) return null;
     return {
-      where: anchorTargetAt(record.anchor),
+      where: anchorTravelAt(record.anchor),
       input: () =>
         composerOpen && composerCtx(pendingAnchor) === ctx ? composerInput : null,
       open: () => {
@@ -663,6 +664,9 @@ export function createSelectionComposer({
           },
         );
         if (!sent) return;
+        const revealSent = bindQueuedWork((options) =>
+          openPageThread(sent.id, options),
+        );
         // The semantic publication is synchronous, while the retained thread list
         // commits its keyed DOM asynchronously. Wait for that presentation before
         // choosing the destination: otherwise an already-open panel can be asked to
@@ -679,7 +683,7 @@ export function createSelectionComposer({
         // gesture may already have moved the user elsewhere while presentation was
         // settling.
         if (shouldReveal || panelIsOpen()) {
-          const destination = await openPageThread(sent.id, {
+          const destination = await revealSent({
             focus: shouldReveal ? "thread" : false,
             travel: false,
             flash: false,

@@ -4,7 +4,7 @@
 SessionEnd cleanup, which runs its standalone stdlib owner directly. A subprocess Leaf
 starts has `sys.executable` in hand and needs no launcher or environment manager.
 
-Hosts call `leaf hook` on every turn, including sessions holding no page. Its two
+Harnesses call `leaf hook` on every turn, including sessions holding no page. Its two
 protocol invocations enter the dependency-light hook owner before importing Click
 or registering other commands. Help and every other invocation use the CLI, whose
 `prog_name` stays `leaf` for both entry forms.

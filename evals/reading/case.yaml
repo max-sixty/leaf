@@ -8,33 +8,33 @@ metadata:
   conditions:
   - leaf
   executor: leaf_dev.usability_eval
-  case: reading
+  scenario: reading
 variants:
   plain:
     metadata:
-      case: reading-plain
+      scenario: reading-plain
       purpose: Read the isolated plain surface.
   collapsed:
     metadata:
-      case: reading-collapsed
+      scenario: reading-collapsed
       purpose: Read the isolated collapsed surface.
   inactive-tab:
     metadata:
-      case: reading-inactive-tab
+      scenario: reading-inactive-tab
       purpose: Read the isolated inactive-tab surface.
   widget-data:
     metadata:
-      case: reading-widget-data
+      scenario: reading-widget-data
       purpose: Read the isolated widget-data surface.
   external-data:
     metadata:
-      case: reading-external-data
+      scenario: reading-external-data
       purpose: Read the isolated external-data surface.
   standing-action:
     metadata:
-      case: reading-standing-action
+      scenario: reading-standing-action
       purpose: Read the isolated standing-action surface.
   view:
     metadata:
-      case: reading-view
+      scenario: reading-view
       purpose: Read the isolated view surface.

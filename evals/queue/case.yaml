@@ -9,19 +9,19 @@ metadata:
   - leaf
   - html
   executor: leaf_dev.arrangement_eval
-  case: queue
+  scenario: queue
 variants:
   board:
     metadata:
       executor: leaf_dev.usability_eval
-      case: board
+      scenario: board
       purpose: Read moves and undo before revising a board.
       conditions:
       - leaf
   mixed:
     metadata:
       executor: leaf_dev.usability_eval
-      case: mixed
+      scenario: mixed
       purpose: Answer mixed comments, choices, moves, undo and errors.
       conditions:
       - leaf

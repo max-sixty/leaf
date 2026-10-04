@@ -30,13 +30,12 @@ Some hosts deliver it inline; others deliver a pointer that `leaf delivery read 
 resolves to the same object. Your host contract names which. The shape is the same on
 every carrier, and `carrier` names the one that delivered it: `wait` for `leaf
 wait`'s output, `hook` for the context a host hook adds to the turn it opens,
-`queue` for a pointer Codex queued, `app-server` for a turn Leaf started. Two things differ by carrier, and the envelope states each once:
+`queue` for a pointer Codex queued, `app-server` for a turn Leaf started. The envelope states receipt and response routes once:
 
-- `acknowledge` says who confirms receipt and how. On `wait` it is the reader of
-  wait, in the way your host runs the next one. On `hook`, its reader confirms
-  with `leaf delivery ack <id>` after the complete envelope is in context,
-  whether it arrived inline or through `leaf delivery read <id>`. On `queue`
-  and `app-server`, the durable consumer confirmed receipt and it is `null`.
+- `acknowledge` says how to confirm receipt after the complete envelope is in
+  context. Follow that instruction, not a rule inferred from `carrier`. When it
+  is `null`, your host confirms receipt; run no separate acknowledgement command.
+  Your host contract explains its mechanism.
 - A thread reply's `answer` is `turn` on `app-server`, whose turn writes it with
   its own messages, and `reply`, for `leaf thread reply`, everywhere else.
 
@@ -62,7 +61,7 @@ retry key `attempt`, then adds these delivery readings:
 - `answer`, when present, freezes the answer the event owed at capture: its
   `kind` (`reply`, `turn` or `markup`) with the address it is written
   under, the same object `leaf page state` lists for the move's workflow. The
-  event's `answering` clauses say how to write it. Until the answer is written,
+  event's `handling` clauses say how to write it. Until the answer is written,
   `leaf status idle` refuses, and the Stop hook holds the turn open unless that turn
   claimed the move's work (`references/conversation-loop.md`, "Long-running work").
   Re-read current state before writing because later evidence may already have
@@ -96,9 +95,9 @@ the covered originals, write the summary, and keep outcomes in the document.
 
 ## Delivery and acknowledgement
 
-Printing and hook completion are not receipt. Follow the envelope's
-`acknowledge` only after every batch is in context: a hook delivery uses
-`leaf delivery ack <id>`, while a direct wait uses the host's next wait:
+Printing and hook completion are not receipt. Once every batch is in context,
+follow the envelope's `acknowledge` instruction. A reader-confirmed hook names
+`leaf delivery ack <id>`; a direct wait names the host's next wait:
 
 ```bash
 leaf wait --ack <delivery-id>
@@ -154,7 +153,7 @@ names.
 
 Acknowledgement is transport receipt, not semantic settlement. Write every
 still-current `answer` with the operation its kind names, naming the work each one
-starts with a `working` status as its `answering` clauses say
+starts with a `working` status as its `handling` clauses say
 (`references/conversation-loop.md`, "When to write"), then re-enter the host's wait
 loop: `waiting` after every obligation has been answered and the user owns the next
 move, `working` while you continue.

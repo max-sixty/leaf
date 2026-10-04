@@ -1127,6 +1127,8 @@ def test_thread_read_reads_frozen_construction(page_dir):
     drawing = {
         "format": "leaf-drawing/2",
         "strokes": [[[-20, 74], [50, 10], [120, 74]]],
+        "viewport": [1200, 900],
+        "scheme": "light",
     }
     drawn = append_carried_log_record(
         page_dir,

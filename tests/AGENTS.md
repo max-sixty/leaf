@@ -1,13 +1,18 @@
 # Testing leaf
 
-A test here is evidence about behavior a user depends on. Under root `AGENTS.md`'s
-**Stage**, the suite does not constrain new code: rewriting or deleting an overfit
-test is an ordinary part of a change, and the commit says which behavior moved.
+A test here is evidence about behavior a user depends on. The suite's quality varies:
+agents wrote most of it, and many tests assert the shape the code had when they were
+written rather than that behavior. Under root `AGENTS.md`'s **Stage**, the suite does
+not constrain new code: rewriting or deleting an overfit test is an ordinary part of a
+change, and the commit says which behavior moved.
 
 Prove each contract at the lowest boundary that preserves it, and keep a browser test
-only where it proves boundaries working together. When a high-level browser test is
-slow, or fails on timing or geometry outside its contract, repair its arrangement or
-move its contract to the lower boundary.
+only where it proves boundaries working together. Every run of the suite pays for each
+test's compute, so weigh that cost against how much the protected behavior matters
+before adding or keeping an expensive test: a long browser journey, a sweep across
+pages or widths, or a wide parametrization needs a contract important enough to pay
+for it. When a high-level browser test is slow, or fails on timing or geometry outside
+its contract, repair its arrangement or move its contract to the lower boundary.
 
 Each helper's docstring owns its contract, and code cites sections here by heading.
 
@@ -21,6 +26,19 @@ Linux browser tests use `tests/fonts.conf` and `fonts-dejavu` for their native
 UI, serif and mono faces, including bold and italic styles. Install that package before `wt setup`; CI installs it
 explicitly. The PNG rendering profile binds the fontconfig and installed font bytes,
 and an actual Chromium font reading verifies those faces. Mac uses its native fonts.
+
+## A failure is evidence about the test too
+
+Before fixing a failing test, name the user-facing behavior its failure caught. Where
+it caught none, because the change left what the user sees and does intact and the
+test broke only on the shape it read, consider simplifying the test to the behavior it
+protects, moving its contract to a lower boundary, or deleting it, rather than
+updating it to the new shape. A test that unrelated changes keep breaking (`git log
+-L` on it shows the history) is the strongest candidate.
+
+A failure that comes and goes on the same code is a defect. Find whether the product
+races, so a user could hit the same failure, or the test's arrangement does (**State
+races are arrangements, not probabilities**), and fix that cause.
 
 ## Run the narrowest useful surface
 

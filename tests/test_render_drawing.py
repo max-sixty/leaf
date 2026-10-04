@@ -5,10 +5,13 @@ import json
 import re
 
 import pytest
+from click.testing import CliRunner
 from interact_support import append_carried_log_record
+from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf.render_checks import rendered, wait_until_ready
+from PIL import Image, ImageChops
 from playwright.sync_api import expect
 from render_cases_interaction import (
     THREAD_DIFF_PAGE,
@@ -26,6 +29,7 @@ from render_harness import (
     open_page,
     panel_settled,
     sending,
+    stamp_page,
     told,
     write,
 )
@@ -125,9 +129,11 @@ def mark_relation(page, mark, target):
 
 def test_a_drawing_is_sent_and_replayed_as_an_ordinary_comment(browser, serve):
     """One pointer stroke starts on one semantic anchor, crosses the page beyond it,
-    and the accepted comment keeps its ink positioned over that anchor."""
+    and the accepted comment keeps its ink positioned over that anchor. The record
+    carries the window it was drawn in, its layout viewport and color scheme, which
+    is what lays the page out again for the agent's picture of it."""
     url = serve(FEATURE_GALLERY)
-    page = open_page(browser, url)
+    page = open_page(browser, url, color_scheme="dark")
     target = page.locator("#bg-choice-trail")
     target.evaluate("el => { el.style.position = 'relative'; el.style.zIndex = '1'; }")
     scroll_width = page.evaluate("document.documentElement.scrollWidth")
@@ -154,6 +160,10 @@ def test_a_drawing_is_sent_and_replayed_as_an_ordinary_comment(browser, serve):
     assert event["text"] == "This bend is the part I mean."
     drawing = event["drawing"]
     assert drawing["format"] == "leaf-drawing/2"
+    assert drawing["viewport"] == page.evaluate(
+        "[document.documentElement.clientWidth, document.documentElement.clientHeight]"
+    )
+    assert drawing["scheme"] == "dark"
     (stroke,) = drawing["strokes"]
     assert 2 <= len(stroke) <= 256
     target_box = target.bounding_box()
@@ -408,6 +418,87 @@ def test_a_drawing_says_the_words_it_stands_over_and_the_box_it_was_drawn_in(
     assert (
         sent("the ring under cut-away rows")["drawing"]["says"] == "India juliet kilo."
     )
+
+
+SWATCH_PAGE = leaf_page(
+    "drawn swatch",
+    '<h1 id="t">Swatch</h1><p id="lede">The swatch below is half the window wide.</p>'
+    '<div id="swatch"></div>',
+    head="<style>#swatch { width: 50vw; height: 160px; background: rgb(0, 200, 0) }"
+    "</style>",
+)
+
+
+def test_a_drawing_is_pictured_in_the_window_it_was_drawn_in(browser, serve):
+    """`leaf page picture` lays the comment's revision out again in the window the
+    drawing was made in, whatever window or version the page is in since, and paints the
+    ink over the element it was drawn on: the swatch, half the window wide, is as wide as
+    it was then, and the ink keeps its share of it."""
+    page = open_page(browser, serve(SWATCH_PAGE), color_scheme="dark")
+    page.set_viewport_size({"width": 800, "height": 600})
+    rendered(page)
+    swatch = page.locator("#swatch")
+    draw_over(page, swatch)
+    with sending(page, "the drawing on the swatch"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    event = events_model.read_events(serve.page_dir)[-1]
+    assert event["anchor"] == {"section": "swatch"}
+    ink = page.locator(f'.lf-drawing-posted[data-thread="{event["id"]}"] path')
+    ink_color = ink.evaluate("path => getComputedStyle(path).stroke")
+    page.set_viewport_size({"width": 1200, "height": 900})
+    stamp_page(serve.page_dir, SWATCH_PAGE.replace("50vw", "25vw"), "Narrow the swatch")
+
+    pictured = CliRunner().invoke(
+        cli_model.cli, ["page", "picture", str(serve.page_dir), event["id"]]
+    )
+    assert pictured.exit_code == 0, pictured.output
+    image = Image.open(pictured.output.strip()).convert("RGB")
+
+    def where(color):
+        """The bounding box of the picture's pixels within a few levels of `color`."""
+        red, green, blue = ImageChops.difference(
+            image, Image.new("RGB", image.size, color)
+        ).split()
+        furthest = ImageChops.lighter(ImageChops.lighter(red, green), blue)
+        return furthest.point(lambda level: 255 if level <= 8 else 0).getbbox()
+
+    green = where((0, 200, 0))
+    drawn = where(tuple(int(part) for part in re.findall(r"\d+", ink_color)[:3]))
+    assert green and drawn, (green, drawn)
+    # 50vw of the 800px window the drawing was made in, on the revision it was made on:
+    # 576px, cut at the crop, in the page's window now, and 200px on its version now.
+    assert green[2] - green[0] == pytest.approx(400, abs=2)
+    assert image.width < 800 and image.height < 600
+    width, height = green[2] - green[0], green[3] - green[1]
+    (left, top), _, (right, _) = STROKE
+    assert (drawn[0] - green[0]) / width == pytest.approx(left, abs=0.03)
+    assert (drawn[2] - green[0]) / width == pytest.approx(right, abs=0.03)
+    assert (drawn[1] - green[1]) / height == pytest.approx(STROKE[1][1], abs=0.05)
+    assert (drawn[3] - green[1]) / height == pytest.approx(top, abs=0.05)
+    # Drawn in the dark scheme: the page around the swatch is dark.
+    assert sum(image.getpixel((2, 2))) < 200
+
+    missing = CliRunner().invoke(
+        cli_model.cli, ["page", "picture", str(serve.page_dir), "nope"]
+    )
+    assert missing.exit_code != 0 and "no message nope" in missing.output
+    # An element the revision does not hold, as one a data source drew and has since
+    # dropped, leaves no ink to picture.
+    lost = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": event["revision"],
+            "anchor": {"section": "gone"},
+            "drawing": event["drawing"],
+        },
+    )
+    unresolved = CliRunner().invoke(
+        cli_model.cli, ["page", "picture", str(serve.page_dir), lost["id"]]
+    )
+    assert unresolved.exit_code != 0
+    assert "its element #gone does not resolve" in unresolved.output
 
 
 def test_a_keyboard_send_reaches_send_while_the_stroke_still_owes_its_press(

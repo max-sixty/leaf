@@ -5867,7 +5867,12 @@ def test_each_delivered_event_says_only_what_its_own_case_asks(page_dir, capsys)
         **page_pick,
         "meaning": {**page_pick["meaning"], "scope": "thread"},
     }
-    drawing = {"format": "leaf-drawing/2", "strokes": [[[0, 0], [10, 10]]]}
+    drawing = {
+        "format": "leaf-drawing/2",
+        "strokes": [[[0, 0], [10, 10]]],
+        "viewport": [1200, 900],
+        "scheme": "light",
+    }
     for event in (
         {"kind": "comment", "id": "c1", "author": "user", "text": "hi"},
         {"kind": "comment", "id": "c2", "author": "user", "drawing": drawing},
@@ -5956,7 +5961,12 @@ def test_codex_delivery_carries_only_the_selected_events_handling(page_dir):
         {
             "kind": "comment",
             "text": "later drawing",
-            "drawing": {"format": "leaf-drawing/2", "strokes": [[[0, 0], [1, 1]]]},
+            "drawing": {
+                "format": "leaf-drawing/2",
+                "strokes": [[[0, 0], [1, 1]]],
+                "viewport": [1200, 900],
+                "scheme": "light",
+            },
         },
     ):
         append_carried_log_record(page_dir, {"author": "user", **event})
@@ -7312,6 +7322,8 @@ SETTLING_DECISION = {
     "drawing": {
         "format": "leaf-drawing/2",
         "strokes": [[[-20, 74], [50, 10], [120, 74]]],
+        "viewport": [1200, 900],
+        "scheme": "light",
     },
 }
 SETTLING_ACCEPT = {

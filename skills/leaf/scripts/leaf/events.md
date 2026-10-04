@@ -48,12 +48,17 @@ A `drawing` is up to 32 freehand strokes (`strokes`, each a list of points) atta
 an ordinary comment, and may be that comment's only content. Its first stroke decides
 whether it anchors on an element or on the page, and with it the browser records `box`
 and `says`; the drawing's clause in `$events.handling.comment` tells the agent how
-to read the three. The
-browser reads them off the rendered page, which holds words and geometry no file
-reading can produce, so the door bounds their shape, the stroke count and 500
+to read them. The browser also records `viewport`, the layout viewport's width and
+height, and `scheme`, `light` or `dark`, the window the drawing was made in. The
+browser reads all of these off the rendered page, which holds words and geometry no
+file reading can produce, so the door bounds their shape, the stroke count and 500
 characters of `says`, and does not re-read them. Leaf derives the drawing's frame and
-owns ink, weight, SVG construction, and replay. A drawing is immutable once sent,
-follows the thread's resolution state.
+owns ink, weight, SVG construction, and replay. A drawing is immutable once sent, and
+its ink follows the thread's resolution state.
+
+`leaf page picture PAGE ID` draws a drawing comment's revision again in that window,
+with its ink over it; `render_gate/picture.py` says what the picture reproduces and
+what it cannot.
 
 
 A publishing note, replacement reply, or the first automatic `reanchor` may carry

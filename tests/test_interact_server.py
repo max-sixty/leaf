@@ -1475,6 +1475,8 @@ def test_server_round_trip(server, page_dir):
         "strokes": [[[-20, 74], [50, 10], [120, 74]]],
         "box": [640.5, 96],
         "says": "to reap every process … before exporting",
+        "viewport": [1280, 720],
+        "scheme": "dark",
     }
     status, _ = fetch(
         f"{server}/api/event",
@@ -1644,8 +1646,10 @@ def test_server_round_trip(server, page_dir):
             "anchor": {"section": "feeder-board"},
             "drawing": {**drawing, "strokes": [[[float("nan"), 0.2], [0.5, 0.2]]]},
         },
-        # The box is a size and the words are bounded: both come off the rendered page,
-        # so their shape is all the door can hold them to.
+        # The box and the window are sizes, the words are bounded and the scheme is one
+        # of two: all come off the rendered page, so their shape is all the door can
+        # hold them to. The window is always recorded, since the agent's picture of the
+        # drawing is laid out in it.
         *(
             {
                 "kind": "comment",
@@ -1661,7 +1665,22 @@ def test_server_round_trip(server, page_dir):
                 {"says": ""},
                 {"says": "x" * 501},
                 {"says": ["to reap"]},
+                {"viewport": [1280, 0]},
+                {"viewport": [1280]},
+                {"scheme": "sepia"},
             )
+        ),
+        *(
+            {
+                "kind": "comment",
+                "revision": 2,
+                "text": "x",
+                "anchor": {"section": "feeder-board"},
+                "drawing": {
+                    key: value for key, value in drawing.items() if key != missing
+                },
+            }
+            for missing in ("viewport", "scheme")
         ),
         # Design is the field's only subject: the retired ownership alias and a browser
         # inventing a second subject are both refused at the door.

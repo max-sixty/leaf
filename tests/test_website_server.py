@@ -2901,6 +2901,14 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
         expect(thread.locator(".lf-msg.agent")).to_be_hidden()
         assert set(current_responses(page_dir, read_events(page_dir))) == {other["id"]}
     else:
+        # The short thread's reopened answer would move its writing box, so the
+        # reader explicitly opens the news before the visibility clock can see it.
+        news = thread.locator(".lf-thread-news")
+        expect(news).to_be_visible()
+        expect(
+            thread.locator(".lf-msg.agent").filter(has_text="deployment verified")
+        ).to_have_count(0)
+        news.click()
         page.wait_for_function("window.__leafVerifier.visibleReplyRecorded")
         assert page.evaluate("window.__leafVerifier.visibleReplyAt") is not None
         assert current_responses(page_dir, read_events(page_dir)) == {}

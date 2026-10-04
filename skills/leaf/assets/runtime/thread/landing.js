@@ -359,6 +359,10 @@ async function showThreadNow(id, focus, flash, revealThread, threadsBox, mayArri
     )
     ?.classList.toggle("grow", false);
   threadsBox.revealNavigation(threadNames(allThreads()).get(id)?.id ?? id);
+  if (threadsBox.showNews(id)) {
+    await whenDocumentPresented();
+    if (!mayArrive()) return null;
+  }
   let node = listNode(id, threadsBox, focus === "message");
   const going = node?.closest(".lf-going");
   if (going) {

@@ -298,6 +298,10 @@ def test_a_durable_answer_retires_the_placeholder_its_attempt_reserved(
     told(page)
 
     answered = page.locator(f'.lf-msg[data-attempt="{attempt}"]')
+    thread = page.locator(f'.lf-thread[data-id="{root}"]')
+    expect(thread.get_by_role("button", name="1 new reply", exact=True)).to_be_visible()
+    expect(answered.locator(".lf-msg-text")).to_be_empty()
+    thread.get_by_role("button", name="1 new reply", exact=True).click()
     expect(answered).to_have_count(1)
     expect(answered).to_have_attribute("data-mid", reply["id"])
     expect(answered.locator(".lf-msg-text")).to_have_text("deployment verified")
@@ -369,6 +373,11 @@ def test_a_durable_reply_completes_an_empty_stream_placeholder(browser, serve, r
     with service_model.PageTransaction(serve.page_dir) as transaction:
         transaction.clear_stream_reply("codex-thread", "leaf-turn")
 
+    told(page)
+    thread = page.locator(f'.lf-thread[data-id="{root}"]')
+    expect(thread.get_by_role("button", name="1 new reply", exact=True)).to_be_visible()
+    expect(message.locator(".lf-msg-text")).to_be_empty()
+    thread.get_by_role("button", name="1 new reply", exact=True).click()
     expect(message).to_have_attribute("data-mid", reply["id"])
     expect(message.locator(".lf-msg-text")).to_have_text("The complete answer.")
     expect(message.locator("#stream-reply-choice")).to_have_count(1)
@@ -389,6 +398,9 @@ def test_a_durable_reply_completes_an_empty_stream_placeholder(browser, serve, r
         },
     )
     told(page)
+    expect(thread.get_by_role("button", name="1 new reply", exact=True)).to_be_visible()
+    expect(message.locator(".lf-msg-text")).to_have_text("The complete answer.")
+    thread.get_by_role("button", name="1 new reply", exact=True).click()
     expect(message.locator(".lf-msg-text")).to_have_text("The complete edited answer.")
     assert page.evaluate(
         f"""() => window.__streamMessage === document.querySelector(
@@ -2119,19 +2131,38 @@ def test_a_card_moved_on_a_board_in_a_reply_reports_delivery_on_that_reply(
     expect(page.locator("#fb-done > #fb-cache")).to_be_visible()
 
 
-def test_an_arrival_interrupts_nothing_the_user_holds(browser, serve):
+@pytest.mark.parametrize("contents", ["short", "long"])
+def test_an_arrival_interrupts_nothing_the_user_holds(browser, serve, contents):
     """The nodes themselves survive the poll: the thread being typed in is the same
     element afterwards, still focused, caret where the typing left it — even when the
-    arrival lands inside that very thread, right above the reply box. The rebuild
-    could only approximate this by saving and restoring focus and caret by hand, and
-    the two send routes proved the restore had holes."""
-    page = open_page(browser, serve(LONG_PAGE, comments=3))
+    arrival concerns that very thread. Short conversations hold news that would move
+    the editor; a long conversation can show it above the pinned editor."""
+    url = serve(LONG_PAGE, comments=1)
+    first = next(
+        e for e in events_model.read_events(serve.page_dir) if e["kind"] == "comment"
+    )
+    if contents == "long":
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "parent": first["id"],
+                "revision": 1,
+                "text": "\n\n".join(
+                    ["Keep the conversation visible while writing."] * 20
+                ),
+            },
+        )
+    page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    page.locator(".lf-thread-summary").first.click()
-    ta = page.locator(".lf-threads > .lf-thread:not([hidden])").first.locator(
-        "leaf-text"
-    )
+    thread = page.locator(f'.lf-threads > .lf-thread[data-id="{first["id"]}"]')
+    if thread.get_attribute("open") is None:
+        thread.locator(".lf-thread-summary").click()
+    band = page.locator(".lf-threads").bounding_box()["height"]
+    assert (thread.bounding_box()["height"] > band) is (contents == "long")
+    ta = thread.locator("leaf-text")
     ta.click()
     ta.type("half a thought")
     page.evaluate("""() => {
@@ -2139,10 +2170,7 @@ def test_an_arrival_interrupts_nothing_the_user_holds(browser, serve):
         window.__heldEditor = document.activeElement;
         window.__probe = document.activeElement.closest('.lf-thread');
     }""")
-
-    first = next(
-        e for e in events_model.read_events(serve.page_dir) if e["kind"] == "comment"
-    )
+    before = ta.bounding_box()
     reply = append_carried_log_record(
         serve.page_dir,
         {
@@ -2155,7 +2183,19 @@ def test_an_arrival_interrupts_nothing_the_user_holds(browser, serve):
         },
     )
     told(page)
-    expect(page.locator(f'.lf-msg[data-mid="{reply["id"]}"]')).to_have_count(1)
+    arrived = thread.locator(f'.lf-msg[data-mid="{reply["id"]}"]')
+    if contents == "short":
+        expect(
+            thread.get_by_role("button", name="1 new reply", exact=True)
+        ).to_be_visible()
+        expect(arrived).to_have_count(0)
+    else:
+        expect(arrived).to_be_visible()
+        expect(thread.locator(".lf-thread-news")).to_have_count(0)
+    rendered(page)
+    after = ta.bounding_box()
+    for edge in before:
+        assert after[edge] == pytest.approx(before[edge], abs=0.5), (before, after)
     assert page.evaluate("""() => {
         const ta = document.activeElement;
         return ta.localName === 'leaf-text'
@@ -2165,6 +2205,167 @@ def test_an_arrival_interrupts_nothing_the_user_holds(browser, serve):
             && ta.value === 'half a thought'
             && ta.selectionStart === 4 && ta.selectionEnd === 4;
     }"""), "the poll replaced or disturbed the node the user was typing into"
+
+
+@pytest.mark.parametrize(
+    ("contents", "finish"),
+    [("short", "reveal"), ("long", "reveal"), ("short", "cancel")],
+    ids=["short", "long", "canceled-short"],
+)
+def test_a_stream_growing_keeps_the_panel_editor_still(
+    browser, serve, request, contents, finish
+):
+    """Growing an existing streamed turn holds the same boundary as a new reply.
+
+    A short conversation keeps its painted body until the reader opens its notice;
+    a pinned long conversation follows the latest words while retaining the editor.
+    Opening held news reveals the latest body after more typing; canceling the stream
+    removes its held notice as well as its words.
+    """
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "Answer me here", {"section": "h-how"})
+    claim = record_claim(
+        serve.page_dir, id="codex-thread", harness="codex", agent="Codex"
+    )
+    lease = leases_model.take_lease(
+        leases_model.waiter_lease_path(serve.page_dir, claim["id"])
+    )
+    assert lease
+    request.addfinalizer(lease.close)
+    attempt = service_model.delivery_reply_attempt("delivery-1")
+    original = "Keep the conversation visible."
+    if contents == "long":
+        original = "\n\n".join([original] * 20)
+
+    def stream(words):
+        with service_model.PageTransaction(serve.page_dir) as transaction:
+            transaction.set_status("waiting", "User feedback")
+            transaction.set_stream_reply(
+                "codex-thread", "leaf-turn", root, root, attempt, None, words, "active"
+            )
+
+    stream(original)
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    thread = page.locator(f'.lf-threads > .lf-thread[data-id="{root}"]')
+    if thread.get_attribute("open") is None:
+        thread.locator(".lf-thread-summary").click()
+    body = thread.locator(f'.lf-msg[data-attempt="{attempt}"] .lf-msg-text')
+    expect(body).to_have_text(original)
+    band = page.locator(".lf-threads").bounding_box()["height"]
+    assert (thread.bounding_box()["height"] > band) is (contents == "long")
+    field = thread.locator("leaf-text")
+    write(field, "half a thought")
+    field.evaluate("""field => {
+      field.setSelectionRange(4, 4);
+      window.__heldStreamEditor = field;
+    }""")
+    before = field.bounding_box()
+    latest = original
+    for paragraph in ("The next part of the answer.", "The completed thought follows."):
+        latest += "\n\n" + paragraph
+        stream(latest)
+        told(page)
+        if contents == "short":
+            expect(
+                thread.get_by_role("button", name="1 new reply", exact=True)
+            ).to_be_visible()
+            expect(body).to_have_text(original)
+        else:
+            expect(body).to_have_text(latest)
+            expect(thread.locator(".lf-thread-news")).to_have_count(0)
+        rendered(page)
+        after = field.bounding_box()
+        for edge in before:
+            assert after[edge] == pytest.approx(before[edge], abs=0.5), (before, after)
+        assert field.evaluate("""field => field === window.__heldStreamEditor
+          && field === document.activeElement && field.value === 'half a thought'
+          && field.selectionStart === 4 && field.selectionEnd === 4""")
+    if contents == "short":
+        page.keyboard.insert_text(" newer")
+        rendered(page)
+        expect(body).to_have_text(original)
+        expect(
+            thread.get_by_role("button", name="1 new reply", exact=True)
+        ).to_be_visible()
+        assert field.evaluate("field => field.value") == "half newer a thought"
+        if finish == "cancel":
+            with service_model.PageTransaction(serve.page_dir) as transaction:
+                transaction.clear_stream_reply("codex-thread", "leaf-turn")
+            told(page)
+            expect(body).to_have_count(0)
+            expect(thread.locator(".lf-thread-news")).to_have_count(0)
+            expect(field).to_be_focused()
+        else:
+            thread.get_by_role("button", name="1 new reply", exact=True).click()
+            expect(body).to_have_text(latest)
+        assert field.evaluate("""field => field === window.__heldStreamEditor
+          && field.value === 'half newer a thought'""")
+
+
+@pytest.mark.parametrize("destination", ["message", "ask"])
+def test_explicit_navigation_reveals_held_panel_news(browser, serve, destination):
+    """A direct message visit and the Ask drawer can reach a held reply's contents."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "Keep the discussion here.")
+    context = browser.new_context(reduced_motion="reduce")
+    page = open_page(browser, url, context=context)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    thread = page.locator(f'.lf-threads > .lf-thread[data-id="{root}"]')
+    if thread.get_attribute("open") is None:
+        thread.locator(".lf-thread-summary").click()
+    field = thread.locator("leaf-text")
+    write(field, "Keep this draft while visiting the answer.")
+    reply = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "revision": 1,
+            "parent": root,
+            "text": "This answer arrived while the draft was open.",
+            **(
+                {
+                    "markup": '<lf-ask id="held-question"><h3>Which answer should we use?</h3>'
+                    '<lf-options id="held-choice" choose>'
+                    '<lf-option id="held-first">The first answer</lf-option>'
+                    '<lf-option id="held-second">The second answer</lf-option>'
+                    "</lf-options></lf-ask>"
+                }
+                if destination == "ask"
+                else {}
+            ),
+        },
+    )
+    told(page)
+    message = thread.locator(f'.lf-msg[data-mid="{reply["id"]}"]')
+    expect(thread.get_by_role("button", name="1 new reply", exact=True)).to_be_visible()
+    expect(message).to_have_count(0)
+    if destination == "message":
+        page.evaluate(
+            """async id => {
+              const {openThread} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+              await openThread(id, {focus: 'message'});
+            }""",
+            reply["id"],
+        )
+        expect(message).to_be_focused()
+    else:
+        banner_control(page, ".lf-asks").click()
+        row = page.locator("button.lf-asks-row").filter(
+            has_text="Which answer should we use?"
+        )
+        expect(row).to_have_count(1)
+        row.click()
+        expect(thread.locator("#held-question")).to_be_focused()
+    expect(message).to_be_visible()
+    expect(thread.locator(".lf-thread-news")).to_have_count(0)
+    assert field.evaluate("field => field.value") == (
+        "Keep this draft while visiting the answer."
+    )
 
 
 def test_opening_message_reactions_does_not_reflow_the_thread_list(browser, serve):
@@ -8475,13 +8676,16 @@ def test_unused_panel_space_is_neutral_but_keeps_the_thread_context(
           const content = el.querySelector('.lf-thread-content').getBoundingClientRect();
           const reply = el.querySelector('.lf-thread-reply').getBoundingClientRect();
           const box = el.getBoundingClientRect();
+          const list = el.parentElement.getBoundingClientRect();
           return {x: Math.floor(box.left + box.width / 2),
-                  y: Math.floor((content.bottom + reply.top) / 2),
+                  y: Math.floor((box.bottom + list.bottom) / 2),
                   surfaceY: Math.floor(content.top + 4),
-                  freeHeight: reply.top - content.bottom};
+                  freeHeight: list.bottom - box.bottom,
+                  replyGap: reply.top - content.bottom};
         }"""
     )
     assert geometry["freeHeight"] > 20, geometry
+    assert 0 <= geometry["replyGap"] <= 20, geometry
     # Read actual pixels: both the wrapper and a focus-within ancestor can paint it.
     shot = Image.open(io.BytesIO(page.screenshot())).convert("RGB")
     x, y = geometry["x"], geometry["y"]

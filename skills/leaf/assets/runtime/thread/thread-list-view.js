@@ -182,6 +182,18 @@ class ThreadListView extends RetainedFace {
     this.#showExpanded();
   }
 
+  // Explicit navigation may name a message whose news has not been drawn yet.
+  // Locate it in the complete received reading, then release its retained card.
+  showNews(id) {
+    const row = this.model.rows.find(
+      (row) =>
+        row.kind === "thread" &&
+        (row.descriptor.id === id ||
+          row.descriptor.messages.some((message) => message.id === id)),
+    );
+    return row ? (this.#views.get(row.key)?.showNews() ?? false) : false;
+  }
+
   constructor() {
     super(EMPTY_MODEL);
     this.addEventListener("focus", () => {
@@ -358,7 +370,7 @@ class ThreadListView extends RetainedFace {
       let reconcile = false;
       for (const changed of this.#draftViews)
         if ([...this.#views.values()].includes(changed)) {
-          changed.present(changed.model);
+          changed.repaint();
           reconcile ||= changed.model.resolved;
         }
       if (reconcile) this.#commands.repaintThread();

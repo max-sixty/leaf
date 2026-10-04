@@ -272,6 +272,7 @@ export function createFloatingResponsePlacement({
         const { reference, placement, middleware, plane } = fabPlacement.options(ui, {
           clear: keepClear,
           row: place.row,
+          lastRow: place.lastRow,
           column: place.column,
           margin: !unanchored && place.margin,
           boundary,

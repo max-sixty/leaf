@@ -9007,6 +9007,56 @@ def test_a_scroll_that_carries_the_card_writes_nothing(browser, serve):
     assert page.evaluate(offset) == pytest.approx(before, abs=0.5)
 
 
+def test_a_card_beside_an_element_scrolled_past_its_top_waits_at_the_windows_top(
+    browser, serve
+):
+    """Beside an element, a card stays level with some line of it. A scroll that takes
+    the element's top past the window's, with the rest still showing, leaves the card
+    held at the window's top, below the banner, in the window's plane, so the scroll
+    writes nothing. Stood level with the element's clipped top instead, the card sat
+    under the banner in the page's plane: the browser carried it with each scroll
+    frame and the next placement pulled it back, and Shift+a up to an Ask with a
+    thread shook its card. Once the element's foot passes the window's top, the card
+    leaves with it."""
+    comment = {**COMMENT_ON_ASK, "anchor": {"section": "sec-mounts"}}
+    page = open_page(browser, serve(ASK_PAGE, events=[comment]))
+    resized(page, 1440, 600)
+    marker = page.locator('[data-lf-margin-for="sec-mounts"] .lf-margin-marker')
+    marker.evaluate(
+        "node => node.scrollIntoView({block: 'center', behavior: 'instant'})"
+    )
+    marker.click()
+    card = page.locator(".lf-margin-preview")
+    expect(card).to_have_attribute("data-lf-thread-placement", "right")
+    reading = """async () => {
+      const geometry = await window.__lfRuntimeImport('/runtime/geometry.js');
+      const target = document.getElementById('sec-mounts').getBoundingClientRect();
+      return {
+        card: document.querySelector('.lf-margin-preview').getBoundingClientRect().top,
+        top: target.top, bottom: target.bottom,
+        window: geometry.shownWindow({gap: 8}).top,
+      };
+    }"""
+
+    def scroll_by(by):
+        page.evaluate("by => document.scrollingElement.scrollBy(0, by)", by)
+        rendered(page)
+        return page.evaluate(reading)
+
+    at = page.evaluate(reading)
+    assert at["bottom"] - at["top"] > 60, at
+    at = scroll_by(at["top"] - at["window"] + 20)
+    expect(card).to_have_attribute("data-lf-plane", "window")
+    assert at["card"] == pytest.approx(at["window"], abs=0.5), at
+    writes = scroll_writes(page, (5, 5, -5, 5))
+    assert writes == [], writes
+    at = page.evaluate(reading)
+    assert at["card"] == pytest.approx(at["window"], abs=0.5), at
+    at = scroll_by(at["bottom"] - at["window"] + 20)
+    expect(card).to_have_attribute("data-lf-plane", "page")
+    assert at["card"] == pytest.approx(at["bottom"], abs=0.5), at
+
+
 def test_a_scroll_that_carries_the_response_bar_writes_nothing(browser, serve):
     """The response bar a selection raises rides a scroll with its passage in the same
     plane, writing nothing, as the card does."""

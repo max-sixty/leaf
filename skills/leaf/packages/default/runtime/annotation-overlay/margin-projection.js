@@ -752,6 +752,7 @@ export function createMarginProjection({
         const { reference, placement, middleware, plane } = previewSide.options(ui, {
           clear: place.clear,
           row: place.row,
+          lastRow: place.lastRow,
           column: place.column,
           margin: place.margin,
           boundary,

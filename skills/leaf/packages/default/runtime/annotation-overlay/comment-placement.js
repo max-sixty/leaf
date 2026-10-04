@@ -9,8 +9,11 @@
    clear of, as the page shows it: the paragraph holding a passage, the element, or the
    row a pointing gesture named in it (pointed-place.js). `extent` is that box whole,
    however much of it a scroll has clipped, which is what the room around it is measured
-   from. `row` is the line it stands level with beside `clear`: a passage's first line,
-   else `clear`'s top. `column` is the passage's inline start when it quotes words;
+   from. `row` is the first line it stands level with beside `clear`, and `lastRow` the
+   last: a passage's first line for both, else `extent`'s top and foot. Both come from
+   the unclipped box: the top of a clipped box is the window's edge, and a card level
+   with it in the page's plane would be carried by each scroll frame and placed back.
+   `column` is the passage's inline start when it quotes words;
    without one, the card's minimum width ends at `clear`'s right edge. `margin` is where
    across the page the margin row for it stands,
    or would stand in the rail once its thread is sent (margin-layout.js, `marginSpot`),
@@ -43,8 +46,10 @@
 
    It grows away from what it is about, down beside or under and up over it (floating.js,
    `held`), and the boundary holds it in only while what it stands by is in the window:
-   Floating UI's shift keeps it inside, and its limiter lets it leave with `row` beside,
-   or with `clear` under or over, once a scroll carries that away. A surface whose
+   Floating UI's shift keeps it inside, and its limiter lets it leave beside with
+   `row` or `lastRow`, whichever the scroll carries away, or with `clear` under or
+   over. Beside an element whose top has scrolled away, the card therefore waits at the
+   window's top, in the window's plane, until the element's foot passes it. A surface whose
    `clear` has not stood in the boundary since its side was chosen, as after a resize
    that left what it is about out of the window, stays in the window until it has.
    Under or over, a surface taller than the room shown there first has the reading
@@ -101,7 +106,8 @@ export function commentAttachment({ target, point = null, passage = null }) {
     element,
     clear,
     extent,
-    row: (passage?.attachment ?? clear).top,
+    row: (passage?.attachment ?? extent).top,
+    lastRow: passage?.attachment ? passage.attachment.top : extent.bottom,
     column: passage?.attachment?.left ?? null,
     margin: marginSpot(target, point),
     region,
@@ -336,6 +342,7 @@ export function commentPlacement() {
       {
         clear,
         row,
+        lastRow = row,
         column = null,
         margin = null,
         boundary,
@@ -380,7 +387,8 @@ export function commentPlacement() {
         mainAxis: !across,
         crossAxis: across,
       }));
-      // Client pixels per positioning-space pixel, and the rule's line there.
+      // Client pixels per positioning-space pixel, the rule's line there, and beside, the
+      // last line the surface may still stand level with.
       const scaled = {
         name: "scaled",
         async fn({ rects, elements, platform }) {
@@ -397,6 +405,7 @@ export function commentPlacement() {
                   : side === "top"
                     ? rects.reference.y
                     : rects.reference.y + (row - box.top) / scale.y,
+              last: rects.reference.y + (lastRow - box.top) / scale.y,
             },
           };
         },
@@ -500,8 +509,9 @@ export function commentPlacement() {
                 heldIn = true;
                 return { x: state.x, y: state.y };
               }
-              // Beside, it goes with the line it stands level with, overlapping it by
-              // no less than an edge; under or over, with the box it keeps clear of.
+              // Beside, it stays level with its lines, overlapping them by no less
+              // than an edge, and goes with the first or the last; under or over, with
+              // the box it keeps clear of.
               const limited = across
                 ? attachment.fn(state)
                 : {
@@ -509,7 +519,7 @@ export function commentPlacement() {
                     y: clamp(
                       state.y,
                       measure(state).line - state.rects.floating.height,
-                      measure(state).line,
+                      measure(state).last,
                     ),
                   };
               heldIn = Math.abs(limited.y - state.y) < 0.5;

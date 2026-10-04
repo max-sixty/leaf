@@ -11,7 +11,7 @@
    the complete map, which is why codes are assigned here rather than by the session.
 
    Lowercase `g`, `j`, `k`, and `p` retain their structural meanings, while `a`, `f`, `h`,
-   `m`, and `t` name filters; `i` resumes writing; these are excluded from the generated alphabet. `g g` and
+   `m`, and `t` name filters; `i` resumes writing, `v` restores selection and `z` aligns the current item at the top; these are excluded from the generated alphabet. `g g` and
    `g G` glide to the page edges; from a focused thread, `g k` and `g j` place its card at
    an edge of the list; `g p` returns focus to the page while leaving open surfaces
    standing. Uppercase mnemonics remain named

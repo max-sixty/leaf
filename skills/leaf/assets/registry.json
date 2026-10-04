@@ -665,7 +665,8 @@
             "thread": {"type": "string", "minLength": 1},
             "from": {"type": "string", "minLength": 1},
             "through": {"type": "string", "minLength": 1},
-            "text": {"type": "string", "minLength": 1},
+            "text": {"type": "string"},
+            "label": {"type": "string", "minLength": 1},
             "agent": {"type": "string", "minLength": 1},
             "session": {"type": "string", "minLength": 1}
           },
@@ -721,6 +722,53 @@
             "session": {"type": "string", "minLength": 1}
           },
           "required": ["attention", "id", "ts", "author", "kind", "seq", "thread", "title", "agent", "session"],
+          "additionalProperties": false
+        }
+      },
+      "task": {
+        "record": {
+          "type": "object",
+          "properties": {
+            "attention": {"type": "boolean"},
+            "id": {"type": "string", "minLength": 1},
+            "ts": {"type": "string", "minLength": 1},
+            "author": {"const": "agent"},
+            "kind": {"const": "task"},
+            "seq": {"type": "integer", "minimum": 1},
+            "subject": {
+              "type": "object",
+              "properties": {
+                "kind": {"const": "thread"},
+                "id": {"type": "string", "minLength": 1}
+              },
+              "required": ["kind", "id"],
+              "additionalProperties": false
+            },
+            "title": {"type": "string", "minLength": 1, "maxLength": 80, "pattern": "\\S", "not": {"pattern": "[\\r\\n]"}},
+            "agent": {"type": "string", "minLength": 1},
+            "session": {"type": "string", "minLength": 1}
+          },
+          "required": ["attention", "id", "ts", "author", "kind", "seq", "subject", "title", "agent", "session"],
+          "additionalProperties": false
+        }
+      },
+      "task_end": {
+        "record": {
+          "type": "object",
+          "properties": {
+            "attention": {"type": "boolean"},
+            "id": {"type": "string", "minLength": 1},
+            "ts": {"type": "string", "minLength": 1},
+            "author": {"const": "agent"},
+            "kind": {"const": "task_end"},
+            "seq": {"type": "integer", "minimum": 1},
+            "task": {"type": "string", "minLength": 1},
+            "outcome": {"enum": ["done", "failed", "dropped"]},
+            "detail": {"type": "string", "minLength": 1, "maxLength": 500, "pattern": "\\S"},
+            "agent": {"type": "string", "minLength": 1},
+            "session": {"type": "string", "minLength": 1}
+          },
+          "required": ["attention", "id", "ts", "author", "kind", "seq", "task", "outcome", "agent", "session"],
           "additionalProperties": false
         }
       },

@@ -4626,6 +4626,12 @@ def test_page_state_keeps_thread_history_out_of_its_current_reading(page_dir):
             "detached_from": None,
             "resolved": None,
             "unread": [answered["id"]],
+            # The reply names no `responds`, so the comment is still owed an answer.
+            "attention": {
+                "kind": "waiting",
+                "reason": "workflow",
+                "workflow": opened["id"],
+            },
         }
     ]
     history = CliRunner().invoke(

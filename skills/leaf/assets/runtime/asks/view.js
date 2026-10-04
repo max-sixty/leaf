@@ -93,7 +93,7 @@
    the owning reading region without a preliminary page jump. An Ask whose region
    already stands clear of the banner, and
    which travel reads as whole on every edge once whatever surface hid it is cleared
-   (anchor-travel.js, `trip`), is not travelled to at all: the press moves the ring and
+   (anchor-travel.js, `prepareTrip`), is not travelled to at all: the press moves the ring and
    the focus and leaves the page still. A thread ask keeps its centred arrival in the
    panel's own list. */
 
@@ -145,7 +145,7 @@ import { hostIn, under, upFrom } from "../shadow.js";
 export function createAskView({
   panelIsOpen,
   setPanel,
-  trip,
+  prepareTrip,
   arrive,
   refreshThread,
   revealThread,
@@ -533,7 +533,9 @@ export function createAskView({
     const ask = askNode(record);
     const source = sourceNode(record);
     if (!ask || !source) return null;
-    const target = ask.getClientRects().length
+    // A boxless decided Ask can retain a zero-height layout rect after its
+    // content retires. It has no visible surface to receive the return focus.
+    const target = [...ask.getClientRects()].some((rect) => rect.width && rect.height)
       ? ask
       : (source.querySelector(ASK_CONTROL) ??
         actionsFor(source).map(({ control }) => presentedActionControl(control))[0] ??
@@ -718,12 +720,12 @@ export function createAskView({
     // A page Ask starts below the banner so its context comes before its control, and
     // what counts as its context is arrivalRegion's answer: the region an author declared,
     // or the one the document supplies for a change that cannot declare one. Whether this
-    // press moves the page is `framed`'s answer, and travel's `trip` owns what follows
+    // press moves the page is `framed`'s answer, and travel's departure owns what follows
     // from it: clearing a surface that hides the Ask (a covering drawer, or the thread
     // panel standing over it), and whether the press is a departure. It runs before the
     // focus lands, since focus sent behind a covering surface is sent back into it.
-    // Departure precedes exposure: a view change renames the current URL and may clamp
-    // its offset, so history must capture the outgoing reading first. A thread Ask is
+    // Capture the outgoing place before reveal can reshape it; only a successful
+    // arrival commits the departure. A thread Ask is
     // in the panel's own list, whose arrival stays centred in that region and is no
     // trip. Which box either travel moves is the travel's own question (scrollerFor)
     // rather than a second one asked here.
@@ -733,15 +735,17 @@ export function createAskView({
       const box = !inChrome(target) && scrollerFor(target);
       return { target, box, region: box && arrivalRegion(target, box) };
     };
-    const departure = destination();
-    if (!departure) return false;
+    const initial = destination();
+    if (!initial) return false;
+    const departure = prepareTrip({
+      landing: () => askNode(next),
+      intent: mayArrive,
+    });
     const moving = Boolean(
-      departure.box &&
-      trip(departure.target, {
-        landing: () => askNode(next),
-        intent: mayArrive,
+      initial.box &&
+      departure.plan(initial.target, {
         there: (readable) =>
-          framed(next, departure.region, departure.target, departure.box, readable),
+          framed(next, initial.region, initial.target, initial.box, readable),
       }),
     );
     const arrived = await arrive(
@@ -771,6 +775,7 @@ export function createAskView({
       },
       {
         intent: mayArrive,
+        departure,
         keep: true,
       },
     );

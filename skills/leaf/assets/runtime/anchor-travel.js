@@ -20,9 +20,9 @@
  * subordinate geometry never imports the presenter. A trip keeps its original user
  * intent through hydration, reveal and presentation. Newer input or another trip
  * cancels its landing without cancelling the data the page is loading. Every trip, to a
- * thread, an Ask or a datum, goes through `trip`, which clears whatever surface hides
- * the destination and then decides whether the user is already there or departs. A
- * departure leaves a history entry, so browser Back returns the user to where they
+ * thread, an Ask or a datum, prepares its outgoing checkpoint before reveal, then
+ * decides whether the user is already there. Only a successful arrival commits its
+ * departure to history, so browser Back returns the user to where they
  * were reading; a journey, trips each leaving from the last one's landing, is one
  * entry. A fragment link's trip (`followFragment`) departs by the browser's own entry,
  * and Back or Forward to a place the page has hidden since (`returnToFragment`) is a
@@ -34,6 +34,7 @@ import {
   fragmentTarget,
   referencedProjection,
   requireReference,
+  resolveAnchor,
   revealAddressed,
   sectionOf,
 } from "./anchor-resolution.js";
@@ -47,7 +48,7 @@ import {
 } from "./geometry.js";
 import { scrollBehavior } from "./motion.js";
 import { scrollersOf } from "./reading-regions.js";
-import { pushEntry, replaceEntry } from "./history.js";
+import { prepareEntry } from "./history.js";
 import { pageScroller } from "./scrolling.js";
 import { scrollIntoReadingBand } from "./landing-scroll.js";
 import { renderedParent } from "./shadow.js";
@@ -55,7 +56,7 @@ import { reveal } from "./widget-elements.js";
 import { threadNames } from "./thread/model.js";
 import { restrictUserIntent, retainUserIntent } from "./user-intent.js";
 import { targetElement, targetPlace, targetSegments } from "./resolved-target.js";
-import { rangeOf } from "./passages.js";
+import { pageText, rangeOf, selectEnds } from "./passages.js";
 import { standingPoint } from "./pointed-place.js";
 
 // The browser's rule for landing the element a fragment names: its start at its
@@ -82,8 +83,8 @@ export function createAnchorTravel({
     return restrictUserIntent(retained, () => intent === travelIntent);
   };
 
-  // A push leaves the current scroll position on the entry it leaves, and Back
-  // restores it there (history.js), so the push comes before the trip moves anything.
+  // Preparation captures the outgoing working place before the trip moves anything;
+  // arrival commits it only once its final destination exists (history.js).
   // A destination already readable where the user stands is no departure. A trip that
   // names its `landing` while any of the last trip's landing still shows continues that
   // journey, whether it goes to threads or Asks: it replaces the journey's entry, which
@@ -98,34 +99,19 @@ export function createAnchorTravel({
   let trips = 0;
   let journey = null;
 
-  function depart({ url = window.location.href, landing = null } = {}) {
-    const continuing = landing && stillLanded();
-    journey = landing && { token: journeyPrefix + ++trips, landing };
-    const state = journey && { lfJourney: journey.token };
-    if (continuing) replaceEntry(url, state);
-    else pushEntry(url, state);
-  }
-
-  // A trip whose destination is already in front of the user moves nothing and records
-  // nothing, but it is still a trip of the journey: the journey now stands on its
-  // landing, so the next trip continues from there rather than from the one before it.
-  function stay(landing) {
-    if (stillLanded()) journey.landing = landing;
-  }
-
   function stillLanded() {
     const where =
       journey && history.state?.lfJourney === journey.token && journey.landing();
     return Boolean(where && seenOf(where));
   }
 
-  // A route resolves a declaration, not a retained DOM destination. Reveal and its
-  // presentation may replace nodes; focus may itself change the geometry. Read the
-  // declaration after each of those boundaries, then apply its scroll placements in
-  // the same synchronous handoff as focus. Exposure places a replaced view immediately;
-  // `present` lets the owning renderer settle before the final geometry is read.
-  // History departure remains before the work that would move the outgoing place.
-  async function arrive(resolve, { intent, present = null, keep = false }) {
+  // Resolve fresh after exposure, presentation and focus. A replaced view lands
+  // immediately so it never paints at the old view's offset; final placement alone
+  // commits the prepared departure, after the destination still stands through focus.
+  async function arrive(
+    resolve,
+    { intent, present = null, keep = false, departure = null },
+  ) {
     const first = resolve();
     const holder = first && placeHolder(first.where);
     if (!holder || !intent()) return false;
@@ -134,7 +120,7 @@ export function createAnchorTravel({
       reveal(target, intent),
     );
     const replacedView = disclosures.some((disclosure) => disclosure.replacedView);
-    const place = () => {
+    const place = (complete = false) => {
       let completed = false;
       intent.handoff(() => {
         const destination = resolve();
@@ -142,19 +128,59 @@ export function createAnchorTravel({
         if (destination.focus) focusForNavigation(destination.focus, destination.caret);
         const current = resolve();
         if (!current?.where) return;
+        if (complete) departure?.commit();
+        if (current.selection) {
+          const { range, backward } = current.selection;
+          const head = [range.startContainer, range.startOffset];
+          const tail = [range.endContainer, range.endOffset];
+          selectEnds(...(backward ? [tail, head] : [head, tail]));
+        }
         for (const placement of current.scroll) placeScroll(placement, replacedView);
         completed = true;
       });
       return completed;
     };
-    // A new view may paint while its layout is still presenting. Place its destination
-    // now; after presentation, resolve fresh geometry through the same placement.
     if (replacedView) place();
     await Promise.all(disclosures.map((disclosure) => disclosure.ready));
     if (!intent()) return false;
     if (present) await present();
     if (!intent()) return false;
-    return place();
+    return place(true);
+  }
+
+  // A remembered passage carries semantic words, never retained DOM endpoints.
+  // Resolve on each side of reveal/focus so a revision cannot leave stale nodes in
+  // the native selection. Ordinary arrival owns clearance, history and reading band.
+  async function restoreSelection(anchor, { backward, intent }) {
+    const mayArrive = retainTravel(intent);
+    const resolve = () => {
+      const target = resolveAnchor(anchor, pageText());
+      const segments = targetSegments(target);
+      if (!segments.length) return null;
+      const range = rangeOf(segments);
+      return {
+        where: range,
+        focus: targetPlace(target),
+        selection: { range, backward },
+        scroll: [{ at: range }],
+      };
+    };
+    const destination = resolve();
+    const source = anchor.datum && sectionOf(anchor);
+    if (!destination && !source) return false;
+    const departure = prepareTrip({
+      intent: mayArrive,
+      landing: () => resolve()?.where,
+    });
+    departure.plan(destination?.where ?? source, {
+      there: (readable) => Boolean(destination && readable(destination.where)),
+    });
+    if (source) {
+      const hydration = revealAddressed(source, anchor.datum);
+      if (hydration?.then) await hydration;
+      if (!mayArrive() || sectionOf(anchor) !== source) return false;
+    }
+    return arrive(resolve, { intent: mayArrive, departure });
   }
 
   // A remembered editor starts from its authored place, before a hidden editor is
@@ -165,7 +191,11 @@ export function createAnchorTravel({
     const mayArrive = retainTravel(intent);
     const destination = resolve();
     if (!destination?.where) return null;
-    trip(destination.where, { intent: mayArrive, landing: () => resolve()?.where });
+    const departure = prepareTrip({
+      intent: mayArrive,
+      landing: () => resolve()?.where,
+    });
+    departure.plan(destination.where);
     let release = null;
     await arrive(
       () => {
@@ -190,6 +220,7 @@ export function createAnchorTravel({
       },
       {
         intent: mayArrive,
+        departure,
         present: async () => {
           const current = resolve();
           if (!current) return;
@@ -205,30 +236,38 @@ export function createAnchorTravel({
     return mayArrive() ? (resolve()?.input() ?? null) : undefined;
   }
 
-  // Travel's one entry. It stays when the user already has the destination and departs
-  // otherwise, and answers whether the caller moves the page. A destination not yet
-  // placed (a datum a widget has yet to hydrate) is somewhere else. `there` is the
+  // Travel's departure transaction. Capture before any reveal; plan answers whether
+  // the caller moves the page, and arrive commits only its successful handoff. Failure
+  // or newer intent leaves history and the continuing journey untouched. A destination
+  // not yet placed (a datum a widget has yet to hydrate) is somewhere else. `there` is the
   // caller's reading of already being there where it asks more than the destination's
   // own (an Ask's arrival region), built on the reading it is handed. Clearing a surface
   // can take the focus out of it, so the caller's retained `intent` hands the gesture
   // over to where that leaves the user rather than reading the move as a newer one.
-  function trip(
-    where,
-    {
-      landing = null,
-      url,
-      keep = false,
-      intent,
-      there = (readable) => readable(where),
-    } = {},
-  ) {
-    if (where && !keep) intent.handoff(() => surfaces.clearFor(where));
-    if (where && there(readableDestination)) {
-      stay(landing);
-      return false;
-    }
-    depart({ url, landing });
-    return true;
+  function prepareTrip({ landing = null, url, keep = false, intent }) {
+    const write = prepareEntry();
+    const continuing = landing && stillLanded();
+    let moving;
+    return {
+      plan(where, { there = (readable) => readable(where) } = {}) {
+        if (where && !keep) intent.handoff(() => surfaces.clearFor(where));
+        moving = !(where && there(readableDestination));
+        return moving;
+      },
+      commit() {
+        if (moving === undefined) return;
+        if (!moving) {
+          if (continuing) journey.landing = landing;
+          return;
+        }
+        journey = landing && { token: journeyPrefix + ++trips, landing };
+        write(
+          url ?? window.location.href,
+          journey && { lfJourney: journey.token },
+          continuing,
+        );
+      },
+    };
   }
 
   // A fragment link naming an element of the page is a trip there whose departure is
@@ -297,6 +336,10 @@ export function createAnchorTravel({
       return false;
     }
 
+    const url = new URL(window.location.href);
+    url.hash = source.id;
+    const departure = prepareTrip({ url, intent: mayArrive });
+
     // The widget owns filters, lazy projection, and the state a visual draws. Ask it to
     // make the key reachable before interpreting DOM presence.
     const hydration = revealAddressed(source, key);
@@ -309,9 +352,7 @@ export function createAnchorTravel({
     }
     const destination = addressedElements(source, key)[0] ?? null;
 
-    const url = new URL(window.location.href);
-    url.hash = source.id;
-    const moving = trip(destination, { url, intent: mayArrive });
+    const moving = departure.plan(destination);
     if (!destination) {
       await arrive(
         () => {
@@ -320,7 +361,7 @@ export function createAnchorTravel({
             where && { where, focus: null, scroll: [{ at: where, block: "start" }] }
           );
         },
-        { intent: mayArrive },
+        { intent: mayArrive, departure },
       );
       if (mayArrive() && missing) announce(missing);
       return false;
@@ -331,7 +372,7 @@ export function createAnchorTravel({
         const where = source && addressedElements(source, key)[0];
         return where && { where, focus: where, scroll: moving ? [{ at: where }] : [] };
       },
-      { intent: mayArrive },
+      { intent: mayArrive, departure },
     );
     if (mayArrive() && (arrived ? success : missing))
       announce(arrived ? success : missing);
@@ -482,7 +523,8 @@ export function createAnchorTravel({
     // Decided before the trip awaits anything: a destination that is not readable now,
     // or one a widget has yet to hydrate, is somewhere else.
     const landing = () => threadDestination(id);
-    if (standing || hydrating) trip(standing, { landing, keep, intent: mayArrive });
+    const departure = prepareTrip({ landing, keep, intent: mayArrive });
+    if (standing || hydrating) departure.plan(standing);
     if (hydrating) {
       const source = sectionOf(anchor);
       // A visual draws the state holding its part synchronously; a lazy datum may load.
@@ -514,6 +556,7 @@ export function createAnchorTravel({
       },
       {
         intent: mayArrive,
+        departure,
         present: async () => {
           if (presented) await presented;
           if (mayArrive()) await refreshThread();
@@ -524,9 +567,10 @@ export function createAnchorTravel({
   }
 
   return {
-    trip,
+    prepareTrip,
     arrive,
     arriveEditor,
+    restoreSelection,
     followFragment,
     returnToFragment,
     navigateToDatum,

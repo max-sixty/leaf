@@ -196,7 +196,15 @@ remain available to unfold. It answers no question and resolves no thread.
 Use Markdown prose rather than interactive markup. Read the originals before
 resummarizing; do not build a new account solely from an older summary.
 
+The disclosure defaults to “Earlier discussion”; set `--label` to name the range.
+To fold messages without adding summary prose, pass an explicit empty `--text`:
+
+```bash
+leaf thread summarize <page> --from <first-message-id> --through <last-message-id> --label 'Previous updates' --text ''
+```
+
 As the discussion grows, write another summary with the desired endpoints.
 An overlapping summary replaces the earlier summary; disjoint ranges can retain
 separate summaries. New messages outside the endpoints remain visible. Editing a
-covered message invalidates its summary so stale prose cannot hide the correction.
+covered message invalidates a summary containing prose so stale prose cannot hide
+the correction. A fold without prose keeps the revised originals available.

@@ -1,4 +1,4 @@
-/* Panel-only summary ranges over retained thread messages.
+/* Summary ranges over retained thread messages on every surface.
 
    The server names each active contiguous range with the exact message ids it covers.
    This module only places those ranges into message order and keeps disclosure

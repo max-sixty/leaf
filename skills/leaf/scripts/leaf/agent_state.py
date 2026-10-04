@@ -537,6 +537,7 @@ def _write_page_state(
                 "session",
                 "parent",
                 "responds",
+                "ephemeral",
                 "revision",
             ):
                 if key in event:

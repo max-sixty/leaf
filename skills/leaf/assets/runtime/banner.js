@@ -427,6 +427,11 @@ function renderLayerReference(state) {
 // Status sentences for an unreachable server or a state the page cannot apply.
 const OFFLINE_LINE =
   "Server offline — reconnecting. Keep this page open so pending changes can send.";
+// A refused key leaves the page as cut off as a dead server, but the server is up and
+// only the user can end it. Opening the link in another tab sets the key this tab's
+// next request carries, so its pending changes send without a reload.
+const KEY_REFUSED_LINE =
+  "The server no longer accepts this tab's key. Open the link Leaf printed in a new tab, and keep this one open so pending changes can send.";
 const BROKEN_LINE = "Page couldn't apply current state — reload";
 // A published page states who replies and where to install Leaf.
 const publicationWords = (published) => [
@@ -562,8 +567,15 @@ function renderStatusNow(state) {
     presentStatus({
       kind: "unreachable",
       tone: "offline",
-      summary: "Server offline — reconnecting; keep page open",
-      explanation: OFFLINE_LINE,
+      ...(runtime.keyRefused
+        ? {
+            summary: "Key refused — open Leaf's link in a new tab",
+            explanation: KEY_REFUSED_LINE,
+          }
+        : {
+            summary: "Server offline — reconnecting; keep page open",
+            explanation: OFFLINE_LINE,
+          }),
     });
     return;
   }

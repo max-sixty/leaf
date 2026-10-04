@@ -597,6 +597,9 @@ def test_a_summary_folds_originals_and_a_direct_reply_link_reveals_them(browser,
     expand = checkpoint.locator(".lf-summary-expand")
     expect(expand).to_have_attribute("aria-expanded", "false")
 
+    page.locator(f'#jobs .lf-page-thread[data-thread="{root}"]').get_by_role(
+        "button", name="Show 3 earlier messages", exact=True
+    ).click()
     page.locator(".lf-page-thread-open").click()
     destination = card.locator(f'.lf-msg[data-mid="{last["id"]}"]')
     expect(destination).to_be_visible()
@@ -643,6 +646,88 @@ def test_previous_updates_can_fold_without_summary_prose(browser, serve, width):
     expect(card.locator(f'.lf-msg[data-mid="{last["id"]}"]')).to_be_visible()
     checkpoint.get_by_role("button", name="Collapse 2 earlier messages").click()
     expect(card.locator(f'.lf-msg[data-mid="{first["id"]}"]')).to_be_hidden()
+
+
+@pytest.mark.parametrize("surface", ["panel", "inline"])
+def test_ephemeral_progress_folds_when_its_held_completion_is_revealed(
+    browser, serve, surface
+):
+    """The answer and its fold arrive together; originals remain a keyboard route."""
+    url = serve(SEATED_QUESTION_PAGE)
+    root = panel_comment(serve.page_dir, "Check the schedule.", {"section": "jobs"})
+    progress = thread_model.cmd_reply(
+        serve.page_dir,
+        root,
+        "Checking the camera.",
+        None,
+        for_event=root,
+        ephemeral=True,
+    )
+
+    def show(page):
+        if surface == "panel":
+            page.locator(".lf-threads-toggle").click()
+            panel_settled(page)
+            card = page.locator(f'.lf-thread[data-id="{root}"]')
+            card.locator(":scope > .lf-thread-summary").click()
+            return card
+        return page.locator(f'#jobs .lf-page-thread[data-thread="{root}"]')
+
+    page = open_page(browser, url)
+    card = show(page)
+    identity = "data-mid" if surface == "panel" else "data-event"
+    original = card.locator(f'.lf-msg[{identity}="{progress["id"]}"]')
+    expect(original).to_be_visible()
+    expect(card.locator(".lf-thread-checkpoint")).to_have_count(0)
+    original.focus()
+    if surface == "panel":
+        expect(original).to_be_focused()
+
+    answer = thread_model.cmd_reply(
+        serve.page_dir,
+        root,
+        "The schedule works.",
+        None,
+        for_event=root,
+    )
+    told(page)
+    notice = card.get_by_role("button", name="1 new reply", exact=True)
+    expect(notice).to_be_visible()
+    expect(card.locator(f'.lf-msg[{identity}="{answer["id"]}"]')).to_have_count(0)
+    expect(card.locator(".lf-thread-checkpoint")).to_have_count(0)
+    expect(original).to_be_visible()
+    assert original.evaluate(
+        "node => { const box = node.getBoundingClientRect(); "
+        "return box.top >= 0 && box.bottom <= innerHeight; }"
+    )
+    if surface == "panel":
+        expect(original).to_be_focused()
+    notice.click()
+    expect(card.locator(f'.lf-msg[{identity}="{answer["id"]}"]')).to_be_visible()
+    checkpoint = card.locator(".lf-thread-checkpoint")
+    expect(checkpoint.locator(".lf-summary-label")).to_have_text("Previous updates")
+    expect(checkpoint.locator(".lf-summary-text")).to_have_count(0)
+    expect(original).to_be_visible()
+
+    # A fresh reading starts folded, independent of the live reader's protected focus.
+    fresh = open_page(browser, url)
+    fresh_card = show(fresh)
+    fresh_original = fresh_card.locator(f'.lf-msg[{identity}="{progress["id"]}"]')
+    expect(fresh_original).to_be_hidden()
+    expand = fresh_card.get_by_role("button", name="Show 1 earlier message", exact=True)
+    expand.focus()
+    fresh.keyboard.press("Shift+Tab")
+    fresh.keyboard.press("Tab")
+    expect(expand).to_be_focused()
+    assert expand.evaluate("node => node.matches(':focus-visible')")
+    fresh.keyboard.press("Enter")
+    expect(fresh_original).to_be_visible()
+    expect(fresh_original).to_contain_text("Checking the camera.")
+    collapse = fresh_card.get_by_role(
+        "button", name="Collapse 1 earlier message", exact=True
+    )
+    collapse.press("Enter")
+    expect(fresh_original).to_be_hidden()
 
 
 def test_a_summary_gathering_the_message_the_user_is_on_keeps_them_on_it(
@@ -2428,6 +2513,70 @@ def test_explicit_navigation_reveals_held_panel_news(browser, serve, destination
     expect(thread.locator(".lf-thread-news")).to_have_count(0)
     assert field.evaluate("field => field.value") == (
         "Keep this draft while visiting the answer."
+    )
+
+
+def test_walking_to_a_thread_shows_the_replies_it_held(browser, serve):
+    """A reply held while its thread stood open in front of the user shows once the
+    user walks away and back to that thread with t/T. The walk away closes the card and
+    the walk back opens it, and an opening moves every card after it anyway, so the
+    card opens with what it held, landed where the reply shows."""
+    url = serve(PANEL_PAGE)
+    for n in range(12):
+        panel_comment(serve.page_dir, f"An earlier thread {n}. " * 8)
+    other = panel_comment(serve.page_dir, "A thread to walk to. " * 30)
+    root = panel_comment(serve.page_dir, "Keep the discussion here.")
+    for n in range(12):
+        panel_comment(serve.page_dir, f"A later thread {n}. " * 8)
+    context = browser.new_context(reduced_motion="reduce")
+    page = open_page(browser, url, context=context)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    thread = page.locator(f'.lf-threads > .lf-thread[data-id="{root}"]')
+    if thread.get_attribute("open") is None:
+        thread.locator(".lf-thread-summary").click()
+    thread.locator(".lf-thread-summary").focus()
+    reply = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "revision": 1,
+            "parent": root,
+            "text": "This answer arrived while the thread stood open. " * 6,
+        },
+    )
+    told(page)
+    message = thread.locator(f'.lf-msg[data-mid="{reply["id"]}"]')
+    expect(thread.get_by_role("button", name="1 new reply", exact=True)).to_be_visible()
+    expect(message).to_have_count(0)
+
+    order = page.locator(".lf-threads > .lf-thread").evaluate_all(
+        "cards => cards.map(card => card.dataset.id)"
+    )
+    away, back = (
+        ("t", "Shift+t") if order.index(other) > order.index(root) else ("Shift+t", "t")
+    )
+    page.keyboard.press(away)
+    expect(
+        page.locator(f'.lf-threads > .lf-thread[data-id="{other}"] .lf-thread-summary')
+    ).to_be_focused()
+    expect(thread).not_to_have_attribute("open", "")
+    page.keyboard.press(back)
+    expect(thread.locator(".lf-thread-summary")).to_be_focused()
+    expect(message).to_be_visible()
+    expect(thread.locator(".lf-thread-news")).to_have_count(0)
+    # The arrival lands the thread with the reply it shows.
+    one_frame(page)
+    assert page.evaluate(
+        """id => {
+          const list = document.querySelector('.lf-threads').getBoundingClientRect();
+          const reply = document.querySelector(`.lf-msg[data-mid="${id}"]`)
+            .getBoundingClientRect();
+          return reply.top >= list.top && reply.bottom <= list.bottom;
+        }""",
+        reply["id"],
     )
 
 

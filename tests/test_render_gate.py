@@ -827,7 +827,7 @@ def test_a_refused_document_reports_the_status_beside_the_wait_that_stopped(
     assert failures[0].startswith(
         "[light] pre-upgrade proof failed: the document never reached an authored main"
     )
-    assert f"403 {refused}" in failures[0]
+    assert f"401 {refused}" in failures[0]
 
 
 def test_the_pre_upgrade_proof_holds_its_entry_route_past_the_load_event(

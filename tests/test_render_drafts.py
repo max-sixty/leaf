@@ -2412,10 +2412,6 @@ def test_a_late_refusal_cannot_restore_an_attempt_another_tab_settled(
         expected_error = f"400 {refused.value.url}"
         first_errors = first.lf_errors
         first_errors.remove(expected_error)
-        first_errors.remove(
-            "Failed to load resource: the server responded with a status of 400 "
-            "(Bad Request)"
-        )
         expect(first_say.locator("leaf-text")).to_have_js_property("value", newer or "")
 
         held_state.pop(0).continue_()

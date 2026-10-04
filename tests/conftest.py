@@ -238,6 +238,11 @@ def pytest_addoption(parser):
         metavar="REF",
         help="Also run the nightly-marked tests whose own lines changed since REF",
     )
+    parser.addoption(
+        "--shard",
+        metavar="K/N",
+        help="Run only the K-th of N interleaved slices of the selection (1-based)",
+    )
 
 
 @pytest.hookimpl(wrapper=True)
@@ -264,17 +269,52 @@ def pytest_collection_modifyitems(config, items):
         or config.getoption("lf")
         or any(Path(arg.split("::", 1)[0]).is_file() for arg in config.args)
     )
-    if config.getoption("--run-nightly") or selected:
-        return
-    changed = {}
-    if since := config.getoption("--nightly-changed-since"):
-        changed = _changed_test_lines(config.rootpath, since)
-    kept, nightly = [], []
+    if not (config.getoption("--run-nightly") or selected):
+        changed = {}
+        if since := config.getoption("--nightly-changed-since"):
+            changed = _changed_test_lines(config.rootpath, since)
+        kept, nightly = [], []
+        for item in items:
+            skipped = "nightly" in item.keywords and not _touches(item, changed)
+            (nightly if skipped else kept).append(item)
+        items[:] = kept
+        config.hook.pytest_deselected(items=nightly)
+    if spec := config.getoption("--shard"):
+        _shard(config, items, spec)
+
+
+def _shard(config, items, spec):
+    """Keep one of N slices of the selection, so N runners split one suite.
+
+    Each test goes, in collection order, to the slice holding the least work so far,
+    which deals each file, and each parametrization of a test, across every slice:
+    neighbouring tests cost about the same, so the slices come out close in time without
+    a record of past durations. An xdist group goes whole to one slice, since
+    `--dist loadgroup` promises its tests one worker. It runs on that worker alone while
+    the slice's other workers share everything else, so each of its tests counts as
+    much work as one test on every worker. Every xdist worker collects the same order
+    and is told the same worker count, so each one deals the same slices."""
+    try:
+        index, count = (int(part) for part in spec.split("/"))
+    except ValueError:
+        raise pytest.UsageError(f"--shard {spec}: expected K/N") from None
+    if not 1 <= index <= count:
+        raise pytest.UsageError(f"--shard {spec}: K must be between 1 and N")
+    workers = getattr(config, "workerinput", {}).get("workercount", 1)
+    groups, sizes = {}, [0] * count
+    kept, other = [], []
     for item in items:
-        skipped = "nightly" in item.keywords and not _touches(item, changed)
-        (nightly if skipped else kept).append(item)
+        group = item.get_closest_marker("xdist_group")
+        name = (group.kwargs.get("name") or group.args[0]) if group else None
+        slice_ = groups.get(name) if name else None
+        if slice_ is None:
+            slice_ = sizes.index(min(sizes))
+            if name:
+                groups[name] = slice_
+        sizes[slice_] += workers if name else 1
+        (kept if slice_ == index - 1 else other).append(item)
     items[:] = kept
-    config.hook.pytest_deselected(items=nightly)
+    config.hook.pytest_deselected(items=other)
 
 
 def _changed_test_lines(root, since):

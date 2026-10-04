@@ -169,7 +169,13 @@ def presence_with_activity(
     claim-against-proof judgment reads these fields. The server's row publication
     carries only the compact presentation fields derived from these facts."""
     stored_status = read_status(page_dir)
-    status = {key: value for key, value in stored_status.items() if key != "stream"}
+    # The declaration's own fields: the host's stream stays server-side, and a field
+    # an older leaf wrote, such as its work claims, is no declaration this one reads.
+    status = {
+        key: value
+        for key, value in stored_status.items()
+        if key in {"state", "detail", "ts", "after"}
+    }
     status.setdefault("after", 0)
     claim = page_claim(page_dir)
     active = claim if claim_is_active(claim) else None

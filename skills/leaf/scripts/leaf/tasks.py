@@ -25,6 +25,7 @@ version that answers it (`workflows.canonical_workflows`), and it holds its item
 only for the turn that wrote it. It names that turn, and once the turn ends with the
 item still running, the activity fold reads it stalled (`activity`). A later start on
 the same item replaces it, which is how the next turn takes the item in hand again.
+A start on a page declared `idle` reopens the page with a bare `waiting`.
 
 The door admits a task on an open thread, on a live page widget that declares
 `x-work` or holds an unsettled move (`work.widget_seat_error`), or on the page; a
@@ -231,7 +232,7 @@ def cmd_start(page_dir: Path, item: str, text: str) -> dict:
                 if claim and claim["id"] == identity.get("session")
                 else None
             )
-            return append_admitted(
+            record = append_admitted(
                 page,
                 {
                     "kind": "start",
@@ -242,6 +243,11 @@ def cmd_start(page_dir: Path, item: str, text: str) -> dict:
                     **({"turn": turn} if turn else {}),
                 },
             )
+            # Work in hand reopens a page the agent had closed: `idle` says it was
+            # done with the page, and every carrier stands down for an idle page.
+            if page.status["state"] == "idle":
+                page.set_status("waiting", "")
+            return record
 
     return write(page_dir)
 

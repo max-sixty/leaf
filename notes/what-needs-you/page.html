@@ -227,11 +227,14 @@
                 <kbd>t</kbd> keeps walking every open thread.
               </li>
               <li>
-                <strong>Working is a task</strong> (next; you agreed in the
-                status-as-tasks thread). <code>leaf status working --on</code> folds
-                into the task commands: Working names an item, your move or a task, and
-                lasts the turn; claims move from the status file into the log; stalled
-                and unobserved become one state. See
+                <strong>Working is a task</strong> (built, not yet landed).
+                <code>leaf status working --on</code> folds into the task commands:
+                <code>leaf task start ID "line"</code> takes an item in hand, your move
+                by its event id or a task, for the turn; <code>leaf task open</code>
+                takes a thread, a widget or <code>page</code>; claims move from the
+                status file into the log, and <code>leaf status</code> keeps only
+                waiting and idle. A start left after its turn still reads stalled;
+                merging that with unobserved is step 7. See
                 <a href="#status-tasks">Working on something means working on a task</a>
                 and <a href="#working-on">What the agent can be working on</a>.
               </li>

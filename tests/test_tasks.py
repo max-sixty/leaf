@@ -371,3 +371,19 @@ def test_a_widget_task_needs_a_seat_and_a_completing_stamp_ends_it(page_dir):
     again = stamp(page_dir, "Again", completes=("rollout-card",))
     assert again.exit_code != 0
     assert "no open task on 'rollout-card'" in again.output
+
+
+def test_a_start_reopens_a_page_its_agent_closed(page_dir):
+    """`idle` says the agent is done with the page, and every carrier stands down for
+    it; taking work in hand there reopens the page rather than working under Closed."""
+    publish(page_dir)
+    written(leaf("status", page_dir, "idle"))
+    assert state_json(page_dir)["activity"]["kind"] == "closed"
+    task = written(leaf("task", "open", page_dir, "page", "Add a glossary"))
+    written(leaf("task", "start", page_dir, task["id"], "Drafting the glossary"))
+    state = state_json(page_dir)
+    assert state["status"]["state"] == "waiting"
+    assert (state["activity"]["kind"], state["activity"]["detail"]) == (
+        "working",
+        "Drafting the glossary",
+    )

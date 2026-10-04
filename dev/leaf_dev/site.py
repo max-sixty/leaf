@@ -55,8 +55,8 @@ from leaf.structure import FRAME_ANCESTORS_CSP, SourceDocument
 from leaf_website import SITE_MANIFEST, SITE_ORIGIN, initial_state, site_metadata
 
 from leaf_dev import LEAF_COMMAND, ROOT
+from leaf_dev.arms import environment
 from leaf_dev.example_data import catalog_sources
-from leaf_dev.harness import environment
 from leaf_dev.leaf_assets import pinned_assets
 from leaf_dev.page_fixtures import (
     package_selection_args,
@@ -481,7 +481,7 @@ def build_examples(out: Path, *, assets: Path) -> None:
     """Build only the public example routes used to record catalog previews."""
     shutil.rmtree(out, ignore_errors=True)
     out.mkdir(parents=True)
-    # `environment()` keeps the builder's host session out of published version notes.
+    # `environment()` keeps the builder's harness session out of published version notes.
     publish_examples(out, environment())
     publish_live_shells(out, assets, include_products=False)
 

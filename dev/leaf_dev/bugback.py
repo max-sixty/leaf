@@ -24,7 +24,7 @@ from pathlib import Path
 import click
 
 from leaf_dev import ROOT
-from leaf_dev.harness import merge_base
+from leaf_dev.arms import merge_base
 from leaf_dev.suite import collect, run
 
 OUT = ROOT / ".tmp" / "bugback"

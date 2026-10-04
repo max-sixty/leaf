@@ -110,7 +110,7 @@ def new_event_id(events: list[dict]) -> str:
     """An unused page-local identity, allocated under the append lease.
 
     Eight hex characters stay short enough to read and retype. Uniqueness comes
-    from checking the held log, not their width; a host pairs the id with its page.
+    from checking the held log, not their width; a harness pairs the id with its page.
     Admission allocates it before semantic folding and storage keeps that identity.
     """
     while True:

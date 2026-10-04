@@ -105,7 +105,7 @@ other page files and the external state listed below.
   `thread.py` owns response reservations and their release. Every reader loads it
   through `service.read_status`, which reads a missing file as no declaration.
 
-- `waiter.lock` — stable bare-shell wait lease file; host sessions instead
+- `waiter.lock` — stable bare-shell wait lease file; harness sessions instead
   use `<state-home>/sessions/<session>.wait`. See [session-lifetime.md](session-lifetime.md).
 
 - `viewed.json` — last visible browser attention, written by the server and absent until
@@ -196,7 +196,7 @@ the vocabulary.
 
 Immutable deliveries live outside page directories at
 `<state-home>/deliveries/<id>.json`, because one envelope can contain complete
-batches from several pages and must resolve identically in every host. The file's
+batches from several pages and must resolve identically in every harness. The file's
 `leaf-delivery-v3` format, id, capture time, carrier, acknowledgement, and
 batches never change. Delivery
 records are separate mutable transport state; acknowledgement can archive

@@ -22,7 +22,7 @@ on:
       - 'dev/pyproject.toml'
       - 'dev/leaf_dev/__init__.py'
       - 'dev/leaf_dev/browser.py'
-      - 'dev/leaf_dev/harness.py'
+      - 'dev/leaf_dev/arms.py'
       - 'dev/leaf_dev/example_data.py'
       - 'dev/leaf_dev/leaf_assets.py'
       - 'dev/leaf_dev/page_fixtures.py'

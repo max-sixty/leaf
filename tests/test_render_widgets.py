@@ -103,6 +103,7 @@ from render_harness import (
     round_trip,
     scroll_settled,
     select,
+    select_words,
     sending,
     shortcut_bar_text,
     stamp_page,
@@ -2659,14 +2660,6 @@ def test_a_table_of_contents_can_stop_at_an_authored_heading_level(browser, serv
     expect(page.locator("h3")).to_have_attribute("id", "lf-contents-section-2")
 
 
-@pytest.mark.xfail(
-    reason=(
-        "Main 2bd9ebdc3: first authoritative presentation retains the authored "
-        "139px contents-map span after replay grows the section to 611px"
-    ),
-    raises=AssertionError,
-    strict=False,
-)
 def test_generated_page_interface_reconciles_before_semantic_interaction(
     browser, serve
 ):
@@ -5065,7 +5058,7 @@ def test_notification_configuration_becomes_a_commentable_local_artifact(
     """The example's instruction is a complete task through Leaf's existing loop.
 
     A playground action enters the ordinary event log, pickup and a work claim use the
-    same delivery projection as a host agent, and the agent writes a real local file.
+    same delivery projection as an agent in a harness, and the agent writes a real local file.
     The page exposes that file through data, then a user comment changes the file and
     remains anchored on the revised result.
     """
@@ -6878,16 +6871,7 @@ def test_swipe_deck_pointer_threshold_cancel_and_commit(browser, serve):
     assert card.evaluate("el => el.style.getPropertyValue('--lf-swipe-drag-x')") == ""
     page.mouse.up()
 
-    card.locator("p").first.evaluate(
-        """element => {
-          const range = document.createRange();
-          range.selectNodeContents(element);
-          const selection = getSelection();
-          selection.removeAllRanges();
-          selection.addRange(range);
-          document.body.dispatchEvent(new KeyboardEvent('keyup', {bubbles: true}));
-        }"""
-    )
+    select_words(page, "#swipe-a p:first-of-type")
     expect(page.locator(".lf-fab-bar")).to_be_visible()
     assert page.evaluate("() => getSelection().toString().trim()")
 

@@ -118,6 +118,7 @@ from render_harness import (
     scroll_writes,
     state_changes,
     still_page,
+    stored_draft_text,
     take_browser_errors,
     write,
 )
@@ -4710,14 +4711,6 @@ def test_the_render_gate_reads_a_scrolled_container_from_its_content(browser, se
     )
 
 
-@pytest.mark.xfail(
-    reason=(
-        "Native package scope proximity lets the board minimum outrank pane-body sizing"
-        " on main 2bd9; CI run 37057440971."
-    ),
-    raises=AssertionError,
-    strict=False,
-)
 def test_a_page_hands_its_note_strip_back_when_the_panel_takes_the_room(browser, serve):
     """The margin form is granted by the room beside the page's column, and the thread
     panel stands over the page rather than taking room from it, so the panel decides
@@ -4881,6 +4874,12 @@ def test_dragging_an_edge_preserves_user_state(browser, serve, edge, pointer):
     page.locator("main p").first.click(modifiers=["Alt"])
     composer = page.locator(".lf-fab-input")
     write(composer, "half a comment")
+    page.keyboard.press("ArrowLeft")
+    page.keyboard.press("Shift+ArrowLeft")
+    editing = composer.evaluate("""async input => {
+        const {captureDraftEditing} = await __lfRuntimeImport('/runtime/drafts.js');
+        return captureDraftEditing(input);
+    }""")
     drag()
     expect(composer).to_be_visible()
     expect(composer).to_have_js_property("value", "half a comment")
@@ -4904,6 +4903,22 @@ def test_dragging_an_edge_preserves_user_state(browser, serve, edge, pointer):
     }""")
         == selected
     )
+    rendered(page)
+    expect(composer).to_be_hidden()
+    assert (
+        json.loads(stored_draft_text(page, editing["context"]))["text"]
+        == "half a comment"
+    )
+    page.keyboard.press("g")
+    page.keyboard.press("i")
+    expect(composer).to_be_focused()
+    expect(composer).to_have_js_property("value", "half a comment")
+    resumed = composer.evaluate("""async input => {
+        const {captureDraftEditing} = await __lfRuntimeImport('/runtime/drafts.js');
+        return captureDraftEditing(input);
+    }""")
+    assert resumed["context"] == editing["context"]
+    assert resumed["selection"] == editing["selection"]
 
 
 @pytest.mark.parametrize("edge", EDGES, ids=EDGE_IDS)

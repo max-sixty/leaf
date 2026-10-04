@@ -13,12 +13,12 @@ user decisions carry into later revisions unless explicitly retracted. These
 contracts live in [page-storage.md](../skills/leaf/scripts/leaf/page-storage.md)
 and [packages.md](../skills/leaf/references/packages.md).
 
-Delivery belongs to the host adapter: Claude Code's Stop hook watches claimed
+Delivery belongs to the harness adapter: Claude Code's Stop hook watches claimed
 pages; ordinary Codex tasks receive queued deliveries; tasks with an accessible
 Codex App Server receive delivery turns through that server. Read the owning
-[Claude Code](../skills/leaf/references/host-claude-code.md),
-[Codex queue](../skills/leaf/references/host-codex.md), and
-[App Server](../skills/leaf/references/host-codex-app-server.md) contracts rather
+[Claude Code](../skills/leaf/references/harness-claude-code.md),
+[Codex queue](../skills/leaf/references/harness-codex.md), and
+[App Server](../skills/leaf/references/harness-codex-app-server.md) contracts rather
 than deriving a handoff from this comparison. Serving, authentication, standing
 lifetimes, and offline export belong to
 [serving-pages.md](../skills/leaf/references/serving-pages.md).
@@ -65,7 +65,7 @@ Read on 2026-08-21 and 2026-09-22 from its
 Plannotator reviewed work the agent had already produced: plans, Markdown,
 rendered HTML, local diffs, and repository reviews. Harness hooks opened a local
 browser review, blocked where necessary, and returned structured annotations.
-Its installer supported more coding hosts than Leaf's adapters.
+Its installer supported more coding harnesses than Leaf's adapters.
 
 The September read found an append-only feedback archive and PR comments that
 survived pushes, marked Outdated rather than re-anchored. This supersedes the
@@ -111,7 +111,7 @@ long-polling, webhooks, or a supervised watcher.
 
 Its shared editing and hosting are a different product boundary from Leaf's
 agent-authored page for one principal. HTTP access broadens the set of clients;
-Leaf's host adapters place deliveries into the user's existing coding task.
+Leaf's harness adapters place deliveries into the user's existing coding task.
 Collaborative document editing remains the relevant comparison, rather than the
 mechanism of one blocking poll.
 
@@ -226,7 +226,7 @@ page directory and event log remain the durable record.
 - **Collaborative document editing.** Leaf records input from one principal and
   does not model multiple user identities, live cursors, or concurrent author
   merges. Hosted workspaces address that need.
-- **An HTTP-only agent.** Leaf's CLI and host adapters assume a coding task that
+- **An HTTP-only agent.** Leaf's CLI and harness adapters assume a coding task that
   can run local commands. An HTTP document API has broader client reach.
 - **An application serving many users.** Leaf accompanies an existing coding
   task; frameworks such as CopilotKit provide the application and agent runtime.

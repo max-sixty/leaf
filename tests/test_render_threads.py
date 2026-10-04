@@ -71,7 +71,6 @@ from render_harness import (
     undo,
     wait_for_revision,
     write,
-    xfail_browser_problem,
 )
 
 pytestmark = pytest.mark.nightly
@@ -1455,15 +1454,6 @@ def test_panel_settlement_moves_focus_with_optimistic_state_and_restores_a_refus
     round_trip(page)
     expect(reply).to_be_focused()
 
-    xfail_browser_problem(
-        page,
-        'typed words left the screen without a key or press: "first thread" in '
-        + page.get_by_role("searchbox", name="Find in threads").evaluate(
-            "field => window.lfPlace(field)"
-        ),
-        reason="Verified on main 35d91df64 (run 37183384374): native awaited thread arrival clears the query outside its input callback; PR #1705 owns the queued/presentation boundary.",
-    )
-
 
 def test_a_refused_reopen_preserves_a_filter_typed_during_its_reveal(
     held_events, serve
@@ -1503,15 +1493,6 @@ def test_a_refused_reopen_preserves_a_filter_typed_during_its_reveal(
     expect(find).to_be_focused()
     expect(page.locator('[data-filter-value="open"]')).to_have_attribute(
         "aria-pressed", "true"
-    )
-
-    xfail_browser_problem(
-        page,
-        'typed words left the screen without a key or press: "later search" in '
-        + page.get_by_role("searchbox", name="Find in threads").evaluate(
-            "field => window.lfPlace(field)"
-        ),
-        reason="Verified on main 35d91df64 (run 37183384374): native awaited thread arrival clears the query outside its input callback; PR #1705 owns the queued/presentation boundary.",
     )
 
 
@@ -1558,15 +1539,6 @@ def test_a_refused_reopen_preserves_a_filter_typed_during_restoration(
     expect(find).to_be_focused()
     expect(page.locator('[data-filter-value="resolved"]')).to_have_attribute(
         "aria-pressed", "true"
-    )
-
-    xfail_browser_problem(
-        page,
-        'typed words left the screen without a key or press: "restoration search" in '
-        + page.get_by_role("searchbox", name="Find in threads").evaluate(
-            "field => window.lfPlace(field)"
-        ),
-        reason="Verified on main 35d91df64 (run 37183384374): native awaited thread arrival clears the query outside its input callback; PR #1705 owns the queued/presentation boundary.",
     )
 
 
@@ -2606,19 +2578,40 @@ def test_explicit_navigation_reveals_held_panel_news(browser, serve, destination
     )
 
 
-@pytest.mark.parametrize("walk", ["back", "onto"])
-def test_walking_to_a_thread_shows_the_replies_it_held(browser, serve, walk):
-    """A reply held while its thread stood open in front of the user shows once a t/T
-    press takes the user to that thread: the motion is then the press's. The walk lands
-    the thread with the reply showing. "back" walks away, which closes the card, and
-    back, which opens it; "onto" presses toward the end of the list from the thread
-    itself, which lands it again without its card ever closing."""
+@pytest.mark.parametrize(
+    ("reply_count", "new_input", "walk"),
+    [
+        (1, None, "back"),
+        (3, None, "back"),
+        (3, "Tab", "back"),
+        (3, "wheel", "back"),
+        (3, "widget", "back"),
+        (1, None, "onto"),
+        (3, None, "onto"),
+    ],
+)
+def test_walking_to_a_thread_shows_the_replies_it_held(
+    browser, serve, reply_count, new_input, walk
+):
+    """Replies held while their thread stood open in front of the user show once the
+    user walks away and back to that thread with t/T. The walk away closes the card and
+    the walk back opens it, and an opening moves every card after it anyway, so the
+    card opens with what it held, landed where the newest reply shows. Walking onto
+    the same thread at the end of the list releases news without closing its card.
+    One reply fits
+    with the root; several require measuring the released transcript to land its end.
+    Disclosure itself draws that body before a delayed public proof, so a newer Tab
+    reaches its current controls and supersedes the older title's pending landing.
+    A released reply's widget reads its frozen baseline and takes a new choice while
+    that global proof is held; the later publication keeps the choice it sent."""
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Keep the discussion here.")
     other = panel_comment(serve.page_dir, "A thread to walk to. " * 30)
     for n in range(12):
         panel_comment(serve.page_dir, f"A later thread {n}. " * 8)
-    context = browser.new_context(reduced_motion="reduce")
+    context = browser.new_context(
+        viewport={"width": 800, "height": 900}, reduced_motion="reduce"
+    )
     page = open_page(browser, url, context=context)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
@@ -2629,22 +2622,35 @@ def test_walking_to_a_thread_shows_the_replies_it_held(browser, serve, walk):
     thread = page.locator(f'.lf-threads > .lf-thread[data-id="{root}"]')
     summary = thread.locator(".lf-thread-summary")
     if thread.get_attribute("open") is None:
-        summary.click()
-    summary.focus()
-    reply = append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "reply",
-            "author": "agent",
-            "agent": "Codex",
-            "revision": 1,
-            "parent": root,
-            "text": "This answer arrived while the thread stood open. " * 6,
-        },
-    )
+        thread.locator(".lf-thread-summary").click()
+    thread.locator(".lf-thread-summary").focus()
+    for turn in range(reply_count):
+        reply = append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "agent": "Codex",
+                "revision": 1,
+                "parent": root,
+                "text": f"Turn {turn}. This answer arrived while the thread stood open. "
+                * 6,
+                **(
+                    {
+                        "markup": '<lf-options id="held-choice" choose>'
+                        '<lf-option id="held-first" chosen>The first answer</lf-option>'
+                        '<lf-option id="held-second">The second answer</lf-option>'
+                        "</lf-options>"
+                    }
+                    if new_input == "widget" and turn == reply_count - 1
+                    else {}
+                ),
+            },
+        )
     told(page)
     message = thread.locator(f'.lf-msg[data-mid="{reply["id"]}"]')
-    expect(thread.get_by_role("button", name="1 new reply", exact=True)).to_be_visible()
+    notice = "1 new reply" if reply_count == 1 else f"{reply_count} new replies"
+    expect(thread.get_by_role("button", name=notice, exact=True)).to_be_visible()
     expect(message).to_have_count(0)
 
     if walk == "back":
@@ -2656,20 +2662,67 @@ def test_walking_to_a_thread_shows_the_replies_it_held(browser, serve, walk):
         ).to_be_focused()
         expect(thread).not_to_have_attribute("open", "")
         expect(message).to_have_count(0)
+    if new_input:
+        rendered(page)
+        hold_visible_thread_presentation(page, root)
     page.keyboard.press("Shift+t")
     expect(summary).to_be_focused()
     expect(message).to_be_visible()
     expect(thread.locator(".lf-thread-news")).to_have_count(0)
+    if new_input:
+        page.wait_for_function("window.visibleThreadPresentationHeld === true")
+        resolve = thread.get_by_role("button", name="Resolve thread", exact=True)
+        if new_input == "Tab":
+            page.keyboard.press("Tab")
+            expect(resolve).to_be_focused()
+        elif new_input == "widget":
+            choice = message.locator("#held-choice")
+            first = choice.locator("#held-first").get_by_role("checkbox")
+            second = choice.locator("#held-second").get_by_role("checkbox")
+            expect(first).to_have_attribute("aria-checked", "true")
+            expect(second).to_have_attribute("aria-checked", "false")
+            with page.expect_request("**/api/event") as sent:
+                second.click()
+            assert sent.value.post_data_json["detail"]["options"] == ["held-second"]
+            expect(first).to_have_attribute("aria-checked", "false")
+            expect(second).to_have_attribute("aria-checked", "true")
+        else:
+            page.locator(".lf-threads").hover()
+            page.mouse.wheel(0, 180)
+            scroll_settled(page, ".lf-threads")
+        control = thread.locator("leaf-text")
+        before = control.evaluate("node => node.getBoundingClientRect().top")
+        scroll = page.locator(".lf-threads").evaluate("node => node.scrollTop")
+        page.evaluate("releaseVisibleThreadPresentation()")
+        rendered(page)
+        one_frame(page)
+        assert control.evaluate("node => node.getBoundingClientRect().top") == (
+            pytest.approx(before, abs=1)
+        )
+        assert page.locator(".lf-threads").evaluate("node => node.scrollTop") == (
+            pytest.approx(scroll, abs=1)
+        )
+        if new_input == "Tab":
+            expect(resolve).to_be_focused()
+            page.keyboard.press("Shift+Tab")
+            expect(thread.locator(".lf-thread-summary")).to_be_focused()
+            page.keyboard.press("Tab")
+            expect(resolve).to_be_focused()
+        elif new_input == "widget":
+            round_trip(page)
+            expect(first).to_have_attribute("aria-checked", "false")
+            expect(second).to_have_attribute("aria-checked", "true")
+            assert any(
+                event["kind"] == "action"
+                and event.get("widget") == "held-choice"
+                and event["detail"]["options"] == ["held-second"]
+                for event in events_model.read_events(serve.page_dir)
+            )
+        return
+    # The latest reply clears the sticky heading and reply row, not just the list box.
     one_frame(page)
-    assert page.evaluate(
-        """id => {
-          const list = document.querySelector('.lf-threads').getBoundingClientRect();
-          const reply = document.querySelector(`.lf-msg[data-mid="${id}"]`)
-            .getBoundingClientRect();
-          return reply.top >= list.top && reply.bottom <= list.bottom;
-        }""",
-        reply["id"],
-    )
+    landing = message.evaluate(IN_LANDING_BAND)
+    assert landing["inside"], landing
 
 
 def test_opening_message_reactions_does_not_reflow_the_thread_list(browser, serve):
@@ -4293,10 +4346,10 @@ def test_an_agent_reply_says_when_the_user_owes_an_answer(browser, serve):
     expect(page.locator(".lf-thread:not([hidden])")).to_have_count(0)
 
 
-def test_a_host_failure_receipt_does_not_read_as_an_answer(browser, serve):
+def test_a_harness_failure_receipt_does_not_read_as_an_answer(browser, serve):
     """A reply saying no answer is coming is marked as one, in both faces of the head.
 
-    Nothing else in the message says it: a host receipt is a reply event, written
+    Nothing else in the message says it: a harness receipt is a reply event, written
     under the thread's own agent name, in the same bubble as a real answer, and its
     prose is the only other difference. So a user skimming a thread reads an
     apology from the agent rather than a notice that their message went nowhere, and
@@ -5036,17 +5089,29 @@ def test_an_external_resolution_keeps_a_panel_reply_until_it_is_sent(
         expect(reply).to_have_js_property("value", "")
         return
     if finish == "filter":
+        withdrawn_words = (
+            f'typed words left the screen without a key or press: "{words}" in '
+            + reply.evaluate("field => window.lfPlace(field)")
+        )
         find = page.get_by_role("searchbox", name="Find in threads")
         find.click()
         find.fill("No such discussion")
         rendered(page)
         expect(card).to_be_hidden()
-        xfail_browser_problem(
-            page,
-            f'typed words left the screen without a key or press: "{words}" in '
-            + reply.evaluate("field => window.lfPlace(field)"),
-            reason="Verified on main 35d91df64 (run 37183384374): a changed narrowing intent hides the retained reply while Find is edited; PR #1705 owns reply editing lifetime.",
-        )
+        # The real Find press ends this composition before narrowing hides its
+        # retained words. That later inactive withdrawal is the fixture's intent.
+        page.evaluate("lfWordsJudged()")
+        errors = take_browser_errors(page)
+        assert errors in ([], [withdrawn_words]), errors
+        find.fill("")
+        rendered(page)
+        expect(reply).to_have_count(0)
+        page.locator(".lf-thread-filter-toggle").click()
+        page.locator('[data-filter-value="resolved"]').click()
+        expect(card).to_be_visible()
+        with sending(page, "reopen the deliberately dismissed reply"):
+            card.get_by_role("button", name="Reopen", exact=True).click()
+        expect(reply).to_have_js_property("value", words)
         return
 
     page.keyboard.type(" still")
@@ -5938,15 +6003,6 @@ def test_a_delayed_accordion_reveal_yields_to_the_users_new_thread(browser, serv
     expect(later.locator(".lf-thread-summary")).to_be_focused()
     expect(later).to_have_attribute("open", "")
     expect(target).not_to_have_attribute("open", "")
-
-    xfail_browser_problem(
-        page,
-        'typed words left the screen without a key or press: "stay blocked" in '
-        + page.get_by_role("searchbox", name="Find in threads").evaluate(
-            "field => window.lfPlace(field)"
-        ),
-        reason="Verified on main 35d91df64 (run 37183384374): native awaited thread arrival clears the query outside its input callback; PR #1705 owns the queued/presentation boundary.",
-    )
 
 
 def test_a_design_thread_about_fixed_chrome_moves_neither_box(browser, serve):
@@ -8409,11 +8465,6 @@ def test_an_agent_turn_arriving_holds_still_the_page_box_being_typed_in(
 
 
 @pytest.mark.parametrize("kind", ["task", "verdict"])
-@pytest.mark.xfail(
-    reason="Main: resolving an inline thread moves the page 689px when focus returns to the card",
-    raises=AssertionError,
-    strict=False,
-)
 def test_resolving_a_long_page_thread_by_its_button_leaves_the_page_still(
     browser, serve, kind
 ):
@@ -8736,15 +8787,6 @@ def test_a_walk_to_a_question_the_narrowing_hides_widens_the_list(browser, serve
     assert page.evaluate(
         "() => document.activeElement.closest('.lf-thread') !== null"
     ), "the walk landed outside the card it named"
-
-    xfail_browser_problem(
-        page,
-        'typed words left the screen without a key or press: "stay blocked" in '
-        + page.get_by_role("searchbox", name="Find in threads").evaluate(
-            "field => window.lfPlace(field)"
-        ),
-        reason="Verified on main 35d91df64 (run 37183384374): native awaited thread arrival clears the query outside its input callback; PR #1705 owns the queued/presentation boundary.",
-    )
 
 
 def test_a_thread_on_a_rewrite_is_named_by_its_old_and_new_words(browser, serve):

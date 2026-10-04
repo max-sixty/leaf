@@ -28,6 +28,8 @@ async function request(url, body) {
 }
 
 function presented(frame, url, signal) {
+  const expected = new URL(url);
+  expected.hash = "";
   return new Promise((resolve, reject) => {
     let observer;
     const cleanup = () => {
@@ -49,7 +51,12 @@ function presented(frame, url, signal) {
     });
     const loaded = () => {
       const doc = frame.contentDocument;
-      if (!doc || frame.contentWindow.location.href !== url) return;
+      if (!doc) return;
+      // Startup may select a tab or restore a fragment before load. That changes
+      // the child's reading place, while the loaded document remains the one requested.
+      const actual = new URL(doc.URL);
+      actual.hash = "";
+      if (actual.href !== expected.href) return;
       const inspect = () => {
         const failure = doc.documentElement.dataset.lfStartupError;
         if (failure) finish(new Error(failure));

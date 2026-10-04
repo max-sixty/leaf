@@ -445,8 +445,7 @@ def test_live_samples_keep_real_gestures_and_drafts_inside_the_child(browser, se
 
 
 def test_a_window_sample_is_a_whole_leaf_window_that_scrolls_inside(browser, serve):
-    """A block sample is as tall as its page and keeps only the Threads row of its
-    chrome; a window sample keeps a window's height, its full chrome, and scrolls."""
+    """A window sample presents its opening view, keeps full chrome, and scrolls inside."""
     filler = "".join(
         f'<p id="filler-{i}">Line {i} of a long page.</p>' for i in range(60)
     )
@@ -455,7 +454,14 @@ def test_a_window_sample_is_a_whole_leaf_window_that_scrolls_inside(browser, ser
         f"""
 <h1>Window sample</h1>
 <lf-sample id="window-sample" label="a whole window" window>
-  <template id="window-page" data-sample><h1>Child</h1>{filler}</template>
+  <template id="window-page" data-sample>
+    <script type="module">history.replaceState(null, "", "#first-view");</script>
+    <h1>Child</h1>
+    <lf-tabs id="child-views">
+      <lf-tab id="first-view" label="Long view">{filler}</lf-tab>
+      <lf-tab id="second-view" label="Short view"><p>Another view.</p></lf-tab>
+    </lf-tabs>
+  </template>
 </lf-sample>
 """,
     )
@@ -477,13 +483,39 @@ def test_a_window_sample_is_a_whole_leaf_window_that_scrolls_inside(browser, ser
     assert child["bar"] != "none"
     frame = sample.locator("iframe")
     assert frame.bounding_box()["height"] < child["page"] / 2
+    child_frame = frame.element_handle().content_frame()
+    assert child_frame.url.endswith("/#first-view")
+    expect(child_frame.get_by_role("tab", name="Long view")).to_have_attribute(
+        "aria-selected", "true"
+    )
 
     box = frame.bounding_box()
     page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
-    page.mouse.wheel(0, 300)
     content = page.frame_locator("#window-sample iframe").locator(":root")
-    expect(content).to_have_js_property("scrollTop", 300)
+    scroll_before = content.evaluate("root => root.scrollTop")
+    page.mouse.wheel(0, 300)
+    expect(content).to_have_js_property("scrollTop", scroll_before + 300)
     assert frame.bounding_box()["height"] == box["height"]
+
+    # A fragment set during startup must not prevent Reset or reload from presenting.
+    reset = sample.get_by_role("button", name="Reset", exact=True)
+    old_url = child_frame.url
+    reset.click()
+    expect(reset).to_be_enabled()
+    child_frame = frame.element_handle().content_frame()
+    assert child_frame.url != old_url
+    assert child_frame.url.endswith("/#first-view")
+    expect(child_frame.get_by_role("tab", name="Long view")).to_have_attribute(
+        "aria-selected", "true"
+    )
+    page.reload()
+    wait_until_ready(page)
+    expect(reset).to_be_enabled()
+    child_frame = frame.element_handle().content_frame()
+    assert child_frame.url.endswith("/#first-view")
+    expect(child_frame.get_by_role("tab", name="Long view")).to_have_attribute(
+        "aria-selected", "true"
+    )
 
 
 def test_live_samples_retire_before_navigation_and_coalesce_reset(browser, serve):

@@ -169,15 +169,16 @@ of its life unheld and picks up again when a session takes it.
 ## The hook
 
 The `hook` command, registered on Stop, UserPromptSubmit, SessionEnd, and Codex's
-PostToolUse and Interrupt, keeps a turn from ending while it leaves one of this session's pages unwatched
+PostToolUse and Interrupt, and called at the same points of a run by Leaf's Pi
+extension (`hooks/pi.ts`), keeps a turn from ending while it leaves one of this session's pages unwatched
 (a page whose carrier is a process of its own; Claude Code's watch is its next
 Stop hook)
 or a delivered move unanswered and unclaimed, stamps that turn's ending and the
 next one's opening, surfaces unacknowledged user events at the next prompt, and
 releases the session's page claims when it exits. The Stop hook keeps a turn
 going through the host's continuation channel (`Harness.hook_context`): the
-non-error `additionalContext` Claude Code reads, or a block where, as in
-Codex, the host's Stop output has nothing else. It continues a turn only for what the turn owes: input
+non-error `additionalContext` Claude Code and Pi's extension read, or a block where,
+as in Codex, the host's Stop output has nothing else. It continues a turn only for what the turn owes: input
 arriving as it ends that is owed an answer, which it hands over, or a debt above.
 Input that owes nothing, such as a resolve, a report or a page error, waits for the
 watcher and rides along when the turn goes on anyway. A repeated Stop
@@ -286,6 +287,11 @@ say when it is not, rather than comparing the name itself. The carriers are:
   background command at two hours and a hook only at its own `timeout`, which is
   why the watch is a hook. Plain `--print` runs the hook in the foreground,
   holding the turn, so there it watches nothing.
+- Under Pi, the same watch, which Leaf's extension (`hooks/pi.ts`) starts as the
+  session starts and as each run settles. When the watch exits with input, the
+  extension calls the prompt hook and sends its context, which starts a run or
+  steers the running one. After an interrupted run it starts the watch with the
+  Interrupt payload, which wakes only for input admitted after its first look.
 - A sequence of direct watchers the model itself runs, where the wait prints the
   batch (a Codex task's own loop, a bare shell, a Claude Code session under plain
   `--print`): `leaf wait --ack <delivery-id>` advances the captured cursors and

@@ -54,6 +54,9 @@ class Harness:
       context for its reader to confirm (`hook_delivers`). A turn that ends without its Stop
       hooks, as an interrupt does, leaves nothing watching while the session lives
       on, which is why this is the harness with a `nudge`.
+    - Pi runs Leaf's extension in its own process, which calls the same hooks at
+      the same points of a run and starts the same watch as each run settles, and
+      starts the turn the watch wakes itself.
     - Codex has a detached adapter that outlives the turn and proves itself by
       holding the adapter lease. It queues each delivery with `codex queue`, or
       starts its turn over the task's App Server when Leaf can reach one.
@@ -481,6 +484,64 @@ class CodexHarness(EnvironmentHarness):
         )
 
 
+class PiHarness(EnvironmentHarness):
+    """Pi (<https://pi.dev>): Leaf's extension (`hooks/pi.ts`) runs inside the Pi
+    process and is the carrier, the way Claude Code's hooks are. A highly
+    experimental trial.
+
+    Pi states the session in every shell-tool command as PI_SESSION_ID, and
+    states no process. The extension exports its own, Pi's, as LEAF_PI_PID,
+    since an extension's `process.env` reaches the shell tool's commands
+    (measured at Pi 1.0.2); the process walk would find a `node` whose
+    command line Pi has overwritten with its title.
+
+    The extension calls the prompt hook as a user's prompt starts a run, the
+    Stop hook as a run is about to settle (`agent_before_settle`, whose
+    `continue` keeps it going), and the Interrupt hook when a run settles
+    without going on from there, which is what an Escape does. As the session
+    starts and as each run settles it starts the watch (`leaf hook --watch`),
+    with the Interrupt payload after an interrupted run. When the watch wakes
+    it, it calls the prompt hook itself and sends what that returns: a message
+    an extension sends to an idle Pi starts a run without its prompt events
+    (measured at 1.0.2)."""
+
+    name = "pi"
+    default_agent = "Pi"
+    session_variables = ("PI_SESSION_ID",)
+    identity_variables = (*session_variables, "LEAF_PI_PID")
+    hook_delivers = True
+
+    @classmethod
+    def host_pid(cls) -> int | None:
+        return int(pid) if (pid := os.environ.get("LEAF_PI_PID")) else None
+
+    def lifetime(self) -> dict:
+        if (pid := self.host_pid()) is None:
+            sys.exit(
+                "PI_SESSION_ID names a Pi session but LEAF_PI_PID is unset: Leaf's "
+                "Pi extension (hooks/pi.ts) is not loaded in it"
+            )
+        return {"pid": pid}
+
+    def watches_between_turns(self) -> bool:
+        """The extension starts the watch only in a Pi that can start a run, the
+        TUI or RPC mode. Under `--print` the session ends with its run, which
+        ends its claims, so no page is left that a watch would be owed."""
+        return True
+
+    def host_runs(self) -> bool:
+        return pid_alive(int(os.environ["LEAF_PI_PID"]))
+
+    def input_unpicked(self, page_dir: Path, *, listening: bool) -> str:
+        return "Leaf's Pi extension puts them in your context at your next turn."
+
+    def nothing_listening(self, page_dir: Path, *, listening: bool) -> str:
+        return (
+            "no watcher: Leaf's Pi extension watches this session's pages as each "
+            "run settles, and has not run for this session."
+        )
+
+
 @dataclass(frozen=True)
 class EmbeddedHarness(Harness):
     """A host that drives Codex App Server in its own process and starts the
@@ -519,6 +580,7 @@ class EmbeddedHarness(Harness):
 _ENVIRONMENT_HARNESSES: tuple[type[EnvironmentHarness], ...] = (
     ClaudeCodeHarness,
     CodexHarness,
+    PiHarness,
 )
 HARNESSES: dict[str, type[Harness]] = {
     harness.name: harness for harness in (*_ENVIRONMENT_HARNESSES, EmbeddedHarness)
@@ -550,8 +612,8 @@ def session_harness() -> Harness | None:
     a display choice and nothing may dispatch on it, which is why the harness is
     a separate fact. What outlives the command is `Harness.lifetime`'s to find.
 
-    A command inherits the identity of every host above it: Codex run from a
-    Claude Code shell states both sessions. The host running
+    A command inherits the identity of every host above it: Pi run from a Claude
+    Code shell, or Claude Code from Pi's, states both sessions. The host running
     the command is the nearest one, so where more than one is implied they are
     ranked by how far above this process each one's `host_pid` runs, and the
     order below breaks a tie."""

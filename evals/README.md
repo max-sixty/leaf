@@ -40,10 +40,11 @@ so a comparison reads per metric across columns.
 this machine, each named by branch, commits and cases. It shows each sample's
 output, assertion reasons, metadata, cost and tokens, and compares runs.
 
-Complete tasks keep their evidence (prompts, native traces, page directories,
-screenshots) under `.tmp/eval/<run>/samples/`, one directory per sample named by
-its case, and each sample's `metadata.work` names its directory. `results.json`
-there holds the whole run.
+Complete tasks keep their evidence (prompts, native traces, page directories)
+under `.tmp/eval/<run>/samples/`, one directory per sample named by its case, and
+each sample's `metadata.work` names its directory. A judged sample's screenshots
+are under `screenshots/`, in a directory of the same name. `results.json` there
+holds the whole run.
 
 ## Case format
 
@@ -61,7 +62,8 @@ through resumed phases or live user rounds, and returns a boolean per check; its
 `expected_checks` declares the check names, which become one assertion each, so a
 check that never ran fails rather than disappearing. An executor whose output lists
 screenshots, beside the request they answer, also declares `rubrics`: `agent-rubric`
-assertions a screenshot judge grades by opening them. `metadata.conditions` and
+assertions a screenshot judge grades by opening them. It writes them to the `shots`
+directory it is given, the only place the judge may read. `metadata.conditions` and
 `metadata.hosts` restrict where it runs.
 
 | Executor | Runs |
@@ -82,11 +84,18 @@ Every provider runs in a fresh workspace outside the repository, under a home of
 own holding only a copy of the host's login, so runs spend the signed-in accounts'
 usage and never an API key. `harness.MODELS` pins the models: Opus for Claude
 Code, `gpt-6.1-sol` at medium reasoning for Codex, Sonnet for `llm-rubric`, which
-grades text and opens nothing, and Opus for the screenshot judge, which may open
-PNG files under the run's samples and no other file. Promptfoo counts a judge's
-tokens but not its cost, and doesn't record which screenshots it opened, so read
-its reason. No judge has been calibrated against human judgments, so treat a judged
-pass as weak evidence and read the outputs.
+grades text and opens nothing, and `gpt-6.1-sol` for the screenshot judge. That
+judge runs on the installed `codex` under a permission profile that lets it read
+the run's `screenshots/` and no other file of the repository. Promptfoo counts a
+judge's tokens but not its cost, and doesn't record which screenshots it opened, so
+read its reason. No judge has been calibrated against human judgments, so treat a
+judged pass as weak evidence and read the outputs.
+
+Another judge may grade the same samples differently, so a judged difference is
+partly the judge's. To compare judges, point `screenshot_judge` in
+`dev/leaf_dev/eval.py` at another model or provider (an `anthropic:claude-agent-sdk`
+grader restricted to `Read` on the screenshot tree works), rerun the same cases, and
+compare the runs in the viewer, starting with the `dashboard/reader-*` calibration.
 
 These cases score instruction use and the agent loop. `leaf-dev verify-codex-task`
 covers plugin installation, discovery and hooks, and `leaf-dev verify-site` the

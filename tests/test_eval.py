@@ -151,9 +151,20 @@ def test_catalog_contexts_keep_complete_original_check_coverage():
         select_cases(("no-such-task",))
 
 
-def test_workflows_run_declared_conditions_hosts_and_fixed_checks(tmp_path):
+def test_workflows_run_declared_conditions_hosts_and_fixed_checks(
+    tmp_path, monkeypatch
+):
     from leaf_dev.arrangement_eval import expected_checks, rubrics
 
+    login = tmp_path / "host-login"
+    login.mkdir()
+    (login / "auth.json").write_text('{"fixture": "local-login"}')
+    monkeypatch.setenv("CODEX_HOME", str(login))
+    codex = tmp_path / "prefix" / "bin" / "codex"
+    codex.parent.mkdir(parents=True)
+    codex.write_text("#!/bin/sh\n")
+    codex.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{codex.parent}:/usr/bin:/bin")
     payloads = {arm: tmp_path / arm for arm in ("base", "candidate")}
     config = prepare(
         ["dashboard/reader-seeded", "document"],
@@ -185,10 +196,15 @@ def test_workflows_run_declared_conditions_hosts_and_fixed_checks(tmp_path):
             *expected_checks("document", condition=condition),
             *(rubric["metric"] for rubric in rubrics("document")),
         ]
-        # Only the screenshot judge may open files, and only screenshots.
+        # The screenshot judge may read the run's screenshots and nothing else
+        # outside the runtime and its own install.
         judge = test["assert"][-1]["provider"]["config"]
-        assert judge["custom_allowed_tools"] == [
-            f"Read(/{tmp_path / 'samples'}/**/*.png)"
+        assert "sandbox_mode" not in judge
+        profile = (Path(judge["cli_env"]["CODEX_HOME"]) / "config.toml").read_text()
+        assert [line for line in profile.splitlines() if line.endswith('"read"')] == [
+            '":minimal" = "read"',
+            f'"{tmp_path / "screenshots"}/**" = "read"',
+            f'"{tmp_path / "prefix"}/**" = "read"',
         ]
     assert "tools" not in config["defaultTest"]["options"]["provider"]["config"]
     html = next(
@@ -202,6 +218,7 @@ def test_workflows_run_declared_conditions_hosts_and_fixed_checks(tmp_path):
         str(payloads["candidate"]),
         str(tmp_path / "samples"),
     )
+    assert html["screenshots"] == str(tmp_path / "screenshots")
     with pytest.raises(click.BadParameter, match="no requested host/condition"):
         prepare(
             ["dashboard/reader-seeded"],
@@ -224,12 +241,22 @@ def test_python_provider_gives_each_call_its_own_evidence(tmp_path, monkeypatch)
             observed.append((case, payload, work, host, condition))
             return {"output": "{}"}
 
-    monkeypatch.setattr(scenario_provider, "import_module", lambda executor: Executor)
+    class Judged:
+        rubrics = staticmethod(lambda scenario: [])
+
+        @staticmethod
+        def execute_scenario(case, payload, work, *, shots, host, condition):
+            observed.append(shots)
+            return {"output": "{}"}
+
+    executors = {"leaf_dev.usability_eval": Executor, "leaf_dev.reader_eval": Judged}
+    monkeypatch.setattr(scenario_provider, "import_module", executors.__getitem__)
     monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path / "login"))
     options = {
         "config": {
             "payload": str(tmp_path / "payload"),
             "samples": str(tmp_path / "samples"),
+            "screenshots": str(tmp_path / "screenshots"),
             "claude_config_dir": str(tmp_path / "login"),
             "host": "codex",
             "condition": "html",
@@ -260,6 +287,13 @@ def test_python_provider_gives_each_call_its_own_evidence(tmp_path, monkeypatch)
         )
         assert work.parent == tmp_path / "samples"
         assert work.name.startswith("document-resume-")
+    # A judged executor's screenshots go to the judge's tree, beside nothing else.
+    context["test"]["metadata"]["executor"] = "leaf_dev.reader_eval"
+    response = scenario_provider.call_api("", options, context)
+    assert (
+        observed[-1]
+        == tmp_path / "screenshots" / Path(response["metadata"]["work"]).name
+    )
 
 
 def test_command_passes_promptfoo_options_and_status_without_api_keys(

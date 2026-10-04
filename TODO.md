@@ -249,15 +249,6 @@ Boxes that still move without input, which the "Stability" rule in
 `skills/leaf/assets/AGENTS.md` forbids. `tests/known_widget_findings.py` lists each widget
 that changes size after first paint, with its cause.
 
-- **Keep the feature gallery's Undo reachable after Reject.**
-  `test_the_feature_gallery_keeps_its_real_actions_reachable` is a non-strict xfail in
-  `tests/test_render_margin.py`, and #1669 found it still failing. The diagnosis in
-  [notes/margin-stuck-style.md](notes/margin-stuck-style.md) names two defects: the
-  span around the rejected insertion keeps reporting a computed `anchor-name: none`,
-  so the row carrying Undo stays at its off-screen fallback, and after Undo the suggestion has a 0x0 box. #1687
-  then stopped hiding an emptied suggestion with `display: none`, which may have fixed
-  the 0x0 box; the note predates it. Check first whether the xfail now passes on
-  `main` under load, then follow the note's next step for the stuck span.
 - **Draw the playground at its final size from first paint.** `lf-playground`,
   `lf-playground-control`, `-output`, `-preview` and `-value` are `keeps-first-box`
   findings: the module builds each control's inputs and the words of the instruction it
@@ -301,10 +292,6 @@ height and where a switch lands wait on the workspace decision under Layout.
   measures from focus (`askPosition` in `asks/view.js`), and the row precedes every
   panel; `t` and `T` measure the same way. A tab could stand at the view it opens for
   the walks (`standing-target.js`), while `c` on a row still names the row.
-- **Show answers in the list.** Every row of a one-Ask-per-item queue wears the same
-  warning-toned "1", and a pick clears it to nothing, so the list shows no progress. A
-  row whose Asks are answered could show the picked option's title where the count
-  stood.
 - **Let a queue group its items.** The author sorted the items into merge, close,
   design and FYI, but `lf-tabs` takes only `lf-tab` members, so the page showed 21
   undifferentiated rows. A side list could take group headings between its items,

@@ -13,7 +13,7 @@ The import takes <lf-num source="import-latency"
 ```
 
 The number and its `at` are part of the authored version; the source is only the
-freshness channel. After every run:
+freshness channel. To record a measurement:
 
 1. Run the measurement.
 2. Record it with `leaf data set PAGE import-latency`. The command stamps the
@@ -37,7 +37,7 @@ Use `lf-diagram` for flows, state machines, sequences, class relationships, ER
 schemas, and the other Mermaid families its entry lists. It travels in the `diagram`
 package rather than in every page: initialize a page that wants one with
 `leaf page init --package diagram <page>`, then read the entry for styling and where
-its renderer parts from Mermaid. `page check --render` reports a diagram the
+its renderer differs from Mermaid. `page check --render` reports a diagram the
 renderer refuses or draws empty, not one it draws only in part, so inspect each
 rendered diagram. Without visual access, check the source's labels and relations
 against the claims it supports, and state those claims in prose or a table beside it

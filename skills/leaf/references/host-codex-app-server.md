@@ -38,7 +38,7 @@ answers from its opening message, so it needs no title from you. If the user
 resolves the thread before the turn completes, the reply still posts and reopens
 it. A later plain reply remains pending for the next slice.
 
-Other answers in the slice take the operations their delivered `answering`
+Other answers in the slice take the operations their delivered `handling`
 clauses name.
 
 A `leaf-delivery` pointer queued before Leaf observed the task can still arrive as a

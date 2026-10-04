@@ -597,6 +597,9 @@ def test_a_summary_folds_originals_and_a_direct_reply_link_reveals_them(browser,
     expand = checkpoint.locator(".lf-summary-expand")
     expect(expand).to_have_attribute("aria-expanded", "false")
 
+    page.locator(f'#jobs .lf-page-thread[data-thread="{root}"]').get_by_role(
+        "button", name="Show 3 earlier messages", exact=True
+    ).click()
     page.locator(".lf-page-thread-open").click()
     destination = card.locator(f'.lf-msg[data-mid="{last["id"]}"]')
     expect(destination).to_be_visible()
@@ -643,6 +646,88 @@ def test_previous_updates_can_fold_without_summary_prose(browser, serve, width):
     expect(card.locator(f'.lf-msg[data-mid="{last["id"]}"]')).to_be_visible()
     checkpoint.get_by_role("button", name="Collapse 2 earlier messages").click()
     expect(card.locator(f'.lf-msg[data-mid="{first["id"]}"]')).to_be_hidden()
+
+
+@pytest.mark.parametrize("surface", ["panel", "inline"])
+def test_ephemeral_progress_folds_when_its_held_completion_is_revealed(
+    browser, serve, surface
+):
+    """The answer and its fold arrive together; originals remain a keyboard route."""
+    url = serve(SEATED_QUESTION_PAGE)
+    root = panel_comment(serve.page_dir, "Check the schedule.", {"section": "jobs"})
+    progress = thread_model.cmd_reply(
+        serve.page_dir,
+        root,
+        "Checking the camera.",
+        None,
+        for_event=root,
+        ephemeral=True,
+    )
+
+    def show(page):
+        if surface == "panel":
+            page.locator(".lf-threads-toggle").click()
+            panel_settled(page)
+            card = page.locator(f'.lf-thread[data-id="{root}"]')
+            card.locator(":scope > .lf-thread-summary").click()
+            return card
+        return page.locator(f'#jobs .lf-page-thread[data-thread="{root}"]')
+
+    page = open_page(browser, url)
+    card = show(page)
+    identity = "data-mid" if surface == "panel" else "data-event"
+    original = card.locator(f'.lf-msg[{identity}="{progress["id"]}"]')
+    expect(original).to_be_visible()
+    expect(card.locator(".lf-thread-checkpoint")).to_have_count(0)
+    original.focus()
+    if surface == "panel":
+        expect(original).to_be_focused()
+
+    answer = thread_model.cmd_reply(
+        serve.page_dir,
+        root,
+        "The schedule works.",
+        None,
+        for_event=root,
+    )
+    told(page)
+    notice = card.get_by_role("button", name="1 new reply", exact=True)
+    expect(notice).to_be_visible()
+    expect(card.locator(f'.lf-msg[{identity}="{answer["id"]}"]')).to_have_count(0)
+    expect(card.locator(".lf-thread-checkpoint")).to_have_count(0)
+    expect(original).to_be_visible()
+    assert original.evaluate(
+        "node => { const box = node.getBoundingClientRect(); "
+        "return box.top >= 0 && box.bottom <= innerHeight; }"
+    )
+    if surface == "panel":
+        expect(original).to_be_focused()
+    notice.click()
+    expect(card.locator(f'.lf-msg[{identity}="{answer["id"]}"]')).to_be_visible()
+    checkpoint = card.locator(".lf-thread-checkpoint")
+    expect(checkpoint.locator(".lf-summary-label")).to_have_text("Previous updates")
+    expect(checkpoint.locator(".lf-summary-text")).to_have_count(0)
+    expect(original).to_be_visible()
+
+    # A fresh reading starts folded, independent of the live reader's protected focus.
+    fresh = open_page(browser, url)
+    fresh_card = show(fresh)
+    fresh_original = fresh_card.locator(f'.lf-msg[{identity}="{progress["id"]}"]')
+    expect(fresh_original).to_be_hidden()
+    expand = fresh_card.get_by_role("button", name="Show 1 earlier message", exact=True)
+    expand.focus()
+    fresh.keyboard.press("Shift+Tab")
+    fresh.keyboard.press("Tab")
+    expect(expand).to_be_focused()
+    assert expand.evaluate("node => node.matches(':focus-visible')")
+    fresh.keyboard.press("Enter")
+    expect(fresh_original).to_be_visible()
+    expect(fresh_original).to_contain_text("Checking the camera.")
+    collapse = fresh_card.get_by_role(
+        "button", name="Collapse 1 earlier message", exact=True
+    )
+    collapse.press("Enter")
+    expect(fresh_original).to_be_hidden()
 
 
 def test_a_summary_gathering_the_message_the_user_is_on_keeps_them_on_it(

@@ -486,7 +486,8 @@ class CodexHarness(EnvironmentHarness):
 
 class PiHarness(EnvironmentHarness):
     """Pi (<https://pi.dev>): Leaf's extension (`hooks/pi.ts`) runs inside the Pi
-    process and is the carrier, the way Claude Code's hooks are.
+    process and is the carrier, the way Claude Code's hooks are. A highly
+    experimental trial.
 
     Pi states the session in every shell-tool command as PI_SESSION_ID, and
     states no process. The extension exports its own, Pi's, as LEAF_PI_PID,

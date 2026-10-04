@@ -3,6 +3,9 @@
  * and `scripts/loop-guard.py` do for a Claude Code one (`PiHarness` in
  * `skills/leaf/scripts/leaf/host.py`).
  *
+ * Highly experimental: a trial of Leaf on Pi. The site and most references
+ * still name only Claude Code and Codex.
+ *
  * It calls `bin/leaf hook` with Claude Code's hook payload at the same points
  * of a run and puts what the hook returns in the run's context:
  *

@@ -4,7 +4,7 @@
 
 > **Experimental software; not ready for general use.**
 
-Leaf is generative UI for Claude Code, Codex and Pi. Review a plan, make a decision,
+Leaf is generative UI for Claude Code and Codex. Review a plan, make a decision,
 or follow live work in a page you can comment on and change. The agent responds by
 revising the page.
 
@@ -44,7 +44,7 @@ codex plugin marketplace add max-sixty/leaf
 codex plugin add leaf@leaf
 ```
 
-Pi (experimental):
+Pi (a highly experimental trial, which the rest of these docs don't cover yet):
 
 ```
 pi install git:github.com/max-sixty/leaf

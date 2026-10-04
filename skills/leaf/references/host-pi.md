@@ -1,5 +1,7 @@
 # Pi handoff and wait loop
 
+Leaf on Pi is a highly experimental trial.
+
 ## Launcher
 
 Leaf's Pi extension sets `$LEAF` to the launcher and puts it on `PATH`, so `leaf`

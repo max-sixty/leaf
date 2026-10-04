@@ -5814,6 +5814,10 @@ def test_a_scroll_box_in_a_panel_reply_takes_the_keyboard(browser, serve):
             "markup": PANEL_DIFF_MARKUP,
         },
     )
+    told(page)
+    page.locator('.lf-thread[data-id="c-diff"]').get_by_role(
+        "button", name="1 new reply", exact=True
+    ).click()
     page.wait_for_function(
         """() => {
         const d = document.querySelector('#rp-diff');

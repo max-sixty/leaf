@@ -2403,11 +2403,22 @@ def test_explicit_navigation_reveals_held_panel_news(browser, serve, destination
     )
 
 
-def test_walking_to_a_thread_shows_the_replies_it_held(browser, serve):
-    """A reply held while its thread stood open in front of the user shows once the
+@pytest.mark.parametrize(
+    ("reply_count", "new_input"),
+    [(1, None), (3, None), (3, "Tab"), (3, "wheel"), (3, "widget")],
+)
+def test_walking_to_a_thread_shows_the_replies_it_held(
+    browser, serve, reply_count, new_input
+):
+    """Replies held while their thread stood open in front of the user show once the
     user walks away and back to that thread with t/T. The walk away closes the card and
     the walk back opens it, and an opening moves every card after it anyway, so the
-    card opens with what it held, landed where the reply shows."""
+    card opens with what it held, landed where the newest reply shows. One reply fits
+    with the root; several require measuring the released transcript to land its end.
+    Disclosure itself draws that body before a delayed public proof, so a newer Tab
+    reaches its current controls and supersedes the older title's pending landing.
+    A released reply's widget reads its frozen baseline and takes a new choice while
+    that global proof is held; the later publication keeps the choice it sent."""
     url = serve(PANEL_PAGE)
     for n in range(12):
         panel_comment(serve.page_dir, f"An earlier thread {n}. " * 8)
@@ -2415,7 +2426,9 @@ def test_walking_to_a_thread_shows_the_replies_it_held(browser, serve):
     root = panel_comment(serve.page_dir, "Keep the discussion here.")
     for n in range(12):
         panel_comment(serve.page_dir, f"A later thread {n}. " * 8)
-    context = browser.new_context(reduced_motion="reduce")
+    context = browser.new_context(
+        viewport={"width": 800, "height": 900}, reduced_motion="reduce"
+    )
     page = open_page(browser, url, context=context)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
@@ -2423,20 +2436,33 @@ def test_walking_to_a_thread_shows_the_replies_it_held(browser, serve):
     if thread.get_attribute("open") is None:
         thread.locator(".lf-thread-summary").click()
     thread.locator(".lf-thread-summary").focus()
-    reply = append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "reply",
-            "author": "agent",
-            "agent": "Codex",
-            "revision": 1,
-            "parent": root,
-            "text": "This answer arrived while the thread stood open. " * 6,
-        },
-    )
+    for turn in range(reply_count):
+        reply = append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "agent": "Codex",
+                "revision": 1,
+                "parent": root,
+                "text": f"Turn {turn}. This answer arrived while the thread stood open. "
+                * 6,
+                **(
+                    {
+                        "markup": '<lf-options id="held-choice" choose>'
+                        '<lf-option id="held-first" chosen>The first answer</lf-option>'
+                        '<lf-option id="held-second">The second answer</lf-option>'
+                        "</lf-options>"
+                    }
+                    if new_input == "widget" and turn == reply_count - 1
+                    else {}
+                ),
+            },
+        )
     told(page)
     message = thread.locator(f'.lf-msg[data-mid="{reply["id"]}"]')
-    expect(thread.get_by_role("button", name="1 new reply", exact=True)).to_be_visible()
+    notice = "1 new reply" if reply_count == 1 else f"{reply_count} new replies"
+    expect(thread.get_by_role("button", name=notice, exact=True)).to_be_visible()
     expect(message).to_have_count(0)
 
     order = page.locator(".lf-threads > .lf-thread").evaluate_all(
@@ -2450,21 +2476,67 @@ def test_walking_to_a_thread_shows_the_replies_it_held(browser, serve):
         page.locator(f'.lf-threads > .lf-thread[data-id="{other}"] .lf-thread-summary')
     ).to_be_focused()
     expect(thread).not_to_have_attribute("open", "")
+    if new_input:
+        rendered(page)
+        hold_visible_thread_presentation(page, root)
     page.keyboard.press(back)
     expect(thread.locator(".lf-thread-summary")).to_be_focused()
     expect(message).to_be_visible()
     expect(thread.locator(".lf-thread-news")).to_have_count(0)
-    # The arrival lands the thread with the reply it shows.
+    if new_input:
+        page.wait_for_function("window.visibleThreadPresentationHeld === true")
+        resolve = thread.get_by_role("button", name="Resolve thread", exact=True)
+        if new_input == "Tab":
+            page.keyboard.press("Tab")
+            expect(resolve).to_be_focused()
+        elif new_input == "widget":
+            choice = message.locator("#held-choice")
+            first = choice.locator("#held-first").get_by_role("checkbox")
+            second = choice.locator("#held-second").get_by_role("checkbox")
+            expect(first).to_have_attribute("aria-checked", "true")
+            expect(second).to_have_attribute("aria-checked", "false")
+            with page.expect_request("**/api/event") as sent:
+                second.click()
+            assert sent.value.post_data_json["detail"]["options"] == ["held-second"]
+            expect(first).to_have_attribute("aria-checked", "false")
+            expect(second).to_have_attribute("aria-checked", "true")
+        else:
+            page.locator(".lf-threads").hover()
+            page.mouse.wheel(0, 180)
+            scroll_settled(page, ".lf-threads")
+        control = thread.locator("leaf-text")
+        before = control.evaluate("node => node.getBoundingClientRect().top")
+        scroll = page.locator(".lf-threads").evaluate("node => node.scrollTop")
+        page.evaluate("releaseVisibleThreadPresentation()")
+        rendered(page)
+        one_frame(page)
+        assert control.evaluate("node => node.getBoundingClientRect().top") == (
+            pytest.approx(before, abs=1)
+        )
+        assert page.locator(".lf-threads").evaluate("node => node.scrollTop") == (
+            pytest.approx(scroll, abs=1)
+        )
+        if new_input == "Tab":
+            expect(resolve).to_be_focused()
+            page.keyboard.press("Shift+Tab")
+            expect(thread.locator(".lf-thread-summary")).to_be_focused()
+            page.keyboard.press("Tab")
+            expect(resolve).to_be_focused()
+        elif new_input == "widget":
+            round_trip(page)
+            expect(first).to_have_attribute("aria-checked", "false")
+            expect(second).to_have_attribute("aria-checked", "true")
+            assert any(
+                event["kind"] == "action"
+                and event.get("widget") == "held-choice"
+                and event["detail"]["options"] == ["held-second"]
+                for event in events_model.read_events(serve.page_dir)
+            )
+        return
+    # The latest reply clears the sticky heading and reply row, not just the list box.
     one_frame(page)
-    assert page.evaluate(
-        """id => {
-          const list = document.querySelector('.lf-threads').getBoundingClientRect();
-          const reply = document.querySelector(`.lf-msg[data-mid="${id}"]`)
-            .getBoundingClientRect();
-          return reply.top >= list.top && reply.bottom <= list.bottom;
-        }""",
-        reply["id"],
-    )
+    landing = message.evaluate(IN_LANDING_BAND)
+    assert landing["inside"], landing
 
 
 def test_opening_message_reactions_does_not_reflow_the_thread_list(browser, serve):

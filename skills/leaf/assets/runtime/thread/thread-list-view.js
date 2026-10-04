@@ -24,6 +24,7 @@
    it stands, drawn resolved, until its going would move nothing the user sees. */
 import { html, repeat } from "../../vendor/browser-runtime.js";
 import { focused } from "../keyboard/scopes.js";
+import { holdFocus } from "../focus.js";
 import { RetainedFace } from "../retained-face.js";
 import { ThreadView } from "./thread-card.js";
 import { draftHasContent } from "../drafts.js";
@@ -60,7 +61,7 @@ const EMPTY_MODEL = Object.freeze({
 class ThreadListView extends RetainedFace {
   #commands = null;
   #views = new Map();
-  #focusListAfterPaint = false;
+  #restoreFocusAfterPaint = null;
   #generation = 0;
   #rows = [];
   #retaining = false;
@@ -98,8 +99,13 @@ class ThreadListView extends RetainedFace {
   #showExpanded() {
     const chosen = this.#expandedRow();
     if (!chosen) return;
-    for (const row of this.#visibleRows())
+    for (const row of this.#visibleRows()) {
+      // Choosing a closed card reveals its current conversation. Publish the held
+      // news in the same operation that opens it; an attribute observer runs after
+      // this gesture and cannot carry its deferred presentation's ownership.
+      if (row === chosen && !row.node.open) this.#views.get(row.key).showNews();
       row.node.toggleAttribute("open", row === chosen);
+    }
   }
 
   // An open title is still the user's focus stop for the thread. A second press leaves
@@ -286,7 +292,7 @@ class ThreadListView extends RetainedFace {
 
   willUpdate(changed) {
     if (!changed.has("model") || !this.#commands) return;
-    this.#focusListAfterPaint ||= this.contains(focused());
+    this.#restoreFocusAfterPaint ??= holdFocus(this);
     this.#intent = this.model.intent;
     const rows = [];
     const wanted = new Set();
@@ -377,11 +383,9 @@ class ThreadListView extends RetainedFace {
 
   updated() {
     this.#showExpanded();
-    const active = focused();
-    const recover = this.#focusListAfterPaint;
-    this.#focusListAfterPaint = false;
-    if ((recover && !this.contains(active)) || active?.closest?.(".lf-thread[hidden]"))
-      this.focus({ preventScroll: true });
+    const restore = this.#restoreFocusAfterPaint;
+    this.#restoreFocusAfterPaint = null;
+    restore?.(this);
     this.#commands?.presentSummary(this.model);
   }
 

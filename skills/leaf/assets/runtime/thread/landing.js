@@ -35,7 +35,7 @@
    whose thread stands for the element it is about (`landSent`). */
 import { landingBand, seenRect, shownBox } from "../geometry.js";
 import { documentFocused, focused } from "../keyboard/scopes.js";
-import { focusDestination, takesLetters } from "../focus.js";
+import { focusDestination, restoringFocus, takesLetters } from "../focus.js";
 import { scrollBehavior } from "../motion.js";
 import { bringBackSurfaceOf } from "../off-flow.js";
 import { closestAcross } from "../passages.js";
@@ -301,27 +301,35 @@ let keepingPlace = false;
 const land = (thread, behavior, threadsBox, arriving = false) => {
   if (!thread || !threadsBox.contains(thread)) return;
   if (takesLetters(focused())) return;
+  const place = () => {
+    if (takesLetters(focused())) return;
+    if (arriving && !fitsWhole(thread)) landLatest(thread, threadsBox, behavior);
+    else scrollThreadIntoView(thread, focused(), behavior);
+  };
+  // A title arrival opens disclosure and draws its held news in that operation.
+  // Wait for the resulting presentation proof before measuring its latest turn.
+  // Capture the landing now: later geometry reads own no new user intent, and a newer
+  // gesture can supersede this arrival while presentation waits.
   // A fold still holds the room it is giving back, so a landing measured now aims past
   // where the thread will stand, and the fold's place hold then writes over a smooth one:
   // resolving a long thread left the next one's title above the list. Land once the fold
   // has ended and its removal painted, if the user is still standing there and has
   // made no newer gesture.
-  if (hasFolding(threadsBox)) {
+  if (arriving || hasFolding(threadsBox)) {
     const mayLand = retainUserIntent({
       source: thread,
       available: () => thread.isConnected,
     });
+    const finish = bindQueuedWork(() => {
+      if (mayLand() && standing() === thread) place();
+    });
     void whenFolded(threadsBox)
       .then(whenDocumentPresented)
       .catch(() => {})
-      .then(() => {
-        if (mayLand() && standing() === thread)
-          land(thread, behavior, threadsBox, arriving);
-      });
+      .then(finish);
     return;
   }
-  if (arriving && !fitsWhole(thread)) landLatest(thread, threadsBox, behavior);
-  else scrollThreadIntoView(thread, focused(), behavior);
+  place();
 };
 // A key arriving on a thread's title is an arrival at the thread, so one too tall to
 // show whole lands on its latest message, as a direct arrival does.
@@ -357,7 +365,7 @@ export function wireThreadLanding(threadsBox) {
       };
   });
   threadsBox.addEventListener("focusin", () => {
-    if (pressedPointer !== null || keepingPlace) return;
+    if (pressedPointer !== null || keepingPlace || restoringFocus()) return;
     const thread = standing();
     // Native focus and reply entry reveal their own writing area. Re-landing the
     // thread here would turn that focus move into a second navigation gesture.

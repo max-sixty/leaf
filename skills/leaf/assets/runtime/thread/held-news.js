@@ -315,12 +315,18 @@ export class HeldNews {
   // notice also says them. Returns the thread a keyboard on the notice lands on.
   #open(key, threads) {
     const first = threads && [...this.#threads][0];
+    let changed = false;
     if (key) {
-      this.#turns.delete(key);
-      this.#reopened.delete(key);
+      changed = this.#turns.delete(key);
+      changed = this.#reopened.delete(key) || changed;
     }
-    if (threads) this.#threads.clear();
-    this.#changed();
+    if (threads && this.#threads.size) {
+      this.#threads.clear();
+      changed = true;
+    }
+    // Native disclosure can report the same opening after its owner released the
+    // news. A no-op observation must not replace that operation's pending paint.
+    if (changed) this.#changed();
     return this.#view(key ?? first)?.node ?? null;
   }
 

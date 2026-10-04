@@ -1,9 +1,11 @@
 """The browser fixture fails the loss the "Words stay where they were typed" rule
 forbids (`words_watch.js`): typed words leaving the screen without a key or press."""
 
+from html import escape
 from urllib.parse import quote
 
 import pytest
+from playwright.sync_api import expect
 from render_harness import consume_browser_errors, judge_watches
 
 # A box holding a field, on a page long enough to scroll. What the page does to the box
@@ -129,6 +131,120 @@ def test_words_a_press_elsewhere_puts_away_are_put_away(browser):
     judge_watches()
 
 
+@pytest.mark.parametrize("route", ["press", "keyboard"])
+@pytest.mark.parametrize("shadow", [False, True])
+def test_words_a_native_disclosure_puts_away_its_fields(browser, route, shadow):
+    field = (
+        '<div id="host"></div><script>'
+        'host.attachShadow({mode:"open"}).innerHTML="<textarea id=field></textarea>";'
+        "</script>"
+        if shadow
+        else '<textarea id="field"></textarea>'
+    )
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            f"<details open><summary><strong>Fold</strong></summary>{field}</details>"
+        )
+    )
+    page.locator("#field").fill("Keep my words")
+    summary = page.locator("summary")
+    if route == "press":
+        summary.click()
+    else:
+        summary.focus()
+        page.keyboard.press("Enter")
+    assert not page.locator("details").evaluate("details => details.open")
+    judge_watches()
+
+
+@pytest.mark.parametrize("during_press", [False, True])
+def test_words_a_prevented_disclosure_press_cannot_own_a_passive_close(
+    browser, during_press
+):
+    close_during_press = (
+        "await Promise.resolve(); closeDetails();" if during_press else ""
+    )
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(f"""<details open><summary>Fold</summary><textarea id=field></textarea></details>
+        <script>
+          document.querySelector('summary').onclick = async event => {{
+            event.preventDefault(); {close_during_press}
+          }};
+          window.closeDetails = () => {{ document.querySelector('details').open = false; }};
+        </script>""")
+    )
+    page.locator("#field").fill("Keep my words")
+    page.locator("summary").click()
+    if not during_press:
+        assert page.locator("details").evaluate("details => details.open")
+        page.evaluate("closeDetails()")
+    judge_watches()
+    consume_browser_errors(page, "typed words left the screen without a key or press")
+
+
+def test_words_a_native_disclosure_cannot_own_passive_loss_outside_it(browser):
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote("""<textarea id=field></textarea><details open><summary>Fold</summary>Earlier</details>
+        <script>
+          document.querySelector('summary').onclick = async () => {
+            await Promise.resolve();
+            field.value = '';
+          };
+        </script>""")
+    )
+    page.locator("#field").fill("Keep my words")
+    page.locator("summary").click()
+    assert not page.locator("details").evaluate("details => details.open")
+    judge_watches()
+    consume_browser_errors(page, "typed words left the screen without a key or press")
+
+
+def test_words_a_control_in_a_summary_cannot_own_a_passive_disclosure_close(browser):
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote("""<details open><summary>Fold <button id=other>Other</button></summary>
+        <textarea id=field></textarea></details>
+        <script>
+          other.onclick = async () => {
+            await Promise.resolve();
+            document.querySelector('details').open = false;
+          };
+        </script>""")
+    )
+    page.locator("#field").fill("Keep my words")
+    page.locator("#other").click()
+    assert not page.locator("details").evaluate("details => details.open")
+    judge_watches()
+    consume_browser_errors(page, "typed words left the screen without a key or press")
+
+
+def test_words_a_later_listener_can_cancel_native_disclosure_activation(browser):
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote("""<details open><summary>Fold</summary><textarea id=field></textarea></details>
+        <script>
+          const summary = document.querySelector('summary');
+          summary.addEventListener('click', async () => {
+            await Promise.resolve();
+            document.querySelector('details').open = false;
+          });
+          summary.addEventListener('click', event => event.preventDefault());
+        </script>""")
+    )
+    page.locator("#field").fill("Keep my words")
+    page.locator("summary").click()
+    judge_watches()
+    consume_browser_errors(page, "typed words left the screen without a key or press")
+
+
 def test_words_a_press_in_the_page_holding_their_frame_puts_away_are_put_away(browser):
     page = browser.new_page()
     page.goto(
@@ -143,6 +259,128 @@ def test_words_a_press_in_the_page_holding_their_frame_puts_away_are_put_away(br
     page.frame_locator("iframe").locator("#field").fill("Half a thought")
     page.locator("#clear").click()
     judge_watches()
+
+
+@pytest.mark.parametrize("continuation", ["captured", "native-await", "passive"])
+def test_words_child_work_reads_its_executing_parent_owner(browser, continuation):
+    child = """<textarea id=field></textarea><script>
+      const passive = lfInputWork.capture(() => { field.value = ''; });
+      window.clearLater = () => setTimeout(() => { field.value = ''; }, 0);
+      window.clearPassive = () => Promise.resolve().then(passive);
+    </script>"""
+    method = "clearPassive" if continuation == "passive" else "clearLater"
+    call = f"frames[0].{method}()"
+    action = (
+        f"async () => {{ await Promise.resolve(); {call}; }}"
+        if continuation == "native-await"
+        else f"() => Promise.resolve().then(() => {call})"
+    )
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            f"<iframe srcdoc='{escape(child)}'></iframe><button id=clear>Clear</button>"
+            f"<script>clear.onclick = {action};</script>"
+        )
+    )
+    field = page.frame_locator("iframe").locator("#field")
+    field.fill("Keep my words")
+    page.locator("#clear").click()
+    expect(field).to_have_value("")
+    judge_watches()
+    if continuation != "captured":
+        consume_browser_errors(
+            page, "typed words left the screen without a key or press"
+        )
+
+
+@pytest.mark.parametrize("passive_middle", [False, True])
+def test_words_a_middle_frame_can_seal_its_parent_callback(browser, passive_middle):
+    child = """<textarea id=field></textarea><script>
+      window.clearLater = () => setTimeout(() => { field.value = ''; }, 0);
+    </script>"""
+    clear = "() => frames[0].clearLater()"
+    if passive_middle:
+        clear = f"lfInputWork.capture({clear})"
+    middle = (
+        f"<iframe srcdoc='{escape(child)}'></iframe>"
+        f"<script>window.clearChild = {clear};</script>"
+    )
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            f"<iframe srcdoc='{escape(middle)}'></iframe><button id=clear>Clear</button>"
+            "<script>clear.onclick = () => Promise.resolve().then(() => frames[0].clearChild());</script>"
+        )
+    )
+    field = page.frame_locator("iframe").frame_locator("iframe").locator("#field")
+    field.fill("Keep my words")
+    page.locator("#clear").click()
+    expect(field).to_have_value("")
+    judge_watches()
+    if passive_middle:
+        consume_browser_errors(
+            page, "typed words left the screen without a key or press"
+        )
+
+
+@pytest.mark.parametrize(
+    "scene",
+    [
+        "owned",
+        "passive-host",
+        "passive-native",
+        "passive-before-press",
+        "newer-edit",
+        "different-paint",
+        "select-filter",
+    ],
+)
+def test_words_a_component_value_edge_needs_its_own_matching_paint(browser, scene):
+    native_field = "selected" if scene == "select-filter" else "field"
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(f"""<div id=control></div><button id=clear>Clear</button><button id=other>Other</button>
+        <script>
+          const shadow = control.attachShadow({{mode:'open'}});
+          shadow.innerHTML = '<input id=field><input id=selected type=hidden>';
+          const field = shadow.querySelector('#field');
+          control.input = shadow.querySelector('#{native_field}');
+          let value = '';
+          Object.defineProperty(control, 'value', {{ get: () => value, set: next => {{ value = next; }} }});
+          field.addEventListener('input', () => {{ value = field.value; }});
+          clear.onclick = () => {{ control.value = ''; }};
+          window.paint = () => {{ field.value = control.value; }};
+        </script>""")
+    )
+    field = page.locator("#field")
+    field.fill("Keep my words")
+    if scene in {"owned", "newer-edit", "different-paint", "select-filter"}:
+        page.locator("#clear").click()
+        expect(field).to_have_value("Keep my words")
+        assert page.locator("#control").evaluate("host => host.value") == ""
+        judge_watches()
+        assert page.lf_errors == []
+    if scene == "newer-edit":
+        field.fill("My newer words")
+    if scene in {"passive-host", "passive-before-press", "newer-edit"}:
+        page.evaluate("control.value = ''")
+        judge_watches()
+    if scene == "passive-before-press":
+        page.locator("#other").click()
+    if scene == "passive-native":
+        field.evaluate("field => { field.value = ''; }")
+    elif scene == "different-paint":
+        field.evaluate("field => { field.value = 'Different words'; }")
+    else:
+        page.evaluate("paint()")
+    judge_watches()
+    if scene != "owned":
+        consume_browser_errors(
+            page, "typed words left the screen without a key or press"
+        )
 
 
 @pytest.mark.parametrize("delay", [300, 3000])

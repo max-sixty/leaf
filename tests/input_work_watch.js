@@ -12,6 +12,7 @@
   "use strict";
   const { later: task, microtask } = window.lfWatchPlatform;
   const finishing = new Set();
+  const nativeDefaults = new Map();
   const finished = new Set();
   const subscribers = new Set();
   const sources = new WeakMap();
@@ -20,8 +21,34 @@
   const parents = [];
   let callbackSource = null;
   let callbackDepth = 0;
-  const current = () => (callbackDepth ? callbackSource : null);
+  const localSource = (source) => {
+    let local = sources.get(source.event);
+    if (!local) {
+      local = { event: source.event, node: source.node, order: ++order };
+      sources.set(source.event, local);
+    }
+    return source.nativeDefault
+      ? { ...local, nativeDefault: source.nativeDefault }
+      : local;
+  };
+  const current = () => {
+    if (callbackDepth) return callbackSource;
+    // A parent's captured callback can synchronously call into its child. Work
+    // that child schedules belongs to that same executing callback, not the last
+    // input either document happened to receive.
+    const source = parents[0]?.current();
+    return source ? localSource(source) : null;
+  };
   const checkpoint = (source, completedEdit = false) => {
+    // The first reader after activation owns the native default, even when a
+    // toggle listener runs before the dispatch-completion task.
+    for (const [activation, owner] of nativeDefaults) {
+      if (!activation.event.defaultPrevented && !owner.open) {
+        nativeDefaults.delete(activation);
+        for (const subscriber of subscribers)
+          subscriber({ ...activation, nativeDefault: owner }, true);
+      }
+    }
     for (const subscriber of subscribers) subscriber(source, completedEdit);
   };
   const wrap = (callback, source) =>
@@ -57,6 +84,11 @@
     "beforeinput",
     "input",
   ];
+  // Native summary activation belongs to the nearest interactive content, not an
+  // enclosing summary around a button or link (HTML's interactive-content category).
+  const nativeActivation =
+    "summary,a[href],audio[controls],button,details,embed,iframe," +
+    'img[usemap],img[controls],input:not([type="hidden" i]),label,select,textarea,video[controls]';
 
   const handlerOriginals = new WeakMap();
   const handlerWrappers = new WeakMap();
@@ -100,10 +132,23 @@
 
   const endDispatch = (source) => {
     finishing.add(source);
+    // A summary's native activation runs after the click listeners and their
+    // microtasks. Retain that one browser-owned close until dispatch completion,
+    // without assigning unrelated native-await work to the press.
+    const summary =
+      source.event.type === "click" ? source.node?.closest?.(nativeActivation) : null;
+    const details = summary?.parentElement;
+    const closesDetails =
+      details?.localName === "details" &&
+      summary.localName === "summary" &&
+      details.querySelector(":scope > summary") === summary &&
+      details.open;
+    if (closesDetails) nativeDefaults.set(source, details);
     task(() => {
       // The dispatch is over. A native await continuation since dispatch is not owned by
       // this event unless its committing callback was explicitly captured.
       checkpoint(null, true);
+      nativeDefaults.delete(source);
       finishing.delete(source);
       if (!finishing.size) {
         for (const resolve of finished) resolve();
@@ -121,12 +166,7 @@
       parents.push(view.lfInputWork);
       view.lfInputWork.subscribe((source, completedEdit) => {
         if (!source) return checkpoint(source, completedEdit);
-        let local = sources.get(source.event);
-        if (!local) {
-          local = { ...source, order: ++order };
-          sources.set(source.event, local);
-        }
-        checkpoint(local, completedEdit);
+        checkpoint(localSource(source), completedEdit);
       });
       if (view === view.parent) break;
       continue;

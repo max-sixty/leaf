@@ -238,12 +238,6 @@ def pytest_addoption(parser):
         metavar="REF",
         help="Also run the nightly-marked tests whose own lines changed since REF",
     )
-    parser.addoption(
-        "--no-browser",
-        action="store_true",
-        default=False,
-        help="Leave out every test that drives a Playwright engine",
-    )
 
 
 @pytest.hookimpl(wrapper=True)
@@ -263,14 +257,7 @@ def pytest_collection_modifyitems(config, items):
     A change that moves a browser behaviour usually edits the test that holds it, so both
     landing gates add the nightly tests whose own lines the change touches
     (`--nightly-changed-since`): those run before it lands, and CI's `test` job runs
-    the rest on main after.
-
-    `--no-browser` leaves out, from any selection, each test that drives a Playwright
-    engine: what a handover runs (tests/AGENTS.md, "Run the narrowest useful surface").
-    A test that reaches the browser only through a `page check` subprocess stays, since
-    nothing at collection says it will."""
-    if config.getoption("--no-browser"):
-        _deselect(config, items, lambda item: "_playwright" in item.fixturenames)
+    the rest on main after."""
     selected = (
         config.getoption("keyword")
         or config.getoption("markexpr")
@@ -282,20 +269,12 @@ def pytest_collection_modifyitems(config, items):
     changed = {}
     if since := config.getoption("--nightly-changed-since"):
         changed = _changed_test_lines(config.rootpath, since)
-    _deselect(
-        config,
-        items,
-        lambda item: "nightly" in item.keywords and not _touches(item, changed),
-    )
-
-
-def _deselect(config, items, drop):
-    """Remove the items `drop` names, reporting them as deselected."""
-    kept, dropped = [], []
+    kept, nightly = [], []
     for item in items:
-        (dropped if drop(item) else kept).append(item)
+        skipped = "nightly" in item.keywords and not _touches(item, changed)
+        (nightly if skipped else kept).append(item)
     items[:] = kept
-    config.hook.pytest_deselected(items=dropped)
+    config.hook.pytest_deselected(items=nightly)
 
 
 def _changed_test_lines(root, since):
@@ -576,7 +555,7 @@ def headless_shell():
 
     Playwright reports where its full Chromium build would be whether or not that
     build is installed, and the documented setup installs the shell alone
-    (tests/AGENTS.md, "Run the narrowest useful surface"). Both sit under one
+    (tests/AGENTS.md, "Run what the change needs"). Both sit under one
     registry root at one build number, so the shell's path follows from Chromium's;
     where a developer installed the full build instead, that is the browser to hand
     over and the same tests hold on it. The `chromium-<build>` directory is found by

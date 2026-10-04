@@ -298,11 +298,10 @@ Before finishing a feature:
   format and phrasing to the agent. Score the change with `evals/` before and
   after (`/developing-leaf`, "Score an instruction change").
 
-Before handing over, run `uv run pytest tests --no-browser`, the browser tests
-that hold what the change touches, and `npm run test:runtime`; the broad selection,
-`uv run pytest tests`, runs at landing (`tests/AGENTS.md`). Two TypeScript trees,
-`worker/src/` and `build/browser/`, and
-the JavaScript lock every committed bundle is built from have gates the suite and
+Before handing over, run the tests that hold what the change touches; the broad
+selection, `uv run pytest tests`, and `npm run test:runtime` run at landing
+(`tests/AGENTS.md`, "Run what the change needs"). Two TypeScript trees,
+`worker/src/` and `build/browser/`, and the JavaScript lock every committed bundle is built from have gates the suite and
 pre-commit do not reach. Both landing paths run all of them: a pull request in its
 `test` job, and `wt merge` in the pre-merge blocks of `.config/wt.toml`, which name
 each command. `wt hook pre-merge` runs that local gate without landing, on a committed

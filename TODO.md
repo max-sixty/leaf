@@ -344,6 +344,18 @@ height and where a switch lands wait on the workspace decision under Layout.
   explains who owes the next move. Keep explicit agent status available when the
   Ask alone does not explain the wait.
 
+### Development velocity
+
+- **Check what handing over on chosen tests costs.** Since 2026-10-04 a handover runs
+  the tests the agent picks for its change, and the broad selection runs only at
+  landing (`tests/AGENTS.md`, "Run what the change needs"). Before that, 25 of the
+  200 pull-request `ci` runs that finished between 2026-10-02 22:00 and 2026-10-04
+  ~19:00 UTC failed on tests. Compare the pull requests' test-failure rate since the
+  change with that baseline, and weigh it against the local test time saved: the
+  broad selection is about 3,700 s of test time on a CI runner. If the rate rose,
+  look at which escapes a cheap fixed set of tests would have caught, and choose
+  that set by measured catches per second rather than by kind.
+
 ## Etc
 
 Revisit these when their stated trigger becomes real; they are not an active queue.

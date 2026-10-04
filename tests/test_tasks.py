@@ -1,18 +1,21 @@
-"""Tasks hold work the agent owes until it ends them, and the two queues say what is
-on the user and what is on the agent."""
+"""Tasks hold work the agent owes until it ends them, a start takes a move or task in
+hand, and the two queues say what is on the user and what is on the agent."""
 
 import json
 
 import pytest
 from click.testing import CliRunner
 from interact_support import (
+    PAGE,
     append_carried_log_record,
     append_command,
     publish,
+    stamp,
     state_json,
 )
 from leaf import cli as cli_model
 from leaf import event_log as events_model
+from leaf import tasks as tasks_model
 from leaf.served_state.page import full_state
 
 
@@ -68,7 +71,11 @@ def test_a_task_holds_its_thread_on_the_agent_past_reply_and_resolve(page_dir):
         "kind": "waiting",
         "reason": "task",
         "workflow": None,
-        "task": {"id": task["id"], "title": "Rebuild the banner quieter"},
+        "task": {
+            "id": task["id"],
+            "title": "Rebuild the banner quieter",
+            "running": None,
+        },
     }
     assert [item["id"] for item in state["tasks"]] == [task["id"]]
 
@@ -108,7 +115,7 @@ def test_the_door_refuses_a_task_off_the_page_and_an_outcome_twice(page_dir):
     )
     missing = leaf("task", "open", page_dir, "no-such-thing", "Anything")
     assert missing.exit_code != 0
-    assert "names no thread" in missing.output
+    assert "names no thread or widget" in missing.output
     unknown = leaf("task", "end", page_dir, "no-such-task", "done")
     assert unknown.exit_code != 0
     assert "unknown task" in unknown.output
@@ -188,18 +195,7 @@ def test_on_you_lists_open_asks_and_questions_left_in_prose(page_dir):
     )
     state = state_json(page_dir)
     assert kinds(state["queues"]["on_you"]) == asks
-    assert [item["kind"] for item in state["queues"]["on_agent"]] == ["answer"]
-
-    # Answered, then claimed again: work the agent says is under way, with nothing
-    # owed, stays on its side until the claim's next reply.
-    written(
-        leaf("thread", "reply", page_dir, "--for", warm["id"], "--text", "Warm it is.")
-    )
-    claimed = leaf("status", page_dir, "working", "Recolouring", "--on", comment["id"])
-    assert claimed.exit_code == 0, claimed.output
-    state = state_json(page_dir)
-    assert [item["kind"] for item in state["queues"]["on_agent"]] == ["work"]
-    assert state["queues"]["on_agent"][0]["detail"] == "Recolouring"
+    assert [item["id"] for item in state["queues"]["on_agent"]] == [warm["id"]]
 
 
 def test_a_thread_is_on_you_once_however_many_moves_it_holds_for_you(page_dir):
@@ -242,3 +238,136 @@ def test_a_thread_is_on_you_once_however_many_moves_it_holds_for_you(page_dir):
     assert [item["next_actor"] for item in state["workflows"]] == ["user"]
     assert kinds(state["queues"]["on_you"]) == asks + [("question", comment["id"])]
     assert state["queues"]["on_agent"] == []
+
+
+def test_working_names_a_move_until_its_answer_and_a_task_until_its_end(page_dir):
+    """`task start` takes an item on the agent's queue in hand with the banner's line:
+    the user's move, by its event id, reads Working until the reply that answers it,
+    and a task runs until it ends. An id that is neither is refused at the door."""
+    publish(page_dir)
+    comment = append_carried_log_record(
+        page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "Tighten it."},
+    )
+    refused = leaf("task", "start", page_dir, "no-such-move", "Reading it")
+    assert refused.exit_code != 0
+    assert "neither an open task nor a move you owe" in refused.output
+
+    start = written(
+        leaf("task", "start", page_dir, comment["id"], "Tightening the plan section")
+    )
+    assert (start["kind"], start["item"]) == ("start", comment["id"])
+    state = state_json(page_dir)
+    [workflow] = state["workflows"]
+    assert (workflow["stage"], workflow["detail"]) == (
+        "working",
+        "Tightening the plan section",
+    )
+    assert state["activity"]["kind"] == "working"
+    assert state["activity"]["detail"] == "Tightening the plan section"
+
+    # The reply that answers the move ends its start: nothing is in hand.
+    written(
+        leaf("thread", "reply", page_dir, "--for", comment["id"], "--text", "Done.")
+    )
+    state = state_json(page_dir)
+    assert state["workflows"] == []
+    assert state["activity"]["kind"] != "working"
+    again = leaf("task", "start", page_dir, comment["id"], "More")
+    assert again.exit_code != 0
+
+    # A task the agent opens on the page, for work no move asked for, runs under its
+    # start's line until the task ends; the banner shows that line.
+    task = written(leaf("task", "open", page_dir, "page", "Add a glossary"))
+    assert task["subject"] == {"kind": "page"}
+    written(leaf("task", "start", page_dir, task["id"], "Drafting the glossary"))
+    state = state_json(page_dir)
+    [served] = state["tasks"]
+    assert served["running"]["text"] == "Drafting the glossary"
+    assert state["activity"]["detail"] == "Drafting the glossary"
+    [item] = state["queues"]["on_agent"]
+    assert (item["kind"], item["subject"]) == ("task", {"kind": "page"})
+    written(leaf("task", "end", page_dir, task["id"], "done", "the glossary section"))
+    state = state_json(page_dir)
+    assert state["tasks"] == []
+    assert state["activity"]["kind"] != "working"
+
+
+def test_a_thread_task_runs_under_its_start_line(page_dir):
+    """A started task on a thread reads Working with its line in the thread's
+    attention, and Task open with its title once nothing runs on it."""
+    publish(page_dir)
+    comment = append_carried_log_record(
+        page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "Rebuild it."},
+    )
+    task = written(leaf("task", "open", page_dir, comment["id"], "Rebuild the chart"))
+    written(
+        leaf("thread", "reply", page_dir, "--for", comment["id"], "--text", "On it.")
+    )
+    written(leaf("task", "start", page_dir, task["id"], "Waiting on the build"))
+    [thread] = state_json(page_dir)["threads"]
+    assert thread["attention"]["task"] == {
+        "id": task["id"],
+        "title": "Rebuild the chart",
+        "running": "Waiting on the build",
+    }
+
+
+WORK_PAGE = PAGE.replace(
+    '<lf-diagram id="flow">',
+    '<lf-board id="rollout"><lf-column id="rollout-now" label="Now">\n'
+    '  <lf-card id="rollout-card"><strong>Ship the rollout</strong> '
+    "Check the fallback before cutover.</lf-card>\n"
+    '</lf-column></lf-board>\n<lf-diagram id="flow">',
+)
+
+
+def test_a_widget_task_needs_a_seat_and_a_completing_stamp_ends_it(page_dir):
+    """A task on a page widget needs a widget that declares `x-work` or holds an
+    unsettled move. A version that drops its widget without completing it is refused;
+    `page stamp --completes` ends it done, citing that version."""
+    (page_dir / "index.html").write_text(WORK_PAGE)
+    publish(page_dir)
+    no_seat = leaf("task", "open", page_dir, "flow", "Redraw the graph")
+    assert no_seat.exit_code != 0
+    assert "has no work seat" in no_seat.output
+
+    task = written(leaf("task", "open", page_dir, "rollout-card", "Check the rollout"))
+    assert task["subject"] == {"kind": "widget", "id": "rollout-card"}
+    assert task["revision"] == 1
+    written(leaf("task", "start", page_dir, task["id"], "Checking the fallback"))
+    [served] = state_json(page_dir)["tasks"]
+    assert served["running"]["text"] == "Checking the fallback"
+
+    # An unrelated version leaves the task standing; one that drops its card is
+    # refused unless it completes it.
+    (page_dir / "index.html").write_text(
+        WORK_PAGE.replace("<title>t</title>", "<title>t · v2</title>")
+    )
+    assert stamp(page_dir, "Elsewhere").exit_code == 0
+    assert [item["id"] for item in state_json(page_dir)["tasks"]] == [task["id"]]
+    (page_dir / "index.html").write_text(PAGE)
+    dropped = stamp(page_dir, "Card gone")
+    assert dropped.exit_code != 0
+    assert "would remove the target of the open task on 'rollout-card'" in (
+        dropped.output
+    )
+    (page_dir / "index.html").write_text(
+        WORK_PAGE.replace("<title>t</title>", "<title>t · v3</title>")
+    )
+    done = stamp(page_dir, "Rollout checked", completes=("rollout-card",))
+    assert done.exit_code == 0, done.output
+    note = events_model.read_events(page_dir)[-1]
+    assert note["settles"] == [{"kind": "task", "id": task["id"]}]
+    assert state_json(page_dir)["tasks"] == []
+    [ended] = [
+        item for item in tasks_model.canonical_tasks(events_model.read_events(page_dir))
+    ]
+    assert (ended["state"], ended["outcome"]["detail"]) == ("done", "v3")
+    (page_dir / "index.html").write_text(
+        WORK_PAGE.replace("<title>t</title>", "<title>t · v4</title>")
+    )
+    again = stamp(page_dir, "Again", completes=("rollout-card",))
+    assert again.exit_code != 0
+    assert "no open task on 'rollout-card'" in again.output

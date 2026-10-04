@@ -9,7 +9,7 @@ from time import monotonic
 import pytest
 from axe_playwright_python.sync_playwright import Axe
 from click.testing import CliRunner
-from interact_support import append_carried_log_record, record_claim
+from interact_support import append_carried_log_record, declare_idle, record_claim
 from leaf import cli as cli_model
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
@@ -4622,7 +4622,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
 
     for clock_owner in (served_context, events_model, service_model):
         monkeypatch.setattr(clock_owner, "now_iso", advanced_now)
-    session_model.cmd_status(page_dir, "idle", "")
+    declare_idle(page_dir)
     told(page)
     expect(marker).to_have_attribute("aria-label", re.compile(r"^Waiting for pickup,"))
     assert_status("Waiting for pickup", "3m ago")

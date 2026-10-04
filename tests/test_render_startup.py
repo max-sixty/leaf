@@ -3796,7 +3796,7 @@ def test_feature_gallery_workflow_and_banner_share_agent_activity(browser, serve
         )
     )
 
-    session_model.cmd_status(page_dir, "waiting", "review the gallery")
+    session_model.cmd_waiting(page_dir, "review the gallery")
     told(page)
     expect(workflow).to_have_text("Picked up")
     expect(page.locator(".lf-status-detail")).to_have_text(

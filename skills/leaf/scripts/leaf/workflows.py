@@ -36,7 +36,7 @@ in: on the page, until the markup records it or a later version supersedes it
 (`page_action_unsettled`); in frozen thread markup, which no version rewrites,
 until the agent's next spoken turn in that thread or a resolution after it.
 Delivery is separate from workflows. Admission records whether a user's move
-changes outstanding Asks, pending answers, claimed work or approval; carriers keep
+changes outstanding Asks, pending answers, work in hand or approval; carriers keep
 that decision even after these workflows settle.
 
 A user move on a widget whose own Ask the user has not finished answering — a
@@ -58,26 +58,40 @@ from .events import build_threads, spoken_turns, standing_approvals, unanswered_
 from .projection import (
     NO_RECORD,
     PageReading,
-    canonical_updates,
     recorded_state,
 )
+from .tasks import item_starts, open_tasks
 
 
-def obligation_reading(readings, claims: list) -> dict:
-    """The outstanding Asks, answers and claimed inputs a gesture can change.
+def admission_workflows(readings) -> tuple[list[dict], dict]:
+    """The workflows one admission reads, beside the threads they were folded from:
+    the page's newest revision and the frozen thread document, over the log as it
+    stands."""
+    page = (
+        readings.page(readings.view.revisions[-1]) if readings.view.revisions else None
+    )
+    threads = build_threads(readings.events, page.within if page is not None else {})
+    workflows = canonical_workflows(
+        threads, readings.thread, page=page, events=readings.events
+    )
+    return workflows, threads
 
-    Delivery progress, receipt-only moves and presentation are absent. Claims
-    also hold their subject's standing widget inputs, even while an Ask is being
-    composed: changing a pick under ongoing work changes that work before Done.
-    Admission compares this reading on either side of the append and stores the
-    result, before a later status write can discard the claim that it changed.
+
+def obligation_reading(readings) -> dict:
+    """The outstanding Asks, answers and work in hand a gesture can change.
+
+    Delivery progress, receipt-only moves and presentation are absent. Work in hand,
+    a move the agent started or a task it opened on a thread or widget, also holds the
+    standing widget inputs on its subject, even while an Ask is being composed:
+    changing a pick under ongoing work changes that work before Done. Admission
+    compares this reading on either side of the append and stores the result.
     """
     page = (
         readings.page(readings.view.revisions[-1]) if readings.view.revisions else None
     )
     thread = readings.thread
     events = readings.events
-    threads = build_threads(events, page.within if page is not None else {})
+    workflows, threads = admission_workflows(readings)
     thread_asks = thread_ask_readings(
         events,
         readings.registry,
@@ -97,11 +111,14 @@ def obligation_reading(readings, claims: list) -> dict:
         )
         if prompt is not None:
             prompts[identity] = prompt["message"]
-    workflows = canonical_workflows(claims, threads, thread, page=page, events=events)
-    effective = [
-        update
-        for update in canonical_updates(None, claims, threads, events)
-        if update["disposition"] == "effective"
+    in_hand = [
+        (item["id"], item["subject"])
+        for item in workflows
+        if item["stage"] == "working"
+    ] + [
+        (task["id"], task["subject"])
+        for task in open_tasks(events)
+        if task["subject"]["kind"] != "page"
     ]
     inputs = [
         source
@@ -121,21 +138,21 @@ def obligation_reading(readings, claims: list) -> dict:
             "prompts": prompts,
         },
         "answers": [item["answer"] for item in workflows if item["answer"] is not None],
-        "claims": [
+        "work": [
             {
-                "id": claim["id"],
+                "id": identity,
                 "inputs": [
                     source["id"]
                     for source in inputs
-                    if claim["target"] == {"kind": "widget", "id": source["widget"]}
-                    or claim["target"]
+                    if subject == {"kind": "widget", "id": source["widget"]}
+                    or subject
                     == {
                         "kind": "thread",
                         "id": thread.thread_by_widget.get(source["widget"]),
                     }
                 ],
             }
-            for claim in effective
+            for identity, subject in in_hand
         ],
         "approvals": [event["id"] for event in standing_approvals(events)],
     }
@@ -180,7 +197,6 @@ def page_action_unsettled(
 
 
 def canonical_workflows(
-    claims: list,
     threads: dict,
     thread_reading,
     *,
@@ -191,7 +207,8 @@ def canonical_workflows(
 
     This is one interaction-scoped projection over the document and log: append
     means Sent, queue acceptance means Queued, entry into an exact agent turn
-    means Picked up, and a matching effective work claim means Working. Replies
+    means Picked up, and a `start` naming the move means Working
+    (`tasks.item_starts`). Replies
     and authored state settle the source move, so the workflow disappears instead
     of becoming a second outcome surface; a failed response instead keeps an
     answered workflow whose next actor is the user. Consecutive inputs retain distinct
@@ -222,19 +239,7 @@ def canonical_workflows(
         for event_id in event["events"]:
             deliveries.setdefault(event_id, {})[event["phase"]] = event
 
-    effective = [
-        update
-        for update in canonical_updates(None, claims, threads, events)
-        if update["disposition"] == "effective"
-    ]
-    effective_claims = {
-        (update["target"]["kind"], update["target"]["id"]): update
-        for update in effective
-    }
-    claims_by_event = {
-        update["event"]: update for update in effective if update.get("event")
-    }
-    used_targets = set()
+    starts = item_starts(events)
 
     def workflow(
         source: dict,
@@ -242,24 +247,18 @@ def canonical_workflows(
         coordinate: list[str],
         *,
         answer: dict | None,
+        covering: list[dict],
     ) -> dict:
+        """One move's workflow. `covering` are the starts that take it in hand for the
+        turn that wrote them, which is how the Stop hook tells a move the open turn
+        has started (`activity.started_in_turn`): the move's own, and in a thread every
+        start on an input the thread's one reply answers."""
         delivery = deliveries.get(source["id"], {})
         opened = delivery.get("opened")
         queued = delivery.get("queued")
-        delivery_seq = max(
-            (entry["seq"] for entry in (opened, queued) if entry),
-            default=source["seq"],
-        )
-        # A claim naming this exact input holds it, wherever the claim stands;
-        # widget work also holds every move on that widget delivered before it.
-        claim = claims_by_event.get(source["id"])
-        if claim is None and target["kind"] == "widget":
-            held = effective_claims.get(("widget", target["id"]))
-            if held and held["log_floor"] >= delivery_seq:
-                claim = held
-        if claim:
-            stage, evidence = "working", claim
-            used_targets.add((claim["target"]["kind"], claim["target"]["id"]))
+        start = starts.get(source["id"])
+        if start:
+            stage, evidence = "working", start
         elif opened:
             stage, evidence = "picked_up", opened
         elif queued:
@@ -267,23 +266,6 @@ def canonical_workflows(
         else:
             stage, evidence = "sent", source
         fallback = opened or queued
-        # Every standing claim over the move, which is how the Stop hook tells a
-        # move the open turn has taken in hand (`activity.claimed_in_turn`): one
-        # naming it, one on its widget, or one on the thread that holds it.
-        held_in = (
-            target["id"]
-            if target["kind"] == "thread"
-            else thread_reading.thread_by_widget.get(target["id"])
-            if thread_reading is not None
-            else None
-        )
-        covering = [
-            update
-            for update in effective
-            if update.get("event") == source["id"]
-            or update["target"] == target
-            or update["target"] == {"kind": "thread", "id": held_in}
-        ]
         return {
             "id": source["id"],
             "input": source["id"],
@@ -301,39 +283,40 @@ def canonical_workflows(
             "delivery_seq": fallback["seq"] if fallback else None,
             "delivery_session": fallback.get("session") if fallback else None,
             "delivery_turn": fallback.get("turn") if fallback else None,
-            "detail": claim["text"] if stage == "working" else None,
-            "agent": claim.get("agent") if stage == "working" else None,
-            "session": claim.get("session") if stage == "working" else None,
+            "detail": start["text"] if start else None,
+            "agent": start.get("agent") if start else None,
+            "session": start.get("session") if start else None,
             "activity": (
                 [
                     {
                         "kind": "working",
-                        "detail": claim["text"],
-                        "ts": claim["ts"],
-                        "session": claim.get("session"),
-                        "turn": claim["turn"],
+                        "detail": start["text"],
+                        "ts": start["ts"],
+                        "session": start.get("session"),
+                        "turn": start.get("turn"),
                     }
                 ]
-                if stage == "working"
+                if start
                 else []
             ),
             "condition": None,
             "next_actor": "agent",
             "response": None,
-            "claimed_by": [
+            "started_by": [
                 {
-                    "session": update["session"],
-                    "turn": update["turn"],
-                    "log_floor": update["log_floor"],
+                    "item": held["item"],
+                    "session": held.get("session"),
+                    "turn": held.get("turn"),
+                    "seq": held["seq"],
                 }
-                for update in covering
+                for held in covering
             ],
         }
 
     def failed(source: dict, target: dict, coordinate: list[str], record: dict) -> dict:
         """The move a host failure record returned to the user: answered, with a
         failed response, and the user's to send again."""
-        returned = workflow(source, target, coordinate, answer=None)
+        returned = workflow(source, target, coordinate, answer=None, covering=[])
         returned.update(
             {
                 "stage": "answered",
@@ -385,6 +368,11 @@ def canonical_workflows(
         # contract deliberately coalesces consecutive user turns onto the newest
         # address, so only that workflow carries the answer.
         response_address = unanswered_inputs[-1]
+        covering = [
+            starts[source["id"]]
+            for source in unanswered_inputs
+            if source["id"] in starts
+        ]
         answer = {
             "kind": "reply",
             "to": response_address["id"],
@@ -397,6 +385,7 @@ def canonical_workflows(
                     target,
                     coordinate,
                     answer=answer if source is response_address else None,
+                    covering=covering,
                 )
             )
 
@@ -487,8 +476,7 @@ def canonical_workflows(
     # the thread showed "✓ Sent · just now" twice under one question. The later move
     # supersedes the earlier for what the user is owed — that the press landed.
     # Units stay apart: two moved cards, two reviewed files, are two subjects with a
-    # margin entry each in the margin. Chosen before a receipt is minted, so a claim is
-    # spent on a move that survives rather than on one dropped here.
+    # margin entry each in the margin.
     newest: dict[tuple[str, str], dict] = {}
     for source, target, coordinate, _unsettled, _answer in moves:
         key = (target["id"], coordinate[1])
@@ -506,42 +494,14 @@ def canonical_workflows(
         ):
             workflows.append(failed(source, target, coordinate, gave_up))
         else:
-            workflows.append(workflow(source, target, coordinate, answer=answer))
+            workflows.append(
+                workflow(
+                    source,
+                    target,
+                    coordinate,
+                    answer=answer,
+                    covering=[starts[source["id"]]] if source["id"] in starts else [],
+                )
+            )
 
-    # Keep an explicit claim visible even when there was no preceding user
-    # gesture to grow from. This preserves the useful part of `status --on`
-    # without inventing pickup evidence.
-    for claim in effective_claims.values():
-        target = claim["target"]
-        if (target["kind"], target["id"]) in used_targets:
-            continue
-        workflows.append(
-            {
-                "id": f"claim:{claim['id']}",
-                "input": None,
-                "seq": claim["log_floor"],
-                "revision": claim.get("revision"),
-                "subject": target,
-                "coordinate": [target["kind"], target["id"]],
-                "answer": None,
-                "stage": "working",
-                "ts": claim["ts"],
-                "detail": claim["text"],
-                "agent": claim.get("agent"),
-                "session": claim.get("session"),
-                "activity": [
-                    {
-                        "kind": "working",
-                        "detail": claim["text"],
-                        "ts": claim["ts"],
-                        "session": claim.get("session"),
-                        "turn": claim["turn"],
-                    }
-                ],
-                "condition": None,
-                "next_actor": "agent",
-                "response": None,
-                "claimed_by": [],
-            }
-        )
     return sorted(workflows, key=lambda item: (item["seq"], item["id"]))

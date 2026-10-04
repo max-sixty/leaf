@@ -1,0 +1,49 @@
+# Added with step 4 of the What needs you plan, which folds `leaf status working --on`
+# into the task commands: work on a delivered move is shown against that move's own id,
+# and work no move asked for gets an item the agent opens. Scores conversation-loop.md,
+# "When to write" and "Status and handoff". The criterion is the behavior, not either
+# version's command, so the case guards both arms.
+description: work-names-its-item
+metadata:
+  purpose: 'Conversation loop: before starting work, the agent shows it on the page against
+    the delivered move that asked for it, and shows work no move asked for under an item of
+    its own.'
+  tags:
+  - wait-loop
+vars:
+  prompt: |
+    You are a Claude Code session driving a live Leaf page at
+    ~/.local/state/leaf/pages/review, served with `leaf server start`. In the terminal
+    the user asked you to add a glossary section to the page; nothing on the page asks
+    for it. Before you began, Leaf's prompt hook delivered one user comment, event id
+    c7e2a9d1, opening thread c7e2a9d1 on the rollout section, which you have already
+    acknowledged: "The rollout section's second paragraph repeats the first. Tighten
+    it." Its answer is a reply addressed `--for c7e2a9d1`.
+
+    You will tighten the rollout section first, then write the glossary. Read whatever
+    instructions you need. Only Skill and Read run here, so write out, in order, each
+    command you would run on the page from now until you start editing for the
+    comment, and then each one you would run on the page before you start writing the
+    glossary.
+assert:
+- type: javascript
+  metric: loads-leaf
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/SKILL\.md
+- type: javascript
+  metric: reads-conversation-loop
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/references/conversation-loop\.md
+- type: llm-rubric
+  metric: judgment
+  value: |
+    Pass only if both hold. First, before any edit for the comment, a command shows
+    that work on the page against the comment itself, naming id c7e2a9d1, with a line
+    saying what the work is. Second, before the glossary work starts, a command shows
+    that work on the page with a line naming it; since no comment asked for it, this may
+    be a page-wide working line or an item the agent opens for it and marks as in hand.
+    Fail if either piece of work starts without such a command, if the comment's work is
+    shown against some other id, or if a reply to c7e2a9d1 is written before its work is
+    named.

@@ -34,12 +34,15 @@ from interact_support import (
     PLUGIN_ROOT,
     STATED_TIMEOUT,
     Prose,
+    _start,
     _status,
     append_carried_log_record,
     append_command,
     available_loopback_port,
     check,
     consume_pending_input,
+    declare_idle,
+    declare_work,
     fetch,
     fifo_writer,
     hold_status_read,
@@ -59,6 +62,7 @@ from interact_support import (
     thread_records,
     vendored_by_another_leaf,
     wait_for,
+    working,
     yaml_document,
 )
 from leaf import activity as activity_model
@@ -330,11 +334,11 @@ def test_codex_readdresses_a_collecting_record_if_its_delivery_id_collides(
     assert not path.exists()
 
 
-def test_a_thread_claim_holds_the_input_its_thread_owes_by_any_address(page_dir):
-    """`status --on` takes the address a delivery names, which for a reply in a
-    thread is that reply's id. The claim stands on the thread and holds the input
-    the thread owes, and one check-in keeps Working on it when the user adds a
-    correction, which keeps its own receipt until the agent answers."""
+def test_a_start_names_the_exact_move_and_covers_its_threads_answer(page_dir):
+    """`task start` takes the id a delivery names, which for a reply in a thread is
+    that reply's id, and that move reads Working. A correction the user adds keeps its
+    own receipt, and the start still covers it: the thread's one reply answers both,
+    so the Stop hook reads the newest input as started (`started_by`)."""
     first = append_carried_log_record(
         page_dir,
         {"kind": "comment", "id": "first", "author": "user", "text": "Use A."},
@@ -356,21 +360,18 @@ def test_a_thread_claim_holds_the_input_its_thread_owes_by_any_address(page_dir)
     [workflow] = page_state(page_dir)["workflows"]
     assert workflow["answer"]["to"] == answer["id"]
 
-    claimed = _status(
-        page_dir, "working", "Answering the comment", "--on", answer["id"]
-    )
-    assert claimed.exit_code == 0, claimed.output
-    [work] = files_model.read_json(page_dir / "status.json")["work"]
-    assert (work["subject"], work["event"]) == (
-        {"kind": "thread", "id": first["id"]},
-        answer["id"],
-    )
+    started = _start(page_dir, answer["id"], "Answering the comment")
+    assert started.exit_code == 0, started.output
+    record = json.loads(started.output.splitlines()[-1])
+    assert (record["kind"], record["item"]) == ("start", answer["id"])
     [workflow] = page_state(page_dir)["workflows"]
     assert (workflow["input"], workflow["stage"], workflow["detail"]) == (
         answer["id"],
         "working",
         "Answering the comment",
     )
+    # The thread's answered root is no move the agent owes.
+    assert _start(page_dir, first["id"], "Still on it").exit_code != 0
 
     correction = append_carried_log_record(
         page_dir,
@@ -381,12 +382,17 @@ def test_a_thread_claim_holds_the_input_its_thread_owes_by_any_address(page_dir)
             "text": "Correction: use B.",
         },
     )
-    assert (
-        _status(page_dir, "working", "Still on it", "--on", first["id"]).exit_code == 0
-    )
-    assert [
-        (item["input"], item["stage"]) for item in page_state(page_dir)["workflows"]
-    ] == [(answer["id"], "working"), (correction["id"], "sent")]
+    assert _start(page_dir, answer["id"], "Still on it").exit_code == 0
+    workflows = page_state(page_dir)["workflows"]
+    assert [(item["input"], item["stage"]) for item in workflows] == [
+        (answer["id"], "working"),
+        (correction["id"], "sent"),
+    ]
+    newest = workflows[-1]
+    assert newest["answer"]["for"] == correction["id"]
+    assert [start["seq"] for start in newest["started_by"]] == [
+        events_model.read_events(page_dir)[-1]["seq"]
+    ]
 
 
 def test_consecutive_user_inputs_share_one_exact_response_obligation(page_dir):
@@ -705,10 +711,10 @@ def test_frozen_widget_workflow_contributes_to_its_thread_attention(page_dir):
             "detail": {},
         },
     )
-    # The move owes a reply in its thread, so that thread is its address.
+    # The move owes a reply in its thread, and the agent starts the move itself.
     [owed] = page_state(page_dir)["workflows"]
     assert owed["answer"]["to"] == asked["id"]
-    claimed = _status(page_dir, "working", "Checking East", "--on", asked["id"])
+    claimed = _start(page_dir, answered["id"], "Checking East")
     assert claimed.exit_code == 0, claimed.output
 
     state = page_state(page_dir)
@@ -820,10 +826,9 @@ def test_a_frozen_move_that_answers_no_ask_keeps_a_receipt_and_owes_nothing(
     delivery = freeze_events(page_dir, [moved])
     [event] = delivery["batches"][0]["events"]
     assert "answer" not in event
-    # Named by the board it was made on, the claim stands on the board's thread.
-    claimed = _status(
-        page_dir, "working", "Rearranging the cards", "--on", "feeder-board"
-    )
+    # A move that owes nothing is still on the agent once it is started, and holds
+    # the board's thread while it is.
+    claimed = _start(page_dir, moved["id"], "Rearranging the cards")
     assert claimed.exit_code == 0, claimed.output
     state, attention = reading()
     [workflow] = state["workflows"]
@@ -834,8 +839,8 @@ def test_a_frozen_move_that_answers_no_ask_keeps_a_receipt_and_owes_nothing(
         "workflow": moved["id"],
     }
 
-    # Moving the card again supersedes that move, so a renewed claim holds the
-    # newer one instead of standing beside a move no receipt shows any more.
+    # Moving the card again supersedes that move, whose receipt goes with it; the
+    # agent starts the newer one.
     moved = append_command(
         page_dir,
         {
@@ -847,7 +852,7 @@ def test_a_frozen_move_that_answers_no_ask_keeps_a_receipt_and_owes_nothing(
             "detail": {"card": "card-baffle", "to": "col-done", "rank": "0i"},
         },
     )
-    renewed = _status(page_dir, "working", "Moving it on", "--on", "feeder-board")
+    renewed = _start(page_dir, moved["id"], "Moving it on")
     assert renewed.exit_code == 0, renewed.output
     state, attention = reading()
     assert [(item["input"], item["stage"]) for item in state["workflows"]] == [
@@ -1025,10 +1030,9 @@ def test_served_workflows_list_the_strongest_first():
         assert [item["id"] for item in served] == expected
 
 
-def test_a_widget_claim_holds_the_moves_delivered_before_it(page_dir):
-    """A claim on a page widget has no one input to name: it holds every move on
-    that widget the agent had been handed when it claimed, and not one made
-    after."""
+def test_a_start_on_a_page_move_holds_that_move_and_not_a_later_one(page_dir):
+    """A start on a page widget's move holds that move; a later move on the widget,
+    which supersedes it, is not in hand until the agent starts it."""
     version = page_dir / "index.html"
     version.write_text(
         PAGE.replace("<lf-options>", '<lf-options id="choice" choose>', 1)
@@ -1046,7 +1050,7 @@ def test_a_widget_claim_holds_the_moves_delivered_before_it(page_dir):
         },
     )
 
-    result = _status(page_dir, "working", "Building the flag", "--on", "choice")
+    result = _start(page_dir, chosen["id"], "Building the flag")
 
     assert result.exit_code == 0, result.output
     [workflow] = page_state(page_dir)["workflows"]
@@ -1898,96 +1902,47 @@ def current_codex_record(session_id: str) -> tuple[Path, dict]:
     return current[0]
 
 
-def test_an_active_receipt_says_which_thread_the_agent_is_on(
+def test_a_start_is_one_log_record_read_at_the_banner_and_the_move(
     page_dir, capsys, monkeypatch
 ):
-    """`leaf status --on` writes one claim at two seats: the page's banner, which
-    reads it, and a receipt on the thread the work is about, which the user sees
-    under their own words. One command writes both because they are one sentence, and
-    their shared timestamp means a write after a turn has ended renews both together.
-
-    The claim carries across every later status write but its own settlement. Pickup
-    is recorded separately in the event log, so transport acceptance neither replaces
-    this work nor invents a page-wide working claim. `idle` is the end of the agent's
-    side, and clears explicit work with the leaf."""
+    """`leaf task start` writes one record, in the log rather than the status file:
+    the page's banner reads its line, and so does the receipt on the move it names,
+    under the user's own words. A `waiting` declaration or a pickup leaves it standing;
+    only the move's answer ends it."""
     append_carried_log_record(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "why?"}
     )
-    comment_seq = events_model.read_events(page_dir)[-1]["seq"]
-    # A line names a thread, says what is being done, and says it about work in hand:
-    # the two other states have nothing to put on a thread, and a line with no words
-    # says nothing the thread does not already show. The banner's own line is held to
-    # the same rule: its dot already says working.
-    assert (
-        "not a comment thread"
-        in _status(page_dir, "working", "reading the traces", "--on", "nope").output
+    assert "neither an open task nor a move you owe" in (
+        _start(page_dir, "nope", "reading the traces").output
     )
-    assert (
-        "use it with `working`"
-        in _status(page_dir, "waiting", "your read on this", "--on", "c1").output
-    )
-    assert "needs a detail" in _status(page_dir, "working", "--on", "c1").output
-    assert "needs a detail" in _status(page_dir, "working").output
-    assert "work" not in files_model.read_json(page_dir / "status.json")
+    assert _start(page_dir, "c1", "").exit_code != 0
 
     monkeypatch.setenv("LEAF_AGENT", "Trace reader")
-    assert (
-        _status(page_dir, "working", "reading the traces", "--on", "c1").exit_code == 0
+    started = _start(page_dir, "c1", "reading the traces")
+    assert started.exit_code == 0, started.output
+    record = json.loads(started.output.splitlines()[-1])
+    assert (record["item"], record["text"], record["agent"]) == (
+        "c1",
+        "reading the traces",
+        "Trace reader",
     )
-    status = files_model.read_json(page_dir / "status.json")
-    assert (status["state"], status["detail"]) == ("working", "reading the traces")
-    work = status["work"][0]
-    assert work["subject"] == {"kind": "thread", "id": "c1"}
-    assert work["event"] == "c1"
-    assert work["detail"] == "reading the traces" and work["ts"] == status["ts"]
-    assert work["after"] == comment_seq
-    assert work["agent"] == "Trace reader" and work["id"] and work["session"]
-    # The store stays private. At the state boundary it becomes the same typed update
-    # envelope a widget report uses, including the posting session's own voice rather
-    # than the page owner's.
+    assert "work" not in (files_model.read_json(page_dir / "status.json") or {})
     live = page_state(page_dir)
-    assert "work" not in live["status"]
-    assert live["claims"] == [
-        {
-            "id": work["id"],
-            "target": {"kind": "thread", "id": "c1"},
-            "event": "c1",
-            "source": "claim",
-            "action": "working",
-            "detail": {"text": "reading the traces"},
-            "text": "reading the traces",
-            "ts": status["ts"],
-            "log_floor": comment_seq,
-            "agent": "Trace reader",
-            "session": work["session"],
-            "turn": work["turn"],
-        }
-    ]
-    folded = state_json(page_dir)
-    claim = next(update for update in folded["updates"] if update["source"] == "claim")
-    assert claim == {
-        **live["claims"][0],
-        "target": {"kind": "thread", "id": "c1"},
-        "disposition": "effective",
-    }
-
-    # A claim an older leaf stored without the poster's voice is absent from the
-    # reading: it is neither served without a name nor fails the state read.
-    older = {key: work[key] for key in ("subject", "detail", "ts", "after")}
-    cleanup_model.write_json(
-        page_dir / "status.json", {**status, "work": [older, *status["work"]]}
+    assert "claims" not in live
+    [workflow] = live["workflows"]
+    assert (workflow["stage"], workflow["detail"], workflow["agent"]) == (
+        "working",
+        "reading the traces",
+        "Trace reader",
     )
-    assert page_state(page_dir)["claims"] == live["claims"]
-    cleanup_model.write_json(page_dir / "status.json", status)
+    assert live["activity"]["detail"] == "reading the traces"
 
-    # A later claim about the page as a whole answers nothing on the thread.
+    # A page-wide waiting line answers nothing on the thread.
     assert _status(page_dir, "waiting", "look at v2").exit_code == 0
-    waiting = files_model.read_json(page_dir / "status.json")
-    assert (waiting["state"], waiting["detail"]) == ("waiting", "look at v2")
-    assert waiting["work"][0]["detail"] == "reading the traces"
+    assert [item["stage"] for item in page_state(page_dir)["workflows"]] == ["working"]
 
-    # Nor does a pickup replace the claim: it is a durable transport fact about the
-    # exact user events and leaves the page-wide status alone.
+    # Nor does a pickup replace the start: it is a durable transport fact about the
+    # exact user events.
     serving(page_dir, 1)
     append_carried_log_record(
         page_dir,
@@ -2000,32 +1955,32 @@ def test_an_active_receipt_says_which_thread_the_agent_is_on(
         },
     )
     state = page_state(page_dir)
-    activity = state["activity"]
     assert [
         (workflow["input"], workflow["stage"]) for workflow in state["workflows"]
     ] == [("c1", "working"), ("c2", "sent")]
+    activity = state["activity"]
     assert (activity["counts"]["total"], activity["counts"]["active"]) == (1, 0)
-    assert (
-        _status(page_dir, "working", "reading the traces", "--on", "c1").exit_code == 0
-    )
-    renewed = files_model.read_json(page_dir / "status.json")["work"][0]
-    assert renewed["event"] == "c1"
-    assert [
-        (workflow["input"], workflow["stage"])
-        for workflow in page_state(page_dir)["workflows"]
-    ] == [("c1", "working"), ("c2", "sent")]
-    assert _status(page_dir, "waiting", "look at v2").exit_code == 0
     assert session_model.cmd_wait(page_dir) == 0
     delivered(capsys)
-    handed = files_model.read_json(page_dir / "status.json")
-    assert (handed["state"], handed["detail"]) == ("waiting", "look at v2")
-    assert handed["work"][0]["detail"] == "reading the traces"
     pickup = events_model.read_events(page_dir)[-1]
     assert pickup["kind"] == "pickup"
     assert pickup["events"] == ["c1", "c2"]
+    assert [
+        (workflow["input"], workflow["stage"])
+        for workflow in page_state(page_dir)["workflows"]
+    ] == [("c1", "working"), ("c2", "picked_up")]
 
-    session_model.cmd_status(page_dir, "idle", "")
-    assert "work" not in files_model.read_json(page_dir / "status.json")
+    # The reply that answers the thread ends the start with the moves it answers.
+    assert (
+        CliRunner()
+        .invoke(
+            cli_model.cli,
+            ["thread", "reply", str(page_dir), "--for", "c2", "--text", "Because."],
+        )
+        .exit_code
+        == 0
+    )
+    assert page_state(page_dir)["workflows"] == []
 
 
 def test_a_weaker_old_receipt_does_not_duplicate_a_thread_claim(page_dir):
@@ -2033,9 +1988,7 @@ def test_a_weaker_old_receipt_does_not_duplicate_a_thread_claim(page_dir):
         page_dir,
         {"kind": "comment", "id": "c1", "author": "user", "text": "why?"},
     )
-    assert (
-        _status(page_dir, "working", "reading the traces", "--on", "c1").exit_code == 0
-    )
+    assert _start(page_dir, "c1", "reading the traces").exit_code == 0
     with service_model.PageTransaction(page_dir) as transaction:
         delivery_model.record_pickup(transaction, [comment])
     append_carried_log_record(
@@ -2056,12 +2009,10 @@ def test_a_weaker_old_receipt_does_not_duplicate_a_thread_claim(page_dir):
     ]
 
 
-def test_a_working_claim_can_name_a_widget_until_a_version_completes_it(page_dir):
-    """A page widget and a comment root are two kinds of subject, resolved once at
-    the CLI boundary and stored with the distinction intact. Widget work ends only
-    when a later published version explicitly says it completes that widget work: an
-    unrelated version cannot silently cancel a local claim, while a version cannot
-    remove the claim's page target without naming the work it completed."""
+def test_a_widget_task_outlives_its_seat_but_not_its_widget(page_dir):
+    """A widget's `x-work` admits a task on it; once open, the task stands beside the
+    widget even when a later layer of the page drops that seat, and a version that
+    removes the widget itself is refused until it completes the task."""
     work_page = PAGE.replace(
         '<lf-diagram id="flow">',
         '<lf-board id="rollout"><lf-column id="rollout-now" label="Now">\n'
@@ -2071,74 +2022,16 @@ def test_a_working_claim_can_name_a_widget_until_a_version_completes_it(page_dir
     )
     (page_dir / "index.html").write_text(work_page)
     publish(page_dir)
-
-    claimed = _status(
-        page_dir, "working", "checking the rollout", "--on", "rollout-card"
+    opened = CliRunner().invoke(
+        cli_model.cli,
+        ["task", "open", str(page_dir), "rollout-card", "Check the rollout"],
     )
-    assert claimed.exit_code == 0, claimed.output
-    status = files_model.read_json(page_dir / "status.json")
-    work = status["work"][0]
-    assert work["subject"] == {"kind": "widget", "id": "rollout-card"}
-    assert work["detail"] == "checking the rollout" and work["ts"] == status["ts"]
-    assert work["after"] == 1 and work["id"]
-    assert "version" not in work
-    live = page_state(page_dir)
-    assert "work" not in live["status"]
-    assert live["claims"][0]["revision"] == 1
-
-    # A drawing has no prose or declared thread in which a local line can
-    # stand. The declaration, not a widget-name branch, decides that at the door.
-    no_seat = _status(page_dir, "working", "checking the graph", "--on", "flow")
-    assert no_seat.exit_code == 1
-    assert "has no local work seat" in no_seat.output
-
-    # A new version that leaves the widget alone does not settle the claim by mere
-    # chronology. It publishes normally and the same local work remains standing.
-    (page_dir / "index.html").write_text(
-        work_page.replace("<title>t</title>", "<title>t · v2</title>")
-    )
-    unrelated = stamp(page_dir, "Elsewhere")
-    assert unrelated.exit_code == 0, unrelated.output
-    claim = next(
-        update
-        for update in state_json(page_dir)["updates"]
-        if update["source"] == "claim"
-    )
-    assert claim["target"] == {"kind": "widget", "id": "rollout-card"}
-    assert claim["disposition"] == "effective"
-
-    # Settlement is explicit and durable on the version note.
-    (page_dir / "index.html").write_text(
-        work_page.replace("<title>t</title>", "<title>t · v3</title>")
-    )
-    settled = stamp(page_dir, "Rollout checked", completes=("rollout-card",))
-    assert settled.exit_code == 0, settled.output
-    note = events_model.read_events(page_dir)[-1]
-    assert note["settles"] == [{"kind": "work", "id": "rollout-card"}]
-    claim = next(
-        update
-        for update in state_json(page_dir)["updates"]
-        if update["source"] == "claim"
-    )
-    assert claim["disposition"] == "settled"
-
-    # A later claim on the same subject starts after that answer and therefore stands.
-    renewed = _status(
-        page_dir, "working", "checking the fallback", "--on", "rollout-card"
-    )
-    assert renewed.exit_code == 0, renewed.output
-    renewed_claim = next(
-        update
-        for update in state_json(page_dir)["updates"]
-        if update["source"] == "claim"
-    )
-    assert renewed_claim["text"] == "checking the fallback"
-    assert renewed_claim["id"] != claim["id"]
-    assert renewed_claim["disposition"] == "effective"
+    assert opened.exit_code == 0, opened.output
+    task = json.loads(opened.output.splitlines()[-1])
 
     # Replacing the prose widget with a data widget removes its x-work seat, but the
-    # page-edge target margin entry remains attached to the same live subject. The claim
-    # therefore survives this unrelated version too.
+    # page-edge margin entry remains attached to the same live subject, so the task
+    # survives this unrelated version.
     without_seat = re.sub(
         r'<lf-board id="rollout">.*?</lf-board>',
         '<div id="rollout"><div id="rollout-now">'
@@ -2151,9 +2044,10 @@ def test_a_working_claim_can_name_a_widget_until_a_version_completes_it(page_dir
     (page_dir / "index.html").write_text(without_seat)
     changed = stamp(page_dir, "Changed presentation")
     assert changed.exit_code == 0, changed.output
+    assert [item["id"] for item in state_json(page_dir)["tasks"]] == [task["id"]]
 
-    # Removing the subject itself would remove the target margin entry. Publication still
-    # refuses that silent loss until the version names the work it answers.
+    # Removing the subject itself would remove the margin entry. Publication refuses
+    # that silent loss until the version names the task it completes.
     without_target = re.sub(
         r'<lf-diagram id="rollout-card">.*?</lf-diagram>',
         "",
@@ -2164,21 +2058,12 @@ def test_a_working_claim_can_name_a_widget_until_a_version_completes_it(page_dir
     (page_dir / "index.html").write_text(without_target)
     dropped = stamp(page_dir, "Removed")
     assert dropped.exit_code == 1
-    assert (
-        "would remove the local target for active work on 'rollout-card'"
-        in dropped.output
+    assert "would remove the target of the open task on 'rollout-card'" in (
+        dropped.output
     )
-
     finished = stamp(page_dir, "Removed", completes=("rollout-card",))
     assert finished.exit_code == 0, finished.output
-
-    # Naming no active widget claim is an unearned settlement, not inert metadata.
-    (page_dir / "index.html").write_text(
-        without_target.replace("<title>t</title>", "<title>t · v6</title>")
-    )
-    unearned = stamp(page_dir, "Again", completes=("rollout-card",))
-    assert unearned.exit_code == 1
-    assert "no active widget work claim" in unearned.output
+    assert state_json(page_dir)["tasks"] == []
 
 
 def test_a_delivery_and_its_codex_records_go_once_their_pages_do(
@@ -2283,7 +2168,7 @@ def test_a_claimant_inside_a_turn_is_listening_between_two_waits(claimed):
     reaches, or opens, takes the input, so the banner keeps reading listening rather
     than telling the user the agent is away. Once the turn has closed, it is away."""
     serving(claimed, 1)
-    session_model.cmd_status(claimed, "waiting", "look at v2")
+    session_model.cmd_waiting(claimed, "look at v2")
     claim = service_model.page_claim(claimed)
     with service_model.PageTransaction(claimed) as transaction:
         transaction.open_turn(claim["id"])
@@ -2338,17 +2223,16 @@ def test_only_a_fresh_turn_whose_hooks_take_input_reads_listening(
         == (opened + activity_model.WORKING_GRACE).isoformat()
     )
 
-    # The fresh turn is someone there under a working declaration gone stale too,
-    # so that old work reads stalled rather than away.
-    cleanup_model.write_json(
-        claimed / "status.json",
-        {
-            "state": "working",
-            "detail": "an old task",
-            "ts": "2020-01-01T00:00:00+00:00",
-        },
+    # The fresh turn is someone there under a start gone stale too, so that old work
+    # reads stalled rather than away, until its task ends.
+    old_start = declare_work(
+        claimed, "an old task", ts="2020-01-01T00:00:00+00:00", session="s1"
     )
     assert page_state(claimed)["activity"]["kind"] == "stalled"
+    ended = CliRunner().invoke(
+        cli_model.cli, ["task", "end", str(claimed), old_start["item"], "done"]
+    )
+    assert ended.exit_code == 0, ended.output
     claim = service_model.page_claim(claimed)
     opened = now - activity_model.WORKING_GRACE - timedelta(minutes=1)
     record_claim(
@@ -2382,8 +2266,8 @@ def test_direct_delivery_progress_does_not_become_page_activity(claimed, capsys)
     """Delivery stays exact interaction evidence while page activity continues to
     describe the claimant's availability and independently declared work."""
     serving(claimed, 1)
-    session_model.cmd_status(claimed, "working", "an old task")
-    status = files_model.read_json(claimed / "status.json")
+    working(claimed, "an old task")
+    status = service_model.read_status(claimed)
     cleanup_model.write_json(
         claimed / "status.json",
         {**status, "ts": "2020-01-01T00:00:00+00:00"},
@@ -2413,7 +2297,7 @@ def test_direct_delivery_progress_does_not_become_page_activity(claimed, capsys)
         claim["turn"],
     )
 
-    session_model.cmd_status(claimed, "waiting", "review the answer")
+    session_model.cmd_waiting(claimed, "review the answer")
     assert page_state(claimed)["activity"]["kind"] == "working"
 
     with service_model.PageTransaction(claimed) as transaction:
@@ -2449,22 +2333,11 @@ def test_quiet_exact_workflow_has_a_stale_work_condition(claimed):
     comment = append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "new input"}
     )
-    result = _status(claimed, "working", "reading it", "--on", comment["id"])
-    assert result.exit_code == 0, result.output
-    status = files_model.read_json(claimed / "status.json")
-    cleanup_model.write_json(
-        claimed / "status.json",
-        {
-            **status,
-            "work": [
-                {
-                    **status["work"][0],
-                    "ts": (
-                        datetime.now().astimezone() - timedelta(minutes=20)
-                    ).isoformat(),
-                }
-            ],
-        },
+    declare_work(
+        claimed,
+        "reading it",
+        item=comment["id"],
+        ts=(datetime.now().astimezone() - timedelta(minutes=20)).isoformat(),
     )
 
     [workflow] = page_state(claimed)["workflows"]
@@ -2507,7 +2380,7 @@ def test_claude_codes_own_record_adds_what_no_hook_sees(claimed, capsys, dead_pi
             },
         )
 
-    session_model.cmd_status(claimed, "waiting", "Pick a layout")
+    session_model.cmd_waiting(claimed, "Pick a layout")
     comment = append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "Tighten the lede."}
     )
@@ -2556,11 +2429,11 @@ def test_claude_codes_own_record_adds_what_no_hook_sees(claimed, capsys, dead_pi
     capsys.readouterr()
     assert _activity_at(claimed)["counts"]["handling"] == 1
 
-    # A status the agent writes after that renews the turn, and work claimed in it
+    # A start the agent writes after that renews the turn, and the move it starts
     # stops being believed once the renewal grace has passed since the next
     # interrupt.
     host_says("idle", ago=5)
-    session_model.cmd_status(claimed, "working", "Cutting the lede", on=comment["id"])
+    assert _start(claimed, comment["id"], "Cutting the lede").exit_code == 0
     assert _activity_at(claimed)["counts"]["active"] == 1
     host_says("idle")
     assert _activity_at(claimed)["kind"] == "working"
@@ -2583,7 +2456,7 @@ def test_away_asks_for_a_nudge_only_once_input_is_overdue(claimed, capsys):
     stalled with the agent to act, which `counts.overdue` names: one still Sent
     past the pickup grace, or one a turn picked up and ended without answering."""
     serving(claimed, 1)
-    session_model.cmd_status(claimed, "waiting", "Pick a layout")
+    session_model.cmd_waiting(claimed, "Pick a layout")
 
     def turn_ends():
         # The first Stop refuses to end the turn over the page's debts; the
@@ -2632,8 +2505,7 @@ def test_a_host_step_waiting_on_the_user_outlasts_the_working_grace():
     now = datetime.now().astimezone()
     old = (now - timedelta(minutes=30)).isoformat()
     present = {
-        "status": {"state": "working", "ts": old, "detail": "Revising"},
-        "claims": [],
+        "status": {"state": "waiting", "ts": old, "detail": ""},
         "listening": True,
         "session_alive": True,
         "live_turn": None,
@@ -2643,16 +2515,38 @@ def test_a_host_step_waiting_on_the_user_outlasts_the_working_grace():
         "turn_closed": None,
         "turn_takes_input": False,
     }
+    voice = {"author": "agent", "agent": "Agent", "session": "session-1"}
+    events = [
+        {
+            "kind": "task",
+            "id": "t1",
+            "seq": 1,
+            "ts": old,
+            "subject": {"kind": "page"},
+            "title": "Revise the page",
+            **voice,
+        },
+        {
+            "kind": "start",
+            "id": "s1",
+            "seq": 2,
+            "ts": old,
+            "item": "t1",
+            "text": "Revising",
+            "turn": "turn-1",
+            **voice,
+        },
+    ]
     stream = {"session": "session-1", "turn": "turn-1", "ts": old}
     waiting = activity_model.canonical_activity(
-        present, [], now.isoformat(), {**stream, "kind": "awaiting_approval"}
+        present, [], events, now.isoformat(), {**stream, "kind": "awaiting_approval"}
     )
     assert (waiting["kind"], waiting["observed_kind"]) == (
         "working",
         "awaiting_approval",
     )
     thinking = activity_model.canonical_activity(
-        present, [], now.isoformat(), {**stream, "kind": "thinking"}
+        present, [], events, now.isoformat(), {**stream, "kind": "thinking"}
     )
     assert (thinking["kind"], thinking["observed_kind"]) == ("stalled", None)
 
@@ -2670,7 +2564,7 @@ def test_a_host_step_waiting_on_the_user_outlasts_the_working_grace():
     }
     reply = {"state": "partial", "session": "session-1", "responds": "input-1"}
     [ended] = activity_model.canonical_activity(
-        present, [workflow], now.isoformat(), reply=reply
+        present, [workflow], events, now.isoformat(), reply=reply
     )["workflows"]
     assert ended["condition"] == {"kind": "ended", "operation": "response"}
 
@@ -2713,7 +2607,7 @@ def test_fresh_exact_reply_supersedes_an_older_workflow_condition():
     }
 
     activity = activity_model.canonical_activity(
-        present, [workflow], now.isoformat(), reply=reply
+        present, [workflow], [], now.isoformat(), reply=reply
     )
     [projected] = activity["workflows"]
     assert (projected["stage"], projected["condition"]) == ("replying", None)
@@ -2740,7 +2634,7 @@ def test_pickup_from_an_older_turn_has_a_stale_work_condition(claimed, capsys):
 
 def test_queued_input_does_not_hide_fresh_work(claimed):
     serving(claimed, 1)
-    session_model.cmd_status(claimed, "working", "Revising the heading")
+    working(claimed, "Revising the heading")
     comment = append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "One more note"}
     )
@@ -2758,7 +2652,7 @@ def test_queued_input_does_not_hide_fresh_work(claimed):
 
 def test_newer_pending_input_does_not_reclassify_page_work(claimed):
     serving(claimed, 1)
-    session_model.cmd_status(claimed, "working", "Revising the heading")
+    working(claimed, "Revising the heading")
 
     append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "One more note"}
@@ -2775,7 +2669,7 @@ def test_newer_pending_input_does_not_reclassify_page_work(claimed):
 
 def test_queued_input_does_not_hide_live_codex_activity(claimed):
     serving(claimed, 1)
-    session_model.cmd_status(claimed, "waiting", "Comment on the page")
+    session_model.cmd_waiting(claimed, "Comment on the page")
     claim = service_model.page_claim(claimed)
     lease = leases_model.take_lease(
         leases_model.waiter_lease_path(claimed, claim["id"])
@@ -2804,7 +2698,7 @@ def test_queued_input_does_not_hide_live_codex_activity(claimed):
 
 def test_live_codex_activity_overlays_the_declared_page_status(claimed):
     serving(claimed, 1)
-    session_model.cmd_status(claimed, "waiting", "comment on the page")
+    session_model.cmd_waiting(claimed, "comment on the page")
     claim = service_model.page_claim(claimed)
     lease = leases_model.take_lease(
         leases_model.waiter_lease_path(claimed, claim["id"])
@@ -2816,7 +2710,7 @@ def test_live_codex_activity_overlays_the_declared_page_status(claimed):
             "s1", "turn-live", {"kind": "tool", "detail": "Running the tests"}
         )
 
-    status = files_model.read_json(claimed / "status.json")
+    status = service_model.read_status(claimed)
     assert (status["state"], status["detail"]) == ("waiting", "comment on the page")
     public_presence = presence_model.presence(
         claimed, events_model.read_events(claimed)
@@ -2833,7 +2727,7 @@ def test_live_codex_activity_overlays_the_declared_page_status(claimed):
     )
     assert activity["observed_kind"] == "tool"
 
-    session_model.cmd_status(claimed, "waiting", "review the result")
+    session_model.cmd_waiting(claimed, "review the result")
     assert page_state(claimed)["activity"]["detail"] == "Running the tests"
 
     with service_model.PageTransaction(claimed) as transaction:
@@ -2848,7 +2742,7 @@ def test_live_codex_activity_overlays_the_declared_page_status(claimed):
 
 def test_stream_activity_writes_only_new_readings(claimed, monkeypatch):
     serving(claimed, 1)
-    session_model.cmd_status(claimed, "waiting", "comment on the page")
+    session_model.cmd_waiting(claimed, "comment on the page")
 
     with service_model.PageTransaction(claimed) as transaction:
         transaction.set_stream_activity(
@@ -2903,7 +2797,7 @@ def test_a_current_declaration_keeps_the_sentence_a_live_stream_stands_beside(cl
     )
     assert lease
 
-    session_model.cmd_status(claimed, "working", "Checking the rollout against staging")
+    start = working(claimed, "Checking the rollout against staging")
     with service_model.PageTransaction(claimed) as transaction:
         transaction.set_stream_activity(
             claim["id"],
@@ -2917,12 +2811,16 @@ def test_a_current_declaration_keeps_the_sentence_a_live_stream_stands_beside(cl
         "Checking the rollout against staging",
         "Running the tests",
     )
-    # The date belongs to the sentence, so a stream renewing every few seconds cannot
-    # make an old declaration read as current work.
-    assert activity["ts"] == files_model.read_json(claimed / "status.json")["ts"]
+    # The date belongs to the line, so a stream renewing every few seconds cannot
+    # make an old start read as current work.
+    assert activity["ts"] == start["ts"]
 
-    # With nothing current declared, the step is all there is, and it is the sentence.
-    session_model.cmd_status(claimed, "waiting", "which store should own it")
+    # With nothing in hand, the step is all there is, and it is the sentence.
+    ended = CliRunner().invoke(
+        cli_model.cli, ["task", "end", str(claimed), start["item"], "done"]
+    )
+    assert ended.exit_code == 0, ended.output
+    session_model.cmd_waiting(claimed, "which store should own it")
     waiting = page_state(claimed)["activity"]
     assert (waiting["kind"], waiting["detail"], waiting["observed"]) == (
         "working",
@@ -2930,7 +2828,7 @@ def test_a_current_declaration_keeps_the_sentence_a_live_stream_stands_beside(cl
         "Running the tests",
     )
 
-    session_model.cmd_status(claimed, "waiting", "which store should own it")
+    session_model.cmd_waiting(claimed, "which store should own it")
 
     # A newer user move has its own pending delivery; it does not reclassify current
     # page work or imply that the observed tool step belongs to that message.
@@ -2968,8 +2866,8 @@ def test_a_malformed_old_stream_record_is_ignored(claimed):
             "text": "new work",
         },
     )
-    session_model.cmd_status(claimed, "working", "Handling the new work")
-    status = files_model.read_json(claimed / "status.json")
+    working(claimed, "Handling the new work")
+    status = service_model.read_status(claimed)
     status["stream"] = {
         "activity": {
             "session": claim["id"],
@@ -2986,7 +2884,7 @@ def test_a_malformed_old_stream_record_is_ignored(claimed):
         "working",
         "Handling the new work",
     )
-    session_model.cmd_status(claimed, "waiting", "Review the result")
+    session_model.cmd_waiting(claimed, "Review the result")
     without_old_stream = page_state(claimed)["activity"]
     assert (without_old_stream["kind"], without_old_stream["observed_kind"]) == (
         "listening",
@@ -3002,7 +2900,7 @@ def test_stream_work_is_scoped_to_the_live_session_and_freshness(claimed):
         leases_model.waiter_lease_path(claimed, claim["id"])
     )
     assert lease
-    session_model.cmd_status(claimed, "waiting", "Review the result")
+    session_model.cmd_waiting(claimed, "Review the result")
     with service_model.PageTransaction(claimed) as transaction:
         transaction.set_stream_activity(
             claim["id"],
@@ -3011,7 +2909,7 @@ def test_stream_work_is_scoped_to_the_live_session_and_freshness(claimed):
         )
     assert page_state(claimed)["activity"]["observed_kind"] == "thinking"
 
-    status = files_model.read_json(claimed / "status.json")
+    status = service_model.read_status(claimed)
     activity = status["stream"]["activity"]
     cleanup_model.write_json(
         claimed / "status.json",
@@ -3665,7 +3563,7 @@ def test_a_new_codex_carrier_observes_ordinary_turns_without_a_prior_hook(
     assert cleanup_model.session_record("codex-thread") is None
     endpoint = app_server(handle)
     program, _log = fake_codex_cli(tmp_path)
-    session_model.cmd_status(page_dir, "waiting", "Reviewing the page")
+    session_model.cmd_waiting(page_dir, "Reviewing the page")
     release_start = tmp_path / "release-codex-start"
     started = under_codex(
         shlex.join(
@@ -5551,7 +5449,7 @@ def test_unheld_activity_drops_interaction_claims_from_the_same_reading(
     comment = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "new input"}
     )
-    claimed = _status(page_dir, "working", "reading it", "--on", comment["id"])
+    claimed = _start(page_dir, comment["id"], "reading it")
     assert claimed.exit_code == 0, claimed.output
     followup = append_carried_log_record(
         page_dir,
@@ -5566,7 +5464,7 @@ def test_unheld_activity_drops_interaction_claims_from_the_same_reading(
         (workflow["input"], workflow["stage"])
         for workflow in page_state(page_dir)["workflows"]
     ] == [(comment["id"], "working"), (followup["id"], "sent")]
-    status = files_model.read_json(page_dir / "status.json")
+    status = service_model.read_status(page_dir)
     cleanup_model.write_json(
         page_dir / "status.json",
         {
@@ -5606,24 +5504,11 @@ def test_idle_activity_refreshes_when_its_interaction_ownership_expires(
     comment = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "new input"}
     )
-    claimed = _status(page_dir, "working", "reading it", "--on", comment["id"])
-    assert claimed.exit_code == 0, claimed.output
     started = datetime.now().astimezone()
-    status = files_model.read_json(page_dir / "status.json")
+    declare_work(page_dir, "reading it", item=comment["id"], ts=started.isoformat())
     cleanup_model.write_json(
         page_dir / "status.json",
-        {
-            **status,
-            "state": "idle",
-            "detail": "",
-            "ts": started.isoformat(),
-            "work": [
-                {
-                    **status["work"][0],
-                    "ts": (started + timedelta(minutes=1)).isoformat(),
-                }
-            ],
-        },
+        {"state": "idle", "detail": "", "ts": started.isoformat(), "after": 0},
     )
 
     monkeypatch.setattr(
@@ -5656,11 +5541,11 @@ def test_idle_activity_refreshes_when_its_interaction_ownership_expires(
     assert after["next_transition_at"] is None
 
 
-def test_revendoring_can_change_x_work_while_the_target_button_holds_a_claim(page_dir):
-    """x-work admits an initial claim; it is not the claim's only later seat.
+def test_revendoring_can_change_x_work_while_the_target_holds_a_task(page_dir):
+    """x-work admits a task on a widget; it is not the task's only later seat.
 
     Re-vendoring can remove that declaration while the live widget remains, because
-    the page-edge target margin entry continues to present the already-admitted work.
+    the page-edge margin entry continues to present the task already admitted.
     """
     work_page = PAGE.replace(
         '<lf-diagram id="flow">',
@@ -5670,10 +5555,11 @@ def test_revendoring_can_change_x_work_while_the_target_button_holds_a_claim(pag
     )
     (page_dir / "index.html").write_text(work_page)
     publish(page_dir)
-    claimed = _status(
-        page_dir, "working", "checking the rollout", "--on", "rollout-card"
+    opened = CliRunner().invoke(
+        cli_model.cli,
+        ["task", "open", str(page_dir), "rollout-card", "Check the rollout"],
     )
-    assert claimed.exit_code == 0, claimed.output
+    assert opened.exit_code == 0, opened.output
     card = json.loads((schema_model.DEFAULT_PACKAGE / "registry.json").read_text())[
         "lf-card"
     ]
@@ -5695,22 +5581,16 @@ def test_revendoring_can_change_x_work_while_the_target_button_holds_a_claim(pag
     assert result.exit_code == 0, result.output
     registry = json.loads((page_dir / "registry.json").read_text())
     assert "x-work" not in registry["lf-card"]
-    claim = next(
-        update
-        for update in state_json(page_dir)["updates"]
-        if update["source"] == "claim"
-    )
-    assert claim["target"] == {"kind": "widget", "id": "rollout-card"}
-    assert claim["disposition"] == "effective"
+    [task] = state_json(page_dir)["tasks"]
+    assert task["subject"] == {"kind": "widget", "id": "rollout-card"}
 
 
 def test_a_recordless_receipt_from_a_stale_revision_waits_for_a_later_note(page_dir):
     """A completion move can arrive from a live revision after another is active.
 
-    A version note older than the move cannot answer it. Its receipt can still admit
-    an explicit claim without x-work; only the next note settles the move, while the
-    claim itself remains at the widget's target margin entry until an explicit --completes
-    note answers that separate work lifecycle.
+    A version note older than the move cannot answer it. The agent can start the move
+    all the same, and the next version that records it settles the move and ends the
+    start with it.
     """
     work_page = PAGE.replace(
         "<lf-options>", '<lf-options id="plan-choice" choose multiple>', 1
@@ -5759,10 +5639,10 @@ def test_a_recordless_receipt_from_a_stale_revision_waits_for_a_later_note(page_
     assert after_pickup["counts"]["handling"] == 1
     assert [item["input"] for item in after_pickup["obligations"]] == [answer["id"]]
 
-    claimed = _status(
-        page_dir, "working", "checking the completed choice", "--on", "plan-choice"
-    )
+    claimed = _start(page_dir, answer["id"], "checking the completed choice")
     assert claimed.exit_code == 0, claimed.output
+    [working_receipt] = page_state(page_dir)["workflows"]
+    assert working_receipt["stage"] == "working"
     (page_dir / "index.html").write_text(
         work_page.replace("<title>t</title>", "<title>t · v3</title>")
     )
@@ -5771,13 +5651,6 @@ def test_a_recordless_receipt_from_a_stale_revision_waits_for_a_later_note(page_
 
     acknowledgments = page_state(page_dir)["workflows"]
     assert not any(receipt["input"] == answer["id"] for receipt in acknowledgments)
-    claim = next(
-        update
-        for update in state_json(page_dir)["updates"]
-        if update["source"] == "claim"
-    )
-    assert claim["target"] == {"kind": "widget", "id": "plan-choice"}
-    assert claim["disposition"] == "effective"
 
 
 @pytest.mark.parametrize("target", ["effort", "flag-first"])
@@ -5794,24 +5667,25 @@ def test_only_a_declared_widget_work_seat_is_admitted(page_dir, target):
     )
     publish(page_dir)
 
-    claimed = _status(page_dir, "working", "checking the estimate", "--on", target)
+    claimed = CliRunner().invoke(
+        cli_model.cli,
+        ["task", "open", str(page_dir), target, "Check the estimate"],
+    )
     assert claimed.exit_code == 1
-    assert "has no local work seat" in claimed.output
+    assert "has no work seat" in claimed.output
 
 
-def test_a_thread_claim_is_settled_by_log_order_not_a_second_precision_clock(page_dir):
-    """A reply can land in the same timestamp second as the status command. The
-    claim records the log floor it followed, so that later event settles it without
-    asking two equal wall-clock strings which happened first."""
+def test_a_start_is_settled_by_log_order_not_a_second_precision_clock(page_dir):
+    """A reply can land in the same timestamp second as the start. The reply that
+    answers the move ends the start by the log alone, without asking two equal
+    wall-clock strings which happened first."""
     comment = append_carried_log_record(
         page_dir,
         {"kind": "comment", "id": "c1", "author": "user", "text": "why?"},
     )
-    assert (
-        _status(page_dir, "working", "checking", "--on", comment["id"]).exit_code == 0
-    )
-    status = files_model.read_json(page_dir / "status.json")
-    work = status["work"][0]
+    started = _start(page_dir, comment["id"], "checking")
+    assert started.exit_code == 0, started.output
+    start = json.loads(started.output.splitlines()[-1])
 
     append_carried_log_record(
         page_dir,
@@ -5819,36 +5693,19 @@ def test_a_thread_claim_is_settled_by_log_order_not_a_second_precision_clock(pag
             "kind": "reply",
             "author": "agent",
             "parent": comment["id"],
+            "responds": comment["id"],
             "text": "Because the retry won.",
-            "ts": work["ts"],
+            "ts": start["ts"],
         },
     )
-
-    claim = next(
-        update
-        for update in state_json(page_dir)["updates"]
-        if update["source"] == "claim"
-    )
-    assert claim["disposition"] == "settled"
-
-    assert (
-        _status(page_dir, "working", "checking again", "--on", comment["id"]).exit_code
-        == 0
-    )
-    renewed = next(
-        update
-        for update in state_json(page_dir)["updates"]
-        if update["source"] == "claim"
-    )
-    assert renewed["id"] != claim["id"]
-    assert renewed["disposition"] == "effective"
+    assert page_state(page_dir)["workflows"] == []
 
 
 def test_each_delivered_event_says_only_what_its_own_case_asks(page_dir, capsys):
     """Shared clauses travel once, and each event names only its applicable rules:
     its kind's, then the answer it owes, and no answer's where it owes none."""
     serving(page_dir, 1)
-    session_model.cmd_status(page_dir, "waiting", "")
+    session_model.cmd_waiting(page_dir, "")
     page_pick = {
         "kind": "action",
         "author": "user",
@@ -5937,7 +5794,7 @@ def test_active_handling_survives_a_mutable_layer_edit(page_dir, capsys):
     registry_path.write_text(json.dumps(registry))
 
     serving(page_dir, 1)
-    session_model.cmd_status(page_dir, "waiting", "")
+    session_model.cmd_waiting(page_dir, "")
     append_carried_log_record(page_dir, comment)
 
     assert session_model.cmd_wait(page_dir) == 0
@@ -6023,15 +5880,14 @@ def test_codex_drops_a_record_whose_delivery_it_cannot_read(page_dir):
     assert codex_model.delivery_records("handling-test") == []
 
 
-def test_reopening_a_thread_reveals_its_unanswered_claim(page_dir):
-    """Resolution hides thread work while reopening restores an unanswered claim."""
+def test_reopening_a_thread_reveals_its_started_move(page_dir):
+    """Resolution hides a thread's moves while reopening restores an unanswered one,
+    still in hand under the start that named it."""
     comment = append_carried_log_record(
         page_dir,
         {"kind": "comment", "id": "c1", "author": "user", "text": "why?"},
     )
-    assert (
-        _status(page_dir, "working", "checking", "--on", comment["id"]).exit_code == 0
-    )
+    assert _start(page_dir, comment["id"], "checking").exit_code == 0
     append_carried_log_record(
         page_dir,
         {"kind": "resolve", "author": "agent", "parent": comment["id"]},
@@ -6041,17 +5897,13 @@ def test_reopening_a_thread_reveals_its_unanswered_claim(page_dir):
         {"kind": "unresolve", "author": "user", "parent": comment["id"]},
     )
 
-    claim = next(
-        update
-        for update in state_json(page_dir)["updates"]
-        if update["source"] == "claim"
-    )
-    assert claim["disposition"] == "effective"
+    [workflow] = page_state(page_dir)["workflows"]
+    assert (workflow["input"], workflow["stage"]) == (comment["id"], "working")
 
 
 def test_delivery_distinguishes_thread_obligations_from_closing_answered_work(page_dir):
     """The same resolve/unresolve kinds can withdraw work or merely tidy a thread.
-    Changes remain deliverable after pickup and after their claims are removed.
+    Changes remain deliverable after pickup and after the work they changed ends.
     """
     publish(page_dir)
 
@@ -6067,12 +5919,10 @@ def test_delivery_distinguishes_thread_obligations_from_closing_answered_work(pa
     newest = write("reply", parent=question["id"], text="Keep the launch small.")
     assert newest["attention"]
     receive_through(page_dir, newest["seq"])
-    assert (
-        _status(page_dir, "working", "Revising", "--on", question["id"]).exit_code == 0
-    )
+    assert _start(page_dir, question["id"], "Revising").exit_code == 0
     withdrawal = write("resolve", parent=question["id"])
     assert withdrawal["attention"]
-    # Repeated closure has neither an answer nor effective claim left to change.
+    # Repeated closure has neither an answer nor a started move left to change.
     assert not write("resolve", parent=question["id"])["attention"]
     reopened = write("unresolve", parent=question["id"])
     assert reopened["attention"]
@@ -6090,15 +5940,15 @@ def test_delivery_distinguishes_thread_obligations_from_closing_answered_work(pa
     )
     assert not write("resolve", parent=question["id"])["attention"]
     assert not write("unresolve", parent=question["id"])["attention"]
-    # A claim begun after the answer is separate work, with no pending response.
-    assert (
-        _status(
-            page_dir, "working", "Checking the change", "--on", question["id"]
-        ).exit_code
-        == 0
+    # A task begun after the answer is separate work, with no pending response, and
+    # it stands through the user closing and reopening the thread.
+    opened = CliRunner().invoke(
+        cli_model.cli,
+        ["task", "open", str(page_dir), question["id"], "Check the change"],
     )
-    assert write("resolve", parent=question["id"])["attention"]
-    assert write("unresolve", parent=question["id"])["attention"]
+    assert opened.exit_code == 0, opened.output
+    assert not write("resolve", parent=question["id"])["attention"]
+    assert not write("unresolve", parent=question["id"])["attention"]
     assert page_state(page_dir)["activity"]["obligations"] == []
     with service_model.PageTransaction(page_dir) as page:
         page.set_status("idle", "")
@@ -6110,7 +5960,7 @@ def test_delivery_distinguishes_thread_obligations_from_closing_answered_work(pa
     )["attention"]
 
 
-def test_delivery_distinguishes_composing_an_ask_from_changing_claimed_input(page_dir):
+def test_delivery_distinguishes_composing_an_ask_from_changing_input_in_hand(page_dir):
     source = PAGE.replace(
         "<lf-options>", '<lf-options id="choice" choose multiple>'
     ).replace(
@@ -6138,8 +5988,13 @@ def test_delivery_distinguishes_composing_an_ask_from_changing_claimed_input(pag
     completed = action("choice", "answer", {})
     assert completed["attention"]
     receive_through(page_dir, completed["seq"])
+    # The agent takes the answered pick on as a task on its widget.
     assert (
-        _status(page_dir, "working", "Building the choice", "--on", "choice").exit_code
+        CliRunner()
+        .invoke(
+            cli_model.cli, ["task", "open", str(page_dir), "choice", "Build the choice"]
+        )
+        .exit_code
         == 0
     )
     undone = append_command(
@@ -6159,7 +6014,11 @@ def test_delivery_distinguishes_composing_an_ask_from_changing_claimed_input(pag
     )["attention"]
     quiet = action("draft", "edit", {"text": "Red room."})
     assert (
-        _status(page_dir, "working", "Editing the draft", "--on", "draft").exit_code
+        CliRunner()
+        .invoke(
+            cli_model.cli, ["task", "open", str(page_dir), "draft", "Edit the draft"]
+        )
+        .exit_code
         == 0
     )
     assert action("draft", "edit", {"text": "Orange room."})["attention"]
@@ -6222,7 +6081,7 @@ def test_wait_prints_unacknowledged_input_without_receipt_or_pickup(
 ):
     # A held server.lock lease is what wait's liveness probe asks for.
     serving(page_dir, 1)
-    session_model.cmd_status(page_dir, "waiting", "")
+    session_model.cmd_waiting(page_dir, "")
     append_carried_log_record(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hi"}
     )
@@ -6273,7 +6132,7 @@ def test_wait_prints_unacknowledged_input_without_receipt_or_pickup(
     receive_through(page_dir, later["seq"])
     assert page_state(page_dir)["pending"] == 0
     # Pickup is exact log evidence and does not rewrite the agent's page-wide claim.
-    status = files_model.read_json(page_dir / "status.json")
+    status = service_model.read_status(page_dir)
     assert status["state"] == "waiting"
     pickups = [e for e in events_model.read_events(page_dir) if e["kind"] == "pickup"]
     assert [e["events"] for e in pickups] == [["c1", shown[1]["id"]], ["c2"]]
@@ -6282,7 +6141,7 @@ def test_wait_prints_unacknowledged_input_without_receipt_or_pickup(
         for line in (page_dir / "events.jsonl").read_text().splitlines()
     ]
     assert all("seq" not in event for event in stored if event["kind"] == "pickup")
-    session_model.cmd_status(page_dir, "working", "revising the plan")
+    working(page_dir, "revising the plan")
     assert (
         files_model.read_json(page_dir / "status.json")["detail"] == "revising the plan"
     )
@@ -6816,7 +6675,7 @@ def test_settling_a_frozen_widget_move_does_not_revive_its_superseded_move(
     claimed, capsys
 ):
     page_dir = claimed
-    session_model.cmd_status(page_dir, "waiting", "")
+    session_model.cmd_waiting(page_dir, "")
     session = service_model.page_claim(page_dir)
     lease = leases_model.take_lease(
         leases_model.waiter_lease_path(page_dir, session["id"])
@@ -7912,7 +7771,7 @@ def test_ack_rearms_the_wait_after_releasing_the_cursor_transaction(
 ):
     serving(page_dir, 1)
     codex_loop(page_dir)
-    session_model.cmd_status(page_dir, "working", "answering the first comment")
+    working(page_dir, "answering the first comment")
     append_carried_log_record(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "one"}
     )
@@ -8036,8 +7895,8 @@ def test_ack_rearm_keeps_the_other_pages_when_its_batch_page_transfers(
     serving(other, 2)
     codex_loop(page_dir)
     codex_loop(other)
-    session_model.cmd_status(page_dir, "waiting", "first page")
-    session_model.cmd_status(other, "waiting", "second page")
+    session_model.cmd_waiting(page_dir, "first page")
+    session_model.cmd_waiting(other, "second page")
     append_carried_log_record(
         page_dir,
         {"kind": "comment", "id": "first", "author": "user", "text": "one"},
@@ -8090,7 +7949,7 @@ def test_ack_rearm_reports_when_its_only_page_transfers_after_selection(
     """
     serving(page_dir, 1)
     service_model.claim_page(page_dir)
-    session_model.cmd_status(page_dir, "waiting", "first page")
+    session_model.cmd_waiting(page_dir, "first page")
     append_carried_log_record(
         page_dir,
         {"kind": "comment", "id": "first", "author": "user", "text": "one"},
@@ -8142,7 +8001,7 @@ def test_ack_rearm_reports_when_its_only_page_transfers_after_selection(
 
 def test_wait_preserves_a_working_status_on_mid_work_output(page_dir, capsys):
     serving(page_dir, 1)
-    session_model.cmd_status(page_dir, "working", "running the browser suite")
+    working(page_dir, "running the browser suite")
     status_path = page_dir / "status.json"
     before = status_path.read_bytes()
     append_carried_log_record(
@@ -8175,7 +8034,7 @@ def test_a_wait_watches_a_stopped_server_until_its_page_ends(
             "lifetime": "standing",
         },
     )
-    session_model.cmd_status(page_dir, "waiting", "review the page")
+    session_model.cmd_waiting(page_dir, "review the page")
 
     def unexpected_start(*_args, **_kwargs):
         pytest.fail("a disabled service was revived")
@@ -8195,7 +8054,7 @@ def test_a_wait_watches_a_stopped_server_until_its_page_ends(
     assert passed.outcome is None
     assert [reading.page_dir for reading in passed.live] == [page_dir]
 
-    session_model.cmd_status(page_dir, "idle", "")
+    declare_idle(page_dir)
     capsys.readouterr()
     assert session_model.cmd_wait(page_dir) == 2
     assert "the leaf ended" in capsys.readouterr().err
@@ -8218,7 +8077,7 @@ def test_a_revival_that_does_not_hold_ends_the_wait(
             "lifetime": "standing",
         },
     )
-    session_model.cmd_status(page_dir, "waiting", "review the page")
+    session_model.cmd_waiting(page_dir, "review the page")
 
     def refused_start(*_args, **_kwargs):
         raise StartRefused("the port is taken")
@@ -8294,7 +8153,7 @@ def test_a_wait_on_a_page_never_served_ends_at_once(page_dir, capsys, wait):
     on it ends on its first pass with the command that does, whether it was
     named or claimed earlier and found by the session's wait."""
     assert not (page_dir / "service.json").exists()
-    session_model.cmd_status(page_dir, "waiting", "review the page")
+    session_model.cmd_waiting(page_dir, "review the page")
     service_model.claim_page(page_dir)
 
     def unexpected_delivery(reading):
@@ -8398,7 +8257,7 @@ def test_page_init_restarts_a_served_page_under_the_sessions_wait(
     generation = files_model.read_json(page_dir / "registry.json")["$layer"][
         "generation"
     ]
-    session_model.cmd_status(page_dir, "waiting", "review the page")
+    session_model.cmd_waiting(page_dir, "review the page")
     waited = tmp_path / "wait.log"
     with waited.open("w", encoding="utf-8") as output:
         waiter = spawn(
@@ -8596,7 +8455,7 @@ def test_a_delayed_revival_cannot_cross_an_explicit_stop(page_dir, monkeypatch):
             "lifetime": "session",
         },
     )
-    session_model.cmd_status(page_dir, "working", "watching for a reply")
+    working(page_dir, "watching for a reply")
     entered, release = threading.Event(), threading.Event()
     real_start = hosting_model.start_server
 
@@ -8699,7 +8558,7 @@ def test_wait_does_not_revive_a_page_another_leaf_vendored(page_dir, capsys):
         },
     )
     assert service_model.claim_page(page_dir)
-    session_model.cmd_status(page_dir, "waiting", "review the page")
+    session_model.cmd_waiting(page_dir, "review the page")
     vendored_by_another_leaf(page_dir)
 
     # One pass first, so a revival that went through fails here rather than
@@ -8734,7 +8593,7 @@ def test_wait_revival_cannot_take_a_page_back_after_claim_transfer(
     """
     page = codex_claimed_page
     hosting_model.cmd_stop(page)
-    session_model.cmd_status(page, "waiting", "comment on the prototype")
+    session_model.cmd_waiting(page, "comment on the prototype")
     status_path = page / "status.json"
     hold_status_read(status_path)
     first = under_codex(
@@ -8761,7 +8620,7 @@ def test_wait_revival_cannot_take_a_page_back_after_claim_transfer(
         ).encode(),
     )
     os.close(writer)
-    session_model.cmd_status(page, "idle", "the page is done")
+    declare_idle(page)
 
     first_out, first_err = first.communicate(timeout=60)
     assert (first.returncode, first_out) == (2, ""), first_err
@@ -8790,7 +8649,7 @@ def test_session_end_cannot_be_overtaken_by_wait_revival(claimed, spawn):
             "lifetime": "session",
         },
     )
-    session_model.cmd_status(page, "waiting", "comment on the prototype")
+    session_model.cmd_waiting(page, "comment on the prototype")
     status_path = page / "status.json"
     hold_status_read(status_path)
     waiter = spawn(
@@ -8866,7 +8725,7 @@ def test_wait_ends_when_the_leaf_does(page_dir, capsys, snapshot):
     the watcher's to end — a user is free to stay on a page the agent has
     finished with — so it is left exactly as it stands."""
     serving(page_dir, 1)
-    session_model.cmd_status(page_dir, "idle", "the page is done")
+    declare_idle(page_dir)
     assert session_model.cmd_wait(page_dir) == 2
     assert server_model.running_server(page_dir)
     served = capsys.readouterr()
@@ -8912,8 +8771,8 @@ def test_one_wait_watches_every_page_the_session_holds(
     second = tmp_path / "second"
     vendoring_model.cmd_init(second)
     capsys.readouterr()
-    session_model.cmd_status(second, "waiting", "")
-    session_model.cmd_status(page_dir, "waiting", "")
+    session_model.cmd_waiting(second, "")
+    session_model.cmd_waiting(page_dir, "")
     serving(page_dir, 1)
     serving(second, 2)
     for d in (page_dir, second):
@@ -8935,8 +8794,8 @@ def test_one_wait_watches_every_page_the_session_holds(
     assert all(e["kind"] != "pickup" for e in events_model.read_events(page_dir))
 
     # Idling one leaf leaves the watch to the others; idling the last ends it.
-    session_model.cmd_status(second, "idle", "")
-    session_model.cmd_status(page_dir, "idle", "")
+    declare_idle(second)
+    declare_idle(page_dir)
     assert session_model.cmd_wait() == 2
 
 
@@ -8950,7 +8809,7 @@ def test_the_stop_hook_watch_wakes_the_session_only_for_input(
     beside it has answered, and ends silently where it has nothing to do."""
     leases_model.mark_hooks("s1")  # its host runs Leaf's hooks
     serving(claimed, 1)
-    session_model.cmd_status(claimed, "waiting", "")
+    session_model.cmd_waiting(claimed, "")
     stop = {"hook_event_name": "Stop", "session_id": "s1"}
 
     # Another watch holds the session's lease, or the hook names another session:
@@ -9042,7 +8901,7 @@ def test_the_stop_hook_watch_wakes_the_session_only_for_input(
     # An idle page leaves nothing to watch, and that ending wakes nobody.
     cleanup_model.prompt_turn("s1")
     receive_through(claimed, last_deliverable_seq(claimed))
-    session_model.cmd_status(claimed, "idle", "")
+    declare_idle(claimed)
     assert hooks_model.cmd_watch(stop) is None
 
 
@@ -9060,7 +8919,7 @@ def test_a_page_served_mid_wait_joins_the_running_watch(
     joined = tmp_path / "joined"
     vendoring_model.cmd_init(joined)
     capsys.readouterr()
-    session_model.cmd_status(joined, "waiting", "")
+    session_model.cmd_waiting(joined, "")
     serving(joined, 2)
 
     def join():
@@ -9085,7 +8944,7 @@ def test_a_wait_holding_events_delivers_them_whatever_became_of_the_page(
     append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "hi"}
     )
-    session_model.cmd_status(page_dir, "idle", "the page is done")
+    declare_idle(page_dir)
     assert session_model.cmd_wait(page_dir) == 0
     _, first, _ = delivered(capsys)
     assert first["page"] == str(page_dir)
@@ -9113,7 +8972,7 @@ def test_wait_holds_a_page_nobody_has_opened(page_dir, capsys):
     no request has ever touched it holds for the user exactly as it would for
     one reading, and reports nothing of its own."""
     serving(page_dir, 1)
-    session_model.cmd_status(page_dir, "waiting", "")
+    session_model.cmd_waiting(page_dir, "")
     threading.Timer(
         0.2,
         lambda: append_carried_log_record(
@@ -9190,7 +9049,7 @@ def test_a_bare_shell_receipt_rearms_every_page_in_its_delivery(
 
 def test_an_unnamed_bare_shell_wait_has_no_watch_set(page_dir, sessionless, capsys):
     """Without a host identity or a named page, there is nothing to watch."""
-    session_model.cmd_status(page_dir, "waiting", "")
+    session_model.cmd_waiting(page_dir, "")
     serving(page_dir, 1)
     record_claim(page_dir, id="foreign-session")
     append_carried_log_record(
@@ -9206,7 +9065,7 @@ def test_an_unnamed_bare_shell_wait_has_no_watch_set(page_dir, sessionless, caps
 
 def test_a_host_claim_supersedes_a_bare_shell_wait(page_dir, sessionless, spawn):
     """A page has one wait owner even when the first has no host identity."""
-    session_model.cmd_status(page_dir, "waiting", "")
+    session_model.cmd_waiting(page_dir, "")
     serving(page_dir, 1)
     bare = spawn(
         [*LEAF_COMMAND, "wait", str(page_dir)],
@@ -9265,7 +9124,7 @@ def test_codex_receipt_leaves_input_for_the_new_page_owner(page_dir):
         {"kind": "comment", "id": "accepted", "author": "user", "text": "hi"},
     )
     delivered = events_model.read_events(page_dir)[-1]
-    session_model.cmd_status(page_dir, "waiting", "successor is listening")
+    session_model.cmd_waiting(page_dir, "successor is listening")
     successor = record_claim(page_dir, id="successor", harness="codex", agent="Codex")
     with service_model.PageTransaction(page_dir) as page:
         reading = session_model.PageTick(
@@ -9290,7 +9149,7 @@ def test_codex_receipt_leaves_input_for_the_new_page_owner(page_dir):
 
     assert files_model.read_json(page_dir / "cursor.json") is None
     assert service_model.page_claim(page_dir) == successor
-    status = files_model.read_json(page_dir / "status.json")
+    status = service_model.read_status(page_dir)
     assert (status["state"], status["detail"]) == (
         "waiting",
         "successor is listening",
@@ -10394,7 +10253,7 @@ def test_codex_restart_finishes_an_accepted_batch_without_queueing_again(
         {"kind": "comment", "id": "accepted", "author": "user", "text": "hi"},
     )
     delivered = events_model.read_events(page)[-1]
-    session_model.cmd_status(page, "waiting", "comment on the prototype")
+    session_model.cmd_waiting(page, "comment on the prototype")
     with service_model.PageTransaction(page) as transaction:
         reading = session_model.PageTick(
             page,
@@ -10449,7 +10308,7 @@ def test_codex_restart_finishes_an_accepted_batch_without_queueing_again(
             ["queue", "--help"]
         ]
     finally:
-        session_model.cmd_status(page, "idle", "")
+        declare_idle(page)
         with service_model.PageTransaction(page) as transaction:
             transaction.release_claim()
     wait_for(
@@ -10467,7 +10326,7 @@ def test_a_later_codex_start_names_the_running_transport(
     this adapter is not on is refused rather than ignored."""
     page = codex_claimed_page
     program, log = fake_codex_cli(tmp_path)
-    session_model.cmd_status(page, "waiting", "comment on the prototype")
+    session_model.cmd_waiting(page, "comment on the prototype")
     environment = codex_env | {
         "CODEX_THREAD_ID": "codex-thread",
         "FAKE_CODEX_LOG": str(log),
@@ -10522,7 +10381,7 @@ def test_a_later_codex_start_names_the_running_transport(
         out, err = started.communicate(timeout=60)
         assert started.returncode == 0, f"{out}{err}"
     finally:
-        session_model.cmd_status(page, "idle", "")
+        declare_idle(page)
         with service_model.PageTransaction(page) as transaction:
             transaction.release_claim()
     wait_for(
@@ -10542,7 +10401,7 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
 ):
     page = codex_claimed_page
     program, log = fake_codex_cli(tmp_path)
-    session_model.cmd_status(page, "waiting", "comment on the prototype")
+    session_model.cmd_waiting(page, "comment on the prototype")
     environment = codex_env | {
         "CODEX_THREAD_ID": "codex-thread",
         "FAKE_CODEX_LOG": str(log),
@@ -10702,7 +10561,7 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
                 None,
                 for_event=comment["id"],
             )
-        session_model.cmd_status(page, "idle", "")
+        declare_idle(page)
     finally:
         with service_model.PageTransaction(page) as transaction:
             transaction.release_claim()
@@ -10720,7 +10579,7 @@ def test_codex_adapter_follows_ownership_across_idle_and_server_stop(
     """Status and server changes do not end a route still owned by the task."""
     page = codex_claimed_page
     program, log = fake_codex_cli(tmp_path)
-    session_model.cmd_status(page, "waiting", "comment on the prototype")
+    session_model.cmd_waiting(page, "comment on the prototype")
     assert hosting_model.cmd_stop(page) is True
     checks = tmp_path / "adapter-checks.json"
     adapter = spawn_probe(
@@ -10770,7 +10629,7 @@ raise SystemExit(adapter.run_adapter(os.environ["CODEX_PATH"]))
             ),
         )
         assert codex_adapter_model.adapter_is_live("codex-thread")
-        session_model.cmd_status(page, "idle", "")
+        declare_idle(page)
         wait_for(
             lambda: files_model.read_json(checks),
             lambda reading: (
@@ -10780,7 +10639,7 @@ raise SystemExit(adapter.run_adapter(os.environ["CODEX_PATH"]))
             failure="the adapter never completed its idle-page reads",
         )
         assert codex_adapter_model.adapter_is_live("codex-thread")
-        session_model.cmd_status(page, "waiting", "resumed review")
+        session_model.cmd_waiting(page, "resumed review")
         asked = append_carried_log_record(
             page, {"kind": "comment", "author": "user", "text": "Continue this review"}
         )
@@ -10828,7 +10687,7 @@ def test_an_offline_sibling_does_not_stop_browser_comments_reaching_codex(
     assert stamped.exit_code == 0, stamped.output
     offline = tmp_path / "a-offline-page"
     vendoring_model.cmd_init(offline)
-    session_model.cmd_status(offline, "waiting", "earlier review")
+    session_model.cmd_waiting(offline, "earlier review")
     cleanup_model.write_json(
         offline / "service.json",
         {
@@ -10841,7 +10700,7 @@ def test_an_offline_sibling_does_not_stop_browser_comments_reaching_codex(
     )
 
     program, log = fake_codex_cli(tmp_path)
-    session_model.cmd_status(live, "waiting", "current review")
+    session_model.cmd_waiting(live, "current review")
     release_start = tmp_path / "release-codex-start"
     # Both page claims and the carrier belong to the same actual task host.
     # A second fake Codex process would declare a replacement session lifetime.
@@ -10934,7 +10793,7 @@ start_server(live)
         )
     finally:
         for page in (offline, live):
-            session_model.cmd_status(page, "idle", "")
+            declare_idle(page)
             with service_model.PageTransaction(page) as transaction:
                 transaction.release_claim()
 
@@ -10983,7 +10842,7 @@ def test_codex_adapter_exits_when_delivery_retries_outlive_its_claim(
 ):
     page = codex_claimed_page
     program, log = fake_codex_cli(tmp_path)
-    session_model.cmd_status(page, "waiting", "comment on the prototype")
+    session_model.cmd_waiting(page, "comment on the prototype")
     adapter = spawn(
         [*LEAF_COMMAND, "codex", "run", "--codex-path", str(program)],
         env=codex_env
@@ -11041,7 +10900,7 @@ def test_codex_adapter_keeps_transferred_input_unreceived(
 ):
     page = codex_claimed_page
     program, log = fake_codex_cli(tmp_path)
-    session_model.cmd_status(page, "waiting", "comment on the prototype")
+    session_model.cmd_waiting(page, "comment on the prototype")
     queue_wait = tmp_path / "held-queue"
     adapter = spawn(
         [*LEAF_COMMAND, "codex", "run", "--codex-path", str(program)],
@@ -11098,7 +10957,7 @@ def test_a_queued_codex_delivery_leaves_the_turn_ended_stamp_standing(
     the assertion is that a completed queue delivery moved everything except this."""
     page = codex_claimed_page
     program, log = fake_codex_cli(tmp_path)
-    session_model.cmd_status(page, "working", "answering the last comment")
+    working(page, "answering the last comment")
     release_start = tmp_path / "release-codex-start"
     started = under_codex(
         shlex.join(
@@ -11151,7 +11010,7 @@ def test_a_queued_codex_delivery_leaves_the_turn_ended_stamp_standing(
         assert queued["kind"] == "working"
         assert [item["stage"] for item in queued["obligations"]] == ["queued"]
 
-        session_model.cmd_status(page, "idle", "")
+        declare_idle(page)
     finally:
         with service_model.PageTransaction(page) as transaction:
             transaction.release_claim()
@@ -11167,7 +11026,7 @@ def test_adding_a_page_cannot_race_the_codex_adapter_exit(
         "CODEX_THREAD_ID": "codex-thread",
         "FAKE_CODEX_LOG": str(log),
     }
-    session_model.cmd_status(first, "waiting", "first page")
+    session_model.cmd_waiting(first, "first page")
     start_lock = codex_adapter_model.adapter_start_lock_path("codex-thread")
     read_gate = tmp_path / "adapter-read-gate"
     os.mkfifo(read_gate)
@@ -11236,7 +11095,7 @@ raise SystemExit(codex_adapter_model.run_adapter(os.environ["CODEX_PATH"]))
         check=True,
     )
     assert json.loads(standing.stdout)["url"].startswith("http://127.0.0.1:")
-    session_model.cmd_status(second, "waiting", "second page")
+    session_model.cmd_waiting(second, "second page")
     starter = None
     release_start = tmp_path / "release-second-start"
     starter_ready = tmp_path / "second-start-lock"
@@ -11256,7 +11115,7 @@ print(json.dumps(codex_adapter.cmd_codex_start(Path(sys.argv[1]), sys.argv[2])),
 """
     try:
         with cleanup_model.flocked(start_lock):
-            session_model.cmd_status(first, "idle", "")
+            declare_idle(first)
             with open(read_gate, "wb") as gate:
                 gate.write(b"1")
             wait_for(
@@ -11306,7 +11165,7 @@ print(json.dumps(codex_adapter.cmd_codex_start(Path(sys.argv[1]), sys.argv[2])),
         if starter is not None and starter.poll() is None:
             starter.terminate()
             starter.wait(timeout=5)
-        session_model.cmd_status(second, "idle", "")
+        declare_idle(second)
         for page in (first, second):
             with service_model.PageTransaction(page) as transaction:
                 transaction.release_claim()
@@ -11562,7 +11421,7 @@ def test_hook_remedies_follow_the_host_not_the_display_name(
     )
     release_codex_command(page, release_wait)
     assert waited.wait(timeout=60) == 0
-    session_model.cmd_status(page, "waiting", "")
+    session_model.cmd_waiting(page, "")
 
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "w1"})
     reason = json.loads(capsys.readouterr().out)["reason"]
@@ -11574,7 +11433,7 @@ def test_stop_hook_keeps_codex_inside_the_exact_wait_session(
     codex_claimed_page, capsys
 ):
     page = codex_claimed_page
-    session_model.cmd_status(page, "waiting", "")
+    session_model.cmd_waiting(page, "")
     session = service_model.page_claim(page)
     lease = leases_model.take_lease(leases_model.waiter_lease_path(page, session["id"]))
     assert lease
@@ -11642,7 +11501,7 @@ def test_stop_hook_keeps_codex_inside_the_exact_wait_session(
         None,
         for_event=events_model.read_events(page)[0]["id"],
     )
-    session_model.cmd_status(page, "idle", "")
+    declare_idle(page)
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "codex-thread"})
     assert capsys.readouterr().out == ""
 
@@ -11658,7 +11517,7 @@ def test_a_codex_watcher_task_takes_the_parent_watch_obligation(
     batch.
     """
     page = codex_claimed_page
-    session_model.cmd_status(page, "waiting", "comment on the prototype")
+    session_model.cmd_waiting(page, "comment on the prototype")
     watcher = under_codex(
         shlex.join([*LEAF_COMMAND, "wait", str(page)]),
         codex_env | {"CODEX_THREAD_ID": "leaf-watcher"},
@@ -11698,7 +11557,7 @@ def test_a_superseded_waiter_cannot_deliver_the_new_owners_batch(
     either the page or its acknowledgement cursor.
     """
     page = codex_claimed_page
-    session_model.cmd_status(page, "waiting", "comment on the prototype")
+    session_model.cmd_waiting(page, "comment on the prototype")
 
     first = under_codex(
         shlex.join([*LEAF_COMMAND, "wait", str(page)]),
@@ -11752,7 +11611,7 @@ def test_a_claim_transfer_stops_a_waiter_already_inside_a_poll(
     every ordinary run.
     """
     page = codex_claimed_page
-    session_model.cmd_status(page, "waiting", "comment on the prototype")
+    session_model.cmd_waiting(page, "comment on the prototype")
     selected = page.parent / "waiter-selected-page"
     probe = """
 import sys
@@ -11811,7 +11670,7 @@ def test_wait_lease_is_exact_and_excludes_another_wait(
     for name in identity_names:
         monkeypatch.delenv(name, raising=False)
     serving(page_dir, 1)
-    session_model.cmd_status(page_dir, "waiting", "comment on the prototype")
+    session_model.cmd_waiting(page_dir, "comment on the prototype")
     # A bare waiter may hold an unclaimed page; a host waiter claims the page
     # from its prior owner before taking its session-scoped lease.
     if not identity_names:
@@ -12067,7 +11926,7 @@ def test_a_restarted_session_cannot_reopen_a_dead_claims_turn(
 
 def test_stop_hook_does_not_borrow_a_foreign_bare_waiter_lease(page_dir, monkeypatch):
     """A page-local lease proves only an unclaimed bare-shell watch."""
-    session_model.cmd_status(page_dir, "waiting", "")
+    session_model.cmd_waiting(page_dir, "")
     bare = leases_model.take_lease(page_dir / "waiter.lock")
     assert bare
     try:
@@ -12100,7 +11959,7 @@ def test_the_stop_hook_records_the_ending_of_the_turn_behind_a_claim(claimed, ca
     walks away from a `working` claim. The stamp is provenance and lands on the claim
     record rather than in status.json — what the agent said it was doing stays the
     agent's to write, which is the line SessionEnd already draws."""
-    session_model.cmd_status(claimed, "working", "reading the reconnect traces")
+    working(claimed, "reading the reconnect traces")
     assert service_model.page_claim(claimed)["turn_closed"] is None
     events = events_model.read_events(claimed)
     assert presence_model.presence(claimed, events)["turn_closed"] is None
@@ -12153,8 +12012,8 @@ def test_receiving_a_batch_observes_the_session_turn_on_every_owned_page(
     sibling = tmp_path / "sibling"
     vendoring_model.cmd_init(sibling)
     capsys.readouterr()
-    session_model.cmd_status(claimed, "working", "answering the first comment")
-    session_model.cmd_status(sibling, "working", "reading the sibling")
+    working(claimed, "answering the first comment")
+    working(sibling, "reading the sibling")
     serving(claimed, 1)
     serving(sibling, 2)
     assert service_model.claim_page(sibling)
@@ -12178,7 +12037,7 @@ def test_receiving_a_batch_observes_the_session_turn_on_every_owned_page(
     others = tmp_path / "others"
     vendoring_model.cmd_init(others)
     capsys.readouterr()
-    session_model.cmd_status(others, "working", "another session's page")
+    working(others, "another session's page")
     serving(others, 3)
     assert service_model.claim_page(others)
     claim = service_model.page_claim(others)
@@ -12192,8 +12051,8 @@ def test_receiving_a_batch_observes_the_session_turn_on_every_owned_page(
     [batch] = json.loads(reason.split("\n")[1])["batches"]
     assert [event["id"] for event in batch["events"]] == ["c2"]
     assert service_model.page_claim(others)["turn_closed"] == "then"
-    session_model.cmd_status(sibling, "idle", "")
-    session_model.cmd_status(others, "idle", "")
+    declare_idle(sibling)
+    declare_idle(others)
 
 
 def test_the_prompt_hook_opens_the_turn_on_every_page_the_session_holds(
@@ -12211,8 +12070,8 @@ def test_the_prompt_hook_opens_the_turn_on_every_page_the_session_holds(
     sibling = tmp_path / "sibling"
     vendoring_model.cmd_init(sibling)
     capsys.readouterr()
-    session_model.cmd_status(claimed, "working", "answering the first comment")
-    session_model.cmd_status(sibling, "working", "reading the sibling")
+    working(claimed, "answering the first comment")
+    working(sibling, "reading the sibling")
     serving(claimed, 1)
     serving(sibling, 2)
     assert service_model.claim_page(sibling)
@@ -12241,7 +12100,7 @@ def test_the_prompt_hook_opens_the_turn_on_every_page_the_session_holds(
     hooks_model.cmd_hook({"hook_event_name": "UserPromptSubmit", "session_id": "s2"})
     capsys.readouterr()
     assert service_model.page_claim(claimed)["turn_closed"] == closed
-    session_model.cmd_status(sibling, "idle", "")
+    declare_idle(sibling)
 
 
 def test_a_named_wait_claim_does_not_invent_turn_entry(claimed, capsys):
@@ -12251,7 +12110,7 @@ def test_a_named_wait_claim_does_not_invent_turn_entry(claimed, capsys):
     pending, and no pickup is recorded until the actual reader confirms the
     delivery the Stop hook handed over.
     """
-    session_model.cmd_status(claimed, "working", "answering the first comment")
+    working(claimed, "answering the first comment")
     hooks_model.cmd_hook(
         {"hook_event_name": "Stop", "session_id": "s1", "stop_hook_active": True}
     )
@@ -12306,7 +12165,7 @@ def test_a_stop_that_hands_over_input_keeps_the_turn_open(claimed, capsys):
     that hands it over blocks, and the turn it hands the input to is the one still
     running: not closed, and not closed and reopened as another. The repeated Stop
     that follows with nothing new is the turn really ending."""
-    session_model.cmd_status(claimed, "waiting", "")
+    session_model.cmd_waiting(claimed, "")
     session = service_model.page_claim(claimed)
     lease = leases_model.take_lease(
         leases_model.waiter_lease_path(claimed, session["id"])
@@ -12484,7 +12343,7 @@ def test_a_wait_only_wakes_a_session_its_hooks_have_run_for(
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "unhooked")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     serving(page_dir, 1)
-    session_model.cmd_status(page_dir, "waiting", "")
+    session_model.cmd_waiting(page_dir, "")
     first = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "first"}
     )
@@ -12538,7 +12397,7 @@ def test_stop_hook_holds_a_turn_only_where_nothing_will_watch_its_page(claimed, 
     turn ends over a page nothing watches yet. A carrier that is a process of its
     own, as a Codex task's adapter is, has to be running before the turn may end:
     without it the page keeps saying "Codex is working" over nobody."""
-    session_model.cmd_status(claimed, "waiting", "")
+    session_model.cmd_waiting(claimed, "")
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     assert capsys.readouterr().out == ""
 
@@ -12558,13 +12417,13 @@ def test_stop_hook_holds_a_turn_only_where_nothing_will_watch_its_page(claimed, 
     assert capsys.readouterr().out == ""
 
     # A closed page ends the turn cleanly.
-    session_model.cmd_status(claimed, "idle", "")
+    declare_idle(claimed)
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     assert capsys.readouterr().out == ""
 
     # A page a second session has since picked up is that session's to watch, so
     # s1 is no longer held to it.
-    session_model.cmd_status(claimed, "waiting", "")
+    session_model.cmd_waiting(claimed, "")
     record_claim(claimed, harness="codex", id="s2")
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     assert capsys.readouterr().out == ""
@@ -12589,7 +12448,7 @@ def test_pages_owing_the_same_thing_carry_one_copy_of_the_protocol(
             {"kind": "comment", "id": comment, "author": "user", "text": "look"},
         )
         receive_through(page, last_deliverable_seq(page))
-        session_model.cmd_status(page, "waiting", "")
+        session_model.cmd_waiting(page, "")
 
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     reason = continued(capsys.readouterr().out)
@@ -12630,7 +12489,7 @@ def test_a_preview_owes_no_watcher_but_still_carries_its_user(claimed, capsys):
     """
     # A Codex task owes its pages an adapter; a Claude Code session's watch is
     # its own Stop hook, and owes nothing here.
-    session_model.cmd_status(claimed, "waiting", "")
+    session_model.cmd_waiting(claimed, "")
     record_claim(claimed, harness="codex")
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     assert "no delivery adapter" in json.loads(capsys.readouterr().out)["reason"]
@@ -12679,7 +12538,7 @@ def test_a_preview_owes_no_watcher_but_still_carries_its_user(claimed, capsys):
 
 def test_hook_drops_a_page_transferred_after_ownership_discovery(claimed, monkeypatch):
     """Ownership transfer before the planner's page lock belongs to the new owner."""
-    session_model.cmd_status(claimed, "waiting", "")
+    session_model.cmd_waiting(claimed, "")
     discover = hook_carrier_model.owned_pages
 
     def transfer(session_id):
@@ -12713,7 +12572,7 @@ def test_the_turn_holds_again_when_a_version_takes_the_answer_back(
     every acknowledged comment would pass the other arm."""
     (claimed / "index.html").write_text(PICKS_PAGE)
     let_a_pick_settle_a_thread(claimed, "which")
-    session_model.cmd_status(claimed, "waiting", "")
+    session_model.cmd_waiting(claimed, "")
     # Watched, so the guard's other clause is clear and what fires below can only
     # be this one.
     lease = leases_model.take_lease(
@@ -12772,7 +12631,7 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
     agent was mid-turn on something else, the agent acknowledged it, answered
     the person in the terminal instead of on the page, and the user was left
     with a question that nothing would ever deliver again."""
-    session_model.cmd_status(claimed, "waiting", "")
+    session_model.cmd_waiting(claimed, "")
     # Watched, which is the whole of what clears the guard's other case and
     # clears nothing here.
     session = service_model.page_claim(claimed)
@@ -12911,7 +12770,7 @@ def test_the_guard_survives_a_page_vendored_before_the_layer_moved(claimed, caps
     little older than the checkout, and says nothing about it. Found by running
     the guard against a real page from an earlier vendoring, where reading the
     published version to settle threads loaded that page's registry."""
-    session_model.cmd_status(claimed, "waiting", "")
+    session_model.cmd_waiting(claimed, "")
     session = service_model.page_claim(claimed)
     lease = leases_model.take_lease(
         leases_model.waiter_lease_path(claimed, session["id"])
@@ -12941,7 +12800,7 @@ def test_claude_codes_hook_input_is_confirmed_only_by_its_reader(claimed, capsys
     background wait's ending opens, and its Stop hook as a turn ends; each hands
     the turn the whole pending delivery and confirms it, so the model reads no
     output and runs no acknowledgement, and the move reads Picked up at once."""
-    session_model.cmd_status(claimed, "working", "revising")
+    working(claimed, "revising")
     comment = append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "hi"}
     )
@@ -13479,7 +13338,7 @@ def test_the_registered_watch_hook_wakes_only_under_claude_code(claimed, tmp_pat
     base["CLAUDE_PLUGIN_ROOT"] = str(PLUGIN_ROOT)
     leases_model.mark_hooks("s1")  # its host runs Leaf's hooks
     serving(claimed, 1)
-    session_model.cmd_status(claimed, "waiting", "")
+    session_model.cmd_waiting(claimed, "")
     cleanup_model.close_session_turn("s1")
     append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "hi"}
@@ -14014,7 +13873,7 @@ def test_idle_cannot_race_past_an_event_arriving_after_its_pending_check(
     keep the page open. Otherwise Stop sees an idle page, permits the turn to
     end, and leaves the newly appended event with no watcher to deliver it.
     """
-    session_model.cmd_status(page_dir, "waiting", "comment on the prototype")
+    session_model.cmd_waiting(page_dir, "comment on the prototype")
     marker = page_dir / "status-lock-requested"
     events = open(  # noqa: SIM115 - held across the child transition
         page_dir / "events.jsonl", "a+b"
@@ -14087,7 +13946,7 @@ cli_model.cli()
 
 def test_session_end_releases_the_page_and_its_session_server_retires(claimed):
     assert hosting_model.start_server(claimed)  # a real detached server to clean up
-    session_model.cmd_status(claimed, "waiting", "")
+    session_model.cmd_waiting(claimed, "")
     hooks_model.cmd_hook({"hook_event_name": "SessionEnd", "session_id": "s1"})
     wait_for(
         lambda: server_model.running_server(claimed),
@@ -14281,7 +14140,7 @@ def test_init_restarts_a_served_page_onto_the_replacement_contract(
     url = json.loads(old_server.stdout.readline())["url"]
     assert url.startswith("http://127.0.0.1:")
     assert old_server.stderr.readline().startswith(f"server   {lifetime}")
-    prior_status = files_model.read_json(page_dir / "status.json")
+    prior_status = service_model.read_status(page_dir)
     prior_owner = service_model.page_claim(page_dir)
 
     endpoint = urllib.parse.urlsplit(url)._replace(path="/api/event").geturl()
@@ -14374,7 +14233,7 @@ def test_session_end_cannot_release_a_page_claimed_by_its_successor(page_dir):
     serving(page_dir, 41000, "session")
     record_claim(page_dir, id="predecessor")
     record_claim(page_dir, id="successor")
-    session_model.cmd_status(page_dir, "waiting", "successor is reviewing")
+    session_model.cmd_waiting(page_dir, "successor is reviewing")
     hooks_model.cmd_hook({"hook_event_name": "SessionEnd", "session_id": "predecessor"})
     assert service_model.page_claim(page_dir)["id"] == "successor"
     assert service_model.claim_is_active(service_model.page_claim(page_dir))
@@ -14538,7 +14397,7 @@ def test_a_standing_server_outlives_a_session_that_picks_the_page_up(
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "later")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     assert service_model.claim_page(page_dir)
-    session_model.cmd_status(page_dir, "waiting", "")
+    session_model.cmd_waiting(page_dir, "")
     # Without this the hook would skip the page for the wrong reason and the test
     # would pass with the bug in: the standing check has to be what spares it.
     assert page_dir in service_model.owned_pages("later")
@@ -14606,7 +14465,7 @@ def test_a_settling_reaction_wakes_only_when_it_answers_the_agent(
 ):
     serving(page_dir, 1)
     publish(page_dir)
-    session_model.cmd_status(page_dir, "waiting", "")
+    session_model.cmd_waiting(page_dir, "")
     question = thread_model.cmd_comment(page_dir, "", "", "", "Is forty enough?", None)
     quiet = append_command(
         page_dir,
@@ -14652,7 +14511,7 @@ def test_a_reaction_holds_no_turn_as_an_unanswered_ask(claimed, capsys):
     acknowledged one nobody replied to does not hold the turn the way a comment
     does. Nor does an `ok` the user put on the agent's answer hand the thread back
     to the agent — a reaction is not the user speaking. The user's words are."""
-    session_model.cmd_status(claimed, "waiting", "")
+    session_model.cmd_waiting(claimed, "")
     session = service_model.page_claim(claimed)
     lease = leases_model.take_lease(
         leases_model.waiter_lease_path(claimed, session["id"])
@@ -14723,7 +14582,7 @@ def test_agent_sees_the_complete_interaction_recovery(claimed, capsys, snapshot)
     source = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>')
     (page / "index.html").write_text(source)
     publish(page)
-    session_model.cmd_status(page, "waiting", "")
+    session_model.cmd_waiting(page, "")
     observations = {}
 
     def hook(name):
@@ -14811,7 +14670,7 @@ def test_agent_sees_the_complete_interaction_recovery(claimed, capsys, snapshot)
 
 def test_agent_sees_codex_watcher_recovery(codex_claimed_page, capsys, snapshot):
     page = codex_claimed_page
-    session_model.cmd_status(page, "waiting", "")
+    session_model.cmd_waiting(page, "")
     observations = {}
 
     def hook():
@@ -14893,7 +14752,7 @@ def test_agent_sees_a_real_summary_suggestion(page_dir, capsys, snapshot):
 
 def _watched(page_dir):
     """A claimed page this session watches, so only its debts reach the hooks."""
-    session_model.cmd_status(page_dir, "waiting", "")
+    session_model.cmd_waiting(page_dir, "")
     session = service_model.page_claim(page_dir)
     lease = leases_model.take_lease(
         leases_model.waiter_lease_path(page_dir, session["id"])
@@ -14912,56 +14771,51 @@ def _idle(page_dir):
     return CliRunner().invoke(cli_model.cli, ["status", str(page_dir), "idle"])
 
 
-def test_a_move_the_turn_claimed_lets_that_turn_end(claimed, capsys):
-    """A work claim on a delivered move is the agent's answer for now: the move
-    reads Working, with the claim's words beside it. Work longer than a few minutes
-    goes to background workers whose results wake a later turn, so the turn that
-    claimed the move may end over it. Holding that turn made agents post a reply
-    saying only what the claim already said. The claim does not carry into the next
-    turn, which answers the move or claims it again, and idling still refuses over
-    it: closing the page answers nothing."""
+def test_a_move_the_turn_started_lets_that_turn_end(claimed, capsys):
+    """A start on a delivered move is the agent's answer for now: the move reads
+    Working, with the start's line beside it. Work longer than a few minutes goes to
+    background workers whose results wake a later turn, so the turn that started the
+    move may end over it. Holding that turn made agents post a reply saying only what
+    the start already said. The start does not carry into the next turn, which
+    answers the move or starts it again, and idling still refuses over it: closing
+    the page answers nothing."""
     lease = _watched(claimed)
     asked = append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "sketch both?"}
     )
     receive_through(claimed, last_deliverable_seq(claimed))
-    # A page-wide status names no move, so the move is still unclaimed.
-    assert _status(claimed, "working", "sketching both").exit_code == 0
+    # A page task's start names no move, so the move is still not started.
+    working(claimed, "sketching both")
     assert "1 acknowledged user move with no answer" in _stop(capsys)
     assert service_model.page_claim(claimed)["turn_closed"] is None
 
-    assert (
-        _status(claimed, "working", "sketching both", "--on", asked["id"]).exit_code
-        == 0
-    )
+    assert _start(claimed, asked["id"], "sketching both").exit_code == 0
     assert _stop(capsys) is None
     assert service_model.page_claim(claimed)["turn_closed"]
     assert "1 acknowledged user move with no answer" in _idle(claimed).output
 
-    # A worker's result wakes the next turn, whose prompt and Stop name the claim
-    # an earlier turn wrote, and offer claiming it again only because it had one.
+    # A worker's result wakes the next turn, whose prompt and Stop name the start
+    # an earlier turn wrote, and offer starting it again only because it had one.
     hooks_model.cmd_hook({"hook_event_name": "UserPromptSubmit", "session_id": "s1"})
     prompt = json.loads(capsys.readouterr().out)["hookSpecificOutput"]
     assert (
-        f"the work claim on {asked['id']} is older than its pickup"
+        f"your start on {asked['id']} is older than its pickup"
         in prompt["additionalContext"]
     )
     reason = _stop(capsys)
-    assert f"the work claim on {asked['id']} is older than its pickup" in reason
+    assert f"your start on {asked['id']} is older than its pickup" in reason
     assert f"`leaf thread reply <page> --for {asked['id']}`" in reason
 
-    assert (
-        _status(claimed, "working", "the second sketch", "--on", asked["id"]).exit_code
-        == 0
-    )
+    assert _start(claimed, asked["id"], "the second sketch").exit_code == 0
     # A task notification reaching the turn mid-way says nothing about it either.
     hooks_model.cmd_hook({"hook_event_name": "UserPromptSubmit", "session_id": "s1"})
     assert capsys.readouterr().out == ""
     assert _stop(capsys) is None
 
-    # A follow-up in the thread carries its answer now. Claiming the thread again
-    # keeps Working on the message that prompted the work, and covers the follow-up
-    # all the same: the claim is on the move's subject, written since its pickup.
+    # A follow-up in the thread carries its answer now. The start on the message
+    # that prompted the work covers it all the same, since the thread's one reply
+    # answers both; written before the follow-up's pickup, it holds the turn until the
+    # agent starts again.
     follow = append_carried_log_record(
         claimed,
         {"kind": "reply", "author": "user", "parent": asked["id"], "text": "and C?"},
@@ -14971,8 +14825,8 @@ def test_a_move_the_turn_claimed_lets_that_turn_end(claimed, capsys):
     consume_pending_input("s1")
     reason = _stop(capsys)
     assert f"`leaf thread reply <page> --for {follow['id']}`" in reason
-    assert f"the work claim on {asked['id']} is older than its pickup" in reason
-    assert _status(claimed, "working", "adding C", "--on", follow["id"]).exit_code == 0
+    assert f"your start on {asked['id']} is older than its pickup" in reason
+    assert _start(claimed, follow["id"], "adding C").exit_code == 0
     assert _stop(capsys) is None
 
     thread_model.cmd_reply(
@@ -14982,12 +14836,11 @@ def test_a_move_the_turn_claimed_lets_that_turn_end(claimed, capsys):
     lease.close()
 
 
-def test_a_thread_claim_covers_every_move_its_thread_holds(claimed, capsys):
-    """A claim on a thread covers what the thread holds: a move on an Ask frozen in
-    one of its messages as much as a follow-up, though Working stands beside only
-    the one input the claim names. Once a reply settles the claim, it covers
-    nothing, and a later move in the thread is offered no claim in place of its
-    answer."""
+def test_each_owed_move_in_a_thread_takes_a_start_of_its_own(claimed, capsys):
+    """A thread's messages share one reply, but a move on an Ask frozen in one of its
+    messages owes an answer of its own, so each is started on its own id. Once their
+    replies settle them, a later move in the thread is offered no start in place of
+    its answer."""
     assert revisioning_model.activate_source(claimed).error is None
     lease = _watched(claimed)
     asked = append_carried_log_record(
@@ -15021,9 +14874,10 @@ def test_a_thread_claim_covers_every_move_its_thread_holds(claimed, capsys):
     receive_through(claimed, last_deliverable_seq(claimed))
     reason = _stop(capsys)
     assert done["id"] in reason and follow["id"] in reason
-    assert (
-        _status(claimed, "working", "checking both", "--on", asked["id"]).exit_code == 0
-    )
+    assert _start(claimed, follow["id"], "checking West").exit_code == 0
+    reason = _stop(capsys)
+    assert done["id"] in reason and follow["id"] not in reason
+    assert _start(claimed, done["id"], "checking East").exit_code == 0
     assert _stop(capsys) is None
 
     for move in (done, follow):
@@ -15038,7 +14892,7 @@ def test_a_thread_claim_covers_every_move_its_thread_holds(claimed, capsys):
     )
     receive_through(claimed, last_deliverable_seq(claimed))
     reason = _stop(capsys)
-    assert f"--for {again['id']}" in reason and "work claim" not in reason
+    assert f"--for {again['id']}" in reason and "your start" not in reason
     lease.close()
 
 
@@ -15165,7 +15019,7 @@ def test_a_page_pick_holds_the_turn_until_the_markup_records_it(claimed, capsys)
     assert f"records action {picked['id']}" in refused.output
     # Claimed on its widget as the work the pick selects, it lets the turn end
     # while that work runs, and still owes the version.
-    assert _status(claimed, "working", "building it", "--on", "choice").exit_code == 0
+    assert _start(claimed, "choice", "building it").exit_code == 0
     assert _stop(capsys) is None
     assert f"records action {picked['id']}" in _idle(claimed).output
 
@@ -16739,7 +16593,7 @@ def test_resume_metadata_cannot_replace_a_newer_observation_during_the_request(
                 else:
                     cleanup_model.prompt_turn("codex-thread", "new-turn")
                     with service_model.PageTransaction(page_dir) as page:
-                        page.set_status("working", "New turn")
+                        page.set_status("waiting", "New turn")
                     codex_model.set_stream_activity(
                         "codex-thread",
                         "new-turn",
@@ -16926,7 +16780,7 @@ def test_old_fold_cannot_change_activity_in_a_reused_session_generation(
         page.take_claim(
             host_model.EmbeddedHarness("codex-thread", "Codex", os.getpid())
         )
-        page.set_status("working", "New generation")
+        page.set_status("waiting", "New generation")
     codex_model.set_stream_activity(
         "codex-thread",
         "same-turn",
@@ -16974,7 +16828,7 @@ def test_an_old_fold_cannot_publish_working_or_tool_activity_after_its_turn(
     if replacement == "prompt":
         cleanup_model.prompt_turn("codex-thread", "new-turn")
         with service_model.PageTransaction(page_dir) as page:
-            page.set_status("working", "New turn")
+            page.set_status("waiting", "New turn")
         codex_model.set_stream_activity(
             "codex-thread",
             "new-turn",
@@ -17024,7 +16878,7 @@ def test_a_rejected_started_fold_cannot_publish_initial_working_activity(
             page.take_claim(
                 host_model.EmbeddedHarness("codex-thread", "Codex", os.getpid())
             )
-            page.set_status("working", "New generation")
+            page.set_status("waiting", "New generation")
         codex_model.set_stream_activity(
             "codex-thread",
             turn_id,
@@ -17080,7 +16934,7 @@ def test_fresh_resume_replaces_a_fold_from_an_earlier_session_generation(page_di
         page.take_claim(
             host_model.EmbeddedHarness("codex-thread", "Codex", os.getpid())
         )
-        page.set_status("working", "New generation")
+        page.set_status("waiting", "New generation")
     expected = cleanup_model.session_record("codex-thread")
     connection.lifecycle = expected
     connection._resume(

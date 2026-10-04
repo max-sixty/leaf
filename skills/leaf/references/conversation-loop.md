@@ -6,8 +6,8 @@ The user follows your work on the page:
 
 | Surface | What it shows | Written by |
 | --- | --- | --- |
-| Banner | one sentence for the whole page: what you are doing, or what you want back | `leaf status <page> <state> "<detail>"` |
-| Beside a thread or widget | **Working** and your sentence, above the message or on the control the work answers | `leaf status … --on <id>` |
+| Banner | one sentence for the whole page: the line of the item you have in hand, or what you want back | `leaf task start`, `leaf status <page> waiting "<detail>"` |
+| Beside a thread or widget | **Working** and your line, above the message or on the control the work answers | `leaf task start <page> <id> "<line>"` |
 | Thread | your answer to the user's message | `leaf thread reply` |
 | Page | the revised content in place, and a stamp's changelog | saving `index.html`, `leaf page stamp` |
 
@@ -59,32 +59,51 @@ page's authenticated `GET /api/user-view`; captured render previews record none.
 
 ## When to write
 
-Write a step's status before starting the step, and write it again whenever the user
-would describe what you are doing differently: a new subject, or a new phase such as
-reading, editing, testing, or waiting on a result.
-Folding the write into the command that begins the step costs no extra tool call:
+Everything you work on for the user is an item on your queue: a user move you owe
+an answer, named by the move's event id as its delivery gives it, or a task you
+opened. Take the item in hand before starting its work, with one line saying what
+you are doing:
 
 ```bash
-leaf status <page> working "running the browser suite against the new banner" && <command>
+leaf task start <page> <id> "reading the reconnect traces" && <command>
 ```
 
-Name the operation and its subject in one sentence. "Working on it" tells the user
-nothing the banner's dot does not already say, and `leaf status` refuses `working`
-with no sentence at all.
+The move or task then reads **Working** with your line, beside its thread or
+widget and in the banner. Start it again whenever the user would describe what you
+are doing differently: a new phase such as reading, editing, testing, or waiting on
+a result. Folding the start into the command that begins the step costs no extra
+tool call. Name the operation and its subject in one sentence; "Working on it"
+tells the user nothing the banner's dot does not already say.
+
+Work no user move asked for, such as a request made in the terminal or a revision
+you begin yourself, gets an item too: open a task for it on the page, or on the
+widget it concerns, and start that task:
+
+```bash
+leaf task open <page> page "Add a glossary"
+leaf task start <page> <task> "drafting the glossary entries"
+```
+
+`leaf task open` prints the task's record; its `id` is the task. When its work is
+done, end it with `leaf task end <page> <task> done "<where the result is>"`: a task
+nothing ends stays on you, and once your turn ends with it still started, the page
+reads your work as stalled. Housekeeping such
+as re-vendoring, restarting the server, or merging owes the user nothing and needs
+no item.
 
 User input comes before the work in hand, in this order:
 
 1. Where the delivery's `acknowledge` names a receipt route, take it first, so the
    user's moves read **Picked up**; every other carrier has confirmed receipt
-   already. Until you write a status, the banner can say only that you are working
+   already. Until you start an item, the banner can say only that you are working
    on their update.
-2. Name the work each move asks for on the page before starting it. Each delivered
-   event's `answering` clauses say how: for a comment, a status claim on its
-   thread, with the reply carrying the result once it lands. A move that asks for
-   no work, such as a question, is answered by its reply at once.
-3. If the move interrupted other work, write the page status again once its own
-   work is done, so the banner describes the work that continues rather than the
-   last step before the interruption.
+2. Start each move that asks for work before starting the work. Each delivered
+   event's `answering` clauses say how, with the reply carrying the result once it
+   lands. A move that asks for no work, such as a question, is answered by its
+   reply at once.
+3. If the move interrupted other work, start that work's item again once the move's
+   own work is done, so the banner describes the work that continues rather than
+   the last step before the interruption.
 
 Then do the work.
 
@@ -101,33 +120,20 @@ waiting. For an informational page with no concrete ask, leave it empty; the
 banner then invites the user to select text to comment. Finish the turn by the
 handoff route in the main skill, "Operate".
 
-While the next move is yours the page is `working`. Name the local subject when
-the detail is about one open comment thread or page widget:
-
-```bash
-leaf status <page> working "reading the reconnect traces" --on <thread-id>
-leaf status <page> working "checking the rollout" --on <widget-id>
-```
-
-The claim then stands beside its subject at the page edge as well as in the
-banner, so a question in hand reads differently from one nobody has looked at. A
-thread claim ends with your next reply there. A widget claim survives unrelated
-revisions; when a stamped version completes that work, say so on the stamp, once
-per completed widget:
+What ends a start depends on its item. Your reply answering a move ends that
+move's start, and so does a stamped version whose markup records a press on an
+answered Ask. A task's start ends with the task: `leaf task end`, or a stamped
+version that completes its widget, once per completed widget:
 
 ```bash
 leaf page stamp <page> --text "…" --completes <widget-id>
 ```
 
-Stamping accepts only widget ids with standing work. `status --on` refuses a
-widget with neither an unsettled action receipt nor an `x-work` declaration; use
-the page-wide detail when neither admits a local claim.
-
-Use `status --on` for work on a thread or widget, whether a delivered move asked
-for it or you began it yourself. It takes whatever id a delivered event's
-`answering` clauses name as its address: a thread by any message in it, a page
-widget, or a widget in a thread message. The delivered move then reads
-**Working**.
+`--completes` names a widget with an open task, and ends each task on it `done`,
+citing the version. `leaf task open` takes a thread, by any message in it or a
+widget in one of its messages; a page widget that declares `x-work` or holds an
+unsettled move; or `page`. A task on a widget survives unrelated versions, and a
+version cannot drop that widget while the task stands.
 
 ## Long-running work
 
@@ -143,7 +149,7 @@ back, put its result on the page; the thread that asked for it then gets a reply
 saying what changed and linking to it.
 
 You drive the page and your workers do not. The server, the watcher and its
-acknowledgements, replies, status, edits to `index.html`, and stamps stay
+acknowledgements, replies, starts and status, edits to `index.html`, and stamps stay
 with you, and a worker returns its result to you. A worker touches the page only in a
 role Leaf's instructions give it, and only as those instructions direct: a command hub worker
 (`leaf page instructions <page> worker`), or a Codex watcher task
@@ -152,21 +158,19 @@ inherits your conversation inherits the page with it and may otherwise treat the
 as its own. Work that needs its own conversation with the user belongs to a session
 of its own, with its own page.
 
-A `working` claim is believed while the turn that wrote it is open. The page is told
-when that turn ends, an interrupted one included, so a claim nothing has renewed
-within a couple of minutes of the ending stops being believed: the banner reports that
-your turn ended, and its explanation keeps the claim's words. A claim nobody renews at
-all ages out after about a quarter of an hour. Before you end a turn while workers
-run, make your last status say what is still running, and write it again in the turn
-that a worker's result or the user's next comment wakes. A move whose answer a worker
-is producing takes that status `--on` it while your turn runs; a claim written in this
-turn lets the turn end before the answer. What holds the work after the turn is a
-task (below).
-Within a turn, fold your workers' progress into your own status: one sentence covering
-three workers reads better than three claims competing for one row, while claims on
-different subjects stand side by side at the page edge.
+A start holds its item for the turn that wrote it. The page is told when that turn
+ends, an interrupted one included, so a start nothing has renewed within a couple of
+minutes of the ending stops being believed: the banner reports that your turn ended,
+and its explanation keeps the start's line. A start nobody renews at all ages out
+after about a quarter of an hour. A move whose answer a worker is producing takes a
+start while your turn runs; a start written in this turn lets the turn end before the
+answer. In the turn that a worker's result or the user's next comment wakes, start
+the item again or answer it. What holds the work after the turn is a task (below).
+Within a turn, the banner shows the line of the item you started last, so start the
+item that best describes what is running; each item you have in hand shows its own
+line beside its thread or widget.
 
-A claim lasts a turn; a task lasts until you end it. When you take on work a thread
+A start lasts a turn; a task lasts until you end it. When you take on work a thread
 asked for that can outlast the turn you took it on in, such as a worker's build, a
 wait on CI, or a change you promise for the next version, open a task on that thread:
 `leaf task open <page> <id> "<what you owe>"`. Then reply, saying what is under way:
@@ -174,6 +178,7 @@ the reply answers the user's message, and the task keeps the thread on you, and 
 in the banner, through the user resolving it and the end of your session. When the
 result lands, write its outcome with `leaf task end <page> <task> done "<where the
 result is>"`, or `failed` or `dropped` with the reason, beside the reply that links
-it. Work that finishes inside the turn needs no task. `leaf page state` lists your
+it. While you work on it, start it, so the banner and the thread show your line.
+Work on a move that finishes inside the turn needs no task. `leaf page state` lists your
 open `tasks`, and its `queues` say what is on the user (`on_you`) and on you
 (`on_agent`).

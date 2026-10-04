@@ -10,7 +10,6 @@ from ..gesture_words import GestureWords, RevisionReader
 from ..history import history, wants_history
 from ..passages import SourceReading
 from ..projection import FrozenThreadReading, canonical_updates, page_reading
-from ..tasks import open_tasks
 from ..workflows import canonical_workflows
 from .context import PageRead
 from .document import browser_document, browser_undo_candidates
@@ -77,8 +76,8 @@ def served_workflows(
     `thread` is the thread the workflow stands in: a thread input's own, a widget
     frozen into a message's thread, or null for a page widget. `holds_thread` is
     whether it keeps that thread the agent's turn: every one of the thread's own
-    inputs and claims, and a widget move frozen into it while the move is owed or
-    the agent is at work on it. A frozen move that owes nothing shows its receipt on
+    inputs, and a widget move frozen into it while the move is owed or the agent is
+    at work on it. A frozen move that owes nothing shows its receipt on
     its message and leaves the thread nobody's turn.
 
     The order is the one comparator: whatever shows one workflow of several, a
@@ -104,9 +103,8 @@ def _apply_thread_attention(
     This is the browser's one reading of whose turn a thread is: `needs_user` for
     an open Ask or a question the agent's latest turn leaves (`user_prompt`), or a
     response the user must recover; `waiting` while a workflow holds the thread with
-    the agent, which covers every input `events.unanswered_turns` holds and any work
-    claimed on the thread after it was answered, or while a task the agent opened on
-    it stands (`tasks`); else None. `workflows` are `served_workflows`, so the first
+    the agent, which covers every input `events.unanswered_turns` holds, or while a
+    task the agent opened on it stands (`tasks`); else None. `workflows` are `served_workflows`, so the first
     that qualifies is the one the thread waits on, and a workflow speaks before a
     task. `tasks` are the open tasks, each stamped with its `thread`."""
     user_threads = {ask["thread"] for ask in asks["user"]}
@@ -150,7 +148,14 @@ def _apply_thread_attention(
                 "kind": "waiting",
                 "reason": "task",
                 "workflow": None,
-                "task": {"id": task["id"], "title": task["title"]},
+                # The line of the start running on it, while that start holds.
+                "task": {
+                    "id": task["id"],
+                    "title": task["title"],
+                    "running": task["running"]["text"]
+                    if task["running"] and task["running"]["condition"] is None
+                    else None,
+                },
             }
         else:
             thread["attention"] = None
@@ -236,9 +241,7 @@ def browser_state(
         views[str(revision)] = {
             "basis": {"revision": revision, "through_seq": through_seq},
             "document": document,
-            "updates": canonical_updates(
-                projection, present["claims"], threads, events
-            ),
+            "updates": canonical_updates(projection),
             "undo": browser_undo_candidates(
                 events,
                 reading,
@@ -249,15 +252,11 @@ def browser_state(
             "coverage": coverage,
             "published_at": published_at,
         }
-    workflows = canonical_workflows(
-        present["claims"],
-        threads,
-        thread_reading,
-        page=active_page,
-    )
+    workflows = canonical_workflows(threads, thread_reading, page=active_page)
     activity = canonical_activity(
         present,
         workflows,
+        events,
         now,
         (live_stream or {}).get("activity"),
         live_reply,
@@ -266,7 +265,7 @@ def browser_state(
     workflows = served_workflows(activity.pop("workflows"), thread_reading)
     tasks = [
         {**task, "thread": thread_reading.subject_thread(task["subject"])}
-        for task in open_tasks(events)
+        for task in activity.pop("tasks")
     ]
     _apply_thread_attention(thread["threads"], thread["asks"], workflows, tasks)
     if wants_history(readings[revision] for revision in view_revisions):

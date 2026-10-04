@@ -355,27 +355,12 @@ class PageTransaction:
     def status(self) -> dict:
         return read_status(self.page_dir)
 
-    def set_status(
-        self,
-        state: str,
-        detail: str,
-        *,
-        work: dict | None = None,
-    ) -> dict:
-        """Write the page declaration and any typed local evidence it renews, and
-        return it as written.
+    def set_status(self, state: str, detail: str) -> dict:
+        """Write the page's `waiting` or `idle` declaration and return it as written.
 
-        A local line is the same sentence read at a second seat: the page's one
-        line says what the agent is doing, and a typed subject says so where the
-        work lives. One command writes both because they are one claim, so a
-        write after a turn has ended renews the page line and the subject line
-        together.
-
-        Standing work carries across every other status write, so a page-wide
-        status update does not silently drop what a helper is holding. A new
-        claim replaces the old claim on its semantic subject; `idle`
-        clears them all with the leaf.
-        """
+        The work the agent has in hand is no status: it is the log's `start` events
+        (`tasks`). The stream the host observes carries across a `waiting`, and
+        `idle` clears it with the leaf."""
         status = {
             "state": state,
             "detail": detail,
@@ -386,33 +371,6 @@ class PageTransaction:
         }
         if state != "idle" and (stream := self.status.get("stream")):
             status["stream"] = stream
-        claims = [] if state == "idle" else list(self.status.get("work", []))
-        if work:
-            claims = [held for held in claims if held["subject"] != work["subject"]]
-            voice = self.voice()
-            claim = self.claim
-            claims.append(
-                {
-                    "id": secrets.token_hex(4),
-                    **work,
-                    "detail": detail,
-                    "ts": status["ts"],
-                    **voice,
-                    # The claimant's turn that wrote it, which is how the Stop hook
-                    # tells work this turn declared from work an earlier turn left
-                    # (`activity.turn_obligations`). Another session's claim names
-                    # none. A Claude Code subagent runs as its parent's session, so
-                    # a claim it wrote would name the parent's turn; workers leave
-                    # status to the session driving the page.
-                    "turn": (
-                        claim.get("turn")
-                        if claim and claim["id"] == voice["session"]
-                        else None
-                    ),
-                }
-            )
-        if claims:
-            status["work"] = claims
         write_json(self.page_dir / STATUS_FILE, status)
         return status
 
@@ -809,49 +767,3 @@ def requires_agent_attention(event: dict) -> bool:
     A record without the admitted decision is absent input.
     """
     return event.get("attention") is True
-
-
-# The fields every stored work claim carries (`PageService.set_status`).
-CLAIM_FIELDS = frozenset(
-    {"id", "subject", "after", "detail", "ts", "agent", "session", "turn"}
-)
-
-
-def claim_update_sources(status: dict) -> list[dict]:
-    """The status store's work claims at their public boundary.
-
-    `status.json` remains the small replace-in-place store its transient claims
-    need. The browser and `page state` receive typed source envelopes instead, so
-    every downstream consumer reads the same target and lifecycle vocabulary.
-
-    A claim lacking a field `PageService.set_status` writes today, such as the
-    poster's voice, was written by an older leaf and is absent here, so every
-    envelope carries the name its work is shown under.
-    """
-    sources = []
-    for claim in status.get("work", []):
-        target = claim.get("subject", {})
-        required = CLAIM_FIELDS | (
-            {"revision"} if target.get("kind") == "widget" else set()
-        )
-        if not required <= claim.keys():
-            continue
-        source = {
-            "id": claim["id"],
-            "target": target,
-            "source": "claim",
-            "action": "working",
-            "detail": {"text": claim["detail"]},
-            "text": claim["detail"],
-            "ts": claim["ts"],
-            "log_floor": claim["after"],
-            "agent": claim["agent"],
-            "session": claim["session"],
-            "turn": claim["turn"],
-        }
-        if event := claim.get("event"):
-            source["event"] = event
-        if target["kind"] == "widget":
-            source["revision"] = claim["revision"]
-        sources.append(source)
-    return sources

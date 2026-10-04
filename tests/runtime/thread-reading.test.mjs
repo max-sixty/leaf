@@ -314,9 +314,9 @@ test("narrowing transitions reset what they contradict and counts name each subs
   assert.equal(transition(DEFAULT_INTENT, "status", "open"), DEFAULT_INTENT);
 
   const onUser = { kind: "needs_user", reason: "ask" };
-  // Work the agent claimed on a thread it had already answered: the card says
-  // Working, so the agent filter lists it.
-  const claimed = { kind: "waiting", reason: "workflow", workflow: "claim:working" };
+  // A thread the agent has started a move in: the card says Working, so the agent
+  // filter lists it.
+  const claimed = { kind: "waiting", reason: "workflow", workflow: "working" };
   const threads = [
     { ...recentThread("asks", "2026-03-01T00:00:00Z"), attention: onUser },
     { ...recentThread("working", "2026-03-01T00:00:00Z"), attention: claimed },

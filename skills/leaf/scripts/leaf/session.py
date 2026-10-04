@@ -45,69 +45,29 @@ REVIVAL_CHECK_S = 5
 STOP_HOOK_S = 20
 
 
-def check_local_claim(state: str) -> None:
-    """A local claim says "I am on this now", so the two other states have
-    nothing to put there: `waiting` is the user's move, and `idle` is the end of
-    the agent's side. Its own function because `idle` takes a different route to
-    the same status write, and a claim admitted on one route and refused on the
-    other would be reported to the agent as written either way.
-    """
-    if state != "working":
-        sys.exit("--on says what you are working on; use it with `working`")
-
-
-def cmd_status(
-    page_dir: Path,
-    state: str,
-    detail: str,
-    on: str | None = None,
-) -> tuple[dict, list[dict]]:
-    """Write the declaration and return it, with the user moves still owed an
-    answer, which the page goes on showing over a `waiting` written ahead of them."""
-    # The banner's dot already says the agent is working; the sentence is the
-    # whole of what a working status adds, so a status without one is refused
-    # rather than shown as a bare "working".
-    if state == "working" and not detail:
-        sys.exit(
-            "working needs a detail naming the work and its subject, such as "
-            '"running the browser suite against the new banner"'
-        )
+def cmd_waiting(page_dir: Path, detail: str) -> tuple[dict, list[dict]]:
+    """Declare the page waiting on its user and return the declaration, with the user
+    moves still owed an answer, which the page goes on showing over it."""
     from .revisioning import activate_source
     from .served_state.page import full_state
 
     with PageTransaction(page_dir) as page:
         activate_source(page_dir, transaction=page)
-        work = None
-        if on is not None:
-            check_local_claim(state)
-            from .work import standing_work_claims, work_subject
-
-            work = work_subject(
-                page_dir,
-                page.events,
-                on,
-                standing=standing_work_claims(page.status, page.events),
-            )
-        status = page.set_status(state, detail, work=work)
+        status = page.set_status("waiting", detail)
         return status, full_state(page_dir, page.events)["activity"]["obligations"]
 
 
-def cmd_idle(page_dir: Path, detail: str, on: str | None) -> dict:
+def cmd_idle(page_dir: Path, detail: str) -> dict:
     """Idle, unless the page still owes its user an answer.
 
     Idling over an event nobody has answered ends the leaf on a user still
     owed one — unread, or read and left. The watcher's whole batch, not the
     user-facing count, so a worker's report cannot be left standing as
     provisional state forever either. The answers it holds the page for are
-    `activity.blocking_obligations`, a claimed move's included: the Stop hook lets
-    the turn that claimed one end over it, but closing the page answers nothing.
+    `activity.blocking_obligations`, a started move's included: the Stop hook lets
+    the turn that started one end over it, but closing the page answers nothing.
     The check and the transition share the log lock, so an event arriving
     or an acknowledgement advancing the cursor orders against them."""
-    # Ahead of the transaction, which reaches `set_status` without a subject:
-    # refused here, `idle --on` cannot be reported back as a claim the page
-    # never took.
-    if on is not None:
-        check_local_claim("idle")
     from .activity import blocking_obligations, unanswered
     from .served_state.page import full_state
 

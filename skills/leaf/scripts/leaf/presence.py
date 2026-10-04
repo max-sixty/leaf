@@ -7,7 +7,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from .activity import Turn, current_turn
+from .activity import Turn, current_turn, declared_at
 from .event_log import read_cursor
 from .files import (
     entry_stamps,
@@ -31,7 +31,6 @@ from .service import (
     claim_is_active,
     claim_path,
     claim_records,
-    claim_update_sources,
     page_claim,
     read_status,
     unacknowledged,
@@ -170,11 +169,7 @@ def presence_with_activity(
     claim-against-proof judgment reads these fields. The server's row publication
     carries only the compact presentation fields derived from these facts."""
     stored_status = read_status(page_dir)
-    status = {
-        key: value
-        for key, value in stored_status.items()
-        if key not in {"work", "stream"}
-    }
+    status = {key: value for key, value in stored_status.items() if key != "stream"}
     status.setdefault("after", 0)
     claim = page_claim(page_dir)
     active = claim if claim_is_active(claim) else None
@@ -184,7 +179,6 @@ def presence_with_activity(
     cursor = read_cursor(page_dir)
     reading = {
         "status": status,
-        "claims": claim_update_sources(stored_status),
         **live_facts(page_dir, claim),
         "cursor": cursor,
         # The user's number, not the watcher's: their own messages the agent
@@ -242,7 +236,10 @@ def claimant_reading(page_dir: Path, events: list) -> tuple[dict, Turn]:
     read."""
     present, stream = presence_with_activity(page_dir, events)
     turn, _ = current_turn(
-        present, (stream or {}).get("activity"), datetime.fromisoformat(now_iso())
+        present,
+        declared_at(present, events),
+        (stream or {}).get("activity"),
+        datetime.fromisoformat(now_iso()),
     )
     return present, turn
 

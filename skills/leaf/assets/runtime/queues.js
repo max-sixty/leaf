@@ -12,9 +12,9 @@
    `onYou` holds each open Ask (`ask`); then each other thread whose attention is the
    user's, once, as a question left in prose (`question`) or a move to send again
    (`recovery`); then each page widget move handed back to the user (`recovery`).
-   `onAgent` holds each move the agent owes an answer (`answer`), each subject it has
-   claimed work on with nothing owed (`work`), and each open task (`task`). An item
-   has the fields Python's has. `tests/served_records.py` folds a reading both
+   `onAgent` holds each move the agent owes an answer (`answer`), each move it has in
+   hand that owes nothing (`work`), and each open task (`task`). An item has the
+   fields Python's has. `tests/served_records.py` folds a reading both
    selections must agree on.
 
    One item is the browser's alone: a message this tab is still sending, whose thread
@@ -79,6 +79,7 @@ export function selectQueues({ asks, threads, workflows, tasks }) {
       subject: task.subject,
       thread: task.thread,
       title: task.title,
+      running: task.running,
       agent: task.agent,
       session: task.session,
     });

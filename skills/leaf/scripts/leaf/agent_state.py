@@ -228,8 +228,9 @@ def _apply_thread_state(state: dict, thread: FrozenThreadReading) -> None:
 def _widget_state(state: dict, page_dir: Path, widget: str, enclosing: dict) -> dict:
     """The page reading narrowed to one widget on the page and what it holds: its
     element, the moves and reports standing on it or on anything inside it, the Asks
-    and workflows there, and the updates aimed at them. An Ask names the choice that
-    answers it, so narrowing to the Ask carries the pick standing on that choice."""
+    and workflows there, the updates aimed at them, and the tasks open on them. An
+    Ask names the choice that answers it, so narrowing to the Ask carries the pick
+    standing on that choice."""
 
     def inside(element: str | None) -> bool:
         return element is not None and widget in enclosing.get(element, ())
@@ -269,6 +270,11 @@ def _widget_state(state: dict, page_dir: Path, widget: str, enclosing: dict) -> 
             ],
         },
         "workflows": workflows,
+        "tasks": [
+            task
+            for task in state["tasks"]
+            if task["subject"]["kind"] == "widget" and inside(task["subject"]["id"])
+        ],
     }
 
 
@@ -283,8 +289,8 @@ def queues(
     move whose response failed, to send again (`recovery`); then each page widget
     move whose response failed (`recovery`). A thread holding an open Ask is that
     Ask's item alone. `on_agent` holds each move the agent owes an answer
-    (`answer`), each subject it has claimed work on with nothing owed (`work`), and
-    each open task (`task`). Every item names its `subject` and the `thread` it
+    (`answer`), each move it has in hand that owes nothing (`work`), and each open
+    task (`task`). Every item names its `subject` and the `thread` it
     stands in, or null on the page. Each is selected from a reading the served
     state already made: the Asks, each thread's `attention`, the workflows, and the
     open tasks.
@@ -347,6 +353,7 @@ def queues(
             "subject": task["subject"],
             "thread": task["thread"],
             "title": task["title"],
+            "running": task["running"],
             "agent": task["agent"],
             "session": task["session"],
         }

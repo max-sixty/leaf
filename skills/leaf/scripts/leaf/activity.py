@@ -1,7 +1,8 @@
 """Canonical page availability and agent work projected from durable evidence.
 
-Status is an agent declaration, claims prove ownership and turn lifetime, and pickup
-events prove delivery. Delivery remains interaction evidence rather than becoming the
+Status is the agent's waiting or idle declaration, a start in the log is the item it
+has in hand (`tasks`), claims prove ownership and turn lifetime, and pickup events
+prove delivery. Delivery remains interaction evidence rather than becoming the
 page's execution state. This module is the one fold that orders those facts and
 supplies every reader — browser chrome, hooks, and agent-facing state — with one
 answer.
@@ -210,42 +211,41 @@ def blocking_obligations(state: dict, *, carried: bool) -> list[dict]:
     ]
 
 
-def claimed_in_turn(obligation: dict, state: dict) -> bool:
-    """Whether the claimant's open turn took this move in hand with `leaf status
-    … --on` after it was delivered: a standing claim over the move
-    (`workflows.canonical_workflows`, `claimed_by`) that turn wrote since the
-    move's pickup.
+def started_in_turn(obligation: dict, state: dict) -> bool:
+    """Whether the claimant's open turn took this move in hand with `leaf task start`
+    after it was delivered: a start covering the move
+    (`workflows.canonical_workflows`, `started_by`) that turn wrote since the move's
+    pickup.
 
-    Read from the claims rather than the move's Working stage, which follows the
-    one input a thread claim names: a follow-up in the thread, or a move on a
-    widget frozen in one of its messages, stays Picked up under a claim on the
-    thread that covers it all the same."""
+    Read from the covering starts rather than the move's Working stage, which follows
+    the one input a start names: a thread's one reply answers every input it holds,
+    so a start on an earlier input there covers the newest that carries the answer."""
     if state["turn_closed"] is not None or state["claim_turn"] is None:
         return False
     delivered = obligation["delivery_seq"] or obligation["seq"]
     return any(
-        claim["session"] == state["claim_session"]
-        and claim["turn"] == state["claim_turn"]
-        and claim["log_floor"] >= delivered
-        for claim in obligation["claimed_by"]
+        start["session"] == state["claim_session"]
+        and start["turn"] == state["claim_turn"]
+        and start["seq"] >= delivered
+        for start in obligation["started_by"]
     )
 
 
 def turn_obligations(state: dict, *, carried: bool) -> list[dict]:
     """The owed answers that hold the claimant's turn open: the blocking ones its
-    open turn has not claimed as work.
+    open turn has not started.
 
-    A claim is the agent's answer for now, shown beside the move, and work that
+    A start is the agent's answer for now, shown beside the move, and work that
     outlasts the turn runs in background workers whose results wake a later turn
     (`references/conversation-loop.md`, "Long-running work"). So the turn that
-    wrote the claim may end over the move. The claim does not carry into the next
-    turn: that turn answers the move or claims it again, and the page reports the
-    claim's turn ended once nothing renews it. Idling still refuses over a
-    claimed move, since closing the page answers nothing."""
+    started the move may end over it. The start does not carry into the next turn:
+    that turn answers the move or starts it again, and the page reports the start's
+    turn ended once nothing renews it. Idling still refuses over a started move,
+    since closing the page answers nothing."""
     return [
         obligation
         for obligation in blocking_obligations(state, carried=carried)
-        if not claimed_in_turn(obligation, state)
+        if not started_in_turn(obligation, state)
     ]
 
 
@@ -270,7 +270,7 @@ class Turn(NamedTuple):
 
 def claimant_turn(
     present: dict,
-    status: dict,
+    declared: str | None,
     stream: dict | None,
     now: datetime,
     *,
@@ -283,8 +283,8 @@ def claimant_turn(
     a prompt or delivery into an open turn renews its stamp, and the Stop hook or
     a carrier closes it. Not every host runs a hook on interruption, so an open stamp is believed
     only while something in that turn renewed it within the working grace: its
-    last opening, a status written during it, or the claimant's streamed
-    activity. Past that nothing says whether it runs, which reads as not
+    last opening, the agent's newest declaration (`declared`: a status or a start
+    written during it), or the claimant's streamed activity. Past that nothing says whether it runs, which reads as not
     running without calling it ended.
 
     The host's own record (`Harness.live_turn`) adds the two things no hook
@@ -308,7 +308,7 @@ def claimant_turn(
         return Turn(False, ended=closed, **step)
     if awaiting or dialog:
         return Turn(True, **step)
-    renewals = [opened, _moment(status.get("ts"))]
+    renewals = [opened, _moment(declared)]
     if stream and stream.get("session") == present.get("claim_session"):
         renewals.append(_moment(stream.get("ts")))
     renewed = max(moment for moment in renewals if moment and moment >= opened)
@@ -318,11 +318,24 @@ def claimant_turn(
     return Turn(now < until, until=until)
 
 
+def declared_at(present: dict, events: list) -> str | None:
+    """When the agent last declared anything about the page: its newest status, or
+    the newest start in the log (`tasks.last_start`)."""
+    from .tasks import last_start
+
+    moments = [
+        moment
+        for moment in (present["status"].get("ts"), last_start(events))
+        if _moment(moment)
+    ]
+    return max(moments, key=_moment, default=None)
+
+
 def current_turn(
-    present: dict, stream: dict | None, now: datetime
+    present: dict, declared: str | None, stream: dict | None, now: datetime
 ) -> tuple[Turn, bool]:
     """The claimant's turn as every reader takes it, beside whether the claimant's
-    own observer streams live activity for it now.
+    own observer streams live activity for it now. `declared` is `declared_at`.
 
     Streamed activity proves itself live by the wait lease its observer holds. A
     wait on the user (an approval, a question) sends nothing until the user
@@ -342,7 +355,7 @@ def current_turn(
     )
     turn = claimant_turn(
         present,
-        status,
+        declared,
         stream,
         now,
         awaiting=stream_live and stream.get("kind") in AWAITING_KINDS,
@@ -358,35 +371,42 @@ def takes_input(present: dict, turn: Turn) -> bool:
     return present["listening"] or (turn.running and present["turn_takes_input"])
 
 
+def _start_age(
+    start: dict, present: dict, now: datetime, turn: Turn
+) -> tuple[bool, bool]:
+    """How quiet a start is, and whether dropped: a start the claimant's ended turn
+    wrote, unrenewed past the renewal grace, or any start unheard for the working
+    grace."""
+    same_session = bool(
+        start.get("session") and start["session"] == present.get("claim_session")
+    )
+    dropped = same_session and _dropped(start["ts"], turn.ended, now)
+    return _quiet(start["ts"], now, WORKING_GRACE) or dropped, dropped
+
+
 def _canonical_workflows(
     evidence: list[dict], present: dict, now: datetime, *, held: bool, turn: Turn
 ) -> tuple[list[dict], dict[str, tuple[bool, bool]]]:
     """Age each workflow's evidence, and return beside them how quiet and whether
-    dropped each Working claim is, which the page reading below dates by."""
+    dropped each Working move's start is, which the page reading below dates by."""
     result = []
     aging = {}
     for raw in evidence:
         item = dict(raw)
         stage = item["stage"]
         if stage == "working":
-            same_session = bool(
-                item.get("session") and item["session"] == present.get("claim_session")
-            )
-            dropped = same_session and _dropped(item["ts"], turn.ended, now)
-            quiet = _quiet(item["ts"], now, WORKING_GRACE) or dropped
-            if quiet and held:
-                item["condition"] = {"kind": "stale", "operation": "work"}
-            if not held:
-                if item.get("input") is None:
-                    continue
-                stage = item.get("fallback_stage", "sent")
-                item["ts"] = item.get("fallback_ts", item["ts"])
+            if held:
+                quiet, dropped = _start_age(item, present, now, turn)
+                if quiet:
+                    item["condition"] = {"kind": "stale", "operation": "work"}
+                aging[item["id"]] = (quiet, dropped)
+            else:
+                stage = item["fallback_stage"]
+                item["ts"] = item["fallback_ts"]
                 item["detail"] = None
                 item["agent"] = None
                 item["session"] = None
                 item["activity"] = []
-            else:
-                aging[item["id"]] = (quiet, dropped)
         if stage == "sent" and _quiet(item["ts"], now, PICKUP_GRACE):
             item["condition"] = {"kind": "stale", "operation": "delivery"}
         item["stage"] = stage
@@ -396,9 +416,34 @@ def _canonical_workflows(
     return result, aging
 
 
+def _canonical_tasks(
+    tasks: list[dict], present: dict, now: datetime, *, held: bool, turn: Turn
+) -> tuple[list[dict], dict[str, tuple[bool, bool]]]:
+    """Age the start running on each open task as a Working move's is aged, and
+    return beside them how quiet and whether dropped each is. Nobody holding the page
+    has nothing in hand, so an unheld page's tasks run nothing."""
+    result = []
+    aging = {}
+    for raw in tasks:
+        task = dict(raw)
+        start = task["running"]
+        if start is not None and not held:
+            task["running"] = None
+        elif start is not None:
+            quiet, dropped = _start_age(start, present, now, turn)
+            task["running"] = {
+                **start,
+                "condition": {"kind": "stale", "operation": "work"} if quiet else None,
+            }
+            aging[task["id"]] = (quiet, dropped)
+        result.append(task)
+    return result, aging
+
+
 def canonical_activity(
     present: dict,
     interaction_evidence: list[dict],
+    events: list,
     now_iso: str,
     stream: dict | None = None,
     reply: dict | None = None,
@@ -406,15 +451,23 @@ def canonical_activity(
 ) -> dict:
     """Return the one current reading of agent activity for a page snapshot.
 
+    `interaction_evidence` are the page's workflows (`workflows.canonical_workflows`)
+    and `events` the log they were read from, which holds the agent's open tasks and
+    the starts running on them (`tasks.canonical_tasks`). Both come back aged, as
+    `workflows` and `tasks`.
+
     `bindings` are the stream's reply bindings. A reply address whose binding
     stands (`reply_binding_stands`) is the claimant's App Server turn to write,
     with its own opening and final messages, so its workflow's answer reads as a
     `turn` under the binding's attempt: every consumer that holds the agent to an
     answer, or refuses a second writer, reads that answer rather than the
     binding."""
+    from .tasks import item_starts, open_tasks
+
     now = datetime.fromisoformat(now_iso)
     status = present["status"]
-    turn, stream_live = current_turn(present, stream, now)
+    declared = declared_at(present, events)
+    turn, stream_live = current_turn(present, declared, stream, now)
     # What the host observed the agent doing now: a live stream step while its turn
     # runs, or the host's own word that the turn waits on the user in its window.
     observed = None
@@ -423,13 +476,18 @@ def canonical_activity(
     elif turn.step is not None and status["state"] != "idle":
         observed = {"kind": turn.step, "detail": "", "ts": turn.step_since.isoformat()}
     status_dropped = _dropped(status.get("ts"), turn.ended, now)
-    status_quiet = _quiet(status.get("ts"), now, WORKING_GRACE) or status_dropped
+    declared_quiet = _quiet(declared, now, WORKING_GRACE) or _dropped(
+        declared, turn.ended, now
+    )
     unheld = present["session_alive"] is False or (
-        present["session_alive"] is None and not present["listening"] and status_quiet
+        present["session_alive"] is None and not present["listening"] and declared_quiet
     )
     held = not unheld
     workflows, aging = _canonical_workflows(
         interaction_evidence, present, now, held=held, turn=turn
+    )
+    tasks, task_aging = _canonical_tasks(
+        open_tasks(events), present, now, held=held, turn=turn
     )
     _bind_reply(workflows, reply)
     for item in workflows:
@@ -450,6 +508,16 @@ def canonical_activity(
                 "attempt": binding["attempt"],
             }
 
+    # The items in hand: each Working move, by the start that holds it, and each task
+    # a start runs on, each beside how quiet and whether dropped that start is. Their
+    # newest start is the line the banner shows.
+    starts = item_starts(events)
+    in_hand = [
+        (starts[item["input"]], aging[item["id"]])
+        for item in workflows
+        if item["stage"] == "working"
+    ] + [(task["running"], task_aging[task["id"]]) for task in tasks if task["running"]]
+
     # Every moment at which some belief above lapses, each as a moment and the
     # grace that runs from it. Status age and the turn's ending can change ownership
     # even when the primary label remains Closed, so every such boundary counts;
@@ -458,14 +526,15 @@ def canonical_activity(
     # presence token carries it.
     lapses = [
         (_moment(status.get("ts")), WORKING_GRACE),
+        (_moment(declared), WORKING_GRACE),
         (turn.ended, TURN_RENEWAL_GRACE),
         (turn.until, timedelta()),
         *(
-            (_moment(item["ts"]), grace)
+            (_moment(item["ts"]), PICKUP_GRACE)
             for item in workflows
-            for stage, grace in (("sent", PICKUP_GRACE), ("working", WORKING_GRACE))
-            if item["stage"] == stage
+            if item["stage"] == "sent"
         ),
+        *((_moment(start["ts"]), WORKING_GRACE) for start, _age in in_hand),
     ]
     if stream and stream.get("kind") not in AWAITING_KINDS:
         lapses.append((_moment(stream.get("ts")), WORKING_GRACE))
@@ -483,18 +552,12 @@ def canonical_activity(
     # answer the user must resend are no work the banner may promise the agent
     # picks up.
     obligations = [item for item in workflows if item["answer"] is not None]
-    active = [item for item in workflows if item["stage"] == "working"]
-    active_now = [item for item in active if not aging[item["id"]][0]]
+    in_hand_now = [(start, age) for start, age in in_hand if not age[0]]
     active_moves = [
         item
         for item in obligations
         if item["stage"] in {"working", "replying"} and item["condition"] is None
     ]
-    # Page work is scoped to the live claimant, not to one user input. A newer
-    # delivery may remain queued or pending while the agent continues other work on
-    # the page; its exact progress stays in `workflows` below.
-    declared_work = status["state"] == "working" and not status_quiet
-    current_work = observed is not None or declared_work
     opened = [item for item in obligations if item["stage"] == "picked_up"]
     in_this_turn = [
         item
@@ -547,47 +610,35 @@ def canonical_activity(
         kind, dropped = "closed", False
     elif unheld:
         kind = "unheld"
-    elif current_work:
-        kind = "working"
-        # A newer queued interaction does not erase fresh evidence that the agent is
-        # already working, nor does that older work floor claim the queued input. The
-        # canonical counts keep the two facts separate for every consumer.
-        #
-        # What the work *is* comes from the agent, on every host. An observed step
-        # says a session is alive and moving, which is why it can make a page working
-        # over a declaration that says otherwise; it cannot say what the user is
-        # waiting for, and a step that replaced the sentence would trade the one
-        # reading written for them for the one that happens to be newest. So a
-        # current declaration keeps the sentence and its own date, and the step
-        # stands beside it as `observed`.
-        if declared_work:
-            detail = status.get("detail", "")
-        else:
-            detail, ts, dropped = observed.get("detail", ""), observed["ts"], False
-    elif active_now:
-        latest = max(active_now, key=lambda item: (item["seq"], item["id"]))
-        detail, ts = latest.get("detail") or "", latest["ts"]
-        dropped, kind = aging[latest["id"]][1], "working"
+    elif in_hand_now:
+        # What the work *is* comes from the agent, on every host: the line of the
+        # newest item it has in hand. An observed step says a session is alive and
+        # moving; it cannot say what the user is waiting for, and a step that replaced
+        # the line would trade the one reading written for them for the one that
+        # happens to be newest. So it stands beside the line as `observed`.
+        start, (_, dropped) = max(in_hand_now, key=lambda pair: pair[0]["seq"])
+        kind, detail, ts = "working", start["text"], start["ts"]
+    elif observed is not None:
+        kind, detail, dropped = "working", observed.get("detail", ""), False
+        ts = observed["ts"]
     elif handling:
         # Opening an exact delivery into the claimant's running turn proves generic
-        # page work even before the agent writes a status sentence. It does not bind
-        # that execution state back onto any other interaction; each receipt keeps
-        # its own workflow stage.
+        # page work even before the agent starts an item. It does not bind that
+        # execution state back onto any other interaction; each receipt keeps its own
+        # workflow stage.
         latest = max(handling, key=lambda item: item.get("delivery_seq") or 0)
         kind, ts, dropped = "working", latest["ts"], False
-    elif active:
-        latest = max(active, key=lambda item: (item["seq"], item["id"]))
-        detail, ts = latest.get("detail") or "", latest["ts"]
-        dropped = aging[latest["id"]][1]
-        kind = "stalled" if taking_input else "away"
-    elif status["state"] == "working":
-        detail = status.get("detail", "")
+    elif in_hand:
+        # Items still in hand whose turn has gone quiet or ended: the page stalls on
+        # the newest one's line, or is away when nothing takes input.
+        start, (_, dropped) = max(in_hand, key=lambda pair: pair[0]["seq"])
+        detail, ts = start["text"], start["ts"]
         kind = "stalled" if taking_input else "away"
     elif taking_input:
         kind, detail, dropped = "listening", status.get("detail", ""), False
     if dropped and kind != "working":
         # A belief the turn's ending retired is dated by that ending, not by the
-        # claim's own last word: "last checked in just now" beside an amber dot
+        # start's own last word: "last checked in just now" beside an amber dot
         # would argue with the dot.
         ts = turn.ended.isoformat()
 
@@ -616,6 +667,7 @@ def canonical_activity(
         "ts": ts,
         "next_transition_at": min(deadlines).isoformat() if deadlines else None,
         "workflows": workflows,
+        "tasks": tasks,
         "obligations": obligations,
         **({"reply": _reply_evidence(reply)} if reply is not None else {}),
     }

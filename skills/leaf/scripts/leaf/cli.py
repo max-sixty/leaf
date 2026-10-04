@@ -367,15 +367,15 @@ def state(dir: str, target: str | None, after: int | None, limit: int | None) ->
     "--completes",
     multiple=True,
     metavar="WIDGET",
-    help="active widget work this version completes (repeatable)",
+    help="a widget whose open tasks this version completes (repeatable)",
 )
 def stamp(dir: str, text: str, completes: tuple[str, ...]) -> None:
     """Stamp PAGE/index.html with a changelog.
 
     Checks the exact source first, then records it as the next public version. Repeat
-    --completes for each active widget work claim this version completes. A
-    widget claim otherwise survives unrelated versions, and a version cannot
-    silently remove its page target.
+    --completes for each widget whose open tasks this version completes, which ends
+    them done, citing the version. A task on a widget otherwise survives unrelated
+    versions, and a version cannot silently remove its widget.
     """
     from leaf.publishing import cmd_stamp
 
@@ -707,40 +707,27 @@ def stop(dir: str) -> None:
     print(json.dumps({"stopped": cmd_stop(resolve_dir(dir))}))
 
 
-@cli.command(short_help="Set the agent's banner state.")
+@cli.command(short_help="Say the page waits on its user, or is done.")
 @click.argument("dir", metavar="PAGE")
-@click.argument("state", type=click.Choice(["working", "waiting", "idle"]))
+@click.argument("state", type=click.Choice(["waiting", "idle"]))
 @click.argument("detail", required=False, default="")
-@click.option(
-    "--on",
-    "on",
-    metavar="SUBJECT",
-    help="The open thread or widget this work is about.",
-)
-def status(dir: str, state: str, detail: str, on: str | None) -> None:
-    """Set the agent's banner state.
+def status(dir: str, state: str, detail: str) -> None:
+    """Say the page waits on its user, or that you are done with it.
 
-    Use working with DETAIL, required, naming your current work and its
-    subject, or waiting with the answer you want from the user. Waiting without
-    DETAIL invites text comments. Use idle when finished; unacknowledged input
-    and unanswered user moves prevent it.
-
-    With working, --on names an open thread, by any message in it, or a widget:
-    whatever a delivered event gives as its address, which then reads Working.
-    The user sees DETAIL beside that subject as well as in the banner.
-    Your next reply ends a thread claim; `leaf page stamp --completes` ends
-    a widget claim. Renew the status as work changes: a claim left after your
-    turn ends, or without updates, eventually reads as stalled.
+    Use waiting with DETAIL naming the answer you want from the user; waiting
+    without DETAIL invites text comments. Use idle when finished; unacknowledged
+    input and unanswered user moves prevent it. Work in hand is no status: name it
+    with `leaf task start`.
     """
     from leaf.activity import unanswered
-    from leaf.session import cmd_idle, cmd_status
+    from leaf.session import cmd_idle, cmd_waiting
 
     page_dir = resolve_dir(dir)
     owed = []
     if state == "idle":
-        written = cmd_idle(page_dir, detail, on)
+        written = cmd_idle(page_dir, detail)
     else:
-        written, owed = cmd_status(page_dir, state, detail, on=on)
+        written, owed = cmd_waiting(page_dir, detail)
     print(json.dumps(written, ensure_ascii=False))
     if state == "waiting" and owed:
         click.echo(
@@ -961,26 +948,50 @@ def thread_resolve(dir: str, thread: str) -> None:
     _print_records(cmd_resolve(resolve_dir(dir), thread))
 
 
-@cli.group(short_help="Open or end a task the agent has taken on.")
+@cli.group(short_help="Open, start, or end the agent's work on the page.")
 def task() -> None:
-    """Hold work the agent owes on the page until it ends.
+    """Show the work you owe on the page and the item you have in hand.
 
-    A task stays on the agent's queue through replies, resolutions, versions and
-    the end of the session that opened it; only `leaf task end` ends it. Every
-    write prints the record it appended, one JSON line, as `page events` prints it.
+    An item on your queue is a user move you owe an answer, named by the move's
+    event id, or a task you opened. `leaf task start` takes one in hand for this
+    turn, with the line the banner shows. A task stays on your queue through
+    replies, resolutions, versions and the end of the session that opened it;
+    `leaf task end`, or a stamp that `--completes` its widget, ends it. Every write
+    prints the record it appended, one JSON line, as `page events` prints it.
     """
 
 
-@task.command("open", short_help="Take on work a thread asked for.")
+@task.command(
+    "open", short_help="Take on work no move asked for, or that outlasts the turn."
+)
 @click.argument("dir", metavar="PAGE")
 @click.argument("subject", metavar="SUBJECT")
 @click.argument("title", metavar="TITLE")
 def task_open(dir: str, subject: str, title: str) -> None:
-    """Open a task titled TITLE on the open thread SUBJECT names, by any message in
-    it or a widget its messages carry. Its id is the printed record's `id`."""
+    """Open a task titled TITLE on SUBJECT: an open thread, by any message in it or a
+    widget its messages carry; a page widget that declares x-work or holds an
+    unsettled move; or `page` for the page as a whole. Its id is the printed
+    record's `id`."""
     from leaf.tasks import cmd_open
 
     _print_records(cmd_open(resolve_dir(dir), subject, title))
+
+
+@task.command(
+    "start", short_help="Take a move or task in hand, with the banner's line."
+)
+@click.argument("dir", metavar="PAGE")
+@click.argument("item", metavar="ID")
+@click.argument("text", metavar="LINE")
+def task_start(dir: str, item: str, text: str) -> None:
+    """Take ID in hand for this turn: the event id of a user move you owe, as its
+    delivery names it, or an open task's id. LINE names the work and its subject in
+    one sentence; it reads Working beside the move or task and in the banner. Your
+    answer to the move, or the task's end, ends it; left in hand after your turn
+    ends, it reads stalled until you answer it or start it again."""
+    from leaf.tasks import cmd_start
+
+    _print_records(cmd_start(resolve_dir(dir), item, text))
 
 
 @task.command("end", short_help="End a task: done, failed, or dropped.")

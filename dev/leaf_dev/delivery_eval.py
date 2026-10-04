@@ -3,8 +3,8 @@
 Idle posts two successive comments; mid-turn posts during the setup turn. Each
 trajectory uses an isolated home, page and state directory, and retains streams
 and the admitted event log. Every expected comment must be picked up, receive an
-accepted thread claim and a reply in its handling turn, and complete that turn.
-Latency and work before the claim remain diagnostics: a Bash call can contain
+accepted start (`leaf task start`) and a reply in its handling turn, and complete that turn.
+Latency and work before the start remain diagnostics: a Bash call can contain
 several operations, so its trace alone cannot prove their internal order.
 """
 
@@ -17,7 +17,7 @@ from pathlib import Path
 from leaf.event_log import read_events
 
 from leaf_dev.harness import (
-    accepted_thread_claims,
+    accepted_starts,
     blocks,
     completed,
     hook_delivered,
@@ -115,7 +115,7 @@ def score(run: Path) -> list[dict]:
         delivery, route, before_claim, claimed, ended = None, None, [], None, None
         turn_completed = False
         handling = False
-        accepted = accepted_thread_claims(stream, comment["id"])
+        accepted = accepted_starts(stream, comment["id"])
         for record in stream[stream.index(marker) + 1 :]:
             handling = handling or any(
                 b.get("type") == "tool_result" and b.get("tool_use_id") in accepted

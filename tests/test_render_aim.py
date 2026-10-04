@@ -12,11 +12,11 @@ from interact_support import (
     SHIPPED_PACKAGES,
     append_carried_log_record,
     append_command,
+    declare_idle,
 )
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import service as service_model
-from leaf import session as session_model
 from leaf.render_checks import rendered, wait_until_ready
 from leaf.served_state import context as served_context
 from leaf.validation import compatibility as validation_model
@@ -1755,7 +1755,7 @@ def test_a_margin_label_covers_the_target_trace(browser, serve, monkeypatch):
     advanced = (sent_at + timedelta(minutes=3)).isoformat()
     for clock_owner in (served_context, events_model, service_model):
         monkeypatch.setattr(clock_owner, "now_iso", lambda: advanced)
-    session_model.cmd_status(page_dir, "idle", "")
+    declare_idle(page_dir)
     told(page)
 
     marker = page.locator('[data-lf-margin-for="jobs"] > .lf-margin-marker')

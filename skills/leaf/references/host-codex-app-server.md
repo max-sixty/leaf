@@ -51,10 +51,10 @@ describes.
 Plan updates, tool starts, reasoning summaries, and waits for approval or user input
 are watched as the task's current step. Leaf retains thinking, tool use, replying,
 approval waits, and input waits as distinct observations. They describe overall page
-activity; an observed step alone does not claim work on a particular message. A
-sentence declared with `leaf status` stays the page's sentence, and the step stands
-beside it in the banner's disclosure; without a declared sentence for this work, the
-step is the sentence.
+activity; an observed step alone does not start a particular message. The line of
+an item you started with `leaf task start` stays the page's sentence, and the step
+stands beside it in the banner's disclosure; with no item in hand, the step is the
+sentence.
 
 ## Hand a page over from a terminal
 

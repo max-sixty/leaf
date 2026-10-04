@@ -79,7 +79,7 @@
     "condition": null,
     "next_actor": "agent",
     "response": null,
-    "claimed_by": [],
+    "started_by": [],
     "thread": "e4",
     "holds_thread": true
   },
@@ -174,7 +174,7 @@
           "condition": null,
           "next_actor": "agent",
           "response": null,
-          "claimed_by": [],
+          "started_by": [],
           "thread": "e1",
           "holds_thread": false
         }
@@ -350,8 +350,13 @@
           ],
           "attention": {
             "kind": "waiting",
-            "reason": "workflow",
-            "workflow": "claim:claim-1"
+            "reason": "task",
+            "workflow": null,
+            "task": {
+              "id": "e6",
+              "title": "Rebuild the chart",
+              "running": "Redrawing the chart"
+            }
           }
         },
         {
@@ -459,7 +464,7 @@
             "state": "failed",
             "responds": "e9"
           },
-          "claimed_by": [],
+          "started_by": [],
           "thread": null,
           "holds_thread": false
         },
@@ -505,43 +510,8 @@
             "state": "failed",
             "responds": "e7"
           },
-          "claimed_by": [],
+          "started_by": [],
           "thread": "e7",
-          "holds_thread": true
-        },
-        {
-          "id": "claim:claim-1",
-          "input": null,
-          "seq": 6,
-          "revision": null,
-          "subject": {
-            "kind": "thread",
-            "id": "e4"
-          },
-          "coordinate": [
-            "thread",
-            "e4"
-          ],
-          "answer": null,
-          "stage": "working",
-          "ts": "2026-09-19T12:00:00+00:00",
-          "detail": "Redrawing the chart",
-          "agent": "Agent",
-          "session": "served-records",
-          "activity": [
-            {
-              "kind": "working",
-              "detail": "Redrawing the chart",
-              "ts": "2026-09-19T12:00:00+00:00",
-              "session": "served-records",
-              "turn": "turn-1"
-            }
-          ],
-          "condition": null,
-          "next_actor": "agent",
-          "response": null,
-          "claimed_by": [],
-          "thread": "e4",
           "holds_thread": true
         },
         {
@@ -574,7 +544,7 @@
           "condition": null,
           "next_actor": "agent",
           "response": null,
-          "claimed_by": [],
+          "started_by": [],
           "thread": "e3",
           "holds_thread": true
         }
@@ -592,6 +562,17 @@
           "ts": "2026-09-19T12:00:00+00:00",
           "agent": "Agent",
           "session": "served-records",
+          "revision": 1,
+          "running": {
+            "id": "e11",
+            "text": "Redrawing the chart",
+            "seq": 11,
+            "ts": "2026-09-19T12:00:00+00:00",
+            "agent": "Agent",
+            "session": "served-records",
+            "turn": "turn-1",
+            "condition": null
+          },
           "outcome": null,
           "thread": "e4"
         }
@@ -637,16 +618,6 @@
         ],
         "on_agent": [
           {
-            "kind": "work",
-            "id": "claim:claim-1",
-            "subject": {
-              "kind": "thread",
-              "id": "e4"
-            },
-            "thread": "e4",
-            "detail": "Redrawing the chart"
-          },
-          {
             "kind": "answer",
             "id": "e3",
             "subject": {
@@ -670,6 +641,16 @@
             },
             "thread": "e4",
             "title": "Rebuild the chart",
+            "running": {
+              "id": "e11",
+              "text": "Redrawing the chart",
+              "seq": 11,
+              "ts": "2026-09-19T12:00:00+00:00",
+              "agent": "Agent",
+              "session": "served-records",
+              "turn": "turn-1",
+              "condition": null
+            },
             "agent": "Agent",
             "session": "served-records"
           }

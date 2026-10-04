@@ -16,7 +16,7 @@ including edits and retired content. Quote exact visible authored words inside
 one widget part. The command refuses ambiguous, retired, replaced, or
 cross-boundary text instead of creating a detached comment. The thread's id is its
 opening comment's `id`, in the record `leaf thread open` prints. `leaf page state
-<page> <id>`, `leaf thread reply`, `edit` and `resolve`, and `leaf status --on` all
+<page> <id>`, `leaf thread reply`, `edit` and `resolve`, and `leaf task open` all
 take the id of any message in the thread.
 
 Title a thread with `--title` on the command that first handles it: the `open` that

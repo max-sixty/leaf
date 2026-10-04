@@ -31,6 +31,7 @@ from interact_support import (
     _board,
     _decided,
     _report,
+    _start,
     _status,
     _tasks_version,
     append_carried_log_record,
@@ -5040,7 +5041,7 @@ def test_update_feed_orders_clock_ties_by_log_causality(page_dir, monkeypatch):
         page_dir,
         {"kind": "comment", "id": "c1", "author": "user", "text": "why?"},
     )
-    assert _status(page_dir, "working", "checking", "--on", thread["id"]).exit_code == 0
+    assert _start(page_dir, thread["id"], "checking").exit_code == 0
     claim_id = files_model.read_json(page_dir / "status.json")["work"][0]["id"]
     second = append_command(
         page_dir,

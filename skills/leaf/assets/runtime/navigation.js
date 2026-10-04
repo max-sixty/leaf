@@ -117,8 +117,8 @@ function stepThread(dir, destinations, panelIsOpen, narrowing, list) {
 // Put the comment the user is standing on against one edge of its list. This is
 // placement inside the panel, not travel to the passage the comment is about, so it
 // moves only the thread scroller and keeps the card's focus. Native scroll placement
-// reads the list's declared scroll-padding, including its sticky heading and focus-ring
-// room, from the same authority the t/T walk uses.
+// reads the list's declared scroll-padding, its focus-ring room, from the same authority
+// the t/T walk uses.
 export function placeThreadEdge(thread, edge) {
   thread.scrollIntoView({ behavior: scrollBehavior(), block: edge });
 }

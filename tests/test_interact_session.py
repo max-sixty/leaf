@@ -8642,15 +8642,11 @@ def test_a_watch_wakes_on_what_its_pass_read_moving(page_dir):
     try:
         mark = watch.mark()
         list(watch.tick())
-        started = time.monotonic()
-        watch.await_news(mark, timeout=60)
-        assert time.monotonic() - started < 30
+        assert watch.await_news(mark, timeout=STATED_TIMEOUT)
 
         mark = watch.mark()
         list(watch.tick())
-        started = time.monotonic()
-        watch.await_news(mark, timeout=0.2)
-        assert time.monotonic() - started >= 0.2
+        assert not watch.await_news(mark, timeout=0.2)
 
         mark = watch.mark()
         list(watch.tick())
@@ -8660,10 +8656,8 @@ def test_a_watch_wakes_on_what_its_pass_read_moving(page_dir):
             (page_dir, {"kind": "comment", "author": "user", "text": "hi"}),
         )
         appending.start()
-        started = time.monotonic()
-        watch.await_news(mark, timeout=60)
+        assert watch.await_news(mark, timeout=STATED_TIMEOUT)
         appending.join()
-        assert time.monotonic() - started < 30
         assert events_model.read_events(page_dir)[-1]["text"] == "hi"
     finally:
         watch.release()

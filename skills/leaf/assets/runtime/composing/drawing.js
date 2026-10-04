@@ -29,6 +29,7 @@ import {
 } from "../passages.js";
 import { anchoringIsReady } from "../anchor-resolution.js";
 import { coarsePointer, pressIsKeyboardActivation } from "../pointer.js";
+import { shownScheme } from "../color-scheme.js";
 import { pageCommand, pageRung, pageScope } from "../keyboard/register.js";
 import {
   DRAWING_COORDINATE_LIMIT,
@@ -239,12 +240,17 @@ export function createDrawingController({
 
   // The drawing's geometry, and the size of the box its offsets were drawn in, which is
   // what places a mark on a picture that has no words. Strokes drawn before the target
-  // resized are scaled to its current size, so all the strokes share one box.
+  // resized are scaled to its current size, so all the strokes share one box. The window
+  // is read with the box, so the two describe the same layout: the one the agent's
+  // picture of the comment lays the page out in again.
   function drawingOf(held, { points, box }) {
+    const { clientWidth, clientHeight } = document.documentElement;
     return {
       format: DRAWING_FORMAT,
       strokes: [...(held ? strokesIn(held, box) : []), strokeFrom(points, box)],
       ...(box && { box: [rounded(box.width), rounded(box.height)] }),
+      viewport: [clientWidth, clientHeight],
+      scheme: shownScheme(),
     };
   }
 

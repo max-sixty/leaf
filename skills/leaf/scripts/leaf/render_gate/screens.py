@@ -21,7 +21,6 @@ A screen is the window as the reader sees it, fixed chrome included, scrolled by
 of a window at a time, because the document is the page's scroller and a full-page
 capture would draw the banner and bottom bar in the wrong places."""
 
-import hashlib
 import shutil
 import tempfile
 from pathlib import Path
@@ -29,6 +28,7 @@ from pathlib import Path
 from leaf.machine import state_home
 from leaf.render_checks import RENDER_VIEWPORT, rendered, wait_until_ready
 from leaf.render_gate.readings import SWEEP_WIDTHS
+from leaf.state import page_key
 
 PHONE = {"width": 390, "height": 844}
 # How far down a long page the screens go.
@@ -104,10 +104,16 @@ def _asks_in_turn(page, into: Path) -> tuple[list[Path], bool]:
         shots.append(shot)
 
 
+def page_files(kind: str, page_dir: Path) -> Path:
+    """The state home's directory of `kind` files for one page, the same for every
+    command that writes them: named for the page, and keyed so that two pages of one
+    name keep apart."""
+    return state_home() / kind / f"{page_dir.name}-{page_key(page_dir)[:12]}"
+
+
 def screens_dir(page_dir: Path) -> Path:
     """The page's screens directory, the same for every check of that page."""
-    key = hashlib.sha256(str(page_dir.resolve()).encode()).hexdigest()[:12]
-    return state_home() / "screens" / f"{page_dir.name}-{key}"
+    return page_files("screens", page_dir)
 
 
 def save_screens(

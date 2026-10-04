@@ -24,6 +24,7 @@ import { THREAD } from "./thread/selectors.js";
 import { under } from "./shadow.js";
 import { announce } from "./notifications.js";
 import { focusThread } from "./thread/focus.js";
+import { showHeld } from "./thread/held-news.js";
 import { landWalkedThread } from "./thread/landing.js";
 import { beginWalk, listWalkPosition, walkPositionLabel } from "./walk-position.js";
 
@@ -79,14 +80,16 @@ function threadFrom(threads, place, dir, threadTarget) {
 // walk, which names the thread the user already stands on, moves no focus and gives the
 // list nothing to land: the press lands that thread itself. The page half travels either
 // way, and keeps the panel the walk is in: it moves the page only where moving it shows
-// the passage better beside the panel (anchor-travel.js, `arrive`). It settles once the
-// thread stands open.
+// the passage better beside the panel (anchor-travel.js, `arrive`). The press takes the
+// user to the thread, so it shows what the thread held (held-news.js) before landing, as
+// `openPageThread` does on its own path. It settles once the thread stands open.
 async function arriveAtThread(next, destinations, panelIsOpen, threadsBox) {
   const { openPageThread, scrollToThread } = destinations;
   if (!panelIsOpen()) {
     await openPageThread(next.dataset.id, { focus: "thread" });
     return;
   }
+  showHeld(next.dataset.id);
   threadsBox.revealNavigation(next.dataset.id);
   const standing = next.contains(document.activeElement);
   focusThread(next, { preventScroll: true });

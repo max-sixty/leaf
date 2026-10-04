@@ -125,6 +125,7 @@ import {
   watchSemantic,
 } from "../semantic-state.js";
 import { hostIn, under, upFrom } from "../shadow.js";
+import { showHeld } from "../thread/held-news.js";
 
 // Ask owns contextual action routes and navigation; the keyboard presenter owns their hints.
 export function createAskView({
@@ -159,7 +160,15 @@ export function createAskView({
   // asked for it: what it does to the page, such as widening a narrowing that hides
   // the Ask's thread and clearing the words searched for, is that key's or press's
   // doing, in its own turn.
+  //
+  // Going to a thread's Ask, or answering it, takes the user to that thread, so the
+  // lookup first shows what the thread holds back (held-news.js), the Ask included where
+  // a held turn carries it; that release draws before `showHeld` returns.
   const askNodes = (ask) => ({ target: askNode(ask), source: sourceNode(ask) });
+  const reachAsk = (ask) => {
+    if (ask.thread) showHeld(ask.thread);
+    return askNodes(ask);
+  };
   const unbuilt = (ask, { target, source }) => (!target || !source) && ask.thread;
   async function materializeAsk(ask, intent = null) {
     if (!panelIsOpen()) {
@@ -183,7 +192,7 @@ export function createAskView({
       // publications and toolbar moves; it never captures an earlier Ask or DOM node.
       for (const ask of openAsks()) {
         if (askEntry(ask)?.all !== outcome) continue;
-        const nodes = askNodes(ask);
+        const nodes = reachAsk(ask);
         const { source } = unbuilt(ask, nodes) ? await materializeAsk(ask) : nodes;
         await source?.[decisionFor(ask.sourceTag)?.verb]?.(outcome);
       }
@@ -651,7 +660,7 @@ export function createAskView({
     // A thread's ask lives in the panel, which has no geometry while closed — the
     // same reason reveal() opens a settled group before the scroll. Waited for only
     // where it has to be built, so an Ask already standing is arrived at in the turn.
-    const nodes = askNodes(next);
+    const nodes = reachAsk(next);
     let { target } = unbuilt(next, nodes)
       ? await materializeAsk(next, mayArrive)
       : nodes;

@@ -119,7 +119,7 @@ export async function replyDestination(id, open, intent) {
     return Boolean(standing && (!standing.resolved || replyHasWords(standing.key)));
   });
   if (!mayReply()) return null;
-  const shown = await open(id, { focus: "reply", intent: mayReply });
+  const shown = await open(id, { focus: "reply", intent: mayReply, carried: true });
   const input =
     shown instanceof Element
       ? closestAcross(shown, THREAD)?.querySelector(SAY_BOX)

@@ -27,6 +27,7 @@ from leaf_dev.harness import (
     waits_started,
 )
 from leaf_dev.review_scenario import REQUEST, prepare
+from leaf_dev.usability_eval import Case, Run, execute_live
 
 # When each of a case's comments is posted: `idle` at the end of a turn, `running`
 # once the setup turn has the page's URL.
@@ -63,9 +64,7 @@ def stop_blocked(record: dict) -> bool:
 
 def run_session(arm: Path, case: str, run: Path, *, host: str = "cc") -> None:
     """Drive delivery timing through the same feedback loop as larger examples."""
-    from leaf_dev.usability_eval import Case, Run, execute_live
-
-    run.mkdir(parents=True)
+    run.mkdir(parents=True, exist_ok=True)
     work = scratch()
     (run / "work-dir").write_text(f"{work}\n")
     page, state = work / "page", run / "state"
@@ -248,8 +247,6 @@ def grade(case: str, readings: list[dict]) -> dict[str, bool]:
 def execute_scenario(
     case: str, payload: Path, work: Path, *, host: str = "cc", condition: str = "leaf"
 ) -> dict:
-    if condition != "leaf":
-        raise ValueError("Leaf delivery admission checks require the Leaf condition")
     run_session(payload, case, work, host=host)
     readings = score(work)
     return {

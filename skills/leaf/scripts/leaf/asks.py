@@ -407,15 +407,33 @@ class _AskReducer:
                 pairs.append((surface, record))
         return pairs
 
+    def _answered_by_user(self, record) -> bool:
+        """Whether a standing action that admission marked as this Ask's answer
+        (`meaning.answer`) still holds its answer: the user decided it while it
+        asked, whatever a later version made of the question."""
+        unit = record["attrs"].get("id")
+        return any(
+            "answer" in (held[0].get("meaning") or {})
+            for verb in answer_verbs(self._entry(record))
+            if (held := self.projection.actions.get((unit, unit, verb)))
+        ) and self._answered(record, set())
+
     def inventory(self, settled_away: set[str]) -> list:
         """Every active Ask, including ones the user has answered.
 
         An action Ask remains active while its authored `when` holds, even after
-        one of its answer verbs has state.
+        one of its answer verbs has state. One the user answered stays once a later
+        version retires the question around the answer, as `settled` does, so a
+        reading of what the page has decided keeps it.
         """
         active = []
         for record in self.records:
             if self.exists[id(record)] and self.local[id(record)]:
+                active.append(record)
+                continue
+            # Interim: this "decided" reading also keeps the Ask in the Asks drawer and
+            # the banner's count. The forthcoming Tasks model replaces it.
+            if self.exists[id(record)] and self._answered_by_user(record):
                 active.append(record)
                 continue
             # An ask that retires its own last visible slot still has a receipt

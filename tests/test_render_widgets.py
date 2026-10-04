@@ -843,7 +843,10 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     one at a time. Where the set holds both the list is a column left of the open panel,
     walked down as well as across; on a phone it is a row above the panel, so the open
     item never lands below the whole queue. A row carries its panel's summary under its
-    name. Answering an item's Ask moves no row. A tab's name is its label whatever
+    name, and once its item's Ask is answered, a check and the picked option's title
+    beside the name, said in the tab's description too. Answered is the log's reading,
+    so an undo takes them off once its answer is adopted, and the agent settling the
+    question keeps them on. Answering moves no row. A tab's name is its label whatever
     the row shows, and a panel bounds what it holds."""
 
     BOARD = (
@@ -874,7 +877,7 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
         '<lf-tabs id="queue" list="side">' + "".join(map(ticket, "abc")) + "</lf-tabs>",
         layout="workspace",
     )
-    page = open_page(browser, serve(source))
+    page = open_page(browser, live_url(serve(source)))
     resized(page, 1200, 900)
     boxes = """() => {
       const r = (s) => document.querySelector(s).getBoundingClientRect();
@@ -907,10 +910,45 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     page.keyboard.press("ArrowUp")
     expect(tabs.first).to_have_attribute("aria-selected", "true")
 
+    answer = page.locator("#queue .lf-tab-btn").first.locator(".lf-tab-answer")
+    expect(answer).not_to_be_visible()
     page.locator("#o-a-fix .lf-pick").click()
     told(page)
-    expect(tabs.first).to_have_text("Ticket asev a · suggested fix")
+    expect(answer).to_be_visible()
+    expect(answer).to_have_text("Fix")
+    expect(tabs.first).to_have_accessible_name("Ticket a")
+    expect(tabs.first).to_have_accessible_description(
+        "sev a · suggested fix. Answered: Fix"
+    )
+    expect(tabs.nth(1)).to_have_accessible_description("sev b · suggested fix")
     assert page.evaluate(rows) == heights
+
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("undo")
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    page.keyboard.press("z")
+    holding(page, held, 1, "the undo")
+    expect(answer).to_be_visible()
+    held[0].continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+    expect(answer).not_to_be_visible()
+    expect(tabs.first).to_have_accessible_description("sev a · suggested fix")
+
+    page.locator("#o-a-fix .lf-pick").click()
+    round_trip(page)
+    expect(answer).to_have_text("Fix")
+    settled = source.replace(
+        '<lf-options id="o-a" choose>', '<lf-options id="o-a" choose settled>'
+    ).replace('<lf-option id="o-a-fix">', '<lf-option id="o-a-fix" chosen>')
+    assert settled.count("settled") == 1 and settled.count("chosen") == 1
+    wait_for_revision(page, stamp_page(serve.page_dir, settled, "Settle a")["revision"])
+    expect(page.locator("#o-a .lf-settled")).to_be_visible()
+    expect(answer).to_be_visible()
+    expect(answer).to_have_text("Fix")
+    expect(tabs.first).to_have_accessible_description(
+        "sev a · suggested fix. Answered: Fix"
+    )
 
     resized(page, 390, 844)
     narrow = page.evaluate(boxes)
@@ -1031,6 +1069,62 @@ def test_an_ordinary_two_part_ask_retains_document_flow(browser, serve):
     page = open_page(browser, serve(in_pane))
     resized(page, 1280, 720)
     expect(page.locator("#session-triage-decision")).to_have_css("display", "block")
+
+
+TRACKED_ASK_PAGE = leaf_page(
+    "options track",
+    """
+  <h1>Retention</h1>
+  <lf-ask id="tracked">
+    <h3>How long should logs be kept?</h3>
+    <table id="tracked-figure">
+      <thead><tr><th>Store</th><th class="num">Daily GB</th></tr></thead>
+      <tbody><tr><td>Hot</td><td class="num">40</td></tr>
+        <tr><td>Warm</td><td class="num">120</td></tr></tbody>
+    </table>
+    <lf-ask id="nested">
+      <h4>Archive the warm tier too?</h4>
+      <p id="nested-premise">It holds the last quarter.</p>
+      <lf-options id="nested-choice" choose>
+        <lf-option id="nested-yes"><strong>Archive</strong> Move it to cold storage.</lf-option>
+        <lf-option id="nested-no"><strong>Keep</strong> Leave it warm.</lf-option>
+      </lf-options>
+    </lf-ask>
+    <lf-options id="tracked-choice" choose>
+      <lf-option id="keep-30"><strong>30 days</strong> Covers every incident review.</lf-option>
+      <lf-option id="keep-90"><strong>90 days</strong> Covers a quarter's audit.</lf-option>
+    </lf-options>
+  </lf-ask>
+""",
+    layout="wide",
+)
+
+
+def test_an_ask_framing_a_figure_sets_its_options_beside_it(browser, serve):
+    """An Ask whose heading, figure and one option list come in that order sets the
+    list in a track beside the figure where the Ask has the room, and stacks it below
+    where it hasn't. The track belongs to that Ask alone: an ordinary Ask held among
+    its evidence finds the same named container and keeps its own block flow."""
+    page = open_page(browser, serve(TRACKED_ASK_PAGE))
+    geometry = """() => {
+      const box = (id) => document.getElementById(id).getBoundingClientRect();
+      const figure = box('tracked-figure'), options = box('tracked-choice');
+      const style = (id) => getComputedStyle(document.getElementById(id));
+      return {
+        beside: options.left >= figure.right && options.top < figure.bottom,
+        below: options.top >= figure.bottom,
+        nestedFloat: style('nested-premise').float,
+        nestedListPosition: style('nested-choice').position,
+      };
+    }"""
+    resized(page, 1440, 900)
+    wide = page.evaluate(geometry)
+    assert wide["beside"], wide
+    assert wide["nestedFloat"] == "none", wide
+    assert wide["nestedListPosition"] != "sticky", wide
+    resized(page, 700, 900)
+    narrow = page.evaluate(geometry)
+    assert narrow["below"], narrow
 
 
 def clear_of_the_bottom_chrome(page, selector):

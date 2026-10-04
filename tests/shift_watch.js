@@ -505,6 +505,27 @@
   // the coordinate space in which an earlier scroll was observed.
   const viewportScroll = (node, at, offset = scrollAt(node, at)) => {
     const paint = paintAt(node, at);
+    if (!paint) {
+      const history = (samples) => ({
+        count: samples?.length ?? 0,
+        first: samples?.[0].at,
+        last: samples?.at(-1).at,
+      });
+      throw new Error(
+        `Missing retained scroll paint: ${JSON.stringify({
+          node: name(node),
+          nodeType: node.nodeType,
+          connected: node.isConnected,
+          at: String(at),
+          atType: typeof at,
+          atFinite: Number.isFinite(at),
+          retainedFrom: String(retainedFrom),
+          offset: offset ?? null,
+          poses: history(placed.get(node)),
+          scrolls: history(scrolled.get(node)),
+        })}; caller: ${new Error().stack}`,
+      );
+    }
     const left = offset?.left ?? 0,
       top = offset?.top ?? 0;
     return {

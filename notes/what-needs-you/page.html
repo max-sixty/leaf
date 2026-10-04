@@ -732,7 +732,59 @@ stateDiagram-v2
 
           <section id="pi">
             <h2>How Pi Durable models the same ground</h2>
-            <p>From <a href="https://earendil.com/posts/pi-durable/">Pi Durable</a>:</p>
+            <p id="pi-levels">
+              The two work at different levels. In Pi, every model turn, tool call and
+              tool result is a message in the user–assistant conversation, and each is a
+              task. In Leaf, a message is your comment or the agent's reply, and one
+              reply is the outcome of a whole run of those: dozens of model and tool
+              steps work towards answering you.
+            </p>
+            <table id="pi-levels-table" data-width="wide">
+              <thead>
+                <tr>
+                  <th scope="col"></th>
+                  <th scope="col">Pi Durable</th>
+                  <th scope="col">Leaf</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">A message</th>
+                  <td>Every model turn, tool call and tool result</td>
+                  <td>Your comment, or the agent's reply to it</td>
+                </tr>
+                <tr>
+                  <th scope="row">A task</th>
+                  <td>
+                    One step: a model request, a tool call, a compaction, a subagent
+                  </td>
+                  <td>
+                    One thing owed between you and the agent: an answer to your comment,
+                    a rebuild, a review
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row">How long it runs</th>
+                  <td>Usually seconds; a subagent or reminder longer</td>
+                  <td>A turn, or hours to days across sessions</td>
+                </tr>
+                <tr>
+                  <th scope="row">What the record is for</th>
+                  <td>Resuming exactly where a crash left off</td>
+                  <td>Knowing what is owed, by whom, and whether it was done</td>
+                </tr>
+              </tbody>
+            </table>
+            <p>
+              So a Leaf item is not one of Pi's tasks but one high in the tree: in Pi's
+              terms, a task the conversation owns, whose children are the steps that
+              work towards it. Leaf sees those steps only as the banner's Working line.
+            </p>
+            <p>
+              At its own level,
+              <a href="https://earendil.com/posts/pi-durable/">Pi Durable</a> works like
+              this:
+            </p>
             <ul>
               <li>
                 <strong>A message is input, not a task.</strong> Sent while the agent is

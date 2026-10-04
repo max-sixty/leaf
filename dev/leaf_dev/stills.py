@@ -128,6 +128,74 @@ def composer(page: Page) -> None:
     page.keyboard.insert_text("A comment being drafted on the selected words")
 
 
+# A draft of two paragraphs whose lines run past the composer's width, so every field
+# shows how its words wrap beside the action in its corner, on the lines above the last
+# as well as the last.
+LONG_DRAFT = (
+    "next phase: could we integrate the status ontology & workflow into our tasks "
+    "concept? So when the agent is working on something, they're working on a task?"
+    "\n\nwhat else do we need to move around for that to work?"
+)
+
+
+def composer_long(page: Page) -> None:
+    """A comment of two wrapped paragraphs being typed on a selected passage."""
+    composer(page)
+    page.keyboard.press("ControlOrMeta+a")
+    page.keyboard.insert_text(LONG_DRAFT)
+
+
+def composer_sent(page: Page) -> None:
+    """That comment just sent: its card keeps the draft's wrapping while it stands."""
+    composer_long(page)
+    page.keyboard.press("Enter")
+    page.locator(".lf-margin-preview[data-lf-comment-frame]").wait_for()
+    page.wait_for_function(
+        "() => !document.querySelector('.lf-margin-preview [aria-busy=\"true\"]')"
+    )
+    page.mouse.move(0, 0)
+
+
+def card_reply_long(page: Page) -> None:
+    """The first margin card with a reply of two wrapped paragraphs being typed."""
+    card_by_keyboard(page)
+    page.keyboard.press("Enter")
+    page.wait_for_function(
+        "() => document.activeElement?.matches('.lf-margin-preview leaf-text')"
+    )
+    page.keyboard.insert_text(LONG_DRAFT)
+
+
+def panel_reply_long(page: Page) -> None:
+    """The Threads panel's last thread with a reply of two wrapped paragraphs."""
+    threads_panel(page)
+    thread = page.locator(".lf-threads > .lf-thread").last
+    if thread.get_attribute("open") is None:
+        thread.locator(".lf-thread-summary").click()
+    thread.locator(".lf-thread-reply leaf-text").click()
+    page.keyboard.insert_text(LONG_DRAFT)
+
+
+def page_comment_long(page: Page) -> None:
+    """The Threads panel's page comment with two wrapped paragraphs."""
+    threads_panel(page)
+    page.locator(".lf-general leaf-text").click()
+    page.keyboard.insert_text(LONG_DRAFT)
+
+
+def option_long(page: Page) -> None:
+    """An Ask's added option, typed long enough to wrap beside its Add press."""
+    field = page.locator(".lf-another leaf-text").first
+    field.scroll_into_view_if_needed()
+    field.click()
+    page.keyboard.insert_text(
+        "Page the on-call owner only when the canary fails twice in a row, hold the "
+        "rollout until they acknowledge, and send every single failed probe to the "
+        "team channel instead, so the deploy trains stop paging anyone at all while "
+        "a real outage still reaches a person within a couple of minutes"
+    )
+
+
 def card_grabbed(page: Page) -> None:
     """A board card grabbed by keyboard and carried one column left."""
     page.keyboard.press("Tab")
@@ -275,6 +343,12 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
         threads_panel,
         panel_by_keyboard,
         composer,
+        composer_long,
+        composer_sent,
+        card_reply_long,
+        panel_reply_long,
+        page_comment_long,
+        option_long,
         card_grabbed,
         code_note,
         theme_hierarchy,
@@ -372,8 +446,53 @@ STATES = (
         viewport=(390, 844),
         touch=True,
     ),
+    State("plan-card-reply-long", "review-a-plan", card_reply_long),
+    State(
+        "plan-card-reply-long-touch",
+        "review-a-plan",
+        card_reply_long,
+        viewport=(390, 844),
+        touch=True,
+    ),
+    State("plan-panel-reply-long", "review-a-plan", panel_reply_long),
+    State(
+        "plan-panel-reply-long-dark", "review-a-plan", panel_reply_long, scheme="dark"
+    ),
+    State("plan-page-comment-long", "review-a-plan", page_comment_long),
     State("triage", "triage-board", at_rest),
     State("triage-composer", "triage-board", composer),
+    State("triage-composer-long", "triage-board", composer_long),
+    State("triage-composer-long-dark", "triage-board", composer_long, scheme="dark"),
+    State(
+        "triage-composer-long-beside", "triage-board", composer_long, viewport=BESIDE
+    ),
+    State(
+        "triage-composer-long-touch",
+        "triage-board",
+        composer_long,
+        viewport=(390, 844),
+        touch=True,
+    ),
+    State("triage-composer-sent", "triage-board", composer_sent),
+    State("triage-composer-sent-dark", "triage-board", composer_sent, scheme="dark"),
+    State(
+        "triage-composer-sent-beside", "triage-board", composer_sent, viewport=BESIDE
+    ),
+    State(
+        "triage-composer-sent-touch",
+        "triage-board",
+        composer_sent,
+        viewport=(390, 844),
+        touch=True,
+    ),
+    State("alert-option-long", "alert-review", option_long),
+    State(
+        "alert-option-long-touch",
+        "alert-review",
+        option_long,
+        viewport=(390, 844),
+        touch=True,
+    ),
     State("triage-grabbed", "triage-board", card_grabbed),
     State("walkthrough-code", "pr-walkthrough", code_note),
     State("walkthrough-code-dark", "pr-walkthrough", code_note, scheme="dark"),

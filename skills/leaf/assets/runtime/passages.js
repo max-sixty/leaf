@@ -751,33 +751,26 @@ export const segmentBlock = (segment) => segment.block ?? segment.node.parentEle
 const COLLAPSIBLE = new RegExp(`^(?:${COLLAPSE.source})$`, "u");
 
 // The normalized reading and, when requested, one DOM span for each character in it.
-// A block boundary or explicit line break contributes one collapsed gap, mapped to the
-// start of the segment after it: the same space as authored whitespace, unless the
-// reader asks for `"\n"` there. A comparison asks, because sentences are what it
-// aligns and a heading ends one without a full stop. Text and its DOM route come from
-// this one walk, so a consumer that paints a reading cannot disagree with `quoteFrom`
-// about its words.
-function readSegments(segments, mapCharacters, boundary = " ") {
+// A block boundary or explicit line break contributes the same collapsed space as
+// authored whitespace, mapped to the start of the segment after it. Text and its DOM
+// route come from this one walk,
+// so a consumer that paints a reading cannot disagree with `quoteFrom` about its words.
+function readSegments(segments, mapCharacters) {
   let text = "";
   const units = [];
   let pendingSpace = null;
-  let pendingBoundary = false;
-  const push = (character, start, end, atBoundary = false) => {
+  const push = (character, start, end) => {
     if (COLLAPSIBLE.test(character)) {
-      if (text) {
+      if (text)
         pendingSpace = pendingSpace
           ? { start: pendingSpace.start, end }
           : { start, end };
-        pendingBoundary ||= atBoundary;
-      }
       return;
     }
     if (pendingSpace) {
-      const gap = pendingBoundary ? boundary : " ";
-      text += gap;
-      if (mapCharacters) units.push({ text: gap, ...pendingSpace });
+      text += " ";
+      if (mapCharacters) units.push({ text: " ", ...pendingSpace });
       pendingSpace = null;
-      pendingBoundary = false;
     }
     text += character;
     if (mapCharacters) units.push({ text: character, start, end });
@@ -785,7 +778,7 @@ function readSegments(segments, mapCharacters, boundary = " ") {
   segments.forEach((seg, i) => {
     if (i && (seg.breakBefore || segmentBlock(seg) !== segmentBlock(segments[i - 1]))) {
       const point = { node: seg.node, offset: seg.start };
-      push(" ", point, point, true);
+      push(" ", point, point);
     }
     let offset = seg.start;
     for (const character of seg.node.data.slice(seg.start, seg.end)) {
@@ -796,10 +789,8 @@ function readSegments(segments, mapCharacters, boundary = " ") {
   });
   return mapCharacters ? { text, units } : text;
 }
-export const quoteFrom = (segments, boundary) =>
-  readSegments(segments, false, boundary);
-export const readingFrom = (segments, boundary) =>
-  readSegments(segments, true, boundary);
+export const quoteFrom = (segments) => readSegments(segments, false);
+export const readingFrom = (segments) => readSegments(segments, true);
 // Cutting one to length is the caller's business and always by code point: half a surrogate
 // pair is a character no UTF-8 file can hold, and a quote is written to one.
 export const cut = (text, from, to) => [...text].slice(from, to).join("");

@@ -448,40 +448,11 @@ test("Only a rewrite of the quoted words reads as a changed passage", async () =
     rewrittenFrom(servedThread([opening], { anchor, ...changes }));
 
   // The page kept the thread on the quote's section because a version rewrote it.
-  assert.deepEqual(at({ section: "queues" }), { passage: quoted, revision: 3 });
+  assert.equal(at({ section: "queues" }), quoted);
   // Still on its words, moved by a reply to other words or another section, or
   // detached: none of these is a rewrite the thread can show.
   assert.equal(at(quoted), null);
   assert.equal(at({ section: "queues", quote: "The two queues today" }), null);
   assert.equal(at({ section: "records" }), null);
   assert.equal(at(null, { detached_from: { section: "queues" } }), null);
-});
-
-test("A passage's edit leaves out what else changed around it", async () => {
-  const { runsAbout } = await import("/runtime/text-alignment.js");
-  const before = "Ship it.\nOn Monday we flip the flag.\nAsk support.";
-  const runs = [
-    { kind: "same", text: "Ship it" },
-    { kind: "insert", text: " now" },
-    { kind: "same", text: ".\nOn " },
-    { kind: "delete", text: "Monday" },
-    { kind: "insert", text: "Tuesday" },
-    { kind: "same", text: " " },
-    { kind: "delete", text: "we flip the flag.\n" },
-    { kind: "insert", text: "the flag flips.\n" },
-    { kind: "delete", text: "Ask support." },
-  ];
-  const about = (passage) =>
-    runsAbout(runs, before, passage).filter((run) => run.kind !== "same");
-
-  // Only the quoted words' own edit: the earlier insertion reads as unchanged, the
-  // neighbouring date and the later deletion are left out.
-  assert.deepEqual(about({ quote: "we flip the flag" }), [
-    { kind: "delete", text: "we flip the flag.\n" },
-    { kind: "insert", text: "the flag flips.\n" },
-  ]);
-  // Whitespace in the quote matches a block break in the text.
-  assert.deepEqual(about({ quote: "flag. Ask" }).length, 3);
-  // Words the earlier text never held have no edit to show.
-  assert.equal(runsAbout(runs, before, { quote: "absent" }), null);
 });

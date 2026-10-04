@@ -14,7 +14,6 @@ import { holdFocus } from "../focus.js";
 import { TEXT_FIELD } from "../control-selectors.js";
 import { html, render, repeat, nothing } from "../../vendor/browser-runtime.js";
 import { turns, threadKey, threadSummary, rewrittenFrom } from "./model.js";
-import { elementById } from "../passages.js";
 import { anchorLabel, MessageView, messageReading } from "./messages.js";
 import { reactionReading } from "./reaction-model.js";
 import { offer, reachedForWords } from "../widget-elements.js";
@@ -39,39 +38,31 @@ import { ReplyContinuity } from "./reply-continuity.js";
 
 function quoteReading(thread, anchors) {
   const placement = anchors.placedAt(thread.id);
-  // Where a later version rewrote the words the opening comment quoted, the head keeps
-  // naming those words rather than the section the page kept the thread on, and offers
-  // what became of them since the revision the comment was written on.
-  const from = rewrittenFrom(thread);
+  // A version that rewrote the quoted words leaves the thread on their section, and the
+  // head still names the words the comment was about, marked as changed since.
+  const rewritten = rewrittenFrom(thread);
   const label = anchorLabel(
-    from?.passage ?? thread.detached_from ?? thread.anchor,
+    rewritten ?? thread.detached_from ?? thread.anchor,
     thread.root.about,
   );
   if (!label) return null;
   const anchored = Boolean(thread.anchor) || Boolean(thread.detached_from);
   const found = !thread.detached_from && Boolean(placement);
   const outdated = anchored && placement?.status === "outdated";
-  const changed =
-    from && found && from.revision !== null
-      ? Object.freeze({
-          section: thread.anchor.section,
-          revision: from.revision,
-          passage: from.passage,
-          title: "Show how these words changed since the comment",
-        })
-      : null;
   return Object.freeze({
     label,
     anchored,
     found,
     outdated,
-    changed,
+    changed: Boolean(rewritten),
     title: !anchored
       ? null
       : found
         ? outdated
           ? "This comment refers to an earlier data revision"
-          : "Jump to this passage"
+          : rewritten
+            ? "These words have changed since; jump to their section"
+            : "Jump to this passage"
         : thread.detached_from
           ? "This passage is no longer in the version you're viewing"
           : "This passage can't be identified in the version you're viewing",
@@ -183,11 +174,7 @@ function navigationSummary(navigation, model) {
       >${pendingTitle ? "Generating title" : title}</span
     >
     <span class="lf-thread-meta">
-      ${
-        draft
-          ? html`<span class="lf-thread-draft" data-lf-folded>Draft</span>`
-          : nothing
-      }
+      ${draft ? html`<span class="lf-thread-draft" data-lf-folded>Draft</span>` : nothing}
       ${
         status
           ? html`<span
@@ -281,14 +268,12 @@ export class ThreadView {
     this.#continuity = new ReplyContinuity(this.node);
     // A card draws what its hold releases at once, so an arrival lands on the thread
     // as it now stands (`showHeld`).
-    if (surface === "panel") {
+    if (surface === "panel")
       this.#heldNews = new HeldNews(
         this.node,
         () => this,
         () => this.repaint(),
       );
-      document.addEventListener("lf-comparison", this.#paintChangeShown);
-    }
     // A panel card's disclosure is the thread list's to write, from its one choice.
     if (surface !== "panel") {
       this.node.tabIndex = -1;
@@ -492,18 +477,12 @@ export class ThreadView {
     const body = html`
       ${
         model.quote
-          ? html`<header
-              class=${
-                model.quote.changed ? "lf-thread-head lf-changed" : "lf-thread-head"
-              }
-            >
+          ? html`<header class="lf-thread-head">
               <blockquote
                 class=${`lf-quote${model.quote.anchored && !model.quote.found ? " detached" : ""}`}
                 role=${model.quote.anchored ? "button" : nothing}
                 tabindex=${model.quote.anchored ? "0" : nothing}
-                aria-disabled=${
-                  model.quote.anchored ? String(!model.quote.found) : nothing
-                }
+                aria-disabled=${model.quote.anchored ? String(!model.quote.found) : nothing}
                 title=${model.quote.title ?? nothing}
                 @click=${this.#returnToQuote}
               >
@@ -511,22 +490,11 @@ export class ThreadView {
                 ${
                   model.quote.outdated
                     ? html`<span class="lf-anchor-status">Earlier data</span>`
-                    : nothing
+                    : model.quote.changed
+                      ? html`<span class="lf-anchor-status">Changed</span>`
+                      : nothing
                 }
               </blockquote>
-              ${
-                model.quote.changed
-                  ? html`<button
-                      type="button"
-                      class="lf-anchor-changed"
-                      title=${model.quote.changed.title}
-                      aria-controls=${`lf-version-inline-${model.quote.changed.section}`}
-                      @click=${this.#showChange}
-                    >
-                      changed
-                    </button>`
-                  : nothing
-              }
             </header>`
           : nothing
       }
@@ -588,7 +556,6 @@ export class ThreadView {
     );
     this.#continuity?.after(bodyPlace);
     this.#wireKeys();
-    this.#paintChangeShown();
     // A summary gathering the message the user stands on moves it; a page thread whose
     // render took their place puts them in its reply, or on the thread itself.
     restoreFocus?.(
@@ -645,9 +612,7 @@ export class ThreadView {
           range.messages,
           (message) => message.key,
           (message) =>
-            html`${markerFor(message.key)}${
-              range.nodes[range.messages.indexOf(message)]
-            }`,
+            html`${markerFor(message.key)}${range.nodes[range.messages.indexOf(message)]}`,
         )}
       </div>
     </section>`;
@@ -749,49 +714,7 @@ export class ThreadView {
     });
   };
 
-  // The change opens where it happened, so the press shows the place as the quote's
-  // own press does; pressed again, it puts the page's current words back alone. The
-  // reading is this thread's, and the panel card is what offers it, so it leaves when
-  // the card stops offering it or leaves itself (`dispose`).
-  #showChange = () => {
-    const changed = this.#model.quote?.changed;
-    const section = changed && elementById(changed.section);
-    if (!section) return;
-    this.#commands.changes.toggle(
-      this.#model.id,
-      section,
-      changed.revision,
-      changed.passage,
-    );
-    this.#commands.travel.scrollToThread(this.#model.id, { focus: "reply" });
-  };
-
-  // Whether the reading stands is the comparison's, which a revision can also end, so
-  // the control reads it back whenever a comparison moves.
-  #paintChangeShown = () => {
-    if (this.#model?.surface !== "panel") return;
-    if (!this.#model.quote?.changed) {
-      this.#commands.changes.close(this.#model.id);
-      return;
-    }
-    const button = this.node.querySelector(".lf-thread-head > .lf-anchor-changed");
-    if (button)
-      keeps(
-        button,
-        "aria-expanded",
-        String(this.#commands.changes.shownFor(this.#model.id)),
-      );
-  };
-
   #wireKeys() {
-    const changed = this.node.querySelector(".lf-thread-head > .lf-anchor-changed");
-    if (changed && !this.#keys.has(changed)) {
-      this.#keys.add(changed);
-      // The browser's own press, the control being a real <button>.
-      keys(changed, "On a passage a later version rewrote", [
-        { id: "passage.changes", keys: PRESS, title: "show what changed" },
-      ]);
-    }
     const quote = this.node.querySelector(
       ":scope > .lf-thread-content > .lf-thread-head > .lf-quote, " +
         ":scope > .lf-thread-head > .lf-quote",
@@ -915,8 +838,6 @@ export class ThreadView {
 
   dispose() {
     this.#heldNews?.dispose();
-    document.removeEventListener("lf-comparison", this.#paintChangeShown);
-    if (this.#model?.surface === "panel") this.#commands.changes.close(this.#model.id);
     this.#continuity?.release();
     this.retire();
     this.#reply?.dispose();

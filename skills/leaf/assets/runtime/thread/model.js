@@ -163,17 +163,16 @@ export const awaitsUser = (thread) =>
   !thread.resolved && thread.attention?.kind === "needs_user";
 export const seatRoot = (thread) => thread.seat;
 
-// The passage the opening comment quoted, once a later version rewrote it: the words no
-// longer resolve, so the thread stands on their section alone (`reanchor`, events.md).
-// The opening comment keeps its anchor and the revision it was written on, so what the
-// comment was about stays readable however far the page has moved on. A reply that moved
-// the thread chose its new place and said why, so it is not a rewrite.
+// The opening comment's anchor, once a later version rewrote its quoted words: they no
+// longer resolve, so the thread stands on their section alone (`reanchor`, events.md),
+// and the opening comment still holds what it was about. A reply that moved the thread
+// chose its new place and said why, so it is not a rewrite.
 export function rewrittenFrom(thread) {
   const opening = thread.root.anchor;
   const now = thread.anchor;
   if (!opening?.quote || !now || now.quote || now.section !== opening.section)
     return null;
-  return { passage: opening, revision: thread.root.revision ?? null };
+  return opening;
 }
 
 // When a message last moved: its latest edit, else its own arrival. Every ordering that

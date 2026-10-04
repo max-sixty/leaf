@@ -1736,9 +1736,8 @@ def test_server_round_trip(server, page_dir):
     }
 
 
-def test_a_page_serves_one_document_at_each_of_its_addresses(server, page_dir):
-    """The live root, a stamped version and a revision are all this page, and a
-    revision's number alone leads to its document, as a comment records only that.
+def test_a_page_serves_one_document_at_each_of_its_three_addresses(server, page_dir):
+    """The live root, a stamped version and a revision are all this page.
 
     The revision address used to fall through to the static file branch, which
     returned the authored bytes. The module that source names still started a
@@ -1757,7 +1756,6 @@ def test_a_page_serves_one_document_at_each_of_its_addresses(server, page_dir):
         "/",
         "/versions/v1.html",
         f"/revisions/{files_model.revision_path(page_dir, revision).name}",
-        f"/revisions/r{revision}.html",
     ):
         status, body = fetch(server + address)
         assert status == 200, address
@@ -1765,7 +1763,6 @@ def test_a_page_serves_one_document_at_each_of_its_addresses(server, page_dir):
         assert marker.encode() in body, address
         assert f'data-lf-entry="{artifact_root}/leaf.js"'.encode() in body, address
         assert fetch(server + artifact_root + "/leaf.js")[0] == 200, address
-    assert fetch(server + f"/revisions/r{revision + 1}.html")[0] == 404
 
 
 def test_state_and_delivery_agree_on_a_revisions_executable_identity(server, page_dir):

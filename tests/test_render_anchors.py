@@ -3625,59 +3625,24 @@ QUEUES_V1 = leaf_page(
 QUEUES_V2 = QUEUES_V1.replace(
     "Each side has a queue of open items, and what an item is stays open",
     "The two queues today",
-).replace("anything open that", "anything that")
+)
 
 
-def test_a_thread_whose_quote_was_rewritten_shows_what_changed(browser, serve):
+def test_a_thread_whose_quote_was_rewritten_keeps_its_words(browser, serve):
     """A version that rewrites the words a comment quoted leaves its thread on their
-    section. The card keeps naming the quoted words, says they changed and, pressed,
-    shows their edit in place, from the revision the comment was written on to now:
-    the quoted heading struck and its replacement marked, while the same version's
-    edit to the paragraph below stays unmarked. A second press puts the current words
-    back alone, and the words the user quoted still find the thread.
-
-    Two threads quoted the same heading, so both stand on its section: each card's
-    reading is its own, and one card's press takes the place of the other's."""
+    section. The card keeps naming the quoted words rather than the section's new
+    heading, marked as changed, and those words still find the thread."""
     quote = "what an item is stays open"
-    url = serve(QUEUES_V1, anchored=[("queues", quote), ("queues", "Each side")])
+    url = serve(QUEUES_V1, anchored=[("queues", quote)])
     page = open_page(browser, live_url(url))
     stamp_page(serve.page_dir, QUEUES_V2, "plain headings")
     wait_for_revision(page, 2)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
 
-    cards = page.locator(".lf-thread-panel .lf-thread")
-    expect(cards).to_have_count(2)
-    expect(cards.locator(".lf-quote", has_text=f"“{quote}”")).to_have_count(1)
-    expect(cards.locator(".lf-quote", has_text="§ section")).to_have_count(0)
-    first, second = (cards.nth(index).locator(".lf-anchor-changed") for index in (0, 1))
-    expect(first).to_have_text("changed")
-
-    expect(first).to_have_attribute("aria-expanded", "false")
-    first.click()
-    expect(first).to_have_attribute("aria-expanded", "true")
-    expect(page.locator(".lf-notice")).to_have_text(
-        "Showing what changed since the comment"
-    )
-    struck = page.locator("#queues .lf-version-inline-deletion del")
-    expect(struck).to_have_count(1)
-    expect(struck).to_have_text(re.compile(r"^\s*Each side has .* stays open\s*$"))
-    inserted = page.evaluate(
-        "() => [...CSS.highlights.get('lf-version-insert')].map(r => r.toString())"
-    )
-    assert [text.strip() for text in inserted] == ["The two queues today"], inserted
-
-    cards.nth(1).locator(".lf-thread-summary").click()
-    expect(second).to_have_attribute("aria-expanded", "false")
-    second.click()
-    expect(second).to_have_attribute("aria-expanded", "true")
-    expect(first).to_have_attribute("aria-expanded", "false")
-    expect(struck).to_have_count(1)
-
-    second.click()
-    expect(second).to_have_attribute("aria-expanded", "false")
-    expect(page.locator("#queues .lf-version-inline-deletion")).to_have_count(0)
-    assert page.evaluate("() => CSS.highlights.has('lf-version-insert')") is False
+    head = page.locator(".lf-thread-panel .lf-thread .lf-quote")
+    expect(head.locator(".lf-quote-label")).to_have_text(f"“{quote}”")
+    expect(head.locator(".lf-anchor-status")).to_have_text("Changed")
 
     page.get_by_role("searchbox", name="Find in threads").fill("item is stays")
     expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_have_count(1)

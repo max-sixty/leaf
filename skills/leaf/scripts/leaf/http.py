@@ -43,6 +43,7 @@ from .files import (
     read_json,
     revision_names,
     revision_num,
+    revision_path,
     stamped_version,
     version_num,
     version_revisions,
@@ -762,14 +763,10 @@ class PageEndpoint:
                 version = stamped_version(page.events, revision)
         return self._serve_document(artifact, revision, version)
 
-    def _revision_names(self) -> dict[int, str]:
-        """Each revision's immutable document name, by revision."""
-        if self.page_snapshot is not None:
-            return self.page_snapshot.revision_names
-        return revision_names(self.page_dir)
-
     def _revision_name(self, revision: int) -> str:
-        return self._revision_names()[revision]
+        if self.page_snapshot is not None:
+            return self.page_snapshot.revision_names[revision]
+        return revision_path(self.page_dir, revision).name
 
     def _artifact(self, revision: int) -> RevisionArtifact:
         if self.page_snapshot is not None:
@@ -834,7 +831,12 @@ class PageEndpoint:
         if match is None:
             return None
         revision = int(match.group("revision"))
-        if self._revision_names().get(revision) != match.group("name") + ".html":
+        names = (
+            self.page_snapshot.revision_names
+            if self.page_snapshot is not None
+            else revision_names(self.page_dir)
+        )
+        if names.get(revision) != match.group("name") + ".html":
             return None
         artifact = self._artifact(revision)
         self.response_layer = artifact.registry["$layer"]["generation"]
@@ -881,19 +883,23 @@ class PageEndpoint:
             artifact = self._artifact(mapping[version])
             return self._serve_document(artifact, mapping[version], version)
         if path.startswith("/revisions/"):
-            # A revision answers at its digest-qualified name and, like a version, at
-            # its number alone, for a reader holding only that, as a message records
-            # the revision it was written on.
-            if numbered := re.fullmatch(r"/revisions/r([1-9][0-9]*)\.html", path):
-                revision = int(numbered.group(1))
-                name = None
-            elif re.fullmatch(rf"/revisions/{REVISION_NAME}\.html", path):
-                name = Path(path).name
-                revision = revision_num(name)
-            else:
+            if re.fullmatch(rf"/revisions/{REVISION_NAME}\.html", path) is None:
                 return self._json({"error": "unknown revision resource"}, 404)
-            known = self._revision_names().get(revision)
-            if known is None or name not in (None, known):
+            name = Path(path).name
+            revision = revision_num(name)
+            revisions = (
+                self.page_snapshot.context.revisions
+                if self.page_snapshot is not None
+                else set(list_revisions(self.page_dir))
+            )
+            if revision not in revisions:
+                return self._json({"error": "unknown revision"}, 404)
+            expected_name = (
+                self.page_snapshot.revision_names.get(revision)
+                if self.page_snapshot is not None
+                else revision_path(self.page_dir, revision).name
+            )
+            if expected_name != name:
                 return self._json({"error": "unknown revision"}, 404)
             artifact = self._artifact(revision)
             events = (

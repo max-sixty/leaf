@@ -9,8 +9,7 @@ throws or whether the module can read that body, and a quick page never reaches
 used to pass the check and reach the user, and its author heard about it only from the
 watcher's `error` event. The check therefore runs the exact candidate once, wherever
 the page carries either: through upgrade, authoritative presentation, and one rendering
-frame after it, at the render viewport in the light scheme. A thread message's markup
-is run the same way before it is posted (`message_page`).
+frame after it, at the render viewport in the light scheme.
 
 What fails it is what the runtime would report to the agent. `runtime/layer-client.js`
 posts every uncaught error and unhandled rejection, every widget that fails soft, and
@@ -39,19 +38,13 @@ from .scheme import answer_reports, served
 
 def needs_browser(document: SourceDocument, artifact: RevisionArtifact) -> bool:
     """Whether this revision runs what only a browser can judge: a script, or a
-    widget `places_judged_widget` names. A module a script imports is reached through
-    that script."""
+    placed widget whose module reads what no static check has, a page widget's own
+    code or a data widget's body in a notation only its module parses. A module a
+    script imports is reached through that script, and a widget the document never
+    places never loads."""
     scripts = [*document.inline_scripts, *document.external_scripts]
     if any(script_kind(script["attrs"]) in {"module", "classic"} for script in scripts):
         return True
-    return places_judged_widget(document, artifact)
-
-
-def places_judged_widget(document: SourceDocument, artifact: RevisionArtifact) -> bool:
-    """Whether the document places a page widget or a data widget, the two whose
-    module reads what no static check has: the page's own code, and a body in a
-    notation only the module parses. A widget the document never places never
-    loads."""
     registry = artifact.registry
     judged = [
         tag
@@ -59,20 +52,6 @@ def places_judged_widget(document: SourceDocument, artifact: RevisionArtifact) -
         if implementation["owner"] == "page" or registry[tag].get("x-content") == "data"
     ]
     return bool(judged) and document.tree.select_one(", ".join(judged)) is not None
-
-
-def message_page(fragment: SourceDocument) -> SourceDocument:
-    """A message's widget markup as a page of its own, as a sample's template is one.
-
-    A message's widgets stand in the thread rather than the page, where a chart in a
-    shut panel has no room to draw, so the run gives them the column that the page's
-    own widgets have. The page's document stays out of it: an error here is the
-    message's. A script in the markup runs here and never in a thread, which inserts
-    markup inertly, so a message is run only for the widgets it places."""
-    return SourceDocument(
-        '<!doctype html><html lang="en"><head><title>Message</title></head>'
-        f'<body><main class="layout-column">{fragment.html}</main></body></html>'
-    )
 
 
 def run_page_code(browser, url: str) -> list[str]:

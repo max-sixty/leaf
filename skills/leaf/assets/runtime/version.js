@@ -9,8 +9,10 @@
  * The picker owns the complete version list. Its focused row selects the comparison
  * base; the row for the displayed version clears comparison. Block marks show changes,
  * and `inlineComparison` / `toggleInlineComparison` disclose a block's text diff on
- * request. `comparisonBase`, `comparisonChanges`, and `closeVersionMenu` serve other
- * surfaces.
+ * request. `toggleChangeSince` discloses the same inline diff on one element from an
+ * exact revision, without the page-wide marks; `changeShownAt` and `closeChangeSince`
+ * serve the thread that pressed for it. `comparisonBase`, `comparisonChanges`,
+ * and `closeVersionMenu` serve other surfaces.
  *
  * Executable identity selects the install. An unchanged registry, module graph, and
  * inline module bodies permit an in-place patch; changed executable inputs require a
@@ -83,6 +85,7 @@ import {
   authored,
   elementById,
   inChrome,
+  quoteFrom,
   readingFrom,
   TEXT_BLOCK,
   textNodesUnder,
@@ -832,7 +835,7 @@ export function createVersionController({
     for (const block of diffMarked) {
       if (!block.matches(ADDRESSABLE) || block.closest(opaque)) continue;
       const baseBlock = doc.getElementById(block.id);
-      diffBefore.set(block, baseBlock ? wrote(baseBlock) : null);
+      diffBefore.set(block, baseBlock ? wroteLines(baseBlock) : null);
     }
     return diffMarked.length;
   }
@@ -843,7 +846,11 @@ export function createVersionController({
   // `.lf-ui`; comments, copies, and later comparisons therefore continue to read the exact
   // current document rather than the temporary historical words on screen.
   const inlineId = (target) => `lf-version-inline-${target.id}`;
-  const authoredReading = (target) => readingFrom(textNodesUnder(target, "wrote"));
+  // Both sides break between blocks with a newline rather than a space, so a heading
+  // and the paragraph under it stay two sentences to the alignment.
+  const wroteLines = (target) => quoteFrom(textNodesUnder(target, "wrote"), "\n");
+  const authoredReading = (target) =>
+    readingFrom(textNodesUnder(target, "wrote"), "\n");
 
   function pointAt(target, reading, offset) {
     if (!reading.units.length) return { node: target, offset: 0 };
@@ -882,21 +889,23 @@ export function createVersionController({
     else CSS.highlights.delete("lf-version-insert");
   }
 
-  function openInlineComparison(target) {
-    const before = diffBefore.get(target);
+  // `before` is what the block said in the base, or null where the base held no such
+  // block; `base` names that base for the reading. `opener` says which press owns the
+  // reading: a Change entry's (`comparison`) or a thread's (`thread`).
+  function openInlineComparison(target, before, base, opener) {
     const reading = authoredReading(target);
     const current = currentVersionToken();
     const label = el(
       "span",
       "lf-ui lf-quiet lf-version-inline-label",
-      before === null ? `New since v${diffBase}` : `v${diffBase} → ${current}`,
+      before === null ? `New since ${base}` : `${base} → ${current}`,
     );
     label.id = inlineId(target);
     label.setAttribute(
       "aria-label",
       before === null
-        ? `New since version ${diffBase}`
-        : `Inline comparison from version ${diffBase} to ${current}`,
+        ? `New since ${base}`
+        : `Inline comparison from ${base} to ${current}`,
     );
 
     const nodes = [label];
@@ -932,12 +941,12 @@ export function createVersionController({
       .map(([start, end]) => rangeAt(currentReading, start, end))
       .filter(Boolean);
     target.classList.toggle("lf-version-inline", hasTextChange);
-    inlineOpen.set(target, { nodes, ranges });
+    inlineOpen.set(target, { nodes, ranges, base, opener });
     paintInlineInsertions();
     layoutChanged(target);
     return before === null
-      ? `v${diffBase} had nothing here`
-      : `showing an inline diff from v${diffBase}`;
+      ? `${base} had nothing here`
+      : `showing an inline diff from ${base}`;
   }
 
   function closeInlineComparison(target) {
@@ -947,8 +956,17 @@ export function createVersionController({
     for (const node of entry?.nodes ?? []) node.remove();
     paintInlineInsertions();
     layoutChanged(target);
-    return `inline diff from v${diffBase} hidden`;
+    return `inline diff from ${entry?.base} hidden`;
   }
+
+  // Every inline reading leaves before a revision replaces the words it was spliced
+  // into. A thread's reading still on its way would land on words it was not read
+  // against, so it lands nowhere.
+  function closeInlineComparisons() {
+    changeRequest++;
+    for (const target of [...inlineOpen.keys()]) closeInlineComparison(target);
+  }
+  const openedBy = (target, opener) => inlineOpen.get(target)?.opener === opener;
 
   // What a text-changing marked block holds for the margin's disclosure reading. A pure
   // state change remains marked but offers no empty prose comparison. The one controlled
@@ -958,10 +976,10 @@ export function createVersionController({
   const inlineComparison = (target) =>
     diffOn &&
     diffBefore.has(target) &&
-    (diffBefore.get(target) === null || diffBefore.get(target) !== wrote(target))
+    (diffBefore.get(target) === null || diffBefore.get(target) !== wroteLines(target))
       ? {
           id: inlineId(target),
-          open: inlineOpen.has(target),
+          open: openedBy(target, "comparison"),
           offer: `v${diffBase} → ${currentVersionToken()}`,
         }
       : null;
@@ -971,11 +989,69 @@ export function createVersionController({
   // rendering: the same pass that reads the marks reads the margin entry's relation back.
   function toggleInlineComparison(target) {
     if (!inlineComparison(target)) return null;
-    const said = inlineOpen.has(target)
-      ? closeInlineComparison(target)
-      : openInlineComparison(target);
+    let said;
+    if (openedBy(target, "comparison")) said = closeInlineComparison(target);
+    else {
+      // A thread's reading of the same block gives way to the one pressed for.
+      if (inlineOpen.has(target)) closeInlineComparison(target);
+      said = openInlineComparison(
+        target,
+        diffBefore.get(target),
+        `v${diffBase}`,
+        "comparison",
+      );
+    }
     document.dispatchEvent(new CustomEvent("lf-comparison"));
     return said;
+  }
+
+  // ---------- one element's change since a revision ----------
+  // What a thread's place says now against what it said in the revision its opening
+  // comment was written on: the same inline reading a Change entry discloses, on one
+  // element and from that exact revision. It marks nothing else on the page and needs no
+  // stamped version, since a comment is usually written on a draft. The revision's
+  // document is read by its number, prepared as a comparison's base is, and a press that
+  // lands after the user pressed again, after a comparison or revision replaced the
+  // readings, or after the element left, paints nothing. The thread that pressed for it
+  // takes it away again: its second press, or its card leaving (`closeChangeSince`).
+  let changeRequest = 0;
+  async function toggleChangeSince(target, revision) {
+    const mine = ++changeRequest;
+    if (openedBy(target, "thread")) {
+      closeInlineComparison(target);
+      document.dispatchEvent(new CustomEvent("lf-comparison"));
+      notice("Showing the current words only");
+      return;
+    }
+    // Named by what it was to the reader, since a draft's own label can be the
+    // current one's too.
+    const base = "the version commented on";
+    let doc;
+    try {
+      doc = await authoredDocument(pageUrl(`revisions/r${revision}.html`));
+      await prepareDeclaredInlineMarkdown(doc);
+    } catch {
+      if (mine === changeRequest) notice(`Couldn't load ${base}`);
+      return;
+    }
+    if (mine !== changeRequest || !target.isConnected) return;
+    if (inlineOpen.has(target)) closeInlineComparison(target);
+    const before = doc.getElementById(target.id);
+    openInlineComparison(target, before ? wroteLines(before) : null, base, "thread");
+    document.dispatchEvent(new CustomEvent("lf-comparison"));
+    // The page's words moved under the reader, so the press says what they now show.
+    notice(
+      before
+        ? "Showing what changed since the comment"
+        : "All of this is new since the comment",
+    );
+  }
+  const changeShownAt = (target) => openedBy(target, "thread");
+  function closeChangeSince(target) {
+    changeRequest++;
+    if (!openedBy(target, "thread")) return;
+    closeInlineComparison(target);
+    document.dispatchEvent(new CustomEvent("lf-comparison"));
   }
 
   // Whether a stamped version can be compared with the revision being read: any stamp
@@ -999,7 +1075,9 @@ export function createVersionController({
       diffRequest++; // a stop outranks a comparison still on its way
       // Inline diffs leave with the block marks. Historical words or insertion paint
       // under a block nothing marks any more would leave half of the comparison behind.
-      for (const target of [...inlineOpen.keys()]) closeInlineComparison(target);
+      // A thread's reading never rested on the marks, so it stays.
+      for (const target of [...inlineOpen.keys()])
+        if (openedBy(target, "comparison")) closeInlineComparison(target);
       diffBefore.clear();
       for (const b of diffMarked) b.classList.remove("lf-ins-block");
       diffMarked.length = 0;
@@ -1304,6 +1382,7 @@ export function createVersionController({
     // authored page changes, then restore that base against the arriving revision.
     const comparedFrom = selectedBase();
     if (comparedFrom !== null) setDiff(false);
+    closeInlineComparisons();
     const live = document.querySelector("body > main");
     // Capture before replacing nodes, using the outgoing source as the baseline.
     const carry = captureCarry(live, authoredSource);
@@ -1969,6 +2048,9 @@ export function createVersionController({
     renderVersions,
     inlineComparison,
     toggleInlineComparison,
+    toggleChangeSince,
+    changeShownAt,
+    closeChangeSince,
     comparisonBase,
     comparisonChanges,
     prepareActivation,

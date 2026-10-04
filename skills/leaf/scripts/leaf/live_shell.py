@@ -90,10 +90,8 @@ def write_live_shell(
     for version in published_versions(page_dir, events):
         write(Path("versions") / f"v{version}.html", documents[versions[version]])
     for revision in list_revisions(page_dir):
-        write(
-            Path("revisions") / revision_path(page_dir, revision).name,
-            documents[revision],
-        )
+        for name in (revision_path(page_dir, revision).name, f"r{revision}.html"):
+            write(Path("revisions") / name, documents[revision])
 
     for file in sorted((page_dir / MEDIA_DIR).rglob("*")):
         relative = file.relative_to(page_dir)

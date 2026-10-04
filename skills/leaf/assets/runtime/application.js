@@ -316,6 +316,11 @@ export function mountApplication(dependencies) {
     travel: {
       scrollToThread: dependencies.anchorTravel.scrollToThread,
     },
+    changes: {
+      toggle: dependencies.annotationCommands.toggleChangeSince,
+      shownAt: dependencies.annotationCommands.changeShownAt,
+      close: dependencies.annotationCommands.closeChangeSince,
+    },
   };
   const surfaceView = {
     ...inlineView,

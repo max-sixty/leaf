@@ -3612,6 +3612,66 @@ def test_one_neighbour_is_not_enough_to_identify_a_revised_comment(browser, serv
     assert transition["anchor"] == {"section": "thin"}
 
 
+QUEUES_V1 = leaf_page(
+    "Queues",
+    """
+<h1 id="t">Queues</h1>
+<section id="queues">
+<h2>Each side has a queue of open items, and what an item is stays open</h2>
+<p>An item is anything open that one side owes the other.</p>
+</section>
+""",
+)
+QUEUES_V2 = QUEUES_V1.replace(
+    "Each side has a queue of open items, and what an item is stays open",
+    "The two queues today",
+)
+
+
+def test_a_thread_whose_quote_was_rewritten_shows_what_changed(browser, serve):
+    """A version that rewrites the words a comment quoted leaves its thread on their
+    section, which the panel names by the section's new words. The card says the
+    passage changed and, pressed, shows that edit in place, from the revision the
+    comment was written on to now: the quoted heading struck, its replacement marked,
+    the untouched paragraph left alone and the heading and paragraph kept apart. A second
+    press puts the current words back alone, and the words the user quoted still find
+    the thread."""
+    quote = "what an item is stays open"
+    url = serve(QUEUES_V1, anchored=[("queues", quote)])
+    page = open_page(browser, live_url(url))
+    stamp_page(serve.page_dir, QUEUES_V2, "plain headings")
+    wait_for_revision(page, 2)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+
+    card = page.locator(".lf-thread-panel .lf-thread")
+    expect(card.locator(".lf-quote")).to_contain_text("The two queues today")
+    changed = card.get_by_role("button", name="changed")
+    expect(changed).to_have_attribute("title", re.compile(re.escape(f"“{quote}”")))
+
+    expect(changed).to_have_attribute("aria-expanded", "false")
+    changed.click()
+    expect(changed).to_have_attribute("aria-expanded", "true")
+    expect(page.locator(".lf-notice")).to_have_text(
+        "Showing what changed since the comment"
+    )
+    struck = page.locator("#queues .lf-version-inline-deletion del")
+    expect(struck).to_have_count(1)
+    expect(struck).to_have_text(re.compile(r"^\s*Each side has .* stays open\s*$"))
+    inserted = page.evaluate(
+        "() => [...CSS.highlights.get('lf-version-insert')].map(r => r.toString())"
+    )
+    assert [text.strip() for text in inserted] == ["The two queues today"], inserted
+
+    changed.click()
+    expect(changed).to_have_attribute("aria-expanded", "false")
+    expect(page.locator("#queues .lf-version-inline-deletion")).to_have_count(0)
+    assert page.evaluate("() => CSS.highlights.has('lf-version-insert')") is False
+
+    page.get_by_role("searchbox", name="Find in threads").fill("item is stays")
+    expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_have_count(1)
+
+
 def test_a_revised_example_travels_between_its_own_versions(browser, serve):
     """The corpus's own reading of version travel, on the one example that was revised.
 

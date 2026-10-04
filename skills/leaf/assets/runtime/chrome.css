@@ -1061,6 +1061,17 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     outline-offset: 2px; }
   .lf-thread-head > .lf-quote:not(.detached)::after { content: "  ↗ page";
     color: var(--accent); font-size: var(--t-6); font-style: normal; white-space: nowrap; }
+  /* A thread standing on other words than its opening comment quoted names the change
+     after its place, where the eye reading the place arrives: one word, a link to the
+     edit itself rather than another account of it. */
+  .lf-thread-head.lf-changed { display: flex; align-items: baseline; gap: 7px; }
+  .lf-thread-head.lf-changed > .lf-quote { flex: 0 1 auto; min-width: 0; }
+  .lf-anchor-changed { flex: none; min-height: var(--aim-floor); border: 0;
+    padding: 0 4px; background: transparent; color: var(--accent);
+    font: 500 var(--t-6)/1.25 var(--sans); cursor: pointer; }
+  .lf-anchor-changed:hover { text-decoration: underline; }
+  .lf-anchor-changed:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring);
+    --lf-focus-ring: anchor-changed; outline-offset: 2px; }
   /* A quote is the passage, and a passage is as long as the user's selection — a
      paragraph of it in a 320px column buries the words written about it. So the panel
      names the passage in three lines and the page shows the rest: the mark is already

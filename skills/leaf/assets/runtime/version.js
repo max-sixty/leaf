@@ -92,6 +92,7 @@ import {
 import { registry, stateSpecs, tagsDeclaring } from "./registry.js";
 import { prepareDeclaredInlineMarkdown } from "./markdown.js";
 import { pageScroller } from "./scrolling.js";
+import { TEXT_BOX } from "./control-selectors.js";
 import {
   containingReadingRegionFor,
   effectiveScroller,
@@ -1753,7 +1754,8 @@ export function createVersionController({
 
   // A region handed to another scroller keeps the reading recorded before the handover.
   // Focus can remain on a control the user has since scrolled past, so a posture change
-  // restores that reading without making the focused control a navigation destination.
+  // restores that reading. A visible editor is itself a live reading landmark;
+  // focus retained on a field the reader scrolled past is not.
   // A composition change in progress owns any shift inside it.
   function restoreShifted(shifted, currentIntent) {
     if (compositionChanges.size) return;
@@ -1825,6 +1827,15 @@ export function createVersionController({
     readingContinuityInstalled = true;
     watchReadingRegionTransitions(readingRegionTransition);
     document.addEventListener("scroll", queueRecord, { capture: true, passive: true });
+    // Opening or editing a native field changes the reading place even when no
+    // scroller moves. Record after its seat commits, through the same frame door.
+    const recordEditing = () => {
+      const at = focused();
+      if (at?.matches(TEXT_BOX) && under(at, document.querySelector("body > main")))
+        queueRecord();
+    };
+    document.addEventListener("focusin", recordEditing);
+    document.addEventListener("input", recordEditing);
     queueRecord();
   }
 

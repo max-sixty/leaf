@@ -5706,6 +5706,7 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
         "detached_from": None,
         "resolved": "user",
         "unread": [],
+        "attention": None,
     }
     assert closed_reading["asks"] == []
     assert [

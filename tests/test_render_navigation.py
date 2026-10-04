@@ -7871,12 +7871,29 @@ def test_generated_hints_branch_after_the_single_letter_alphabet(browser, serve)
     assert all(
         not other.startswith(code) for code in codes for other in codes if code != other
     )
-    assert not set("afghijkmpt") & {code for code in codes if len(code) == 1}
-    assert sum(len(code) == 1 for code in codes) == 15
+    # Named routes own their letters even when unavailable in this scene. Read the
+    # declared grammar so a new destination cannot stale a copied alphabet or count.
+    reserved = page.evaluate(
+        """async () => {
+          const {pageScopes} = await window.__lfRuntimeImport('/runtime/keyboard/register.js');
+          const {bindings} = await window.__lfRuntimeImport('/runtime/keyboard/bindings.js');
+          const generated = 'navigation.target';
+          const scope = pageScopes().find(scope => scope.rows?.some(row => row.id === generated));
+          return [...new Set(scope.rows.filter(row => row.id !== generated)
+            .flatMap(bindings).filter(key => /^[a-z]$/.test(key)))];
+        }"""
+    )
+    assert reserved
+    assert not set("".join(codes)) & set(reserved)
+    single_letters = {code for code in codes if len(code) == 1}
     branched = [code for code in codes if len(code) == 2]
-    assert len(branched) == 8 and len({code[0] for code in branched}) == 1
+    assert len(single_letters) + len(branched) == len(codes)
+    assert len(branched) > 1 and len({code[0] for code in branched}) == 1
 
     prefix = branched[0][0]
+    assert single_letters | {prefix} == set("abcdefghijklmnopqrstuvwxyz") - set(
+        reserved
+    )
     continuing_hint = page.locator(
         f'{CHIPS}[data-lf-hint-code="{branched[0]}"] .lf-binding-sequence'
     )
@@ -7895,7 +7912,7 @@ def test_generated_hints_branch_after_the_single_letter_alphabet(browser, serve)
         "line": shortcut_bar_text(page),
         "live": page.locator(".lf-live").text_content(),
     }
-    expect(page.locator(".lf-live")).to_have_text("8 targets remain.")
+    expect(page.locator(".lf-live")).to_have_text(f"{len(branched)} targets remain.")
     expect(line).to_contain_text("back one letter")
     target_route = line.locator(
         '.lf-shortcut:not([hidden])[data-lf-command-ids~="navigation.target"]'

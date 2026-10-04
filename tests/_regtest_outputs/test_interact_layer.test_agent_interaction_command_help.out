@@ -54,7 +54,9 @@ Usage: leaf thread summarize [OPTIONS] PAGE
 Options:
   --from MESSAGE     [required]
   --through MESSAGE  [required]
-  --text TEXT        summary Markdown (default: stdin)
+  --text TEXT        summary Markdown; pass '' to fold without prose (default:
+                     stdin)
+  --label TEXT       disclosure label (default: Earlier discussion)
   --help             Show this message and exit.
 
 ## leaf status --help

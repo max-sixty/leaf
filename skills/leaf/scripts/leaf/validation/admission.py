@@ -23,7 +23,7 @@ from .markup import (
 )
 
 
-def read_text_arg(page_dir: Path, text) -> str:
+def read_text_arg(page_dir: Path, text, *, allow_empty: bool = False) -> str:
     """Every body an agent writes, read at the one place they all come through.
 
     Prose needs no vocabulary gate — the runtime escapes every tag in it, so it
@@ -33,7 +33,7 @@ def read_text_arg(page_dir: Path, text) -> str:
     given; this asks it of the link and image destinations beside it, which is where
     the runtime resolves one — a path quoted in a sentence stays the author's words."""
     body = text if text is not None else sys.stdin.read()
-    if not body:
+    if not body and not allow_empty:
         sys.exit("empty text (pass --text or pipe via stdin)")
     if errs := text_media_errors(body, page_dir):
         sys.exit(

@@ -83,9 +83,9 @@ own holding only a copy of the host's login, so runs spend the signed-in account
 usage and never an API key. `harness.MODELS` pins the models: Opus for Claude
 Code, `gpt-6.1-sol` at medium reasoning for Codex, Sonnet for `llm-rubric`, which
 grades text and opens nothing, and Opus for the screenshot judge, which may open
-PNGs under the run's samples and no other file. Promptfoo counts a judge's tokens
-but not its cost, and doesn't record which screenshots it opened, so read its
-reason. No judge has been calibrated against human judgments, so treat a judged
+PNG files under the run's samples and no other file. Promptfoo counts a judge's
+tokens but not its cost, and doesn't record which screenshots it opened, so read
+its reason. No judge has been calibrated against human judgments, so treat a judged
 pass as weak evidence and read the outputs.
 
 These cases score instruction use and the agent loop. `leaf-dev verify-codex-task`

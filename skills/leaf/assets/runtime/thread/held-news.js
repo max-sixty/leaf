@@ -10,9 +10,10 @@
    on screen, everything after it would move under the reader, so the seat draws what it
    drew before and says what is waiting in a row it already draws at a fixed size:
 
-   - a thread's own news (its new turns, and the reopening they bring) in the thread's
-     control row: the head row beside Resolve while it is open, the foot row beside
-     Reopen once resolved, and a folded outlet's summary;
+   - a thread's own news (its new turns, the reopening they bring, and a reaction put on
+     a reply or taken off it) in the thread's control row: the head row beside Resolve
+     while it is open, the foot row beside Reopen once resolved, and a folded outlet's
+     summary;
    - a new thread in the control row of the thread it would follow, or, where the seat
      draws no thread, in place of its first-message row, at that row's height, unless the
      user stands in that box, which `holdBox` (reply-landing.js) keeps still instead;
@@ -22,8 +23,11 @@
      the thread to place (surfaces.js), and the margin draws it as it draws any thread
      no widget places, out of the flow.
 
-   A natural panel thread uses the same hold for new or changed message bodies.
-   A reply pinned to its scrollport can instead absorb news above it by scrolling.
+   A natural panel thread uses the same hold for new or changed message bodies and the
+   reactions standing on them. A reply pinned to its scrollport can instead absorb news
+   above it by scrolling. A held reaction leaves its message's strip drawn as it was;
+   a press there means what the strip drew (actions.js, `toggleReaction`) and shows
+   what the thread holds.
 
    `HeldNews` is that one owner for a seat, and `HeldArrivals` for the seats a widget has
    not opened. Each reads every reading against the one it drew last and holds what is
@@ -54,14 +58,45 @@ import { readApplication } from "../semantic-state.js";
 import { replyPinned } from "./reply-landing.js";
 
 // Whether a turn is the user's gesture: one this page's ledger still holds the attempt
-// of, as it does in the turn they send it. Their words from another tab, or a turn a
-// seat first draws after the log answered it, as a package mirror whose render waited
-// on work of its own does, arrive like the agent's.
+// of, as it does in the turn they send it, or, for a reaction, the undo taking it back.
+// Their words from another tab, or a turn a seat first draws after the log answered it,
+// as a package mirror whose render waited on work of its own does, arrive like the
+// agent's.
 function ownTurn() {
-  const ledger = new Set(
-    readApplication().unresolved.map(({ event }) => event.attempt),
+  const events = readApplication().unresolved.map(({ event }) => event);
+  const ledger = new Set(events.map(({ attempt }) => attempt));
+  const undone = new Set(
+    events.filter(({ kind }) => kind === "undo").map(({ undoes }) => undoes),
   );
-  return ({ author, attempt }) => author === "user" && ledger.has(attempt);
+  return ({ author, attempt, id }) =>
+    author === "user" && (ledger.has(attempt) || undone.has(id));
+}
+
+// What a message draws that news can change: its words, and the reactions standing on
+// it, by token, since a reaction keeps its token but not its id when the log answers it.
+// A message that draws no strip, as in a resolved thread, says nothing of its reactions.
+const drawing = (message) => ({
+  body: JSON.stringify(message.body),
+  reactions:
+    message.reactions &&
+    new Map(
+      message.reactions.choices
+        .filter(({ standing }) => standing)
+        .map(({ name, standing }) => [name, standing]),
+    ),
+});
+
+// The turns that changed `message` since `known` drew it: the message itself where it
+// is new or its words changed, and each reaction put on it or taken off it. A strip
+// coming or going with the thread's settlement is that settlement's news, not theirs.
+function changes(known, message) {
+  if (!known || known.body !== JSON.stringify(message.body)) return [message];
+  const now = drawing(message).reactions;
+  if (!now || !known.reactions) return [];
+  return [
+    ...[...now].filter(([name]) => !known.reactions.has(name)),
+    ...[...known.reactions].filter(([name]) => !now.has(name)),
+  ].map(([, reaction]) => reaction);
 }
 
 // Whether growth after `node` would move what the user sees: the node's foot stands
@@ -91,10 +126,11 @@ function growthInsideIsSeen(nodes) {
 }
 
 const counted = (count, one, many) => count && `${count} ${count === 1 ? one : many}`;
-const newsLabel = ({ reopened, replies, threads }) =>
+const newsLabel = ({ reopened, replies, reactions, threads }) =>
   [
     reopened && "Reopened",
     counted(replies, "new reply", "new replies"),
+    counted(reactions, "reaction changed", "reactions changed"),
     counted(threads, "new thread", "new threads"),
   ]
     .filter(Boolean)
@@ -158,10 +194,10 @@ export class HeldNews {
   #view;
   #changed;
   // The reading last drawn; every thread and turn the seat has taken in, drawn or held,
-  // so a reading after a release finds nothing new in what it shows; and what is held
-  // back: each thread's held turns (null for an arrival, its prior descriptor for an
-  // edit), the threads drawn resolved though a held turn reopened
-  // them, and the threads not drawn.
+  // as its `drawing`, so a reading after a release finds nothing new in what it shows;
+  // and what is held back: each thread's held turns (null for an arrival, its prior
+  // descriptor for a change to its words or reactions), the threads drawn resolved
+  // though a held turn reopened them, and the threads not drawn.
   #shown = null;
   #known = new Map();
   #turns = new Map();
@@ -194,7 +230,7 @@ export class HeldNews {
     this.#known = new Map(
       reading.threads.map(({ key, messages }) => [
         key,
-        new Map(messages.map((message) => [message.key, message.body])),
+        new Map(messages.map((message) => [message.key, drawing(message)])),
       ]),
     );
     const shown = this.#draw(prior, reading);
@@ -224,16 +260,24 @@ export class HeldNews {
       if (!was) continue;
       const waiting = this.#turns.get(thread.key);
       if (waiting) {
-        const present = new Set(thread.messages.map(({ key }) => key));
-        for (const key of waiting.keys()) if (!present.has(key)) waiting.delete(key);
+        // A held turn the log took back, or a message back to what was drawn of it, as
+        // a reaction put on and taken off again, holds nothing.
+        const present = new Map(
+          thread.messages.map((message) => [message.key, message]),
+        );
+        for (const [key, held] of waiting)
+          if (
+            !present.has(key) ||
+            (held && !changes(drawing(held), present.get(key)).length)
+          )
+            waiting.delete(key);
         if (!waiting.size) this.#turns.delete(thread.key);
       }
       const known = this.#known.get(thread.key);
-      const added = thread.messages.filter(
-        (message) =>
-          !known.has(message.key) ||
-          JSON.stringify(known.get(message.key)) !== JSON.stringify(message.body),
-      );
+      const changed = thread.messages
+        .map((message) => [message, changes(known.get(message.key), message)])
+        .filter(([, turns]) => turns.length);
+      const added = changed.map(([message]) => message);
       // A thread settled again stands as drawn.
       if (thread.resolved) this.#reopened.delete(thread.key);
       if (!added.length) continue;
@@ -241,7 +285,7 @@ export class HeldNews {
       // A reply actually pinned to its scrollport can absorb news above it. A short
       // thread's sticky row still stands in flow and has no such space to give.
       if (
-        added.some(own) ||
+        changed.some(([, turns]) => turns.some(own)) ||
         !growthAfterIsSeen(view?.foot) ||
         replyPinned(view?.node.querySelector(":scope > .lf-thread-reply"))
       ) {
@@ -249,10 +293,17 @@ export class HeldNews {
         this.#reopened.delete(thread.key);
         continue;
       }
+      // What the seat drew is what a held message shows until it is released, so a
+      // message back to it, as a reaction put on and taken off again, holds nothing.
       const held = this.#turns.get(thread.key) ?? new Map();
       const previous = new Map(was.messages.map((message) => [message.key, message]));
-      for (const { key } of added)
-        if (!held.has(key)) held.set(key, previous.get(key) ?? null);
+      for (const message of added) {
+        const prior = previous.get(message.key);
+        if (held.has(message.key)) continue;
+        if (prior && !changes(drawing(prior), message).length) continue;
+        held.set(message.key, prior ?? null);
+      }
+      if (!held.size) continue;
       this.#turns.set(thread.key, held);
       if (was.resolved && !thread.resolved) this.#reopened.add(thread.key);
     }
@@ -269,9 +320,10 @@ export class HeldNews {
         const was = drawn.get(thread.key);
         return {
           ...thread,
+          // A thread drawn resolved offers no reactions (reaction-model.js).
           messages: thread.messages.flatMap((message) =>
             !held.has(message.key)
-              ? [message]
+              ? [reopened ? { ...message, reactions: null } : message]
               : held.get(message.key)
                 ? [held.get(message.key)]
                 : [],
@@ -285,7 +337,22 @@ export class HeldNews {
             reply: was.reply,
             kept: was.kept,
           }),
-          news: { reopened, replies: held.size },
+          news: {
+            reopened,
+            // A message drawn as it was is news for its words where they changed,
+            // and otherwise for each reaction put on it or taken off.
+            ...thread.messages.reduce(
+              (news, message) => {
+                if (!held.has(message.key)) return news;
+                const was = held.get(message.key);
+                const turns = changes(was && drawing(was), message);
+                if (turns[0] === message) news.replies += 1;
+                else news.reactions += turns.length;
+                return news;
+              },
+              { replies: 0, reactions: 0 },
+            ),
+          },
         };
       });
     const waiting = this.#threads.size;

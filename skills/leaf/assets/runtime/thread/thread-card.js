@@ -228,6 +228,7 @@ let nextViewId = 0;
 
 export class ThreadView {
   #commands;
+  #messageCommands;
   #model = null;
   #messages = new Map();
   #reply = null;
@@ -251,6 +252,12 @@ export class ThreadView {
 
   constructor(surface, commands) {
     this.#commands = commands;
+    // A press on a reply's reactions is the user acting in this thread, so what the
+    // thread holds shows with it (held-news.js).
+    this.#messageCommands = {
+      ...commands,
+      reaction: { ...commands.reaction, pressed: () => this.showNews() },
+    };
     this.node = document.createElement(
       surface === "outlet" || surface === "panel" ? "details" : "div",
     );
@@ -441,7 +448,10 @@ export class ThreadView {
     const messages = model.messages.map((message, index) => {
       let view = this.#messages.get(message.key);
       if (!view)
-        this.#messages.set(message.key, (view = new MessageView(this.#commands)));
+        this.#messages.set(
+          message.key,
+          (view = new MessageView(this.#messageCommands)),
+        );
       view.present(message, {
         externalHeader: index === 0 && Boolean(headerActions),
         arrived: Boolean(prior),

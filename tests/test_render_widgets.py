@@ -1072,6 +1072,62 @@ def test_an_ordinary_two_part_ask_retains_document_flow(browser, serve):
     expect(page.locator("#session-triage-decision")).to_have_css("display", "block")
 
 
+TRACKED_ASK_PAGE = leaf_page(
+    "options track",
+    """
+  <h1>Retention</h1>
+  <lf-ask id="tracked">
+    <h3>How long should logs be kept?</h3>
+    <table id="tracked-figure">
+      <thead><tr><th>Store</th><th class="num">Daily GB</th></tr></thead>
+      <tbody><tr><td>Hot</td><td class="num">40</td></tr>
+        <tr><td>Warm</td><td class="num">120</td></tr></tbody>
+    </table>
+    <lf-ask id="nested">
+      <h4>Archive the warm tier too?</h4>
+      <p id="nested-premise">It holds the last quarter.</p>
+      <lf-options id="nested-choice" choose>
+        <lf-option id="nested-yes"><strong>Archive</strong> Move it to cold storage.</lf-option>
+        <lf-option id="nested-no"><strong>Keep</strong> Leave it warm.</lf-option>
+      </lf-options>
+    </lf-ask>
+    <lf-options id="tracked-choice" choose>
+      <lf-option id="keep-30"><strong>30 days</strong> Covers every incident review.</lf-option>
+      <lf-option id="keep-90"><strong>90 days</strong> Covers a quarter's audit.</lf-option>
+    </lf-options>
+  </lf-ask>
+""",
+    layout="wide",
+)
+
+
+def test_an_ask_framing_a_figure_sets_its_options_beside_it(browser, serve):
+    """An Ask whose heading, figure and one option list come in that order sets the
+    list in a track beside the figure where the Ask has the room, and stacks it below
+    where it hasn't. The track belongs to that Ask alone: an ordinary Ask held among
+    its evidence finds the same named container and keeps its own block flow."""
+    page = open_page(browser, serve(TRACKED_ASK_PAGE))
+    geometry = """() => {
+      const box = (id) => document.getElementById(id).getBoundingClientRect();
+      const figure = box('tracked-figure'), options = box('tracked-choice');
+      const style = (id) => getComputedStyle(document.getElementById(id));
+      return {
+        beside: options.left >= figure.right && options.top < figure.bottom,
+        below: options.top >= figure.bottom,
+        nestedFloat: style('nested-premise').float,
+        nestedListPosition: style('nested-choice').position,
+      };
+    }"""
+    resized(page, 1440, 900)
+    wide = page.evaluate(geometry)
+    assert wide["beside"], wide
+    assert wide["nestedFloat"] == "none", wide
+    assert wide["nestedListPosition"] != "sticky", wide
+    resized(page, 700, 900)
+    narrow = page.evaluate(geometry)
+    assert narrow["below"], narrow
+
+
 def clear_of_the_bottom_chrome(page, selector):
     """Scroll the page to its end and measure one box against the shortcut bar.
 

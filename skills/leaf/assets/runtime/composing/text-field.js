@@ -121,6 +121,12 @@ sheet.replaceSync(`
     .lf-field { padding-inline-end: var(--lf-field-end-room); }
     .cm-line.lf-field-last::after { content: none; }
   }
+  /* A browser that cannot tell when the field scrolls holds the room on every line. */
+  @supports not (container-type: scroll-state) {
+    .lf-field { padding-inline-end: var(--lf-field-end-room); }
+    .lf-field-placeholder { padding-inline-end: 0; }
+    .cm-line.lf-field-last::after { content: none; }
+  }
   /* A draft wears the sent message's faces. Strong, emphasis and strikethrough are the
      elements themselves, which the platform dresses here as it does in the message;
      the rest read the theme's tokens, since its element rules stop at this root. A

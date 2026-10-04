@@ -5,6 +5,26 @@
  * Layout with ordinary rules or writes its own; nothing reads a Layout back. The layer
  * merge appends this file after every package (layer.py, composed_sheets). */
 @layer lf-layouts {
+  /* The pane role's grammar (theme.css, where its look and the rest of its contract
+   * are): which row each child stands in, and a body held to the pane's width with no
+   * margin of its own. It is not a Layout a page pulls on, but it resets what a widget
+   * sets on the box it arranges as a Layout does, so it shares their tier. */
+  [data-lf-reading-role="pane"] {
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    grid-template-columns: minmax(0, 1fr);
+    min-width: 0;
+    --lf-block-frame: 1;
+  }
+  [data-lf-reading-role="pane"] > header {
+    grid-row: 1; margin: 0;
+  }
+  [data-lf-reading-role="pane"] > footer {
+    grid-row: 3; margin: 0;
+  }
+  [data-lf-reading-role="pane"] > :not(header, footer) {
+    grid-row: 2; grid-column: 1; min-width: 0; margin: 0;
+  }
   /* The column: prose at the reading measure, centred in the shell, and one option, a
    * breakout, which `data-width` on a block (or a widget's preferred x-space) asks for.
    * The breakout reads the room free beside the column from the lengths resolved here,

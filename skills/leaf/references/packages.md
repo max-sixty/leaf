@@ -185,8 +185,8 @@ A package's rules read the box a widget is given and the theme's tokens, never t
 or style class around it, so a widget behaves the same in a shipped Layout as on a page
 whose own CSS gives it the same box. A size query on the widget's own container answers
 its width. What a width cannot say arrives as a token its owner sets: `--lf-full-height`
-while a workspace gives its body a definite height ("Reading regions"), and
-`--lf-density: working` under the `density-working` style.
+while a workspace gives its body a definite height (`module-authoring.md`, "Reading
+regions"), and `--lf-density: working` under the `density-working` style.
 
 A rule that draws a box's inset — padding, border, or tinted field — declares
 `--lf-block-frame: 1` in the same rule. The shared layout uses that declaration to trim child

@@ -20,15 +20,13 @@ primitive must give the user something that site would not:
 - **Difficult code.** Mechanisms too hard to write well each time: anchored
   threads, widgets whose state survives a revision, and the event log that
   returns each comment and decision to the agent as a structured event.
-- **Live revisions.** Continuous, low-latency page updates are a core feature.
-  Agents revise an open page in place while the user reads, comments, and
-  interacts.
-- **Contextual threads.** Passage-relative floating replies are a core feature.
-  Users read and answer a thread beside the passage it concerns.
-- **Drawing comments.** Freehand annotations are a core feature. Users point at
-  visual details with ink as well as with text and semantic anchors.
-- **Public website.** Visitors can try Leaf directly on leaf.page through
-  interactive examples. The website is a core feature.
+- **Live revisions.** Agents update an open page continuously, with low latency,
+  while the user reads, comments, and interacts.
+- **Contextual threads.** Users read and answer floating threads beside the
+  passages they concern.
+- **Drawing comments.** Users point at visual details with freehand ink as well
+  as text and semantic anchors.
+- **Public website.** Visitors try interactive examples on leaf.page.
 - **Consistency.** One interface across sessions and agents — keybindings,
   threads, and how a widget answers a move — so the user learns it
   once.
@@ -40,10 +38,8 @@ primitive must give the user something that site would not:
 - **Self-checks.** A check the agent runs on its own page, so a mistake reaches
   the agent rather than the user.
 
-Leaf is the medium: every choice on a page is the agent's or
-the user's. Leaf fixes how to read, comment, and act, so that stays the same
-across sessions and agents; what a page says and how it is composed is the
-agent's to decide.
+Leaf standardizes reading, commenting, and actions across sessions and agents.
+Page content and composition remain the agent's and user's choices.
 
 ## Stage
 
@@ -52,12 +48,9 @@ code. Prefer the simpler interface even when it is incompatible. Delete and
 regenerate stale state. Add a guard only for a reachable condition with a useful
 response.
 
-Nothing is owed to what an older version wrote. A change needs no migration, no
-shim that reads the old shape, and no dated note promising to remove one:
-claims, logs, and pages vendored against an earlier runtime are regenerated or
-thrown away. The handoff says nothing about them either. Steps for reviving
-stranded state are that same migration written in prose, and they spend the
-user's attention on state nobody needs.
+Regenerate or discard claims, logs, and pages from earlier runtimes. Add no
+migration, compatibility shim, or removal promise. Leave old state and recovery
+instructions out of the handoff.
 
 The state home is one directory per machine, written at once by every worktree,
 host and session on it, each running the leaf it was built from, so a record
@@ -66,23 +59,15 @@ lacks fields this version expects, Leaf ignores it where it is loaded and treats
 the thing it described as absent. It neither migrates the record nor fails the
 session: a session is never taken down by state it does not own.
 
-The suite does not constrain new code either. Agents wrote every test in
-`tests/`, and most are overfit on the implementation they were written against:
-they assert the shape the code happened to take rather than the behavior a
-user depends on. Changing or deleting a test is an ordinary part of a code
-change. Read what the assertion was holding, rewrite it where that leaves a
-better app, and say in the commit which behavior moved.
+Tests should protect behavior a user depends on. Treat rewriting or deleting a
+test as an ordinary part of a code change. Check which behavior its assertion
+protects, change it where that produces a better app, and say in the commit
+which behavior changed.
 
-The written contracts do not constrain new code either. No package, host, or
-integration exists outside this repository, so every reader of
-`skills/leaf/references/`, a package's instructions, or a protocol sidecar is in
-this tree. What those files state is what the code does now, and a promise to
-nobody. When a change is simpler under a different contract, whether that is
-an id's form, an event's shape, a command's output, or what a host is told
-to key on, change the contract and its consumers in the same change. A
-sentence in a reference saying that something relies on the current shape is
-a consumer to update, never a reason to keep the shape or to carve an
-exception around it.
+Written contracts describe the current code; they impose no compatibility
+obligation. Packages, hosts, integrations, and consumers of the references are
+all in this tree. When a different contract makes the code simpler, update it
+and every consumer together, including prose that relies on the old shape.
 
 Leaf's own restrictions do not settle what a feature may do either. When a
 content security policy, a validator's refusal, an import allowlist, or a limit
@@ -100,12 +85,10 @@ choice depends on purpose or intent the code cannot supply.
 
 ## Fix the underlying issue
 
-Leaf's first implementation was written quickly, with weak abstractions. Many
-small bugs reveal a missing primitive, a misplaced boundary, or a rule the code
-never stated; the same problem can resurface in another package under a
-different name. The current goal is a coherent shared layer: when packages or
-runtimes use the same concept, one owner defines its meaning through a contract
-that can express its different uses.
+When packages or runtimes use the same concept, one owner defines its meaning
+through a contract that expresses its different uses. A bug can reveal a
+missing primitive, a misplaced boundary, or an unstated rule shared by several
+packages.
 
 Every change and every review must assess whether the immediate problem is a
 symptom of an underlying problem. Follow its causes until the next boundary is
@@ -146,9 +129,9 @@ and Codex install the tracked tree whole.
 - `dev/`: the `leaf_dev` package, whose `leaf-dev` commands preview, build, verify,
   and generate what the repository needs, and probe, screenshot, and compare
   versions of Leaf;
-- `worker/`: the Cloudflare Worker behind <https://leaf.page/>, which routes each
-  example to the Python server (the `leaf_website` package) in a per-user container;
-  `worker/README.md` names its tokens and how an unattended agent loads one;
+- `worker/`: the Cloudflare Worker behind <https://leaf.page/>, serving published
+  pages at the edge and routing private mutable state to `leaf_website` in
+  per-user containers; `worker/README.md` owns deployment and diagnostics;
 - `docs/`: the site's own pages, each a Leaf source, so changing what the site
   says is a page edit;
 - `TODO.md`: the ordered priority list;
@@ -317,10 +300,9 @@ Before finishing a feature:
 (`tests/AGENTS.md`). Two TypeScript trees, `worker/src/` and `build/browser/`, and
 the JavaScript lock every committed bundle is built from have gates the suite and
 pre-commit do not reach. Both landing paths run all of them: a pull request in its
-`checks` and `website` jobs, and `wt merge` in the pre-merge blocks of
-`.config/wt.toml`, which name each command. `wt hook pre-merge` runs that local gate
-without landing, on a committed tree, since the bundle check fails on any uncommitted
-change. The website's delivery
+`test` job, and `wt merge` in the pre-merge blocks of `.config/wt.toml`, which name
+each command. `wt hook pre-merge` runs that local gate without landing, on a committed
+tree, since the bundle check fails on any uncommitted change. The website's delivery
 checks — the site build, the Worker's dry-run deploy, and
 `leaf-dev verify-site wrangler` — run on a pull request and in `publish-site` before it
 deploys, not in `wt merge`.

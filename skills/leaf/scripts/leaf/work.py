@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 
 from .asks import quoted_in
-from .events import build_threads, note_settlements
+from .events import build_threads, note_settlements, thread_replied_after
 from .files import latest_revision
 from .passages import page_passages
 from .projection import (
@@ -24,7 +24,7 @@ def standing_work_claims(status: dict, events: list) -> list:
     """The transient work claims the durable exchange has not ended.
 
     A claim starts after one exact log sequence. Thread work ends at the agent's
-    next reply in that thread; widget work ends at a later version note
+    next non-ephemeral reply in that thread; widget work ends at a later version note
     that explicitly settles its id. The sequence boundary matters in both
     directions: renewing work after an answer creates a new claim, and an old
     answer cannot settle it merely because it names the same subject.
@@ -45,13 +45,7 @@ def standing_work_claims(status: dict, events: list) -> list:
             thread = threads.get(subject["id"])
             if thread is None:
                 continue
-            replied = any(
-                msg["kind"] == "reply"
-                and msg["author"] == "agent"
-                and msg["seq"] > after
-                for msg in thread["msgs"]
-            )
-            if replied:
+            if thread_replied_after(thread, after):
                 continue
         elif subject["kind"] == "widget":
             if any(

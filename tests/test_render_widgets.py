@@ -844,7 +844,10 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     one at a time. Where the set holds both the list is a column left of the open panel,
     walked down as well as across; on a phone it is a row above the panel, so the open
     item never lands below the whole queue. A row carries its panel's summary under its
-    name. Answering an item's Ask moves no row. A tab's name is its label whatever
+    name, and once its item's Ask is answered, a check and the picked option's title
+    beside the name, said in the tab's description too. Answered is the log's reading,
+    so an undo takes them off once its answer is adopted, and the agent settling the
+    question keeps them on. Answering moves no row. A tab's name is its label whatever
     the row shows, and a panel bounds what it holds."""
 
     BOARD = (
@@ -875,7 +878,7 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
         '<lf-tabs id="queue" list="side">' + "".join(map(ticket, "abc")) + "</lf-tabs>",
         layout="workspace",
     )
-    page = open_page(browser, serve(source))
+    page = open_page(browser, live_url(serve(source)))
     resized(page, 1200, 900)
     boxes = """() => {
       const r = (s) => document.querySelector(s).getBoundingClientRect();
@@ -908,10 +911,45 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     page.keyboard.press("ArrowUp")
     expect(tabs.first).to_have_attribute("aria-selected", "true")
 
+    answer = page.locator("#queue .lf-tab-btn").first.locator(".lf-tab-answer")
+    expect(answer).not_to_be_visible()
     page.locator("#o-a-fix .lf-pick").click()
     told(page)
-    expect(tabs.first).to_have_text("Ticket asev a · suggested fix")
+    expect(answer).to_be_visible()
+    expect(answer).to_have_text("Fix")
+    expect(tabs.first).to_have_accessible_name("Ticket a")
+    expect(tabs.first).to_have_accessible_description(
+        "sev a · suggested fix. Answered: Fix"
+    )
+    expect(tabs.nth(1)).to_have_accessible_description("sev b · suggested fix")
     assert page.evaluate(rows) == heights
+
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("undo")
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    page.keyboard.press("z")
+    holding(page, held, 1, "the undo")
+    expect(answer).to_be_visible()
+    held[0].continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+    expect(answer).not_to_be_visible()
+    expect(tabs.first).to_have_accessible_description("sev a · suggested fix")
+
+    page.locator("#o-a-fix .lf-pick").click()
+    round_trip(page)
+    expect(answer).to_have_text("Fix")
+    settled = source.replace(
+        '<lf-options id="o-a" choose>', '<lf-options id="o-a" choose settled>'
+    ).replace('<lf-option id="o-a-fix">', '<lf-option id="o-a-fix" chosen>')
+    assert settled.count("settled") == 1 and settled.count("chosen") == 1
+    wait_for_revision(page, stamp_page(serve.page_dir, settled, "Settle a")["revision"])
+    expect(page.locator("#o-a .lf-settled")).to_be_visible()
+    expect(answer).to_be_visible()
+    expect(answer).to_have_text("Fix")
+    expect(tabs.first).to_have_accessible_description(
+        "sev a · suggested fix. Answered: Fix"
+    )
 
     resized(page, 390, 844)
     narrow = page.evaluate(boxes)

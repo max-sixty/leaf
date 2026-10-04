@@ -1428,6 +1428,45 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
     justify-items: start;
     text-align: start;
   }
+    /* A row whose item holds an Ask has its answer between the name and the count, and
+     * that column keeps room for the check whether or not the Ask is answered, so an
+     * answer moves no row. The words take what the name leaves; the answer is its own
+     * container so that, with too little room for any of them, it shows the check
+     * alone, and contains its size so the words never widen the row. The tab's
+     * description carries them whole. */
+  :scope:is(lf-tabs)[list="side"].lf-rendered > .lf-tabstrip .lf-tab-btn:has(> .lf-tab-answer) {
+    grid-template-columns: minmax(0, max-content) minmax(1.25em, 1fr) auto;
+  }
+  :scope:is(lf-tabs)[list="side"].lf-rendered > .lf-tabstrip .lf-tab-answer {
+    container-type: inline-size;
+    justify-self: stretch;
+    display: flex;
+    gap: 0.3em;
+    font-size: var(--t-6);
+    font-weight: 600;
+    color: var(--ink-2);
+  }
+  :scope:is(lf-tabs)[list="side"].lf-rendered > .lf-tabstrip .lf-tab-answer::before {
+    content: "✓" / "";
+    flex: none;
+    color: var(--ok-ink);
+  }
+  :scope:is(lf-tabs)[list="side"].lf-rendered
+    > .lf-tabstrip
+    .lf-tab-answer:not([data-lf-answered]) {
+    visibility: hidden;
+  }
+  :scope:is(lf-tabs)[list="side"].lf-rendered > .lf-tabstrip .lf-tab-answer-words {
+    min-inline-size: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  @container (width < 5em) {
+    :scope:is(lf-tabs)[list="side"].lf-rendered > .lf-tabstrip .lf-tab-answer-words {
+      display: none;
+    }
+  }
   :scope:is(lf-tabs)[list="side"].lf-rendered > .lf-tabstrip .lf-tab-summary {
     grid-column: 1 / -1;
     grid-row: 2;

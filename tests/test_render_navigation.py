@@ -11182,11 +11182,9 @@ def test_restore_selection_rebinds_revisions_and_refuses_missing_words(browser, 
     )
     page.keyboard.press("g")
     page.keyboard.press("v")
-    expect(
-        page.get_by_text(
-            "That selected passage is unavailable on this version", exact=True
-        )
-    ).to_be_visible()
+    notice = page.locator(".lf-notice")
+    expect(notice).to_have_text("That selected passage is unavailable on this version")
+    expect(notice).to_be_visible()
     assert page.evaluate("() => getSelection().toString()") == ""
 
     # Both copies have the original context. Refusal keeps the remembered identity
@@ -11204,11 +11202,9 @@ def test_restore_selection_rebinds_revisions_and_refuses_missing_words(browser, 
     expect(page.locator("#copy")).to_be_visible()
     page.keyboard.press("g")
     page.keyboard.press("v")
-    expect(
-        page.get_by_text(
-            "That selected passage is unavailable on this version", exact=True
-        )
-    ).to_be_visible()
+    notice = page.locator(".lf-notice")
+    expect(notice).to_have_text("That selected passage is unavailable on this version")
+    expect(notice).to_be_visible()
     assert page.evaluate("() => getSelection().toString()") == ""
     assert take_browser_errors(page) == []
 
@@ -11356,11 +11352,11 @@ def test_restore_selection_failed_datum_hydration_leaves_history_untouched(
     page.evaluate("releaseSelectionDatum()")
     expect(line).to_contain_text("violet")
     if not cancel:
-        expect(
-            page.get_by_text(
-                "That selected passage is unavailable on this version", exact=True
-            )
-        ).to_be_visible()
+        notice = page.locator(".lf-notice")
+        expect(notice).to_have_text(
+            "That selected passage is unavailable on this version"
+        )
+        expect(notice).to_be_visible()
     page.evaluate(
         "() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))"
     )

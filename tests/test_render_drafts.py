@@ -71,6 +71,7 @@ from render_harness import (
     resized,
     round_trip,
     scroll_settled,
+    select_words,
     sending,
     shortcut_bar_text,
     stamp_page,
@@ -191,33 +192,6 @@ def test_gallery_automatic_revision_keeps_the_empty_reply_focused(
 
 
 pytestmark = pytest.mark.nightly
-
-
-def select_words(page, passage):
-    """Triple-click a passage's words, which is not the same point as its box.
-
-    Playwright aims at the element's centre, and a short paragraph in a wide column is
-    mostly empty there. The response bar the user already opened on a neighbouring
-    passage stands in that empty half — it is placed to keep its own target clear, not
-    the page — so a gesture aimed at the centre lands on the field instead of on the
-    words and never reaches the passage. The words are where a user aims, so the
-    click goes to the start of the first line the passage draws."""
-    locator = page.locator(passage)
-    locator.scroll_into_view_if_needed()
-    x, y = locator.evaluate(
-        """element => {
-          const range = element.ownerDocument.createRange();
-          range.selectNodeContents(element);
-          const [line] = range.getClientRects();
-          const box = element.getBoundingClientRect();
-          if (!line) return [box.width / 2, box.height / 2];
-          return [
-            line.left + Math.min(24, line.width / 2) - box.left,
-            line.top + line.height / 2 - box.top,
-          ];
-        }"""
-    )
-    locator.click(click_count=3, position={"x": x, "y": y})
 
 
 def choose_comment_target(page, selector):
@@ -394,6 +368,133 @@ def cancel_draft(page, draft_id="draft-ops"):
     draft_control(page, "cancel", draft_id).click()
 
 
+@pytest.mark.parametrize("gesture", ["mouse", "keyboard"])
+def test_completed_page_selection_opens_its_own_comment(browser, serve, gesture):
+    """A real page selection opens Comment without focusing it or carrying earlier words."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Selection gestures",
+                '<p id="earlier">Earlier subject.</p>'
+                '<p id="later">A later passage keeps native selection.</p>',
+            )
+        ),
+    )
+    page.locator("#earlier").click(modifiers=["Alt"])
+    field = page.locator(".lf-fab-input")
+    write(field, "Words about the earlier subject")
+    if gesture == "mouse":
+        line = page.locator("#later").evaluate("""p => {
+            const range = document.createRange();
+            range.selectNodeContents(p);
+            return range.getClientRects()[0].toJSON();
+        }""")
+        y = line["y"] + line["height"] / 2
+        hold_selection(page, (line["x"] + 2, y), (line["x"] + line["width"] - 2, y))
+        page.mouse.up()
+    else:
+        page.locator("#later").click()
+        page.keyboard.press("ControlOrMeta+a")
+    rendered(page)
+    assert page.evaluate("() => getSelection().toString()")
+    expect(field).to_be_visible()
+    expect(field).not_to_be_focused()
+    expect(field).to_have_js_property("value", "")
+    page.keyboard.press("c")
+    expect(field).to_be_focused()
+    page.keyboard.press("Escape")
+    page.locator("#earlier").click(modifiers=["Alt"])
+    expect(field).to_have_js_property("value", "Words about the earlier subject")
+
+
+@pytest.mark.parametrize(
+    "touch", [False, True], ids=["browser-command", "touch-handles"]
+)
+@pytest.mark.parametrize("words", ["", "An unfinished earlier comment"])
+def test_observed_selection_offers_comment_without_replacing_the_editor(
+    browser, serve, touch, words
+):
+    """Browser-owned selection offers an explicit action while an existing editor stays.
+
+    Chromium's native SelectAll command supplies desktop selection without a keyup.
+    Touch emulation has no OS handles; Selection.extend exercises their endpoint
+    notification without inventing a page pointer gesture.
+    """
+    context = browser.new_context(
+        viewport={"width": 1200, "height": 900}, has_touch=touch
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Observed selection",
+                '<p id="earlier">Earlier subject.</p>'
+                '<p id="later">A later passage keeps native selection.</p>',
+            )
+        ),
+        context=context,
+    )
+    page.locator("#earlier").click(modifiers=["Alt"])
+    field = page.locator(".lf-fab-input")
+    write(field, words)
+    field.evaluate("el => { window.heldSelectionEditor = el; }")
+    action = page.get_by_role("button", name="Comment on selection", exact=True)
+
+    def select_in_browser():
+        field.evaluate("el => el.blur()")
+        if touch:
+            page.locator("#later").evaluate("""async p => {
+            const changed = new Promise(resolve => document.addEventListener(
+              'selectionchange', resolve, {once: true}));
+            getSelection().setBaseAndExtent(p.firstChild, 2, p.firstChild, 7);
+            getSelection().extend(p.firstChild, 15);
+            await changed;
+        }""")
+        else:
+            context.new_cdp_session(page).send(
+                "Input.dispatchKeyEvent", {"type": "keyDown", "commands": ["SelectAll"]}
+            )
+        expect(action).to_be_visible()
+
+    select_in_browser()
+    selected = page.evaluate("() => getSelection().toString()")
+    assert selected
+    # A modifier's release observes the passage; it does not select it for Comment.
+    page.keyboard.press("Shift")
+    rendered(page)
+    assert field.evaluate("el => el === window.heldSelectionEditor")
+    expect(field).to_be_visible()
+    expect(field).to_have_js_property("value", words)
+    assert page.evaluate("() => getSelection().toString()") == selected
+
+    # Returning to this editor retires the browser-owned selection and its offer.
+    if touch:
+        field.tap()
+    else:
+        field.click()
+    rendered(page)
+    expect(field).to_be_focused()
+    expect(field).to_have_js_property("value", words)
+    assert page.evaluate("() => getSelection().toString()") == ""
+    expect(action).to_be_hidden()
+    select_in_browser()
+
+    # Both routes activate the same native banner control and its captured passage.
+    if touch:
+        action.tap()
+    else:
+        action.focus()
+        page.keyboard.press("Enter")
+    expect(field).to_be_focused()
+    expect(field).to_have_js_property("value", "")
+    assert pending_text(page) == selected.replace("\n", "")
+    assert page.evaluate("() => getSelection().toString()") == ""
+    page.keyboard.press("Escape")
+    page.locator("#earlier").click(modifiers=["Alt"])
+    expect(field).to_have_js_property("value", words)
+
+
 def test_page_round_trip(browser, serve):
     """The loop the product is, driven through the real UI: select a passage and
     comment on it, drag a card to another column, rewrite a draft in place, then
@@ -402,19 +503,16 @@ def test_page_round_trip(browser, serve):
     final assertion is the event log — the trail Claude reads — down to the
     anchor's quote, the move's placement, and the edit's text."""
     page = open_page(browser, live_url(serve(JOURNEY_V1)))
-    # Select the passage from the keyboard's path: a real Range, then the keyup
-    # the runtime watches for keyboard selections. Comment explicitly enters its field.
-    page.evaluate("""() => {
-        const r = document.createRange();
-        r.selectNodeContents(document.getElementById('intro'));
+    # The browser selects the exact passage; Comment explicitly enters its field.
+    page.locator("#intro").evaluate("""p => {
+        const range = document.createRange();
+        range.selectNodeContents(p);
         getSelection().removeAllRanges();
-        getSelection().addRange(r);
-        document.body.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
+        getSelection().addRange(range);
     }""")
-    page.wait_for_selector(
-        ".lf-fab-input", state="visible"
-    )  # the selection raised the button
-    expect(page.locator(".lf-fab-input")).not_to_be_focused()
+    expect(
+        page.get_by_role("button", name="Comment on selection", exact=True)
+    ).to_be_visible()
     page.keyboard.press("c")
     expect(page.locator(".lf-fab-input")).to_be_focused()
     page.wait_for_selector(".lf-composer", state="visible")

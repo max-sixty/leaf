@@ -15,7 +15,8 @@
    durable, compact `.lf-fab-input` followed by one response ellipsis. An explicit
    addressable target
    opens and focuses that field. On desktop, selecting a passage leaves the field open
-   but unfocused. On touch screens, selection offers Comment on selection in the banner;
+   but unfocused. Selection observed outside a completed page gesture offers Comment
+   on selection in the banner, as does selection on touch screens;
    its press captures the passage, clears the native selection menu, and opens the field.
    Until that press the native handles and menu have the passage to themselves. The
    field grows in place and never transfers text into a second composer card. A
@@ -537,7 +538,7 @@ export function createResponseSurface({
       // A browser command or touch handle can replace the visual target while its
       // selectionchange is held out above. Re-read once the explicit activation is
       // complete so that real later selection is not discarded with the focus collapse.
-      scheduleSelectionUpdate();
+      observeSelection();
     });
   }
   // Focusing text entry collapses a native page selection. Hold that browser-authored
@@ -570,10 +571,13 @@ export function createResponseSurface({
     return hasQuote(anchor);
   };
 
-  // Touch selection belongs to the native handles and menu until Comment is pressed.
+  // Observed selection belongs to the browser until Comment is pressed. Native handles
+  // and browser commands owe the page no pointer/key completion, and selectionchange
+  // carries the same trusted notification for a script's endpoint write. It can offer
+  // the current passage, but cannot authorize replacing a composer or its draft.
   // That menu can stand on either side of the words; never compete with it by raising
   // a second adjacent surface. Capture the passage for the banner's explicit action.
-  let touchSelectionAnchor = null;
+  let offeredSelectionAnchor = null;
   const selectionComment = document.createElement("button");
   selectionComment.className = "lf-btn primary";
   selectionComment.type = "button";
@@ -585,24 +589,30 @@ export function createResponseSurface({
     seat: "gesture",
     present: false,
   });
-  const offerTouchSelection = (anchor) => {
-    touchSelectionAnchor = anchor;
+  const offerSelection = (anchor) => {
+    offeredSelectionAnchor = anchor;
     showBannerControl(selectionComment, Boolean(anchor));
   };
-  const commentOnTouchSelection = () => {
-    const anchor = touchSelectionAnchor;
+  const commentOnOfferedSelection = () => {
+    const anchor = offeredSelectionAnchor;
     if (!anchor) return;
     dismissBannerControls();
     cancelRender(selectionUpdate);
     selectionUpdate = null;
     getSelection()?.removeAllRanges();
-    offerTouchSelection(null);
+    offerSelection(null);
     openComment(anchor, "");
   };
 
+  function observeSelection() {
+    const selection = anchoringIsReady() ? pageSelection() : null;
+    const anchor = selection ? selectionAnchor(selection) : null;
+    offerSelection(hasQuote(anchor) && !sameAnchor(anchor, fabAnchor) ? anchor : null);
+  }
+
   function updateFab() {
     if (!anchoringIsReady()) {
-      offerTouchSelection(null);
+      offerSelection(null);
       showFab(null);
       return;
     }
@@ -613,11 +623,10 @@ export function createResponseSurface({
       hasQuote(anchor) &&
       (!fabHoldsCapturedPassage() || !sameAnchor(anchor, fabAnchor))
     ) {
-      showFab(null);
-      offerTouchSelection(anchor);
+      offerSelection(anchor);
       return;
     }
-    offerTouchSelection(null);
+    offerSelection(null);
     if (hasQuote(anchor)) {
       // A fast keyboard action can capture this completed native selection before the
       // pointer gesture's queued update arrives. That later update is the same target,
@@ -679,6 +688,9 @@ export function createResponseSurface({
     deferSelectionUpdate(updateFab);
   };
   let pointerSelecting = false;
+  // A control can consume the release after the document observed its press. The
+  // retained input generation ends that selection ownership even without a release.
+  let selectionPressIntent = null;
   let selectionDragged = false;
   let selectionRangeDuringPress = null;
   let selectionBackwardDuringPress = false;
@@ -764,6 +776,12 @@ export function createResponseSurface({
     fabInput.addEventListener("focus", () => {
       cancelRender(selectionUpdate);
       selectionUpdate = null;
+      // The editor now owns the selection. An explicit target may have consumed
+      // the press's release, so that old page gesture cannot resume after blur.
+      primaryPointerPressed = false;
+      pointerSelecting = false;
+      selectionPressIntent = null;
+      offerSelection(null);
       fabInputTakingFocus = true;
     });
     fabInput.addEventListener("blur", () => {
@@ -817,7 +835,7 @@ export function createResponseSurface({
     // Opening or acting in chrome is a route away from the page, not a new selection
     // gesture. Keep the already-captured touch passage verbatim while focus moves
     // through the banner, its sibling popovers, and their controls.
-    if (touchSelectionAnchor && inChrome(ev.target)) {
+    if (offeredSelectionAnchor && inChrome(ev.target)) {
       primaryPointerPressed = false;
       pointerSelecting = false;
       selectionGestureClaimed = false;
@@ -832,8 +850,13 @@ export function createResponseSurface({
       releasePress();
       return;
     }
-    if (primaryPointerPressed) {
-      if (pointerSelecting && !selectionGestureClaimed) rememberSelection();
+    if (
+      primaryPointerPressed &&
+      pointerSelecting &&
+      selectionPressIntent?.() &&
+      !selectionGestureClaimed
+    ) {
+      rememberSelection();
       scheduleSelectionUpdate();
     }
     primaryPointerPressed = false;
@@ -909,14 +932,15 @@ export function createResponseSurface({
     // Keep the native selection through the button's press; focusing the actual
     // comment field performs the handoff after the passage has been captured.
     selectionComment.addEventListener("mousedown", (event) => event.preventDefault());
-    selectionComment.addEventListener("click", commentOnTouchSelection);
-    coarsePointer.addEventListener("change", scheduleSelectionUpdate);
+    selectionComment.addEventListener("click", commentOnOfferedSelection);
+    coarsePointer.addEventListener("change", observeSelection);
     document.addEventListener(
       "pointerdown",
       (ev) => {
         if (drawModeActive()) return;
         primaryPointerPressed = ev.isPrimary && ev.button === 0;
         pointerSelecting = primaryPointerPressed && pageWords(ev.target);
+        selectionPressIntent = pointerSelecting ? retainUserIntent() : null;
         selectionDragged = false;
         selectionRangeDuringPress = null;
         selectionGestureClaimed = false;
@@ -932,7 +956,7 @@ export function createResponseSurface({
         if (selection && pageRange(selection).intersectsNode(ev.target))
           rememberPointerSelection();
         actionPress =
-          (touchSelectionAnchor && inChrome(ev.target)) ||
+          (offeredSelectionAnchor && inChrome(ev.target)) ||
           ev.target === selectionComment ||
           Boolean(ev.target.closest?.(".lf-react-surface, .lf-composer"));
       },
@@ -951,11 +975,17 @@ export function createResponseSurface({
           ev.clientY - selectionPressPoint.y,
         ) > 3;
     });
+    document.addEventListener("touchstart", () => {
+      // The native touch event follows pointerdown and is the same selecting press.
+      // Capture its input generation at that producer, before handles can adjust it.
+      if (primaryPointerPressed && pointerSelecting)
+        selectionPressIntent = retainUserIntent();
+    });
     document.addEventListener("pointerup", finishPointerSelection);
     document.addEventListener("pointercancel", finishPointerSelection);
     document.addEventListener("selectionchange", () => {
       const automatic = programmaticSelection(getSelection());
-      if (primaryPointerPressed) {
+      if (primaryPointerPressed && selectionPressIntent?.()) {
         rememberPointerSelection();
         if (coarsePointer.matches && pointerSelecting && !selectionGestureClaimed)
           rememberSelection();
@@ -966,30 +996,28 @@ export function createResponseSurface({
         }
         return;
       }
-      // The captured passage is not asked about here. What the handoff has to survive is
-      // the collapse focusing the field causes, and `updateFab` holds that out at the one
-      // branch that acts on an empty selection. Restated here it also swallowed the
-      // opposite event: a passage the user went on to select, arriving while the bar
-      // still held focus or while its focus was in flight, read as the collapse and was
-      // dropped — and the handoff then landed on the field and collapsed the selection,
-      // so nothing was left to re-read and the target never moved.
-      if (actionPress || targetActivation || takesLetters(document.activeElement))
+      // Focus and action handoffs own the captured target while the browser collapses
+      // its selection. Outside those handoffs, observe the browser's live passage;
+      // only the completed page gesture above/below may replace the composer.
+      if (takesLetters(document.activeElement)) {
+        offerSelection(null);
         return;
+      }
+      if (actionPress || targetActivation) return;
       const selection = pageSelection();
       if (coarsePointer.matches && selection && !automatic)
         rememberSelection(selection);
-      scheduleSelectionUpdate();
+      observeSelection();
     });
     document.addEventListener("mouseup", (ev) => {
       if (drawModeActive()) return;
-      const selectedOnPage = pointerSelecting;
+      const selectedOnPage = pointerSelecting && selectionPressIntent?.();
       primaryPointerPressed = false;
       pointerSelecting = false;
       const gestureClaimed = selectionGestureClaimed;
       selectionGestureClaimed = false;
       if (gestureClaimed) {
         selectionRangeDuringPress = null;
-        scheduleSelectionUpdate();
         return;
       }
       // Only a gesture begun in page words owns their selection. A release from
@@ -1056,9 +1084,10 @@ export function createResponseSurface({
             "PageDown",
           ].includes(ev.key)) ||
         (ev.key.toLowerCase() === "a" && (ev.metaKey || ev.ctrlKey))
-      )
+      ) {
         rememberSelection();
-      scheduleSelectionUpdate();
+        scheduleSelectionUpdate();
+      } else observeSelection();
     });
     document.addEventListener("mousedown", (ev) => {
       if (!drawModeActive()) standDown(ev.composedPath()[0]);
@@ -1143,11 +1172,11 @@ export function createResponseSurface({
     title: `comment on the ${word}`,
   });
   function commentDestination() {
-    if (touchSelectionAnchor)
+    if (offeredSelectionAnchor)
       return {
         ...commenting("selection"),
         box: selectionComment,
-        go: commentOnTouchSelection,
+        go: commentOnOfferedSelection,
       };
     const here = standingTarget();
     const anchor = fabAnchorAt();

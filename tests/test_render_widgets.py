@@ -102,6 +102,7 @@ from render_harness import (
     round_trip,
     scroll_settled,
     select,
+    select_words,
     sending,
     shortcut_bar_text,
     stamp_page,
@@ -6694,16 +6695,7 @@ def test_swipe_deck_pointer_threshold_cancel_and_commit(browser, serve):
     assert card.evaluate("el => el.style.getPropertyValue('--lf-swipe-drag-x')") == ""
     page.mouse.up()
 
-    card.locator("p").first.evaluate(
-        """element => {
-          const range = document.createRange();
-          range.selectNodeContents(element);
-          const selection = getSelection();
-          selection.removeAllRanges();
-          selection.addRange(range);
-          document.body.dispatchEvent(new KeyboardEvent('keyup', {bubbles: true}));
-        }"""
-    )
+    select_words(page, "#swipe-a p:first-of-type")
     expect(page.locator(".lf-fab-bar")).to_be_visible()
     assert page.evaluate("() => getSelection().toString().trim()")
 
@@ -9307,6 +9299,8 @@ def test_an_agent_message_edit_updates_the_panel_and_its_inline_thread(browser, 
         },
     )
     told(page)
+    panel_thread.get_by_role("button", name="1 new reply", exact=True).click()
+    inline_thread.get_by_role("button", name="1 new reply", exact=True).click()
 
     expect(inline.locator(".lf-msg-body")).to_contain_text("The north bracket fits.")
     expect(panel.locator(".lf-msg-text")).to_contain_text("The north bracket fits.")

@@ -1,7 +1,7 @@
 """The browser fixture fails the layout shifts the "Stability" rule forbids
 (`shift_watch.js`): a shift without input, and typing that carries its field."""
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from urllib.parse import quote
 
 import pytest
@@ -582,13 +582,21 @@ def test_typing_into_a_holder_still_sliding_in_is_the_slide_s(browser):
     page.evaluate("""() => {
       const opener = document.createElement('button');
       opener.id = 'open-slide'; opener.textContent = 'Open'; document.body.append(opener);
-      opener.addEventListener('click', () => document.getElementById('foot').animate(
-        [{ transform: 'translateX(-200px)' }, { transform: 'none' }], 3000));
+      opener.addEventListener('click', () => {
+        window.slideMotion = document.getElementById('foot').animate(
+          [{ transform: 'translateX(-200px)' }, { transform: 'none' }], 3000);
+        slideMotion.playbackRate = 0;
+        slideMotion.currentTime = 150;
+      });
     }""")
     paint(page)
     page.locator("#open-slide").click()
+    assert page.evaluate("slideMotion.playState") == "running"
     page.locator("#field").fill("a")
     page.locator("#field").fill("ab")
+    page.evaluate(
+        "() => { slideMotion.playbackRate = 1; slideMotion.finish(); return slideMotion.finished; }"
+    )
     judge_watches()
 
 
@@ -604,7 +612,8 @@ def test_a_shift_without_input_after_typing_fails(browser):
     consume_browser_errors(page, "textarea#field moved without input")
 
 
-def test_an_input_owns_its_counted_rendering_until_it_settles(browser, serve):
+@pytest.mark.parametrize("work_ms", [30, 300], ids=["ordinary", "ten-times-slower"])
+def test_an_input_owns_its_counted_rendering_until_it_settles(browser, serve, work_ms):
     """Counted input work can cross frames; its completion ends movement credit."""
     page = open_page(
         browser,
@@ -616,18 +625,24 @@ def test_an_input_owns_its_counted_rendering_until_it_settles(browser, serve):
             )
         ),
     )
-    page.evaluate("""async () => {
+    page.evaluate(
+        """async work => {
       const {nextFrame} = await window.__lfRuntimeImport('/runtime/rendering.js');
       const above = document.querySelector('#above');
       document.querySelector('#press').addEventListener('click', () => {
         let turn = 0;
         const move = () => {
+          // Real work delays native paint; counted completion remains outstanding.
+          const until = performance.now() + work;
+          while (performance.now() < until) {}
           above.style.height = `${++turn * 20}px`;
           if (turn < 4) nextFrame(move);
         };
         nextFrame(move);
       }, {once:true});
-    }""")
+    }""",
+        work_ms,
+    )
     control = page.locator("#control")
     before = control.bounding_box()["y"]
     page.locator("#press").click()
@@ -644,12 +659,202 @@ def test_an_input_owns_its_counted_rendering_until_it_settles(browser, serve):
     consume_browser_errors(page, "button#control moved without input")
 
 
+def test_shift_judgement_waits_for_paint_instead_of_a_time_cap(browser):
+    """A held native frame keeps judgment pending; release still reports the fault."""
+    page = field_page(browser)
+    page.evaluate("""() => {
+      const nativeFrame = window.lfWatchPlatform.frame;
+      const held = [];
+      window.lfWatchPlatform.frame = callback => { held.push(callback); return 0; };
+      window.releaseFrames = () => {
+        window.lfWatchPlatform.frame = nativeFrame;
+        for (const callback of held.splice(0)) nativeFrame(callback);
+      };
+      document.getElementById('above').style.height = '40px';
+      window.shiftJudged = false;
+      window.lfShiftsJudged().then(() => window.shiftJudged = true);
+      // This callback proves the former 500ms fallback would have run, without
+      // assuming the machine completes any work within a particular duration.
+      setTimeout(() => window.pastFormerCap = true, 600);
+    }""")
+    try:
+        page.wait_for_function("window.pastFormerCap === true", polling=100)
+        assert page.evaluate("window.shiftJudged") is False
+    finally:
+        page.evaluate("window.releaseFrames()")
+    page.wait_for_function("window.shiftJudged === true", polling=100)
+    consume_browser_errors(page, "textarea#field moved without input by (0, 40)px")
+
+
+@pytest.mark.parametrize(
+    "when",
+    [
+        "already-hidden",
+        "hidden-during-drain",
+        "resize-during-drain",
+        "cssom-during-drain",
+    ],
+)
+def test_a_hidden_frame_judges_existing_records_without_awaiting_paint(browser, when):
+    page = field_page(browser)
+    page.set_viewport_size({"width": 900, "height": 600})
+    page.evaluate(
+        """when => {
+      const style = document.createElement('style');
+      style.textContent = '@media(max-width:600px){iframe{display:none}}';
+      document.head.append(style);
+      const frame = document.createElement('iframe');
+      if (when === 'already-hidden') frame.style.display = 'none';
+      frame.srcdoc = '<!doctype html><body><button>Hidden control</button></body>';
+      document.body.append(frame);
+    }""",
+        when,
+    )
+    page.wait_for_function(
+        "document.querySelector('iframe').contentDocument?.readyState === 'complete'"
+    )
+    frame = page.frames[1]
+    frame.evaluate("""() => {
+      const nativeFrame = window.lfWatchPlatform.frame;
+      const held = [];
+      window.lfWatchPlatform.frame = callback => { held.push(callback); return 0; };
+      window.restoreFrame = () => {
+        window.lfWatchPlatform.frame = nativeFrame;
+        for (const callback of held.splice(0)) nativeFrame(callback);
+      };
+      window.hiddenJudged = false;
+      window.lfShiftsJudged().then(() => window.hiddenJudged = true);
+    }""")
+    try:
+        if when != "already-hidden":
+            assert frame.evaluate("window.hiddenJudged") is False
+            if when == "resize-during-drain":
+                page.set_viewport_size({"width": 500, "height": 600})
+            elif when == "cssom-during-drain":
+                page.evaluate(
+                    "document.querySelector('style').sheet.insertRule('iframe{display:none}', 0)"
+                )
+            else:
+                page.evaluate("document.querySelector('iframe').style.display = 'none'")
+        frame.wait_for_function("window.hiddenJudged === true", polling=100)
+        assert frame.evaluate("window.frameElement.checkVisibility()") is False
+    finally:
+        frame.evaluate("window.restoreFrame()")
+
+
+@pytest.mark.parametrize(
+    "detached", [False, True], ids=["targetless", "target-removed"]
+)
+@pytest.mark.parametrize("method", ["play", "reverse"])
+def test_motion_instrumentation_preserves_targetless_native_effects(
+    browser, detached, method
+):
+    """A native effect may have no target and still be played or reversed."""
+    page = field_page(browser)
+    assert page.evaluate(
+        """async ({detached, method}) => {
+          const effect = new KeyframeEffect(detached ? field : null,
+            [{transform:'none'},{transform:'translateX(20px)'}],100);
+          const animation = new Animation(effect, document.timeline);
+          if(detached){
+            animation.play();animation.playbackRate=0;animation.currentTime=0;
+            await new Promise(done=>lfWatchPlatform.frame(()=>lfWatchPlatform.frame(done)));
+            effect.target=null;animation.playbackRate=1;
+          }
+          animation[method]();
+          const running = animation.playState === 'running';
+          animation.finish();
+          await animation.finished;
+          return running && animation.playState === 'finished';
+        }""",
+        {"detached": detached, "method": method},
+    )
+    judge_watches()
+
+
+def test_native_shift_evidence_survives_a_controlled_timer_clock(browser):
+    """Advancing product timers cannot put native paint outside the sensor ledger."""
+    context = browser.new_context()
+    context.clock.set_fixed_time(datetime(2026, 10, 3, tzinfo=UTC).timestamp())
+    page = field_page(context)
+    page.clock.run_for(5000)
+    page.evaluate("document.getElementById('above').style.height = '40px'")
+    judge_watches()
+    consume_browser_errors(page, "textarea#field moved without input by (0, 40)px")
+
+
+def test_a_native_resize_seals_typing_before_its_layout_even_with_controlled_time(
+    browser,
+):
+    """Resize owns its new viewport layout; subsequent passive carry still fails."""
+    context = browser.new_context()
+    context.clock.set_fixed_time(datetime(2026, 10, 3, tzinfo=UTC).timestamp())
+    page = context.new_page()
+    page.set_viewport_size({"width": 900, "height": 600})
+    page.goto(
+        "data:text/html,"
+        + quote(
+            FIELD.replace(
+                '<div id="above">',
+                '<div style="width:60%;margin:auto"><div id="above">',
+            )
+            + "</div>"
+        )
+    )
+    paint(page)
+    page.clock.run_for(5000)
+    page.locator("#field").fill("Typed before resizing")
+    before = page.locator("#field").bounding_box()
+    page.set_viewport_size({"width": 500, "height": 600})
+    paint(page)
+    assert page.locator("#field").bounding_box()["x"] < before["x"] - 40
+    judge_watches()
+    assert take_browser_errors(page) == []
+    page.evaluate("document.getElementById('above').style.height = '40px'")
+    judge_watches()
+    consume_browser_errors(page, "textarea#field moved without input by (0, 40)px")
+
+
+def test_a_resize_cannot_own_a_passive_shift_painted_before_dispatch(browser):
+    """Delayed health sampling cannot let a later resize excuse existing paint."""
+    page = field_page(browser)
+    page.set_viewport_size({"width": 900, "height": 600})
+    page.locator("#field").fill("x")
+    judge_watches()
+    page.evaluate("""() => {
+      const original = lfWatchPlatform.frame;
+      const held = [];
+      window.paintNative = () => new Promise(done => original(() => original(done)));
+      lfWatchPlatform.frame = callback => held.push(callback);
+      window.releaseHealth = () => {
+        lfWatchPlatform.frame = original;
+        held.splice(0).forEach(callback => original(callback));
+      };
+      window.queuedPaint = [];
+      new PerformanceObserver(list => queuedPaint.push(...list.getEntries().map(entry => entry.startTime)))
+        .observe({type:'layout-shift'});
+    }""")
+    try:
+        page.evaluate("paintNative()")
+        page.evaluate("above.style.height='40px'")
+        page.evaluate("paintNative()")
+        page.wait_for_function("queuedPaint.length > 0", polling=100)
+        page.set_viewport_size({"width": 500, "height": 600})
+        page.evaluate("paintNative()")
+    finally:
+        page.evaluate("releaseHealth()")
+    judge_watches()
+    consume_browser_errors(page, "textarea#field moved without input by (0, 40)px")
+
+
 # News three frames after a press, as a reply lands just after a click: the page adopts
 # a server reading. A stand-in for the runtime never settles its rendering, so the
 # press's rendering is still open when the news lands. What moves the line is the
 # page's `data-motion`: the news growing a box above it (none), the news beginning a
 # bar's slide above it (`news`), or the press beginning that slide, which runs on past
-# news that moves nothing (`press`).
+# news that moves nothing (`press`). The height slide is a conservative sensor
+# boundary: native height-induced sibling flow has no exact translation proof.
+# The matched marginTop arm proves press/news ownership with supported displacement.
 NEWS = """<!doctype html><body style="margin:0">
 <script data-lf-entry>document.currentScript.lfRenderingSettled = () => false;</script>
 <button id="press">Press</button>
@@ -657,45 +862,151 @@ NEWS = """<!doctype html><body style="margin:0">
 <script>
   const frames = (n, then) => requestAnimationFrame(() => n > 1 ? frames(n - 1, then) : then());
   const motion = () => document.body.dataset.motion;
-  const slide = () => document.getElementById("bar").animate(
-    [{ height: "0px" }, { height: "300px" }], { duration: 400, fill: "forwards" });
+  const slide = () => document.body.dataset.translation === 'true'
+    ? document.getElementById("below").animate(
+        [{ marginTop: "0px" }, { marginTop: "300px" }], { duration: 400, fill: "forwards" })
+    : document.getElementById("bar").animate(
+        [{ height: "0px" }, { height: "300px" }], { duration: 400, fill: "forwards" });
   document.getElementById("press").addEventListener("pointerdown", (event) => {
     if (motion() === "press") slide();
-    const pressed = event.timeStamp;
+    const until = performance.now() + Number(document.body.dataset.work);
+    while (performance.now() < until) {}
     frames(3, () => {
+      document.body.dataset.inputHeld = String(!document.querySelector('script[data-lf-entry]').lfRenderingSettled());
       document.body.setAttribute("data-lf-reading", "news");
       if (motion() === "news") slide();
       if (!motion()) document.getElementById("above").style.height = "40px";
-      document.body.dataset.newsAfter = performance.now() - pressed;
+      document.body.dataset.newsFromTrustedPress = String(event.isTrusted);
     });
   });
 </script>"""
 
 
-def news_page(browser, motion=""):
+def news_page(browser, motion="", work_ms=65, *, translation=False):
     page = browser.new_page()
     page.goto("data:text/html," + quote(NEWS))
     # The stand-in's page has presented, so its shifts are judged.
     page.evaluate("document.body.setAttribute('data-lf-presented', '')")
-    page.evaluate("motion => { document.body.dataset.motion = motion; }", motion)
+    page.evaluate(
+        "args => { document.body.dataset.motion = args.motion; document.body.dataset.work = args.work; document.body.dataset.translation = String(args.translation); }",
+        {"motion": motion, "work": work_ms, "translation": translation},
+    )
     page.locator("#press").click()
-    page.wait_for_function("document.body.dataset.newsAfter !== undefined")
-    # Chrome counts the press as recent input for half a second, so news after it is
-    # what this page tests.
-    assert float(page.evaluate("document.body.dataset.newsAfter")) < 500
+    page.wait_for_function("document.body.dataset.newsFromTrustedPress !== undefined")
+    # News follows the trusted press while its declared rendering is still held.
+    # Execution speed and Chrome's recent-input duration do not decide ownership.
+    assert page.evaluate("document.body.dataset.newsFromTrustedPress") == "true"
+    assert page.evaluate("document.body.dataset.inputHeld") == "true"
     return page
 
 
 @pytest.mark.parametrize("motion", ["", "news"], ids=["grows a box", "begins a slide"])
-def test_news_just_after_a_press_moves_nothing(browser, motion):
-    page = news_page(browser, motion)
+@pytest.mark.parametrize("work_ms", [65, 650], ids=["ordinary", "ten-times-slower"])
+def test_news_just_after_a_press_moves_nothing(browser, motion, work_ms):
+    page = news_page(browser, motion, work_ms)
     judge_watches()
     consume_browser_errors(page, "div#below moved without input")
 
 
-def test_motion_a_press_began_is_the_press_s_through_news(browser):
-    news_page(browser, "press")
+def test_native_height_sibling_flow_without_displacement_proof_is_reported(browser):
+    """The sensor reports genuine native flow it cannot attribute, rather than guessing."""
+    page = news_page(browser, "press")
+    assert page.evaluate("parseFloat(getComputedStyle(bar).height)") > 0
+    assert (
+        page.locator("#below").bounding_box()["y"]
+        > page.locator("#bar").bounding_box()["y"]
+    )
     judge_watches()
+    consume_browser_errors(page, "div#below moved without input")
+
+
+@pytest.mark.parametrize("motion", ["press", "news"])
+def test_sampled_native_translation_distinguishes_press_from_news(browser, motion):
+    """Identical native motion survives news only when the trusted press began it."""
+    page = news_page(browser, motion, translation=True)
+    page.wait_for_function("parseFloat(getComputedStyle(below).marginTop) > 0")
+    judge_watches()
+    if motion == "press":
+        assert take_browser_errors(page) == []
+    else:
+        consume_browser_errors(page, "div#below moved without input")
+
+
+@pytest.mark.parametrize("motion", ["none", "scroll", "stalled", "finite", "unbounded"])
+def test_completed_input_does_not_own_an_effects_unrelated_passive_motion(
+    browser, motion
+):
+    """An effect's lifetime cannot extend its creator's whole-page input credit."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote("""<!doctype html><body><button id="attach">Attach moving surface</button>
+<div id="source" style="height:80px;width:200px;overflow:auto"><div style="height:400px">Scroll source</div></div>
+<div id="attachment" style="position:absolute;left:250px;top:130px">Moving attachment</div>
+<textarea id="field" style="position:absolute;left:250px;top:250px"></textarea>
+<script>attach.addEventListener('click',()=>{
+  const options=window.motionKind==='scroll'
+    ? {timeline:new ScrollTimeline({source:source,axis:'y'}),duration:'auto',fill:'both'}
+    : {duration:1000000,iterations:window.motionKind==='unbounded'?Infinity:1,fill:'both'};
+  window.attachmentMotion=attachment.animate(
+    [{transform:'translateY(0px)'},{transform:'translateY(-300px)'}],options);
+  if(window.motionKind==='stalled')attachmentMotion.playbackRate=0;
+});</script></body>""")
+    )
+    paint(page)
+    if motion != "none":
+        page.evaluate("kind=>window.motionKind=kind", motion)
+        page.locator("#attach").click()
+        assert page.evaluate("attachmentMotion.playState") == "running"
+    judge_watches()
+    assert take_browser_errors(page) == []
+    before = page.locator("#field").bounding_box()
+    page.evaluate("field.style.left='330px'")
+    paint(page)
+    after = page.locator("#field").bounding_box()
+    assert after["x"] - before["x"] == 80
+    judge_watches()
+    consume_browser_errors(page, "textarea#field moved without input by (80, 0)px")
+
+
+@pytest.mark.parametrize("local_motion", [False, True])
+def test_completed_input_keeps_only_its_native_attachment_displacement(
+    browser, local_motion
+):
+    """A retained scroll effect carries its field without owning the field's own move."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote("""<!doctype html><body><button id="attach">Attach moving surface</button>
+<div id="source" style="height:80px;width:200px;overflow:auto"><div style="height:400px">Scroll source</div></div>
+<div id="attachment" style="position:absolute;left:250px;top:130px"><textarea id="field"></textarea></div>
+<svg id="evidence" aria-hidden="true" style="position:absolute;left:0;top:400px;width:300px;height:30px;background:gray"></svg>
+<script>attach.addEventListener('click',()=>{
+  window.attachmentMotion=attachment.animate(
+    [{transform:'translateY(0px)'},{transform:'translateY(-320px)'}],
+    {timeline:new ScrollTimeline({source:source,axis:'y'}),duration:'auto',fill:'both'});
+});</script></body>""")
+    )
+    paint(page)
+    page.locator("#attach").click()
+    assert page.evaluate("attachmentMotion.playState") == "running"
+    judge_watches()
+    assert take_browser_errors(page) == []
+    before = page.locator("#field").bounding_box()
+    page.evaluate(
+        "carry=>{source.scrollTop=20;if(carry)field.style.marginLeft='80px';evidence.style.left='20px'}",
+        local_motion,
+    )
+    paint(page)
+    after = page.locator("#field").bounding_box()
+    assert page.evaluate("source.scrollTop") == 20
+    assert after["y"] - before["y"] == pytest.approx(-20, abs=0.5)
+    assert after["x"] - before["x"] == (80 if local_motion else 0)
+    judge_watches()
+    if local_motion:
+        consume_browser_errors(page, "textarea#field moved without input")
+    else:
+        assert take_browser_errors(page) == []
 
 
 # Rows in a box that clips without scrolling, as a diff's file does, and a box among
@@ -1203,7 +1514,7 @@ def test_owned_animation_retains_local_motion_through_next_gesture(browser, faul
         + quote("""<!doctype html><body style="margin:0">
 <button id="open">Open</button><button id="other">Another gesture</button>
 <div id="panel" style="margin-left:350px"><textarea id="field"></textarea><p>Retained reading</p></div>
-<script>function move(){window.motion=panel.animate([{marginLeft:'350px'},{marginLeft:'0px'}],{duration:700,fill:'forwards'})}document.getElementById('open').addEventListener('click',move)</script>""")
+<script>function move(){window.motion=panel.animate([{marginLeft:'350px'},{marginLeft:'0px'}],{duration:700,fill:'forwards'});motion.playbackRate=0;motion.currentTime=150}document.getElementById('open').addEventListener('click',move)</script>""")
     )
     paint(page)
     if fault == "passive":
@@ -1223,7 +1534,9 @@ def test_owned_animation_retains_local_motion_through_next_gesture(browser, faul
         page.evaluate("panel.style.position='relative';panel.style.left='80px'")
     if fault == "ancestor_y":
         page.evaluate("panel.style.marginTop='80px'")
-    page.evaluate("() => motion.finished")
+    page.evaluate(
+        "() => { motion.playbackRate = 1; motion.finish(); return motion.finished; }"
+    )
     page.screenshot()
     page.evaluate(PAINTED)
     if fault == "finished":
@@ -1287,7 +1600,7 @@ def test_unused_anchor_cannot_bank_an_earlier_scroll(browser, mode):
     )
 
 
-GESTURE_MOTION = """<!doctype html><body style="margin:0"><button id="open">Open</button><button id="other">Another gesture</button><div id="panel" style="margin-left:350px"><textarea id="field"></textarea><button id="control">Retained control</button><p>Retained reading</p></div><script>function slide(){window.motion=panel.animate([{transform:'translateX(-200px)'},{transform:'none'}],{duration:900,fill:'forwards'})}document.getElementById('open').addEventListener('click',slide)</script></body>"""
+GESTURE_MOTION = """<!doctype html><body style="margin:0"><button id="open">Open</button><button id="other">Another gesture</button><div id="panel" style="margin-left:350px"><textarea id="field"></textarea><button id="control">Retained control</button><p>Retained reading</p></div><script>function slide(){window.motion=panel.animate([{transform:'translateX(-200px)'},{transform:'none'}],{duration:900,fill:'forwards'});motion.playbackRate=0;motion.currentTime=150}document.getElementById('open').addEventListener('click',slide)</script></body>"""
 
 
 def gesture_motion_page(browser):
@@ -1305,7 +1618,9 @@ def test_immediate_native_opening_and_typing(browser):
     page.locator("#open").focus()
     page.keyboard.press("a")
     page.keyboard.insert_text("b")
-    page.evaluate("() => motion.finished")
+    page.evaluate(
+        "() => { motion.playbackRate = 1; motion.finish(); return motion.finished; }"
+    )
     page.screenshot()
     page.evaluate(PAINTED)
     judge_watches()
@@ -1319,7 +1634,9 @@ def test_gesture_close_does_not_own_future_or_local_motion(browser, fault):
     page.locator("#other").click()
     paint(page)
     if fault == "late_unowned":
-        page.evaluate("() => motion.finished")
+        page.evaluate(
+            "() => { motion.playbackRate = 1; motion.finish(); return motion.finished; }"
+        )
         paint(page)
         page.evaluate(
             "window.late = panel.animate([{marginTop:'0px'},{marginTop:'80px'}],{duration:250,fill:'forwards'})"
@@ -1328,7 +1645,9 @@ def test_gesture_close_does_not_own_future_or_local_motion(browser, fault):
     else:
         assert page.evaluate("motion.playState") == "running"
         page.evaluate("control.style.marginTop='80px'")
-        page.evaluate("() => motion.finished")
+        page.evaluate(
+            "() => { motion.playbackRate = 1; motion.finish(); return motion.finished; }"
+        )
     page.screenshot()
     page.evaluate(PAINTED)
     judge_watches()
@@ -1866,12 +2185,11 @@ def test_long_held_native_anchor_keeps_complete_history(browser, fault):
     page.evaluate(
         "() => {window.nativeEntries=[];new PerformanceObserver(list=>nativeEntries.push(...list.getEntries().map(e=>e.startTime))).observe({type:'layout-shift'})}"
     )
-    # The anchor stays put while its ancestor's reading changes on both sides of
-    # the sensor's retained-history window. No fake clock replaces native paint.
-    page.wait_for_timeout(200)
+    # The anchor stays put across completed evidence-retirement checkpoints.
+    # Each checkpoint drains native observer records; no elapsed window defines it.
     page.evaluate("ancestor.style.opacity='.99'")
     page.evaluate(PAINTED)
-    page.wait_for_timeout(10400)
+    page.evaluate("() => window.lfShiftsJudged()")
     page.evaluate("ancestor.style.opacity='.9'")
     paint(page)
     page.evaluate(
@@ -1893,8 +2211,9 @@ def test_long_held_native_anchor_keeps_complete_history(browser, fault):
         assert not errors, errors
 
 
-@pytest.mark.parametrize("local_carry", [False, True])
-def test_owned_native_finish_records_the_applied_endpoint(browser, local_carry):
+@pytest.mark.parametrize("fault", ["", "child", "target"])
+@pytest.mark.parametrize("fill", ["none", "forwards", "replay"])
+def test_owned_native_finish_records_the_applied_endpoint(browser, fault, fill):
     """Native cleanup cannot erase final translation or credit a child's own move."""
     page = browser.new_page()
     page.goto(
@@ -1904,13 +2223,25 @@ def test_owned_native_finish_records_the_applied_endpoint(browser, local_carry):
 <div id="panel" style="margin-left:350px"><textarea id="field"></textarea><p>Retained words</p></div>
 <svg id="evidence" aria-hidden="true" style="position:absolute;left:0;top:300px;width:400px;height:60px;background:gray"></svg>
 <script>document.getElementById('open').addEventListener('click',()=>{
-  window.motion=panel.animate([{transform:'translateX(200px)'},{transform:'none'}],{duration:60000,fill:'forwards'});
+  if(window.endpointReplay){panel.style.marginLeft='430px';motion.play();}
+  else window.motion=panel.animate([{marginLeft:'550px'},{marginLeft:'350px'}],{duration:700,fill:window.endpointFill});
+  motion.playbackRate=0;motion.currentTime=150;
   motion.finished.then(()=>queueMicrotask(()=>motion.cancel()));
 })</script></body>""")
     )
     paint(page)
+    page.evaluate(
+        "fill => window.endpointFill = fill", "none" if fill == "replay" else fill
+    )
     page.locator("#open").click()
     page.evaluate(PAINTED)
+    if fill == "replay":
+        page.evaluate("motion.playbackRate=1;motion.finish()")
+        paint(page)
+        assert page.evaluate("motion.playState") == "idle"
+        page.evaluate("window.endpointReplay=true")
+        page.locator("#open").click()
+        paint(page)
     page.locator("#other").click()
     paint(page)
     page.evaluate("""() => {
@@ -1919,15 +2250,18 @@ def test_owned_native_finish_records_the_applied_endpoint(browser, local_carry):
         .observe({type:'layout-shift',buffered:false});
     }""")
     before = page.evaluate(
-        """local => {
+        """fault => {
+      const origin = window.endpointReplay ? 430 : 350;
       const before={state:motion.playState,field:field.getBoundingClientRect().toJSON(),
-        translation:new DOMMatrixReadOnly(getComputedStyle(panel).transform).e};
-      if(local)field.style.marginLeft='80px';
+        translation:parseFloat(getComputedStyle(panel).marginLeft)-origin};
+      if(fault === 'child')field.style.marginLeft='80px';
+      if(fault === 'target')panel.style.marginLeft=(origin+80)+'px';
       evidence.style.left='20px';
+      motion.playbackRate=1;
       motion.finish();
       return before;
     }""",
-        local_carry,
+        fault,
     )
     assert before["state"] == "running"
     assert before["translation"] > 1
@@ -1939,14 +2273,14 @@ def test_owned_native_finish_records_the_applied_endpoint(browser, local_carry):
             after["x"]
             - before["field"]["x"]
             + before["translation"]
-            - (80 if local_carry else 0)
+            - (80 if fault else 0)
         )
         < 0.5
     )
     assert page.evaluate("motion.playState") == "idle"
     judge_watches()
     errors = take_browser_errors(page)
-    if local_carry:
+    if fault:
         assert any("textarea#field moved without input" in error for error in errors), (
             errors
         )

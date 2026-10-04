@@ -78,6 +78,8 @@ ROOT = Path(__file__).parent.parent
 WRITE_WATCH_SOURCE = Path(__file__).with_name("write_watch.js")
 SHIFT_WATCH_SOURCE = Path(__file__).with_name("shift_watch.js")
 WORDS_WATCH_SOURCE = Path(__file__).with_name("words_watch.js")
+INPUT_WORK_WATCH_SOURCE = Path(__file__).with_name("input_work_watch.js")
+WATCH_PLATFORM_SOURCE = Path(__file__).with_name("watch_platform.js")
 
 
 @cache
@@ -103,7 +105,12 @@ def shift_watch_source():
     )
     interactive, clipping, host, parent, rendered_parent, axes = json.loads(controls)
     return (
-        f"((interactive, clippingAxes) => {{\n"
+        WATCH_PLATFORM_SOURCE.read_text()
+        + "\n"
+        + "const nativePerformance = window.lfWatchPlatform.performance;\n"
+        + "const nativeFrame = callback => window.lfWatchPlatform.frame(callback);\n"
+        + "const nativeTask = (callback, ...args) => window.lfWatchPlatform.later(callback, ...args);\n"
+        + f"((interactive, clippingAxes) => {{\n"
         f"const shadowHost = {host};\nconst upFrom = {parent};\n"
         f"const renderedParent = {rendered_parent};\nconst scrollAxes = {axes};\n"
         f"{SHIFT_WATCH_SOURCE.read_text()}\n}})({json.dumps(interactive)}, {clipping});"
@@ -1228,16 +1235,24 @@ def judge_watches():
     last act changed have painted (`shift_watch.js`, `lfShiftsJudged`), and then every
     loss of typed words so far (`words_watch.js`, `lfWordsJudged`).
 
-    Chrome hands a frame's shifts to the observer only after it paints, and a loss waits
-    a moment for the press that may answer for it, so a test whose last act moves the
-    page or takes words away would end before the report. `conftest.py` calls this as
-    the test body returns, while the pages' servers still answer: a page left painting
+    Chrome hands a frame's shifts to the observer only after it paints, so a test whose
+    last act moves the page or takes words away would end before the report. Judgement
+    waits for that evidence with a hang deadline; elapsed time cannot count as a
+    completed paint. `conftest.py` calls this as the test body returns, while the
+    pages' servers still answer: a page left painting
     after its server is gone lets its failed fetches reach the console."""
     for page, _ in _BROWSER_PROBLEM_LISTS or ():
         if not page.is_closed():
             for frame in page.frames:
-                frame.evaluate("() => window.lfShiftsJudged?.()")
-                frame.evaluate("() => window.lfWordsJudged?.()")
+                frame.wait_for_function(
+                    """async () => {
+                        await window.lfShiftsJudged?.();
+                        await window.lfWordsJudged?.();
+                        return true;
+                    }""",
+                    timeout=render_checks_model.SERVED_TIMEOUT_MS,
+                    polling=100,
+                )
 
 
 def watched(page):
@@ -1270,7 +1285,18 @@ def watched(page):
     page.on("pageerror", lambda e: errors.append(str(e)))
     render_checks_model.install_window_errors(page)
     page.add_init_script(path=WRITE_WATCH_SOURCE)
-    page.add_init_script(path=WORDS_WATCH_SOURCE)
+    # One init script keeps cause tracking installed before its words subscriber;
+    # Playwright does not promise an order between separately registered scripts.
+    page.add_init_script(
+        script="\n".join(
+            source.read_text()
+            for source in (
+                WATCH_PLATFORM_SOURCE,
+                INPUT_WORK_WATCH_SOURCE,
+                WORDS_WATCH_SOURCE,
+            )
+        )
+    )
     if _TEST is None or watches_shifts(_TEST):
         page.add_init_script(script=shift_watch_source())
     # Diagnostics join the document's captured module graph, not the mutable layer.
@@ -2022,6 +2048,33 @@ def select(page, start, end, steps=8):
     page.mouse.up()
 
 
+def select_words(page, passage):
+    """Triple-click a passage's words, which is not the same point as its box.
+
+    Playwright aims at the element's centre, and a short paragraph in a wide column is
+    mostly empty there. The response bar the user already opened on a neighbouring
+    passage stands in that empty half — it is placed to keep its own target clear, not
+    the page — so a gesture aimed at the centre lands on the field instead of on the
+    words and never reaches the passage. The words are where a user aims, so the
+    click goes to the start of the first line the passage draws."""
+    locator = page.locator(passage)
+    locator.scroll_into_view_if_needed()
+    x, y = locator.evaluate(
+        """element => {
+          const range = element.ownerDocument.createRange();
+          range.selectNodeContents(element);
+          const [line] = range.getClientRects();
+          const box = element.getBoundingClientRect();
+          if (!line) return [box.width / 2, box.height / 2];
+          return [
+            line.left + Math.min(24, line.width / 2) - box.left,
+            line.top + line.height / 2 - box.top,
+          ];
+        }"""
+    )
+    locator.click(click_count=3, position={"x": x, "y": y})
+
+
 def write(box, text):
     """Replace a text box's words the way typing them would, as `fill` does.
 
@@ -2150,9 +2203,11 @@ def live_counts(page):
 
 
 def still_page(browser, url, width=1200):
-    """The page at `url` for a reader who asked for reduced motion, under a clock that
-    stays on one instant, so what changes on it is what the test did: no film plays
-    itself and no age ticks over to the next minute while the test reads."""
+    """The page at `url` with reduced motion and a fixed wall-clock date.
+
+    Age labels stay fixed; timers, rendering and observer delivery still run. Tests
+    of timer behavior explicitly advance this context's controlled timer clock.
+    """
     context = browser.new_context(
         viewport={"width": width, "height": 900}, reduced_motion="reduce"
     )
@@ -2160,16 +2215,15 @@ def still_page(browser, url, width=1200):
     return open_page(browser, url, context=context)
 
 
-# Two of the page's clock ticks and room to spare (`TICK_MS`, state-feed.js): at rest the
-# clock is all that runs, and a tick that wrote would write inside the window.
+# Two of the page's timer ticks (`TICK_MS`, state-feed.js), advanced explicitly so a
+# slow machine still executes the callbacks the reading covers.
 REST_SECONDS = 5
 
 
 def left_alone(page):
     """Prepare a still_page and its Leaf frames for their reading: rendered, arrival
     notices retired, and the pointer off its controls. Advance its controlled timer
-    clock through every callback while Date.now stays fixed; the following test keeps
-    real-time timers.
+    clock through every due callback while Date.now stays fixed.
     """
 
     def prepare_children(parent):
@@ -2205,14 +2259,14 @@ def at_rest(page):
     each frame it asks for, each time it moves the focus, and each animation it runs
     without end, in its own document and each one it frames, such as a live sample.
 
-    It starts once the still_page is `left_alone` and watches in real time for
-    `REST_SECONDS`. Frames are counted where they are asked for, so a loop that writes
-    nothing but still wakes the page every frame is named too."""
+    It starts once the still_page is `left_alone` and advances the timer clock through
+    `REST_SECONDS`, running each due callback. Frames are counted where they are asked
+    for, so a loop that writes nothing but still wakes the page every frame is named too."""
     left_alone(page)
     frames = page.frames
     for frame in frames:
         frame.evaluate(_REST_ARM)
-    time.sleep(REST_SECONDS)
+    page.clock.run_for(REST_SECONDS * 1000)
     findings = []
     for frame in frames:
         rest = frame.evaluate(_REST_READ)

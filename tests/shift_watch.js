@@ -14,10 +14,12 @@
 // a direct native anchor inset retain that scroller too; nested CSS expressions
 // and ambiguous names receive no inferred ownership.
 //
-// Each trusted gesture owns its bounded rendering, including geometry motion it
-// began. News starts passive rendering except the first frame shared with the
-// gesture or continuing motion already owned by it. A typing field is observed at
-// beforeinput, independently of Chrome's clipped/shadowed source rectangles. Motion
+// Each trusted gesture owns its counted rendering until declared completion.
+// Native effects it began retain only their sampled displacement within their
+// own subtree; their continued lifetime never owns unrelated page movement.
+// News starts passive rendering except the first frame shared with the gesture.
+// A typing field is observed at beforeinput, independently of Chrome's clipped or
+// shadowed source rectangles. Motion
 // already running on its ancestors belongs to the gesture that began that motion.
 // Continuing translation is credited from sampled animated property values, not
 // the ancestor's whole box: independent movement of it or its children still fails.
@@ -39,16 +41,8 @@
 // Every finding fails the ordinary browser fixture. It installs this sensor after
 // write_watch.js and binds the canonical control and clipping vocabulary.
 (() => {
-  const WINDOW = 1000;
-  // How long what the observer may yet judge is kept: it hears of a frame's shifts a
-  // task or more after the frame, which a loaded machine stretches.
-  const KEPT = 10000;
-  const prune = (list, time = (item) => item, retain = 1) => {
-    const old = performance.now() - KEPT;
-    while (list.length > retain && time(list[0]) < old) list.shift();
-  };
-  // A retained frame may refer to unchanged nodes whose last sample predates it.
-  // Keep the state entering the oldest frame, not just changes after that frame.
+  // A native paint/task checkpoint retires only evidence it has judged. Execution
+  // time says nothing about whether Chrome has delivered an earlier painted shift.
   let retainedFrom = -Infinity;
   const pruneSamples = (list) => {
     while (list.length > 1 && list[1].at <= retainedFrom) list.shift();
@@ -92,6 +86,9 @@
       ?.getKeyframes()
       .some((keyframe) => Object.keys(keyframe).some((key) => GEOMETRY.test(key))) ||
     GEOMETRY.test(animation.transitionProperty ?? "");
+  // Native timeline startTime changes when playback rate changes. Input ownership
+  // follows the operation that began motion, not that mutable clock coordinate.
+  const beganAt = new WeakMap();
   // Motion begun since `start` that moves a box; one still pending begins now.
   const begun = (start) =>
     document
@@ -99,7 +96,7 @@
       .filter(
         (animation) =>
           animation.playState === "running" &&
-          (animation.startTime ?? Infinity) >= start &&
+          (beganAt.get(animation)?.at ?? animation.startTime ?? Infinity) >= start &&
           moves(animation),
       );
   // A direct native anchor inset, not an unused var() fallback or a named
@@ -178,22 +175,102 @@
   // Read its actual final properties in the finished-promise checkpoint, while
   // that effect still applies, using the same eligibility proof as frame samples.
   const endings = new WeakMap();
-  const readMotion = (at) => {
-    const effects = document.getAnimations().filter(moves);
+  // A no-fill native effect retires before its finished promise runs. Capture its
+  // underlying translation at the producer, before animate() applies the effect;
+  // a later authored change cannot be mistaken for that native return endpoint.
+  const origins = new WeakMap();
+  const underlying = (target, excluded = null) => {
+    const style = getComputedStyle(target);
+    const competing = new Set(
+      target
+        .getAnimations()
+        .filter((animation) => animation !== excluded && moves(animation))
+        .flatMap(animationProperties),
+    );
+    return Object.fromEntries(
+      ["transform", "left", "top", "marginLeft", "marginTop"]
+        .filter((property) => !competing.has(property))
+        .map((property) => [property, style[property]]),
+    );
+  };
+  const animate = Element.prototype.animate;
+  Element.prototype.animate = function (...args) {
+    const values = underlying(this);
+    const at = nativePerformance.now();
+    const animation = animate.apply(this, args);
+    beganAt.set(animation, { at });
+    origins.set(
+      animation,
+      Object.fromEntries(
+        animationProperties(animation)
+          .filter((property) => property in values)
+          .map((property) => [property, values[property]]),
+      ),
+    );
+    return animation;
+  };
+  // Reusing a native effect is a new operation when play resumes or reverse changes
+  // its direction. Changing playback rate alone does not transfer input ownership.
+  for (const method of ["play", "reverse"]) {
+    const original = Animation.prototype[method];
+    Animation.prototype[method] = function (...args) {
+      const beginning = method === "reverse" || this.playState !== "running";
+      const origin =
+        this.effect?.target &&
+        moves(this) &&
+        this.effect.getComputedTiming().progress === null
+          ? underlying(this.effect.target, this)
+          : null;
+      const at = nativePerformance.now();
+      const result = original.apply(this, args);
+      if (beginning) {
+        beganAt.set(this, { at });
+        if (origin) origins.set(this, origin);
+      }
+      return result;
+    };
+  }
+  const observedStates = new WeakMap();
+  const readMotion = (at, ending = null) => {
+    const effects = [
+      ...new Set([
+        ...document.getAnimations(),
+        ...(ending?.playState === "finished" ? [ending] : []),
+      ]),
+    ].filter((animation) => animation.effect?.target && moves(animation));
     const uses = new Map();
     for (const animation of effects) {
-      if (animation.effect.getComputedTiming().progress === null) continue;
+      const priorState = observedStates.get(animation);
+      if (!beganAt.has(animation))
+        beganAt.set(animation, { at: animation.startTime ?? at });
+      else if (
+        priorState?.state === "paused" &&
+        animation.playState === "running" &&
+        priorState.beginning === beganAt.get(animation)
+      )
+        // CSS play-state can resume without calling the native play producer.
+        // An explicit play() already supplied a new operation; never restamp it.
+        beganAt.set(animation, { at });
+      observedStates.set(animation, {
+        state: animation.playState,
+        beginning: beganAt.get(animation),
+      });
+      if (
+        animation.effect.getComputedTiming().progress === null &&
+        animation !== ending
+      )
+        continue;
       const properties = uses.get(animation.effect.target) ?? new Map();
       for (const property of animationProperties(animation))
         properties.set(property, (properties.get(property) ?? 0) + 1);
       uses.set(animation.effect.target, properties);
     }
     for (const animation of effects) {
-      const ending = animation.finished;
-      if (endings.get(animation) !== ending) {
-        endings.set(animation, ending);
-        ending.then(
-          () => readMotion(performance.now()),
+      const finished = animation.finished;
+      if (endings.get(animation) !== finished) {
+        endings.set(animation, finished);
+        finished.then(
+          () => readMotion(nativePerformance.now(), animation),
           () => {},
         );
       }
@@ -207,9 +284,17 @@
             (frame) =>
               !frame.composite || ["auto", "replace"].includes(frame.composite),
           );
+      const returning =
+        animation === ending && effect.getComputedTiming().progress === null;
+      const origin = origins.get(animation);
       const values = Object.fromEntries(
         animationProperties(animation)
-          .filter((property) => replace && uses.get(effect.target)?.get(property) === 1)
+          .filter(
+            (property) =>
+              replace &&
+              uses.get(effect.target)?.get(property) === 1 &&
+              (!returning || origin?.[property] === style[property]),
+          )
           .map((property) => [property, style[property]]),
       );
       const readings = animated.get(animation) ?? [];
@@ -221,7 +306,7 @@
   const read = (time, frame = true) => {
     // Poses belong to their synchronous observation time. The native frame start
     // is kept separately to associate Chrome's painted shift with that frame.
-    const at = performance.now();
+    const at = nativePerformance.now();
     const selections = new Map(
       (
         document.querySelector("script[data-lf-entry]")?.lfFloatingSelections?.() ?? []
@@ -263,8 +348,6 @@
     };
     if (frame) {
       frames.push({ at, start: time, nodes, motion: [] });
-      prune(frames, (frame) => frame.at);
-      retainedFrom = frames[0].at;
     }
     for (const node of nodes) {
       const scrolls = scrolled.get(node) ?? [];
@@ -451,8 +534,8 @@
     return { left, top, right: left + rect.width, bottom: top + rect.height };
   };
   // Each input's rendering: when it began; the latest frame it owns; the motion
-  // it began, and the start of the latest frame that motion moved; whether news has
-  // landed since; and a keystroke's typing, which holds its field; the box of the field
+  // it began; whether news has landed since; and a keystroke's typing, which holds
+  // its field; the box of the field
   // and of each element holding it at the key; the animations already moving any of
   // them; and until when the typing rule reads it.
   const renderings = [];
@@ -460,7 +543,7 @@
   // The typing rule stops reading the open rendering, which runs on.
   const unwatch = () => {
     if (open?.typing?.until === Infinity)
-      open.typing.until = read(performance.now(), false);
+      open.typing.until = read(nativePerformance.now(), false);
   };
   const end = () => {
     unwatch();
@@ -471,39 +554,33 @@
     }
     open = null;
   };
-  const begin = (start, typing = null) => {
+  const begin = (start, typing = null, own = new Set()) => {
     end();
     open = {
       start,
       first: true,
       through: Infinity,
-      moved: -Infinity,
-      own: new Set(),
-      motion: false,
+      own,
       told: false,
       last: false,
       typing,
     };
     renderings.push(open);
-    prune(renderings, (rendering) => rendering.start);
   };
   // Shifts whose frame has no reading after it yet.
   const waiting = [];
   const tick = (time) => {
     const at = read(time);
     if (open) {
-      // The input's motion is what began after it and before news since it, which
-      // may begin motion of its own. Still running here, it moves this frame, as it
-      // moved the one before if it ran at that frame's start, finishing in it.
+      // Effects begun before news retain their exact property evidence below.
+      // A persistent attachment or a still-running time effect does not keep the
+      // creator's counted input rendering open after its declared completion.
       if (!open.told)
         for (const animation of begun(open.start)) open.own.add(animation);
-      const motion = [...open.own].some(({ playState }) => playState === "running");
-      if (motion || open.motion) open.moved = at;
-      open.motion = motion;
-      if (open.last || at - open.start > WINDOW) end();
+      if (open.last) end();
       // A settled reading here counts updates before this one; this frame's own
       // callbacks may still move a box, so the rendering runs through the next.
-      else open.last = settled() && !motion;
+      else open.last = settled();
     }
     // A gesture owns its counted rendering until canonical completion. News seals
     // that credit; continuing motion retains its separate ownership below. A newer
@@ -522,9 +599,9 @@
         if (animation.playState === "running") motion.push(animation);
     audit();
     judge(waiting.splice(0));
-    requestAnimationFrame(tick);
+    nativeFrame(tick);
   };
-  requestAnimationFrame(tick);
+  nativeFrame(tick);
   document.addEventListener(
     "beforeinput",
     (event) => {
@@ -532,8 +609,9 @@
       const field = event.composedPath()[0];
       const holding = [];
       for (let at = field; at instanceof Element; at = up(at)) holding.push(at);
-      const at = read(event.timeStamp, false);
-      begin(event.timeStamp, {
+      const start = nativePerformance.now();
+      const at = read(start, false);
+      begin(start, {
         field,
         at,
         found: boxes(holding),
@@ -545,17 +623,28 @@
     },
     true,
   );
-  // A resize is input to Chrome, and lays the page out anew, the field with it.
-  window.addEventListener("resize", (event) => begin(event.timeStamp));
+  // Chrome lays out the resized viewport before dispatching resize. The preceding
+  // pose seals typing; taking a new pose here would attribute the resize to the key.
+  window.addEventListener("resize", () => {
+    const before = frames.at(-1)?.at ?? nativePerformance.now();
+    if (open?.typing?.until === Infinity) open.typing.until = before;
+    begin(nativePerformance.now());
+  });
   // When the page adopted each server reading.
   new MutationObserver(() => {
     unwatch();
     if (open) open.told = true;
   }).observe(document, { subtree: true, attributeFilter: ["data-lf-reading"] });
-  const heard = (view) => (event) => {
+  // Press, drag, release and native activation are phases of one pointer gesture.
+  // Each phase keeps its own paint boundary while sharing the effects that press
+  // began. A later press starts fresh; native timeline reassignment cannot adopt
+  // an unrelated older effect into it.
+  const presses = new Map();
+  const heard = (event) => {
     if (!event.isTrusted || (event.type === "pointermove" && !event.buttons)) return;
-    const at = event.timeStamp + view.performance.timeOrigin - performance.timeOrigin;
-    begin(at);
+    if (event.type === "pointerdown") presses.set(event.pointerId, new Set());
+    begin(nativePerformance.now(), null, presses.get(event.pointerId) ?? new Set());
+    if (event.type === "click") presses.delete(event.pointerId);
   };
   for (let view = window; ; view = view.parent) {
     let held;
@@ -574,7 +663,12 @@
       "click",
       "wheel",
     ])
-      held.addEventListener(type, heard(view), true);
+      held.addEventListener(type, heard, true);
+    held.addEventListener(
+      "pointercancel",
+      (event) => presses.delete(event.pointerId),
+      true,
+    );
     if (view === view.parent) break;
   }
   const reported = new Set();
@@ -602,8 +696,8 @@
   new MutationObserver(() => {
     if (presented !== null || !document.body?.hasAttribute("data-lf-presented")) return;
     presented = Infinity;
-    requestAnimationFrame(() =>
-      requestAnimationFrame((at) => {
+    nativeFrame(() =>
+      nativeFrame((at) => {
         presented = at;
       }),
     );
@@ -914,23 +1008,17 @@
       }
     }
   };
+  const inputOwns = (at) =>
+    renderings.some((gesture) => at >= gesture.start && at <= gesture.through);
   const audit = () => {
-    prune(pendingMotion, (move) => move.after, 0);
     if (frames.length < 2) return;
-    const at = performance.now(),
+    const at = nativePerformance.now(),
       frame = frames.at(-1).at;
     const rendering = renderings.findLast(({ start }) => start <= at);
     if (rendering?.typing && at <= rendering.typing.until) return;
     const entry = { startTime: at, sources: [] };
     // Gesture ownership is its bounded rendering, not Chrome's half-second credit.
-    if (
-      presenting(entry) ||
-      renderings.some(
-        (gesture) => frame >= gesture.start && frame <= gesture.through,
-      ) ||
-      (rendering && frame <= rendering.moved)
-    )
-      return;
+    if (presenting(entry) || inputOwns(frame)) return;
     const before = frames.at(-2),
       after = frames.at(-1);
     protectedMotion([before, before, after]);
@@ -1019,47 +1107,174 @@
       );
     }
   };
+  // Native observer delivery can precede the next health frame. Its passive pose
+  // belongs to the native paint it reports; a later input cannot replace that pose
+  // with its own geometry merely because health-frame sampling was delayed.
+  const observedPaint = new WeakMap();
   const judge = (entries) => {
     for (const entry of entries) {
       const at = entry.startTime;
       // The frame that painted the shift, and the next, whose start reads what it
       // painted. Readings older than are kept are gone (-1).
       const frame = frames.findLastIndex(({ start: time }) => time <= at);
-      const next = frames[frame + 1]?.at;
+      const observed = observedPaint.get(entry);
+      const next = observed?.at ?? frames[frame + 1]?.at;
       if (frame !== -1 && next === undefined) {
         waiting.push(entry);
         continue;
       }
       const rendering = renderings.findLast(({ start }) => start <= at);
+      if (observed && frame !== -1)
+        protectedMotion([frames[frame], frames[frame], observed]);
       const typing = rendering?.typing;
       if (typing && at <= typing.until) {
         // A later frame may include the next gesture; typed() caps its reading at
         // the closing pose captured before that gesture began.
         if (frame !== -1) typed(entry, typing, next);
       }
-      admittedMotion(entry, next ?? performance.now(), rendering);
+      admittedMotion(entry, next ?? nativePerformance.now(), rendering);
     }
   };
-  const observer = new PerformanceObserver((list) => judge(list.getEntries()));
+  const observer = new PerformanceObserver((list) => {
+    const entries = list.getEntries();
+    for (const entry of entries) {
+      const frame = frames.findLastIndex(({ start }) => start <= entry.startTime);
+      // Layout follows the entering frame callback. Counted work can still own
+      // that frame when the paint's timestamp is newer than its sampled pose.
+      if (
+        frame === -1 ||
+        frames[frame + 1] ||
+        presenting(entry) ||
+        inputOwns(entry.startTime) ||
+        inputOwns(frames[frame].at)
+      )
+        continue;
+      // A newer input already dispatched makes this observation an ambiguous
+      // endpoint. Retain the native entry for the ordinary frame ledger instead.
+      if (renderings.some(({ start }) => start > entry.startTime)) continue;
+      const at = read(nativePerformance.now(), false);
+      observedPaint.set(entry, {
+        at,
+        nodes: everything(),
+        motion: frames[frame].motion,
+      });
+    }
+    judge(entries);
+  });
   observer.observe({ type: "layout-shift" });
-  // A frame's shifts reach the observer only once it paints, and a task or more after,
-  // so a test whose last act moves the page would end before the report. The browser
-  // fixture awaits this as the test body returns: the frames the last act changed paint,
-  // then every shift so far is judged. Chrome paints no frame for a page it is not
-  // drawing, so that wait is capped, and a shift still waiting for the next frame's
-  // reading is judged against one taken then.
-  window.lfShiftsJudged = () =>
-    new Promise((resolve) => {
-      let judged = false;
-      const drain = () => {
-        if (judged) return;
-        judged = true;
-        read(performance.now());
-        audit();
-        judge([...waiting.splice(0), ...observer.takeRecords()]);
+  // Once two native frames and their task checkpoint complete, Chrome has painted
+  // the work preceding `through`. Drain its native records before retiring that
+  // history. Keep the entering pose and active typing's origin, whose comparison
+  // can outlive any number of paint checkpoints. Unadmitted movement before this
+  // checkpoint was not painted as a layout shift (e.g. a transform-only move).
+  const retire = (through) => {
+    for (let i = pendingMotion.length - 1; i >= 0; i--)
+      if (
+        pendingMotion[i].after <= through &&
+        !waiting.some((entry) => pendingMotion[i].before <= entry.startTime)
+      )
+        pendingMotion.splice(i, 1);
+    const needed = Math.min(
+      through,
+      ...waiting.map((entry) => entry.startTime),
+      ...pendingMotion.map((move) => move.before),
+      ...renderings
+        .filter(
+          (rendering) =>
+            rendering.typing &&
+            (rendering.typing.until === Infinity ||
+              waiting.some(
+                (entry) =>
+                  entry.startTime >= rendering.start &&
+                  entry.startTime <= rendering.typing.until,
+              )),
+        )
+        .map((rendering) => rendering.typing.at),
+    );
+    while (frames.length > 2 && frames[1].start < needed) frames.shift();
+    retainedFrom = frames[0]?.at ?? -Infinity;
+    for (let i = renderings.length - 1; i >= 0; i--) {
+      const rendering = renderings[i];
+      if (
+        rendering !== open &&
+        rendering.through < retainedFrom &&
+        (rendering.typing?.until ?? -Infinity) < retainedFrom &&
+        ![...rendering.own].some(({ playState }) => playState === "running")
+      )
+        renderings.splice(i, 1);
+    }
+  };
+  const drained = (through) => {
+    judge([...waiting.splice(0), ...observer.takeRecords()]);
+    retire(through);
+  };
+  // Paint checkpoints keep the ledger bounded by outstanding evidence, even on a
+  // page that stays still and therefore sends no layout-shift observer callbacks.
+  // Only tick() samples poses and classifies their input ownership; a task between
+  // frames must not manufacture another frame with a different ownership reading.
+  const checkpoint = () => {
+    const through = nativePerformance.now();
+    nativeFrame(() =>
+      nativeFrame(() =>
+        nativeTask(() => {
+          drained(through);
+          checkpoint();
+        }),
+      ),
+    );
+  };
+  checkpoint();
+  const drawing = () => {
+    if (document.hidden) return false;
+    for (let view = window; view.frameElement; view = view.parent)
+      if (!view.frameElement.checkVisibility()) return false;
+    return true;
+  };
+  // The fixture awaits actual paint and observer drainage. An outer hang watchdog
+  // may fail this wait; no elapsed-time fallback can turn unfinished paint green.
+  window.lfShiftsJudged = () => {
+    const through = nativePerformance.now();
+    const hidden = () => {
+      // Hidden documents have no pending native paint. Their existing records are
+      // still judged against a fresh pose; visibility is a fact, not a time limit.
+      read(nativePerformance.now());
+      drained(through);
+    };
+    if (!drawing()) {
+      hidden();
+      return Promise.resolve();
+    }
+    return new Promise((resolve) => {
+      let complete = false;
+      let visibilityTask;
+      const finish = () => {
+        if (complete) return;
+        complete = true;
+        window.lfWatchPlatform.cancelLater(visibilityTask);
         resolve();
       };
-      requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(drain)));
-      setTimeout(drain, 500);
+      // Display can change through CSSOM, media queries or ancestor layout without
+      // a DOM mutation or visibility event. Poll its platform fact while paint is
+      // pending; the interval schedules a reading and never decides the result.
+      const visibility = () => {
+        if (complete) return;
+        if (!drawing()) {
+          hidden();
+          finish();
+        } else visibilityTask = nativeTask(visibility, 100);
+      };
+      visibilityTask = nativeTask(visibility, 100);
+      nativeFrame(() =>
+        nativeFrame(() =>
+          nativeTask(() => {
+            if (complete) return;
+            drained(through);
+            // Records of this checkpoint's latest paint need the following native
+            // frame's pose. tick() judges them there before this task resolves.
+            nativeFrame(() => nativeTask(finish));
+          }),
+        ),
+      );
     });
+  };
 })();

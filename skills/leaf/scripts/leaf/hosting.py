@@ -217,7 +217,7 @@ class TemporaryPageServer:
             return
         self.httpd.shutdown()
         if self._thread is not None:
-            self._thread.join(timeout=5)
+            self._thread.join()
         self.httpd.server_close()
         self._closed = True
 

@@ -1934,7 +1934,6 @@ def test_an_arriving_reply_cannot_move_resolve_out_from_under_a_press(browser, s
         },
     )
     told(page)
-    expect(page.locator(f'.lf-msg[data-mid="{reply["id"]}"]')).to_have_count(1)
     arrived = page.evaluate(reading, [*point, target])
     assert arrived["same"], (
         f"the arriving reply moved Resolve out from under the pointer: "
@@ -1948,6 +1947,10 @@ def test_an_arriving_reply_cannot_move_resolve_out_from_under_a_press(browser, s
         event["kind"] == "resolve" and event["parent"] == target
         for event in events_model.read_events(serve.page_dir)
     ), "mouseup did not complete the Resolve press"
+    source_thread = page.locator(f'.lf-thread[data-id="{source}"]')
+    source_thread.locator(".lf-thread-summary").click()
+    source_thread.get_by_role("button", name="1 new reply", exact=True).click()
+    expect(page.locator(f'.lf-msg[data-mid="{reply["id"]}"]')).to_have_count(1)
 
 
 def test_opening_a_thread_leaves_its_title_where_the_user_pressed_it(browser, serve):
@@ -2089,6 +2092,9 @@ def test_a_new_sent_message_does_not_hide_work_on_an_earlier_message(browser, se
         },
     )
     told(page)
+    page.locator(f'.lf-thread[data-id="{root}"]').get_by_role(
+        "button", name="1 new reply", exact=True
+    ).click()
     workflow = page.locator(f'.lf-msg[data-mid="{later["id"]}"] .lf-msg-sending')
     expect(workflow).to_have_text("Sent")
     assert workflow.evaluate(
@@ -4970,6 +4976,7 @@ def test_a_thread_reopened_mid_fold_folds_again_when_it_settles(browser, serve):
         },
     )
     told(page)
+    thread.get_by_role("button", name="1 new reply", exact=True).click()
     expect(thread.locator(".lf-msg")).to_have_count(2)
 
     focus_panel_thread(page.locator(f'.lf-thread[data-id="{c1}"]'))

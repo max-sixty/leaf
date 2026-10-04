@@ -45,6 +45,16 @@ export const askHolding = (asks, node) =>
     })) ??
   null;
 
+// The source target a presentation node shows, by its owner's declaration, or null
+// for a node no side claims.
+export function sideOf(node) {
+  for (const side of sides) {
+    const place = side(node);
+    if (place) return place;
+  }
+  return null;
+}
+
 export function placeOf(node) {
   const at = node?.nodeType === 1 ? node : node?.parentElement;
   if (!at || at === document.body) return null;

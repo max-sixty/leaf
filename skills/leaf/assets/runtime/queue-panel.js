@@ -43,9 +43,11 @@ import { paintKeys } from "./keyboard/scopes.js";
 import { clocked, shortAgo } from "./presence.js";
 import { elementById, inChrome } from "./passages.js";
 import { PRESENTATION } from "./presentation.js";
-import { QUEUE_AT, QUEUE_ROW } from "./queue-list.js";
+import { standsAt } from "./queue-list.js";
 import { repaint } from "./repaint.js";
+import { keeps } from "./keeps.js";
 import {
+  agentName,
   applicationPresenter,
   failSoftAfterRetention,
   PRESENTATION_ORDER,
@@ -107,7 +109,15 @@ export function createQueuePanel({ arriveAtItem, announce }) {
       : (reading().thread.all.find((thread) => thread.id === id) ?? null);
   const workflowOf = (id) =>
     reading().workflows.find((workflow) => workflow.id === id) ?? null;
-  const agent = () => readApplication().authoritative?.agent || "the agent";
+  const agent = agentName;
+  // The control in More names the panel's sides as the panel does.
+  const nameControl = () =>
+    keeps(
+      queueBtn,
+      "data-lf-key-title",
+      `Show or hide what is waiting on you and on ${agent()}`,
+    );
+  nameControl();
 
   // Where an item is: the section its thread's passage or its own element stands in, or
   // the element the thread is about where that names itself, as a section does by its
@@ -254,6 +264,7 @@ export function createQueuePanel({ arriveAtItem, announce }) {
   async function paintQueue(current) {
     const offered = queueOffered();
     showNews(queueBtn, offered);
+    nameControl();
     // The panel's rows and its control stand on this reading, so the surfaces reading
     // them are repainted where it is offered or withdrawn.
     if (offered !== shortcutsOffered) {
@@ -320,7 +331,7 @@ export function createQueuePanel({ arriveAtItem, announce }) {
 
   // A row stands at the element it names rather than in the panel.
   declareSide((node) => {
-    const at = node.closest(`[${QUEUE_ROW}][${QUEUE_AT}]`)?.getAttribute(QUEUE_AT);
+    const at = standsAt(node);
     return at ? elementById(at) : null;
   });
 

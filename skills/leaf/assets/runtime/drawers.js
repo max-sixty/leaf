@@ -14,7 +14,7 @@ import { readApplication } from "./semantic-state.js";
 import { rowWalk } from "./walk-position.js";
 import { createLiveLeavesList } from "./live-leaves-list.js";
 import { bannerControlDoor, dismissBannerControls } from "./banner-toolbar.js";
-import { createQueueList, QUEUE_ROW } from "./queue-list.js";
+import { createQueueList, shownItems, walkStops } from "./queue-list.js";
 import { keeps } from "./keeps.js";
 // The left side holds one drawer at a time, selected by the shared auxiliary-surface owner.
 // Both stand over the page and take no room from it. The leaves drawer covers the document
@@ -75,7 +75,6 @@ function drawerFurniture(panel, name, list = el("div", "lf-drawer-list")) {
 // What waits on the user and on the agent, and what is done (queue-panel.js; EXPERIMENTAL).
 // The banner's status counts the two queues; this control opens the panel listing them.
 export const queueBtn = el("button", "lf-btn lf-queue", "Queue");
-queueBtn.dataset.lfKeyTitle = "Show or hide what is waiting on you and on the agent";
 // The machine's live leaves and what each is doing: a left panel of rows, each a
 // link opening that page in its own tab, saying what that page's agent last declared
 // in the shape of the banner's activity — `others` on /api/state carries it for every
@@ -123,13 +122,8 @@ export function queueOffered() {
     drawerIsOpen("queue")
   );
 }
-// The rows a walk steps through, and the Done fold's own door between them.
-export const queueRows = () =>
-  [
-    ...queuePanel.querySelectorAll(`button[${QUEUE_ROW}], .lf-queue-done > summary`),
-  ].filter(
-    (row) => row.matches("summary") || !row.closest(".lf-queue-done:not([open])"),
-  );
+// The stops a walk down the Queue lands on: its items, and Done's door between them.
+export const queueRows = () => walkStops(queueList);
 
 export function createDrawers({
   doors = {},
@@ -246,7 +240,13 @@ export function createDrawers({
     keys(
       queuePanel,
       "In the Queue",
-      rowWalk({ id: "queue.panel", noun: "Item", plural: "items", rows: queueRows }),
+      rowWalk({
+        id: "queue.panel",
+        noun: "Item",
+        plural: "items",
+        rows: queueRows,
+        items: () => shownItems(queueList),
+      }),
       () => queueRows().length > 0,
     );
   }

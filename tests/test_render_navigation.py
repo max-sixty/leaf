@@ -3232,6 +3232,14 @@ def test_the_queue_panel_lists_both_queues_and_what_is_done(browser, serve):
     # The first row holds the focus, and the next is the thread whose question waits on
     # the user: Enter arrives where `a` would.
     expect(page.locator("button.lf-queue-row").first).to_be_focused()
+    # The walk's position counts the items, not Done's door, though the door is a stop.
+    position = page.locator(".lf-walk-position")
+    page.keyboard.press("End")
+    expect(page.locator(".lf-queue-done > summary")).to_be_focused()
+    page.keyboard.press("ArrowUp")
+    expect(position).to_have_text("Item 4 of 4")
+    page.keyboard.press("Home")
+    expect(position).to_have_text("Item 1 of 4")
     page.keyboard.press("ArrowDown")
     page.keyboard.press("Enter")
     thread = page.locator(f'.lf-page-thread[data-thread="{asked["id"]}"]')

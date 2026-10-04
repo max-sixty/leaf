@@ -15,8 +15,9 @@ import { PRESS } from "./keyboard/bindings.js";
 import { keys } from "./keyboard/scopes.js";
 import { RetainedFace, RowFocus } from "./retained-face.js";
 
-export const QUEUE_AT = "data-lf-at";
-export const QUEUE_ROW = "data-lf-row";
+const QUEUE_AT = "data-lf-at";
+const QUEUE_ROW = "data-lf-row";
+const ROW = `button[${QUEUE_ROW}]`;
 const TAG = "lf-queue-list";
 
 const EMPTY_MODEL = Object.freeze({
@@ -135,3 +136,28 @@ if (!customElements.get(TAG)) customElements.define(TAG, QueueList);
 export function createQueueList() {
   return document.createElement(TAG);
 }
+
+// The row standing at the element `id` names in an open list, or null: the row an
+// Ask's ring is mirrored on and an arrival at that Ask reveals.
+export const rowAt = (list, id) =>
+  [...list.querySelectorAll(`${ROW}[${QUEUE_AT}]`)].find(
+    (row) => row.getAttribute(QUEUE_AT) === id,
+  ) ?? null;
+
+// The id of the element the row holding `node` stands at, or null.
+export const standsAt = (node) =>
+  node.closest(`${ROW}[${QUEUE_AT}]`)?.getAttribute(QUEUE_AT) ?? null;
+
+// The items an open list shows, in order: the rows of either queue, and Done's while it
+// is open.
+export const shownItems = (list) =>
+  [...list.querySelectorAll(ROW)].filter(
+    (row) => !row.closest(".lf-queue-done:not([open])"),
+  );
+
+// What a walk down the list stops at: its items, with Done's door in its place
+// between them.
+export const walkStops = (list) =>
+  [...list.querySelectorAll(`${ROW}, .lf-queue-done > summary`)].filter(
+    (stop) => stop.matches("summary") || !stop.closest(".lf-queue-done:not([open])"),
+  );

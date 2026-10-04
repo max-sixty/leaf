@@ -89,7 +89,7 @@ import { closestAcross, elementById, inChrome, TEXT_BLOCK } from "../passages.js
 import { scrollerFor } from "../reading-regions.js";
 import { reserve } from "../widget-elements.js";
 import { keeps } from "../keeps.js";
-import { drawerIsOpen, queuePanel } from "../drawers.js";
+import { queueList } from "../drawers.js";
 import { decisionFor, registry, tagsDeclaring } from "../registry.js";
 import {
   allAsks as readAllAsks,
@@ -109,8 +109,8 @@ import { PAGE_PAINT_ATTRIBUTE } from "../page-paint.js";
 import { scrollBehavior } from "../motion.js";
 import { ASK_CONTROL } from "./view-elements.js";
 import { ownedAskControl } from "./answer.js";
-import { QUEUE_AT } from "../queue-list.js";
-import { askHolding, placeOf } from "../standing-target.js";
+import { rowAt } from "../queue-list.js";
+import { askHolding, placeOf, sideOf } from "../standing-target.js";
 import { PRESENTATION } from "../presentation.js";
 import { retainUserIntent } from "../user-intent.js";
 import {
@@ -140,8 +140,7 @@ export function createAskView({
   const openAsks = readOpenAsks;
   const unansweredAsks = readUnansweredAsks;
   const askNode = (ask) => (ask ? elementById(ask.id) : null);
-  const askRow = (ask) =>
-    ask && queuePanel.querySelector(`.lf-queue-row[${QUEUE_AT}="${ask.id}"]`);
+  const askRow = (ask) => (ask ? rowAt(queueList, ask.id) : null);
   const sourceNode = (ask) => (ask ? elementById(ask.sourceId) : null);
   const hasAsk = (asks, candidate) =>
     Boolean(candidate && asks.some((ask) => ask.id === candidate.id));
@@ -311,14 +310,16 @@ export function createAskView({
     if (!held || held === document.body) return null;
     const unanswered = askAt(unansweredAsks(), held);
     if (unanswered) return unanswered;
-    // An answered Ask is standing only on the explicit review route: its Queue row or
-    // the ask element that row lands on. A widget host can be the document's
-    // retargeted focus without being the ask itself; treating that as an arrival
-    // would make an ordinary click on a chosen option steal the option's own semantics.
+    // An answered Ask is standing only on an explicit review route: the ask element,
+    // or chrome whose owner declares it stands at that element (`sideOf`), as a Queue
+    // row does. A widget host can be the document's retargeted focus without being the
+    // ask itself; treating that as an arrival would make an ordinary click on a chosen
+    // option steal the option's own semantics.
     const answered = askAt(allAsks(), held);
     if (!answered) return null;
-    return held === askNode(answered) ||
-      held.closest(".lf-queue-row") ||
+    const ask = askNode(answered);
+    return held === ask ||
+      (inChrome(held) && sideOf(held) === ask) ||
       hasReviewedFocus()
       ? answered
       : null;
@@ -665,7 +666,7 @@ export function createAskView({
       },
     );
     if (!arrived) return false;
-    if (drawerIsOpen("queue")) askRow(next)?.scrollIntoView({ block: "nearest" });
+    askRow(next)?.scrollIntoView({ block: "nearest" });
     return true;
   }
 

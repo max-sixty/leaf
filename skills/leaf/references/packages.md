@@ -424,7 +424,8 @@ module that composes regions out of boxes it generates, such as a playground's c
 beside its preview, takes the pane rules by marking those boxes
 `data-lf-reading-role="pane"` and `data-lf-generated`, with the pane grammar of one
 header, one body, and one footer. A generated pane scrolls its body wherever it stands in
-a full-height workspace, since its widget sizes it. The attributes are the module's to
+a full-height workspace, since its widget sizes it, and its widget draws the frame around
+it: the workspace joins only the panes a page wrote into its hairline grid. The attributes are the module's to
 write and never an author's, since `page check` refuses `data-lf-` markup. Keep the
 package theme to placement inside that grammar, such as track sizes and chrome; a
 package copy of the full-height rules is a second posture decision that drifts from the

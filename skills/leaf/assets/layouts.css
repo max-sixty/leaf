@@ -351,13 +351,21 @@
    * corners it draws standing alone for a 1px ring outside its box, so two neighbours'
    * rings fill the gap between them as one hairline. Drawn by the panes rather than
    * painted under them, so an empty cell, or a wider gap a page sets, shows the page's
-   * ground and not a band of rule colour. */
-  main.layout-workspace > :not(header, footer):has(> [data-lf-reading-role="pane"]) {
+   * ground and not a band of rule colour.
+   *
+   * The grid is of the panes the page wrote. A widget that is the body composes its
+   * own regions and draws its own frame, and a pane it generates may stand directly in
+   * it (`data-lf-generated`), as a visual review's evidence does; that pane is the
+   * widget's region rather than a cell of a page's grid, so neither the frame nor the
+   * ring is drawn for it. */
+  main.layout-workspace
+    > :not(header, footer):has(> [data-lf-reading-role="pane"]:not([data-lf-generated])) {
     gap: 1px;
     border: 1px solid var(--rule);
     border-radius: var(--r);
   }
-  main.layout-workspace > :not(header, footer) > [data-lf-reading-role="pane"] {
+  main.layout-workspace > :not(header, footer)
+    > [data-lf-reading-role="pane"]:not([data-lf-generated]) {
     border: 0;
     border-radius: 0;
     box-shadow: 0 0 0 1px var(--rule);
@@ -381,7 +389,8 @@
      * a Layout sets the size of the box it arranges, and a widget that is the body lays
      * out its own tracks, so a row rule written on every body held a side list's row to
      * the window and drew its rows over one another. */
-    main.layout-workspace > :not(header, footer):has(> [data-lf-reading-role="pane"]) {
+    main.layout-workspace
+      > :not(header, footer):has(> [data-lf-reading-role="pane"]:not([data-lf-generated])) {
       grid-auto-rows: minmax(0, 1fr);
     }
     /* The body takes the window's height to pass on to its panes. A pane it does not

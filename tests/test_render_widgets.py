@@ -103,6 +103,7 @@ from render_harness import (
     round_trip,
     scroll_settled,
     select,
+    select_words,
     sending,
     shortcut_bar_text,
     stamp_page,
@@ -6878,16 +6879,7 @@ def test_swipe_deck_pointer_threshold_cancel_and_commit(browser, serve):
     assert card.evaluate("el => el.style.getPropertyValue('--lf-swipe-drag-x')") == ""
     page.mouse.up()
 
-    card.locator("p").first.evaluate(
-        """element => {
-          const range = document.createRange();
-          range.selectNodeContents(element);
-          const selection = getSelection();
-          selection.removeAllRanges();
-          selection.addRange(range);
-          document.body.dispatchEvent(new KeyboardEvent('keyup', {bubbles: true}));
-        }"""
-    )
+    select_words(page, "#swipe-a p:first-of-type")
     expect(page.locator(".lf-fab-bar")).to_be_visible()
     assert page.evaluate("() => getSelection().toString().trim()")
 
@@ -8218,6 +8210,31 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
     expect(page.locator("#t-baffles-decision[data-lf-ask]")).to_have_count(1)
     expect(page.locator("#t-baffles-decision")).to_be_focused()
     expect(decisions).to_have_text("Asks 2/5")
+
+
+def test_an_ask_the_user_stands_on_survives_the_window_losing_focus(browser, serve):
+    """Another app taking key focus for a moment, such as macOS verifying a newly
+    installed binary, blurs the Ask the user stands on but leaves it the document's
+    focused area, and the browser puts them back on it when the window returns. The tab
+    stop the walk lent the Ask is held through that blur. Taking it back made the Ask
+    unfocusable while focused, the browser dropped the user to the body, and the window
+    came back with them standing nowhere.
+
+    Headless Playwright cannot take system focus from its window, so the test delivers
+    the platform's blur at the Ask while it stays the focused area, which is what the
+    window losing focus does."""
+    page = open_page(browser, serve(ASKS_PAGE))
+    first = page.locator(f"#{ASKS_IN_ORDER[0]}")
+    page.keyboard.press("a")
+    expect(first).to_be_focused()
+    first.evaluate("ask => ask.dispatchEvent(new FocusEvent('blur'))")
+    expect(first).to_be_focused()
+    expect(first).to_have_attribute("tabindex", "-1")
+
+    # Moving off within the page still gives the stop back.
+    page.keyboard.press("a")
+    expect(page.locator(f"#{ASKS_IN_ORDER[1]}")).to_be_focused()
+    expect(first).not_to_have_attribute("tabindex", re.compile(".*"))
 
 
 def test_an_ask_arrival_starts_with_the_context_that_frames_it(browser, serve):

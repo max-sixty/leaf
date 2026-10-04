@@ -557,6 +557,10 @@ export function createPresentationCoordinator<
  * says the page has caught up with the root it is reading, which is what a caller waits
  * for instead of naming renderers.
  *
+ * The host supplies a mandatory callback binder. Each claim binds its synchronous
+ * paint turn before coalescing; the host can preserve the scheduling context without
+ * changing the shared pass's ordering. A returned asynchronous tail is independent.
+ *
  * The pass cannot await a presenter before starting the next, and a claim cannot wait
  * for the reading it supersedes, for the same reason: a renderer may be holding its
  * reading open — on a widget that has not prepared, on a gesture the user has not
@@ -573,7 +577,9 @@ export interface EpochPresenter<Value> {
   disconnect(): void;
 }
 
-export function createPresentationSchedule() {
+export function createPresentationSchedule(
+  bindJob: <Result>(callback: () => Result) => () => Result,
+) {
   let queued: { order: number; run: () => Promise<void> }[] = [];
   let running: Promise<void>[] = [];
   let scheduled = false;
@@ -601,7 +607,9 @@ export function createPresentationSchedule() {
 
   function collect(order: number, run: () => Promise<void>) {
     open();
-    queued.push({ order, run });
+    // Each claim belongs to its own scheduling context. The host binds it here,
+    // before several producers share the one microtask that starts this pass.
+    queued.push({ order, run: bindJob(run) });
     if (scheduled) return;
     scheduled = true;
     queueMicrotask(() => {

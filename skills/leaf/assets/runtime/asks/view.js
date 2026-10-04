@@ -131,6 +131,7 @@ import { askHolding, declareSide, placeOf, walkOrigin } from "../standing-target
 import { pageCommand } from "../keyboard/register.js";
 import { PRESENTATION } from "../presentation.js";
 import { retainUserIntent } from "../user-intent.js";
+import { bindQueuedWork } from "../queued-work.js";
 import {
   applicationPresenter,
   failSoftAfterRetention,
@@ -140,6 +141,7 @@ import {
   watchSemantic,
 } from "../semantic-state.js";
 import { hostIn, under, upFrom } from "../shadow.js";
+import { showHeld } from "../thread/held-news.js";
 
 // Ask owns contextual action routes and navigation; the keyboard presenter owns their hints.
 export function createAskView({
@@ -169,6 +171,9 @@ export function createAskView({
   // node, so materialize the existing thread projection there rather than
   // narrowing the semantic inventory to what happens to be in the DOM.
   async function materializeAsk(ask, intent = null) {
+    // Going to a thread's Ask, or answering it, takes the user to that thread, so it
+    // shows what the thread holds back, the Ask included where a held turn carries it.
+    if (ask.thread) showHeld(ask.thread);
     let target = askNode(ask);
     let source = sourceNode(ask);
     if ((!target || !source) && ask.thread) {
@@ -682,6 +687,9 @@ export function createAskView({
     const mayArrive = retainUserIntent({
       available: () => hasAsk(allAsks(), next),
     });
+    // Materializing an Ask can yield before its destination opens a narrowed thread.
+    // The arrival is this walk's deferred invocation; its returned tail is separate.
+    const arriveAtAsk = bindQueuedWork(arrive);
     // A thread's ask lives in the panel, which has no geometry while closed — the
     // same reason reveal() opens a settled group before the scroll.
     let { target } = await materializeAsk(next, mayArrive);
@@ -724,7 +732,7 @@ export function createAskView({
           framed(next, initial.region, initial.target, initial.box, readable),
       }),
     );
-    const arrived = await arrive(
+    const arrived = await arriveAtAsk(
       () => {
         const here = destination();
         if (!here) return null;

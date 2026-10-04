@@ -9,8 +9,9 @@ const { floatingPlacement } = await import("/runtime/annotation-overlay/floating
 test("a superseded answer leaves the newer placement's plane and spot", async () => {
   const floating = document.createElement("div");
   const placement = floatingPlacement({ floating, update: () => {} });
-  const answers = [];
-  const computePosition = () => new Promise((resolve) => answers.push(resolve));
+  let requested;
+  const nextRequest = () => new Promise((resolve) => (requested = resolve));
+  const computePosition = () => new Promise((resolve) => requested(resolve));
   const position = () =>
     placement.position(
       computePosition,
@@ -21,9 +22,13 @@ test("a superseded answer leaves the newer placement's plane and spot", async ()
     );
 
   placement.begin();
+  const olderRequested = nextRequest();
   const older = position();
+  const answerOlder = await olderRequested;
   placement.supersede();
+  const newerRequested = nextRequest();
   const newer = position();
+  const answerNewer = await newerRequested;
 
   const held = {
     edges: { x: "left", y: "top" },
@@ -32,9 +37,9 @@ test("a superseded answer leaves the newer placement's plane and spot", async ()
     block: { width: 400, height: 300 },
   };
   const answer = { x: 10, y: 20, plane: "window", middlewareData: { held } };
-  answers[1](answer);
+  answerNewer(answer);
   assert.ok(await newer);
-  answers[0]({
+  answerOlder({
     x: 0,
     y: 0,
     plane: "page",

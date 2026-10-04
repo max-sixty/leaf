@@ -1031,12 +1031,12 @@ export function createMarginProjection({
       document.dispatchEvent(new CustomEvent("lf-margin-entry-options-closed"));
   }
 
-  function focusForNavigation(control) {
+  function focusForNavigation(control, caret = null) {
     reveal(control);
     const wasSuppressingOptionsArrival = suppressingOptionsArrival;
     suppressingOptionsArrival = true;
     try {
-      focusDestination(control);
+      focusDestination(control, caret);
     } finally {
       suppressingOptionsArrival = wasSuppressingOptionsArrival;
     }

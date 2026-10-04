@@ -680,7 +680,8 @@ export function createResponseSurface({
     fabFocusHandoff = handoff;
     return handoff;
   };
-  const endFabFocus = () => {
+  const endFabFocus = (handoff = null) => {
+    if (handoff && handoff !== fabFocusHandoff) return;
     fabInputTakingFocus = false;
     fabFocusHandoff = null;
   };

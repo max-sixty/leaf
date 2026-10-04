@@ -11,7 +11,9 @@
    document to give and a page that reloads without one never stops. Active responses
    also establish the private server incarnation, so an ephemeral replacement reloads
    before its new event sequence meets the old DOM. Do not let one delivery interpret
-   another's state.
+   another's state. A refused key is read here too, for every response: it is the page
+   cut off from its log rather than an answer about any request, so the event door
+   throws it as it throws a lost connection and the banner names the link that ends it.
 
    `reportPageError` is the common runtime error surface. A widget failure may `failSoft`
    its own element so the rest of the page and Threads remain usable, but a presentation
@@ -138,6 +140,7 @@ export function sameLayer(generation) {
 
 export function admitResponse(response) {
   observeSession(response);
+  observeKey(response);
   // Failure responses still name session activation and its public reference. Their
   // status and error body belong to the caller, not to successful-payload admission.
   if (!response.ok) return true;
@@ -190,6 +193,16 @@ function observeSession(response) {
 
 export const sessionIsActive = () => sessionMode === "active";
 
+// The server answers a request without this page's key with 401 and nothing else does,
+// whichever route was asked (`http.py`, `_answer`). Any other answer passed the key
+// gate, so each response settles the reading afresh: the tab regains the key the moment
+// the printed link is opened in any tab of this browser, since that sets the cookie its
+// next request carries.
+const KEY_REFUSED = 401;
+function observeKey(response) {
+  runtime.keyRefused = response.status === KEY_REFUSED;
+}
+
 export let revealLayer;
 const layerReady = new Promise((resolve) => (revealLayer = resolve));
 
@@ -229,6 +242,11 @@ export const postEvent = async (event) => {
     countTraffic("acked");
   }
   if (!admitResponse(response)) return null;
+  // A refused key is no answer to the event: the server read none of it, so the send
+  // failed the way a lost connection fails and is retried as one. The banner names the
+  // link that ends it.
+  if (response.status === KEY_REFUSED)
+    throw new Error("the server refused this page's key");
   return response;
 };
 

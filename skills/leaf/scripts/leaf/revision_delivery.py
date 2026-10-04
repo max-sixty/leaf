@@ -35,7 +35,6 @@ import re
 import struct
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
-from functools import lru_cache
 from urllib.parse import quote, unquote, urlsplit
 
 import turbohtml
@@ -131,14 +130,13 @@ def _rebase(reference: str, base: str, address: Address) -> str:
     return address(quote(path, safe="/") + suffix)
 
 
-@lru_cache(maxsize=32)
 def rebase_css(
     source: str, base: str, address: Address, *, declarations: bool = False
 ) -> str:
     """Re-address every URL a stylesheet at `base` loads, the rest byte-for-byte.
 
-    Held for the addresses a server answers again and again: parsing the theme costs
-    tens of milliseconds, and every document and stylesheet request would pay it.
+    Cheap for a sheet read before at any address: `rewrite_css` keeps each sheet's
+    parse by its text.
     """
     return rewrite_css(
         source,
@@ -357,8 +355,7 @@ class DeliveryAddress:
     """Where an HTTP host serves each logical path of one revision's document.
 
     Media is the page's own and answers at the page root. Every other path is the
-    revision's and answers beneath `asset_root`, where its capture is served. A value,
-    so a stylesheet addressed for one revision is parsed once (`rebase_css`).
+    revision's and answers beneath `asset_root`, where its capture is served.
     """
 
     page_root: str

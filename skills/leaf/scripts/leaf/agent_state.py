@@ -293,7 +293,10 @@ def queues(
     (`runtime/queues.js`), with the tab's unresolved sends already folded into the
     threads' attention and the workflows, and a thread message the tab is still
     sending counted on the agent; `served_records.py` holds a reading the two must
-    agree on."""
+    agree on.
+
+    Experimental, like tasks (`tasks.py`): the item kinds and fields are expected to
+    change a lot."""
     asked = {ask["thread"] for ask in asks}
     on_you = [
         {
@@ -547,6 +550,7 @@ def _write_page_state(
                 "session",
                 "parent",
                 "responds",
+                "ephemeral",
                 "revision",
             ):
                 if key in event:

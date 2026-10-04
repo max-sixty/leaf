@@ -42,11 +42,10 @@
    Asks come from every active local `x-awaits` source, answered or open, not from a
    list of ask tags. Where a source is nested in an `x-ask-surface` region, the Ask is
    the region: its heading, context, and evidence are the ask the user is being sent
-   to, while the source remains the owner of the answer. The owned command scope's
-   `options.answer` supplies its current answer (`answerOf`), which the Queue panel's
-   Done rows say. Every arrival at an Ask, from `a`, a Queue panel row or a Page Map
-   entry, travels through the one ask-arrival function (`arriveAtAsk`), so they agree
-   about focus, reveal, and arrival placement.
+   to, while the source remains the owner of the answer, which `askAnswers` (answer.js)
+   reads for the Queue panel's Done rows. Every arrival at an Ask, from `a`, a Queue
+   panel row or a Page Map entry, travels through the one ask-arrival function
+   (`arriveAtAsk`), so they agree about focus, reveal, and arrival placement.
 
    An arrival stands the user on the ask, which is the element the scroll has just
    aligned and the one the ring names. The widget's contributed actions are addressable
@@ -101,7 +100,6 @@ import {
 import { walkPositionLabel } from "../walk-position.js";
 import {
   commandDeclarationsWithin,
-  commandScopesWithin,
   commandsWithin,
   documentFocused,
   focused,
@@ -110,6 +108,7 @@ import {
 import { PAGE_PAINT_ATTRIBUTE } from "../page-paint.js";
 import { scrollBehavior } from "../motion.js";
 import { ASK_CONTROL } from "./view-elements.js";
+import { ownedAskControl } from "./answer.js";
 import { QUEUE_AT } from "../queue-list.js";
 import { askHolding, placeOf } from "../standing-target.js";
 import { PRESENTATION } from "../presentation.js";
@@ -243,33 +242,6 @@ export function createAskView({
   // The banner's reading of that one list. Every semantic publication refreshes it,
   // and a publication is where the server's Ask reading changes, so a send moves
   // these counts once the state its POST returns has been adopted.
-  const answerWords = (value) =>
-    String(value ?? "")
-      .replace(/\s+/g, " ")
-      .trim();
-  function currentAskAnswer(ask) {
-    const source = sourceNode(ask);
-    if (!source) return "";
-    const readers = [
-      ...new Set(
-        commandScopesWithin(source)
-          .filter(
-            ({ source: commandSource, answer }) =>
-              answer && ownedAskControl(source, commandSource),
-          )
-          .map(({ answer }) => answer),
-      ),
-    ];
-    if (readers.length > 1)
-      throw new TypeError(`Ask ${ask.id} has more than one answer reader`);
-    return answerWords(readers[0]?.());
-  }
-  // An Ask's current answer in words, or "" for one with none or no node standing.
-  const answerOf = (id) => {
-    const ask = allAsks().find((candidate) => candidate.id === id);
-    return ask ? currentAskAnswer(ask) : "";
-  };
-
   async function paintAsks(current) {
     const bannerModel = Object.freeze({
       bulk: Object.freeze(blanketAnswers(openAsks())),
@@ -356,10 +328,6 @@ export function createAskView({
   // Widgets own context aliases. Ask selects declarations through the same standing
   // relation that maps a margin entry or thread back to its source; the generic
   // compiler retains original command identity and availability.
-  function ownedAskControl(source, commandSource) {
-    const selector = tagsDeclaring((entry) => entry["x-awaits"]).join(",");
-    return !selector || closestAcross(commandSource, selector) === source;
-  }
   const actionsFor = (source) =>
     decisionControls(commandsWithin(source), `Ask ${source.id}`).filter(
       ({ source: commandSource, control }) =>
@@ -761,6 +729,5 @@ export function createAskView({
     markHere,
     arriveAtAsk,
     goToAsk,
-    answerOf,
   };
 }

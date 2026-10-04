@@ -1,5 +1,7 @@
 # Leaf website worker
 
+## Delivery and container lifetime
+
 Cloudflare serves each product and example page's live shell and initial canonical
 projection from `.tmp/site-assets`, so every ordinary
 document navigation paints without waiting for a container. The HTML response issues a
@@ -50,6 +52,8 @@ persistence guarantee: Cloudflare can replace an active instance, and each site 
 deliberately gets a fresh one. Durable website sessions will require a durable
 page-directory store.
 
+## Product events
+
 Accepted browser events also write canonical metadata to the
 `leaf_website_events` Analytics Engine dataset. The data point omits event content,
 widget ids, IP addresses, and session cookies:
@@ -93,6 +97,8 @@ FROM leaf_website_events
 WHERE blob6 = '239383829012'
 ORDER BY timestamp
 ```
+
+## Credentials
 
 Leaf uses three Cloudflare tokens, one for each holder. None is stored in this
 repository, and each arrives as `CLOUDFLARE_API_TOKEN` wherever it is used. The
@@ -145,6 +151,8 @@ export CLOUDFLARE_API_TOKEN=$(~/.claude/skills/using-1password/scripts/op-read.s
 
 A bare `op` command signs in as the person instead and waits for an approval that an
 unattended session cannot give.
+
+## Hosted-agent diagnostics
 
 Hosted turns also emit structured timing records under `component=leaf-agent`.
 Every request record carries the page's public session reference and canonical event
@@ -230,6 +238,8 @@ Historical Worker and Container logs are available in Workers Observability beca
 including request metadata, through the Observability API. `wrangler tail` streams the
 same records live under the agent administration token.
 
+## Browser diagnostics
+
 Each public document emits one `component=leaf-startup` record from the inline
 bootstrap, including when the module graph fails. It identifies the route, release,
 browser family and major version, platform, and navigation type. `serverMs`,
@@ -307,6 +317,8 @@ website config, matching production without changing personal state. Its JSON re
 records `responseVisibleMs` from the first non-empty agent reply the open Threads panel
 actually displays; `repliedMs` is the independent durable-state observation and is not a
 substitute for that user-visible milestone.
+
+## Hosted-agent delivery
 
 When Leaf accepts a user message that its canonical activity projection says needs
 a response, the Worker returns the accepted state and starts the agent dispatch through
@@ -392,6 +404,8 @@ the turn ended, and a start it cannot make is not the end of it — that move ta
 answered `started` on the turn already running, and the scan moves to the next. The
 first start that succeeds ends the chain, since its own follower ends here too.
 
+## Sandbox and rate limits
+
 The container pins the Codex version its App Server protocol was tested against and
 runs `gpt-5.6-luna` at low reasoning effort. The per-user Cloudflare Container is the
 tool sandbox: nested bubblewrap namespaces are unavailable in that environment, and
@@ -404,6 +418,8 @@ in each Cloudflare location and, under a separate key, twenty model calls per us
 container per minute. An over-limit turn receives a visible busy reply or a model-rate
 error without sending anything to OpenAI. There is no site-wide quota.
 
+## Local development
+
 Run the complete local site with Docker available:
 
 ```sh
@@ -411,6 +427,8 @@ cd worker
 npm ci
 npm run dev
 ```
+
+## Remote development
 
 The one standing remote development environment runs the same Worker, Container image,
 credential proxy, and browser benchmark at
@@ -442,6 +460,8 @@ runs the complete agent benchmark:
 ```sh
 npm run deploy:dev --prefix worker
 ```
+
+## Production deployment
 
 The deploy requires a Cloudflare Workers Paid account with Containers enabled, a
 `cloudflare-deploy` GitHub environment in `max-sixty/leaf` whose deployment branch

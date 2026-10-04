@@ -47,6 +47,7 @@ import {
   watchSemantic,
 } from "./semantic-state.js";
 import { under } from "./shadow.js";
+import { askAnswers } from "./asks/answer.js";
 import { allAsks } from "./asks/model.js";
 import { askHolding, declareSide } from "./standing-target.js";
 import { anchorLabel } from "./thread/messages.js";
@@ -83,7 +84,7 @@ function sectionWords(element) {
   return words ? `§ ${words}` : "";
 }
 
-export function createQueuePanel({ arriveAtItem, askAnswer, announce }) {
+export function createQueuePanel({ arriveAtItem, announce }) {
   const reading = () => readApplication().effective;
   const threadOf = (id) =>
     id === null
@@ -140,7 +141,8 @@ export function createQueuePanel({ arriveAtItem, askAnswer, announce }) {
       return [OUTCOMES[item.state] ?? item.state, shortAgo(item.ended)]
         .filter(Boolean)
         .join(" ");
-    const answer = askAnswer(item.id);
+    const ask = allAsks().find((candidate) => candidate.id === item.id);
+    const answer = ask ? askAnswers([ask])[0] : "";
     return answer ? `Answered ${answer}` : "Answered";
   }
   function row(item, list) {
@@ -159,7 +161,9 @@ export function createQueuePanel({ arriveAtItem, askAnswer, announce }) {
     // row standing at it.
     const at =
       item.kind === "ask" ||
-      (item.kind === "recovery" && item.subject.kind === "widget" && item.thread === null)
+      (item.kind === "recovery" &&
+        item.subject.kind === "widget" &&
+        item.thread === null)
         ? item.subject.id
         : null;
     return Object.freeze({

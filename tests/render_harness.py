@@ -1369,6 +1369,23 @@ def consume_browser_errors(page, *expected):
     return errors
 
 
+def xfail_browser_problem(page, *expected, reason):
+    """Quarantine one verified main defect after the journey's assertions finish.
+
+    A fixed defect passes. Any other browser problem, including another report of
+    the named loss, fails. Keep the assertion after xfail so --runxfail exposes
+    the original failure rather than clearing it into a pass.
+    """
+    assert expected, "known browser problems cannot be empty"
+    page.evaluate("lfWordsJudged()")
+    errors = take_browser_errors(page)
+    if not errors:
+        return
+    assert errors == list(expected), errors
+    pytest.xfail(reason)
+    raise AssertionError(errors)
+
+
 # What navigate reports when a ResizeObserver loop notice comes back on the confirming
 # navigation, so a one-off notice is dropped and a recurring one fails the test.
 RECURRING_RESIZE_NOTICE = (
@@ -1724,19 +1741,13 @@ def readable(page):
 
     They are therefore installed where a page is made rather than asked for by each
     test, which is what `WatchedBrowser` is for. A page that already carries them is
-    left alone, since a second response listener would report every failure twice.
+    left alone, since a second console listener would report every problem twice.
     """
     if getattr(page, "lf_errors", None) is not None:
         return page
     page.lf_traffic = Traffic(page)
     arm_interception(page)
-    errors = watched(page)
-    # The console's own word for a bad response is "Failed to load resource", which
-    # names nothing; carry the status and URL so a failure says what went missing.
-    page.on(
-        "response",
-        lambda r: errors.append(f"{r.status} {r.url}") if r.status >= 400 else None,
-    )
+    watched(page)
     return page
 
 

@@ -37,6 +37,13 @@ assert:
     pattern: <lf-ask\b
     flags: i
     negate: false
+- type: javascript
+  metric: ask-takes-wide-room
+  value: file://text-regex.cjs
+  config:
+    pattern: <lf-ask\b[^>]*\bdata-width=["']wide["']
+    flags: i
+    negate: false
 - type: llm-rubric
   metric: judgment
   value: |

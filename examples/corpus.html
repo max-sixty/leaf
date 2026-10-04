@@ -3132,21 +3132,51 @@ export const summarize = checks =>
           label="Canary health check"
           summary="noise · 0 of 47 pages real"
         >
-          <dl class="facts">
-            <dt>Rule</dt>
-            <dd><code>payments_canary_probe_failed</code></dd>
-            <dt>Fires on</dt>
-            <dd>One failed probe against the canary pod</dd>
-            <dt>Pages</dt>
-            <dd>47, none of which needed a person</dd>
-          </dl>
-          <p>
-            Forty-four of the 47 pages came within three minutes of a deploy, while the
-            restarting canary missed one probe; the 10:00, 14:00 and 18:00 trains alone
-            account for 39. It was never down long enough to act on.
-          </p>
           <lf-ask id="ar-canary-decision">
             <h4>How should the canary probe page?</h4>
+            <dl class="facts">
+              <dt>Rule</dt>
+              <dd><code>payments_canary_probe_failed</code></dd>
+              <dt>Fires on</dt>
+              <dd>One failed probe against the canary pod</dd>
+              <dt>Pages</dt>
+              <dd>47, none of which needed a person</dd>
+            </dl>
+            <p>
+              Forty-four of the 47 pages came within three minutes of a deploy, while
+              the restarting canary missed one probe; the 10:00, 14:00 and 18:00 trains
+              alone account for 39. It was never down long enough to act on.
+            </p>
+            <lf-chart id="ar-canary-hours" data-height="200">
+              <pre>
+{
+  ariaLabel: "Canary pages by hour, UTC: 14 at 10:00, 13 at 14:00 and 12 at 18:00, the three deploy trains; 2 at 11:00 and 3 at 16:00, after other deploys; one each at 03:00, 08:00 and 20:00",
+  marginBottom: 40,
+  x: {
+    domain: Array.from({length: 24}, (_, h) => `${String(h).padStart(2, "0")}:00`),
+    ticks: ["00:00", "06:00", "10:00", "14:00", "18:00", "22:00"],
+    label: "hour (UTC)",
+  },
+  y: {grid: true, label: "pages"},
+  marks: [
+    Plot.barY(
+      [
+        {hour: "03:00", pages: 1, deploy: false},
+        {hour: "08:00", pages: 1, deploy: false},
+        {hour: "10:00", pages: 14, deploy: true},
+        {hour: "11:00", pages: 2, deploy: true},
+        {hour: "14:00", pages: 13, deploy: true},
+        {hour: "16:00", pages: 3, deploy: true},
+        {hour: "18:00", pages: 12, deploy: true},
+        {hour: "20:00", pages: 1, deploy: false},
+      ],
+      {x: "hour", y: "pages", fill: (d) => (d.deploy ? "var(--series-1)" : "var(--series-3)")},
+    ),
+    Plot.ruleY([0]),
+  ],
+}
+</pre>
+            </lf-chart>
             <lf-options id="ar-canary-choice" choose>
               <lf-option id="ar-canary-consecutive">
                 <lf-chip>last week: 0 pages</lf-chip>
@@ -3172,22 +3202,22 @@ export const summarize = checks =>
           label="Checkout p99 latency"
           summary="noise · 1 of 31 pages real"
         >
-          <dl class="facts">
-            <dt>Rule</dt>
-            <dd><code>checkout_latency_p99_high</code></dd>
-            <dt>Fires on</dt>
-            <dd>p99 above 800 ms for two minutes</dd>
-            <dt>Pages</dt>
-            <dd>31, one of which needed a person</dd>
-          </dl>
-          <p>
-            Most pages came from the lunchtime traffic peak and recovered on their own
-            in a median of four minutes. The one real page was Thursday's database
-            failover, which the 5xx alert also caught a minute earlier.
-          </p>
           <lf-ask id="ar-latency-decision">
             <h4>What should the latency alert page on?</h4>
             <p>Checkout's latency objective is 1.2 seconds at p99 over ten minutes.</p>
+            <dl class="facts">
+              <dt>Rule</dt>
+              <dd><code>checkout_latency_p99_high</code></dd>
+              <dt>Fires on</dt>
+              <dd>p99 above 800 ms for two minutes</dd>
+              <dt>Pages</dt>
+              <dd>31, one of which needed a person</dd>
+            </dl>
+            <p>
+              Most pages came from the lunchtime traffic peak and recovered on their own
+              in a median of four minutes. The one real page was Thursday's database
+              failover, which the 5xx alert also caught a minute earlier.
+            </p>
             <lf-options id="ar-latency-choice" choose>
               <lf-option id="ar-latency-objective">
                 <lf-chip>last week: 1 page</lf-chip>
@@ -3212,22 +3242,22 @@ export const summarize = checks =>
           label="Webhook queue depth"
           summary="noise · 2 of 22 pages real"
         >
-          <dl class="facts">
-            <dt>Rule</dt>
-            <dd><code>webhook_queue_depth_high</code></dd>
-            <dt>Fires on</dt>
-            <dd>More than 5,000 queued deliveries</dd>
-            <dt>Pages</dt>
-            <dd>22, two of which needed a person</dd>
-          </dl>
-          <p>
-            Twenty pages were one partner's bulk retries, which drained within ten
-            minutes each time. The two that mattered were Wednesday's stuck consumer:
-            the queue was short, but its oldest delivery was 40 minutes old.
-          </p>
           <lf-ask id="ar-webhooks-decision">
             <h4>What should the webhook alert measure?</h4>
             <p>Depth tracks partner traffic; age tracks whether we are keeping up.</p>
+            <dl class="facts">
+              <dt>Rule</dt>
+              <dd><code>webhook_queue_depth_high</code></dd>
+              <dt>Fires on</dt>
+              <dd>More than 5,000 queued deliveries</dd>
+              <dt>Pages</dt>
+              <dd>22, two of which needed a person</dd>
+            </dl>
+            <p>
+              Twenty pages were one partner's bulk retries, which drained within ten
+              minutes each time. The two that mattered were Wednesday's stuck consumer:
+              the queue was short, but its oldest delivery was 40 minutes old.
+            </p>
             <lf-options id="ar-webhooks-choice" choose>
               <lf-option id="ar-webhooks-age">
                 <lf-chip>last week: 2 pages</lf-chip>
@@ -3252,21 +3282,24 @@ export const summarize = checks =>
           label="Ledger export lag"
           summary="noise · 0 of 18 pages real"
         >
-          <dl class="facts">
-            <dt>Rule</dt>
-            <dd><code>ledger_export_lag_high</code></dd>
-            <dt>Fires on</dt>
-            <dd>Export more than 30 minutes behind</dd>
-            <dt>Pages</dt>
-            <dd>18, none of which needed a person</dd>
-          </dl>
-          <p>
-            Every page fell between 01:00 and 03:00 UTC, while the nightly settlement
-            batch holds the ledger lock. The lag cleared by 03:20 each night without
-            anyone touching it.
-          </p>
-          <lf-chart id="ar-export-hours" data-height="220">
-            <pre>
+          <lf-ask id="ar-export-decision">
+            <h4>What should happen during the nightly batch?</h4>
+            <p>Finance reads the export at 07:00 UTC.</p>
+            <dl class="facts">
+              <dt>Rule</dt>
+              <dd><code>ledger_export_lag_high</code></dd>
+              <dt>Fires on</dt>
+              <dd>Export more than 30 minutes behind</dd>
+              <dt>Pages</dt>
+              <dd>18, none of which needed a person</dd>
+            </dl>
+            <p>
+              Every page fell between 01:00 and 03:00 UTC, while the nightly settlement
+              batch holds the ledger lock. The lag cleared by 03:20 each night without
+              anyone touching it.
+            </p>
+            <lf-chart id="ar-export-hours" data-height="220">
+              <pre>
 {
   ariaLabel: "Export-lag pages by hour, UTC: none from 22:00 to 00:00, 7 at 01:00, 9 at 02:00, 2 at 03:00, and none from 04:00 to 06:00",
   marginBottom: 40,
@@ -3295,10 +3328,7 @@ export const summarize = checks =>
   ],
 }
 </pre>
-          </lf-chart>
-          <lf-ask id="ar-export-decision">
-            <h4>What should happen during the nightly batch?</h4>
-            <p>Finance reads the export at 07:00 UTC.</p>
+            </lf-chart>
             <lf-options id="ar-export-choice" choose>
               <lf-option id="ar-export-window">
                 <lf-chip tone="ok">recommended</lf-chip>
@@ -3320,22 +3350,22 @@ export const summarize = checks =>
           label="Replica disk usage"
           summary="noise · 0 of 9 pages real"
         >
-          <dl class="facts">
-            <dt>Rule</dt>
-            <dd><code>ledger_replica_disk_80</code></dd>
-            <dt>Fires on</dt>
-            <dd>Ledger read replica above 80% full</dd>
-            <dt>Pages</dt>
-            <dd>9, none of which needed a person</dd>
-          </dl>
-          <p>
-            Autovacuum reclaimed the space within the hour every time. Growth is already
-            tracked in the monthly capacity review, and the 95% critical alert on the
-            same disk stays either way.
-          </p>
           <lf-ask id="ar-disk-decision">
             <h4>Should the 80% disk alert page at all?</h4>
             <p>The 95% alert has not fired this quarter.</p>
+            <dl class="facts">
+              <dt>Rule</dt>
+              <dd><code>ledger_replica_disk_80</code></dd>
+              <dt>Fires on</dt>
+              <dd>Ledger read replica above 80% full</dd>
+              <dt>Pages</dt>
+              <dd>9, none of which needed a person</dd>
+            </dl>
+            <p>
+              Autovacuum reclaimed the space within the hour every time. Growth is
+              already tracked in the monthly capacity review, and the 95% critical alert
+              on the same disk stays either way.
+            </p>
             <lf-options id="ar-disk-choice" choose>
               <lf-option id="ar-disk-delete">
                 <lf-chip tone="ok">recommended</lf-chip>
@@ -3357,22 +3387,22 @@ export const summarize = checks =>
           label="Sandbox TLS expiry"
           summary="wrong owner · 0 of 7 pages real"
         >
-          <dl class="facts">
-            <dt>Rule</dt>
-            <dd><code>tls_cert_expiring_14d</code></dd>
-            <dt>Fires on</dt>
-            <dd>A certificate within 14 days of expiry</dd>
-            <dt>Pages</dt>
-            <dd>7, one a day for the same certificate</dd>
-          </dl>
-          <p>
-            The certificate belongs to the partner sandbox host, which Platform owns and
-            renews automatically. Their renewal job is failing, and PLAT-2291 already
-            tracks the fix.
-          </p>
           <lf-ask id="ar-cert-decision">
             <h4>Who should hear about the sandbox certificate?</h4>
             <p>It expires in six days.</p>
+            <dl class="facts">
+              <dt>Rule</dt>
+              <dd><code>tls_cert_expiring_14d</code></dd>
+              <dt>Fires on</dt>
+              <dd>A certificate within 14 days of expiry</dd>
+              <dt>Pages</dt>
+              <dd>7, one a day for the same certificate</dd>
+            </dl>
+            <p>
+              The certificate belongs to the partner sandbox host, which Platform owns
+              and renews automatically. Their renewal job is failing, and PLAT-2291
+              already tracks the fix.
+            </p>
             <lf-options id="ar-cert-choice" choose>
               <lf-option id="ar-cert-platform">
                 <lf-chip tone="ok">recommended</lf-chip>
@@ -3391,22 +3421,22 @@ export const summarize = checks =>
           label="Settlement job failed"
           summary="noise · 3 of 6 pages real"
         >
-          <dl class="facts">
-            <dt>Rule</dt>
-            <dd><code>settlement_job_failed</code></dd>
-            <dt>Fires on</dt>
-            <dd>Any failed settlement attempt</dd>
-            <dt>Pages</dt>
-            <dd>6, three of which needed a person</dd>
-          </dl>
-          <p>
-            The three pages nobody needed were first attempts that the scheduler retried
-            successfully five minutes later. The other three were Friday's expired bank
-            credential, which failed every retry.
-          </p>
           <lf-ask id="ar-settlement-decision">
             <h4>Should a settlement failure wait for its retry?</h4>
             <p>The scheduler retries once, five minutes after a failure.</p>
+            <dl class="facts">
+              <dt>Rule</dt>
+              <dd><code>settlement_job_failed</code></dd>
+              <dt>Fires on</dt>
+              <dd>Any failed settlement attempt</dd>
+              <dt>Pages</dt>
+              <dd>6, three of which needed a person</dd>
+            </dl>
+            <p>
+              The three pages nobody needed were first attempts that the scheduler
+              retried successfully five minutes later. The other three were Friday's
+              expired bank credential, which failed every retry.
+            </p>
             <lf-options id="ar-settlement-choice" choose>
               <lf-option id="ar-settlement-retry">
                 <lf-chip tone="ok">recommended</lf-chip>
@@ -3424,22 +3454,22 @@ export const summarize = checks =>
           label="Ledger consumer lag"
           summary="wrong owner · 0 of 5 pages real"
         >
-          <dl class="facts">
-            <dt>Rule</dt>
-            <dd><code>ledger_events_consumer_lag</code></dd>
-            <dt>Fires on</dt>
-            <dd>More than 50,000 unread events on the ledger topic</dd>
-            <dt>Pages</dt>
-            <dd>5, none of which needed a person</dd>
-          </dl>
-          <p>
-            Each page was a broker rebalance on the shared event cluster, which Data
-            Platform runs. The consumer caught up once partitions were reassigned;
-            nothing on the payments side changed.
-          </p>
           <lf-ask id="ar-kafka-decision">
             <h4>Who should hear about ledger consumer lag?</h4>
             <p>Lag that outlasts a rebalance does delay the ledger export.</p>
+            <dl class="facts">
+              <dt>Rule</dt>
+              <dd><code>ledger_events_consumer_lag</code></dd>
+              <dt>Fires on</dt>
+              <dd>More than 50,000 unread events on the ledger topic</dd>
+              <dt>Pages</dt>
+              <dd>5, none of which needed a person</dd>
+            </dl>
+            <p>
+              Each page was a broker rebalance on the shared event cluster, which Data
+              Platform runs. The consumer caught up once partitions were reassigned;
+              nothing on the payments side changed.
+            </p>
             <lf-options id="ar-kafka-choice" choose>
               <lf-option id="ar-kafka-route">
                 <lf-chip tone="ok">recommended</lf-chip>
@@ -3474,22 +3504,48 @@ export const summarize = checks =>
           label="3-D Secure failure rate"
           summary="noise · 1 of 3 pages real"
         >
-          <dl class="facts">
-            <dt>Rule</dt>
-            <dd><code>threeds_challenge_failure_rate</code></dd>
-            <dt>Fires on</dt>
-            <dd>More than 8% of challenges failing over five minutes</dd>
-            <dt>Pages</dt>
-            <dd>3, one of which needed a person</dd>
-          </dl>
-          <p>
-            Two pages came from one issuing bank's challenge outage, which only that
-            bank could fix. The third was our own expired signing key, which failed
-            every issuer at once.
-          </p>
           <lf-ask id="ar-3ds-decision">
             <h4>Should one issuer's outage page us?</h4>
             <p>Per-issuer failure rates are already on the payments dashboard.</p>
+            <dl class="facts">
+              <dt>Rule</dt>
+              <dd><code>threeds_challenge_failure_rate</code></dd>
+              <dt>Fires on</dt>
+              <dd>More than 8% of challenges failing over five minutes</dd>
+              <dt>Pages</dt>
+              <dd>3, one of which needed a person</dd>
+            </dl>
+            <p>
+              Two pages came from one issuing bank's challenge outage, which only that
+              bank could fix. The third was our own expired signing key, which failed
+              every issuer at once.
+            </p>
+            <lf-chart id="ar-3ds-issuers" data-height="180">
+              <pre>
+{
+  ariaLabel: "Challenge failure rate by issuer during Wednesday's first page: Northbank 34%, Atlas 3%, Crestline 2%, Meridian 2%, Pioneer 1%; the alert pages above 8% overall",
+  marginLeft: 80,
+  marginTop: 24,
+  x: {grid: true, label: "challenges failing (%)", domain: [0, 40]},
+  y: {label: null},
+  marks: [
+    Plot.barX(
+      [
+        {issuer: "Northbank", rate: 34},
+        {issuer: "Atlas", rate: 3},
+        {issuer: "Crestline", rate: 2},
+        {issuer: "Meridian", rate: 2},
+        {issuer: "Pioneer", rate: 1},
+      ],
+      {y: "issuer", x: "rate", fill: "var(--series-1)", sort: {y: "-x"}},
+    ),
+    Plot.ruleX([8], {stroke: "var(--series-2)"}),
+    Plot.text([8], {x: (d) => d, frameAnchor: "top", dy: -14, dx: 4, textAnchor: "start", text: () => "pages above 8% overall"}),
+    Plot.ruleX([0]),
+  ],
+}
+</pre>
+            </lf-chart>
             <lf-options id="ar-3ds-choice" choose>
               <lf-option id="ar-3ds-spread">
                 <lf-chip tone="ok">recommended</lf-chip>
@@ -6822,7 +6878,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 </p>
                 <p id="bg-thread-updates">
                   <strong>Previous updates.</strong> Open the folded checks above the
-                  answer.
+                  answer. These ephemeral updates folded when the answer arrived.
                 </p>
               </template>
             </lf-sample>
@@ -7015,9 +7071,10 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 the disclosure.
               </p>
               <p id="bg-thread-updates">
-                <strong>Previous updates.</strong> The schedule checks fold above their
-                final answer without adding a digest. Choose “Previous updates” in the
-                practice page, then expand the folded checks with a press or Enter.
+                <strong>Previous updates.</strong> The ephemeral schedule checks fold
+                automatically when their final answer arrives, without adding a digest.
+                Choose “Previous updates” in the practice page, then expand the folded
+                checks with a press or Enter.
               </p>
               <p id="bg-thread-unread">
                 <strong>Unread replies.</strong> The seeded agent replies start unread.
@@ -7104,14 +7161,73 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             </table>
           </section>
 
+          <section id="bg-ask-track">
+            <p class="eyebrow bg-feature-elements">lf-ask · lf-chart · lf-options</p>
+            <h2>
+              <strong>An Ask beside its figure</strong
+              ><span class="bg-feature-detail">: the options track</span>
+            </h2>
+            <p id="bg-ask-track-guide">
+              This Ask holds a chart and ends in one option list, and it takes the wide
+              measure. In a window wide enough for both, the list stands in a column
+              beside the chart and stays put while the evidence scrolls past it; narrow
+              the window and the list drops below the chart again.
+            </p>
+            <lf-ask id="bg-track-ask" data-width="wide">
+              <h3>Which trail should the sample team hike on Saturday?</h3>
+              <p id="bg-track-premise">
+                The team walks at a sample pace of 300 m of climb an hour, and the last
+                bus leaves the trailhead at 17:00.
+              </p>
+              <lf-chart id="bg-track-climb" data-height="180">
+                <pre>
+{
+  ariaLabel: "Climb by sample trail: Ridge loop 900 m, Lake path 350 m, Pass traverse 1,250 m",
+  marginLeft: 100,
+  x: {grid: true, label: "climb (m)"},
+  y: {label: null},
+  marks: [
+    Plot.barX(
+      [
+        {trail: "Ridge loop", climb: 900},
+        {trail: "Lake path", climb: 350},
+        {trail: "Pass traverse", climb: 1250},
+      ],
+      {y: "trail", x: "climb", fill: "var(--series-1)"},
+    ),
+    Plot.ruleX([0]),
+  ],
+}
+</pre>
+              </lf-chart>
+              <p id="bg-track-reading">
+                The traverse's climb takes a little over four hours on its own, which
+                leaves no margin before the bus.
+              </p>
+              <lf-options id="bg-track-choice" choose>
+                <lf-option id="bg-track-ridge">
+                  <strong>Ridge loop</strong> Three hours of climbing with views the
+                  whole way.
+                </lf-option>
+                <lf-option id="bg-track-lake">
+                  <strong>Lake path</strong> An easy morning, back long before the bus.
+                </lf-option>
+                <lf-option id="bg-track-pass">
+                  <strong>Pass traverse</strong> The longest day, and a tight finish.
+                </lf-option>
+              </lf-options>
+            </lf-ask>
+          </section>
+
           <section id="bg-side-list">
             <p class="eyebrow">list="side"</p>
             <h2><strong>A queue beside the item it opens</strong></h2>
             <p id="bg-side-list-guide">
               The tab list stands left of the open item, each row its name and summary.
-              Walk it with the up and down arrows. Open an item to answer its Ask;
+              Walk it with the up and down arrows. Answer the first item's Ask and its
+              row shows a check and the option you picked, and undo takes them away;
               narrow the window below the set's 36rem and the list becomes a row above
-              the item.
+              the item, its rows keeping only the check.
             </p>
             <lf-tabs id="bg-side-queue" list="side">
               <lf-tab

@@ -113,6 +113,7 @@ from render_harness import (
     undo,
     wait_for_revision,
     write,
+    xfail_browser_problem,
 )
 
 DRAG_HELD = (
@@ -762,12 +763,91 @@ def test_page_tabs_take_the_page_width_and_its_one_left_edge(browser, serve):
     assert boxes["title"]["left"] == boxes["content"]["left"], boxes
 
 
+@pytest.mark.parametrize("layout", ["column", "wide", "workspace"])
+def test_wide_evidence_in_a_page_tab_takes_the_room_it_would_outside_one(
+    browser, serve, layout
+):
+    """A page tab is a section of the page, so a `wide` or `available` table in its
+    open panel takes the box and the column widths its twin outside the set takes: at
+    first paint, before the runtime has drawn the strip, then at a desktop window, with
+    the thread panel open over it, and on a phone. A boxed set's panel draws a frame,
+    so the same table there stays inside it."""
+
+    def tables(where):
+        return "".join(
+            f'<table id="{where}-{space}" data-width="{space}"><thead><tr><th>Case</th>'
+            "<th>Result</th></tr></thead><tbody><tr><td>One</td><td>Two</td></tr>"
+            "</tbody></table>"
+            for space in ("wide", "available")
+        )
+
+    source = leaf_page(
+        "Evidence in page tabs",
+        f'<h1 id="t">Evidence in page tabs</h1><p id="prose">Prose.</p>{tables("out")}'
+        f'<lf-tabs id="root-tabs"><lf-tab id="compare" label="Compare">{tables("in")}'
+        '</lf-tab><lf-tab id="notes" label="Notes"><p>Notes.</p></lf-tab></lf-tabs>'
+        f'<section><lf-tabs id="boxed"><lf-tab id="boxed-open" label="Boxed">{tables("boxed")}'
+        '</lf-tab><lf-tab id="boxed-other" label="Other"><p>Other.</p></lf-tab></lf-tabs>'
+        "</section>",
+        layout=layout,
+    )
+    boot = []
+    context = browser.new_context(viewport={"width": 1600, "height": 900})
+    page = context.new_page()
+    page.route("**/leaf.js", lambda route: boot.append(route))
+    measure = """() => Object.fromEntries(
+      ['prose', 'out-wide', 'out-available', 'in-wide', 'in-available', 'boxed-open',
+       'boxed-wide', 'boxed-available'].map(id => {
+        const el = document.getElementById(id), box = el.getBoundingClientRect();
+        return [id, {left: Math.round(box.left), width: Math.round(box.width),
+          columns: Math.round(el.querySelector('thead')?.getBoundingClientRect().width ?? 0)}];
+      }))"""
+
+    def twins(state):
+        at = page.evaluate(measure)
+        for space in ("wide", "available"):
+            assert at[f"in-{space}"] == at[f"out-{space}"], (state, space, at)
+            boxed, panel = at[f"boxed-{space}"], at["boxed-open"]
+            assert boxed["left"] >= panel["left"], (state, space, at)
+            assert boxed["left"] + boxed["width"] <= panel["left"] + panel["width"], (
+                state,
+                space,
+                at,
+            )
+        assert root_overflow(page) == 0, state
+        return at
+
+    try:
+        with page.expect_request("**/leaf.js"):
+            page.goto(serve(source), wait_until="commit")
+        displayed(page)
+        assert boot, "the runtime was not held"
+        first = twins("first paint")
+        boot.pop().continue_()
+        wait_until_ready(page)
+    finally:
+        for route in boot:
+            route.continue_()
+        page.unroute_all(behavior="wait")
+    expect(page.locator("#root-tabs")).to_have_attribute("data-lf-tabs-flow", "page")
+    assert twins("desktop") == first
+    assert first["in-wide"]["width"] > first["prose"]["width"], first
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    twins("panel open")
+    resized(page, 390, 800)
+    twins("phone")
+
+
 def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     """`list="side"` stands a tab set's list beside its panels: a queue whose items open
     one at a time. Where the set holds both the list is a column left of the open panel,
     walked down as well as across; on a phone it is a row above the panel, so the open
     item never lands below the whole queue. A row carries its panel's summary under its
-    name. Answering an item's Ask moves no row. A tab's name is its label whatever
+    name, and once its item's Ask is answered, a check and the picked option's title
+    beside the name, said in the tab's description too. Answered is the log's reading,
+    so an undo takes them off once its answer is adopted, and the agent settling the
+    question keeps them on. Answering moves no row. A tab's name is its label whatever
     the row shows, and a panel bounds what it holds."""
 
     BOARD = (
@@ -798,7 +878,7 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
         '<lf-tabs id="queue" list="side">' + "".join(map(ticket, "abc")) + "</lf-tabs>",
         layout="workspace",
     )
-    page = open_page(browser, serve(source))
+    page = open_page(browser, live_url(serve(source)))
     resized(page, 1200, 900)
     boxes = """() => {
       const r = (s) => document.querySelector(s).getBoundingClientRect();
@@ -831,10 +911,45 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     page.keyboard.press("ArrowUp")
     expect(tabs.first).to_have_attribute("aria-selected", "true")
 
+    answer = page.locator("#queue .lf-tab-btn").first.locator(".lf-tab-answer")
+    expect(answer).not_to_be_visible()
     page.locator("#o-a-fix .lf-pick").click()
     told(page)
-    expect(tabs.first).to_have_text("Ticket asev a · suggested fix")
+    expect(answer).to_be_visible()
+    expect(answer).to_have_text("Fix")
+    expect(tabs.first).to_have_accessible_name("Ticket a")
+    expect(tabs.first).to_have_accessible_description(
+        "sev a · suggested fix. Answered: Fix"
+    )
+    expect(tabs.nth(1)).to_have_accessible_description("sev b · suggested fix")
     assert page.evaluate(rows) == heights
+
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("undo")
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    page.keyboard.press("z")
+    holding(page, held, 1, "the undo")
+    expect(answer).to_be_visible()
+    held[0].continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+    expect(answer).not_to_be_visible()
+    expect(tabs.first).to_have_accessible_description("sev a · suggested fix")
+
+    page.locator("#o-a-fix .lf-pick").click()
+    round_trip(page)
+    expect(answer).to_have_text("Fix")
+    settled = source.replace(
+        '<lf-options id="o-a" choose>', '<lf-options id="o-a" choose settled>'
+    ).replace('<lf-option id="o-a-fix">', '<lf-option id="o-a-fix" chosen>')
+    assert settled.count("settled") == 1 and settled.count("chosen") == 1
+    wait_for_revision(page, stamp_page(serve.page_dir, settled, "Settle a")["revision"])
+    expect(page.locator("#o-a .lf-settled")).to_be_visible()
+    expect(answer).to_be_visible()
+    expect(answer).to_have_text("Fix")
+    expect(tabs.first).to_have_accessible_description(
+        "sev a · suggested fix. Answered: Fix"
+    )
 
     resized(page, 390, 844)
     narrow = page.evaluate(boxes)
@@ -955,6 +1070,62 @@ def test_an_ordinary_two_part_ask_retains_document_flow(browser, serve):
     page = open_page(browser, serve(in_pane))
     resized(page, 1280, 720)
     expect(page.locator("#session-triage-decision")).to_have_css("display", "block")
+
+
+TRACKED_ASK_PAGE = leaf_page(
+    "options track",
+    """
+  <h1>Retention</h1>
+  <lf-ask id="tracked">
+    <h3>How long should logs be kept?</h3>
+    <table id="tracked-figure">
+      <thead><tr><th>Store</th><th class="num">Daily GB</th></tr></thead>
+      <tbody><tr><td>Hot</td><td class="num">40</td></tr>
+        <tr><td>Warm</td><td class="num">120</td></tr></tbody>
+    </table>
+    <lf-ask id="nested">
+      <h4>Archive the warm tier too?</h4>
+      <p id="nested-premise">It holds the last quarter.</p>
+      <lf-options id="nested-choice" choose>
+        <lf-option id="nested-yes"><strong>Archive</strong> Move it to cold storage.</lf-option>
+        <lf-option id="nested-no"><strong>Keep</strong> Leave it warm.</lf-option>
+      </lf-options>
+    </lf-ask>
+    <lf-options id="tracked-choice" choose>
+      <lf-option id="keep-30"><strong>30 days</strong> Covers every incident review.</lf-option>
+      <lf-option id="keep-90"><strong>90 days</strong> Covers a quarter's audit.</lf-option>
+    </lf-options>
+  </lf-ask>
+""",
+    layout="wide",
+)
+
+
+def test_an_ask_framing_a_figure_sets_its_options_beside_it(browser, serve):
+    """An Ask whose heading, figure and one option list come in that order sets the
+    list in a track beside the figure where the Ask has the room, and stacks it below
+    where it hasn't. The track belongs to that Ask alone: an ordinary Ask held among
+    its evidence finds the same named container and keeps its own block flow."""
+    page = open_page(browser, serve(TRACKED_ASK_PAGE))
+    geometry = """() => {
+      const box = (id) => document.getElementById(id).getBoundingClientRect();
+      const figure = box('tracked-figure'), options = box('tracked-choice');
+      const style = (id) => getComputedStyle(document.getElementById(id));
+      return {
+        beside: options.left >= figure.right && options.top < figure.bottom,
+        below: options.top >= figure.bottom,
+        nestedFloat: style('nested-premise').float,
+        nestedListPosition: style('nested-choice').position,
+      };
+    }"""
+    resized(page, 1440, 900)
+    wide = page.evaluate(geometry)
+    assert wide["beside"], wide
+    assert wide["nestedFloat"] == "none", wide
+    assert wide["nestedListPosition"] != "sticky", wide
+    resized(page, 700, 900)
+    narrow = page.evaluate(geometry)
+    assert narrow["below"], narrow
 
 
 def clear_of_the_bottom_chrome(page, selector):
@@ -4246,9 +4417,11 @@ def test_a_playground_keeps_one_typed_working_state_until_the_user_chooses(
     playground.get_by_role("radio", name="Quiet", exact=True).press("ArrowRight")
     picker = playground.locator("wa-color-picker")
     picker.get_by_role("button", name="Accent", exact=True).click()
-    picker.get_by_role("textbox").fill("#8b4a5f")
-    picker.get_by_role("textbox").press("Enter")
-    picker.get_by_role("textbox").press("Escape")
+    color_field = picker.get_by_role("textbox")
+    color_field.fill("#8b4a5f")
+    color_field_place = color_field.evaluate("field => window.lfPlace(field)")
+    color_field.press("Enter")
+    color_field.press("Escape")
     page.locator('lf-playground-control[name="title"] input').fill("Ridge note; alert")
 
     assert len(events_model.read_events(serve.page_dir)) == before
@@ -4303,6 +4476,18 @@ def test_a_playground_keeps_one_typed_working_state_until_the_user_chooses(
     undo(page)
     expect(page.locator("#card-instruction")).to_contain_text("12px radius")
     assert playground.evaluate("root => root.values")["compact"] is False
+    # The same native-close loss was present on pre-1711 main (35d91df, Linux run
+    # 37183384374), before this branch's changes.
+    xfail_browser_problem(
+        page,
+        f'typed words left the screen without a key or press: "#8b4a5f" in '
+        f"{color_field_place}",
+        reason=(
+            "WebAwesome hides the native color field after Escape's popup animation, "
+            "outside the words watch's trusted-input lifetime; reproduced on pre-1711 "
+            "main at 35d91df (Linux run 37183384374)."
+        ),
+    )
 
 
 def test_notification_playground_sets_regions_side_by_side_while_its_workspace_is_full_height(

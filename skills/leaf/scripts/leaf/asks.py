@@ -1,6 +1,6 @@
 """Declaration-driven page and thread ask projections."""
 
-from leaf.events import is_reaction, spoken_turns
+from leaf.events import conversation_turns, is_reaction
 from leaf.projection import (
     FrozenThreadReading,
     StateProjection,
@@ -31,7 +31,7 @@ def thread_awaits_user(
         return False, None
     if thread_id in open_ask_threads:
         return True, None
-    turns = spoken_turns(thread)
+    turns = conversation_turns(thread)
     tokens = registry.get("$reactions", {}).get("tokens", {})
     for index in range(len(turns) - 1, -1, -1):
         message = turns[index]
@@ -407,15 +407,33 @@ class _AskReducer:
                 pairs.append((surface, record))
         return pairs
 
+    def _answered_by_user(self, record) -> bool:
+        """Whether a standing action that admission marked as this Ask's answer
+        (`meaning.answer`) still holds its answer: the user decided it while it
+        asked, whatever a later version made of the question."""
+        unit = record["attrs"].get("id")
+        return any(
+            "answer" in (held[0].get("meaning") or {})
+            for verb in answer_verbs(self._entry(record))
+            if (held := self.projection.actions.get((unit, unit, verb)))
+        ) and self._answered(record, set())
+
     def inventory(self, settled_away: set[str]) -> list:
         """Every active Ask, including ones the user has answered.
 
         An action Ask remains active while its authored `when` holds, even after
-        one of its answer verbs has state.
+        one of its answer verbs has state. One the user answered stays once a later
+        version retires the question around the answer, as `settled` does, so a
+        reading of what the page has decided keeps it.
         """
         active = []
         for record in self.records:
             if self.exists[id(record)] and self.local[id(record)]:
+                active.append(record)
+                continue
+            # Interim: this "decided" reading also keeps the Ask under the Queue
+            # panel's Done. The forthcoming Tasks model replaces it.
+            if self.exists[id(record)] and self._answered_by_user(record):
                 active.append(record)
                 continue
             # An ask that retires its own last visible slot still has a receipt

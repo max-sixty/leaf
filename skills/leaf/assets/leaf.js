@@ -559,7 +559,6 @@ const queueWalk = createQueueWalk({
 });
 const queue = createQueuePanel({
   arriveAtItem: queueWalk.arriveAtItem,
-  askAnswer: asks.answerOf,
   announce,
 });
 

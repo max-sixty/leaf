@@ -6,15 +6,11 @@ allowed-tools:
   - Bash(jq:*)
 ---
 
-Leaf presents work as a live HTML page. The user reads it in a browser, comments
-on exact passages, and acts through its widgets; you revise the page in place
-while they do. A page is a directory: the mutable `index.html` you write, the
-immutable revision each valid save becomes, the append-only event log, service
-state, and the vendored layer that draws it. A stamp names a revision as a public
-version. You write the page, check it, hand its URL over with a status saying
-what you want back, and wait. Each user move comes back to you as a delivery;
-you answer it on the page and in its thread, stamp checkpoints, and idle the page
-when it is finished.
+Leaf presents work as a live HTML page. The user reads, comments on exact
+passages, and acts through widgets while you revise it in place. Write the page,
+check it, hand over its URL with a status saying what you want back, and wait.
+Answer each delivered user move on the page and in its thread, stamp checkpoints,
+and idle the page when it is finished.
 
 The input is a subject to present, or a delivery from a page already handed
 over: a named `leaf_delivery` tool output, a `leaf-delivery` element, or the
@@ -52,22 +48,18 @@ directory explicitly; export or copy anything that must outlive the page directo
    active immutable revision; an invalid save leaves the last valid one live and
    reports its diagnostic in page state and the browser. You write `index.html` and
    `page/`; Leaf alone writes revisions and version mappings.
-3. Check the page by its intended lifetime, whatever its shape and whether or
-   not it asks a question. A quick page that will be revised or dropped after an
-   immediate reaction needs only `leaf page check <page>`; fix every failure,
-   and do not stamp it or delay its handoff for a browser review. For a finished
-   record that work will rely on after the conversation, run
-   `leaf page check <page> --render`, read the page as "Pre-handover review"
-   in `references/page-authoring.md` says, and fix what the reading finds before
-   `leaf page stamp <page> --text "<changelog>"`. The reading comes between
-   the check and the stamp: the check sees whether the page renders, and only
-   the reading sees whether it shows the user what it should, such as a view
-   that describes what it should have drawn. A record takes this review before
-   its URL first reaches the user and again at each later stamp, for the views
-   and Asks that stamp adds; a quick page takes it at the stamp that makes it a
-   record. A page declaring `<meta name="lf-review" content="sign-off">` is a
-   record whatever else it looks like, since sign-off is offered only on a
-   stamped version.
+3. Check the page according to how long the user will rely on it. A quick page
+   revised or dropped after an immediate reaction needs only
+   `leaf page check <page>`; fix every failure and hand it over without stamping
+   or a browser review. A finished record used beyond the conversation needs
+   `leaf page check <page> --render`, the reading in "Pre-handover review" in
+   `references/page-authoring.md`, and then
+   `leaf page stamp <page> --text "<changelog>"`. The check establishes that the
+   page renders; the reading establishes that it shows the intended content.
+   Review a record before its first handoff and at every later stamp, covering
+   the views and Asks that stamp adds. Review a quick page when a stamp makes it
+   a record. A page declaring `<meta name="lf-review" content="sign-off">` is
+   always a record, since approval requires a stamped version.
 4. Read `references/conversation-loop.md` and exactly one host contract:
    `references/host-claude-code.md` in Claude Code; in Codex,
    `references/host-codex-app-server.md` when `LEAF_CODEX_APP_SERVER` is set or the
@@ -86,7 +78,7 @@ directory explicitly; export or copy anything that must outlive the page directo
 From the first hand-over on, include the page's exact URL in each turn's final
 response. Intermediate progress updates do not repeat it.
 
-## Page contract
+## Leaf soul
 
 Using Leaf should feel like playing a game: the user sees what the page wants
 of them without reading it first, every state they reach offers a move, and a
@@ -96,6 +88,8 @@ system is laid out and they move its pieces. It is never a chore. Test a draft
 as a player takes in a board, reading only its headings, pictures, and controls:
 where that leaves a view's point or its move unclear, the view has put in words
 what it should draw or let the user do.
+
+## Page contract
 
 Unless the user specifies the page's shape or depth, a Leaf is a short sequence
 of visually distinct, self-contained views. Each view makes one point, shows one
@@ -111,9 +105,8 @@ on `main` or a block arranges each of these, and the page's own CSS adjusts it;
 `references/page-authoring.md`, "Composing a page", owns the concrete choices, and
 `references/authoring-asks.md` owns where each Ask goes.
 
-The page contract and widget capabilities are choices, not a checklist. Include
-only controls and gestures whose results advance the user's task. A widget
-move, a resolution and a sign-off can be taken back; words stand.
+Include only controls and gestures that advance the user's task. Widget moves,
+resolutions and sign-offs can be undone; sent words remain in the log.
 
 ## Keep the user current
 
@@ -125,34 +118,25 @@ them. A user finds each outcome in the relevant page section without
 reconstructing a thread or chat. The banner says what you are doing now; threads
 carry discussion and rationale.
 
-When work lands, a decision is made, or your understanding moves, reread the whole
-page and rewrite whatever the change reaches, its title, headings, and order
-included. A status note added where the page already mentions the subject leaves
-everything around it as it was written before the change.
-`references/authoring-revisions.md` says what a rewrite carries across. The
-`page stamp` changelog and the event log hold the history, so the page does not
-retell it: correct a wrong figure in place and drop a superseded claim. Save
-freely as the subject changes and stamp meaningful checkpoints.
+When work lands, a decision is made, or your understanding changes, reread the
+whole page and revise the affected content, title, headings, and order. Follow
+`references/authoring-revisions.md` to preserve user state. Correct wrong figures
+in place and remove superseded claims; the `page stamp` changelog and event log
+keep the history. Save freely and stamp meaningful checkpoints.
 
-While a page is live, telling its user what you are doing takes priority over doing
-it, as a UI thread handles input before background work. When user input arrives,
-answer it before any other work, including the work it asks for. Put each step on the
-page before starting it. Keep the watcher running, and hand work longer than a few
-minutes to background workers rather than waiting on it yourself, so a new comment
-reaches you in time to change the next step. The page stays yours while they run.
-`references/conversation-loop.md` names the surfaces, when to write each, and what a
-worker may touch.
+Keep the user informed before starting work. Answer incoming input before
+continuing other work, including the work it requests, and write each step's
+status before starting it. Keep the watcher running and delegate work longer
+than a few minutes to background workers, so new comments can steer the next
+step. You retain the page while they run. Follow `references/conversation-loop.md`
+for status surfaces, timing, and worker access.
 
 ## Improve Leaf through use
 
-Leaf's agent interface is still in development, and experience making real
-pages should inform it. When using Leaf exposes concrete friction, ambiguity,
-or a missing capability, raise it with the user and offer to file an issue in
-the Leaf repository. Agent-reported issues are welcome.
-
-Describe the specific case: what you wanted to do and how the interface got in
-the way. Then explain the general improvement and why it would make Leaf better
-beyond that page.
+When using Leaf exposes friction, ambiguity, or a missing capability, tell the
+user what you wanted to do and how the interface blocked it. Explain the
+improvement and how it would help other pages, and offer to file an issue in the
+Leaf repository.
 
 ## Conditional references
 
@@ -191,7 +175,8 @@ so a phase does not depend on discovering a chain of references.
 
 - `references/serving-pages.md`: for the first handoff, `--export`, an unreachable
   URL, whether an operation changes a page's URL, `--host`, a standing page,
-  re-vendoring a served page, or resuming another session's page.
+  re-vendoring a served page, a page a Leaf update broke, or resuming another
+  session's page.
 - `references/packages.md`: for a package-design request, a page-authored module, or
   a design comment whose fix belongs in a package.
 

@@ -65,8 +65,9 @@ async function readState(bound) {
     }
     if (res && !admitResponse(res)) return null;
     // A refusal is not state: the server answers a missing key with error-shaped JSON
-    // at 403. A live server refusing the key and a dead one both leave the page
-    // unreachable from here, and the terminal link is the recourse for both.
+    // at 401. A live server refusing the key and a dead one both leave the page
+    // unreachable from here; the banner says which, since only the refused key has a
+    // recourse the user takes (`runtime.keyRefused`).
     if (!res?.ok) return null;
     try {
       return await res.json();

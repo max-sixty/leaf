@@ -31,7 +31,11 @@
    thread's passage for an Ask seated in a thread; a thread's passage; the widget a move
    was made on. An item with no place on the page, a general thread or one whose passage
    is gone, comes after every placed one in the queue's own order, as the t/T walk
-   reaches such threads from its list's ends. The walk is clamped, not wrapped. */
+   reaches such threads from its list's ends. The walk is clamped, not wrapped.
+
+   Experimental: the queues and the walk over them are new, and their shape is
+   expected to change a lot (notes/what-needs-you/). Change them freely.
+*/
 import { pageCommand } from "./keyboard/register.js";
 import { paintKeys } from "./keyboard/scopes.js";
 import { askHolding, placeOf, walkOrigin } from "./standing-target.js";

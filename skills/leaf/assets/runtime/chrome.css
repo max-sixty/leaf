@@ -874,8 +874,9 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     grid-template-columns: 76px minmax(0, 1fr); align-items: center; column-gap: 8px; }
   .lf-thread-filter-label { color: var(--muted); font: var(--t-6) var(--sans); }
   .lf-thread-filter-choices { display: flex; flex-wrap: wrap; gap: 5px; }
+  /* A count news changes keeps its width, so the choices after it stay put. */
   .lf-thread-filter { padding: max(2px, (var(--aim-floor) - 1lh) / 2 - 1px) 8px;
-    font-size: var(--t-6); }
+    font-size: var(--t-6); font-variant-numeric: tabular-nums; }
   .lf-thread-filter-group:not(:has(.lf-thread-filter:not([hidden]))) { display: none; }
   @media (max-width: 360px) {
     .lf-thread-filters { padding-inline: 8px; }

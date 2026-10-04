@@ -745,6 +745,28 @@ stateDiagram-v2
             </p>
           </section>
 
+          <section id="task-shape-questions">
+            <h2>Hierarchy, and who says a task is done</h2>
+            <p>
+              <strong>Hierarchy.</strong> Leaf's tasks have no parent today: a task
+              names its subject (a thread) and nothing else. Pi's do, because its tasks
+              form an ownership tree. Two Leaf cases would want one: a task that answers
+              your message, and a task handed to another session by the one that
+              dispatched it. Step 4 covers the first, since Working names your move and
+              a task opened for it can record that move. The second waits for step 7. A
+              general tree can wait until a case needs more than those two links.
+            </p>
+            <p>
+              <strong>Who says it's done.</strong> Both, by the kind of result. Where
+              the result can be checked mechanically (a TODO written, a test passing, a
+              file moved), the agent ends the task as done. Where it is a judgment (a
+              design, a rewrite, a choice of wording), the agent reports it done and the
+              task lands on your queue to review; reading it accepts it, and replying
+              reopens it. That is step 6, and the agent's instructions say which case is
+              which, the way they already say when to ask with an Ask.
+            </p>
+          </section>
+
           <section id="pi">
             <h2>How Pi Durable models the same ground</h2>
             <p id="pi-levels">

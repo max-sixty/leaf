@@ -30,7 +30,11 @@
    folds at its foot (`queue-panel.js`): each answered Ask (`ask`), the Ask reading's
    whole inventory less those still unanswered, and each task a `task_end` ended
    (`task`), with its outcome. Python serves the ended tasks beside the open ones
-   (`served_state.browser`), so nothing here folds the log again. */
+   (`served_state.browser`), so nothing here folds the log again.
+
+   Experimental: the queues, the walk over them and the panel listing them are new, and
+   their shape is expected to change a lot (notes/what-needs-you/). Change them freely.
+*/
 import { awaitsUser } from "./thread/model.js";
 import { atWork } from "./thread/workflow.js";
 

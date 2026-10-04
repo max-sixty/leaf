@@ -3668,5 +3668,5 @@ def test_a_page_refuses_a_browser_that_never_had_the_link(browser, serve):
     page.goto(url.rsplit("?", 1)[0], wait_until="load")
 
     assert schema_model.NO_KEY in page.locator("body").inner_text()
-    # The refusal is the subject: a user without the key is answered 403.
-    consume_browser_errors(page, "403")
+    # The refusal is the subject: a user without the key is answered 401.
+    consume_browser_errors(page, "401")

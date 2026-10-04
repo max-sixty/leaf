@@ -1491,6 +1491,63 @@ def test_a_server_that_cannot_take_a_gesture_yet_says_so_and_keeps_it(browser, s
     consume_browser_errors(page, "503")
 
 
+def test_a_tab_whose_key_is_refused_keeps_its_moves_and_names_the_link(browser, serve):
+    """A refused key judges nothing the user did, so it cannot cost them anything.
+
+    A server restarted onto a different key cookie refused every request from a tab
+    left open, and the tab folded each refused send as the server's verdict on it: the
+    comment came out of its thread and the pick unticked, under a banner that said the
+    server was offline and reconnecting when it was up and never would. The tab here
+    loses its key the way that one did, from its cookie jar, and opening the printed
+    link in another tab is the recourse the banner names, so the moves it held go out
+    without the user doing them again."""
+    url = serve(INLINE_PAGE)
+    context = browser.new_context(viewport={"width": 1200, "height": 900})
+    page = open_page(browser, url, context=context)
+    context.clear_cookies()
+
+    def refused(response):
+        return "/api/event" in response.url and response.status == 401
+
+    pick = page.locator("#opt-a .lf-pick")
+    with page.expect_response(refused):
+        pick.click()
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    field = page.locator(".lf-general leaf-text")
+    write(field, "Words the server never read")
+    field.press("ControlOrMeta+Enter")
+    # Retried rather than dropped: the same send goes out again on the outbox's clock.
+    with page.expect_response(refused):
+        pass
+    expect(page.locator(".lf-status-text")).to_have_text(
+        "Key refused — open Leaf's link in a new tab"
+    )
+    expect(page.locator(".lf-notice")).to_contain_text("open Leaf's link in a new tab")
+    expect(page.locator(".lf-status-detail")).to_contain_text(
+        "Open the link Leaf printed in a new tab"
+    )
+    expect(page.locator(".lf-thread")).to_contain_text("Words the server never read")
+    expect(pick).to_have_attribute("aria-checked", "true")
+    assert len(_traffic(page).pending) == 2
+    assert [
+        e for e in events_model.read_events(serve.page_dir) if e["kind"] == "comment"
+    ] == []
+
+    open_page(browser, url, context=context)
+    round_trip(page)
+    logged = events_model.read_events(serve.page_dir)
+    assert [e["text"] for e in logged if e["kind"] == "comment"] == [
+        "Words the server never read"
+    ]
+    assert [e["detail"] for e in logged if e["kind"] == "action"] == [
+        {"options": ["opt-a"]}
+    ]
+    expect(pick).to_have_attribute("aria-checked", "true")
+    expect(page.locator(".lf-status-text")).not_to_contain_text("Key refused")
+    consume_browser_errors(page, "401")
+
+
 def test_poll_proven_acceptance_advances_past_a_hung_post_response(browser, serve):
     """A complete read containing an attempt is authoritative delivery evidence. Once
     it accounts for A, the ordered outbox may send queued B even if A's original browser

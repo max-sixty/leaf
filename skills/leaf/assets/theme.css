@@ -1614,28 +1614,14 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
  * only its own widgets (layer.py, `widget_confinement`), and these reach every
  * package's.
  *
- * The grammar (the rows, and which child stands in which) carries the role's own weight,
- * so it holds over what a widget declares for itself, such as a board's block margin
- * when the board is a pane's body. The look (frame, paper, padding, the header's voice)
- * is a default inside :where(), so a package that draws its generated pane another way,
- * the visual review framing its evidence with the review's own border, does so with one
- * class rather than by outranking the attribute. */
-[data-lf-reading-role="pane"] {
-  display: grid;
-  grid-template-rows: auto 1fr auto;
-  grid-template-columns: minmax(0, 1fr);
-  min-width: 0;
-  --lf-block-frame: 1;
-}
-[data-lf-reading-role="pane"] > header {
-  grid-row: 1; margin: 0;
-}
-[data-lf-reading-role="pane"] > footer {
-  grid-row: 3; margin: 0;
-}
-[data-lf-reading-role="pane"] > :not(header, footer) {
-  grid-row: 2; grid-column: 1; min-width: 0; margin: 0;
-}
+ * The grammar (the rows, and which child stands in which) holds over what a widget
+ * declares for itself, such as a board's block margin and minimum width when the board
+ * is a pane's body, so it stands in the Layouts tier above every package (layouts.css)
+ * rather than here: a widget's root rule (`:scope:is(lf-board)`) ties a selector here
+ * on specificity and wins on scope proximity. The look (frame, paper, padding, the
+ * header's voice) is a default inside :where(), so a package that draws its generated
+ * pane another way, the visual review framing its evidence with the review's own
+ * border, does so with one class rather than by outranking the attribute. */
 /* A pane's body is a keyboard stop of its own where it scrolls with nothing in it to
  * Tab to (reach.js), and the layer's ring stands outside the box it names. A held pane
  * stands flush with the scrollport of the workspace body holding it, so that ring lost

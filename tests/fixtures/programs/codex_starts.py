@@ -1,7 +1,7 @@
 """Run the transport test's three start commands under one Codex ancestor.
 
 The parent supplies the commands as JSON and a result path. Publish the complete
-result atomically so the parent can observe completion before releasing the host.
+result atomically so the parent can observe completion before releasing the harness.
 """
 
 import json

@@ -5,9 +5,9 @@ Usage: leaf wait [OPTIONS] PAGE
 
   Print one page's complete ordered batch, thread context, and response
   requirements as an immutable delivery, whose `acknowledge` says how to confirm
-  it. `leaf delivery read <id>` reads that same delivery. Where the host's hook
-  carries input into the turn, as in Claude Code, print one line naming the page
-  with new input instead, and end.
+  it. `leaf delivery read <id>` reads that same delivery. Where the harness's
+  hook carries input into the turn, as in Claude Code, print one line naming the
+  page with new input instead, and end.
 
 Options:
   --ack DELIVERY_ID  Confirm receipt of this complete delivery before waiting.

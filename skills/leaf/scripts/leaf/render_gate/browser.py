@@ -13,7 +13,7 @@ So the host names its browser, and where it has named none, leaf asks the host
 where its programs are before it guesses. Three readings, in order:
 
 - an environment variable, which is a direct statement. LEAF_BROWSER_EXECUTABLE
-  is the name in the namespace `host.py` already uses for LEAF_AGENT and
+  is the name in the namespace `harness.py` already uses for LEAF_AGENT and
   LEAF_SESSION_ID, and it stays first; CHROME_PATH (chrome-launcher, and so
   Lighthouse) and CHROME_BIN (karma-chrome-launcher) predate Playwright and mean
   the same thing, so a host that already set one for another tool has named this

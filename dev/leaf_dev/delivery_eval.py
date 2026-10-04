@@ -16,7 +16,7 @@ from pathlib import Path
 
 from leaf.event_log import read_events
 
-from leaf_dev.harness import (
+from leaf_dev.arms import (
     accepted_thread_claims,
     blocks,
     completed,
@@ -62,7 +62,7 @@ def stop_blocked(record: dict) -> bool:
     )
 
 
-def run_session(arm: Path, case: str, run: Path, *, host: str = "cc") -> None:
+def run_session(arm: Path, case: str, run: Path, *, harness: str = "cc") -> None:
     """Drive delivery timing through the same feedback loop as larger examples."""
     run.mkdir(parents=True, exist_ok=True)
     work = scratch()
@@ -75,7 +75,7 @@ def run_session(arm: Path, case: str, run: Path, *, host: str = "cc") -> None:
         for n in range(len(CASES[case]))
     )
     scenario = Case(case, (REQUEST,), rounds=rounds, injection=CASES[case])
-    execute_live(Run(case, arm, run, host), scenario, work, page)
+    execute_live(Run(case, arm, run, harness), scenario, work, page)
     (run / "events.jsonl").write_text(
         leaf("page", "events", str(page), check=True).stdout
     )
@@ -245,9 +245,14 @@ def grade(case: str, readings: list[dict]) -> dict[str, bool]:
 
 
 def execute_scenario(
-    case: str, payload: Path, work: Path, *, host: str = "cc", condition: str = "leaf"
+    case: str,
+    payload: Path,
+    work: Path,
+    *,
+    harness: str = "cc",
+    condition: str = "leaf",
 ) -> dict:
-    run_session(payload, case, work, host=host)
+    run_session(payload, case, work, harness=harness)
     readings = score(work)
     return {
         "output": json.dumps(readings),

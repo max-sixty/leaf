@@ -13,7 +13,9 @@ other page files and the external state listed below.
   the first 16 hex characters of the artifact-manifest digest. Its sibling
   revisions/rN-H/ captures index.html, manifest.json, registry, and every dependency
   needed to deliver that revision. The complete bundle is durable before the marker
-  appears. Identical artifacts reuse a revision; changed inputs create one. See
+  appears. Identical artifacts reuse a revision; changed inputs create one. A bundle
+  hard-links each resource whose bytes the previous revision captured, so its files
+  share inodes and are never written in place. See
   “Revision delivery” below for document replacement and widget retention.
 
 - `/versions/v1.html…` — virtual public addresses. Each `note` event maps a version to

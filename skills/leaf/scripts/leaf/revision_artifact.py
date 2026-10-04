@@ -807,28 +807,55 @@ def stage_artifact(page_dir: Path, revision: int, artifact: RevisionArtifact) ->
         ) as temporary:
             staged = Path(temporary) / name
             staged.mkdir()
-            contents = {"index.html": artifact.html, "manifest.json": artifact.manifest}
-            contents.update(
-                {
-                    "resources" + path: resource.data
-                    for path, resource in artifact.resources.items()
-                }
-            )
+            captured = _captured_files(page_dir)
             written = []
-            for relative, data in contents.items():
-                target = staged / relative
+            for relative, data in (
+                ("index.html", artifact.html),
+                ("manifest.json", artifact.manifest),
+            ):
+                written.append(_write_durably(staged / relative, data))
+            for path, resource in artifact.resources.items():
+                target = staged / ("resources" + path)
                 target.parent.mkdir(parents=True, exist_ok=True)
-                with target.open("xb") as stream:
-                    stream.write(data)
-                    stream.flush()
-                    os.fsync(stream.fileno())
-                written.append(target)
+                if (earlier := captured.get(resource.digest)) is not None:
+                    os.link(earlier, target)
+                    written.append(target)
+                else:
+                    written.append(_write_durably(target, resource.data))
             fsync_parents(written + list(staged.rglob("*")))
             os.rename(staged, destination)
             fsync_parents([destination])
     elif (destination / "manifest.json").read_bytes() != artifact.manifest:
         raise ArtifactError(f"{destination}: immutable artifact digest collision")
     return name
+
+
+def _write_durably(target: Path, data: bytes) -> Path:
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with target.open("xb") as stream:
+        stream.write(data)
+        stream.flush()
+        os.fsync(stream.fileno())
+    return target
+
+
+def _captured_files(page_dir: Path) -> dict[str, Path]:
+    """The resource files the newest revision captured, by digest.
+
+    Successive revisions of a page capture mostly the same layer, a few hundred files
+    and several megabytes, so a new bundle links each resource the newest one already
+    holds rather than writing and syncing its bytes again. Sharing an inode is safe
+    because a captured file is never written after its bundle is made: a bundle is
+    immutable, and nothing outside `revisions/` links into one."""
+    revision = latest_revision(page_dir)
+    if revision is None:
+        return {}
+    bundle = revision_path(page_dir, revision).with_suffix("")
+    manifest = json.loads((bundle / "manifest.json").read_bytes())
+    return {
+        record["digest"]: bundle / ("resources" + logical)
+        for logical, record in manifest["resources"].items()
+    }
 
 
 def staged_reading(page_dir: Path, name: str) -> SourceReading:

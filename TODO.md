@@ -1,5 +1,20 @@
 # TODO
 
+## Biggest current challenges
+
+- **Simplify the harness, host, and CLI workflow.** Make feedback delivery and
+  agent wake-up reliable, including Codex's message back into the session and
+  Claude Code's potentially overcomplicated state machine.
+- **Make tasks and work in progress clear.** Find a robust state model that
+  users can understand: what is running, waiting, blocked, or complete, and
+  whose next move it is.
+- **Keep authored pages flexible.** Find the useful middle ground between
+  unrestricted HTML and brittle templates, especially for workspaces.
+- **Make page-level Threads easy to create and use.** Give users a clear way
+  to start, find, and continue conversations about the whole page.
+- **Build coherent UI without repeated patches.** Improve the layout and
+  interaction mechanisms so each new case does not require another fix.
+
 Priority runs from **Now** to **Next** to **Etc**. Themes group related work within
 each priority; bullets are outcomes, not implementation plans. Linked notes hold the
 evidence and detailed briefs. Numbered items keep the ids shared with `notes/`.
@@ -379,6 +394,14 @@ Revisit these when their stated trigger becomes real; they are not an active que
   Artifacts store a viewer id on each row and resolve names, faces and presence
   from the host. Settle user identity and how it reaches the append door before
   building a feed or presence on it.
+- **Show which pane has focus, and move between panes by key.** A terminal marks
+  its active pane and one key moves to the next. In a workspace today the arrow keys
+  walk a side list, `a` reaches the next open Ask, and a pane body that scrolls is a
+  Tab stop, but nothing marks the active pane and no key moves from one pane to the
+  next. Pane focus belongs to the panes and the keyboard layer, not the Layout, so it
+  works the same wherever panes stand. Draw it as a playground before building it.
+  Trigger: a user loses track of the active pane, or tabs through a pane to reach the
+  next one.
 - **#23 — Workspace persistence:** use repeated real tasks to decide whether
   users return and how much customization Leaf should own.
 - **Visual review beside Leaf:** coordinate a real browser target through the harness

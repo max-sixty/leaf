@@ -181,6 +181,13 @@ under `$idioms` in the package's
 `registry.json` (a selector, a description, an example) and style it in the layer's
 `theme.css`; the page's merged `registry.json` then carries it beside the shipped ones.
 
+A package's rules read the box a widget is given and the theme's tokens, never the Layout
+or style class around it, so a widget behaves the same in a shipped Layout as on a page
+whose own CSS gives it the same box. A size query on the widget's own container answers
+its width. What a width cannot say arrives as a token its owner sets: `--lf-full-height`
+while a workspace gives its body a definite height (`module-authoring.md`, "Reading
+regions"), and `--lf-density: working` under the `density-working` style.
+
 A rule that draws a box's inset — padding, border, or tinted field — declares
 `--lf-block-frame: 1` in the same rule. The shared layout uses that declaration to trim child
 margins and bound wide content. A box that is a section of the page's own flow rather than a

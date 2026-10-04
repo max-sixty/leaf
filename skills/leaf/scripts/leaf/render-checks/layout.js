@@ -26,11 +26,15 @@ export function marginResidents() {
     .join(" ");
 }
 
-// One settled-width geometry sample: every read-only reading whose answer moves with
-// the window's width. These readers are synchronous: taking them in one browser turn
-// preserves their findings while removing the protocol round trips between fields.
-// Resize and rendering completion belong to the caller, so a sample neither advances
-// the page nor waits for a different layout.
+// One settled-width geometry sample: the readings the gate reports across the width
+// sweep, each field read by its own consumer in render_gate/readings.py. Which findings
+// the gate answers for at every width is its choice, not a property of the reader:
+// strandedMargins and reachabilityReading also move with the width, and the gate
+// reports them only at the viewports it renders (validation.md). These readers are
+// synchronous and read-only: taking them in one browser turn preserves their findings
+// while removing the protocol round trips between fields. Resize and rendering
+// completion belong to the caller, so a sample neither advances the page nor waits for
+// a different layout.
 export function geometryReading(open) {
   return {
     overflow: rootOverflow(),

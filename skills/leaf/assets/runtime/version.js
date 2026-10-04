@@ -849,6 +849,8 @@ export function createVersionController({
   // Both sides break between blocks with a newline rather than a space, so a heading
   // and the paragraph under it stay two sentences to the alignment.
   const wroteLines = (target) => quoteFrom(textNodesUnder(target, "wrote"), "\n");
+  const alignedWith = (target, before) =>
+    alignInlineText(before, authoredReading(target).text);
   const authoredReading = (target) =>
     readingFrom(textNodesUnder(target, "wrote"), "\n");
 
@@ -892,8 +894,9 @@ export function createVersionController({
   // `before` is what the block said in the base, or null where the base held no such
   // block; `base` names that base for the reading. `opener` says whose press owns the
   // reading: the comparison's Change entries (`COMPARISON`), or one thread, by its id.
-  // A `passage` narrows the reading to the edit of those words (`runsAbout`).
-  function openInlineComparison(target, before, base, opener, passage = null) {
+  // `runs` is the alignment of `before` with the block's words now (`alignedWith`),
+  // perhaps narrowed to one passage's edit.
+  function openInlineComparison(target, before, runs, base, opener) {
     const reading = authoredReading(target);
     const current = currentVersionToken();
     const label = el(
@@ -914,8 +917,7 @@ export function createVersionController({
     const insertions = [{ offset: 0, node: label }];
     let afterOffset = 0;
     let hasTextChange = false;
-    const runs = before === null ? [] : alignInlineText(before, reading.text);
-    for (const run of passage ? runsAbout(runs, before, passage) : runs) {
+    for (const run of before === null ? [] : runs) {
       if (run.kind === "delete") {
         // A deletion running to a block's end was a block of its own, so it stands on
         // its own line rather than running into the block after it.
@@ -1004,9 +1006,11 @@ export function createVersionController({
     else {
       // A thread's reading of the same block gives way to the one pressed for.
       if (inlineOpen.has(target)) closeInlineComparison(target, true);
+      const before = diffBefore.get(target);
       said = openInlineComparison(
         target,
-        diffBefore.get(target),
+        before,
+        before === null ? [] : alignedWith(target, before),
         `v${diffBase}`,
         COMPARISON,
       );
@@ -1057,19 +1061,21 @@ export function createVersionController({
       else doc = null;
     }
     if (!doc || !target.isConnected) return;
+    const block = doc.getElementById(target.id);
+    const before = block ? wroteLines(block) : null;
+    const runs =
+      before === null ? [] : runsAbout(alignedWith(target, before), before, passage);
+    // A quote the earlier words never held as written, or words that are all still
+    // there, have no edit to show, and saying so beats marking the section.
+    if (!runs) return notice(`These words aren't in ${base} as quoted`);
+    if (before !== null && runs.every((run) => run.kind === "same"))
+      return notice("These words are unchanged, though the page no longer finds them");
     if (inlineOpen.has(target)) closeInlineComparison(target, true);
-    const before = doc.getElementById(target.id);
-    openInlineComparison(
-      target,
-      before ? wroteLines(before) : null,
-      base,
-      thread,
-      passage,
-    );
+    openInlineComparison(target, before, runs, base, thread);
     document.dispatchEvent(new CustomEvent("lf-comparison"));
     // The page's words moved under the reader, so the press says what they now show.
     notice(
-      before
+      before !== null
         ? "Showing what changed since the comment"
         : "All of this is new since the comment",
     );

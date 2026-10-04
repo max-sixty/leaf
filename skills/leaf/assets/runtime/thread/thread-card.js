@@ -43,9 +43,10 @@ function quoteReading(thread, anchors) {
   // naming those words rather than the section the page kept the thread on, and offers
   // what became of them since the revision the comment was written on.
   const from = rewrittenFrom(thread);
-  const label = from
-    ? `“${from.passage.quote}”`
-    : anchorLabel(thread.detached_from ?? thread.anchor, thread.root.about);
+  const label = anchorLabel(
+    from?.passage ?? thread.detached_from ?? thread.anchor,
+    thread.root.about,
+  );
   if (!label) return null;
   const anchored = Boolean(thread.anchor) || Boolean(thread.detached_from);
   const found = !thread.detached_from && Boolean(placement);

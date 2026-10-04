@@ -130,11 +130,10 @@ export function alignInlineText(before, after) {
 // other deletion is dropped and every other insertion reads as unchanged, so a reader
 // asking what became of those words sees their edit and nothing else the same
 // revisions changed. `passage` is an anchor's `{quote, prefix, suffix}`, found in
-// `before` regardless of how its whitespace breaks; where `before` holds none of it,
-// every run stands.
+// `before` regardless of how its whitespace breaks; null where `before` never held it.
 export function runsAbout(runs, before, passage) {
   const span = passageIn(before, passage);
-  if (!span) return runs;
+  if (!span) return null;
   let at = 0;
   const placed = runs.map((run) => {
     const from = at;

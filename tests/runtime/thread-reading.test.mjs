@@ -482,6 +482,6 @@ test("A passage's edit leaves out what else changed around it", async () => {
   ]);
   // Whitespace in the quote matches a block break in the text.
   assert.deepEqual(about({ quote: "flag. Ask" }).length, 3);
-  // Words the earlier text never held narrow nothing.
-  assert.equal(runsAbout(runs, before, { quote: "absent" }), runs);
+  // Words the earlier text never held have no edit to show.
+  assert.equal(runsAbout(runs, before, { quote: "absent" }), null);
 });

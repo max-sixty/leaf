@@ -199,9 +199,11 @@ Health sensors use `watch_platform.js` for native paint scheduling and its match
 performance clock. A controlled page clock advances product callbacks; Chrome's
 layout-shift records still carry native timestamps. Do not mix those clocks when
 associating input, sampled geometry, and painted movement. `input_work_watch.js`
-retains the trusted input behind timers, animation frames, microtasks, and explicit
-Promise callbacks the page schedules, so delayed Send work keeps its cause and an
-unrelated timer does not acquire one by running nearby. Native `await` continuations
+retains the trusted input behind timers, animation frames, microtasks, explicit
+Promise callbacks, and reactive element updates (Lit's `requestUpdate` and
+`scheduleUpdate`) the page schedules, so delayed Send work and a Web Awesome field
+redrawn for a key keep their cause and an unrelated timer does not acquire one by
+running nearby. Native `await` continuations
 do not expose their input context to JavaScript instrumentation. A native sensor
 fixture captures its DOM commit callback with `lfInputWork.capture` during the
 trusted handler and invokes that callback after `await`; the capture states the

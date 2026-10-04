@@ -153,21 +153,26 @@ export function createAskView({
   // live panel node. Navigation and activation are the two boundaries that need that
   // node, so materialize the existing thread projection there rather than
   // narrowing the semantic inventory to what happens to be in the DOM.
-  async function materializeAsk(ask, intent = null) {
-    let target = askNode(ask);
-    let source = sourceNode(ask);
-    if ((!target || !source) && ask.thread) {
-      if (!panelIsOpen()) {
-        if (intent) {
-          if (!intent.handoff(() => setPanel(true))) return {};
-        } else setPanel(true);
-      }
-      await revealThread(ask.thread);
-      await refreshThread();
-      target = askNode(ask);
-      source = sourceNode(ask);
+  //
+  // An Ask whose nodes already stand answers at once rather than after a wait, so the
+  // arrival that follows still runs inside the gesture that asked for it: what it does
+  // to the page, such as widening a narrowing that hides the Ask's thread and clearing
+  // the words searched for, is that key's or press's doing, in its own turn.
+  function materializeAsk(ask, intent = null) {
+    const target = askNode(ask);
+    const source = sourceNode(ask);
+    if ((target && source) || !ask.thread) return { target, source };
+    return materializeThreadAsk(ask, intent);
+  }
+  async function materializeThreadAsk(ask, intent) {
+    if (!panelIsOpen()) {
+      if (intent) {
+        if (!intent.handoff(() => setPanel(true))) return {};
+      } else setPanel(true);
     }
-    return { target, source };
+    await revealThread(ask.thread);
+    await refreshThread();
+    return { target: askNode(ask), source: sourceNode(ask) };
   }
   const presentedActionControl = (control) => presentedControl?.(control) ?? control;
   const answeringAll = new Set();
@@ -670,8 +675,11 @@ export function createAskView({
       available: () => hasAsk(allAsks(), next),
     });
     // A thread's ask lives in the panel, which has no geometry while closed — the
-    // same reason reveal() opens a settled group before the scroll.
-    let { target } = await materializeAsk(next, mayArrive);
+    // same reason reveal() opens a settled group before the scroll. Waited for only
+    // where it has to be built, so an Ask already standing is arrived at in the turn.
+    const materialized = materializeAsk(next, mayArrive);
+    let { target } =
+      materialized instanceof Promise ? await materialized : materialized;
     if (!mayArrive() || !target) return false;
     if (inChrome(target) && !panelIsOpen()) {
       if (!mayArrive.handoff(() => setPanel(true))) return false;

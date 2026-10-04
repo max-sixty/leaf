@@ -431,3 +431,76 @@ def test_words_a_native_passive_await_stays_passive_inside_a_press(browser, defe
     consume_browser_errors(page, "typed words left the screen without a key or press")
     page.evaluate("completeSend()")
     page.wait_for_function("window.done === true")
+
+
+# A reactive element in the shape Lit gives one (`requestUpdate` starting an update that
+# a native `await` defers to `scheduleUpdate`), its value drawn into a field in its
+# shadow tree, as a Web Awesome input draws the Threads search. A key clears the
+# element's value; a passive timer, armed when the page loads, does the same on cue.
+REACTIVE = """<!doctype html><body>
+<reactive-field id="host"></reactive-field>
+<script>
+  class ReactiveField extends HTMLElement {
+    isUpdatePending = false;
+    #value = "";
+    constructor() {
+      super();
+      this.attachShadow({ mode: "open" }).innerHTML = '<input id="inner">';
+      this.shadowRoot.firstChild.addEventListener("input", (event) => {
+        this.#value = event.target.value;
+      });
+    }
+    get value() { return this.#value; }
+    set value(next) { this.#value = next; this.requestUpdate(); }
+    requestUpdate() {
+      if (this.isUpdatePending) return;
+      this.isUpdatePending = true;
+      this.updated = this.enqueueUpdate();
+    }
+    async enqueueUpdate() {
+      await null;
+      this.scheduleUpdate();
+    }
+    scheduleUpdate() {
+      this.isUpdatePending = false;
+      this.shadowRoot.firstChild.value = this.#value;
+      window.cleared = this.#value === "";
+    }
+  }
+  customElements.define("reactive-field", ReactiveField);
+  addEventListener("keydown", (event) => {
+    if (event.key === "Escape") document.getElementById("host").value = "";
+  });
+  new Promise((resolve) => (window.releasePassive = resolve)).then(() => {
+    setTimeout(() => { document.getElementById("host").value = ""; }, 0);
+  });
+</script>"""
+
+
+def reactive_page(browser):
+    page = browser.new_page()
+    page.goto("data:text/html," + quote(REACTIVE))
+    page.locator("#inner").fill("Half a thought")
+    return page
+
+
+def test_words_a_reactive_update_a_key_requested_is_that_keys(browser):
+    """An element's update that a key requested belongs to that key, though the element
+    defers it behind a native `await`: the key put the words away."""
+    page = reactive_page(browser)
+    page.keyboard.press("Escape")
+    page.wait_for_function("window.cleared === true")
+    judge_watches()
+
+
+def test_words_a_reactive_update_nothing_requested_still_fails(browser):
+    """The same deferred update, requested by work no input caused, loses the words."""
+    page = reactive_page(browser)
+    page.evaluate("releasePassive()")
+    page.wait_for_function("window.cleared === true")
+    judge_watches()
+    consume_browser_errors(
+        page,
+        'typed words left the screen without a key or press: "Half a thought"'
+        " in input#inner in shadow of reactive-field#host",
+    )

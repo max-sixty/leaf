@@ -3147,6 +3147,20 @@ def test_two_passages_hold_two_composer_drafts(browser, serve, one_user):
     expect(third.locator(".lf-composer leaf-text")).to_have_js_property("value", late)
 
 
+def _draft_attachment_boxes(field, passage):
+    """Read both moving boxes in one layout instant during native smooth travel.
+
+    Separate driver calls can straddle scroll frames and invent relative movement.
+    """
+    return field.evaluate(
+        """(node, selector) => [
+          node.getBoundingClientRect().toJSON(),
+          document.querySelector(selector).getBoundingClientRect().toJSON(),
+        ]""",
+        passage,
+    )
+
+
 def test_comment_follows_a_new_standing_instead_of_an_earlier_draft(browser, serve):
     """The earlier draft keeps its subject while a later keyboard landing names
     the next comment. Resume recovers the editor that followed its earlier passage."""
@@ -3162,8 +3176,7 @@ def test_comment_follows_a_new_standing_instead_of_an_earlier_draft(browser, ser
     rendered(page)
     earlier = page.locator(".lf-fab-input")
     earlier.evaluate("node => {window.earlierEditor = node;}")
-    before_field = earlier.bounding_box()
-    before_target = page.locator("#p3").bounding_box()
+    before_field, before_target = _draft_attachment_boxes(earlier, "#p3")
     page.keyboard.press("Shift+Tab")
     page.locator("#later-link").scroll_into_view_if_needed()
     go_to_address(page, "Link", "later-link")
@@ -3171,8 +3184,7 @@ def test_comment_follows_a_new_standing_instead_of_an_earlier_draft(browser, ser
     expect(earlier).not_to_be_in_viewport()
     expect(earlier).to_have_js_property("value", words)
     expect(earlier).to_have_attribute("aria-label", re.compile("Paragraph 3"))
-    after_field = earlier.bounding_box()
-    after_target = page.locator("#p3").bounding_box()
+    after_field, after_target = _draft_attachment_boxes(earlier, "#p3")
     for axis in ("x", "y"):
         assert after_field[axis] - before_field[axis] == pytest.approx(
             after_target[axis] - before_target[axis], abs=2
@@ -3240,8 +3252,7 @@ def test_comment_follows_a_thread_standing_instead_of_an_earlier_draft(
     rendered(page)
     earlier = page.locator(".lf-fab-input")
     earlier.evaluate("node => {window.earlierEditor = node;}")
-    before_field = earlier.bounding_box()
-    before_target = page.locator("#p3").bounding_box()
+    before_field, before_target = _draft_attachment_boxes(earlier, "#p3")
     page.keyboard.press("Shift+Tab")
     page.keyboard.press("t")
     expect(thread).to_be_focused()
@@ -3249,8 +3260,7 @@ def test_comment_follows_a_thread_standing_instead_of_an_earlier_draft(
     expect(earlier).not_to_be_in_viewport()
     expect(earlier).to_have_js_property("value", words)
     expect(earlier).to_have_attribute("aria-label", re.compile("Paragraph 3"))
-    after_field = earlier.bounding_box()
-    after_target = page.locator("#p3").bounding_box()
+    after_field, after_target = _draft_attachment_boxes(earlier, "#p3")
     for axis in ("x", "y"):
         assert after_field[axis] - before_field[axis] == pytest.approx(
             after_target[axis] - before_target[axis], abs=2

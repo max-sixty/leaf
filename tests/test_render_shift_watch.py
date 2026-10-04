@@ -1349,7 +1349,7 @@ def test_real_floating_plane_retains_local_motion(
         "Plane evidence",
         '<p id="subject" style="position:fixed;left:100px;top:280px;'
         'width:80px;height:30px;margin:0">Exact subject</p>'
-        '<div id="holder" style="position:fixed;width:220px;height:90px;'
+        '<div id="holder" style="visibility:hidden;position:fixed;width:220px;height:90px;'
         'padding:12px;border:1px solid;box-sizing:border-box;background:white">'
         '<textarea id="field" style="display:block;width:160px;height:36px;'
         'box-sizing:border-box;resize:none"></textarea></div>'
@@ -1359,6 +1359,9 @@ def test_real_floating_plane_retains_local_motion(
     )
     page = open_page(browser, serve(source))
     resized(page, 900, 600)
+    # An unplaced surface has dimensions for its solver, but no reading to move.
+    paint(page)
+    expect(page.locator("#field")).to_be_hidden()
     initial = "page" if destination == "window" else "window"
     first = page.evaluate(
         """async initial => {
@@ -1382,6 +1385,7 @@ def test_real_floating_plane_retains_local_motion(
           }
           owner.watch(subject, subject, ui.autoUpdate);
           await place();
+          holder.style.removeProperty('visibility');
           const original = selection();
           window.planeControl = {
             to:async destination => {plane=destination; await place();},

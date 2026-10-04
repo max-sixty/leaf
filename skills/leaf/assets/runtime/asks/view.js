@@ -131,6 +131,7 @@ import { askHolding, declareSide, placeOf, walkOrigin } from "../standing-target
 import { pageCommand } from "../keyboard/register.js";
 import { PRESENTATION } from "../presentation.js";
 import { retainUserIntent } from "../user-intent.js";
+import { bindQueuedWork } from "../queued-work.js";
 import {
   applicationPresenter,
   failSoftAfterRetention,
@@ -686,6 +687,9 @@ export function createAskView({
     const mayArrive = retainUserIntent({
       available: () => hasAsk(allAsks(), next),
     });
+    // Materializing an Ask can yield before its destination opens a narrowed thread.
+    // The arrival is this walk's deferred invocation; its returned tail is separate.
+    const arriveAtAsk = bindQueuedWork(arrive);
     // A thread's ask lives in the panel, which has no geometry while closed — the
     // same reason reveal() opens a settled group before the scroll.
     let { target } = await materializeAsk(next, mayArrive);
@@ -728,7 +732,7 @@ export function createAskView({
           framed(next, initial.region, initial.target, initial.box, readable),
       }),
     );
-    const arrived = await arrive(
+    const arrived = await arriveAtAsk(
       () => {
         const here = destination();
         if (!here) return null;

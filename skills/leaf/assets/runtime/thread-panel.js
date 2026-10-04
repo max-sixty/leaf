@@ -20,7 +20,7 @@ export function createThreadPanelController({
   elements: { panel, toggleBtn, threadsBox, inPanel: panelFocusIsInside },
   key = "threads",
   narrowing,
-  threadHere,
+  threadAtStanding,
   placedAt,
   showThread,
   refreshThread,
@@ -109,12 +109,8 @@ export function createThreadPanelController({
   });
   let mounted = false;
   let pressedInlineThread = null;
-  const currentThreadId = () => {
-    const thread = threadHere();
-    return thread?.dataset.id ?? thread?.dataset.thread ?? null;
-  };
   const rememberInlineThread = () => {
-    pressedInlineThread = currentThreadId();
+    pressedInlineThread = threadAtStanding();
   };
   const toggle = (event) => {
     const pressed = pressIsKeyboardActivation(event) ? null : pressedInlineThread;
@@ -123,7 +119,7 @@ export function createThreadPanelController({
       setPanel(false);
       return;
     }
-    const inlineThread = pressed ?? currentThreadId();
+    const inlineThread = pressed ?? threadAtStanding();
     if (inlineThread) showThread(inlineThread, { focus: "thread" });
     else setPanel(true);
   };

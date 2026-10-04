@@ -10,6 +10,16 @@
    the reading answer for every owner there without a list of them. Coalescing owners
    keep their own flags; this module holds the one queue behind them.
 
+   The neutral `queued-work.js` home binds a callback's one deferred invocation to that same lifecycle,
+   for host schedules which own their own order rather than using this frame queue.
+   Its `observeQueuedWork` exposes each queued callback's lifecycle to tracing owners.
+   Its frozen identity is announced at enqueue, immediately before and after its
+   synchronous turn, or on cancellation. The enqueue-time observer cohort follows
+   that job to completion even if unsubscribed meanwhile; unsubscription affects new
+   jobs. Observers can carry a scheduling context across this coalesced queue without
+   changing callbacks, their execution order, or the pass's microtask checkpoint.
+   An async callback's returned tail is not part of its synchronous rendering turn.
+
    The loop takes one animation frame and works through every queued callback in it, in
    the order they were queued. `nextRender` asked for from inside that pass runs in the
    same pass, before the frame paints: a repaint that moves the page and the boxes that
@@ -29,7 +39,10 @@
    as a control replaced and the focus landing on its successor, would otherwise paint
    the moment between them and then put back what it took off, a write that changes
    nothing. A callback asked for again before it runs runs once, and one that throws is
-   reported as a frame callback's failure is while the others still run. Steps in
+   reported as a frame callback's failure is while the others still run. Repeated
+   invalidations keep the existing job and its first enqueue context. That identifies
+   the callback invocation, not the provenance of each mutable value it may read.
+   Steps in
    separate listeners of one event are separate scripts.
 
    `nextFrame` is for a step that must not run in the pass that asked for it: an
@@ -66,6 +79,8 @@
    why `data-lf-presented`, which such a host waits on before showing the frame, never
    waits on this reading. */
 
+import { enqueueWork, runWork, cancelWork } from "./queued-work.js";
+
 const ROUNDS = 8;
 // What the next pass runs, what the running pass is working through, and what a
 // `nextFrame` asked for during a pass, which waits for the pass after it. One id space
@@ -82,7 +97,7 @@ let checking = false;
 
 function request(into, callback) {
   const id = ++lastId;
-  into.set(id, callback);
+  into.set(id, enqueueWork(callback));
   if (!running && !frame) frame = requestAnimationFrame(pass);
   unsettle();
   return id;
@@ -96,7 +111,13 @@ export const nextFrame = (callback) => request(running ? afterPaint : queued, ca
 
 /** Withdraw a callback `nextRender` or `nextFrame` queued. */
 export function cancelRender(id) {
-  queued.delete(id) || afterPaint.delete(id) || running?.delete(id);
+  for (const queue of [queued, afterPaint, running]) {
+    const job = queue?.get(id);
+    if (!job) continue;
+    queue.delete(id);
+    cancelWork(job);
+    return;
+  }
 }
 
 async function pass(time) {
@@ -104,10 +125,10 @@ async function pass(time) {
   for (let round = 0; queued.size && round < ROUNDS; round++) {
     running = queued;
     queued = new Map();
-    for (const [id, callback] of running) {
+    for (const [id, job] of running) {
       running.delete(id);
       try {
-        callback(time);
+        runWork(job, time);
       } catch (error) {
         // One owner's failure is reported as the browser reports a frame callback's,
         // and the owners after it still paint.
@@ -122,14 +143,14 @@ async function pass(time) {
   if (queued.size) frame = requestAnimationFrame(pass);
 }
 
-const owedThisScript = new Set();
+const owedThisScript = new Map();
 function settleScript() {
-  // A callback asked for while the others run is visited too: a Set's iteration reaches
+  // A callback asked for while the others run is visited too: a Map's iteration reaches
   // what joins it before the end.
-  for (const callback of owedThisScript) {
+  for (const [callback, job] of owedThisScript) {
     owedThisScript.delete(callback);
     try {
-      callback();
+      runWork(job);
     } catch (error) {
       reportError(error);
     }
@@ -137,7 +158,8 @@ function settleScript() {
 }
 export function afterScript(callback) {
   if (!owedThisScript.size) queueMicrotask(settleScript);
-  owedThisScript.add(callback);
+  if (!owedThisScript.has(callback))
+    owedThisScript.set(callback, enqueueWork(callback));
 }
 
 /** A `ResizeObserver` whose deliveries the settled reading counts. */

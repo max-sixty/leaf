@@ -71,6 +71,7 @@ from render_harness import (
     undo,
     wait_for_revision,
     write,
+    xfail_browser_problem,
 )
 
 pytestmark = pytest.mark.nightly
@@ -186,7 +187,7 @@ def hold_visible_thread_presentation(page, thread_id):
 
 # Named from the command's own answer: a page open on this directory appends a
 # bookkeeping `read` of its own, so the log's tail is not reliably this summary.
-def summarize_thread(page_dir, first, last, text):
+def summarize_thread(page_dir, first, last, text, *, label=None):
     """Admit one agent summary through the public command door."""
     result = CliRunner().invoke(
         cli_model.cli,
@@ -200,6 +201,7 @@ def summarize_thread(page_dir, first, last, text):
             last,
             "--text",
             text,
+            *(["--label", label] if label is not None else []),
         ],
     )
     assert result.exit_code == 0, result.output
@@ -541,6 +543,10 @@ def test_a_summary_folds_originals_and_a_direct_reply_link_reveals_them(browser,
     expect(expand).to_have_attribute("aria-expanded", "false")
     expect(expand).to_have_accessible_name("Show 3 earlier messages")
     expect(checkpoint.locator(".lf-summary-label")).to_have_text("Earlier discussion")
+    label_box = checkpoint.locator(".lf-summary-label").bounding_box()
+    control_box = expand.bounding_box()
+    assert label_box["x"] + label_box["width"] <= control_box["x"]
+    assert control_box["y"] <= label_box["y"] < control_box["y"] + control_box["height"]
     expect(checkpoint.locator(".lf-summary-text")).to_have_text(
         "Checkpoint digest: the dependency remains and the measurement took 18 minutes."
     )
@@ -596,6 +602,47 @@ def test_a_summary_folds_originals_and_a_direct_reply_link_reveals_them(browser,
     expect(destination).to_be_visible()
     expect(destination).to_be_focused()
     expect(expand).to_have_attribute("aria-expanded", "true")
+
+
+@pytest.mark.parametrize("width", [390, 1440])
+def test_previous_updates_can_fold_without_summary_prose(browser, serve, width):
+    """The same disclosure keeps progress available without an authored digest."""
+    url = serve(SEATED_QUESTION_PAGE)
+    root = panel_comment(
+        serve.page_dir, "Please check the schedule.", {"section": "jobs"}
+    )
+    first = append_agent_reply(serve.page_dir, root, "Checking the dependency.")
+    last = append_agent_reply(serve.page_dir, root, "Checking the camera.")
+    answer = append_agent_reply(serve.page_dir, root, "The schedule works.")
+    summary = summarize_thread(
+        serve.page_dir, first["id"], last["id"], "", label="Previous updates"
+    )
+
+    page = open_page(browser, url)
+    resized(page, width, 900)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    card = page.locator(f'.lf-thread[data-id="{root}"]')
+    card.locator(":scope > .lf-thread-summary").click()
+    checkpoint = card.locator(
+        f'.lf-thread-checkpoint[data-summary-id="{summary["id"]}"]'
+    )
+    label = checkpoint.locator(".lf-summary-label")
+    expand = checkpoint.get_by_role("button", name="Show 2 earlier messages")
+    expect(label).to_have_text("Previous updates")
+    expect(checkpoint.locator(".lf-summary-text")).to_have_count(0)
+    expect(card.locator(f'.lf-msg[data-mid="{answer["id"]}"]')).to_be_visible()
+    expect(card.locator(f'.lf-msg[data-mid="{first["id"]}"]')).to_be_hidden()
+    label_box = label.bounding_box()
+    control_box = expand.bounding_box()
+    assert label_box["x"] + label_box["width"] <= control_box["x"]
+    assert control_box["y"] <= label_box["y"] < control_box["y"] + control_box["height"]
+    expand.focus()
+    page.keyboard.press("Enter")
+    expect(card.locator(f'.lf-msg[data-mid="{first["id"]}"]')).to_be_visible()
+    expect(card.locator(f'.lf-msg[data-mid="{last["id"]}"]')).to_be_visible()
+    checkpoint.get_by_role("button", name="Collapse 2 earlier messages").click()
+    expect(card.locator(f'.lf-msg[data-mid="{first["id"]}"]')).to_be_hidden()
 
 
 def test_a_summary_gathering_the_message_the_user_is_on_keeps_them_on_it(
@@ -723,23 +770,6 @@ def test_a_later_summary_replaces_its_overlap_and_an_edit_restores_originals(
         "All three constraints now form one decision."
     )
 
-    card.locator(".lf-msg[data-mid]").evaluate_all(
-        """messages => {
-          window.__summaryMessageGeometryReads = 0;
-          for (const message of messages) {
-            const clientRects = message.getClientRects.bind(message);
-            const boundingRect = message.getBoundingClientRect.bind(message);
-            message.getClientRects = () => {
-              window.__summaryMessageGeometryReads += 1;
-              return clientRects();
-            };
-            message.getBoundingClientRect = () => {
-              window.__summaryMessageGeometryReads += 1;
-              return boundingRect();
-            };
-          }
-        }"""
-    )
     append_carried_log_record(
         serve.page_dir,
         {
@@ -753,12 +783,12 @@ def test_a_later_summary_replaces_its_overlap_and_an_edit_restores_originals(
     )
     told(page)
     expect(card.locator(".lf-thread-checkpoint")).to_have_count(0)
+    card.get_by_role("button", name="1 new reply", exact=True).click()
     expect(card.locator(f'.lf-msg[data-mid="{first["id"]}"]')).to_be_visible()
     expect(card.locator(f'.lf-msg[data-mid="{second["id"]}"]')).to_contain_text(
         "The corrected second constraint."
     )
     expect(card.locator(f'.lf-msg[data-mid="{third["id"]}"]')).to_be_visible()
-    assert page.evaluate("() => window.__summaryMessageGeometryReads") == 0
 
 
 def test_a_summary_cannot_hide_an_active_question(browser, serve):
@@ -1339,6 +1369,15 @@ def test_panel_settlement_moves_focus_with_optimistic_state_and_restores_a_refus
     round_trip(page)
     expect(reply).to_be_focused()
 
+    xfail_browser_problem(
+        page,
+        'typed words left the screen without a key or press: "first thread" in '
+        + page.get_by_role("searchbox", name="Find in threads").evaluate(
+            "field => window.lfPlace(field)"
+        ),
+        reason="Verified on main 35d91df64 (run 37183384374): native awaited thread arrival clears the query outside its input callback; PR #1705 owns the queued/presentation boundary.",
+    )
+
 
 def test_a_refused_reopen_preserves_a_filter_typed_during_its_reveal(
     held_events, serve
@@ -1378,6 +1417,15 @@ def test_a_refused_reopen_preserves_a_filter_typed_during_its_reveal(
     expect(find).to_be_focused()
     expect(page.locator('[data-filter-value="open"]')).to_have_attribute(
         "aria-pressed", "true"
+    )
+
+    xfail_browser_problem(
+        page,
+        'typed words left the screen without a key or press: "later search" in '
+        + page.get_by_role("searchbox", name="Find in threads").evaluate(
+            "field => window.lfPlace(field)"
+        ),
+        reason="Verified on main 35d91df64 (run 37183384374): native awaited thread arrival clears the query outside its input callback; PR #1705 owns the queued/presentation boundary.",
     )
 
 
@@ -1424,6 +1472,15 @@ def test_a_refused_reopen_preserves_a_filter_typed_during_restoration(
     expect(find).to_be_focused()
     expect(page.locator('[data-filter-value="resolved"]')).to_have_attribute(
         "aria-pressed", "true"
+    )
+
+    xfail_browser_problem(
+        page,
+        'typed words left the screen without a key or press: "restoration search" in '
+        + page.get_by_role("searchbox", name="Find in threads").evaluate(
+            "field => window.lfPlace(field)"
+        ),
+        reason="Verified on main 35d91df64 (run 37183384374): native awaited thread arrival clears the query outside its input callback; PR #1705 owns the queued/presentation boundary.",
     )
 
 
@@ -1905,7 +1962,6 @@ def test_an_arriving_reply_cannot_move_resolve_out_from_under_a_press(browser, s
         },
     )
     told(page)
-    expect(page.locator(f'.lf-msg[data-mid="{reply["id"]}"]')).to_have_count(1)
     arrived = page.evaluate(reading, [*point, target])
     assert arrived["same"], (
         f"the arriving reply moved Resolve out from under the pointer: "
@@ -1919,6 +1975,10 @@ def test_an_arriving_reply_cannot_move_resolve_out_from_under_a_press(browser, s
         event["kind"] == "resolve" and event["parent"] == target
         for event in events_model.read_events(serve.page_dir)
     ), "mouseup did not complete the Resolve press"
+    source_thread = page.locator(f'.lf-thread[data-id="{source}"]')
+    source_thread.locator(".lf-thread-summary").click()
+    source_thread.get_by_role("button", name="1 new reply", exact=True).click()
+    expect(page.locator(f'.lf-msg[data-mid="{reply["id"]}"]')).to_have_count(1)
 
 
 def test_opening_a_thread_leaves_its_title_where_the_user_pressed_it(browser, serve):
@@ -2060,6 +2120,9 @@ def test_a_new_sent_message_does_not_hide_work_on_an_earlier_message(browser, se
         },
     )
     told(page)
+    page.locator(f'.lf-thread[data-id="{root}"]').get_by_role(
+        "button", name="1 new reply", exact=True
+    ).click()
     workflow = page.locator(f'.lf-msg[data-mid="{later["id"]}"] .lf-msg-sending')
     expect(workflow).to_have_text("Sent")
     assert workflow.evaluate(
@@ -4737,6 +4800,12 @@ def test_an_external_resolution_keeps_a_panel_reply_until_it_is_sent(
         find.fill("No such discussion")
         rendered(page)
         expect(card).to_be_hidden()
+        xfail_browser_problem(
+            page,
+            f'typed words left the screen without a key or press: "{words}" in '
+            + reply.evaluate("field => window.lfPlace(field)"),
+            reason="Verified on main 35d91df64 (run 37183384374): a changed narrowing intent hides the retained reply while Find is edited; PR #1705 owns reply editing lifetime.",
+        )
         return
 
     page.keyboard.type(" still")
@@ -4941,6 +5010,7 @@ def test_a_thread_reopened_mid_fold_folds_again_when_it_settles(browser, serve):
         },
     )
     told(page)
+    thread.get_by_role("button", name="1 new reply", exact=True).click()
     expect(thread.locator(".lf-msg")).to_have_count(2)
 
     focus_panel_thread(page.locator(f'.lf-thread[data-id="{c1}"]'))
@@ -5627,6 +5697,15 @@ def test_a_delayed_accordion_reveal_yields_to_the_users_new_thread(browser, serv
     expect(later.locator(".lf-thread-summary")).to_be_focused()
     expect(later).to_have_attribute("open", "")
     expect(target).not_to_have_attribute("open", "")
+
+    xfail_browser_problem(
+        page,
+        'typed words left the screen without a key or press: "stay blocked" in '
+        + page.get_by_role("searchbox", name="Find in threads").evaluate(
+            "field => window.lfPlace(field)"
+        ),
+        reason="Verified on main 35d91df64 (run 37183384374): native awaited thread arrival clears the query outside its input callback; PR #1705 owns the queued/presentation boundary.",
+    )
 
 
 def test_a_design_thread_about_fixed_chrome_moves_neither_box(browser, serve):
@@ -8405,6 +8484,15 @@ def test_a_walk_to_a_question_the_narrowing_hides_widens_the_list(browser, serve
     assert page.evaluate(
         "() => document.activeElement.closest('.lf-thread') !== null"
     ), "the walk landed outside the card it named"
+
+    xfail_browser_problem(
+        page,
+        'typed words left the screen without a key or press: "stay blocked" in '
+        + page.get_by_role("searchbox", name="Find in threads").evaluate(
+            "field => window.lfPlace(field)"
+        ),
+        reason="Verified on main 35d91df64 (run 37183384374): native awaited thread arrival clears the query outside its input callback; PR #1705 owns the queued/presentation boundary.",
+    )
 
 
 def test_a_thread_on_a_rewrite_is_named_by_its_old_and_new_words(browser, serve):

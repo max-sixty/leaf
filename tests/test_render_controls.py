@@ -1084,8 +1084,8 @@ def test_product_gallery_threads_tab_operates_seeded_panel_views(browser, serve)
     expect(panel).to_be_hidden()
     page.locator('#bg-panel-presets [data-view="overview"]').click()
     expect(panel).to_be_visible()
-    expect(frame.locator(".lf-thread")).to_have_count(4)
-    expect(frame.locator(".lf-thread:not([hidden])")).to_have_count(3)
+    expect(frame.locator(".lf-thread")).to_have_count(5)
+    expect(frame.locator(".lf-thread:not([hidden])")).to_have_count(4)
 
     page.keyboard.press("Tab")
     you_button = page.locator('#bg-panel-presets [data-view="you"]')
@@ -1098,11 +1098,12 @@ def test_product_gallery_threads_tab_operates_seeded_panel_views(browser, serve)
     for view, thread, visible, title in (
         ("you", "2be2443f0bb6cc49fc86b52f340e6073", 2, "Workshop room photo"),
         ("resolved", "bab3cdfcfb8c02aacbb27da731de947a", 1, "Projector map"),
-        ("summary", "9ee465bb3f9c1fa309ea9cb1767fa365", 3, "Afternoon workshop"),
+        ("summary", "9ee465bb3f9c1fa309ea9cb1767fa365", 4, "Afternoon workshop"),
+        ("updates", "bg-progress-question", 4, "Schedule checks"),
         (
             "overview",
             "72e031c5bf0d485ba9054628e09869d4",
-            3,
+            4,
             "Is lunch provided, or should attendees make their own plans?",
         ),
     ):
@@ -1116,6 +1117,32 @@ def test_product_gallery_threads_tab_operates_seeded_panel_views(browser, serve)
         expect(topic).to_be_visible()
         expect(topic).to_have_text(title)
         assert topic.evaluate("element => element.getBoundingClientRect().width") > 40
+        if view == "updates":
+            card = frame.locator(f'.lf-thread[data-id="{thread}"]')
+            checkpoint = card.locator(".lf-thread-checkpoint")
+            expect(checkpoint.locator(".lf-summary-label")).to_have_text(
+                "Previous updates"
+            )
+            expect(checkpoint.locator(".lf-summary-text")).to_have_count(0)
+            earlier = checkpoint.locator(".lf-summary-originals")
+            expect(earlier).to_be_hidden()
+            expand = checkpoint.get_by_role("button", name="Show 2 earlier messages")
+            expand.focus()
+            page.keyboard.press("Enter")
+            expect(earlier).to_be_visible()
+            expect(earlier).to_contain_text("Checking the total practice time.")
+            expect(earlier).to_contain_text(
+                "Checking the break and closing discussion."
+            )
+            collapse = checkpoint.get_by_role(
+                "button", name="Collapse 2 earlier messages"
+            )
+            expect(collapse).to_be_focused()
+            page.keyboard.press("Enter")
+            expect(earlier).to_be_hidden()
+            expect(
+                card.locator(".lf-thread-transcript > .lf-msg").last
+            ).to_contain_text("The workshop fits, including a fifteen-minute break.")
 
     page.locator('#bg-panel-presets [data-view="you"]').click()
     frame.get_by_role("searchbox", name="Find in threads").fill("xyz-nothing")
@@ -1141,7 +1168,7 @@ def test_product_gallery_threads_tab_operates_seeded_panel_views(browser, serve)
     ).click()
     page.locator("#bg-panel-sample").evaluate("async sample => { await sample.ready; }")
     expect(panel).to_be_visible()
-    expect(frame.locator(".lf-thread")).to_have_count(4)
+    expect(frame.locator(".lf-thread")).to_have_count(5)
     expect(
         frame.locator('.lf-thread[data-id="bab3cdfcfb8c02aacbb27da731de947a"]')
     ).to_have_attribute("open", "")
@@ -5814,6 +5841,10 @@ def test_a_scroll_box_in_a_panel_reply_takes_the_keyboard(browser, serve):
             "markup": PANEL_DIFF_MARKUP,
         },
     )
+    told(page)
+    page.locator('.lf-thread[data-id="c-diff"]').get_by_role(
+        "button", name="1 new reply", exact=True
+    ).click()
     page.wait_for_function(
         """() => {
         const d = document.querySelector('#rp-diff');

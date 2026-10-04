@@ -2796,6 +2796,32 @@ def test_a_page_at_rest_does_nothing(browser, serve, source):
     assert findings == [], "\n".join(findings)
 
 
+@pytest.mark.parametrize("work", [1, 10])
+def test_rest_runs_its_timer_callbacks_before_reading(browser, serve, work):
+    """A delayed passive write is observed with ten times the callback's CPU work."""
+    page = still_page(browser, serve(leaf_page("Rest clock", "<p>Reading</p>")))
+    page.evaluate(
+        """work => {
+            Object.defineProperty(window, 'lfRest', {
+                configurable: true,
+                set(rest) {
+                    Object.defineProperty(window, 'lfRest', {
+                        value: rest, writable: true, configurable: true
+                    });
+                    setTimeout(() => {
+                        let total = 0;
+                        for (let i = 0; i < 500000 * work; i++) total += Math.sqrt(i);
+                        window.restWork = total;
+                        document.body.setAttribute('data-late', 'yes');
+                    }, 4000);
+                }
+            });
+        }""",
+        work,
+    )
+    assert any("data-late" in finding for finding in at_rest(page))
+
+
 def test_rest_waits_for_contained_arrival_before_arming(browser, serve):
     source = leaf_page(
         "Contained arrival",
@@ -4768,14 +4794,18 @@ def test_dragging_an_edge_preserves_user_state(browser, serve, edge, pointer):
     drag()
     expect(composer).to_be_visible()
     expect(composer).to_have_js_property("value", "half a comment")
+    composer.focus()
+    page.keyboard.press("Escape")
+    expect(composer).to_be_hidden()
 
     # An existing partial-word selection can come from native keyboard selection or
     # browser commands. Only a new selection gesture may expand it to a sentence.
-    page.locator("main p").nth(1).evaluate("""p => {
-        const text = p.firstChild;
-        getSelection().setBaseAndExtent(text, 3, text, 14);
-    }""")
+    paragraph = page.locator("main p").nth(1)
+    paragraph.evaluate(
+        "p => getSelection().setBaseAndExtent(p.firstChild, 3, p.firstChild, 14)"
+    )
     selected = page.evaluate("() => getSelection().toString()")
+    assert selected == paragraph.evaluate("p => p.firstChild.textContent.slice(3, 14)")
     drag()
     assert (
         page.evaluate("""async () => {

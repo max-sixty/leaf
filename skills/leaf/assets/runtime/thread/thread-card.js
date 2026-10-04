@@ -122,7 +122,8 @@ export function threadReading(
     // says that.
     statusFolded:
       attention?.kind === "waiting" &&
-      messages.some((message) => message.workflow?.id === attention.workflow?.id),
+      attention.workflow !== null &&
+      messages.some((message) => message.workflow?.id === attention.workflow.id),
     resolvedBy:
       thread.resolved?.author === "agent"
         ? `✓ Resolved by ${thread.resolved.agent}`
@@ -412,7 +413,10 @@ export class ThreadView {
       let view = this.#messages.get(message.key);
       if (!view)
         this.#messages.set(message.key, (view = new MessageView(this.#commands)));
-      view.present(message, index === 0 && Boolean(headerActions));
+      view.present(message, {
+        externalHeader: index === 0 && Boolean(headerActions),
+        arrived: Boolean(prior),
+      });
       return { key: message.key, node: view.node, header: view.header };
     });
     this.#lastMessage = messages.at(-1)?.node ?? null;
@@ -537,7 +541,6 @@ export class ThreadView {
 
   #summaryRange(range, markerFor) {
     const count = range.messages.length;
-    const unread = range.messages.filter((message) => message.unread).length;
     const id = range.summary.id;
     const originalsId = `lf-summary-originals-${this.#viewId}-${id}`;
     return html`<section
@@ -546,33 +549,35 @@ export class ThreadView {
       data-expanded=${String(range.expanded)}
     >
       <div class="lf-summary-checkpoint">
-        <div class="lf-summary-label">
-          Earlier
-          discussion${
-            unread && !range.expanded
-              ? html`<span class="lf-summary-unread">
-                  · ${unread} unread original${unread === 1 ? "" : "s"}</span
-                >`
-              : nothing
+        <div class="lf-summary-header">
+          <div class="lf-summary-label">${range.summary.label}</div>
+          ${
+            range.forced
+              ? nothing
+              : html`<button
+                  type="button"
+                  class="lf-summary-expand"
+                  aria-expanded=${String(range.expanded)}
+                  aria-controls=${originalsId}
+                  @click=${() => this.#setSummaryExpanded(id, !range.expanded)}
+                >
+                  ${range.expanded ? "Collapse" : "Show"} ${count} earlier
+                  message${count === 1 ? "" : "s"}
+                </button>`
           }
         </div>
-        <div
-          class="lf-summary-text"
-          .innerHTML=${renderMarkdown(range.summary.text)}
-        ></div>
+        ${
+          range.summary.text
+            ? html`<div
+                class="lf-summary-text"
+                .innerHTML=${renderMarkdown(range.summary.text)}
+              ></div>`
+            : nothing
+        }
         ${
           range.forced
             ? html`<div class="lf-summary-required">${range.requiredText}</div>`
-            : html`<button
-                type="button"
-                class="lf-summary-expand"
-                aria-expanded=${String(range.expanded)}
-                aria-controls=${originalsId}
-                @click=${() => this.#setSummaryExpanded(id, !range.expanded)}
-              >
-                ${range.expanded ? "Collapse" : "Show"} ${count} earlier
-                message${count === 1 ? "" : "s"}
-              </button>`
+            : nothing
         }
       </div>
       <div id=${originalsId} class="lf-summary-originals" ?hidden=${!range.expanded}>

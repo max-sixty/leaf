@@ -37,6 +37,8 @@ subpackage's initializer is only a marker, never a second API.
   page-level fold over workflows, status, claim, turn, and watcher;
 - `asks`: the one implementation of page and thread Asks, which every surface reads;
 - `work`: transient subject claims and widget work seats;
+- `tasks`: work the agent owes until it ends it: the fold, its admission gate, and
+  `leaf task`;
 - `delivery`, `session`, `hooks`, `hook_carrier`, `host`: the delivery envelope
   and its receipt, status and the `leaf wait` watch, the host hooks' entry, the
   prompt and Stop hooks as a session's carrier, and harness declarations;

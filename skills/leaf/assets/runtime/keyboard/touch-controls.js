@@ -13,9 +13,11 @@
    step arriving on the row changes the banner's box, which chrome layout measures next. */
 import {
   BANNER_CONTROL_RANK,
+  bannerStanding,
   bannerControlDoor,
   dismissBannerControls,
   registerBannerControl,
+  restoreBannerStanding,
   showBannerControls,
 } from "../banner-toolbar.js";
 import { coarsePointer } from "../pointer.js";
@@ -40,13 +42,15 @@ function place(press, seat) {
   const button = el("button", "lf-btn");
   button.type = "button";
   button.addEventListener("click", () => {
+    const { press: current } = controls.get(press.id);
     if (seat === "menu") {
       // A surface the press opens hands focus back to where it was opened from, and the
       // entry is about to close with its menu.
+      const held = bannerStanding();
       dismissBannerControls();
-      bannerControlDoor(button)?.focus({ preventScroll: true });
+      if (current.row.retainStanding) restoreBannerStanding(held);
+      else bannerControlDoor(button)?.focus({ preventScroll: true });
     }
-    const { press: current } = controls.get(press.id);
     if (live(current.row)) invokePress(current);
   });
   registerBannerControl({

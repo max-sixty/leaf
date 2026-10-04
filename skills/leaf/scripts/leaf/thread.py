@@ -404,6 +404,7 @@ def cmd_reply(
     identity: dict | None = None,
     validate_source: bool = False,
     claimed_session: str | None = None,
+    ephemeral: bool = False,
 ) -> dict | None:
     """Post one complete threaded reply, optionally moving or detaching its anchor.
 
@@ -422,6 +423,9 @@ def cmd_reply(
 
     ``failure`` records a host-owned failure code alongside its presentation text;
     ordinary agent answers omit it.
+
+    ``ephemeral`` posts progress at the same response address without answering it.
+    It remains content, and cannot carry a question, widgets, failure or relocation.
     """
     body = read_text_arg(page_dir, text)
     posting_identity = message_identity() if identity is None else identity
@@ -440,12 +444,13 @@ def cmd_reply(
             )
             if existing:
                 same_scope = (
-                    existing.get("responds") == for_event
+                    existing.get("responds") == (None if ephemeral else for_event)
                     if for_event is not None or to is not None
                     else True
                 )
                 if (
                     existing["kind"] != "reply"
+                    or bool(existing.get("ephemeral")) != ephemeral
                     or (to is not None and existing["parent"] != to)
                     or not same_scope
                 ):
@@ -521,19 +526,23 @@ def cmd_reply(
                         f"event {for_event!r} no longer requires a reply to {to!r}; "
                         "read the current delivery or thread state"
                     )
-            elif expected["kind"] == "turn" and expected["attempt"] != attempt:
+            elif (
+                not ephemeral
+                and expected["kind"] == "turn"
+                and expected["attempt"] != attempt
+            ):
                 sys.exit(
                     f"event {for_event!r} is answered by this turn's messages; "
                     "finish the reply in your final message"
                 )
         else:
             standing = thread_obligation(events, responses, thread_id)
-            if standing is not None and standing["kind"] == "turn":
+            if not ephemeral and standing is not None and standing["kind"] == "turn":
                 sys.exit(
                     f"thread {thread_id!r} is answered by this turn's messages; "
                     "finish the reply in your final message"
                 )
-            if standing is not None:
+            if not ephemeral and standing is not None:
                 sys.exit(
                     f"thread {thread_id!r} currently requires a response; "
                     f"{answer_command(standing)} answers it"
@@ -544,6 +553,10 @@ def cmd_reply(
         ):
             return None
         moving = bool(quote or section or part)
+        if ephemeral and (awaits or markup or failure or moving or detach):
+            sys.exit(
+                "--ephemeral is for progress text; it cannot ask a question, carry widgets, report failure, or move the thread"
+            )
         if detach and moving:
             sys.exit("--detach cannot be combined with --quote, --section, or --part")
         relocating = moving or detach
@@ -665,8 +678,14 @@ def cmd_reply(
             **posting_identity,
             "parent": to,
             "text": body,
-            **({"responds": for_event} if for_event is not None else {}),
+            **(
+                {"responds": for_event}
+                if for_event is not None and not ephemeral
+                else {}
+            ),
         }
+        if ephemeral:
+            event["ephemeral"] = True
         if awaits:
             event["awaits"] = True
         if markup:

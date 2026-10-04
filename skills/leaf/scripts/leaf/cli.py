@@ -886,6 +886,11 @@ def thread_open(
 @click.option(
     "--awaits", is_flag=True, help="the reply's prose asks the user a question"
 )
+@click.option(
+    "--ephemeral",
+    is_flag=True,
+    help="progress update; folds when the next ordinary agent reply arrives",
+)
 @_title_option
 def thread_reply(
     dir: str,
@@ -898,6 +903,7 @@ def thread_reply(
     text: str,
     markup: str,
     awaits: bool,
+    ephemeral: bool,
     title: str | None,
 ) -> None:
     """Post a threaded reply as the agent (--text or stdin).
@@ -929,6 +935,7 @@ def thread_reply(
         part=part,
         detach=detach,
         validate_source=True,
+        ephemeral=ephemeral,
     )
     _print_records(accepted)
     _name(page_dir, accepted["id"], title)

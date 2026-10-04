@@ -273,8 +273,7 @@ nothing.
 A session's leaves cost it one long-running carrier between them, separate from
 the page server. The claim names the harness, and a reader elsewhere rebuilds its
 declaration from that name and asks it what proves the carrier live and what to
-say when it is not, rather than comparing the name itself. There are three
-shapes:
+say when it is not, rather than comparing the name itself. The carriers are:
 
 - Under Claude Code, Leaf's own Stop hook. Claude Code starts it in the
   background as each turn ends and wakes the session when it exits 2

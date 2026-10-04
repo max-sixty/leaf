@@ -103,6 +103,7 @@ from render_harness import (
     round_trip,
     scroll_settled,
     select,
+    select_words,
     sending,
     shortcut_bar_text,
     stamp_page,
@@ -1069,6 +1070,62 @@ def test_an_ordinary_two_part_ask_retains_document_flow(browser, serve):
     page = open_page(browser, serve(in_pane))
     resized(page, 1280, 720)
     expect(page.locator("#session-triage-decision")).to_have_css("display", "block")
+
+
+TRACKED_ASK_PAGE = leaf_page(
+    "options track",
+    """
+  <h1>Retention</h1>
+  <lf-ask id="tracked">
+    <h3>How long should logs be kept?</h3>
+    <table id="tracked-figure">
+      <thead><tr><th>Store</th><th class="num">Daily GB</th></tr></thead>
+      <tbody><tr><td>Hot</td><td class="num">40</td></tr>
+        <tr><td>Warm</td><td class="num">120</td></tr></tbody>
+    </table>
+    <lf-ask id="nested">
+      <h4>Archive the warm tier too?</h4>
+      <p id="nested-premise">It holds the last quarter.</p>
+      <lf-options id="nested-choice" choose>
+        <lf-option id="nested-yes"><strong>Archive</strong> Move it to cold storage.</lf-option>
+        <lf-option id="nested-no"><strong>Keep</strong> Leave it warm.</lf-option>
+      </lf-options>
+    </lf-ask>
+    <lf-options id="tracked-choice" choose>
+      <lf-option id="keep-30"><strong>30 days</strong> Covers every incident review.</lf-option>
+      <lf-option id="keep-90"><strong>90 days</strong> Covers a quarter's audit.</lf-option>
+    </lf-options>
+  </lf-ask>
+""",
+    layout="wide",
+)
+
+
+def test_an_ask_framing_a_figure_sets_its_options_beside_it(browser, serve):
+    """An Ask whose heading, figure and one option list come in that order sets the
+    list in a track beside the figure where the Ask has the room, and stacks it below
+    where it hasn't. The track belongs to that Ask alone: an ordinary Ask held among
+    its evidence finds the same named container and keeps its own block flow."""
+    page = open_page(browser, serve(TRACKED_ASK_PAGE))
+    geometry = """() => {
+      const box = (id) => document.getElementById(id).getBoundingClientRect();
+      const figure = box('tracked-figure'), options = box('tracked-choice');
+      const style = (id) => getComputedStyle(document.getElementById(id));
+      return {
+        beside: options.left >= figure.right && options.top < figure.bottom,
+        below: options.top >= figure.bottom,
+        nestedFloat: style('nested-premise').float,
+        nestedListPosition: style('nested-choice').position,
+      };
+    }"""
+    resized(page, 1440, 900)
+    wide = page.evaluate(geometry)
+    assert wide["beside"], wide
+    assert wide["nestedFloat"] == "none", wide
+    assert wide["nestedListPosition"] != "sticky", wide
+    resized(page, 700, 900)
+    narrow = page.evaluate(geometry)
+    assert narrow["below"], narrow
 
 
 def clear_of_the_bottom_chrome(page, selector):
@@ -6822,16 +6879,7 @@ def test_swipe_deck_pointer_threshold_cancel_and_commit(browser, serve):
     assert card.evaluate("el => el.style.getPropertyValue('--lf-swipe-drag-x')") == ""
     page.mouse.up()
 
-    card.locator("p").first.evaluate(
-        """element => {
-          const range = document.createRange();
-          range.selectNodeContents(element);
-          const selection = getSelection();
-          selection.removeAllRanges();
-          selection.addRange(range);
-          document.body.dispatchEvent(new KeyboardEvent('keyup', {bubbles: true}));
-        }"""
-    )
+    select_words(page, "#swipe-a p:first-of-type")
     expect(page.locator(".lf-fab-bar")).to_be_visible()
     assert page.evaluate("() => getSelection().toString().trim()")
 
@@ -8162,6 +8210,31 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
     expect(page.locator("#t-baffles-decision[data-lf-ask]")).to_have_count(1)
     expect(page.locator("#t-baffles-decision")).to_be_focused()
     expect(decisions).to_have_text("Asks 2/5")
+
+
+def test_an_ask_the_user_stands_on_survives_the_window_losing_focus(browser, serve):
+    """Another app taking key focus for a moment, such as macOS verifying a newly
+    installed binary, blurs the Ask the user stands on but leaves it the document's
+    focused area, and the browser puts them back on it when the window returns. The tab
+    stop the walk lent the Ask is held through that blur. Taking it back made the Ask
+    unfocusable while focused, the browser dropped the user to the body, and the window
+    came back with them standing nowhere.
+
+    Headless Playwright cannot take system focus from its window, so the test delivers
+    the platform's blur at the Ask while it stays the focused area, which is what the
+    window losing focus does."""
+    page = open_page(browser, serve(ASKS_PAGE))
+    first = page.locator(f"#{ASKS_IN_ORDER[0]}")
+    page.keyboard.press("a")
+    expect(first).to_be_focused()
+    first.evaluate("ask => ask.dispatchEvent(new FocusEvent('blur'))")
+    expect(first).to_be_focused()
+    expect(first).to_have_attribute("tabindex", "-1")
+
+    # Moving off within the page still gives the stop back.
+    page.keyboard.press("a")
+    expect(page.locator(f"#{ASKS_IN_ORDER[1]}")).to_be_focused()
+    expect(first).not_to_have_attribute("tabindex", re.compile(".*"))
 
 
 def test_an_ask_arrival_starts_with_the_context_that_frames_it(browser, serve):

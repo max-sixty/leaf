@@ -5,7 +5,7 @@ The banner has a stated height, sticky headers stack through `--lf-top`, and the
 workspace row rule applies to pane grids without squeezing a widget's own rows.
 These contracts live in [layouts.css](../skills/leaf/assets/layouts.css),
 [theme.css](../skills/leaf/assets/theme.css), and the
-[package header contract](../skills/leaf/references/packages.md).
+[module reading-region contract](../skills/leaf/references/module-authoring.md#reading-regions).
 
 ## Decided: a workspace is a screen
 

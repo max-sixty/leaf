@@ -34,25 +34,27 @@ const isOneOf = (names) => `^(?:${names.map(modulePath).map(escaped).join("|")})
 // caller would acquire that owner's initialization graph. image-difference.js reaches
 // nothing because `leaf-dev stills` loads it into a blank page on its own.
 const exactClosures = {
+  "queued-work.js": [],
   "control-selectors.js": [],
   "image-difference.js": [],
   "contribution-model.js": [],
   "margin-model.js": ["contribution-model.js"],
   "margin-map-model.js": ["margin-model.js", "contribution-model.js"],
   "projection/model.js": ["collapse.js"],
-  "projection/state.js": ["semantic-state.js"],
+  "projection/state.js": ["semantic-state.js", "queued-work.js"],
   "thread/model.js": [
     "anchor-coordinate.js",
     "thread/identity.js",
     "thread/workflow.js",
   ],
-  "thread/state.js": ["semantic-state.js"],
+  "thread/state.js": ["semantic-state.js", "queued-work.js"],
   "thread/workflow.js": [],
   "pending/model.js": ["thread/identity.js"],
-  "pending/state.js": ["semantic-state.js"],
+  "pending/state.js": ["semantic-state.js", "queued-work.js"],
   "keyboard/dispatch.js": [
     "context.js",
     "semantic-state.js",
+    "queued-work.js",
     "focus.js",
     "control-selectors.js",
     "keyboard/bindings.js",

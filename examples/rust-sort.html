@@ -133,11 +133,12 @@
       }
     </style>
     <script type="module">
-      // The film indicates the line its step executes; keep that line in view when the
-      // source pane scrolls on its own.
+      // A step may precede the code's rendered lines. Follow the indicated line when
+      // either the film advances or the source materializes its current indication.
       const film = document.getElementById("sort-film");
-      film.addEventListener("sort-step", () => {
-        const first = document.querySelector("#sort-source [data-lf-indicated]");
+      const source = document.getElementById("sort-source");
+      const followLine = () => {
+        const first = source.querySelector("[data-lf-indicated]");
         if (!first) return;
         let box = first.parentElement;
         while (box && box !== document.body) {
@@ -154,7 +155,15 @@
         const r = first.getBoundingClientRect();
         if (r.top < b.top + 40 || r.bottom > b.bottom - 40)
           box.scrollTop += r.top - b.top - b.height / 3;
+      };
+      film.addEventListener("sort-step", followLine);
+      new MutationObserver(followLine).observe(source, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ["data-lf-indicated"],
       });
+      followLine();
     </script>
   </head>
   <body>

@@ -5127,6 +5127,52 @@ def test_auxiliary_surfaces_replace_each_other_and_name_the_open_one(
     expect_open("asks")
 
 
+@pytest.mark.watch_shifts
+def test_a_newer_wheel_supersedes_a_panel_resize_landing(browser, serve):
+    """A focused title belongs to the reader's newer scroll while resize waits.
+
+    Native scroll keeps focus on the title. Hold the actual frame handoff so the
+    resize starts with that title visible and the wheel moves it away before the
+    correction runs; wheel-before-resize exercises a different ownership order.
+    """
+    page = open_page(browser, serve(LONG_PAGE, comments=24))
+    resized(page, 1000, 640)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    threads = page.locator(".lf-threads")
+    card = threads.locator(".lf-thread").nth(5)
+    title = card.locator(":scope > .lf-thread-summary")
+    title.click()
+    rendered(page)
+    expect(title).to_be_focused()
+    with held_frames(page):
+        page.evaluate(
+            "addEventListener('resize', () => { window.panelResizeObserved = true; }, "
+            "{once: true})"
+        )
+        page.set_viewport_size({"width": 1100, "height": 640})
+        page.wait_for_function("window.panelResizeObserved === true", polling=50)
+        box = threads.bounding_box()
+        assert box
+        page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+        start = threads.evaluate("node => node.scrollTop")
+        page.mouse.wheel(0, 2000)
+        page.wait_for_function(
+            "start => document.querySelector('.lf-threads').scrollTop > start + 20",
+            arg=start,
+            polling=50,
+        )
+        away = threads.evaluate("node => node.scrollTop")
+        assert title.evaluate(
+            "node => node.getBoundingClientRect().bottom < "
+            "node.closest('.lf-threads').getBoundingClientRect().top"
+        ), "the native wheel did not move the focused title out of view"
+        expect(title).to_be_focused()
+    rendered(page)
+    assert threads.evaluate("node => node.scrollTop") == pytest.approx(away, abs=1)
+    expect(title).to_be_focused()
+
+
 def test_covering_threads_keeps_the_user_and_their_work_inside(browser, serve):
     """A covering Threads sheet is the one place the user can work until it closes.
 
@@ -5193,6 +5239,27 @@ def test_covering_threads_keeps_the_user_and_their_work_inside(browser, serve):
     ).to_be_focused()
     expect(page.locator(".lf-general leaf-text")).to_have_js_property("value", draft)
     reading_place()
+
+    # Focus persists when the reader wheels away. A later resize must keep the
+    # place they chose instead of pulling the focused title back into view.
+    box = threads.bounding_box()
+    assert box
+    page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    page.mouse.wheel(0, 2000)
+    scroll_settled(page, scroller=".lf-threads")
+    away = thread.locator(":scope > .lf-thread-summary").evaluate(
+        "el => el.getBoundingClientRect().bottom < "
+        "el.closest('.lf-threads').getBoundingClientRect().top"
+    )
+    assert away, "the wheel did not move the focused title above the list"
+    resized(page, 1000, 640)
+    panel_settled(page)
+    assert thread.locator(":scope > .lf-thread-summary").evaluate(
+        "el => el.getBoundingClientRect().bottom < "
+        "el.closest('.lf-threads').getBoundingClientRect().top"
+    ), "resizing pulled the reader back to the focused title"
+    resized(page, 400, 640)
+    panel_settled(page)
 
     # A complete pass through more stops than this panel holds has to wrap within it.
     focus_stops = page.locator(

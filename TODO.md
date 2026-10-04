@@ -56,10 +56,11 @@ has tried; settle that before building it.
   check that the hosted website agent's status is readable without delaying its
   reply. Keep delegated work visible while its watcher is live.
 - **#24 — Measure the fresh-reader review across pages.** The catalog's
-  `dashboard/reader` context gives a fixed reader only the request and screenshots
-  of a seeded count defect and a corrected count control. The narrow calibration
-  scores count detection and false alarms separately from other page defects;
-  it does not establish overall page acceptance. Measure
+  `dashboard/reader-seeded` and `dashboard/reader-clean` contexts show the screenshot
+  judge one triage board each, with a seeded count defect or the correct count, and
+  ask both whether the count matches the cards. That narrow calibration scores count
+  detection and false alarms separately from other page defects; it does not
+  establish overall page acceptance. Measure
   whether authors invoke the review, its cost and what it catches across actual
   pages. Author delegation traces and independent judge cost are separate evidence.
 
@@ -103,17 +104,6 @@ and its chrome coordinate.
   newcomer out of view rather than pushing down the card being read. The user sees
   it only in the count; give that arrival a visible route while preserving the
   current reading.
-- **Bring a comment box back where it stood after one wheel jump.** Scrolling back to
-  a comment's target in a single wheel step draws the box about 60px off for a frame
-  before it lands, on `main` too and for selected words as well as items; a script's
-  instant scroll does not show it. Floating UI's `shift` limiter held the box at the
-  target's far edge while the target left the window, and the correction lands a frame
-  after the scroll (`placeFab`, `composing/surface.js`); a real-wheel test under
-  `shift_watch.js` reproduces it.
-- **Keep a thread card still while the user types in it inside a pane.** Typing in a
-  margin thread card's reply, with its target in a pane that scrolls on its own, moves
-  the whole card (`shift_watch.js`: "typing in leaf-text moved
-  aside#lf-margin-preview"), on `main` too.
 - **Decide whether a thread card may cover the margin rail.** A card beside its
   target starts right of the target's margin marker whenever the room past the marker
   still holds the card's minimum width (`comment-placement.js`, where `options` reads
@@ -123,6 +113,7 @@ and its chrome coordinate.
   states which elements a floating surface may cover. Today each placement names the
   boxes it keeps clear of (`clear`, `margin`) in its own code, so no element can declare
   that it may be covered, or must never be.
+
 - **Give the phone banner one row.** Decided, not built
   ([plan](notes/chrome-and-covers.md)): one 53px row holding the status in words, cut
   short with an ellipsis, with a passing notice taking that slot for a few seconds;
@@ -162,6 +153,19 @@ and its chrome coordinate.
   (`syncLayoutRegion`) and the render check's held-panes reading (`heldPanes`), which
   both look only at `main`, have to look at that block too. It waits for a page that
   needs it; a workspace page's own pane grid stays plain CSS.
+- **Settle what a box declares to the width rules before patching them again.** One
+  flag, `--lf-block-frame`, decides three things: a box's edge margins are trimmed,
+  wide blocks inside it stay inside it, and a table in it fills it. `main` and a page
+  tab's panel want only the trim and opt out of the rest with `--lf-page-flow` (#1723).
+  A task inside `lf-command` wants only the trim too and has no way to say so, so a wide
+  worktree in it stays at 604px where it would take 672px. Rules that undo another rule
+  have also lived in lower cascade layers, where they lose without a sign: moving the
+  width rules into `lf-layouts` (#1617) disabled the page tab's hand-back and the
+  diagram package's no-runtime rule, and the bug reached a user a day after CI had
+  caught and muted it. Decide what
+  a box states (that its edges trim, that it draws a frame, that it holds the page's own
+  flow) so each rule reads one declaration and no box has to undo a rule meant for
+  another.
 - **Show each floating surface across the content it can hold.** `leaf-dev stills`
   screenshots the same states on the base and the branch, so it reports a change but
   misses a surface that is wrong on both. Until PR 1440 a margin thread card took all
@@ -198,26 +202,8 @@ and its chrome coordinate.
   them to revise the results: turn a report into a report with live status while
   keeping its comments. They hold if revisions happen by ordinary composition. Include
   a cold agent asked for "a dashboard", the likeliest trigger for over-tiling. Run it
-  with the agent-usability baseline (#19), by extending the
-  [arrangement eval](notes/arrangement-eval/README.md).
-- **Fit an Ask and what it turns on into one window.** `a` puts an Ask's heading at
-  the top, and `authoring-asks.md` has the `lf-ask` hold its premise and evidence,
-  but stacked they often outrun the window: on a findings page one Ask with its
-  claim, figure and options took 760px of a 900px window, and `alert-review`'s 466px option lists
-  leave no room for the facts and evidence each one turns on, which that example
-  still keeps above its Asks. A page-CSS prototype that set the options in a sticky
-  14–18rem track beside the premise and figure showed the question, claim, figure
-  and every option in one window at 900 and 1200px, and kept the options in view
-  while the user scrolled a 700px demo below. Unsettled: a breakout block (a
-  `data-width="available"` specimen) runs under the sticky track, the focus ring
-  spans the whole Ask, a figure in the narrower track shrinks its text, and the
-  width at which it stacks. A further step is selection and detail, where the
-  focused option chooses which evidence the wide track shows; focus rather than
-  hover, so it has a keyboard route. Try both as playground presets over
-  `alert-review` and a findings page before making either the wide-window form of
-  `lf-ask`, which admits no class today, so a page can only opt in by id. Extending
-  `arrivalRegion`'s widening to declared Asks helps only where the run-up above an
-  Ask already fits.
+  with the agent-usability baseline (#19), by extending the document, dashboard and
+  queue tasks in `evals/`.
 - **Layout values that wait for a task:** a selection-and-detail component whose phone
   form shows one side at a time; canvas regions, whose reading position is
   two-dimensional; slides as a presentation of `lf-tabs`.
@@ -328,9 +314,10 @@ height and where a switch lands wait on the workspace decision under Layout.
   `page check` reported it and whether the agent changed the page in response. That
   gives the rate of bad pages and how much the checks catch. Fix a recurring defect in
   the widget, Layout or theme that produced it, so pages need fewer checks, rather
-  than adding readings or widths to the check. In `r3-main-0feb` every one of the 36
-  runs passed the gate, yet the judge still found tiny text at 900px and phone
-  defects (`notes/arrangement-eval/`).
+  than adding readings or widths to the check. In the
+  [layout vocabulary eval](notes/agent-usability-evals.md#layout-vocabulary-2026-09-29)
+  every one of the 36 runs passed the gate, yet the judge still found tiny text at
+  900px and phone defects.
 - **Read the full render gate after handover.** Actual user views now supply passive
   geometry checks as agent context (`conversation-loop.md`, "The user's view"). The
   broader headless gate still runs on request. `page check --render` blocks the

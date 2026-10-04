@@ -292,10 +292,6 @@ height and where a switch lands wait on the workspace decision under Layout.
   measures from focus (`askPosition` in `asks/view.js`), and the row precedes every
   panel; `t` and `T` measure the same way. A tab could stand at the view it opens for
   the walks (`standing-target.js`), while `c` on a row still names the row.
-- **Show answers in the list.** Every row of a one-Ask-per-item queue wears the same
-  warning-toned "1", and a pick clears it to nothing, so the list shows no progress. A
-  row whose Asks are answered could show the picked option's title where the count
-  stood.
 - **Let a queue group its items.** The author sorted the items into merge, close,
   design and FYI, but `lf-tabs` takes only `lf-tab` members, so the page showed 21
   undifferentiated rows. A side list could take group headings between its items,

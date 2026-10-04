@@ -3967,17 +3967,23 @@ def test_the_agent_response_clock_follows_a_stream_into_its_durable_reply(browse
     )
     page.goto(url)
     page.evaluate("window.__leafVerifier.startVisibleReplyClock")
-    page.wait_for_function("window.__leafVerifier.visibleReplyRecorded", arg="stream:turn")
+    page.wait_for_function(
+        "window.__leafVerifier.visibleReplyRecorded", arg="stream:turn"
+    )
 
     page.locator(".lf-msg").evaluate("""node => {
       node.dataset.mid = 'answer';
       node.querySelector('.lf-msg-text').textContent = 'Complete answer';
     }""")
-    page.wait_for_function("window.__leafVerifier.visibleReplyRecorded", arg="answer", timeout=10_000)
+    page.wait_for_function(
+        "window.__leafVerifier.visibleReplyRecorded", arg="answer", timeout=10_000
+    )
     assert page.evaluate("window.__leafVerifier.visibleReplyAt('answer')") is not None
 
 
-def test_the_agent_verifier_opens_news_arriving_after_an_earlier_notice(browser, monkeypatch):
+def test_the_agent_verifier_opens_news_arriving_after_an_earlier_notice(
+    browser, monkeypatch
+):
     page = browser.new_page()
     verify_site.observe_startup(page)
     url = "https://site-verifier.test/held-answer"

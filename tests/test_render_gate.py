@@ -2127,8 +2127,6 @@ def test_the_state_wait_follows_a_source_rewritten_under_it(browser, serve):
     expect(page.locator("body")).not_to_have_attribute(
         "data-lf-reading", held["reading"]
     )
-    page._leaf_probe_timeout_ms = 1_000
-
     wait_until_ready(page, held)
 
 
@@ -2155,8 +2153,6 @@ def test_the_state_wait_follows_a_source_back_to_the_version_the_page_shows(
     for read in reads:
         read.continue_()
     page.unroute("**/api/state*")
-    page._leaf_probe_timeout_ms = 5_000
-
     wait_until_ready(page, held)
     expect(page.locator("#notes code")).to_have_text("First.\n")
 

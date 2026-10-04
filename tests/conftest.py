@@ -279,7 +279,8 @@ def pytest_collection_modifyitems(config, items):
 
 def _changed_test_lines(root, since):
     """The lines under `tests/` that `since...HEAD` adds or edits, by file. A deletion
-    counts as the line it leaves behind."""
+    counts as the lines on either side of it, so deleting a test's decorators or its
+    last lines both touch the test."""
     diff = subprocess.run(
         ["git", "diff", "--unified=0", f"{since}...HEAD", "--", "tests"],
         cwd=root,
@@ -297,7 +298,7 @@ def _changed_test_lines(root, since):
             lines = changed.setdefault(root / line.removeprefix("+++ b/"), set())
         elif hunk := re.match(r"@@ -\S+ \+(\d+)(?:,(\d+))? @@", line):
             start, count = int(hunk[1]), int(hunk[2] or 1)
-            lines.update(range(start, start + max(count, 1)))
+            lines.update(range(start, start + count) if count else (start, start + 1))
     return changed
 
 

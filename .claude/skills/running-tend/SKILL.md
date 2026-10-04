@@ -73,9 +73,9 @@ cause that no open pull request already covers.
 Pull requests run the everyday and website-worker gates; main runs the complete
 suite once, alongside its runtime, browser-framework and bundle gates. A red `ci`
 on main affects whoever pulls next, so treat it as live. Main holds one complete-suite slot and a newer commit
-replaces the run waiting for it, which GitHub records as a cancelled run with no
-jobs; that is not a regression. A `test` shard that held a runner and still ended
-cancelled hit its timeout, and that is a failure.
+replaces the one waiting, which GitHub records as a cancelled run whose `test`
+job has no runner (`runner_id` 0); that is not a regression. A `test` that
+held a runner and still ended cancelled hit its timeout, and that is a failure.
 
 ## Cloudflare logs
 

@@ -94,6 +94,35 @@ Playwright script: it builds the page from this working tree, runs the input ste
 you give it, and prints what a JavaScript expression returns, with `--base` for the
 merge base beside it (`dev/AGENTS.md`).
 
+When a complex interaction depends on a sequence of inputs or changes over time,
+show a recorded journey with a timeline so the user can inspect intermediate
+states and motion. Use that same probe with `--record .tmp/recordings/NAME`.
+Its Playwright trace has an action timeline, a screenshot
+filmstrip, DOM snapshots, console and network; its WebM shows the actual frames.
+Add `--gif` for a short shareable loop, or `--actions` to decorate clicks and keys.
+`--journey FILE` runs a Python file's `run(page)` using Playwright's full API,
+including assertions; it returns a JSON reading. Capture keeps the journey's
+timing without adding pauses, and defaults to normal motion. `--actions` is for
+demonstrations: Playwright waits 500 ms before each annotated input, so omit it
+from timing-sensitive reproductions. Native video holds the final frame for at
+least one second. `--motion reduce`
+reproduces the reduced-motion preference. A failed journey keeps its recording
+and exits unsuccessfully. The same command takes any HTTP(S) URL for general
+browser work. Keep the page and context open until the recorder finalizes:
+Playwright cannot save screencast video after its page closes. Serve the trace in
+a browser tab with:
+
+```bash
+uv run playwright show-trace --host 127.0.0.1 --port 0 \
+  .tmp/recordings/NAME/worktree/trace.zip
+```
+
+When showing a timeline in Leaf, place a direct link to the same recording in the
+running Trace Viewer beside its controls. The viewer supplies action details,
+Before/Action/After DOM snapshots, source, console and network inspection; Leaf
+supplies the anchored discussion. Keep both previews running and verify that the
+viewer URL reaches the user's browser before handing it over.
+
 `uv run leaf-dev stills` compares HEAD with the merge base with `main` and crops
 each changed catalogue state into a before/after pair. Commit first, since it
 compares commits. Include pages at rest and states reached by interaction,

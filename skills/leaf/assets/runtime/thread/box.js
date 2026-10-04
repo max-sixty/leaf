@@ -74,7 +74,10 @@ export const threadBox = (el, hint, { createComment, onDraftChanged, wireInput }
       sync.load(value ?? "");
       onDraftChanged();
     },
-    { input: ta },
+    {
+      input: ta,
+      resume: () => ({ where: el, input: () => ta }),
+    },
   );
   mountFirstMessage(box, row);
   return box;

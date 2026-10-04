@@ -77,7 +77,6 @@ import {
   THREAD_CARD,
   layoutMarginRows,
   mountMarginLayer,
-  marginSpot,
   registerMarginRow,
   scheduleMarginEntryLabels,
   scheduleMarginLayout,
@@ -93,11 +92,11 @@ import {
   activateContributionControl as activateSharedContribution,
   syncContributionAgentWorkflow,
   syncContributionSelection,
-  syncContributionTurn,
   syncContributionUnread,
 } from "/runtime/contribution-controls.js";
 import {
   entryEngaged,
+  focusedOfferOf,
   choosePrimary,
   readingKey,
   readingChoices,
@@ -119,7 +118,6 @@ import {
 
 import { mapButton } from "/runtime/page-map-dialog.js";
 
-import { pointBand } from "/runtime/pointed-place.js";
 import {
   declareRelease,
   focusDestination,
@@ -136,7 +134,6 @@ import { PRESS } from "/runtime/keyboard/bindings.js";
 import { beginWalk, listWalkPosition, rowWalk } from "/runtime/walk-position.js";
 
 import {
-  containingReadingRegionFor,
   effectiveScroller,
   readingRegionFor,
   registerReadingRegion,
@@ -168,17 +165,16 @@ import { createMarginClusterViews } from "./margin-cluster-view.js";
 import { bannerControlDoor } from "/runtime/banner-toolbar.js";
 import { coarsePointer } from "/runtime/pointer.js";
 import {
-  COMMENT_GAP,
   cardMeasure,
   cardMinimum,
+  commentAttachment,
   commentBoundary,
   commentPlacement,
   makeRoom,
 } from "./comment-placement.js";
-import { shownExtent, shownParts, shownRect, skipped } from "/runtime/geometry.js";
-import { union } from "/runtime/rect.js";
+import { skipped } from "/runtime/geometry.js";
 import { passageGeometry } from "/runtime/resolved-target.js";
-import { floatingPlacement, floatingUi, heldByWindow } from "./floating.js";
+import { floatingPlacement, floatingUi } from "./floating.js";
 import { placeKeeper } from "/runtime/user-place.js";
 
 import { under } from "/runtime/shadow.js";
@@ -400,7 +396,9 @@ export function createMarginProjection({
       const marker = hosts.get(entry.key)?.marker;
       const name = markerName(entry, index, walked.length, position);
       paintMarker(marker, entry, hosts.get(entry.key).primary, {
-        suppressed: Boolean(focusedOwnerOffer(entry)),
+        suppressed: Boolean(
+          focusedOfferOf(entry, expandedOptionsKey, expandedOptionsOwner),
+        ),
         accessibleLabel: name,
       });
     });
@@ -595,13 +593,6 @@ export function createMarginProjection({
     });
   }
 
-  // The card stands in the comment box's boundary (comment-placement.js), within its
-  // target's reading region when it has one. That is the visible viewport, so a reply
-  // editor stays above a phone's software keyboard.
-  const regionBounds = (target) => {
-    const region = containingReadingRegionFor(target);
-    return region ? shownRegionBounds(region) : null;
-  };
   // Placement supplies the outer bounds; the native tracks share them between
   // reading and writing. A scroll that only carries a fitting card writes nothing;
   // clipped contents receive newly available room without requiring a complete fit.
@@ -654,30 +645,20 @@ export function createMarginProjection({
     if (!target) {
       const cluster = threadCardCluster();
       const box = cluster.getBoundingClientRect();
-      return { element: cluster, clear: box, extent: box, row: box.top, margin: null };
+      return {
+        element: cluster,
+        clear: box,
+        extent: box,
+        row: box.top,
+        margin: null,
+        region: null,
+        scroller: effectiveScroller(cluster),
+      };
     }
-    const clips = new Map();
-    const shown = union(
-      shownParts(target)
-        .map((part) => shownRect(part, clips))
-        .filter(Boolean),
-    );
-    // A pointed row is small enough to stand by whole, so the card leaves with it; a
-    // target stands by what shows of it, as the comment box does.
-    const whole = shownExtent(target) ?? target.getBoundingClientRect();
-    const extent = point ? pointBand(whole, point) : whole;
-    const clear = point ? extent : (shown ?? whole);
     const thread = threadCardThread();
     const words =
       !point && thread?.anchor?.quote ? passageGeometry(placedAt(thread.id)) : null;
-    return {
-      element: point ?? target,
-      clear,
-      extent,
-      row: (words?.attachment ?? clear).top,
-      column: words?.attachment?.left ?? null,
-      margin: marginSpot(target, point),
-    };
+    return commentAttachment({ target, point, passage: words });
   }
   const THREAD_SIDES = { right: "right", left: "left", bottom: "below", top: "above" };
   // Where the card stands is comment-placement.js's rule, the one the comment box stands
@@ -708,7 +689,9 @@ export function createMarginProjection({
         },
         ui.autoUpdate,
       );
-    const boundary = commentBoundary({ region: regionBounds(targetFor(previewEntry)) });
+    const boundary = commentBoundary({
+      region: place.region && shownRegionBounds(place.region),
+    });
     if (!boundary.width || !boundary.height) {
       void floatingUi().then((ui) => stillCurrent() && watch(ui));
       return false;
@@ -729,9 +712,7 @@ export function createMarginProjection({
         replyEditor.value !== "" ||
         sending),
     );
-    const scroller = effectiveScroller(
-      containingReadingRegionFor(place.element) ?? place.element,
-    );
+    const scroller = place.scroller;
     const { side, fresh, hold } = previewSide.choose({
       clear: place.clear,
       row: place.row,
@@ -768,7 +749,7 @@ export function createMarginProjection({
     void floatingUi()
       .then((ui) => {
         if (!stillCurrent()) return null;
-        const { reference, placement, middleware, heldIn } = previewSide.options(ui, {
+        const { reference, placement, middleware, plane } = previewSide.options(ui, {
           clear: place.clear,
           row: place.row,
           column: place.column,
@@ -815,15 +796,7 @@ export function createMarginProjection({
           ui.computePosition,
           { contextElement: place.element, getBoundingClientRect: () => reference },
           { placement, middleware },
-          (answer) =>
-            heldIn(answer) &&
-            heldByWindow(
-              answer.y,
-              answer.y + answer.middlewareData.held.height,
-              COMMENT_GAP,
-            )
-              ? "window"
-              : "page",
+          plane,
           place.element,
         );
       })
@@ -1058,12 +1031,12 @@ export function createMarginProjection({
       document.dispatchEvent(new CustomEvent("lf-margin-entry-options-closed"));
   }
 
-  function focusForNavigation(control) {
+  function focusForNavigation(control, caret = null) {
     reveal(control);
     const wasSuppressingOptionsArrival = suppressingOptionsArrival;
     suppressingOptionsArrival = true;
     try {
-      focusDestination(control);
+      focusDestination(control, caret);
     } finally {
       suppressingOptionsArrival = wasSuppressingOptionsArrival;
     }
@@ -1306,39 +1279,58 @@ export function createMarginProjection({
     openThreadChoice(marker.lfEntry, marker);
   }
 
+  // Markers and disclosed readings share one state presentation; their seats keep
+  // their own names, visibility, keyboard position, and activation.
+  function presentReading(
+    node,
+    entry,
+    choice,
+    { accessibleLabel = null, writesSeat = true } = {},
+  ) {
+    const items = choice?.items ?? [];
+    const face = readingFace(choice);
+    const behavior = readingBehavior(face);
+    node.lfEntry = entry;
+    presentContributionEntry(
+      node,
+      contributionEntry({
+        key: `reading:${choice?.key ?? "none"}`,
+        icon: face.icon,
+        label: readingLabel(choice),
+        context: readingContext(choice),
+        behavior,
+        rank: "reading",
+        state: readingState(choice),
+        count: items.length,
+        workflowReceipt: workflowReceipt(items),
+        accessibleLabel,
+      }),
+      {
+        writesRelation: false,
+        writesSeat,
+        awaitsUser: awaitingUser(items),
+      },
+    );
+    syncReadingRelation(node, choice);
+    syncContributionUnread(node, unreadIn(items));
+    return behavior;
+  }
+
   function paintMarker(
     row,
     entry,
     primary,
     { suppressed = false, accessibleLabel = null } = {},
   ) {
-    const { kinds: markerKinds, face, label, count: markerCount } = markerFace(entry);
+    const { kinds: markerKinds } = markerFace(entry);
     const choice = primaryReading(entry);
-    const behavior = readingBehavior(face);
-    row.lfEntry = entry;
     keepsHidden(row, suppressed || markerKinds.length === 0 || Boolean(primary));
     keeps(row, "data-lf-kinds", markerKinds.map(({ kind }) => kind).join(" "));
-    presentContributionEntry(
-      row,
-      contributionEntry({
-        key: `reading:${choice?.key ?? "none"}`,
-        icon: face.icon,
-        label,
-        accessibleLabel: accessibleLabel ?? label,
-        context: readingContext(choice),
-        behavior,
-        rank: "reading",
-        state: readingState(choice),
-        count: markerCount,
-      }),
-      { writesRelation: false, writesSeat: false },
-    );
+    const behavior = presentReading(row, entry, choice, {
+      accessibleLabel,
+      writesSeat: false,
+    });
     row.onclick = behavior === "status" ? null : pressMarker;
-    row.removeAttribute("aria-pressed");
-    syncReadingRelation(row, choice);
-    syncContributionAgentWorkflow(row, workflowReceipt(choice?.items ?? []));
-    syncContributionTurn(row, awaitingUser(choice?.items ?? []));
-    syncContributionUnread(row, unreadIn(choice?.items ?? []));
     if (row.lfTakeFocus) {
       delete row.lfTakeFocus;
       (row.hidden ? document.body : row).focus({ preventScroll: true });
@@ -1353,35 +1345,17 @@ export function createMarginProjection({
       readingMarginEntries.set(key, node);
     }
     const face = readingFace(choice);
-    const behavior = readingBehavior(face);
     const count = choice.items.length;
     const kind = count > 1 ? `${face.label}s` : face.label;
     const userContext =
       awaitingUser(choice.items) || unreadIn(choice.items)
         ? readingContext(choice)
         : null;
-    presentContributionEntry(
-      node,
-      contributionEntry({
-        key: `reading:${choice.key}`,
-        icon: face.icon,
-        label: readingLabel(choice),
-        accessibleLabel: `${kind} for ${spokenSubject(entry.title)}${count > 1 ? `, ${count} items` : ""}${userContext ? `, ${userContext}` : ""}`,
-        context: readingContext(choice),
-        behavior,
-        rank: "reading",
-        state: readingState(choice),
-        count,
-      }),
-      { writesRelation: false },
-    );
-    node.lfEntry = entry;
+    const behavior = presentReading(node, entry, choice, {
+      accessibleLabel: `${kind} for ${spokenSubject(entry.title)}${count > 1 ? `, ${count} items` : ""}${userContext ? `, ${userContext}` : ""}`,
+    });
     node.lfChoice = choice;
     keeps(node, "data-lf-kinds", choice.kind);
-    syncReadingRelation(node, choice);
-    syncContributionAgentWorkflow(node, workflowReceipt(choice.items));
-    syncContributionTurn(node, awaitingUser(choice.items));
-    syncContributionUnread(node, unreadIn(choice.items));
     node.onclick =
       behavior === "status"
         ? null
@@ -1419,11 +1393,6 @@ export function createMarginProjection({
     openSpill: (entry, spill) =>
       openPageMap(entry, { invoker: spill, focusSpill: true }),
   });
-
-  function focusedOwnerOffer(entry) {
-    if (expandedOptionsKey !== entry.key || !expandedOptionsOwner) return null;
-    return entry.offers.find((offered) => offered.key === expandedOptionsOwner) ?? null;
-  }
 
   function presentCluster(host, marker, more, entry, projection, focus) {
     let options = host.options;

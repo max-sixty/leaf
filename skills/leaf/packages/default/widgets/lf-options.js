@@ -582,11 +582,10 @@ customElements.define(
           when: () => this.#available("answer"),
           run: () => this.#done.control.click(),
         });
-      // An empty pick is an answer only where Done declared the set whole.
       commands(this, SECTION, answerRows, {
         answer: () =>
           [...this.#picked()].map((option) => label(option) || option.id).join(", ") ||
-          (this.reading?.state.answer?.action ? "No options selected" : ""),
+          "No options selected",
       });
     }
 

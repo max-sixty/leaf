@@ -264,8 +264,7 @@ export function merge(sections, { title, when, at, liveInCommandReference, rows 
  * `where` is the element focus must be inside, `title` names the scope in the command reference dialog
  * (null for one the reference has no room to name), `rows` are its bindings, and the
  * optional configuration carries `when` (whether the page has this scope at all),
- * `answer` (the concise current answer when this scope belongs to an Ask, or "" while
- * the widget holds none), and
+ * `answer` (the concise current answer when this scope belongs to an Ask), and
  * `escape: "inner"` when this scope owns a cancellation step ahead of every step the
  * ladder offers. A function in the fourth position is shorthand for `{when: function}`.
  *

@@ -664,7 +664,13 @@ def release_codex_command(page, host, finished):
         timeout=60,
     )
     bind_task_lifetime_to_worker(page)
-    host.stdin.close()
+    release_held(host)
+
+
+def release_held(host):
+    """Let an `under_codex` harness held with `finished` exit, by giving its
+    shell the line it waits for. The pipe stays open for `communicate`."""
+    os.write(host.stdin.fileno(), b"\n")
 
 
 def live_versions(d):
@@ -1432,11 +1438,11 @@ def under_codex(spawn, codex_program):
         shell_command = f"{command}; exit"
         if finished is not None:
             # Create `finished` once the command has, and keep the fake harness
-            # alive until its stdin closes. A test can then hand its lifetime to
-            # the worker before release (`release_codex_command`); unlike a real
-            # task, this harness would otherwise die with its command. The worker
-            # holds the pipe's other end, so the harness also ends when the worker
-            # does, however it ends.
+            # alive until a line or the end of its stdin. A test can then hand
+            # its lifetime to the worker before release (`release_held`); unlike
+            # a real task, this harness would otherwise die with its command. The
+            # worker holds the pipe's other end, so the harness also ends when the
+            # worker does, however it ends.
             shell_command = (
                 f"{command}; result=$?; "
                 f"touch {shlex.quote(str(finished))}; "

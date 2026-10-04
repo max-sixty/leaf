@@ -2202,16 +2202,20 @@ def test_the_resources_a_fixture_owns_are_taken_from_that_fixture():
     assert not bypassed, bypassed
 
 
-def test_a_spawned_process_ends_with_what_it_started(spawn):
+@pytest.mark.parametrize("launcher_ends", ["wait", "exit"])
+def test_a_spawned_process_ends_with_what_it_started(spawn, launcher_ends):
     """`spawn`'s teardown ends a child's descendants as well as the child, since a
     handle often names a launcher, as `under_codex`'s fake host does the shell
-    that runs its command."""
+    that runs its command. That holds whether the launcher is still running or
+    has already exited and left its child behind."""
     launcher = spawn(
-        ["/bin/sh", "-c", "sleep 600 & echo $!; wait"],
+        ["/bin/sh", "-c", f"sleep 600 & echo $!; {launcher_ends}"],
         stdout=subprocess.PIPE,
         text=True,
     )
     descendant = int(launcher.stdout.readline())
+    if launcher_ends == "exit":
+        launcher.wait(timeout=STATED_TIMEOUT)
 
     _retire(launcher)
 

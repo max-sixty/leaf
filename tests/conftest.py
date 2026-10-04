@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 from typing import NamedTuple
 
+import psutil
 import pytest
 from leaf import codex_adapter as codex_adapter_model
 from leaf import files as files_model
@@ -411,11 +412,12 @@ def _retire(process: subprocess.Popen) -> None:
     if process.stdin:
         with contextlib.suppress(BrokenPipeError):
             process.stdin.close()
-    if process.poll() is None:
-        # Signal the group only while its leader is running and unreaped, so the
-        # pid cannot have become someone else's by the time it is signalled. A
-        # leader that exits in between leaves a group of zombies, which macOS
-        # refuses to signal.
+    # The group outlives a leader that exits before its children. A pid is not
+    # reused while a group bears it, so a reaped leader whose pid nothing holds
+    # still names this group, and one whose pid a process holds again names a
+    # group that has already ended. A group left with only zombies, as when the
+    # leader exits during the signal, is one macOS refuses to signal.
+    if process.poll() is None or not psutil.pid_exists(process.pid):
         with contextlib.suppress(ProcessLookupError, PermissionError):
             os.killpg(process.pid, signal.SIGTERM)
     process.wait(timeout=5)

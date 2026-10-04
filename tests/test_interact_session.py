@@ -50,6 +50,7 @@ from interact_support import (
     publish,
     record_claim,
     release_codex_command,
+    release_held,
     serving,
     spawn_probe,
     stamp,
@@ -3718,7 +3719,7 @@ def test_a_new_codex_carrier_observes_ordinary_turns_without_a_prior_hook(
     finally:
         begin.set()
         finish.set()
-        started.stdin.close()
+        release_held(started)
         out, err = started.communicate(timeout=60)
         assert started.returncode == 0, f"{announcement}{out}{err}"
         with service_model.PageTransaction(page_dir) as page:
@@ -10648,7 +10649,7 @@ def test_a_later_codex_start_names_the_running_transport(
             "app_server": None,
             "started": False,
         }
-        started.stdin.close()
+        release_held(started)
         out, err = started.communicate(timeout=60)
         assert started.returncode == 0, f"{out}{err}"
     finally:

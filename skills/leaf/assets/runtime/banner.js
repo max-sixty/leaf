@@ -235,14 +235,15 @@ function paintTab() {
 let saidKind;
 let saidActionableWork;
 
-// The page's two queues (`runtime/queues.js`) follow the sentence in the same press:
+// The page's two queues (`runtime/queues.js`) stand at the status row's trailing edge:
 // how much waits on the user, which `a` walks, and how much waits on the agent, which
 // is the row's whole account of the agent's side, with the disclosure naming their
-// kinds and each open task's title. The counts stand at their own width after the
-// sentence, which gives up its room to the ellipsis first, so on a narrow row the
-// counts stay whole; nothing outside the press moves for either. They are read from
-// the application's publication rather than the state answer: a reply the user sends
-// leaves their count and joins the agent's in the turn it is sent.
+// kinds and each open task's title. They are page facts, like the Threads count, and
+// stand apart from the sentence so the agent's words changing never carries them; the
+// sentence gives up its room to the ellipsis first, so on a narrow row the counts stay
+// whole. They are read from the application's publication rather than the state
+// answer: a reply the user sends leaves their count and joins the agent's in the turn
+// it is sent.
 const QUEUE_WORDS = Object.freeze({
   ask: ["Ask", "Asks"],
   question: ["question", "questions"],

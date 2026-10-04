@@ -3,8 +3,8 @@
  * `banner.js` derives one immutable reading. This synchronous light-DOM Lit view
  * retains the native disclosure controls while placing them in the ordinary and
  * publication layouts; no outside code writes or reparents anything inside it. The
- * press holds the sentence and then the queue counts (`queues`), which keep their
- * width while the sentence truncates.
+ * queue counts (`queues`) stand outside the press, at the status's trailing edge, so
+ * the sentence changing never carries them and their changing never carries it.
  */
 import { html, nothing, render } from "../vendor/browser-runtime.js";
 import { el } from "./widget-elements.js";
@@ -96,11 +96,11 @@ class BannerStatusView extends HTMLElement {
       return;
     }
 
-    render(html`${this.#button}${this.#detail}`, this);
     render(
-      html`${this.#dot}${this.#text}${model.queues ? this.#queues : nothing}`,
-      this.#button,
+      html`${this.#button}${model.queues ? this.#queues : nothing}${this.#detail}`,
+      this,
     );
+    render(html`${this.#dot}${this.#text}`, this.#button);
     render(model.summary, this.#text);
     render(model.queues, this.#queues);
   }
@@ -111,10 +111,6 @@ if (!customElements.get(TAG)) customElements.define(TAG, BannerStatusView);
 export function createBannerStatusView(onToggle) {
   const view = document.createElement(TAG);
   view.className = "lf-banner-status";
-  // The status's room is a stationary box, and the sentence and the queue counts are
-  // labels that repack inside it as the page's news rewrites either (AGENTS.md,
-  // "Stability"); the press only grows or shrinks at its trailing edge.
-  view.setAttribute("data-lf-reflow", "text");
   view.configure({ onToggle });
   return view;
 }

@@ -3673,18 +3673,19 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
         "&& node.previousElementSibling.matches('time')"
     )
 
-    # New words do not detach the claim from the comment that started the work.
-    followup = append_carried_log_record(
-        d,
-        {
-            "kind": "reply",
-            "author": "user",
-            "parent": held,
-            "revision": 1,
-            "text": "Also compare the retry after reconnecting.",
-        },
-    )
+    # New words do not detach the claim from the comment that started the work. They
+    # are the user's own, sent here: words that arrived from elsewhere would wait behind
+    # the open card's news notice (thread/held-news.js) rather than show.
+    reply = held_thread.locator(":scope > .lf-thread-reply leaf-text")
+    write(reply, "Also compare the retry after reconnecting.")
+    with sending(page, "the follow-up"):
+        page.keyboard.press("ControlOrMeta+Enter")
     told(page)
+    [followup] = [
+        event
+        for event in events_model.read_events(d)
+        if event["kind"] == "reply" and event["author"] == "user"
+    ]
     followup_workflow = held_thread.locator(
         f'.lf-msg.user[data-mid="{followup["id"]}"] > .lf-msg-head .lf-msg-sending'
     )
@@ -3717,6 +3718,11 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
         },
     )
     told(page)
+    # The answer would grow the open card under the reader, so it waits behind the
+    # card's news notice until they open it (thread/held-news.js).
+    news = held_thread.locator(".lf-thread-news")
+    expect(news).to_have_text("1 new reply")
+    news.click()
     expect(page.locator(f'.lf-thread[data-id="{held}"] .lf-msg.agent')).to_have_count(1)
     expect(held_workflow).to_have_count(0)
     expect(workflows).to_have_count(1)

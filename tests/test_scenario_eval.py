@@ -127,8 +127,8 @@ def test_delivery_uses_successful_turns_and_accepted_exact_thread_claims(tmp_pat
     returned["is_error"] = True
     assert not checks()["claimed-1"]
     returned["is_error"] = False
-    for work in [[], [{"subject": {"kind": "thread", "id": "unrelated"}}]]:
-        returned["content"] = json.dumps({**status, "work": work})
+    for other in [{"kind": "task"}, {"item": "unrelated"}]:
+        returned["content"] = json.dumps({**status, **other})
         assert not checks()["claimed-1"]
 
     returned["content"] = json.dumps(status)

@@ -372,7 +372,7 @@ class CodexHarness(EnvironmentHarness):
 
     @classmethod
     def host_pid(cls) -> int | None:
-        """The nearest `codex` above this process, as `lifetime` finds it."""
+        """The nearest ancestor running the `codex` program (`lifetime`)."""
         return next((pid for pid, program in ancestry() if program == "codex"), None)
 
     def ensure_delivery(self) -> None:
@@ -422,17 +422,15 @@ class CodexHarness(EnvironmentHarness):
         `claim_is_active` judges it from when the page was last touched. The
         value is a note for whoever reads the record; the key is the whole of
         what anything acts on."""
-        walked = ancestry()
-        for pid, program in walked:
-            if program == "codex":
-                if "app-server" in (process_argv(pid) or []):
-                    return {"activity": "multiplexed"}
-                return {"pid": pid}
+        if (pid := self.host_pid()) is not None:
+            if "app-server" in (process_argv(pid) or []):
+                return {"activity": "multiplexed"}
+            return {"pid": pid}
         # Nothing to fall back to: any pid guessed here is a claim that expires
         # on its own, and the states that follow from one are silent.
         # LEAF_SESSION_ID with no codex above it is a hand-built environment, so
         # say what was walked.
-        chain = " → ".join(program for _, program in walked)
+        chain = " → ".join(program for _, program in ancestry())
         sys.exit(
             "LEAF_SESSION_ID names a Codex session but no codex process runs "
             f"above this one ({chain}); leaf takes the session's lifetime from it"
@@ -516,8 +514,8 @@ class EmbeddedHarness(Harness):
         return "no embedded host is holding this page."
 
 
-# The harnesses an environment can imply, in the order `session_harness` reads
-# them, and every harness a claim can name.
+# The harnesses an environment can imply, in the order that breaks a tie in
+# `session_harness`, and every harness a claim can name.
 _ENVIRONMENT_HARNESSES: tuple[type[EnvironmentHarness], ...] = (
     ClaudeCodeHarness,
     CodexHarness,
@@ -576,6 +574,28 @@ def session_harness() -> Harness | None:
         session=session,
         agent=os.environ.get(AGENT_VARIABLE) or harness.default_agent,
     )
+
+
+def detached_environment() -> dict[str, str]:
+    """The environment for a process this command detaches: its own, less the
+    identity of every host `session_harness` did not choose.
+
+    A detached process leaves the hosts above this one behind, so it could not
+    rank them by process again, and the tie order would choose for it: a server a
+    Codex task under Claude Code starts would serve as the Claude Code session.
+    It inherits the one identity chosen here instead."""
+    chosen = session_harness()
+    others = {
+        variable
+        for harness in _ENVIRONMENT_HARNESSES
+        if not isinstance(chosen, harness)
+        for variable in harness.identity_variables
+    }
+    return {
+        name: value
+        for name, value in os.environ.items()
+        if chosen is None or name not in others
+    }
 
 
 def claim_harness(claim: dict) -> Harness:

@@ -21,6 +21,8 @@ from collections.abc import Callable
 from contextlib import contextmanager
 from pathlib import Path
 
+from .host import detached_environment
+
 
 class StartRefused(RuntimeError):
     """A detached start the producer refused, carrying its reason."""
@@ -60,6 +62,7 @@ def starting_detached(
                     str(child.fileno()),
                 ],
                 cwd=cwd,
+                env=detached_environment(),
                 stdin=subprocess.DEVNULL,
                 stdout=output,
                 stderr=output,

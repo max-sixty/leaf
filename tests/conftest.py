@@ -390,7 +390,8 @@ def sessionless(monkeypatch):
 def codex_env():
     """The environment a Codex session's commands run in, for the tests that put
     a real one above a leaf: everything this process holds but the Claude Code
-    identity, which `session_harness` would answer with instead."""
+    identity, which `session_harness` answers with wherever no codex runs above
+    the command, as for a process the Codex task detaches."""
     return {k: v for k, v in os.environ.items() if k not in CLAUDE_IDENTITY}
 
 

@@ -11415,11 +11415,42 @@ def test_the_nearest_host_runs_a_command_that_inherits_another(under_codex):
     assert ran.returncode == 0
     assert out.split() == ["CodexHarness", "inner-codex"]
 
+    # Claude Code run from that Codex task's shell: the shell is its host.
+    inner = shlex.join([sys.executable, "-c", probe])
+    ran = under_codex(
+        f"CLAUDE_CODE_SESSION_ID=inner-claude CLAUDE_PID=$$ {inner}",
+        env,
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    out, _ = ran.communicate(timeout=STATED_TIMEOUT)
+    assert ran.returncode == 0
+    assert out.split() == ["ClaudeCodeHarness", "inner-claude"]
+
+    # With no codex above it, the same environment is Claude Code's, and a
+    # process the Codex task detaches inherits only the identity chosen there.
     nearer = subprocess.run(
-        [sys.executable, "-c", probe], env=env, capture_output=True, text=True
+        [sys.executable, "-c", probe],
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
     )
     assert nearer.returncode == 0, nearer.stderr
     assert nearer.stdout.split() == ["ClaudeCodeHarness", f"pytest-{os.getpid()}"]
+    detached = (
+        "from leaf.host import detached_environment as d; "
+        "print(sorted(set(d()) & {'CODEX_THREAD_ID', 'CLAUDE_CODE_SESSION_ID'}))"
+    )
+    ran = under_codex(
+        shlex.join([sys.executable, "-c", detached]),
+        env,
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    out, _ = ran.communicate(timeout=STATED_TIMEOUT)
+    assert ran.returncode == 0
+    assert out.strip() == "['CODEX_THREAD_ID']"
 
 
 def test_a_codex_session_id_with_no_codex_above_it_is_refused(page_dir, monkeypatch):

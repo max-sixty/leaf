@@ -529,8 +529,27 @@ def serve(tmp_path, monkeypatch, initialized_page):
             )
             assert initialized.exit_code == 0, initialized.output
 
+        def run_leaf(*args, input_text=None):
+            result = CliRunner().invoke(cli_model.cli, list(args), input=input_text)
+            assert result.exit_code == 0, result.output
+
+        def prepare(target):
+            prepare_page(
+                target,
+                fixture,
+                run_leaf,
+                initialize=False,
+                seed_log=seed_log,
+                final_status=None,
+                current_note="t",
+                earlier_note="t",
+            )
+
         # Local package contents vary between tests even when their selected path
-        # is the same, so only immutable bundled selections share a template.
+        # is the same, so only immutable bundled selections share a template. An
+        # example is a shape of its own, versions stamped and log seeded, since
+        # preparing one stamps every version it ships: seconds per page, paid once
+        # per worker rather than once per test.
         if (
             layer_registry is not None
             or layer_widgets
@@ -540,30 +559,30 @@ def serve(tmp_path, monkeypatch, initialized_page):
             )
         ):
             initialize(d)
+            if fixture:
+                prepare(d)
         else:
             template_name = (
                 "examples"
                 if packages is None
                 else "examples-" + ("-".join(selected_packages) or "no-packages")
             )
-            initialized_page(template_name, d, initialize)
-        if fixture:
-
-            def run_leaf(*args, input_text=None):
-                result = CliRunner().invoke(cli_model.cli, list(args), input=input_text)
-                assert result.exit_code == 0, result.output
-
-            prepare_page(
-                d,
-                fixture,
-                run_leaf,
-                initialize=False,
-                seed_log=seed_log,
-                final_status=None,
-                current_note="t",
-                earlier_note="t",
-            )
-        else:
+            if fixture:
+                example_name = example.resolve().relative_to(ROOT.resolve()).as_posix()
+                initialized_page(
+                    "--".join(
+                        (
+                            template_name,
+                            example_name.replace("/", "-"),
+                            "seeded" if seed_log else "unseeded",
+                        )
+                    ),
+                    d,
+                    lambda target: (initialize(target), prepare(target)),
+                )
+            else:
+                initialized_page(template_name, d, initialize)
+        if not fixture:
             html = source
             (d / "index.html").write_text(html)
             references = structure_model.SourceDocument(html).media_refs

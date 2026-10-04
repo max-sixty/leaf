@@ -1372,13 +1372,6 @@ def _accepted_gallery_proposal(browser, serve):
     return url, page
 
 
-@pytest.mark.xfail(
-    reason="Main ef89dfd3e intermittently keeps the gallery's accepted lf-old visible "
-    "with data-lf-retired; the unchanged journey still fails despite passing "
-    "controls and a full Linux CI XPASS",
-    raises=AssertionError,
-    strict=False,
-)
 def test_the_feature_gallery_hides_an_accepted_proposal_slot(browser, serve):
     """An accepted block proposal hides the slot retired by its decision."""
     _, page = _accepted_gallery_proposal(browser, serve)

@@ -3149,7 +3149,7 @@ def test_two_passages_hold_two_composer_drafts(browser, serve, one_user):
 
 def test_comment_follows_a_new_standing_instead_of_an_earlier_draft(browser, serve):
     """The earlier draft keeps its subject while a later keyboard landing names
-    the next comment, even though the active editor stays in the window."""
+    the next comment. Resume recovers the editor that followed its earlier passage."""
     source = LONG_PAGE.replace(
         "<p id='p40'>", '<p id="p40"><a id="later-link" href="#p41">Later item</a> '
     )
@@ -3159,15 +3159,39 @@ def test_comment_follows_a_new_standing_instead_of_an_earlier_draft(browser, ser
     write(page.locator(".lf-fab-input"), words)
     page.keyboard.press("Home")
     page.keyboard.press("ArrowRight")
+    rendered(page)
+    earlier = page.locator(".lf-fab-input")
+    earlier.evaluate("node => {window.earlierEditor = node;}")
+    before_field = earlier.bounding_box()
+    before_target = page.locator("#p3").bounding_box()
     page.keyboard.press("Shift+Tab")
     page.locator("#later-link").scroll_into_view_if_needed()
     go_to_address(page, "Link", "later-link")
     expect(page.locator("#p3")).not_to_be_in_viewport()
-    earlier = page.locator(".lf-fab-input")
-    expect(earlier).to_be_in_viewport()
+    expect(earlier).not_to_be_in_viewport()
     expect(earlier).to_have_js_property("value", words)
     expect(earlier).to_have_attribute("aria-label", re.compile("Paragraph 3"))
+    after_field = earlier.bounding_box()
+    after_target = page.locator("#p3").bounding_box()
+    for axis in ("x", "y"):
+        assert after_field[axis] - before_field[axis] == pytest.approx(
+            after_target[axis] - before_target[axis], abs=2
+        )
+
+    page.keyboard.press("g")
+    page.keyboard.press("i")
+    expect(earlier).to_be_focused()
+    expect(earlier).to_be_in_viewport()
+    expect(page.locator("#p3")).to_be_in_viewport()
+    expect(earlier).to_have_js_property("value", words)
+    expect(earlier).to_have_js_property("selectionStart", 1)
+    expect(earlier).to_have_js_property("selectionEnd", 1)
+    assert earlier.evaluate("node => node === window.earlierEditor")
+    page.keyboard.press("Shift+Tab")
+    page.locator("#later-link").scroll_into_view_if_needed()
+    go_to_address(page, "Link", "later-link")
     expect(page.locator("#p41")).to_be_focused()
+    expect(earlier).not_to_be_in_viewport()
 
     page.keyboard.press("c")
     field = page.locator(".lf-fab-input")
@@ -3197,7 +3221,10 @@ def test_comment_follows_a_new_standing_instead_of_an_earlier_draft(browser, ser
 def test_comment_follows_a_thread_standing_instead_of_an_earlier_draft(
     browser, serve, existing_reply
 ):
-    """A chrome thread is a destination even though it is not a page element."""
+    """A chrome thread is a destination; an earlier draft follows its own passage.
+
+    Resume returns its words and caret before Comment answers the standing thread.
+    """
     page = open_page(browser, serve(LONG_PAGE, anchored=[("p41", "Paragraph 41.")]))
     thread = page.locator(".lf-margin-preview .lf-page-thread")
     if existing_reply:
@@ -3210,14 +3237,39 @@ def test_comment_follows_a_thread_standing_instead_of_an_earlier_draft(
     write(page.locator(".lf-fab-input"), words)
     page.keyboard.press("Home")
     page.keyboard.press("ArrowRight")
+    rendered(page)
+    earlier = page.locator(".lf-fab-input")
+    earlier.evaluate("node => {window.earlierEditor = node;}")
+    before_field = earlier.bounding_box()
+    before_target = page.locator("#p3").bounding_box()
     page.keyboard.press("Shift+Tab")
     page.keyboard.press("t")
     expect(thread).to_be_focused()
     expect(page.locator("#p3")).not_to_be_in_viewport()
-    earlier = page.locator(".lf-fab-input")
-    expect(earlier).to_be_in_viewport()
+    expect(earlier).not_to_be_in_viewport()
     expect(earlier).to_have_js_property("value", words)
     expect(earlier).to_have_attribute("aria-label", re.compile("Paragraph 3"))
+    after_field = earlier.bounding_box()
+    after_target = page.locator("#p3").bounding_box()
+    for axis in ("x", "y"):
+        assert after_field[axis] - before_field[axis] == pytest.approx(
+            after_target[axis] - before_target[axis], abs=2
+        )
+
+    page.keyboard.press("g")
+    page.keyboard.press("i")
+    expect(earlier).to_be_focused()
+    expect(earlier).to_be_in_viewport()
+    expect(page.locator("#p3")).to_be_in_viewport()
+    expect(earlier).to_have_js_property("value", words)
+    expect(earlier).to_have_js_property("selectionStart", 1)
+    expect(earlier).to_have_js_property("selectionEnd", 1)
+    assert earlier.evaluate("node => node === window.earlierEditor")
+    page.keyboard.press("Shift+Tab")
+    page.keyboard.press("t")
+    expect(thread).to_be_focused()
+    expect(page.locator("#p3")).not_to_be_in_viewport()
+    expect(earlier).not_to_be_in_viewport()
     page.keyboard.press("c")
     reply = thread.locator("leaf-text")
     expect(reply).to_be_focused()

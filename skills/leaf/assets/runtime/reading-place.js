@@ -86,11 +86,10 @@ export function* blocksOnScreen(region = null, blocks = textBlocks()) {
       yield [block, rect];
   }
 }
-// The one block the user is on, which is the first the walk above yields. Two
-// things outside ask it — where an Ask walk starts, and where the keyboard
-// reference hands a user back to — and they were asking it in two places with the
-// same expression written out twice.
-export const readingBlock = () => blocksOnScreen().next().value?.[0] ?? null;
+// The first visible block in the user's reading region, for a walk's origin,
+// alignment when nothing is selected, and the keyboard reference's hand-back.
+export const readingBlock = (region = null) =>
+  blocksOnScreen(region, textBlocks(region?.body)).next().value?.[0] ?? null;
 
 // The quote and the section it's searched in come from the same block, or the search is
 // filtered to a section the text isn't in and can only ever fail — restore then falls back

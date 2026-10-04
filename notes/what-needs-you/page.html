@@ -179,6 +179,199 @@ stateDiagram-v2
         </lf-code>
       </section>
 
+      <section id="map">
+        <h2>Five records hold someone to something, and nothing links them</h2>
+        <p>
+          Each record below is registered its own way and kept in its own place. A queue
+          item is one of them read out.
+        </p>
+        <table id="map-records" data-width="wide">
+          <thead>
+            <tr>
+              <th scope="col">Record</th>
+              <th scope="col">Owed by</th>
+              <th scope="col">Registered by</th>
+              <th scope="col">Kept in</th>
+              <th scope="col">Ended by</th>
+              <th scope="col">Stages</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th scope="row">Ask</th>
+              <td>you</td>
+              <td>
+                The agent writes an <code>&lt;lf-ask&gt;</code> into the page and stamps
+                a version
+              </td>
+              <td>The page's markup; your presses are <code>action</code> events</td>
+              <td>Your answer, or the agent retiring it in a later version</td>
+              <td>none: open or answered</td>
+            </tr>
+            <tr>
+              <th scope="row">Prose question</th>
+              <td>you</td>
+              <td>The agent replies in a thread with <code>--awaits</code></td>
+              <td>The thread's messages</td>
+              <td>Your next message in the thread, or a settling reaction</td>
+              <td>none</td>
+            </tr>
+            <tr>
+              <th scope="row">Owed reply</th>
+              <td>the agent</td>
+              <td>
+                Nothing explicit: every message you send, and every press on an answered
+                Ask, opens one
+              </td>
+              <td>
+                Derived from the log, with <code>pickup</code> events for delivery
+              </td>
+              <td>
+                The agent's <code>leaf thread reply --for</code>, or a version that
+                writes a page press in
+              </td>
+              <td>sent, queued, picked up, working, replying, answered</td>
+            </tr>
+            <tr>
+              <th scope="row">Claim</th>
+              <td>the agent</td>
+              <td><code>leaf status working --on SUBJECT</code></td>
+              <td>The page's status file</td>
+              <td>
+                The agent's next reply, or the turn ending; left behind, it reads
+                stalled
+              </td>
+              <td>none</td>
+            </tr>
+            <tr>
+              <th scope="row">Task</th>
+              <td>the agent</td>
+              <td><code>leaf task open PAGE THREAD TITLE</code></td>
+              <td>A <code>task</code> event</td>
+              <td><code>leaf task end</code>, writing a <code>task_end</code> event</td>
+              <td>none: open, then done, failed or dropped</td>
+            </tr>
+          </tbody>
+        </table>
+        <p>What each looks like, taken from this page and a scratch page:</p>
+        <div class="layout-tiles" id="map-shapes" data-width="wide">
+          <div>
+            <p><strong>Ask</strong>: its reading, then your press</p>
+            <lf-code id="map-ask" language="json">
+              <pre>
+{"tag": "lf-ask", "id": "next-step",
+ "source": "next-step-pick"}
+
+{"kind": "action",
+ "widget": "next-step-pick",
+ "action": "choose",
+ "detail": {"options": ["next-walk"]},
+ "author": "user"}
+</pre>
+            </lf-code>
+          </div>
+          <div>
+            <p><strong>Owed reply</strong>: your comment's reading</p>
+            <lf-code id="map-workflow" language="json">
+              <pre>
+{"id": "86a8b5cc",
+ "subject": {"kind": "thread",
+             "id": "86a8b5cc"},
+ "answer": {"kind": "reply",
+            "for": "86a8b5cc"},
+ "stage": "working",
+ "next_actor": "agent",
+ "claimed_by": [{"session": "cbdde0a6…"}]}
+</pre>
+            </lf-code>
+          </div>
+          <div>
+            <p><strong>Task</strong>: open, then end</p>
+            <lf-code id="map-task" language="json">
+              <pre>
+{"kind": "task", "id": "3989d0e7",
+ "subject": {"kind": "thread",
+             "id": "a3c796cf"},
+ "title": "Rebuild the banner quieter",
+ "agent": "Claude",
+ "session": "cbdde0a6…"}
+
+{"kind": "task_end",
+ "task": "3989d0e7",
+ "outcome": "done",
+ "detail": "Version 4"}
+</pre>
+            </lf-code>
+          </div>
+        </div>
+        <p>How they meet today:</p>
+        <ul>
+          <li>
+            <strong>A task and the message it came from.</strong> Your message opens an
+            owed reply. The agent's reply settles it, and a task it opens carries the
+            work on. Nothing records that the task answers that message, beyond both
+            standing on one thread.
+          </li>
+          <li>
+            <strong>A task inside an Ask.</strong> “Show me a sketch first” in an Ask's
+            thread opens an owed reply, and the agent may open a task there. The Ask
+            still counts as yours, though you are waiting on the sketch.
+          </li>
+          <li>
+            <strong>An Ask answered in prose.</strong> Your message opens an owed reply,
+            and the Ask stays on you until the agent writes your pick into the page.
+          </li>
+          <li>
+            <strong>Resolve.</strong> It settles the owed replies in the thread and
+            leaves a task open.
+          </li>
+        </ul>
+        <p id="map-pairs">
+          Your point about <code>question</code> and <code>answer</code> holds across
+          the table: the records pair up by who owes them. An Ask and a task are both
+          structured work with an end; a prose question and an owed reply are both a
+          message one side owes the other. Only the owed reply has stages, and they
+          track how far your message has reached the agent, from sent to replying, not
+          the work it asked for.
+        </p>
+      </section>
+
+      <section id="pi">
+        <h2>
+          Pi keeps a message's delivery apart from the work, and has no record for
+          asking you
+        </h2>
+        <p>From <a href="https://earendil.com/posts/pi-durable/">Pi Durable</a>:</p>
+        <ul>
+          <li>
+            <strong>A message is input, not a task.</strong> Sent while the agent is
+            busy, it either steers (“joins the running work after the current tool
+            calls”) or queues as a follow-up. A <code>requestId</code> makes the
+            submission exactly-once. Nothing like “picked up” is recorded on it.
+          </li>
+          <li>
+            <strong>Work is tasks, and a task's stages are its own.</strong> A task type
+            declares named <code>phases</code>, and its state holds a
+            <code>checkpoint</code> naming the current one. Its status is running,
+            waiting <code>on</code> named tasks, or terminal with an outcome (completed,
+            failed or aborted). Code registers one with
+            <code>tx.createTask(Type, input, {ownership})</code>, owned by a task or a
+            conversation.
+          </li>
+          <li>
+            <strong>Asking you is not a record.</strong> An approval hook asks, and
+            stores your answer with <code>api.memo()</code>, so that “after a restart,
+            the hook finds the stored answer instead of asking again”. The question is
+            the agent's running work, paused on you.
+          </li>
+        </ul>
+        <p>
+          In Leaf's terms: sent and queued are where the message is, picked up through
+          replying is a running task, and an Ask is a task of the agent's waiting on you
+          rather than an item of yours.
+        </p>
+      </section>
+
       <section id="cases">
         <h2>What a task keeps that a thread lost</h2>
         <table id="task-cases" data-width="wide">

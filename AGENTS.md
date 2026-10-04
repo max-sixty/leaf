@@ -138,7 +138,7 @@ install the tracked tree whole.
 - `skills/leaf/references/`: contracts for page authors, package authors, and hosts;
 - `.claude/skills/developing-leaf/`: the maintainer workflow and vocabulary;
 - `hooks/hooks.json`: the shared host hooks, and `hooks/pi.ts`, the Pi extension
-  that calls them;
+  that calls the same `leaf hook` entry;
 - `evals/`: cases a headless agent answers, scoring the shipped instructions;
 - `examples/`: the authored pages the site publishes and the render corpus;
 - `tests/`: the file, CLI, browser, and published-site boundaries, and in

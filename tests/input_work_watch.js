@@ -110,9 +110,8 @@
     });
   };
   for (let view = window; ; view = view.parent) {
-    let document;
     try {
-      document = view.document;
+      void view.document;
     } catch {
       break;
     }

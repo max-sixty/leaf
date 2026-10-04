@@ -32,6 +32,9 @@
 // that field paints. The first reading of that value edge retains its source,
 // including a passive source, until the same field paints the same value. A different
 // field, value or newer edit cannot borrow it; words are judged only after native paint.
+// A trusted paste may edit a closed editor without native beforeinput. Its own host
+// input commits that edit only within the same paste callback; a cancelled or no-edit
+// paste never suspends observation, and its unused attempt ends with the dispatch.
 // The watch keeps its own frame function, so its observation never owns page work.
 (() => {
   const frame = window.lfWatchPlatform.frame;
@@ -82,6 +85,26 @@
   // the same turn, announcing it with an `input` of its own or not, are still the words
   // the user typed.
   const edited = new Map();
+  const pasting = new Map();
+  addEventListener(
+    "paste",
+    (event) => {
+      const field = event.composedPath()[0];
+      if (event.isTrusted && typed(field)) {
+        const input = (event) => {
+          // A host's canonical input need not compose through an enclosing widget.
+          if (!event.composed) readInput(event);
+        };
+        pasting.set(field, {
+          source: window.lfInputWork.current(),
+          words: text(field),
+          input,
+        });
+        field.addEventListener("input", input);
+      }
+    },
+    true,
+  );
   addEventListener(
     "beforeinput",
     (event) => {
@@ -99,20 +122,37 @@
     },
     true,
   );
-  addEventListener(
-    "input",
-    (event) => {
-      const edit = edited.get(event.composedPath()[0]);
-      const field = event.composedPath()[0];
-      // leaf-text's native input precedes its host value update; its own input
-      // announces the updated host. Read that announcement before page handlers.
-      if (edit && (event.isTrusted || field.localName === "leaf-text")) {
-        edit.words = text(field);
-        edit.ready = field.localName !== "leaf-text" || !event.isTrusted;
-      }
-    },
-    true,
-  );
+  const endPaste = (field) => {
+    field.removeEventListener("input", pasting.get(field).input);
+    pasting.delete(field);
+  };
+  const readInput = (event) => {
+    const edit = edited.get(event.composedPath()[0]);
+    const field = event.composedPath()[0];
+    const paste = pasting.get(field);
+    if (
+      !edit &&
+      field.localName === "leaf-text" &&
+      drawn(field) &&
+      paste &&
+      window.lfInputWork.current()?.event === paste.source.event &&
+      text(field) !== paste.words
+    ) {
+      edited.set(field, {
+        typedOrder: paste.source.order,
+        words: text(field),
+        ready: true,
+      });
+      endPaste(field);
+    }
+    // leaf-text's native input precedes its host value update; its own input
+    // announces the updated host. Read that announcement before page handlers.
+    if (edit && (event.isTrusted || field.localName === "leaf-text")) {
+      edit.words = text(field);
+      edit.ready = field.localName !== "leaf-text" || !event.isTrusted;
+    }
+  };
+  addEventListener("input", readInput, true);
 
   // Each field holding words: the words, and when the user last edited them.
   const holding = new Map();
@@ -170,6 +210,7 @@
     );
   };
   const look = (source, afterFrame = false) => {
+    if (!source && afterFrame) for (const field of pasting.keys()) endPaste(field);
     for (const [field, { typedOrder, words: heard, ready }] of edited) {
       if (!ready && !afterFrame) continue;
       edited.delete(field);
@@ -182,6 +223,10 @@
     for (const [field, held] of holding) {
       // beforeinput has named the next edit, but its trusted input has not read it.
       if (edited.has(field)) continue;
+      // A paste transaction announces its new value from the host after writing it.
+      // The nested input listener checkpoints before that announcement is read.
+      const paste = pasting.get(field);
+      if (paste && paste.source.event === source?.event) continue;
       const owner = valueOwner(field);
       if (drawn(field) && text(field) === held.words) {
         if (owner && owner.value !== held.words) {

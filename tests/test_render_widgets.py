@@ -7079,6 +7079,26 @@ def test_a_quoted_swipe_deck_is_a_static_labeled_exhibit(browser, serve):
     assert passed and kept and passed["y"] + passed["height"] <= kept["y"]
 
 
+def test_a_quoted_swipe_queue_spaces_its_flat_cards(browser, serve):
+    """A quoted queue is flat rather than a stack, so its cards stand in flow, a gap
+    apart rather than touching."""
+    source = SWIPE_PAGE.replace(
+        '<lf-ask id="session-triage-decision">',
+        '<lf-sample id="swipe-example" label="session triage">',
+    ).replace("</lf-ask>", "</lf-sample>")
+    page = open_page(browser, serve(source))
+    boxes = [
+        page.locator(f"#swipe-{card}").bounding_box() for card in ("a", "b", "c")
+    ]
+    gaps = [lower["y"] - (upper["y"] + upper["height"]) for upper, lower in pairwise(boxes)]
+    gap = page.evaluate(
+        "() => parseFloat(getComputedStyle(document.documentElement)"
+        ".getPropertyValue('--sp-2'))"
+    )
+    assert gap > 0
+    assert gaps == pytest.approx([gap, gap], abs=0.5)
+
+
 def test_an_empty_quoted_swipe_queue_says_it_is_empty(browser, serve):
     page = open_page(browser, serve(EMPTY_QUOTED_SWIPE_PAGE))
     labels = page.locator("#completed-swipe .lf-swipe-pile-label")

@@ -2111,7 +2111,9 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
  * The block before the Ask is outside the Ask's scope, so the Ask cannot take that
  * block's end margin away. It moves its heading's start margin onto itself instead, as
  * the gap a heading in an Ask stands at (`--sp-4`), which collapses with the end margin
- * before it as the heading's would have. The list drops its end margin in favour of
+ * before it as the heading's would have. That margin is said at zero specificity, so
+ * a frame that trims its first block's start margin (`--lf-block-frame`) trims the
+ * Ask's as it would have the heading's. The list drops its end margin in favour of
  * whatever follows.
  *
  * A container also re-bases `cqi`, which `--lf-room` is written in (layouts.css), so a
@@ -2123,8 +2125,10 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
 :scope:is(lf-ask):has(> :is(h1, h2, h3, h4, h5, h6):first-child ~ :is(figure, img, svg, table, lf-chart, lf-shot) ~ lf-options:last-child) {
   container: lf-ask / inline-size;
   --lf-ask-room: var(--lf-room, 0px);
-  margin-block-start: var(--sp-4);
   & > :is(h1, h2, h3, h4, h5, h6):first-child { margin-block-start: 0; }
+}
+:where(:scope:is(lf-ask):has(> :is(h1, h2, h3, h4, h5, h6):first-child ~ :is(figure, img, svg, table, lf-chart, lf-shot) ~ lf-options:last-child)) {
+  margin-block-start: var(--sp-4);
 }
 @container lf-ask (width >= 0) {
   :scope:is(lf-ask) > * { --lf-room: var(--lf-ask-room); }

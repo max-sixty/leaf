@@ -7738,8 +7738,7 @@ def test_the_reference_reads_the_same_way_twice(browser, serve):
 
 
 def test_a_widget_that_renames_its_role_keeps_the_press_offer_gave_it(browser, serve):
-    """A tab is built by `offer("button", …)` and then wears `role="tab"`, because that is
-    what its strip is. The press it keeps is the strip's own row, declared beside the
+    """A selectable tab's press is the strip's own row, declared beside the
     arrows and Home/End that walk it, and it is the only thing that consumes Space —
     which is otherwise the page's scroll.
 
@@ -7759,18 +7758,22 @@ def test_a_widget_that_renames_its_role_keeps_the_press_offer_gave_it(browser, s
     tabs = page.locator("#projects .lf-tab-btn")
     expect(tabs).to_have_count(2)
 
+    def reveal_other():
+        # Reveal the other panel without moving focus: each press must select a
+        # different tab, rather than merely reaffirm the already selected one.
+        page.evaluate(
+            """async () => {
+              const {reveal} = await window.__lfRuntimeImport('/runtime/widget-elements.js');
+              const {retainUserIntent} = await window.__lfRuntimeImport('/runtime/user-intent.js');
+              reveal(document.querySelector('#tab-bath'), retainUserIntent());
+            }"""
+        )
+        rendered(page)
+        expect(tabs.first).to_be_focused()
+        expect(tabs.nth(1)).to_have_attribute("aria-selected", "true")
+
     tabs.first.focus()
-    # Reveal the second panel without moving focus, so the focused tab is not the selected
-    # one and Enter has something to do.
-    page.evaluate(
-        """async () => {
-          const {reveal} = await window.__lfRuntimeImport('/runtime/widget-elements.js');
-          const {retainUserIntent} = await window.__lfRuntimeImport('/runtime/user-intent.js');
-          await reveal(document.querySelector('#tab-bath'), retainUserIntent()).ready;
-        }"""
-    )
-    expect(tabs.first).to_be_focused()
-    expect(tabs.nth(1)).to_have_attribute("aria-selected", "true")
+    reveal_other()
 
     # The line names the press, and the press re-selects the tab the user is standing on.
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("open the tab")
@@ -7778,8 +7781,7 @@ def test_a_widget_that_renames_its_role_keeps_the_press_offer_gave_it(browser, s
     expect(tabs.first).to_have_attribute("aria-selected", "true")
 
     # And Space is consumed rather than scrolling the page out from under the press.
-    page.evaluate("() => document.querySelector('#tab-bath').click()")
-    tabs.first.focus()
+    reveal_other()
     before = page.evaluate("() => document.scrollingElement.scrollTop")
     page.keyboard.press(" ")
     expect(tabs.first).to_have_attribute("aria-selected", "true")

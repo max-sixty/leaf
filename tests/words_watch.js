@@ -28,6 +28,10 @@
 //
 // Input provenance comes from input_work_watch.js: a delayed callback retains the
 // exact trusted input that scheduled it, while unrelated timers and news retain none.
+// A component declaring `input` as its exact native field may commit `value` before
+// that field paints. The first reading of that value edge retains its source,
+// including a passive source, until the same field paints the same value. A different
+// field, value or newer edit cannot borrow it; words are judged only after native paint.
 // The watch keeps its own frame function, so its observation never owns page work.
 (() => {
   const frame = window.lfWatchPlatform.frame;
@@ -113,8 +117,26 @@
   // Each field holding words: the words, and when the user last edited them.
   const holding = new Map();
   const pending = new Map();
+  // A value component names its actual field with `input` (WA input/textarea).
+  // Its value commits before its native-await renderer paints the inner field.
+  // Retain that exact value operation until the same field proves its paint;
+  // a select's typed filter is not its `input` and never borrows its selected value.
+  const painting = new Map();
+  const valueOwner = (field) => {
+    const host = field.getRootNode().host;
+    return host?.input === field && typeof host.value === "string" ? host : null;
+  };
   const putAway = (field, typedOrder, source) => {
     if (!source || source.order <= typedOrder) return false;
+    // Native disclosure activation puts away only the fields its close hides.
+    // The same dispatch cannot redeem a passive loss elsewhere on the page.
+    if (source.nativeDefault) {
+      if (source.event.defaultPrevented || drawn(field)) return false;
+      let owner = field;
+      while (owner && owner !== source.nativeDefault)
+        owner = owner.parentNode ?? owner.host;
+      if (!owner) return false;
+    }
     const { event, node } = source;
     if (event.type === "keydown")
       return !MOVES.test(event.key) && !editingKeys.has(event);
@@ -160,11 +182,29 @@
     for (const [field, held] of holding) {
       // beforeinput has named the next edit, but its trusted input has not read it.
       if (edited.has(field)) continue;
-      if (drawn(field) && text(field) === held.words) continue;
+      const owner = valueOwner(field);
+      if (drawn(field) && text(field) === held.words) {
+        if (owner && owner.value !== held.words) {
+          const operation = painting.get(field);
+          if (operation?.owner !== owner || operation.value !== owner.value)
+            painting.set(field, { owner, value: owner.value, source });
+        } else painting.delete(field);
+        continue;
+      }
       holding.delete(field);
+      const operation = painting.get(field);
+      painting.delete(field);
+      const effectSource =
+        operation &&
+        owner === operation.owner &&
+        owner.value === operation.value &&
+        drawn(field) &&
+        text(field) === operation.value
+          ? operation.source
+          : source;
       const heir = shownIn(held.words);
       if (heir) holding.set(heir, held);
-      else pending.set(field, { held, source });
+      else pending.set(field, { held, source: effectSource });
     }
   };
   const judgePending = () => {

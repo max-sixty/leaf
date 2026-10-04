@@ -290,11 +290,6 @@ that changes size after first paint, with its cause.
   to 45px taller on CI's Linux than on macOS), so no height its examples state holds
   everywhere. `lf-targeting` has no recorded cause; read `lf-targeting.js` for what it
   builds after first paint before choosing an approach.
-- **Unconfirmed: Command Hub's outcome tiles at 320px.** The word "stopped" may touch
-  its tile's edge in a 320px window. The tiles share one row of four
-  (`.lf-command-facts` in `skills/leaf/packages/command-hub/theme.css`), and the only
-  narrow rule, `@container lf-command (width <= 520px)`, covers task metadata. Render
-  it before changing anything.
 - **Check that margin markers paint in place in their first frame.** The shift watch
   exempts the page until it is presented (`tests/shift_watch.js`), and #1603 records
   startup shifts only as diagnostics, so a marker drawn in the wrong place in its first

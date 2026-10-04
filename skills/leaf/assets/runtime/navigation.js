@@ -10,6 +10,7 @@ import { walkOrigin } from "./standing-target.js";
 import { under } from "./shadow.js";
 import { announce } from "./notifications.js";
 import { focusThread } from "./thread/focus.js";
+import { landWalkedThread } from "./thread/landing.js";
 import { beginWalk, listWalkPosition, walkPositionLabel } from "./walk-position.js";
 
 const walkableThreads = (panelIsOpen, { threadsBox, openThreads }) =>
@@ -91,7 +92,7 @@ function stepThread(dir, destinations, panelIsOpen, narrowing, list) {
   threadsBox.revealNavigation(next.dataset.id);
   const standing = next.contains(document.activeElement);
   focusThread(next, { preventScroll: true });
-  if (standing) next.scrollIntoView({ behavior: scrollBehavior(), block: "nearest" });
+  if (standing) landWalkedThread(next, threadsBox);
   scrollToThread(next.dataset.id, { keep: true });
   announce(
     beginWalk("thread", "Thread", () =>

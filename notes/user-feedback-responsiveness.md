@@ -14,7 +14,7 @@ prove external work succeeded, and page activity does not imply work on every me
 
 ## Evaluation
 
-Run `leaf-dev eval 'document/idle' 'document/mid-turn'` for agent ordering and `leaf-dev bench-latency` for
+Run `leaf-dev eval 'document/idle' 'document/mid-turn' --host cc` for agent ordering and `leaf-dev bench-latency` for
 in-tab feedback. Neither is a gate. Begin with a direct delivery, a queued pointer,
 input arriving during other work, and an already-settled retry.
 

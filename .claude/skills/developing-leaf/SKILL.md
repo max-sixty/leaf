@@ -259,7 +259,7 @@ base and the working tree:
 
 ```bash
 npm ci --prefix evals
-uv run leaf-dev eval [CASE]... --base [--host cc|codex] [--repeat N]
+uv run leaf-dev eval [CASE]... --base --host cc|codex [--repeat N]
 npm run view --prefix evals
 ```
 

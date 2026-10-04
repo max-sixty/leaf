@@ -335,7 +335,10 @@ def describe(base: str | None, head: str, globs: tuple[str, ...]) -> str:
     help="Also run the merge base with main, or the ref given.",
 )
 @click.option(
-    "--host", type=click.Choice([*HOSTS, "both"]), default="both", show_default=True
+    "--host",
+    type=click.Choice([*HOSTS, "both"]),
+    required=True,
+    help="The host the motivating failure came from, or the one you work in.",
 )
 @click.option(
     "--condition",

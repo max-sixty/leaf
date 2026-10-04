@@ -1,4 +1,15 @@
-"""Complete registry validation orchestration."""
+"""Complete registry validation orchestration.
+
+Validity is a function of a vocabulary's content alone, so the process remembers
+each vocabulary it has accepted and does not validate the same content twice. One
+server validates the same captured layer for every page it activates: a gallery's
+live samples are each a fresh page carrying their parent's vocabulary, and checking
+every widget schema again per sample held the gallery's samples back by seconds.
+A rejection is not remembered, so it is raised again in the words of its own source.
+"""
+
+import hashlib
+import json
 
 from .contract import retirement_slots
 from .layer import (
@@ -14,9 +25,15 @@ from .widgets import (
     validate_widget_schemas,
 )
 
+# Digests of the canonical JSON of every vocabulary this process has accepted.
+_accepted: set[str] = set()
+
 
 def validate_registry(registry: dict, source) -> dict:
     """Validate one complete vocabulary in its stable rejection order."""
+    digest = hashlib.sha256(json.dumps(registry, sort_keys=True).encode()).hexdigest()
+    if digest in _accepted:
+        return registry
     path = source
     kinds, names, paths, tones, data, tokens = required_layer_declarations(
         registry, path
@@ -29,4 +46,5 @@ def validate_registry(registry: dict, source) -> dict:
     slots = retirement_slots(registry)
     validate_widget_relations(registry, declarations, data, slots, path)
     validate_answered_conditions(declarations, path)
+    _accepted.add(digest)
     return registry

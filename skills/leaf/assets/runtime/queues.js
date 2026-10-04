@@ -20,7 +20,9 @@
    One item is the browser's alone: a message this tab is still sending, whose thread
    its attention already hands to the agent, is an `answer` the agent will owe, with
    no answer named yet and the stage `sending`. So the reply leaves the user's count
-   and joins the agent's in the same turn. A widget move still sending is not: until
+   and joins the agent's in the same turn. In a thread the agent already owes, it takes
+   the place of the served answer, since the server owes a thread one answer, to its
+   latest move. A widget move still sending is not: until
    the server reads it, it is not known to owe anything, and an Ask it answers still
    stands open. */
 import { awaitsUser } from "./thread/model.js";
@@ -43,6 +45,11 @@ export function selectQueues({ asks, threads, workflows, tasks }) {
         thread: thread.id,
       });
   const onAgent = [];
+  // The server owes a thread one answer, to its latest move, so a message still being
+  // sent in a thread stands for that thread's answer in place of the one served.
+  const sending = (workflow) =>
+    workflow.stage === "sending" && workflow.subject.kind === "thread";
+  const resent = new Set(workflows.filter(sending).map(({ thread }) => thread));
   for (const workflow of workflows) {
     const item = {
       id: workflow.id,
@@ -53,8 +60,8 @@ export function selectQueues({ asks, threads, workflows, tasks }) {
     if (workflow.next_actor === "user") {
       if (workflow.thread === null) onYou.push({ kind: "recovery", ...item });
     } else if (
-      workflow.answer !== null ||
-      (workflow.stage === "sending" && workflow.subject.kind === "thread")
+      sending(workflow) ||
+      (workflow.answer !== null && !resent.has(workflow.thread))
     )
       onAgent.push({
         kind: "answer",

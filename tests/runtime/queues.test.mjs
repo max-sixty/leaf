@@ -70,6 +70,22 @@ test("a reply the user is sending moves its thread to the agent's queue at once"
   });
 });
 
+test("a follow-up sent in a thread the agent owes takes the place of its answer", () => {
+  // The server owes a thread one answer, to its latest move, so the reply in flight
+  // stands for the thread's answer rather than counting a second one.
+  const served = reading();
+  const workflows = [
+    ...served.workflows,
+    sending("a3", { kind: "thread", id: "e3" }, "e3"),
+  ];
+  const { onAgent } = selectQueues({ ...served, workflows });
+  assert.deepEqual(kinds(onAgent), [
+    ["work", "claim:claim-1"],
+    ["answer", "pending:a3"],
+    ["task", "e6"],
+  ]);
+});
+
 test("a pick the user is sending owes nothing yet and leaves its Ask open", () => {
   const served = reading();
   const workflows = [

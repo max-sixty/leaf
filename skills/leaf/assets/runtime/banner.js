@@ -235,16 +235,17 @@ function paintTab() {
 let saidKind;
 let saidActionableWork;
 
-// The page's two queues (`runtime/queues.js`) stand at the status row's trailing edge:
-// how much waits on the user, which `a` walks, and how much waits on the agent, which
-// is the row's whole account of the agent's side, with the disclosure naming their
-// kinds and each open task's title. They are page facts, like the Threads count, and
-// stand apart from the sentence so the agent's words changing never carries them; the
-// sentence gives up its room to the ellipsis first, so on a narrow row the counts stay
-// whole. Their box is reserved for the counts they usually reach, as the Threads control
-// is for "Threads: 999", so a count changing moves none of their words. They are read
-// from the application's publication rather than the state answer: a reply the user
-// sends leaves their count and joins the agent's in the turn it is sent.
+// The page's two queues (`runtime/queues.js`) end the status room, apart from the
+// sentence: how much waits on the user, which `a` walks, and how much waits on the
+// agent, which is the row's whole account of the agent's side, with the disclosure
+// naming their kinds and each open task's title. They are page facts, like the Threads
+// count, and stand apart from the sentence so the agent's words changing never carries
+// them; the sentence gives up its room to the ellipsis first, so on a narrow row the
+// counts stay whole. Their box is reserved for the counts they usually reach, as the
+// Threads control is for "Threads: 999", and only grows, so a count changing moves none
+// of their words. They are read from the application's publication rather than the
+// state answer: a reply the user sends leaves their count and joins the agent's in the
+// turn it is sent.
 const QUEUE_WORDS = Object.freeze({
   ask: ["Ask", "Asks"],
   question: ["question", "questions"],
@@ -276,7 +277,7 @@ function queueWords() {
     summary: [said(onYou, "you"), said(onAgent, agent)].filter(Boolean).join(" · "),
     explanation: [named(onYou, "you"), named(onAgent, agent)].filter(Boolean).join(" "),
     // The widest the counts usually reach, under ten a side, which their box keeps;
-    // more widens it for as long as they last.
+    // more widens it once (banner-status-view.js).
     widest: `9 on you · 9 on ${agent}`,
   };
 }

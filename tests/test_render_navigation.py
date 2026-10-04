@@ -3062,7 +3062,7 @@ def test_a_walks_what_waits_on_you_and_the_banner_counts_both_queues(browser, se
             "awaits": True,
         },
     )
-    append_carried_log_record(
+    owed = append_carried_log_record(
         d,
         {
             "kind": "comment",
@@ -3114,6 +3114,26 @@ def test_a_walks_what_waits_on_you_and_the_banner_counts_both_queues(browser, se
     page.locator("#h").click()
     page.keyboard.press("t")
     expect(position).to_have_text("Thread 1 of 2")
+
+    # A follow-up in a thread the agent already owes is still one answer owed: the
+    # server owes a thread one answer, to its latest move, so the count holds while the
+    # follow-up is in flight and after.
+    page.keyboard.press("t")
+    expect(position).to_have_text("Thread 2 of 2")
+    notes = page.locator(f'.lf-page-thread[data-thread="{owed["id"]}"]')
+    expect(notes).to_be_focused()
+    page.keyboard.press("Enter")
+    write(notes.locator("leaf-text"), "And the second line.")
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    page.keyboard.press("ControlOrMeta+Enter")
+    holding(page, held, 1, "the follow-up")
+    expect(status).to_have_text(re.compile(r"^1 on you · 2 on \S+$"))
+    page.unroute("**/api/event")
+    for route in held:
+        route.continue_()
+    round_trip(page)
+    expect(status).to_have_text(re.compile(r"^1 on you · 2 on \S+$"))
 
 
 def test_a_delayed_thread_reveal_reports_that_new_user_focus_cancelled_it(

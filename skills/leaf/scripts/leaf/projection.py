@@ -14,6 +14,7 @@ from leaf.events import (
     report_settlements,
     retractions,
     taken_back,
+    thread_replied_after,
 )
 from leaf.passages import EMPTY, SourceReading, collapse, enclosing_of
 from leaf.registry.contract import (
@@ -83,12 +84,7 @@ def _claim_effective(claim: dict, threads: dict, events: list) -> bool:
         return bool(
             thread
             and not thread["resolved"]
-            and not any(
-                message["kind"] == "reply"
-                and message["author"] == "agent"
-                and message["seq"] > claim["log_floor"]
-                for message in thread["msgs"]
-            )
+            and not thread_replied_after(thread, claim["log_floor"])
         )
     return not any(
         event["kind"] == "note"

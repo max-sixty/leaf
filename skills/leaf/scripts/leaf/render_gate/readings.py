@@ -458,12 +458,11 @@ def open_widgets(registry: dict) -> list[str]:
 def sweep(page, viewports, open_tags) -> list[tuple[int, dict]]:
     """The loaded page's geometry at every sweep width, widest first.
 
-    Resizes the loaded page rather than rendering it again, and reads only geometry,
-    every read-only reading whose answer moves with the width (`geometryReading`):
-    the rest of the gate reads words, paint and state, which the fixed viewports
-    already see. The fixed widths are swept too. The sweep runs at the desktop height,
-    so a fault only a phone-height workspace posture shows is the phone viewport's to
-    report."""
+    Resizes the loaded page rather than rendering it again, and reads only the
+    geometry the functions below report across widths (`geometryReading`): the rest
+    of the gate is read at the fixed viewports. The fixed widths are swept too. The
+    sweep runs at the desktop height, so a fault only a phone-height workspace
+    posture shows is the phone viewport's to report."""
     height = viewports[0]["height"]
     fixed = {viewport["width"] for viewport in viewports}
     readings = []

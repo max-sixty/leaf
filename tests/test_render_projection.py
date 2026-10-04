@@ -8488,7 +8488,9 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve):
     )
     stamp_page(d, honoring, "input absorbed")
     wait_for_revision(page, 2)
-    expect(page.locator(".lf-asks")).to_have_text("Asks 0/4")
+    # The saved answer remains in the reviewable Ask inventory after the source
+    # drops `needed`; it is completed, not newly owed to the user.
+    expect(page.locator(".lf-asks")).to_have_text("Asks 1/5")
     expect_banner_control_offered(page.locator(".lf-asks"))
     expect(page.locator("#ledger-cargo")).not_to_have_attribute("needed")
     expect(page.locator("#ledger-cargo")).not_to_have_attribute("data-lf-user-override")

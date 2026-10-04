@@ -367,6 +367,14 @@ Revisit these when their stated trigger becomes real; they are not an active que
   Artifacts store a viewer id on each row and resolve names, faces and presence
   from the host. Settle user identity and how it reaches the append door before
   building a feed or presence on it.
+- **Show which pane has focus, and move between panes by key.** A terminal marks
+  its active pane and one key moves to the next. In a workspace today the arrow keys
+  walk a side list, `a` reaches the next open Ask, and a pane body that scrolls is a
+  Tab stop, but nothing marks the active pane and no key moves from one pane to the
+  next. Pane focus belongs to the panes and the keyboard layer, not the Layout, so it
+  works the same wherever panes stand. Draw it as a playground before building it.
+  Trigger: a user loses track of the active pane, or tabs through a pane to reach the
+  next one.
 - **#23 — Workspace persistence:** use repeated real tasks to decide whether
   users return and how much customization Leaf should own.
 - **Visual review beside Leaf:** coordinate a real browser target through the harness

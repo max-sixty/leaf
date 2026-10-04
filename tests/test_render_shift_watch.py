@@ -605,6 +605,46 @@ def test_a_shift_without_input_after_typing_fails(browser):
     consume_browser_errors(page, "textarea#field moved without input")
 
 
+def test_an_input_owns_its_counted_rendering_until_it_settles(browser, serve):
+    """Counted input work can cross frames; its completion ends movement credit."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Counted input rendering",
+                '<button id="press">Move the control</button><div id="above"></div>'
+                '<button id="control">Keep this control usable</button>',
+            )
+        ),
+    )
+    page.evaluate("""async () => {
+      const {nextFrame} = await window.__lfRuntimeImport('/runtime/rendering.js');
+      const above = document.querySelector('#above');
+      document.querySelector('#press').addEventListener('click', () => {
+        let turn = 0;
+        const move = () => {
+          above.style.height = `${++turn * 20}px`;
+          if (turn < 4) nextFrame(move);
+        };
+        nextFrame(move);
+      }, {once:true});
+    }""")
+    control = page.locator("#control")
+    before = control.bounding_box()["y"]
+    page.locator("#press").click()
+    rendered(page)
+    assert control.bounding_box()["y"] == pytest.approx(before + 80, abs=1)
+    judge_watches()
+    assert page.lf_errors == []
+
+    # A later passive move has the same native input in its history, but none
+    # of the counted work that input began remains outstanding.
+    control.evaluate("node => node.style.marginTop = '40px'")
+    rendered(page)
+    judge_watches()
+    consume_browser_errors(page, "button#control moved without input")
+
+
 # News three frames after a press, as a reply lands just after a click: the page adopts
 # a server reading. A stand-in for the runtime never settles its rendering, so the
 # press's rendering is still open when the news lands. What moves the line is the

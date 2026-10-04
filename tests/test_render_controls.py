@@ -3869,7 +3869,7 @@ def test_each_control_archetype_holds_its_neighbours_still(browser, serve, arche
     # The synthetic page composes every mechanism a page can author, and carries the
     # standing comment the margin entry's row is made of. An archetype naming another
     # source is one whose causal state cannot coexist with that composed page, or whose
-    # mechanism lives only in a shipped gallery.
+    # mechanism lives only in a shipped gallery or under a page-wide opt-in.
     source = archetype.get("source")
     page = open_page(
         browser,

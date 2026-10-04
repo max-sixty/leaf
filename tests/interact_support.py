@@ -255,7 +255,7 @@ def spawn_probe(spawn, page_dir, body, **environment):
     )
 
 
-STATED_TIMEOUT = 10
+STATED_TIMEOUT = 60
 """How long a pure-Python wait gives another thread or process to state its fact.
 
 The deadline separates a product that never states the fact from a machine that
@@ -263,8 +263,9 @@ has not reached it yet, so it is generous rather than tight. Two workers share
 one runner's cores with a browser, and a stretch of ordinary work there runs
 many times slower than it does on an unloaded host: a wait sized as a small
 multiple of the unloaded duration reddens `main` on the runs where the other
-worker happens to be driving Chrome. `SERVED_TIMEOUT_MS` is the browser side's
-counterpart, more generous again for the work a page does."""
+worker happens to be driving Chrome. On a local host at load 230 over 18 cores,
+two concurrent `page init`s took up to 25s and three `leaf codex start`
+commands 20s. `SERVED_TIMEOUT_MS` is the browser side's counterpart."""
 
 
 def wait_for(
@@ -1373,9 +1374,10 @@ def codex_program(tmp_path_factory):
 def codex_queue(tmp_path):
     """Replace the external queue CLI while exercising real preview delivery.
 
-    The executable acknowledges help and records submitted arguments. Tests may
-    set PREVIEW_QUEUE_AVAILABLE=False to exercise an unsupported installation.
-    This is separate from codex_program, which models kernel process ancestry.
+    The executable acknowledges help and records submitted arguments, renaming the
+    record into place so a test that sees it exist reads it whole. Tests may set
+    PREVIEW_QUEUE_AVAILABLE=False to exercise an unsupported installation. This is
+    separate from codex_program, which models kernel process ancestry.
     """
     executable = tmp_path / "queue-bin" / "codex"
     executable.parent.mkdir()
@@ -1391,7 +1393,10 @@ if os.environ.get("PREVIEW_QUEUE_AVAILABLE", "True") == "False":
     print("queue unsupported", file=sys.stderr)
     sys.exit(1)
 if sys.argv[1:] != ["queue", "--help"]:
-    Path(os.environ["PREVIEW_QUEUE_RECORD"]).write_text(json.dumps(sys.argv[1:]))
+    record = Path(os.environ["PREVIEW_QUEUE_RECORD"])
+    written = record.with_name(record.name + ".writing")
+    written.write_text(json.dumps(sys.argv[1:]))
+    written.replace(record)
 print("queued")
 """
     )

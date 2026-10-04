@@ -22,7 +22,7 @@ from urllib.parse import urlsplit
 
 import pytest
 from conftest import LEAF_COMMAND
-from interact_support import ROOT, fetch, stamp, wait_for
+from interact_support import ROOT, STATED_TIMEOUT, fetch, stamp, wait_for
 from leaf import codex_adapter, leases, server, service, session
 from leaf_dev import preview
 
@@ -277,6 +277,7 @@ from pathlib import Path
 from leaf.service import PageTransaction, page_claim
 from leaf.host import session_harness
 from leaf.hosting import cmd_stop
+from leaf.state import write_json
 from leaf_dev.preview import PreviewService
 
 page, ready, done = map(Path, sys.argv[1:4])
@@ -308,7 +309,8 @@ try:
             output, errors = foreground.communicate(timeout=30)
             sys.exit(errors)
         started = (json.loads(line)["url"], "")
-    ready.write_text(json.dumps(started))
+    # Renamed into place, so the test reads it whole once it exists.
+    write_json(ready, started)
     while not done.exists():
         time.sleep(0.01)
 finally:
@@ -370,7 +372,6 @@ finally:
             ready.exists,
             bool,
             failure="the user preview never handed over its URL",
-            timeout=60,
         )
         url, _ = json.loads(ready.read_text())
         claim = service.page_claim(page_dir)
@@ -406,7 +407,7 @@ finally:
         assert 'operation="delivery read"' in arguments[-1]
     finally:
         done.touch()
-        output, errors = task.communicate(timeout=15)
+        output, errors = task.communicate(timeout=STATED_TIMEOUT)
     assert task.returncode == 0, f"{output}{errors}"
     wait_for(
         lambda: codex_adapter.adapter_is_live("preview-thread"),

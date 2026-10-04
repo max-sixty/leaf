@@ -26,6 +26,7 @@ from interact_support import (
     ROOT,
     SHIPPED_PACKAGES,
     SKILL_ROOT,
+    STATED_TIMEOUT,
     add_test_widget,
     append_carried_log_record,
     case_alias,
@@ -2549,7 +2550,7 @@ def test_concurrent_page_init_serializes_creation(tmp_path, monkeypatch):
         calls += 1
         if calls == 1:
             first_entered.set()
-            assert release_first.wait(5)
+            assert release_first.wait(STATED_TIMEOUT)
         original_init(page_dir, selected)
 
     @contextlib.contextmanager
@@ -2571,17 +2572,20 @@ def test_concurrent_page_init_serializes_creation(tmp_path, monkeypatch):
     second = threading.Thread(target=initialize, name="second-init")
     first.start()
     try:
-        assert first_entered.wait(5)
+        assert first_entered.wait(STATED_TIMEOUT), "the first init never started"
         second.start()
-        assert second_waiting.wait(5)
+        assert second_waiting.wait(STATED_TIMEOUT), "the second init never asked"
         assert calls == 1
     finally:
         release_first.set()
-        first.join(timeout=5)
+        # Both creations copy a whole runtime, so these are hang bounds rather
+        # than a measure of how quickly the lock passes from one to the other.
+        first.join(timeout=STATED_TIMEOUT)
         if second.ident is not None:
-            second.join(timeout=5)
+            second.join(timeout=STATED_TIMEOUT)
 
-    assert not first.is_alive() and not second.is_alive()
+    assert not first.is_alive(), "the first init never finished"
+    assert not second.is_alive(), "the second init never finished"
     assert errors == []
     assert calls == 2
     assert (page / cleanup_model.EVENTS_FILE).is_file()

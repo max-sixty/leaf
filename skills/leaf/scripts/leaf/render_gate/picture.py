@@ -6,10 +6,11 @@ The record holds what reproduces the moment: the comment's immutable `revision`,
 the `viewport` and `scheme` of the window it was drawn in. `leaf page picture` serves
 that revision with the log as it stood once the comment was appended, opens it in the
 host's browser at that viewport and scheme, and lets the runtime paint the comment's
-ink as it paints every posted drawing. It scrolls the drawing's element into view,
-inside any pane holding it, since the user's scroll positions are not recorded. The PNG is cropped to the ink and `CONTEXT`
-pixels of the page around it, inside the window, at one image pixel per CSS pixel, so
-its coordinates are the drawing's own scale.
+ink as it paints every posted drawing. The user's scroll positions are not recorded,
+so it scrolls the ink to the middle of each pane holding its element, and of the
+window. The PNG is cropped to the ink and `CONTEXT` pixels of the page around it,
+inside the window, at one image pixel per CSS pixel, so its coordinates are the
+drawing's own scale.
 
 Two inputs are not the user's. `data/` sources are not versioned, so a widget drawn
 from data shows the data as it stands now; and the host's fonts can differ from those
@@ -34,26 +35,39 @@ from .screens import page_files
 # How much of the page around the ink the picture keeps, in CSS pixels on each side.
 CONTEXT = 120
 
-# An anchored drawing's ink stands against its element, which may sit in a pane that
-# scrolls on its own and opens scrolled elsewhere: the element is scrolled into view
-# through every scroller holding it, and then the window centers the ink, which can
-# reach past the element. A page drawing stands against the document and needs only the
-# window. The element is the one whose inline anchor name the ink's `position-anchor`
-# names (`anchor-names.js`).
+# An anchored drawing's ink stands against its element, which may sit in panes that
+# scroll on their own and open scrolled elsewhere. The ink is not inside them, since it
+# is painted over the page, so each pane from the element outward is scrolled to put the
+# ink's middle at its own, reading the ink at its fixed offset from the element; then
+# the window does the same. A page drawing stands against the document and needs only
+# the window. The element is the one whose inline anchor name the ink's
+# `position-anchor` names (`anchor-names.js`).
 CENTER = """(el, anchored) => {
-  if (anchored) {
-    const name = el.style.positionAnchor;
-    const holder = [...document.querySelectorAll("[style]")].find((node) =>
-      node.style.anchorName.split(",").some((part) => part.trim() === name));
-    holder.scrollIntoView({ block: "center", inline: "center", behavior: "instant" });
+  const middle = (box) => [box.left + box.width / 2, box.top + box.height / 2];
+  const toMiddle = (scroller, [x, y], [left, top]) =>
+    scroller.scrollBy({ left: x - left, top: y - top, behavior: "instant" });
+  if (!anchored) {
+    const { clientWidth, clientHeight } = document.documentElement;
+    toMiddle(window, middle(el.getBoundingClientRect()), [clientWidth / 2, clientHeight / 2]);
+    return;
   }
-  const box = el.getBoundingClientRect();
+  const name = el.style.positionAnchor;
+  const holder = [...document.querySelectorAll("[style]")].find((node) =>
+    node.style.anchorName.split(",").some((part) => part.trim() === name));
+  const [x, y] = middle(el.getBoundingClientRect());
+  const at = holder.getBoundingClientRect();
+  const ink = () => {
+    const now = holder.getBoundingClientRect();
+    return [now.left + x - at.left, now.top + y - at.top];
+  };
+  for (let pane = holder.parentElement; pane; pane = pane.parentElement) {
+    if (pane === document.body || pane === document.documentElement) break;
+    const { overflowX, overflowY } = getComputedStyle(pane);
+    if (/auto|scroll/.test(overflowX + overflowY))
+      toMiddle(pane, ink(), middle(pane.getBoundingClientRect()));
+  }
   const { clientWidth, clientHeight } = document.documentElement;
-  scrollBy({
-    left: box.left + box.width / 2 - clientWidth / 2,
-    top: box.top + box.height / 2 - clientHeight / 2,
-    behavior: "instant",
-  });
+  toMiddle(window, ink(), [clientWidth / 2, clientHeight / 2]);
 }"""
 
 CLIP = """(el, context) => {

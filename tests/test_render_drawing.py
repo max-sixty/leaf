@@ -420,29 +420,34 @@ def test_a_drawing_says_the_words_it_stands_over_and_the_box_it_was_drawn_in(
     )
 
 
-# The swatch sits below the fold of a pane that scrolls on its own, so a picture opened
-# at the pane's top has to bring it back into view.
+# The swatch is taller than the pane that scrolls it, and its foot is a blue band: the
+# user scrolls the pane to the bottom and draws on the band, so a picture opened with the
+# pane at its top has to bring the ink, not just the swatch, back into view.
 SWATCH_PAGE = leaf_page(
     "drawn swatch",
     '<h1 id="t">Swatch</h1><p id="lede">The swatch below is half the window wide.</p>'
     '<div id="pane"><div id="filler"></div><div id="swatch"></div></div>',
     head="<style>#pane { height: 320px; overflow: auto }"
     " #filler { height: 600px }"
-    " #swatch { width: 50vw; height: 160px; background: rgb(0, 200, 0) }</style>",
+    " #swatch { width: 50vw; height: 600px;"
+    " background: linear-gradient(rgb(0, 200, 0) 84%, rgb(0, 0, 220) 84%) }</style>",
 )
+# Across the band, which runs from 84% of the swatch's height to its foot.
+BAND_STROKE = ((0.22, 0.95), (0.5, 0.88), (0.78, 0.95))
 
 
 def test_a_drawing_is_pictured_in_the_window_it_was_drawn_in(browser, serve):
     """`leaf page picture` lays the comment's revision out again in the window the
     drawing was made in, whatever window or version the page is in since, and paints the
-    ink over the element it was drawn on, scrolled into view inside the pane holding it:
-    the swatch, half the window wide, is as wide as it was then, and the ink keeps its
-    share of it."""
+    ink over the element it was drawn on, with the ink scrolled into view inside the
+    pane holding it: the swatch, half the window wide, is as wide as it was then, and
+    the ink keeps its place on the band."""
     page = open_page(browser, serve(SWATCH_PAGE), color_scheme="dark")
     page.set_viewport_size({"width": 800, "height": 600})
+    page.locator("#pane").evaluate("pane => { pane.scrollTop = pane.scrollHeight; }")
     rendered(page)
     swatch = page.locator("#swatch")
-    draw_over(page, swatch)
+    draw_over(page, swatch, points=BAND_STROKE)
     with sending(page, "the drawing on the swatch"):
         page.keyboard.press("ControlOrMeta+Enter")
     event = events_model.read_events(serve.page_dir)[-1]
@@ -467,19 +472,27 @@ def test_a_drawing_is_pictured_in_the_window_it_was_drawn_in(browser, serve):
         return furthest.point(lambda level: 255 if level <= 8 else 0).getbbox()
 
     green = where((0, 200, 0))
+    band = where((0, 0, 220))
     drawn = where(tuple(int(part) for part in re.findall(r"\d+", ink_color)[:3]))
-    assert green and drawn, (green, drawn)
+    assert green and band and drawn, (green, band, drawn)
     # 50vw of the 800px window the drawing was made in, on the revision it was made on:
     # 576px, cut at the crop, in the page's window now, and 200px on its version now.
     assert green[2] - green[0] == pytest.approx(400, abs=2)
     assert image.width < 800 and image.height < 600
-    width, height = green[2] - green[0], green[3] - green[1]
-    (left, top), _, (right, _) = STROKE
-    assert (drawn[0] - green[0]) / width == pytest.approx(left, abs=0.03)
-    assert (drawn[2] - green[0]) / width == pytest.approx(right, abs=0.03)
-    assert (drawn[1] - green[1]) / height == pytest.approx(STROKE[1][1], abs=0.05)
-    assert (drawn[3] - green[1]) / height == pytest.approx(top, abs=0.05)
-    # Drawn in the dark scheme: the page around the swatch is dark.
+    # The band is 16% of the 600px swatch, and the ink crosses it where it was drawn.
+    width, height = band[2] - band[0], band[3] - band[1]
+    assert height == pytest.approx(96, abs=2)
+    (left, low), (_, high), (right, _) = BAND_STROKE
+    band_top = 0.84
+    assert (drawn[0] - band[0]) / width == pytest.approx(left, abs=0.03)
+    assert (drawn[2] - band[0]) / width == pytest.approx(right, abs=0.03)
+    assert (drawn[1] - band[1]) / height == pytest.approx(
+        (high - band_top) / (1 - band_top), abs=0.05
+    )
+    assert (drawn[3] - band[1]) / height == pytest.approx(
+        (low - band_top) / (1 - band_top), abs=0.05
+    )
+    # Drawn in the dark scheme: the page beside the swatch is dark.
     assert sum(image.getpixel((2, 2))) < 200
 
     missing = CliRunner().invoke(

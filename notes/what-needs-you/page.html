@@ -29,34 +29,64 @@
       </header>
 
       <section id="status">
-        <h2>Two steps of four are built</h2>
-        <p>
-          Both are on the <code>what-needs-you</code> branch, not yet landed. You picked
-          them on this page's earlier Ask.
+        <h2>One queue each, and either side puts items on the other's</h2>
+        <p id="direction">
+          You set the model in a thread: an Ask is parallel to a task, each side has a
+          queue, either side can put items on the other's, and <kbd>a</kbd> pages
+          through yours. An item says whose queue it is on, who put it there, what it is
+          about (a thread, an Ask, the page) and whether it is open. Which kinds of item
+          exist stays open.
         </p>
+        <table id="direction-items">
+          <thead>
+            <tr>
+              <th scope="col">Put there by</th>
+              <th scope="col">On your queue</th>
+              <th scope="col">On the agent's queue</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th scope="row">the agent</th>
+              <td>An Ask; a question in a thread; later, a result to review</td>
+              <td>A task it takes on</td>
+            </tr>
+            <tr>
+              <th scope="row">you</th>
+              <td>Nothing yet</td>
+              <td>Every message you send; later, a task you put on it from a thread</td>
+            </tr>
+          </tbody>
+        </table>
         <ol class="steps" id="plan-step-list">
           <li>
             <strong>A queue for each side</strong> (built).
             <code>leaf page state</code> returns <code>queues.on_you</code> and
-            <code>queues.on_agent</code>, assembled from readings the browser already
-            made. Still to do: <kbd>a</kbd> walking all of <code>on_you</code>, not only
-            Asks, and the banner counting <code>on_agent</code>.
+            <code>queues.on_agent</code>.
           </li>
           <li>
             <strong>Agent tasks in the log</strong> (built).
-            <code>leaf task open</code> and <code>leaf task end</code> write
-            <code>task</code> and <code>task_end</code> events.
+            <code>leaf task open</code> and <code>leaf task end</code>.
           </li>
           <li>
-            <strong>Done becomes something for you to review</strong> (days). A finished
-            task puts its result on your queue, reading it accepts it, and replying to
-            it reopens the same task.
+            <strong><kbd>a</kbd> pages through your queue</strong> (next). Each press
+            goes to the next item on you in page order, whether an Ask or a thread
+            waiting on you, and the banner counts both queues. <kbd>t</kbd> keeps
+            walking every open thread.
           </li>
           <li>
-            <strong>Tasks outlive their session</strong> (about a week). A task whose
-            session ended with no outcome reads <em>unobserved</em> and lands on you. A
-            dispatched session can take the task over and write its outcome to this
-            page.
+            <strong>Asks and tasks read as one item</strong>. The queues give every item
+            the same fields, so an Ask and a task differ only in whose queue they are
+            on, and the <code>question</code> and <code>answer</code> kinds go.
+          </li>
+          <li>
+            <strong>Either side adds to the other's queue</strong>. The agent can put a
+            finished result on you to review, and you can put a task on the agent from a
+            thread.
+          </li>
+          <li>
+            <strong>Items outlive their session</strong>. A task whose session ended
+            with no outcome lands on you, and a dispatched session can take it over.
           </li>
         </ol>
       </section>
@@ -132,8 +162,8 @@ leaf task end PAGE TASK done "Version 4"
 stateDiagram-v2
   state "Open, on the agent" as Open
   state "Done, failed or dropped" as Ended
-  state "To review, on you (step 3)" as Review
-  state "Unobserved, on you (step 4)" as Unobserved
+  state "To review, on you (step 5)" as Review
+  state "Unobserved, on you (step 6)" as Unobserved
   [*] --&gt; Open: leaf task open, on a thread
   Open --&gt; Open: a reply, Resolve, a version, the session ending
   Open --&gt; Ended: leaf task end
@@ -404,27 +434,27 @@ stateDiagram-v2
             <tr>
               <th scope="row">A CI wait outlasts the turn</th>
               <td>The <code>status --on</code> claim lapsed and read as stalled</td>
-              <td>Open until ended (built). Whether anyone still watches is step 4</td>
+              <td>Open until ended (built). Whether anyone still watches is step 6</td>
             </tr>
             <tr>
               <th scope="row">The result lands in a version note, not the thread</th>
               <td>Nothing connected it to what you asked</td>
               <td>
-                The ending names where it is (built); step 3 puts it on your queue to
+                The ending names where it is (built); step 5 puts it on your queue to
                 review
               </td>
             </tr>
             <tr>
               <th scope="row">You send the result back</th>
               <td>Each reply was a separate owed move</td>
-              <td>Your reply reopens the same task, with its history (step 3)</td>
+              <td>Your reply reopens the same task, with its history (step 5)</td>
             </tr>
             <tr>
               <th scope="row">The work goes to another session, and this one ends</th>
               <td>“Dispatched” settled your comment</td>
               <td>
                 Open on the agent (built), but nothing marks it if that session dies
-                first; step 4 does
+                first; step 6 does
               </td>
             </tr>
           </tbody>
@@ -457,7 +487,7 @@ stateDiagram-v2
         <p>
           The model is
           <a href="https://earendil.com/posts/pi-durable/">Pi Durable</a>'s: every unit
-          of work is a task with an owner and an outcome. Step 3 adds what review and
+          of work is a task with an owner and an outcome. Step 5 adds what review and
           support tools add to it: whoever did the work reports it, and the one who
           asked accepts it, with a reply to reopen. Winograd's
           <a href="https://www.lri.fr/~mbl/ENS/CSCW/2015/papers/Winograd-CSCW86.pdf"
@@ -474,26 +504,30 @@ stateDiagram-v2
       </section>
 
       <section id="next">
-        <lf-ask id="next-step">
-          <h2 id="next-step-heading">Which step next?</h2>
-          <lf-options id="next-step-pick" choose>
-            <lf-option id="next-unobserved"
-              ><strong>Unobserved tasks</strong> Step 4's first half: a task whose
-              session ended with no outcome lands on you. Recommended: it closes the
-              last way a task can be silently lost, and it's a few days.</lf-option
-            >
-            <lf-option id="next-review"
-              ><strong>Results to review</strong> Step 3: a finished task lands on you,
-              and reading it accepts it.</lf-option
-            >
-            <lf-option id="next-walk"
-              ><strong>Finish step 1</strong> <kbd>a</kbd> walks your whole queue, and
-              the banner counts the agent's.</lf-option
-            >
-          </lf-options>
-        </lf-ask>
         <details id="decided">
-          <summary>Decided earlier: build steps 1 and 2</summary>
+          <summary>Decided earlier</summary>
+          <lf-ask id="next-step">
+            <h3 id="next-step-heading">Which step next?</h3>
+            <p>
+              Superseded: your comment set the model instead, one queue each that either
+              side adds to, and the plan above follows it.
+            </p>
+            <lf-options id="next-step-pick" choose settled>
+              <lf-option id="next-unobserved"
+                ><strong>Unobserved tasks</strong> Step 4's first half: a task whose
+                session ended with no outcome lands on you. Recommended: it closes the
+                last way a task can be silently lost, and it's a few days.</lf-option
+              >
+              <lf-option id="next-review"
+                ><strong>Results to review</strong> Step 3: a finished task lands on
+                you, and reading it accepts it.</lf-option
+              >
+              <lf-option id="next-walk"
+                ><strong>Finish step 1</strong> <kbd>a</kbd> walks your whole queue, and
+                the banner counts the agent's.</lf-option
+              >
+            </lf-options>
+          </lf-ask>
           <lf-ask id="plan-start">
             <h3 id="plan-start-heading">Should I start building?</h3>
             <lf-options id="plan-start-pick" choose>

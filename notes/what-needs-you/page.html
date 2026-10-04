@@ -227,6 +227,15 @@
                 <kbd>t</kbd> keeps walking every open thread.
               </li>
               <li>
+                <strong>Working is a task</strong> (next; you agreed in the
+                status-as-tasks thread). <code>leaf status working --on</code> folds
+                into the task commands: Working names an item, your move or a task, and
+                lasts the turn; claims move from the status file into the log; stalled
+                and unobserved become one state. See
+                <a href="#status-tasks">Working on something means working on a task</a>
+                and <a href="#working-on">What the agent can be working on</a>.
+              </li>
+              <li>
                 <strong>Asks and tasks read as one item</strong>. The queues give every
                 item the same fields, so an Ask and a task differ only in whose queue
                 they are on, and the <code>question</code> and <code>answer</code> kinds
@@ -315,8 +324,8 @@ leaf task end PAGE TASK done "Version 4"
 stateDiagram-v2
   state "Open, on the agent" as Open
   state "Done, failed or dropped" as Ended
-  state "To review, on you (step 5)" as Review
-  state "Unobserved, on you (step 6)" as Unobserved
+  state "To review, on you (step 6)" as Review
+  state "Unobserved, on you (step 7)" as Unobserved
   [*] --&gt; Open: leaf task open, on a thread
   Open --&gt; Open: a reply, Resolve, a version, the session ending
   Open --&gt; Ended: leaf task end
@@ -571,7 +580,7 @@ stateDiagram-v2
                   <th scope="row">A claim left after its turn reads stalled</th>
                   <td>
                     A turn task whose turn ended without an ending lands on your queue
-                    as unobserved. This is step 6's rule for a background task whose
+                    as unobserved. This is step 7's rule for a background task whose
                     session ends, so stalled and unobserved become one state.
                   </td>
                 </tr>
@@ -631,14 +640,11 @@ stateDiagram-v2
                 eval before and after.
               </li>
             </ul>
-            <p>
-              Two choices are yours. Whether <code>leaf status working --on</code> stays
-              as the way to open a turn task, or <code>leaf task open</code> takes a
-              lifetime and <code>status</code> keeps only waiting and idle; I'd fold it
-              into <code>task open</code>, so there is one command for taking work on.
-              And whether this goes before step 4 (Asks and tasks as one item shape);
-              I'd do it first, since it settles what a task is before the item shape
-              copies it.
+            <p id="status-tasks-decided">
+              <strong>Decided:</strong> <code>leaf status working --on</code> folds into
+              the task commands, so one command takes work on, and <code>status</code>
+              keeps only waiting and idle. This is step 4, before Asks and tasks share
+              one item shape.
             </p>
           </section>
 
@@ -861,7 +867,7 @@ stateDiagram-v2
                   <th scope="row">A CI wait outlasts the turn</th>
                   <td>The <code>status --on</code> claim lapsed and read as stalled</td>
                   <td>
-                    Open until ended (built). Whether anyone still watches is step 6
+                    Open until ended (built). Whether anyone still watches is step 7
                   </td>
                 </tr>
                 <tr>
@@ -870,14 +876,14 @@ stateDiagram-v2
                   </th>
                   <td>Nothing connected it to what you asked</td>
                   <td>
-                    The ending names where it is (built); step 5 puts it on your queue
+                    The ending names where it is (built); step 6 puts it on your queue
                     to review
                   </td>
                 </tr>
                 <tr>
                   <th scope="row">You send the result back</th>
                   <td>Each reply was a separate owed move</td>
-                  <td>Your reply reopens the same task, with its history (step 5)</td>
+                  <td>Your reply reopens the same task, with its history (step 6)</td>
                 </tr>
                 <tr>
                   <th scope="row">
@@ -886,7 +892,7 @@ stateDiagram-v2
                   <td>“Dispatched” settled your comment</td>
                   <td>
                     Open on the agent (built), but nothing marks it if that session dies
-                    first; step 6 does
+                    first; step 7 does
                   </td>
                 </tr>
               </tbody>
@@ -919,7 +925,7 @@ stateDiagram-v2
             <p>
               The model is
               <a href="https://earendil.com/posts/pi-durable/">Pi Durable</a>'s: every
-              unit of work is a task with an owner and an outcome. Step 5 adds what
+              unit of work is a task with an owner and an outcome. Step 6 adds what
               review and support tools add to it: whoever did the work reports it, and
               the one who asked accepts it, with a reply to reopen. Winograd's
               <a href="https://www.lri.fr/~mbl/ENS/CSCW/2015/papers/Winograd-CSCW86.pdf"

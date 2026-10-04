@@ -26,7 +26,7 @@ The standing architectural choices are:
 - Comments match rendered text exactly or detach.
 - A page directory remains the durable record and deployment unit.
 - Live revisions preserve user focus, selection, drafts, disclosures, and position.
-- Leaf accompanies the user's existing coding task through its host adapter;
+- Leaf accompanies the user's existing coding task through its harness adapter;
   ordinary Codex tasks use the queue and accessible App Servers use delivery turns.
 - Package declarations remain the shared JSON Schema vocabulary read by Python,
   JavaScript, package authors, and generated documentation.

@@ -35,14 +35,13 @@ import { bringBackSurfaceOf } from "../off-flow.js";
 import { retainUserIntent } from "../user-intent.js";
 import { scrollIntoReadingBand } from "../landing-scroll.js";
 import { atScrollEnd, scrollToEnd } from "../scrolling.js";
-import { SAYS_IN } from "./selectors.js";
+import { SAYS_IN, SAY_ROW } from "./selectors.js";
 
-const REPLY_ROW = ".lf-thread-reply, .lf-say";
 const replyRowOf = (held, control) => {
   const reply =
     control === held
-      ? held.querySelector(":scope > .lf-thread-reply, :scope > .lf-say")
-      : control.closest(REPLY_ROW);
+      ? [...held.children].find((node) => node.matches(SAY_ROW))
+      : control.closest(SAY_ROW);
   return reply?.parentElement === held ? reply : null;
 };
 // A reply row pinned to its scroller's foot (a panel card's) stands in the band

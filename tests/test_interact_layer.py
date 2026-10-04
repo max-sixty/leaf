@@ -26,6 +26,7 @@ from interact_support import (
     ROOT,
     SHIPPED_PACKAGES,
     SKILL_ROOT,
+    STATED_TIMEOUT,
     add_test_widget,
     append_carried_log_record,
     case_alias,
@@ -320,8 +321,8 @@ def test_wt_merge_runs_every_npm_gate_ci_runs():
 def test_the_root_instructions_name_every_directory_of_the_projects_own_tree():
     """A top-level directory a session works in must be named where sessions read.
 
-    The dotted directories belong to the hosts and the tooling that read them, and
-    a session finds each through the host rather than through this map. The rest
+    The dotted directories belong to the harnesses and the tooling that read them, and
+    a session finds each through the harness rather than through this map. The rest
     are the project's own tree, and every one of them is somewhere a session is
     sent to read or write. A session that lands in one the map never names has
     only the files in front of it to say what the directory is for — which is how
@@ -463,7 +464,7 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
         assert "thread_title event is invalid" in refused.output
     assert events_model.read_events(page_dir) == before
 
-    # A reply's --title names only a thread nothing has named, so a name the host
+    # A reply's --title names only a thread nothing has named, so a name the harness
     # gave the thread while the agent worked stands; edit renames one.
     followed = runner.invoke(
         cli_model.cli,
@@ -572,7 +573,7 @@ def test_shim_dispatches_every_command_through_one_uv_run(tmp_path, monkeypatch,
     # that appear somewhere in it: an index named here would take the host's say
     # away, and the project has to be the payload beside the launcher rather
     # than whatever project the caller's directory sits in. `--no-dev` because
-    # the dev group is the suite and the repo's own scripts, neither a host's to
+    # the dev group is the suite and the repo's own scripts, neither a harness's to
     # install. The module rather than the `leaf` console script because a long
     # payload path turns the console script into a `/bin/sh` trampoline.
     assert dispatched == [
@@ -590,7 +591,7 @@ def test_shim_dispatches_every_command_through_one_uv_run(tmp_path, monkeypatch,
 
 def test_the_version_and_root_flags_describe_the_payload_this_leaf_ran_out_of(tmp_path):
     """Which copy of leaf answered is otherwise unknowable from outside it. A
-    host session runs the payload its plugin cache holds and a checkout stands
+    harness session runs the payload its plugin cache holds and a checkout stands
     beside it; `bin/leaf` is identical across versions and nothing the CLI
     prints says where it came from. `--version` prints the running source identity
     for reports and harnesses, while `--root` retains the exact payload directory
@@ -598,7 +599,7 @@ def test_the_version_and_root_flags_describe_the_payload_this_leaf_ran_out_of(tm
 
     Two copies asked the same question, because either half alone is satisfied
     by a flag that prints a constant, or the directory the command was typed in.
-    The second is a host's install, run through its own launcher, and nothing
+    The second is a harness's install, run through its own launcher, and nothing
     about it is this checkout.
 
     Eager and page-free, so it answers with no page named and nothing written
@@ -608,7 +609,7 @@ def test_the_version_and_root_flags_describe_the_payload_this_leaf_ran_out_of(tm
     cached = install_payload(
         tmp_path / "plugins" / "cache" / "marketplace" / "leaf" / cached_commit
     )
-    # A host's copy carries no `.git`, so the time it was made is the only date it
+    # A harness's copy carries no `.git`, so the time it was made is the only date it
     # has: every file written then, the running module's own included.
     copied_at = 1_790_000_000
     layer = cached / "skills" / "leaf" / "scripts" / "leaf" / "layer.py"
@@ -694,9 +695,9 @@ def test_claude_and_codex_load_the_same_plugin_payload():
         "skills/leaf/references/conversation-loop.md",
         "skills/leaf/references/threads.md",
         "skills/leaf/references/event-batches.md",
-        "skills/leaf/references/host-claude-code.md",
-        "skills/leaf/references/host-codex.md",
-        "skills/leaf/references/host-codex-app-server.md",
+        "skills/leaf/references/harness-claude-code.md",
+        "skills/leaf/references/harness-codex.md",
+        "skills/leaf/references/harness-codex-app-server.md",
         "skills/leaf/references/page-checkpoints.md",
         "skills/leaf/references/packages.md",
         "skills/leaf/references/page-authoring.md",
@@ -716,7 +717,7 @@ def test_claude_and_codex_load_the_same_plugin_payload():
     assert instructions, "no project instructions in the shipped payload"
     for agents in instructions:
         assert agents.is_file() and not agents.is_symlink()
-    # A host's copy must not contain links that escape the plugin tree.
+    # A harness's copy must not contain links that escape the plugin tree.
     escaping = [
         path
         for path in shipped_payload()
@@ -1334,6 +1335,71 @@ def test_no_has_rule_restyles_the_whole_document():
         "a :has() rule whose target names nothing restyles the whole document:\n"
         + "\n".join(unkeyed)
     )
+
+
+def test_layout_style_and_widgets_never_read_each_other():
+    """A Layout places boxes, a style sets type and spacing, and a widget reads its own
+    box and the theme's tokens (assets/AGENTS.md, "Space and scrolling"). So a Layout
+    class is named only in layouts.css and a style class only in the kernel theme, and
+    layouts.css sets no type: where one has to answer another, the owner sets a token
+    saying what the box is, as `--lf-full-height` does, and the reader keys on that.
+
+    A Layout class is one layouts.css styles; a style class is one the kernel theme
+    gives its own type or spacing tokens (`--t-*`, `--sp-*`)."""
+    layouts = schema_model.ASSETS / "layouts.css"
+    theme = schema_model.ASSETS / "theme.css"
+    owned = {
+        layouts: {
+            name
+            for _conditions, _enclosing, selector, _declarations in _style_rules(
+                layouts
+            )
+            for name in re.findall(r"\.(layout-[a-z-]+)", selector)
+        },
+        theme: {
+            match[1]
+            for _conditions, _enclosing, selector, declarations in _style_rules(theme)
+            if (match := re.fullmatch(r"\.([a-z][a-z-]*)", selector))
+            and any(name.startswith(("--t-", "--sp-")) for name, _ in declarations)
+        },
+    }
+    assert {"layout-column", "layout-workspace"} <= owned[layouts], owned[layouts]
+    assert owned[theme] == {"density-working"}, owned[theme]
+    roots = (schema_model.ASSETS, schema_model.BUNDLED_PACKAGES)
+    readers = []
+    for source in sorted(path for root in roots for path in root.rglob("*.[cj]s*")):
+        if "vendor" in source.parts:
+            continue
+        foreign = [names for home, names in owned.items() if home != source]
+        named = re.compile(r"\b(" + "|".join(sorted(set().union(*foreign))) + r")\b")
+        where = source.relative_to(schema_model.ASSETS.parent)
+        if source.suffix == ".css":
+            readers += [
+                f"{where}: {selector}"
+                for _conditions, _enclosing, selector, _declarations in _style_rules(
+                    source
+                )
+                if named.search(selector)
+            ]
+        elif source.suffix == ".js":
+            # A module reads a class through a string; a comment may name one.
+            readers += [
+                f"{where}: {literal[1]}"
+                for literal in re.findall(
+                    r"([\"'`])((?:(?!\1).)*)\1", source.read_text()
+                )
+                if named.search(literal[1])
+            ]
+    typed = [
+        f"{selector} sets {name}"
+        for _conditions, _enclosing, selector, declarations in _style_rules(layouts)
+        for name, _value in declarations
+        if name.startswith("font") or name in ("letter-spacing", "line-height")
+    ]
+    assert not readers, "a Layout or style class read outside its owner:\n" + "\n".join(
+        readers
+    )
+    assert not typed, "layouts.css sets type:\n" + "\n".join(typed)
 
 
 def _pseudo_arguments(compound, pseudos):
@@ -2549,7 +2615,7 @@ def test_concurrent_page_init_serializes_creation(tmp_path, monkeypatch):
         calls += 1
         if calls == 1:
             first_entered.set()
-            assert release_first.wait(5)
+            assert release_first.wait(STATED_TIMEOUT)
         original_init(page_dir, selected)
 
     @contextlib.contextmanager
@@ -2571,17 +2637,20 @@ def test_concurrent_page_init_serializes_creation(tmp_path, monkeypatch):
     second = threading.Thread(target=initialize, name="second-init")
     first.start()
     try:
-        assert first_entered.wait(5)
+        assert first_entered.wait(STATED_TIMEOUT), "the first init never started"
         second.start()
-        assert second_waiting.wait(5)
+        assert second_waiting.wait(STATED_TIMEOUT), "the second init never asked"
         assert calls == 1
     finally:
         release_first.set()
-        first.join(timeout=5)
+        # Both creations copy a whole runtime, so these are hang bounds rather
+        # than a measure of how quickly the lock passes from one to the other.
+        first.join(timeout=STATED_TIMEOUT)
         if second.ident is not None:
-            second.join(timeout=5)
+            second.join(timeout=STATED_TIMEOUT)
 
-    assert not first.is_alive() and not second.is_alive()
+    assert not first.is_alive(), "the first init never finished"
+    assert not second.is_alive(), "the second init never finished"
     assert errors == []
     assert calls == 2
     assert (page / cleanup_model.EVENTS_FILE).is_file()

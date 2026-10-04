@@ -58,7 +58,7 @@ from leaf import document_reading as document_reading_model
 from leaf import event_log as event_model
 from leaf import events as event_folds_model
 from leaf import files as files_model
-from leaf import host as host_model
+from leaf import harness as harness_model
 from leaf import hosting as hosting_model
 from leaf import http as http_model
 from leaf import interaction_log as interaction_model
@@ -347,8 +347,8 @@ def test_sample_allocations_share_no_parent_lock_and_keep_one_log_reading(
     original = samples_model.Samples.create
 
     def held_allocation(self, *args):
-        allocating.wait(timeout=5)
-        assert release.wait(5)
+        allocating.wait(timeout=STATED_TIMEOUT)
+        assert release.wait(STATED_TIMEOUT)
         return original(self, *args)
 
     monkeypatch.setattr(samples_model.Samples, "create", held_allocation)
@@ -362,7 +362,7 @@ def test_sample_allocations_share_no_parent_lock_and_keep_one_log_reading(
         try:
             # Both allocations reach the expensive stage while neither holds the
             # parent's lease. A parent update can commit before they finish.
-            allocating.wait(timeout=5)
+            allocating.wait(timeout=STATED_TIMEOUT)
             with service_model.PageTransaction(page_dir) as page:
                 page._append_record(
                     {
@@ -377,7 +377,7 @@ def test_sample_allocations_share_no_parent_lock_and_keep_one_log_reading(
             release.set()
         children = []
         for allocation in allocations:
-            status, raw = allocation.result(timeout=5)
+            status, raw = allocation.result(timeout=STATED_TIMEOUT)
             assert status == 200, raw
             children.append(server + json.loads(raw)["url"])
     assert children[0] != children[1]
@@ -3147,8 +3147,8 @@ def test_every_kind_of_user_move_is_named_in_eight_characters(server, page_dir):
     """An id is something the agent reads back and retypes. One user comment
     shows the agent its id five times over and is answered with `leaf thread reply --for
     <id>`, so an id is eight hex characters. No kind is carved out of that: an
-    id a host keys an operation on is unique within this page either way, so the
-    host pairs it with the page rather than being handed a wider id and left to
+    id a harness keys an operation on is unique within this page either way, so the
+    harness pairs it with the page rather than being handed a wider id and left to
     assume it is distinctive on its own."""
     version = page_dir / "index.html"
     version.write_text(
@@ -3450,11 +3450,11 @@ def test_a_server_keeps_its_row_fresh_without_browser_visits(page_dir, spawn):
     session = cleanup_model.session_record("invisible")
     cleanup_model.write_session({**session, "turn_closed": cleanup_model.now_iso()})
     await_row(lambda row: row["activity"]["kind"] == "away")
-    # The host's dialog changes outside the page, with no lifecycle rewrite.
-    host_record = host_model.claude_code_sessions() / f"{agent.pid}.json"
-    host_record.parent.mkdir(parents=True, exist_ok=True)
+    # The harness's dialog changes outside the page, with no lifecycle rewrite.
+    harness_record = harness_model.claude_code_sessions() / f"{agent.pid}.json"
+    harness_record.parent.mkdir(parents=True, exist_ok=True)
     cleanup_model.write_json(
-        host_record,
+        harness_record,
         {
             "pid": agent.pid,
             "sessionId": "invisible",
@@ -3463,7 +3463,7 @@ def test_a_server_keeps_its_row_fresh_without_browser_visits(page_dir, spawn):
         },
     )
     await_row(lambda row: row["activity"]["observed_kind"] == "awaiting_user")
-    host_record.unlink()
+    harness_record.unlink()
     await_row(lambda row: row["activity"]["kind"] == "away")
     waiter = leases_model.take_lease(
         leases_model.waiter_lease_path(neighbor, "invisible")
@@ -4290,6 +4290,11 @@ def test_frozen_history_and_comparisons_do_not_reopen_the_page(page_dir):
 
     assert service.page_state() == before
     assert service.page_browser_view(2, picked["seq"]) == comparison
+    # The page as it stood at the gesture, as `leaf page picture` serves one: the log
+    # and the versions stamped by then.
+    then = snapshot.through(picked["seq"]).context
+    assert then.events[-1]["id"] == picked["id"]
+    assert [version["version"] for version in then.versions] == [1]
 
 
 def test_comparison_revision_reads_stay_inside_the_page_transaction(
@@ -4866,7 +4871,7 @@ def test_stop_does_not_wait_forever_on_a_server_started_after_its_transition(
             yield
         if threading.current_thread() is stopping and locked == page_dir:
             transitioned.set()
-            assert resume.wait(10)
+            assert resume.wait(STATED_TIMEOUT)
 
     monkeypatch.setattr(hosting_model, "page_locked", pause_after_transition)
     stopped = []
@@ -4878,7 +4883,7 @@ def test_stop_does_not_wait_forever_on_a_server_started_after_its_transition(
     )
     try:
         stopping.start()
-        assert transitioned.wait(10)
+        assert transitioned.wait(STATED_TIMEOUT), "the stop never made its transition"
         wait_for(
             lambda: not leases_model.lock_is_held(page_dir / "server.lock"),
             bool,
@@ -4887,13 +4892,14 @@ def test_stop_does_not_wait_forever_on_a_server_started_after_its_transition(
         if owned:
             with service_model.PageTransaction(page_dir) as transaction:
                 transaction.take_claim(
-                    host_model.session_harness()
+                    harness_model.session_harness()
                     if same_session
-                    else host_model.ClaudeCodeHarness("successor", "Claude")
+                    else harness_model.ClaudeCodeHarness("successor", "Claude")
                 )
         assert hosting_model.start_server(page_dir, standing=True)
         resume.set()
-        stopping.join(timeout=3)
+        stopping.join(timeout=STATED_TIMEOUT)
+        assert not stopping.is_alive(), "the stop never returned once resumed"
         assert stopped == [True]
         assert bool(server_model.running_server(page_dir)) == owned
     finally:
@@ -4902,7 +4908,7 @@ def test_stop_does_not_wait_forever_on_a_server_started_after_its_transition(
             page_dir / "service.json",
             {**files_model.read_json(page_dir / "service.json"), "enabled": False},
         )
-        stopping.join(timeout=10)
+        stopping.join(timeout=STATED_TIMEOUT)
 
 
 def test_an_upgrade_is_answered_by_the_key_gate_like_any_other_request(server):

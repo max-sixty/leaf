@@ -21,7 +21,7 @@ page and is not a global identifier. The kinds:
 | `done` | user | the banner, only on a page declaring `<meta name="lf-review" content="sign-off">` | `version`, the stamp approved | approval of the declared sign-off; a page that asks nothing gets no terminal control |
 | `action` | user | `POST /api/event` from a widget | `widget`, `action`, `detail`; server-stamped `meaning` | the user edited the document through the widget |
 | `report` | agent or worker | `leaf page report` | as `action`, validated by an `x-state` verb declaring `writer: "agent"` | provisional state that stands until a stamped revision answers it |
-| `pickup` | page | the delivery carrier; a host failure receipt | `events`, `phase` (`queued`, `opened`, or `failed`), `session`, `turn`; `failure` with `failed` | the named attention-bearing inputs reached the durable Codex queue or entered an exact agent turn, or the host gave up on them with no answer coming; includes page errors and reports; idempotent per event, phase, session, and turn; never a work claim |
+| `pickup` | page | the delivery carrier; a harness failure receipt | `events`, `phase` (`queued`, `opened`, or `failed`), `session`, `turn`; `failure` with `failed` | the named attention-bearing inputs reached the durable Codex queue or entered an exact agent turn, or the harness gave up on them with no answer coming; includes page errors and reports; idempotent per event, phase, session, and turn; never a work claim |
 | `note` | agent | `leaf page stamp` | `version`, `revision`, changelog `text`, `restated`, `settles` | one public version mapped to an immutable revision, naming the decisions it took back and the reports or work it answered |
 | `error` | page | the runtime | | the page reported a failure in front of the user; heard like a report, never counted against the user |
 | `task` | agent | `leaf task open` | `subject` (`{kind: thread, id}`, an open thread), `title` | the agent takes on work it owes that thread; it stands through replies, resolutions, versions and session ends (`tasks.py`) |
@@ -103,10 +103,10 @@ the same way, from the moment it is sent, and its refusal brings the reaction ba
 The server stamps every browser-posted event `author=user`. `leaf thread open`,
 `leaf thread reply`, `leaf thread edit`, `leaf page report`, and
 `page stamp` stamp `author=agent` plus the posting session's own voice: `agent`, its display
-name, and `session`, its host session id. Several agent sessions can write to one
+name, and `session`, its harness session id. Several agent sessions can write to one
 page, so the voice is read from the poster's environment rather than from the
 watcher's claim record, and identity is the session id, because a display name is
-anyone's to choose. A command run outside a host session has no voice, so its
+anyone's to choose. A command run outside a harness session has no voice, so its
 event carries neither field. Every reading that shows an agent's event names it
 through `schema.agent_name`, which gives such an event the name `Agent`. Every
 agent-authored thread message, closing event, margin update, and activity row the
@@ -235,14 +235,14 @@ completed delivery answer whose move was settled during the turn. A proactive
 message (`leaf thread reply <page> <message-id>`, without `--for`) carries no `responds`. Settlement
 consumes this exact identity rather than log order, so answering older work cannot
 erase newer user input. A substantive reply reopens a resolved thread;
-reactions and host failure receipts leave its closure standing. A later resolution
+reactions and harness failure receipts leave its closure standing. A later resolution
 closes the thread again. Reopening restores its still-unanswered widget Asks,
 as an explicit reopen does.
-A host that gives up on a move writes the failure the move's answer takes
+A harness that gives up on a move writes the failure the move's answer takes
 (`thread.fail_answer`): a reply for a message, including one in a thread
 that asked for a version, and a failed `pickup` for an answer to a page Ask. Each
-carries `failure`, a nonempty host-owned code, which is what tells a host's failure
-reply from an agent's. Only the host writer supplies `failure`, and the panel draws
+carries `failure`, a nonempty harness-owned code, which is what tells a harness's failure
+reply from an agent's. Only the harness writer supplies `failure`, and the panel draws
 such a reply as a receipt whose head says the message answers nothing, since
 otherwise it is indistinguishable from the answer it stands in for.
 When a reply carries a widget with a local `x-awaits` Ask, the widget's standing

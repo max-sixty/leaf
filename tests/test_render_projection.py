@@ -4707,14 +4707,6 @@ def test_the_reading_position_restores_onto_a_section_that_draws_no_box(browser,
     )
 
 
-@pytest.mark.xfail(
-    reason=(
-        "Native package scope prevents joined-control suppression of the Ask ring"
-        " on main 2bd9; CI run 37057440971."
-    ),
-    raises=AssertionError,
-    strict=False,
-)
 def test_the_ring_says_where_the_user_is_standing(browser, serve):
     """One ring, meaning one thing: this is where the user is standing. It is painted
     from the focus, so every way into a decision paints it and leaving takes it off.
@@ -6691,12 +6683,12 @@ def test_a_pending_suggestion_can_be_discussed_instead_of_decided(browser, serve
     page = open_page(browser, serve(SUGGESTION_PAGE))
     resized(page, 1920, 900)
     page.evaluate("""() => {
-        const r = document.createRange();
-        r.selectNodeContents(document.querySelector('#sug-refill lf-new'));
+        const range = document.createRange();
+        range.selectNodeContents(document.querySelector('#sug-refill lf-new'));
         getSelection().removeAllRanges();
-        getSelection().addRange(r);
-        document.body.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
+        getSelection().addRange(range);
     }""")
+    page.keyboard.press("c")
     page.wait_for_selector(".lf-fab-input", state="visible")
     page.locator(".lf-fab-input").click()
     page.wait_for_selector(".lf-composer", state="visible")
@@ -8496,7 +8488,9 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve):
     )
     stamp_page(d, honoring, "input absorbed")
     wait_for_revision(page, 2)
-    expect(page.locator(".lf-asks")).to_have_text("Asks 0/4")
+    # The saved answer remains in the reviewable Ask inventory after the source
+    # drops `needed`; it is completed, not newly owed to the user.
+    expect(page.locator(".lf-asks")).to_have_text("Asks 1/5")
     expect_banner_control_offered(page.locator(".lf-asks"))
     expect(page.locator("#ledger-cargo")).not_to_have_attribute("needed")
     expect(page.locator("#ledger-cargo")).not_to_have_attribute("data-lf-user-override")

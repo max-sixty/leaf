@@ -22,7 +22,7 @@ from urllib.parse import urlsplit
 
 from .detached import Handshake, StartRefused, starting_detached
 from .files import read_json
-from .host import session_harness
+from .harness import session_harness
 from .leases import page_locked, release_lease, take_lease
 from .schema import SERVER_LOCK, SERVICE_FILE
 from .server import (
@@ -286,7 +286,7 @@ def _serve_claim(
     )
     if not standing and harness is not None and not claimed:
         sys.exit(
-            f"this host session no longer owns {page_dir}; the server was not started"
+            f"this harness session no longer owns {page_dir}; the server was not started"
         )
     if revive and service and service["lifetime"] == "session" and not claimed:
         sys.exit("this session no longer owns the service; not reviving")

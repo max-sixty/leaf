@@ -24,9 +24,11 @@
    it stands, drawn resolved, until its going would move nothing the user sees. */
 import { html, repeat } from "../../vendor/browser-runtime.js";
 import { focused } from "../keyboard/scopes.js";
+import { holdFocus, restoringFocus } from "../focus.js";
 import { RetainedFace } from "../retained-face.js";
 import { ThreadView } from "./thread-card.js";
-import { replyHasWords } from "./replies.js";
+import { showHeld } from "./held-news.js";
+import { draftHasContent } from "../drafts.js";
 import { focusThread } from "./focus.js";
 import { passOn, retainUserIntent } from "../user-intent.js";
 import { layoutChanged } from "../widget-elements.js";
@@ -60,7 +62,7 @@ const EMPTY_MODEL = Object.freeze({
 class ThreadListView extends RetainedFace {
   #commands = null;
   #views = new Map();
-  #focusListAfterPaint = false;
+  #restoreFocusAfterPaint = null;
   #generation = 0;
   #rows = [];
   #retaining = false;
@@ -107,6 +109,8 @@ class ThreadListView extends RetainedFace {
   #choose(card) {
     const row = this.#visibleRows().find((row) => row.node === card);
     if (!row) return;
+    // A title choice is an arrival; restoring that title after paint is not.
+    if (!restoringFocus()) showHeld(card.dataset.id);
     this.#select(row.key);
     this.#showExpanded();
   }
@@ -135,7 +139,7 @@ class ThreadListView extends RetainedFace {
     const seen = view.node.open
       ? this.checkVisibility()
       : Boolean(seenRect(view.node, new Map()));
-    const draft = replyHasWords(key);
+    const draft = draftHasContent("reply:" + key);
     if (news && (seen || draft)) return "news";
     return draft ? "draft" : null;
   }
@@ -274,7 +278,7 @@ class ThreadListView extends RetainedFace {
 
   willUpdate(changed) {
     if (!changed.has("model") || !this.#commands) return;
-    this.#focusListAfterPaint ||= this.contains(focused());
+    this.#restoreFocusAfterPaint ??= holdFocus(this);
     this.#intent = this.model.intent;
     const rows = [];
     const wanted = new Set();
@@ -355,24 +359,19 @@ class ThreadListView extends RetainedFace {
     this.#draftViews.add(view);
     this.#draftFrame ||= nextRender(() => {
       this.#draftFrame = 0;
-      let reconcile = false;
       for (const changed of this.#draftViews)
         if ([...this.#views.values()].includes(changed)) {
           changed.repaint();
-          reconcile ||= changed.model.resolved;
         }
-      if (reconcile) this.#commands.repaintThread();
       this.#draftViews.clear();
     });
   }
 
   updated() {
     this.#showExpanded();
-    const active = focused();
-    const recover = this.#focusListAfterPaint;
-    this.#focusListAfterPaint = false;
-    if ((recover && !this.contains(active)) || active?.closest?.(".lf-thread[hidden]"))
-      this.focus({ preventScroll: true });
+    const restore = this.#restoreFocusAfterPaint;
+    this.#restoreFocusAfterPaint = null;
+    restore?.(this);
     this.#commands?.presentSummary(this.model);
   }
 

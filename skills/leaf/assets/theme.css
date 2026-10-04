@@ -33,8 +33,9 @@
  * The stylesheet uses declarations as open selectors too. A box that draws a frame
  * declares `--lf-block-frame: 1` in the rule that draws it. Style queries use that custom
  * property to trim child margins and to bound wide content. A project box then receives
- * the same behavior without joining a tag list. `main` hands wide room back to its
- * contents explicitly because it is the outer page frame.
+ * the same behavior without joining a tag list. A frame that holds the page's own flow,
+ * `main` or a page tab's panel, also declares `--lf-page-flow: 1`, so it passes wide
+ * room on to its contents rather than withholding it.
  *
  * Where the fact belongs to the registry rather than to the rule that draws the box,
  * delivery paints it into the served document (revision_delivery.py, `mark_declared`;
@@ -786,6 +787,7 @@ body {
 main {
   position: relative;
   --lf-block-frame: 1;
+  --lf-page-flow: 1;
   container-name: lf-content-frame;
   padding-block: 72px 96px;
   --lf-free-l: 0px;
@@ -799,6 +801,11 @@ main {
  * grew out of it. Outside the page, where nothing states them, neither side holds a
  * widget back. */
 @property --lf-width { syntax: "<length>"; inherits: true; initial-value: 0px; }
+/* A box that frames its blocks for the trim and holds the page's own flow: `main`, and a
+ * page tab's panel. It passes the page's room to what it holds rather than withholding it
+ * (layouts.css), and a table in it keeps to its content rather than filling it (below).
+ * Not inherited, so a box inside one answers only for itself. */
+@property --lf-page-flow { syntax: "<integer>"; inherits: false; initial-value: 0; }
 /* Where a box sticking here stops: the sticky headers standing over the top of its
  * scroller, stacked. On the root it starts at the banner's height (above); a box the
  * theme makes scroll that can hold a header starts it again from its own top (a bounded
@@ -959,8 +966,8 @@ table { display: block; overflow-x: auto; container-type: inline-size; --lf-top:
    frame's inner edge is a line the eye measures the rules against, so a table that
    kept to its content there read as cut short: live-progress's Checks rules stopped
    158px before the panel's edge. In the column the same shortfall is only the measure,
-   and the rule above keeps it, which is why `main`, the one frame that draws nothing,
-   hands the table back.
+   and the rule above keeps it, so a frame that holds the page's own flow (`main`, a page
+   tab's panel; `--lf-page-flow`) draws nothing to fill and leaves the table to its content.
 
    The grid is an anonymous box inside the block that scrolls, which no rule can size,
    and a table box doesn't stretch as a flex or grid item. What it does do is grow to
@@ -971,10 +978,9 @@ table { display: block; overflow-x: auto; container-type: inline-size; --lf-top:
    Registered so the claim stays on the table and a table nested deeper in it asks its
    own holder. */
 @property --lf-fills-frame { syntax: "<integer>"; inherits: false; initial-value: 0; }
-@container style(--lf-block-frame: 1) {
+@container style(--lf-block-frame: 1) and (not style(--lf-page-flow: 1)) {
   table { --lf-fills-frame: 1; }
 }
-main > table { --lf-fills-frame: 0; }
 @container style(--lf-fills-frame: 1) {
   table::before { content: ""; display: table-caption; min-inline-size: 100cqi; }
 }

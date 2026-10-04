@@ -56,10 +56,11 @@ has tried; settle that before building it.
   check that the hosted website agent's status is readable without delaying its
   reply. Keep delegated work visible while its watcher is live.
 - **#24 — Measure the fresh-reader review across pages.** The catalog's
-  `dashboard/reader` context gives a fixed reader only the request and screenshots
-  of a seeded count defect and a corrected count control. The narrow calibration
-  scores count detection and false alarms separately from other page defects;
-  it does not establish overall page acceptance. Measure
+  `dashboard/reader-seeded` and `dashboard/reader-clean` contexts show the screenshot
+  judge one triage board each, with a seeded count defect or the correct count, and
+  ask both whether the count matches the cards. That narrow calibration scores count
+  detection and false alarms separately from other page defects; it does not
+  establish overall page acceptance. Measure
   whether authors invoke the review, its cost and what it catches across actual
   pages. Author delegation traces and independent judge cost are separate evidence.
 
@@ -103,17 +104,6 @@ and its chrome coordinate.
   newcomer out of view rather than pushing down the card being read. The user sees
   it only in the count; give that arrival a visible route while preserving the
   current reading.
-- **Bring a comment box back where it stood after one wheel jump.** Scrolling back to
-  a comment's target in a single wheel step draws the box about 60px off for a frame
-  before it lands, on `main` too and for selected words as well as items; a script's
-  instant scroll does not show it. Floating UI's `shift` limiter held the box at the
-  target's far edge while the target left the window, and the correction lands a frame
-  after the scroll (`placeFab`, `composing/surface.js`); a real-wheel test under
-  `shift_watch.js` reproduces it.
-- **Keep a thread card still while the user types in it inside a pane.** Typing in a
-  margin thread card's reply, with its target in a pane that scrolls on its own, moves
-  the whole card (`shift_watch.js`: "typing in leaf-text moved
-  aside#lf-margin-preview"), on `main` too.
 - **Give the phone banner one row.** Decided, not built
   ([plan](notes/chrome-and-covers.md)): one 53px row holding the status in words, cut
   short with an ellipsis, with a passing notice taking that slot for a few seconds;
@@ -153,6 +143,19 @@ and its chrome coordinate.
   (`syncLayoutRegion`) and the render check's held-panes reading (`heldPanes`), which
   both look only at `main`, have to look at that block too. It waits for a page that
   needs it; a workspace page's own pane grid stays plain CSS.
+- **Settle what a box declares to the width rules before patching them again.** One
+  flag, `--lf-block-frame`, decides three things: a box's edge margins are trimmed,
+  wide blocks inside it stay inside it, and a table in it fills it. `main` and a page
+  tab's panel want only the trim and opt out of the rest with `--lf-page-flow` (#1723).
+  A task inside `lf-command` wants only the trim too and has no way to say so, so a wide
+  worktree in it stays at 604px where it would take 672px. Rules that undo another rule
+  have also lived in lower cascade layers, where they lose without a sign: moving the
+  width rules into `lf-layouts` (#1617) disabled the page tab's hand-back and the
+  diagram package's no-runtime rule, and the bug reached a user a day after CI had
+  caught and muted it. Decide what
+  a box states (that its edges trim, that it draws a frame, that it holds the page's own
+  flow) so each rule reads one declaration and no box has to undo a rule meant for
+  another.
 - **Show each floating surface across the content it can hold.** `leaf-dev stills`
   screenshots the same states on the base and the branch, so it reports a change but
   misses a surface that is wrong on both. Until PR 1440 a margin thread card took all
@@ -284,7 +287,7 @@ height and where a switch lands wait on the workspace decision under Layout.
 ### The agent's text interface
 
 - **Keep a blocked stop from hiding the agent's answer.** When Leaf's Stop hook blocks
-  a stop, the agent writes one more message, and where the host shows only the last
+  a stop, the agent writes one more message, and where the harness shows only the last
   message (Claude Code's focus mode) that message replaces the answer: a user who typed
   `/whereami` twice saw two notes about a missing watcher and never the briefing. #1502
   removed that trigger, since the hook now does the watching. **Unconfirmed:** check
@@ -339,7 +342,7 @@ height and where a switch lands wait on the workspace decision under Layout.
 
 Revisit these when their stated trigger becomes real; they are not an active queue.
 
-### Product and host ideas
+### Product and harness ideas
 
 - **Revisit a pin's icons if they read unclearly.** A pin shows the rail's outline
   icon in white on its fill, at 26px. A filled icon reads more clearly at that size,
@@ -356,10 +359,10 @@ Revisit these when their stated trigger becomes real; they are not an active que
   building a feed or presence on it.
 - **#23 — Workspace persistence:** use repeated real tasks to decide whether
   users return and how much customization Leaf should own.
-- **Visual review beside Leaf:** coordinate a real browser target through the host
+- **Visual review beside Leaf:** coordinate a real browser target through the harness
   when review work needs it; expand inspection only when focused workspaces fail a
   real task.
-- **Other hosts:** add a blocking `leaf wait` route when another agent host needs
+- **Other harnesses:** add a blocking `leaf wait` route when another agent harness needs
   foreground handoff.
 - **Decide whether an exported page carries its threads.** `leaf page
   export` writes a file that boots the page's own runtime offline, and that file

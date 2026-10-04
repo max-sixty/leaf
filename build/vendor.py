@@ -262,7 +262,7 @@ def build_floating_ui(work: Path) -> list[Path]:
     """
     out = ASSETS / "vendor/floating-ui.esm.js"
     (work / "entry.mjs").write_text(
-        "export { autoUpdate, computePosition, flip, limitShift, offset, shift, size } "
+        "export { autoUpdate, getOverflowAncestors, computePosition, flip, limitShift, offset, shift, size } "
         'from "@floating-ui/dom";\n',
         encoding="utf-8",
     )

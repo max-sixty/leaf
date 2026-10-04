@@ -2831,9 +2831,13 @@ def test_a_rejected_streamed_reply_still_releases_its_website_turn(page_dir):
     assert socket.closed
 
 
-@pytest.mark.parametrize("read_elsewhere", [False, True])
+@pytest.mark.parametrize(
+    ("read_elsewhere", "reopen"),
+    [(False, "click"), (False, "r"), (False, "Enter"), (True, None)],
+    ids=["click", "card-r", "card-enter", "elsewhere"],
+)
 def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
-    browser, serve, read_elsewhere
+    browser, serve, read_elsewhere, reopen
 ):
     """A resolve during a turn cannot hide its completed answer from Open Threads.
 
@@ -2901,6 +2905,22 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
         expect(thread.locator(".lf-msg.agent")).to_be_hidden()
         assert set(current_responses(page_dir, read_events(page_dir))) == {other["id"]}
     else:
+        # The short thread's reopened answer would move its writing box, so the
+        # reader explicitly opens the news before the visibility clock can see it.
+        news = thread.locator(".lf-thread-news")
+        expect(news).to_be_visible()
+        expect(
+            thread.locator(".lf-msg.agent").filter(has_text="deployment verified")
+        ).to_have_count(0)
+        if reopen == "click":
+            news.click()
+        else:
+            title = thread.locator(":scope > .lf-thread-summary")
+            title.focus()
+            expect(title).to_be_focused()
+            expect(thread).to_have_attribute("open", "")
+            page.keyboard.press(reopen)
+        expect(news).to_have_count(0)
         page.wait_for_function("window.__leafVerifier.visibleReplyRecorded")
         assert page.evaluate("window.__leafVerifier.visibleReplyAt") is not None
         assert current_responses(page_dir, read_events(page_dir)) == {}

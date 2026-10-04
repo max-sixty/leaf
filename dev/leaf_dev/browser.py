@@ -8,7 +8,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from leaf.render_checks import wait_for_probe, wait_until_ready
-from leaf.render_gate.browser import launch_browser
+from leaf.render_gate.browser import ending, launch_browser
 from playwright.sync_api import Browser, Page, sync_playwright
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
@@ -69,14 +69,12 @@ def linux_font_fingerprint():
 
 @contextmanager
 def chrome():
-    """The host's browser, as the render gate launches it (`launch_browser`), closed
-    however the block is left."""
+    """The host's browser, as the render gate launches and ends it
+    (`launch_browser`, `ending`), however the block is left."""
     with sync_playwright() as playwright:
         browser, _ = launch_browser(playwright)
-        try:
+        with ending(browser):
             yield browser
-        finally:
-            browser.close()
 
 
 @contextmanager

@@ -43,6 +43,15 @@ has tried; settle that before building it.
 
 ### Agent and author experience
 
+- **Keep functional test results independent of execution speed.** Follow
+  [the clock guidance](tests/AGENTS.md#functional-results-do-not-depend-on-execution-speed).
+  The shift watcher still expires unfinished input rendering after one second;
+  the words watcher accepts dismissal only within two seconds before disappearance
+  or 200 ms after it. Its same trusted Send journey passes with a 300 ms completion
+  and falsely reports lost words at 3000 ms. Replace elapsed-time association with
+  causal completion, and retain passive-fault controls. Audit the watcher’s capped
+  drain and evidence retention, and replace process-race sleeps with acquisition or
+  completed-scan acknowledgements so slow execution cannot skip the claimed race.
 - **Compare Leaf authoring with plain HTML (#19).** The
   [agent-usability baseline](notes/agent-usability-evals.md#second-slice-2026-09-27)
   now covers the live loop, a mixed batch, an elided thread, an unfamiliar package and a
@@ -98,17 +107,11 @@ The page arranges itself in CSS, starting from the Layout classes
 (`skills/leaf/assets/layouts.css`), and Leaf keeps the contracts where pages, widgets
 and its chrome coordinate.
 
-- **Find a better shape for news in a short Threads list.** In a list too short to
-  scroll, any news moves something on screen, so the open card fills the list with
-  its reply box at the foot (#1480). A reply lands in the room above the box, and a
-  thread returning above the open card makes the list scrollable, so the place hold
-  scrolls the newcomer out of view rather than pushing down the card being read. It
-  is the best tradeoff found, not a perfect one: a short list's open card is as tall
-  as the panel, later cards wait below the fold, and a thread that returns above lands
-  scrolled past, so the user sees it only in the count. The rejected alternatives
-  were holding replies behind an "N new replies" chip, which hides the answer the user
-  is waiting for, and letting a list that can't scroll push its contents down, which
-  needs the shift watch to stop checking such lists.
+- **Show returning threads without moving the current reading.** A thread returning
+  above the open card makes the list scrollable, so the place hold scrolls the
+  newcomer out of view rather than pushing down the card being read. The user sees
+  it only in the count; give that arrival a visible route while preserving the
+  current reading.
 - **Bring a comment box back where it stood after one wheel jump.** Scrolling back to
   a comment's target in a single wheel step draws the box about 60px off for a frame
   before it lands, on `main` too and for selected words as well as items; a script's
@@ -361,6 +364,15 @@ height and where a switch lands wait on the workspace decision under Layout.
   `triage-board` and 12.6 s on the corpus, measured by tracing the check's passes.
   The price is that dark mode and the narrow width would no longer be checked from
   a fresh start. Decide whether that coverage is worth the time before building it.
+- **Decide what plain `page check` runs in a browser from the mistakes agents make.**
+  It runs a page once in the host's browser, about 1.3 s, where the page has a script
+  or places a page widget or a data widget (`needs_browser`,
+  `render_gate/page_code.py`); any other page checks in about 0.15 s. Widgets that fail on their attribute values
+  (`lf-playground`, `lf-targeting`, `lf-shot`, `lf-visual-review`, `lf-text-document`)
+  and every widget in thread markup report through `leaf wait` once a browser draws
+  them, but nothing runs them first. Write `evals/` cases in which agents author each
+  kind and measure how often what they write fails to draw, then run the kinds agents
+  get wrong and stop running those they reliably get right.
 - **Scale a drawing by the box it was drawn in.** On replay, scale the strokes by
   the anchored element's size over the recorded `box`, so a mark stays on its
   element in a narrower window; reflowed text still moves under it. Verify replay

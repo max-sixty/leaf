@@ -993,31 +993,16 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      Send shares the field's row; right padding keeps draft text clear of it as the
      field grows.
 
-     It stands at the list's foot, and replies grow above it: news never moves it or the
-     caret in it. An open card fills the list's landing band at least, and under its
-     title the thread is a column whose free room lies between the last message and the
-     box, so later cards wait below the fold. That unused room is panel space: only
-     the title, content and reply row paint the thread surface. Where the card runs past the fold the box
-     pins above the list's stable focus-ring inset, so native editor growth leaves
-     Send stationary while transient status reservations belong to scroll landing; the column is
-     its containing block, so it never pins over the title. Its own padding is the room
-     the field's ring needs, and its surface is the card's (`reply-landing.js` reads a
-     pinned row as shown, `thread-list.js` follows a reply to its top). The card fills
-     the band the stylesheet declares rather than a status's passing reservation, which
-     would resize it for news, and rounds down to the whole pixels the band is measured
-     in, so it lands whole. A column does not collapse margins, so the boxes that set
-     one below keep only the space above them. */
-  .lf-thread-compact > .lf-thread-reply { margin: auto 0 0; padding: 12px var(--lf-thread-inset);
+     A short thread ends with its reply row; spare panel room follows the card.
+     A long thread pins that row above the list's focus-ring inset. Its editor grows
+     in flow until it reaches that edge, then grows upward while Send stays there.
+     ReplyContinuity retains a live body's extent when a turn is removed, and
+     HeldNews holds arrivals where growing the transcript would move the reply. */
+  .lf-thread-compact > .lf-thread-reply { margin: 0; padding: 12px var(--lf-thread-inset);
     position: sticky; bottom: var(--focus-ring-room); }
   .lf-thread-compact[open]:not([hidden]):has(> .lf-thread-reply) { display: flex;
     flex-direction: column; box-sizing: border-box;
-    /* Native scrollHeight and clientHeight round separately to whole CSS pixels.
-       Their difference can over-scroll by less than one. End flow one pixel nearer
-       the border so the row remains on its sticky floor through that boundary. */
-    padding-block-end: calc(var(--focus-ring-room) - var(--lf-thread-border) - 1px);
-    min-height: round(down, 100cqh - 2 * var(--focus-ring-room), 1px); }
-  .lf-thread-compact[open]:has(> .lf-thread-reply)::details-content { display: flex;
-    flex: 1; flex-direction: column; }
+    padding-block-end: calc(var(--focus-ring-room) - var(--lf-thread-border) - 1px); }
   .lf-thread-compact[open]:has(> .lf-thread-reply)
     > .lf-thread-content > .lf-thread-head { margin-block-end: 0; }
   .lf-thread-compact > .lf-thread-reply leaf-text { max-height: min(50vh, 35cqh); }

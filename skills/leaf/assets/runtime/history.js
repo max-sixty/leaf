@@ -111,12 +111,18 @@ export function prepareEntry() {
   const key = window.navigation?.currentEntry.key;
   const place = readPlace();
   const offset = [scrollX, scrollY];
+  const sourceUrl = window.location.href;
+  const sourceState = history.state;
   return (url, state, replace) => {
     if (replace) {
       replaceEntry(url, state);
       return;
     }
     const arrival = [scrollX, scrollY];
+    // Exposing another view renames this entry. Its original URL and state belong to
+    // the outgoing checkpoint; the exposed destination belongs to the new entry.
+    if (window.location.href !== sourceUrl || history.state !== sourceState)
+      replaceEntry(sourceUrl, sourceState);
     window.scrollTo({ left: offset[0], top: offset[1], behavior: "instant" });
     pushEntry(url, state);
     window.scrollTo({ left: arrival[0], top: arrival[1], behavior: "instant" });

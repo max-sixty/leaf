@@ -644,13 +644,21 @@
     },
     true,
   );
-  // Chrome lays out the resized viewport before dispatching resize. The preceding
-  // pose seals typing; taking a new pose here would attribute the resize to the key.
-  window.addEventListener("resize", () => {
+  // A viewport resize is input, and its new size is the fact. Chrome lays out the
+  // resized viewport before dispatching resize, which precedes the frame's callbacks,
+  // so tick() always runs after it; a layout-shift record delivered between the two,
+  // as one from an earlier frame can be on a busy machine, has its pose read at the new
+  // size, so the observer looks at the size before reading. The preceding pose seals
+  // typing; taking a new pose here would attribute the resize to the key.
+  let viewport = [innerWidth, innerHeight];
+  const resized = () => {
+    if (innerWidth === viewport[0] && innerHeight === viewport[1]) return;
+    viewport = [innerWidth, innerHeight];
     const before = frames.at(-1)?.at ?? nativePerformance.now();
     if (open?.typing?.until === Infinity) open.typing.until = before;
     begin(nativePerformance.now());
-  });
+  };
+  window.addEventListener("resize", resized);
   // When the page adopted each server reading.
   new MutationObserver(() => {
     unwatch();
@@ -1157,6 +1165,7 @@
     }
   };
   const observer = new PerformanceObserver((list) => {
+    resized();
     const entries = list.getEntries();
     for (const entry of entries) {
       const frame = frames.findLastIndex(({ start }) => start <= entry.startTime);

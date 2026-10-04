@@ -153,6 +153,19 @@ and its chrome coordinate.
   (`syncLayoutRegion`) and the render check's held-panes reading (`heldPanes`), which
   both look only at `main`, have to look at that block too. It waits for a page that
   needs it; a workspace page's own pane grid stays plain CSS.
+- **Settle what a box declares to the width rules before patching them again.** One
+  flag, `--lf-block-frame`, decides three things: a box's edge margins are trimmed,
+  wide blocks inside it stay inside it, and a table in it fills it. `main` and a page
+  tab's panel want only the trim and opt out of the rest with `--lf-page-flow` (#1723).
+  A task inside `lf-command` wants only the trim too and has no way to say so, so a wide
+  worktree in it stays at 604px where it would take 672px. Rules that undo another rule
+  have also lived in lower cascade layers, where they lose without a sign: moving the
+  width rules into `lf-layouts` (#1617) disabled the page tab's hand-back and the
+  diagram package's no-runtime rule, and the bug reached a user a day after CI had
+  caught and muted it. Decide what
+  a box states (that its edges trim, that it draws a frame, that it holds the page's own
+  flow) so each rule reads one declaration and no box has to undo a rule meant for
+  another.
 - **Show each floating surface across the content it can hold.** `leaf-dev stills`
   screenshots the same states on the base and the branch, so it reports a change but
   misses a surface that is wrong on both. Until PR 1440 a margin thread card took all
@@ -284,7 +297,7 @@ height and where a switch lands wait on the workspace decision under Layout.
 ### The agent's text interface
 
 - **Keep a blocked stop from hiding the agent's answer.** When Leaf's Stop hook blocks
-  a stop, the agent writes one more message, and where the host shows only the last
+  a stop, the agent writes one more message, and where the harness shows only the last
   message (Claude Code's focus mode) that message replaces the answer: a user who typed
   `/whereami` twice saw two notes about a missing watcher and never the briefing. #1502
   removed that trigger, since the hook now does the watching. **Unconfirmed:** check
@@ -335,11 +348,23 @@ height and where a switch lands wait on the workspace decision under Layout.
   explains who owes the next move. Keep explicit agent status available when the
   Ask alone does not explain the wait.
 
+### Development velocity
+
+- **Check what handing over on chosen tests costs.** Since 2026-10-04 a handover runs
+  the tests the agent picks for its change, and the broad selection runs only at
+  landing (`tests/AGENTS.md`, "Run what the change needs"). Before that, 25 of the
+  200 pull-request `ci` runs that finished between 2026-10-02 22:00 and 2026-10-04
+  ~19:00 UTC failed on tests. Compare the pull requests' test-failure rate since the
+  change with that baseline, and weigh it against the local test time saved: the
+  broad selection is about 3,700 s of test time on a CI runner. If the rate rose,
+  look at which escapes a cheap fixed set of tests would have caught, and choose
+  that set by measured catches per second rather than by kind.
+
 ## Etc
 
 Revisit these when their stated trigger becomes real; they are not an active queue.
 
-### Product and host ideas
+### Product and harness ideas
 
 - **Revisit a pin's icons if they read unclearly.** A pin shows the rail's outline
   icon in white on its fill, at 26px. A filled icon reads more clearly at that size,
@@ -354,12 +379,20 @@ Revisit these when their stated trigger becomes real; they are not an active que
   Artifacts store a viewer id on each row and resolve names, faces and presence
   from the host. Settle user identity and how it reaches the append door before
   building a feed or presence on it.
+- **Show which pane has focus, and move between panes by key.** A terminal marks
+  its active pane and one key moves to the next. In a workspace today the arrow keys
+  walk a side list, `a` reaches the next open Ask, and a pane body that scrolls is a
+  Tab stop, but nothing marks the active pane and no key moves from one pane to the
+  next. Pane focus belongs to the panes and the keyboard layer, not the Layout, so it
+  works the same wherever panes stand. Draw it as a playground before building it.
+  Trigger: a user loses track of the active pane, or tabs through a pane to reach the
+  next one.
 - **#23 — Workspace persistence:** use repeated real tasks to decide whether
   users return and how much customization Leaf should own.
-- **Visual review beside Leaf:** coordinate a real browser target through the host
+- **Visual review beside Leaf:** coordinate a real browser target through the harness
   when review work needs it; expand inspection only when focused workspaces fail a
   real task.
-- **Other hosts:** add a blocking `leaf wait` route when another agent host needs
+- **Other harnesses:** add a blocking `leaf wait` route when another agent harness needs
   foreground handoff.
 - **Decide whether an exported page carries its threads.** `leaf page
   export` writes a file that boots the page's own runtime offline, and that file

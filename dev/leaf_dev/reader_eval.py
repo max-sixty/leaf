@@ -12,8 +12,8 @@ general page acceptance or judge reliability.
 from pathlib import Path
 
 from leaf_dev import ROOT
+from leaf_dev.arms import build_source
 from leaf_dev.arrangement_eval import Run, capture_phase, listing
-from leaf_dev.harness import build_source
 
 REQUEST = """Make a v2.4 release triage board with these seven defects: migration reruns,
 digest email timezone, CSV export quoting, webhook retry delays, logout with an expired
@@ -56,7 +56,12 @@ def expected_checks(case: str, *, condition: str = "leaf") -> list[str]:
 
 
 def execute_scenario(
-    case: str, payload: Path, work: Path, *, host: str = "cc", condition: str = "leaf"
+    case: str,
+    payload: Path,
+    work: Path,
+    *,
+    harness: str = "cc",
+    condition: str = "leaf",
 ) -> dict:
     """Render the scenario's page; no author is invoked to construct it."""
     work.mkdir(parents=True, exist_ok=True)

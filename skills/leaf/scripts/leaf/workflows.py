@@ -45,7 +45,7 @@ has not been handed over yet, so it is no workflow at all: the user is still
 composing the answer, and the finishing move carries the receipt. Once the Ask is
 answered, every move on that widget is owed (`asks.part_of_ask`).
 
-A host that gives up on a move writes the failure its answer takes
+A harness that gives up on a move writes the failure its answer takes
 (`thread.fail_answer`), each carrying `failure`: a reply in the
 thread, or a failed pickup of a page move. Either leaves the move a workflow
 answered with a failed response, whose next actor is the user, until the user
@@ -336,7 +336,7 @@ def canonical_workflows(
         }
 
     def failed(source: dict, target: dict, coordinate: list[str], record: dict) -> dict:
-        """The move a host failure record returned to the user: answered, with a
+        """The move a harness failure record returned to the user: answered, with a
         failed response, and the user's to send again."""
         returned = workflow(source, target, coordinate, answer=None)
         returned.update(
@@ -426,7 +426,7 @@ def canonical_workflows(
         # spoken agent turn is what settles a move there: the reply addressed to an
         # owed move, and for a move that owes nothing any agent turn after it, which
         # has taken the move in as a later version takes in a page move. A reaction
-        # is no turn, and a host's failure reply says no answer is coming rather
+        # is no turn, and a harness's failure reply says no answer is coming rather
         # than answering. The resolution standing over the thread settles the moves
         # made before it, and the answer that resolved it; a move made after it is
         # delivered like any other and keeps its receipt.
@@ -499,7 +499,7 @@ def canonical_workflows(
         key = (target["id"], coordinate[1])
         if key not in newest or source["seq"] > newest[key]["seq"]:
             newest[key] = source
-    # A host that gave up on an owed move recorded the failure its answer takes — a
+    # A harness that gave up on an owed move recorded the failure its answer takes — a
     # failed pickup for a page move, a failure reply for a frozen one — which hands
     # the move back to the user until the move settles or a newer move replaces it.
     for source, target, coordinate, unsettled, answer in moves:

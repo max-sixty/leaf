@@ -1,7 +1,7 @@
 """Page claims, serialized transactions, and status.
 
 The transaction holds the page's append lease; what may be appended under it is
-`event_contracts`' to say. Claim discovery runs in a cold host hook, so
+`event_contracts`' to say. Claim discovery runs in a cold harness hook, so
 process inspection and page-event semantics are imported only by their callers."""
 
 import hashlib
@@ -42,7 +42,7 @@ from leaf.state import (
 )
 
 if TYPE_CHECKING:
-    from leaf.host import Harness
+    from leaf.harness import Harness
 
 # A repeated live detail carries only liveness. Renew it comfortably before the
 # fifteen-minute activity boundary without turning tool output into file churn.
@@ -62,7 +62,7 @@ def claim_path(page_dir: Path) -> Path:
 
 # What a reader takes straight off a claim: these fields by name, one of the
 # lifetime keys `claim_is_active` cascades on, and a `harness` whose value
-# `host.claim_harness` looks up in `HARNESSES`.
+# `harness.claim_harness` looks up in `HARNESSES`.
 CLAIM_IDENTITY = frozenset(
     {"page", "ts", "released", "id", "harness", "agent", "generation", "acquisition"}
 )
@@ -72,7 +72,7 @@ CLAIM_LIFETIMES = frozenset({"job", "activity", "pid"})
 def readable_claim(claim: dict | None) -> dict | None:
     """The record if this version can read it as a claim, else None.
 
-    The claims directory is one per machine, and several worktrees, hosts and
+    The claims directory is one per machine, and several worktrees, harnesses and
     sessions write it at once, each running the leaf it was built from. So a
     record here can have been written by another version, and Stage owes nothing
     to what an older one wrote: there is no migration and no shim that reads the
@@ -92,7 +92,7 @@ def readable_claim(claim: dict | None) -> dict | None:
     does not own."""
     if not isinstance(claim, dict) or not CLAIM_IDENTITY <= claim.keys():
         return None
-    from leaf.host import HARNESSES
+    from leaf.harness import HARNESSES
 
     if claim["harness"] not in HARNESSES:
         return None
@@ -118,7 +118,7 @@ def claim_is_active(claim: dict | None) -> bool:
     """Whether a claim still names a live owner: the job record a background
     job's claim points at, the recent touch an `activity` claim stands on, or
     the process every other claim's pid names (`Harness.lifetime`). The only
-    reading of that rule: cold hooks and the CLI both call it, so a host that
+    reading of that rule: cold hooks and the CLI both call it, so a harness that
     states its lifetime a new way joins here alone, beside the one constructor
     above that writes what this reads."""
     if not claim or claim["released"] is not None:
@@ -141,8 +141,8 @@ def claim_is_active(claim: dict | None) -> bool:
 def claimant_matches(claim: dict | None, harness: "Harness | None") -> bool:
     """Whether the record names this harness, or neither names a claimant.
 
-    Host identity is independent of liveness: readers pass the active claim
-    when asking which host owns the page now. Resource retirement instead uses
+    Harness identity is independent of liveness: readers pass the active claim
+    when asking which harness owns the page now. Resource retirement instead uses
     the exact acquisition reading (`same_claim`).
     """
     if harness is None:
@@ -423,7 +423,7 @@ class PageTransaction:
         holds the page. `UNNAMED_AGENT` covers a page nothing has claimed,
         where there is no name to use and inventing one would put words in a
         program's mouth."""
-        from leaf.host import message_identity
+        from leaf.harness import message_identity
 
         identity = message_identity()
         claim = self.claim
@@ -721,7 +721,7 @@ def _held_by(binding: dict | None, session_id: str, attempt: str) -> bool:
 def prepare_claim(harness: "Harness", page_dir: Path) -> dict:
     """Capture an unpublished acquisition in the claimant's process.
 
-    Lifetime and cwd come from the launching host, not a detached child. Preparing
+    Lifetime and cwd come from the launching harness, not a detached child. Preparing
     the canonical session is independent of any page ownership publication.
     """
     session = ensure_session(harness.session, harness.lifetime())
@@ -739,13 +739,13 @@ def prepare_claim(harness: "Harness", page_dir: Path) -> dict:
 
 
 def take_page_claim(page_dir: Path) -> tuple[dict | None, dict] | None:
-    """Make the host session the page's watcher, if a host supplied one.
+    """Make the harness session the page's watcher, if a harness supplied one.
 
     `server start`, a named `leaf wait` and `page claim` claim; authoring
     commands do not. A
     bare-shell serve makes no claim and therefore starts as standing.
     """
-    from leaf.host import session_harness
+    from leaf.harness import session_harness
 
     harness = session_harness()
     if not harness:

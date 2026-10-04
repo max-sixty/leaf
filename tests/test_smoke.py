@@ -1,4 +1,4 @@
-"""The real-browser gate the everyday suite keeps."""
+"""The real-browser gate the broad selection keeps."""
 
 import re
 from pathlib import Path

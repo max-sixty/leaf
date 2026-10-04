@@ -343,5 +343,7 @@ def carry_turn(
     with flocked(session_lock_path(sid)):
         if session_record(sid) != expected:
             return
-        harness = type(plans[0].harness) if plans else Harness
-        print(json.dumps(harness.hook_context(event, message)), flush=True)
+        print(
+            json.dumps(type(plans[0].harness).hook_context(event, message)),
+            flush=True,
+        )

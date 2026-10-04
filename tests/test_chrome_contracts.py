@@ -1362,6 +1362,8 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_with_its_metadata(
                   const inputStyle = getComputedStyle(thread.querySelector('leaf-text'));
                   const messageStyle = getComputedStyle(thread.querySelector('.lf-msg-body'));
                   const padding = parseFloat(inputStyle.paddingInlineEnd);
+                  // Send's room beyond the padding, kept after the last words.
+                  const room = parseFloat(inputStyle.getPropertyValue('--lf-field-end-room'));
                   const radius = (selector, pseudo = null) => getComputedStyle(
                     selector.startsWith('.lf-thread-panel')
                       ? document.querySelector(selector)
@@ -1394,13 +1396,14 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_with_its_metadata(
                             parseFloat(inputStyle.borderInlineStartWidth) +
                             parseFloat(inputStyle.paddingInlineStart),
                           textEnd: rect('.lf-thread-reply leaf-text').right -
-                            parseFloat(inputStyle.borderInlineEndWidth) - padding,
+                            parseFloat(inputStyle.borderInlineEndWidth) - padding - room,
                           padding,
                           overflow: thread.scrollWidth - thread.clientWidth};
                 }"""
         )
 
     short = geometry()
+    assert not field_box.evaluate("el => el.endRoomOnEveryLine")
     text_inset = short["textStart"] - short["field"]["x"]
     assert short["textStart"] == pytest.approx(short["message"]["x"], abs=1)
     assert short["field"]["right"] == pytest.approx(short["message"]["right"], abs=1)
@@ -1455,6 +1458,8 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_with_its_metadata(
     for position in (0, 80, 99999):
         field_box.evaluate("(el, top) => el.scrollTop = top", position)
         scrolling = geometry()
+        # A scrolled draft carries every line past Send, so each keeps its room.
+        assert field_box.evaluate("el => el.endRoomOnEveryLine")
         assert scrolling["send"]["bottom"] < scrolling["field_box"]["bottom"]
         assert scrolling["textStart"] - scrolling["field"]["x"] == pytest.approx(
             text_inset, abs=1

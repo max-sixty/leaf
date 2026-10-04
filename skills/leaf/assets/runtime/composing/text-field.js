@@ -49,6 +49,14 @@
  * `aria-placeholder`, and the host's description through `ariaDescribedByElements`,
  * the one reference that reaches from inside a shadow root to the page around it.
  *
+ * A box whose Send action stands in the field's trailing corner sets
+ * `--lf-field-end-room` to the room the action takes beyond the field's end padding.
+ * The field keeps that room after its last words only, on the line the action stands
+ * beside, so the lines above wrap at the box's full measure. Under a finger, whose hit
+ * box is taller than a line, and while the field scrolls, other lines pass beside the
+ * action too, so there the room is held on every line. A sent message that keeps the
+ * draft's wrapping keeps the same room.
+ *
  * Enter, Mod+Enter and Escape are not bound here. Leaf's key dispatcher owns them on the
  * document, and cancels the press it acts on; Shift+Enter inserts a line and continues
  * a list or quote.
@@ -94,6 +102,25 @@ sheet.replaceSync(`
     contain: inline-size; overflow-x: clip; text-overflow: ellipsis;
     color: var(--muted); }
   :host(:not(:state(placeholder-shown))) .lf-field-placeholder { visibility: hidden; }
+  /* The trailing action's room, after the last word. A box too narrow for it on the
+     word's line takes it on a line of its own, so the field grows rather than run a
+     word under the action. */
+  .cm-line.lf-field-last::after { content: ""; display: inline-block;
+    inline-size: var(--lf-field-end-room); }
+  /* The placeholder is a single line, so it stands where a last line would. */
+  .lf-field-placeholder { padding-inline-end: var(--lf-field-end-room); }
+  /* The action stands beside more than the last line under a finger, whose hit box is
+     taller than a line, and in a scrolled field, which carries other lines past it. */
+  :host { container-type: scroll-state; }
+  @media (pointer: coarse) {
+    .lf-field { padding-inline-end: var(--lf-field-end-room); }
+    .lf-field-placeholder { padding-inline-end: 0; }
+    .cm-line.lf-field-last::after { content: none; }
+  }
+  @container scroll-state(scrollable: block) {
+    .lf-field { padding-inline-end: var(--lf-field-end-room); }
+    .cm-line.lf-field-last::after { content: none; }
+  }
   /* A draft wears the sent message's faces. Strong, emphasis and strikethrough are the
      elements themselves, which the platform dresses here as it does in the message;
      the rest read the theme's tokens, since its element rules stop at this root. A
@@ -335,6 +362,19 @@ const livePreview = ViewPlugin.fromClass(
   { decorations: (plugin) => plugin.decorations },
 );
 
+// The last line with words, which a sent Markdown message ends on: its rendering drops
+// the blank lines after it. A suggestion keeps them, so one ending in a blank line ends
+// its room a line lower once sent. A blank line has no words to run under the action,
+// and an inline box after its break would stand on a line of its own.
+const lastLine = Decoration.line({ class: "lf-field-last" });
+const endRoom = EditorView.decorations.compute(["doc"], (state) => {
+  for (let at = state.doc.lines; at > 0; at--) {
+    const line = state.doc.line(at);
+    if (line.text.trim()) return Decoration.set([lastLine.range(line.from)]);
+  }
+  return Decoration.none;
+});
+
 class LeafText extends HTMLElement {
   // The field's one model. Until the element first connects it is a bare EditorState,
   // which holds the value, selection and configuration without a DOM; connecting hands
@@ -439,6 +479,7 @@ class LeafText extends HTMLElement {
         ]),
         new LanguageSupport(markdownLanguage),
         livePreview,
+        endRoom,
         fieldTheme,
         EditorView.lineWrapping,
         this.#editable.of(EditorState.readOnly.of(this.#readOnly)),
@@ -578,6 +619,12 @@ class LeafText extends HTMLElement {
   #paintEmpty() {
     if (this.#state.doc.length) this.#internals.states.delete("placeholder-shown");
     else this.#internals.states.add("placeholder-shown");
+  }
+
+  // Whether the field holds its action's room on every line now rather than after its
+  // last words only: what a sent message keeping the draft's wrapping holds too.
+  get endRoomOnEveryLine() {
+    return parseFloat(getComputedStyle(this.#frame).paddingInlineEnd) > 0;
   }
 
   get value() {

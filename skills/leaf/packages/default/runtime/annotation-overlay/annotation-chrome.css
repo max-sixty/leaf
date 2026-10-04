@@ -176,6 +176,16 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   }
   .lf-margin-preview[data-lf-comment-frame] .lf-msg:first-of-type > .lf-msg-body > .lf-msg-text > p:first-child { margin-top: 0; }
   .lf-margin-preview[data-lf-comment-frame] .lf-msg:first-of-type > .lf-msg-body > .lf-msg-text > p:last-child { margin-bottom: 0; }
+  /* The editor's room for Send, held where the editor held it when the words were sent
+     (text-field.js, `endRoomOnEveryLine`): on every line, or after the last words
+     only — the last paragraph of words, before any pasted images, or a suggestion's
+     text. */
+  .lf-margin-preview[data-lf-comment-frame="every-line"] .lf-msg:first-of-type > .lf-msg-body {
+    padding-inline-end: calc(var(--lf-comment-text-pad-end) + var(--lf-comment-send-room)); }
+  .lf-margin-preview[data-lf-comment-frame="last-line"] .lf-msg:first-of-type > .lf-msg-body > .lf-msg-text
+    > p:is(:last-child, :has(+ p > .lf-message-media:only-child)):not(:has(> .lf-message-media:only-child))::after,
+  .lf-margin-preview[data-lf-comment-frame="last-line"] .lf-msg:first-of-type > .lf-suggest-body > .lf-msg-text::after {
+    content: ""; display: inline-block; inline-size: var(--lf-comment-send-room); }
   .lf-margin-preview-close { flex: none; }
   .lf-margin-preview-nav { display: flex; flex: none; align-items: center;
     gap: 0; color: var(--muted-2); font-size: 10px; }

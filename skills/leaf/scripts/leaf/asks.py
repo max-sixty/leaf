@@ -1,6 +1,6 @@
 """Declaration-driven page and thread ask projections."""
 
-from leaf.events import is_reaction, spoken_turns
+from leaf.events import conversation_turns, is_reaction
 from leaf.projection import (
     FrozenThreadReading,
     StateProjection,
@@ -31,7 +31,7 @@ def thread_awaits_user(
         return False, None
     if thread_id in open_ask_threads:
         return True, None
-    turns = spoken_turns(thread)
+    turns = conversation_turns(thread)
     tokens = registry.get("$reactions", {}).get("tokens", {})
     for index in range(len(turns) - 1, -1, -1):
         message = turns[index]

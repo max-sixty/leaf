@@ -138,7 +138,7 @@ export function threadReading(
       icon: !resolved || Boolean(kept),
     }),
     reply: !resolved || Boolean(kept),
-    summaries: panel ? Object.freeze(thread.summaries) : Object.freeze([]),
+    summaries: Object.freeze(thread.summaries),
     messages: Object.freeze(messages),
   });
 }
@@ -327,13 +327,18 @@ export class ThreadView {
     // Only a summary that was not standing before can swallow what the user
     // holds or is reading, and reading geometry here forces layout.
     if (prior && model.summaries.some(({ id }) => !priorSummaries.has(id))) {
-      const heldMessage = standing?.closest?.(".lf-msg[data-mid]")?.dataset.mid;
+      const heldMessage = prior.messages.find(({ key }) =>
+        this.#messages.get(key)?.node.contains(standing),
+      )?.id;
       // Being read is being on screen, on whichever surface holds the card.
       const clips = new Map();
       const beingRead = new Set(
-        [...this.node.querySelectorAll(":scope .lf-msg[data-mid]")]
-          .filter((message) => seenRect(message, clips))
-          .map((message) => message.dataset.mid),
+        prior.messages
+          .filter(({ key }) => {
+            const node = this.#messages.get(key)?.node;
+            return node?.isConnected && seenRect(node, clips);
+          })
+          .map(({ id }) => id),
       );
       for (const summary of model.summaries) {
         if (priorSummaries.has(summary.id)) continue;

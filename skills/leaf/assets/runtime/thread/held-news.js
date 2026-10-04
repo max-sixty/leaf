@@ -291,13 +291,20 @@ export class HeldNews {
     const waiting = this.#threads.size;
     const host = threads.at(-1);
     if (waiting && host) host.news = { ...host.news, threads: waiting };
-    for (const thread of threads)
+    for (const thread of threads) {
+      // Progress folds belong to the completing reply. If that reply is held,
+      // the updates keep their existing presentation until it is shown too.
+      const shown = new Set(thread.messages.map(({ id }) => id));
+      thread.summaries = thread.summaries.filter(
+        (summary) => !summary.trigger || shown.has(summary.trigger),
+      );
       if (thread.news)
         thread.news = {
           label: newsLabel(thread.news),
           reopened: Boolean(thread.news.reopened),
           open: () => this.#open(thread.key, thread === host && waiting),
         };
+    }
     // A thread arriving with no thread drawn is held only where the seat drew its
     // first-message row, so its notice stands in that row's place.
     const news =

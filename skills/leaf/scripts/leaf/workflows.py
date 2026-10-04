@@ -54,7 +54,12 @@ moves again or the markup records the move anyway.
 
 from .asks import ask_answered, part_of_ask, thread_ask_readings, thread_awaits_user
 from .document_reading import read_document
-from .events import build_threads, spoken_turns, standing_approvals, unanswered_turns
+from .events import (
+    build_threads,
+    conversation_turns,
+    standing_approvals,
+    unanswered_turns,
+)
 from .projection import (
     NO_RECORD,
     PageReading,
@@ -364,7 +369,7 @@ def canonical_workflows(
 
     workflows = []
     for thread_id, thread in threads.items():
-        turns = spoken_turns(thread)
+        turns = conversation_turns(thread)
         if thread["resolved"]:
             continue
         target = {"kind": "thread", "id": thread_id}
@@ -439,7 +444,7 @@ def canonical_workflows(
                 if owed
                 else message["seq"] > source["seq"]
             )
-            for message in spoken_turns(thread)
+            for message in conversation_turns(thread)
         )
         return not settled, (
             {"kind": "reply", "to": thread_id, "for": source["id"]} if owed else None

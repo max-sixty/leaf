@@ -613,11 +613,12 @@ reply in a long thread:
         context, and `leaf page state <page> <thread-id>` reads its history in pages.
     - when: {"required": ["thread"], "properties": {"thread": {"required": ["summary_hint"]}}, "not": {"required": ["token"]}}
       text: >-
-        This event's thread has grown long, and its entry in the batch's `threads`
-        carries a `summary_hint`. Once you have replied, read the messages from
-        its `from` through its `through` and summarize them with `leaf thread summarize
-        <page> --from <from> --through <through>`, as the Leaf skill's `references/threads.md`,
-        "Summarize a long discussion", says.
+        This thread has enough earlier discussion to consider a summary; its entry
+        in the batch's `threads` carries a `summary_hint`. If a summary would help
+        the user navigate it, read the originals from `from` through `through` and
+        use `leaf thread summarize <page> --from <from> --through <through>`, following
+        the Leaf skill's `references/threads.md`, "Summarize a long discussion".
+        Choose whether and when to summarize; this hint adds no response obligation.
     - text: >-
         When the event asks for work, name that work before any other, including
         reading the source it concerns: `leaf status <page> working "<the work,

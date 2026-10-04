@@ -24,10 +24,10 @@ assert:
   config:
     path: skills/leaf/SKILL\.md
 - type: javascript
-  metric: reads-packages
+  metric: reads-module-authoring
   value: file://reference-read.cjs
   config:
-    path: skills/leaf/references/packages\.md
+    path: skills/leaf/references/(?:packages|module-authoring)\.md
 - type: regex
   metric: declares-context-aliases
   value: 'contextKeys\s*:'

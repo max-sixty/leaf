@@ -394,7 +394,7 @@ remaining targets. The Threads panel remains the complete conversation index.
 
 Omitting the rail is valid. Comments open in Threads, and selection offers the
 banner's Comment on selection control. A custom package can supply the same
-page presentation through "Page annotation presentation" in `packages.md`;
+page presentation through "Page annotation presentation" in `module-authoring.md`;
 do not reconstruct the event log or annotation inventory in page code.
 
 ## Draw the subject
@@ -509,7 +509,7 @@ instances and arbitrary module state do not survive the reload. Both update path
 wait while the user is composing, dragging, or undoing, has a gesture the server
 has not yet admitted, or has the version menu open.
 
-Page modules follow `references/packages.md`, "What a behavior module owes". In
+Page modules follow `references/module-authoring.md`, "What a behavior module owes". In
 particular, its `once()`, `quoted()`, `offer()`, `layoutChanged()`, and durable-state
 rules keep authored controls correct after reconnection and thread quoting.
 

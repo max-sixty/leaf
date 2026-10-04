@@ -755,19 +755,18 @@ export function createAskView({
           focus: arrivalFocus(next, !unansweredIds().has(next.id)),
           // Reveal the Ask through its own inner scrollports before aligning its
           // context, which may stand outside them. A framed Ask requests no motion.
-          scroll:
-            !box
-              ? [{ at: target, behavior: scrollBehavior(), block: "center" }]
-              : moving
-                ? [
-                    {
-                      at: target,
-                      align: region,
-                      behavior: scrollBehavior(),
-                      block: "start",
-                    },
-                  ]
-                : [],
+          scroll: !box
+            ? [{ at: target, behavior: scrollBehavior(), block: "center" }]
+            : moving
+              ? [
+                  {
+                    at: target,
+                    align: region,
+                    behavior: scrollBehavior(),
+                    block: "start",
+                  },
+                ]
+              : [],
         };
       },
       {

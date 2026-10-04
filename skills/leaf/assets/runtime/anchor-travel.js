@@ -184,7 +184,7 @@ export function createAnchorTravel({
                     when: () => !readableDestination(input),
                   },
                 ]
-              : [],
+              : [{ at: current.where }],
           }
         );
       },

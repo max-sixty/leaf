@@ -47,6 +47,7 @@ import {
   pendingDrawing,
 } from "./runtime/composing/selection.js";
 import { createResponseSurface } from "./runtime/composing/surface.js";
+import { createPassageSelection } from "./runtime/composing/capture.js";
 import { createDrawingController } from "./runtime/composing/drawing.js";
 import { createDrawingInk } from "./runtime/composing/drawing-ink.js";
 import { createAim } from "./runtime/composing/aim.js";
@@ -588,7 +589,11 @@ selectionComposer = createSelectionComposer({
   refreshThread: app.refreshThread,
   wireInput: inputs.wireInput,
 });
+const passageSelection = createPassageSelection({
+  restore: anchorTravel.restoreSelection,
+});
 responseSurface = createResponseSurface({
+  rememberSelection: passageSelection.remember,
   createPlacement: annotationRenderer?.createFloatingResponsePlacement,
   panelElements,
   panelIsOpen,
@@ -755,7 +760,7 @@ goToSequence = createGoToSequence({
   panelIsOpen,
   elements: { banner, toggleBtn, threadsBox },
   hintChrome,
-  directDestinations: () => [version.PICKER, writingResume],
+  directDestinations: () => [version.PICKER, writingResume, passageSelection.command],
   setPanel: threadPanelController.setPanel,
   setOpenDrawer: drawers.setOpenDrawer,
   scrollToElement: anchorTravel.scrollToElement,

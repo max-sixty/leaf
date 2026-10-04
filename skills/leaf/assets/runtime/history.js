@@ -31,7 +31,7 @@
  * landings. */
 
 import { deepFocus, focusDestination, readCaret } from "./focus.js";
-import { pageRange } from "./passages.js";
+import { pageRange, selectEnds, selectionBackward } from "./passages.js";
 import { retainUserIntent } from "./user-intent.js";
 import { placeOf } from "./standing-target.js";
 import { upFrom } from "./shadow.js";
@@ -50,7 +50,7 @@ function readPlace() {
     [range.startContainer, range.startOffset],
     [range.endContainer, range.endOffset],
   ];
-  if (ends && selection.direction === "backward") ends.reverse();
+  if (ends && selectionBackward(selection, range)) ends.reverse();
   return { focus, place: placeOf(focus), caret: readCaret(focus), ends };
 }
 
@@ -74,8 +74,7 @@ function returnPlace({ focus, place, caret, ends }) {
         offset <= (node.nodeType === 3 ? node.length : node.childNodes.length),
     )
   ) {
-    const [[anchor, start], [end, stop]] = ends;
-    selection.setBaseAndExtent(anchor, start, end, stop);
+    selectEnds(...ends);
   }
 }
 

@@ -30,6 +30,7 @@ import {
   fragmentTarget,
   referencedProjection,
   requireReference,
+  resolveAnchor,
   revealAddressed,
   sectionOf,
 } from "./anchor-resolution.js";
@@ -51,7 +52,7 @@ import { reveal } from "./widget-elements.js";
 import { threadNames } from "./thread/model.js";
 import { restrictUserIntent, retainUserIntent } from "./user-intent.js";
 import { targetElement, targetPlace, targetSegments } from "./resolved-target.js";
-import { rangeOf } from "./passages.js";
+import { pageText, rangeOf, selectEnds } from "./passages.js";
 import { standingPoint } from "./pointed-place.js";
 
 // The browser's rule for landing the element a fragment names: its start at its
@@ -137,6 +138,12 @@ export function createAnchorTravel({
       if (destination.focus) focusForNavigation(destination.focus, destination.caret);
       const current = resolve();
       if (!current?.where) return;
+      if (current.selection) {
+        const { range, backward } = current.selection;
+        const head = [range.startContainer, range.startOffset];
+        const tail = [range.endContainer, range.endOffset];
+        selectEnds(...(backward ? [tail, head] : [head, tail]));
+      }
       for (const {
         at,
         block = "center",
@@ -151,6 +158,38 @@ export function createAnchorTravel({
       completed = true;
     });
     return completed;
+  }
+
+  // A remembered passage carries semantic words, never retained DOM endpoints.
+  // Resolve on each side of reveal/focus so a revision cannot leave stale nodes in
+  // the native selection. Ordinary arrival owns clearance, history and reading band.
+  async function restoreSelection(anchor, { backward, intent }) {
+    const mayArrive = retainTravel(intent);
+    const resolve = () => {
+      const target = resolveAnchor(anchor, pageText());
+      const segments = targetSegments(target);
+      if (!segments.length) return null;
+      const range = rangeOf(segments);
+      return {
+        where: range,
+        focus: targetPlace(target),
+        selection: { range, backward },
+        scroll: [{ at: range }],
+      };
+    };
+    const destination = resolve();
+    const source = anchor.datum && sectionOf(anchor);
+    if (!destination && !source) return false;
+    trip(destination?.where ?? source, {
+      intent: mayArrive,
+      landing: () => resolve()?.where,
+    });
+    if (source) {
+      const hydration = revealAddressed(source, anchor.datum);
+      if (hydration?.then) await hydration;
+      if (!mayArrive() || sectionOf(anchor) !== source) return false;
+    }
+    return arrive(resolve, { intent: mayArrive });
   }
 
   // A remembered editor starts from its authored place, before a hidden editor is
@@ -513,6 +552,7 @@ export function createAnchorTravel({
     trip,
     arrive,
     arriveEditor,
+    restoreSelection,
     followFragment,
     returnToFragment,
     navigateToDatum,

@@ -11021,6 +11021,331 @@ def test_reactionless_other_responses_can_turn_the_compact_field_into_a_suggesti
     expect(box).to_have_attribute("placeholder", re.compile(r"^Replacement text .*⏎$"))
 
 
+RESTORE_SELECTION_PAGE = leaf_page(
+    "restore selection",
+    """
+    <h1>Selected words</h1>
+    <section id="passages">
+      <details id="selected-details" open><summary>The selected passage</summary>
+        <p id="remembered">The amber passage keeps <strong>its own identity</strong>.</p>
+      </details>
+      <p id="other">The violet passage belongs to another subject.</p>
+    </section>
+    <textarea id="native" aria-label="Native editor">Editor words</textarea>
+    <div style="height: 1400px"></div><p id="away">Another reading place.</p>
+    <a id="away-link" href="#remembered">Back to the passage</a>
+    """,
+)
+
+
+def _select_remembered_backwards(page):
+    """A native backwards drag, including the passage's inline markup."""
+    box = page.locator("#remembered").evaluate("""node => {
+        const range = document.createRange(); range.selectNodeContents(node);
+        const box = range.getBoundingClientRect();
+        return {left: box.left, right: box.right, y: box.top + box.height / 2};
+    }""")
+    select(page, (box["right"] - 1, box["y"]), (box["left"], box["y"]))
+    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    page.wait_for_function(
+        "() => getSelection().toString() === "
+        "'The amber passage keeps its own identity.'"
+    )
+    assert page.evaluate("""() => {
+        const selection = getSelection(), probe = document.createRange();
+        probe.setStart(selection.anchorNode, selection.anchorOffset);
+        return probe.compareBoundaryPoints(Range.START_TO_START, selection.getRangeAt(0)) > 0;
+    }""")
+
+
+def _word_point(locator, word):
+    """Place an actual gesture over letters, avoiding blank space in a block's box."""
+    return locator.evaluate(
+        """(node, sought) => {
+      const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
+      let word; while ((word = walker.nextNode()) && !word.data.includes(sought)) {}
+      const range = document.createRange(), start = word.data.indexOf(sought);
+      range.setStart(word, start); range.setEnd(word, start + sought.length);
+      const box = range.getBoundingClientRect();
+      return {x: box.left + box.width / 2, y: box.top + box.height / 2};
+    }""",
+        word,
+    )
+
+
+def test_restore_selection_reveals_backward_passage_and_keeps_native_editing(
+    browser, serve
+):
+    """A remembered semantic passage returns through shared travel, with its working end."""
+    page = open_page(browser, serve(RESTORE_SELECTION_PAGE))
+    _select_remembered_backwards(page)
+    page.keyboard.press("Escape")
+    page.locator("#selected-details summary").click()
+    page.locator("#away").scroll_into_view_if_needed()
+    page.keyboard.press("g")
+    # Direct destinations own the hint alphabet: lower-case v cannot name a page item.
+    expect(page.locator(CHIPS).first).to_be_visible()
+    codes = page.locator(CHIPS).evaluate_all(
+        "nodes => nodes.map(node => node.dataset.lfHintCode)"
+    )
+    assert codes
+    assert all("v" not in code for code in codes)
+    page.keyboard.press("v")
+    expect(page.locator("#selected-details")).to_have_attribute("open", "")
+    page.wait_for_function(
+        "() => getSelection().toString() === "
+        "'The amber passage keeps its own identity.'"
+    )
+    assert page.evaluate("""() => {
+        const selection = getSelection(), probe = document.createRange();
+        probe.setStart(selection.anchorNode, selection.anchorOffset);
+        return probe.compareBoundaryPoints(Range.START_TO_START, selection.getRangeAt(0)) > 0;
+    }""")
+    assert page.locator("#remembered").bounding_box()["y"] < 700
+
+    # Programmatic Back restores the source place but must not choose a new passage.
+    page.go_back()
+    page.wait_for_function("() => scrollY > 700")
+    page.keyboard.press("g")
+    page.keyboard.press("v")
+    page.wait_for_function(
+        "() => getSelection().toString() === "
+        "'The amber passage keeps its own identity.'"
+    )
+
+    # A native editor owns its letters and selections; leaving it keeps the prose target.
+    native = page.locator("#native")
+    native.focus()
+    native.select_text()
+    page.keyboard.type("gv")
+    expect(native).to_have_value("gv")
+    page.keyboard.press("Escape")
+    page.locator("h1").click()
+    page.keyboard.press("g")
+    page.keyboard.press("v")
+    page.wait_for_function(
+        "() => getSelection().toString() === "
+        "'The amber passage keeps its own identity.'"
+    )
+    assert page.evaluate("""() => {
+        const selection = getSelection(), probe = document.createRange();
+        probe.setStart(selection.anchorNode, selection.anchorOffset);
+        return probe.compareBoundaryPoints(Range.START_TO_START, selection.getRangeAt(0)) > 0;
+    }""")
+    # Native extension acts on the restored working end. A keyboard selection then
+    # becomes the next remembered passage, with the same direction.
+    page.keyboard.press("Shift+ArrowRight")
+    page.wait_for_function(
+        "() => getSelection().toString() === 'he amber passage keeps its own identity.'"
+    )
+    page.keyboard.press("Escape")
+    page.keyboard.press("g")
+    page.keyboard.press("v")
+    page.wait_for_function(
+        "() => getSelection().toString() === 'he amber passage keeps its own identity.'"
+    )
+    assert take_browser_errors(page) == []
+
+
+def test_restore_selection_rebinds_revisions_and_refuses_missing_words(browser, serve):
+    """A replaced node is irrelevant; deletion refuses without choosing another subject."""
+    url = serve(RESTORE_SELECTION_PAGE)
+    page = open_page(browser, live_url(url))
+    _select_remembered_backwards(page)
+    page.keyboard.press("Escape")
+    revised = RESTORE_SELECTION_PAGE.replace(
+        "<strong>its own identity</strong>", "<em>its own identity</em>"
+    )
+    _publish(serve.page_dir, 2, revised, "new inline markup")
+    told(page)
+    expect(page.locator("#remembered em")).to_be_visible()
+    page.keyboard.press("g")
+    page.keyboard.press("v")
+    page.wait_for_function(
+        "() => getSelection().toString() === "
+        "'The amber passage keeps its own identity.'"
+    )
+    assert page.evaluate("""() => {
+        const selection = getSelection(), probe = document.createRange();
+        probe.setStart(selection.anchorNode, selection.anchorOffset);
+        return probe.compareBoundaryPoints(Range.START_TO_START, selection.getRangeAt(0)) > 0;
+    }""")
+    page.keyboard.press("Escape")
+    missing = revised.replace(
+        "The amber passage keeps <em>its own identity</em>.",
+        "The original subject was removed.",
+    )
+    _publish(serve.page_dir, 3, missing, "removed that passage")
+    told(page)
+    expect(page.locator("#remembered")).to_have_text(
+        "The original subject was removed."
+    )
+    page.keyboard.press("g")
+    page.keyboard.press("v")
+    expect(
+        page.get_by_text(
+            "That selected passage is unavailable on this version", exact=True
+        )
+    ).to_be_visible()
+    assert page.evaluate("() => getSelection().toString()") == ""
+
+    # Both copies have the original context. Refusal keeps the remembered identity
+    # rather than choosing the first occurrence by order.
+    duplicated = revised.replace(
+        '<p id="remembered">The amber passage keeps <em>its own identity</em>.</p>',
+        '<p id="remembered">The selected passage '
+        "The amber passage keeps <em>its own identity</em>. "
+        "The violet passage belongs to another subject. The selected passage "
+        '<span id="copy">The amber passage keeps <em>its own identity</em>.</span> '
+        "The violet passage belongs to another subject.</p>",
+    )
+    _publish(serve.page_dir, 4, duplicated, "ambiguous repeated words")
+    told(page)
+    expect(page.locator("#copy")).to_be_visible()
+    page.keyboard.press("g")
+    page.keyboard.press("v")
+    expect(
+        page.get_by_text(
+            "That selected passage is unavailable on this version", exact=True
+        )
+    ).to_be_visible()
+    assert page.evaluate("() => getSelection().toString()") == ""
+    assert take_browser_errors(page) == []
+
+
+def test_restore_selection_has_touch_route_and_does_not_carry_draft(browser, serve):
+    """Selecting prose is independent of the words kept in another subject's editor."""
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True
+    )
+    page = open_page(browser, serve(RESTORE_SELECTION_PAGE), context=context)
+    point = _word_point(page.locator("#remembered"), "amber")
+    page.mouse.dblclick(point["x"], point["y"])
+    expect(
+        page.get_by_role("button", name="Comment on selection", exact=True)
+    ).to_be_visible()
+    selected = page.evaluate("() => getSelection().toString()")
+    assert selected
+    rendered(page)
+    page.keyboard.press("Escape")
+    page.locator("#other").click(modifiers=["Alt"])
+    editor = page.locator(".lf-fab-input")
+    write(editor, "Words about the violet subject")
+    page.keyboard.press("Escape")
+    page.locator("#away").scroll_into_view_if_needed()
+    page.locator(".lf-threads-toggle").tap()
+    expect(page.locator("[data-lf-covering-surface]")).to_have_attribute(
+        "data-lf-covering-surface", "lf-threads"
+    )
+    page.keyboard.press("g")
+    page.keyboard.press("v")
+    page.wait_for_function(
+        "expected => getSelection().toString() === expected", arg=selected
+    )
+    page.keyboard.press("Escape")
+    page.locator("#away").scroll_into_view_if_needed()
+    page.get_by_role("button", name="More page controls", exact=True).tap()
+    page.get_by_role("button", name="Restore selection", exact=True).tap()
+    page.wait_for_function(
+        "expected => getSelection().toString() === expected", arg=selected
+    )
+    expect(page.locator("[data-lf-covering-surface]")).to_have_count(0)
+    page.keyboard.press("Escape")
+    page.keyboard.press("g")
+    page.keyboard.press("i")
+    expect(editor).to_be_focused()
+    expect(editor).to_have_js_property("value", "Words about the violet subject")
+    expect(editor).to_have_attribute("aria-label", re.compile("violet"))
+    page.keyboard.type("gv")
+    expect(editor).to_have_js_property("value", "Words about the violet subjectgv")
+    page.keyboard.press("Escape")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+v")
+    expect(page.locator(".lf-version-menu")).to_be_visible()
+    assert take_browser_errors(page) == []
+
+
+def test_restore_selection_reveals_a_filtered_diff_datum(browser, serve):
+    """The addressed widget owns filter clearance before its selected words can return."""
+    page = open_page(browser, serve(DIFF_PAGE))
+    line = page.locator("lf-diff [data-line]").filter(has_text="window: 60").first
+    line.scroll_into_view_if_needed()
+    point = _word_point(line, "window")
+    page.mouse.dblclick(point["x"], point["y"])
+    selected = page.evaluate("() => getSelection().toString()")
+    assert selected
+    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    page.keyboard.press("Escape")
+    search = page.locator('lf-diff wa-input[name="diff-search"]')
+    write(search, "Dockerfile")
+    expect(line).not_to_be_visible()
+    page.locator("h1").click()
+    page.keyboard.press("g")
+    page.keyboard.press("v")
+    expect(line).to_be_visible()
+    expect(search).to_have_js_property("value", "")
+    page.wait_for_function(
+        "expected => getSelection().toString() === expected", arg=selected
+    )
+    assert take_browser_errors(page) == []
+
+
+def test_restore_selection_tracks_late_native_adjustment_and_retires_write_provenance(
+    browser, serve
+):
+    """The platform can extend a touch selection after the initial pointer ended.
+
+    Selection.extend exercises that native endpoint transition without inventing
+    page pointer events; Leaf's own writer remains a separate provenance boundary.
+    Returning to a previous programmatic range is a fresh adjustment after divergence.
+    """
+    context = browser.new_context(
+        viewport={"width": 1200, "height": 900}, has_touch=True
+    )
+    page = open_page(browser, serve(RESTORE_SELECTION_PAGE), context=context)
+    point = _word_point(page.locator("#remembered"), "identity")
+    page.mouse.dblclick(point["x"], point["y"])
+    expect(
+        page.get_by_role("button", name="Comment on selection", exact=True)
+    ).to_be_visible()
+    initial = page.evaluate("() => getSelection().toString()")
+    assert initial and initial != "amber"
+    page.evaluate("""async () => {
+      const {selectEnds} = await window.__lfRuntimeImport('/runtime/passages.js');
+      const word = document.querySelector('#remembered').firstChild;
+      const changed = new Promise(resolve => document.addEventListener('selectionchange', resolve, {once:true}));
+      selectEnds([word, 4], [word, 9]);
+      await changed;
+    }""")
+    page.keyboard.press("Escape")
+    page.keyboard.press("g")
+    page.keyboard.press("v")
+    page.wait_for_function(
+        "expected => getSelection().toString() === expected", arg=initial
+    )
+    page.evaluate("""async () => {
+      const {selectEnds} = await window.__lfRuntimeImport('/runtime/passages.js');
+      const word = document.querySelector('#remembered').firstChild;
+      const changed = new Promise(resolve => document.addEventListener('selectionchange', resolve, {once:true}));
+      selectEnds([word, 4], [word, 9]);
+      await changed;
+    }""")
+    for end in (17, 9):
+        page.evaluate(
+            """async end => {
+          const changed = new Promise(resolve => document.addEventListener('selectionchange', resolve, {once:true}));
+          getSelection().extend(document.querySelector('#remembered').firstChild, end);
+          await changed;
+        }""",
+            end,
+        )
+    page.keyboard.press("Escape")
+    page.keyboard.press("g")
+    page.keyboard.press("v")
+    page.wait_for_function("() => getSelection().toString() === 'amber'")
+    assert take_browser_errors(page) == []
+
+
 def test_a_passage_selection_keeps_native_copy_and_context_menu(browser, serve):
     """Leaf may offer a response without taking the browser's selection gestures."""
     context = browser.new_context(

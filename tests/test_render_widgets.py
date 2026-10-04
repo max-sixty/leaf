@@ -996,6 +996,53 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     assert 0 <= top < 200, top
 
 
+def test_a_queue_row_names_an_answer_whose_widget_module_arrives_last(browser, serve):
+    """An Ask answered before the page loads is named once the page presents, however
+    late the answering widget's module arrives: startup imports every module the
+    document names before the first reading brings the Ask inventory."""
+    url = serve(
+        leaf_page(
+            "a late queue",
+            """<lf-tabs id="queue" list="side">
+<lf-tab id="t-a" label="Ticket a">
+  <lf-ask id="ask-a"><h3 id="q-a">What happens to a?</h3>
+    <lf-options id="o-a" choose>
+      <lf-option id="o-a-fix"><strong>Fix</strong> Ship the patch.</lf-option>
+      <lf-option id="o-a-close"><strong>Close</strong> Explain and close.</lf-option>
+    </lf-options>
+  </lf-ask>
+</lf-tab>
+<lf-tab id="t-b" label="Ticket b"><p id="p-b">Nothing to decide.</p></lf-tab>
+</lf-tabs>""",
+            layout="workspace",
+        )
+    )
+    page = open_page(browser, live_url(url))
+    posted = post_event(
+        page,
+        url.rsplit("/versions/", 1)[0] + "/api/event",
+        data={
+            "kind": "action",
+            "revision": 1,
+            "widget": "o-a",
+            "action": "choose",
+            "detail": {"options": ["o-a-fix"]},
+        },
+    )
+    assert posted.ok, posted.text()
+    held = []
+    page.route("**/widgets/lf-options.js", lambda route: held.append(route))
+    page.reload(wait_until="commit")
+    holding(page, held, 1, "the options module")
+    answer = page.locator("#queue .lf-tab-btn").first.locator(".lf-tab-answer")
+    expect(answer).to_be_attached()
+    held[0].continue_()
+    page.unroute("**/widgets/lf-options.js")
+    wait_until_ready(page)
+    expect(answer).to_be_visible()
+    expect(answer).to_have_text("Fix")
+
+
 def test_root_tab_targets_remain_global(browser, serve):
     """Ask travel crosses hidden tabs."""
     url = serve(ROOT_TABS_PAGE)
@@ -9717,7 +9764,8 @@ def test_an_answered_asks_words_are_its_widgets_semantic_state(browser, serve):
 
     A draft says its standing words, a playground the instruction it sent rather than
     whatever its controls show now, and an option the user added is named by the
-    rendered words its `add` carried."""
+    rendered words its `add` carried. A `multiple` group answered by Done with no pick
+    of the user's names its authored choice."""
     url = serve(
         leaf_page(
             "answer words",
@@ -9730,6 +9778,11 @@ Adds --dry-run to every mutating command.
 <lf-ask id="cache-ask"><h2>Which cache?</h2>
 <lf-options id="cache" choose>
   <lf-option id="cache-none"><strong>No cache</strong> Read through.</lf-option>
+</lf-options></lf-ask>
+<lf-ask id="tags-ask"><h2>Which tags?</h2>
+<lf-options id="tags" choose multiple>
+  <lf-option id="tag-alpha" chosen><strong>Alpha</strong></lf-option>
+  <lf-option id="tag-beta"><strong>Beta</strong></lf-option>
 </lf-options></lf-ask>
 <lf-ask id="tone-ask"><h2>Which notification?</h2>
 <lf-playground id="tone">
@@ -9750,6 +9803,7 @@ Adds --dry-run to every mutating command.
         ("note", "edit", {"text": "Adds --dry-run to every command."}),
         ("cache", "add", {"option": "cache-redis", "text": "**Redis** in front"}),
         ("cache", "choose", {"options": ["cache-redis"]}),
+        ("tags", "answer", {}),
         (
             "tone",
             "choose",
@@ -9769,7 +9823,7 @@ Adds --dry-run to every mutating command.
         )
         assert posted.ok, posted.text()
     banner_control(page, ".lf-asks").click()
-    expect(page.locator(".lf-asks")).to_have_text("Asks 3/3")
+    expect(page.locator(".lf-asks")).to_have_text("Asks 4/4")
     output = page.locator("#tone lf-playground-output")
     expect(output).to_contain_text("strip")
     page.locator("#tone").get_by_role("radio", name="Banner").click()
@@ -9777,6 +9831,7 @@ Adds --dry-run to every mutating command.
     answers = {
         "note-ask": "Adds --dry-run to every command.",
         "cache-ask": "Redis in front",
+        "tags-ask": "Alpha",
         "tone-ask": "Build the strip one.",
     }
     for at, words in answers.items():

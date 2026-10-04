@@ -1416,10 +1416,12 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
           const mark = link.querySelector('.lf-external-mark').getBoundingClientRect();
           const box = link.getBoundingClientRect();
           return {width: mark.width, markMid: mark.top + mark.height / 2,
-                  linkMid: box.top + box.height / 2};
+                  linkMid: box.top + box.height / 2,
+                  text: parseFloat(getComputedStyle(link).fontSize)};
         }"""
     )
-    assert icon_geometry["width"] >= 12
+    # Sized to the link's words at whatever density the page sets them.
+    assert icon_geometry["width"] >= 0.85 * icon_geometry["text"], icon_geometry
     assert icon_geometry["markMid"] == pytest.approx(icon_geometry["linkMid"], abs=1)
     expect(case.get_by_text("Capture details", exact=True)).to_be_visible()
     expect(case.locator(".lf-vr-provenance")).to_be_hidden()

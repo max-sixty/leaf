@@ -39,7 +39,7 @@ change meets the deferral condition in **Fix the underlying issue**.
 Before approving a product change, run the few tests that exercise the failures
 the diff most plausibly introduces, chosen from the product paths and contracts
 it touches rather than the test files it edits, and within the local limit in
-`tests/AGENTS.md` ("Run the narrowest useful surface"): the complete `test` job
+`tests/AGENTS.md` ("Run what the change needs"): the complete `test` job
 reports the rest once the change lands. A docs-only or generated-workflow change
 may need none; a selected failure withholds approval.
 Where a test itself is at issue, `tests/AGENTS.md` says which boundary it
@@ -72,8 +72,8 @@ cause that no open pull request already covers.
 
 ## A red `ci` on main is live
 
-Pull requests run the everyday and website-worker gates; main runs the complete
-suite once, alongside its runtime, browser-framework and bundle gates. A red `ci`
+Pull requests run the broad selection and the website-worker gate; main runs the
+complete suite once, alongside its runtime, browser-framework and bundle gates. A red `ci`
 on main affects whoever pulls next, so treat it as live. Main holds one complete-suite slot and a newer commit
 replaces the one waiting, which GitHub records as a cancelled run whose `test`
 job has no runner (`runner_id` 0); that is not a regression. A `test` that

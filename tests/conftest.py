@@ -458,7 +458,7 @@ def _browser(_playwright):
 
     With no channel named, Playwright uses its separate headless shell rather than
     installed Chrome's platform-window path. Session scope gives xdist one browser
-    per worker that requests it; the everyday smoke requests one, and the complete
+    per worker that requests it; the broad selection's smoke requests one, and the complete
     run can occupy all eight.
 
     Each test receives this process through the function-scoped `browser` fixture,
@@ -555,7 +555,7 @@ def headless_shell():
 
     Playwright reports where its full Chromium build would be whether or not that
     build is installed, and the documented setup installs the shell alone
-    (tests/AGENTS.md, "Run the narrowest useful surface"). Both sit under one
+    (tests/AGENTS.md, "Run what the change needs"). Both sit under one
     registry root at one build number, so the shell's path follows from Chromium's;
     where a developer installed the full build instead, that is the browser to hand
     over and the same tests hold on it. The `chromium-<build>` directory is found by

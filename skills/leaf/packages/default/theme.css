@@ -744,8 +744,11 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
   /* The runtime's semantic location mark normally rings the whole Decision. Within an
    * options control that makes the permanent frame look like a second, stateful border.
    * Suppress that outer paint while focus is inside this control; keyboard focus is
-   * carried by the exact row, while pointer focus needs no extra channel at all. */
-  [data-lf-ask]:has(
+   * carried by the exact row, while pointer focus needs no extra channel at all.
+   * The decision is an ancestor of the control, so it is matched as a widget root
+   * (an lf-ask) as well as a descendant of one: a bare selector here reaches only
+   * descendants, and an Ask standing at the page's top level kept its ring. */
+  :is(:scope, :scope *)[data-lf-ask]:has(
     lf-options[choose]:not(:where([data-lf-exhibit]) *) :is(:focus, .lf-focus)
   ) { --lf-ask-ring: none; }
   :scope:is(lf-options)[choose]:not([settled]):not(:where([data-lf-exhibit]) *)

@@ -136,6 +136,12 @@ def test_the_banner_stands_where_it_says_it_does(browser, serve):
 def test_real_page_passages_can_be_quoted(browser, serve, source):
     """Passages in four unlike authored pages are quotable.
 
+    A passage's shape is what has made selection and search come apart: its block,
+    the widgets around it, whether the runtime says it, and the text transform and
+    white space it is set in. The sweep drags once across each shape the page holds,
+    and once across each pair of shapes that stand next to each other; a repeat of a
+    shape it has already dragged across adds time and no evidence.
+
     Focused tests own settlements, tabs, shadow roots, and gestures.
     """
     page = open_page(browser, serve(source))
@@ -191,64 +197,79 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
             `${TEXT_BLOCK},${compositeSelector},[data-lf-said]`)]
           .filter(b => speaks(b) && b.checkVisibility()
                     && b.textContent.trim().length > 12);
+        const shape = block => {
+            const style = getComputedStyle(block);
+            const widgets = [];
+            for (let el = block.parentElement; el; el = el.parentElement)
+                if (el.localName.includes('-')) widgets.push(el.localName);
+            return [block.localName, block.hasAttribute('data-lf-said'),
+                    style.textTransform, style.whiteSpace, ...widgets].join(' ');
+        };
+        // Each shape alone, then reaching into the next block — a drag rarely stops
+        // tidily on a boundary, and spanning two blocks is where the joins show.
+        const drags = new Map();
+        blocks.forEach((block, i) => {
+            const next = blocks[i + 1];
+            drags.set(shape(block), drags.get(shape(block)) ?? [block, block]);
+            if (next) {
+                const join = `${shape(block)} | ${shape(next)}`;
+                drags.set(join, drags.get(join) ?? [block, next]);
+            }
+        });
         const missed = [], skipped = [], astray = [];
         let attempted = 0;
-        for (let i = 0; i < blocks.length; i++) {
-            // Each block alone, then reaching into the next one — a drag rarely stops
-            // tidily on a boundary, and spanning two blocks is where the joins show.
-            for (const end of [blocks[i], blocks[i + 1]].filter(Boolean)) {
-                attempted++;
-                // A mouse selection starts in page words and ends with the native
-                // pointer/mouse release pair; selectionchange alone does not snap.
-                const pointer = {bubbles: true, composed: true, isPrimary: true,
-                                 pointerType: 'mouse', button: 0};
-                blocks[i].dispatchEvent(new PointerEvent('pointerdown', pointer));
-                let range = document.createRange();
-                range.setStart(blocks[i], 0);
-                range.setEnd(end, end.childNodes.length);
-                const sel = getSelection();
-                sel.removeAllRanges();
-                sel.addRange(range);
-                end.dispatchEvent(new PointerEvent('pointerup', pointer));
-                end.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
-                await rendered();
-                // Mouse release snaps the native selection to word and sentence edges.
-                // The mark must match the selection the reader now sees.
-                range = pageRange(sel);
-                // Counted, not shrugged off: a selection the button declines to offer is
-                // a passage silently outside this sweep, and the sweep is the coverage.
-                if (fab.style.display !== 'block') {
-                    skipped.push(range.toString().replace(/\\s+/g, ' ').trim().slice(0, 70));
-                    continue;
-                }
-                const painted = CSS.highlights.get('lf-pending');
-                // The captured quote, read off the node whether or not the user can
-                // see it: the composer shows it only where the page has no mark to give,
-                // which is the very case this loop is counting.
-                const quoted = document.getElementById('lf-composer-quote').textContent;
-                if (!painted || ![...painted].map(r => r.toString()).join('').trim())
-                    missed.push(quoted.slice(0, 70));
-                // Inside what was selected, not merely somewhere: a matcher that finds
-                // the right words in the wrong place paints, and paints a lie.
-                //
-                // A mark can now land inside a widget's shadow tree (x-shadow), and two
-                // ranges in different trees cannot be compared at all — comparing them
-                // throws rather than answering. So the question crosses the way the
-                // runtime's own does: the tree renders where its host stands, so a mark
-                // inside one is inside the selection exactly when the host is.
-                else if ([...painted].some(p => {
-                        const root = range.commonAncestorContainer.getRootNode();
-                        if (p.startContainer.getRootNode() === root)
-                            return p.compareBoundaryPoints(Range.START_TO_START, range) < 0
-                                || p.compareBoundaryPoints(Range.END_TO_END, range) > 0;
-                        let n = p.startContainer;
-                        while (n && n.getRootNode() !== root) n = n.getRootNode().host;
-                        return !n || !range.intersectsNode(n);
-                    }))
-                    astray.push(quoted.slice(0, 70));
-                sel.removeAllRanges();
-                await rendered();
+        for (const [start, end] of drags.values()) {
+            attempted++;
+            // A mouse selection starts in page words and ends with the native
+            // pointer/mouse release pair; selectionchange alone does not snap.
+            const pointer = {bubbles: true, composed: true, isPrimary: true,
+                             pointerType: 'mouse', button: 0};
+            start.dispatchEvent(new PointerEvent('pointerdown', pointer));
+            let range = document.createRange();
+            range.setStart(start, 0);
+            range.setEnd(end, end.childNodes.length);
+            const sel = getSelection();
+            sel.removeAllRanges();
+            sel.addRange(range);
+            end.dispatchEvent(new PointerEvent('pointerup', pointer));
+            end.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
+            await rendered();
+            // Mouse release snaps the native selection to word and sentence edges.
+            // The mark must match the selection the reader now sees.
+            range = pageRange(sel);
+            // Counted, not shrugged off: a selection the button declines to offer is
+            // a passage silently outside this sweep, and the sweep is the coverage.
+            if (fab.style.display !== 'block') {
+                skipped.push(range.toString().replace(/\\s+/g, ' ').trim().slice(0, 70));
+                continue;
             }
+            const painted = CSS.highlights.get('lf-pending');
+            // The captured quote, read off the node whether or not the user can
+            // see it: the composer shows it only where the page has no mark to give,
+            // which is the very case this loop is counting.
+            const quoted = document.getElementById('lf-composer-quote').textContent;
+            if (!painted || ![...painted].map(r => r.toString()).join('').trim())
+                missed.push(quoted.slice(0, 70));
+            // Inside what was selected, not merely somewhere: a matcher that finds
+            // the right words in the wrong place paints, and paints a lie.
+            //
+            // A mark can now land inside a widget's shadow tree (x-shadow), and two
+            // ranges in different trees cannot be compared at all — comparing them
+            // throws rather than answering. So the question crosses the way the
+            // runtime's own does: the tree renders where its host stands, so a mark
+            // inside one is inside the selection exactly when the host is.
+            else if ([...painted].some(p => {
+                    const root = range.commonAncestorContainer.getRootNode();
+                    if (p.startContainer.getRootNode() === root)
+                        return p.compareBoundaryPoints(Range.START_TO_START, range) < 0
+                            || p.compareBoundaryPoints(Range.END_TO_END, range) > 0;
+                    let n = p.startContainer;
+                    while (n && n.getRootNode() !== root) n = n.getRootNode().host;
+                    return !n || !range.intersectsNode(n);
+                }))
+                astray.push(quoted.slice(0, 70));
+            sel.removeAllRanges();
+            await rendered();
         }
         return {attempted, missed, skipped, astray};
     }"""

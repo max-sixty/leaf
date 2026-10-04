@@ -367,6 +367,116 @@ stateDiagram-v2
         </p>
       </section>
 
+      <section id="status-tasks">
+        <h2>Working on something means working on a task</h2>
+        <p>
+          Today <code>leaf status working --on SUBJECT "…"</code> writes a claim into
+          the page's status file, outside the log, and a task is a separate record in
+          the log. They hold the same fact: the agent has taken on this subject. Pi
+          Durable splits that fact by lifetime, not by record: a foreground task belongs
+          to the current turn, and a background task outlives it. Leaf can do the same
+          with one record.
+        </p>
+        <table id="status-tasks-map" data-width="wide">
+          <thead>
+            <tr>
+              <th scope="col">Today</th>
+              <th scope="col">As a task</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th scope="row"><code>status working --on X "sentence"</code></th>
+              <td>
+                A task on X that lasts the turn, titled with the sentence. The banner's
+                Working line is that task's title.
+              </td>
+            </tr>
+            <tr>
+              <th scope="row"><code>task open X "title"</code></th>
+              <td>A task on X that lasts until it is ended, as now.</td>
+            </tr>
+            <tr>
+              <th scope="row">A claim ends at the agent's next reply in the thread</th>
+              <td>A turn task ends done when the reply that answers it is written.</td>
+            </tr>
+            <tr>
+              <th scope="row">
+                A widget claim ends with <code>page stamp --completes W</code>
+              </th>
+              <td>The same stamp ends the task on W, done, citing the version.</td>
+            </tr>
+            <tr>
+              <th scope="row">A claim left after its turn reads stalled</th>
+              <td>
+                A turn task whose turn ended without an ending lands on your queue as
+                unobserved. This is step 6's rule for a background task whose session
+                ends, so stalled and unobserved become one state.
+              </td>
+            </tr>
+            <tr>
+              <th scope="row">A move reads Working while a claim holds it</th>
+              <td>
+                A move reads Working while an open task on its thread or widget holds
+                it.
+              </td>
+            </tr>
+            <tr>
+              <th scope="row"><code>status waiting "question"</code></th>
+              <td>
+                An item on your queue: the page-level question it already is, shown
+                where the banner shows it now.
+              </td>
+            </tr>
+            <tr>
+              <th scope="row"><code>status idle</code></th>
+              <td>
+                Stays: the agent is done with the page, refused while it still owes you
+                anything, as now.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <p>What has to move for that to work:</p>
+        <ul id="status-tasks-moves">
+          <li>
+            <strong>Claims move into the log.</strong> Each
+            <code>status --on</code> becomes a <code>task</code> event carrying its
+            turn, in place of an entry in <code>status.json</code>'s
+            <code>work</code> list. The status file keeps only what the host observes
+            (Codex's live steps and reply bindings), which is not a commitment.
+          </li>
+          <li>
+            <strong>Tasks take widgets as well as threads.</strong> A widget claim needs
+            a widget that declares work or holds an unanswered press; a task takes the
+            same rule, and <code>--completes</code> becomes the task's ending.
+          </li>
+          <li>
+            <strong>The readers of claims read tasks.</strong> Workflows (which move is
+            Working, and the standalone claim workflows), admission's record of which
+            moves a gesture affects, the activity fold (declared work, renewal,
+            stalled), the Stop hook's rule that a claim in this turn lets the turn end,
+            the banner, the margin and Page Map "Working" labels, neighbour rows, and
+            the stamp and re-vendor guards for claimed widgets.
+          </li>
+          <li>
+            <strong>The instructions change.</strong> The registry's answering clauses,
+            <code>conversation-loop.md</code>, <code>event-batches.md</code>,
+            <code>threads.md</code> and <code>SKILL.md</code> tell the agent to claim
+            with <code>status --on</code>; they would tell it to open a task, with an
+            eval before and after.
+          </li>
+        </ul>
+        <p>
+          Two choices are yours. Whether <code>leaf status working --on</code> stays as
+          the way to open a turn task, or <code>leaf task open</code> takes a lifetime
+          and <code>status</code> keeps only waiting and idle; I'd fold it into
+          <code>task open</code>, so there is one command for taking work on. And
+          whether this goes before step 4 (Asks and tasks as one item shape); I'd do it
+          first, since it settles what a task is before the item shape copies it.
+        </p>
+      </section>
+
       <section id="pi">
         <h2>How Pi Durable models the same ground</h2>
         <p>From <a href="https://earendil.com/posts/pi-durable/">Pi Durable</a>:</p>

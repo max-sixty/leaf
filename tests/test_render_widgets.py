@@ -103,6 +103,7 @@ from render_harness import (
     round_trip,
     scroll_settled,
     select,
+    select_words,
     sending,
     shortcut_bar_text,
     stamp_page,
@@ -6878,16 +6879,7 @@ def test_swipe_deck_pointer_threshold_cancel_and_commit(browser, serve):
     assert card.evaluate("el => el.style.getPropertyValue('--lf-swipe-drag-x')") == ""
     page.mouse.up()
 
-    card.locator("p").first.evaluate(
-        """element => {
-          const range = document.createRange();
-          range.selectNodeContents(element);
-          const selection = getSelection();
-          selection.removeAllRanges();
-          selection.addRange(range);
-          document.body.dispatchEvent(new KeyboardEvent('keyup', {bubbles: true}));
-        }"""
-    )
+    select_words(page, "#swipe-a p:first-of-type")
     expect(page.locator(".lf-fab-bar")).to_be_visible()
     assert page.evaluate("() => getSelection().toString().trim()")
 

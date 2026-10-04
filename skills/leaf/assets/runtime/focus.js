@@ -151,6 +151,10 @@ export const deepFocus = (at = document.activeElement) => {
 // batch's that commits, costs nothing: the one listener below counts placements for
 // every hold, and a hold compares the count it began at.
 let restoring = false;
+// Restoring the held place can focus a component whose own focus handler forwards to
+// its selected child. That whole synchronous handoff remains continuity: consumers
+// which reveal a destination on focus must not turn it into a fresh navigation.
+export const restoringFocus = () => restoring;
 // A chrome placement moving a box the user may be standing in: the focus it takes off
 // and hands straight back inside `move` is the layer's own, not the user going anywhere.
 // Stated here rather than beside the one placer, because what has to know is every
@@ -287,11 +291,12 @@ function holdOn(held) {
   };
 }
 const land = (landing) => {
+  const was = restoring;
   restoring = true;
   try {
     return landing();
   } finally {
-    restoring = false;
+    restoring = was;
   }
 };
 

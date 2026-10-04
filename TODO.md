@@ -56,10 +56,11 @@ has tried; settle that before building it.
   check that the hosted website agent's status is readable without delaying its
   reply. Keep delegated work visible while its watcher is live.
 - **#24 — Measure the fresh-reader review across pages.** The catalog's
-  `dashboard/reader` context gives a fixed reader only the request and screenshots
-  of a seeded count defect and a corrected count control. The narrow calibration
-  scores count detection and false alarms separately from other page defects;
-  it does not establish overall page acceptance. Measure
+  `dashboard/reader-seeded` and `dashboard/reader-clean` contexts show the screenshot
+  judge one triage board each, with a seeded count defect or the correct count, and
+  ask both whether the count matches the cards. That narrow calibration scores count
+  detection and false alarms separately from other page defects; it does not
+  establish overall page acceptance. Measure
   whether authors invoke the review, its cost and what it catches across actual
   pages. Author delegation traces and independent judge cost are separate evidence.
 
@@ -103,17 +104,6 @@ and its chrome coordinate.
   newcomer out of view rather than pushing down the card being read. The user sees
   it only in the count; give that arrival a visible route while preserving the
   current reading.
-- **Bring a comment box back where it stood after one wheel jump.** Scrolling back to
-  a comment's target in a single wheel step draws the box about 60px off for a frame
-  before it lands, on `main` too and for selected words as well as items; a script's
-  instant scroll does not show it. Floating UI's `shift` limiter held the box at the
-  target's far edge while the target left the window, and the correction lands a frame
-  after the scroll (`placeFab`, `composing/surface.js`); a real-wheel test under
-  `shift_watch.js` reproduces it.
-- **Keep a thread card still while the user types in it inside a pane.** Typing in a
-  margin thread card's reply, with its target in a pane that scrolls on its own, moves
-  the whole card (`shift_watch.js`: "typing in leaf-text moved
-  aside#lf-margin-preview"), on `main` too.
 - **Decide whether a thread card may cover the margin rail.** A card beside its
   target starts right of the target's margin marker whenever the room past the marker
   still holds the card's minimum width (`comment-placement.js`, where `options` reads
@@ -123,6 +113,7 @@ and its chrome coordinate.
   states which elements a floating surface may cover. Today each placement names the
   boxes it keeps clear of (`clear`, `margin`) in its own code, so no element can declare
   that it may be covered, or must never be.
+
 - **Give the phone banner one row.** Decided, not built
   ([plan](notes/chrome-and-covers.md)): one 53px row holding the status in words, cut
   short with an ellipsis, with a passing notice taking that slot for a few seconds;

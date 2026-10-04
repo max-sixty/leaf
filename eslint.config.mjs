@@ -12,6 +12,7 @@ const runtimePrimitives = [
   "control-selectors.js",
   "keeps.js",
   "rendering.js",
+  "queued-work.js",
   "repaint.js",
   "root-state.js",
   "thread/identity.js",

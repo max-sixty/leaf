@@ -37,8 +37,17 @@ export const targetPlace = (resolved) => resolved?.place ?? null;
 // A passage's whole box decides visibility; its first nonempty fragment attaches
 // chrome. A later line can begin further left without changing that attachment.
 // Native selections and durable passages read the same Range geometry.
+export const targetRange = (resolved) => {
+  const segments = targetSegments(resolved);
+  return segments.length ? rangeOf(segments) : null;
+};
+
 export function rangeGeometry(range) {
   return {
+    contextNode:
+      range.startContainer.nodeType === Node.TEXT_NODE
+        ? range.startContainer
+        : (range.startContainer.childNodes[range.startOffset] ?? range.startContainer),
     box: range.getBoundingClientRect(),
     attachment:
       [...range.getClientRects()].find((rect) => rect.width > 0 && rect.height > 0) ??
@@ -47,9 +56,8 @@ export function rangeGeometry(range) {
 }
 
 export function passageGeometry(resolved) {
-  const segments = targetSegments(resolved);
-  if (!segments.length) return null;
-  return rangeGeometry(rangeOf(segments));
+  const range = targetRange(resolved);
+  return range && rangeGeometry(range);
 }
 
 export const targetSurface = (resolved) =>

@@ -5,8 +5,8 @@ from ..events import (
     active_summaries,
     awaits_agent,
     bare_reaction,
+    conversation_turns,
     seat_root,
-    spoken_turns,
     standing_approvals,
     unanswered_agent_turn,
 )
@@ -68,7 +68,7 @@ def browser_thread(
             open_ask_threads,
         )
         protected = set()
-        turns = spoken_turns(thread)
+        turns = conversation_turns(thread)
         if awaits_agent(thread):
             protected.add(unanswered_agent_turn(thread)["id"])
         if awaits_user and turns:

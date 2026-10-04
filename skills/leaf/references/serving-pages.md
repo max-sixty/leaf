@@ -108,8 +108,7 @@ a re-vendor doesn't fix: init refuses vocabulary the page's log can no longer re
 or the page misbehaves after an update. When a Leaf update is causing problems like
 this, recreate the page on the current version rather than repairing the old one:
 initialize a new page directory, write its `index.html` as the page you would hand
-over today, and give the user the new URL. Later versions will upgrade pages more
-robustly.
+over today, and give the user the new URL.
 
 ## Page lifetime
 

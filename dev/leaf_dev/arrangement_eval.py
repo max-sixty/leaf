@@ -33,11 +33,11 @@ from leaf_dev.harness import (
     token_counts,
 )
 from leaf_dev.harness import trace_result as result
+from leaf_dev.usability_eval import admit
 
 TASKS = ROOT / "evals"
 CASES = ("document", "dashboard", "queue")
 PHASES = (1, 2)
-MODEL = "claude-opus-5-5"
 WIDTHS = {
     "laptop": ((1440, 900), "a 1440px laptop window"),
     "narrow": ((900, 900), "a 900px window"),
@@ -72,8 +72,6 @@ def claude(
     return run_agent(
         cwd,
         prompt,
-        "--model",
-        MODEL,
         "--tools",
         tools,
         *(("--resume", resume) if resume else ()),
@@ -173,8 +171,6 @@ def author(run: Run, cwd: Path) -> None:
     first = run_agent(
         cwd,
         prompts[0],
-        "--model",
-        MODEL,
         out=run.directory / "stream-1.jsonl",
         err=run.directory / "err-1.txt",
         **child,
@@ -190,8 +186,6 @@ def author(run: Run, cwd: Path) -> None:
         second = run_agent(
             cwd,
             prompts[1],
-            "--model",
-            MODEL,
             "--resume",
             session,
             out=run.directory / "stream-2.jsonl",
@@ -222,8 +216,6 @@ def author(run: Run, cwd: Path) -> None:
         run_agent(
             cwd,
             continuation,
-            "--model",
-            MODEL,
             "--resume",
             result(second)["session_id"],
             out=run.directory / "stream-3.jsonl",
@@ -239,8 +231,6 @@ def author(run: Run, cwd: Path) -> None:
 
 def seed_and_read_choice(run: Run) -> None:
     """Admit a real user choice, then read it without the author's conversation."""
-    from leaf_dev.usability_eval import admit
-
     page = run.authored_page
     record = {"seeded": False}
     elements = SourceDocument((page / "index.html").read_text()).lf_elements
@@ -289,8 +279,6 @@ def seed_and_read_choice(run: Run) -> None:
             trace = run_agent(
                 Path(temporary),
                 prompt,
-                "--model",
-                MODEL,
                 out=destination / "stream.jsonl",
                 err=destination / "err.txt",
                 dirs=[run.payload, page],
@@ -625,8 +613,6 @@ def execute_scenario(
     case: str, payload: Path, work: Path, *, host="cc", condition="leaf"
 ) -> dict:
     """Execute only the selected condition; Promptfoo owns the condition matrix."""
-    if condition not in ("leaf", "html"):
-        raise ValueError(f"Unknown condition: {condition}")
     work.mkdir(parents=True, exist_ok=True)
     checks = dict.fromkeys(expected_checks(case, condition=condition), False)
     run = Run(case, payload, work, host, condition)

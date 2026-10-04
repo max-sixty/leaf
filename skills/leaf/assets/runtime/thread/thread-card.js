@@ -156,7 +156,7 @@ export function threadReading(
       icon: !resolved || Boolean(kept),
     }),
     reply: !resolved || Boolean(kept),
-    summaries: panel ? Object.freeze(thread.summaries) : Object.freeze([]),
+    summaries: Object.freeze(thread.summaries),
     messages: Object.freeze(messages),
   });
 }
@@ -246,6 +246,7 @@ let nextViewId = 0;
 
 export class ThreadView {
   #commands;
+  #messageCommands;
   #model = null;
   #messages = new Map();
   #reply = null;
@@ -268,12 +269,24 @@ export class ThreadView {
 
   constructor(surface, commands) {
     this.#commands = commands;
+    // A press on a reply's reactions is the user acting in this thread, so what the
+    // thread holds shows with it (held-news.js).
+    this.#messageCommands = {
+      ...commands,
+      reaction: { ...commands.reaction, pressed: () => this.#model?.news?.open() },
+    };
     this.node = document.createElement(
       surface === "outlet" || surface === "panel" ? "details" : "div",
     );
     this.#continuity = new ReplyContinuity(this.node);
+    // A card draws what its hold releases at once, so an arrival lands on the thread
+    // as it now stands (`showHeld`).
     if (surface === "panel") {
-      this.#heldNews = new HeldNews(this.node, () => this, commands.repaintThread);
+      this.#heldNews = new HeldNews(
+        this.node,
+        () => this,
+        () => this.repaint(),
+      );
       document.addEventListener("lf-comparison", this.#paintChangeShown);
     }
     // A panel card's disclosure is the thread list's to write, from its one choice.
@@ -317,12 +330,6 @@ export class ThreadView {
     return this.#model;
   }
 
-  showNews() {
-    if (!this.#model?.news) return false;
-    this.#model.news.open();
-    return true;
-  }
-
   // Local disclosure and draft changes repaint the complete received descriptor,
   // never feed a held presentation back into the news owner's input.
   repaint() {
@@ -351,13 +358,18 @@ export class ThreadView {
     // Only a summary that was not standing before can swallow what the user
     // holds or is reading, and reading geometry here forces layout.
     if (prior && model.summaries.some(({ id }) => !priorSummaries.has(id))) {
-      const heldMessage = standing?.closest?.(".lf-msg[data-mid]")?.dataset.mid;
+      const heldMessage = prior.messages.find(({ key }) =>
+        this.#messages.get(key)?.node.contains(standing),
+      )?.id;
       // Being read is being on screen, on whichever surface holds the card.
       const clips = new Map();
       const beingRead = new Set(
-        [...this.node.querySelectorAll(":scope .lf-msg[data-mid]")]
-          .filter((message) => seenRect(message, clips))
-          .map((message) => message.dataset.mid),
+        prior.messages
+          .filter(({ key }) => {
+            const node = this.#messages.get(key)?.node;
+            return node?.isConnected && seenRect(node, clips);
+          })
+          .map(({ id }) => id),
       );
       for (const summary of model.summaries) {
         if (priorSummaries.has(summary.id)) continue;
@@ -437,7 +449,10 @@ export class ThreadView {
     const messages = model.messages.map((message, index) => {
       let view = this.#messages.get(message.key);
       if (!view)
-        this.#messages.set(message.key, (view = new MessageView(this.#commands)));
+        this.#messages.set(
+          message.key,
+          (view = new MessageView(this.#messageCommands)),
+        );
       view.present(message, {
         externalHeader: index === 0 && Boolean(headerActions),
         arrived: Boolean(prior),

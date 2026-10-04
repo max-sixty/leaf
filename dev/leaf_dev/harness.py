@@ -57,6 +57,10 @@ PAYLOAD = (
     "worker/pyproject.toml",
 )
 
+# The models evals run, pinned so runs on different days compare: each host's
+# agents, and the judge behind `llm-rubric` assertions.
+MODELS = {"cc": "claude-opus-5-5", "codex": "gpt-6.1-sol", "judge": "claude-sonnet-5-5"}
+
 
 def run_directory(parent: Path) -> Path:
     """Allocate one invocation's evidence without replacing another run's files."""
@@ -274,7 +278,7 @@ def claude_child(
         (home / ".claude").mkdir(parents=True, exist_ok=True)
         shutil.copy(credentials, home / ".claude/.credentials.json")
     command = [
-        "claude", "-p", *args, "--strict-mcp-config",
+        "claude", "-p", *args, "--model", MODELS["cc"], "--strict-mcp-config",
         "--permission-mode", "bypassPermissions", "--output-format", "stream-json",
         "--verbose", *(arg for d in dirs for arg in ("--add-dir", str(d))),
     ]  # fmt: skip

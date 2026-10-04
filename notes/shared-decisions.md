@@ -14,7 +14,7 @@ with both surfaces reading and writing the same fact.
 
 ## Why Leaf can't today
 
-Every action is filed under one coordinate, `[owner widget, fold unit, verb]`.
+Every widget action is keyed by `[owner widget, fold unit, verb]`.
 A section's choice is `(rail-choice, rail-choice, choose)` and a board move
 `(plan-board, card-rail, move)`, so a picker and a card for one proposal hold
 two facts. Run on a scratch page, the append door admitted a `choose` of Next
@@ -55,17 +55,19 @@ and C.
 
 ## What every approach needs
 
-A declared view relation in the registry (proposed `x-shows`; `x-views` is taken
-by holders like `lf-tabs` that show one member at a time): an element names
-the owners it shows (nearest ancestor, an attribute naming one, or an attribute
-match) and the verb it may send for them. The kernel then hands a view its
-owners' state through the publisher, records a view's gesture against the owner
-with the view as `via`, refuses a gesture from a view that does not show that
-owner, checks that authored placement agrees with the owner, and reports
-placement as derived in `leaf page state`. A widget nothing else shows declares
-no view and is unchanged: 8 of today's 13 declared verbs already own their
-widget's own field. Writes stay serialized by the append door, so several views
-or tabs need no merging.
+Each approach needs a declared view relation in the registry. The proposed name is
+`x-shows`; `x-views` already names holders like `lf-tabs` that show one member at a
+time. A view names the owners it shows, using the nearest ancestor, an attribute
+naming an owner, or an attribute match. It also declares the verb it may send for
+those owners.
+
+The kernel would supply the owners' state through the publisher and record a view's
+gesture against the owner, with the view as `via`. It would refuse a gesture from a
+view that does not show that owner, check that authored placement agrees with the
+owner, and report placement as derived in `leaf page state`. A widget with no views
+would be unchanged. At the time of the experiment, 8 of the 13 declared verbs already
+owned their widget's own field. Writes would remain serialized by the append door,
+so several views or tabs would need no merging.
 
 ## C, sketched
 

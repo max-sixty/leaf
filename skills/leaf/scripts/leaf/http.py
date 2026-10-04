@@ -846,7 +846,14 @@ class PageEndpoint:
         )
         if resource is None:
             return None
-        return self._resource_content(resource)
+        response = self._resource_content(resource)
+        # The revision name carries its manifest digest and the address is in the URL,
+        # so these bytes never change. Every document of one page shares this namespace:
+        # a gallery's live samples are each a whole runtime importing the same modules,
+        # and refetching each one per document queued them behind one another on the
+        # origin's few connections for seconds.
+        response.headers["Cache-Control"] = "private, max-age=31536000, immutable"
+        return response
 
     def _serve_page_path(self) -> Response | None:
         path = self.path

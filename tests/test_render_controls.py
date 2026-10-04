@@ -5202,7 +5202,10 @@ def test_covering_threads_keeps_the_user_and_their_work_inside(browser, serve):
         """The list keeps the focused summary in its usable reading band.
 
         Thread rows reflow at the narrower width, so the same thread can have a
-        different numeric offset while remaining the user's reading place.
+        different numeric offset while remaining the user's reading place. An open
+        thread's title is a sticky header that pins on the list's own top edge, past
+        the scroll padding, and draws its ring inside itself, so its band starts at
+        that edge.
         """
         held = threads.evaluate(
             "el => ({at: el.scrollTop, limit: el.scrollHeight - el.clientHeight})"
@@ -5216,7 +5219,7 @@ def test_covering_threads_keeps_the_user_and_their_work_inside(browser, serve):
             "const box = list.getBoundingClientRect(); "
             "const style = getComputedStyle(list); "
             "return {top: summary.top, bottom: summary.bottom, "
-            "bandTop: box.top + parseFloat(style.scrollPaddingTop), "
+            "bandTop: box.top + list.clientTop, "
             "bandBottom: box.bottom - parseFloat(style.scrollPaddingBottom)}; }"
         )
         assert (

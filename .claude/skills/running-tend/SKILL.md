@@ -72,7 +72,7 @@ cause that no open pull request already covers.
 
 ## A red `ci` on main is live
 
-Pull requests run the everyday and website-worker gates; main runs the complete
+Pull requests run the broad selection and the website-worker gate; main runs the complete
 suite once, alongside its runtime, browser-framework and bundle gates. A red `ci`
 on main affects whoever pulls next, so treat it as live. Main holds one complete-suite slot and a newer commit
 replaces the one waiting, which GitHub records as a cancelled run whose `test`

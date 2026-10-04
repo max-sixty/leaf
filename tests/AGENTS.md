@@ -49,9 +49,10 @@ Python.
 
 ```sh
 wt setup
-uv run pytest tests                  # everyday gate; no network after setup
+uv run pytest tests --no-browser     # before handover: every test that drives no browser
 npm run test:runtime                 # the gate's other half: tests/runtime/, under Node
-uv run pytest tests/test_render_widgets.py -q -n0 -k board   # one case, kept local
+uv run pytest tests/test_render_widgets.py -q -n0 -k board   # browser tests, named
+uv run pytest tests                  # broad selection; CI runs it on a pull request
 uv run pytest --lf --lfnf=none -x -n0
 uv run pytest --regtest-reset -n0 <node-id>
 ```
@@ -62,14 +63,18 @@ nightly tests, and an explicit file, node id, `-k`, `-m`, or `--lf` runs what it
 names. Both landing gates pass `--nightly-changed-since`, which adds the nightly tests
 whose own lines the change edits.
 
-A change lands only on a green landing gate. Every other nightly test is CI's to
-report: the `test` job in `ci.yaml` runs the complete suite once main moves, and
-`tend-ci-fix` answers what it fails. So before handing over a browser-facing change,
-run the everyday gate and the few browser tests that hold the behavior you changed,
-named by node id or `-k`. Don't run `--run-nightly`, `-m nightly`, or a whole browser
-file locally: each takes minutes to over an hour and slows every other session on the
-machine. To learn what main fails, read that job's run, and reproduce a failure it
-names by node id.
+`--no-browser` leaves out every test that drives a Playwright engine: under a quarter
+of the broad selection's tests and over half of its time. A handover leaves those to
+the landing gate: before handing over, run `--no-browser` and the browser tests that
+hold the behavior you changed, nightly ones included, named by node id or `-k`. Find
+them by reading which journeys exercise the code the change touches. A change
+lands only on a green landing gate, which runs the broad selection: a pull request's
+`test` job, or `wt merge`'s pre-merge. Every other nightly test is CI's to report:
+the `test` job in `ci.yaml` runs the complete suite once main moves, and `tend-ci-fix`
+answers what it fails. Don't run the broad selection, `--run-nightly`, `-m nightly`, or
+a whole browser file locally outside a landing: each takes minutes to over an hour
+and slows every other session on the machine. To learn what main fails, read that
+job's run, and reproduce a failure it names by node id.
 
 CLI output and agent-facing text are regtest recordings in
 `tests/_regtest_outputs/`, normalized for temporary paths and generated identities but

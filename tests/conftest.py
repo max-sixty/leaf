@@ -238,6 +238,12 @@ def pytest_addoption(parser):
         metavar="REF",
         help="Also run the nightly-marked tests whose own lines changed since REF",
     )
+    parser.addoption(
+        "--no-browser",
+        action="store_true",
+        default=False,
+        help="Leave out every test that drives a Playwright engine",
+    )
 
 
 @pytest.hookimpl(wrapper=True)
@@ -257,7 +263,14 @@ def pytest_collection_modifyitems(config, items):
     A change that moves a browser behaviour usually edits the test that holds it, so both
     landing gates add the nightly tests whose own lines the change touches
     (`--nightly-changed-since`): those run before it lands, and CI's `test` job runs
-    the rest on main after."""
+    the rest on main after.
+
+    `--no-browser` leaves out, from any selection, each test that drives a Playwright
+    engine: what a handover runs (tests/AGENTS.md, "Run the narrowest useful surface").
+    A test that reaches the browser only through a `page check` subprocess stays, since
+    nothing at collection says it will."""
+    if config.getoption("--no-browser"):
+        _deselect(config, items, lambda item: "_playwright" in item.fixturenames)
     selected = (
         config.getoption("keyword")
         or config.getoption("markexpr")
@@ -269,12 +282,20 @@ def pytest_collection_modifyitems(config, items):
     changed = {}
     if since := config.getoption("--nightly-changed-since"):
         changed = _changed_test_lines(config.rootpath, since)
-    kept, nightly = [], []
+    _deselect(
+        config,
+        items,
+        lambda item: "nightly" in item.keywords and not _touches(item, changed),
+    )
+
+
+def _deselect(config, items, drop):
+    """Remove the items `drop` names, reporting them as deselected."""
+    kept, dropped = [], []
     for item in items:
-        skipped = "nightly" in item.keywords and not _touches(item, changed)
-        (nightly if skipped else kept).append(item)
+        (dropped if drop(item) else kept).append(item)
     items[:] = kept
-    config.hook.pytest_deselected(items=nightly)
+    config.hook.pytest_deselected(items=dropped)
 
 
 def _changed_test_lines(root, since):

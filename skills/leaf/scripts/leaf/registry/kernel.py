@@ -4,7 +4,7 @@
 (`layer.validate_event_contracts`), so its facts are read from the shipped
 `registry.json` rather than from a page's composed vocabulary. Reading them needs
 no schema validator, and this module imports none: the page service sorts every
-event by these kinds, including in a host hook that validates nothing."""
+event by these kinds, including in a harness hook that validates nothing."""
 
 from functools import cache
 

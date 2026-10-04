@@ -1,4 +1,4 @@
-"""Preview input readings and the user handoff's host connection.
+"""Preview input readings and the user handoff's harness connection.
 
 `leaf-dev preview` resolves three things from wherever its source sits: the
 package layer, the media directory, and the set of paths a watcher subscribes
@@ -276,7 +276,7 @@ import time
 from pathlib import Path
 from leaf.service import PageTransaction, page_claim
 from leaf.state import write_json
-from leaf.host import session_harness
+from leaf.harness import session_harness
 from leaf.hosting import cmd_stop
 from leaf_dev.preview import PreviewService
 
@@ -377,7 +377,7 @@ finally:
         claim = service.page_claim(page_dir)
         assert claim["id"] == "preview-thread"
         assert claim["pid"] == task.pid, (
-            "detached child replaced its launching host lifetime"
+            "detached child replaced its launching harness lifetime"
         )
         assert codex_adapter.adapter_is_live("preview-thread")
         if initially_idle:
@@ -595,7 +595,7 @@ def test_failed_delivery_preserves_the_existing_preview(
     page_dir, monkeypatch, failure, handoff
 ):
     """Failure before acceptance preserves both listener and original watcher."""
-    from leaf.host import session_harness
+    from leaf.harness import session_harness
     from leaf.hosting import claim_and_start, cmd_serve, cmd_stop
     from leaf.server import running_server
     from leaf.service import page_claim
@@ -699,7 +699,7 @@ def test_a_preview_captures_acquisition_before_an_accepted_commit_is_interrupted
                 failure="accepted start did not publish its claim",
             )
             if transferred:
-                from leaf.host import ClaudeCodeHarness
+                from leaf.harness import ClaudeCodeHarness
 
                 with service.PageTransaction(page_dir) as page:
                     page.take_claim(ClaudeCodeHarness("successor", "Claude"))
@@ -730,9 +730,9 @@ def test_private_startup_keeps_previous_owner_until_acceptance(
     original = preview.PreviewService(page_dir, user=True)
     url, _ = original.start()
     previous = page_claim(page_dir)
-    # A different host is the candidate, so ending its session cannot itself end
+    # A different harness is the candidate, so ending its session cannot itself end
     # the original watcher while the candidate is still unpublished.
-    from leaf import host
+    from leaf import harness
 
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "candidate")
     try:
@@ -745,7 +745,9 @@ def test_private_startup_keeps_previous_owner_until_acceptance(
                 raise ValueError("caller leaves before accepting reuse")
             end_session(prepared.claim["id"])
             if refusal == "new_generation":
-                ensure_session(prepared.claim["id"], host.session_harness().lifetime())
+                ensure_session(
+                    prepared.claim["id"], harness.session_harness().lifetime()
+                )
         assert page_claim(page_dir) == previous
         assert not original.ended
         assert fetch(url)[0] == 200
@@ -757,7 +759,7 @@ def test_service_publication_failure_keeps_previous_preview_claim(
     page_dir, monkeypatch
 ):
     from leaf import hosting
-    from leaf.host import session_harness
+    from leaf.harness import session_harness
     from leaf.service import page_claim, prepare_claim
     from leaf.state import write_json
 

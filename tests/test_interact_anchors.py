@@ -76,7 +76,7 @@ def test_comment_anchors_on_a_quote_and_posts_as_agent(page_dir, sessionless):
         and event["author"] == "agent"
         and event["revision"] == 1
     )
-    # A bare run has no host session behind it, so the event carries no voice
+    # A bare run has no harness session behind it, so the event carries no voice
     # fields — users' generic label covers it — rather than a stored
     # placeholder wearing a name.
     assert "agent" not in event and "session" not in event

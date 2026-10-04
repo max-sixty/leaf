@@ -148,7 +148,7 @@ including after Reset, wears the playground's properties and attributes from its
 first paint. The outer root and stylesheet belong to the review page. A static
 sketch or snippet can stay directly in the preview.
 
-The output is the instruction the user copies and the host receives. Write a complete
+The output is the instruction the user copies and the harness receives. Write a complete
 task with an object, destination, and requested evidence. Use `lf-playground-value` only
 where a selected value makes that task more precise. The action still includes every
 control in `detail.values`, including controls the prose does not repeat.

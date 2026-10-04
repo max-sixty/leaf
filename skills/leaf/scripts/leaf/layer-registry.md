@@ -36,7 +36,7 @@ records three deliberately different identities under `$layer`:
   its committer date, where Git can read it, or `installed`, when the plugin cache
   copied it without `.git`, one update sweep after it landed. The page exposes that
   identity and its age in its low-frequency banner controls; a press copies the full
-  layer diagnostics. A host can ask its running payload for the same source identity
+  layer diagnostics. A harness can ask its running payload for the same source identity
   and date with `leaf --version`.
 - `runtime` is the SHA-256 identity of the kernel runtime modules the payload vendored
   from, read from its own `assets/runtime/` rather than recomposed from the page's

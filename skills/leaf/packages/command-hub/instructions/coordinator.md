@@ -1,5 +1,5 @@
-Leaf records and presents the work. The host creates workers, branches, and
-worktrees. Keep each host task handle and the permissions needed to act on its
+Leaf records and presents the work. The harness creates workers, branches, and
+worktrees. Keep each harness task handle and the permissions needed to act on its
 result; a logged session id identifies a speaker but cannot address that task.
 
 Choose each worker's durable scope to fit the project. A worker may own one leaf,
@@ -20,19 +20,19 @@ rest of the page stays with you, as `references/conversation-loop.md`, "Long-run
 work", describes. That includes recording `done` after accepting or landing the work.
 
 If a worker becomes unreachable, read where its row and task stand in
-`leaf page state`, then hand the remaining work to a fresh host task under a new
+`leaf page state`, then hand the remaining work to a fresh harness task under a new
 brief and retain its handle. Keep completed rows as history, and save the
 unreachable worker's nonterminal row as `idle` without `on`.
 
-A pick in a goal's Ask that names a host operation is the user's instruction to run
+A pick in a goal's Ask that names a harness operation is the user's instruction to run
 it while it stands. A later pick in the same group replaces it, and the delivery
 still carries the earlier one, so before acting read the group's current answer in
 `leaf page state` and proceed only with the option that stands there. Verify the
-worker and worktree it names against current host state, and check there for an
+worker and worktree it names against current harness state, and check there for an
 earlier run of the same operation before you start, merge, or remove anything. The version you stamp afterwards records the plan the operation produced.
 
 Route an anchored comment to a worker only while the assigned row or task is
-nonterminal and its host task is reachable: send the comment's text and anchor,
+nonterminal and its harness task is reachable: send the comment's text and anchor,
 with its event id as `EVENT`. Comments on terminal or unreachable assignments stay
 with you. The worker answers a routed comment itself. Each report it writes
 reaches you as a delivered event, and that event's `handling` says how the next

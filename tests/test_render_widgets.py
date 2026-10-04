@@ -5066,7 +5066,7 @@ def test_notification_configuration_becomes_a_commentable_local_artifact(
     """The example's instruction is a complete task through Leaf's existing loop.
 
     A playground action enters the ordinary event log, pickup and a work claim use the
-    same delivery projection as a host agent, and the agent writes a real local file.
+    same delivery projection as an agent in a harness, and the agent writes a real local file.
     The page exposes that file through data, then a user comment changes the file and
     remains anchored on the revised result.
     """

@@ -162,12 +162,6 @@ and its chrome coordinate.
   (`syncLayoutRegion`) and the render check's held-panes reading (`heldPanes`), which
   both look only at `main`, have to look at that block too. It waits for a page that
   needs it; a workspace page's own pane grid stays plain CSS.
-- **Make the outcome checks the gate.** `page check` passed a page that scrolled
-  sideways at 520px. Check sideways scroll and leaking minimums (a box whose content,
-  not its declared minimum, sets its holder's floor) across swept widths. The corpus
-  (`leaf-dev corpus`) sets every example's body in one column page, so only the
-  nightly `test_page_fixture_renders` reads a sidebar, workspace or wide example in its
-  own Layout.
 - **Show each floating surface across the content it can hold.** `leaf-dev stills`
   screenshots the same states on the base and the branch, so it reports a change but
   misses a surface that is wrong on both. Until PR 1440 a margin thread card took all
@@ -255,15 +249,6 @@ Boxes that still move without input, which the "Stability" rule in
 `skills/leaf/assets/AGENTS.md` forbids. `tests/known_widget_findings.py` lists each widget
 that changes size after first paint, with its cause.
 
-- **Keep the feature gallery's Undo reachable after Reject.**
-  `test_the_feature_gallery_keeps_its_real_actions_reachable` is a non-strict xfail in
-  `tests/test_render_margin.py`, and #1669 found it still failing. The diagnosis in
-  [notes/margin-stuck-style.md](notes/margin-stuck-style.md) names two defects: the
-  span around the rejected insertion keeps reporting a computed `anchor-name: none`,
-  so the row carrying Undo stays at its off-screen fallback, and after Undo the suggestion has a 0x0 box. #1687
-  then stopped hiding an emptied suggestion with `display: none`, which may have fixed
-  the 0x0 box; the note predates it. Check first whether the xfail now passes on
-  `main` under load, then follow the note's next step for the stuck span.
 - **Draw the playground at its final size from first paint.** `lf-playground`,
   `lf-playground-control`, `-output`, `-preview` and `-value` are `keeps-first-box`
   findings: the module builds each control's inputs and the words of the instruction it
@@ -332,9 +317,16 @@ height and where a switch lands wait on the workspace decision under Layout.
   App Server's behavior before changing delivery policy; the
   [Codex brief](notes/codex-integration.md#delivery-start-race) owns the experiment.
 
-- **Verify the Ask's premise, controls and resulting evidence below the first pane
-  screen**, as the [layout vocabulary eval](notes/agent-usability-evals.md#layout-vocabulary-2026-09-29)
-  exposed.
+- **Measure how often agents produce bad pages.** Write `evals/` cases in which agents
+  author ordinary pages, and have a judge read each result at wide, middle and phone
+  widths for defects a user would notice. Record beside each defect whether
+  `page check` reported it and whether the agent changed the page in response. That
+  gives the rate of bad pages and how much the checks catch. Fix a recurring defect in
+  the widget, Layout or theme that produced it, so pages need fewer checks, rather
+  than adding readings or widths to the check. In the
+  [layout vocabulary eval](notes/agent-usability-evals.md#layout-vocabulary-2026-09-29)
+  every one of the 36 runs passed the gate, yet the judge still found tiny text at
+  900px and phone defects.
 - **Read the full render gate after handover.** Actual user views now supply passive
   geometry checks as agent context (`conversation-loop.md`, "The user's view"). The
   broader headless gate still runs on request. `page check --render` blocks the

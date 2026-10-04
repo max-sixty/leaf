@@ -996,6 +996,62 @@ def test_each_agent_session_posts_as_its_own_voice(page_dir, monkeypatch):
     assert "- **Crawler**: crawl running" in transcript.output
 
 
+def test_ephemeral_reply_keeps_the_exact_input_and_work_claim_owed(claimed):
+    published(claimed)
+    root = append_command(
+        claimed,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Check the schedule.",
+        },
+    )
+    run_leaf(
+        "status", str(claimed), "working", "Checking the schedule", "--on", root["id"]
+    )
+    before = page_state(claimed)["workflows"]
+    assert len(before) == 1 and before[0]["stage"] == "working"
+
+    progress = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "thread",
+            "reply",
+            str(claimed),
+            "--for",
+            root["id"],
+            "--ephemeral",
+            "--text",
+            "Checking the camera.",
+        ],
+    )
+    assert progress.exit_code == 0, progress.output
+    update = json.loads(progress.output)
+    assert update["ephemeral"] is True and "responds" not in update
+    assert page_state(claimed)["workflows"] == before
+
+    answer = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "thread",
+            "reply",
+            str(claimed),
+            "--for",
+            root["id"],
+            "--text",
+            "The schedule works.",
+        ],
+    )
+    assert answer.exit_code == 0, answer.output
+    completed = json.loads(answer.output)
+    assert completed["responds"] == root["id"]
+    state = page_state(claimed)
+    assert state["workflows"] == []
+    [thread] = state["browser"]["thread"]["threads"]
+    assert thread["summaries"][0]["covers"] == [update["id"]]
+
+
 def test_an_agent_reply_records_only_a_question_it_leaves_with_the_user(page_dir):
     published(page_dir)
     root = append_carried_log_record(

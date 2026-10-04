@@ -2431,6 +2431,70 @@ def test_explicit_navigation_reveals_held_panel_news(browser, serve, destination
     )
 
 
+def test_walking_to_a_thread_shows_the_replies_it_held(browser, serve):
+    """A reply held while its thread stood open in front of the user shows once the
+    user walks away and back to that thread with t/T. The walk away closes the card and
+    the walk back opens it, and an opening moves every card after it anyway, so the
+    card opens with what it held, landed where the reply shows."""
+    url = serve(PANEL_PAGE)
+    for n in range(12):
+        panel_comment(serve.page_dir, f"An earlier thread {n}. " * 8)
+    other = panel_comment(serve.page_dir, "A thread to walk to. " * 30)
+    root = panel_comment(serve.page_dir, "Keep the discussion here.")
+    for n in range(12):
+        panel_comment(serve.page_dir, f"A later thread {n}. " * 8)
+    context = browser.new_context(reduced_motion="reduce")
+    page = open_page(browser, url, context=context)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    thread = page.locator(f'.lf-threads > .lf-thread[data-id="{root}"]')
+    if thread.get_attribute("open") is None:
+        thread.locator(".lf-thread-summary").click()
+    thread.locator(".lf-thread-summary").focus()
+    reply = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "revision": 1,
+            "parent": root,
+            "text": "This answer arrived while the thread stood open. " * 6,
+        },
+    )
+    told(page)
+    message = thread.locator(f'.lf-msg[data-mid="{reply["id"]}"]')
+    expect(thread.get_by_role("button", name="1 new reply", exact=True)).to_be_visible()
+    expect(message).to_have_count(0)
+
+    order = page.locator(".lf-threads > .lf-thread").evaluate_all(
+        "cards => cards.map(card => card.dataset.id)"
+    )
+    away, back = (
+        ("t", "Shift+t") if order.index(other) > order.index(root) else ("Shift+t", "t")
+    )
+    page.keyboard.press(away)
+    expect(
+        page.locator(f'.lf-threads > .lf-thread[data-id="{other}"] .lf-thread-summary')
+    ).to_be_focused()
+    expect(thread).not_to_have_attribute("open", "")
+    page.keyboard.press(back)
+    expect(thread.locator(".lf-thread-summary")).to_be_focused()
+    expect(message).to_be_visible()
+    expect(thread.locator(".lf-thread-news")).to_have_count(0)
+    # The arrival lands the thread with the reply it shows.
+    one_frame(page)
+    assert page.evaluate(
+        """id => {
+          const list = document.querySelector('.lf-threads').getBoundingClientRect();
+          const reply = document.querySelector(`.lf-msg[data-mid="${id}"]`)
+            .getBoundingClientRect();
+          return reply.top >= list.top && reply.bottom <= list.bottom;
+        }""",
+        reply["id"],
+    )
+
+
 def test_opening_message_reactions_does_not_reflow_the_thread_list(browser, serve):
     """The picker floats from its message corner without moving the thread.
 

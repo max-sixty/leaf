@@ -15,7 +15,6 @@ from render_harness import (
     open_page,
     panel_settled,
     resized,
-    scroll_settled,
     take_browser_errors,
 )
 
@@ -1341,87 +1340,145 @@ def test_gesture_close_does_not_own_future_or_local_motion(browser, fault):
 def test_real_floating_plane_retains_local_motion(
     browser, serve, fault, guard_mode, destination
 ):
+    """Owned plane changes excuse their placement, never extra holder/child motion.
+
+    The two planes belong to the shared placement factory. An editing presenter need
+    not use both: its following policy is independent of this guard's attribution.
+    """
     source = leaf_page(
         "Plane evidence",
-        '<p id="evidence" style="position:sticky;top:100px;left:10px">Paint evidence</p><h1>Floating evidence</h1><div style="height:650px"></div><p id="subject">Retain this exact subject.</p><div style="height:1800px"></div>',
+        '<p id="subject" style="position:fixed;left:100px;top:280px;'
+        'width:80px;height:30px;margin:0">Exact subject</p>'
+        '<div id="holder" style="position:fixed;width:220px;height:90px;'
+        'padding:12px;border:1px solid;box-sizing:border-box;background:white">'
+        '<textarea id="field" style="display:block;width:160px;height:36px;'
+        'box-sizing:border-box;resize:none"></textarea></div>'
+        '<p id="evidence" style="position:fixed;left:10px;top:440px;'
+        'width:300px;height:30px;margin:0">Paint evidence</p>',
+        layout=None,
     )
     page = open_page(browser, serve(source))
     resized(page, 900, 600)
-    page.locator("#subject").evaluate(
-        "n=>scrollTo(0,n.getBoundingClientRect().top+scrollY-400)"
+    initial = "page" if destination == "window" else "window"
+    first = page.evaluate(
+        """async initial => {
+          const module = await window.__lfRuntimeImport('/runtime/annotation-overlay/floating.js');
+          const ui = await module.floatingUi();
+          const holder = document.querySelector('#holder');
+          const subject = document.querySelector('#subject');
+          let plane = initial, answer;
+          const selection = () => module.floatingSelections().find(s => s.floating === holder);
+          const owner = module.floatingPlacement({floating:holder, update:()=>void place()});
+          async function place() {
+            owner.begin();
+            const reference = {
+              contextElement:subject,
+              getBoundingClientRect:()=>plane === 'page'
+                ? subject.getBoundingClientRect() : new DOMRect(410,150,80,30),
+            };
+            const placed = await owner.position(ui.computePosition, reference,
+              {placement:'right-start',middleware:[]}, ()=>plane, subject);
+            if (placed) {owner.stand(placed); answer = placed;}
+          }
+          owner.watch(subject, subject, ui.autoUpdate);
+          await place();
+          const original = selection();
+          window.planeControl = {
+            to:async destination => {plane=destination; await place();},
+            read:() => {
+              const current = selection();
+              return {plane:current.plane, sameSubject:current.subject===original.subject,
+                sameAnchor:current.anchor===original.anchor, sameTenure:current.tenure===original.tenure,
+                expected:{x:answer.x,y:answer.y}};
+            },
+          };
+          return planeControl.read();
+        }""",
+        initial,
     )
-    rendered(page)
-    page.locator("#subject").click(modifiers=["Alt"], position={"x": 30, "y": 10})
-    page.locator(".lf-fab-input").type("Keep these words.")
-    rendered(page)
-    page.wait_for_function(
-        "document.querySelector('.lf-fab-bar').dataset.lfPlane==='page'"
-    )
-    page.evaluate("window.originalReturnScroll=scrollY")
-    if destination == "page":
-        page.evaluate("scrollBy(0,1500)")
-        scroll_settled(page)
-        page.wait_for_function(
-            "document.querySelector('.lf-fab-bar').dataset.lfPlane==='window'"
-        )
-        page.screenshot()
+    assert first["plane"] == initial
+    field, holder = page.locator("#field"), page.locator("#holder")
+    field.fill("Keep these words.")
+    paint(page)
+    judge_watches()
+    assert take_browser_errors(page) == []
     if guard_mode == "passive":
         page.keyboard.press("Shift")
-        page.evaluate(
-            "()=>new Promise(done=>requestAnimationFrame(()=>requestAnimationFrame(done)))"
-        )
-        page.screenshot()
-    before = page.locator(".lf-fab-input").bounding_box()
-    page.evaluate("window.beforeField=document.querySelector('.lf-fab-input')")
+        paint(page)
+    before, holder_before = field.bounding_box(), holder.bounding_box()
+    page.evaluate("window.beforeField=document.querySelector('#field')")
     page.evaluate("""()=>{
       window.nativePlaneEntries=[];
-      new PerformanceObserver(list=>nativePlaneEntries.push(...list.getEntries().map(e=>({at:e.startTime,sources:e.sources.map(s=>({kind:s.node?.nodeName,previous:s.previousRect.toJSON(),current:s.currentRect.toJSON()}))})))).observe({type:'layout-shift'});
+      new PerformanceObserver(list=>nativePlaneEntries.push(...list.getEntries().map(e=>({
+        at:e.startTime,sources:e.sources.map(s=>({kind:s.node?.nodeName,
+          previous:s.previousRect.toJSON(),current:s.currentRect.toJSON()}))
+      })))).observe({type:'layout-shift'});
     }""")
     page.evaluate(
         """([fault,destination])=>{
-      window.planeChanges=0;
-      const bar=document.querySelector('.lf-fab-bar');
-      let previous=bar.dataset.lfPlane;
-      new MutationObserver(()=>{
-        if(bar.dataset.lfPlane===previous) return;
-        previous=bar.dataset.lfPlane;
-        planeChanges++;
-        if(previous===destination) {
-          if(fault==='holder_x') bar.style.transform='translateX(80px)';
-          if(fault==='holder_y') bar.style.transform='translateY(80px)';
-          if(fault==='child_x') document.querySelector('.lf-fab-input').style.transform='translateX(80px)';
-          if(fault==='child_y') document.querySelector('.lf-fab-input').style.transform='translateY(80px)';
-          if(fault) document.querySelector('#evidence').style.marginLeft='30px';
-        }
-      }).observe(bar,{attributes:true,attributeFilter:['data-lf-plane']});
-    }""",
+          window.planeChanges=0;
+          const holder=document.querySelector('#holder');
+          let previous=holder.dataset.lfPlane;
+          new MutationObserver(()=>{
+            if(holder.dataset.lfPlane===previous) return;
+            previous=holder.dataset.lfPlane;
+            planeChanges++;
+            if(previous===destination) {
+              if(fault==='holder_x') holder.style.transform='translateX(80px)';
+              if(fault==='holder_y') holder.style.transform='translateY(80px)';
+              if(fault==='child_x') document.querySelector('#field').style.transform='translateX(80px)';
+              if(fault==='child_y') document.querySelector('#field').style.transform='translateY(80px)';
+              // Transform-only faults need a native paint signal; this extra source
+              // cannot establish the independently asserted field displacement.
+              if(fault) document.querySelector('#evidence').style.marginLeft='30px';
+            }
+          }).observe(holder,{attributes:true,attributeFilter:['data-lf-plane']});
+        }""",
         [fault, destination],
     )
-    if destination == "window":
-        page.evaluate("scrollBy(0,1500)")
+    if guard_mode == "typing":
+        field.evaluate(
+            "(node,destination)=>node.addEventListener('beforeinput',()=>void planeControl.to(destination),{once:true})",
+            destination,
+        )
+        page.keyboard.insert_text("x")
     else:
-        page.evaluate("scrollTo(0,originalReturnScroll)")
-    scroll_settled(page)
+        page.evaluate("destination=>planeControl.to(destination)", destination)
     page.wait_for_function(
-        "destination=>document.querySelector('.lf-fab-bar').dataset.lfPlane===destination",
-        arg=destination,
+        "destination=>planeControl.read().plane===destination", arg=destination
     )
-    page.screenshot()
-    assert page.evaluate("planeChanges") >= 1
+    paint(page)
+    state = page.evaluate("planeControl.read()")
+    assert state["sameSubject"] and state["sameAnchor"] and state["sameTenure"], state
+    assert page.evaluate("planeChanges") == 1
     judge_watches()
     errors = take_browser_errors(page)
     entries = page.evaluate("nativePlaneEntries")
     assert entries, (fault, guard_mode, destination, "no Chrome paint admission")
-    after = page.locator(".lf-fab-input").bounding_box()
-    assert page.evaluate("beforeField===document.querySelector('.lf-fab-input')")
+    after, holder_after = field.bounding_box(), holder.bounding_box()
+    assert page.evaluate("beforeField===document.querySelector('#field')")
     assert after["width"] == before["width"]
     assert after["height"] == before["height"]
+    assert holder_after["width"] == holder_before["width"]
+    assert holder_after["height"] == holder_before["height"]
+    assert state["expected"] != {axis: holder_before[axis] for axis in ["x", "y"]}
+    for axis in ["x", "y"]:
+        shifted = 80 if fault.endswith("_" + axis) else 0
+        assert holder_after[axis] == pytest.approx(
+            state["expected"][axis] + (shifted if fault.startswith("holder") else 0),
+            abs=1,
+        )
+        assert after[axis] == pytest.approx(
+            state["expected"][axis] + before[axis] - holder_before[axis] + shifted,
+            abs=1,
+        )
+    expected = (
+        "typing in textarea#field moved textarea#field"
+        if guard_mode == "typing"
+        else "textarea#field moved without input"
+    )
     if fault:
-        assert any(
-            "moved leaf-text.lf-ui.lf-response-control.lf-fab-input" in error
-            or "lf-fab-input moved without input" in error
-            for error in errors
-        ), (fault, errors)
+        assert any(expected in error for error in errors), (fault, errors)
     else:
         assert errors == [], errors
 

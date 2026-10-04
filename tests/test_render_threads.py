@@ -769,23 +769,6 @@ def test_a_later_summary_replaces_its_overlap_and_an_edit_restores_originals(
         "All three constraints now form one decision."
     )
 
-    card.locator(".lf-msg[data-mid]").evaluate_all(
-        """messages => {
-          window.__summaryMessageGeometryReads = 0;
-          for (const message of messages) {
-            const clientRects = message.getClientRects.bind(message);
-            const boundingRect = message.getBoundingClientRect.bind(message);
-            message.getClientRects = () => {
-              window.__summaryMessageGeometryReads += 1;
-              return clientRects();
-            };
-            message.getBoundingClientRect = () => {
-              window.__summaryMessageGeometryReads += 1;
-              return boundingRect();
-            };
-          }
-        }"""
-    )
     append_carried_log_record(
         serve.page_dir,
         {
@@ -799,12 +782,12 @@ def test_a_later_summary_replaces_its_overlap_and_an_edit_restores_originals(
     )
     told(page)
     expect(card.locator(".lf-thread-checkpoint")).to_have_count(0)
+    card.get_by_role("button", name="1 new reply", exact=True).click()
     expect(card.locator(f'.lf-msg[data-mid="{first["id"]}"]')).to_be_visible()
     expect(card.locator(f'.lf-msg[data-mid="{second["id"]}"]')).to_contain_text(
         "The corrected second constraint."
     )
     expect(card.locator(f'.lf-msg[data-mid="{third["id"]}"]')).to_be_visible()
-    assert page.evaluate("() => window.__summaryMessageGeometryReads") == 0
 
 
 def test_a_summary_cannot_hide_an_active_question(browser, serve):

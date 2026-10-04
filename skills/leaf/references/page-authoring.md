@@ -272,8 +272,10 @@ A workspace usually takes it, and so can a dense pane or table on a column page.
 
 A queue whose items open one at a time beside it, such as tickets, cases or findings to
 decide, is one `lf-tabs list="side"` as the body: its list is the queue and each item an
-`lf-tab`, so one opens beside the list and a link or an Ask opens its own. Write no
-script to select or hide an item; the tab set does both.
+`lf-tab`, so one opens beside the list and a link or an Ask opens its own, and a row
+whose item's Asks are all answered shows a check, with the picked answer beside it
+where the item holds one Ask. Write no script to select, hide or mark an item; the tab
+set does all three.
 
 The page itself does not scroll; a region does, where what it holds runs past it. Each
 pane's body scrolls on its own, and a widget that fills the body, such as a playground's

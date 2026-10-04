@@ -16,6 +16,7 @@ import { newAttempt } from "./drafts.js";
 import { saidNow } from "./presence.js";
 import { announce, notice } from "./notifications.js";
 import {
+  allAsks as readAllAsks,
   approvalBlockingAsks as readApprovalBlockingAsks,
   openAsks as readOpenAsks,
   unansweredAsks as readUnansweredAsks,
@@ -90,6 +91,7 @@ export function mountApplication(dependencies) {
   const currentReceipts = () => readApplication().authoritative?.browser.receipts ?? [];
   const pendingApprovals = () => readApplication().effective.pendingApprovals;
   const acceptedApprovals = () => readApplication().effective.acceptedApprovals;
+  const allAsks = readAllAsks;
   const openAsks = readOpenAsks;
   const unansweredAsks = readUnansweredAsks;
   const approvalBlockingAsks = readApprovalBlockingAsks;
@@ -559,6 +561,7 @@ export function mountApplication(dependencies) {
     mountThread: threadPresenter.mount,
     mountRead: read.mount,
     navigateToDatum: dependencies.anchorTravel.navigateToDatum,
+    allAsks,
     openAsks,
     unansweredAsks,
     pendingApprovals,
@@ -585,6 +588,7 @@ export function mountApplication(dependencies) {
   return application;
 }
 
+export const allAsks = (...args) => app().allAsks(...args);
 export const approvalBlockingAsks = (...args) => app().approvalBlockingAsks(...args);
 export const beginRead = (...args) => app().beginRead(...args);
 export const threadBox = (...args) => app().threadBox(...args);

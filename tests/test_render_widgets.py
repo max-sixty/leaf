@@ -766,8 +766,10 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     one at a time. Where the set holds both the list is a column left of the open panel,
     walked down as well as across; on a phone it is a row above the panel, so the open
     item never lands below the whole queue. A row carries its panel's summary under its
-    name. Answering an item's Ask moves no row. A tab's name is its label whatever
-    the row shows, and a panel bounds what it holds."""
+    name, and once its item's Ask is answered, the picked option's title beside the name,
+    said in the tab's description too; undoing the pick takes it back off. Answering
+    moves no row. A tab's name is its label whatever the row shows, and a panel bounds
+    what it holds."""
 
     BOARD = (
         '<lf-board id="board">'
@@ -830,10 +832,21 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     page.keyboard.press("ArrowUp")
     expect(tabs.first).to_have_attribute("aria-selected", "true")
 
+    answer = page.locator("#queue .lf-tab-btn").first.locator(".lf-tab-answer")
+    expect(answer).not_to_be_visible()
     page.locator("#o-a-fix .lf-pick").click()
     told(page)
-    expect(tabs.first).to_have_text("Ticket asev a · suggested fix")
+    expect(answer).to_be_visible()
+    expect(answer).to_have_text("Fix")
+    expect(tabs.first).to_have_accessible_name("Ticket a")
+    expect(tabs.first).to_have_accessible_description(
+        "sev a · suggested fix. Answered: Fix"
+    )
+    expect(tabs.nth(1)).to_have_accessible_description("sev b · suggested fix")
     assert page.evaluate(rows) == heights
+    undo(page)
+    expect(answer).not_to_be_visible()
+    expect(tabs.first).to_have_accessible_description("sev a · suggested fix")
 
     resized(page, 390, 844)
     narrow = page.evaluate(boxes)

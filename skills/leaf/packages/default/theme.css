@@ -1420,13 +1420,47 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
     border-radius: calc(var(--r) - 1px) 0 0 calc(var(--r) - 1px);
     align-self: stretch;
   }
-    /* A row is its name, then its diff count, with the summary on a line under them. */
+    /* A row is its name, then its answer, then its diff count, with the summary on a
+     * line under them. The answer's column always keeps room for its check, so an answer
+     * moves no row; its words take what the name leaves and are cut there, since the
+     * tab's description carries them whole. */
   :scope:is(lf-tabs)[list="side"].lf-rendered > .lf-tabstrip .lf-tab-btn {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, max-content) minmax(1.25em, 1fr) auto;
     align-items: baseline;
     justify-items: start;
     text-align: start;
+  }
+  :scope:is(lf-tabs)[list="side"].lf-rendered > .lf-tabstrip .lf-tab-answer {
+    grid-column: 2;
+    grid-row: 1;
+    display: flex;
+    gap: 0.3em;
+    max-inline-size: 100%;
+    min-inline-size: 0;
+    font-size: var(--t-6);
+    font-weight: 600;
+    color: var(--ink-2);
+  }
+  :scope:is(lf-tabs)[list="side"].lf-rendered > .lf-tabstrip .lf-tab-answer::before {
+    content: "✓" / "";
+    flex: none;
+    color: var(--ok-ink);
+  }
+  :scope:is(lf-tabs)[list="side"].lf-rendered
+    > .lf-tabstrip
+    .lf-tab-answer:not([data-lf-answered]) {
+    visibility: hidden;
+  }
+  :scope:is(lf-tabs)[list="side"].lf-rendered > .lf-tabstrip .lf-tab-answer-words {
+    min-inline-size: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  :scope:is(lf-tabs)[list="side"].lf-rendered > .lf-tabstrip .lf-tabdiff {
+    grid-column: 3;
+    grid-row: 1;
   }
   :scope:is(lf-tabs)[list="side"].lf-rendered > .lf-tabstrip .lf-tab-summary {
     grid-column: 1 / -1;
@@ -1447,6 +1481,14 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
       border-radius: calc(var(--r) - 1px) calc(var(--r) - 1px) 0 0;
     }
     :scope:is(lf-tabs)[list="side"].lf-rendered > lf-tab { grid-column: 1 / -1; grid-row: auto; }
+      /* A row in a wrapping line is as wide as what it says, so its answer is the check
+       * alone: words would widen the row and move the rows after it. */
+    :scope:is(lf-tabs)[list="side"].lf-rendered > .lf-tabstrip .lf-tab-btn {
+      grid-template-columns: minmax(0, max-content) 1.25em auto;
+    }
+    :scope:is(lf-tabs)[list="side"].lf-rendered > .lf-tabstrip .lf-tab-answer-words {
+      display: none;
+    }
   }
 
     /* A set in the page's flow (the root set, its strip a row; lf-tabs.js) is

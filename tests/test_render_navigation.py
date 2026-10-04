@@ -1046,7 +1046,9 @@ def test_review_queue_decisions_replay_and_reach_the_next_revision_from_the_keyb
     expect(page.locator("#review-detail > footer")).to_contain_text(
         "This revision incorporates both answers"
     )
-    expect_asks_answered(page, "0/0")
+    # The revision settles both questions; the Ask reading keeps an Ask the user
+    # answered after a later version settles it (`asks.py`, the "decided" reading).
+    expect_asks_answered(page, "2/2")
 
     actions = [
         event
@@ -1190,7 +1192,9 @@ def test_comparison_choice_replays_and_is_applied_by_the_next_revision(browser, 
         "enables shared refreshes for web clients"
     )
     expect(page.locator("#comparison-policy")).to_have_attribute("settled", "")
-    expect_asks_answered(page, "0/0")
+    # The Ask reading keeps an Ask the user answered after a later version settles it
+    # (`asks.py`, the interim "decided" reading).
+    expect_asks_answered(page, "1/1")
 
     actions = [
         event
@@ -3191,10 +3195,26 @@ def test_the_queue_panel_lists_both_queues_and_what_is_done(browser, serve):
     )
     page = open_page(browser, url)
     resized(page, 1280, 900)
+    panel = page.locator(".lf-queue-panel")
+
+    # The banner's counts are the panel's door on the row: a press opens what they count
+    # and another takes it down, and closing it from inside hands focus back to them.
+    counts = page.locator(".lf-status-queues")
+    expect(counts).to_have_text(re.compile(r"^2 on you · 2 on \S+$"))
+    counts.click()
+    expect(panel).to_be_visible()
+    expect(counts).to_have_attribute("aria-expanded", "true")
+    counts.click()
+    expect(panel).to_be_hidden()
+    expect(counts).to_have_attribute("aria-expanded", "false")
+    counts.click()
+    expect(panel).to_be_visible()
+    page.get_by_role("button", name="Close queue").click()
+    expect(panel).to_be_hidden()
+    expect(counts).to_be_focused()
 
     page.keyboard.press("g")
     page.keyboard.press("Shift+q")
-    panel = page.locator(".lf-queue-panel")
     expect(panel).to_be_visible()
     rows = page.evaluate(QUEUE_ROW_SAYS)
     assert [(row["list"], row["kind"], row["title"]) for row in rows] == [

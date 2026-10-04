@@ -476,10 +476,16 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      room, apart from the sentence, in a box reserved for the counts they usually reach
      (banner.js), which only grows. Their words start at its fixed leading edge in
      tabular digits, so a count changing moves none of them, and a sentence changing
-     reaches them only as the press's ellipsis. */
+     reaches them only as the press's ellipsis. They are a press of their own, opening the
+     Queue panel, in the status press's face and ring. */
   .lf-banner-status > .lf-status-queues { flex: none; margin-inline-start: auto;
-    min-width: var(--lf-reserved-width, 0); white-space: nowrap; line-height: 1.35;
+    min-width: var(--lf-reserved-width, 0); min-height: var(--aim-floor);
+    padding: 2px 0; border: 0; border-radius: 4px; background: none; font: inherit;
+    text-align: left; cursor: pointer; white-space: nowrap; line-height: 1.35;
     font-variant-numeric: tabular-nums; color: var(--ink-2); }
+  .lf-banner-status > .lf-status-queues:hover { color: var(--ink); }
+  .lf-banner-status > .lf-status-queues:is(:focus-visible, .lf-focus-visible) {
+    outline: var(--focus-ring); outline-offset: 2px; --lf-focus-ring: status; }
   .lf-status-button:hover { color: var(--ink); }
   .lf-status-button:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring);
     outline-offset: 2px; --lf-focus-ring: status; }

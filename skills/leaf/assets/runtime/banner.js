@@ -28,6 +28,8 @@ banner.id = "lf-banner";
 declareBanner(banner);
 const bannerStatus = createBannerStatusView(repaint);
 export const dot = bannerStatus.dot;
+// The queue counts, which open the Queue panel they count (drawers.js).
+export const queueCounts = bannerStatus.queues;
 
 export const toggleBtn = el(
   "button",
@@ -245,7 +247,7 @@ let saidActionableWork;
 // Threads control is for "Threads: 999", and only grows, so a count changing moves none
 // of their words. They are read from the application's publication rather than the
 // state answer: a reply the user sends leaves their count and joins the agent's in the
-// turn it is sent.
+// turn it is sent. A press on them opens the Queue panel, which lists what they count.
 const QUEUE_WORDS = Object.freeze({
   ask: ["Ask", "Asks"],
   question: ["question", "questions"],
@@ -276,9 +278,10 @@ function queueWords() {
   return {
     summary: [said(onYou, "you"), said(onAgent, agent)].filter(Boolean).join(" · "),
     explanation: [named(onYou, "you"), named(onAgent, agent)].filter(Boolean).join(" "),
-    // The widest the counts usually reach, under ten a side, which their box keeps;
-    // more widens it once (banner-status-view.js).
-    widest: `9 on you · 9 on ${agent}`,
+    // The widest the counts reach in use, under a hundred a side, which their box
+    // keeps. The counts are a press, and news must not move one, so a page's ordinary
+    // traffic stays inside it; more widens it once (banner-status-view.js).
+    widest: `99 on you · 99 on ${agent}`,
   };
 }
 const WITHOUT_QUEUES = new Set(["broken", "unreachable", "publication"]);

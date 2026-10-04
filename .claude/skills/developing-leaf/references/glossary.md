@@ -101,7 +101,7 @@ stylesheet decides whether their bodies scroll.
 | Term | Identity criterion |
 |---|---|
 | **Chrome** | Runtime-owned interface outside authored content, rooted at the one `.lf-chrome` container |
-| **Banner** | The persistent chrome row carrying page status, which ends with the two queues' counts, and the primary Approval and Threads controls, with secondary global controls in its overflow disclosure. While a user's gesture holds a next step, such as Comment on selection after a touch selection or Exit Draw mode while a finger is in Draw mode, that step stands on the row in Approval and Threads' place |
+| **Banner** | The persistent chrome row carrying page status, which ends with the two queues' counts (a press on them opens the Queue panel), and the primary Approval and Threads controls, with secondary global controls in its overflow disclosure. While a user's gesture holds a next step, such as Comment on selection after a touch selection or Exit Draw mode while a finger is in Draw mode, that step stands on the row in Approval and Threads' place |
 | **Bottom bar** | The row at the window's foot, at one stated height (`--lf-bottom-bar-h`), holding the shortcut bar and the status; the page ends above it as it starts below the banner |
 | **Auxiliary surface** | Chrome opened `beside`, `over`, or `covering` the content frame |
 | **Thread panel** | The right-side auxiliary surface containing threads; it stands over the page and takes no width from it, and covers the page only where it leaves less than a usable page beside it |

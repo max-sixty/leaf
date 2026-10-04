@@ -119,6 +119,7 @@ import {
   loadIcon,
   mountBanner,
   paintApproval,
+  queueCounts,
   renderStatus,
   setThreadCounts,
   stateSignoff,
@@ -760,6 +761,7 @@ if (window.frameElement?.hasAttribute("data-lf-contained")) {
   };
 }
 drawers = createDrawers({
+  doors: { queue: [queueCounts] },
   landEdge: layout.landEdge,
   auxiliarySurfaces,
   closePreview: app.overlay?.closePreview,

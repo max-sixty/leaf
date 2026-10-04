@@ -8494,7 +8494,9 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve):
     )
     stamp_page(d, honoring, "input absorbed")
     wait_for_revision(page, 2)
-    expect_asks_answered(page, "0/4")
+    # The Ask reading keeps an Ask the user answered after a later version settles it
+    # (`asks.py`, the interim "decided" reading).
+    expect_asks_answered(page, "1/5")
     expect_banner_control_offered(page.locator(".lf-queue"))
     expect(page.locator("#ledger-cargo")).not_to_have_attribute("needed")
     expect(page.locator("#ledger-cargo")).not_to_have_attribute("data-lf-user-override")

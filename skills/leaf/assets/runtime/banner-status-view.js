@@ -6,7 +6,9 @@
  * queue counts (`queues`) stand outside the press, at the status's trailing edge, in a
  * box reserved for the counts they usually reach (`queuesWidest`), so the sentence
  * changing never carries them and their changing moves nothing. Counts past that
- * widen the box once, and it keeps the width while the page is open.
+ * widen the box once, and it keeps the width while the page is open. The counts are a
+ * press, one of the Queue panel's doors (drawers.js wires it), so the panel they count
+ * is one press from the row they are read on.
  */
 import { html, nothing, render } from "../vendor/browser-runtime.js";
 import { el, reserve } from "./widget-elements.js";
@@ -28,7 +30,7 @@ class BannerStatusView extends HTMLElement {
   #detail = el("div", "lf-ui lf-status-detail");
   #dot = el("span", "lf-dot");
   #onToggle = null;
-  #queues = el("span", "lf-status-queues");
+  #queues = el("button", "lf-status-queues");
   #queuesWidest = "";
   #queuesReserved = "";
   #text = el("span", "lf-status-text");
@@ -38,6 +40,10 @@ class BannerStatusView extends HTMLElement {
     this.#button.type = "button";
     this.#button.setAttribute("aria-expanded", "false");
     this.#button.setAttribute("aria-describedby", "lf-status-detail");
+    this.#queues.type = "button";
+    this.#queues.title = "Show or hide the Queue panel";
+    this.#queues.setAttribute("aria-controls", "lf-queue");
+    this.#queues.setAttribute("aria-expanded", "false");
     this.#detail.id = "lf-status-detail";
     this.#detail.tabIndex = -1;
     this.#detail.setAttribute("popover", "auto");
@@ -62,6 +68,10 @@ class BannerStatusView extends HTMLElement {
 
   get dot() {
     return this.#dot;
+  }
+
+  get queues() {
+    return this.#queues;
   }
 
   present(model) {

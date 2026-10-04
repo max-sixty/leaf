@@ -20,10 +20,17 @@
    of a page widget move the user must send again, stands at that element
    (`declareSide`), so a walk or a comment from a focused row starts there.
 
+   The banner's queue counts open it, as do the Queue control in More (a finger's
+   route) and `g Shift+Q`.
+
    Rows join, leave and change only while the panel is open, and the list holds its
    focus across them (`RowFocus`); a closed panel holds no rows. The panel is offered
    while any list has an item, or while it stands so its control can still close it. */
-import { addressableLabel, addressableName } from "./anchor-resolution.js";
+import {
+  addressableLabel,
+  addressableName,
+  addressableWord,
+} from "./anchor-resolution.js";
 import {
   queueBtn,
   queueList,
@@ -55,7 +62,9 @@ import { threadSummary } from "./thread/model.js";
 import { workflowLabel } from "./thread/workflow.js";
 import { walkPositionLabel } from "./walk-position.js";
 
-// The kind of item, in the row's apparatus voice.
+// The kind of item, in the row's apparatus voice. An Ask says what kind of thing is
+// asking, in its widget's own word ("Deletion", "Options"), and "Ask" where its
+// element is not built.
 const WORDS = Object.freeze({
   ask: "Ask",
   question: "Question",
@@ -66,6 +75,12 @@ const WORDS = Object.freeze({
 });
 const OUTCOMES = Object.freeze({ done: "Done", failed: "Failed", dropped: "Dropped" });
 const HEADINGS = "h1, h2, h3, h4, h5, h6";
+const capital = (words) => words.charAt(0).toUpperCase() + words.slice(1);
+
+function askWord(item) {
+  const word = addressableWord(elementById(item.id));
+  return word ? capital(word) : WORDS.ask;
+}
 
 // The section a page element stands in: the last heading before it whose parent also
 // holds it, so a heading inside an earlier Ask, or one closing an earlier section, is
@@ -147,7 +162,7 @@ export function createQueuePanel({ arriveAtItem, announce }) {
   }
   function row(item, list) {
     const thread = threadOf(item.thread);
-    const word = WORDS[item.kind];
+    const word = item.kind === "ask" ? askWord(item) : WORDS[item.kind];
     const where = (
       list === "done"
         ? [ended(item), place(item, thread)]

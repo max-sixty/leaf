@@ -132,6 +132,7 @@ export const queueRows = () =>
   );
 
 export function createDrawers({
+  doors = {},
   landEdge,
   auxiliarySurfaces,
   closePreview,
@@ -153,7 +154,18 @@ export function createDrawers({
   function setOpenDrawer(key, options) {
     if (key || currentDrawer()) auxiliarySurfaces.select(key, options);
   }
+  // A drawer's control is its door, and a drawer may have more than one: the Queue
+  // panel's is also the banner's queue counts. Every door says whether the drawer
+  // stands, and closing hands focus back to the door the user opened it from, where that
+  // door is still on screen, else to the control (through More where it is folded).
   function registerDrawer(key, panel, btn, close, paint) {
+    const entrances = [btn, ...(doors[key] ?? [])];
+    const returnDoor = () => {
+      const opened = drawers.get(key)?.openedBy;
+      return opened && opened !== btn && opened.checkVisibility()
+        ? opened
+        : bannerControlDoor(btn);
+    };
     auxiliarySurfaces.registerAuxiliarySurface({
       key,
       surface: panel,
@@ -170,7 +182,7 @@ export function createDrawers({
       show({ phase }) {
         dismissBannerControls();
         closePreview?.();
-        keeps(btn, "aria-expanded", "true");
+        for (const door of entrances) keeps(door, "aria-expanded", "true");
         // Filled before it is shown, so the drawer is its own list from the first frame of
         // the slide rather than a blank card that populates a moment later. The way down
         // is the mirror of it, below: emptied once it is hidden, never before, or the
@@ -180,11 +192,13 @@ export function createDrawers({
         if (phase === "gesture") slide(panel, "left", "in");
       },
       hide({ returnFocus }) {
-        keeps(btn, "aria-expanded", "false");
+        for (const door of entrances) keeps(door, "aria-expanded", "false");
         if (!panel.classList.contains("open")) return;
         // Before the slide, which makes the drawer inert and would drop focus to body.
         if (returnFocus && panel.contains(document.activeElement))
-          handBack(bannerControlDoor(btn));
+          handBack(returnDoor());
+        // The door a press opened it from is that opening's, not the next one's.
+        drawers.get(key).openedBy = null;
         // Slid out before hidden, and hidden only if still closed on arrival — a
         // reopen mid-slide leaves the panel standing rather than racing the finish.
         const out = slide(panel, "left", "out");
@@ -197,7 +211,7 @@ export function createDrawers({
         else hide();
       },
     });
-    drawers.set(key, { panel, btn, close });
+    drawers.set(key, { panel, btn, close, entrances, openedBy: null });
   }
   // The painters are thunks: each drawer's owner imports this module back, so neither
   // painter is a binding this module can read as it evaluates.
@@ -218,11 +232,16 @@ export function createDrawers({
   function mountDrawers() {
     drawersEdge.handle(othersPanel, () => othersBtn);
     drawersEdge.handle(queuePanel, () => queueBtn);
-    for (const [key, { btn, close }] of drawers) {
-      btn.classList.add("lf-auxiliary-toggle");
-      btn.onclick = () => setOpenDrawer(drawerIsOpen(key) ? null : key);
-      close.onclick = () => setOpenDrawer(null);
-      btn.setAttribute("aria-expanded", "false");
+    for (const [key, drawer] of drawers) {
+      drawer.btn.classList.add("lf-auxiliary-toggle");
+      for (const door of drawer.entrances) {
+        door.onclick = () => {
+          drawer.openedBy = door;
+          setOpenDrawer(drawerIsOpen(key) ? null : key);
+        };
+        door.setAttribute("aria-expanded", "false");
+      }
+      drawer.close.onclick = () => setOpenDrawer(null);
     }
     keys(
       queuePanel,

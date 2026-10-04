@@ -9603,43 +9603,37 @@ def test_a_thread_on_a_widget_an_agent_sent_names_it_and_stands_apart(browser, s
 
 
 def test_a_change_says_which_of_the_three_it_is(browser, serve):
-    """What the chrome calls an element away from the page is its kind and then its own
-    opening words, and for a change those opening words are whichever half comes first —
-    the current text, where there is one. So a deletion was named by the words it was
+    """A Queue row names its Ask by kind and then by the decision's own opening words,
+    and for a change those opening words are whichever half comes first — the current
+    text, where there is one. So a deletion arrived in the list under the words it was
     proposing to remove, with nothing to tell it from the insertion above it, which was
     proposing to add its own. Three shapes, one tag, one word for all of them.
 
     The tag is the right word wherever one tag is one kind of thing, which is every
-    other widget here, so the fix is not to teach each surface about suggestions: the
+    other widget here, so the fix is not to teach the Queue about suggestions: the
     entry declares that this tag's word comes from its module (x-word), and the module
-    reads it off the slots it holds. Read here through the two readings every surface
-    naming an element takes (a comment's anchor, the Page Map). The group below holds
-    the other half of that — a widget declaring nothing still gets its tag, and would go
-    on getting it if the declaration were dropped."""
+    reads it off the slots it holds. The group below is in this page to hold the other
+    half of that — a widget declaring nothing still gets its tag, and would go on
+    getting it if the declaration were dropped."""
     page = open_page(browser, serve(CHANGE_SHAPES_PAGE))
-    said = page.evaluate(
-        """async () => {
-          const { addressableLabel, addressableWord } = await window.__lfRuntimeImport(
-            '/runtime/anchor-resolution.js');
-          const ids = ['sug-rewrite', 'sug-insert', 'sug-delete', 'shapes-decision'];
-          return Object.fromEntries(ids.map((id) => {
-            const el = document.getElementById(id);
-            return [id, { kind: addressableWord(el), says: addressableLabel(el) }];
-          }));
-        }"""
-    )
+    resized(page, 1200, 900)
 
-    assert {at: row["kind"] for at, row in said.items()} == {
-        "sug-rewrite": "rewrite",
-        "sug-insert": "insertion",
-        "sug-delete": "deletion",
-        "shapes-decision": "ask",
+    banner_control(page, ".lf-queue").click()
+    expect(page.locator(".lf-queue-panel")).to_be_visible()
+    rows = [row for row in page.evaluate(QUEUE_ROW_SAYS) if row["kind"] == "ask"]
+
+    assert {r["at"]: r["word"] for r in rows} == {
+        "sug-rewrite": "Rewrite",
+        "sug-insert": "Insertion",
+        "sug-delete": "Deletion",
+        "shapes-decision": "Ask",
     }
     # The words beside the kind are still the element's own, and the two changes that
     # keep a current paragraph still open on it — the reading did not move, only what
     # is said about it.
-    assert said["sug-delete"]["says"].startswith("Retries are logged"), said
-    assert said["sug-insert"]["says"].startswith("Parked jobs"), said
+    said = {r["at"]: r["title"] for r in rows}
+    assert said["sug-delete"].startswith("Retries are logged"), said
+    assert said["sug-insert"].startswith("Parked jobs"), said
 
 
 def test_the_queue_control_opens_open_and_answered_asks(browser, serve):
@@ -9668,6 +9662,7 @@ def test_the_queue_control_opens_open_and_answered_asks(browser, serve):
     ]
     for row in rows:
         assert row["kind"] == "ask", row
+        assert row["word"] == ("Rewrite" if row["at"] == "sug-refill" else "Ask"), row
         if row["list"] == "you":
             assert row["w"] > 100 and row["h"] > 20, f"{row['at']}'s row has no size"
 

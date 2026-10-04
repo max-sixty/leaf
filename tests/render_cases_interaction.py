@@ -707,6 +707,7 @@ QUEUE_ROW_SAYS = """() => [...document.querySelectorAll('button.lf-queue-row')].
   at: r.getAttribute('data-lf-at'),
   list: r.closest('[data-lf-queue]').dataset.lfQueue,
   kind: r.dataset.lfKind,
+  word: r.querySelector('.lf-queue-kind').textContent,
   title: r.querySelector('.lf-queue-title').textContent,
   where: r.querySelector('.lf-queue-where').textContent,
   w: Math.round(r.getBoundingClientRect().width),

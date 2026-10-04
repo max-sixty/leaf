@@ -1522,6 +1522,7 @@ def test_a_tab_whose_key_is_refused_keeps_its_moves_and_names_the_link(browser, 
     expect(page.locator(".lf-status-text")).to_have_text(
         "Key refused — open Leaf's link in a new tab"
     )
+    expect(page.locator(".lf-notice")).to_contain_text("open Leaf's link in a new tab")
     expect(page.locator(".lf-status-detail")).to_contain_text(
         "Open the link Leaf printed in a new tab"
     )

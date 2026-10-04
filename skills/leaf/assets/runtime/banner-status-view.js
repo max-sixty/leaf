@@ -3,11 +3,12 @@
  * `banner.js` derives one immutable reading. This synchronous light-DOM Lit view
  * retains the native disclosure controls while placing them in the ordinary and
  * publication layouts; no outside code writes or reparents anything inside it. The
- * queue counts (`queues`) stand outside the press, at the status's trailing edge, so
- * the sentence changing never carries them and their changing never carries it.
+ * queue counts (`queues`) stand outside the press, at the status's trailing edge, in a
+ * box reserved for the counts they usually reach (`queuesWidest`), so the sentence
+ * changing never carries them and their changing moves nothing.
  */
 import { html, nothing, render } from "../vendor/browser-runtime.js";
-import { el } from "./widget-elements.js";
+import { el, reserve } from "./widget-elements.js";
 import { keeps } from "./keeps.js";
 
 // `lf-*` is reserved for authored widgets. This is generated runtime chrome.
@@ -16,6 +17,7 @@ const INITIAL = Object.freeze({
   tone: "",
   summary: "Connecting…",
   queues: "",
+  queuesWidest: "",
   explanation: "Connecting…",
   publication: null,
 });
@@ -26,6 +28,7 @@ class BannerStatusView extends HTMLElement {
   #dot = el("span", "lf-dot");
   #onToggle = null;
   #queues = el("span", "lf-status-queues");
+  #queuesWidest = "";
   #text = el("span", "lf-status-text");
 
   constructor() {
@@ -103,6 +106,10 @@ class BannerStatusView extends HTMLElement {
     render(html`${this.#dot}${this.#text}`, this.#button);
     render(model.summary, this.#text);
     render(model.queues, this.#queues);
+    if (model.queues && model.queuesWidest !== this.#queuesWidest) {
+      this.#queuesWidest = model.queuesWidest;
+      reserve(this.#queues, [model.queuesWidest]);
+    }
   }
 }
 

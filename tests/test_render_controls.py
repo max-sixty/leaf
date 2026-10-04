@@ -4152,10 +4152,10 @@ def test_the_status_press_grows_into_free_room_and_moves_nothing(browser, serve,
     beside = page.evaluate(BANNER_WATCH, f":is({NEIGHBOUR}):not(.lf-status-button)")
     assert any("lf-banner-more" in name for name in beside["names"]), beside["names"]
 
-    # The page's suggestions wait on the user, so the queue count follows the
-    # sentence in the press and takes its share of the room.
+    # The page's suggestions wait on the user, so the queue count stands at the
+    # status's trailing edge in its reserved box and takes that share of the room.
     expect(page.locator(".lf-status-queues")).to_have_text("3 on you")
-    longer = say("running tests")
+    longer = say("testing")
     assert longer["shown"] >= longer["needed"], longer
     assert (longer["left"], longer["top"]) == (short["left"], short["top"])
     assert longer["right"] > short["right"], (short, longer)

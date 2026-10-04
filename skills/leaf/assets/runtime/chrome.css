@@ -473,11 +473,13 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     transform: rotate(45deg); margin: -3px 0 0 -4px; }
   .lf-status-button > .lf-status-text { order: 1; }
   /* The queue counts are page facts, like the Threads count, so they stand at the
-     status room's trailing edge, beside the controls, at their own width. Anchored to
-     an edge that never moves, a count changing grows them leftward and a sentence
-     changing reaches them only as the press's ellipsis. */
+     status room's trailing edge, beside the controls, in a box reserved for the counts
+     they usually reach (banner.js). Their words start at its fixed leading edge, so a
+     count changing moves none of them, and a sentence changing reaches them only as
+     the press's ellipsis. */
   .lf-banner-status > .lf-status-queues { flex: none; margin-inline-start: auto;
-    white-space: nowrap; line-height: 1.35; color: var(--ink-2); }
+    min-width: var(--lf-reserved-width, 0); white-space: nowrap; line-height: 1.35;
+    color: var(--ink-2); }
   .lf-status-button:hover { color: var(--ink); }
   .lf-status-button:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring);
     outline-offset: 2px; --lf-focus-ring: status; }

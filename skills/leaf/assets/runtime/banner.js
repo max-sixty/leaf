@@ -241,9 +241,10 @@ let saidActionableWork;
 // kinds and each open task's title. They are page facts, like the Threads count, and
 // stand apart from the sentence so the agent's words changing never carries them; the
 // sentence gives up its room to the ellipsis first, so on a narrow row the counts stay
-// whole. They are read from the application's publication rather than the state
-// answer: a reply the user sends leaves their count and joins the agent's in the turn
-// it is sent.
+// whole. Their box is reserved for the counts they usually reach, as the Threads control
+// is for "Threads: 999", so a count changing moves none of their words. They are read
+// from the application's publication rather than the state answer: a reply the user
+// sends leaves their count and joins the agent's in the turn it is sent.
 const QUEUE_WORDS = Object.freeze({
   ask: ["Ask", "Asks"],
   question: ["question", "questions"],
@@ -274,6 +275,9 @@ function queueWords() {
   return {
     summary: [said(onYou, "you"), said(onAgent, agent)].filter(Boolean).join(" · "),
     explanation: [named(onYou, "you"), named(onAgent, agent)].filter(Boolean).join(" "),
+    // The widest the counts usually reach, under ten a side, which their box keeps;
+    // more widens it for as long as they last.
+    widest: `9 on you · 9 on ${agent}`,
   };
 }
 const WITHOUT_QUEUES = new Set(["broken", "unreachable", "publication"]);
@@ -283,7 +287,7 @@ const presentStatus = (status) => {
   const { kind, tone, summary, publication = null, actionableWork = null } = status;
   let { explanation } = status;
   const queues = WITHOUT_QUEUES.has(kind)
-    ? { summary: "", explanation: "" }
+    ? { summary: "", explanation: "", widest: "" }
     : queueWords();
   if (queues.explanation)
     explanation = `${explanation}${explanation.endsWith(".") ? "" : "."} ${queues.explanation}`;
@@ -307,6 +311,7 @@ const presentStatus = (status) => {
       tone,
       summary,
       queues: queues.summary,
+      queuesWidest: queues.widest,
       explanation,
       publication: publicationModel,
     }),

@@ -1,4 +1,5 @@
 import {
+  openAsks,
   pageScroller,
   readingPosture,
   readingRegions,
@@ -120,8 +121,9 @@ const AUTHORED_PANE = '[data-lf-reading-role="pane"]:not([data-lf-generated])';
 // which the Layout marks (`--lf-reading-region: layout`, layouts.css). A bounded block
 // declares that it scrolls, and a widget's own regions are its to hold, so neither is
 // here. A workspace the window is too small to hold flows and scrolls as a page, and is
-// no screen. Each comes back with its id, the name every finding uses, and how far its
-// body runs past its scrollport.
+// no screen. Each comes back with its id, the name every finding uses, how far its
+// body runs past its scrollport, and how many of the Asks still open to the user it
+// holds: a region stacking several is a queue read as one long scroll.
 export function overflowingRegions() {
   const main = document.querySelector("body > main.layout-workspace");
   if (
@@ -134,12 +136,24 @@ export function overflowingRegions() {
     (host.parentElement === main &&
       getComputedStyle(host).getPropertyValue("--lf-reading-region").trim() ===
         "layout");
+  // Shown ones only: a queue's closed items hold open Asks too, and a region that
+  // already is the queue is not stacking them.
+  const asks = openAsks()
+    .map((ask) => document.getElementById(ask.id))
+    .filter((ask) => ask?.checkVisibility());
   return readingRegions().flatMap((region) => {
     if (!main.contains(region.host) || !screenRegion(region.host)) return [];
     if (!shownRegionBounds(region) || readingPosture(region) !== "bounded") return [];
     const over = region.body.scrollHeight - region.body.clientHeight;
     return over > 1
-      ? [{ id: region.id, at: element(region.host), over: Math.round(over) }]
+      ? [
+          {
+            id: region.id,
+            at: element(region.host),
+            over: Math.round(over),
+            asks: asks.filter((ask) => region.body.contains(ask)).length,
+          },
+        ]
       : [];
   });
 }

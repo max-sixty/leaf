@@ -2033,6 +2033,54 @@ def test_authored_blocks_choose_column_wide_or_available_space(browser, serve):
     assert root_overflow(page) == 0
 
 
+def test_named_wide_is_the_evidence_width_in_every_layout(browser, serve):
+    """`wide` is the shared capped evidence width wherever a block stands. A wide
+    Layout's track and a workspace pane are wider than `--wide` at a large window, so
+    the breakout's growth alone left a named-wide block at the holder's width there:
+    1598px in `layout-wide` and 1442px in a pane at 1726px. The cap holds an authored
+    occurrence and a package default (a board) alike, at the page's own `--wide`, while
+    a block that names no width still fills its holder and `available` takes it all. A
+    narrow window's pane still bounds the wide block."""
+    blocks = """
+<div id="named" data-width="wide">Named wide.</div>
+<lf-board id="board"><lf-column id="todo" label="Todo"><lf-card id="card">One</lf-card></lf-column></lf-board>
+<div id="plain">No width named.</div>
+<div id="available" data-width="available">Available.</div>
+"""
+    wide_page = leaf_page("Wide track", blocks, layout="wide")
+    workspace_page = leaf_page(
+        "Workspace pane",
+        f'<lf-pane id="pane" label="Evidence"><div id="holder">{blocks}</div></lf-pane>',
+        layout="workspace",
+    )
+    configured = leaf_page(
+        "Configured width",
+        blocks,
+        head="<style>:root { --wide: 900px; }</style>",
+        layout="wide",
+    )
+    measure = """() => Object.fromEntries(
+      ['named', 'board', 'plain', 'available'].map(id => {
+        const box = document.getElementById(id).getBoundingClientRect();
+        return [id, {width: Math.round(box.width), left: Math.round(box.left)}];
+      }))"""
+    for source, cap in ((wide_page, 1080), (workspace_page, 1080), (configured, 900)):
+        page = open_page(browser, serve(source))
+        resized(page, 1726, 900)
+        at = page.evaluate(measure)
+        assert at["plain"]["width"] > cap + 200, at
+        assert at["available"]["width"] == at["plain"]["width"], at
+        for capped in ("named", "board"):
+            assert at[capped]["width"] == pytest.approx(cap, abs=1), (capped, at)
+            assert at[capped]["left"] == at["plain"]["left"], (capped, at)
+        assert root_overflow(page) == 0
+
+        resized(page, 540, 720)
+        narrow = page.evaluate(measure)
+        assert narrow["named"]["width"] == narrow["plain"]["width"] < 540, narrow
+        assert root_overflow(page) == 0
+
+
 def test_a_sample_fills_the_room_its_authored_width_takes(browser, serve):
     """The breakout rule widens a block by negative margins, which an auto-width box
     fills and a box with a width of its own does not. A sample is a table box with a

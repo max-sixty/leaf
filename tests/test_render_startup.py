@@ -6158,6 +6158,78 @@ def test_user_view_context_reads_the_documents_forced_scheme(browser, serve):
     assert observed["checks"]["color_scheme"] == "dark"
 
 
+def test_user_view_context_waits_for_a_samples_viewport_allocation(browser, serve):
+    """A connected sample reports real allocated views, never a zero-sized one."""
+    source = leaf_page(
+        "Sample view",
+        """<h1>Sample view</h1>
+<lf-sample id="practice" label="Practice">
+  <template id="practice-source" data-sample>
+    <h2>Contained page</h2><p>Read this in its allocated viewport.</p>
+  </template>
+</lf-sample>""",
+    )
+    page = open_page(browser, serve(source))
+    element = page.locator("#practice iframe")
+    frame = element.element_handle().content_frame()
+    wait_until_ready(frame)
+    rendered(frame)
+    view_url = urljoin(frame.url, "api/user-view")
+    reports = []
+    page.on(
+        "request",
+        lambda request: (
+            reports.append(request.post_data_json) if request.url == view_url else None
+        ),
+    )
+
+    def accepted(response):
+        return response.url == view_url and response.status == 204
+
+    with page.expect_response(accepted) as first:
+        element.evaluate(
+            """frame => {
+              frame.style.setProperty('width', '650px', 'important');
+              frame.style.setProperty('height', '400px', 'important');
+            }"""
+        )
+    initial = first.value.request.post_data_json
+    assert initial["viewport"]["width"] > 0
+    assert initial["viewport"]["height"] > 0
+    assert initial["visual_viewport"]["width"] > 0
+    assert initial["visual_viewport"]["height"] > 0
+    saved_style = element.evaluate("frame => frame.style.cssText")
+    before = len(reports)
+    element.evaluate(
+        """frame => {
+          for (const property of ['width', 'height', 'min-width', 'min-height', 'border-width'])
+            frame.style.setProperty(property, '0px', 'important');
+        }"""
+    )
+    frame.wait_for_function(
+        """() => window.frameElement.isConnected &&
+          document.documentElement.clientWidth === 0 &&
+          document.documentElement.clientHeight === 0 &&
+          visualViewport.width === 0 && visualViewport.height === 0"""
+    )
+    # Cover the observer's 10-second heartbeat and 300ms resize quiet interval.
+    page.wait_for_timeout(11_000)
+    assert reports[before:] == [], "the unallocated sample sent a user view"
+
+    with page.expect_response(accepted) as restored:
+        element.evaluate(
+            "(frame, style) => { frame.style.cssText = style; }", saved_style
+        )
+    recovered = restored.value.request.post_data_json
+    assert recovered["session"] == initial["session"]
+    assert recovered["sequence"] > initial["sequence"]
+    assert recovered["viewport"]["width"] > 0
+    assert recovered["viewport"]["height"] > 0
+    assert recovered["visual_viewport"]["width"] > 0
+    assert recovered["visual_viewport"]["height"] > 0
+    assert frame.evaluate("() => window.frameElement.isConnected")
+
+
 def test_user_view_context_follows_real_tabs_without_changing_the_page(browser, serve):
     """Agent context names each actual document and its checks, even when a tab
     keeps an earlier revision. Observations never become decisions or freshness

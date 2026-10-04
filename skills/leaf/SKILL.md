@@ -191,7 +191,8 @@ so a phase does not depend on discovering a chain of references.
 
 - `references/serving-pages.md`: for the first handoff, `--export`, an unreachable
   URL, whether an operation changes a page's URL, `--host`, a standing page,
-  re-vendoring a served page, or resuming another session's page.
+  re-vendoring a served page, a page a Leaf update broke, or resuming another
+  session's page.
 - `references/packages.md`: for a package-design request, a page-authored module, or
   a design comment whose fix belongs in a package.
 

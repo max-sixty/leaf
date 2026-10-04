@@ -41,8 +41,8 @@ from .files import (
     missing_revision,
     published_versions,
     read_json,
+    revision_names,
     revision_num,
-    revision_path,
     stamped_version,
     version_num,
     version_revisions,
@@ -262,6 +262,12 @@ class PageEndpoint:
         # A declared body this request never drained. Those bytes would be read as the
         # next request line on a reused connection, so the answer has to end it.
         self.body_unread = False
+        # Set by a route whose successful answer is housekeeping rather than
+        # interaction history, which `respond` leaves out of the trace: an attention
+        # check, which an untouched page makes four times a second, and a resource's
+        # bytes, which a document load asks for a few hundred times. A refusal or
+        # fault on either is still traced.
+        self.housekeeping = False
 
     @property
     def layer(self) -> str:
@@ -286,12 +292,10 @@ class PageEndpoint:
         answer.headers.update(self._delivery_headers())
         # The request boundary sees successful answers and refusals alike. Keep
         # query strings (including the access key) and request bodies out of it.
-        # Successful attention checks are housekeeping, not interaction history;
-        # recording every look would make an untouched page append four times a second.
         if (
             self.page_dir is not None
             and getattr(self, "parent", None) is None
-            and (self.path != "/api/news" or answer.status_code != 200)
+            and not (self.housekeeping and answer.status_code < 400)
         ):
             try:
                 append_interactions(
@@ -431,6 +435,7 @@ class PageEndpoint:
         This explicit attention door renews the user lease, throttled to a recency.
         Ordinary state reads and captured previews do not prove a user is looking.
         """
+        self.housekeeping = True
         if self.page_snapshot is not None:
             reading = self.page_snapshot.reading
         else:
@@ -517,6 +522,7 @@ class PageEndpoint:
         units, malformed or multiple ranges, and If-Range without a validator get the
         complete representation. A valid unsatisfiable range earns 416.
         """
+        self.housekeeping = True
         ctype = resource.mime
         if ctype not in BINARY_TYPES:
             ctype += "; charset=utf-8"
@@ -666,6 +672,13 @@ class PageEndpoint:
         per method, and a route added later cannot be the one that forgot to ask.
         POST preparation is deliberately after that gate, so an unknown peer cannot
         choose a body-read cost.
+
+        A refused key answers 401 in one shape on every route, the event door
+        included. It is no judgment of what was sent, which nobody read, and it
+        holds only until the browser presents the key again: opening the printed
+        link in any tab sets the cookie the next request carries. So it is never an
+        event rejection, whose `final` would have the browser drop the gesture; the
+        runtime keeps the gesture pending and names the link (`layer-client.js`).
         """
         prepared = False
         try:
@@ -677,7 +690,7 @@ class PageEndpoint:
             if not self.authorized():
                 if prepare:
                     self.body_unread = True
-                return self._refuse(NO_KEY, 403)
+                return self._json({"error": NO_KEY}, 401)
             sample_answer = self._sample_request()
             if sample_answer is not None:
                 return sample_answer
@@ -749,15 +762,14 @@ class PageEndpoint:
                 version = stamped_version(page.events, revision)
         return self._serve_document(artifact, revision, version)
 
-    def _revisions(self) -> set[int]:
+    def _revision_names(self) -> dict[int, str]:
+        """Each revision's immutable document name, by revision."""
         if self.page_snapshot is not None:
-            return set(self.page_snapshot.context.revisions)
-        return set(list_revisions(self.page_dir))
+            return self.page_snapshot.revision_names
+        return revision_names(self.page_dir)
 
     def _revision_name(self, revision: int) -> str:
-        if self.page_snapshot is not None:
-            return self.page_snapshot.revision_names[revision]
-        return revision_path(self.page_dir, revision).name
+        return self._revision_names()[revision]
 
     def _artifact(self, revision: int) -> RevisionArtifact:
         if self.page_snapshot is not None:
@@ -822,10 +834,7 @@ class PageEndpoint:
         if match is None:
             return None
         revision = int(match.group("revision"))
-        if revision not in self._revisions():
-            return None
-        expected = self._revision_name(revision).removesuffix(".html")
-        if match.group("name") != expected:
+        if self._revision_names().get(revision) != match.group("name") + ".html":
             return None
         artifact = self._artifact(revision)
         self.response_layer = artifact.registry["$layer"]["generation"]
@@ -876,10 +885,8 @@ class PageEndpoint:
                 revision = revision_num(name)
             else:
                 return self._json({"error": "unknown revision resource"}, 404)
-            if revision not in self._revisions() or name not in (
-                None,
-                self._revision_name(revision),
-            ):
+            known = self._revision_names().get(revision)
+            if known is None or name not in (None, known):
                 return self._json({"error": "unknown revision"}, 404)
             artifact = self._artifact(revision)
             events = (

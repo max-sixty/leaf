@@ -3126,7 +3126,11 @@ export const summarize = checks =>
       </header>
 
       <lf-tabs id="ar-queue" list="side">
-        <lf-tab id="ar-canary" label="Canary health check" summary="noise · 0 of 47 pages real">
+        <lf-tab
+          id="ar-canary"
+          label="Canary health check"
+          summary="noise · 0 of 47 pages real"
+        >
           <dl class="facts">
             <dt>Rule</dt>
             <dd><code>payments_canary_probe_failed</code></dd>
@@ -3136,9 +3140,9 @@ export const summarize = checks =>
             <dd>47, none of which needed a person</dd>
           </dl>
           <p>
-            Forty-four of the 47 pages came within three minutes of a deploy, while
-            the restarting canary missed one probe; the 10:00, 14:00 and 18:00
-            trains alone account for 39. It was never down long enough to act on.
+            Forty-four of the 47 pages came within three minutes of a deploy, while the
+            restarting canary missed one probe; the 10:00, 14:00 and 18:00 trains alone
+            account for 39. It was never down long enough to act on.
           </p>
           <lf-ask id="ar-canary-decision">
             <h4>How should the canary probe page?</h4>
@@ -3152,18 +3156,21 @@ export const summarize = checks =>
               <lf-option id="ar-canary-suppress">
                 <lf-chip>last week: 3 pages</lf-chip>
                 <strong>Mute for five minutes after each deploy</strong> Keeps
-                single-probe sensitivity between trains, but depends on deploy
-                events arriving on time.
+                single-probe sensitivity between trains, but depends on deploy events
+                arriving on time.
               </lf-option>
               <lf-option id="ar-canary-keep">
                 <lf-chip>last week: 47 pages</lf-chip>
-                <strong>Keep paging on one failed probe</strong> No change to the
-                rule.
+                <strong>Keep paging on one failed probe</strong> No change to the rule.
               </lf-option>
             </lf-options>
           </lf-ask>
         </lf-tab>
-        <lf-tab id="ar-latency" label="Checkout p99 latency" summary="noise · 1 of 31 pages real">
+        <lf-tab
+          id="ar-latency"
+          label="Checkout p99 latency"
+          summary="noise · 1 of 31 pages real"
+        >
           <dl class="facts">
             <dt>Rule</dt>
             <dd><code>checkout_latency_p99_high</code></dd>
@@ -3173,21 +3180,19 @@ export const summarize = checks =>
             <dd>31, one of which needed a person</dd>
           </dl>
           <p>
-            Most pages came from the lunchtime traffic peak and recovered on their
-            own in a median of four minutes. The one real page was Thursday's
-            database failover, which the 5xx alert also caught a minute earlier.
+            Most pages came from the lunchtime traffic peak and recovered on their own
+            in a median of four minutes. The one real page was Thursday's database
+            failover, which the 5xx alert also caught a minute earlier.
           </p>
           <lf-ask id="ar-latency-decision">
             <h4>What should the latency alert page on?</h4>
-            <p>
-              Checkout's latency objective is 1.2 seconds at p99 over ten minutes.
-            </p>
+            <p>Checkout's latency objective is 1.2 seconds at p99 over ten minutes.</p>
             <lf-options id="ar-latency-choice" choose>
               <lf-option id="ar-latency-objective">
                 <lf-chip>last week: 1 page</lf-chip>
                 <lf-chip tone="ok">recommended</lf-chip>
-                <strong>Page on the objective itself</strong> 1.2 seconds sustained
-                for ten minutes; peaks that recover stop paging.
+                <strong>Page on the objective itself</strong> 1.2 seconds sustained for
+                ten minutes; peaks that recover stop paging.
               </lf-option>
               <lf-option id="ar-latency-hours">
                 <lf-chip>last week: 12 pages</lf-chip>
@@ -3201,7 +3206,11 @@ export const summarize = checks =>
             </lf-options>
           </lf-ask>
         </lf-tab>
-        <lf-tab id="ar-webhooks" label="Webhook queue depth" summary="noise · 2 of 22 pages real">
+        <lf-tab
+          id="ar-webhooks"
+          label="Webhook queue depth"
+          summary="noise · 2 of 22 pages real"
+        >
           <dl class="facts">
             <dt>Rule</dt>
             <dd><code>webhook_queue_depth_high</code></dd>
@@ -3212,26 +3221,23 @@ export const summarize = checks =>
           </dl>
           <p>
             Twenty pages were one partner's bulk retries, which drained within ten
-            minutes each time. The two that mattered were Wednesday's stuck
-            consumer: the queue was short, but its oldest delivery was 40 minutes
-            old.
+            minutes each time. The two that mattered were Wednesday's stuck consumer:
+            the queue was short, but its oldest delivery was 40 minutes old.
           </p>
           <lf-ask id="ar-webhooks-decision">
             <h4>What should the webhook alert measure?</h4>
-            <p>
-              Depth tracks partner traffic; age tracks whether we are keeping up.
-            </p>
+            <p>Depth tracks partner traffic; age tracks whether we are keeping up.</p>
             <lf-options id="ar-webhooks-choice" choose>
               <lf-option id="ar-webhooks-age">
                 <lf-chip>last week: 2 pages</lf-chip>
                 <lf-chip tone="ok">recommended</lf-chip>
-                <strong>Page on the oldest delivery's age</strong> Ten minutes old
-                trips it; a burst that drains does not.
+                <strong>Page on the oldest delivery's age</strong> Ten minutes old trips
+                it; a burst that drains does not.
               </lf-option>
               <lf-option id="ar-webhooks-depth">
                 <lf-chip>last week: 6 pages</lf-chip>
-                <strong>Raise the depth to 20,000</strong> Fewer burst pages, and
-                still blind to a stuck consumer on a short queue.
+                <strong>Raise the depth to 20,000</strong> Fewer burst pages, and still
+                blind to a stuck consumer on a short queue.
               </lf-option>
               <lf-option id="ar-webhooks-keep">
                 <lf-chip>last week: 22 pages</lf-chip>
@@ -3240,7 +3246,11 @@ export const summarize = checks =>
             </lf-options>
           </lf-ask>
         </lf-tab>
-        <lf-tab id="ar-export" label="Ledger export lag" summary="noise · 0 of 18 pages real">
+        <lf-tab
+          id="ar-export"
+          label="Ledger export lag"
+          summary="noise · 0 of 18 pages real"
+        >
           <dl class="facts">
             <dt>Rule</dt>
             <dd><code>ledger_export_lag_high</code></dd>
@@ -3250,9 +3260,9 @@ export const summarize = checks =>
             <dd>18, none of which needed a person</dd>
           </dl>
           <p>
-            Every page fell between 01:00 and 03:00 UTC, while the nightly
-            settlement batch holds the ledger lock. The lag cleared by 03:20 each
-            night without anyone touching it.
+            Every page fell between 01:00 and 03:00 UTC, while the nightly settlement
+            batch holds the ledger lock. The lag cleared by 03:20 each night without
+            anyone touching it.
           </p>
           <lf-chart id="ar-export-hours" data-height="220">
             <pre>
@@ -3304,7 +3314,11 @@ export const summarize = checks =>
             </lf-options>
           </lf-ask>
         </lf-tab>
-        <lf-tab id="ar-disk" label="Replica disk usage" summary="noise · 0 of 9 pages real">
+        <lf-tab
+          id="ar-disk"
+          label="Replica disk usage"
+          summary="noise · 0 of 9 pages real"
+        >
           <dl class="facts">
             <dt>Rule</dt>
             <dd><code>ledger_replica_disk_80</code></dd>
@@ -3314,9 +3328,9 @@ export const summarize = checks =>
             <dd>9, none of which needed a person</dd>
           </dl>
           <p>
-            Autovacuum reclaimed the space within the hour every time. Growth is
-            already tracked in the monthly capacity review, and the 95% critical
-            alert on the same disk stays either way.
+            Autovacuum reclaimed the space within the hour every time. Growth is already
+            tracked in the monthly capacity review, and the 95% critical alert on the
+            same disk stays either way.
           </p>
           <lf-ask id="ar-disk-decision">
             <h4>Should the 80% disk alert page at all?</h4>
@@ -3324,8 +3338,8 @@ export const summarize = checks =>
             <lf-options id="ar-disk-choice" choose>
               <lf-option id="ar-disk-delete">
                 <lf-chip tone="ok">recommended</lf-chip>
-                <strong>Delete it</strong> The capacity review and the 95% alert
-                cover the disk.
+                <strong>Delete it</strong> The capacity review and the 95% alert cover
+                the disk.
               </lf-option>
               <lf-option id="ar-disk-ninety">
                 <strong>Raise it to 90%</strong> Leaves an hour's warning before the
@@ -3337,7 +3351,11 @@ export const summarize = checks =>
             </lf-options>
           </lf-ask>
         </lf-tab>
-        <lf-tab id="ar-cert" label="Sandbox TLS expiry" summary="wrong owner · 0 of 7 pages real">
+        <lf-tab
+          id="ar-cert"
+          label="Sandbox TLS expiry"
+          summary="wrong owner · 0 of 7 pages real"
+        >
           <dl class="facts">
             <dt>Rule</dt>
             <dd><code>tls_cert_expiring_14d</code></dd>
@@ -3347,9 +3365,9 @@ export const summarize = checks =>
             <dd>7, one a day for the same certificate</dd>
           </dl>
           <p>
-            The certificate belongs to the partner sandbox host, which Platform owns
-            and renews automatically. Their renewal job is failing, and PLAT-2291
-            already tracks the fix.
+            The certificate belongs to the partner sandbox host, which Platform owns and
+            renews automatically. Their renewal job is failing, and PLAT-2291 already
+            tracks the fix.
           </p>
           <lf-ask id="ar-cert-decision">
             <h4>Who should hear about the sandbox certificate?</h4>
@@ -3357,17 +3375,21 @@ export const summarize = checks =>
             <lf-options id="ar-cert-choice" choose>
               <lf-option id="ar-cert-platform">
                 <lf-chip tone="ok">recommended</lf-chip>
-                <strong>Route it to Platform's queue</strong> The team that can
-                renew it sees it; payments stops paging.
+                <strong>Route it to Platform's queue</strong> The team that can renew it
+                sees it; payments stops paging.
               </lf-option>
               <lf-option id="ar-cert-both">
-                <strong>Page both teams until it renews</strong> Payments keeps
-                waking up for a fix it cannot make.
+                <strong>Page both teams until it renews</strong> Payments keeps waking
+                up for a fix it cannot make.
               </lf-option>
             </lf-options>
           </lf-ask>
         </lf-tab>
-        <lf-tab id="ar-settlement" label="Settlement job failed" summary="noise · 3 of 6 pages real">
+        <lf-tab
+          id="ar-settlement"
+          label="Settlement job failed"
+          summary="noise · 3 of 6 pages real"
+        >
           <dl class="facts">
             <dt>Rule</dt>
             <dd><code>settlement_job_failed</code></dd>
@@ -3377,9 +3399,9 @@ export const summarize = checks =>
             <dd>6, three of which needed a person</dd>
           </dl>
           <p>
-            The three pages nobody needed were first attempts that the scheduler
-            retried successfully five minutes later. The other three were Friday's
-            expired bank credential, which failed every retry.
+            The three pages nobody needed were first attempts that the scheduler retried
+            successfully five minutes later. The other three were Friday's expired bank
+            credential, which failed every retry.
           </p>
           <lf-ask id="ar-settlement-decision">
             <h4>Should a settlement failure wait for its retry?</h4>
@@ -3387,17 +3409,20 @@ export const summarize = checks =>
             <lf-options id="ar-settlement-choice" choose>
               <lf-option id="ar-settlement-retry">
                 <lf-chip tone="ok">recommended</lf-chip>
-                <strong>Page when the retry fails too</strong> Real failures arrive
-                five minutes later.
+                <strong>Page when the retry fails too</strong> Real failures arrive five
+                minutes later.
               </lf-option>
               <lf-option id="ar-settlement-keep">
-                <strong>Keep paging on the first failure</strong> No change to the
-                rule.
+                <strong>Keep paging on the first failure</strong> No change to the rule.
               </lf-option>
             </lf-options>
           </lf-ask>
         </lf-tab>
-        <lf-tab id="ar-kafka" label="Ledger consumer lag" summary="wrong owner · 0 of 5 pages real">
+        <lf-tab
+          id="ar-kafka"
+          label="Ledger consumer lag"
+          summary="wrong owner · 0 of 5 pages real"
+        >
           <dl class="facts">
             <dt>Rule</dt>
             <dd><code>ledger_events_consumer_lag</code></dd>
@@ -3426,7 +3451,11 @@ export const summarize = checks =>
             </lf-options>
           </lf-ask>
         </lf-tab>
-        <lf-tab id="ar-errors" label="Payments API 5xx rate" summary="incident · 4 of 4 pages real">
+        <lf-tab
+          id="ar-errors"
+          label="Payments API 5xx rate"
+          summary="incident · 4 of 4 pages real"
+        >
           <dl class="facts">
             <dt>Rule</dt>
             <dd><code>payments_api_5xx_rate</code></dd>
@@ -3434,12 +3463,16 @@ export const summarize = checks =>
             <dd>4, all of which needed a person</dd>
           </dl>
           <p>
-            Caught Tuesday's card-network outage six minutes before the first
-            customer ticket, and paged for Thursday's failover a minute ahead of the
-            latency alert. It keeps paging unchanged.
+            Caught Tuesday's card-network outage six minutes before the first customer
+            ticket, and paged for Thursday's failover a minute ahead of the latency
+            alert. It keeps paging unchanged.
           </p>
         </lf-tab>
-        <lf-tab id="ar-3ds" label="3-D Secure failure rate" summary="noise · 1 of 3 pages real">
+        <lf-tab
+          id="ar-3ds"
+          label="3-D Secure failure rate"
+          summary="noise · 1 of 3 pages real"
+        >
           <dl class="facts">
             <dt>Rule</dt>
             <dd><code>threeds_challenge_failure_rate</code></dd>
@@ -3459,17 +3492,20 @@ export const summarize = checks =>
             <lf-options id="ar-3ds-choice" choose>
               <lf-option id="ar-3ds-spread">
                 <lf-chip tone="ok">recommended</lf-chip>
-                <strong>Page when three or more issuers fail</strong> A single
-                bank's outage opens a ticket instead.
+                <strong>Page when three or more issuers fail</strong> A single bank's
+                outage opens a ticket instead.
               </lf-option>
               <lf-option id="ar-3ds-keep">
-                <strong>Keep paging on the overall rate</strong> No change to the
-                rule.
+                <strong>Keep paging on the overall rate</strong> No change to the rule.
               </lf-option>
             </lf-options>
           </lf-ask>
         </lf-tab>
-        <lf-tab id="ar-fraud" label="Fraud score drift" summary="incident · 2 of 2 pages real">
+        <lf-tab
+          id="ar-fraud"
+          label="Fraud score drift"
+          summary="incident · 2 of 2 pages real"
+        >
           <dl class="facts">
             <dt>Rule</dt>
             <dd><code>fraud_score_distribution_drift</code></dd>
@@ -3481,7 +3517,11 @@ export const summarize = checks =>
             scoring on day-old velocity counts. It keeps paging unchanged.
           </p>
         </lf-tab>
-        <lf-tab id="ar-payouts" label="Payout file rejected" summary="incident · 2 of 2 pages real">
+        <lf-tab
+          id="ar-payouts"
+          label="Payout file rejected"
+          summary="incident · 2 of 2 pages real"
+        >
           <dl class="facts">
             <dt>Rule</dt>
             <dd><code>payout_file_rejected</code></dd>
@@ -3489,12 +3529,16 @@ export const summarize = checks =>
             <dd>2, both of which needed a person</dd>
           </dl>
           <p>
-            The bank rejected Monday's payout file over a changed date format, and
-            the page arrived in time to resubmit before the cutoff. It keeps paging
+            The bank rejected Monday's payout file over a changed date format, and the
+            page arrived in time to resubmit before the cutoff. It keeps paging
             unchanged.
           </p>
         </lf-tab>
-        <lf-tab id="ar-refunds" label="Refund processor timeouts" summary="incident · 1 of 1 pages real">
+        <lf-tab
+          id="ar-refunds"
+          label="Refund processor timeouts"
+          summary="incident · 1 of 1 pages real"
+        >
           <dl class="facts">
             <dt>Rule</dt>
             <dd><code>refund_processor_timeout_rate</code></dd>
@@ -3506,7 +3550,11 @@ export const summarize = checks =>
             status page twelve minutes later. It keeps paging unchanged.
           </p>
         </lf-tab>
-        <lf-tab id="ar-disputes" label="Dispute deadline near" summary="incident · 1 of 1 pages real">
+        <lf-tab
+          id="ar-disputes"
+          label="Dispute deadline near"
+          summary="incident · 1 of 1 pages real"
+        >
           <dl class="facts">
             <dt>Rule</dt>
             <dd><code>dispute_evidence_due_24h</code></dd>
@@ -3514,8 +3562,8 @@ export const summarize = checks =>
             <dd>1, which needed a person</dd>
           </dl>
           <p>
-            A chargeback's evidence was due within a day and had no owner; the page
-            got it filed with four hours to spare. It keeps paging unchanged.
+            A chargeback's evidence was due within a day and had no owner; the page got
+            it filed with four hours to spare. It keeps paging unchanged.
           </p>
         </lf-tab>
       </lf-tabs>

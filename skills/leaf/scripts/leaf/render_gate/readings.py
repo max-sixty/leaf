@@ -627,7 +627,7 @@ def overflowing_region_advice(region: dict) -> str:
     if region["asks"] > 1:
         return (
             f"{where} and holds {region['asks']} open Asks: a reader decides them "
-            "one at a time, so make the items a queue, one `lf-tabs list=\"side\"` "
+            'one at a time, so make the items a queue, one `lf-tabs list="side"` '
             "whose tabs each hold one (page-authoring.md, A workspace)"
         )
     return (

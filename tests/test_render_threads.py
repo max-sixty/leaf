@@ -2530,11 +2530,35 @@ def test_news_from_elsewhere_moves_nothing_in_a_short_panel_thread(browser, serv
     assert len(events_model.read_events(serve.page_dir)) == logged
 
 
-@pytest.mark.parametrize("destination", ["message", "ask"])
+ASK_MARKUP = (
+    '<lf-ask id="held-question"><h3>Which answer should we use?</h3>'
+    '<lf-options id="held-choice" choose>'
+    '<lf-option id="held-first">The first answer</lf-option>'
+    '<lf-option id="held-second">The second answer</lf-option>'
+    "</lf-options></lf-ask>"
+)
+
+
+@pytest.mark.parametrize("destination", ["message", "ask", "standing-ask"])
 def test_explicit_navigation_reveals_held_panel_news(browser, serve, destination):
-    """A direct message visit and the Ask drawer can reach a held reply's contents."""
+    """A direct message visit and the Ask drawer can reach a held reply's contents.
+    Going to an Ask the thread already shows ("standing-ask") is an arrival at the
+    thread too, so the reply held after it shows."""
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Keep the discussion here.")
+    if destination == "standing-ask":
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "agent": "Codex",
+                "revision": 1,
+                "parent": root,
+                "text": "One question first.",
+                "markup": ASK_MARKUP,
+            },
+        )
     context = browser.new_context(reduced_motion="reduce")
     page = open_page(browser, url, context=context)
     page.locator(".lf-threads-toggle").click()
@@ -2553,17 +2577,7 @@ def test_explicit_navigation_reveals_held_panel_news(browser, serve, destination
             "revision": 1,
             "parent": root,
             "text": "This answer arrived while the draft was open.",
-            **(
-                {
-                    "markup": '<lf-ask id="held-question"><h3>Which answer should we use?</h3>'
-                    '<lf-options id="held-choice" choose>'
-                    '<lf-option id="held-first">The first answer</lf-option>'
-                    '<lf-option id="held-second">The second answer</lf-option>'
-                    "</lf-options></lf-ask>"
-                }
-                if destination == "ask"
-                else {}
-            ),
+            **({"markup": ASK_MARKUP} if destination == "ask" else {}),
         },
     )
     told(page)
@@ -2580,12 +2594,10 @@ def test_explicit_navigation_reveals_held_panel_news(browser, serve, destination
         )
         expect(message).to_be_focused()
     else:
-        banner_control(page, ".lf-asks").click()
-        row = page.locator("button.lf-asks-row").filter(
-            has_text="Which answer should we use?"
-        )
-        expect(row).to_have_count(1)
-        row.click()
+        # The Ask walk, not the drawer: opening the drawer covers the card, and a held
+        # reply nobody can see shows anyway.
+        page.keyboard.press("Escape")
+        page.keyboard.press("a")
         expect(thread.locator("#held-question")).to_be_focused()
     expect(message).to_be_visible()
     expect(thread.locator(".lf-thread-news")).to_have_count(0)
@@ -2594,26 +2606,31 @@ def test_explicit_navigation_reveals_held_panel_news(browser, serve, destination
     )
 
 
-def test_walking_to_a_thread_shows_the_replies_it_held(browser, serve):
-    """A reply held while its thread stood open in front of the user shows once the
-    user walks away and back to that thread with t/T. The walk away closes the card and
-    the walk back opens it, and an opening moves every card after it anyway, so the
-    card opens with what it held, landed where the reply shows."""
+@pytest.mark.parametrize("walk", ["back", "onto"])
+def test_walking_to_a_thread_shows_the_replies_it_held(browser, serve, walk):
+    """A reply held while its thread stood open in front of the user shows once a t/T
+    press takes the user to that thread: the motion is then the press's. The walk lands
+    the thread with the reply showing. "back" walks away, which closes the card, and
+    back, which opens it; "onto" presses toward the end of the list from the thread
+    itself, which lands it again without its card ever closing."""
     url = serve(PANEL_PAGE)
-    for n in range(12):
-        panel_comment(serve.page_dir, f"An earlier thread {n}. " * 8)
-    other = panel_comment(serve.page_dir, "A thread to walk to. " * 30)
     root = panel_comment(serve.page_dir, "Keep the discussion here.")
+    other = panel_comment(serve.page_dir, "A thread to walk to. " * 30)
     for n in range(12):
         panel_comment(serve.page_dir, f"A later thread {n}. " * 8)
     context = browser.new_context(reduced_motion="reduce")
     page = open_page(browser, url, context=context)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
+    order = page.locator(".lf-threads > .lf-thread").evaluate_all(
+        "cards => cards.map(card => card.dataset.id)"
+    )
+    assert order[:2] == [root, other]
     thread = page.locator(f'.lf-threads > .lf-thread[data-id="{root}"]')
+    summary = thread.locator(".lf-thread-summary")
     if thread.get_attribute("open") is None:
-        thread.locator(".lf-thread-summary").click()
-    thread.locator(".lf-thread-summary").focus()
+        summary.click()
+    summary.focus()
     reply = append_carried_log_record(
         serve.page_dir,
         {
@@ -2630,22 +2647,19 @@ def test_walking_to_a_thread_shows_the_replies_it_held(browser, serve):
     expect(thread.get_by_role("button", name="1 new reply", exact=True)).to_be_visible()
     expect(message).to_have_count(0)
 
-    order = page.locator(".lf-threads > .lf-thread").evaluate_all(
-        "cards => cards.map(card => card.dataset.id)"
-    )
-    away, back = (
-        ("t", "Shift+t") if order.index(other) > order.index(root) else ("Shift+t", "t")
-    )
-    page.keyboard.press(away)
-    expect(
-        page.locator(f'.lf-threads > .lf-thread[data-id="{other}"] .lf-thread-summary')
-    ).to_be_focused()
-    expect(thread).not_to_have_attribute("open", "")
-    page.keyboard.press(back)
-    expect(thread.locator(".lf-thread-summary")).to_be_focused()
+    if walk == "back":
+        page.keyboard.press("t")
+        expect(
+            page.locator(
+                f'.lf-threads > .lf-thread[data-id="{other}"] .lf-thread-summary'
+            )
+        ).to_be_focused()
+        expect(thread).not_to_have_attribute("open", "")
+        expect(message).to_have_count(0)
+    page.keyboard.press("Shift+t")
+    expect(summary).to_be_focused()
     expect(message).to_be_visible()
     expect(thread.locator(".lf-thread-news")).to_have_count(0)
-    # The arrival lands the thread with the reply it shows.
     one_frame(page)
     assert page.evaluate(
         """id => {

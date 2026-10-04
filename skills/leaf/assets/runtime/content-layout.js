@@ -9,7 +9,7 @@ import { keeps } from "./keeps.js";
 import { repaintPage } from "./repaint.js";
 // The postures a margin resident may take besides the rail: the side each stands on and
 // the token holding the room it needs there beyond `main`'s box. The stylesheet says
-// which element takes which, in order of preference (`--lf-resident`, theme.css, at
+// which element takes which, in order of preference (`--lf-resident`, layouts.css, at
 // aside.sidebar), so the media and Layout conditions on each are the stylesheet's own.
 const POSTURES = {
   sidebar: ["left", "--sidebar"],
@@ -20,7 +20,7 @@ const POSTURES = {
 // One computed reading seats the rail first without moving the column, then each
 // authored resident on its preferred side, or in flow when there is no room. The
 // column's actual CSS offset is removed before measuring, including RTL, so its
-// last written shift cannot feed the next decision. Theme's --lf-resident declares
+// last written shift cannot feed the next decision. --lf-resident (layouts.css) declares
 // posture preferences; data-lf-margin and --lf-shift publish their geometry.
 // Read at most once per frame after widgets upgrade. Every completed read notifies
 // the selected annotation owner, including an unchanged or missing column; only a

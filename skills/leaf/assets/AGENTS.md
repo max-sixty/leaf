@@ -13,10 +13,32 @@ desktop viewport.
 
 ### Space and scrolling
 
-The page owns its arrangement: a shipped Layout class (`@layer lf-layouts` in the
-theme) or its own CSS. Leaf owns what pages and widgets coordinate through: the
+The page owns its arrangement: a shipped Layout class (`layouts.css`, `@layer
+lf-layouts`) or its own CSS. Leaf owns what pages and widgets coordinate through: the
 bands, the reading measure as typography, and each widget's contract to fill the box
 it is given, declare the minimum it needs, and never let its content size its holder.
+
+Three things shape a page, and none of them reads another:
+
+- A **Layout** (`layouts.css`) says where boxes stand and how large they are. It sets
+  no type, spacing or widget form.
+- A **style** (the kernel's `theme.css`) sets type, spacing and form as tokens under a
+  class any block can take, such as `density-working`, whatever Layout holds it.
+- **Widgets and chrome** read their own box (its width, whether its height is definite)
+  and the theme's tokens. They never name a Layout or style class, so a widget behaves
+  the same in a shipped Layout as on a page whose own CSS gives it the same box.
+
+Where one has to answer another, the owner sets a token saying what the box is, or
+which style it stands under, and the reader keys on that token with a style query:
+`--lf-full-height` (the body has a definite height to fill), `--lf-wide-page` (the page
+spans the window, so the theme sets its title a size up), `--lf-resident` (what stands
+in the column's margin), and `--lf-density` (the working setting, for what a width alone
+cannot decide). A width needs no token, since a size query on the reader's own container
+answers it. Before adding a token, ask whether a hand-written page giving the same box
+would want the same answer; if not, the token names the Layout rather than the box. Only
+the page itself, and the checks that advise its author, name Layout classes;
+`test_layout_style_and_widgets_never_read_each_other` holds every sheet and module to
+this.
 
 Auxiliary runtime controls overlay the page's existing geometry. Adding a control
 preserves content position, wrapping, and block size, including when its CSS loads

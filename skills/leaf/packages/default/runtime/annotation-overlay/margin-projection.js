@@ -36,8 +36,8 @@
    transcript while the user drafts or sends, and where the card stands over what it is
    about and is read. Opening it on another thread lets it choose its spot afresh. A scroll
    never closes it: the card leaves with what it is about and comes back with it, unless
-   the user is drafting in it, when it stays in the window until its target shows again,
-   as the comment box does (`attach`, comment-placement.js).
+   the user was drafting in it when its target left, when it stays in the window until
+   its target shows again, as the comment box does (`attach`, comment-placement.js).
 
    Floating UI supplies the height available at the held edge. Native grid tracks
    share that room between the transcript and reply, each growing to its words and

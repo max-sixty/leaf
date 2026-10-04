@@ -62,9 +62,10 @@
    scrolling retains it, while a boundary or target-width change chooses afresh.
 
    Two policies are this module's for both surfaces, so neither can drift from the
-   other. A surface holding the user's writing whose subject no longer shows in the
-   window stands unanchored in it (`attach`), keeping the width it had attached as a
-   cap, as "Words stay where they were typed" in skills/leaf/assets/AGENTS.md requires;
+   other. A surface that held the user's writing when its subject stopped showing in
+   the window stands unanchored in it until the subject shows again (`attach`), keeping
+   the width it had attached as a cap, as "Words stay where they were typed" in
+   skills/leaf/assets/AGENTS.md requires;
    the caller says whether it holds writing and whether its subject shows
    (`attachmentShown`). And a surface whose content grows by turns holds the edge the
    user is working at (`holding`): its top while they read or type, its foot, with the

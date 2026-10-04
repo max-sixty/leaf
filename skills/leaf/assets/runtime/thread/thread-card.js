@@ -256,12 +256,14 @@ export class ThreadView {
     // thread holds shows with it (held-news.js).
     this.#messageCommands = {
       ...commands,
-      reaction: { ...commands.reaction, pressed: () => this.showNews() },
+      reaction: { ...commands.reaction, pressed: () => this.#model?.news?.open() },
     };
     this.node = document.createElement(
       surface === "outlet" || surface === "panel" ? "details" : "div",
     );
     this.#continuity = new ReplyContinuity(this.node);
+    // A card draws what its hold releases at once, so an arrival lands on the thread
+    // as it now stands (`showHeld`).
     if (surface === "panel")
       this.#heldNews = new HeldNews(
         this.node,
@@ -313,12 +315,6 @@ export class ThreadView {
 
   get model() {
     return this.#model;
-  }
-
-  showNews() {
-    if (!this.#model?.news) return false;
-    this.#model.news.open();
-    return true;
   }
 
   // Local disclosure and draft changes repaint the complete received descriptor,

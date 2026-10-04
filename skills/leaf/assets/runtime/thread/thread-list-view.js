@@ -24,9 +24,10 @@
    it stands, drawn resolved, until its going would move nothing the user sees. */
 import { html, repeat } from "../../vendor/browser-runtime.js";
 import { focused } from "../keyboard/scopes.js";
-import { holdFocus } from "../focus.js";
+import { holdFocus, restoringFocus } from "../focus.js";
 import { RetainedFace } from "../retained-face.js";
 import { ThreadView } from "./thread-card.js";
+import { showHeld } from "./held-news.js";
 import { draftHasContent } from "../drafts.js";
 import { focusThread } from "./focus.js";
 import { passOn, retainUserIntent } from "../user-intent.js";
@@ -99,13 +100,8 @@ class ThreadListView extends RetainedFace {
   #showExpanded() {
     const chosen = this.#expandedRow();
     if (!chosen) return;
-    for (const row of this.#visibleRows()) {
-      // Choosing a closed card reveals its current conversation. Publish the held
-      // news in the same operation that opens it; an attribute observer runs after
-      // this gesture and cannot carry its deferred presentation's ownership.
-      if (row === chosen && !row.node.open) this.#views.get(row.key).showNews();
+    for (const row of this.#visibleRows())
       row.node.toggleAttribute("open", row === chosen);
-    }
   }
 
   // An open title is still the user's focus stop for the thread. A second press leaves
@@ -113,6 +109,8 @@ class ThreadListView extends RetainedFace {
   #choose(card) {
     const row = this.#visibleRows().find((row) => row.node === card);
     if (!row) return;
+    // A title choice is an arrival; restoring that title after paint is not.
+    if (!restoringFocus()) showHeld(card.dataset.id);
     this.#select(row.key);
     this.#showExpanded();
   }
@@ -186,18 +184,6 @@ class ThreadListView extends RetainedFace {
     if (!row || card.hidden) return;
     this.#select(row.key);
     this.#showExpanded();
-  }
-
-  // Explicit navigation may name a message whose news has not been drawn yet.
-  // Locate it in the complete received reading, then release its retained card.
-  showNews(id) {
-    const row = this.model.rows.find(
-      (row) =>
-        row.kind === "thread" &&
-        (row.descriptor.id === id ||
-          row.descriptor.messages.some((message) => message.id === id)),
-    );
-    return row ? (this.#views.get(row.key)?.showNews() ?? false) : false;
   }
 
   constructor() {

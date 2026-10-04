@@ -1,5 +1,11 @@
 /* News a thread surface holds back while it would move what the reader reads.
 
+   The rule: what the user sees moves only in answer to a gesture of theirs
+   (`skills/leaf/assets/AGENTS.md`, "Layout and motion"). News is not one, so where
+   drawing it would move something on screen it waits, and the first gesture that takes
+   the user to it shows it, since the motion is then that gesture's. Everything here
+   follows from that.
+
    A seat draws its threads in the page's flow (inline.js: a widget's seat, or a widget's
    outlet such as a diff line's), so whatever the agent adds grows the page there: a turn
    at the foot of its thread, a turn that reopens a resolved thread unfolding it, a thread
@@ -31,12 +37,23 @@
 
    `HeldNews` is that one owner for a seat, and `HeldArrivals` for the seats a widget has
    not opened. Each reads every reading against the one it drew last and holds what is
-   news. What it holds shows when the user opens the notice, when they add a turn of
-   their own here (a reply in the thread, or a thread they start in the seat, which
-   answers what came before it and so follows it), when the thread itself opens (a
-   folded outlet, or a panel card the list opens, as a walk to it does), whose opening
-   moves everything after it anyway, or when none of the seat shows in the window, where
-   the growth moves nothing they see. Anything held in a seat is not drawn, so it stays
+   news. The gestures that show what a thread holds are the ones that take the user to
+   it:
+
+   - pressing its notice, or its margin marker where a widget holds it out of the flow;
+   - opening the thread: a folded outlet, or a panel card the list opens;
+   - arriving at it: a t/T walk, going to one of its Asks, or any other route that takes
+     them to the thread (`showHeld`), whether or not it already stood open. Putting
+     back a reply box a surface stopped drawing is no arrival, since no gesture asked
+     for it (destination.js, `carried`);
+   - adding a turn of their own there: a reply in the thread, a reaction on one of its
+     messages, or a thread they start in the seat, which answers what came before it and
+     so follows it.
+
+   Held news also shows once none of the seat shows in the window, where its growth moves
+   nothing anyone sees. A gesture that asks for something else in the thread, such as
+   pressing into its reply box, shows nothing: the news is not its result, and drawing it
+   would move the box under the press. Anything held in a seat is not drawn, so it stays
    unread until it shows.
 
    `HeldReading` is the same rule for a widget's region whose rows only the log or the
@@ -51,7 +68,8 @@ import { keepsText, layoutPx } from "../keeps.js";
 import { keys, focused } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
 import { focusThread } from "./focus.js";
-import { turns } from "./model.js";
+import { threadNames, turns } from "./model.js";
+import { allThreads } from "./state.js";
 import { THREAD } from "./selectors.js";
 import { closestAcross } from "../passages.js";
 import { readApplication } from "../semantic-state.js";
@@ -189,6 +207,20 @@ export function seatNotice() {
   };
 }
 
+// Every live seat's HeldNews, so an arrival can show what any of them holds of its
+// thread.
+const holders = new Set();
+
+/** Shows what every seat holds of the thread `id` names, a message's id naming its
+ *  thread: the arrival a navigation makes at it. Each seat draws what it released
+ *  before this returns. Returns whether any seat held anything of it. */
+export function showHeld(id) {
+  const thread = threadNames(allThreads()).get(id)?.id ?? id;
+  let shown = false;
+  for (const held of holders) shown = held.show(thread) || shown;
+  return shown;
+}
+
 export class HeldNews {
   #seat;
   #view;
@@ -203,6 +235,7 @@ export class HeldNews {
   #turns = new Map();
   #reopened = new Set();
   #threads = new Set();
+  #keys = new Map();
   #stopWatching = null;
 
   // `view(key)` is the seat's ThreadView for a thread; `changed()` draws the seat again
@@ -211,6 +244,7 @@ export class HeldNews {
     this.#seat = seat;
     this.#view = view;
     this.#changed = changed;
+    holders.add(this);
   }
 
   // The reading to draw from `reading`, the seat's whole reading of its threads. The first
@@ -226,6 +260,7 @@ export class HeldNews {
     for (const key of this.#turns.keys()) if (!keys.has(key)) this.#turns.delete(key);
     for (const key of this.#reopened) if (!keys.has(key)) this.#reopened.delete(key);
     for (const key of this.#threads) if (!keys.has(key)) this.#threads.delete(key);
+    this.#keys = new Map(reading.threads.map(({ id, key }) => [id, key]));
     if (prior) this.#take(prior, reading, row);
     this.#known = new Map(
       reading.threads.map(({ key, messages }) => [
@@ -385,6 +420,16 @@ export class HeldNews {
     return Object.freeze({ ...reading, threads: Object.freeze(threads), news });
   }
 
+  // Shows what the seat holds of the thread `id`: its turns, or, where the seat holds the
+  // thread itself, every thread it holds, as the notice saying them would.
+  show(id) {
+    const key = this.#keys.get(id);
+    const thread = this.#threads.has(key);
+    if (!this.#turns.has(key) && !thread) return false;
+    this.#open(key, thread);
+    return true;
+  }
+
   // Shows what one notice holds: a thread's news, and the seat's new threads where that
   // notice also says them. Returns the thread a keyboard on the notice lands on.
   #open(key, threads) {
@@ -427,6 +472,7 @@ export class HeldNews {
 
   dispose() {
     this.#stop();
+    holders.delete(this);
   }
 }
 

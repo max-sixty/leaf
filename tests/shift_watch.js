@@ -483,7 +483,7 @@
   };
   const readingAt = (node, at) => placed.get(node)?.findLast((item) => item.at <= at);
   // A coordinate binding can stand longer than the retained ledger. Its origin
-  // begins at the oldest complete frame once the earlier history is retired.
+  // begins at the shared history boundary once the earlier samples are retired.
   const poseAt = (node, at) => Math.max(readingAt(node, at).poseAt, retainedFrom);
   const boxAt = (node, at) => readingAt(node, at)?.rect;
   const paintAt = (node, at) => readingAt(node, at)?.paint;
@@ -1213,7 +1213,11 @@
         .map((rendering) => rendering.typing.at),
     );
     while (frames.length > 2 && frames[1].start < needed) frames.shift();
-    retainedFrom = frames[0]?.at ?? -Infinity;
+    // Native frame starts associate painted shifts; poses are sampled later in the
+    // callback's synchronous turn. Retaining that frame cannot retire an earlier
+    // input pose its readers still need. All coordinate histories keep the same
+    // earliest required reading.
+    retainedFrom = Math.min(needed, frames[0]?.at ?? -Infinity);
     for (let i = renderings.length - 1; i >= 0; i--) {
       const rendering = renderings[i];
       if (

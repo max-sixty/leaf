@@ -141,6 +141,7 @@ import {
   watchSemantic,
 } from "../semantic-state.js";
 import { hostIn, under, upFrom } from "../shadow.js";
+import { showHeld } from "../thread/held-news.js";
 
 // Ask owns contextual action routes and navigation; the keyboard presenter owns their hints.
 export function createAskView({
@@ -170,6 +171,9 @@ export function createAskView({
   // node, so materialize the existing thread projection there rather than
   // narrowing the semantic inventory to what happens to be in the DOM.
   async function materializeAsk(ask, intent = null) {
+    // Going to a thread's Ask, or answering it, takes the user to that thread, so it
+    // shows what the thread holds back, the Ask included where a held turn carries it.
+    if (ask.thread) showHeld(ask.thread);
     let target = askNode(ask);
     let source = sourceNode(ask);
     if ((!target || !source) && ask.thread) {

@@ -2166,6 +2166,91 @@ def test_native_pointer_motion_owns_only_an_active_drag(browser, pressed):
         assert any("textarea#field moved without input" in e for e in errors), errors
 
 
+@pytest.mark.parametrize(
+    ("fault", "close"),
+    [(False, False), (True, False), (True, True)],
+    ids=["stationary", "active-carry", "closed-carry"],
+)
+def test_a_delayed_native_frame_keeps_the_typing_origins_camera(browser, fault, close):
+    """Frame association precedes its delayed pose, but typing keeps its own origin.
+
+    Hold callbacks with their actual native frame timestamps, then type before they
+    sample. The declared rendering stays open across a real paint checkpoint. An
+    ancestor changes paint without moving the field, so the field's later comparison
+    still needs that ancestor's original camera; the matched carry must still fail,
+    including when typing closes after the fault paints but before judgment drains.
+    """
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote("""<!doctype html><body style="margin:0">
+<script data-lf-entry>document.currentScript.lfRenderingSettled = () => false;</script>
+<div id="bar"><div id="above"></div><textarea id="field"></textarea></div>
+<p id="evidence" style="position:absolute;top:200px">Paint evidence</p>
+<script>field.addEventListener('beforeinput', () => {
+  window.typingObservedAt = lfWatchPlatform.performance.now();
+  bar.style.opacity = '.99';
+});</script></body>""")
+    )
+    page.evaluate("document.body.setAttribute('data-lf-presented', '')")
+    paint(page)
+    page.evaluate("""() => {
+      const frame = lfWatchPlatform.frame;
+      window.delayedSamples = [];
+      window.holdSamples = () => {
+        lfWatchPlatform.frame = callback =>
+          frame(time => delayedSamples.push([callback, time]));
+      };
+      window.releaseSamples = () => {
+        lfWatchPlatform.frame = frame;
+        for (const [callback, time] of delayedSamples.splice(0)) callback(time);
+      };
+      holdSamples();
+      window.cameraPaints = [];
+      new PerformanceObserver(list => cameraPaints.push(...list.getEntries()))
+        .observe({type: 'layout-shift'});
+    }""")
+    try:
+        page.wait_for_function("delayedSamples.length >= 2", polling=50)
+        page.locator("#field").fill("Keep this field's place.")
+        assert page.evaluate(
+            "delayedSamples.every(([, start]) => start < typingObservedAt)"
+        )
+    finally:
+        page.evaluate("releaseSamples()")
+    paint(page)
+    page.evaluate("lfShiftsJudged()")
+    if close:
+        page.evaluate("holdSamples()")
+        page.wait_for_function("delayedSamples.length >= 2", polling=50)
+    try:
+        page.evaluate(
+            """fault => {
+              cameraPaints.length = 0;
+              window.cameraFaultAt = lfWatchPlatform.performance.now();
+              bar.style.opacity = '.9';
+              evidence.style.marginLeft = '20px';
+              if (fault) above.style.height = '40px';
+            }""",
+            fault,
+        )
+        paint(page)
+        page.wait_for_function(
+            "cameraPaints.some(entry => entry.startTime >= cameraFaultAt)", polling=50
+        )
+        if close:
+            page.keyboard.press("Shift")
+    finally:
+        if close:
+            page.evaluate("releaseSamples()")
+    paint(page)
+    judge_watches()
+    expect(page.locator("#field")).to_have_value("Keep this field's place.")
+    assert page.locator("#field").bounding_box()["y"] == (40 if fault else 0)
+    if fault:
+        consume_browser_errors(page, "typing in textarea#field moved textarea#field")
+
+
 @pytest.mark.parametrize("fault", [False, True])
 def test_long_held_native_anchor_keeps_complete_history(browser, fault):
     page = browser.new_page()

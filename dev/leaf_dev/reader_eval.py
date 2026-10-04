@@ -120,7 +120,9 @@ def scores(readings: dict[str, dict]) -> dict[str, bool]:
     }
 
 
-def execute(payload: Path, work: Path) -> dict:
+def execute_scenario(
+    case: str, payload: Path, work: Path, *, host: str = "cc", condition: str = "leaf"
+) -> dict:
     """Calibrate the fixed reader; no author is invoked to construct either control."""
     work.mkdir(parents=True, exist_ok=True)
     readings = {}
@@ -135,26 +137,10 @@ def execute(payload: Path, work: Path) -> dict:
         build_source(payload, run.state, source, page)
         capture_phase(run, 1, page)
         readings[name] = review(REQUEST, run, 1, directory / "reader")
+    diagnostics = {"readings": readings, "author_invocations": 0}
+    cost = observed_sum(reading["cost_usd"] for reading in readings.values())
     return {
-        "checks": scores(readings),
-        "diagnostics": {"readings": readings, "author_invocations": 0},
-        "cost": observed_sum(reading["cost_usd"] for reading in readings.values()),
-    }
-
-
-def execute_scenario(
-    case: str, payload: Path, work: Path, *, host: str = "cc", condition: str = "leaf"
-) -> dict:
-    """Run the fixed independent reader calibration as a native catalog context."""
-    result = execute(payload, work)
-    return {
-        "output": json.dumps(result["diagnostics"]),
-        **({"cost": result["cost"]} if result["cost"] is not None else {}),
-        "metadata": {
-            "checks": {
-                "completed": result["checks"]["reader-evidence-complete"],
-                **result["checks"],
-            },
-            "diagnostics": result["diagnostics"],
-        },
+        "output": json.dumps(diagnostics),
+        **({"cost": cost} if cost is not None else {}),
+        "metadata": {"checks": scores(readings), "diagnostics": diagnostics},
     }

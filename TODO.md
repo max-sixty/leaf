@@ -188,8 +188,8 @@ and its chrome coordinate.
   them to revise the results: turn a report into a report with live status while
   keeping its comments. They hold if revisions happen by ordinary composition. Include
   a cold agent asked for "a dashboard", the likeliest trigger for over-tiling. Run it
-  with the agent-usability baseline (#19), by extending the
-  [arrangement eval](notes/arrangement-eval/README.md).
+  with the agent-usability baseline (#19), by extending the document, dashboard and
+  queue tasks in `evals/`.
 - **Layout values that wait for a task:** a selection-and-detail component whose phone
   form shows one side at a time; canvas regions, whose reading position is
   two-dimensional; slides as a presentation of `lf-tabs`.
@@ -300,9 +300,10 @@ height and where a switch lands wait on the workspace decision under Layout.
   `page check` reported it and whether the agent changed the page in response. That
   gives the rate of bad pages and how much the checks catch. Fix a recurring defect in
   the widget, Layout or theme that produced it, so pages need fewer checks, rather
-  than adding readings or widths to the check. In `r3-main-0feb` every one of the 36
-  runs passed the gate, yet the judge still found tiny text at 900px and phone
-  defects (`notes/arrangement-eval/`).
+  than adding readings or widths to the check. In the
+  [layout vocabulary eval](notes/agent-usability-evals.md#layout-vocabulary-2026-09-29)
+  every one of the 36 runs passed the gate, yet the judge still found tiny text at
+  900px and phone defects.
 - **Read the full render gate after handover.** Actual user views now supply passive
   geometry checks as agent context (`conversation-loop.md`, "The user's view"). The
   broader headless gate still runs on request. `page check --render` blocks the

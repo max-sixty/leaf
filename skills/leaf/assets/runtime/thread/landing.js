@@ -51,6 +51,7 @@ import { TEXT_ENTRY } from "../keyboard/text-entry.js";
 import { dismissReplyAt, replyDraftContext } from "./replies.js";
 import { allThreads, threadList } from "./state.js";
 import { threadNames } from "./model.js";
+import { showHeld } from "./held-news.js";
 import {
   focusedThreadTarget,
   focusThread,
@@ -430,8 +431,8 @@ async function showThreadNow(id, focus, flash, revealThread, threadsBox, mayArri
   // A native continuation owns its presented row even after Tab moves standing.
   // The original gesture still gates focus, scrolling, and any later reveal action.
   const mayPresent = () => (focus === false ? mayArrive.available() : mayArrive());
-  // Showing held news can await presentation before a direct arrival widens the
-  // list. Bind that actual reveal now; its user-intent lease is checked when run.
+  // Bind the actual narrowing reveal before any asynchronous arrival work; its
+  // user-intent lease is checked when that deferred invocation runs.
   const revealDestination = bindQueuedWork(() => {
     const node = listNode(id, threadsBox, focus === "message");
     const going = node?.closest(".lf-going");
@@ -449,10 +450,6 @@ async function showThreadNow(id, focus, flash, revealThread, threadsBox, mayArri
     )
     ?.classList.toggle("grow", false);
   threadsBox.revealNavigation(threadNames(allThreads()).get(id)?.id ?? id);
-  if (threadsBox.showNews(id)) {
-    await whenDocumentPresented();
-    if (!mayPresent()) return null;
-  }
   const destination = revealDestination();
   if (!destination) return null;
   let node = destination.node;
@@ -592,6 +589,7 @@ export function createThreadLanding({
     {
       focus = "reply",
       flash = true,
+      carried = false,
       intent = retainUserIntent({
         source: focused(),
         available: () => threadsBox.isConnected,
@@ -600,6 +598,7 @@ export function createThreadLanding({
     } = {},
   ) => {
     if (!intent.handoff(() => setPanel(true))) return Promise.resolve(null);
+    if (!carried) showHeld(id);
     const ready = showThreadNow(id, focus, flash, revealThread, threadsBox, intent);
     // Pointer and keyboard routes deliberately discard this ticket. The thread
     // coordinator reports its one failure; the landing result keeps that rejection out

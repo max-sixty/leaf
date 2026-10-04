@@ -105,10 +105,9 @@ export function threadReading(
     attempt: thread.root.attempt ?? null,
     surface,
     visible,
-    // A card the panel keeps though its view no longer admits it, and why ("news" or
-    // "draft", thread-list-view.js, `keeping`), keeps the shape it stood in, so the news that changed it moves
-    // nothing: its reply box, on which an open card's room rests; the control row above
-    // its first message, where Reopen wears Resolve's face, done.
+    // Why the panel keeps a card its view no longer admits ("news" or "draft",
+    // thread-list-view.js, `keeping`). News that changed it waits behind its notice
+    // (held-news.js), and a draft keeps its reply box (`replyHasWords`).
     kept,
     grow,
     folding: false,
@@ -116,6 +115,9 @@ export function threadReading(
     quote: panel ? quoteReading(thread, commands.anchors) : null,
     resolved,
     attention,
+    // The title row's word for the thread's state. It reads the thread as it stands
+    // while the card's body holds news (held-news.js), since the row keeps its size.
+    status: resolved ? "Resolved" : attention?.label || "",
     // A waiting thread's status is the stage of one message's workflow, which that
     // message already draws in its own header. The summary repeats it only for the
     // folded row, where no message shows; whose turn it is stays, since no message
@@ -135,9 +137,9 @@ export function threadReading(
       word,
       label,
       pending: settling,
-      icon: !resolved || Boolean(kept),
+      icon: !resolved,
     }),
-    reply: !resolved || Boolean(kept),
+    reply: !resolved,
     summaries: Object.freeze(thread.summaries),
     messages: Object.freeze(messages),
   });
@@ -148,7 +150,7 @@ function navigationSummary(navigation, model) {
   const pendingTitle = model.titlePending;
   const title = model.summary.topic;
   const latest = model.summary.latest;
-  const status = model.resolved ? "Resolved" : model.attention?.label || "";
+  const status = model.status;
   const draft = Boolean(loadDraft("reply:" + model.key));
   // While a title is on its way, the title slot says so in words drawn apart from any
   // title; the theme keeps the placeholder muted while naming is under way.
@@ -300,6 +302,11 @@ export class ThreadView {
     return this.#model;
   }
 
+  // The next reading draws the thread as it stands, whatever it holds (held-news.js).
+  releaseNews() {
+    this.#heldNews?.release();
+  }
+
   showNews() {
     if (!this.#model?.news) return false;
     this.#model.news.open();
@@ -313,11 +320,19 @@ export class ThreadView {
   }
 
   // The last of the thread a reader can see, after which its news grows: a folded
-  // outlet's summary, and otherwise its last message.
+  // outlet's summary, which a reopening unfolds, and otherwise its last message. A
+  // closed panel card has none, since news draws nothing its title row shows.
   get foot() {
     if (this.node.localName === "details" && !this.node.open)
-      return this.node.querySelector(":scope > summary:not([hidden])");
+      return this.node.querySelector(":scope > .lf-page-thread-summary:not([hidden])");
     return this.#lastMessage;
+  }
+
+  // The node a message the thread draws stands in, after which a change to it grows;
+  // none while the thread is folded, where no message shows.
+  messageNode(key) {
+    if (this.node.localName === "details" && !this.node.open) return null;
+    return this.#messages.get(key)?.node ?? null;
   }
 
   present(model) {
@@ -656,9 +671,13 @@ export class ThreadView {
     return button;
   }
 
+  // A press means what its control drew, and shows what the thread holds; where the
+  // thread already stands as the press means, as one resolved elsewhere whose news
+  // waits, it sends nothing (actions.js, `settle`).
   #settle = () => {
     const model = this.#model;
     if (model.folding) return;
+    model.news?.open();
     void settleThread({
       parent: () => this.#model.root,
       key: model.key,

@@ -2061,10 +2061,11 @@ def test_an_arriving_reply_cannot_move_resolve_out_from_under_a_press(browser, s
         event["kind"] == "resolve" and event["parent"] == target
         for event in events_model.read_events(serve.page_dir)
     ), "mouseup did not complete the Resolve press"
+    # A folded card draws its title row alone, so it took the reply in at once.
     source_thread = page.locator(f'.lf-thread[data-id="{source}"]')
     source_thread.locator(".lf-thread-summary").click()
-    source_thread.get_by_role("button", name="1 new reply", exact=True).click()
-    expect(page.locator(f'.lf-msg[data-mid="{reply["id"]}"]')).to_have_count(1)
+    expect(source_thread.locator(".lf-thread-news")).to_have_count(0)
+    expect(page.locator(f'.lf-msg[data-mid="{reply["id"]}"]')).to_be_visible()
 
 
 def test_opening_a_thread_leaves_its_title_where_the_user_pressed_it(browser, serve):
@@ -2526,6 +2527,168 @@ def test_news_from_elsewhere_moves_nothing_in_a_short_panel_thread(browser, serv
     expect(keep).to_be_visible()
     rendered(page)
     assert len(events_model.read_events(serve.page_dir)) == logged
+
+
+@pytest.mark.watch_shifts
+def test_a_settlement_from_elsewhere_moves_nothing_in_a_short_panel_thread(
+    browser, serve
+):
+    """A thread resolved or reopened elsewhere waits behind the open card's notice.
+
+    Resolving would take away the card's reply box and its answer's reaction strip,
+    and reopening would put them back, moving the card and every card below it. The
+    card stands as drawn and says which, and a press on its Resolve means what it drew,
+    so on a thread already resolved it sends nothing and shows the resolution. A
+    folded card draws one title row whatever its thread's state, so news reaches it
+    at once."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "Keep the discussion here.")
+    answer = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "revision": 1,
+            "parent": root,
+            "text": "An answer to react to.",
+        },
+    )["id"]
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "user",
+            "revision": 1,
+            "parent": answer,
+            "token": "keep",
+        },
+    )
+    folded = panel_comment(serve.page_dir, "A folded thread below it.")
+    append_carried_log_record(
+        serve.page_dir, {"kind": "resolve", "author": "user", "parent": folded}
+    )
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    # Every thread, so a resolved card stays in the view.
+    page.locator(".lf-thread-filter-toggle").click()
+    for value in ("open", "resolved"):
+        choice = page.locator(f'[data-filter-value="{value}"]')
+        if choice.get_attribute("aria-pressed") == "true":
+            choice.click()
+    thread = page.locator(f'.lf-threads > .lf-thread[data-id="{root}"]')
+    below = page.locator(f'.lf-threads > .lf-thread[data-id="{folded}"]')
+    if thread.get_attribute("open") is None:
+        thread.locator(".lf-thread-summary").click()
+    keep = thread.locator(f'.lf-msg[data-mid="{answer}"] .lf-react[data-token="keep"]')
+    field = thread.locator("leaf-text")
+    words = thread.locator(f'.lf-msg[data-mid="{answer}"] .lf-msg-text')
+
+    def news_lands(record):
+        rendered(page)
+        # Chrome reports no shift within 500ms of input, so the news lands after it.
+        page.wait_for_function(
+            "at => performance.now() - at > 500", arg=page.evaluate("performance.now()")
+        )
+        boxes = words.bounding_box(), below.bounding_box()
+        append_carried_log_record(serve.page_dir, record)
+        told(page)
+        rendered(page)
+        assert (words.bounding_box(), below.bounding_box()) == boxes
+
+    news_lands({"kind": "resolve", "author": "agent", "agent": "Codex", "parent": root})
+    expect(thread.get_by_role("button", name="Resolved", exact=True)).to_be_visible()
+    expect(keep).to_have_attribute("aria-pressed", "true")
+    logged = len(events_model.read_events(serve.page_dir))
+    thread.get_by_role("button", name="Resolve thread").click()
+    expect(thread.locator(".lf-thread-news")).to_have_count(0)
+    expect(field).to_have_count(0)
+    expect(thread).to_have_attribute("data-resolved", "true")
+    rendered(page)
+    assert len(events_model.read_events(serve.page_dir)) == logged
+
+    news_lands({"kind": "unresolve", "author": "user", "parent": root})
+    notice = thread.get_by_role("button", name="Reopened", exact=True)
+    expect(notice).to_be_visible()
+    expect(thread).to_have_attribute("data-resolved", "true")
+    notice.click()
+    expect(thread).to_have_attribute("data-resolved", "false")
+    expect(field).to_be_visible()
+
+    append_carried_log_record(
+        serve.page_dir, {"kind": "unresolve", "author": "user", "parent": folded}
+    )
+    told(page)
+    expect(below).to_have_attribute("data-resolved", "false")
+
+
+@pytest.mark.watch_shifts
+def test_a_resolution_from_elsewhere_moves_nothing_after_a_diff_thread(browser, serve):
+    """A diff line's thread resolved elsewhere stays open behind its notice.
+
+    Resolving folds an outlet to its summary, which would lift the paragraph after
+    the diff under the reader."""
+    url = serve(
+        leaf_page(
+            "inline diff thread",
+            '<h1 id="title">Review</h1><lf-diff id="patch" source="review-patch">'
+            '<pre></pre></lf-diff><p id="after">Reading the paragraph after the diff.</p>',
+        )
+    )
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "review-patch",
+        "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n@@ -1 +1 @@\n"
+        '-return "old"\n+return "new"\n',
+    )
+    root = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Keep this check beside the changed line.",
+            "anchor": {
+                "section": "patch",
+                "datum": '["app.py","new",1]',
+                "source": "review-patch",
+                "source_revision": source_revision(serve.page_dir, "review-patch"),
+            },
+        },
+    )["id"]
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "parent": root,
+            "text": "The guard now covers the replacement path.",
+        },
+    )
+    page = open_page(browser, url)
+    resized(page, 1920, 900)
+    thread = page.locator(f'lf-diff .lf-page-thread[data-thread="{root}"]')
+    after = page.locator("#after")
+    expect(thread).to_be_visible()
+    rendered(page)
+    page.wait_for_function(
+        "at => performance.now() - at > 500", arg=page.evaluate("performance.now()")
+    )
+    before = after.bounding_box()
+    append_carried_log_record(
+        serve.page_dir,
+        {"kind": "resolve", "author": "agent", "agent": "Codex", "parent": root},
+    )
+    told(page)
+    notice = thread.get_by_role("button", name="Resolved", exact=True)
+    expect(notice).to_be_visible()
+    rendered(page)
+    assert after.bounding_box() == before
+    notice.click()
+    expect(thread).to_have_attribute("data-resolved", "true")
+    expect(thread).not_to_have_attribute("open", "")
 
 
 @pytest.mark.parametrize("destination", ["message", "ask"])
@@ -4977,7 +5140,11 @@ def test_a_render_arriving_mid_fold_keeps_the_place_the_fold_is_holding(browser,
 def test_an_external_resolution_keeps_a_panel_reply_until_it_is_sent(
     browser, serve, finish
 ):
-    """Settlement changes the thread, not the visible draft or its editing lifetime."""
+    """Settlement changes the thread, not the visible draft or its editing lifetime.
+
+    The resolution from elsewhere waits behind the card's notice, so the card keeps
+    its reply box and Resolve; sending the reply is the user's gesture in the thread,
+    which shows what it holds."""
     page = open_page(browser, serve(LONG_PAGE, comments=1), init_script=HOLD_MOTION)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
@@ -5000,7 +5167,9 @@ def test_an_external_resolution_keeps_a_panel_reply_until_it_is_sent(
     )
     told(page)
     rendered(page)
-    expect(card).to_have_attribute("data-resolved", "true")
+    notice = card.get_by_role("button", name="Resolved", exact=True)
+    expect(notice).to_be_visible()
+    expect(card).to_have_attribute("data-resolved", "false")
     expect(card).not_to_have_attribute("inert", "")
     expect(card).to_be_visible()
     expect(reply).to_be_focused()
@@ -5009,13 +5178,13 @@ def test_an_external_resolution_keeps_a_panel_reply_until_it_is_sent(
     assert page.evaluate("() => window.__lfHeld.length") == 0
 
     if finish == "clear":
-        # The words no longer hold the card, but it is the card the list shows open,
-        # so it stays in the shape it stood in until the user moves on.
+        # Clearing the words is no gesture in the thread, so the card still holds the
+        # resolution, and stands as it did until the user moves on.
         page.keyboard.press("ControlOrMeta+a")
         page.keyboard.press("Backspace")
         rendered(page)
         expect(card).to_be_visible()
-        expect(card).to_have_attribute("data-resolved", "true")
+        expect(notice).to_be_visible()
         expect(reply).to_be_focused()
         expect(reply).to_have_js_property("value", "")
         return
@@ -8593,6 +8762,10 @@ def test_a_thread_resolved_while_its_reply_is_written_keeps_the_user_on_it(
         page.keyboard.press("ControlOrMeta+a")
         page.keyboard.press("Backspace")
         rendered(page)
+        if kind != "margin":
+            # A seat in the flow holds the resolution behind its notice while the
+            # thread is on screen, and folds once the user asks to see it.
+            thread.get_by_role("button", name="Resolved", exact=True).click()
         expect(thread.locator(":scope > .lf-thread-reply leaf-text")).to_have_count(0)
         if kind == "margin":
             expect(page.locator(".lf-margin-preview")).to_be_hidden()

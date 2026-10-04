@@ -2125,8 +2125,9 @@ def test_the_thread_follows_the_decision_that_still_stands(browser, serve):
     # replayed onto it, so what the press restores is the accept, not a blank slate.
     undo(page)
     expect(page.locator("#sug-fix")).to_have_attribute("data-lf-state", "accept")
-    # The undo is no gesture on the thread, so its card stays where it stands, closed.
-    expect(reopened).to_have_attribute("data-resolved", "true")
+    # The undo is no gesture on the thread, so its card stays where it stands, holding
+    # the resolution behind its notice.
+    expect(reopened.get_by_role("button", name="Resolved", exact=True)).to_be_visible()
     expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
     # What the log holds is the three gestures and not one word about the thread:
     # it was reopened and closed again by that log being read.

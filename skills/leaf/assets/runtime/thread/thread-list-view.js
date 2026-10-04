@@ -21,7 +21,8 @@
 
    The list also decides when a card leaves it (`keeping`), and news takes no card
    out from in front of the user: a card another actor resolves under Open stays where
-   it stands, drawn resolved, until its going would move nothing the user sees. */
+   it stands, its card holding the resolution behind its notice (held-news.js), until
+   its going would move nothing the user sees. */
 import { html, repeat } from "../../vendor/browser-runtime.js";
 import { focused } from "../keyboard/scopes.js";
 import { RetainedFace } from "../retained-face.js";
@@ -34,23 +35,10 @@ import { nextRender } from "../rendering.js";
 import { foldOut, finishFold, isFolding } from "./folding.js";
 import { threadKey } from "./model.js";
 import { seenRect, whenOffScreen } from "../geometry.js";
-import { readApplication } from "../semantic-state.js";
+import { gesturedOn } from "./held-news.js";
 
 const TAG = "leaf-thread-list";
 
-// Whether this page's ledger holds a gesture of the user's on `thread`: a settlement,
-// reply or reaction on one of its messages, a move on a widget one of them holds, or
-// the refusal that takes one back.
-function gesturedOn(thread) {
-  const { unresolved, document } = readApplication();
-  const messages = new Set(thread.msgs.map(({ id }) => id));
-  return unresolved.some(
-    ({ event }) =>
-      messages.has(event.parent) ||
-      (event.widget &&
-        messages.has(document.descriptors.get(event.widget)?.document.message)),
-  );
-}
 const EMPTY_MODEL = Object.freeze({
   rows: Object.freeze([]),
   count: null,
@@ -119,13 +107,13 @@ class ThreadListView extends RetainedFace {
   // user's own gesture on the thread (`gesturedOn`) takes the card in the turn it is
   // drawn, or, while its reply holds words, once the words go ("draft"), so settlement
   // never puts a draft away; a settlement folds it out (willUpdate). Anything else is
-  // news ("news"), and its card stays, drawn as the news left it, while its going would
-  // move something the user sees: while any of it shows, since every card after it
-  // would rise, and, as the card the list shows open, while the panel shows, since
+  // news ("news"), and its card stays, holding the news (held-news.js), while its going
+  // would move something the user sees: while any of it shows, since every card after
+  // it would rise, and, as the card the list shows open, while the panel shows, since
   // another card would open in its place. Out of sight it stays only for its words,
-  // with the cause that first excluded it still carried. Its
-  // leaving the window asks for the render that lets it go (`#watchKept`), as does its
-  // closing when the user opens another card.
+  // with the cause that first excluded it still carried. Its leaving the window asks
+  // for the render that lets it go (`#watchKept`), as does its closing when the user
+  // opens another card.
   keeping(thread, intent) {
     const key = threadKey(thread);
     const view = this.#views.get(`thread:${key}`);
@@ -287,6 +275,8 @@ class ThreadListView extends RetainedFace {
   willUpdate(changed) {
     if (!changed.has("model") || !this.#commands) return;
     this.#focusListAfterPaint ||= this.contains(focused());
+    // A change of view moves the cards, so they show what they hold.
+    const viewChanged = this.#intent !== this.model.intent;
     this.#intent = this.model.intent;
     const rows = [];
     const wanted = new Set();
@@ -322,15 +312,19 @@ class ThreadListView extends RetainedFace {
           this.#choose(view.node);
         });
       }
+      if (viewChanged) view.releaseNews();
       let descriptor = row.descriptor;
       const prior = view.model;
       if (this.#retaining || !descriptor.resolved || descriptor.visible)
         finishFold(view.node);
+      // A change of view puts away at once every card it stops admitting, including
+      // one whose resolution it shows.
       const folding =
         !this.#retaining &&
         descriptor.resolved &&
         (isFolding(view.node) ||
           (prior &&
+            !viewChanged &&
             !prior.resolved &&
             !prior.folding &&
             prior.visible &&

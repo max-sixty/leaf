@@ -87,14 +87,15 @@ box follows its last message; a long panel thread pins the
 box at its scroller's foot. News that would move a reply in flow waits behind the
 thread's existing notice; a pinned reply lets the transcript grow above it.
 Where news would move what the reader is reading, it waits behind a control of fixed size until they
-open it: in a seat in the page's flow, an agent's reply, the reopening it brings, and a
-thread the agent starts wait behind a notice in a row the seat already draws, and a
-thread that would open a seat of its own, as on a diff line with no thread, waits in
-the margin behind its marker (`thread/held-news.js`). In the Threads panel, a card
-news takes out of the view, as another actor resolving its thread under Open does,
-stays where it stands, drawn as the news left it in the shape it stood in, until its
-going would move nothing the user sees or they change the view
-(`thread/thread-list-view.js`, `keeping`). A region whose rows only the
+open it: in a seat in the page's flow or an open panel card, whatever the thread would
+draw differently (an agent's reply, a reaction from another tab, the thread resolved
+or reopened elsewhere) waits behind a notice in a row the thread already draws, as does
+a thread the agent starts in the seat, and a thread that would open a seat of its own,
+as on a diff line with no thread, waits in the margin behind its marker
+(`thread/held-news.js`). In the Threads panel, a card news takes out of the view, as
+another actor resolving its thread under Open does, stays where it stands, drawn as it
+was behind that notice, until its going would move nothing the user sees or they
+change the view (`thread/thread-list-view.js`, `keeping`). A region whose rows only the
 log or the clock decides, so no first paint can size it, shows none of them until the
 reader opens them through a control of fixed size the widget already draws, as a
 command's counts open its lists; after that a change to its rows waits the same way

@@ -22,13 +22,13 @@ export const tabStops = (root) =>
 
 // Put the user on an element that may not be a tab stop: focus it, and where it will
 // not take focus, lend it the tab stop a control has for exactly as long as it holds it —
-// the lend leaves with the first blur, so a paragraph the Go-to sequence landed on is a
-// paragraph again once the user moves off it, and `tabindex` never becomes a thing the
-// runtime leaves behind on an author's element. An element that already declares a stop
-// keeps its own. What wants this is an arrival at an element nobody owns — a go-to hint
-// completing on a fold, a heading or a link's fragment; the reference handing a user
-// back to the block they were reading; the skip link landing on the banner when none of
-// its controls will take them. Each is "the user is now here", and each needs the
+// the lend leaves when focus leaves it within the document, so a paragraph the Go-to
+// sequence landed on is a paragraph again once the user moves off it, and `tabindex`
+// never becomes a thing the runtime leaves behind on an author's element. An element
+// that already declares a stop keeps its own. What wants this is an arrival at an
+// element nobody owns — a go-to hint completing on a fold, a heading or a link's
+// fragment; the reference handing a user back to the block they were reading; the skip
+// link landing on the banner when none of its controls will take them. Each is "the user is now here", and each needs the
 // browser's sequential focus navigation starting point to move with them, which is what
 // `focus()` does and what nothing else does.
 //
@@ -52,7 +52,16 @@ function lendStop(destination) {
   if (destination.hasAttribute("tabindex")) return;
   // Only the `-1` lent here is taken back: a box that came to scroll meanwhile wears
   // the reach pass's stop (reach.js), which is that pass's to take.
+  //
+  // A window losing system focus blurs the element too, but leaves it the document's
+  // focused area, and the platform hands focus back to it when the window returns. That
+  // blur is not the user moving off: taking the stop back then makes the element
+  // unfocusable while it is focused, the browser drops the user to the body, and the
+  // window comes back with them standing nowhere. Any other app taking key focus for a
+  // moment does it, such as macOS's dialog verifying a newly installed binary.
   const giveBack = () => {
+    if (destination.getRootNode().activeElement === destination) return;
+    destination.removeEventListener("blur", giveBack);
     lent.delete(destination);
     if (destination.getAttribute("tabindex") === "-1")
       destination.removeAttribute("tabindex");
@@ -64,7 +73,7 @@ function lendStop(destination) {
     giveBack();
     return;
   }
-  destination.addEventListener("blur", giveBack, { once: true });
+  destination.addEventListener("blur", giveBack);
 }
 
 // The input types whose selection the platform will answer for. Reading `selectionStart`

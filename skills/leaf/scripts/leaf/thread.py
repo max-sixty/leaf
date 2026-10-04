@@ -889,12 +889,14 @@ def cmd_summarize(
     from_message: str,
     through_message: str,
     text,
+    *,
+    label: str | None = None,
 ) -> dict:
     """Append a presentation summary over one contiguous message range, in the
     thread its first message sits in."""
     from leaf.registry.storage import require_registry
 
-    body = read_text_arg(page_dir, text)
+    body = read_text_arg(page_dir, text, allow_empty=text == "")
     with PageTransaction(page_dir) as page:
         require_registry(page_dir)
         return append_admitted(
@@ -907,6 +909,7 @@ def cmd_summarize(
                 "from": from_message,
                 "through": through_message,
                 "text": body,
+                **({"label": label} if label is not None else {}),
             },
         )
 

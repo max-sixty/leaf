@@ -186,7 +186,7 @@ def hold_visible_thread_presentation(page, thread_id):
 
 # Named from the command's own answer: a page open on this directory appends a
 # bookkeeping `read` of its own, so the log's tail is not reliably this summary.
-def summarize_thread(page_dir, first, last, text):
+def summarize_thread(page_dir, first, last, text, *, label=None):
     """Admit one agent summary through the public command door."""
     result = CliRunner().invoke(
         cli_model.cli,
@@ -200,6 +200,7 @@ def summarize_thread(page_dir, first, last, text):
             last,
             "--text",
             text,
+            *(["--label", label] if label is not None else []),
         ],
     )
     assert result.exit_code == 0, result.output
@@ -529,6 +530,10 @@ def test_a_summary_folds_originals_and_a_direct_reply_link_reveals_them(browser,
     expect(expand).to_have_attribute("aria-expanded", "false")
     expect(expand).to_have_accessible_name("Show 3 earlier messages")
     expect(checkpoint.locator(".lf-summary-label")).to_have_text("Earlier discussion")
+    label_box = checkpoint.locator(".lf-summary-label").bounding_box()
+    control_box = expand.bounding_box()
+    assert label_box["x"] + label_box["width"] <= control_box["x"]
+    assert control_box["y"] <= label_box["y"] < control_box["y"] + control_box["height"]
     expect(checkpoint.locator(".lf-summary-text")).to_have_text(
         "Checkpoint digest: the dependency remains and the measurement took 18 minutes."
     )
@@ -584,6 +589,47 @@ def test_a_summary_folds_originals_and_a_direct_reply_link_reveals_them(browser,
     expect(destination).to_be_visible()
     expect(destination).to_be_focused()
     expect(expand).to_have_attribute("aria-expanded", "true")
+
+
+@pytest.mark.parametrize("width", [390, 1440])
+def test_previous_updates_can_fold_without_summary_prose(browser, serve, width):
+    """The same disclosure keeps progress available without an authored digest."""
+    url = serve(SEATED_QUESTION_PAGE)
+    root = panel_comment(
+        serve.page_dir, "Please check the schedule.", {"section": "jobs"}
+    )
+    first = append_agent_reply(serve.page_dir, root, "Checking the dependency.")
+    last = append_agent_reply(serve.page_dir, root, "Checking the camera.")
+    answer = append_agent_reply(serve.page_dir, root, "The schedule works.")
+    summary = summarize_thread(
+        serve.page_dir, first["id"], last["id"], "", label="Previous updates"
+    )
+
+    page = open_page(browser, url)
+    resized(page, width, 900)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    card = page.locator(f'.lf-thread[data-id="{root}"]')
+    card.locator(":scope > .lf-thread-summary").click()
+    checkpoint = card.locator(
+        f'.lf-thread-checkpoint[data-summary-id="{summary["id"]}"]'
+    )
+    label = checkpoint.locator(".lf-summary-label")
+    expand = checkpoint.get_by_role("button", name="Show 2 earlier messages")
+    expect(label).to_have_text("Previous updates")
+    expect(checkpoint.locator(".lf-summary-text")).to_have_count(0)
+    expect(card.locator(f'.lf-msg[data-mid="{answer["id"]}"]')).to_be_visible()
+    expect(card.locator(f'.lf-msg[data-mid="{first["id"]}"]')).to_be_hidden()
+    label_box = label.bounding_box()
+    control_box = expand.bounding_box()
+    assert label_box["x"] + label_box["width"] <= control_box["x"]
+    assert control_box["y"] <= label_box["y"] < control_box["y"] + control_box["height"]
+    expand.focus()
+    page.keyboard.press("Enter")
+    expect(card.locator(f'.lf-msg[data-mid="{first["id"]}"]')).to_be_visible()
+    expect(card.locator(f'.lf-msg[data-mid="{last["id"]}"]')).to_be_visible()
+    checkpoint.get_by_role("button", name="Collapse 2 earlier messages").click()
+    expect(card.locator(f'.lf-msg[data-mid="{first["id"]}"]')).to_be_hidden()
 
 
 def test_a_summary_gathering_the_message_the_user_is_on_keeps_them_on_it(

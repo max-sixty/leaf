@@ -510,9 +510,16 @@ def thread() -> None:
 @click.argument("dir", metavar="PAGE")
 @click.option("--from", "from_message", required=True, metavar="MESSAGE")
 @click.option("--through", "through_message", required=True, metavar="MESSAGE")
-@click.option("--text", help="summary Markdown (default: stdin)")
+@click.option(
+    "--text", help="summary Markdown; pass '' to fold without prose (default: stdin)"
+)
+@click.option("--label", help="disclosure label (default: Earlier discussion)")
 def thread_summarize(
-    dir: str, from_message: str, through_message: str, text: str | None
+    dir: str,
+    from_message: str,
+    through_message: str,
+    text: str | None,
+    label: str | None,
 ) -> None:
     """Replace --from through --through in the panel with a Markdown summary.
 
@@ -522,7 +529,11 @@ def thread_summarize(
     """
     from leaf.thread import cmd_summarize
 
-    _print_records(cmd_summarize(resolve_dir(dir), from_message, through_message, text))
+    _print_records(
+        cmd_summarize(
+            resolve_dir(dir), from_message, through_message, text, label=label
+        )
+    )
 
 
 @cli.group(short_help="Set or clear page-bound external data.")

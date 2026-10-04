@@ -15,7 +15,7 @@ page and is not a global identifier. The kinds:
 | `read` | user | `POST /api/event` | `messages: [{message, version}]` | records that this page's one user has read exact current or historical agent-content versions; `$events` declares it bookkeeping, so it adds no thread turn or agent work |
 | `thread_title` | agent | `--title` on `leaf thread open`, `reply` or `edit` | `thread`, `title` | names a thread in the panel; latest title wins without adding a turn or settling work |
 | `reanchor` | page | revision activation | `thread`, `revision`, `anchor: {section}` | a quoted passage no longer resolves; retains the open thread at its surviving section without adding a message, answering work or changing attention |
-| `summary` | agent | `leaf thread summarize` | `thread`, `from`, `through`, `text` | replaces one contiguous range with Markdown in the thread panel; originals stay in the log and remain revealable |
+| `summary` | agent | `leaf thread summarize` | `thread`, `from`, `through`, `text`; optional `label` | folds one contiguous range with optional Markdown in the thread panel; originals stay in the log and remain revealable |
 | `resolve` | user or agent | `POST /api/event`, `leaf thread resolve` | `parent` | closes a thread |
 | `unresolve` | user | `POST /api/event` | `parent` | the user reopens a resolved thread |
 | `done` | user | the banner, only on a page declaring `<meta name="lf-review" content="sign-off">` | `version`, the stamp approved | approval of the declared sign-off; a page that asks nothing gets no terminal control |
@@ -268,8 +268,11 @@ them:
 - `summary` names an inclusive `from`–`through` range of at least two spoken turns in
   one thread; a reaction may lie inside the range but not at an endpoint. A
   later overlapping summary replaces the earlier one whole, disjoint summaries
-  coexist, editing a covered message invalidates its summary, and a message appended
-  after the range stays outside it. A summary answers, resolves, and settles nothing.
+  coexist, and a message appended after the range stays outside it. `label` defaults
+  to “Earlier discussion” in the projection; `text` may be empty for a disclosure
+  without prose. Editing a covered message invalidates a summary containing prose;
+  a fold without prose keeps the revised originals. A summary answers, resolves,
+  and settles nothing.
 - An agent `reply` may carry an `anchor` captured against its `revision`, or a null
   anchor when its subject has left that revision. The fold takes the latest such value
   as the thread's current location and exposes the prior one as `detached_from` while

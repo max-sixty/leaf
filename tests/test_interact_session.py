@@ -6540,6 +6540,67 @@ def test_thread_summary_is_admitted_as_one_ordered_thread_range(page_dir):
     assert browser_thread["summaries"] == [projected]
 
 
+@pytest.mark.parametrize("label", [None, "Previous updates"])
+def test_summary_cli_can_fold_without_prose_only_when_explicit(page_dir, label):
+    root = append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "Fix the layout."}
+    )
+    reply = append_carried_log_record(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "parent": root["id"],
+            "text": "Checking the label row.",
+        },
+    )
+    command = [
+        "thread",
+        "summarize",
+        str(page_dir),
+        "--from",
+        root["id"],
+        "--through",
+        reply["id"],
+    ]
+    if label is not None:
+        command.extend(["--label", label])
+
+    missing = CliRunner().invoke(cli_model.cli, command)
+    assert missing.exit_code != 0
+    assert "empty text" in missing.output
+
+    result = CliRunner().invoke(cli_model.cli, [*command, "--text", ""])
+    assert result.exit_code == 0, result.output
+    event = json.loads(result.output)
+    assert event["text"] == ""
+    if label is None:
+        assert "label" not in event
+    else:
+        assert event["label"] == label
+    read = CliRunner().invoke(
+        cli_model.cli, ["page", "state", str(page_dir), root["id"]]
+    )
+    assert read.exit_code == 0, read.output
+    [agent_fold] = json.loads(read.output)["thread"]["summaries"]
+    [thread] = page_state(page_dir)["browser"]["thread"]["threads"]
+    [fold] = thread["summaries"]
+    assert fold == agent_fold
+    assert (fold["label"], fold["text"], fold["covers"]) == (
+        label if label is not None else "Earlier discussion",
+        "",
+        [root["id"], reply["id"]],
+    )
+    assert [message["text"] for message in thread["msgs"]] == [
+        "Fix the layout.",
+        "Checking the label row.",
+    ]
+
+    # Allowing an empty summary body must not admit an empty reply.
+    with pytest.raises(SystemExit, match="empty text"):
+        thread_model.cmd_reply(page_dir, root["id"], "", None, for_event=root["id"])
+
+
 def test_summary_hint_keeps_the_latest_spoken_exchange_outside_reactions(page_dir):
     root = append_carried_log_record(
         page_dir,

@@ -665,7 +665,8 @@
             "thread": {"type": "string", "minLength": 1},
             "from": {"type": "string", "minLength": 1},
             "through": {"type": "string", "minLength": 1},
-            "text": {"type": "string", "minLength": 1},
+            "text": {"type": "string"},
+            "label": {"type": "string", "minLength": 1},
             "agent": {"type": "string", "minLength": 1},
             "session": {"type": "string", "minLength": 1}
           },

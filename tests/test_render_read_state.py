@@ -113,11 +113,11 @@ def test_unread_summary_keeps_hidden_original_unread(browser, serve):
     card = page.locator(f'.lf-thread[data-id="{root}"]')
     card.locator(":scope > .lf-thread-summary").click()
     checkpoint = card.locator(".lf-thread-checkpoint")
-    expect(checkpoint.locator(".lf-summary-unread")).to_contain_text(
-        "1 unread original"
-    )
     expect(checkpoint.locator(".lf-summary-originals")).to_be_hidden()
     expect(card.locator(".lf-unread-label")).to_have_count(0)
+    page.locator(".lf-first-unread").click()
+    expect(checkpoint).to_have_attribute("data-expanded", "true")
+    expect(card.locator(f'.lf-msg[data-mid="{first}"]')).to_be_focused()
 
 
 def test_first_unread_reveals_resolved_summary_original(browser, serve):

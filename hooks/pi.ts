@@ -106,6 +106,8 @@ export default function leaf(pi: ExtensionAPI) {
 	async function ensureWatch(interrupted: boolean) {
 		if (!hasUI || disposed || (watch && watch.interrupted === interrupted)) return;
 		await stopWatch();
+		// A shutdown, or another start, may have come while the old one exited.
+		if (disposed || watch) return;
 		const started = run(["hook", "--watch"], {
 			hook_event_name: interrupted ? "Interrupt" : "Stop",
 			session_id: session,
@@ -174,7 +176,12 @@ export default function leaf(pi: ExtensionAPI) {
 	pi.on("agent_settled", async () => {
 		const interrupted = running && !settledByStop;
 		running = false;
-		if (interrupted) await hook({ hook_event_name: "Interrupt", session_id: session });
+		if (interrupted) {
+			// A watch from before would read the closed turn as the Stop hook's
+			// ending, and hand the stopped run's input to a new one.
+			await stopWatch();
+			await hook({ hook_event_name: "Interrupt", session_id: session });
+		}
 		await ensureWatch(interrupted);
 	});
 }

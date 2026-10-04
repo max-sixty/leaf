@@ -4387,12 +4387,51 @@ def test_a_resolved_thread_can_be_reopened(browser, serve):
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "unresolve"
 
 
+# Agent threads and a disclosure on the page: the thread an operation acts on (open, or
+# resolved for a reopen), the open thread a resolve hands the user on to, and the two
+# places a user can go while the operation's delivery is held.
+COMPLETION_ROOTS = {"open": "c0", "next": "c1", "resolved": "c2", "later": "c3"}
+COMPLETION_PAGE = leaf_page(
+    "Held thread operations",
+    """
+<h1 id="t">Held thread operations</h1>
+<p id="p-open">An open thread stands on this paragraph.</p>
+<p id="p-next">The thread a resolve hands on to stands on this one.</p>
+<p id="p-resolved">A resolved thread stands on this one.</p>
+<p id="p-later">The user moves on to the thread on this paragraph.</p>
+<details id="d-page"><summary>More on the page</summary><p>Opened.</p></details>
+""",
+)
+COMPLETION_EVENTS = (
+    *(
+        {
+            "kind": "comment",
+            "author": "agent",
+            "revision": 1,
+            "id": root,
+            "text": f"A {name} thread.",
+            "anchor": {"section": f"p-{name}"},
+        }
+        for name, root in COMPLETION_ROOTS.items()
+    ),
+    {
+        "kind": "resolve",
+        "author": "user",
+        "revision": 1,
+        "parent": COMPLETION_ROOTS["resolved"],
+    },
+)
+
+
 @pytest.mark.parametrize("kind", ["unresolve", "resolve", "reply"])
-@pytest.mark.parametrize("destination", ["stay", "page", "other-thread", "other-focus"])
+@pytest.mark.parametrize("destination", ["stay", "page", "thread"])
 def test_a_thread_completion_keeps_the_users_later_destination(
     browser, serve, kind, destination
 ):
-    """A held thread operation may land only while its original intent still stands."""
+    """A held thread operation's delivery leaves the user where they went meanwhile:
+    where the operation itself left them (`stay`), on the page with Threads closed
+    (`page`, which a reopen's arrival must not open again), or typing in another
+    thread (`thread`)."""
     held = []
 
     def hold_operation(route):
@@ -4403,17 +4442,12 @@ def test_a_thread_completion_keeps_the_users_later_destination(
 
     page = open_page(
         primed(browser, lambda page: page.route("**/api/event", hold_operation)),
-        serve(FEATURE_GALLERY),
+        serve(COMPLETION_PAGE, events=COMPLETION_EVENTS),
     )
     resized(page, 390, 700)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    roots = {
-        event["anchor"]["section"]: event["id"]
-        for event in events_model.read_events(serve.page_dir)
-        if event["kind"] == "comment" and "token" not in event and event.get("anchor")
-    }
-    root = roots["bg-resolved-text" if kind == "unresolve" else "bg-thread-text"]
+    root = COMPLETION_ROOTS["resolved" if kind == "unresolve" else "open"]
     thread = page.locator(f'.lf-thread[data-id="{root}"]')
     if kind == "unresolve":
         page.locator(".lf-thread-filter-toggle").click()
@@ -4433,27 +4467,21 @@ def test_a_thread_completion_keeps_the_users_later_destination(
     ).click()
     holding(page, held, 1, "the thread operation")
 
-    later = page.locator(f'.lf-thread[data-id="{roots["bg-crowded"]}"] leaf-text')
-    changes = page.locator("#bg-history summary")
-    if kind == "unresolve" and destination in {"other-thread", "other-focus"}:
-        # Reopen has already selected Open while its delivery is held.
-        expect(page.locator('[data-filter-value="open"]')).to_have_attribute(
-            "aria-pressed", "true"
-        )
-        expect(
-            page.locator(f'.lf-thread[data-id="{roots["bg-crowded"]}"]')
-        ).to_be_visible()
-    if destination in {"other-thread", "other-focus"}:
-        focus_panel_thread(page.locator(f'.lf-thread[data-id="{roots["bg-crowded"]}"]'))
+    later_thread = page.locator(f'.lf-thread[data-id="{COMPLETION_ROOTS["later"]}"]')
+    later = later_thread.locator("leaf-text")
+    changes = page.locator("#d-page summary")
     if destination == "page":
         page.get_by_role("button", name="Close threads", exact=True).click()
         changes.click()
-    elif destination == "other-thread":
+    elif destination == "thread":
+        if kind == "unresolve":
+            # Reopen has already selected Open while its delivery is held.
+            expect(page.locator('[data-filter-value="open"]')).to_have_attribute(
+                "aria-pressed", "true"
+            )
+        focus_panel_thread(later_thread)
         later.click()
         write(later, "The user is working here now.")
-    elif destination == "other-focus":
-        # Accessibility and app focus travel need not emit a pointer or key gesture.
-        later.focus()
 
     delivered = held.pop(0)
     attempt = delivered.request.post_data_json["attempt"]
@@ -4473,24 +4501,22 @@ def test_a_thread_completion_keeps_the_users_later_destination(
     if destination == "page":
         assert not page.get_by_role("dialog").is_visible()
         expect(changes).to_be_focused()
-        expect(page.locator("#bg-history details")).to_have_attribute("open", "")
-    elif destination in {"other-thread", "other-focus"}:
+        expect(page.locator("#d-page")).to_have_attribute("open", "")
+    elif destination == "thread":
         expect(later).to_be_focused()
-        expect(later).to_have_js_property(
-            "value",
-            "The user is working here now." if destination == "other-thread" else "",
-        )
+        expect(later).to_have_js_property("value", "The user is working here now.")
     elif kind == "unresolve":
         expect(thread.locator("leaf-text")).to_be_focused()
     elif kind == "reply":
         # The send left the user on the thread's title, and its delivery keeps them there.
         expect(thread.locator(".lf-thread-summary")).to_be_focused()
     else:
+        # Resolve handed the user on to the next open thread.
         expect(
             page.locator(
-                ".lf-threads > .lf-thread:not([hidden]) > .lf-thread-summary:focus"
+                f'.lf-thread[data-id="{COMPLETION_ROOTS["next"]}"] > .lf-thread-summary'
             )
-        ).to_have_count(1)
+        ).to_be_focused()
 
 
 def test_a_late_reply_reopens_its_resolved_thread(browser, serve):

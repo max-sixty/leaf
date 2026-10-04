@@ -2063,7 +2063,9 @@ def test_an_arriving_reply_cannot_move_resolve_out_from_under_a_press(browser, s
     ), "mouseup did not complete the Resolve press"
     source_thread = page.locator(f'.lf-thread[data-id="{source}"]')
     source_thread.locator(".lf-thread-summary").click()
-    source_thread.get_by_role("button", name="1 new reply", exact=True).click()
+    # Opening the panel card releases its held reply. The earlier assertion still
+    # proves that arrival did not move Resolve during the press.
+    expect(source_thread.locator(".lf-thread-news")).to_have_count(0)
     expect(page.locator(f'.lf-msg[data-mid="{reply["id"]}"]')).to_have_count(1)
 
 

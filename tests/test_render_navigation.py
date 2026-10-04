@@ -2335,22 +2335,45 @@ def test_the_gallery_tab_set_uses_the_boundary_of_its_composition(
 
 
 @pytest.mark.parametrize("reduced", [False, True])
-def test_an_ask_walk_across_tabs_scrolls_without_an_initial_page_jump(
-    browser, serve, reduced
+@pytest.mark.parametrize("nested_source", [False, True])
+def test_an_ask_walk_glides_within_a_view_and_opens_other_tabs_at_the_question(
+    browser, serve, reduced, nested_source
 ):
-    """Both directions glide the whole trip; reduced motion lands immediately."""
-    question = lambda name: (
-        f'<lf-ask id="ask-{name}"><h2>Choose {name}?</h2>'
-        f'<lf-options id="choice-{name}" choose>'
-        f'<lf-option id="yes-{name}">Yes</lf-option>'
-        f'<lf-option id="no-{name}">No</lf-option></lf-options></lf-ask>'
-    )
+    """A disclosure extends one reading; a mutually exclusive tab opens at its Ask.
+
+    Capture frames rather than just scroll events: a new panel must already show the
+    question in its first painted frame, not appear elsewhere and glide afterwards.
+    """
+
+    def question(name):
+        options = (
+            f'<lf-options id="choice-{name}" choose>'
+            f'<lf-option id="yes-{name}">Yes</lf-option>'
+            f'<lf-option id="no-{name}">No</lf-option></lf-options>'
+        )
+        if name == "first" and nested_source:
+            options = (
+                '<lf-tabs id="source-views"><lf-tab id="source-context" label="Context">'
+                "<p>The evidence precedes the decision.</p></lf-tab>"
+                '<lf-tab id="source-answer" label="Answer">'
+                + options
+                + "</lf-tab></lf-tabs>"
+            )
+        return f'<lf-ask id="ask-{name}"><h2>Choose {name}?</h2>{options}</lf-ask>'
+
+    first = question("first")
+    if not nested_source:
+        first = (
+            '<details id="question-fold"><summary>First proposal</summary>'
+            + first
+            + "</details>"
+        )
     source = leaf_page(
         "Ask travel across tabs",
         '<h1>Review the two proposals</h1><lf-tabs id="views">'
         '<lf-tab id="first" label="First">'
         '<div style="height: 1800px"></div>'
-        + question("first")
+        + first
         + '<div style="height: 1000px"></div></lf-tab>'
         '<lf-tab id="second" label="Second">'
         + question("second")
@@ -2358,17 +2381,26 @@ def test_an_ask_walk_across_tabs_scrolls_without_an_initial_page_jump(
     )
     page = open_page(browser, serve(source))
     page.emulate_media(reduced_motion="reduce" if reduced else "no-preference")
-    page.keyboard.press("a")
-    expect(page.locator("#ask-first")).to_be_focused()
-    scroll_settled(page)
-    for key, target, tab in [("a", "second", "Second"), ("Shift+a", "first", "First")]:
-        before = page.evaluate("scrollY")
+
+    def start_trace():
         page.evaluate("""() => {
-          window.askScrollTrace = [scrollY];
+          window.askFrames = [];
           window.askTabCues = [];
+          const record = () => {
+            const tab = document.querySelector('#views > .lf-tabstrip [aria-selected="true"]');
+            const selected = tab.getAttribute('aria-controls');
+            const ask = document.getElementById(`ask-${selected}`);
+            const source = document.querySelector('#source-views [aria-selected="true"]');
+            askFrames.push({selected, scroll: scrollY,
+                           source: source?.getAttribute('aria-controls'),
+                           top: ask.getBoundingClientRect().top});
+            window.askFrame = requestAnimationFrame(record);
+          };
+          window.askFrame = requestAnimationFrame(record);
           window.askTabObserver = new MutationObserver(records => {
             for (const {target} of records) {
-              if (target.getAttribute('aria-selected') === 'true') {
+              if (target.getAttribute('aria-selected') === 'true' &&
+                  target.closest('lf-tabs').id === 'views') {
                 const name = target.querySelector('.lf-tab-name');
                 askTabCues.push(name.getAnimations().length);
               }
@@ -2377,32 +2409,114 @@ def test_an_ask_walk_across_tabs_scrolls_without_an_initial_page_jump(
           askTabObserver.observe(document.querySelector('#views'), {
             subtree: true, attributes: true, attributeFilter: ['aria-selected']
           });
-          window.askScrollListener = () => askScrollTrace.push(scrollY);
-          document.addEventListener('scroll', askScrollListener);
         }""")
-        page.keyboard.press(key)
-        expect(page.locator(f"#ask-{target}")).to_be_focused()
-        selected = page.get_by_role("tab", name=tab, exact=True)
-        expect(selected).to_have_attribute("aria-selected", "true")
-        scroll_settled(page)
-        after = page.evaluate("scrollY")
-        trace = page.evaluate("""() => {
-          document.removeEventListener('scroll', askScrollListener);
+
+    def finish_trace():
+        return page.evaluate("""() => {
+          cancelAnimationFrame(askFrame);
           askTabObserver.disconnect();
-          return askScrollTrace;
+          return {frames: askFrames, cues: askTabCues};
         }""")
-        assert abs(after - before) > 1000, (before, after)
-        intermediate = [
-            y for y in trace if min(before, after) + 50 < y < max(before, after) - 50
-        ]
-        assert bool(intermediate) == (not reduced), trace
-        cues = page.evaluate("askTabCues")
-        assert cues == [0 if reduced else 1], cues
-        top = page.locator(f"#ask-{target}").bounding_box()["y"]
+
+    # The Ask's source may switch an inner view even when its outer wrapper stays.
+    # A disclosure, by contrast, extends the current view and preserves its glide.
+    if nested_source:
+        expect(
+            page.locator('#source-views [aria-controls="source-context"]')
+        ).to_have_attribute("aria-selected", "true")
+    else:
+        expect(page.locator("#question-fold")).not_to_have_attribute("open", "")
+    before = page.evaluate("scrollY")
+    start_trace()
+    page.keyboard.press("a")
+    expect(page.locator("#ask-first")).to_be_focused()
+    if nested_source:
+        expect(
+            page.locator('#source-views [aria-controls="source-answer"]')
+        ).to_have_attribute("aria-selected", "true")
+    else:
+        expect(page.locator("#question-fold")).to_have_attribute("open", "")
+    expect(
+        page.locator('#views > .lf-tabstrip [aria-controls="first"]')
+    ).to_have_attribute("aria-selected", "true")
+    scroll_settled(page)
+    after = page.evaluate("scrollY")
+    trace = finish_trace()
+    assert after - before > 1000, (before, after)
+    intermediate = [
+        frame for frame in trace["frames"] if before + 50 < frame["scroll"] < after - 50
+    ]
+    assert bool(intermediate) == (not reduced and not nested_source), trace
+    assert trace["cues"] == [], trace
+    if nested_source:
         edge = page.evaluate(
             "parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop)"
         )
+        arrived = [
+            frame for frame in trace["frames"] if frame["source"] == "source-answer"
+        ]
+        assert arrived, trace
+        assert all(abs(frame["top"] - (edge + 5)) <= 3 for frame in arrived), trace
+
+    for key, target, tab in [("a", "second", "Second"), ("Shift+a", "first", "First")]:
+        before = page.evaluate("scrollY")
+        start_trace()
+        if target == "second":
+            # A revealed view may finish presentation later than its new geometry.
+            # Record its first painted frame while that completion is held.
+            page.evaluate("""() => {
+              const held = new Promise(resolve => { window.releaseAskTabLayout = resolve; });
+              document.querySelector('#views').addEventListener('lf-layout', event => {
+                event.detail.present(held);
+                window.askTabLayoutStarted = true;
+              }, {once: true});
+            }""")
+            try:
+                page.keyboard.press(key)
+                page.wait_for_function("window.askTabLayoutStarted === true")
+                one_frame(page)
+            finally:
+                page.evaluate("releaseAskTabLayout()")
+        else:
+            page.keyboard.press(key)
+        expect(page.locator(f"#ask-{target}")).to_be_focused()
+        selected = page.locator("#views > .lf-tabstrip").get_by_role(
+            "tab", name=tab, exact=True
+        )
+        expect(selected).to_have_attribute("aria-selected", "true")
+        scroll_settled(page)
+        after = page.evaluate("scrollY")
+        trace = finish_trace()
+        assert abs(after - before) > 1000, (before, after)
+        edge = page.evaluate(
+            "parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop)"
+        )
+        arrived = [frame for frame in trace["frames"] if frame["selected"] == target]
+        assert arrived, trace
+        assert all(abs(frame["top"] - (edge + 5)) <= 3 for frame in arrived), trace
+        assert trace["cues"] == [0 if reduced else 1], trace
+        top = page.locator(f"#ask-{target}").bounding_box()["y"]
         assert top == pytest.approx(edge + 5, abs=3), (top, edge)
+
+    # Leave the previous arrival entirely: the next trip must preserve this reading
+    # as its own Back destination, including the tab that owned the outgoing offset.
+    page.mouse.move(400, 400)
+    page.mouse.wheel(0, 1100)
+    expect(page.locator("#ask-first")).not_to_be_in_viewport()
+    scroll_settled(page)
+    reading = page.evaluate("scrollY")
+    page.keyboard.press("a")
+    expect(page.locator("#ask-second")).to_be_focused()
+    scroll_settled(page)
+    page.go_back()
+    page.wait_for_function("navigation.transition === null")
+    returned = page.evaluate("""() => ({
+      scroll: scrollY, fragment: location.hash,
+      selected: document.querySelector('#views > .lf-tabstrip [aria-selected="true"]')
+        .getAttribute('aria-controls')
+    })""")
+    assert returned["selected"] == "first", {"reading": reading, "returned": returned}
+    assert returned["scroll"] == pytest.approx(reading, abs=2), returned
 
 
 def test_an_ask_walk_reveals_the_owning_regions_horizontal_destination(browser, serve):

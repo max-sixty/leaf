@@ -157,6 +157,7 @@ customElements.define(
         // the runtime is about to scroll a comment anchor into view: open up.
         panel.addEventListener("beforematch", () => this.#activate(panel, "reveal"));
         panel.addEventListener("lf-reveal", (event) => {
+          if (this.#active && this.#active !== panel) event.detail.replacedView();
           const ready = this.#activate(panel, "reveal");
           event.detail?.present?.(ready);
         });

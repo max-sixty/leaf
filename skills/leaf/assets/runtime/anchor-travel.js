@@ -12,6 +12,8 @@
  * context: inner scrollports reveal the destination before its context is aligned.
  * `arrive` completes their reveal, presentation, focus and placement
  * under the original user intent; routes never perform the final handoff themselves.
+ * Travel scrolls within the current view. When reveal replaces a visible view,
+ * its destination lands immediately rather than scrolling from the old view's place.
  *
  * Travel owns effects above readonly resolution and paint. It receives the current
  * semantic threads and the synchronous thread refresh from the application root;
@@ -120,39 +122,39 @@ export function createAnchorTravel({
   // A route resolves a declaration, not a retained DOM destination. Reveal and its
   // presentation may replace nodes; focus may itself change the geometry. Read the
   // declaration after each of those boundaries, then apply its scroll placements in
-  // the same synchronous handoff as focus. `present` lets the owning renderer settle
-  // the revealed destination before its focus and placements are read.
+  // the same synchronous handoff as focus. Exposure places a replaced view immediately;
+  // `present` lets the owning renderer settle before the final geometry is read.
   // History departure remains before the work that would move the outgoing place.
   async function arrive(resolve, { intent, present = null, keep = false }) {
     const first = resolve();
     const holder = first && placeHolder(first.where);
     if (!holder || !intent()) return false;
     if (!keep) intent.handoff(() => surfaces.clearFor(holder));
-    await reveal(holder, intent);
+    const disclosures = [holder, ...(first.reveal ?? [])].map((target) =>
+      reveal(target, intent),
+    );
+    const replacedView = disclosures.some((disclosure) => disclosure.replacedView);
+    const place = () => {
+      let completed = false;
+      intent.handoff(() => {
+        const destination = resolve();
+        if (!destination?.where) return;
+        if (destination.focus) focusForNavigation(destination.focus);
+        const current = resolve();
+        if (!current?.where) return;
+        for (const placement of current.scroll) placeScroll(placement, replacedView);
+        completed = true;
+      });
+      return completed;
+    };
+    // A new view may paint while its layout is still presenting. Place its destination
+    // now; after presentation, resolve fresh geometry through the same placement.
+    if (replacedView) place();
+    await Promise.all(disclosures.map((disclosure) => disclosure.ready));
     if (!intent()) return false;
     if (present) await present();
     if (!intent()) return false;
-    const destination = resolve();
-    if (!destination?.where) return false;
-    let completed = false;
-    intent.handoff(() => {
-      if (destination.focus) focusForNavigation(destination.focus);
-      const current = resolve();
-      if (!current?.where) return;
-      for (const {
-        at,
-        align = at,
-        block = "center",
-        behavior = scrollBehavior(),
-        when,
-      } of current.scroll) {
-        if (when && !when()) continue;
-        if (block === "fragment") scrollToFragment(at);
-        else scrollRevealedPlace(at, align, behavior, block);
-      }
-      completed = true;
-    });
-    return completed;
+    return place();
   }
 
   // Travel's one entry. It stays when the user already has the destination and departs
@@ -293,18 +295,19 @@ export function createAnchorTravel({
   // (`scrollersOf`); a scroller inside that boundary still owns its ordinary descendants.
   const scrollingBoxFor = (element) => scrollersOf(element).next().value ?? null;
 
-  function scrollRevealedElement(
-    element,
-    behavior = scrollBehavior(),
-    block = "center",
+  function placeScroll(
+    { at, align = at, block = "center", behavior = scrollBehavior(), when },
+    replacedView,
   ) {
-    scrollRevealedPlace(element, element, behavior, block);
+    if (when && !when()) return;
+    if (block === "fragment") scrollToFragment(at);
+    else scrollRevealedPlace(at, align, replacedView ? "instant" : behavior, block);
   }
 
   // Synchronous: the move is the caller's gesture, so its intent is the one standing now.
   function scrollToElement(element, behavior = scrollBehavior(), block = "center") {
-    reveal(element, retainUserIntent());
-    scrollRevealedElement(element, behavior, block);
+    const { replacedView } = reveal(element, retainUserIntent());
+    placeScroll({ at: element, behavior, block }, replacedView);
   }
 
   // A destination's box and what of it the user can see, which is that box less the
@@ -387,15 +390,11 @@ export function createAnchorTravel({
     scrollIntoReadingBand(alignment, holder, block, behavior);
   }
 
-  function scrollRevealedRange(where, behavior = scrollBehavior()) {
-    scrollRevealedPlace(where, where, behavior, "center");
-  }
-
   function scrollToRange(where, behavior = scrollBehavior()) {
     const holder = placeHolder(where);
     if (!holder) return;
-    reveal(holder, retainUserIntent());
-    scrollRevealedRange(where, behavior);
+    const { replacedView } = reveal(holder, retainUserIntent());
+    placeScroll({ at: where, behavior }, replacedView);
   }
 
   // Hydration may outlive its gesture. After it settles, validate the retained intent
@@ -483,7 +482,6 @@ export function createAnchorTravel({
     returnToFragment,
     navigateToDatum,
     scrollToElement,
-    scrollRevealedElement,
     readableDestination,
     scrollToRange,
     scrollToThread,

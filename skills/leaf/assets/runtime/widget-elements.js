@@ -54,11 +54,14 @@ import { keeps, keepsText } from "./keeps.js";
 // event.detail.mayReveal. There is no default: one taken here would be taken after
 // whatever the caller awaited, which is the late capture that lets stale work move a
 // user who has since moved on.
+// Exposure is synchronous; ready joins the presentation it started. A widget replacing
+// its visible view reports replacedView, so travel can place it before waiting on ready.
 export function reveal(el, mayReveal) {
   if (typeof mayReveal !== "function")
     throw new TypeError("reveal needs the intent its gesture retained");
   const chain = [];
   const pending = [];
+  let replacedView = false;
   for (let a = el; a; a = upFrom(a)) chain.push(a);
   // Reveal outside-in so an inner widget has geometry when it handles the signal.
   for (const a of chain.reverse()) {
@@ -69,6 +72,9 @@ export function reveal(el, mayReveal) {
         detail: {
           target: el,
           mayReveal,
+          replacedView: () => {
+            replacedView = true;
+          },
           present: (ready) => ready?.then && pending.push(ready),
         },
       }),
@@ -79,7 +85,7 @@ export function reveal(el, mayReveal) {
   // registers asynchronous presentation is already its error owner; observe this joined
   // promise so callers may ignore it without creating a duplicate page rejection.
   void ready.catch(() => {});
-  return ready;
+  return { ready, replacedView };
 }
 
 // The one way the layer makes an element: a tag, its classes, and the words it starts

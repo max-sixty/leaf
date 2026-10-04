@@ -18,6 +18,22 @@ zero-size rendering defect. The navigation journey
 was implicated in the earlier investigation, but has no fresh main failure here and
 remains unmarked.
 
+The insertion-retirement assertion added in #1687 also fails with the runtime from
+main `5984ca1c9`: an 18-copy pin round trip passed eight and failed ten. After
+rejection, `#bg-insert lf-new` retains visible native style with `data-lf-retired`,
+the hiding rule present, completed rendering, and no live animation. A raw Chromium
+capture preserves its painted words; a normal screenshot's caret preparation can
+unstick them. The test records this known retirement failure, completes every original
+pin restoration and geometry assertion, and only then conditionally xfails. Those
+other failures remain failures. Native minimal controls did not reproduce the defect,
+so the triggering interaction is still unconfirmed.
+
+After integrating main `085938106`, fifteen of eighteen pin journeys still reach
+that retirement failure while all their original restoration and geometry checks
+pass. `--runxfail` re-raises the saved original visibility assertion instead of
+silently passing it. An explicit native 60px pin displacement still fails its
+geometry assertion even when the retirement failure was already recorded.
+
 The narrow journey command is:
 
 ```sh

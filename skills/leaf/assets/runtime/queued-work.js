@@ -26,9 +26,10 @@ export function enqueueWork(callback) {
   return job;
 }
 export function runWork(job, ...args) {
+  const callback = job.callback;
   try {
     announce("run", job);
-    return job.callback(...args);
+    return callback(...args);
   } finally {
     announce("finish", job);
   }

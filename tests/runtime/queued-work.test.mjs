@@ -7,6 +7,16 @@ import {
   observeQueuedWork,
 } from "../../skills/leaf/assets/runtime/queued-work.js";
 
+test("a queued invocation preserves arguments and leaves the callback receiver unbound", () => {
+  const value = Object.freeze({});
+  const work = bindQueuedWork(function (received, second) {
+    assert.equal(this, undefined);
+    assert.equal(second, 42);
+    return received;
+  });
+  assert.equal(work(value, 42), value);
+});
+
 test("a host-bound invocation returns its result and retires before its native async tail", async () => {
   const phases = [];
   const stop = observeQueuedWork((phase) => phases.push(phase));

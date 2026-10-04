@@ -134,7 +134,7 @@ export function createAnchorTravel({
     if (!destination?.where) return false;
     let completed = false;
     intent.handoff(() => {
-      if (destination.focus) focusForNavigation(destination.focus);
+      if (destination.focus) focusForNavigation(destination.focus, destination.caret);
       const current = resolve();
       if (!current?.where) return;
       for (const {
@@ -151,6 +151,54 @@ export function createAnchorTravel({
       completed = true;
     });
     return completed;
+  }
+
+  // A remembered editor starts from its authored place, before a hidden editor is
+  // materialized. Its owner opens without focus; the ordinary arrival owns surface
+  // clearance, disclosure, presentation, caret and reading placement. A materializer
+  // may return its keyed focus-handoff release, retired after this landing.
+  async function arriveEditor(resolve, { intent, caret }) {
+    const mayArrive = retainTravel(intent);
+    const destination = resolve();
+    if (!destination?.where) return null;
+    trip(destination.where, { intent: mayArrive, landing: () => resolve()?.where });
+    let release = null;
+    await arrive(
+      () => {
+        const current = resolve();
+        const input = current?.input();
+        return (
+          current && {
+            where: current.where,
+            focus: input,
+            caret,
+            scroll: input
+              ? [
+                  { at: input, block: "nearest" },
+                  {
+                    at: current.where,
+                    when: () => !readableDestination(input),
+                  },
+                ]
+              : [],
+          }
+        );
+      },
+      {
+        intent: mayArrive,
+        present: async () => {
+          const current = resolve();
+          if (!current) return;
+          if (current.open)
+            mayArrive.handoff(() => {
+              release = current.open();
+            });
+          await current.present?.();
+        },
+      },
+    );
+    if (typeof release === "function") release();
+    return mayArrive() ? (resolve()?.input() ?? null) : undefined;
   }
 
   // Travel's one entry. It stays when the user already has the destination and departs
@@ -464,6 +512,7 @@ export function createAnchorTravel({
   return {
     trip,
     arrive,
+    arriveEditor,
     followFragment,
     returnToFragment,
     navigateToDatum,

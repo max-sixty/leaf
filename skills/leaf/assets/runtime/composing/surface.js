@@ -377,7 +377,9 @@ export function createResponseSurface({
           ? previousOrigin
           : null;
     fabBar.toggleAttribute("data-lf-target-only", Boolean(fabAnchor && !composerOpen));
-    fabBar.style.display = fabAnchor ? "inline-flex" : "none";
+    fabBar.style.display = fabAnchor
+      ? "var(--lf-response-display, inline-flex)"
+      : "none";
     fabInput.style.display = fabAnchor && composerOpen ? "block" : "none";
     syncResponseOptions(fabAnchor);
     // Comment returns from the bar's choice state to this same field. With only a target
@@ -678,7 +680,8 @@ export function createResponseSurface({
     fabFocusHandoff = handoff;
     return handoff;
   };
-  const endFabFocus = () => {
+  const endFabFocus = (handoff = null) => {
+    if (handoff && handoff !== fabFocusHandoff) return;
     fabInputTakingFocus = false;
     fabFocusHandoff = null;
   };

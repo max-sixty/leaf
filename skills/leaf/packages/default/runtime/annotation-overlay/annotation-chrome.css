@@ -69,7 +69,13 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      transparent header/reply slots neither take document flow nor intercept presses. */
   .lf-fab-bar:not([data-lf-target-only], [data-lf-presentation="inline"]) {
     box-sizing: border-box;
-    min-width: min(var(--thread-card-min), var(--lf-float-w, 100vw));
+    --lf-response-display: inline-grid;
+    min-width: min-content;
+    grid-template-columns: minmax(var(--lf-response-min-width), 1fr) max-content;
+    grid-template-rows: minmax(var(--lf-response-height), 1fr);
+    grid-auto-rows: auto;
+    align-items: end;
+    max-height: var(--lf-float-h, calc(100vh - var(--lf-banner-h) - 16px));
     max-width: min(var(--lf-float-w, calc(100vw - 16px)), var(--thread-card));
     padding: var(--lf-comment-frame-top) calc(var(--lf-comment-inset) + 1px)
       var(--lf-comment-frame-bottom);
@@ -89,7 +95,19 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   }
   .lf-fab-bar { --lf-response-min-width: 216px; }
   .lf-fab-bar:not([data-lf-presentation="inline"]) .lf-compose-field {
-    min-width: var(--lf-response-min-width); }
+    min-height: var(--lf-response-height);
+    grid-column: 1; grid-row: 1; align-self: stretch;
+    grid-template-rows: minmax(0, 1fr); }
+  .lf-fab-bar:not([data-lf-presentation="inline"]) > .lf-response-more {
+    grid-column: 2; grid-row: 1; }
+  .lf-fab-bar:not([data-lf-presentation="inline"]) > .lf-response-options {
+    grid-column: 1 / -1; grid-row: 2; }
+  .lf-fab-bar:not([data-lf-presentation="inline"]):has(.lf-composer-media:not([hidden])) {
+    grid-template-columns: auto minmax(var(--lf-response-min-width), 1fr) max-content; }
+  .lf-fab-bar:not([data-lf-presentation="inline"]):has(.lf-composer-media:not([hidden]))
+    .lf-compose-field { grid-column: 2; }
+  .lf-fab-bar:not([data-lf-presentation="inline"]):has(.lf-composer-media:not([hidden]))
+    > .lf-response-more { grid-column: 3; }
   .lf-visual-marks { display: contents; }
   /* Every projected state is a moment (anchor-paint.js), drawn as one accent contour;
      an action's target alone keeps the hairline. */
@@ -105,7 +123,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-visual-mark.lf-shaped { border: 0; border-radius: 0 !important; }
   .lf-visual-mark-shape { display: block; width: 100%; height: 100%; overflow: hidden; }
   .lf-fab-bar:not([data-lf-presentation="inline"]) .lf-composer-media {
-    flex: 0 1 auto; min-width: 42px; }
+    grid-column: 1; grid-row: 1; min-width: 42px; }
   /* margin-projection.js writes the width and height cap the card's placement gives it
      (comment-placement.js); these are the fallbacks for a card no placement has sized
      yet, so only they are held to the viewport. The selected thread's transcript is

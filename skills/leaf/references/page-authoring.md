@@ -299,7 +299,9 @@ check` advises against one.
 An individual block or section may request a responsive allocation with
 `data-width="column"`, `data-width="wide"`, or `data-width="available"`. `column`
 uses the standard prose measure, including inside a wider section. `wide` uses the
-shared capped evidence width. `available` uses all room left by the page shell, frames,
+shared evidence width, `--wide`, in every Layout: past a column it grows to that
+width, and in a wider track or pane it holds to it at the track's start. A narrower
+frame still bounds it. `available` uses all room left by the page shell, frames,
 chrome, and a margin resident that takes its side, such as a sidebar standing in the
 margin or the contents map's spine; the markers beside it then stand as pins on it, and
 it moves below a note hanging level with it. The occurrence overrides a

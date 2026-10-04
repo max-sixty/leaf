@@ -72,6 +72,8 @@ import {
 import { createPageGeometry } from "./runtime/page-geometry.js";
 import * as targetPaint from "./runtime/target-paint.js";
 import { pointerAt } from "./runtime/pointer.js";
+import { createWritingResume } from "./runtime/drafts.js";
+import { threadKey } from "./runtime/thread/model.js";
 import { allThreads, threadList } from "./runtime/thread/state.js";
 import { anchorLabel } from "./runtime/thread/messages.js";
 import {
@@ -195,6 +197,10 @@ import { announce, liveEl, notice, noticeVisible } from "./runtime/notifications
 import { mediaViewer } from "./runtime/media.js";
 import { offer } from "./runtime/widget-elements.js";
 import { retainUserIntent } from "./runtime/user-intent.js";
+
+// Automatic recovery belongs to this arrival. A press made while its presentation
+// waits owns the page; recovery must not capture a fresh focus intent after that wait.
+const recoverComposer = retainUserIntent();
 
 // This declaration belongs to the executable document lifetime. The revision capture
 // includes it in executable identity, so selecting another presentation retires this
@@ -345,8 +351,8 @@ const anchorTravel = createAnchorTravel({
   surfaces: auxiliarySurfaces,
   currentThreads: allThreads,
   refreshThread: () => app.refreshThread(),
-  focusForNavigation: (node) =>
-    (app?.overlay?.focusForNavigation ?? focusDestination)(node),
+  focusForNavigation: (node, caret) =>
+    (app?.overlay?.focusForNavigation ?? focusDestination)(node, caret),
   threadFocusTarget: (id, options) =>
     app.threadDestinations.threadFocusTarget(id, options),
   announce,
@@ -531,6 +537,10 @@ asks = createAskView({
   trip: anchorTravel.trip,
   arrive: anchorTravel.arrive,
   refreshThread: () => app.refreshThread(),
+  revealThread: (id) => {
+    threadsBox.showNews(id);
+    return narrowing.revealThread(id);
+  },
   announce,
   repaint,
 });
@@ -577,7 +587,6 @@ selectionComposer = createSelectionComposer({
   endFabFocus: (...args) => responseSurface.endFabFocus(...args),
   landFabFocus: (...args) => responseSurface.landFabFocus(...args),
   showFab: (...args) => responseSurface.showFab(...args),
-  formatGoToAddress: (...args) => goToSequence.formatGoToAddress(...args),
   createComment: app.createComment,
   landSent: landing.landSent,
   refreshThread: app.refreshThread,
@@ -737,11 +746,20 @@ drawers = createDrawers({
   presentLeaves,
   syncAsks: asks.syncAsks,
 });
+const writingResume = createWritingResume({
+  arriveEditor: anchorTravel.arriveEditor,
+  revealReply: (key, intent) => {
+    const thread = allThreads().find((thread) => threadKey(thread) === key);
+    return thread
+      ? app.threadDestinations.openPageThread(thread.id, { focus: "reply", intent })
+      : null;
+  },
+});
 goToSequence = createGoToSequence({
   panelIsOpen,
   elements: { banner, toggleBtn, threadsBox },
   hintChrome,
-  directDestinations: () => [version.PICKER, selectionComposer.KEPT_DRAFT],
+  directDestinations: () => [version.PICKER, writingResume],
   setPanel: threadPanelController.setPanel,
   setOpenDrawer: drawers.setOpenDrawer,
   scrollToElement: anchorTravel.scrollToElement,
@@ -961,7 +979,9 @@ async function presentPage() {
   setAnchoringReady(true);
   try {
     const draftOpened =
-      !offlineInteractive && selectionComposer.openDraft(savedComposer);
+      !offlineInteractive &&
+      recoverComposer() &&
+      selectionComposer.openDraft(savedComposer);
     await app.presentThread();
     // Anchoring changes where thread chrome is painted. That final paint is part
     // of initial presentation too: opening interaction before it commits can expose a

@@ -82,10 +82,11 @@ declaration or relaxes one, including across a shadow root. Both painted positio
 that boundary, and neighbours and ordinary page reading content stay put. Typing
 still cannot carry its field.
 News grows where the reader isn't looking: above the screen, where scroll anchoring
-takes the growth into what they scrolled past, or below it. So a thread's reply box stands at the foot of the
-scroller that shows the thread, in the Threads panel as in the margin card, and a
-reply grows the thread above it without moving the box or its caret. Where news would
-move what the reader is reading, it waits behind a control of fixed size until they
+takes the growth into what they scrolled past, or below it. A short thread's reply
+box follows its last message; a long panel thread pins the
+box at its scroller's foot. News that would move a reply in flow waits behind the
+thread's existing notice; a pinned reply lets the transcript grow above it.
+Where news would move what the reader is reading, it waits behind a control of fixed size until they
 open it: in a seat in the page's flow, an agent's reply, the reopening it brings, and a
 thread the agent starts wait behind a notice in a row the seat already draws, and a
 thread that would open a seat of its own, as on a diff line with no thread, waits in

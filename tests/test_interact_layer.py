@@ -4182,7 +4182,7 @@ def test_package_refuses_members_aliased_into_an_initialized_page(
 @pytest.mark.parametrize(
     ("source_name", "page_name"),
     [
-        ("theme.css", "status.json"),
+        ("theme.css", "events.jsonl"),
         ("widgets", schema_model.MEDIA_DIR),
         ("vendor", "revisions"),
     ],

@@ -157,7 +157,7 @@ control in `detail.values`, including controls the prose does not repeat.
 
 A preview that needs JavaScript keeps its page-specific behavior in an inline
 `<script type="module">` block. Put the real candidates in an ordinary element or a
-page-specific custom element, following `references/packages.md`, "What a behavior
+page-specific custom element, following `references/module-authoring.md`, "What a behavior
 module owes".
 
 Wait for `customElements.whenDefined("lf-playground")` before reading

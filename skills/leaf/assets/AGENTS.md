@@ -3,7 +3,8 @@
 This file owns browser-wide contracts: how the page should look and move, module
 boundaries, startup, state authority, and the render gates. Each module's header
 owns its local contract. Page-authoring rules live in
-`../references/page-authoring.md`, package contracts in `../references/packages.md`,
+`../references/page-authoring.md`, module authoring in
+`../references/module-authoring.md`, package contracts in `../references/packages.md`,
 and rules shared with Python in root `AGENTS.md`, "Cross-runtime invariants".
 
 ## Layout and motion
@@ -365,7 +366,7 @@ scrolling work while widgets upgrade. Page keys wait, because a command reads
 state the first answer brings: the bootstrap holds printed keys pressed before
 presentation and the keyboard controller replays them in order once the page
 presents, while any other key or a pointer press drops the held run. Durable
-controls wait for `data-lf-presented` (`../references/packages.md`, "A theme change"). An async
+controls wait for `data-lf-presented` (`../references/module-authoring.md`, "Startup and presentation"). An async
 producer joins settlement before `data-lf-upgraded`, or stays off the
 presentation path through `afterPresentation`, which declares the deferred
 arrival so `pageReadiness` still answers for it. `presentPage` owns the one

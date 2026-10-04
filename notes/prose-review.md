@@ -44,6 +44,10 @@ and package instructions. Score with `leaf-dev eval` before and after, following
 
 ## Phases 3 and 4: Site readers and structure
 
+The site currently serves primarily to summarize Leaf's design and interfaces.
+Consider further refinements closer to release; the route map below is a proposal
+for that stage.
+
 The proposed site gives each page one reader:
 
 | Route | Reader and purpose |
@@ -100,8 +104,8 @@ Check the PR walkthrough's invented labels and Rust assertions against its linke
 source before changing them.
 
 Generate catalog descriptions from each page's existing description rather than
-maintain a second summary. Give the command hub a concrete importer-rewrite task.
-Keep seeded comments in the user's voice and verify their claims.
+maintain a second summary. Keep seeded comments in the user's voice and verify
+their claims.
 
 **Decision E — playground examples.** Recommend keeping the notification playground
 in the catalog with a real subject, and moving code comparison and data explorer to

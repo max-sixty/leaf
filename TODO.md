@@ -56,10 +56,11 @@ has tried; settle that before building it.
   check that the hosted website agent's status is readable without delaying its
   reply. Keep delegated work visible while its watcher is live.
 - **#24 — Measure the fresh-reader review across pages.** The catalog's
-  `dashboard/reader` context gives a fixed reader only the request and screenshots
-  of a seeded count defect and a corrected count control. The narrow calibration
-  scores count detection and false alarms separately from other page defects;
-  it does not establish overall page acceptance. Measure
+  `dashboard/reader-seeded` and `dashboard/reader-clean` contexts show the screenshot
+  judge one triage board each, with a seeded count defect or the correct count, and
+  ask both whether the count matches the cards. That narrow calibration scores count
+  detection and false alarms separately from other page defects; it does not
+  establish overall page acceptance. Measure
   whether authors invoke the review, its cost and what it catches across actual
   pages. Author delegation traces and independent judge cost are separate evidence.
 

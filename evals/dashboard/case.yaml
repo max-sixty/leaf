@@ -25,12 +25,22 @@ variants:
       purpose: Update shared data without rewriting unaffected records.
       conditions:
       - leaf
-  reader:
+  reader-seeded:
     metadata:
       executor: leaf_dev.reader_eval
-      scenario: calibration
-      purpose: Calibrate the fixed reader on a seeded triage-board counting defect
-        and clean control.
+      scenario: seeded
+      purpose: Calibrate the screenshot judge, which should find the triage board's
+        seeded count defect.
+      conditions:
+      - leaf
+      harnesses:
+      - cc
+  reader-clean:
+    metadata:
+      executor: leaf_dev.reader_eval
+      scenario: clean
+      purpose: Calibrate the screenshot judge, which should accept the triage board's
+        correct count.
       conditions:
       - leaf
       harnesses:

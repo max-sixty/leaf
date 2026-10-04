@@ -139,7 +139,7 @@ def test_catalog_contexts_keep_complete_original_check_coverage():
     assert select_cases(("reading",)) == ["reading"]
     assert select_cases(("reading/plain",)) == ["reading/plain"]
     assert len(select_cases(("reading/*",))) == 7
-    for owner in ("usability", "arrangement", "delivery"):
+    for owner in ("usability", "arrangement", "delivery", "reader"):
         module = import_module(f"leaf_dev.{owner}_eval")
         covered = {
             definition["metadata"]["scenario"]
@@ -152,11 +152,11 @@ def test_catalog_contexts_keep_complete_original_check_coverage():
 
 
 def test_workflows_run_declared_conditions_harnesses_and_fixed_checks(tmp_path):
-    from leaf_dev.arrangement_eval import expected_checks
+    from leaf_dev.arrangement_eval import expected_checks, rubrics
 
     payloads = {arm: tmp_path / arm for arm in ("base", "candidate")}
     config = prepare(
-        ["dashboard/reader", "document"],
+        ["dashboard/reader-seeded", "document"],
         payloads,
         tmp_path / "scratch",
         ("cc", "codex"),
@@ -164,9 +164,9 @@ def test_workflows_run_declared_conditions_harnesses_and_fixed_checks(tmp_path):
         tmp_path / "samples",
     )
     tests = {test["description"]: test for test in config["tests"]}
-    # The fixed reader is a Claude calibration; the HTML control has no base.
+    # The judge calibration runs on Claude Code; the HTML control has no base.
     assert {name: test["providers"] for name, test in tests.items()} == {
-        "dashboard/reader": ["cc/base/workflow", "cc/candidate/workflow"],
+        "dashboard/reader-seeded": ["cc/base/workflow", "cc/candidate/workflow"],
         "document": [
             "cc/base/workflow",
             "cc/candidate/workflow",
@@ -181,9 +181,16 @@ def test_workflows_run_declared_conditions_harnesses_and_fixed_checks(tmp_path):
     ):
         assert test["metadata"]["executor"] == "leaf_dev.arrangement_eval"
         assert test["vars"] == {"prompt": "document"}
-        assert [check["metric"] for check in test["assert"]] == expected_checks(
-            "document", condition=condition
-        )
+        assert [check["metric"] for check in test["assert"]] == [
+            *expected_checks("document", condition=condition),
+            *(rubric["metric"] for rubric in rubrics("document")),
+        ]
+        # Only the screenshot judge may open files, and only screenshots.
+        judge = test["assert"][-1]["provider"]["config"]
+        assert judge["custom_allowed_tools"] == [
+            f"Read(/{tmp_path / 'samples'}/**/*.png)"
+        ]
+    assert "tools" not in config["defaultTest"]["options"]["provider"]["config"]
     html = next(
         provider["config"]
         for provider in config["providers"]
@@ -193,11 +200,11 @@ def test_workflows_run_declared_conditions_harnesses_and_fixed_checks(tmp_path):
         "codex",
         "html",
         str(payloads["candidate"]),
-        str(tmp_path / "samples/codex/html/workflow"),
+        str(tmp_path / "samples"),
     )
     with pytest.raises(click.BadParameter, match="no requested harness/condition"):
         prepare(
-            ["dashboard/reader"],
+            ["dashboard/reader-seeded"],
             payloads,
             tmp_path / "other",
             ("codex",),

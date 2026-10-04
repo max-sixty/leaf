@@ -41,9 +41,9 @@ this machine, each named by branch, commits and cases. It shows each sample's
 output, assertion reasons, metadata, cost and tokens, and compares runs.
 
 Complete tasks keep their evidence (prompts, native traces, page directories,
-screenshots, judge verdicts) under `.tmp/eval/<run>/samples/<column>/`, and each
-sample's `metadata.work` names its directory. `results.json` there holds the whole
-run.
+screenshots) under `.tmp/eval/<run>/samples/`, one directory per sample named by
+its case, and each sample's `metadata.work` names its directory. `results.json`
+there holds the whole run.
 
 ## Case format
 
@@ -59,15 +59,17 @@ A complete task instead names `metadata.executor`, a `leaf_dev` module, and
 `metadata.scenario`, a key of that module's `CASES`. The executor builds fixtures, runs the agent
 through resumed phases or live user rounds, and returns a boolean per check; its
 `expected_checks` declares the check names, which become one assertion each, so a
-check that never ran fails rather than disappearing. `metadata.conditions` and
+check that never ran fails rather than disappearing. An executor whose output lists
+screenshots, beside the request they answer, also declares `rubrics`: `agent-rubric`
+assertions a screenshot judge grades by opening them. `metadata.conditions` and
 `metadata.harnesses` restrict where it runs.
 
 | Executor | Runs |
 | --- | --- |
-| `arrangement_eval` | Authors and revises a page from `request.md`, screenshots it at three widths for a fresh Claude judge, and on Leaf seeds a user choice, has a fresh reader report it, and checks a further revision keeps it. |
+| `arrangement_eval` | Authors and revises a page from `request.md` and screenshots each version at three widths for the judge, and on Leaf seeds a user choice, has a fresh reader report it, and checks a further revision keeps it. |
 | `usability_eval` | Seeded pages read, resumed and revised, and live handoffs where the harness posts user moves through the served page. Fixtures are in `usability/fixtures/`. |
 | `delivery_eval` | Comments posted between turns and mid-turn, each of which must be picked up, claimed and answered. |
-| `reader_eval` | Calibrates the screenshot judge on the triage board with a seeded count defect and a clean control. |
+| `reader_eval` | Calibrates the screenshot judge: `dashboard/reader-seeded` and `reader-clean` each show it one triage board, with a seeded count defect or the correct count, and ask both whether the count matches the cards. |
 
 The assertion helpers live here: `reference-read.cjs` passes when the agent read a
 file matching `config.path` (Codex shell reads are matched heuristically, so read
@@ -79,9 +81,12 @@ the trace when it matters); `text-regex.cjs` is a regex with flags and negation;
 Every provider runs in a fresh workspace outside the repository, under a home of its
 own holding only a copy of the host's login, so runs spend the signed-in accounts'
 usage and never an API key. `harness.MODELS` pins the models: Opus for Claude
-Code, `gpt-6.1-sol` at medium reasoning for Codex, Sonnet behind `llm-rubric`. No judge
-has been calibrated against human judgments, so treat a judged pass as weak
-evidence and read the outputs.
+Code, `gpt-6.1-sol` at medium reasoning for Codex, Sonnet for `llm-rubric`, which
+grades text and opens nothing, and Opus for the screenshot judge, which may open
+PNG files under the run's samples and no other file. Promptfoo counts a judge's
+tokens but not its cost, and doesn't record which screenshots it opened, so read
+its reason. No judge has been calibrated against human judgments, so treat a judged
+pass as weak evidence and read the outputs.
 
 These cases score instruction use and the agent loop. `leaf-dev verify-codex-task`
 covers plugin installation, discovery and hooks, and `leaf-dev verify-site` the
@@ -89,5 +94,5 @@ website.
 
 ```sh
 npm test --prefix evals
-uv run pytest tests/test_eval.py tests/test_scenario_eval.py tests/test_usability_eval.py tests/test_arrangement_eval.py tests/test_reader_eval.py -q -n0
+uv run pytest tests/test_eval.py tests/test_scenario_eval.py tests/test_usability_eval.py tests/test_arrangement_eval.py -q -n0
 ```

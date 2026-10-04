@@ -10,6 +10,18 @@ RENDER_VIEWPORT = {"width": 1200, "height": 900}
 # The same patience Playwright gives browser waits. Keeping the server request timeout
 # beside it turns a wedged preview into a useful failure rather than an unbounded evaluate.
 SERVED_TIMEOUT_MS = 30_000
+# How long a whole page handover may take before the page counts as wedged: the wait,
+# from navigation, for the page to state every readiness fact (`wait_until_ready`).
+# `SERVED_TIMEOUT_MS` bounds one request or one probe, and a handover is all of a
+# page's work at once. The corpus is the heaviest page that work is read on: idle, it
+# reaches readiness in 16-18s; a 4-vCPU runner driving four browsers took it past 30s;
+# and on an oversubscribed 18-core host, plain `page check` saw it upgrade for 46s and
+# reach readiness at 48s. A shorter deadline fails a slow page that would have arrived,
+# so an agent checking its page on a busy machine reads a false failure. Waiting longer
+# weakens no claim, since the readiness facts say the same whenever they arrive; the
+# deadline only separates a page that never arrives from a machine that has not got
+# there yet.
+HANDOVER_DEADLINE_MS = 90_000
 # How often a probe wait re-reads its fact. The waits poll on a timer rather than on
 # animation frames (see `_load_probes`), and most waits are a frame or a settle, so the
 # interval is added to what they wait for: at 16 ms, `one_frame` took about 22 ms where
@@ -215,6 +227,7 @@ def wait_until_ready(
     later meets it as well. `through` names the last stage the caller needs, for a
     caller that wants the answer taken in while the page is still mid-gesture. Finite
     animation is not readiness; the render gate asks `pageSettled` for that on its own.
+    The deadline is `HANDOVER_DEADLINE_MS` unless the caller states one.
     """
     from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
@@ -226,9 +239,7 @@ def wait_until_ready(
         ),
         "through": through,
     }
-    timeout_ms = timeout_ms or getattr(
-        page, "_leaf_probe_timeout_ms", SERVED_TIMEOUT_MS
-    )
+    timeout_ms = timeout_ms or HANDOVER_DEADLINE_MS
     try:
         page.wait_for_function(_READY, arg=asked, timeout=timeout_ms)
     except PlaywrightTimeout:

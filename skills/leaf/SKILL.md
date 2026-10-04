@@ -178,8 +178,10 @@ so a phase does not depend on discovering a chain of references.
   URL, whether an operation changes a page's URL, `--host`, a standing page,
   re-vendoring a served page, a page a Leaf update broke, or resuming another
   session's page.
-- `references/packages.md`: for a package-design request, a page-authored module, or
-  a design comment whose fix belongs in a package.
+- `references/module-authoring.md`: before writing or changing browser behavior in
+  a page script, page-owned widget, or package widget.
+- `references/packages.md`: for package design, registry declarations, theme rules,
+  data contracts, or a design comment whose fix belongs in a package.
 
 ### Use a separate Codex watcher
 

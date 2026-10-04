@@ -168,6 +168,28 @@ def workflow_provider(
     }
 
 
+def screenshot_judge(samples: Path) -> dict:
+    """The grader for an executor's `agent-rubric`s: it may open screenshots under the
+    run's samples and nothing else, so neither a page's source, the author's
+    transcript, nor a path naming the arm reaches it."""
+    work = samples.parent / "judge"
+    work.mkdir(parents=True, exist_ok=True)
+    return {
+        "id": "anthropic:claude-agent-sdk",
+        "config": {
+            "model": MODELS["cc"],
+            "apiKeyRequired": False,
+            "setting_sources": [],
+            "persist_session": False,
+            "working_dir": str(work),
+            "tools": ["Read"],
+            "custom_allowed_tools": [f"Read(/{samples}/**/*.png)"],
+            "permission_mode": "dontAsk",
+            "max_turns": 200,
+        },
+    }
+
+
 def prepare(
     cases: list[str],
     arms: dict[str, Path],
@@ -197,7 +219,7 @@ def prepare(
                     if label not in providers:
                         if executor:
                             configured = workflow_provider(
-                                harness, condition, payload, samples / label
+                                harness, condition, payload, samples
                             )
                         else:
                             work = scratch / "work" / label
@@ -210,17 +232,27 @@ def prepare(
             sample = deepcopy(test)
             task = address.split("/", 1)[0]
             if executor:
-                checks = import_module(executor).expected_checks(
+                module = import_module(executor)
+                checks = module.expected_checks(
                     metadata["scenario"], condition=condition
                 )
                 sample["assert"] = [
-                    {
-                        "type": "javascript",
-                        "value": "file://scenario-check.cjs",
-                        "metric": check,
-                        "config": {"check": check},
-                    }
-                    for check in checks
+                    *(
+                        {
+                            "type": "javascript",
+                            "value": "file://scenario-check.cjs",
+                            "metric": check,
+                            "config": {"check": check},
+                        }
+                        for check in checks
+                    ),
+                    # A judge's verdicts on the screenshots the sample lists.
+                    *(
+                        {**rubric, "provider": screenshot_judge(samples)}
+                        for rubric in getattr(module, "rubrics", lambda _: [])(
+                            metadata["scenario"]
+                        )
+                    ),
                 ]
                 sample["vars"] = {"prompt": address}
             else:

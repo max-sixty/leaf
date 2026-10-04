@@ -2,7 +2,7 @@
 
     uv run leaf-dev bench-check [BASE_REF]
 
-Each arm is the plugin payload at a ref (`leaf_dev.harness.build_pair`): BASE_REF, by
+Each arm is the plugin payload at a ref (`leaf_dev.arms.build_pair`): BASE_REF, by
 default the merge base with `main`, and HEAD, so commit what you want measured. Each
 page in PAGES is built from this checkout's example by the arm's own launcher, then
 checked RUNS times by that arm's `bin/leaf`, alternating arms so drift in machine load
@@ -20,7 +20,7 @@ import time
 import click
 
 from leaf_dev import ROOT
-from leaf_dev.harness import (
+from leaf_dev.arms import (
     build_pair,
     build_source,
     load_average,

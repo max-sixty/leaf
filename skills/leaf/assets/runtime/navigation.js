@@ -107,17 +107,20 @@ async function arriveAtThread(next, destinations, panelIsOpen, threadsBox, inten
 // clamped, not wrapped.
 function stepThread(dir, destinations, panelIsOpen, narrowing, list) {
   const { threadsBox } = list;
-  const { threadHere, threadTarget } = destinations;
+  const { threadHere, threadAtStanding, threadTarget } = destinations;
   const threads = walkableThreads(panelIsOpen, list);
   const current = currentThread(threads, threadHere);
+  const targetId = !current && threadAtStanding();
+  const atTarget = targetId && threads.find((thread) => thread.dataset.id === targetId);
   const next = current
     ? clampedRow(threads, current, dir)
-    : threadFrom(
+    : (atTarget ??
+      threadFrom(
         threads,
         !panelIsOpen() || narrowing.listedInPageOrder() ? walkOrigin() : null,
         dir,
         threadTarget,
-      );
+      ));
   if (!next) return;
   void arriveAtThread(next, destinations, panelIsOpen, threadsBox, retainUserIntent());
   announce(

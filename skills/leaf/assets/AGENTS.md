@@ -3,7 +3,8 @@
 This file owns browser-wide contracts: how the page should look and move, module
 boundaries, startup, state authority, and the render gates. Each module's header
 owns its local contract. Page-authoring rules live in
-`../references/page-authoring.md`, package contracts in `../references/packages.md`,
+`../references/page-authoring.md`, module authoring in
+`../references/module-authoring.md`, package contracts in `../references/packages.md`,
 and rules shared with Python in root `AGENTS.md`, "Cross-runtime invariants".
 
 ## Layout and motion
@@ -140,16 +141,17 @@ failure.
 
 ### Words stay where they were typed
 
-What the user has typed stays in front of them until they put it away. A box holding
+What the user has typed stays with its native editor until they put it away. A box holding
 words closes only in answer to a key or a press that means to close it (Send,
 Cancel, Escape, a press elsewhere, another target) or when its subject leaves the
 document; a scroll, a resize, a panel, a closed disclosure, a timer, or the server's
 news never closes it. Geometry decides where a box stands, never whether: a box
-whose existing subject loses its visible attachment stays in the usable window,
-keeping its words, anchor, and focus, and reattaches when that target returns.
-Only where no usable window remains does it wait out of view with its words,
-anchor, and caret, standing again, focus returned, when room returns (`standFab`,
-`runtime/composing/surface.js`). A re-render that replaces a box's node hands its
+follows its passage through every scrolling ancestor, including out of view,
+keeping its words, anchor, and caret. Resume writing (`g i`) reveals that same
+editor and its passage. Native CSS attachment carries continuous scroll; target
+or field resize invalidates physical placement (`floating-response.js`).
+Only where no usable room remains does the presenter withhold the box; its
+words and caret remain with its native node (`standFab`, `runtime/composing/surface.js`). A re-render that replaces a box's node hands its
 words and caret to the replacement. The suite's browser fixture fails any test
 whose page loses typed words without a key or press (`tests/words_watch.js`), and
 every corpus page is scrolled to both ends and back with each typed box open
@@ -366,7 +368,7 @@ scrolling work while widgets upgrade. Page keys wait, because a command reads
 state the first answer brings: the bootstrap holds printed keys pressed before
 presentation and the keyboard controller replays them in order once the page
 presents, while any other key or a pointer press drops the held run. Durable
-controls wait for `data-lf-presented` (`../references/packages.md`, "A theme change"). An async
+controls wait for `data-lf-presented` (`../references/module-authoring.md`, "Startup and presentation"). An async
 producer joins settlement before `data-lf-upgraded`, or stays off the
 presentation path through `afterPresentation`, which declares the deferred
 arrival so `pageReadiness` still answers for it. `presentPage` owns the one

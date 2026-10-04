@@ -14,10 +14,11 @@
    without one, the card's minimum width ends at `clear`'s right edge. `margin` is where
    across the page the margin row for it stands,
    or would stand in the rail once its thread is sent (margin-layout.js, `marginSpot`),
-   or nothing where no row stands and its rows would be pins. An existing subject
-   with no visible attachment supplies `clear: null`: its open editor stands in the
-   usable window, at its upper inline edge, through the same sizing and placement
-   machinery. A visible attachment returning chooses the side afresh.
+   or nothing where no row stands and its rows would be pins. A caller requesting
+   window placement without a visible attachment supplies `clear: null` and stands
+   at its upper inline edge through the same sizing and placement machinery.
+   The editing surface uses this solver for its initial attachment, then retains
+   browser-owned following (`composing/floating-response.js`).
 
    Both stand in one boundary (`commentBoundary`): the part of the window the page shows,
    within the reading region where that holds a card, else within the page shell.
@@ -66,6 +67,7 @@
    scale, and `fit` is handed lengths in that space, as CSS sizes the surface in it. */
 
 import {
+  scrollAxes,
   shellRight,
   shownWindow,
   shownExtent,
@@ -99,6 +101,7 @@ export function commentAttachment({ target, point = null, passage = null }) {
   const region = containingReadingRegionFor(element);
   return {
     element,
+    contextNode: point ?? passage?.contextNode ?? target,
     clear,
     extent,
     row: (passage?.attachment ?? clear).top,
@@ -136,6 +139,20 @@ export function commentBoundary({ region = null, right = Infinity } = {}) {
 
 const vertical = (side) => side === "top" || side === "bottom";
 
+// Vertical room is read in viewport pixels, while the browser scrolls in local CSS
+// pixels. Project available travel through the scroller's actual transformed axis;
+// an inverted axis reverses which local end can expose room on the requested side.
+function roomTravel(side, scroller) {
+  const projection = scrollAxes(scroller).y.y;
+  const direction = side === "top" ? -1 : 1;
+  const localDirection = direction * Math.sign(projection);
+  const local =
+    localDirection < 0
+      ? scroller.scrollTop
+      : Math.max(0, scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop);
+  return { projection, direction, available: local * Math.abs(projection) };
+}
+
 // The room on `side` of `extent` the page can make: what shows there plus the scroll
 // travel `scroller` has left that way, never more than the boundary holds.
 export function reachableRoom(side, extent, boundary, scroller) {
@@ -143,10 +160,7 @@ export function reachableRoom(side, extent, boundary, scroller) {
     side === "top"
       ? extent.top - boundary.top - COMMENT_GAP
       : boundary.bottom - extent.bottom - COMMENT_GAP;
-  const travel =
-    side === "top"
-      ? scroller.scrollTop
-      : Math.max(0, scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop);
+  const { available: travel } = roomTravel(side, scroller);
   return {
     shown,
     reachable: Math.max(
@@ -166,15 +180,12 @@ export function makeRoom(side, clear, extent, height, boundary, scroller) {
     side === "top"
       ? boundary.top - (clear.top - COMMENT_GAP - height)
       : clear.bottom + COMMENT_GAP + height - boundary.bottom;
-  const travel =
-    side === "top"
-      ? scroller.scrollTop
-      : Math.max(0, scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop);
+  const { available: travel, projection, direction } = roomTravel(side, scroller);
   const movement = Math.max(0, Math.min(overflow, travel));
   if (movement <= 0.5) return false;
   const before = scroller.scrollTop;
-  moveScrollerBy(scroller, side === "top" ? -movement : movement);
-  return Math.abs(scroller.scrollTop - before) > 0.5;
+  moveScrollerBy(scroller, (direction * movement) / projection);
+  return Math.abs((scroller.scrollTop - before) * projection) > 0.5;
 }
 
 // The side a comment's surface takes, as a Floating UI side.

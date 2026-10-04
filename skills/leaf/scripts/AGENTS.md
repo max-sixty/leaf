@@ -1,6 +1,6 @@
 # The Python side
 
-This directory is the project's module root, and `leaf/` is the package a host
+This directory is the project's module root, and `leaf/` is the package a harness
 installs. `leaf/__main__.py` is the CLI as `python -m leaf`, which `bin/leaf` and
 every leaf subprocess run; the `leaf` console script is the same entry. `leaf/cli.py`
 composes the commands and stays a facade: domain logic, and any branching across the
@@ -39,13 +39,13 @@ subpackage's initializer is only a marker, never a second API.
 - `work`: transient subject claims and widget work seats;
 - `tasks` (experimental, expected to change a lot): work the agent owes until it ends it: the fold, its admission gate, and
   `leaf task`;
-- `delivery`, `session`, `hooks`, `hook_carrier`, `host`: the delivery envelope
-  and its receipt, status and the `leaf wait` watch, the host hooks' entry, the
+- `delivery`, `session`, `hooks`, `hook_carrier`, `harness`: the delivery envelope
+  and its receipt, status and the `leaf wait` watch, the harness hooks' entry, the
   prompt and Stop hooks as a session's carrier, and harness declarations;
 - `codex_state`: Codex delivery eligibility and shared delivery serialization paths;
 - `codex`, `codex_adapter`: Codex delivery records and App Server turn folds, and
   the detached carrier behind `leaf codex start`;
-- `thread_titles`: the title Leaf asks the host's model for when a user opens a
+- `thread_titles`: the title Leaf asks the harness's model for when a user opens a
   thread, before the agent's reply could name it;
 - `state`: dependency-free session lifetime and turn publication, standalone cold
   SessionEnd, shared paths, page identity, locks and durable replacement;

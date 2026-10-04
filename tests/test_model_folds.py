@@ -345,7 +345,7 @@ def test_a_retraction_outlives_the_version_that_made_it():
 
 
 def test_every_served_agent_record_carries_the_name_it_is_shown_under():
-    """An agent command run outside a host session writes no `agent`, and the
+    """An agent command run outside a harness session writes no `agent`, and the
     reading names it `Agent` wherever it reaches the browser: a thread's messages,
     its root, the event that closed it, and the activity feed's rows. A named
     session keeps its own name, and a user's record carries none."""

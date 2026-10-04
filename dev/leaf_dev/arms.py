@@ -10,7 +10,7 @@ A child runs from a scratch cwd outside any repository, so no project instructio
 load, under a home of its own beside that cwd, so its bypassed permissions write to
 that home rather than the user's `~` (children given the user's home once appended to
 the user's `~/.claude/CLAUDE.md`). The home carries only the login. A trace is the
-child's normalized tool/turn evidence; it counts when its actual host turn
+child's normalized tool/turn evidence; it counts when its actual harness turn
 completed without error (`completed`). Codex raw notifications are retained too.
 A `LiveChild` keeps its session open across turns, so a driver can post
 user moves to a served page (`PageClient`) as a tab would.
@@ -36,7 +36,7 @@ from typing import Self
 
 import click
 from leaf.codex_adapter import APP_SERVER_ENV
-from leaf.host import IDENTITY_VARIABLES
+from leaf.harness import IDENTITY_VARIABLES
 
 from leaf_dev import ROOT
 from leaf_dev.page_fixtures import prepare_page, read_fixture
@@ -57,8 +57,9 @@ PAYLOAD = (
     "worker/pyproject.toml",
 )
 
-# The models evals run, pinned so runs on different days compare: each host's
-# agents, and the judge behind `llm-rubric` assertions.
+# The models evals run, pinned so runs on different days compare: each harness's
+# agents, with Claude Code's also judging screenshots, and the judge behind
+# `llm-rubric` assertions.
 MODELS = {"cc": "claude-opus-5-5", "codex": "gpt-6.1-sol", "judge": "claude-sonnet-5-5"}
 
 
@@ -303,22 +304,22 @@ def run_agent(
     err: Path,
     dirs: Iterable[Path] = (),
     env: dict | None = None,
-    host: str = "cc",
+    harness: str = "cc",
 ) -> list[dict]:
-    """Run an isolated host turn, optionally resuming its preceding session.
+    """Run an isolated harness turn, optionally resuming its preceding session.
 
     `out` is normalized evidence; `err` is stderr. Codex's complete App Server
-    notifications live beside `err` with a `.codex.jsonl` suffix. Both hosts
+    notifications live beside `err` with a `.codex.jsonl` suffix. Both harnesses
     have the same TURN_LIMIT; a timeout retains their partial native evidence and
     marks `out.with_suffix(".timed-out")` without fabricating completion.
     """
-    if host == "codex":
+    if harness == "codex":
         with (
             LiveChild(
                 cwd,
                 args[0],
                 *args[1:],
-                host=host,
+                harness=harness,
                 stderr=err,
                 limit=TURN_LIMIT,
                 timed_out=out.with_suffix(".timed-out"),
@@ -332,8 +333,8 @@ def run_agent(
                 if record.get("type") == "result":
                     break
         return read_trace(out)
-    if host != "cc":
-        raise ValueError(f"unknown eval host: {host}")
+    if harness != "cc":
+        raise ValueError(f"unknown eval harness: {harness}")
     with out.open("w") as stdout, err.open("w") as stderr:
         try:
             subprocess.run(
@@ -350,7 +351,7 @@ def run_agent(
 
 
 class LiveChild:
-    """An isolated host session kept open for delivery and later turns.
+    """An isolated harness session kept open for delivery and later turns.
 
     `prompt` is its first message. `records` yields actual tool, hook and turn
     evidence stamped `received_at`; Codex retains its raw notifications too.
@@ -359,13 +360,13 @@ class LiveChild:
     closes, so stdin stays open until the caller calls `close`. A session still
     running `limit` seconds after it started is killed and `timed_out` touched."""
 
-    def __new__(cls, *args, host="cc", **kwargs):
-        if host == "codex":
+    def __new__(cls, *args, harness="cc", **kwargs):
+        if harness == "codex":
             from leaf_dev.eval_codex import CodexChild
 
             return CodexChild(*args, **kwargs)
-        if host != "cc":
-            raise ValueError(f"unknown eval host: {host}")
+        if harness != "cc":
+            raise ValueError(f"unknown eval harness: {harness}")
         return super().__new__(cls)
 
     def __init__(
@@ -378,7 +379,7 @@ class LiveChild:
         timed_out: Path,
         dirs: Iterable[Path] = (),
         env: dict | None = None,
-        host: str = "cc",
+        harness: str = "cc",
     ) -> None:
         self.prompt, self.stderr, self.timed_out = prompt, stderr, timed_out
         self.popen = claude_child(

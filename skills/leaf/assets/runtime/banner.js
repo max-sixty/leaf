@@ -342,7 +342,7 @@ function copyControl(trigger, success, error) {
 }
 
 // How old a Leaf payload is, so a user who meets a problem can tell whether it
-// predates the fixes since. A payload read from Git carries its commit's date; a host's
+// predates the fixes since. A payload read from Git carries its commit's date; a harness's
 // plugin cache, which drops `.git`, carries the time it copied the commit, one update
 // sweep after it landed (`layer.payload_provenance`).
 const payloadAge = (provenance) => ago(provenance.committed ?? provenance.installed);
@@ -410,7 +410,7 @@ function renderPreview(state) {
 }
 
 // The vendored layer is the Leaf version this page actually runs. It can remain older
-// than the plugin now installed on the host, so this reads the provenance captured by
+// than the plugin now installed in the harness, so this reads the provenance captured by
 // `page init` rather than a live package or server version. Pages built outside Git
 // retain a stable identity through the composed layer fingerprint.
 let layerReferenceElement = null;

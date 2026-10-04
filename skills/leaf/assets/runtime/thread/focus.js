@@ -1,5 +1,5 @@
 /* Focus readings shared by thread paint and commands. */
-import { holdStanding } from "../focus.js";
+import { focusDestination, holdStanding } from "../focus.js";
 import { shownBox } from "../geometry.js";
 import { restrictUserIntent, retainUserIntent } from "../user-intent.js";
 import { focused } from "../keyboard/scopes.js";
@@ -8,7 +8,7 @@ import { nextRender } from "../rendering.js";
 import { repaint } from "../repaint.js";
 import { SAY_BOX, THREAD } from "./selectors.js";
 import { allThreads } from "./state.js";
-import { replyHasWords } from "./replies.js";
+import { replyAvailable, replyControlDestination } from "./replies.js";
 
 // Native disclosure owns the panel thread's focus stop. Inline divs have no summary,
 // so their established root remains the destination.
@@ -109,23 +109,27 @@ export const standingThreadId = () => heldThreadId() ?? pressed;
 // in it; standing anywhere else, a press on the page included, is a newer word, and so
 // is a surface that landed them itself. A box is carried once, to a thread the reading
 // still holds and whose editor lifetime continues: an open conversation, or a resolved
-// one with an unfinished draft. Nothing is put up for a thread that has none, and one that
+// one with a reply still being edited. Nothing is put up for a thread that has none, and one that
 // comes back later does not pull the user to it.
 // Replacement resolves through the current route, never another visible mirror of
 // the same draft. Both in-document paint and executable replacement use this admission.
-export async function replyDestination(id, open, intent) {
+export async function replyDestination(
+  id,
+  open,
+  intent,
+  destination = (thread) => thread.querySelector(SAY_BOX),
+) {
   const mayReply = restrictUserIntent(intent, () => {
     const standing = allThreads().find((candidate) => candidate.id === id);
-    return Boolean(standing && (!standing.resolved || replyHasWords(standing.key)));
+    return Boolean(standing && replyAvailable(standing));
   });
   if (!mayReply()) return null;
   const shown = await open(id, { focus: "reply", intent: mayReply, carried: true });
-  const input =
-    shown instanceof Element
-      ? closestAcross(shown, THREAD)?.querySelector(SAY_BOX)
-      : null;
-  if (!input || shown !== input || focused() !== input || !mayReply()) return null;
-  return input;
+  const thread = shown instanceof Element ? closestAcross(shown, THREAD) : null;
+  const control = thread && destination(thread);
+  if (!control || focused() !== shown || !mayReply()) return null;
+  if (control !== shown) mayReply.handoff(() => focusDestination(control));
+  return focused() === control && mayReply() ? control : null;
 }
 
 const carried = new WeakSet();
@@ -133,12 +137,13 @@ export function holdReply(open) {
   const held = holdStanding();
   const box = held?.node;
   const thread = box && closestAcross(box, THREAD);
-  if (!thread || thread.querySelector(SAY_BOX) !== box || carried.has(box)) return null;
+  const destination = replyControlDestination(box);
+  if (!thread || !destination || carried.has(box)) return null;
   const id = thread.dataset.id ?? thread.dataset.thread;
   const intent = retainUserIntent({ source: box });
   return () =>
     held.restore(() => {
       carried.add(box);
-      return replyDestination(id, open, intent);
+      return replyDestination(id, open, intent, destination);
     });
 }

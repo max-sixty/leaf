@@ -455,7 +455,7 @@ def test_a_driver_that_never_starts_is_reported_rather_than_raised(serve, tmp_pa
 
 
 def test_an_installed_payload_passes_its_real_browser_gate(tmp_path, headless_shell):
-    """Exercise the copied artifact a host installs, never an import from this checkout.
+    """Exercise the copied artifact a harness installs, never an import from this checkout.
 
     Its browser gate runs on both of the browsers a host can supply, since the install
     is where a host with a Chromium and no Chrome meets it."""

@@ -583,8 +583,7 @@ export function createWritingResume({ revealReply, arriveEditor }) {
 // A subscription owns its editor's context and lifetime. Each context has one root
 // editor; replies explicitly declare mirrors and land through their thread owner.
 // A revision carries mechanical editing, never another copy of the draft's words.
-export function captureDraftEditing() {
-  const input = focused();
+export function captureDraftEditing(input = focused()) {
   const editor = [...draftEditors].find((view) => editorInput(view) === input);
   if (!editor) return null;
   return {
@@ -677,18 +676,21 @@ addEventListener("storage", (ev) => {
 //
 // A retained editor remains a draft view during candidate detachment and receives
 // concurrent draft changes before rollback reconnects it. Its owner explicitly disposes
-// that lifetime on committed removal. Ordinary inputs retire on disconnection.
+// that lifetime on committed removal. Ordinary inputs retire on disconnection. The
+// owner receives the original notification after hydration: null can mask a provisional
+// send or report settlement, so its lifecycle reads canonical draft availability.
 export function mirrorDraft(
   ta,
   sync,
   ctx,
-  { retained = false, mirrored = false, resume = null } = {},
+  { retained = false, mirrored = false, resume = null, onChange = () => {} } = {},
 ) {
   const off = watchDraft(
     ctx,
     (value) => {
       if (!retained && !ta.isConnected) return off();
       sync.load(value ?? "");
+      onChange(value);
     },
     { input: ta, mirrored, resume },
   );

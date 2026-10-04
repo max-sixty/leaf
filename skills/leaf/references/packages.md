@@ -183,9 +183,10 @@ under `$idioms` in the package's
 
 A rule that draws a box's inset — padding, border, or tinted field — declares
 `--lf-block-frame: 1` in the same rule. The shared layout uses that declaration to trim child
-margins and bound wide content. A box that is a section of the page's own flow rather than a
-box on it, as a page tab's panel is, also declares `--lf-page-flow: 1`, so wide content in
-it takes the page's room and a table in it keeps to its content. The trim follows the frame's edge down through each
+margins, bound wide content, and stretch a table to the frame. A box whose edges keep its
+children's margins in but which draws nothing, as a page tab's panel or a box that contains
+floats does, declares `--lf-block-frame: trim` instead, so its edges trim while wide content
+in it takes the page's room and a table in it keeps to its content. The trim follows the frame's edge down through each
 first or last child, so a wrapper between the frame and the margin it trims declares
 nothing. A box that lays its children
 out side by side (a flex row, a grid) declares `--lf-holds-edge: 1`, so the trim stops at

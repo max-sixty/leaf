@@ -256,6 +256,12 @@ def widget_inline_hints(page: Page) -> None:
     page.locator("#bg-local-shortcuts").focus()
 
 
+def hub_workers(page: Page) -> None:
+    """The plan with the parser goal's workers shown, its worktree in view."""
+    page.locator("#goal-parser > .lf-task-meta .lf-task-crew").click()
+    page.locator("#tree-w-1").scroll_into_view_if_needed()
+
+
 def draft_edit(page: Page) -> None:
     """A passage opened in its shared editor, with Markdown source and a focused caret."""
     page.locator("#rn-cli .lf-draft-body").click()
@@ -289,6 +295,7 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
         go_to,
         widget_inline_hints,
         draft_edit,
+        hub_workers,
     )
 }
 
@@ -412,6 +419,8 @@ STATES = (
         viewport=(390, 500),
         touch=True,
     ),
+    State("hub", "command-hub", at_rest),
+    State("hub-workers", "command-hub", hub_workers),
     State("sort", "rust-sort", at_rest),
     State("sort-pane", "rust-sort", pane_focused),
     State("sort-pane-dark", "rust-sort", pane_focused, scheme="dark"),

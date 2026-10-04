@@ -15,6 +15,7 @@ import {
   saveDraft,
   sendMessage,
   watchDraft,
+  rememberWriting,
 } from "../drafts.js";
 import { focused, keys } from "../keyboard/scopes.js";
 import { pageScope } from "../keyboard/register.js";
@@ -68,6 +69,7 @@ export function createPanelComposer({
   function openPageDrawing(drawing) {
     generalDrawing = drawing;
     saveGeneralDraft();
+    rememberWriting(generalInput);
     setPanel(true);
     generalInput.focus({ preventScroll: true });
     sync();
@@ -99,7 +101,13 @@ export function createPanelComposer({
       },
     });
     sync();
-    stopMirroringDraft = mirrorDraft(generalInput, sync, "general");
+    stopMirroringDraft = mirrorDraft(generalInput, sync, "general", {
+      resume: () => ({
+        where: generalInput,
+        input: () => generalInput,
+        open: () => setPanel(true),
+      }),
+    });
     stopWatchingDraft = watchDraft("general", (_value, payload) => {
       generalDrawing = drawingIn(payload);
       sync();

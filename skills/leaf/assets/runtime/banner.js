@@ -618,11 +618,7 @@ function renderStatusNow(state) {
   // banner names every open one, including one on a thread the user has resolved.
   const tasks = state.browser?.tasks ?? [];
   if (tasks.length)
-    explanation += `${explanation.endsWith(".") ? "" : "."} ${
-      tasks.length > 2
-        ? `${tasks.length} open tasks`
-        : `Open task${tasks.length === 1 ? "" : "s"}: ${tasks.map((task) => task.title).join(" · ")}`
-    }.`;
+    explanation += `${explanation.endsWith(".") ? "" : "."} Open task${tasks.length === 1 ? "" : "s"}: ${tasks.map((task) => task.title).join(" · ")}.`;
   const actionableWork = [
     "awaiting_approval",
     "awaiting_input",

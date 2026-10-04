@@ -146,50 +146,16 @@ stateDiagram-v2
       </section>
 
       <section id="queues">
-        <h2>The queues read tasks beside what Leaf already tracked</h2>
-        <table id="queue-kinds">
-          <thead>
-            <tr>
-              <th scope="col">Queue</th>
-              <th scope="col">Item</th>
-              <th scope="col">When</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <th scope="row"><code>on_you</code></th>
-              <td><code>ask</code></td>
-              <td>An Ask is open</td>
-            </tr>
-            <tr>
-              <th scope="row"><code>on_you</code></th>
-              <td><code>question</code></td>
-              <td>A thread waits on you for a prose question, with no Ask in it</td>
-            </tr>
-            <tr>
-              <th scope="row"><code>on_you</code></th>
-              <td><code>recovery</code></td>
-              <td>
-                The response to a move of yours failed, and you send the move again
-              </td>
-            </tr>
-            <tr>
-              <th scope="row"><code>on_agent</code></th>
-              <td><code>answer</code></td>
-              <td>The agent owes a reply to your latest move</td>
-            </tr>
-            <tr>
-              <th scope="row"><code>on_agent</code></th>
-              <td><code>work</code></td>
-              <td>The agent claimed work on it this turn, with no reply owed</td>
-            </tr>
-            <tr>
-              <th scope="row"><code>on_agent</code></th>
-              <td><code>task</code></td>
-              <td>A task is open</td>
-            </tr>
-          </tbody>
-        </table>
+        <h2>Each side has a queue of open items, and what an item is stays open</h2>
+        <p id="queue-kinds">
+          An item is anything open that one side has to act on. Each names what it is
+          about, its subject and thread, so a surface can take you there. Its
+          <code>kind</code> only says where it came from: today the queues collect open
+          Asks, prose questions waiting on you, failed sends, replies the agent owes,
+          this turn's claimed work and open tasks. That set isn't a contract. New
+          sources join as they turn up, and which kinds deserve their own rules gets
+          decided once we've used the queues.
+        </p>
         <p>
           From <code>leaf page state</code> on a scratch page whose thread asks you a
           question and holds a task:

@@ -505,8 +505,10 @@ export function markDeclared(root) {
 // drawing's structure before its module draws there too. Its module takes it out.
 export function writePrepaint(root) {
   for (const tag of tagsDeclaring((entry) => entry["x-prepaint"])) {
+    // Its own, or that of the widget it first paints as (`as`).
+    const declared = registry[tag]["x-prepaint"];
     const markup = document.createElement("template");
-    markup.innerHTML = registry[tag]["x-prepaint"];
+    markup.innerHTML = declared.as ? registry[declared.as]["x-prepaint"] : declared;
     const written = markup.content.firstElementChild;
     written.toggleAttribute("data-lf-prepaint", true);
     written.dataset.lfGen = "1";

@@ -161,6 +161,14 @@ def _validate_widget_structure(
         )
     properties = entry.get("properties", {})
     if (prepaint := entry.get("x-prepaint")) is not None:
+        if isinstance(prepaint, dict):
+            named = declarations.get(prepaint["as"], {}).get("x-prepaint")
+            if not isinstance(named, str):
+                raise RegistryError(
+                    f"{path}: <{tag}> x-prepaint names <{prepaint['as']}>, which "
+                    "declares no x-prepaint markup of its own"
+                )
+            prepaint = named
         _validate_prepaint(tag, entry, prepaint, path)
     layout = entry.get("x-reading-role")
     if layout:

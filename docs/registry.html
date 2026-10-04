@@ -550,11 +550,15 @@
                   rather than in a room summed from line heights; the theme holds that
                   room and paints none of it, and a reading without the runtime hides
                   it. The module takes it out in the same step that draws its
-                  replacement, so nothing moves. It carries no id, no custom element and
-                  no script, since every occurrence gets a copy. Declare it on a widget
-                  whose drawn structure is fixed while its values come from the log, as
-                  a command's outcome and count tiles are; a drawing whose rows the log
-                  decides has no structure to write in.
+                  replacement, so nothing moves, and draws by filling in a copy of the
+                  same markup, so the declaration is the one statement of that
+                  structure. <code>{"as": tag}</code> declares the markup of the named
+                  widget, for one that first paints as that widget will stand in it, as
+                  a command with no seat draws a readings seat at its head. It carries
+                  no id, no custom element and no script, since every occurrence gets a
+                  copy. Declare it on a widget whose drawn structure is fixed while its
+                  values come from the log, as a command's outcome and count tiles are;
+                  a drawing whose rows the log decides has no structure to write in.
                 </p>
               </details>
             </div>

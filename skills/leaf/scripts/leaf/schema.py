@@ -400,8 +400,22 @@ EXTENSION_SCHEMA = {
         # as the drawing will. Delivery writes it as each occurrence's first child,
         # marked `data-lf-prepaint` (`revision_delivery.mark_declared`), so the
         # browser lays out the widget's real structure before any module runs, and
-        # the module takes it out in the step that draws its replacement.
-        "x-prepaint": {"type": "string", "pattern": r"^<[a-z][a-z0-9]*[\s>][\s\S]*>$"},
+        # the module takes it out in the step that draws its replacement. `{"as": tag}`
+        # writes another widget's, for one that first paints as that widget will
+        # stand in it: a command with no seat draws a readings seat at its head.
+        "x-prepaint": {
+            "oneOf": [
+                {"type": "string", "pattern": r"^<[a-z][a-z0-9]*[\s>][\s\S]*>$"},
+                {
+                    "type": "object",
+                    "properties": {
+                        "as": {"type": "string", "pattern": f"^{WIDGET_NAME}$"}
+                    },
+                    "required": ["as"],
+                    "additionalProperties": False,
+                },
+            ]
+        },
         "x-views": {"const": True},
         "x-withdrawn-as": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "x-word": {"enum": ["module"]},

@@ -2005,6 +2005,7 @@ def test_a_widget_data_input_is_one_complete_contract(page_dir, change, message)
         ("<td>0</td>", True, "must be one element"),
         ('<div><span id="count">0</span></div>', True, "no id"),
         ("<div><lf-chip>0</lf-chip></div>", True, "may not hold <lf-chip>"),
+        ({"as": "lf-nothing"}, True, "declares no x-prepaint markup"),
     ],
 )
 def test_a_prepaint_is_one_plain_element_only_a_module_takes_out(

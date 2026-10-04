@@ -280,7 +280,9 @@
       }
     },
     "x-upgrade": true,
-    "x-prepaint": "<section class=\"panel lf-command-head\"><h2>Outcome</h2><div class=\"lf-command-outcome\"><strong>&nbsp;</strong><span class=\"lf-command-progress\"></span><span>&nbsp;</span></div><div class=\"lf-command-facts\"><span class=\"lf-command-pair\"><span class=\"lf-command-tile lf-ui\"><span class=\"lf-command-count\">0</span> <span>running</span></span><span class=\"lf-command-tile lf-ui\"><span class=\"lf-command-count\">0</span> <span>workers</span></span></span><span class=\"lf-command-pair\"><span class=\"lf-command-tile lf-ui\"><span class=\"lf-command-count\">0</span> <span>quiet</span></span><span class=\"lf-command-tile lf-ui\"><span class=\"lf-command-count\">0</span> <span>stopped</span></span></span></div></section>",
+    "x-prepaint": {
+      "as": "lf-command-readings"
+    },
     "x-example": "<lf-command id=\"aviary-command\" label=\"A squirrel-proof garden\" phase=\"week 2 of 4\">\n  <lf-agent id=\"lead\" state=\"working\"><strong>lead</strong> Coordinates the whole garden.</lf-agent>\n  <lf-task id=\"goal-feeders\" status=\"active\" talk>\n    <strong>Rebuild the feeders</strong>\n    <lf-agent id=\"w-1\" state=\"working\" on=\"goal-feeders\"><strong>w-1</strong> Fitting the baffles.</lf-agent>\n  </lf-task>\n</lf-command>"
   },
   "lf-command-readings": {
@@ -299,7 +301,7 @@
     "additionalProperties": false,
     "x-content": "empty",
     "x-upgrade": true,
-    "x-prepaint": "<section class=\"panel lf-command-head\"><h2>Outcome</h2><div class=\"lf-command-outcome\"><strong>&nbsp;</strong><span class=\"lf-command-progress\"></span><span>&nbsp;</span></div><div class=\"lf-command-facts\"><span class=\"lf-command-pair\"><span class=\"lf-command-tile lf-ui\"><span class=\"lf-command-count\">0</span> <span>running</span></span><span class=\"lf-command-tile lf-ui\"><span class=\"lf-command-count\">0</span> <span>workers</span></span></span><span class=\"lf-command-pair\"><span class=\"lf-command-tile lf-ui\"><span class=\"lf-command-count\">0</span> <span>quiet</span></span><span class=\"lf-command-tile lf-ui\"><span class=\"lf-command-count\">0</span> <span>stopped</span></span></span></div></section>",
+    "x-prepaint": "<section class=\"panel lf-command-head\"><h2>Outcome</h2><div class=\"lf-command-outcome\"><strong>&nbsp;</strong><span class=\"lf-command-progress\" aria-hidden=\"true\"></span><span>&nbsp;</span></div><div class=\"lf-command-facts\"><span class=\"lf-command-pair\"><span class=\"lf-command-tile lf-ui\"><span class=\"lf-command-count\">0</span> <span>running</span></span><span class=\"lf-command-tile lf-ui\"><span class=\"lf-command-count\">0</span> <span>workers</span></span></span><span class=\"lf-command-pair\"><span class=\"lf-command-tile lf-ui\"><span class=\"lf-command-count\">0</span> <span>quiet</span></span><span class=\"lf-command-tile lf-ui\"><span class=\"lf-command-count\">0</span> <span>stopped</span></span></span></div></section>",
     "x-example": "<div class=\"layout-sidebar\">\n  <lf-command id=\"garden-command\" label=\"A squirrel-proof garden\" phase=\"week 2 of 4\" readings=\"garden-readings\">\n    <lf-task id=\"goal-feeders\" status=\"active\"><strong>Rebuild the feeders</strong></lf-task>\n  </lf-command>\n  <aside><lf-command-readings id=\"garden-readings\"></lf-command-readings></aside>\n</div>"
   },
   "lf-task": {

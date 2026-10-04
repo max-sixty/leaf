@@ -31,7 +31,7 @@ from leaf import structure as structure_model
 from leaf.render_checks import one_frame, rendered, wait_until_ready
 from leaf.render_gate import version as render_gate_model
 from leaf.render_gate.preview import preview_server
-from leaf.schema import BUNDLED_PACKAGES, ELEMENT_ID
+from leaf.schema import ELEMENT_ID
 from leaf.validation import compatibility as validation_model
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -8553,23 +8553,6 @@ def test_command_hub_derives_the_operator_reading_from_its_goal_tree(browser, se
         ["Outcome", "Stopped work · 5, oldest first", "Fleet · 5 live workers"]
     )
     expect(titles.and_(page.locator(":not([data-lf-said])"))).to_have_count(0)
-    # The first paint lays out the outcome delivery writes in (`x-prepaint`), so the one
-    # drawn is that structure, its words the same, holding the log's numbers; and a
-    # command without a seat writes in the same outcome at its head.
-    hub = json.loads((BUNDLED_PACKAGES / "command-hub" / "registry.json").read_text())
-    prepaint = hub["lf-command-readings"]["x-prepaint"]
-    assert hub["lf-command"]["x-prepaint"] == prepaint
-    shape = """(root) => [root, ...root.querySelectorAll('*')].map((el) =>
-      [el.localName, [...el.classList].filter((c) => !['warn', 'danger'].includes(c)),
-       el.closest('.lf-command-outcome') || el.children.length ? ''
-         : el.textContent.replace(/[0-9]/g, '')])"""
-    drawn = head.evaluate(shape)
-    written = page.evaluate(
-        f"""(markup) => {{ const t = document.createElement('template');
-          t.innerHTML = markup; return ({shape})(t.content.firstElementChild); }}""",
-        prepaint,
-    )
-    assert drawn == written
 
     coordinator = page.locator("#atlas-lead")
     expect(coordinator).to_be_visible()

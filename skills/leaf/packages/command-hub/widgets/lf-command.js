@@ -15,7 +15,8 @@
  *
  * The outcome stands at one size whatever the log says, and its first paint already
  * lays it out in the seat: delivery writes in its structure (`x-prepaint`), which the
- * paint that draws the outcome takes out (`seat`). Which goals are stopped and which
+ * paint that draws the outcome takes out (`seat`), and each outcome drawn is that same
+ * declaration filled in (`outcomePanel`). Which goals are stopped and which
  * workers live is the log's and the clock's to say, so no first paint can size the two
  * lists under it, and they would push down whatever follows the seat, the plan itself
  * at the command's head.
@@ -253,27 +254,31 @@ function chip(text, cls = "") {
   });
 }
 
-// A count the head offers as a view: the number is what the eye compares across tiles,
-// so it stands apart from its word, and the two still read as the one label they are.
-function countTile(count, word, name, open, cls = "") {
-  const node = viewButton(
-    `${count} ${word}`,
-    name,
-    open,
-    cls ? `lf-command-tile ${cls}` : "lf-command-tile",
-  );
-  node.replaceChildren(chip(String(count), "lf-command-count"), " ", chip(word));
-  return node;
+// The outcome as its first paint laid it out: the lf-command-readings declaration's
+// `x-prepaint` is the one statement of its structure and words, and every outcome this
+// draws is a copy of it with the log's readings filled in, so the panel drawn and the
+// room the first paint held cannot differ.
+function outcomePanel(plan) {
+  const markup = document.createElement("template");
+  markup.innerHTML = declarationFor(band(plan), "x-prepaint");
+  const box = markup.content.firstElementChild;
+  box.dataset.lfGen = "1";
+  const title = box.querySelector(":scope > h2");
+  title.tabIndex = -1;
+  relabel(title, title.textContent, { says: true });
+  return box;
 }
 
-// The done fraction drawn as a length. The fraction under it says the number, so the
-// bar is hidden from assistive technology rather than said twice.
-function progressBar(done, total) {
-  const bar = document.createElement("span");
-  bar.className = "lf-command-progress";
-  bar.setAttribute("aria-hidden", "true");
-  bar.style.setProperty("--lf-done", total ? done / total : 0);
-  return bar;
+// A count the head offers as a view, standing where its tile does, named by its word:
+// the number is what the eye compares across tiles, so it stands apart from its word,
+// and the two still read as the one label they are.
+function countTile(tile, count, open, tint) {
+  const word = tile.lastElementChild.textContent;
+  const classes = [...tile.classList, tint].filter((cls) => cls && cls !== "lf-ui");
+  const node = viewButton(`${count} ${word}`, word, open, classes.join(" "));
+  tile.querySelector(".lf-command-count").textContent = String(count);
+  node.replaceChildren(...tile.childNodes);
+  tile.replaceWith(node);
 }
 
 function projectionFocus(plan) {
@@ -453,56 +458,29 @@ function renderHeader(snapshot) {
   ]);
   if (old && headerSignatures.get(plan) === signature) return false;
   headerSignatures.set(plan, signature);
-  const head = panel("lf-command-head", "Outcome");
-  const outcome = document.createElement("div");
-  outcome.className = "lf-command-outcome";
-  outcome.append(
-    Object.assign(document.createElement("strong"), {
-      textContent: plan.getAttribute("label") || "Work",
-    }),
-    progressBar(snapshot.done, snapshot.leaves.length),
-    Object.assign(document.createElement("span"), {
-      textContent: `${snapshot.done}/${snapshot.leaves.length} leaves · ${plan.getAttribute("phase") || "in progress"}`,
-    }),
+  const head = outcomePanel(plan);
+  const [name, bar, line] = head.querySelector(".lf-command-outcome").children;
+  name.textContent = plan.getAttribute("label") || "Work";
+  // The fraction under the bar says the number, so the declaration hides the bar from
+  // assistive technology rather than having it said twice.
+  bar.style.setProperty(
+    "--lf-done",
+    snapshot.leaves.length ? snapshot.done / snapshot.leaves.length : 0,
   );
-  const facts = document.createElement("div");
-  facts.className = "lf-command-facts";
+  line.textContent = `${snapshot.done}/${snapshot.leaves.length} leaves · ${plan.getAttribute("phase") || "in progress"}`;
   // Every count stands whatever it says, so the clock making a worker quiet tints a tile
-  // rather than adding one the row would have to find room for. The tiles go in pairs,
-  // which is what wraps where the four do not fit in one row (theme.css).
-  const pair = (...tiles) => {
-    const node = document.createElement("span");
-    node.className = "lf-command-pair";
-    node.append(...tiles);
-    return node;
+  // rather than adding one the row would have to find room for. Each tile is the view
+  // its word names, the name `data-lf-view`, the fleet's modes and `markNews` share.
+  const counts = {
+    running: [snapshot.running.length, () => openFleet(plan, "running")],
+    workers: [snapshot.liveWorkers.length, () => openFleet(plan, "all")],
+    quiet: [snapshot.quiet.length, () => openFleet(plan, "quiet"), "warn"],
+    stopped: [snapshot.stopped.length, () => openStopped(plan), "danger"],
   };
-  facts.append(
-    pair(
-      countTile(snapshot.running.length, "running", "running", () =>
-        openFleet(plan, "running"),
-      ),
-      countTile(snapshot.liveWorkers.length, "workers", "workers", () =>
-        openFleet(plan, "all"),
-      ),
-    ),
-    pair(
-      countTile(
-        snapshot.quiet.length,
-        "quiet",
-        "quiet",
-        () => openFleet(plan, "quiet"),
-        snapshot.quiet.length ? "warn" : "",
-      ),
-      countTile(
-        snapshot.stopped.length,
-        "stopped",
-        "stopped",
-        () => openStopped(plan),
-        snapshot.stopped.length ? "danger" : "",
-      ),
-    ),
-  );
-  head.append(outcome, facts);
+  for (const tile of head.querySelectorAll(".lf-command-tile")) {
+    const [count, open, tint] = counts[tile.lastElementChild.textContent];
+    countTile(tile, count, open, count ? tint : "");
+  }
   draw(plan, "lf-command-head", head);
   return true;
 }

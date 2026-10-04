@@ -41,6 +41,7 @@ from urllib.parse import quote, unquote, urlsplit
 import turbohtml
 
 from .layer import CASCADE_LAYERS
+from .registry.contract import prepaint_markup
 from .revision_artifact import (
     Resource,
     RevisionArtifact,
@@ -358,7 +359,7 @@ def mark_declared(
         if marks:
             start = index(location.start_tag.start_line, location.start_tag.start_col)
             edits.append((start + 1 + len(element.tag), _attributes(marks)))
-        if prepaint := declaration.get("x-prepaint"):
+        if prepaint := prepaint_markup(registry, element.tag):
             root = len(re.match(r"<[a-z][a-z0-9]*", prepaint)[0])
             edits.append(
                 (

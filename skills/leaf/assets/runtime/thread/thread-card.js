@@ -412,7 +412,10 @@ export class ThreadView {
       let view = this.#messages.get(message.key);
       if (!view)
         this.#messages.set(message.key, (view = new MessageView(this.#commands)));
-      view.present(message, index === 0 && Boolean(headerActions));
+      view.present(message, {
+        externalHeader: index === 0 && Boolean(headerActions),
+        arrived: Boolean(prior),
+      });
       return { key: message.key, node: view.node, header: view.header };
     });
     this.#lastMessage = messages.at(-1)?.node ?? null;

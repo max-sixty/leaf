@@ -1,5 +1,20 @@
 # TODO
 
+## Biggest current challenges
+
+- **Simplify the harness, host, and CLI workflow.** Make feedback delivery and
+  agent wake-up reliable, including Codex's message back into the session and
+  Claude Code's potentially overcomplicated state machine.
+- **Make tasks and work in progress clear.** Find a robust state model that
+  users can understand: what is running, waiting, blocked, or complete, and
+  whose next move it is.
+- **Keep authored pages flexible.** Find the useful middle ground between
+  unrestricted HTML and brittle templates, especially for workspaces.
+- **Make page-level Threads easy to create and use.** Give users a clear way
+  to start, find, and continue conversations about the whole page.
+- **Build coherent UI without repeated patches.** Improve the layout and
+  interaction mechanisms so each new case does not require another fix.
+
 Priority runs from **Now** to **Next** to **Etc**. Themes group related work within
 each priority; bullets are outcomes, not implementation plans. Linked notes hold the
 evidence and detailed briefs. Numbered items keep the ids shared with `notes/`.

@@ -1213,7 +1213,8 @@ def test_a_news_resolved_card_keeps_its_place_after_an_offscreen_draft_is_cleare
 
     The reader returns to the retained card and explicitly reopens its conversation
     to recover the saved draft. Another agent settlement keeps that actual editing
-    session. Clearing its words ends editing while the news-retained card stays put.
+    session. Clearing its words keeps that empty editor active; Escape ends editing
+    while the news-retained card stays put.
     """
     url = serve(LONG_PAGE, comments=16)
     first, second = [
@@ -1278,7 +1279,14 @@ def test_a_news_resolved_card_keeps_its_place_after_an_offscreen_draft_is_cleare
     rendered(page)
     expect(card).to_be_visible()
     expect(card).to_have_attribute("data-resolved", "true")
+    expect(reply).to_be_visible()
+    expect(reply).to_be_focused()
+    expect(reply).to_have_js_property("value", "")
+    assert after.bounding_box() == stood
+    page.keyboard.press("Escape")
+    rendered(page)
     expect(reply).to_have_count(0)
+    expect(card).to_be_visible()
     assert after.bounding_box() == stood
 
 

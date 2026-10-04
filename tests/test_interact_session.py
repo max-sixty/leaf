@@ -43,6 +43,7 @@ from interact_support import (
     consume_pending_input,
     declare_idle,
     declare_work,
+    end_work,
     fetch,
     fifo_writer,
     hold_status_read,
@@ -953,7 +954,7 @@ def test_thread_attention_names_the_workflow_the_thread_waits_on():
             threads,
             {"user": []},
             browser_served_model.served_workflows(workflows, frozen),
-            [{"id": "t1", "title": "Rebuild", "thread": "root"}],
+            [{"id": "t1", "title": "Rebuild", "thread": "root", "running": None}],
         )
         assert threads[0]["attention"] == {
             "kind": "waiting",
@@ -963,13 +964,16 @@ def test_thread_attention_names_the_workflow_the_thread_waits_on():
     # With no workflow holding it, an open task keeps the thread on the agent.
     threads = [{"id": "root", "resolved": None, "user_prompt": None}]
     browser_served_model._apply_thread_attention(
-        threads, {"user": []}, [], [{"id": "t1", "title": "Rebuild", "thread": "root"}]
+        threads,
+        {"user": []},
+        [],
+        [{"id": "t1", "title": "Rebuild", "thread": "root", "running": None}],
     )
     assert threads[0]["attention"] == {
         "kind": "waiting",
         "reason": "task",
         "workflow": None,
-        "task": {"id": "t1", "title": "Rebuild"},
+        "task": {"id": "t1", "title": "Rebuild", "running": None},
     }
 
 
@@ -2266,12 +2270,7 @@ def test_direct_delivery_progress_does_not_become_page_activity(claimed, capsys)
     """Delivery stays exact interaction evidence while page activity continues to
     describe the claimant's availability and independently declared work."""
     serving(claimed, 1)
-    working(claimed, "an old task")
-    status = service_model.read_status(claimed)
-    cleanup_model.write_json(
-        claimed / "status.json",
-        {**status, "ts": "2020-01-01T00:00:00+00:00"},
-    )
+    declare_work(claimed, "an old task", ts="2020-01-01T00:00:00+00:00")
     comment = append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "new input"}
     )
@@ -2297,6 +2296,7 @@ def test_direct_delivery_progress_does_not_become_page_activity(claimed, capsys)
         claim["turn"],
     )
 
+    end_work(claimed)
     session_model.cmd_waiting(claimed, "review the answer")
     assert page_state(claimed)["activity"]["kind"] == "working"
 
@@ -2866,14 +2866,14 @@ def test_a_malformed_old_stream_record_is_ignored(claimed):
             "text": "new work",
         },
     )
-    working(claimed, "Handling the new work")
+    start = working(claimed, "Handling the new work")
     status = service_model.read_status(claimed)
     status["stream"] = {
         "activity": {
             "session": claim["id"],
             "turn": "older-turn",
             "detail": "Older streamed work",
-            "ts": status["ts"],
+            "ts": start["ts"],
             "after": 0,
         }
     }
@@ -2884,6 +2884,7 @@ def test_a_malformed_old_stream_record_is_ignored(claimed):
         "working",
         "Handling the new work",
     )
+    end_work(claimed)
     session_model.cmd_waiting(claimed, "Review the result")
     without_old_stream = page_state(claimed)["activity"]
     assert (without_old_stream["kind"], without_old_stream["observed_kind"]) == (
@@ -5620,7 +5621,7 @@ def test_a_recordless_receipt_from_a_stale_revision_waits_for_a_later_note(page_
     before_pickup = before_state["activity"]
     acknowledgments = before_state["workflows"]
     assert any(receipt["input"] == answer["id"] for receipt in acknowledgments)
-    assert before_pickup["kind"] == "working"
+    assert before_pickup["kind"] == "away"
     assert before_pickup["counts"]["total"] == 1
     assert [item["answer"] for item in before_pickup["obligations"]] == [
         {"kind": "markup", "action": answer["id"]}
@@ -6142,9 +6143,7 @@ def test_wait_prints_unacknowledged_input_without_receipt_or_pickup(
     ]
     assert all("seq" not in event for event in stored if event["kind"] == "pickup")
     working(page_dir, "revising the plan")
-    assert (
-        files_model.read_json(page_dir / "status.json")["detail"] == "revising the plan"
-    )
+    assert page_state(page_dir)["activity"]["detail"] == "revising the plan"
 
     # A worker's report wakes the watcher like a user event — it is the
     # orchestrator's to fold into a version — but the user's banner count
@@ -7771,7 +7770,7 @@ def test_ack_rearms_the_wait_after_releasing_the_cursor_transaction(
 ):
     serving(page_dir, 1)
     codex_loop(page_dir)
-    working(page_dir, "answering the first comment")
+    session_model.cmd_waiting(page_dir, "answering the first comment")
     append_carried_log_record(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "one"}
     )
@@ -7999,8 +7998,9 @@ def test_ack_rearm_reports_when_its_only_page_transfers_after_selection(
     )
 
 
-def test_wait_preserves_a_working_status_on_mid_work_output(page_dir, capsys):
+def test_wait_preserves_the_work_in_hand_on_mid_work_output(page_dir, capsys):
     serving(page_dir, 1)
+    session_model.cmd_waiting(page_dir, "")
     working(page_dir, "running the browser suite")
     status_path = page_dir / "status.json"
     before = status_path.read_bytes()
@@ -8013,6 +8013,8 @@ def test_wait_preserves_a_working_status_on_mid_work_output(page_dir, capsys):
     _, _, shown = delivered(capsys)
     assert [event["id"] for event in shown] == ["c1"]
     assert status_path.read_bytes() == before
+    [task] = page_state(page_dir)["browser"]["tasks"]
+    assert task["running"]["text"] == "running the browser suite"
 
 
 def test_a_wait_watches_a_stopped_server_until_its_page_ends(
@@ -8126,7 +8128,7 @@ def test_a_page_without_a_declaration_leaves_the_sessions_wait_running(
     service_model.claim_page(page_dir)
     copy = tmp_path / "copy"
     shutil.copytree(page_dir, copy)
-    (copy / schema_model.STATUS_FILE).unlink()
+    (copy / schema_model.STATUS_FILE).unlink(missing_ok=True)
     serving(copy, 1)
     service_model.claim_page(copy)
     assert service_model.owned_pages(session_model.session_harness().session) == [

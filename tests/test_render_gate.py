@@ -134,7 +134,7 @@ BOUNDED_WORKSPACE_PAGE = leaf_page(
   <footer>End of queue</footer>
 """,
     head="<style>#gate-split { display: grid; grid-template-columns: 1fr 1fr; "
-    "gap: var(--sp-4); }</style>",
+    "}</style>",
     layout="workspace",
 )
 
@@ -264,7 +264,7 @@ def _pane_regions(columns: str, media: str) -> str:
   </div>
 """,
         head=f"""<style>
-#regions {{ display: grid; grid-template-columns: {columns}; gap: var(--sp-4); }}
+#regions {{ display: grid; grid-template-columns: {columns}; }}
 @media {media}
 </style>""",
         layout="workspace",
@@ -275,7 +275,8 @@ def test_a_screen_region_that_runs_past_its_room_gets_advice(browser, serve):
     """A workspace is a screen the reader moves through, so a region of it that has to
     scroll is the exception, and the gate names each one at the desktop viewport, as
     advice: the page still passes. Here the detail pane runs past its room and the
-    queue fits, so only the detail is named."""
+    queue fits, so only the detail is named. Once the detail stacks two open Asks, it
+    is a queue read as one scroll, and the advice names the side-list queue instead."""
     source = leaf_page(
         "screen regions",
         """
@@ -288,7 +289,7 @@ def test_a_screen_region_that_runs_past_its_room_gets_advice(browser, serve):
   </div>
 """,
         head="<style>#regions { display: grid; grid-template-columns: 1fr 2fr; "
-        "gap: var(--sp-4); }</style>",
+        "}</style>",
         layout="workspace",
     )
 
@@ -298,6 +299,20 @@ def test_a_screen_region_that_runs_past_its_room_gets_advice(browser, serve):
     assert [region["id"] for region in reading.overflowing] == ["detail"]
     (advice,) = [line for line in reading.advice if "past the region" in line]
     assert advice.startswith("at 1200x900 <lf-pane id=detail> runs "), advice
+    assert "lf-tabs" not in advice, advice
+
+    asks = "".join(
+        f"""<lf-ask id="ask-{n}"><h4>Page on alert {n}?</h4>
+        <lf-options id="choice-{n}" choose>
+          <lf-option id="yes-{n}"><strong>Page</strong> Wake someone.</lf-option>
+          <lf-option id="no-{n}"><strong>Ticket</strong> Wait for morning.</lf-option>
+        </lf-options></lf-ask>"""
+        for n in (1, 2)
+    )
+    queued = source.replace("<p>Disk pressure on db-2.</p>", asks)
+    reading = render_gate_model.render_version(browser, serve(queued, packages=()))
+    (advice,) = [line for line in reading.advice if "past the region" in line]
+    assert "holds 2 open Asks" in advice and 'lf-tabs list="side"' in advice, advice
 
 
 STACK = "{ #regions { grid-template-columns: 1fr; } }"
@@ -2687,26 +2702,7 @@ def test_the_render_gate_catches_a_shadow_host_whose_own_words_never_render(
     assert any('paints urgent="" and says nothing' in f for f in failures), failures
 
 
-@pytest.mark.parametrize(
-    "source",
-    [
-        pytest.param(
-            source,
-            marks=pytest.mark.xfail(
-                reason=(
-                    "Main bb629cfca: a nested workspace Ask inherits full-height "
-                    "styling, shrinking alert-review's options to 2px and clipping controls"
-                ),
-                raises=AssertionError,
-                strict=False,
-            ),
-        )
-        if source.stem == "alert-review"
-        else source
-        for source in CORPUS_SOURCES
-    ],
-    ids=lambda p: p.stem,
-)
+@pytest.mark.parametrize("source", CORPUS_SOURCES, ids=lambda p: p.stem)
 def test_page_fixture_renders(browser, serve, source):
     """Every shipped example and the developer gallery lay out in both color schemes: no
     fail-soft error box, no console warning or error, every visible widget occupies real
@@ -2798,6 +2794,32 @@ def test_a_page_at_rest_does_nothing(browser, serve, source):
         ).to_have_count(gallery_frames.count())
     findings = at_rest(page)
     assert findings == [], "\n".join(findings)
+
+
+@pytest.mark.parametrize("work", [1, 10])
+def test_rest_runs_its_timer_callbacks_before_reading(browser, serve, work):
+    """A delayed passive write is observed with ten times the callback's CPU work."""
+    page = still_page(browser, serve(leaf_page("Rest clock", "<p>Reading</p>")))
+    page.evaluate(
+        """work => {
+            Object.defineProperty(window, 'lfRest', {
+                configurable: true,
+                set(rest) {
+                    Object.defineProperty(window, 'lfRest', {
+                        value: rest, writable: true, configurable: true
+                    });
+                    setTimeout(() => {
+                        let total = 0;
+                        for (let i = 0; i < 500000 * work; i++) total += Math.sqrt(i);
+                        window.restWork = total;
+                        document.body.setAttribute('data-late', 'yes');
+                    }, 4000);
+                }
+            });
+        }""",
+        work,
+    )
+    assert any("data-late" in finding for finding in at_rest(page))
 
 
 def test_rest_waits_for_contained_arrival_before_arming(browser, serve):

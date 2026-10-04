@@ -384,6 +384,7 @@
           you: "2be2443f0bb6cc49fc86b52f340e6073",
           resolved: "bab3cdfcfb8c02aacbb27da731de947a",
           summary: "9ee465bb3f9c1fa309ea9cb1767fa365",
+          updates: "bg-progress-question",
         }[view];
         void sample.showThread(thread, {
           surface: "panel",
@@ -438,6 +439,10 @@
               state. The banner shows completed/total. Press <kbd>a</kbd> for the next
               Ask waiting on you; open <strong>Asks</strong>, or press <kbd>g</kbd> then
               <kbd>Shift+A</kbd>, to review every active Ask and its current answer.
+              Within a view, <kbd>a</kbd> scrolls to the question. When it opens another
+              view, the question appears immediately and its tab name briefly
+              highlights. <kbd>Shift+A</kbd> walks back. Reduced motion removes the
+              glide and highlight.
             </p>
             <lf-ask id="bg-choice-ask">
               <h3>Which map should the sample team carry?</h3>
@@ -664,6 +669,43 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               </p>
             </section>
 
+            <section id="bg-align-current-item">
+              <h3 id="bg-align-current-item-heading" tabindex="0">
+                <strong>Align current item at top</strong
+                ><span class="bg-feature-detail"
+                  >: keep reading from the same item</span
+                >
+              </h3>
+              <p id="bg-align-current-item-guide">
+                Select some words in this guide, or focus its heading, then scroll until
+                it sits lower on screen. Press <kbd>g</kbd> and <kbd>z</kbd>, or choose
+                Align current item at top in More page controls: its reading block moves
+                just below the banner, keeping your focus and selection. A focused Ask
+                aligns its question; a focused thread in Threads aligns its card inside
+                the panel. A bounded reading area aligns within its own scroller.
+                Browser Back has no new stop to undo. Inside an editor, typing
+                <kbd>g</kbd><kbd>z</kbd> writes those letters.
+              </p>
+            </section>
+
+            <section id="bg-restored-selection">
+              <h3>
+                <strong>Restore selection</strong
+                ><span class="bg-feature-detail"
+                  >: return to the words you selected</span
+                >
+              </h3>
+              <p id="bg-restored-selection-guide">
+                Select a passage here, then press <kbd>Escape</kbd> and read somewhere
+                else. Press <kbd>g</kbd> and <kbd>v</kbd>, or choose Restore selection
+                in More page controls: the page reveals the passage and selects the same
+                words with the same working end. A live revision can replace their
+                markup; removed or ambiguous words report that the passage is
+                unavailable. Selecting inside an editor keeps its native meaning.
+                <kbd>g</kbd> then <kbd>V</kbd> still opens versions.
+              </p>
+            </section>
+
             <section id="bg-kept-draft">
               <h3>
                 <strong>Resume writing</strong
@@ -747,6 +789,14 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               >
                 Long discussion
               </button>
+              <button
+                type="button"
+                class="button"
+                data-view="updates"
+                aria-pressed="false"
+              >
+                Previous updates
+              </button>
               <label for="bg-panel-width">Sample width</label>
               <select id="bg-panel-width" class="field">
                 <option value="30rem">Wide</option>
@@ -757,7 +807,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               <template
                 id="bg-panel-sample-page"
                 data-sample
-                data-sample-threads="72e031c5bf0d485ba9054628e09869d4 2be2443f0bb6cc49fc86b52f340e6073 bab3cdfcfb8c02aacbb27da731de947a 9ee465bb3f9c1fa309ea9cb1767fa365"
+                data-sample-threads="72e031c5bf0d485ba9054628e09869d4 2be2443f0bb6cc49fc86b52f340e6073 bab3cdfcfb8c02aacbb27da731de947a 9ee465bb3f9c1fa309ea9cb1767fa365 bg-progress-question"
               >
                 <h1>Workshop agenda</h1>
                 <p id="bg-thread-pending">
@@ -775,6 +825,10 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 <p id="bg-thread-checkpoint">
                   <strong>A summarized discussion.</strong> The workshop planning thread
                   keeps its earlier decisions in a summary.
+                </p>
+                <p id="bg-thread-updates">
+                  <strong>Previous updates.</strong> Open the folded checks above the
+                  answer.
                 </p>
               </template>
             </lf-sample>
@@ -966,18 +1020,22 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 latest exchange stays below the summary, and keyboard focus can reach
                 the disclosure.
               </p>
+              <p id="bg-thread-updates">
+                <strong>Previous updates.</strong> The schedule checks fold above their
+                final answer without adding a digest. Choose “Previous updates” in the
+                practice page, then expand the folded checks with a press or Enter.
+              </p>
               <p id="bg-thread-unread">
                 <strong>Unread replies.</strong> The seeded agent replies start unread.
                 Open Threads and use “Next unread”, or press <kbd>u</kbd> there, to
                 reveal the earliest unread reply, including one covered by a summary. A
                 fully exposed short reply leaves the count; scroll through a long reply
                 to read all of it. The blue rail marks each unread message without
-                shifting the transcript, and a collapsed summary counts its unread
-                originals until you expand them. Interactive replies clear when their
-                visible body has been shown too; replying, answering, or resolving also
-                marks the thread's current messages read. A margin control whose thread
-                holds unread replies carries the same dot as Threads. “On you to answer”
-                still identifies an outstanding question after it is read.
+                shifting the transcript. Interactive replies clear when their visible
+                body has been shown too; replying, answering, or resolving also marks
+                the thread's current messages read. A margin control whose thread holds
+                unread replies carries the same dot as Threads. “On you to answer” still
+                identifies an outstanding question after it is read.
               </p>
             </section>
           </section>

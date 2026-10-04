@@ -170,7 +170,6 @@ customElements.define(
         signal.addEventListener("abort", cancelled, { once: true });
       });
       const select = async () => {
-        await ready;
         if (signal.aborted || ready !== this.#ready || !this.isConnected) return false;
         const invoker = this.ownerDocument.activeElement;
         const shown = await this.#host.showThread(id, {
@@ -189,7 +188,7 @@ customElements.define(
         return shown;
       };
       try {
-        return await Promise.race([select(), cancellation]);
+        return await Promise.race([ready.then(select), cancellation]);
       } finally {
         signal.removeEventListener("abort", cancelled);
       }

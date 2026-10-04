@@ -70,7 +70,7 @@ export const walkOrigin = () => hostIn(standingPlace() ?? readingBlock(), docume
 
 // The Ask the user stands in, answered or not: where letting go lands, and the extent
 // of what `c` counts as the element they stand at.
-export function heldAsk() {
-  const ask = askHolding(allAsks(), placeOf(documentFocused()));
+export function heldAsk(node = documentFocused()) {
+  const ask = askHolding(allAsks(), placeOf(node));
   return ask ? elementById(ask.id) : null;
 }

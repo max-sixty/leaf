@@ -5,7 +5,8 @@ import { ago, shortAgo } from "../../skills/leaf/assets/runtime/presence.js";
 const before = (ms) => new Date(Date.now() - ms).toISOString();
 const MINUTE = 60 * 1000;
 
-test("the sentence and compact elapsed readings name the same figure", () => {
+test("the sentence and compact elapsed readings name the same figure", (t) => {
+  t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-10-03T12:00:00Z") });
   // Ninety minutes rounds to two hours in both, where a floor put "1h" beside "2h ago".
   for (const [elapsed, compact] of [
     [10 * 1000, "now"],

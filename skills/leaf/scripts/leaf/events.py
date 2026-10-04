@@ -323,9 +323,9 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
 def active_summaries(events: list, threads: dict) -> dict[str, list[dict]]:
     """Current presentation summaries for every thread, by thread id.
 
-    Summaries replace overlapping summaries whole. An edit after a summary invalidates
-    it when it changes any covered message, because the stored prose no longer
-    summarizes the current transcript. The original messages remain the authority.
+    Summaries replace overlapping summaries whole. Editing a covered message
+    invalidates a summary containing prose. A fold without prose keeps showing the
+    revised originals. The original messages remain the authority.
     """
     edits = {}
     written = {}
@@ -354,7 +354,9 @@ def _thread_summaries(thread: dict, summaries: list, edits: dict) -> list[dict]:
         active = [
             summary for summary in active if covered.isdisjoint(summary["covers"])
         ]
-        if any(edits.get(identity, 0) > event["seq"] for identity in covers):
+        if event["text"] and any(
+            edits.get(identity, 0) > event["seq"] for identity in covers
+        ):
             continue
         active.append(
             {
@@ -364,6 +366,7 @@ def _thread_summaries(thread: dict, summaries: list, edits: dict) -> list[dict]:
                 "through": event["through"],
                 "covers": covers,
                 "text": event["text"],
+                "label": event.get("label", "Earlier discussion"),
             }
         )
     return sorted(active, key=lambda summary: positions[summary["from"]])

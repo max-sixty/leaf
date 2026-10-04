@@ -90,7 +90,7 @@ const threadWords = (thread, place) =>
     place.section,
     thread.title,
     ...thread.msgs.map(messageWords),
-    ...thread.summaries.map((summary) => summary.text),
+    ...thread.summaries.flatMap((summary) => [summary.label, summary.text]),
   ]
     .join("\n")
     .toLowerCase();

@@ -13,6 +13,7 @@ import {
   pageText,
   quoteFrom,
   rangeOf,
+  selectEnds,
   segmentBlock,
 } from "../passages.js";
 import { bannerFoot, shownParts } from "../geometry.js";
@@ -420,9 +421,11 @@ export function createTargetPicker({
 
   function selectMatch(segments) {
     releaseFocus();
-    const selection = getSelection();
-    selection.removeAllRanges();
-    selection.addRange(rangeOf(segments));
+    const range = rangeOf(segments);
+    selectEnds(
+      [range.startContainer, range.startOffset],
+      [range.endContainer, range.endOffset],
+    );
     updateFab();
   }
 

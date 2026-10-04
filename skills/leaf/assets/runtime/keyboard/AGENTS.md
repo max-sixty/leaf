@@ -115,6 +115,11 @@ selection's Comment on selection step and response options, a thread's own contr
 and the Threads box all take a tap. Ask digits duplicate the Decision's own control. The
 command reference and caret browsing describe or extend the keyboard itself.
 
+A command that preserves the reader's current context declares `retainStanding`.
+More holds a transient focus, caret and selection checkpoint before borrowing focus;
+its derived control restores that checkpoint before checking and invoking the row.
+Closing More or standing outside it retires the checkpoint.
+
 ## Modules
 
 `bindings.js` (spelling, parsing, declaration checks), `scopes.js` (element

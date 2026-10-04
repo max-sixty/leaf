@@ -5,6 +5,7 @@ from itertools import pairwise
 from pathlib import Path
 
 import pytest
+import turbohtml
 from interact_support import append_carried_log_record, append_command
 from leaf import data as data_model
 from leaf import delivery as delivery_model
@@ -17,7 +18,6 @@ from leaf.render_checks import rendered, wait_until_ready
 from leaf.render_gate import version as render_gate_model
 from leaf.schema import ELEMENT_ID
 from leaf_dev.example_data import patch_manifest
-from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_interaction import (
     ALL_ASKS_IN_ORDER,
@@ -191,10 +191,10 @@ def test_bounded_text_document_keeps_its_caption_above_the_scrolling_source(
 def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fit(
     browser, serve
 ):
-    """The workspace Layout stands in the wide page's frame and takes the window's
-    height below the banner: each pane's body scrolls on its own. Its header is one row,
-    the title at a heading's ordinary size with the status beside it, so the panes keep
-    the window. A window too short to hold it hands the scroll to the page."""
+    """The workspace Layout takes the whole window, wider than the wide page's capped
+    frame, and its height below the banner: each pane's body scrolls on its own. Its
+    header is one row, the title with the status beside it, so the panes keep the
+    window. A window too short to hold it hands the scroll to the page."""
     frame = """() => {
       const main = document.querySelector('main');
       const style = getComputedStyle(main);
@@ -208,11 +208,11 @@ def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fi
             WORKSPACE_PAGE.replace('class="layout-workspace"', 'class="layout-wide"')
         ),
     )
-    resized(declared, 1280, 720)
+    resized(declared, 1920, 720)
     wide = declared.evaluate(frame)
     declared.close()
     page = open_page(browser, serve(WORKSPACE_PAGE))
-    resized(page, 1280, 720)
+    resized(page, 1920, 720)
     workspace = page.locator("main")
     queue_pane = page.locator("#queue")
     queue = page.locator("#queue > :not(header, footer)")
@@ -220,23 +220,17 @@ def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fi
 
     pane_posture(page, queue_pane, "bounded")
     fills_the_window(page, workspace, True)
-    assert page.evaluate(frame) == wide
-    assert wide[1] > 1080, wide
+    own = page.evaluate(frame)
+    assert own[0] < wide[0] and own[1] > wide[1], (own, wide)
     header = page.evaluate(
         """() => {
           const title = document.querySelector('main > header h1');
           const status = document.getElementById('review-status');
-          const probe = document.createElement('h2');
-          probe.textContent = 'x';
-          document.querySelector('#queue').append(probe);
-          const heading = getComputedStyle(probe).fontSize;
-          probe.remove();
           const t = title.getBoundingClientRect(), s = status.getBoundingClientRect();
-          return {title: getComputedStyle(title).fontSize, heading,
-                  oneRow: s.top < t.bottom && s.left >= t.right};
+          return {oneRow: s.top < t.bottom && s.left >= t.right};
         }"""
     )
-    assert header["title"] == header["heading"] and header["oneRow"], header
+    assert header["oneRow"], header
     assert page.evaluate("() => document.scrollingElement.scrollTop") == 0
     readings = page.evaluate(
         """() => {
@@ -442,8 +436,13 @@ def test_root_tabs_switch_views_without_moving_the_strip_and_follow_history(
     # A reveal (a comment anchor, find-in-page) opens another view, and the entry the
     # user stands on then names it, so pressing away and coming Back returns there.
     page.evaluate(
-        "document.querySelector('#evidence-tab').dispatchEvent(new CustomEvent('lf-reveal'))"
+        """async () => {
+          const {reveal} = await window.__lfRuntimeImport('/runtime/widget-elements.js');
+          const {retainUserIntent} = await window.__lfRuntimeImport('/runtime/user-intent.js');
+          reveal(document.querySelector('#evidence-tab'), retainUserIntent());
+        }"""
     )
+    rendered(page)
     expect(evidence).to_have_attribute("aria-selected", "true")
     assert page.url.endswith("#evidence-tab")
     switch(plan)
@@ -762,14 +761,6 @@ def test_page_tabs_take_the_page_width_and_its_one_left_edge(browser, serve):
     assert boxes["title"]["left"] == boxes["content"]["left"], boxes
 
 
-@pytest.mark.xfail(
-    reason=(
-        "Main bb629cfca: a nested workspace Ask's option cannot receive a pointer "
-        "press because its tab, Ask, and option-group ancestors intercept it"
-    ),
-    raises=PlaywrightTimeout,
-    strict=False,
-)
 def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     """`list="side"` stands a tab set's list beside its panels: a queue whose items open
     one at a time. Where the set holds both the list is a column left of the open panel,
@@ -952,6 +943,17 @@ def test_an_ordinary_two_part_ask_retains_document_flow(browser, serve):
     page = open_page(browser, serve(held))
     resized(page, 1280, 720)
     expect(page.locator("#session-triage-decision")).to_have_css("display", "flex")
+    page.close()
+
+    # The workspace's full height reaches every Ask in it; an Ask held in a pane is
+    # that pane's content, not the body, and keeps its document flow.
+    in_pane = held.replace(
+        '<lf-ask id="session-triage-decision">',
+        '<lf-pane id="triage-pane" label="Triage"><div>\n<lf-ask id="session-triage-decision">',
+    ).replace("</lf-ask>\n", "</lf-ask>\n</div></lf-pane>\n")
+    page = open_page(browser, serve(in_pane))
+    resized(page, 1280, 720)
+    expect(page.locator("#session-triage-decision")).to_have_css("display", "block")
 
 
 def clear_of_the_bottom_chrome(page, selector):
@@ -4979,41 +4981,31 @@ body { font-family: system-ui, sans-serif; }
 </html>
 """
     artifact.write_text(first_artifact, encoding="utf-8")
-    artifact_binding = """            <section id="notification-artifact" hidden>
-              <lf-text-document
-                id="notification-artifact-source"
-                source="notification-artifact"
-                language="html"
-              ></lf-text-document>
-            </section>
-"""
     # The result is a document: the configuration folds away above the artifact, so
-    # the page leaves the workspace Layout.
-    result_source = (
-        source.replace(artifact_binding, "")
-        .replace(
-            '    <main class="layout-workspace" id="notification-workspace">',
-            """    <main class="layout-column">
-      <h1>Review the deployment notification</h1>
-      <details id="notification-configuration">
-        <summary>Original configuration</summary>""",
+    # the page leaves the workspace Layout. Select the authored identities rather
+    # than copying their class lists and source whitespace into this revision writer.
+    result = turbohtml.parse(source)
+    for control in result.select("#notification-playground lf-playground-control"):
+        value = action["detail"]["values"][control.attrs["name"]]
+        control.attrs["value"] = (
+            str(value).lower() if isinstance(value, bool) else str(value)
         )
-        .replace(
-            "      </lf-ask>\n    </main>",
-            """      </lf-ask>
-      </details>
-      <section id="notification-artifact">
-        <lf-text-document
-          id="notification-artifact-source"
-          source="notification-artifact"
-          label="deployment-notification.html"
-          language="html"
-        ></lf-text-document>
-      </section>
-    </main>""",
-            1,
-        )
+    workspace = result.select_one("#notification-workspace")
+    workspace.attrs["class"] = "layout-column"
+    artifact_section = result.select_one("#notification-artifact")
+    configuration = turbohtml.E(
+        "details",
+        {"id": "notification-configuration", "open": ""},
+        turbohtml.E("summary", "Original configuration"),
     )
+    result.select_one("#notification-ask").wrap(configuration)
+    configuration.insert_before(turbohtml.E("h1", "Review the deployment notification"))
+    artifact_section.attrs.pop("hidden")
+    artifact_section.select_one("#notification-artifact-source").attrs["label"] = (
+        "deployment-notification.html"
+    )
+    workspace.append(artifact_section)
+    result_source = result.serialize()
     assert "notification-configuration" in result_source
     assert "layout-workspace" not in result_source
     assert 'notification-artifact" hidden' not in result_source
@@ -5044,6 +5036,9 @@ body { font-family: system-ui, sans-serif; }
 
     configuration = page.locator("#notification-configuration")
     expect(configuration).to_have_attribute("open", "")
+    expect(
+        configuration.locator('lf-playground-control[name="title"] input')
+    ).to_have_value("Checkout needs attention")
     configuration.locator(":scope > summary").click()
     expect(configuration).not_to_have_attribute("open", "")
     configuration.locator(":scope > summary").click()
@@ -9311,6 +9306,8 @@ def test_an_agent_message_edit_updates_the_panel_and_its_inline_thread(browser, 
         },
     )
     told(page)
+    panel_thread.get_by_role("button", name="1 new reply", exact=True).click()
+    inline_thread.get_by_role("button", name="1 new reply", exact=True).click()
 
     expect(inline.locator(".lf-msg-body")).to_contain_text("The north bracket fits.")
     expect(panel.locator(".lf-msg-text")).to_contain_text("The north bracket fits.")
@@ -10236,6 +10233,7 @@ def test_the_walk_travels_to_an_ask_a_page_left_boxless(browser, serve):
     expect(page.locator("#live-question-decision")).to_have_attribute(
         "data-lf-ask", "1"
     )
+    scroll_settled(page)
     was = page.evaluate("() => document.scrollingElement.scrollTop")
     assert was > 0, "the user must have somewhere to have come from"
 

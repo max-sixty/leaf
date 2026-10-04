@@ -4559,6 +4559,14 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_i
     assert playground.locator(".lf-playground-instruction-title").evaluate(
         voice
     ) == playground.locator(".lf-playground-presets-title").evaluate(voice)
+    # The presets band heading the controls is ruled off from them, over the generic
+    # region header's unruled box.
+    assert playground.locator(".lf-playground-presets").evaluate(
+        """node => {
+          const style = getComputedStyle(node);
+          return [style.borderBottomStyle, style.paddingBottom];
+        }"""
+    ) == ["solid", "14px"]
     first_control = playground.locator("lf-playground-control").first
     control_box = first_control.bounding_box()
     controls_box = controls.bounding_box()

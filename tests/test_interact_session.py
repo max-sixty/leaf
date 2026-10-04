@@ -12142,7 +12142,7 @@ def test_a_crashed_lease_holder_releases_the_stable_file_for_a_successor(
     identity = path.stat()
     assert leases_model.lock_is_held(path)
     assert leases_model.take_lease(path) is None
-    holder.kill()
+    holder.terminate()
     holder.communicate(timeout=10)
     assert not leases_model.lock_is_held(path)
     assert os.path.samestat(identity, path.stat())
@@ -14240,8 +14240,6 @@ cli_model.cli()
         time.sleep(0.05)
     if not marker.exists():
         events.close()
-        process.kill()
-        process.communicate()
         pytest.fail("the idle command never requested the held event-log lock")
 
     # The marker is immediately before the command's lock acquisition. In the

@@ -297,8 +297,9 @@ def test_command_passes_promptfoo_options_and_status_without_api_keys(
     )
 
     built.clear()
-    assert run("task-outlasts-the-turn", "--base").exit_code == 100
-    assert built[0] and built[1] is None
+    # A named ref, since CI's checkout has no local main to take a merge base from.
+    assert run("task-outlasts-the-turn", "--base", "HEAD").exit_code == 100
+    assert built == ["HEAD", None]
 
     built.clear()
     result = run("--base", "task-outlasts-the-turn")

@@ -9712,6 +9712,79 @@ def test_the_asks_control_opens_active_asks_and_answers(browser, serve):
     assert page.evaluate(ASK_ROW_SAYS) == [], "a closed drawer keeps its rows"
 
 
+def test_an_answered_asks_words_are_its_widgets_semantic_state(browser, serve):
+    """Each family names its answer from the state it was answered with.
+
+    A draft says its standing words, a playground the instruction it sent rather than
+    whatever its controls show now, and an option the user added is named by the
+    rendered words its `add` carried."""
+    url = serve(
+        leaf_page(
+            "answer words",
+            """
+<h1 id="h">Answers</h1>
+<lf-ask id="note-ask"><h2>Is this release note right?</h2>
+<lf-draft id="note" needed><pre>
+Adds --dry-run to every mutating command.
+</pre></lf-draft></lf-ask>
+<lf-ask id="cache-ask"><h2>Which cache?</h2>
+<lf-options id="cache" choose>
+  <lf-option id="cache-none"><strong>No cache</strong> Read through.</lf-option>
+</lf-options></lf-ask>
+<lf-ask id="tone-ask"><h2>Which notification?</h2>
+<lf-playground id="tone">
+  <lf-playground-control name="format" label="Format" kind="choice" value="banner">
+    <lf-playground-choice value="banner" label="Banner"></lf-playground-choice>
+    <lf-playground-choice value="strip" label="Strip"></lf-playground-choice>
+  </lf-playground-control>
+  <lf-playground-preview><p id="tone-preview">The notification.</p></lf-playground-preview>
+  <lf-playground-output>Build the <lf-playground-value for="format"></lf-playground-value>
+  notification.</lf-playground-output>
+</lf-playground></lf-ask>
+""",
+        )
+    )
+    page = open_page(browser, url)
+    door = url.rsplit("/versions/", 1)[0] + "/api/event"
+    for widget, action, detail in [
+        ("note", "edit", {"text": "Adds --dry-run to every command."}),
+        ("cache", "add", {"option": "cache-redis", "text": "**Redis** in front"}),
+        ("cache", "choose", {"options": ["cache-redis"]}),
+        (
+            "tone",
+            "choose",
+            {"values": {"format": "strip"}, "instruction": "Build the strip one."},
+        ),
+    ]:
+        posted = post_event(
+            page,
+            door,
+            data={
+                "kind": "action",
+                "revision": 1,
+                "widget": widget,
+                "action": action,
+                "detail": detail,
+            },
+        )
+        assert posted.ok, posted.text()
+    banner_control(page, ".lf-asks").click()
+    expect(page.locator(".lf-asks")).to_have_text("Asks 3/3")
+    output = page.locator("#tone lf-playground-output")
+    expect(output).to_contain_text("strip")
+    page.locator("#tone").get_by_role("radio", name="Banner").click()
+    expect(output).to_contain_text("banner")
+    answers = {
+        "note-ask": "Adds --dry-run to every command.",
+        "cache-ask": "Redis in front",
+        "tone-ask": "Build the strip one.",
+    }
+    for at, words in answers.items():
+        expect(
+            page.locator(f'.lf-asks-row[data-lf-at="{at}"] .lf-asks-answer')
+        ).to_have_text(words)
+
+
 def test_ask_rows_keep_identity_and_publisher_order_when_the_live_dom_moves(
     browser, serve
 ):
@@ -10042,30 +10115,6 @@ def test_completed_ask_progress_persists_and_its_row_can_revise_by_keyboard(
     expect(page.locator("#storage-evict")).to_have_attribute("chosen", "")
     expect(progress).to_have_text("Asks 1/1")
     expect(row.locator(".lf-asks-answer")).to_have_text("Drop the oldest documents")
-
-
-def test_an_ask_rejects_two_answer_users_even_when_their_words_match(browser, serve):
-    page = open_page(browser, serve(ASKS_PAGE))
-    banner_control(page, ".lf-asks").click()
-    expect(page.locator("button.lf-asks-row")).to_have_count(len(ALL_ASKS_IN_ORDER))
-    page.evaluate(
-        """async () => {
-          const {readApplicationPresentation} = await window.__lfRuntimeImport(
-            '/runtime/semantic-state.js');
-          window.__lfReadAskPresentation = readApplicationPresentation;
-          const {commands} = await window.__lfRuntimeImport('/runtime/widget-api.js');
-          const options = document.getElementById('honored');
-          const extra = document.createElement('span');
-          options.append(extra);
-          commands(extra, 'Duplicate answer', [], {answer: () => 'Two-tier gates'});
-          document.dispatchEvent(new Event('lf-presentation'));
-        }"""
-    )
-    page.wait_for_function("__lfReadAskPresentation().pending.length === 0")
-    expect(page.locator("button.lf-asks-row")).to_have_count(len(ALL_ASKS_IN_ORDER))
-    assert take_browser_errors(page) == [
-        "leaf: Presentation failed: Ask honored-decision has more than one answer reader"
-    ]
 
 
 def test_an_answered_boxless_ask_reopens_on_its_visible_revision_control(

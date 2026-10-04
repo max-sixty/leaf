@@ -140,6 +140,11 @@ function caretAt(body, x, y) {
 customElements.define(
   "lf-draft",
   class extends HTMLElement {
+    // What the Ask was answered with: the standing words.
+    static answerWords(state) {
+      return state.edit.value.trim() || "Empty";
+    }
+
     #controller = widgetController(this);
     #body;
     #history = null;
@@ -317,60 +322,55 @@ customElements.define(
 
     #ensureCommands() {
       if (this.#commandScope) return;
-      this.#commandScope = commandScope(
-        "On a draft",
-        [
-          {
-            id: "draft.edit",
-            contextKeys: ["1"],
-            bindingBadge: null,
-            keys: [],
-            control: () => this.#margin?.control("edit"),
-            decision: true,
-            title: "Edit…",
-            description: "Edit the text in place",
-            when: () => !this.#editor,
-            run: () => this.#margin?.activate("edit"),
-          },
-          {
-            id: "draft.save",
-            contextKeys: ["1"],
-            bindingBadge: null,
-            reach: "in an open draft editor",
-            keys: submitBindings,
-            label: submitLabel,
-            control: () => this.#margin?.control(this.#saveKey()),
-            decision: true,
-            title: () => (this.#failed ? "Retry" : "Save"),
-            description: () =>
-              this.#failed ? "Retry saving the edit" : "Save the edit",
-            when: () => Boolean(this.#editor),
-            run: () => this.#margin?.activate(this.#saveKey()),
-          },
-          {
-            id: "draft.cancel",
-            contextKeys: ["2"],
-            bindingBadge: null,
-            reach: "in an open draft editor",
-            keys: [],
-            control: () => this.#margin?.control("cancel"),
-            decision: true,
-            title: "Cancel",
-            description: "Cancel the edit",
-            when: () => Boolean(this.#editor),
-            run: () => this.#margin?.activate("cancel"),
-          },
-          {
-            id: "draft.close",
-            reach: "in an open draft editor",
-            keys: ["Escape"],
-            title: "close — edit kept",
-            when: () => Boolean(this.#editor),
-            run: () => this.#close(false),
-          },
-        ],
-        { answer: () => this.#controller.read().state.edit.value.trim() || "Empty" },
-      );
+      this.#commandScope = commandScope("On a draft", [
+        {
+          id: "draft.edit",
+          contextKeys: ["1"],
+          bindingBadge: null,
+          keys: [],
+          control: () => this.#margin?.control("edit"),
+          decision: true,
+          title: "Edit…",
+          description: "Edit the text in place",
+          when: () => !this.#editor,
+          run: () => this.#margin?.activate("edit"),
+        },
+        {
+          id: "draft.save",
+          contextKeys: ["1"],
+          bindingBadge: null,
+          reach: "in an open draft editor",
+          keys: submitBindings,
+          label: submitLabel,
+          control: () => this.#margin?.control(this.#saveKey()),
+          decision: true,
+          title: () => (this.#failed ? "Retry" : "Save"),
+          description: () => (this.#failed ? "Retry saving the edit" : "Save the edit"),
+          when: () => Boolean(this.#editor),
+          run: () => this.#margin?.activate(this.#saveKey()),
+        },
+        {
+          id: "draft.cancel",
+          contextKeys: ["2"],
+          bindingBadge: null,
+          reach: "in an open draft editor",
+          keys: [],
+          control: () => this.#margin?.control("cancel"),
+          decision: true,
+          title: "Cancel",
+          description: "Cancel the edit",
+          when: () => Boolean(this.#editor),
+          run: () => this.#margin?.activate("cancel"),
+        },
+        {
+          id: "draft.close",
+          reach: "in an open draft editor",
+          keys: ["Escape"],
+          title: "close — edit kept",
+          when: () => Boolean(this.#editor),
+          run: () => this.#close(false),
+        },
+      ]);
       commands(this, this.#commandScope);
     }
 

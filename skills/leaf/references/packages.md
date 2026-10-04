@@ -335,6 +335,8 @@ shape: `"answered": {"edit": {}}` answers a draft once an edit stands, and
 `"answered": {"choose": {"when": {"multiple": [false]}}, "answer": {"when":
 {"multiple": [true]}}}` answers a single-choice group by its pick and a `multiple` group
 by its Done press.
+The words that name an answer are the module's `static answerWords(state, element)`
+([module-authoring.md, "Declared widget state"](module-authoring.md#declared-widget-state)).
 
 The module reads and writes through `widgetController(owner)`, described in
 [module-authoring.md, "The widget controller"](module-authoring.md#the-widget-controller): `subscribe` delivers the authored baseline with the fold applied, and

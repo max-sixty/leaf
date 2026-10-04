@@ -87,8 +87,8 @@ const messageWords = (message) => {
 const threadWords = (thread, place) =>
   [
     anchorLabel(thread.detached_from ?? thread.anchor, thread.root.about),
-    // The words the thread was opened on find it after a version rewrote them.
-    thread.root.anchor?.quote,
+    // The words the card names after a version rewrote them find the thread too.
+    thread.rewritten_from?.quote,
     place.section,
     thread.title,
     ...thread.msgs.map(messageWords),

@@ -437,22 +437,3 @@ test("panel narrowing controllers keep independent intent over shared threads", 
   assert.deepEqual(first.narrowing.model(threads, places).shown, [open]);
   assert.deepEqual(second.narrowing.model(threads, places).shown, [resolved]);
 });
-
-test("Only a rewrite of the quoted words reads as a changed passage", async () => {
-  const { rewrittenFrom } = await import("/runtime/thread/model.js");
-  const quoted = { section: "queues", quote: "what an item is stays open" };
-  const [opening] = servedThread([
-    { id: "c1", kind: "comment", author: "user", revision: 3, anchor: quoted },
-  ]).msgs;
-  const at = (anchor, changes = {}) =>
-    rewrittenFrom(servedThread([opening], { anchor, ...changes }));
-
-  // The page kept the thread on the quote's section because a version rewrote it.
-  assert.equal(at({ section: "queues" }), quoted);
-  // Still on its words, moved by a reply to other words or another section, or
-  // detached: none of these is a rewrite the thread can show.
-  assert.equal(at(quoted), null);
-  assert.equal(at({ section: "queues", quote: "The two queues today" }), null);
-  assert.equal(at({ section: "records" }), null);
-  assert.equal(at(null, { detached_from: { section: "queues" } }), null);
-});

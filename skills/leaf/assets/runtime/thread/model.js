@@ -104,6 +104,7 @@ export function foldThreads(threads, messages, reactions, settlements, withdrawn
       title: null,
       anchor: root.anchor ?? null,
       detached_from: null,
+      rewritten_from: null,
       msgs: [root],
       resolved: null,
       user_prompt: null,
@@ -162,18 +163,6 @@ export const awaitsAgent = (thread) =>
 export const awaitsUser = (thread) =>
   !thread.resolved && thread.attention?.kind === "needs_user";
 export const seatRoot = (thread) => thread.seat;
-
-// The opening comment's anchor, once a later version rewrote its quoted words: they no
-// longer resolve, so the thread stands on their section alone (`reanchor`, events.md),
-// and the opening comment still holds what it was about. A reply that moved the thread
-// chose its new place and said why, so it is not a rewrite.
-export function rewrittenFrom(thread) {
-  const opening = thread.root.anchor;
-  const now = thread.anchor;
-  if (!opening?.quote || !now || now.quote || now.section !== opening.section)
-    return null;
-  return opening;
-}
 
 // When a message last moved: its latest edit, else its own arrival. Every ordering that
 // asks what is newest in a thread — Recent, the first unread, news — reads this,
@@ -301,6 +290,7 @@ export function readThreadRecords(
       unread: Object.freeze(unread),
       anchor: thread.anchor,
       detached_from: thread.detached_from,
+      rewritten_from: thread.rewritten_from,
       resolved: thread.resolved,
       settling: thread.settling ?? null,
       user_prompt: thread.user_prompt,

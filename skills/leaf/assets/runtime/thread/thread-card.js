@@ -13,7 +13,7 @@ import { nextRender } from "../rendering.js";
 import { holdFocus } from "../focus.js";
 import { TEXT_FIELD } from "../control-selectors.js";
 import { html, render, repeat, nothing } from "../../vendor/browser-runtime.js";
-import { turns, threadKey, threadSummary, rewrittenFrom } from "./model.js";
+import { turns, threadKey, threadSummary } from "./model.js";
 import { anchorLabel, MessageView, messageReading } from "./messages.js";
 import { reactionReading } from "./reaction-model.js";
 import { offer, reachedForWords } from "../widget-elements.js";
@@ -38,9 +38,9 @@ import { ReplyContinuity } from "./reply-continuity.js";
 
 function quoteReading(thread, anchors) {
   const placement = anchors.placedAt(thread.id);
-  // A version that rewrote the quoted words leaves the thread on their section, and the
-  // head still names the words the comment was about, marked as changed since.
-  const rewritten = rewrittenFrom(thread);
+  // A version that rewrote the quoted words left the thread on their section
+  // (`rewritten_from`, events.md); the head still names those words, marked as changed.
+  const rewritten = thread.rewritten_from;
   const label = anchorLabel(
     rewritten ?? thread.detached_from ?? thread.anchor,
     thread.root.about,

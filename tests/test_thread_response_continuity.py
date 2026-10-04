@@ -10,18 +10,19 @@ from render_harness import leaf_page, open_page, round_trip, write
 
 
 @pytest.mark.parametrize(
-    "place", ["outlet", "seat", "nested-room", "nested-end", "margin"]
+    "place", ["outlet", "seat", "nested-room", "nested-end", "margin", "panel"]
 )
 def test_refused_reply_retains_its_live_foot(browser, serve, place):
     """Removing a provisional turn preserves the live Send and following passage.
 
-    Both native thread bodies and both scroll boundaries exercise the same rule.
+    Native and panel thread bodies and both scroll boundaries exercise the same rule.
     The refused draft is retryable, and only its eventual acceptance reaches the log.
     """
     from render_cases_interaction import SEATED_QUESTION_PAGE
     from render_harness import (
         consume_browser_errors,
         holding,
+        panel_settled,
         scroll_settled,
         stored_draft_text,
     )
@@ -31,14 +32,18 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
         authored = SEATED_QUESTION_PAGE.replace("</lf-command>", "</lf-command>" + tail)
         anchor = {"section": "jobs"}
         selector = '[data-lf-thread-seat="jobs"] > .lf-page-thread'
-    elif place == "margin":
+    elif place in ("margin", "panel"):
         authored = leaf_page(
             "Response continuity",
             '<h1 id="h">Shipping order</h1><p id="plan">Keep the release order visible.</p>'
             + tail,
         )
         anchor = {"section": "plan"}
-        selector = ".lf-margin-preview .lf-page-thread"
+        selector = (
+            ".lf-margin-preview .lf-page-thread"
+            if place == "margin"
+            else ".lf-threads > .lf-thread"
+        )
     else:
         contents = (
             '<h1 id="h">Shipping order</h1><lf-diff id="patch" source="change"><pre></pre></lf-diff>'
@@ -55,7 +60,7 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
         anchor = {"section": "patch", "datum": '["app.py","new",1]', "source": "change"}
         selector = "lf-diff .lf-page-thread"
     url = serve(authored)
-    if place not in ("seat", "margin"):
+    if place not in ("seat", "margin", "panel"):
         data_model.cmd_data_set(
             serve.page_dir,
             "change",
@@ -78,6 +83,11 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
     page = open_page(browser, url, context=context)
     if place == "margin":
         page.locator(".lf-margin-marker").first.click()
+    elif place == "panel":
+        page.locator(".lf-threads-toggle").click()
+        panel_settled(page)
+        if page.locator(selector).get_attribute("open") is None:
+            page.locator(selector).locator(".lf-thread-summary").click()
     owner = page.locator(selector)
     draft = owner.locator("leaf-text")
     expect(draft).to_be_visible()
@@ -198,11 +208,11 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
 def test_narrow_panel_editor_growth_retains_the_live_send(
     browser, serve, contents, integer_band, viewport
 ):
-    """Wrapping retains Send across short/long cards and native scroll quantization.
+    """Wrapping keeps a short editor's top and a long editor's pinned Send steady.
 
     Default typography gives the list a fractional height. An authored integer
     line-box theme supplies its contrast without changing any geometry rule.
-    Both the first wrap and a later wrap beside a held send keep every control edge.
+    Both the first wrap and a later wrap beside a held send preserve that placement.
     """
     from render_harness import holding, panel_settled
 
@@ -287,10 +297,22 @@ def test_narrow_panel_editor_growth_retains_the_live_send(
     for before, after in zip(poses[::2], poses[1::2], strict=True):
         assert (before["type"], after["type"]) == ("beforeinput", "input")
         assert after["field"]["height"] > before["field"]["height"], poses
-        for pose in (before, after):
-            assert pose["row"]["bottom"] == pose["floor"], poses
-        for edge in ("left", "top", "right", "bottom"):
+        for edge in ("left", "right"):
             assert abs(after["send"][edge] - before["send"][edge]) < 0.5, poses
+        if contents == "short":
+            assert after["field"]["top"] == pytest.approx(
+                before["field"]["top"], abs=0.5
+            ), poses
+            growth = after["field"]["height"] - before["field"]["height"]
+            for edge in ("top", "bottom"):
+                assert after["send"][edge] - before["send"][edge] == pytest.approx(
+                    growth, abs=0.5
+                ), poses
+        else:
+            for pose in (before, after):
+                assert pose["row"]["bottom"] == pose["floor"], poses
+            for edge in ("top", "bottom"):
+                assert abs(after["send"][edge] - before["send"][edge]) < 0.5, poses
         assert 0 <= after["field"]["top"] < after["field"]["bottom"] <= viewport[1]
         assert 0 <= after["send"]["top"] < after["send"]["bottom"] <= viewport[1]
     held.pop().continue_()

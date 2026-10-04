@@ -148,6 +148,7 @@ export function createAskView({
   trip,
   arrive,
   refreshThread,
+  revealThread,
   focusForNavigation,
   presentedControl,
   announce,
@@ -176,6 +177,7 @@ export function createAskView({
           if (!intent.handoff(() => setPanel(true))) return {};
         } else setPanel(true);
       }
+      await revealThread(ask.thread);
       await refreshThread();
       target = askNode(ask);
       source = sourceNode(ask);

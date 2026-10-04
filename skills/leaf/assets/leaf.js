@@ -537,6 +537,10 @@ asks = createAskView({
   trip: anchorTravel.trip,
   arrive: anchorTravel.arrive,
   refreshThread: () => app.refreshThread(),
+  revealThread: (id) => {
+    threadsBox.showNews(id);
+    return narrowing.revealThread(id);
+  },
   announce,
   repaint,
 });

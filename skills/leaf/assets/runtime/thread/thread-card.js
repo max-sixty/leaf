@@ -20,7 +20,7 @@ import { offer, reachedForWords } from "../widget-elements.js";
 import { keeps, keepsHidden } from "../keeps.js";
 import { keys, focused } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
-import { wireReply, replyHasWords } from "./replies.js";
+import { wireReply, replyIsEditing, replyAvailable, dismissReply } from "./replies.js";
 import { settleThread } from "./folding.js";
 import { iconTemplate } from "../icons.js";
 import { loadDraft } from "../drafts.js";
@@ -107,7 +107,7 @@ export function threadReading(
     visible,
     // Why the panel keeps a card its view no longer admits ("news" or "draft",
     // thread-list-view.js, `keeping`). News that changed it waits behind its notice
-    // (held-news.js), and a draft keeps its reply box (`replyHasWords`).
+    // (held-news.js), and a reply being written keeps its box (`replyIsEditing`).
     kept,
     grow,
     folding: false,
@@ -139,7 +139,7 @@ export function threadReading(
       pending: settling,
       icon: !resolved,
     }),
-    reply: !resolved,
+    reply: replyAvailable(thread),
     summaries: Object.freeze(thread.summaries),
     messages: Object.freeze(messages),
   });
@@ -167,7 +167,11 @@ function navigationSummary(navigation, model) {
       >${pendingTitle ? "Generating title" : title}</span
     >
     <span class="lf-thread-meta">
-      ${draft ? html`<span class="lf-thread-draft" data-lf-folded>Draft</span>` : nothing}
+      ${
+        draft
+          ? html`<span class="lf-thread-draft" data-lf-folded>Draft</span>`
+          : nothing
+      }
       ${
         status
           ? html`<span
@@ -253,14 +257,26 @@ export class ThreadView {
     // thread holds shows with it (held-news.js).
     this.#messageCommands = {
       ...commands,
-      reaction: { ...commands.reaction, pressed: () => this.showNews() },
+      reaction: { ...commands.reaction, pressed: () => this.#model?.news?.open() },
     };
     this.node = document.createElement(
       surface === "outlet" || surface === "panel" ? "details" : "div",
     );
     this.#continuity = new ReplyContinuity(this.node);
+    // A card draws what its hold releases at once, so an arrival lands on the thread
+    // as it now stands (`showHeld`).
     if (surface === "panel")
-      this.#heldNews = new HeldNews(this.node, () => this, commands.repaintThread);
+      this.#heldNews = new HeldNews(
+        this.node,
+        () => this,
+        () => {
+          // Disclosure changes this card's mechanical reading of the complete received
+          // descriptor. Draw it in that operation; later geometry or server readings
+          // may supersede a global paint while its widget proof waits.
+          this.repaint();
+          commands.repaintThread();
+        },
+      );
     // A panel card's disclosure is the thread list's to write, from its one choice.
     if (surface !== "panel") {
       this.node.tabIndex = -1;
@@ -305,12 +321,6 @@ export class ThreadView {
   // The next reading draws the thread as it stands, whatever it holds (held-news.js).
   releaseNews() {
     this.#heldNews?.release();
-  }
-
-  showNews() {
-    if (!this.#model?.news) return false;
-    this.#model.news.open();
-    return true;
   }
 
   // Local disclosure and draft changes repaint the complete received descriptor,
@@ -372,7 +382,7 @@ export class ThreadView {
       }
     }
     this.#model = model;
-    const reply = model.reply || replyHasWords(model.key);
+    const reply = model.reply || replyIsEditing(model.key);
     this.#replyShown = reply;
     if (model.news) this.#news.set(model.news);
     const news = model.news ? this.#news.node : nothing;
@@ -488,7 +498,9 @@ export class ThreadView {
                 class=${`lf-quote${model.quote.anchored && !model.quote.found ? " detached" : ""}`}
                 role=${model.quote.anchored ? "button" : nothing}
                 tabindex=${model.quote.anchored ? "0" : nothing}
-                aria-disabled=${model.quote.anchored ? String(!model.quote.found) : nothing}
+                aria-disabled=${
+                  model.quote.anchored ? String(!model.quote.found) : nothing
+                }
                 title=${model.quote.title ?? nothing}
                 @click=${this.#returnToQuote}
               >
@@ -616,7 +628,9 @@ export class ThreadView {
           range.messages,
           (message) => message.key,
           (message) =>
-            html`${markerFor(message.key)}${range.nodes[range.messages.indexOf(message)]}`,
+            html`${markerFor(message.key)}${
+              range.nodes[range.messages.indexOf(message)]
+            }`,
         )}
       </div>
     </section>`;
@@ -678,6 +692,7 @@ export class ThreadView {
     const model = this.#model;
     if (model.folding) return;
     model.news?.open();
+    if (!model.resolved) dismissReply(model.key);
     void settleThread({
       parent: () => this.#model.root,
       key: model.key,
@@ -754,19 +769,19 @@ export class ThreadView {
     if (panel)
       input.lfRevealReply = () =>
         this.#commands.listRoot.revealNavigation(this.#model.id);
-    const lifetime = wireReply(model.key, input, send, {
-      ...this.#commands.reply,
-      onDraftLoaded: () => {
-        // Initial construction is already painting this reading; mirrored edits
-        // arrive later and must refresh the collapsed row's Draft indication.
+    const replyChanged = () => {
+      if (!this.#reply) return;
+      this.#draftFrame ||= nextRender(() => {
+        this.#draftFrame = 0;
         if (!this.#reply) return;
         if (panel) this.#navigation.draftChanged();
-        else if (this.#replyShown !== (this.#model.reply || replyHasWords(model.key)))
-          this.#draftFrame ||= nextRender(() => {
-            this.#draftFrame = 0;
-            if (this.#reply) this.repaint();
-          });
-      },
+        else if (this.#model.resolved) this.repaint();
+        if (this.#model.resolved) this.#commands.reply.changed();
+      });
+    };
+    const lifetime = wireReply(model.key, row, input, send, {
+      ...this.#commands.reply,
+      onChange: replyChanged,
     });
     return { node: row, dispose: lifetime.dispose };
   }

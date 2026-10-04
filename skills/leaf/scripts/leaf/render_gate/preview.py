@@ -20,8 +20,10 @@ def preview_server(
     version: int | None = None,
     transition_held: bool = False,
     artifact: RevisionArtifact | None = None,
+    through_seq: int | None = None,
 ):
-    """Serve one exact document without changing the page's durable state.
+    """Serve one exact document without changing the page's durable state, against
+    the log through `through_seq` when given (`capture_page_snapshot`).
 
     Its own key, not the machine's: this server is loopback-only and lives for the
     length of a `with`, so it neither needs nor should mint the access every page
@@ -41,7 +43,9 @@ def preview_server(
                 f"/versions/{version_name(version)}" if version is not None else "/"
             ),
         }
-        snapshot = capture_page_snapshot(page_dir, document, active, artifact=artifact)
+        snapshot = capture_page_snapshot(
+            page_dir, document, active, artifact=artifact, through_seq=through_seq
+        )
         server = TemporaryPageServer(page_dir, page_options={"page_snapshot": snapshot})
         with server:
             yield server.url

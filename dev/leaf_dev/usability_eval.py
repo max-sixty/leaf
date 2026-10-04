@@ -43,7 +43,6 @@ from leaf_dev.harness import (
 )
 
 FIXTURES = ROOT / "evals/usability/fixtures"
-MODEL = "claude-opus-5-5"
 ANSWERS = json.loads((FIXTURES / "reading-answers.json").read_text())
 SURFACES = [q["surface"] for q in ANSWERS["questions"]]
 
@@ -636,8 +635,6 @@ def execute_live(run: Run, case: Case, work: Path, page: Path) -> None:
             LiveChild(
                 work,
                 prompt,
-                "--model",
-                MODEL,
                 "--plugin-dir",
                 str(run.payload),
                 stderr=run.dir / "err-1.txt",
@@ -813,8 +810,6 @@ def execute_phases(run: Run, case: Case, work: Path, page: Path) -> None:
         trace = run_agent(
             work,
             prompt,
-            "--model",
-            MODEL,
             "--plugin-dir",
             str(run.payload),
             *(("--resume", session) if session else ()),
@@ -1749,8 +1744,6 @@ def execute_scenario(
     condition: str = "leaf",
 ) -> dict:
     """One Promptfoo provider call owns all phases, live rounds, and evidence."""
-    if condition != "leaf":
-        raise ValueError("Seeded Leaf state checks require the Leaf condition")
     run = Run(case, payload, work, host)
     execute(run)
     traces = run.traces()
@@ -1775,6 +1768,6 @@ def execute_scenario(
         **({"tokenUsage": usage} if usage else {}),
         "metadata": {
             "checks": checks,
-            "diagnostics": {"score": score, "phases": phases, "work": str(work)},
+            "diagnostics": {"score": score, "phases": phases},
         },
     }

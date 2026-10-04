@@ -359,10 +359,6 @@ height and where a switch lands wait on the workspace decision under Layout.
   them, but nothing runs them first. Write `evals/` cases in which agents author each
   kind and measure how often what they write fails to draw, then run the kinds agents
   get wrong and stop running those they reliably get right.
-- **Scale a drawing by the box it was drawn in.** On replay, scale the strokes by
-  the anchored element's size over the recorded `box`, so a mark stays on its
-  element in a narrower window; reflowed text still moves under it. Verify replay
-  at different widths and keep that limitation explicit.
 - **Derive the waiting banner from the page's open Ask.** Consider using the Ask's
   words when no explicit waiting detail is needed. **Unconfirmed:** try pages with
   several open Asks and an informational page before choosing how the banner

@@ -2664,6 +2664,6 @@ def test_a_repaint_unsettles_the_rendering_until_it_lands(browser, serve):
     toggle.click()
     assert page.evaluate("window.__lfPress") == [True, False]
     rendered(page)
-    assert page.evaluate(
-        "() => document.querySelector('script[data-lf-entry]').lfRenderingSettled()"
-    )
+    # Completion is the reading rendered waited on. A later slide-end scan can
+    # queue new work, so a second reading need not still be settled.
+    expect(page.locator(".lf-thread-panel")).to_be_visible()

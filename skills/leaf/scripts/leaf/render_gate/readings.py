@@ -616,14 +616,25 @@ def overflowing_regions(page, viewport: dict) -> list[dict]:
 
 
 def overflowing_region_advice(region: dict) -> str:
-    """The advice an overflowing region (`overflowing_regions`) is given."""
+    """The advice an overflowing region (`overflowing_regions`) is given. A region
+    holding more than one open Ask is a queue of items to decide stacked into one
+    scroll, so its advice names the queue form instead of trimming."""
     viewport = region["viewport"]
-    return (
+    where = (
         f"at {viewport['width']}x{viewport['height']} {region['at']} runs "
-        f"{region['over']}px past the region it scrolls in: a workspace is a "
-        "screen the reader moves through, so trim it to what the region shows "
-        "or split it, unless the region is a reader for something long, such "
-        "as a source file or a log (page-authoring.md, A workspace)"
+        f"{region['over']}px past the region it scrolls in"
+    )
+    if region["asks"] > 1:
+        return (
+            f"{where} and holds {region['asks']} open Asks: a reader decides them "
+            "one at a time, so make the items a queue, one `lf-tabs list=\"side\"` "
+            "whose tabs each hold one (page-authoring.md, A workspace)"
+        )
+    return (
+        f"{where}: a workspace is a screen the reader moves through, so trim it to "
+        "what the region shows or split it, unless the region is a reader for "
+        "something long, such as a source file or a log (page-authoring.md, A "
+        "workspace)"
     )
 
 

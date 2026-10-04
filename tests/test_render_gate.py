@@ -275,7 +275,8 @@ def test_a_screen_region_that_runs_past_its_room_gets_advice(browser, serve):
     """A workspace is a screen the reader moves through, so a region of it that has to
     scroll is the exception, and the gate names each one at the desktop viewport, as
     advice: the page still passes. Here the detail pane runs past its room and the
-    queue fits, so only the detail is named."""
+    queue fits, so only the detail is named. Once the detail stacks two open Asks, it
+    is a queue read as one scroll, and the advice names the side-list queue instead."""
     source = leaf_page(
         "screen regions",
         """
@@ -298,6 +299,20 @@ def test_a_screen_region_that_runs_past_its_room_gets_advice(browser, serve):
     assert [region["id"] for region in reading.overflowing] == ["detail"]
     (advice,) = [line for line in reading.advice if "past the region" in line]
     assert advice.startswith("at 1200x900 <lf-pane id=detail> runs "), advice
+    assert "lf-tabs" not in advice, advice
+
+    asks = "".join(
+        f"""<lf-ask id="ask-{n}"><h4>Page on alert {n}?</h4>
+        <lf-options id="choice-{n}" choose>
+          <lf-option id="yes-{n}"><strong>Page</strong> Wake someone.</lf-option>
+          <lf-option id="no-{n}"><strong>Ticket</strong> Wait for morning.</lf-option>
+        </lf-options></lf-ask>"""
+        for n in (1, 2)
+    )
+    queued = source.replace("<p>Disk pressure on db-2.</p>", asks)
+    reading = render_gate_model.render_version(browser, serve(queued, packages=()))
+    (advice,) = [line for line in reading.advice if "past the region" in line]
+    assert "holds 2 open Asks" in advice and 'lf-tabs list="side"' in advice, advice
 
 
 STACK = "{ #regions { grid-template-columns: 1fr; } }"

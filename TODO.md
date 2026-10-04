@@ -249,15 +249,6 @@ Boxes that still move without input, which the "Stability" rule in
 `skills/leaf/assets/AGENTS.md` forbids. `tests/known_widget_findings.py` lists each widget
 that changes size after first paint, with its cause.
 
-- **Keep the feature gallery's Undo reachable after Reject.**
-  `test_the_feature_gallery_keeps_its_real_actions_reachable` is a non-strict xfail in
-  `tests/test_render_margin.py`, and #1669 found it still failing. The diagnosis in
-  [notes/margin-stuck-style.md](notes/margin-stuck-style.md) names two defects: the
-  span around the rejected insertion keeps reporting a computed `anchor-name: none`,
-  so the row carrying Undo stays at its off-screen fallback, and after Undo the suggestion has a 0x0 box. #1687
-  then stopped hiding an emptied suggestion with `display: none`, which may have fixed
-  the 0x0 box; the note predates it. Check first whether the xfail now passes on
-  `main` under load, then follow the note's next step for the stuck span.
 - **Draw the playground at its final size from first paint.** `lf-playground`,
   `lf-playground-control`, `-output`, `-preview` and `-value` are `keeps-first-box`
   findings: the module builds each control's inputs and the words of the instruction it

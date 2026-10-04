@@ -11466,6 +11466,65 @@ def test_a_codex_claim_records_the_session_not_the_shell_it_ran_through(
     assert service_model.page_claim(page)["pid"] == session.pid
 
 
+def test_the_nearest_host_runs_a_command_that_inherits_another(under_codex):
+    """A command inherits the identity of every host above it: Codex run from a
+    Claude Code shell states both sessions, as this suite's Claude Code identity
+    reaches the Codex it starts. The host whose process is nearest above the
+    command is the one running it, so a Codex task's command is Codex's; with no
+    codex above it, the same environment is Claude Code's."""
+    probe = (
+        "from leaf.host import session_harness; h = session_harness(); "
+        "print(type(h).__name__, h.session)"
+    )
+    env = os.environ | {"CODEX_THREAD_ID": "inner-codex"}
+    ran = under_codex(
+        shlex.join([sys.executable, "-c", probe]),
+        env,
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    out, _ = ran.communicate(timeout=STATED_TIMEOUT)
+    assert ran.returncode == 0
+    assert out.split() == ["CodexHarness", "inner-codex"]
+
+    # Claude Code run from that Codex task's shell: the shell is its host.
+    inner = shlex.join([sys.executable, "-c", probe])
+    ran = under_codex(
+        f"CLAUDE_CODE_SESSION_ID=inner-claude CLAUDE_PID=$$ {inner}",
+        env,
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    out, _ = ran.communicate(timeout=STATED_TIMEOUT)
+    assert ran.returncode == 0
+    assert out.split() == ["ClaudeCodeHarness", "inner-claude"]
+
+    # With no codex above it, the same environment is Claude Code's, and a
+    # process the Codex task detaches inherits only the identity chosen there.
+    nearer = subprocess.run(
+        [sys.executable, "-c", probe],
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert nearer.returncode == 0, nearer.stderr
+    assert nearer.stdout.split() == ["ClaudeCodeHarness", f"pytest-{os.getpid()}"]
+    detached = (
+        "from leaf.host import detached_environment as d; "
+        "print(sorted(set(d()) & {'CODEX_THREAD_ID', 'CLAUDE_CODE_SESSION_ID'}))"
+    )
+    ran = under_codex(
+        shlex.join([sys.executable, "-c", detached]),
+        env,
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    out, _ = ran.communicate(timeout=STATED_TIMEOUT)
+    assert ran.returncode == 0
+    assert out.strip() == "['CODEX_THREAD_ID']"
+
+
 def test_a_codex_session_id_with_no_codex_above_it_is_refused(page_dir, monkeypatch):
     """A hand-built environment: CODEX_THREAD_ID states a Codex session and
     nothing running Codex is above this process, so there is no process whose

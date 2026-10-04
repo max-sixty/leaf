@@ -351,8 +351,9 @@ def _touches(item, changed):
 
 # A host session states its identity in the environment, under names of its own
 # (`host.IDENTITY_VARIABLES`). The suite is a Claude Code session, and
-# `session_harness` reads that set first, so a test about a Codex session takes
-# this away, and a test about no session at all takes the whole set (`sessionless`).
+# `session_harness` answers with it wherever no nearer host's process runs above
+# the command, so a test about a Codex session takes this away, and a test about
+# no session at all takes the whole set (`sessionless`).
 CLAUDE_IDENTITY = host_model.ClaudeCodeHarness.identity_variables
 # The Claude Code sessions `isolated_session` marks as hooked: the worker's own
 # and the id lifecycle fixtures claim under (`record_claim`).
@@ -429,7 +430,8 @@ def sessionless(monkeypatch):
 def codex_env():
     """The environment a Codex session's commands run in, for the tests that put
     a real one above a leaf: everything this process holds but the Claude Code
-    identity, which `session_harness` would answer with instead."""
+    identity, which `session_harness` answers with wherever no codex runs above
+    the command, as for a process the Codex task detaches."""
     return {k: v for k, v in os.environ.items() if k not in CLAUDE_IDENTITY}
 
 

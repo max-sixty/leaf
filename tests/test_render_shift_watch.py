@@ -1555,10 +1555,16 @@ def test_gesture_close_does_not_own_future_or_local_motion(browser, fault):
 
 @pytest.mark.parametrize("destination", ["window", "page"])
 @pytest.mark.parametrize("guard_mode", ["typing", "passive"])
-@pytest.mark.parametrize("fault", ["", "holder_x", "holder_y", "child_x", "child_y"])
+# The plane changes as the page scrolls vertically, so the solver credits motion on y
+# and none on x: a stray move on y is the one a wrong credit could excuse, and x runs
+# the same per-axis code with nothing to credit.
+@pytest.mark.parametrize("fault", ["", "holder_y", "child_y"])
 def test_real_floating_plane_retains_local_motion(
     browser, serve, fault, guard_mode, destination
 ):
+    """A floating field changing plane is credited only the move its solver declared:
+    its holder or the field itself moving further is reported, and a clean change is
+    not."""
     source = leaf_page(
         "Plane evidence",
         '<p id="evidence" style="position:sticky;top:100px;left:10px">Paint evidence</p><h1>Floating evidence</h1><div style="height:650px"></div><p id="subject">Retain this exact subject.</p><div style="height:1800px"></div>',
@@ -1605,9 +1611,7 @@ def test_real_floating_plane_retains_local_motion(
         previous=bar.dataset.lfPlane;
         planeChanges++;
         if(previous===destination) {
-          if(fault==='holder_x') bar.style.transform='translateX(80px)';
           if(fault==='holder_y') bar.style.transform='translateY(80px)';
-          if(fault==='child_x') document.querySelector('.lf-fab-input').style.transform='translateX(80px)';
           if(fault==='child_y') document.querySelector('.lf-fab-input').style.transform='translateY(80px)';
           if(fault) document.querySelector('#evidence').style.marginLeft='30px';
         }

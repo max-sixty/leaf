@@ -837,10 +837,7 @@ class PageEndpoint:
         resource = delivered_resource(
             artifact,
             logical,
-            DeliveryAddress(
-                self.page_root,
-                self.page_root.rstrip("/") + f"/revisions/{match.group('name')}",
-            ),
+            DeliveryAddress(self.page_root, self._artifact_root(revision)),
         )
         if resource is None:
             return None

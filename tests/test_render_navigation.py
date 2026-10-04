@@ -7871,10 +7871,10 @@ def test_generated_hints_branch_after_the_single_letter_alphabet(browser, serve)
     assert all(
         not other.startswith(code) for code in codes for other in codes if code != other
     )
-    assert not set("afghjkmpt") & {code for code in codes if len(code) == 1}
-    assert sum(len(code) == 1 for code in codes) == 16
+    assert not set("afghijkmpt") & {code for code in codes if len(code) == 1}
+    assert sum(len(code) == 1 for code in codes) == 15
     branched = [code for code in codes if len(code) == 2]
-    assert len(branched) == 7 and len({code[0] for code in branched}) == 1
+    assert len(branched) == 8 and len({code[0] for code in branched}) == 1
 
     prefix = branched[0][0]
     continuing_hint = page.locator(
@@ -7895,7 +7895,7 @@ def test_generated_hints_branch_after_the_single_letter_alphabet(browser, serve)
         "line": shortcut_bar_text(page),
         "live": page.locator(".lf-live").text_content(),
     }
-    expect(page.locator(".lf-live")).to_have_text("7 targets remain.")
+    expect(page.locator(".lf-live")).to_have_text("8 targets remain.")
     expect(line).to_contain_text("back one letter")
     target_route = line.locator(
         '.lf-shortcut:not([hidden])[data-lf-command-ids~="navigation.target"]'

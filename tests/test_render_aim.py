@@ -789,7 +789,7 @@ def test_a_side_comment_grows_down_from_the_line_it_was_opened_on(
     write(field, "First line\nSecond line\nThird line")
     page.reload()
     rendered(page)
-    page.locator("#passage").click(modifiers=["Alt"])
+    # Startup recovery has already reopened the editor at its saved passage.
     field = open_compact_comment(page)
     expect(field).to_have_js_property("value", "First line\nSecond line\nThird line")
     rendered(page)

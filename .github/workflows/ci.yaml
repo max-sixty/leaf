@@ -148,13 +148,10 @@ jobs:
         working-directory: worker
 
       - name: 🧪 Python tests
-        run: |
-          nproc; free -g; mkdir -p .tmp
-          (vmstat -t 15 > .tmp/vmstat.log 2>&1 &)
-          uv run pytest tests -v --junitxml=.tmp/test-results/results.xml \
-            -n ${{ matrix.shard <= 4 && 2 || 4 }} \
-            --shard ${{ matrix.shard }}/${{ env.SHARDS }} \
-            ${{ github.event_name == 'pull_request' && '--nightly-changed-since HEAD^1' || '--run-nightly' }}
+        run: >-
+          uv run pytest tests -v --junitxml=.tmp/test-results/results.xml
+          --shard ${{ matrix.shard }}/${{ env.SHARDS }}
+          ${{ github.event_name == 'pull_request' && '--nightly-changed-since HEAD^1' || '--run-nightly' }}
 
       - name: Upload pytest results
         if: always()
@@ -164,7 +161,6 @@ jobs:
           path: |
             .tmp/test-results/results.xml
             .tmp/thread-snapshots/runs/
-            .tmp/vmstat.log
           if-no-files-found: ignore
           retention-days: 30
 

@@ -44,8 +44,15 @@ codex plugin marketplace add max-sixty/leaf
 codex plugin add leaf@leaf
 ```
 
+Pi (a highly experimental trial, which the rest of these docs don't cover yet):
+
+```
+pi install git:github.com/max-sixty/leaf
+```
+
 Then ask: “Use Leaf to write up the options for this change.” The explicit skill is
-`/leaf [topic]` in Claude Code and `$leaf [topic]` in Codex; without a topic, it
+`/leaf [topic]` in Claude Code, `$leaf [topic]` in Codex, and
+`/skill:leaf [topic]` in Pi; without a topic, it
 presents the work already under discussion.
 The result opens in a browser page; its comments return to the same agent task.
 

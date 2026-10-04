@@ -1475,6 +1475,8 @@ def test_server_round_trip(server, page_dir):
         "strokes": [[[-20, 74], [50, 10], [120, 74]]],
         "box": [640.5, 96],
         "says": "to reap every process … before exporting",
+        "viewport": [1280, 720],
+        "scheme": "dark",
     }
     status, _ = fetch(
         f"{server}/api/event",
@@ -1644,8 +1646,10 @@ def test_server_round_trip(server, page_dir):
             "anchor": {"section": "feeder-board"},
             "drawing": {**drawing, "strokes": [[[float("nan"), 0.2], [0.5, 0.2]]]},
         },
-        # The box is a size and the words are bounded: both come off the rendered page,
-        # so their shape is all the door can hold them to.
+        # The box and the window are sizes, the words are bounded and the scheme is one
+        # of two: all come off the rendered page, so their shape is all the door can
+        # hold them to. The window is always recorded, since the agent's picture of the
+        # drawing is laid out in it.
         *(
             {
                 "kind": "comment",
@@ -1661,7 +1665,22 @@ def test_server_round_trip(server, page_dir):
                 {"says": ""},
                 {"says": "x" * 501},
                 {"says": ["to reap"]},
+                {"viewport": [1280, 0]},
+                {"viewport": [1280]},
+                {"scheme": "sepia"},
             )
+        ),
+        *(
+            {
+                "kind": "comment",
+                "revision": 2,
+                "text": "x",
+                "anchor": {"section": "feeder-board"},
+                "drawing": {
+                    key: value for key, value in drawing.items() if key != missing
+                },
+            }
+            for missing in ("viewport", "scheme")
         ),
         # Design is the field's only subject: the retired ownership alias and a browser
         # inventing a second subject are both refused at the door.
@@ -1857,6 +1876,29 @@ def test_the_live_root_places_its_delivery_at_the_parsers_head_boundary(
         f'<link rel="stylesheet" href="{artifact_root}/theme.css" data-lf-runtime>'
         in body
     )
+
+
+def test_a_revision_s_resources_are_cached_and_its_document_is_not(server, page_dir):
+    """A revision's resources are named by its digest, so the browser keeps them for
+    every document that imports them, a gallery's live samples included. The document
+    and the page's state stay uncached: each read asks what the page is now, and so
+    does a path under the namespace that names nothing."""
+    publish(page_dir)
+    root = "/revisions/" + files_model.revision_path(page_dir, 1).stem
+
+    def cache_control(path):
+        try:
+            with urllib.request.urlopen(f"{server}{path}?t={TOKEN}") as response:
+                return response.status, response.headers["Cache-Control"]
+        except urllib.error.HTTPError as error:
+            return error.code, error.headers["Cache-Control"]
+
+    immutable = "private, max-age=31536000, immutable"
+    assert cache_control(f"{root}/leaf.js") == (200, immutable)
+    assert cache_control(f"{root}/theme.css") == (200, immutable)
+    assert cache_control("/") == (200, "no-store")
+    assert cache_control("/api/state") == (200, "no-store")
+    assert cache_control(f"{root}/no-such-module.js") == (404, "no-store")
 
 
 def test_server_takes_an_approval_only_where_the_version_asked_for_one(

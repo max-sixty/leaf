@@ -1211,9 +1211,10 @@ def test_a_news_resolved_card_keeps_its_place_after_an_offscreen_draft_is_cleare
 ):
     """Going off screen with words does not turn news into the user's settlement.
 
-    The reader returns to the retained card, opens its draft, and clears it. The
-    resolved card still stands in Open while it shows, rather than disappearing
-    from under their editor when the words no longer keep it there.
+    The reader returns to the retained card and explicitly reopens its conversation
+    to recover the saved draft. Another agent settlement keeps that actual editing
+    session. Clearing its words keeps that empty editor active; Escape ends editing
+    while the news-retained card stays put.
     """
     url = serve(LONG_PAGE, comments=16)
     first, second = [
@@ -1261,17 +1262,31 @@ def test_a_news_resolved_card_keeps_its_place_after_an_offscreen_draft_is_cleare
     card.locator(".lf-thread-summary").click()
     expect(card).to_have_attribute("open", "")
     expect(card).to_have_attribute("data-resolved", "true")
-    expect(reply).to_be_visible()
+    expect(reply).to_have_count(0)
+    with sending(page, "explicitly reopen the saved reply"):
+        card.get_by_role("button", name="Reopen", exact=True).click()
+    expect(reply).to_be_focused()
     expect(reply).to_have_js_property("value", words)
+    append_carried_log_record(
+        serve.page_dir, {"kind": "resolve", "author": "agent", "parent": first}
+    )
+    told(page)
+    rendered(page)
+    expect(reply).to_be_focused()
     stood = after.bounding_box()
-    reply.click()
     page.keyboard.press("ControlOrMeta+a")
     page.keyboard.press("Backspace")
     rendered(page)
     expect(card).to_be_visible()
     expect(card).to_have_attribute("data-resolved", "true")
+    expect(reply).to_be_visible()
     expect(reply).to_be_focused()
     expect(reply).to_have_js_property("value", "")
+    assert after.bounding_box() == stood
+    page.keyboard.press("Escape")
+    rendered(page)
+    expect(reply).to_have_count(0)
+    expect(card).to_be_visible()
     assert after.bounding_box() == stood
 
 
@@ -1996,7 +2011,9 @@ def test_a_phone_starts_the_page_and_comments_on_a_selection(iphone, serve, view
     expect(field).to_be_focused()
     write(field, "From a phone")
     with sending(page, "the comment"):
-        page.locator(".lf-fab-bar").get_by_role("button", name="Comment").tap()
+        page.locator(".lf-fab-bar").get_by_role(
+            "button", name="Comment", exact=True
+        ).tap()
     [comment] = [
         event
         for event in events_model.read_events(serve.page_dir)

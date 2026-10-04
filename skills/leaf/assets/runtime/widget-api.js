@@ -41,6 +41,7 @@ export { TEXT_BOX, TEXT_FIELD } from "./control-selectors.js";
 // user standing in a node it moves.
 export { setChildren, setRenderedChildren } from "./dom-children.js";
 export { openAsks, watchAsks } from "./application.js";
+export { answersWithin, watchAnswers } from "./asks/answer.js";
 export { registerVisualParts } from "./visual-parts.js";
 export {
   threadBox,

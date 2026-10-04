@@ -15,11 +15,12 @@ The envelope names the carrier that brings it into an agent's context, and the
 two facts that differ by carrier are stated once for the whole delivery rather
 than per event. `acknowledge` says who confirms receipt: the reader of a `leaf
 wait`, in the way its harness runs that command, or nobody, where the carrier
-confirmed it itself. A host hook always names the reader's confirmation route.
+confirmed it itself. A hook names the reader's confirmation route where its
+host cannot establish receipt; Codex's pointer read establishes it directly.
 A carrier whose turn speaks for the delivery, App Server,
 turns the one thread reply the delivery owes into a `turn` answer, which that
 turn's own messages write; every other carrier leaves it a `reply` for `leaf thread
-reply`. Each event's `answer` is that same address, so its `answering` clauses
+reply`. Each event's `answer` is that same address, so its `handling` clauses
 follow from the answer rather than from the carrier.
 """
 
@@ -302,10 +303,9 @@ def freeze_delivery(
     """Persist and return one immutable delivery envelope, as the `carrier` that
     will deliver it hands it over.
 
-    `acknowledge` writes, for the delivery's id, what the reader does to confirm
-    it: the reader of `wait` or `hook` confirms only after the complete envelope
-    is in context. A carrier whose durable consumer confirms it directly uses
-    `null`."""
+    `acknowledge` supplies the delivery-specific instruction for reader
+    confirmation after the complete envelope reaches context. When the host
+    establishes receipt directly, omit it and the envelope records `null`."""
     if carrier not in CARRIERS:
         raise ValueError(f"unknown delivery carrier {carrier!r}")
     lock = _delivery_lock_path()

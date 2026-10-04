@@ -79,7 +79,7 @@ User input comes before the work in hand, in this order:
    already. Until you write a status, the banner can say only that you are working
    on their update.
 2. Name the work each move asks for on the page before starting it. Each delivered
-   event's `answering` clauses say how: for a comment, a status claim on its
+   event's `handling` clauses say how: for a comment, a status claim on its
    thread, with the reply carrying the result once it lands. A move that asks for
    no work, such as a question, is answered by its reply at once.
 3. If the move interrupted other work, write the page status again once its own
@@ -125,7 +125,7 @@ the page-wide detail when neither admits a local claim.
 
 Use `status --on` for work on a thread or widget, whether a delivered move asked
 for it or you began it yourself. It takes whatever id a delivered event's
-`answering` clauses name as its address: a thread by any message in it, a page
+`handling` clauses name as its address: a thread by any message in it, a page
 widget, or a widget in a thread message. The delivered move then reads
 **Working**.
 

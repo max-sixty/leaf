@@ -5794,7 +5794,8 @@ LONG_THREAD = [
 
 
 def open_long_thread(browser, serve, height=900):
-    """The long thread's margin card, its transcript scrolled partway down."""
+    """The long thread's margin card, which opens on its latest message, scrolled
+    partway back up."""
     page = open_page(browser, serve(LONG_THREAD_PAGE, events=LONG_THREAD))
     page.emulate_media(reduced_motion="reduce")
     resized(page, 1440, height)
@@ -5805,9 +5806,14 @@ def open_long_thread(browser, serve, height=900):
     room = transcript.evaluate("list => list.scrollHeight - list.clientHeight")
     assert room > 300, f"the transcript scrolls {room}px, too little to stand mid-way"
     transcript.hover()
-    page.mouse.wheel(0, room // 2)
     page.wait_for_function(
-        "list => list.scrollTop > 100", arg=transcript.element_handle()
+        "([list, room]) => list.scrollTop >= room - 1",
+        arg=[transcript.element_handle(), room],
+    )
+    page.mouse.wheel(0, -(room // 2))
+    page.wait_for_function(
+        "([list, room]) => list.scrollTop < room - 100",
+        arg=[transcript.element_handle(), room],
     )
     scroll_settled(page, ".lf-margin-preview .lf-thread-transcript")
     return page, preview, transcript
@@ -5817,18 +5823,18 @@ def open_long_thread(browser, serve, height=900):
 def test_the_margin_reply_outside_the_transcript_shows_its_whole_ring(
     browser, serve, height
 ):
-    """Scrolling moves turns while both control rows stay outside the scrollport."""
+    """Scrolling moves turns under the actions while both stay put, and the reply row
+    stays outside the scrollport."""
     page, preview, transcript = open_long_thread(browser, serve, height)
-    header = preview.locator(".lf-thread-root-meta")
+    header = preview.locator(".lf-margin-thread-controls")
     row = preview.locator(".lf-thread-reply")
     original = [header.bounding_box(), row.bounding_box()]
     transcript.evaluate("list => list.scrollTop = 40")
     rendered(page)
     assert header.bounding_box() == pytest.approx(original[0], abs=0.5)
     assert row.bounding_box() == pytest.approx(original[1], abs=0.5)
-    assert (
-        header.bounding_box()["y"] + header.bounding_box()["height"]
-        <= transcript.bounding_box()["y"] + 0.5
+    assert header.bounding_box()["y"] == pytest.approx(
+        transcript.bounding_box()["y"], abs=0.5
     )
     assert (
         row.bounding_box()["y"]
@@ -6382,9 +6388,8 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     geometry = preview.evaluate(
         """preview => {
           const thread = preview.querySelector('.lf-page-thread');
-          // The first message's head is hoisted out of its message and onto the row the
-          // thread opens with, which carries its controls beside the author.
-          const metaRow = thread.querySelector(':scope > .lf-thread-root-meta');
+          // The controls stand over the transcript's top, beside each message's head.
+          const metaRow = thread.querySelector(':scope > .lf-margin-thread-controls');
           const close = preview.querySelector('.lf-margin-preview-close');
           const resolve = thread.querySelector('.lf-resolve');
           const mr = metaRow.getBoundingClientRect();
@@ -8278,7 +8283,7 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     assert capped["bottom"] <= 472.5, capped
     assert capped["scrollHeight"] > capped["clientHeight"], capped
     # The thread scrolls while its opening metadata and settlement remain usable.
-    metadata = preview.locator(".lf-thread-root-meta")
+    metadata = preview.locator(".lf-margin-thread-controls")
     resolve = preview.get_by_role("button", name="Resolve thread", exact=True)
     metadata_box = metadata.bounding_box()
     resolve_box = resolve.bounding_box()

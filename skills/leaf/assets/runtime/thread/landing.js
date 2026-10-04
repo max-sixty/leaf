@@ -53,7 +53,12 @@ import {
   threadReplyInput,
   threadFocusDestination,
 } from "./focus.js";
-import { fitsWhole, landingTarget, scrollThreadIntoView } from "./reply-landing.js";
+import {
+  fitsWhole,
+  landingTarget,
+  latestTurn,
+  scrollThreadIntoView,
+} from "./reply-landing.js";
 
 export { SAY_BOX } from "./selectors.js";
 export { scrollThreadIntoView } from "./reply-landing.js";
@@ -75,14 +80,8 @@ const threadLandingStart = (held, target, threadsBox) => {
   const room = band.bottom - band.top;
   const targetBox = shownBox(target);
   const last = target === held ? targetBox.bottom : targetBox.top;
-  const latest =
-    target === held
-      ? [
-          ...held.querySelectorAll(
-            ".lf-thread-transcript > :is(.lf-msg, .lf-thread-checkpoint)",
-          ),
-        ].at(-1)
-      : null;
+  const transcript = held.querySelector(".lf-thread-transcript");
+  const latest = target === held && transcript ? latestTurn(transcript) : null;
   const candidates = [
     ...held.querySelectorAll(
       ":scope > *, :scope > .lf-thread-content > *, " +

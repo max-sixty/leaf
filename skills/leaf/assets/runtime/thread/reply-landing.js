@@ -24,7 +24,8 @@
    surface back first (`off-flow.js`). These landings serve thread navigation,
    sending, and editor growth. Merely entering a reply reveals its writing area
    instead (`landing.js`): a visible pinned row or a separate transcript keeps
-   the turn the user was reading, even when it is not the latest one. */
+   the turn the user was reading, even when it is not the latest one. A separate
+   transcript opened for reading shows its latest turn (`showLatestTurn`). */
 import { landingBand, seenRect, shownBox } from "../geometry.js";
 import { focused } from "../keyboard/scopes.js";
 import { scrollBehavior } from "../motion.js";
@@ -34,7 +35,7 @@ import { renderedParent } from "../shadow.js";
 import { bringBackSurfaceOf } from "../off-flow.js";
 import { retainUserIntent } from "../user-intent.js";
 import { scrollIntoReadingBand } from "../landing-scroll.js";
-import { atScrollEnd, scrollToEnd } from "../scrolling.js";
+import { atScrollEnd, moveScrollerBy, scrollToEnd } from "../scrolling.js";
 import { SAYS_IN } from "./selectors.js";
 
 const REPLY_ROW = ".lf-thread-reply, .lf-say";
@@ -98,6 +99,28 @@ export const landingTarget = (held, control) => {
   if (control === held && onScreen(held)) return { node: null };
   return { node: control };
 };
+
+// The turn a user comes back to a thread for: its latest message, or the summary
+// standing for earlier ones.
+export const latestTurn = (transcript) =>
+  [...transcript.querySelectorAll(":scope > :is(.lf-msg, .lf-thread-checkpoint)")].at(
+    -1,
+  ) ?? null;
+
+// A separate transcript opened for reading shows its latest turn: the transcript's end,
+// or that turn's head where it alone is taller than the transcript, as a long thread
+// lands in the Threads list (landing.js, `threadLandingStart`). The turn carries its
+// own head, so it is measured from the transcript's top.
+export function showLatestTurn(transcript) {
+  scrollToEnd(transcript);
+  const latest = latestTurn(transcript);
+  if (!latest) return;
+  const over =
+    transcript.getBoundingClientRect().top +
+    transcript.clientTop -
+    latest.getBoundingClientRect().top;
+  if (over > 0) moveScrollerBy(transcript, -over);
+}
 
 export function scrollThreadIntoView(
   held,

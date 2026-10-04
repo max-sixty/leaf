@@ -71,6 +71,7 @@ from render_harness import (
     undo,
     wait_for_revision,
     write,
+    xfail_browser_problem,
 )
 
 pytestmark = pytest.mark.nightly
@@ -1368,6 +1369,15 @@ def test_panel_settlement_moves_focus_with_optimistic_state_and_restores_a_refus
     round_trip(page)
     expect(reply).to_be_focused()
 
+    xfail_browser_problem(
+        page,
+        'typed words left the screen without a key or press: "first thread" in '
+        + page.get_by_role("searchbox", name="Find in threads").evaluate(
+            "field => window.lfPlace(field)"
+        ),
+        reason="Verified on main 35d91df64 (run 37183384374): native awaited thread arrival clears the query outside its input callback; PR #1705 owns the queued/presentation boundary.",
+    )
+
 
 def test_a_refused_reopen_preserves_a_filter_typed_during_its_reveal(
     held_events, serve
@@ -1407,6 +1417,15 @@ def test_a_refused_reopen_preserves_a_filter_typed_during_its_reveal(
     expect(find).to_be_focused()
     expect(page.locator('[data-filter-value="open"]')).to_have_attribute(
         "aria-pressed", "true"
+    )
+
+    xfail_browser_problem(
+        page,
+        'typed words left the screen without a key or press: "later search" in '
+        + page.get_by_role("searchbox", name="Find in threads").evaluate(
+            "field => window.lfPlace(field)"
+        ),
+        reason="Verified on main 35d91df64 (run 37183384374): native awaited thread arrival clears the query outside its input callback; PR #1705 owns the queued/presentation boundary.",
     )
 
 
@@ -1453,6 +1472,15 @@ def test_a_refused_reopen_preserves_a_filter_typed_during_restoration(
     expect(find).to_be_focused()
     expect(page.locator('[data-filter-value="resolved"]')).to_have_attribute(
         "aria-pressed", "true"
+    )
+
+    xfail_browser_problem(
+        page,
+        'typed words left the screen without a key or press: "restoration search" in '
+        + page.get_by_role("searchbox", name="Find in threads").evaluate(
+            "field => window.lfPlace(field)"
+        ),
+        reason="Verified on main 35d91df64 (run 37183384374): native awaited thread arrival clears the query outside its input callback; PR #1705 owns the queued/presentation boundary.",
     )
 
 
@@ -4772,6 +4800,12 @@ def test_an_external_resolution_keeps_a_panel_reply_until_it_is_sent(
         find.fill("No such discussion")
         rendered(page)
         expect(card).to_be_hidden()
+        xfail_browser_problem(
+            page,
+            f'typed words left the screen without a key or press: "{words}" in '
+            + reply.evaluate("field => window.lfPlace(field)"),
+            reason="Verified on main 35d91df64 (run 37183384374): a changed narrowing intent hides the retained reply while Find is edited; PR #1705 owns reply editing lifetime.",
+        )
         return
 
     page.keyboard.type(" still")
@@ -5663,6 +5697,15 @@ def test_a_delayed_accordion_reveal_yields_to_the_users_new_thread(browser, serv
     expect(later.locator(".lf-thread-summary")).to_be_focused()
     expect(later).to_have_attribute("open", "")
     expect(target).not_to_have_attribute("open", "")
+
+    xfail_browser_problem(
+        page,
+        'typed words left the screen without a key or press: "stay blocked" in '
+        + page.get_by_role("searchbox", name="Find in threads").evaluate(
+            "field => window.lfPlace(field)"
+        ),
+        reason="Verified on main 35d91df64 (run 37183384374): native awaited thread arrival clears the query outside its input callback; PR #1705 owns the queued/presentation boundary.",
+    )
 
 
 def test_a_design_thread_about_fixed_chrome_moves_neither_box(browser, serve):
@@ -7339,10 +7382,10 @@ def test_a_thread_sent_from_the_panels_foot_lands_in_view(browser, serve, size):
 
 
 @pytest.mark.parametrize("how", ["r", "button"])
-def test_resolving_a_long_thread_lands_the_next_title_in_view(browser, serve, how):
+def test_resolving_a_long_thread_lands_the_next_thread_in_view(browser, serve, how):
     """The landing of the thread focus moved on to was measured while the resolved
     thread still stood open above it, and the fold then took that room away under a
-    smooth scroll: the next title ended above the list."""
+    smooth scroll: the next thread ended above the list."""
     url = serve(PANEL_PAGE)
     roots = seed_panel_threads(serve.page_dir, 8, long_index=3)
     page = open_page(browser, url)
@@ -7359,12 +7402,12 @@ def test_resolving_a_long_thread_lands_the_next_title_in_view(browser, serve, ho
             card.locator(".lf-resolve").click()
     rendered(page)
     scroll_settled(page, ".lf-threads")
-    following = page.locator(f'.lf-thread[data-id="{roots[4]}"] > .lf-thread-summary')
-    expect(following).to_be_focused()
+    following = page.locator(f'.lf-thread[data-id="{roots[4]}"]')
+    expect(following.locator(":scope > .lf-thread-summary")).to_be_focused()
     rendered(page)
     scroll_settled(page, ".lf-threads")
-    landed = following.evaluate(IN_LANDING_BAND)
-    assert landed["inside"], f"focus landed outside the list's band: {landed}"
+    landed = following.locator(".lf-msg").last.evaluate(IN_LANDING_BAND)
+    assert landed["inside"], f"the thread landed outside the list's band: {landed}"
 
 
 def test_escape_then_enter_round_trips_a_panel_reply(browser, serve):
@@ -7479,10 +7522,11 @@ def test_entering_a_reply_keeps_the_thread_reading_position(browser, serve, view
     ] == before
 
 
-def test_walking_down_the_list_shows_each_thread_under_its_title(browser, serve):
-    """`t` opens the next thread and lands its title. Where the opened thread is taller
-    than the list, the nearest edge put the title at the list's foot with none of the
-    thread under it, on every step down the walk."""
+def test_walking_the_list_lands_each_thread_on_its_latest_message(browser, serve):
+    """`t` and `T` land each thread on its latest message, as a direct arrival does.
+    A thread taller than the list landed its title, first at the list's foot with none
+    of the thread under it and then at the top with the opening turn, so a user walking
+    back to a conversation scrolled to reach its newest turn."""
     url = serve(PANEL_PAGE)
     roots = seed_panel_threads(serve.page_dir, 8, long_index=3)
     page = open_page(browser, url)
@@ -7492,17 +7536,27 @@ def test_walking_down_the_list_shows_each_thread_under_its_title(browser, serve)
     expect(
         page.locator(f'.lf-thread[data-id="{roots[0]}"] > .lf-thread-summary')
     ).to_be_focused()
-    landings = []
-    for root in roots[1:7]:
-        page.keyboard.press("t")
-        title = page.locator(f'.lf-thread[data-id="{root}"] > .lf-thread-summary')
-        expect(title).to_be_focused()
+
+    def walk(key, root):
+        page.keyboard.press(key)
+        thread = page.locator(f'.lf-thread[data-id="{root}"]')
+        expect(thread.locator(":scope > .lf-thread-summary")).to_be_focused()
         rendered(page)
         scroll_settled(page, ".lf-threads")
-        landings.append(title.evaluate(IN_LANDING_BAND))
-    assert all(landed["inside"] for landed in landings), landings
-    assert all(landed["band"][1] - landed["box"][1] > 100 for landed in landings), (
-        f"a title landed at the list's foot with its thread below it: {landings}"
+        return {
+            "title": thread.locator(":scope > .lf-thread-summary").evaluate(
+                IN_LANDING_BAND
+            ),
+            "latest": thread.locator(".lf-msg").last.evaluate(IN_LANDING_BAND),
+        }
+
+    forward = {root: walk("t", root) for root in roots[1:7]}
+    back = [walk("Shift+t", root) for root in (roots[5], roots[4], roots[3])][-1]
+
+    assert all(landed["latest"]["inside"] for landed in forward.values()), forward
+    assert back["latest"]["inside"], back
+    assert not forward[roots[3]]["title"]["inside"], (
+        f"the long thread landed at its title, not its latest message: {forward}"
     )
 
 
@@ -8441,6 +8495,15 @@ def test_a_walk_to_a_question_the_narrowing_hides_widens_the_list(browser, serve
     assert page.evaluate(
         "() => document.activeElement.closest('.lf-thread') !== null"
     ), "the walk landed outside the card it named"
+
+    xfail_browser_problem(
+        page,
+        'typed words left the screen without a key or press: "stay blocked" in '
+        + page.get_by_role("searchbox", name="Find in threads").evaluate(
+            "field => window.lfPlace(field)"
+        ),
+        reason="Verified on main 35d91df64 (run 37183384374): native awaited thread arrival clears the query outside its input callback; PR #1705 owns the queued/presentation boundary.",
+    )
 
 
 def test_a_thread_on_a_rewrite_is_named_by_its_old_and_new_words(browser, serve):

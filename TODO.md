@@ -114,6 +114,15 @@ and its chrome coordinate.
   margin thread card's reply, with its target in a pane that scrolls on its own, moves
   the whole card (`shift_watch.js`: "typing in leaf-text moved
   aside#lf-margin-preview"), on `main` too.
+- **Decide whether a thread card may cover the margin rail.** A card beside its
+  target starts right of the target's margin marker whenever the room past the marker
+  still holds the card's minimum width (`comment-placement.js`, where `options` reads
+  `margin`), so the marker stays visible. The card therefore opens well right of the
+  text and narrower than it could be; starting it beside the text would cover the
+  rail's markers for as long as it is open. Weigh that trade, then settle how Leaf
+  states which elements a floating surface may cover. Today each placement names the
+  boxes it keeps clear of (`clear`, `margin`) in its own code, so no element can declare
+  that it may be covered, or must never be.
 - **Give the phone banner one row.** Decided, not built
   ([plan](notes/chrome-and-covers.md)): one 53px row holding the status in words, cut
   short with an ellipsis, with a passing notice taking that slot for a few seconds;
@@ -328,18 +337,9 @@ height and where a switch lands wait on the workspace decision under Layout.
   App Server's behavior before changing delivery policy; the
   [Codex brief](notes/codex-integration.md#delivery-start-race) owns the experiment.
 
-- **Take every render-check reading at every width the check renders.** The check
-  lays the page out at 1200px and 540px and sweeps it from 360px to 1920px
-  (`render_gate/version.py`, `readings.py`), but reads drawing label size only at
-  the desktop width (`shrunk_label_advice`), though a narrower window scales a
-  drawing further still. Tiny text at 900px and on a phone recurs in the judge's
-  reasons in the arrangement eval (`notes/arrangement-eval/`, `r3-main-0feb`). Take
-  each reading the sweep can take at every swept
-  width, and report each fault at the narrowest width it starts, as
-  `swept_overflow` does for sideways overflow. Separately verify the Ask's premise,
-  controls and resulting evidence below the first pane screen, as the arrangement
-  eval exposed. The readings stay advice: which
-  widths a page answers for is the author's call.
+- **Verify the Ask's premise, controls and resulting evidence below the first pane
+  screen**, as the arrangement eval exposed (`notes/arrangement-eval/`,
+  `r3-main-0feb`).
 - **Read the full render gate after handover.** Actual user views now supply passive
   geometry checks as agent context (`conversation-loop.md`, "The user's view"). The
   broader headless gate still runs on request. `page check --render` blocks the

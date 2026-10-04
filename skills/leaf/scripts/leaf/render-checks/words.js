@@ -6,7 +6,7 @@ import {
   verbatimBoundaryIdentity,
   verbatimOwnerIdentity,
 } from "/runtime/widget-api.js";
-import { at } from "./locate.js";
+import { at, place } from "./locate.js";
 import { openRoots } from "./open-roots.js";
 
 const compositionalWords = (owner, declarations) => {
@@ -449,7 +449,7 @@ export function shrunkLabels(floor) {
       const set = parseFloat(getComputedStyle(holder).fontSize);
       const drawn = set * Math.hypot(ctm.c, ctm.d);
       if (drawn >= floor || drawn >= set - 0.05) continue;
-      const found = drawings.get(svg) ?? { at: at(svg), labels: 0 };
+      const found = drawings.get(svg) ?? { at: at(svg), place: place(svg), labels: 0 };
       found.labels += 1;
       if (!(found.drawn <= drawn))
         Object.assign(found, {

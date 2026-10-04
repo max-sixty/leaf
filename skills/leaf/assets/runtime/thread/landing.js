@@ -397,7 +397,7 @@ async function showThreadNow(id, focus, flash, revealThread, threadsBox, mayArri
   if (!node || !mayPresent()) return null;
   if (node.closest(".lf-summary-originals[hidden]")) {
     if (!mayArrive()) return null;
-    await reveal(node, mayArrive);
+    await reveal(node, mayArrive).ready;
     if (!mayPresent()) return null;
   }
   // A render still in flight holds the list's place as it finishes, and that write

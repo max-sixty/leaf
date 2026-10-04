@@ -57,13 +57,12 @@ afterPresentation(floatingUi);
 // there and both boxes' client rectangles. Nothing where a transform, filter, or
 // containment between the box and the body makes some box other than the viewport its
 // containing block, since an anchor outside that block cannot position it.
-const anchorAt = (reference, anchor) => ({
+const anchorAt = (reference, anchor, box) => ({
   name: "anchorAt",
   async fn({ rects, elements, platform }) {
     if (!anchor || (await platform.getOffsetParent(elements.floating)) !== window)
       return {};
     const client = reference.getBoundingClientRect();
-    const box = anchor.getBoundingClientRect();
     return {
       data: {
         x: rects.reference.x + box.left - client.left,
@@ -253,6 +252,17 @@ export function floatingPlacement({ floating, update }) {
           : null;
       const { getOverflowAncestors } = await floatingUi();
       if (placement !== epoch) return null;
+      // Solver coordinates and native scroll origins are one measurement. A solve
+      // can finish after scrolling; freezing both makes its native attachment carry
+      // that intervening motion exactly once, regardless of when the solver reads.
+      const client = anchor && reference.getBoundingClientRect();
+      const anchorBox = anchor?.getBoundingClientRect();
+      const measured = anchor
+        ? {
+            contextElement: reference.contextElement ?? beside,
+            getBoundingClientRect: () => client,
+          }
+        : reference;
       const carried = new Set(anchor ? getOverflowAncestors(anchor) : []);
       const motions = [];
       if (context)
@@ -272,17 +282,23 @@ export function floatingPlacement({ floating, update }) {
                 vector: axes[axis],
               });
         }
-      for (const animation of scrollAnimations) animation.cancel();
-      scrollAnimations = [];
       const canFollow =
         anchor && (!motions.length || typeof window.ScrollTimeline === "function");
       motionFrame(canFollow ? motions : []);
-      const answer = await computePosition(reference, frame, {
+      const answer = await computePosition(measured, frame, {
         ...options,
         strategy: "fixed",
-        middleware: [...options.middleware, held, anchorAt(reference, anchor)],
+        middleware: [
+          ...options.middleware,
+          held,
+          anchorAt(measured, anchor, anchorBox),
+        ],
       });
       if (placement !== epoch) return null;
+      // An unchanged native graph keeps following while a solve is in flight. Retire
+      // its previous effects only when this answer can replace their measurement.
+      for (const animation of scrollAnimations) animation.cancel();
+      scrollAnimations = [];
       const at = answer.middlewareData.anchorAt;
       const plane =
         canFollow && at?.x !== undefined && planeOf(answer) === "page"

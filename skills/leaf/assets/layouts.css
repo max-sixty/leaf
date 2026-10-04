@@ -201,15 +201,15 @@
   }
   /* The page as wide as the window: a gutter that grows with it, a cap at the widest
    * page, and the title a size up, set tighter to hold its line above panels as wide as
-   * the window. It holds one flow on its own, and every other Layout on `main` stands
-   * in it. */
-  main:is(.layout-wide, .layout-sidebar, .layout-tiles, .layout-workspace) {
+   * the window. It holds one flow on its own, and the sidebar and tiles Layouts on
+   * `main` stand in it. A workspace has a frame of its own below. */
+  main:is(.layout-wide, .layout-sidebar, .layout-tiles) {
     padding-inline: clamp(var(--col-pad), 4cqi, 64px);
     max-width: var(--wide-page-max);
     margin-inline: auto;
     --lf-room: 100%;
   }
-  main:is(.layout-wide, .layout-sidebar, .layout-tiles, .layout-workspace) h1 {
+  main:is(.layout-wide, .layout-sidebar, .layout-tiles) h1 {
     font-size: clamp(36px, 3.2cqi, 46px);
     font-weight: 700;
     letter-spacing: -0.02em;
@@ -255,17 +255,28 @@
    * A pane is any element in the pane role (`data-lf-reading-role="pane"`, theme.css),
    * which delivery paints into the served document from the element's declaration, so
    * the first paint already holds the panes. A box a widget generates in that role also
-   * carries `data-lf-generated`, which the widget writes as it builds the box. */
-  main.layout-workspace { padding-block-start: var(--sp-4); }
+   * carries `data-lf-generated`, which the widget writes as it builds the box.
+   *
+   * The window is the workspace's, so it takes the whole of it: no cap at the widest
+   * page, and a gutter, a gap between panes and a header only as large as keeps them
+   * apart. Each pixel of frame is one the panes give up, and at 1920px the cap and the
+   * wide page's gutters held them to 1,472px of the 1,896px this leaves. The type is the
+   * theme's: a workspace usually takes working density (`.density-working`, theme.css),
+   * which the Layout neither sets nor reads. */
+  main.layout-workspace {
+    padding-inline: 12px;
+    padding-block-start: var(--sp-2);
+    --lf-room: 100%;
+  }
   /* The header takes the window's height before the panes do, so it is one row: the
-   * title at a heading's ordinary size with the page's status beside it, wrapping only
-   * where the row runs out. What a lede would say belongs in a pane. */
+   * title with the page's status beside it, wrapping only where the row runs out. What
+   * a lede would say belongs in a pane. */
   main.layout-workspace > header {
     display: flex;
     flex-wrap: wrap;
     align-items: baseline;
     gap: var(--sp-1) var(--sp-3);
-    padding-block: 0 var(--sp-3);
+    padding-block: 0 var(--sp-2);
     --lf-block-frame: 1;
   }
   main.layout-workspace > header > * { margin-block: 0; }
@@ -275,10 +286,23 @@
   main.layout-workspace > :not(header, footer, [data-lf-reading-role="pane"]) {
     --lf-reading-region: layout;
   }
-  main.layout-workspace > header h1 {
-    font-size: var(--t-2);
-    line-height: 1.25;
-    letter-spacing: -0.008em;
+  /* A page's grid of panes is one frame split into regions, as a terminal multiplexer's
+   * or an editor's are: the panes meet at a hairline rather than standing apart as
+   * cards. The page says where the panes stand, and the workspace how they meet. The
+   * grid draws the frame and leaves a 1px gap, and each pane trades the border and
+   * corners it draws standing alone for a 1px ring outside its box, so two neighbours'
+   * rings fill the gap between them as one hairline. Drawn by the panes rather than
+   * painted under them, so an empty cell, or a wider gap a page sets, shows the page's
+   * ground and not a band of rule colour. */
+  main.layout-workspace > :not(header, footer):has(> [data-lf-reading-role="pane"]) {
+    gap: 1px;
+    border: 1px solid var(--rule);
+    border-radius: var(--r);
+  }
+  main.layout-workspace > :not(header, footer) > [data-lf-reading-role="pane"] {
+    border: 0;
+    border-radius: 0;
+    box-shadow: 0 0 0 1px var(--rule);
   }
   @media screen and (min-width: 720px) and (min-height: 480px) {
     main.layout-workspace {

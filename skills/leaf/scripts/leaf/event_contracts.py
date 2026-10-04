@@ -39,6 +39,7 @@ from leaf.registry.schema import schema_error
 from leaf.schema import MESSAGE_KINDS, WIDGET_KINDS
 from leaf.served_state.thread import browser_thread
 from leaf.structure import review_mode
+from leaf.tasks import task_error
 from leaf.workflows import obligation_reading
 
 # The envelope the append lease itself assigns. Admission validates the complete
@@ -609,7 +610,21 @@ def admission_error(
         or _reanchor_error(view, event, events)
         or read_contract_error(event, events)
         or _withdrawal_error(view, event, events, readings)
+        or _task_error(view, event, events)
     )
+
+
+def _task_error(view, event: dict, events: list) -> str | None:
+    """A task stands on an open thread, and an outcome ends a task still open
+    (`tasks.task_error`)."""
+    if event["kind"] not in {"task", "task_end"}:
+        return None
+    threads = (
+        build_threads(events, view.within, withdrawn=taken_back(events))
+        if event["kind"] == "task"
+        else {}
+    )
+    return task_error(event, events, threads)
 
 
 def _publication_error(view, event: dict) -> str | None:

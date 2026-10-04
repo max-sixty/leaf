@@ -13,7 +13,7 @@ from leaf import data as data_model
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import service as service_model
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.render_checks import one_frame, rendered, wait_until_ready
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -5550,20 +5550,32 @@ def test_resume_writing_is_a_touch_action_and_does_not_steal_hint_addresses(
     expect(general).to_have_js_property("value", "A touch draft")
 
 
+@pytest.mark.parametrize("hidden_tab", [False, True])
 def test_resume_writing_reveals_page_editor_from_a_covering_panel_and_keeps_back(
-    browser, serve
+    browser, serve, hidden_tab
 ):
-    """Returning to an offscreen editor clears its cover and keeps the outgoing reading."""
+    """Resume exposes a hidden editor's place immediately and keeps the outgoing reading."""
+    writing = (
+        '<details id="fold" open><summary>Editable content</summary>'
+        '<lf-draft id="editable"><pre>Initial words</pre></lf-draft></details>'
+    )
+    reading = (
+        '<div style="height:2200px"></div><h2 id="elsewhere">Elsewhere</h2>'
+        "<p>Keep this reading position.</p>"
+    )
+    body = writing + reading
+    if hidden_tab:
+        body = (
+            '<lf-tabs id="views"><lf-tab id="writing-view" label="Writing">'
+            + writing
+            + '<div style="height:3300px"></div>'
+            '</lf-tab><lf-tab id="reading-view" label="Reading">'
+            + reading
+            + "</lf-tab></lf-tabs>"
+        )
     page = open_page(
         browser,
-        serve(
-            leaf_page(
-                "Resume travel",
-                '<h1 id="top">Resume travel</h1><details id="fold" open><summary>Editable content</summary>'
-                '<lf-draft id="editable"><pre>Initial words</pre></lf-draft></details>'
-                '<div style="height:2200px"></div><h2 id="elsewhere">Elsewhere</h2><p>Keep this reading position.</p>',
-            )
-        ),
+        serve(leaf_page("Resume travel", '<h1 id="top">Resume travel</h1>' + body)),
     )
     page.locator("#editable .lf-draft-body").click()
     edit = page.locator("#editable .lf-draft-edit")
@@ -5572,6 +5584,8 @@ def test_resume_writing_reveals_page_editor_from_a_covering_panel_and_keeps_back
     page.keyboard.press("ArrowRight")
     page.keyboard.press("Escape")
     page.locator("#fold > summary").click()
+    if hidden_tab:
+        page.get_by_role("tab", name="Reading", exact=True).click()
     page.locator("#elsewhere").click()
     resized(page, 390, 844)
     scroll_settled(page)
@@ -5579,8 +5593,33 @@ def test_resume_writing_reveals_page_editor_from_a_covering_panel_and_keeps_back
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     expect(page.locator(".lf-thread-panel")).to_be_visible()
-    page.keyboard.press("g")
-    page.keyboard.press("i")
+    if hidden_tab:
+        page.evaluate("""() => {
+          const held = new Promise(resolve => { window.releaseResumeLayout = resolve; });
+          document.querySelector('#views').addEventListener('lf-layout', event => {
+            event.detail.present(held);
+            window.resumeLayoutStarted = true;
+          }, {once: true});
+        }""")
+        try:
+            page.keyboard.press("g")
+            page.keyboard.press("i")
+            page.wait_for_function("window.resumeLayoutStarted === true")
+            one_frame(page)
+            expect(page.locator("#writing-view")).to_be_visible()
+            first_view = page.locator("#editable").evaluate("""async draft => {
+              const {landingBand} = await window.__lfRuntimeImport('/runtime/geometry.js');
+              const rect = draft.getBoundingClientRect();
+              const band = landingBand(document.scrollingElement);
+              return {top: rect.top, bottom: rect.bottom, low: band.top, high: band.bottom};
+            }""")
+            assert first_view["top"] >= first_view["low"], first_view
+            assert first_view["bottom"] <= first_view["high"], first_view
+        finally:
+            page.evaluate("releaseResumeLayout()")
+    else:
+        page.keyboard.press("g")
+        page.keyboard.press("i")
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
     expect(edit).to_be_focused()
     expect(edit).to_be_in_viewport()
@@ -5597,6 +5636,8 @@ def test_resume_writing_reveals_page_editor_from_a_covering_panel_and_keeps_back
     edit.press("ControlOrMeta+a")
     edit.press("Backspace")
     page.keyboard.press("Escape")
+    if hidden_tab:
+        page.get_by_role("tab", name="Reading", exact=True).click()
     page.locator("#elsewhere").click()
     page.keyboard.press("g")
     page.keyboard.press("i")

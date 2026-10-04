@@ -11,7 +11,6 @@
       #sort-regions {
         display: grid;
         grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
-        gap: var(--sp-4);
       }
       @media (width < 720px) {
         #sort-regions {
@@ -168,7 +167,7 @@
     </script>
   </head>
   <body>
-    <main class="layout-workspace" id="sort-workspace">
+    <main class="layout-workspace density-working" id="sort-workspace">
       <header>
         <h1>How Rust's 2016 merge sort uses the order already in a slice</h1>
       </header>

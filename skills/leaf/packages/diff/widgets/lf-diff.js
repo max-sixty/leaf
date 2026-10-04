@@ -8,7 +8,8 @@
  * reconcile unchanged lines by their datum coordinate, retaining selection and line threads.
  * Manifest evidence commits together after open files load. Lazy disclosure joins
  * the pending source render before reading its evidence, and a closed file shows
- * none of the previous revision while it loads current evidence. */
+ * none of the previous revision while it loads current evidence. Passage reveal
+ * clears this widget's file filter; addressed datum reveal also hydrates its file. */
 import {
   DISCLOSE,
   announce,
@@ -653,8 +654,13 @@ customElements.define(
   "lf-diff",
   class extends HTMLElement {
     controller = widgetController(this);
+    revealPassage = ({ detail }) => {
+      const entry = this.fileEntries?.find(({ node }) => node.contains(detail.target));
+      if (entry?.filtered) this.clearFilter();
+    };
 
     connectedCallback() {
+      this.addEventListener("lf-reveal", this.revealPassage);
       this.stopActions ??= this.controller.subscribe(this.paintReviewAvailability);
       if (!this.threadSurface)
         this.threadSurface = consumeThreads(this, (collection, surfaces) => {
@@ -804,6 +810,7 @@ customElements.define(
     }
 
     disconnectedCallback() {
+      this.removeEventListener("lf-reveal", this.revealPassage);
       this.stopActions?.();
       this.stopActions = null;
       this.rendering = (this.rendering ?? 0) + 1;

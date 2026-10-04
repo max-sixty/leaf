@@ -1393,3 +1393,104 @@ def test_room_for_a_surface_uses_the_scrollports_visible_scale(browser, serve, s
     assert reading["moved"], reading
     assert abs(reading["remaining"]) <= 0.5, reading
     assert reading["visible"], reading
+
+
+@pytest.mark.parametrize("source", ["document", "inner"])
+@pytest.mark.parametrize("read", ["before-scroll", "after-scroll"])
+@pytest.mark.parametrize("existing", [False, True])
+def test_native_attachment_measures_solver_and_scroll_origin_together(
+    browser, serve, source, read, existing
+):
+    """A wheel during either side of an asynchronous solve is carried exactly once."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Placement during a wheel",
+                "<h1>Keep this quoted passage attached</h1>"
+                '<p id="quote" style="height:150px;width:420px;overflow:auto">'
+                "First reading line.<br>Second reading line.<br>"
+                "The export keeps each tenant in an archive.<br>"
+                + "More lines in this reading region.<br>" * 50
+                + '</p><div style="height:1200px"></div>',
+            )
+        ),
+    )
+    page.evaluate(
+        """async ([read, source, existing]) => {
+          const {floatingPlacement, floatingUi} =
+            await window.__lfRuntimeImport('/runtime/annotation-overlay/floating.js');
+          const ui = await floatingUi();
+          const paragraph = document.querySelector('#quote');
+          const node = paragraph.childNodes[4];
+          const range = document.createRange();
+          range.setStart(node, 0); range.setEnd(node, 12);
+          const box = document.createElement('div');
+          box.style = 'position:fixed;width:100px;height:60px;background:white';
+          document.querySelector('.lf-chrome').append(box);
+          const captured = range.getBoundingClientRect();
+          const reference = {
+            contextNode: node, contextElement: paragraph,
+            // Presenters can hand the owner a solved passage snapshot or a live
+            // virtual reference; both share its scroll/anchor measurement boundary.
+            getBoundingClientRect: () => source === 'document'
+              ? captured : range.getBoundingClientRect(),
+          };
+          const owner = floatingPlacement({floating: box, update: () => {}});
+          if (existing) {
+            owner.begin();
+            const answer = await owner.position(ui.computePosition, reference,
+              {placement:'right-start', middleware:[]}, () => 'page', paragraph);
+            owner.stand(answer);
+          }
+          const gate = new Promise(done => {window.releaseSolve = done;});
+          window.solveEntered = false;
+          window.solveRead = false;
+          owner.begin();
+          window.solve = owner.position(async (...args) => {
+            window.solveEntered = true;
+            if (read === 'after-scroll') await gate;
+            const answer = await ui.computePosition(...args);
+            window.solveRead = true;
+            if (read === 'before-scroll') await gate;
+            return answer;
+          }, reference, {placement:'right-start', middleware:[]}, () => 'page', paragraph)
+            .then(answer => owner.stand(answer));
+          window.attachmentReading = () => ({
+            quote: range.getBoundingClientRect().toJSON(),
+            box: box.getBoundingClientRect().toJSON(),
+            plane: box.dataset.lfPlane,
+          });
+        }""",
+        [read, source, existing],
+    )
+    page.wait_for_function("window.solveEntered")
+    if read == "before-scroll":
+        page.wait_for_function("window.solveRead")
+    else:
+        assert page.evaluate("window.solveRead") is False
+    if source == "inner":
+        box = page.locator("#quote").bounding_box()
+        page.mouse.move(box["x"] + 100, box["y"] + 80)
+        moved = "document.querySelector('#quote').scrollTop"
+    else:
+        page.mouse.move(100, 500)
+        moved = "scrollY"
+    page.mouse.wheel(0, 30)
+    page.wait_for_function(f"{moved} > 0")
+    scroll_settled(page, "#quote" if source == "inner" else None)
+    if existing:
+        page.screenshot()
+        pending = page.evaluate("attachmentReading()")
+        assert pending["box"]["x"] == pytest.approx(pending["quote"]["right"], abs=1), (
+            pending
+        )
+        assert pending["box"]["y"] == pytest.approx(pending["quote"]["top"], abs=1), (
+            pending
+        )
+    page.evaluate("async () => {releaseSolve(); await solve;}")
+    page.screenshot()
+    state = page.evaluate("attachmentReading()")
+    assert state["plane"] == "page", state
+    assert state["box"]["x"] == pytest.approx(state["quote"]["right"], abs=1), state
+    assert state["box"]["y"] == pytest.approx(state["quote"]["top"], abs=1), state

@@ -1894,6 +1894,7 @@ def test_a_visual_action_follows_its_own_scroller_even_when_the_target_is_gone(
     control.focus()
     page.keyboard.press("Enter")
     expect(page.locator(".lf-fab-input")).to_be_focused()
+    rendered(page)
     before_target = start.bounding_box()
     before_bar = bar.bounding_box()
     moved = diagram.evaluate(

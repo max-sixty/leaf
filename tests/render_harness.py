@@ -1907,7 +1907,7 @@ def regions_side_by_side(regions: str, columns: str = "1fr 1fr") -> str:
     """The page's own stylesheet setting a workspace body's panes side by side, as a
     page writes it: a grid, which stacks where the workspace flows."""
     return f"""<style>
-#{regions} {{ display: grid; grid-template-columns: {columns}; gap: var(--sp-4); }}
+#{regions} {{ display: grid; grid-template-columns: {columns}; }}
 @media (width < 720px) {{ #{regions} {{ grid-template-columns: 1fr; }} }}
 </style>"""
 

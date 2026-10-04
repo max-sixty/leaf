@@ -159,8 +159,21 @@ your turn ended, and its explanation keeps the claim's words. A claim nobody ren
 all ages out after about a quarter of an hour. Before you end a turn while workers
 run, make your last status say what is still running, and write it again in the turn
 that a worker's result or the user's next comment wakes. A move whose answer a worker
-is producing takes that status `--on` it: a claim written in this turn lets the turn
-end before the answer, and the turn that wakes answers the move or claims it again.
+is producing takes that status `--on` it while your turn runs; a claim written in this
+turn lets the turn end before the answer. What holds the work after the turn is a
+task (below).
 Within a turn, fold your workers' progress into your own status: one sentence covering
 three workers reads better than three claims competing for one row, while claims on
 different subjects stand side by side at the page edge.
+
+A claim lasts a turn; a task lasts until you end it. When you take on work a thread
+asked for that can outlast the turn you took it on in, such as a worker's build, a
+wait on CI, or a change you promise for the next version, open a task on that thread:
+`leaf task open <page> <id> "<what you owe>"`. Then reply, saying what is under way:
+the reply answers the user's message, and the task keeps the thread on you, and named
+in the banner, through the user resolving it and the end of your session. When the
+result lands, write its outcome with `leaf task end <page> <task> done "<where the
+result is>"`, or `failed` or `dropped` with the reason, beside the reply that links
+it. Work that finishes inside the turn needs no task. `leaf page state` lists your
+open `tasks`, and its `queues` say what is on the user (`on_you`) and on you
+(`on_agent`).

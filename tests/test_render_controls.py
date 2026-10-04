@@ -7215,6 +7215,12 @@ RING_SCOPE_WIDTH = {
 RING_FOCUS_START = RELEASE_FOCUS
 RING_NEW_STOP = browser_function("focus_rings.js", "newStop", using="control_name.js")
 SEEN_STOP = browser_function("focus_rings.js", "seenStop", using="control_name.js")
+# Both readings of a Tab's landing in one round trip: whether the stop is new, and for a
+# new one, what it shows of where the keyboard is.
+WALKED_STOP = f"""() => {{
+  const stop = ({RING_NEW_STOP})();
+  return [stop, stop === "new" ? ({SEEN_STOP})() : null];
+}}"""
 
 
 def test_the_stop_reading_names_a_control_with_nothing_drawn_on_it(browser, serve):
@@ -7293,7 +7299,7 @@ def test_every_base_corpus_tab_stop_has_a_visible_focus_indicator(browser, serve
         empty = 0
         for _ in range(400):
             page.keyboard.press("Tab")
-            stop = page.evaluate(RING_NEW_STOP)
+            stop, lost = page.evaluate(WALKED_STOP)
             if stop == "seen":
                 break
             if stop == "empty":
@@ -7301,7 +7307,7 @@ def test_every_base_corpus_tab_stop_has_a_visible_focus_indicator(browser, serve
                 assert empty <= 2, f"Tab never entered {example.stem}"
                 continue
             empty = 0
-            if lost := page.evaluate(SEEN_STOP):
+            if lost:
                 failures.append(f"{example.stem}: {lost}")
         else:
             raise AssertionError(f"Tab order never came round in {example.stem}")

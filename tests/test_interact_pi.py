@@ -231,7 +231,7 @@ def test_pi_and_claude_code_nested_either_way_rank_by_process(monkeypatch):
     )
 
 
-def test_a_pi_session_without_leafs_extension_is_refused(
+def test_a_pi_session_without_the_leaf_extension_is_refused(
     page_dir, monkeypatch, sessionless
 ):
     """Pi states its session to every shell-tool command but no process; only

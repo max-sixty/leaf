@@ -17,32 +17,33 @@ const handlers = new Map();
 let idle = true;
 const print = (line) => process.stdout.write(`${JSON.stringify(line)}\n`);
 const ctx = {
-	hasUI: process.argv[3] !== "print",
-	isIdle: () => idle,
-	sessionManager: { getSessionId: () => session },
+  hasUI: process.argv[3] !== "print",
+  isIdle: () => idle,
+  sessionManager: { getSessionId: () => session },
 };
 
 function load() {
-	handlers.clear();
-	leaf({
-		on: (event, handler) => handlers.set(event, [...(handlers.get(event) ?? []), handler]),
-		sendMessage: (message, options) => print({ sent: message, options }),
-	});
+  handlers.clear();
+  leaf({
+    on: (event, handler) =>
+      handlers.set(event, [...(handlers.get(event) ?? []), handler]),
+    sendMessage: (message, options) => print({ sent: message, options }),
+  });
 }
 load();
 print({ pid: process.pid });
 
 for await (const line of readline.createInterface({ input: process.stdin })) {
-	const { emit, idle: now = idle, reason, load: reload } = JSON.parse(line);
-	if (reload) {
-		load();
-		print({ loaded: true });
-		continue;
-	}
-	idle = now;
-	let result;
-	for (const handler of handlers.get(emit) ?? []) {
-		result = (await handler({ type: emit, reason }, ctx)) ?? result;
-	}
-	print({ event: emit, result: result ?? null });
+  const { emit, idle: now = idle, reason, load: reload } = JSON.parse(line);
+  if (reload) {
+    load();
+    print({ loaded: true });
+    continue;
+  }
+  idle = now;
+  let result;
+  for (const handler of handlers.get(emit) ?? []) {
+    result = (await handler({ type: emit, reason }, ctx)) ?? result;
+  }
+  print({ event: emit, result: result ?? null });
 }

@@ -22,7 +22,8 @@ it is given, declare the minimum it needs, and never let its content size its ho
 Three things shape a page, and none of them reads another:
 
 - A **Layout** (`layouts.css`) says where boxes stand and how large they are. It sets
-  no type, spacing or widget form.
+  no type or widget form, and takes the room between boxes from the theme's spacing
+  tokens (`--sp-*`), so a style that tightens spacing tightens a Layout's gaps with it.
 - A **style** (the kernel's `theme.css`) sets type, spacing and form as tokens under a
   class any block can take, such as `density-working`, whatever Layout holds it.
 - **Widgets and chrome** read their own box (its width, whether its height is definite)

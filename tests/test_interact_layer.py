@@ -1338,23 +1338,39 @@ def test_no_has_rule_restyles_the_whole_document():
 
 def test_layout_style_and_widgets_never_read_each_other():
     """A Layout places boxes, a style sets type and spacing, and a widget reads its own
-    box and the theme's tokens (assets/AGENTS.md, "Space and scrolling"). So no sheet or
-    module but layouts.css names a Layout class, and layouts.css sets no type: where one
-    has to answer another, the owner sets a token saying what the box is, as
-    `--lf-full-height` does, and the reader keys on that."""
+    box and the theme's tokens (assets/AGENTS.md, "Space and scrolling"). So a Layout
+    class is named only in layouts.css and a style class only in the kernel theme, and
+    layouts.css sets no type: where one has to answer another, the owner sets a token
+    saying what the box is, as `--lf-full-height` does, and the reader keys on that.
+
+    A Layout class is one layouts.css styles; a style class is one the kernel theme
+    gives its own type or spacing tokens (`--t-*`, `--sp-*`)."""
     layouts = schema_model.ASSETS / "layouts.css"
-    names = {
-        name
-        for _conditions, _enclosing, selector, _declarations in _style_rules(layouts)
-        for name in re.findall(r"\.(layout-[a-z-]+)", selector)
+    theme = schema_model.ASSETS / "theme.css"
+    owned = {
+        layouts: {
+            name
+            for _conditions, _enclosing, selector, _declarations in _style_rules(
+                layouts
+            )
+            for name in re.findall(r"\.(layout-[a-z-]+)", selector)
+        },
+        theme: {
+            match[1]
+            for _conditions, _enclosing, selector, declarations in _style_rules(theme)
+            if (match := re.fullmatch(r"\.([a-z][a-z-]*)", selector))
+            and any(name.startswith(("--t-", "--sp-")) for name, _ in declarations)
+        },
     }
-    assert {"layout-column", "layout-workspace"} <= names, names
-    named = re.compile(r"\b(" + "|".join(sorted(names)) + r")\b")
+    assert {"layout-column", "layout-workspace"} <= owned[layouts], owned[layouts]
+    assert owned[theme] == {"density-working"}, owned[theme]
     roots = (schema_model.ASSETS, schema_model.BUNDLED_PACKAGES)
     readers = []
     for source in sorted(path for root in roots for path in root.rglob("*.[cj]s*")):
-        if source == layouts or "vendor" in source.parts:
+        if "vendor" in source.parts:
             continue
+        foreign = [names for home, names in owned.items() if home != source]
+        named = re.compile(r"\b(" + "|".join(sorted(set().union(*foreign))) + r")\b")
         where = source.relative_to(schema_model.ASSETS.parent)
         if source.suffix == ".css":
             readers += [
@@ -1379,7 +1395,9 @@ def test_layout_style_and_widgets_never_read_each_other():
         for name, _value in declarations
         if name.startswith("font") or name in ("letter-spacing", "line-height")
     ]
-    assert not readers, "a sheet or module names a Layout class:\n" + "\n".join(readers)
+    assert not readers, "a Layout or style class read outside its owner:\n" + "\n".join(
+        readers
+    )
     assert not typed, "layouts.css sets type:\n" + "\n".join(typed)
 
 

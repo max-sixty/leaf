@@ -4,20 +4,14 @@
    This selected presentation reads that live response and owns only its physical
    placement: card sizing, collision geometry, off-flow reveals and withholding when
    the usable window has no room. No second anchor or editor is captured here.
-   While its passage is offscreen, the editor keeps its attached width as a cap so
-   moving into the window does not reflow its controls; a narrower window can shrink it.
+   Where an open editor stands once its passage is offscreen, and the width it keeps
+   there, is comment-placement.js's (`attach`), the rule its sent card follows too.
    An inline seat suspends this placement; restoring the default home resumes it. */
 import { cancelRender, nextRender } from "/runtime/rendering.js";
 import { resolveAnchor } from "/runtime/anchor-resolution.js";
 import { sameAnchor } from "/runtime/anchor-coordinate.js";
 import { declareOffFlowSurface } from "/runtime/off-flow.js";
-import {
-  clippedContents,
-  clippedRect,
-  pagePlaneRect,
-  shownBox,
-  skipped,
-} from "/runtime/geometry.js";
+import { pagePlaneRect, shownBox } from "/runtime/geometry.js";
 import {
   passageGeometry,
   rangeGeometry,
@@ -29,10 +23,11 @@ import { pageRange, pageText } from "/runtime/passages.js";
 import { pageSelection, selectionAnchor } from "/runtime/composing/capture.js";
 import { holdFocus } from "/runtime/focus.js";
 import { coarsePointer } from "/runtime/pointer.js";
-import { overlaps, union } from "/runtime/rect.js";
+import { union } from "/runtime/rect.js";
 import { shownRegionBounds } from "/runtime/reading-regions.js";
 import { floatingPlacement, floatingUi } from "../floating.js";
 import {
+  attachmentShown,
   cardMinimum,
   commentAttachment,
   commentBoundary,
@@ -69,7 +64,6 @@ export function createFloatingResponsePlacement({
     update: () => scheduleFabPosition(),
   });
   let fabContentHeight = null;
-  let unanchoredWidth = null;
   const fabFrameAt = () =>
     response.open && response.floating && !panelIsOpen()
       ? {
@@ -113,8 +107,7 @@ export function createFloatingResponsePlacement({
     fabPositionFrame = 0;
     fabContentHeight = null;
     if (!reset) return;
-    unanchoredWidth = null;
-    fabPlacement.forget();
+    fabPlacement.reset();
     fabBar.removeAttribute("data-lf-placement");
     for (const property of ["--lf-float-w", "--lf-float-h"])
       fabBar.style.removeProperty(property);
@@ -190,23 +183,17 @@ export function createFloatingResponsePlacement({
     // An open editor stays in front of its writer. Its subject still owns the draft
     // when a resize, disclosure or scroll removes the subject's visible box; only its
     // placement becomes unanchored, in the window, until that box returns.
-    const clips = new Map();
-    const visible =
-      target &&
-      owner &&
-      !skipped(owner) &&
-      (response.anchor.quote
-        ? clippedContents(target, owner, clips)
-        : clippedRect(target, owner, clips));
     const windowBoundary = floatBoundary();
-    const unanchored = Boolean(
-      response.open && owner && !(visible && overlaps(visible, windowBoundary)),
-    );
-    if (unanchored) {
-      unanchoredWidth ??= fabBar.getBoundingClientRect().width || null;
-    } else {
-      unanchoredWidth = null;
-    }
+    const unanchored = fabPlacement.attach({
+      shown: attachmentShown({
+        box: target,
+        target: owner,
+        quote: Boolean(response.anchor.quote),
+        boundary: windowBoundary,
+      }),
+      writing: response.open && Boolean(owner),
+      width: () => fabBar.getBoundingClientRect().width,
+    });
     if (!target && !unanchored) return false;
     const place = commentAttachment({
       target: owner,
@@ -227,11 +214,7 @@ export function createFloatingResponsePlacement({
     // pass gives CSS that side's actual inline room. If a later resize makes the chosen
     // side narrower than the bar's minimum, use the whole boundary and let shift overlap
     // the target instead of silently moving the draft.
-    const setWidth = (available, scale) => {
-      // Leaving the passage does not give the user's editor a new measure.
-      const room = unanchoredWidth
-        ? Math.min(available, unanchoredWidth / scale)
-        : available;
+    const setWidth = (room, scale) => {
       fabBar.style.setProperty("--lf-float-w", layoutPx(Math.max(0, room)));
       if (Math.ceil(fabBar.offsetWidth) > Math.ceil(room))
         fabBar.style.setProperty(

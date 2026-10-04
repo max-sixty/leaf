@@ -61,18 +61,34 @@
    block offsets for the card to hold. The attachment is then the card's current one:
    scrolling retains it, while a boundary or target-width change chooses afresh.
 
+   Two policies are this module's for both surfaces, so neither can drift from the
+   other. A surface holding the user's writing whose subject no longer shows in the
+   window stands unanchored in it (`attach`), keeping the width it had attached as a
+   cap, as "Words stay where they were typed" in skills/leaf/assets/AGENTS.md requires;
+   the caller says whether it holds writing and whether its subject shows
+   (`attachmentShown`). And a surface whose content grows by turns holds the edge the
+   user is working at (`holding`): its top while they read or type, its foot, with the
+   reply row on it, once a turn joins the transcript as they draft or send, keyed to
+   that turn so the next one releases it, and its foot where it stands over what it is
+   about and is read. The caller reports the transcript's extent, whether the user is
+   drafting, the latest turn and the draft's words; a surface with no turns, the
+   comment box, never asks, and its free edges grow as floating.js holds them.
+
    Every box here is a client rectangle. Floating UI works in the surface's positioning
    space, which a transformed ancestor scales, so each length crosses by the reference's
    scale, and `fit` is handed lengths in that space, as CSS sizes the surface in it. */
 
 import {
+  clippedContents,
+  clippedRect,
   shellRight,
   shownWindow,
   shownExtent,
   shownParts,
   shownRect,
+  skipped,
 } from "/runtime/geometry.js";
-import { clamp, union } from "/runtime/rect.js";
+import { clamp, overlaps, union } from "/runtime/rect.js";
 import { moveScrollerBy } from "/runtime/scrolling.js";
 
 import {
@@ -107,6 +123,18 @@ export function commentAttachment({ target, point = null, passage = null }) {
     region,
     scroller: effectiveScroller(region ?? element),
   };
+}
+
+// Whether what a surface stands by shows inside `boundary`: the part of `box` the clips
+// around `target` leave, read as quoted words where `quote` says the box is a passage's.
+// A target in skipped content shows nowhere.
+export function attachmentShown({ box, target, quote, boundary }) {
+  if (!box || !target || skipped(target)) return false;
+  const clips = new Map();
+  const visible = quote
+    ? clippedContents(box, target, clips)
+    : clippedRect(box, target, clips);
+  return Boolean(visible && overlaps(visible, boundary));
 }
 
 export const COMMENT_GAP = 8;
@@ -237,6 +265,12 @@ export function commentPlacement() {
   let initialHold = null;
   // Whether `clear` has stood in the boundary since the side was chosen.
   let seen = false;
+  // The width an unanchored surface keeps as its cap, read as it left its subject.
+  let unanchoredWidth = null;
+  // The edge held at the last landing and the reading it answered (`holding`), and the
+  // reading the placement in flight answers, which its landing records.
+  let held = null;
+  let reading = null;
   const forget = () => {
     side = null;
     inline = null;
@@ -245,6 +279,8 @@ export function commentPlacement() {
     carriedInline = null;
     initialHold = null;
     seen = false;
+    held = null;
+    reading = null;
   };
   const line = (clear, row) =>
     side === "bottom"
@@ -265,6 +301,57 @@ export function commentPlacement() {
       pending = frame;
     },
     forget,
+    // Drops everything, the unanchored width included, as closing the surface does.
+    reset() {
+      forget();
+      unanchoredWidth = null;
+    },
+    // Whether the surface stands unanchored in the window: it held the user's writing
+    // when its subject went, and its subject shows nowhere there yet. Only the subject
+    // returning ends it, so a key that moves focus out of an empty reply never sends the
+    // surface after a subject the window does not show. `width()` reads its width, kept
+    // as its cap from the placement that unanchors it until its subject shows again.
+    attach({ shown, writing, width }) {
+      if (shown) unanchoredWidth = null;
+      else if (writing) unanchoredWidth ??= width() || 0;
+      return unanchoredWidth !== null;
+    },
+    // Which edge this placement holds, `top` or `foot`, from what the caller reports:
+    // the transcript's extent, whether the user is drafting, the latest turn
+    // (`{ key, author }`) and the draft's words. `fresh` and `hold` are `choose`'s.
+    holding({ fresh, hold, transcript, drafting, latest = null, draftText = "" }) {
+      if (hold) held = { ...hold, transcript };
+      if (fresh) held = null;
+      const turned = held && Math.abs(transcript - held.transcript) > 0.5;
+      // A turn changes the transcript on one pass, then the card's own size changes
+      // its measurement on the next. Borrow the reply's line for that turn, keyed by
+      // the projected message's stable key so admitting a Send keeps the same hold. A
+      // later reading turn or a new edit releases it; an arriving turn while drafting
+      // borrows it anew, and a Send borrows it through the handoff out of the reply row.
+      const newDraft = drafting && !held?.drafting;
+      const continuedDraft = drafting && draftText && draftText !== held?.draftText;
+      const keepReplyLine = Boolean(
+        latest &&
+        !newDraft &&
+        !continuedDraft &&
+        ((held?.replyTurn && held.replyTurn === latest.key) ||
+          (turned && (drafting || (held?.drafting && latest.author === "user")))),
+      );
+      reading = {
+        transcript,
+        drafting,
+        replyTurn: keepReplyLine ? latest.key : null,
+        draftText,
+      };
+      // Adoption holds the message's start: expanded composer choices may add a row
+      // below it that the thread does not carry. Later placements use the surface's own
+      // top/foot reading, including the normal above-side and reply-line holds.
+      return !hold && (keepReplyLine || (!drafting && side === "top")) ? "foot" : "top";
+    },
+    // The held edge's offset for `options`' `hold`, and the height between the held
+    // top and foot, which caps a held surface no shorter than it last stood.
+    heldAt: (edge) => held && { [edge]: held[edge] },
+    heldHeight: () => (held ? held.foot - held.top : 0),
     scrolled() {
       input = null;
     },
@@ -432,11 +519,16 @@ export function commentPlacement() {
                 : side === "right"
                   ? boundary.right - box.right - COMMENT_GAP
                   : clear.left - boundary.left - COMMENT_GAP;
+          // Leaving its subject does not give the user's writing a new measure.
+          const cap = unanchored && unanchoredWidth ? unanchoredWidth : Infinity;
           fit({
             side,
-            width: Math.max(
-              Math.min(minimumWidth, boundary.width) / scale.x,
-              Math.min(state.availableWidth, lane / scale.x),
+            width: Math.min(
+              Math.max(
+                Math.min(minimumWidth, boundary.width) / scale.x,
+                Math.min(state.availableWidth, lane / scale.x),
+              ),
+              cap / scale.x,
             ),
             height: state.availableHeight,
             scale,
@@ -541,10 +633,11 @@ export function commentPlacement() {
       const { scale, column, line } = middlewareData.scaled;
       if (vertical(side)) inline ??= x - column;
       const top = (y - (middlewareData.shift?.y ?? 0) - line) * scale.y;
-      return {
-        scale,
-        spot: { top, foot: top + middlewareData.held.height * scale.y },
-      };
+      const spot = { top, foot: top + middlewareData.held.height * scale.y };
+      // The reading this placement answered, so a turn that joined while it was worked
+      // out is one the next placement still sees join.
+      if (reading) held = { ...spot, ...reading };
+      return { scale, spot };
     },
   };
 }

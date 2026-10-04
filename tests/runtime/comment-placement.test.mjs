@@ -126,3 +126,73 @@ test("a submitted frame survives supersession until it lands, then follows scrol
     assert.equal(afterResize.hold, undefined);
   }
 });
+
+test("a surface that held writing stands unanchored until its subject shows again", () => {
+  const surface = commentPlacement();
+  let reads = 0;
+  const width = () => (reads += 1) && 400 + reads;
+  assert.equal(surface.attach({ shown: false, writing: false, width }), false);
+  assert.equal(surface.attach({ shown: true, writing: true, width }), false);
+  assert.equal(reads, 0);
+  // Leaving, it reads its width once and keeps it while it waits in the window.
+  assert.equal(surface.attach({ shown: false, writing: true, width }), true);
+  assert.equal(surface.attach({ shown: false, writing: true, width }), true);
+  assert.equal(reads, 1);
+  // Focus leaving an empty reply is no reason to follow a subject the window lacks.
+  assert.equal(surface.attach({ shown: false, writing: false, width }), true);
+  // Its subject back, it reads its width afresh the next time it leaves.
+  assert.equal(surface.attach({ shown: true, writing: true, width }), false);
+  assert.equal(surface.attach({ shown: false, writing: true, width }), true);
+  assert.equal(reads, 2);
+});
+
+test("a growing card holds its top while read and its foot for the turn that joins a draft", () => {
+  const clear = block(300, 660, 300, 500);
+  const input = {
+    clear,
+    boundary,
+    row: clear.top,
+    minimumWidth: 320,
+    scroller: scroller(1000),
+    coarse: false,
+  };
+  const card = commentPlacement();
+  const land = () =>
+    card.landed({
+      x: 980,
+      y: 292,
+      middlewareData: {
+        scaled: { scale: { x: 1, y: 1 }, column: 0, line: card.line(clear, clear.top) },
+        held: { height: 200 },
+      },
+    });
+  const place = (reading) => {
+    const { fresh, hold } = card.choose(input);
+    const edge = card.holding({ fresh, hold, ...reading });
+    land();
+    return edge;
+  };
+  const turn = (key, author) => ({ key, author });
+  assert.equal(place({ transcript: 100, drafting: false, latest: turn("a", "agent") }), "top");
+  // The user starts a reply: its first line holds the top.
+  assert.equal(
+    place({ transcript: 100, drafting: true, latest: turn("a", "agent"), draftText: "Hi" }),
+    "top",
+  );
+  // An agent turn joins while they draft: the reply row holds, keyed to that turn.
+  assert.equal(
+    place({ transcript: 160, drafting: true, latest: turn("b", "agent"), draftText: "Hi" }),
+    "foot",
+  );
+  assert.equal(
+    place({ transcript: 160, drafting: true, latest: turn("b", "agent"), draftText: "Hi" }),
+    "foot",
+  );
+  // A new edit releases it.
+  assert.equal(
+    place({ transcript: 160, drafting: true, latest: turn("b", "agent"), draftText: "Hi!" }),
+    "top",
+  );
+  assert.deepEqual(card.heldAt("top"), { top: -8 });
+  assert.equal(card.heldHeight(), 200);
+});

@@ -103,17 +103,6 @@ and its chrome coordinate.
   newcomer out of view rather than pushing down the card being read. The user sees
   it only in the count; give that arrival a visible route while preserving the
   current reading.
-- **Bring a comment box back where it stood after one wheel jump.** Scrolling back to
-  a comment's target in a single wheel step draws the box about 60px off for a frame
-  before it lands, on `main` too and for selected words as well as items; a script's
-  instant scroll does not show it. Floating UI's `shift` limiter held the box at the
-  target's far edge while the target left the window, and the correction lands a frame
-  after the scroll (`placeFab`, `composing/surface.js`); a real-wheel test under
-  `shift_watch.js` reproduces it.
-- **Keep a thread card still while the user types in it inside a pane.** Typing in a
-  margin thread card's reply, with its target in a pane that scrolls on its own, moves
-  the whole card (`shift_watch.js`: "typing in leaf-text moved
-  aside#lf-margin-preview"), on `main` too.
 - **Decide whether a thread card may cover the margin rail.** A card beside its
   target starts right of the target's margin marker whenever the room past the marker
   still holds the card's minimum width (`comment-placement.js`, where `options` reads
@@ -203,23 +192,6 @@ and its chrome coordinate.
 - **Layout values that wait for a task:** a selection-and-detail component whose phone
   form shows one side at a time; canvas regions, whose reading position is
   two-dimensional; slides as a presentation of `lf-tabs`.
-- **Place the comment composer correctly on a page that sets a margin on `html`.**
-  With `html { margin-left: 40px }` the floating composer lands 40px left of its lane
-  and overlaps the element it comments on, on any page wide enough to place it
-  beside its target. The reference rect handed to Floating UI (`composing/surface.js`,
-  `placeFab`) and the fixed bar disagree by the root's margin.
-  `test_an_aimed_comment_keeps_its_place_with_the_asks_drawer_open` reproduces it at
-  1200px with the drawer closed and runs at 900px, where the composer goes above or
-  below, until this is fixed.
-- **Land a sent comment's thread where its comment box stood.** A comment typed beside
-  an option near the top of the window (the box standing just under the banner) came
-  back as a margin card level with the option, about 330px lower, so the words the
-  user just wrote jump across the page on send. The send's carry transition
-  (`composing/surface.js`, the card placement in `margin-projection.js`) animates the
-  jump rather than avoiding it. The card and the box choose their places by different
-  rules: the box from the target and the room at the moment it opened, the card from the
-  margin's own layout. Either the card opens where the box stood, or the box opens where
-  the card will stand.
 - **Unconfirmed: scrolling a live sample sometimes sticks.** A user reported it
   while a sample still scrolled inside a fixed-height frame, with no reproduction.
   The frame now takes its page's height, so nothing scrolls inside it; check that the

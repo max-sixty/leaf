@@ -41,6 +41,7 @@ from PIL import Image, ImageDraw
 from playwright.sync_api import expect
 from render_harness import (
     judge_watches,
+    margins_laid_out,
     open_page,
     pane_posture,
     regions_side_by_side,
@@ -796,6 +797,75 @@ def test_a_comment_keeps_its_measure_when_its_passage_scrolls_away(browser, serv
     scroll_settled(page)
     expect(bar).to_have_attribute("data-lf-plane", "page")
     assert abs(bar.bounding_box()["width"] - width) <= 1
+
+
+def test_a_thread_card_holding_reply_words_stays_in_the_window_as_the_comment_box_does(
+    browser, serve
+):
+    """A card the user is drafting in keeps the words rule the comment box keeps
+    (comment-placement.js, `attach`): its target scrolled out of the window, the card
+    stands in the window at the width it had until the target returns, whatever the
+    user does in it meanwhile, and returns beside its target with it. Read without a
+    draft, it leaves with its target."""
+    source = leaf_page(
+        "Card words through scroll",
+        '<div style="height:650px"></div>'
+        '<p id="subject">Keep the reply with this passage.</p>'
+        '<div style="height:2400px"></div>',
+    )
+    event = {
+        "kind": "comment",
+        "author": "user",
+        "revision": 1,
+        "text": "A comment on this.",
+        "anchor": {"section": "subject"},
+    }
+    page = open_page(browser, serve(source, events=[event]))
+    resized(page, 1440, 900)
+    margins_laid_out(page)
+    target = page.locator("#subject")
+    target.evaluate(
+        "node => scrollTo(0, node.getBoundingClientRect().top + scrollY - 400)"
+    )
+    rendered(page)
+    page.locator('[data-lf-margin-for="subject"] .lf-margin-marker').click()
+    card = page.locator(".lf-margin-preview")
+    expect(card).to_have_attribute("data-lf-plane", "page")
+
+    # Reading, the card leaves with its target.
+    page.mouse.wheel(0, 1500)
+    scroll_settled(page)
+    rendered(page)
+    assert card.bounding_box()["y"] + card.bounding_box()["height"] < 0
+    page.mouse.wheel(0, -1500)
+    scroll_settled(page)
+    rendered(page)
+
+    editor = card.get_by_role("textbox", name="Reply", exact=True)
+    editor.click()
+    editor.type("Keep these words while the page leaves.")
+    rendered(page)
+    width = card.bounding_box()["width"]
+    page.mouse.wheel(0, 1500)
+    scroll_settled(page)
+    rendered(page)
+    expect(card).to_have_attribute("data-lf-plane", "window")
+    box = card.bounding_box()
+    assert 0 <= box["y"] and box["y"] + box["height"] <= 900, box
+    assert abs(box["width"] - width) <= 1
+    assert editor.evaluate("box => box.value") == "Keep these words while the page leaves."
+    # Emptied and left by a key, it waits in the window for its target all the same.
+    page.keyboard.press("ControlOrMeta+a")
+    page.keyboard.press("Backspace")
+    page.keyboard.press("Shift+Tab")
+    rendered(page)
+    expect(card).to_have_attribute("data-lf-plane", "window")
+    assert 0 <= card.bounding_box()["y"] < 900
+    page.mouse.wheel(0, -1500)
+    scroll_settled(page)
+    rendered(page)
+    expect(card).to_have_attribute("data-lf-plane", "page")
+    assert abs(card.bounding_box()["width"] - width) <= 1
 
 
 @pytest.mark.parametrize(

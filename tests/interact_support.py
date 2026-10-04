@@ -1374,29 +1374,26 @@ def codex_program(tmp_path_factory):
 def codex_queue(tmp_path):
     """Replace the external queue CLI while exercising real preview delivery.
 
-    The executable acknowledges help and records submitted arguments, renaming the
-    record into place so a test that sees it exist reads it whole. Tests may set
-    PREVIEW_QUEUE_AVAILABLE=False to exercise an unsupported installation. This is
-    separate from codex_program, which models kernel process ancestry.
+    The executable acknowledges help and records submitted arguments. Tests may
+    set PREVIEW_QUEUE_AVAILABLE=False to exercise an unsupported installation.
+    This is separate from codex_program, which models kernel process ancestry.
+    A recorded queue call appears only once its complete JSON is readable.
     """
     executable = tmp_path / "queue-bin" / "codex"
     executable.parent.mkdir()
     queued = tmp_path / "queued.json"
     executable.write_text(
         f"""#!{sys.executable}
-import json
 import os
 import sys
 from pathlib import Path
+from leaf.state import write_json
 
 if os.environ.get("PREVIEW_QUEUE_AVAILABLE", "True") == "False":
     print("queue unsupported", file=sys.stderr)
     sys.exit(1)
 if sys.argv[1:] != ["queue", "--help"]:
-    record = Path(os.environ["PREVIEW_QUEUE_RECORD"])
-    written = record.with_name(record.name + ".writing")
-    written.write_text(json.dumps(sys.argv[1:]))
-    written.replace(record)
+    write_json(Path(os.environ["PREVIEW_QUEUE_RECORD"]), sys.argv[1:])
 print("queued")
 """
     )

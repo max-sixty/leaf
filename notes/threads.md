@@ -7,7 +7,7 @@ summary. Users can unfold the original messages, and the agent can replace an
 overlapping summary as the discussion grows. Their contracts live in
 [threads](../skills/leaf/references/threads.md),
 [session lifetime](../skills/leaf/scripts/leaf/session-lifetime.md), and
-[the package Thread API](../skills/leaf/references/packages.md#widget-local-thread-placement).
+[the module Thread API](../skills/leaf/references/module-authoring.md#widget-local-thread-placement).
 The [playground](thread-navigation/README.md) retains the design comparisons.
 
 ## Current standing

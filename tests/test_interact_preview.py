@@ -275,9 +275,9 @@ import sys
 import time
 from pathlib import Path
 from leaf.service import PageTransaction, page_claim
+from leaf.state import write_json
 from leaf.host import session_harness
 from leaf.hosting import cmd_stop
-from leaf.state import write_json
 from leaf_dev.preview import PreviewService
 
 page, ready, done = map(Path, sys.argv[1:4])
@@ -309,7 +309,6 @@ try:
             output, errors = foreground.communicate(timeout=30)
             sys.exit(errors)
         started = (json.loads(line)["url"], "")
-    # Renamed into place, so the test reads it whole once it exists.
     write_json(ready, started)
     while not done.exists():
         time.sleep(0.01)
@@ -525,6 +524,7 @@ from pathlib import Path
 from leaf.hosting import cmd_stop
 from leaf.leases import adapter_lease_path
 from leaf.service import PageTransaction
+from leaf.state import write_json
 pages = list(map(Path, sys.argv[1:3]))
 ready, done = map(Path, sys.argv[3:])
 lease = adapter_lease_path("codex-thread")
@@ -545,7 +545,7 @@ try:
     )
     assert stopped.returncode == 0, stopped.stderr
     assert not stopped.stdout, stopped.stdout
-    ready.write_text(json.dumps(identities))
+    write_json(ready, identities)
     while not done.exists():
         time.sleep(0.01)
 finally:

@@ -49,23 +49,29 @@
     }
     for (const subscriber of subscribers) subscriber(source, completedEdit);
   };
+  const enter = (source) => {
+    // A nested focus or synthetic event can run after its caller changed the DOM.
+    // Read those writes under that caller before the nested callback starts.
+    checkpoint(current());
+    const previous = callbackSource;
+    callbackSource = source;
+    callbackDepth++;
+    return () => {
+      try {
+        checkpoint(source);
+      } finally {
+        callbackDepth--;
+        callbackSource = previous;
+      }
+    };
+  };
   const wrap = (callback, source) =>
     function (...args) {
-      // A nested focus or synthetic event can run after its caller changed the DOM.
-      // Read those writes under that caller before the nested callback starts.
-      checkpoint(current());
-      const previous = callbackSource;
-      callbackSource = source;
-      callbackDepth++;
+      const leave = enter(source);
       try {
         return callback.apply(this, args);
       } finally {
-        try {
-          checkpoint(source);
-        } finally {
-          callbackDepth--;
-          callbackSource = previous;
-        }
+        leave();
       }
     };
 
@@ -258,6 +264,12 @@
   window.lfInputWork = {
     current,
     capture: (callback) => wrap(callback, current()),
+    // A generic scheduler can observe enqueue/run/finish without replacing its
+    // callbacks. Capture at enqueue, enter at run, and checkpoint before release.
+    captureScope() {
+      const source = current();
+      return () => enter(source);
+    },
     dispatching: () =>
       finishing.size > 0 || parents.some((parent) => parent.dispatching()),
     dispatched: () =>

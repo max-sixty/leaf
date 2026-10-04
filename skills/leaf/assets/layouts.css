@@ -161,7 +161,16 @@
    * width, so leaving the rule out of print is the whole of what paper needs. On screen,
    * `body` is the size container. No surface Leaf opens changes its inline size, since each
    * stands over the page, and `main` subtracts the page's own two margin claims from that
-   * one browser reading. */
+   * one browser reading.
+   *
+   * The negative margins widen a box whose width is its holder's less its margins, which
+   * an auto-width block is and a box with a width of its own is not: a table box (a
+   * sample) moved left by the margin and kept the column's width. Such a box takes its
+   * width from `--lf-breakout-width` instead, the room's width: its holder's, and the
+   * breakout's surplus on top where the box takes one. It does not inherit, so a box in
+   * a list inside wide evidence takes its holder's width, not that plus the section's
+   * surplus. */
+  @property --lf-breakout-width { syntax: "*"; inherits: false; initial-value: 100%; }
   @media screen {
     /* `data-lf-space` is the room an element takes: what its tag declares (x-space), or
      * the page's own occurrence saying so (`data-width`). Delivery paints it into the
@@ -177,6 +186,7 @@
       --lf-grow-l: clamp(calc(var(--lf-surplus) - var(--lf-free-r)),
         calc(var(--lf-surplus) / 2), var(--lf-free-l));
       --lf-grow-r: calc(var(--lf-surplus) - var(--lf-grow-l));
+      --lf-breakout-width: calc(100% + var(--lf-surplus));
       max-width: none;
       margin-left: calc(-1 * var(--lf-grow-l));
       margin-right: calc(-1 * var(--lf-grow-r));
@@ -194,9 +204,6 @@
       --lf-surplus: 0px;
       width: min(100%, var(--col));
       margin-inline: auto;
-    }
-    table[data-lf-space]:not([data-lf-space="column"]) {
-      width: calc(100% + var(--lf-surplus));
     }
     /* `wide` is one width wherever the block stands. The breakout above only grows a
      * block past its holder, so in a holder already wider than `--wide`, such as a wide
@@ -371,13 +378,21 @@
    * corners it draws standing alone for a 1px ring outside its box, so two neighbours'
    * rings fill the gap between them as one hairline. Drawn by the panes rather than
    * painted under them, so an empty cell, or a wider gap a page sets, shows the page's
-   * ground and not a band of rule colour. */
-  main.layout-workspace > :not(header, footer):has(> [data-lf-reading-role="pane"]) {
+   * ground and not a band of rule colour.
+   *
+   * The grid is of the panes the page wrote. A widget that is the body composes its
+   * own regions and draws its own frame, and a pane it generates may stand directly in
+   * it (`data-lf-generated`), as a visual review's evidence does; that pane is the
+   * widget's region rather than a cell of a page's grid, so neither the frame nor the
+   * ring is drawn for it. */
+  main.layout-workspace
+    > :not(header, footer):has(> [data-lf-reading-role="pane"]:not([data-lf-generated])) {
     gap: 1px;
     border: 1px solid var(--rule);
     border-radius: var(--r);
   }
-  main.layout-workspace > :not(header, footer) > [data-lf-reading-role="pane"] {
+  main.layout-workspace > :not(header, footer)
+    > [data-lf-reading-role="pane"]:not([data-lf-generated]) {
     border: 0;
     border-radius: 0;
     box-shadow: 0 0 0 1px var(--rule);
@@ -401,7 +416,8 @@
      * a Layout sets the size of the box it arranges, and a widget that is the body lays
      * out its own tracks, so a row rule written on every body held a side list's row to
      * the window and drew its rows over one another. */
-    main.layout-workspace > :not(header, footer):has(> [data-lf-reading-role="pane"]) {
+    main.layout-workspace
+      > :not(header, footer):has(> [data-lf-reading-role="pane"]:not([data-lf-generated])) {
       grid-auto-rows: minmax(0, 1fr);
     }
     /* The body takes the window's height to pass on to its panes. A pane it does not

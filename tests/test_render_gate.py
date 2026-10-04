@@ -118,6 +118,7 @@ from render_harness import (
     scroll_writes,
     state_changes,
     still_page,
+    stored_draft_text,
     take_browser_errors,
     write,
 )
@@ -4873,6 +4874,12 @@ def test_dragging_an_edge_preserves_user_state(browser, serve, edge, pointer):
     page.locator("main p").first.click(modifiers=["Alt"])
     composer = page.locator(".lf-fab-input")
     write(composer, "half a comment")
+    page.keyboard.press("ArrowLeft")
+    page.keyboard.press("Shift+ArrowLeft")
+    editing = composer.evaluate("""async input => {
+        const {captureDraftEditing} = await __lfRuntimeImport('/runtime/drafts.js');
+        return captureDraftEditing(input);
+    }""")
     drag()
     expect(composer).to_be_visible()
     expect(composer).to_have_js_property("value", "half a comment")
@@ -4896,6 +4903,22 @@ def test_dragging_an_edge_preserves_user_state(browser, serve, edge, pointer):
     }""")
         == selected
     )
+    rendered(page)
+    expect(composer).to_be_hidden()
+    assert (
+        json.loads(stored_draft_text(page, editing["context"]))["text"]
+        == "half a comment"
+    )
+    page.keyboard.press("g")
+    page.keyboard.press("i")
+    expect(composer).to_be_focused()
+    expect(composer).to_have_js_property("value", "half a comment")
+    resumed = composer.evaluate("""async input => {
+        const {captureDraftEditing} = await __lfRuntimeImport('/runtime/drafts.js');
+        return captureDraftEditing(input);
+    }""")
+    assert resumed["context"] == editing["context"]
+    assert resumed["selection"] == editing["selection"]
 
 
 @pytest.mark.parametrize("edge", EDGES, ids=EDGE_IDS)

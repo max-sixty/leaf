@@ -1,9 +1,11 @@
 """Native Promptfoo Python provider for a catalog task's complete workflow.
 
 The test's metadata names the executor and its scenario, a key of the executor's
-`CASES`; the provider column names the host, condition and arm. Each call gets a
-fresh evidence directory under the column's samples, so repetitions never share
-one, and the response's `metadata.work` names it. Errors remain provider errors.
+`CASES`; the provider column names the harness, condition and arm. Each call gets a
+fresh evidence directory, so repetitions never share one, and the response's
+`metadata.work` names it. Its name gives the case but not the column, so a judge
+reading the sample's screenshots can't tell the arm or condition from their paths.
+Errors remain provider errors.
 """
 
 import os
@@ -24,7 +26,7 @@ def call_api(prompt: str, options: dict, context: dict) -> dict:
         metadata["scenario"],
         Path(config["payload"]),
         work,
-        host=config["host"],
+        harness=config["harness"],
         condition=config["condition"],
     )
     response.setdefault("metadata", {})["work"] = str(work)

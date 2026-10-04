@@ -6683,12 +6683,12 @@ def test_a_pending_suggestion_can_be_discussed_instead_of_decided(browser, serve
     page = open_page(browser, serve(SUGGESTION_PAGE))
     resized(page, 1920, 900)
     page.evaluate("""() => {
-        const r = document.createRange();
-        r.selectNodeContents(document.querySelector('#sug-refill lf-new'));
+        const range = document.createRange();
+        range.selectNodeContents(document.querySelector('#sug-refill lf-new'));
         getSelection().removeAllRanges();
-        getSelection().addRange(r);
-        document.body.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
+        getSelection().addRange(range);
     }""")
+    page.keyboard.press("c")
     page.wait_for_selector(".lf-fab-input", state="visible")
     page.locator(".lf-fab-input").click()
     page.wait_for_selector(".lf-composer", state="visible")

@@ -180,7 +180,7 @@ uv run leaf-dev preview --source notes/undo-reach/playground.html --slot undo-re
 
 Start the preview as a long-running command from the chat that will receive
 feedback, then open the keyed URL it prints. Follow `/developing-leaf`,
-“Preview a page”, for the host's feedback route and handoff. A restart builds a
+“Preview a page”, for the harness's feedback route and handoff. A restart builds a
 fresh page and log; answer pending feedback before restarting.
 
 `bin/leaf page check --render` on the page passes on main's runtime as of

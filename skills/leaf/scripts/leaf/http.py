@@ -666,6 +666,13 @@ class PageEndpoint:
         per method, and a route added later cannot be the one that forgot to ask.
         POST preparation is deliberately after that gate, so an unknown peer cannot
         choose a body-read cost.
+
+        A refused key answers 401 in one shape on every route, the event door
+        included. It is no judgment of what was sent, which nobody read, and it
+        holds only until the browser presents the key again: opening the printed
+        link in any tab sets the cookie the next request carries. So it is never an
+        event rejection, whose `final` would have the browser drop the gesture; the
+        runtime keeps the gesture pending and names the link (`layer-client.js`).
         """
         prepared = False
         try:
@@ -677,7 +684,7 @@ class PageEndpoint:
             if not self.authorized():
                 if prepare:
                     self.body_unread = True
-                return self._refuse(NO_KEY, 403)
+                return self._json({"error": NO_KEY}, 401)
             sample_answer = self._sample_request()
             if sample_answer is not None:
                 return sample_answer

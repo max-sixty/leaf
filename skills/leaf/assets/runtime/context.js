@@ -98,6 +98,8 @@ export const runtime = {
     return readApplication().authoritative?.reading ?? null;
   },
   sessionReference: null,
+  // Whether the server's latest answer refused this tab's key (`layer-client.js`).
+  keyRefused: false,
   get state() {
     return readApplication().authoritative;
   },

@@ -6,6 +6,7 @@
    never enters that queue. It records what the user has seen rather than something
    they did, so it is sent on its own, once, and a failure costs only a fact the page
    will observe again; it neither waits behind a gesture nor holds one up. */
+import { runtime } from "./context.js";
 import { postEvent } from "./layer-client.js";
 import { notice } from "./notifications.js";
 import { pendingTraffic } from "./traffic.js";
@@ -39,7 +40,14 @@ export function createDelivery({
       ]);
       if (sent.accepted) return { accepted: sent.accepted };
       if (sent.error) {
-        if (!announced) notice("Connection lost — retrying your change…");
+        // A refused key ends only when the user opens the link, so say that rather
+        // than promising a retry that cannot succeed on its own.
+        if (!announced)
+          notice(
+            runtime.keyRefused
+              ? "Key refused — open Leaf's link in a new tab and your change will send"
+              : "Connection lost — retrying your change…",
+          );
         announced = true;
         await retryPause();
         continue;

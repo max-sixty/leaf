@@ -762,6 +762,82 @@ def test_page_tabs_take_the_page_width_and_its_one_left_edge(browser, serve):
     assert boxes["title"]["left"] == boxes["content"]["left"], boxes
 
 
+@pytest.mark.parametrize("layout", ["column", "wide", "workspace"])
+def test_wide_evidence_in_a_page_tab_takes_the_room_it_would_outside_one(
+    browser, serve, layout
+):
+    """A page tab is a section of the page, so a `wide` or `available` table in its
+    open panel takes the box and the column widths its twin outside the set takes: at
+    first paint, before the runtime has drawn the strip, then at a desktop window, with
+    the thread panel open over it, and on a phone. A boxed set's panel draws a frame,
+    so the same table there stays inside it."""
+
+    def tables(where):
+        return "".join(
+            f'<table id="{where}-{space}" data-width="{space}"><thead><tr><th>Case</th>'
+            "<th>Result</th></tr></thead><tbody><tr><td>One</td><td>Two</td></tr>"
+            "</tbody></table>"
+            for space in ("wide", "available")
+        )
+
+    source = leaf_page(
+        "Evidence in page tabs",
+        f'<h1 id="t">Evidence in page tabs</h1><p id="prose">Prose.</p>{tables("out")}'
+        f'<lf-tabs id="root-tabs"><lf-tab id="compare" label="Compare">{tables("in")}'
+        '</lf-tab><lf-tab id="notes" label="Notes"><p>Notes.</p></lf-tab></lf-tabs>'
+        f'<section><lf-tabs id="boxed"><lf-tab id="boxed-open" label="Boxed">{tables("boxed")}'
+        '</lf-tab><lf-tab id="boxed-other" label="Other"><p>Other.</p></lf-tab></lf-tabs>'
+        "</section>",
+        layout=layout,
+    )
+    boot = []
+    context = browser.new_context(viewport={"width": 1600, "height": 900})
+    page = context.new_page()
+    page.route("**/leaf.js", lambda route: boot.append(route))
+    measure = """() => Object.fromEntries(
+      ['prose', 'out-wide', 'out-available', 'in-wide', 'in-available', 'boxed-open',
+       'boxed-wide', 'boxed-available'].map(id => {
+        const el = document.getElementById(id), box = el.getBoundingClientRect();
+        return [id, {left: Math.round(box.left), width: Math.round(box.width),
+          columns: Math.round(el.querySelector('thead')?.getBoundingClientRect().width ?? 0)}];
+      }))"""
+
+    def twins(state):
+        at = page.evaluate(measure)
+        for space in ("wide", "available"):
+            assert at[f"in-{space}"] == at[f"out-{space}"], (state, space, at)
+            boxed, panel = at[f"boxed-{space}"], at["boxed-open"]
+            assert boxed["left"] >= panel["left"], (state, space, at)
+            assert boxed["left"] + boxed["width"] <= panel["left"] + panel["width"], (
+                state,
+                space,
+                at,
+            )
+        assert root_overflow(page) == 0, state
+        return at
+
+    try:
+        with page.expect_request("**/leaf.js"):
+            page.goto(serve(source), wait_until="commit")
+        displayed(page)
+        assert boot, "the runtime was not held"
+        first = twins("first paint")
+        boot.pop().continue_()
+        wait_until_ready(page)
+    finally:
+        for route in boot:
+            route.continue_()
+        page.unroute_all(behavior="wait")
+    expect(page.locator("#root-tabs")).to_have_attribute("data-lf-tabs-flow", "page")
+    assert twins("desktop") == first
+    assert first["in-wide"]["width"] > first["prose"]["width"], first
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    twins("panel open")
+    resized(page, 390, 800)
+    twins("phone")
+
+
 def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     """`list="side"` stands a tab set's list beside its panels: a queue whose items open
     one at a time. Where the set holds both the list is a column left of the open panel,

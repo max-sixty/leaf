@@ -164,23 +164,23 @@
      * deep inside it sits, and `--lf-block-frame` is reset one level in (above), so no box
      * answers for its grandparent's frame.
      *
-     * The column declares the frame too — it is a padded box like any other and its first
-     * line wants the trim — so it hands the room straight back to what it holds. That is
-     * the whole difference between the page and a box on it, and the gate says it the same
-     * way, by walking up no further than `main`.
+     * Two boxes declare the frame for its first line's trim and still hold the page's own
+     * flow: `main`, and a page tab's panel, which is a section of the page shown one at a
+     * time. Each says so beside the frame (`--lf-page-flow`, registered in theme.css), and
+     * the room passes through it to what it holds, so a wide exhibit in a page tab grows
+     * out as it would on a page without tabs. The rule reads the declaration in this
+     * layer, since a hand-back written in a lower one loses to the rule it answers. The
+     * gate walks up no further than `main`.
      *
-     * A transparent wrapper declares nothing: a section and a page tab's panel are the page's
-     * own flow, and an exhibit breaking out through one is the point. What says so when a
+     * A transparent wrapper declares nothing: a section is the page's own flow, and an
+     * exhibit breaking out through one is the point. What says so when a
      * box that draws has not declared is `page check --render`, which measures every
      * wide element against the nearest ancestor that draws one. It could not see through a
      * scroll container until a diagram in a board card was drawn 332px across the next
      * column, and four widgets letting a diagram out were found the day it could. */
-    @container style(--lf-block-frame: 1) {
+    @container style(--lf-block-frame: 1) and (not style(--lf-page-flow: 1)) {
       * { --lf-room: 0px; }
     }
-
-
-    main > * { --lf-room: inherit; }
     /* When startup is incomplete, undrawn widgets show source in the column. */
     html[data-lf-startup-error]:not([data-lf-interactive]) [data-lf-space] {
       --lf-room: 0px;

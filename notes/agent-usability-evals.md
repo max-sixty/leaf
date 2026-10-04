@@ -83,9 +83,9 @@ On the first versions the judge preferred the queue with the vocabulary in all t
 pairs, the document without it in all three, and split on the dashboard. After the
 revision the vocabulary won 3, 2 and 1 of the three queue, dashboard and document
 pairs, and every revision met the width preference.
-Its reasons kept naming tiny text at 900px and on a phone, and an Ask whose premise
-and controls fall below the first screen (TODO.md, "Take every render-check reading
-at every width the check renders").
+Its reasons kept naming tiny text at 900px and on a phone, which the render check
+now reads at every swept width, and an Ask whose premise and controls fall below the
+first screen (TODO.md, "Verify the Ask's premise").
 
 ## Remaining evaluation gaps
 

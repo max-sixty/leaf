@@ -284,10 +284,10 @@ their natural height and the page scrolls.
 
 Make a region show what it holds, so scrolling one stays the exception: a region a
 reader has to scroll through to reach its decision is read in two halves. `page check
---render` names each pane or body that runs past its region at a desktop size; trim it
-to what the region shows, or split it. A pane that is a reader for something long, such
-as a source file or a log, is the exception the region scrolls for, and the advice on it
-can stand.
+--render` names each pane or body that runs past its region, with the window widths it
+does so at; trim it to what the region shows, or split it. A pane that is a reader for
+something long, such as a source file or a log, is the exception the region scrolls
+for, and the advice on it can stand.
 
 ### Bounds and widths
 

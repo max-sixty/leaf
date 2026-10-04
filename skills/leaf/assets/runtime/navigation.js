@@ -22,6 +22,7 @@ import { readingBlock } from "./reading-place.js";
 import { scrollIntoReadingBand } from "./landing-scroll.js";
 import { THREAD } from "./thread/selectors.js";
 import { under } from "./shadow.js";
+import { retainUserIntent } from "./user-intent.js";
 import { announce } from "./notifications.js";
 import { focusThread } from "./thread/focus.js";
 import { showHeld } from "./thread/held-news.js";
@@ -82,19 +83,23 @@ function threadFrom(threads, place, dir, threadTarget) {
 // way, and keeps the panel the walk is in: it moves the page only where moving it shows
 // the passage better beside the panel (anchor-travel.js, `arrive`). The press takes the
 // user to the thread, so it shows what the thread held (held-news.js) before landing, as
-// `openPageThread` does on its own path. It settles once the thread stands open.
-async function arriveAtThread(next, destinations, panelIsOpen, threadsBox) {
+// `openPageThread` does on its own path.
+//
+// It answers whether the user arrived, once the thread stands open. `intent` is the
+// press's, retained before any wait the caller made: newer input cancels the arrival,
+// and the walk then says nothing about a thread the user is not at.
+async function arriveAtThread(next, destinations, panelIsOpen, threadsBox, intent) {
   const { openPageThread, scrollToThread } = destinations;
-  if (!panelIsOpen()) {
-    await openPageThread(next.dataset.id, { focus: "thread" });
-    return;
-  }
+  if (!panelIsOpen())
+    return Boolean(await openPageThread(next.dataset.id, { focus: "thread", intent }));
+  if (!intent()) return false;
   showHeld(next.dataset.id);
   threadsBox.revealNavigation(next.dataset.id);
   const standing = next.contains(document.activeElement);
   focusThread(next, { preventScroll: true });
   if (standing) landWalkedThread(next, threadsBox);
   scrollToThread(next.dataset.id, { keep: true });
+  return true;
 }
 
 // t/T walk open threads. A closed panel walks them in page order; once the panel is
@@ -114,7 +119,7 @@ function stepThread(dir, destinations, panelIsOpen, narrowing, list) {
         threadTarget,
       );
   if (!next) return;
-  void arriveAtThread(next, destinations, panelIsOpen, threadsBox);
+  void arriveAtThread(next, destinations, panelIsOpen, threadsBox, retainUserIntent());
   announce(
     beginWalk("thread", "Thread", () =>
       threadPosition(threadHere, panelIsOpen, narrowing, list),
@@ -384,13 +389,13 @@ export function createNavigation({
   // for an Ask seated in a thread (asks/view.js, `materializeAsk`), since the queue
   // walk goes to what is on the user whatever the list shows.
   async function arriveAtThreadById(id) {
+    const intent = retainUserIntent();
     const card = () =>
       openThreads({ visibleOnly: false }).find((thread) => thread.dataset.id === id);
     if (panelIsOpen() && card()?.hidden) await narrowing.revealThread(id);
     const next = card();
     if (!next) return false;
-    await arriveAtThread(next, threadDestinations, panelIsOpen, threadsBox);
-    return true;
+    return arriveAtThread(next, threadDestinations, panelIsOpen, threadsBox, intent);
   }
 
   return {

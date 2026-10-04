@@ -1,5 +1,6 @@
 """Shared fixtures, and the address the suite starts a leaf process at."""
 
+import contextlib
 import inspect
 import os
 import re
@@ -397,36 +398,42 @@ def codex_env():
 
 
 def _retire(process: subprocess.Popen) -> None:
-    """End one started process, and anything still in the group it leads.
+    """End one started process and everything still in the group it leads.
 
-    A child given a session of its own leads a group, and what it spawns joins
-    that group: `leaf-dev preview` re-executes into `uv run`, which holds the
-    watcher as a child, so the handle the test keeps names the launcher rather
-    than the process doing the work. Ending the handle alone leaves the watcher
-    running — past the test, past the run, still serving its page and still
-    watching the checkout every later test reads. A child that shares the run's
-    own group is ended through its handle, because signalling that group would
-    signal the worker running the test.
+    The handle a test keeps often names a launcher rather than the process doing
+    the work: `leaf-dev preview` re-executes into `uv run`, which holds the
+    watcher as a child, and `under_codex`'s fake host holds the shell that runs
+    the command. Ending the handle alone leaves those running past the test and
+    the run, serving pages or watching the checkout. Closing the stdin a test
+    piped ends what waits on it, as a held `under_codex` shell does, even where
+    the test already ended the leader itself.
     """
+    if process.stdin:
+        with contextlib.suppress(BrokenPipeError):
+            process.stdin.close()
     if process.poll() is None:
-        # Read the group only while the process is running and unreaped, so the
-        # pid cannot have become someone else's by the time it is signalled.
-        if os.getpgid(process.pid) == process.pid:
+        # Signal the group only while its leader is running and unreaped, so the
+        # pid cannot have become someone else's by the time it is signalled. A
+        # leader that exits in between leaves a group of zombies, which macOS
+        # refuses to signal.
+        with contextlib.suppress(ProcessLookupError, PermissionError):
             os.killpg(process.pid, signal.SIGTERM)
-        else:
-            process.terminate()
     process.wait(timeout=5)
 
 
 @pytest.fixture
 def spawn():
-    """A process the test starts, ended when the test ends — the ones it expects
-    to have exited already included, since a run that fails before its own
-    assertion is exactly the one that would leave a process behind."""
+    """A process the test starts, ended with everything it started when the test
+    ends — the ones it expects to have exited already included, since a run that
+    fails before its own assertion is exactly the one that would leave a process
+    behind. Each leads a session of its own, so `_retire` can end it and the
+    descendants still in its group without signalling the worker running the test.
+    A descendant that starts a session of its own, as a detached server does, is
+    left to the fixture that owns it."""
     started = []
 
     def start(*args, **kwargs) -> subprocess.Popen:
-        process = subprocess.Popen(*args, **kwargs)
+        process = subprocess.Popen(*args, start_new_session=True, **kwargs)
         started.append(process)
         return process
 

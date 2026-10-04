@@ -4639,7 +4639,6 @@ def test_a_start_waits_for_uncommitted_preparation_before_reusing(page_dir, spaw
         pass_fds=(end.fileno(),),
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
-        start_new_session=True,
     )
     end.close()
     caller.settimeout(30)
@@ -4711,7 +4710,6 @@ def test_private_revival_cannot_advertise_the_previous_serving_row(
         pass_fds=(end.fileno(),),
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
-        start_new_session=True,
     )
     end.close()
     caller.settimeout(30)
@@ -4796,7 +4794,6 @@ def test_a_stop_waits_for_private_preparation_before_disabling(page_dir, spawn):
         pass_fds=(end.fileno(),),
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
-        start_new_session=True,
     )
     end.close()
     caller.settimeout(30)

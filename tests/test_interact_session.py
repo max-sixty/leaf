@@ -1605,6 +1605,7 @@ with open(os.environ["TITLING_RECORD"], "a") as record:
     record.write(json.dumps(call) + "\\n")
 print(json.dumps({{
     "structured_output": {{"title": " Export speed "}},
+    "duration_api_ms": 900,
     "usage": {{"input_tokens": 1100, "output_tokens": 60}},
 }}))
 """
@@ -1653,6 +1654,7 @@ def test_a_comment_on_a_claude_code_page_is_named_as_it_arrives(
     assert "Why does the export take a minute?" in call["stdin"]
     assert "CLAUDE_CODE_SESSION_ID" not in call["env"]
     assert call["env"]["MAX_THINKING_TOKENS"] == "0"
+    assert call["env"]["CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC"] == "1"
 
     # The page server's output goes nowhere, so the session's log says what the
     # request did, until the session ends.
@@ -1662,7 +1664,9 @@ def test_a_comment_on_a_claude_code_page_is_named_as_it_arrives(
         bool,
         failure="the request was never logged",
     )
-    assert json.loads(line)["event"] == "thread_title_generated"
+    logged = json.loads(line)
+    assert logged["event"] == "thread_title_generated"
+    assert logged["apiDurationMs"] == 900
     hooks_model.cmd_hook({"hook_event_name": "SessionEnd", "session_id": "s1"})
     assert not log.exists()
 
@@ -3666,7 +3670,7 @@ def test_a_new_codex_carrier_observes_ordinary_turns_without_a_prior_hook(
     endpoint = app_server(handle)
     program, _log = fake_codex_cli(tmp_path)
     session_model.cmd_status(page_dir, "waiting", "Reviewing the page")
-    release_start = tmp_path / "release-codex-start"
+    finished = tmp_path / "codex-start-finished"
     started = under_codex(
         shlex.join(
             [
@@ -3681,7 +3685,7 @@ def test_a_new_codex_carrier_observes_ordinary_turns_without_a_prior_hook(
             ]
         ),
         codex_env | {"CODEX_THREAD_ID": "codex-thread"},
-        hold_until=release_start,
+        finished=finished,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
@@ -3714,7 +3718,7 @@ def test_a_new_codex_carrier_observes_ordinary_turns_without_a_prior_hook(
     finally:
         begin.set()
         finish.set()
-        release_start.touch()
+        started.stdin.close()
         out, err = started.communicate(timeout=60)
         assert started.returncode == 0, f"{announcement}{out}{err}"
         with service_model.PageTransaction(page_dir) as page:
@@ -8489,7 +8493,6 @@ def test_page_init_restarts_a_served_page_under_the_sessions_wait(
             [*LEAF_COMMAND, "wait"],
             stdout=output,
             stderr=subprocess.STDOUT,
-            start_new_session=True,
             text=True,
         )
     wait_for(
@@ -10544,7 +10547,7 @@ def test_codex_restart_finishes_an_accepted_batch_without_queueing_again(
     queue = files_model.read_json(record_path)
     queue.update(state="accepted", transport={"phase": "queued", "turn": None})
     codex_model.write_record(record_path, queue)
-    release_start = tmp_path / "release-codex-start"
+    finished = tmp_path / "codex-start-finished"
     started = under_codex(
         shlex.join(
             [
@@ -10561,12 +10564,12 @@ def test_codex_restart_finishes_an_accepted_batch_without_queueing_again(
             "CODEX_THREAD_ID": "codex-thread",
             "FAKE_CODEX_LOG": str(log),
         },
-        hold_until=release_start,
+        finished=finished,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
     )
-    release_codex_command(page, release_start)
+    release_codex_command(page, started, finished)
     out, err = started.communicate(timeout=60)
     assert started.returncode == 0, f"{out}{err}"
 
@@ -10621,12 +10624,12 @@ def test_a_later_codex_start_names_the_running_transport(
     calls = [command, [*command, "--app-server", "unix:///tmp/elsewhere.sock"], command]
     runner = PLUGIN_ROOT / "tests" / "fixtures" / "programs" / "codex_starts.py"
     try:
-        release_start = tmp_path / "release-codex-start"
+        finished = tmp_path / "codex-start-finished"
         started = under_codex(
             shlex.join([sys.executable, str(runner), json.dumps(calls), str(results)]),
             environment,
             app_server=True,
-            hold_until=release_start,
+            finished=finished,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
@@ -10635,6 +10638,7 @@ def test_a_later_codex_start_names_the_running_transport(
             lambda: files_model.read_json(results),
             lambda reading: reading is not None,
             failure="the standing Codex host did not finish its three start commands",
+            timeout=120,
         )
         assert status == 0, err
         assert json.loads(first) == {
@@ -10650,7 +10654,7 @@ def test_a_later_codex_start_names_the_running_transport(
             "app_server": None,
             "started": False,
         }
-        release_start.touch()
+        started.stdin.close()
         out, err = started.communicate(timeout=60)
         assert started.returncode == 0, f"{out}{err}"
     finally:
@@ -10684,7 +10688,7 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
         environment["FAKE_CODEX_QUEUE_FAILURE_ONCE"] = str(
             tmp_path / "uncertain-queue-response"
         )
-    release_start = tmp_path / "release-codex-start"
+    finished = tmp_path / "codex-start-finished"
     started = under_codex(
         shlex.join(
             [
@@ -10697,7 +10701,7 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
             ]
         ),
         environment,
-        hold_until=release_start,
+        finished=finished,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
@@ -10710,11 +10714,12 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
         lambda: codex_adapter_model.adapter_is_live("codex-thread"),
         bool,
         failure="the detached Codex carrier did not start",
+        timeout=60,
     )
     announcement = codex_start_announcement(started)
     claim = service_model.page_claim(page)
     before_release = cleanup_model.session_record("codex-thread")
-    release_codex_command(page, release_start)
+    release_codex_command(page, started, finished)
     after_release = cleanup_model.session_record("codex-thread")
     assert service_model.page_claim(page)["generation"] == claim["generation"]
     assert after_release["generation"] == before_release["generation"]
@@ -10974,7 +10979,7 @@ def test_an_offline_sibling_does_not_stop_browser_comments_reaching_codex(
 
     program, log = fake_codex_cli(tmp_path)
     session_model.cmd_status(live, "waiting", "current review")
-    release_start = tmp_path / "release-codex-start"
+    finished = tmp_path / "codex-start-finished"
     # Both page claims and the carrier belong to the same actual task host.
     # A second fake Codex process would declare a replacement session lifetime.
     prepare = """\
@@ -11005,7 +11010,7 @@ start_server(live)
             "CODEX_THREAD_ID": "codex-thread",
             "FAKE_CODEX_LOG": str(log),
         },
-        hold_until=release_start,
+        finished=finished,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
@@ -11014,9 +11019,10 @@ start_server(live)
         lambda: codex_adapter_model.adapter_is_live("codex-thread"),
         bool,
         failure="the detached Codex carrier did not start",
+        timeout=60,
     )
     announcement = codex_start_announcement(started)
-    release_codex_command(live, release_start)
+    release_codex_command(live, started, finished)
     out, err = started.communicate(timeout=60)
     out = announcement + out
     assert started.returncode == 0, f"{out}{err}"
@@ -11231,13 +11237,13 @@ def test_a_queued_codex_delivery_leaves_the_turn_ended_stamp_standing(
     page = codex_claimed_page
     program, log = fake_codex_cli(tmp_path)
     session_model.cmd_status(page, "working", "answering the last comment")
-    release_start = tmp_path / "release-codex-start"
+    finished = tmp_path / "codex-start-finished"
     started = under_codex(
         shlex.join(
             [*LEAF_COMMAND, "codex", "start", str(page), "--codex-path", str(program)]
         ),
         codex_env | {"CODEX_THREAD_ID": "codex-thread", "FAKE_CODEX_LOG": str(log)},
-        hold_until=release_start,
+        finished=finished,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
@@ -11248,9 +11254,10 @@ def test_a_queued_codex_delivery_leaves_the_turn_ended_stamp_standing(
         lambda: codex_adapter_model.adapter_is_live("codex-thread"),
         bool,
         failure="the detached Codex carrier did not start",
+        timeout=60,
     )
     announcement = codex_start_announcement(started)
-    release_codex_command(page, release_start)
+    release_codex_command(page, started, finished)
     out, err = started.communicate(timeout=60)
     out = announcement + out
     assert started.returncode == 0, f"{out}{err}"
@@ -11370,7 +11377,7 @@ raise SystemExit(codex_adapter_model.run_adapter(os.environ["CODEX_PATH"]))
     assert json.loads(standing.stdout)["url"].startswith("http://127.0.0.1:")
     session_model.cmd_status(second, "waiting", "second page")
     starter = None
-    release_start = tmp_path / "release-second-start"
+    finished = tmp_path / "second-start-finished"
     starter_ready = tmp_path / "second-start-lock"
     start_program = """\
 import contextlib, json, os, sys
@@ -11409,7 +11416,7 @@ print(json.dumps(codex_adapter.cmd_codex_start(Path(sys.argv[1]), sys.argv[2])),
                     ]
                 ),
                 environment,
-                hold_until=release_start,
+                finished=finished,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
@@ -11422,7 +11429,7 @@ print(json.dumps(codex_adapter.cmd_codex_start(Path(sys.argv[1]), sys.argv[2])),
             assert service_model.page_claim(second) is None
 
         announcement = codex_start_announcement(starter)
-        release_codex_command(second, release_start)
+        release_codex_command(second, starter, finished)
         out, err = starter.communicate(timeout=60)
         out = announcement + out
         assert starter.returncode == 0, f"{out}{err}"
@@ -11747,11 +11754,11 @@ def test_hook_remedies_follow_the_host_not_the_display_name(
     env = codex_env | {"CODEX_THREAD_ID": "w1", "LEAF_AGENT": "Indexer"}
     subprocess.run([*LEAF_COMMAND, "page", "init", page], env=env, check=True)
     append_carried_log_record(page, {"kind": "comment", "author": "user", "text": "hi"})
-    release_wait = tmp_path / "release-codex-wait"
+    finished = tmp_path / "codex-wait-finished"
     waited = under_codex(
-        shlex.join([*LEAF_COMMAND, "wait", str(page)]), env, hold_until=release_wait
+        shlex.join([*LEAF_COMMAND, "wait", str(page)]), env, finished=finished
     )
-    release_codex_command(page, release_wait)
+    release_codex_command(page, waited, finished)
     assert waited.wait(timeout=60) == 0
     session_model.cmd_status(page, "waiting", "")
 

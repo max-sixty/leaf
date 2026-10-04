@@ -222,13 +222,14 @@ class Watch:
         lands during the pass moves the stamps `await_news` compares against."""
         return (list(self.watched), self.reading())
 
-    def await_news(self, mark: tuple, timeout: float = REVIVAL_CHECK_S) -> None:
-        """Return once anything the pass since `mark` read has moved, or after
-        `timeout` with nothing moved. A pass that found a different set of pages
-        returns at once: `mark` stamped the old set."""
+    def await_news(self, mark: tuple, timeout: float = REVIVAL_CHECK_S) -> bool:
+        """Return True once anything the pass since `mark` read has moved, or False
+        after `timeout` with nothing moved. A pass that found a different set of
+        pages returns True at once: `mark` stamped the old set."""
         watched, before = mark
-        if self.watched == watched:
-            next_reading(self.reading, before, timeout=timeout)
+        if self.watched != watched:
+            return True
+        return next_reading(self.reading, before, timeout=timeout) != before
 
     def tick(self):
         """Yield each page while its ownership and delivery lock is held."""

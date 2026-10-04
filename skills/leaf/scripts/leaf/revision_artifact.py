@@ -30,6 +30,7 @@ import hashlib
 import json
 import os
 import posixpath
+import re
 import tempfile
 import threading
 from collections.abc import Mapping
@@ -375,11 +376,55 @@ def _parse_css(source: str, declarations: bool):
     return tinycss2.parse_stylesheet(source)
 
 
+@dataclass(frozen=True)
+class _CssReading:
+    """One stylesheet's parse, kept as its serialization around the URLs it loads.
+
+    `references` holds each URL token in document order as its value, its written
+    representation and its type; `segments` is the serialized sheet split around
+    them, one more segment than references, or None where the split cannot be made
+    (`_read_css`). Joining the segments with each reference's representation is the
+    serialization `rewrite_css` would write with that reference changed, so a
+    re-addressing costs a join rather than a parse."""
+
+    references: tuple[tuple[str, str, str], ...]
+    segments: tuple[str, ...] | None
+
+
+# Delimits each URL in a sheet's serialization while `_read_css` splits it. Private
+# use code points, so a sheet that contains one is read without a split.
+_CSS_MARK = ("", "")
+
+
 @lru_cache(maxsize=512)
-def _css_dependencies(source: str, declarations: bool = False) -> tuple[str, ...]:
-    return tuple(
-        token.value for token in _css_references(_parse_css(source, declarations))
+def _read_css(source: str, declarations: bool) -> _CssReading:
+    """Parse a stylesheet once for every address it is delivered at.
+
+    A sheet's text is the same for every page that vendored the same layer and every
+    revision that captured it, while the address it is delivered at names one
+    revision. Parsing the composed theme takes a few hundred milliseconds, which a
+    parse keyed on the address paid again for every new revision's first document.
+    The bound is in entries: a document's `style` attributes are sheets too, and a
+    few large layer sheets must outlast a page's worth of them."""
+    tokens = _parse_css(source, declarations)
+    found = list(_css_references(tokens))
+    references = tuple(
+        (token.value, token.representation, token.type) for token in found
     )
+    if any(mark in source for mark in _CSS_MARK) or len(set(map(id, found))) != len(
+        found
+    ):
+        return _CssReading(references, None)
+    for index, token in enumerate(found):
+        token.representation = f"{_CSS_MARK[0]}{index}{_CSS_MARK[1]}"
+    pieces = re.split(f"{_CSS_MARK[0]}[0-9]+{_CSS_MARK[1]}", tinycss2.serialize(tokens))
+    if len(pieces) != len(found) + 1:
+        return _CssReading(references, None)
+    return _CssReading(references, tuple(pieces))
+
+
+def _css_dependencies(source: str, declarations: bool = False) -> tuple[str, ...]:
+    return tuple(value for value, _, _ in _read_css(source, declarations).references)
 
 
 def rewrite_css(source: str, address, *, declarations: bool = False) -> str:
@@ -392,9 +437,27 @@ def rewrite_css(source: str, address, *, declarations: bool = False) -> str:
     dependencies from the same `_css_references`, so all three agree on which URLs a
     sheet has.
     """
+    reading = _read_css(source, declarations)
+    targets = {value: address(value) for value, _, _ in reading.references}
+    if all(target == value for value, target in targets.items()):
+        return source
+    if reading.segments is not None and None not in targets.values():
+        written = [reading.segments[0]]
+        for (value, representation, kind), segment in zip(
+            reading.references, reading.segments[1:], strict=True
+        ):
+            target = targets[value]
+            if target != value:
+                quoted = '"' + serialize_string_value(target) + '"'
+                representation = f"url({quoted})" if kind == "url" else quoted
+            written.extend((representation, segment))
+        return "".join(written)
+    return _rewrite_parsed(source, targets, declarations)
+
+
+def _rewrite_parsed(source: str, targets: dict, declarations: bool) -> str:
+    """`rewrite_css` over a fresh parse, for an omitted URL or an unsplit sheet."""
     tokens = _parse_css(source, declarations)
-    references = list(_css_references(tokens))
-    targets = {token.value: address(token.value) for token in references}
     omitted = {reference for reference, value in targets.items() if value is None}
 
     def available(entries):
@@ -415,16 +478,14 @@ def rewrite_css(source: str, address, *, declarations: bool = False) -> str:
 
     if omitted:
         tokens = available(tokens)
-    changed = bool(omitted)
     for token in list(_css_references(tokens)):
         value = targets[token.value]
         if value == token.value:
             continue
-        changed = True
         quoted = '"' + serialize_string_value(value) + '"'
         token.representation = f"url({quoted})" if token.type == "url" else quoted
         token.value = value
-    return tinycss2.serialize(tokens) if changed else source
+    return tinycss2.serialize(tokens)
 
 
 def _path_stamp(path: Path) -> tuple:

@@ -67,7 +67,8 @@ other page files and the external state listed below.
   interactions, including refused requests. It is separate from `events.jsonl` and
   never enters page state or acknowledgement, and no command reads it: a reader
   follows the file itself (`tail -F`). The server appends request method, path without query, status, and
-  duration; `/api/interaction` appends browser batches with a session id, scoped
+  duration for every request except a successful `/api/news` look or delivery of a
+  resource's bytes (a module, stylesheet, or media file); `/api/interaction` appends browser batches with a session id, scoped
   page address, and server receipt time. Sample activity remains in its parent
   page's trace. The diagnostic file changes neither page/source reading nor
   presence cache keys. It is private page data and is never served as an asset.

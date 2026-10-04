@@ -1978,19 +1978,27 @@ def test_a_held_comment_send_leaves_the_passage_picked_out_behind_it(
 
     Held rather than raced: the window is one request's flight, and a machine quick
     enough closes it before the next gesture. A loaded CI runner is not, and it said so
-    as a 💬 that never came up for the passage picked out after a send."""
+    as a 💬 that never came up for the passage picked out after a send.
+
+    The next passage is the one above the first, because the sent comment's card stands
+    under its passage, over whatever follows it. The card is placed and revealed some
+    frames after the send, so a passage below was reachable only on a machine quick
+    enough to press it before the card arrived."""
     browser, held = held_events
     page = open_page(browser, serve(NOTED_PAGE))
-    select_words(page, "#p1")
+    select_words(page, "#p2")
     expect(page.locator(".lf-fab-input")).to_be_visible()
     page.locator(".lf-fab-input").click()
     write(page.locator(".lf-composer leaf-text"), "The first remark.")
 
     page.keyboard.press("ControlOrMeta+Enter")
     holding(page, held, 1, "the comment send")
+    # Every machine reaches the next gesture with the card standing, as a user would.
+    expect(page.locator(".lf-margin-preview[data-lf-thread-placement]")).to_be_visible()
 
     # The user picks out their next passage while the first send is still in the wire.
-    select_words(page, "#p2")
+    passage = " ".join(page.locator("#p1").inner_text().split())
+    select_words(page, "#p1")
     expect(page.locator(".lf-fab-input")).to_be_visible()
     expect(page.locator(".lf-fab-input")).to_have_js_property("value", "")
     expect(page.locator(".lf-fab-input")).not_to_be_focused()
@@ -2005,12 +2013,12 @@ def test_a_held_comment_send_leaves_the_passage_picked_out_behind_it(
     # only a fresh decision repaints, so it stands wherever the last one left it — while
     # the key that comments on a selection reads the live one, and answers the general
     # box where there is none.
-    assert pending_text(page) == "A short second passage.", (
+    assert pending_text(page) == passage, (
         "the send's landing lost the passage the user had picked out"
     )
     expect(page.locator(".lf-fab-input")).not_to_be_focused()
     expect(page.locator(".lf-composer")).to_be_visible()
-    assert composer_quote(page)["text"].strip("“”") == "A short second passage."
+    assert composer_quote(page)["text"].strip("“”") == passage
 
 
 def test_a_held_comment_send_leaves_a_later_keyboard_comment_open(held_events, serve):

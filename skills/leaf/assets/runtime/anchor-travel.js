@@ -8,8 +8,12 @@
  * it, a part is drawn through the one `revealAddressed`, what holds the place opens
  * through the one `reveal`, and the surface hiding it is cleared through the one
  * `clearFor`. Each route declares its fresh destination, focus target and scroll
- * placements. `arrive` completes their reveal, presentation, focus and placement
+ * placements. Each placement names its destination and may name a separate alignment
+ * context: inner scrollports reveal the destination before its context is aligned.
+ * `arrive` completes their reveal, presentation, focus and placement
  * under the original user intent; routes never perform the final handoff themselves.
+ * Travel scrolls within the current view. When reveal replaces a visible view,
+ * its destination lands immediately rather than scrolling from the old view's place.
  *
  * Travel owns effects above readonly resolution and paint. It receives the current
  * semantic threads and the synchronous thread refresh from the application root;
@@ -118,39 +122,39 @@ export function createAnchorTravel({
   // A route resolves a declaration, not a retained DOM destination. Reveal and its
   // presentation may replace nodes; focus may itself change the geometry. Read the
   // declaration after each of those boundaries, then apply its scroll placements in
-  // the same synchronous handoff as focus. `present` lets the owning renderer settle
-  // the revealed destination before its focus and placements are read.
+  // the same synchronous handoff as focus. Exposure places a replaced view immediately;
+  // `present` lets the owning renderer settle before the final geometry is read.
   // History departure remains before the work that would move the outgoing place.
   async function arrive(resolve, { intent, present = null, keep = false }) {
     const first = resolve();
     const holder = first && placeHolder(first.where);
     if (!holder || !intent()) return false;
     if (!keep) intent.handoff(() => surfaces.clearFor(holder));
-    await reveal(holder, intent);
+    const disclosures = [holder, ...(first.reveal ?? [])].map((target) =>
+      reveal(target, intent),
+    );
+    const replacedView = disclosures.some((disclosure) => disclosure.replacedView);
+    const place = () => {
+      let completed = false;
+      intent.handoff(() => {
+        const destination = resolve();
+        if (!destination?.where) return;
+        if (destination.focus) focusForNavigation(destination.focus, destination.caret);
+        const current = resolve();
+        if (!current?.where) return;
+        for (const placement of current.scroll) placeScroll(placement, replacedView);
+        completed = true;
+      });
+      return completed;
+    };
+    // A new view may paint while its layout is still presenting. Place its destination
+    // now; after presentation, resolve fresh geometry through the same placement.
+    if (replacedView) place();
+    await Promise.all(disclosures.map((disclosure) => disclosure.ready));
     if (!intent()) return false;
     if (present) await present();
     if (!intent()) return false;
-    const destination = resolve();
-    if (!destination?.where) return false;
-    let completed = false;
-    intent.handoff(() => {
-      if (destination.focus) focusForNavigation(destination.focus, destination.caret);
-      const current = resolve();
-      if (!current?.where) return;
-      for (const {
-        at,
-        block = "center",
-        behavior = scrollBehavior(),
-        when,
-      } of current.scroll) {
-        if (when && !when()) continue;
-        if (block === "fragment") scrollToFragment(at);
-        else if (at instanceof Range) scrollRevealedRange(at, behavior);
-        else scrollRevealedElement(at, behavior, block);
-      }
-      completed = true;
-    });
-    return completed;
+    return place();
   }
 
   // A remembered editor starts from its authored place, before a hidden editor is
@@ -180,7 +184,7 @@ export function createAnchorTravel({
                     when: () => !readableDestination(input),
                   },
                 ]
-              : [],
+              : [{ at: current.where }],
           }
         );
       },
@@ -339,26 +343,19 @@ export function createAnchorTravel({
   // (`scrollersOf`); a scroller inside that boundary still owns its ordinary descendants.
   const scrollingBoxFor = (element) => scrollersOf(element).next().value ?? null;
 
-  function scrollRevealedElement(
-    element,
-    behavior = scrollBehavior(),
-    block = "center",
+  function placeScroll(
+    { at, align = at, block = "center", behavior = scrollBehavior(), when },
+    replacedView,
   ) {
-    element.scrollIntoView({
-      block: "nearest",
-      inline: "nearest",
-      behavior: block === "nearest" ? behavior : "instant",
-    });
-    if (block === "nearest") return;
-    // The document and nested reading regions share this path. Only the scroller that
-    // actually owns the element receives the centring move.
-    scrollIntoReadingBand(element, element, block, behavior);
+    if (when && !when()) return;
+    if (block === "fragment") scrollToFragment(at);
+    else scrollRevealedPlace(at, align, replacedView ? "instant" : behavior, block);
   }
 
   // Synchronous: the move is the caller's gesture, so its intent is the one standing now.
   function scrollToElement(element, behavior = scrollBehavior(), block = "center") {
-    reveal(element, retainUserIntent());
-    scrollRevealedElement(element, behavior, block);
+    const { replacedView } = reveal(element, retainUserIntent());
+    placeScroll({ at: element, behavior, block }, replacedView);
   }
 
   // A destination's box and what of it the user can see, which is that box less the
@@ -395,40 +392,57 @@ export function createAnchorTravel({
     );
   }
 
-  function scrollRevealedRange(where, behavior = scrollBehavior()) {
-    const holder = placeHolder(where);
+  // Native nearest alignment: a destination spanning both edges stays; one larger
+  // than the viewport lands its nearer edge rather than hiding its opening words.
+  function nearestBy(start, end, low, high) {
+    if (start < low && end > high) return 0;
+    const oversized = end - start > high - low;
+    if (start < low) return oversized ? end - high : start - low;
+    if (end > high) return oversized ? start - low : end - high;
+    return 0;
+  }
+
+  // Prepare only scrollports inside the owning reading region. Snapping the owning
+  // region (or the document) into view first consumes the distance the glide should
+  // travel, so a far destination appears to teleport before a tiny alignment move.
+  // Elements and passages share this placement, including horizontal inspection.
+  function scrollRevealedPlace(where, alignment, behavior, block) {
+    if (block === "nearest" && where instanceof Element) {
+      where.scrollIntoView({ block, inline: "nearest", behavior });
+      return;
+    }
+    const holder = placeHolder(alignment);
     if (!holder) return;
     const targetScroller = scrollingBoxFor(holder);
     if (!targetScroller) return;
-    // Reveal nested scrollports without writing the document position, then glide the
-    // owning reading region once. A wide pre or diagram needs both axes settled first.
-    for (let box = holder; box && box !== targetScroller; box = renderedParent(box)) {
-      if (box.scrollWidth <= box.clientWidth && box.scrollHeight <= box.clientHeight)
-        continue;
+    // Horizontal inspection can belong to any ancestor, the owning region included.
+    // Only inner scrollports prepare Y; the region and its outers glide below.
+    let inside = true;
+    for (
+      let box = placeHolder(where);
+      box instanceof Element;
+      box = renderedParent(box)
+    ) {
+      if (box === targetScroller) inside = false;
       const band = landingBand(box);
       if (!band) continue;
       const { left, right, top, bottom } = band;
       const destination = where.getBoundingClientRect();
-      let byX = 0;
-      if (destination.left < left && destination.right <= right)
-        byX = destination.left - left;
-      else if (destination.right > right && destination.left >= left)
-        byX = destination.right - right;
-      let byY = 0;
-      if (destination.top < top && destination.bottom <= bottom)
-        byY = destination.top - top;
-      else if (destination.bottom > bottom && destination.top >= top)
-        byY = destination.bottom - bottom;
+      const byX = nearestBy(destination.left, destination.right, left, right);
+      const byY = inside
+        ? nearestBy(destination.top, destination.bottom, top, bottom)
+        : 0;
       if (byX || byY) box.scrollBy({ left: byX, top: byY, behavior: "instant" });
+      if (box === pageScroller || getComputedStyle(box).position === "fixed") break;
     }
-    scrollIntoReadingBand(where, holder, "center", behavior);
+    scrollIntoReadingBand(alignment, holder, block, behavior);
   }
 
   function scrollToRange(where, behavior = scrollBehavior()) {
     const holder = placeHolder(where);
     if (!holder) return;
-    reveal(holder, retainUserIntent());
-    scrollRevealedRange(where, behavior);
+    const { replacedView } = reveal(holder, retainUserIntent());
+    placeScroll({ at: where, behavior }, replacedView);
   }
 
   // Hydration may outlive its gesture. After it settles, validate the retained intent
@@ -517,7 +531,6 @@ export function createAnchorTravel({
     returnToFragment,
     navigateToDatum,
     scrollToElement,
-    scrollRevealedElement,
     readableDestination,
     scrollToRange,
     scrollToThread,

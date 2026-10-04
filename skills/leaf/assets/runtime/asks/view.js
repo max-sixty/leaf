@@ -89,9 +89,9 @@
 
    The sweep is the document's own blocks in document order, so an ask staged inside a
    declared shadow tree takes a heading standing over its host but not one inside that
-   tree. The travel moves the page's scroller, so the ask's own box is brought into
-   view first for the sake of an ask inside a nested scroller, which that placement
-   would never reach. An Ask whose region already stands clear of the banner, and
+   tree. Shared travel reveals the destination through its nested scrollports, then glides
+   the owning reading region without a preliminary page jump. An Ask whose region
+   already stands clear of the banner, and
    which travel reads as whole on every edge once whatever surface hid it is cleared
    (anchor-travel.js, `trip`), is not travelled to at all: the press moves the ring and
    the focus and leaves the page still. A thread ask keeps its centred arrival in the
@@ -102,7 +102,7 @@ import { askProgressModel, createAskBannerControls } from "./banner-controls.js"
 import { clampedRow, decisionControls } from "../keyboard/bindings.js";
 import { closestAcross, elementById, inChrome, TEXT_BLOCK } from "../passages.js";
 import { scrollerFor } from "../reading-regions.js";
-import { reserve, reveal } from "../widget-elements.js";
+import { reserve } from "../widget-elements.js";
 import { keeps } from "../keeps.js";
 import { asksBtn, asksList, asksOffered, asksPanel, drawerIsOpen } from "../drawers.js";
 import { decisionFor, registry, tagsDeclaring } from "../registry.js";
@@ -722,18 +722,28 @@ export function createAskView({
     // from it: clearing a surface that hides the Ask (a covering drawer, or the thread
     // panel standing over it), and whether the press is a departure. It runs before the
     // focus lands, since focus sent behind a covering surface is sent back into it.
-    // Nothing above has moved the page: reveal opens what holds the Ask in place, so the
-    // entry a departure records still holds where the user was reading. A thread Ask is
+    // Departure precedes exposure: a view change renames the current URL and may clamp
+    // its offset, so history must capture the outgoing reading first. A thread Ask is
     // in the panel's own list, whose arrival stays centred in that region and is no
     // trip. Which box either travel moves is the travel's own question (scrollerFor)
     // rather than a second one asked here.
-    let moving;
     const destination = () => {
       const target = askNode(next);
       if (!target || !sourceNode(next)) return null;
       const box = !inChrome(target) && scrollerFor(target);
       return { target, box, region: box && arrivalRegion(target, box) };
     };
+    const departure = destination();
+    if (!departure) return false;
+    const moving = Boolean(
+      departure.box &&
+      trip(departure.target, {
+        landing: () => askNode(next),
+        intent: mayArrive,
+        there: (readable) =>
+          framed(next, departure.region, departure.target, departure.box, readable),
+      }),
+    );
     const arrived = await arrive(
       () => {
         const here = destination();
@@ -741,47 +751,27 @@ export function createAskView({
         const { target, box, region } = here;
         return {
           where: target,
-          focus:
-            moving === undefined
-              ? null
-              : arrivalFocus(next, !unansweredIds().has(next.id)),
-          // The Ask's nested scroller reveals its own box before the context's
-          // scroller aligns the opening. A framed Ask requests no motion.
-          scroll:
-            moving === undefined
-              ? []
-              : !box
-                ? [{ at: target, behavior: scrollBehavior(), block: "center" }]
-                : moving
-                  ? [
-                      { at: target, behavior: "instant", block: "nearest" },
-                      { at: region, behavior: scrollBehavior(), block: "start" },
-                    ]
-                  : [],
+          reveal: next.sourceId !== next.id ? [sourceNode(next)] : [],
+          focus: arrivalFocus(next, !unansweredIds().has(next.id)),
+          // Reveal the Ask through its own inner scrollports before aligning its
+          // context, which may stand outside them. A framed Ask requests no motion.
+          scroll: !box
+            ? [{ at: target, behavior: scrollBehavior(), block: "center" }]
+            : moving
+              ? [
+                  {
+                    at: target,
+                    align: region,
+                    behavior: scrollBehavior(),
+                    block: "start",
+                  },
+                ]
+              : [],
         };
       },
       {
         intent: mayArrive,
         keep: true,
-        present: async () => {
-          // The Ask's source owns its answer and may hold a disclosure inside
-          // the arrival region. Let it prepare that before departure is read.
-          const source = sourceNode(next);
-          if (!source) return;
-          if (next.sourceId !== next.id) await reveal(source, mayArrive);
-          if (!mayArrive()) return;
-          const here = destination();
-          if (!here) return;
-          const { target, box, region } = here;
-          moving = Boolean(
-            box &&
-            trip(target, {
-              landing: () => askNode(next),
-              intent: mayArrive,
-              there: (readable) => framed(next, region, target, box, readable),
-            }),
-          );
-        },
       },
     );
     if (!arrived) return false;

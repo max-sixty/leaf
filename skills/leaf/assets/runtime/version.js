@@ -1025,8 +1025,8 @@ export function createVersionController({
     [...inlineOpen].find(([, entry]) => entry.opener === thread)?.[0] ?? null;
 
   async function toggleChangeSince(thread, target, revision) {
-    const shown = changeOf(thread);
-    if (shown) {
+    // A press while its reading stands, or is still loading, takes it away.
+    if (changeOf(thread) || changeRequests.has(thread)) {
       closeChangeSince(thread);
       notice("Showing the current words only");
       return;

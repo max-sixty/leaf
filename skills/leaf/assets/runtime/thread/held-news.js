@@ -29,9 +29,11 @@
    not opened. Each reads every reading against the one it drew last and holds what is
    news. What it holds shows when the user opens the notice, when they add a turn of
    their own here (a reply in the thread, or a thread they start in the seat, which
-   answers what came before it and so follows it), or when none of the seat shows in the
-   window, where the growth moves nothing they see. Anything held in a seat is not
-   drawn, so it stays unread until it shows.
+   answers what came before it and so follows it), when the thread itself opens (a
+   folded outlet, or a panel card the list opens, as a walk to it does), whose opening
+   moves everything after it anyway, or when none of the seat shows in the window, where
+   the growth moves nothing they see. Anything held in a seat is not drawn, so it stays
+   unread until it shows.
 
    `HeldReading` is the same rule for a widget's region whose rows only the log or the
    clock decides, such as a command's lists of stopped goals and live workers: a reading

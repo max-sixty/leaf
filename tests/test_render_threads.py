@@ -2403,6 +2403,70 @@ def test_explicit_navigation_reveals_held_panel_news(browser, serve, destination
     )
 
 
+def test_walking_to_a_thread_shows_the_replies_it_held(browser, serve):
+    """A reply held while its thread stood open in front of the user shows once the
+    user walks away and back to that thread with t/T. The walk away closes the card and
+    the walk back opens it, and an opening moves every card after it anyway, so the
+    card opens with what it held, landed where the reply shows."""
+    url = serve(PANEL_PAGE)
+    for n in range(12):
+        panel_comment(serve.page_dir, f"An earlier thread {n}. " * 8)
+    other = panel_comment(serve.page_dir, "A thread to walk to. " * 30)
+    root = panel_comment(serve.page_dir, "Keep the discussion here.")
+    for n in range(12):
+        panel_comment(serve.page_dir, f"A later thread {n}. " * 8)
+    context = browser.new_context(reduced_motion="reduce")
+    page = open_page(browser, url, context=context)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    thread = page.locator(f'.lf-threads > .lf-thread[data-id="{root}"]')
+    if thread.get_attribute("open") is None:
+        thread.locator(".lf-thread-summary").click()
+    thread.locator(".lf-thread-summary").focus()
+    reply = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "revision": 1,
+            "parent": root,
+            "text": "This answer arrived while the thread stood open. " * 6,
+        },
+    )
+    told(page)
+    message = thread.locator(f'.lf-msg[data-mid="{reply["id"]}"]')
+    expect(thread.get_by_role("button", name="1 new reply", exact=True)).to_be_visible()
+    expect(message).to_have_count(0)
+
+    order = page.locator(".lf-threads > .lf-thread").evaluate_all(
+        "cards => cards.map(card => card.dataset.id)"
+    )
+    away, back = (
+        ("t", "Shift+t") if order.index(other) > order.index(root) else ("Shift+t", "t")
+    )
+    page.keyboard.press(away)
+    expect(
+        page.locator(f'.lf-threads > .lf-thread[data-id="{other}"] .lf-thread-summary')
+    ).to_be_focused()
+    expect(thread).not_to_have_attribute("open", "")
+    page.keyboard.press(back)
+    expect(thread.locator(".lf-thread-summary")).to_be_focused()
+    expect(message).to_be_visible()
+    expect(thread.locator(".lf-thread-news")).to_have_count(0)
+    # The arrival lands the thread with the reply it shows.
+    one_frame(page)
+    assert page.evaluate(
+        """id => {
+          const list = document.querySelector('.lf-threads').getBoundingClientRect();
+          const reply = document.querySelector(`.lf-msg[data-mid="${id}"]`)
+            .getBoundingClientRect();
+          return reply.top >= list.top && reply.bottom <= list.bottom;
+        }""",
+        reply["id"],
+    )
+
+
 def test_opening_message_reactions_does_not_reflow_the_thread_list(browser, serve):
     """The picker floats from its message corner without moving the thread.
 
@@ -7357,10 +7421,10 @@ def test_a_thread_sent_from_the_panels_foot_lands_in_view(browser, serve, size):
 
 
 @pytest.mark.parametrize("how", ["r", "button"])
-def test_resolving_a_long_thread_lands_the_next_title_in_view(browser, serve, how):
+def test_resolving_a_long_thread_lands_the_next_thread_in_view(browser, serve, how):
     """The landing of the thread focus moved on to was measured while the resolved
     thread still stood open above it, and the fold then took that room away under a
-    smooth scroll: the next title ended above the list."""
+    smooth scroll: the next thread ended above the list."""
     url = serve(PANEL_PAGE)
     roots = seed_panel_threads(serve.page_dir, 8, long_index=3)
     page = open_page(browser, url)
@@ -7377,12 +7441,12 @@ def test_resolving_a_long_thread_lands_the_next_title_in_view(browser, serve, ho
             card.locator(".lf-resolve").click()
     rendered(page)
     scroll_settled(page, ".lf-threads")
-    following = page.locator(f'.lf-thread[data-id="{roots[4]}"] > .lf-thread-summary')
-    expect(following).to_be_focused()
+    following = page.locator(f'.lf-thread[data-id="{roots[4]}"]')
+    expect(following.locator(":scope > .lf-thread-summary")).to_be_focused()
     rendered(page)
     scroll_settled(page, ".lf-threads")
-    landed = following.evaluate(IN_LANDING_BAND)
-    assert landed["inside"], f"focus landed outside the list's band: {landed}"
+    landed = following.locator(".lf-msg").last.evaluate(IN_LANDING_BAND)
+    assert landed["inside"], f"the thread landed outside the list's band: {landed}"
 
 
 def test_escape_then_enter_round_trips_a_panel_reply(browser, serve):
@@ -7497,10 +7561,11 @@ def test_entering_a_reply_keeps_the_thread_reading_position(browser, serve, view
     ] == before
 
 
-def test_walking_down_the_list_shows_each_thread_under_its_title(browser, serve):
-    """`t` opens the next thread and lands its title. Where the opened thread is taller
-    than the list, the nearest edge put the title at the list's foot with none of the
-    thread under it, on every step down the walk."""
+def test_walking_the_list_lands_each_thread_on_its_latest_message(browser, serve):
+    """`t` and `T` land each thread on its latest message, as a direct arrival does.
+    A thread taller than the list landed its title, first at the list's foot with none
+    of the thread under it and then at the top with the opening turn, so a user walking
+    back to a conversation scrolled to reach its newest turn."""
     url = serve(PANEL_PAGE)
     roots = seed_panel_threads(serve.page_dir, 8, long_index=3)
     page = open_page(browser, url)
@@ -7510,17 +7575,27 @@ def test_walking_down_the_list_shows_each_thread_under_its_title(browser, serve)
     expect(
         page.locator(f'.lf-thread[data-id="{roots[0]}"] > .lf-thread-summary')
     ).to_be_focused()
-    landings = []
-    for root in roots[1:7]:
-        page.keyboard.press("t")
-        title = page.locator(f'.lf-thread[data-id="{root}"] > .lf-thread-summary')
-        expect(title).to_be_focused()
+
+    def walk(key, root):
+        page.keyboard.press(key)
+        thread = page.locator(f'.lf-thread[data-id="{root}"]')
+        expect(thread.locator(":scope > .lf-thread-summary")).to_be_focused()
         rendered(page)
         scroll_settled(page, ".lf-threads")
-        landings.append(title.evaluate(IN_LANDING_BAND))
-    assert all(landed["inside"] for landed in landings), landings
-    assert all(landed["band"][1] - landed["box"][1] > 100 for landed in landings), (
-        f"a title landed at the list's foot with its thread below it: {landings}"
+        return {
+            "title": thread.locator(":scope > .lf-thread-summary").evaluate(
+                IN_LANDING_BAND
+            ),
+            "latest": thread.locator(".lf-msg").last.evaluate(IN_LANDING_BAND),
+        }
+
+    forward = {root: walk("t", root) for root in roots[1:7]}
+    back = [walk("Shift+t", root) for root in (roots[5], roots[4], roots[3])][-1]
+
+    assert all(landed["latest"]["inside"] for landed in forward.values()), forward
+    assert back["latest"]["inside"], back
+    assert not forward[roots[3]]["title"]["inside"], (
+        f"the long thread landed at its title, not its latest message: {forward}"
     )
 
 

@@ -36,6 +36,7 @@ import {
   MAX_DRAWING_POINTS,
   MAX_DRAWING_STROKES,
   MAX_DRAWING_SAYS_LENGTH,
+  strokesIn,
 } from "./drawing-record.js";
 
 const MIN_DISTANCE = 2;
@@ -237,11 +238,12 @@ export function createDrawingController({
   }
 
   // The drawing's geometry, and the size of the box its offsets were drawn in, which is
-  // what places a mark on a picture that has no words.
+  // what places a mark on a picture that has no words. Strokes drawn before the target
+  // resized are scaled to its current size, so all the strokes share one box.
   function drawingOf(held, { points, box }) {
     return {
       format: DRAWING_FORMAT,
-      strokes: [...(held?.strokes ?? []), strokeFrom(points, box)],
+      strokes: [...(held ? strokesIn(held, box) : []), strokeFrom(points, box)],
       ...(box && { box: [rounded(box.width), rounded(box.height)] }),
     };
   }

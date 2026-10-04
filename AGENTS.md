@@ -317,10 +317,9 @@ Before finishing a feature:
 (`tests/AGENTS.md`). Two TypeScript trees, `worker/src/` and `build/browser/`, and
 the JavaScript lock every committed bundle is built from have gates the suite and
 pre-commit do not reach. Both landing paths run all of them: a pull request in its
-`checks` and `website` jobs, and `wt merge` in the pre-merge blocks of
-`.config/wt.toml`, which name each command. `wt hook pre-merge` runs that local gate
-without landing, on a committed tree, since the bundle check fails on any uncommitted
-change. The website's delivery
+`test` job, and `wt merge` in the pre-merge blocks of `.config/wt.toml`, which name
+each command. `wt hook pre-merge` runs that local gate without landing, on a committed
+tree, since the bundle check fails on any uncommitted change. The website's delivery
 checks — the site build, the Worker's dry-run deploy, and
 `leaf-dev verify-site wrangler` — run on a pull request and in `publish-site` before it
 deploys, not in `wt merge`.

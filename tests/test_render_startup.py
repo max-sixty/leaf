@@ -12,8 +12,11 @@ from click.testing import CliRunner
 from interact_support import (
     append_carried_log_record,
     append_command,
+    declare_work,
+    end_work,
     record_claim,
     wait_for,
+    working,
 )
 from leaf import cli as cli_model
 from leaf import data as data_model
@@ -2758,7 +2761,7 @@ def test_a_presence_read_crossing_freshness_returns_to_the_current_lease(
 
 
 def test_status_changes_coalesce_behind_one_state_read(browser, serve):
-    """Rapid status.json writes do not build a queue of state requests.
+    """Rapid starts do not build a queue of state requests.
 
     Freshness looks may announce several new readings while the container is still
     answering one. They collapse into one trailing read, which takes the newest state.
@@ -2768,10 +2771,7 @@ def test_status_changes_coalesce_behind_one_state_read(browser, serve):
     text = page.locator(".lf-status-detail")
 
     def declare(detail):
-        cleanup_model.write_json(
-            d / "status.json",
-            {"state": "working", "detail": detail, "ts": cleanup_model.now_iso()},
-        )
+        declare_work(d, detail)
 
     # Every ask is held; the test answers each admitted read by hand.
     held = []
@@ -3182,13 +3182,16 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         claimed=True,
         stream=None,
     ):
-        """`quiet_for` ages the claim; `turn_ended` says how long ago the Stop hook
-        watched the turn behind it end. Separate seconds, because the case the second
-        exists for is a claim that is not old at all."""
+        """`quiet_for` ages the declaration; `turn_ended` says how long ago the Stop
+        hook watched the turn behind it end. Separate seconds, because the case the
+        second exists for is a start that is not old at all. `working` is a start on
+        the page's own task, in the claimant's voice, with a `waiting` status of the
+        same age beside it; anything else ends that task and writes the status."""
         ts = datetime.now().astimezone() - timedelta(seconds=quiet_for)
+        end_work(d)
         status = {
-            "state": state,
-            "detail": detail,
+            "state": "waiting" if state == "working" else state,
+            "detail": "" if state == "working" else detail,
             "ts": ts.isoformat(timespec="seconds"),
             "after": (
                 events_model.read_events(d)[-1]["seq"]
@@ -3223,6 +3226,13 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         else:
             service_model.claim_path(d).unlink(missing_ok=True)
         cleanup_model.write_json(d / "status.json", status)
+        if state == "working":
+            declare_work(
+                d,
+                detail,
+                ts=ts.isoformat(timespec="seconds"),
+                **({"session": "s"} if claimed else {}),
+            )
         told(page)
 
     declare("working", "revising the plan")
@@ -3344,14 +3354,6 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         expect(dot).to_have_class(re.compile(r"\baway\b"))
 
         expect(summary).to_have_text("Claude last checked in 20m ago")
-
-        # And with no detail it is the bare silence, which is the same sentence with
-        # nothing to say after the colon rather than a second wording for it.
-        declare("working", quiet_for=20 * 60)
-        expect(text).to_have_text(
-            "Claude last checked in 20m ago. 1 update is saved."
-            " Waiting on Claude: 1 reply."
-        )
 
         # The same silence reached by evidence rather than by the clock. A claim is
         # written by a model's turn, and a turn ends without running anything — so
@@ -3498,10 +3500,7 @@ def test_the_page_dates_a_claim_by_the_clock_that_wrote_it(browser, serve):
 
     def claim(detail):
         record_claim(d, id="s")
-        cleanup_model.write_json(
-            d / "status.json",
-            {"state": "working", "detail": detail, "ts": cleanup_model.now_iso()},
-        )
+        declare_work(d, detail)
         told(page)
 
     claim("running the migration")
@@ -3525,7 +3524,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     browser, serve, tmp_path, dead_pid
 ):
     """The banner says what the agent is doing; an exact message workflow says
-    which user question it is doing it about. A status claim updates both readings.
+    which user question it is doing it about. A start updates both readings.
 
     A user with three questions open and no replies under any of them cannot tell a
     question being worked from a question nobody has looked at, and the page holds the
@@ -3555,22 +3554,15 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     expect(held_workflow).to_have_text("Sent")
     held_workflow.evaluate("node => { node.dataset.identityProbe = 'kept' }")
 
-    # The old page-wide declaration is deliberately stale: delivery into this exact
-    # turn, rather than a fresh status command, must be what changes the shared
-    # activity reading.
+    # The old page-wide start is deliberately stale: delivery into this exact turn,
+    # rather than a fresh start, must be what changes the shared activity reading.
     record_claim(d, id="s", pid=os.getpid(), agent="Claude")
-    old_status = files_model.read_json(d / "status.json")
-    cleanup_model.write_json(
-        d / "status.json",
-        {
-            **old_status,
-            "state": "working",
-            "detail": "the earlier task",
-            "ts": (datetime.now().astimezone() - timedelta(minutes=20)).isoformat(
-                timespec="seconds"
-            ),
-            "after": 0,
-        },
+    declare_work(
+        d,
+        "the earlier task",
+        ts=(datetime.now().astimezone() - timedelta(minutes=20)).isoformat(
+            timespec="seconds"
+        ),
     )
     # Durable delivery into the open turn advances the exact same row in place and
     # does not disturb another user move.
@@ -3595,6 +3587,8 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
         "Working · 1 update waiting"
     )
 
+    # The agent finishes the earlier task and waits on the user.
+    end_work(d)
     latent_waiting = CliRunner().invoke(
         cli_model.cli, ["status", str(d), "waiting", "review the answer"]
     )
@@ -3624,13 +3618,14 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     with service_model.PageTransaction(d) as transaction:
         transaction.open_turn("s")
 
-    def status(*args):
-        assert (
-            CliRunner().invoke(cli_model.cli, ["status", str(d), *args]).exit_code == 0
+    def start(item, line):
+        started = CliRunner().invoke(
+            cli_model.cli, ["task", "start", str(d), item, line]
         )
+        assert started.exit_code == 0, started.output
         told(page)
 
-    status("working", "reading the reconnect traces", "--on", held)
+    start(held, "reading the reconnect traces")
     expect(held_thread).not_to_have_attribute(
         "data-lf-agent-workflow", re.compile(".+")
     )
@@ -3694,9 +3689,10 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     expect(held_thread.locator(":scope > .lf-msg-sending")).to_have_count(0)
     assert held_thread.evaluate("node => getComputedStyle(node).boxShadow") == "none"
 
-    # A later claim about the page as a whole is not an answer to the thread, so the
-    # line stands: the two seats are one claim, and only one of them has been rewritten.
-    status("working", "drafting v2")
+    # A later start on the page's own task is not an answer to the thread, so the
+    # thread's line stands while the banner takes the newer one.
+    working(d, "drafting v2")
+    told(page)
     expect(page.locator(".lf-status-detail")).to_have_text(
         re.compile(r"^Claude is working — drafting v2")
     )
@@ -3728,9 +3724,10 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     )
     assert held_thread.evaluate("node => getComputedStyle(node).boxShadow") == "none"
 
-    # Once the answer has settled the input, renewed work is thread activity
-    # in the compact card. It does not invent an unasked message workflow.
-    status("working", "re-running it against the rolling deploy", "--on", held)
+    # Once the answer has settled the input, renewed work is a task on the thread,
+    # shown in the compact card. It does not invent an unasked message workflow.
+    working(d, "re-running it against the rolling deploy", subject=held)
+    told(page)
     expect(held_workflow).to_have_count(0)
     expect(header_status).to_have_text("Working")
     # No message carries this work, so the open card's summary still says it.
@@ -3746,9 +3743,9 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     expect(held_thread.locator(".lf-thread-status")).to_have_text("Resolved")
     expect(workflows).to_have_count(1)
 
-    # Reopening restores a claim that no reply answered. The local line still goes
-    # with the page claim it is part of: once nothing holds the page, it cannot keep
-    # claiming work under a banner that says the opposite.
+    # Reopening restores the task, which no reply ends. Its start goes with the page
+    # claim it is part of: once nothing holds the page, the task is open but nothing
+    # runs on it under a banner that says nobody is there.
     append_carried_log_record(
         d, {"kind": "unresolve", "author": "user", "parent": held}
     )
@@ -3760,7 +3757,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     expect(page.locator(".lf-status-detail")).to_have_text(
         re.compile(r"^No session holds this page\.")
     )
-    expect(held_thread.locator(".lf-thread-status")).to_have_count(0)
+    expect(held_thread.locator(".lf-thread-status")).to_have_text("Task open")
     expect(workflows).to_have_count(1)
 
 
@@ -3780,6 +3777,7 @@ def test_feature_gallery_workflow_and_banner_share_agent_activity(browser, serve
         },
     )
     record_claim(page_dir, id="gallery", pid=os.getpid(), agent="Claude")
+    declare_work(page_dir, "Writing the page")
     with service_model.PageTransaction(page_dir) as transaction:
         delivery_model.record_pickup(transaction, [comment])
     told(page)
@@ -3796,6 +3794,7 @@ def test_feature_gallery_workflow_and_banner_share_agent_activity(browser, serve
         )
     )
 
+    end_work(page_dir)
     session_model.cmd_waiting(page_dir, "review the gallery")
     told(page)
     expect(workflow).to_have_text("Picked up")
@@ -3922,12 +3921,11 @@ def test_a_message_workflow_changes_phase_in_place_and_then_stands_still(
     active = CliRunner().invoke(
         cli_model.cli,
         [
-            "status",
+            "task",
+            "start",
             str(d),
-            "working",
-            "comparing the replacement against every narrow thread surface",
-            "--on",
             comment["id"],
+            "comparing the replacement against every narrow thread surface",
         ],
     )
     assert active.exit_code == 0, active.output
@@ -3958,8 +3956,9 @@ def test_an_exact_workflow_reports_stale_work_beside_a_live_page_claim(
     browser, serve, tmp_path
 ):
     """A stale exact-input workflow says so beside its message even while a fresh
-    page-wide claim keeps the banner working. Renewing the claim restores Working;
-    a closed turn matters only when it belongs to the claiming session."""
+    start on the page's own task keeps the banner working. Starting the move again
+    restores Working; a closed turn matters only when it belongs to the session that
+    started it."""
     page = open_page(browser, serve(LONG_PAGE, anchored=[("p1", "Paragraph 1.")]))
     d = serve.page_dir
     held = next(e for e in events_model.read_events(d) if e["kind"] == "comment")["id"]
@@ -3972,33 +3971,18 @@ def test_an_exact_workflow_reports_stale_work_beside_a_live_page_claim(
     held_thread = page.locator(f'.lf-thread[data-id="{held}"]')
 
     def claim(claim_ts, session="s"):
-        """A page claim made now, carrying local work last renewed whenever."""
-        cleanup_model.write_json(
-            d / "status.json",
-            {
-                "state": "working",
-                "detail": "rerunning the failing shard",
-                "ts": cleanup_model.now_iso(),
-                "after": events_model.read_events(d)[-1]["seq"],
-                "work": [
-                    {
-                        "id": "trace-check",
-                        "subject": {"kind": "thread", "id": held},
-                        "event": held,
-                        "detail": "reading the reconnect traces",
-                        "ts": claim_ts,
-                        "after": next(
-                            e["seq"]
-                            for e in events_model.read_events(d)
-                            if e["id"] == held
-                        ),
-                        "agent": "Claude",
-                        "session": session,
-                        "turn": "turn-1",
-                    }
-                ],
-            },
+        """A start on the comment last renewed whenever, beside a start on the page's
+        own task made now."""
+        declare_work(
+            d,
+            "reading the reconnect traces",
+            item=held,
+            ts=claim_ts,
+            agent="Claude",
+            session=session,
+            turn="turn-1",
         )
+        declare_work(d, "rerunning the failing shard")
         told(page)
 
     claim(cleanup_model.now_iso())
@@ -4146,8 +4130,10 @@ def test_the_tab_wears_what_the_banner_says(browser, serve, tmp_path, dead_pid):
         )
         told(page)
 
-    # `page init` leaves a fresh working claim, so the tab arrives already saying so.
+    declare_work(d, "Writing the page")
+    told(page)
     working = tone("working", "working")
+    end_work(d)
     declare("waiting")
     with live_watcher(d, page):
         awaits = tone("listening", "awaits")

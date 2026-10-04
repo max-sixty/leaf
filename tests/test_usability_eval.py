@@ -119,9 +119,7 @@ def test_a_thread_claim_must_be_accepted_for_the_comment_before_reply():
                     "type": "tool_use",
                     "id": "claim",
                     "name": "Bash",
-                    "input": {
-                        "command": "leaf status page working 'Edit' --on comment"
-                    },
+                    "input": {"command": "leaf task start page comment 'Edit'"},
                 }
             ]
         },
@@ -134,9 +132,7 @@ def test_a_thread_claim_must_be_accepted_for_the_comment_before_reply():
     def result(thread, refused=False):
         return {"type": "user", "message": {"content": [{
             "type": "tool_result", "tool_use_id": "claim", "is_error": refused,
-            "content": json.dumps({"state": "working", "work": [{
-                "subject": {"kind": "thread", "id": thread},
-            }]}),
+            "content": json.dumps({"kind": "start", "item": thread}),
         }]}}  # fmt: skip
 
     accepted = result("comment")

@@ -15017,9 +15017,9 @@ def test_a_page_pick_holds_the_turn_until_the_markup_records_it(claimed, capsys)
     refused = _idle(claimed)
     assert refused.exit_code == 1
     assert f"records action {picked['id']}" in refused.output
-    # Claimed on its widget as the work the pick selects, it lets the turn end
-    # while that work runs, and still owes the version.
-    assert _start(claimed, "choice", "building it").exit_code == 0
+    # Started as the work the pick selects, it lets the turn end while that work
+    # runs, and still owes the version.
+    assert _start(claimed, picked["id"], "building it").exit_code == 0
     assert _stop(capsys) is None
     assert f"records action {picked['id']}" in _idle(claimed).output
 
@@ -15028,7 +15028,7 @@ def test_a_page_pick_holds_the_turn_until_the_markup_records_it(claimed, capsys)
             '<lf-option id="backfill-first">', '<lf-option id="backfill-first" chosen>'
         )
     )
-    assert stamp(claimed, "Backfill leads", completes=("choice",)).exit_code == 0
+    assert stamp(claimed, "Backfill leads").exit_code == 0
     assert state_json(claimed)["workflows"] == []
     assert _stop(capsys) is None
     assert _idle(claimed).exit_code == 0

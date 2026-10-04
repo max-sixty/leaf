@@ -1357,6 +1357,49 @@ def declare_work(page_dir, line, *, item=None, ts=None, **voice):
     )
 
 
+def end_work(page_dir):
+    """End every open task on the page as a whole, `declare_work`'s and `working`'s,
+    so nothing the agent opened for itself is in hand any more."""
+    from leaf.tasks import open_tasks
+
+    for task in open_tasks(events_model.read_events(page_dir)):
+        if task["subject"] == {"kind": "page"}:
+            append_carried_log_record(
+                page_dir,
+                {
+                    "kind": "task_end",
+                    "author": "agent",
+                    "task": task["id"],
+                    "outcome": "done",
+                },
+            )
+
+
+def end_work_on(page_dir, subject):
+    """End the open tasks on the thread or widget `subject` names, done."""
+    from leaf.tasks import open_tasks
+    from leaf.work import page_subject
+
+    named = page_subject(page_dir, events_model.read_events(page_dir), subject)
+    for task in open_tasks(events_model.read_events(page_dir)):
+        if task["subject"] == named:
+            ended = CliRunner().invoke(
+                cli_model.cli, ["task", "end", str(page_dir), task["id"], "done"]
+            )
+            assert ended.exit_code == 0, ended.output
+
+
+def newest_move(page_dir, widget):
+    """The id of the user's newest move on `widget`, the item a start on it names."""
+    return next(
+        event["id"]
+        for event in reversed(events_model.read_events(page_dir))
+        if event["kind"] == "action"
+        and event["author"] == "user"
+        and event["widget"] == widget
+    )
+
+
 def _start(page_dir, item, line):
     """`leaf task start`: take a move or task in hand with the banner's line."""
     return CliRunner().invoke(

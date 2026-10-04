@@ -505,26 +505,11 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
     assert both.exit_code == 2
     assert "THREAD and --for cannot be used together" in both.output
 
-    [working] = written(
-        ["status", str(page_dir), "working", "reading the traces", "--on", later]
-    )
-    assert [claim["subject"] for claim in working["work"]] == [
-        {"kind": "thread", "id": root}
-    ]
+    [task] = written(["task", "open", str(page_dir), later, "Trace the store"])
+    assert task["subject"] == {"kind": "thread", "id": root}
 
     [closed] = written(["thread", "resolve", str(page_dir), later])
     assert (closed["kind"], closed["parent"]) == ("resolve", later)
-
-    # `idle` reaches the status write by its own route, so the subject a claim
-    # needs is refused before either route runs. Otherwise the line reports a
-    # claim the page never took.
-    for refused_state in ("waiting", "idle"):
-        refused = runner.invoke(
-            cli_model.cli,
-            ["status", str(page_dir), refused_state, "done", "--on", root],
-        )
-        assert refused.exit_code != 0, refused.output
-        assert "use it with `working`" in refused.output
 
 
 def test_init_help_names_the_source_revision_and_version_layout():
@@ -1048,15 +1033,17 @@ def test_a_lent_page_comes_back_as_the_shape_it_was_made_from(tmp_path, monkeypa
     (first / "leaf.js").symlink_to(tmp_path / "nowhere")
     (first / "widgets" / "lf-planted.js").symlink_to(tmp_path / "nowhere")
     (first / "media" / "elsewhere").symlink_to(tmp_path, target_is_directory=True)
-    cleanup_model.write_json(first / "status.json", {"state": "working"})
+    cleanup_model.write_json(first / "status.json", {"state": "idle"})
     pool.give_back("plain", first)
 
     second = pool.lend("plain", tmp_path / "second", initialize)
 
     template = pool.shapes["plain"].template
     assert {path.relative_to(second).as_posix() for path in second.rglob("*")} == shape
-    for name in ("theme.css", "widgets/lf-tabs.js", "status.json", "registry.json"):
+    for name in ("theme.css", "widgets/lf-tabs.js", "registry.json"):
         assert (second / name).read_bytes() == (template / name).read_bytes(), name
+    # A status the test wrote is a file it added, so the reset takes it away.
+    assert not (second / "status.json").exists()
     linked = "runtime/chrome.css"
     assert (second / linked).stat().st_ino == (template / linked).stat().st_ino
 

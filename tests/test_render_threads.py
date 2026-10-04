@@ -2048,14 +2048,7 @@ def test_a_work_claim_cannot_move_a_later_control_under_the_pointer(browser, ser
 
     claimed = CliRunner().invoke(
         cli_model.cli,
-        [
-            "status",
-            str(serve.page_dir),
-            "working",
-            "reading the traces",
-            "--on",
-            source,
-        ],
+        ["task", "start", str(serve.page_dir), source, "reading the traces"],
     )
     assert claimed.exit_code == 0, claimed.output
     told(page)
@@ -2073,7 +2066,7 @@ def test_a_new_sent_message_does_not_hide_work_on_an_earlier_message(browser, se
     root = panel_comment(serve.page_dir, "Check the capacity.", {"section": "how-cap"})
     active = CliRunner().invoke(
         cli_model.cli,
-        ["status", str(serve.page_dir), "working", "checking capacity", "--on", root],
+        ["task", "start", str(serve.page_dir), root, "checking capacity"],
     )
     assert active.exit_code == 0, active.output
     page = open_page(browser, url)

@@ -2114,14 +2114,7 @@ def test_inline_threads_keep_their_words_without_live_controls_in_print(
     if not resolved:
         result = CliRunner().invoke(
             cli_model.cli,
-            [
-                "status",
-                str(serve.page_dir),
-                "working",
-                "checking the shard",
-                "--on",
-                root["id"],
-            ],
+            ["task", "start", str(serve.page_dir), root["id"], "checking the shard"],
         )
         assert result.exit_code == 0, result.output
     if resolved:

@@ -5845,12 +5845,11 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     claimed = CliRunner().invoke(
         cli_model.cli,
         [
-            "status",
+            "task",
+            "start",
             str(serve.page_dir),
-            "working",
-            "checking the inline placement",
-            "--on",
             root["id"],
+            "checking the inline placement",
         ],
     )
     assert claimed.exit_code == 0, claimed.output

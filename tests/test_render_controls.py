@@ -8,12 +8,14 @@ from browser_sources import browser_function
 from interact_support import (
     append_carried_log_record,
     append_command,
+    declare_work,
+    end_work,
     record_claim,
+    working,
 )
 from leaf import event_log as events_model
 from leaf import leases as leases_model
 from leaf import service as service_model
-from leaf import session as session_model
 from leaf import state as cleanup_model
 from leaf.render_checks import rendered, wait_until_ready
 from leaf.schema import ELEMENT_ID
@@ -2347,7 +2349,7 @@ def test_banner_status_is_compact_with_accessible_details(browser, serve, other_
         "Checking the whole page and its open threads before recording every update. "
         * 4
     )
-    session_model.cmd_status(serve.page_dir, "working", detail)
+    working(serve.page_dir, detail)
     told(page)
     expect(page.locator(".lf-status-detail")).to_contain_text(detail.strip())
     door = page.locator(".lf-status-button")
@@ -2376,7 +2378,7 @@ def test_banner_status_is_compact_with_accessible_details(browser, serve, other_
           return window.__lfStatusNodes.text.data;
         }"""
     )
-    session_model.cmd_status(serve.page_dir, "working", detail)
+    working(serve.page_dir, detail)
     told(page)
     survived = page.evaluate(
         """() => ({
@@ -2409,7 +2411,7 @@ def test_banner_status_is_compact_with_accessible_details(browser, serve, other_
     reference = page.locator(".lf-command-reference")
     expect(reference).to_be_visible()
     expect(explanation).to_be_hidden()
-    session_model.cmd_status(serve.page_dir, "working", detail)
+    working(serve.page_dir, detail)
     told(page)
     expect(reference).to_be_visible()
     expect(explanation).to_be_hidden()
@@ -4161,7 +4163,7 @@ def test_the_status_press_grows_into_free_room_and_moves_nothing(browser, serve,
     resized(page, width, 844)
 
     def say(detail):
-        session_model.cmd_status(serve.page_dir, "working", detail)
+        working(serve.page_dir, detail)
         told(page)
         page.wait_for_function(
             "(words) => document.querySelector('.lf-status-text').textContent === words",
@@ -4430,14 +4432,7 @@ def test_a_panel_row_follows_its_pages_status_live(
     page.keyboard.press("Shift+l")
     row = page.locator("a.lf-others-row")
     expect(row.locator(".lf-others-line")).to_have_text("Working — running the suite")
-    cleanup_model.write_json(
-        other_dir / "status.json",
-        {
-            "state": "working",
-            "detail": "recording the demo",
-            "ts": cleanup_model.now_iso(),
-        },
-    )
+    declare_work(other_dir, "recording the demo")
     told(page)
     expect(row.locator(".lf-others-line")).to_have_text("Working — recording the demo")
     # A neighbour waiting on its own user says so in this seat's shorter words, and
@@ -4445,6 +4440,7 @@ def test_a_panel_row_follows_its_pages_status_live(
     # where a user picks which page to go to. The hover holds it whole, since the
     # line ellipsizes at the panel's width, and it is the row's hover and not the
     # line's, the innermost title winning where two overlap.
+    end_work(other_dir)
     cleanup_model.write_json(
         other_dir / "status.json",
         {
@@ -4507,14 +4503,7 @@ def test_a_leaves_update_is_presented_before_the_page_calls_it_current(
           };
         }"""
     )
-    cleanup_model.write_json(
-        other_dir / "status.json",
-        {
-            "state": "working",
-            "detail": "recording the demo",
-            "ts": cleanup_model.now_iso(),
-        },
-    )
+    declare_work(other_dir, "recording the demo")
     cleanup_model.write_json(
         closing_dir / "status.json",
         {"state": "idle", "detail": "", "ts": cleanup_model.now_iso()},

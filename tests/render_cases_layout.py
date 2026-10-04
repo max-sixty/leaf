@@ -12,13 +12,12 @@ import pytest
 from axe_playwright_python.sync_playwright import Axe
 from browser_sources import browser_function
 from click.testing import CliRunner
-from interact_support import record_claim
+from interact_support import declare_work, record_claim
 from leaf import cli as cli_model
 from leaf import hosting as hosting_model
 from leaf import leases as leases_model
 from leaf import machine as machine_model
 from leaf import render_checks as render_checks_model
-from leaf import state as cleanup_model
 from leaf.registry import storage as registry_storage
 from leaf.render_checks import rendered
 from leaf.render_gate import scheme as render_gate_model
@@ -1238,14 +1237,7 @@ def live_leaf(tmp_path, monkeypatch):
             LONG_PAGE.replace("<title>long</title>", f"<title>{title}</title>"),
             "t",
         )
-        cleanup_model.write_json(
-            d / "status.json",
-            {
-                "state": "working",
-                "detail": "running the suite",
-                "ts": cleanup_model.now_iso(),
-            },
-        )
+        declare_work(d, "running the suite")
         # A live leaf has a session behind it, and what the drawer's hover says about a
         # page is the work that session is doing it for — so the fixture's pages come
         # out of somewhere nameable rather than out of nowhere.

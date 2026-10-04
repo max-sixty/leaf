@@ -418,7 +418,9 @@ export function createAnnotationInventory({
       const target = elementById(task.subject.id);
       const running = task.running && !task.running.condition ? task.running : null;
       const label = running ? "Working" : "Task open";
-      const account = [label, running?.text ?? task.title].join(" · ");
+      const account = [task.agent, running?.text ?? task.title]
+        .filter(Boolean)
+        .join(" · ");
       const age = running && ago(running.ts);
       add(groups, target, {
         kind: "activity",

@@ -715,8 +715,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   .lf-queue-done { margin: 8px 0 0; padding: 0; border: 0; border-radius: 0; }
   .lf-queue-done > summary { display: list-item; cursor: pointer; }
   .lf-queue-done > summary:hover { background: var(--chip); }
-  .lf-queue-done > summary:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring);
-    --lf-focus-ring: queue-fold; outline-offset: calc(-1 * var(--focus-ring-w)); }
   .lf-queue-empty { padding: 2px 10px 6px; color: var(--ink-2); }
   .lf-queue-row { display: grid; grid-template-columns: 5.5em minmax(0, 1fr);
     column-gap: 8px; width: 100%; text-align: left; padding: 7px 10px; border: 0;
@@ -726,8 +724,9 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   /* Both rings this row can wear, inset together. A control packed into a list states
      its own inset (theme.css, --focus-ring), because the list clips to its padding box.
      The second ring is the standing Ask's (markHere), which the row naming that Ask
-     mirrors while the panel is open. */
-  .lf-queue-row:is(:focus-visible, .lf-focus-visible, [data-lf-ask]) {
+     mirrors while the panel is open. Done's door is a stop in the same list. */
+  .lf-queue-row:is(:focus-visible, .lf-focus-visible, [data-lf-ask]),
+  .lf-queue-done > summary:is(:focus-visible, .lf-focus-visible) {
     outline: var(--focus-ring); --lf-focus-ring: queue-row;
     outline-offset: calc(-1 * var(--focus-ring-w)); }
   /* Green marks a move the user owes, as it does on a thread; the agent's live work wears

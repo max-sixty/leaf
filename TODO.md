@@ -56,10 +56,11 @@ has tried; settle that before building it.
   check that the hosted website agent's status is readable without delaying its
   reply. Keep delegated work visible while its watcher is live.
 - **#24 — Measure the fresh-reader review across pages.** The catalog's
-  `dashboard/reader` context gives a fixed reader only the request and screenshots
-  of a seeded count defect and a corrected count control. The narrow calibration
-  scores count detection and false alarms separately from other page defects;
-  it does not establish overall page acceptance. Measure
+  `dashboard/reader-seeded` and `dashboard/reader-clean` contexts show the screenshot
+  judge one triage board each, with a seeded count defect or the correct count, and
+  ask both whether the count matches the cards. That narrow calibration scores count
+  detection and false alarms separately from other page defects; it does not
+  establish overall page acceptance. Measure
   whether authors invoke the review, its cost and what it catches across actual
   pages. Author delegation traces and independent judge cost are separate evidence.
 
@@ -112,6 +113,7 @@ and its chrome coordinate.
   states which elements a floating surface may cover. Today each placement names the
   boxes it keeps clear of (`clear`, `margin`) in its own code, so no element can declare
   that it may be covered, or must never be.
+
 - **Give the phone banner one row.** Decided, not built
   ([plan](notes/chrome-and-covers.md)): one 53px row holding the status in words, cut
   short with an ellipsis, with a passing notice taking that slot for a few seconds;
@@ -187,8 +189,8 @@ and its chrome coordinate.
   them to revise the results: turn a report into a report with live status while
   keeping its comments. They hold if revisions happen by ordinary composition. Include
   a cold agent asked for "a dashboard", the likeliest trigger for over-tiling. Run it
-  with the agent-usability baseline (#19), by extending the
-  [arrangement eval](notes/arrangement-eval/README.md).
+  with the agent-usability baseline (#19), by extending the document, dashboard and
+  queue tasks in `evals/`.
 - **Layout values that wait for a task:** a selection-and-detail component whose phone
   form shows one side at a time; canvas regions, whose reading position is
   two-dimensional; slides as a presentation of `lf-tabs`.
@@ -282,9 +284,10 @@ height and where a switch lands wait on the workspace decision under Layout.
   `page check` reported it and whether the agent changed the page in response. That
   gives the rate of bad pages and how much the checks catch. Fix a recurring defect in
   the widget, Layout or theme that produced it, so pages need fewer checks, rather
-  than adding readings or widths to the check. In `r3-main-0feb` every one of the 36
-  runs passed the gate, yet the judge still found tiny text at 900px and phone
-  defects (`notes/arrangement-eval/`).
+  than adding readings or widths to the check. In the
+  [layout vocabulary eval](notes/agent-usability-evals.md#layout-vocabulary-2026-09-29)
+  every one of the 36 runs passed the gate, yet the judge still found tiny text at
+  900px and phone defects.
 - **Read the full render gate after handover.** Actual user views now supply passive
   geometry checks as agent context (`conversation-loop.md`, "The user's view"). The
   broader headless gate still runs on request. `page check --render` blocks the

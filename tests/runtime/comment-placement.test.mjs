@@ -16,11 +16,11 @@ const boundary = new DOMRect(8, 50, 1284, 797);
 // A paragraph `width` wide from x = `left`, from y = `top` to `bottom`.
 const block = (left, width, top, bottom) => new DOMRect(left, top, width, bottom - top);
 // A page scrolled `scrollTop` into a document `height` tall, in an 850px scrollport.
-const scroller = (scrollTop, height = 3000) => ({
-  scrollTop,
-  scrollHeight: height,
-  clientHeight: 850,
-});
+const scroller = (scrollTop, height = 3000) => {
+  const box = { scrollTop, scrollHeight: height, clientHeight: 850 };
+  box.ownerDocument = { scrollingElement: box };
+  return box;
+};
 const side = (clear, { scrolled = 1000, document = 3000, coarse = false } = {}) =>
   commentSide({
     clear,
@@ -125,25 +125,6 @@ test("a submitted frame survives supersession until it lands, then follows scrol
     assert.equal(afterResize.fresh, true);
     assert.equal(afterResize.hold, undefined);
   }
-});
-
-test("a surface that held writing stands unanchored until its subject shows again", () => {
-  const surface = commentPlacement();
-  let reads = 0;
-  const width = () => (reads += 1) && 400 + reads;
-  assert.equal(surface.attach({ shown: false, writing: false, width }), false);
-  assert.equal(surface.attach({ shown: true, writing: true, width }), false);
-  assert.equal(reads, 0);
-  // Leaving, it reads its width once and keeps it while it waits in the window.
-  assert.equal(surface.attach({ shown: false, writing: true, width }), true);
-  assert.equal(surface.attach({ shown: false, writing: true, width }), true);
-  assert.equal(reads, 1);
-  // Focus leaving an empty reply is no reason to follow a subject the window lacks.
-  assert.equal(surface.attach({ shown: false, writing: false, width }), true);
-  // Its subject back, it reads its width afresh the next time it leaves.
-  assert.equal(surface.attach({ shown: true, writing: true, width }), false);
-  assert.equal(surface.attach({ shown: false, writing: true, width }), true);
-  assert.equal(reads, 2);
 });
 
 test("a growing card holds its top while read and its foot for the turn that joins a draft", () => {

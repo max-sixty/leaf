@@ -5867,7 +5867,12 @@ def test_each_delivered_event_says_only_what_its_own_case_asks(page_dir, capsys)
         **page_pick,
         "meaning": {**page_pick["meaning"], "scope": "thread"},
     }
-    drawing = {"format": "leaf-drawing/2", "strokes": [[[0, 0], [10, 10]]]}
+    drawing = {
+        "format": "leaf-drawing/2",
+        "strokes": [[[0, 0], [10, 10]]],
+        "viewport": [1200, 900],
+        "scheme": "light",
+    }
     for event in (
         {"kind": "comment", "id": "c1", "author": "user", "text": "hi"},
         {"kind": "comment", "id": "c2", "author": "user", "drawing": drawing},
@@ -5956,7 +5961,12 @@ def test_codex_delivery_carries_only_the_selected_events_handling(page_dir):
         {
             "kind": "comment",
             "text": "later drawing",
-            "drawing": {"format": "leaf-drawing/2", "strokes": [[[0, 0], [1, 1]]]},
+            "drawing": {
+                "format": "leaf-drawing/2",
+                "strokes": [[[0, 0], [1, 1]]],
+                "viewport": [1200, 900],
+                "scheme": "light",
+            },
         },
     ):
         append_carried_log_record(page_dir, {"author": "user", **event})
@@ -7384,6 +7394,8 @@ SETTLING_DECISION = {
     "drawing": {
         "format": "leaf-drawing/2",
         "strokes": [[[-20, 74], [50, 10], [120, 74]]],
+        "viewport": [1200, 900],
+        "scheme": "light",
     },
 }
 SETTLING_ACCEPT = {
@@ -9116,6 +9128,54 @@ def test_the_stop_hook_watch_wakes_the_session_only_for_input(
     receive_through(claimed, last_deliverable_seq(claimed))
     session_model.cmd_status(claimed, "idle", "")
     assert hooks_model.cmd_watch(stop) is None
+
+
+def test_a_watch_at_an_interrupted_ending_wakes_only_for_later_input(
+    claimed, monkeypatch
+):
+    """A host that says its turn was interrupted, as Pi's extension does when an
+    Escape settles a run, starts the watch with that Interrupt payload. The user
+    stopped the turn the pending input was handed to, so that input waits for
+    their next prompt, and only input arriving after the watch starts wakes the
+    session. A watch at a Stop ending wakes for the same pending input at once."""
+    leases_model.mark_hooks("s1")
+    serving(claimed, 1)
+    session_model.cmd_status(claimed, "waiting", "")
+    cleanup_model.prompt_turn("s1")
+    append_carried_log_record(
+        claimed, {"kind": "comment", "author": "user", "text": "handed over"}
+    )
+    cleanup_model.close_session_turn("s1")
+
+    waiting = threading.Event()
+    await_news = session_model.Watch.await_news
+
+    def after_a_pass(watch, mark, *args, **kwargs):
+        waiting.set()
+        return await_news(watch, mark, *args, **kwargs)
+
+    monkeypatch.setattr(session_model.Watch, "await_news", after_a_pass)
+    outcome = []
+    watch = threading.Thread(
+        target=lambda: outcome.append(
+            hooks_model.cmd_watch({"hook_event_name": "Interrupt", "session_id": "s1"})
+        )
+    )
+    watch.start()
+    # A watch decides on its first pass; this one went on to wait for news.
+    assert waiting.wait(STATED_TIMEOUT), "the watch never completed its first pass"
+    assert outcome == []
+    append_carried_log_record(
+        claimed, {"kind": "comment", "author": "user", "text": "after"}
+    )
+    watch.join(timeout=STATED_TIMEOUT)
+    [woke] = outcome
+    assert woke.startswith(f"{claimed} has new input")
+
+    waiting.clear()
+    stop = {"hook_event_name": "Stop", "session_id": "s1"}
+    assert hooks_model.cmd_watch(stop).startswith(f"{claimed} has new input")
+    assert not waiting.is_set()
 
 
 def test_a_page_served_mid_wait_joins_the_running_watch(

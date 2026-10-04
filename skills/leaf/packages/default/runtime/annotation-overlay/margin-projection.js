@@ -35,9 +35,7 @@
    down a line per wrap; its foot, with the reply row on it, for the turn that joins the
    transcript while the user drafts or sends, and where the card stands over what it is
    about and is read. Opening it on another thread lets it choose its spot afresh. A scroll
-   never closes it: the card leaves with what it is about and comes back with it, unless
-   the user was drafting in it when its target left, when it stays in the window until
-   its target shows again, as the comment box does (`attach`, comment-placement.js).
+   never closes it: the card leaves with what it is about and comes back with it.
 
    Floating UI supplies the height available at the held edge. Native grid tracks
    share that room between the transcript and reply, each growing to its words and
@@ -151,7 +149,8 @@ import { repaint } from "/runtime/repaint.js";
 import { chromeRoot } from "/runtime/chrome.js";
 import { versionBtn } from "/runtime/version-picker.js";
 import { motion, scrollBehavior } from "/runtime/motion.js";
-import { declareSide, placeOf } from "/runtime/standing-target.js";
+import { askHolding, declareSide, placeOf } from "/runtime/standing-target.js";
+import { allAsks } from "/runtime/asks/model.js";
 import { closestAcross, inChrome } from "/runtime/passages.js";
 import { visualAt } from "/runtime/anchor-resolution.js";
 import { paintTrace } from "/runtime/target-paint.js";
@@ -168,7 +167,6 @@ import { createMarginClusterViews } from "./margin-cluster-view.js";
 import { bannerControlDoor } from "/runtime/banner-toolbar.js";
 import { coarsePointer } from "/runtime/pointer.js";
 import {
-  attachmentShown,
   cardMeasure,
   cardMinimum,
   commentAttachment,
@@ -214,6 +212,7 @@ export function createMarginProjection({
     entryPlace,
     sourceItem,
     workflowReceipt,
+    threadIdsAt,
     threadItem: marginThreadItem,
   } = inventory;
   const nav = el("nav", "lf-ui lf-margin-projection");
@@ -431,6 +430,7 @@ export function createMarginProjection({
     );
   }
   let previewEntry = null;
+  let previewAccompanies = false;
   let previewThreadItem = null;
   let previewLatest = null;
   let previewMarginEntry = null;
@@ -531,10 +531,9 @@ export function createMarginProjection({
   let previewPositionFrame = 0;
   let previewPositionResult = null;
   let previewFocusPending = null;
-  // The side the card holds (comment-placement.js); the offsets of its top and foot from
-  // the line it stands level with; its transcript height and reply-line hold at the last
-  // placement (`placeThreadPreview`); and whether a scroll has carried it out of the
-  // window with what it is about.
+  // The side the card holds and the edge it holds as its thread grows
+  // (comment-placement.js), and whether a scroll has carried it out of the window with
+  // what it is about.
   const previewSide = commentPlacement();
   let previewAway = false;
   function answerThreadPreviewPosition(positioned) {
@@ -570,7 +569,6 @@ export function createMarginProjection({
   }
   function unplaceThreadPreview() {
     forgetThreadPreviewPlacement();
-    previewSide.reset();
     previewPlacement.stop();
     delete preview.dataset.lfThreadPlacement;
     preview.style.removeProperty("clip-path");
@@ -656,14 +654,12 @@ export function createMarginProjection({
         margin: null,
         region: null,
         scroller: effectiveScroller(cluster),
-        target: null,
-        words: null,
       };
     }
     const thread = threadCardThread();
     const words =
       !point && thread?.anchor?.quote ? passageGeometry(placedAt(thread.id)) : null;
-    return { ...commentAttachment({ target, point, passage: words }), target, words };
+    return commentAttachment({ target, point, passage: words });
   }
   const THREAD_SIDES = { right: "right", left: "left", bottom: "below", top: "above" };
   // Where the card stands is comment-placement.js's rule, the one the comment box stands
@@ -674,8 +670,7 @@ export function createMarginProjection({
   // put through subsequent sizing passes. A card over its target grows up from its
   // foot (`holding`, comment-placement.js). The boundary caps the card at the room from
   // its held edge. Drafting grows the editor into that room, then scrolls its words
-  // rather than carrying the card. A card the user is drafting in stays in the window
-  // once its target shows nowhere there, as the comment box does (`attach`).
+  // rather than carrying the card.
   function placeThreadPreview() {
     if (!previewOpen() || !previewMarginEntry?.isConnected) return false;
     const placement = previewPlacement.begin();
@@ -712,31 +707,18 @@ export function createMarginProjection({
         replyEditor.value !== "" ||
         sending),
     );
-    const windowBoundary = commentBoundary();
-    const unanchored = previewSide.attach({
-      shown: attachmentShown({
-        box: place.words?.box ?? place.extent,
-        target: place.target,
-        quote: Boolean(place.words),
-        boundary: windowBoundary,
-      }),
-      writing: drafting && Boolean(place.target),
-      width: () => preview.getBoundingClientRect().width,
+    const boundary = commentBoundary({
+      region: place.region && shownRegionBounds(place.region),
     });
-    const boundary = unanchored
-      ? windowBoundary
-      : commentBoundary({ region: place.region && shownRegionBounds(place.region) });
     if (!boundary.width || !boundary.height) {
       void floatingUi().then((ui) => stillCurrent() && watch(ui));
       return false;
     }
-    const clear = unanchored ? null : place.clear;
-    const extent = unanchored ? null : place.extent;
     const scroller = place.scroller;
     const { side, fresh, hold } = previewSide.choose({
-      clear,
+      clear: place.clear,
       row: place.row,
-      extent,
+      extent: place.extent,
       boundary,
       minimumWidth: cardMinimum(),
       scroller,
@@ -754,10 +736,10 @@ export function createMarginProjection({
       .then((ui) => {
         if (!stillCurrent()) return null;
         const { reference, placement, middleware, plane } = previewSide.options(ui, {
-          clear,
+          clear: place.clear,
           row: place.row,
           column: place.column,
-          margin: !unanchored && place.margin,
+          margin: place.margin,
           boundary,
           minimumWidth: cardMinimum(),
           fit({ width, height, scale }) {
@@ -784,9 +766,8 @@ export function createMarginProjection({
             // scroll travel. A scroll supersedes this answer's attachment geometry.
             if (
               fresh &&
-              clear &&
               (side === "top" || side === "bottom") &&
-              makeRoom(side, clear, extent, fitted, boundary, scroller)
+              makeRoom(side, place.clear, place.extent, fitted, boundary, scroller)
             ) {
               previewSide.scrolled();
               placeThreadPreview();
@@ -797,7 +778,12 @@ export function createMarginProjection({
         watch(ui);
         return previewPlacement.position(
           ui.computePosition,
-          { contextElement: place.element, getBoundingClientRect: () => reference },
+          {
+            contextElement: place.element,
+            contextNode:
+              side === "left" || side === "right" ? place.contextNode : place.element,
+            getBoundingClientRect: () => reference,
+          },
           { placement, middleware },
           plane,
           place.element,
@@ -1719,8 +1705,8 @@ export function createMarginProjection({
     if (arriving) {
       clearThreadTransition();
       carryCommentFrame(origin);
-      previewSide.reset();
       if (origin) previewSide.adopt(origin.frame);
+      else previewSide.forget();
     }
     const latest = selected ? turns(sourceItem(selected).thread).at(-1) : null;
     const messageSelector =
@@ -1893,11 +1879,18 @@ export function createMarginProjection({
     highlight(drawingOnly ? null : (targetFor(entry) ?? null));
   }
 
-  function showPreview(entry, button, threadItem = null, origin = null) {
+  function showPreview(
+    entry,
+    button,
+    threadItem = null,
+    origin = null,
+    accompanies = false,
+  ) {
     if (!entry || designModeActive()) return;
     if (forcedInlineKey && forcedInlineKey !== entry.key) forcedInlineKey = null;
     if (previewEntry && previewEntry.key !== entry.key) clearThreadTransition();
     previewEntry = entry;
+    previewAccompanies = accompanies;
     transferThreadCard(button);
     buildThreadCard(entry, threadItem, origin);
     keepsHidden(preview, false);
@@ -2195,7 +2188,7 @@ export function createMarginProjection({
       return null;
     }
     pinnedKey = entry.key;
-    const initiallyPositioned = showPreview(entry, button, itemId, transition);
+    const initiallyPositioned = showPreview(entry, button, itemId, transition, !unfold);
     const item = [...previewList.children].find(
       (candidate) => candidate.lfMarginItem === itemId,
     );
@@ -2274,27 +2267,17 @@ export function createMarginProjection({
   // A target with pointed threads (groupFor) has a row for each: standing inside a
   // pointed row takes that thread, and standing elsewhere on the target takes its own
   // row, or a pointed one where it has none.
-  const pointRank = (entry, place) => {
-    const point = entryPoint(entry);
-    return !point ? 1 : under(place, point) ? 2 : 0;
-  };
+  // Subject identity comes from the inventory even where a widget owns its seat.
   const threadEntryAt = (node) => {
-    const place = placeOf(node);
-    let standing = null;
-    for (const entry of pageInventory) {
-      const target = targetFor(entry);
-      if (!target || !threadReading(entry) || !under(place, target)) continue;
-      if (seatedOnPage(threadIdOf(entry))) continue;
-      const held = standing && targetFor(standing);
-      if (
-        !standing ||
-        (target === held
-          ? pointRank(entry, place) >= pointRank(standing, place)
-          : under(target, held))
-      )
-        standing = entry;
-    }
-    return standing;
+    const ids = threadIdsAt(node);
+    return (
+      pageInventory.find(
+        (entry) =>
+          threadReading(entry) &&
+          threadIdsOf(entry).some((id) => ids.includes(id)) &&
+          !seatedOnPage(threadIdOf(entry)),
+      ) ?? null
+    );
   };
   // A folded cluster opens while the keyboard stands at its target, as it does when
   // the keyboard arrives on its toggle: what the user stands at offers its actions, and
@@ -2342,6 +2325,13 @@ export function createMarginProjection({
     )
       return;
     const host = closestAcross(active, "[data-lf-margin-for]");
+    // Working an Ask keeps its decisions clear; explicit discussion remains open.
+    if (askHolding(allAsks(), placeOf(active))) {
+      const entry = threadEntryAt(active);
+      if (previewOpen() && (previewAccompanies || previewEntry?.key !== entry?.key))
+        closePreview();
+      return;
+    }
     // With Threads open the panel is where a target's threads show, and its one expanded
     // thread is the card: arriving at a target by the keyboard expands its thread there.
     // Nothing closes, since the list stays whole wherever the user stands.

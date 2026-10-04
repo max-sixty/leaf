@@ -1,11 +1,13 @@
 """Lifecycle and trusted inputs for one browser color scheme."""
 
 import re
+import time
 from pathlib import Path
 from urllib.parse import urljoin, urlsplit
 
 from leaf.files import version_num
 from leaf.render_checks import (
+    HANDOVER_DEADLINE_MS,
     SERVED_TIMEOUT_MS,
     PageNotReady,
     evaluate_probe,
@@ -301,8 +303,16 @@ def _render_scheme(
     # Every reading below is of a settled page. The widget layer writes half the
     # document, so a box measured while it is still drawing belongs to no version of
     # the page — which is the stamp `page export` waits on for the same reason.
+    # Upgrade and readiness below are one handover, so they share its deadline: the
+    # upgrade is most of a heavy page's handover, and a probe's patience is not.
+    handover_ends = time.monotonic() + HANDOVER_DEADLINE_MS / 1000
+
+    def handover_left() -> int:
+        # At least 1ms: Playwright reads a zero timeout as none.
+        return max(1, round((handover_ends - time.monotonic()) * 1000))
+
     try:
-        wait_for_probe(page, "upgraded")
+        wait_for_probe(page, "upgraded", timeout_ms=handover_left())
     except PlaywrightTimeout:
         page.close()
         explanations = [*errors, *resize_notices]
@@ -386,7 +396,7 @@ def _render_scheme(
     # under load alone, which is how one page passed at a desk and reported words
     # drawn over words under a full suite.
     try:
-        wait_until_ready(page, state)
+        wait_until_ready(page, state, timeout_ms=handover_left())
     except PageNotReady as error:
         failed_stage, unsettled = error.stage, [str(error)]
     else:

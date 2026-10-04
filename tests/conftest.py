@@ -458,7 +458,7 @@ def _browser(_playwright):
 
     With no channel named, Playwright uses its separate headless shell rather than
     installed Chrome's platform-window path. Session scope gives xdist one browser
-    per worker that requests it; the everyday smoke requests one, and the complete
+    per worker that requests it; the broad selection's smoke requests one, and the complete
     run can occupy all eight.
 
     Each test receives this process through the function-scoped `browser` fixture,

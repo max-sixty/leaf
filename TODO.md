@@ -204,8 +204,8 @@ and its chrome coordinate.
   them to revise the results: turn a report into a report with live status while
   keeping its comments. They hold if revisions happen by ordinary composition. Include
   a cold agent asked for "a dashboard", the likeliest trigger for over-tiling. Run it
-  with the agent-usability baseline (#19), by extending the
-  [arrangement eval](notes/arrangement-eval/README.md).
+  with the agent-usability baseline (#19), by extending the document, dashboard and
+  queue tasks in `evals/`.
 - **Fit an Ask and what it turns on into one window.** `a` puts an Ask's heading at
   the top, and `authoring-asks.md` has the `lf-ask` hold its premise and evidence,
   but stacked they often outrun the window: on a findings page one Ask with its
@@ -342,7 +342,7 @@ height and where a switch lands wait on the workspace decision under Layout.
   (`render_gate/version.py`, `readings.py`), but reads drawing label size only at
   the desktop width (`shrunk_label_advice`), though a narrower window scales a
   drawing further still. Tiny text at 900px and on a phone recurs in the judge's
-  reasons in the arrangement eval (`notes/arrangement-eval/`, `r3-main-0feb`). Take
+  reasons in the [layout vocabulary eval](notes/agent-usability-evals.md#layout-vocabulary-2026-09-29). Take
   each reading the sweep can take at every swept
   width, and report each fault at the narrowest width it starts, as
   `swept_overflow` does for sideways overflow. Separately verify the Ask's premise,

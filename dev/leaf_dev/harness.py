@@ -57,6 +57,9 @@ PAYLOAD = (
     "worker/pyproject.toml",
 )
 
+# The model each host's eval children run: authors, readers and judges alike.
+MODELS = {"cc": "opus", "codex": "gpt-6.1-sol"}
+
 
 def run_directory(parent: Path) -> Path:
     """Allocate one invocation's evidence without replacing another run's files."""
@@ -274,7 +277,7 @@ def claude_child(
         (home / ".claude").mkdir(parents=True, exist_ok=True)
         shutil.copy(credentials, home / ".claude/.credentials.json")
     command = [
-        "claude", "-p", *args, "--strict-mcp-config",
+        "claude", "-p", *args, "--model", MODELS["cc"], "--strict-mcp-config",
         "--permission-mode", "bypassPermissions", "--output-format", "stream-json",
         "--verbose", *(arg for d in dirs for arg in ("--add-dir", str(d))),
     ]  # fmt: skip

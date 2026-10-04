@@ -228,28 +228,19 @@ A page that explains how a Leaf interface behaves lets the user operate it
 
 ## Score an instruction change
 
-Each `evals/<case>/case.yaml` is a native Promptfoo test. The runner gives Claude
-Code and Codex the same task, the same assertions, and a staged copy of Leaf's
-instructions. Install the separate eval dependencies once, then select the cases
-that bear on an instruction change:
+Score an instruction change by running the cases that bear on it on both the merge
+base and the working tree:
 
 ```bash
 npm ci --prefix evals
-uv run leaf-dev eval [CASE]... [--base REF] [--host cc|codex|both] [--runs N]
+uv run leaf-dev eval [CASE]... --base [--host cc|codex] [--repeat N]
+npm run view --prefix evals
 ```
 
-The defaults are both hosts, one run, and the merge base with `main`. Each sample
-has a fresh workspace and home with the host's account login. Promptfoo owns the
-assertions, judgments, traces, and HTML report under `.tmp/eval/`;
-the runner prints passes separately for each host and base/candidate arm. Read
-`evals/README.md` for the provider models and case format.
-
-A reference-read assertion requires successful tool output, rather than counting
-a denied attempt. Claude exposes Read/Skill results; Codex shell evidence requires
-a completed successful command naming the file and returning text. Shell matching
-is a heuristic, so inspect traces before treating a reference-read pass as proof.
-These static cases test instruction use, while `leaf-dev verify-codex-task` owns
-plugin installation, discovery, and hooks.
+`evals/README.md` owns selection, arms, conditions, the case format and where the
+results go. Read the outputs as well as the pass counts: a regex can reject a correct
+answer, a Codex reference read is matched heuristically, and no judge has been
+calibrated against human judgments.
 
 The suite is a library that grows with the instructions, so a later edit, whether a fix
 or a cut, is scored against the behaviors earlier edits had to produce. Add to it
@@ -259,27 +250,19 @@ criterion, or context in its prompt, so coverage grows without the cases
 proliferating; add a new case only where no existing one can carry the behavior.
 Keep a case small: one prompt carrying only the context the behavior needs, and a
 few assertions. Measure with whatever scenarios and guardrails the change needs, and
-keep what you add whether or not it separated the arms. The leading comment says where the case came from and what it measured, so a
-reader can tell a case that told two wordings apart from one that has only guarded;
-`metadata.purpose` names the clause it pins, and `metadata.tags` its area.
+keep what you add whether or not it separated the arms. The leading comment says
+whether the case told two wordings apart or has only guarded.
 
-A prompt ends by asking for the HTML in the reply, since the child has no page
-directory. It can read the staged skill and its references. A prompt pointing at
-a file beyond the references names that file from the skill's base directory. The
-prompt never states the behavior under test. Grade a fixed form with a `regex`
-assertion, and a judgment with an `llm-rubric` assertion whose `value` states the
-passing reading without requiring particular wording.
+The prompt never states the behavior under test. A prompt pointing at a file beyond
+the references names that file from the skill's base directory. Grade a fixed form
+with a `regex` assertion, and a judgment with an `llm-rubric` assertion whose `value`
+states the passing reading without requiring particular wording.
 
 Run cold, a case that states the situation plainly usually passes on both arms: the
 failing session had its own earlier turns or a competing instruction pulling the
 other way, so paste those into the prompt. A rule that loses only to a long
-session's context needs a replay of that session instead.
-Complete workflows use the same catalog and command. `leaf-dev eval document`
-authors and revises a document; `document/resume`
-selects a controlled state-reading context. `--condition both` compares the authored example with
-ordinary HTML. `evals/README.md` owns selection, conditions and evidence limits.
-Keep focused contexts until a combined workflow detects their original failures.
-No grader has been calibrated against human judgments, so a pass is weak evidence.
+session's context needs a replay of that session instead. Keep a task's diagnostic
+contexts until its complete workflow detects their original failures.
 
 ## Refresh the public catalog stills
 

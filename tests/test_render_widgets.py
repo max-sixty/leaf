@@ -10232,6 +10232,7 @@ def test_the_walk_travels_to_an_ask_a_page_left_boxless(browser, serve):
     expect(page.locator("#live-question-decision")).to_have_attribute(
         "data-lf-ask", "1"
     )
+    scroll_settled(page)
     was = page.evaluate("() => document.scrollingElement.scrollTop")
     assert was > 0, "the user must have somewhere to have come from"
 

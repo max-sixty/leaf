@@ -35,7 +35,7 @@ ANSWER_ASK_INSTRUCTION = (
 WAIT_BATCH_OUTPUT_INSTRUCTION = (
     "Print one page's complete ordered batch, thread context, and response "
     "requirements as an immutable delivery, whose `acknowledge` says how to confirm "
-    "it. `leaf delivery read <id>` reads that same delivery. Where the host's hook "
+    "it. `leaf delivery read <id>` reads that same delivery. Where the harness's hook "
     "carries input into the turn, as in Claude Code, print one line naming the page "
     "with new input instead, and end."
 )
@@ -584,8 +584,8 @@ BINARY_TYPES = frozenset(MEDIA_TYPES.values()) - {"image/svg+xml"}
 def agent_name(event: dict) -> str | None:
     """The name an agent-authored event is shown under, and None for any other
     author's: its posting session's `agent`, or `UNNAMED_AGENT` where it was written
-    outside a host session and so carries none. The log stores no placeholder
-    (`host.message_identity`); every reading that shows the event names it through
+    outside a harness session and so carries none. The log stores no placeholder
+    (`harness.message_identity`); every reading that shows the event names it through
     here, so the browser, the margin, the activity feed and the transcript agree."""
     if event["author"] != "agent":
         return None

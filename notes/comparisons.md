@@ -18,12 +18,12 @@ user decisions carry into later revisions unless explicitly retracted. These
 contracts live in [page-storage.md](../skills/leaf/scripts/leaf/page-storage.md)
 and [packages.md](../skills/leaf/references/packages.md).
 
-Delivery belongs to the host adapter: Claude Code's Stop hook watches claimed
+Delivery belongs to the harness adapter: Claude Code's Stop hook watches claimed
 pages; ordinary Codex tasks receive queued deliveries; tasks with an accessible
 Codex App Server receive delivery turns through that server. Read the owning
-[Claude Code](../skills/leaf/references/host-claude-code.md),
-[Codex queue](../skills/leaf/references/host-codex.md), and
-[App Server](../skills/leaf/references/host-codex-app-server.md) contracts rather
+[Claude Code](../skills/leaf/references/harness-claude-code.md),
+[Codex queue](../skills/leaf/references/harness-codex.md), and
+[App Server](../skills/leaf/references/harness-codex-app-server.md) contracts rather
 than deriving a handoff from this comparison. Serving, authentication, standing
 lifetimes, and offline export belong to
 [serving-pages.md](../skills/leaf/references/serving-pages.md).
@@ -228,6 +228,7 @@ suggestions, live cursors, named versions, and interactive fences for boards,
 chat, sheets, charts, and status. HTTP, CLI, MCP, webhooks, and event watches
 connect agents that run on the user's compute.
 
+<<<<<<< HEAD
 The October documentation describes coordination beyond the July summary:
 atomic claims on Asks, escalation of unclaimed or stale requests, an agent
 registry with heartbeats, and account/folder watches spanning documents.
@@ -303,6 +304,19 @@ asynchronous Send callbacks.
 Agentation embeds precise annotation into an existing application. It is a
 reference for selecting rendered targets and connecting feedback to a host,
 rather than a document revision or persistent agent-workspace model.
+||||||| 95c3d8ab6
+Its shared editing and hosting are a different product boundary from Leaf's
+agent-authored page for one principal. HTTP access broadens the set of clients;
+Leaf's host adapters place deliveries into the user's existing coding task.
+Collaborative document editing remains the relevant comparison, rather than the
+mechanism of one blocking poll.
+=======
+Its shared editing and hosting are a different product boundary from Leaf's
+agent-authored page for one principal. HTTP access broadens the set of clients;
+Leaf's harness adapters place deliveries into the user's existing coding task.
+Collaborative document editing remains the relevant comparison, rather than the
+mechanism of one blocking poll.
+>>>>>>> origin/main
 
 ## html-effectiveness
 
@@ -415,7 +429,7 @@ page directory and event log remain the durable record.
 - **Collaborative document editing.** Leaf records input from one principal and
   does not model multiple user identities, live cursors, or concurrent author
   merges. Hosted workspaces address that need.
-- **An HTTP-only agent.** Leaf's CLI and host adapters assume a coding task that
+- **An HTTP-only agent.** Leaf's CLI and harness adapters assume a coding task that
   can run local commands. An HTTP document API has broader client reach.
 - **An application serving many users.** Leaf accompanies an existing coding
   task; frameworks such as CopilotKit provide the application and agent runtime.

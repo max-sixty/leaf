@@ -20,7 +20,6 @@ from leaf.schema import ELEMENT_ID
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_interaction import (
-    PANEL_PAGE,
     SEATED_ASK_LAYER,
     SEATED_ASK_WIDGETS,
     SUGGESTION_PAGE,
@@ -6359,6 +6358,18 @@ def test_a_covering_composer_keeps_its_controls_inside_the_safe_area(browser, se
     )
 
 
+# A page holding a paragraph and one control, for the readings below that plant the
+# shape they are about rather than finding it in the product: which of the layer's
+# controls draws an inset ring, or names no z-index, moves with the product and is not
+# what these readings are held to.
+RING_PROBE_PAGE = leaf_page(
+    "ring",
+    "<h1>Ring</h1><p>Words.</p>"
+    '<div id="ring-holder"><button id="ring-control" type="button">Control</button></div>'
+    "<p>After.</p>",
+)
+
+
 def test_the_ring_reading_names_every_way_a_box_can_draw_nothing_past_its_edge(
     browser, serve
 ):
@@ -6527,9 +6538,7 @@ def test_the_ring_reading_sees_and_measures_a_ring_cast_as_a_shadow(browser, ser
     own foot, where the band is the only part of it that can be outside the window, with
     the same box and the same place as the control once the band is taken off.
     """
-    example = next(e for e in EXAMPLES if e.stem == "release-notes")
-    url = serve(example, comments=2, seed_log=False)
-    page = open_page(browser, url)
+    page = open_page(browser, serve(RING_PROBE_PAGE))
 
     # On the window's foot, so the only thing that can be outside the window is the band.
     # Placed from `innerHeight` rather than from `100vh`, which is the viewport a
@@ -6755,45 +6764,35 @@ def test_the_ring_reading_sees_a_neighbour_lifted_out_of_the_flow_it_was_ranked_
     ranks behind the control puts what stays in its flow behind the control too. A
     positioned neighbour does not stay: it leaves its holder's place in the flow to paint
     in the positioned layer of the nearest ancestor stacking context, which is the layer a
-    control like the thread card's own buttons is in — `position: relative; z-index: auto`.
-    So a static holder's rank says nothing about it, and taken for an answer it drops a
+    control with `position: relative; z-index: auto` is in (a thread card's buttons). So
+    a static holder's rank says nothing about it, and taken for an answer it drops a
     cover the page paints.
 
     The plant is that shape: a fixed band over the ring's top run, held by a static box
     beside the control. The band comes back topmost where the ring is sampled, and the
-    reading has to say so.
+    reading has to say so. The clean reading first, because a reading that reports at
+    every control would pass the planted one without seeing it.
     """
-    example = next(e for e in EXAMPLES if e.stem == "release-notes")
-    url = serve(example, comments=2)
-    page = open_page(browser, url)
-    page.locator(".lf-threads-toggle").click()
-    page.locator(".lf-thread-summary").first.click()
-    panel_settled(page)
-    page.locator("body").click()
-    page.locator(".lf-threads .lf-btn").first.focus()
-    page.keyboard.press("Tab")
-    page.keyboard.press("Shift+Tab")
+    page = open_page(browser, serve(RING_PROBE_PAGE))
+    page.evaluate(
+        """() => {
+          const control = document.getElementById('ring-control');
+          control.style.cssText = `position: relative; z-index: auto;
+            outline: var(--focus-ring); outline-offset: 2px;`;
+          control.focus();
+        }"""
+    )
     standing = standing_ring(page)
     assert standing and standing["covers"] == [], (
         f"the control is reported covered before anything is put over it: {standing}"
-    )
-    assert page.evaluate(
-        """() => {
-          const cs = getComputedStyle(document.activeElement);
-          return cs.position !== 'static' && cs.zIndex === 'auto';
-        }"""
-    ), (
-        "the control names a z-index of its own, so it stands clear of the layer this "
-        "plants into and the band below could not reach its ring"
     )
 
     page.evaluate(
         """() => {
           const b = document.activeElement.getBoundingClientRect();
           // A static box, so the flow is what its own rank answers for, pulled back over
-          // the panel it is appended to rather than adding height to it.
+          // the control it is appended beside rather than adding height under it.
           const holder = document.createElement('div');
-          holder.className = 'lf-under-plant';
           holder.style.cssText = 'margin-top: -100vh; height: 100vh;';
           const band = document.createElement('div');
           // Over the ring's top run and clear of the control's own box, and positioned,
@@ -6802,7 +6801,7 @@ def test_the_ring_reading_sees_a_neighbour_lifted_out_of_the_flow_it_was_ranked_
             left: ${b.left - 8}px; top: ${b.top - 5}px;
             width: ${b.width + 16}px; height: 4px;`;
           holder.append(band);
-          document.activeElement.closest('.lf-thread-panel').append(holder);
+          document.getElementById('ring-holder').append(holder);
         }"""
     )
     covers = standing_ring(page)["covers"]
@@ -6810,8 +6809,6 @@ def test_the_ring_reading_sees_a_neighbour_lifted_out_of_the_flow_it_was_ranked_
         f"a band standing over the ring read as {covers}, so a neighbour that left the "
         "flow its holder was ranked in goes unreported"
     )
-
-    page.evaluate("() => document.querySelector('.lf-under-plant').remove()")
 
 
 def test_a_user_who_asked_for_no_motion_gets_a_ring_that_does_not_arrive(
@@ -6884,42 +6881,38 @@ def test_the_ring_reading_sees_a_neighbour_paint_over_a_ring_drawn_inside_its_bo
     rather than past it, so every covered inset ring answered that the control was under
     the same thing and the reading returned what it returns when nothing is wrong.
 
-    So: a thread title, which draws its ring inside itself, under a band exactly as
-    deep as that ring. The control case first, because a reading that reports over any inset
-    control would pass the planted one without seeing it.
+    So: a control drawing the layer's ring inside itself, as a thread title does, under a
+    band exactly as deep as that ring. The control case first, because a reading that
+    reports over any inset control would pass the planted one without seeing it.
     """
-    url = serve(PANEL_PAGE)
-    panel_comment(serve.page_dir, "About the lede.", {"section": "lede"})
-    panel_comment(serve.page_dir, "About the store.", {"section": "how-store"})
-    page = open_page(browser, url)
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    title = page.locator(".lf-threads > .lf-thread > .lf-thread-summary").first
-    title.focus()
-    page.keyboard.press("Tab")
-    page.keyboard.press("Shift+Tab")
-    rendered(page)
-
+    page = open_page(browser, serve(RING_PROBE_PAGE))
+    # The layer's band, widened past two pixels: a step in of one pixel from the middle of
+    # a 2px band lands on its inner edge, which hit testing may or may not count as the
+    # band, so only a wider ring makes a step that stops inside it a step that fails.
     inset = page.evaluate(
         """() => {
-      const s = getComputedStyle(document.activeElement);
+      const control = document.getElementById('ring-control');
+      control.style.cssText = `--focus-ring-w: 4px;
+        outline: var(--focus-ring-w) solid var(--accent);
+        outline-offset: calc(-1 * var(--focus-ring-w)); padding: 12px 24px;`;
+      control.focus();
+      const s = getComputedStyle(control);
       return [parseFloat(s.outlineWidth), parseFloat(s.outlineOffset)];
     }"""
     )
-    assert inset[1] <= -inset[0], (
-        f"the title's ring is {inset[0]}px at offset {inset[1]}px, which is not drawn "
+    assert inset[0] > 0 and inset[1] <= -inset[0], (
+        f"the control's ring is {inset[0]}px at offset {inset[1]}px, which is not drawn "
         "inside its box, so this holds nothing about a reading of one that is"
     )
 
-    # A band of the panel's own paper over the card's top run, and nothing else of it.
-    # Fixed and outside the card, because the reading passes over an ancestor or a
+    # A band of the page's own paper over the control's top run, and nothing else of it.
+    # Fixed and outside the control, because the reading passes over an ancestor or a
     # descendant of the control by design — a widget painting its own edge is not a
     # neighbour.
     plant = """(depth) => {
       document.querySelector('.lf-ring-plant')?.remove();
       if (!depth) return null;
-      const control = document.activeElement;
-      const r = control.getBoundingClientRect();
+      const r = document.activeElement.getBoundingClientRect();
       const over = document.documentElement.appendChild(
         document.createElement('div'));
       over.className = 'lf-ring-plant';
@@ -6934,15 +6927,15 @@ def test_the_ring_reading_sees_a_neighbour_paint_over_a_ring_drawn_inside_its_bo
 
     page.evaluate(plant, 0)
     assert standing_ring(page)["covers"] == [], (
-        "the title is reported covered with nothing over it, so the planted case below "
-        "would only be repeating whatever this reading always says"
+        "the control is reported covered with nothing over it, so the planted case "
+        "below would only be repeating whatever this reading always says"
     )
 
     laid = page.evaluate(plant, inset[0])
     covers = standing_ring(page)["covers"]
     assert any("top edge" in c for c in covers), (
-        f"a {laid}px band over the whole of the title's {inset[0]}px inset ring, "
-        f"with the rest of the title in full view, and the reading said {covers}"
+        f"a {laid}px band over the whole of the control's {inset[0]}px inset ring, "
+        f"with the rest of the control in full view, and the reading said {covers}"
     )
 
 

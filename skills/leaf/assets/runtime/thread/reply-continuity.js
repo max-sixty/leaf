@@ -1,4 +1,4 @@
-/* Mechanical continuity of a thread's live response region in flow or a floating card.
+/* Mechanical continuity of a thread's live response region on every surface.
 
    Semantic presentation always draws only current messages. A visible response region
    keeps the body extent it occupied before that presentation, with flexible free space
@@ -6,8 +6,8 @@
    native editor growth consume it, with the response foot held by layout rather than
    a later resize correction. A departed or closed region releases that mechanical
    extent. A floating card bounds that extent by its already allocated body room.
-   No message or delivery state is retained. Panel and general footer keep their
-   separate fixed/free layout. */
+   No message or delivery state is retained; a short panel card starts at its
+   natural extent, while a long card pins its reply within the list. */
 import { seenRect, whenOffScreen } from "../geometry.js";
 import { layoutPx } from "../keeps.js";
 

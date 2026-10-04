@@ -176,7 +176,7 @@ stateDiagram-v2
       </section>
 
       <section id="queues">
-        <h2>Each side has a queue of open items, and what an item is stays open</h2>
+        <h2>The two queues today</h2>
         <p id="queue-kinds">
           An item is anything open that one side has to act on. Each names what it is
           about, its subject and thread, so a surface can take you there. Its
@@ -210,7 +210,7 @@ stateDiagram-v2
       </section>
 
       <section id="map">
-        <h2>Five records hold someone to something, and nothing links them</h2>
+        <h2>The five records behind the queues</h2>
         <p>
           Each record below is registered its own way and kept in its own place. A queue
           item is one of them read out.
@@ -367,10 +367,7 @@ stateDiagram-v2
       </section>
 
       <section id="pi">
-        <h2>
-          Pi keeps a message's delivery apart from the work, and has no record for
-          asking you
-        </h2>
+        <h2>How Pi Durable models the same ground</h2>
         <p>From <a href="https://earendil.com/posts/pi-durable/">Pi Durable</a>:</p>
         <ul>
           <li>
@@ -395,10 +392,14 @@ stateDiagram-v2
             the agent's running work, paused on you.
           </li>
         </ul>
-        <p>
-          In Leaf's terms: sent and queued are where the message is, picked up through
-          replying is a running task, and an Ask is a task of the agent's waiting on you
-          rather than an item of yours.
+        <p id="pi-fit">
+          Your model fits Pi's. A Pi task has an owner and waits on whatever it needs,
+          so an Ask is the agent's task waiting on you, and your queue is every task
+          waiting on you. Pi differs in two places, neither a conflict. A message is
+          input that starts or steers the agent's work rather than an item of its own,
+          so putting an item on the agent's queue is your message creating work there.
+          And Pi records nothing about delivery, so Leaf's stages from sent to replying
+          belong to the message, not to the task.
         </p>
       </section>
 

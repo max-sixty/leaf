@@ -2595,6 +2595,43 @@ def test_a_settlement_from_elsewhere_moves_nothing_in_a_short_panel_thread(
     expect(below).to_have_attribute("data-resolved", "false")
 
 
+def test_taking_back_a_resolve_is_the_users_own_gesture(browser, serve):
+    """`z` after the user's own Resolve reopens the thread at once, as the Resolve
+    closed it: an undo stands in the thread of the gesture it takes back, so it is no
+    news to hold behind a notice."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "Keep the discussion here.")
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "revision": 1,
+            "parent": root,
+            "text": "An answer.",
+        },
+    )
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    page.locator(".lf-thread-filter-toggle").click()
+    for value in ("open", "resolved"):
+        choice = page.locator(f'[data-filter-value="{value}"]')
+        if choice.get_attribute("aria-pressed") == "true":
+            choice.click()
+    thread = page.locator(f'.lf-threads > .lf-thread[data-id="{root}"]')
+    if thread.get_attribute("open") is None:
+        thread.locator(".lf-thread-summary").click()
+    thread.get_by_role("button", name="Resolve thread").click()
+    expect(thread).to_have_attribute("data-resolved", "true")
+    round_trip(page)
+    undo(page)
+    told(page)
+    expect(thread).to_have_attribute("data-resolved", "false")
+    expect(thread.locator(".lf-thread-news")).to_have_count(0)
+
+
 @pytest.mark.watch_shifts
 def test_a_resolution_from_elsewhere_moves_nothing_after_a_diff_thread(browser, serve):
     """A diff line's thread resolved elsewhere stays open behind its notice.

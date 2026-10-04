@@ -80,31 +80,42 @@ import { readApplication } from "../semantic-state.js";
 import { replyPinned } from "./reply-landing.js";
 
 // Whether this page's ledger holds a gesture of the user's on `thread`: one of its
-// messages, a reply or a settlement naming one, a reaction or its withdrawal, a move on a
-// widget one of them holds, or the refusal that takes one back, which stays in the ledger
-// until the reading it restores is drawn. Their words from another tab, or a turn a seat
-// first draws after the log answered it, as a package mirror whose render waited on work
-// of its own does, arrive like the agent's.
+// messages, a reply or a settlement naming one, a move on a widget one of them holds, an
+// undo of any of those, which stands where the gesture it takes back stood, or the
+// refusal that takes one back, which stays in the ledger until the reading it restores
+// is drawn. Their words from another tab, or a turn a seat first draws after the log
+// answered it, as a package mirror whose render waited on work of its own does, arrive
+// like the agent's.
 export function gesturedOn(thread) {
   const { unresolved, document, authoritative } = readApplication();
-  // A reaction the user withdraws leaves the thread the page draws in the turn they take
-  // it back, while the log's reading of the thread still holds it.
-  const logged = authoritative?.browser.thread.threads.find(
-    ({ id }) => id === thread.id,
-  );
-  const messages = new Set(
-    [...thread.msgs, ...(logged?.msgs ?? [])].map(({ id }) => id),
-  );
+  const messages = new Set(thread.msgs.map(({ id }) => id));
   const attempts = new Set(thread.msgs.map(({ attempt }) => attempt));
-  return unresolved.some(
-    ({ event }) =>
+  const undone = (id) =>
+    unresolved.find(({ localId }) => localId === id)?.event ??
+    authoritative?.events.find((event) => event.id === id);
+  const standsIn = (event) => {
+    if (event.kind === "undo") {
+      const target = undone(event.undoes);
+      return Boolean(target) && standsIn(target);
+    }
+    return (
       attempts.has(event.attempt) ||
+      messages.has(event.id) ||
       messages.has(event.parent) ||
-      messages.has(event.undoes) ||
-      (event.widget &&
-        messages.has(document.descriptors.get(event.widget)?.document.message)),
-  );
+      Boolean(
+        event.widget &&
+        messages.has(document.descriptors.get(event.widget)?.document.message),
+      )
+    );
+  };
+  return unresolved.some(({ event }) => standsIn(event));
 }
+
+// Whether the user acts in the thread a seat draws under `key` (`gesturedOn`).
+const gestured = (key) => {
+  const thread = allThreads().find((each) => threadKey(each) === key);
+  return Boolean(thread) && gesturedOn(thread);
+};
 
 // The standing reactions a strip draws, by token, since a reaction keeps its token but
 // not its id when the log answers it.
@@ -116,11 +127,12 @@ const symmetric = (a, b) => [...a, ...b].filter((name) => !a.has(name) || !b.has
 
 // What of `now` the seat would draw differently from `was`, the thread as it drew it:
 // each message that is new or whose words changed, each reaction put on a reply or taken
-// off it, and the thread's settlement. `messages` is `now`'s messages with each of those
-// drawn as `was` drew it and the new ones left out; `changed` the keys of the ones drawn
-// as they were, every one where the settlement changes, which moves the thread's
-// controls into or out of its head row and draws or folds its reaction strips. A message
-// the log took back is no news: it goes. Null where nothing differs.
+// off it, and the thread's settlement. `messages` is `now`'s messages with each one the
+// news changes drawn as `was` drew it and the new ones left out; `changed` the keys of
+// the ones drawn as they were, every one where the settlement changes, which moves the
+// thread's controls into or out of its head row, draws or folds its reaction strips and
+// ends its messages' work. A message the log took back is no news: it goes. Null where
+// nothing differs.
 function difference(was, now) {
   const drawn = new Map(was.messages.map((message) => [message.key, message]));
   const settled =
@@ -150,7 +162,7 @@ function difference(was, now) {
     news.reactions += turned;
     if (!settled && !turned) return [message];
     changed.add(message.key);
-    return [{ ...message, reactions: prior.reactions }];
+    return [prior];
   });
   return settled || news.replies || news.reactions ? { news, messages, changed } : null;
 }
@@ -304,13 +316,9 @@ export class HeldNews {
     const keys = new Set(reading.threads.map(({ key }) => key));
     for (const key of this.#threads) if (!keys.has(key)) this.#threads.delete(key);
     this.#keys = new Map(reading.threads.map(({ id, key }) => [id, key]));
-    const gestured = (key) => {
-      const thread = allThreads().find((each) => threadKey(each) === key);
-      return Boolean(thread) && gesturedOn(thread);
-    };
-    if (prior) this.#arrive(prior, reading, row, gestured);
+    if (prior) this.#arrive(prior, reading, row);
     this.#known = keys;
-    const shown = this.#draw(prior, reading, gestured);
+    const shown = this.#draw(prior, reading);
     this.#released.clear();
     this.#shown = read ? shown : null;
     // Waiting for all of the seat to go keeps news held a little longer than it needs,
@@ -321,7 +329,7 @@ export class HeldNews {
   }
 
   // Which of the threads new to the seat it holds back.
-  #arrive(prior, reading, row, gestured) {
+  #arrive(prior, reading, row) {
     const arrived = reading.threads.filter(({ key }) => !this.#known.has(key));
     // A thread the user starts is their gesture, and the threads before it show with it.
     if (arrived.some(({ key }) => gestured(key))) this.#threads.clear();
@@ -335,7 +343,7 @@ export class HeldNews {
 
   // Each thread as it stands, except one whose news would move what the reader reads,
   // which stands as it was drawn, its notice saying what waits.
-  #draw(prior, reading, gestured) {
+  #draw(prior, reading) {
     this.#holds.clear();
     const drawn = new Map(prior?.threads.map((thread) => [thread.key, thread]));
     const threads = reading.threads
@@ -425,7 +433,10 @@ export class HeldNews {
     let changed = false;
     if (key && this.#holds.has(key) && !this.#released.has(key)) {
       this.#released.add(key);
-      changed = true;
+      // A thread held while the user acts in it has a newer reading on its way, which
+      // draws it as it stands; drawing the one held now would show a state that reading
+      // replaces in the same task.
+      changed = !gestured(key);
     }
     if (threads && this.#threads.size) {
       this.#threads.clear();

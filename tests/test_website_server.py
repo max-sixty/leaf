@@ -2913,7 +2913,7 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
             thread.locator(".lf-msg.agent").filter(has_text="deployment verified")
         ).to_have_count(0)
         if reopen == "click":
-            news.click()
+            assert verify_site.wait_for_visible_reply(page, comment["id"])
         else:
             title = thread.locator(":scope > .lf-thread-summary")
             title.focus()
@@ -4495,6 +4495,9 @@ class _DeployedPage:
     def wait_for_function(
         self, expression: str, *, arg: int | None = None, timeout: int
     ) -> None:
+        if "window.__leafVerifier.visibleReplyRecorded() ||" in expression:
+            self.visible_reply_waits.append(timeout)
+            return
         if expression == "window.__leafVerifier.visibleReplyRecorded":
             self.visible_reply_waits.append(timeout)
             return
@@ -4516,6 +4519,8 @@ class _DeployedPage:
         return _PresentationWait(self.presentation_waits)
 
     def evaluate(self, script: str):
+        if script == "window.__leafVerifier.visibleReplyRecorded":
+            return True
         if script == "window.__leafVerifier.startVisibleReplyClock":
             return 100.0
         if script == "window.__leafVerifier.visibleReplyAt":
@@ -4820,7 +4825,7 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
                 },
                 published,
                 [{"kind": "reply", "text": "deployment verified"}],
-                {"kind": "reply", "text": "deployment verified"},
+                {"kind": "reply", "parent": "test-comment", "text": "deployment verified"},
             ),
             1,
             1,
@@ -4961,7 +4966,7 @@ def test_a_reload_that_presented_offline_reports_the_banner_it_presented_under(
                 },
                 published,
                 [{"kind": "reply", "text": "deployment verified"}],
-                {"kind": "reply", "text": "deployment verified"},
+                {"kind": "reply", "parent": "test-comment", "text": "deployment verified"},
             ),
             1,
             1,

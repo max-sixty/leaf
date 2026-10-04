@@ -3886,12 +3886,12 @@ def test_resume_reveals_an_open_draft_when_its_existing_subject_hides(browser, s
             """async () => {
               const {reveal} = await window.__lfRuntimeImport('/runtime/widget-elements.js');
               const {retainUserIntent} = await window.__lfRuntimeImport('/runtime/user-intent.js');
-              await reveal(document.getElementById('other-view'), retainUserIntent()).ready;
+              reveal(document.getElementById('other-view'), retainUserIntent());
             }""",
             """async () => {
               const {reveal} = await window.__lfRuntimeImport('/runtime/widget-elements.js');
               const {retainUserIntent} = await window.__lfRuntimeImport('/runtime/user-intent.js');
-              await reveal(document.getElementById('active-view'), retainUserIntent()).ready;
+              reveal(document.getElementById('active-view'), retainUserIntent());
             }""",
         ),
         (

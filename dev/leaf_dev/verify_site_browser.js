@@ -21,29 +21,36 @@
     visibleReplyObservers = null;
   }
 
+  function visibleReplies() {
+    return JSON.parse(sessionStorage.getItem(visibleReplyAtKey) ?? "{}");
+  }
+
   function watchVisibleAgentReply() {
     const started = sessionStorage.getItem(visibleReplyStartedKey);
-    if (
-      started === null ||
-      sessionStorage.getItem(visibleReplyAtKey) !== null ||
-      visibleReplyObservers
-    )
-      return;
+    if (started === null || visibleReplyObservers) return;
 
     const seen = new WeakSet();
     const intersections = new IntersectionObserver((entries) => {
-      const visible = entries.find(
-        ({ isIntersecting, target }) =>
-          isIntersecting &&
-          target.querySelector(".lf-msg-text")?.textContent.trim() &&
-          target.checkVisibility(),
-      );
-      if (!visible || sessionStorage.getItem(visibleReplyAtKey) !== null) return;
-      sessionStorage.setItem(visibleReplyAtKey, String(Date.now()));
-      stopVisibleReplyWatch();
+      const replies = visibleReplies();
+      for (const { isIntersecting, target } of entries) {
+        const id = target.dataset.mid;
+        if (
+          !isIntersecting ||
+          !id ||
+          replies[id] ||
+          !target.querySelector(".lf-msg-text")?.textContent.trim() ||
+          !target.checkVisibility()
+        )
+          continue;
+        replies[id] = Date.now();
+        intersections.unobserve(target);
+      }
+      sessionStorage.setItem(visibleReplyAtKey, JSON.stringify(replies));
     });
     const observe = () => {
-      for (const message of document.querySelectorAll(".lf-msg.agent")) {
+      for (const message of document.querySelectorAll(
+        ".lf-threads .lf-msg.agent[data-mid]",
+      )) {
         if (
           !seen.has(message) &&
           message.querySelector(".lf-msg-text")?.textContent.trim()
@@ -105,15 +112,15 @@
       const started = Date.now();
       sessionStorage.setItem(visibleReplyStartedKey, String(started));
       sessionStorage.removeItem(visibleReplyAtKey);
+      stopVisibleReplyWatch();
       watchVisibleAgentReply();
       return started;
     },
-    visibleReplyRecorded() {
-      return sessionStorage.getItem(visibleReplyAtKey) !== null;
+    visibleReplyRecorded(id) {
+      return visibleReplies()[id] !== undefined;
     },
-    visibleReplyAt() {
-      const visible = sessionStorage.getItem(visibleReplyAtKey);
-      return visible === null ? null : Number(visible);
+    visibleReplyAt(id) {
+      return visibleReplies()[id] ?? null;
     },
     // What the page shows about a reply the container holds and the panel never drew:
     // the reading it last applied, its traffic, and each message's identity.

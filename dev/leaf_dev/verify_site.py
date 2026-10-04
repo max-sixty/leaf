@@ -841,24 +841,27 @@ def ask_until_answered(
         )
 
 
-def wait_for_visible_reply(page, parent: str) -> bool:
+def wait_for_visible_reply(page, parent: str, answer_id: str) -> bool:
     """Open an answered thread's held news, then require its reply on screen."""
     try:
         page.wait_for_function(
-            """parent => window.__leafVerifier.visibleReplyRecorded() ||
+            """({parent, id}) => window.__leafVerifier.visibleReplyRecorded(id) ||
               [...document.querySelectorAll('.lf-threads > .lf-thread')].some(
                 thread => thread.dataset.id === parent &&
                   [...thread.querySelectorAll('.lf-thread-news')].some(
                     notice => notice.checkVisibility()))""",
-            arg=parent,
+            arg={"parent": parent, "id": answer_id},
             timeout=VISIBLE_REPLY_PATIENCE,
         )
-        if not page.evaluate("window.__leafVerifier.visibleReplyRecorded"):
+        if not page.evaluate(
+            "id => window.__leafVerifier.visibleReplyRecorded(id)", answer_id
+        ):
             page.locator(
                 f'.lf-threads > .lf-thread[data-id="{parent}"] .lf-thread-news'
             ).click()
             page.wait_for_function(
-                "window.__leafVerifier.visibleReplyRecorded",
+                "id => window.__leafVerifier.visibleReplyRecorded(id)",
+                arg=answer_id,
                 timeout=VISIBLE_REPLY_PATIENCE,
             )
     except PlaywrightTimeout:
@@ -902,8 +905,10 @@ def verify_agent_turn(
     )
     check_turn_answered(url, heading, turn, asks, revision)
     published, answer = turn.published, turn.answer
-    reply_visible = wait_for_visible_reply(page, answer["parent"])
-    visible_reply_at = page.evaluate("window.__leafVerifier.visibleReplyAt")
+    reply_visible = wait_for_visible_reply(page, answer["parent"], answer["id"])
+    visible_reply_at = page.evaluate(
+        "id => window.__leafVerifier.visibleReplyAt(id)", answer["id"]
+    )
     if visible_reply_at is not None:
         profile.milestones["response visible"] = (
             visible_reply_at - profile.visible_reply_started_ms

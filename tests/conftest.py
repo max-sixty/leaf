@@ -286,23 +286,30 @@ def pytest_collection_modifyitems(config, items):
 def _shard(config, items, spec):
     """Keep one of N slices of the selection, so N runners split one suite.
 
-    Units are dealt round-robin in collection order, which spreads each file, and each
-    parametrization of a test, across every slice: neighbouring tests cost about the
-    same, so the slices come out close in time without a record of past durations. An
-    xdist group is one unit, since `--dist loadgroup` promises its tests one worker.
-    Every xdist worker collects the same order, so each one deals the same slices."""
+    Each test goes, in collection order, to the slice holding the fewest tests so far,
+    which deals each file, and each parametrization of a test, across every slice:
+    neighbouring tests cost about the same, so the slices come out close in time without
+    a record of past durations. An xdist group goes whole to one slice, since
+    `--dist loadgroup` promises its tests one worker, and its tests count against that
+    slice like any others. Every xdist worker collects the same order, so each one deals
+    the same slices."""
     try:
         index, count = (int(part) for part in spec.split("/"))
     except ValueError:
         raise pytest.UsageError(f"--shard {spec}: expected K/N") from None
     if not 1 <= index <= count:
         raise pytest.UsageError(f"--shard {spec}: K must be between 1 and N")
-    slices = {}
+    groups, sizes = {}, [0] * count
     kept, other = [], []
     for item in items:
         group = item.get_closest_marker("xdist_group")
-        unit = (group.kwargs.get("name") or group.args[0]) if group else item.nodeid
-        slice_ = slices.setdefault(unit, len(slices) % count)
+        name = (group.kwargs.get("name") or group.args[0]) if group else None
+        slice_ = groups.get(name) if name else None
+        if slice_ is None:
+            slice_ = sizes.index(min(sizes))
+            if name:
+                groups[name] = slice_
+        sizes[slice_] += 1
         (kept if slice_ == index - 1 else other).append(item)
     items[:] = kept
     config.hook.pytest_deselected(items=other)

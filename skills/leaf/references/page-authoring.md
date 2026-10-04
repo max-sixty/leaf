@@ -178,8 +178,9 @@ Two arrange a box's children, on `main` or on any block:
 
 On `main`, every class but `layout-column` makes a wide page: every block, the title
 included, starts at one left edge and takes the page's width, and text keeps the
-reading measure. The title is set larger, and a workspace sets it smaller so its
-header stays one row. `layout-column` on a block keeps the measure but gives it no
+reading measure. A wide, sidebar or tiles page is capped at the widest page and
+sets its title larger; a workspace takes the whole window and leaves its title to the
+theme. `layout-column` on a block keeps the measure but gives it no
 room to break out into, since that room is the page's.
 
 A Layout is a starting point. The page's own `<style>` comes after it in the cascade, so

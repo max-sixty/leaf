@@ -134,7 +134,7 @@ BOUNDED_WORKSPACE_PAGE = leaf_page(
   <footer>End of queue</footer>
 """,
     head="<style>#gate-split { display: grid; grid-template-columns: 1fr 1fr; "
-    "gap: var(--sp-4); }</style>",
+    "}</style>",
     layout="workspace",
 )
 
@@ -264,7 +264,7 @@ def _pane_regions(columns: str, media: str) -> str:
   </div>
 """,
         head=f"""<style>
-#regions {{ display: grid; grid-template-columns: {columns}; gap: var(--sp-4); }}
+#regions {{ display: grid; grid-template-columns: {columns}; }}
 @media {media}
 </style>""",
         layout="workspace",
@@ -289,7 +289,7 @@ def test_a_screen_region_that_runs_past_its_room_gets_advice(browser, serve):
   </div>
 """,
         head="<style>#regions { display: grid; grid-template-columns: 1fr 2fr; "
-        "gap: var(--sp-4); }</style>",
+        "}</style>",
         layout="workspace",
     )
 

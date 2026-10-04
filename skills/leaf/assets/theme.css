@@ -278,6 +278,11 @@
      A second copy of 720 would be a release behind the first. */
   --col: 720px;
   --col-pad: 24px;
+  /* A pane's insets: its header and footer's, and its body's on every side. Tokens
+     rather than numbers in the pane rules, so a density restates them and the rules
+     keep the zero specificity a package restyling a pane relies on. */
+  --pane-bar-pad: 10px 14px;
+  --pane-inset: 14px;
   /* How wide evidence with `x-space: wide` may stand — one number for the whole
      vocabulary, because a set of widths is
      what makes mixed measures read as a design rather than as an accident, and a width
@@ -406,7 +411,9 @@
      back in a calc, and the option that holds a column for one is in another layer's
      stylesheet entirely. Written as a number there, the column stayed at the size the
      chip was when it was measured, and a package redeclaring the ladder grows the chip
-     into whatever the column was holding beside it. */
+     into whatever the column was holding beside it. Declared again on
+     `.density-working` (below), since a custom property resolves where it is
+     declared and a scope restating the ladder inherits the root's result. */
   --lf-key-badge-size: calc(round(var(--t-6) * 1.478 + 2px, 1px));
   /* A pressable never wears the accent as a solid fill: the accent is its ink and its
      hairline, and this tint is the disc or ground that rises under it on hover. */
@@ -855,8 +862,9 @@ hr { border: none; border-top: 1px solid var(--rule); margin: 40px 0; }
  * per line is a style and not where the block stands. The ladder and the spacing scale
  * are restated for the block's subtree, so every rule that reads them, a Layout's gutter
  * and a widget's padding included, sets at working size; shadow trees too, since custom
- * properties cross into them. The flow's own margins are numbers rather than tokens, so
- * they are restated here.
+ * properties cross into them. A token derived from the ladder at the root is declared
+ * again here, since it resolves where it is declared. The flow's own margins are numbers
+ * rather than tokens, so they are restated here.
  *
  * `--lf-density` names the setting for what a size alone cannot carry: a widget whose
  * form changes, such as an option card becoming a row, reads it with a style query, as
@@ -867,6 +875,9 @@ hr { border: none; border-top: 1px solid var(--rule); margin: 40px 0; }
   --t-working-label: 12px;
   --sp-1: 3px; --sp-2: 6px; --sp-3: 10px; --sp-4: 14px;
   --code-size: 12px; --code-line: 17px;
+  --lf-key-badge-size: calc(round(var(--t-6) * 1.478 + 2px, 1px));
+  --pane-bar-pad: 6px 12px;
+  --pane-inset: 12px;
   font-size: var(--t-4);
   line-height: 1.45;
 }
@@ -876,11 +887,6 @@ hr { border: none; border-top: 1px solid var(--rule); margin: 40px 0; }
 .density-working h3 { margin: 12px 0 4px; }
 .density-working h4 { margin: 10px 0 4px; }
 .density-working :is(th, td) { padding: 4px 10px; }
-.density-working :is([data-lf-reading-role="pane"]) > :is(header, footer) { padding: 6px 12px; }
-.density-working :is([data-lf-reading-role="pane"]) > :not(header, footer) {
-  --lf-pane-top: 10px;
-  padding: var(--lf-pane-top) 12px 12px;
-}
 /* Syntax roles. The runtime writes these into any code block that names a language —
    a <pre><code class="language-*"> or a lf-code with `language` — having collapsed the
    tokenizer's scopes into six of leaf's own first. Styled at document level like
@@ -1696,7 +1702,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
   background: var(--paper);
 }
 :where([data-lf-reading-role="pane"]) > header {
-  padding: 10px 14px;
+  padding: var(--pane-bar-pad);
   border-bottom: 1px solid var(--rule);
   font: 600 var(--t-5)/1.4 var(--sans);
   --lf-block-frame: 1;
@@ -1712,7 +1718,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
   color: var(--muted);
 }
 :where([data-lf-reading-role="pane"]) > footer {
-  padding: 10px 14px;
+  padding: var(--pane-bar-pad);
   border-top: 1px solid var(--rule);
   --lf-block-frame: 1;
 }
@@ -1733,8 +1739,8 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
  * the box; the workspace hands the inset back through `--lf-top` (layouts.css). A package
  * that pads a pane body another way sets `--lf-pane-top` with it. */
 :where([data-lf-reading-role="pane"]) > :not(header, footer) {
-  --lf-pane-top: 14px;
-  padding: var(--lf-pane-top) 14px 14px;
+  --lf-pane-top: var(--pane-inset);
+  padding: var(--lf-pane-top) var(--pane-inset) var(--pane-inset);
   container-type: inline-size;
   --lf-block-frame: 1;
 }

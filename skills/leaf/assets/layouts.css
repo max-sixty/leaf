@@ -201,9 +201,9 @@
   }
   /* The page as wide as the window: a gutter that grows with it, a cap at the widest
    * page, and the title a size up, set tighter to hold its line above panels as wide as
-   * the window. It holds one flow on its own, and every other Layout on `main` stands
-   * in it. A workspace sets its own frame below, and its title is the theme's. */
-  main:is(.layout-wide, .layout-sidebar, .layout-tiles, .layout-workspace) {
+   * the window. It holds one flow on its own, and the sidebar and tiles Layouts on
+   * `main` stand in it. A workspace has a frame of its own below. */
+  main:is(.layout-wide, .layout-sidebar, .layout-tiles) {
     padding-inline: clamp(var(--col-pad), 4cqi, 64px);
     max-width: var(--wide-page-max);
     margin-inline: auto;
@@ -264,9 +264,9 @@
    * theme's: a workspace usually takes working density (`.density-working`, theme.css),
    * which the Layout neither sets nor reads. */
   main.layout-workspace {
-    max-width: none;
     padding-inline: 12px;
     padding-block-start: var(--sp-2);
+    --lf-room: 100%;
   }
   /* The header takes the window's height before the panes do, so it is one row: the
    * title with the page's status beside it, wrapping only where the row runs out. What
@@ -289,18 +289,20 @@
   /* A page's grid of panes is one frame split into regions, as a terminal multiplexer's
    * or an editor's are: the panes meet at a hairline rather than standing apart as
    * cards. The page says where the panes stand, and the workspace how they meet. The
-   * grid draws the frame, and its gap is the hairline, the rule colour showing between
-   * panes that paint their own ground; each pane gives up the border and corners it
-   * draws standing alone. */
+   * grid draws the frame and leaves a 1px gap, and each pane trades the border and
+   * corners it draws standing alone for a 1px ring outside its box, so two neighbours'
+   * rings fill the gap between them as one hairline. Drawn by the panes rather than
+   * painted under them, so an empty cell, or a wider gap a page sets, shows the page's
+   * ground and not a band of rule colour. */
   main.layout-workspace > :not(header, footer):has(> [data-lf-reading-role="pane"]) {
     gap: 1px;
     border: 1px solid var(--rule);
     border-radius: var(--r);
-    background: var(--rule);
   }
   main.layout-workspace > :not(header, footer) > [data-lf-reading-role="pane"] {
     border: 0;
     border-radius: 0;
+    box-shadow: 0 0 0 1px var(--rule);
   }
   @media screen and (min-width: 720px) and (min-height: 480px) {
     main.layout-workspace {

@@ -68,7 +68,10 @@ test-owned failures recur:
 
 Every failure in the run is the session's, including those earlier runs also hit;
 a tracking issue records a failure but doesn't fix it. Open one pull request per
-cause that no open pull request already covers.
+cause that no open pull request already covers. Find the pull request that
+introduced each cause among those merged since the last run where the failing
+check passed, fix the failure in terms of what that pull request set out to do,
+and link it from the fix's description.
 
 ## A red `ci` on main is live
 

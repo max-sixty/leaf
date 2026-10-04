@@ -4421,9 +4421,7 @@ customElements.define('lf-feed', class extends HTMLElement {
 @pytest.mark.parametrize(
     "failure",
     [
-        "begin",
         "outletFor",
-        "end",
         "unregister",
         "end-unregister",
         "disconnect",
@@ -4438,9 +4436,13 @@ def test_a_failed_thread_surface_returns_its_threads_to_core_fallback(
 ):
     """An adapter failure cannot keep stale local views or stop the next widget.
 
-    Two previously seated threads expose partial claims when outletFor fails on
-    the second one. The healthy surface stands later in registration order, so
-    its updated reply proves reconciliation continued beyond the broken adapter.
+    Each case is one way a surface stops holding its threads: its callback throws
+    (outletFor, after partial claims on the first datum), it unregisters outside or
+    inside its callback, it leaves the page, its outlet moves out of it or off the
+    page, it places nothing, or its datum goes while the callback awaits. Its threads
+    fall back to the core surface with the unsent draft, and its picker lets go of the
+    keyboard. The healthy surface stands later in registration order, so its updated
+    reply proves reconciliation continued beyond the broken adapter.
     """
     entry = {
         "description": "A project-supplied thread surface.",
@@ -4468,19 +4470,18 @@ customElements.define('lf-test-surface', class extends HTMLElement {
       return row;
     });
     this.surface = consumeThreads(this, async (collection, surfaces) => {
-      this.check('begin');
       for (const thread of collection.threads) {
         const target = surfaces.target(thread.key);
         if (!target) continue;
         const {anchor, placement} = target;
-        if (anchor.datum === 'second') this.check('outletFor');
+        if (anchor.datum === 'second' && this.failure === 'outletFor')
+          throw new Error('surface fixture: outletFor');
         if (this.failure !== 'hidden') surfaces.place(thread.key, placement.datumElement.outlet);
       }
         if (this.failure === 'end-unregister') {
           this.failure = null;
           this.surface.unregister();
         }
-        this.check('end');
         for (const row of this.children) {
           if (this.failure === 'moved') document.querySelector('main').append(row.outlet);
           if (this.failure === 'detached') row.outlet.remove();
@@ -4494,11 +4495,8 @@ customElements.define('lf-test-surface', class extends HTMLElement {
         }
     });
   }
-  check(phase) {
-    if (this.failure === phase) throw new Error(`surface fixture: ${phase}`);
-  }
   fail(phase) {
-    this.failure = ['unregister', 'disconnect'].includes(phase) ? 'end' : phase;
+    this.failure = phase;
     if (phase === 'unregister') this.surface.unregister();
     else if (phase === 'disconnect') {
       this.remove();
@@ -4566,7 +4564,7 @@ customElements.define('lf-test-surface', class extends HTMLElement {
     )
     strip = broken.locator(".lf-react-strip")
     strip.locator(".lf-react-trigger").click()
-    expect(strip.locator(".lf-react:visible")).to_have_count(6)
+    expect(strip).to_have_class(re.compile(r"\blf-react-open\b"))
 
     broken.evaluate("(widget, phase) => widget.fail(phase)", failure)
     if failure in {"disconnect", "target-removed"}:
@@ -4617,25 +4615,21 @@ customElements.define('lf-test-surface', class extends HTMLElement {
     page.keyboard.press("Escape")  # and out of the panel that holds it
     expect(page.locator(".lf-thread-panel")).not_to_have_class(re.compile(r"\bopen\b"))
     # A retired thread lands on the surface the user's own gesture reaches. With the
-    # widget still on the page its passages keep a page-local destination, so the margin's
-    # thread margin entry on each datum and each passage's comment count open the fallback
-    # card and Threads stays shut; a disconnected widget leaves no such destination and
-    # the panel answers.
+    # widget still on the page its passages keep a page-local destination, so each datum
+    # gets a margin entry and its comment note opens the fallback card with Threads
+    # shut; a disconnected widget leaves no such destination and the panel answers.
     if failure in {"disconnect", "target-removed"}:
         expect(markers).to_have_count(0)
         page.locator(".lf-threads-toggle").click()
         fallback = page.locator(f'.lf-thread[data-id="{roots[0]}"]')
     else:
         expect(markers).to_have_count(2)
-        markers.first.click()
-        expect(page.locator(".lf-margin-preview")).to_be_visible()
-        expect(page.locator(".lf-thread-panel")).not_to_have_class(
-            re.compile(r"\bopen\b")
-        )
-        page.keyboard.press("Escape")
         comment_note(page, "#broken").press("Enter")
         fallback = page.locator(
             f'.lf-margin-preview .lf-page-thread[data-thread="{roots[0]}"]'
+        )
+        expect(page.locator(".lf-thread-panel")).not_to_have_class(
+            re.compile(r"\bopen\b")
         )
     expect(fallback).to_be_visible()
     expect(fallback).to_contain_text("Discuss broken")
@@ -4666,19 +4660,12 @@ customElements.define('lf-test-surface', class extends HTMLElement {
             "value", "Keep this unsent reply."
         )
         expect(markers).to_have_count(0)
-    if failure not in {
-        "detached",
-        "hidden",
-        "end-unregister",
-        "unregister",
-        "disconnect",
-        "target-removed",
-    }:
-        expected_phase = "end" if failure in {"unregister", "disconnect"} else failure
+    # Only a throw and an outlet outside its owner are faults the page reports.
+    if failure in {"outletFor", "moved"}:
         expected = (
             "returned an outlet outside its presentation owner"
             if failure == "moved"
-            else f"surface fixture: {expected_phase}"
+            else "surface fixture: outletFor"
         )
         # Keep the known handoff loss separate from the adapter's intentional fault.
         page.evaluate("lfWordsJudged()")

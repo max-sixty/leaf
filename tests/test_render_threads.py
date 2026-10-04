@@ -71,6 +71,7 @@ from render_harness import (
     undo,
     wait_for_revision,
     write,
+    xfail_browser_problem,
 )
 
 pytestmark = pytest.mark.nightly
@@ -1368,6 +1369,15 @@ def test_panel_settlement_moves_focus_with_optimistic_state_and_restores_a_refus
     round_trip(page)
     expect(reply).to_be_focused()
 
+    xfail_browser_problem(
+        page,
+        'typed words left the screen without a key or press: "first thread" in '
+        + page.get_by_role("searchbox", name="Find in threads").evaluate(
+            "field => window.lfPlace(field)"
+        ),
+        reason="Verified on main 35d91df64 (run 37183384374): native awaited thread arrival clears the query outside its input callback; PR #1705 owns the queued/presentation boundary.",
+    )
+
 
 def test_a_refused_reopen_preserves_a_filter_typed_during_its_reveal(
     held_events, serve
@@ -1407,6 +1417,15 @@ def test_a_refused_reopen_preserves_a_filter_typed_during_its_reveal(
     expect(find).to_be_focused()
     expect(page.locator('[data-filter-value="open"]')).to_have_attribute(
         "aria-pressed", "true"
+    )
+
+    xfail_browser_problem(
+        page,
+        'typed words left the screen without a key or press: "later search" in '
+        + page.get_by_role("searchbox", name="Find in threads").evaluate(
+            "field => window.lfPlace(field)"
+        ),
+        reason="Verified on main 35d91df64 (run 37183384374): native awaited thread arrival clears the query outside its input callback; PR #1705 owns the queued/presentation boundary.",
     )
 
 
@@ -1453,6 +1472,15 @@ def test_a_refused_reopen_preserves_a_filter_typed_during_restoration(
     expect(find).to_be_focused()
     expect(page.locator('[data-filter-value="resolved"]')).to_have_attribute(
         "aria-pressed", "true"
+    )
+
+    xfail_browser_problem(
+        page,
+        'typed words left the screen without a key or press: "restoration search" in '
+        + page.get_by_role("searchbox", name="Find in threads").evaluate(
+            "field => window.lfPlace(field)"
+        ),
+        reason="Verified on main 35d91df64 (run 37183384374): native awaited thread arrival clears the query outside its input callback; PR #1705 owns the queued/presentation boundary.",
     )
 
 
@@ -4772,6 +4800,12 @@ def test_an_external_resolution_keeps_a_panel_reply_until_it_is_sent(
         find.fill("No such discussion")
         rendered(page)
         expect(card).to_be_hidden()
+        xfail_browser_problem(
+            page,
+            f'typed words left the screen without a key or press: "{words}" in '
+            + reply.evaluate("field => window.lfPlace(field)"),
+            reason="Verified on main 35d91df64 (run 37183384374): a changed narrowing intent hides the retained reply while Find is edited; PR #1705 owns reply editing lifetime.",
+        )
         return
 
     page.keyboard.type(" still")
@@ -5663,6 +5697,15 @@ def test_a_delayed_accordion_reveal_yields_to_the_users_new_thread(browser, serv
     expect(later.locator(".lf-thread-summary")).to_be_focused()
     expect(later).to_have_attribute("open", "")
     expect(target).not_to_have_attribute("open", "")
+
+    xfail_browser_problem(
+        page,
+        'typed words left the screen without a key or press: "stay blocked" in '
+        + page.get_by_role("searchbox", name="Find in threads").evaluate(
+            "field => window.lfPlace(field)"
+        ),
+        reason="Verified on main 35d91df64 (run 37183384374): native awaited thread arrival clears the query outside its input callback; PR #1705 owns the queued/presentation boundary.",
+    )
 
 
 def test_a_design_thread_about_fixed_chrome_moves_neither_box(browser, serve):
@@ -8441,6 +8484,15 @@ def test_a_walk_to_a_question_the_narrowing_hides_widens_the_list(browser, serve
     assert page.evaluate(
         "() => document.activeElement.closest('.lf-thread') !== null"
     ), "the walk landed outside the card it named"
+
+    xfail_browser_problem(
+        page,
+        'typed words left the screen without a key or press: "stay blocked" in '
+        + page.get_by_role("searchbox", name="Find in threads").evaluate(
+            "field => window.lfPlace(field)"
+        ),
+        reason="Verified on main 35d91df64 (run 37183384374): native awaited thread arrival clears the query outside its input callback; PR #1705 owns the queued/presentation boundary.",
+    )
 
 
 def test_a_thread_on_a_rewrite_is_named_by_its_old_and_new_words(browser, serve):

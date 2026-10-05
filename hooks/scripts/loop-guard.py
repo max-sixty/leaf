@@ -5,12 +5,13 @@ The synchronous Stop, prompt and SessionEnd registrations call `bin/leaf hook`
 directly. That shell launcher owns uv; no Leaf Python process starts an
 environment manager.
 
-This supervisor calls `bin/leaf hook --watch`. Claude's asyncRewake registration
+This supervisor calls `bin/leaf` with its own arguments, which the registration
+states (`hook --harness claude-code --watch`). Claude's asyncRewake registration
 wakes on exit 2, a status uv can also use for startup failures, so only a clean
 Leaf return with a nonempty result becomes stderr and exit 2 here. Every other
 ending is silent. The harness's timeout signal is forwarded to the child, allowing
-the watch to release its lease. The registration gates on CLAUDECODE because
-Codex ignores asyncRewake and would wait on this long-running command.
+the watch to release its lease. Only Claude Code's registrations run it: Codex
+ignores asyncRewake and would wait on this long-running command.
 """
 
 import contextlib
@@ -22,7 +23,7 @@ from pathlib import Path
 PROJECT = Path(__file__).resolve().parents[2]
 
 
-def watch(payload: str) -> None:
+def watch(args: list[str], payload: str) -> None:
     """Run the watch, and wake the session, by exiting 2 with it on stderr, only
     with what the watch printed on a clean exit. uv and Python spend exit 2 on their
     own failures, so the status alone would wake the session with an error at
@@ -40,7 +41,7 @@ def watch(payload: str) -> None:
     with contextlib.suppress(Exception):
         children.append(
             subprocess.Popen(
-                [str(PROJECT / "bin" / "leaf"), "hook", "--watch"],
+                [str(PROJECT / "bin" / "leaf"), *args],
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.DEVNULL,
@@ -55,4 +56,4 @@ def watch(payload: str) -> None:
 
 
 if __name__ == "__main__":
-    watch(sys.stdin.read())
+    watch(sys.argv[1:], sys.stdin.read())

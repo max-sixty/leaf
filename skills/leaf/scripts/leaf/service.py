@@ -29,6 +29,7 @@ from leaf.schema import (
     UNNAMED_AGENT,
 )
 from leaf.state import (
+    CLAIMED_SUFFIX,
     EVENTS_FILE,
     close_session_turn,
     ensure_session,
@@ -36,6 +37,7 @@ from leaf.state import (
     now_iso,
     open_session_turn,
     page_key,
+    session_file,
     session_lock_path,
     session_record,
     write_json,
@@ -293,6 +295,9 @@ class PageTransaction:
             path.parent.mkdir(parents=True, exist_ok=True)
             yield previous, projected
             write_json(path, claim)
+            # Lets Codex's tool hook skip a session that never held a page
+            # (`state.hook_needed`).
+            session_file(claim["id"], CLAIMED_SUFFIX).touch()
 
     def restore_claim(self, expected: dict, previous: dict | None) -> None:
         """Roll back one failed claim without erasing a successor's."""

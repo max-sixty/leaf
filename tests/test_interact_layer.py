@@ -368,7 +368,9 @@ def test_workflow_shell_continuations_use_literal_blocks():
 
 
 def test_hidden_hook_remains_callable():
-    result = CliRunner().invoke(cli_model.cli, ["hook"], input="{}")
+    result = CliRunner().invoke(
+        cli_model.cli, ["hook", "--harness", "codex"], input="{}"
+    )
 
     assert result.exit_code == 0
     assert result.output == ""
@@ -548,8 +550,8 @@ def test_init_help_names_the_source_revision_and_version_layout():
 @pytest.mark.parametrize(
     "args",
     [
-        ["hook"],
-        ["hook", "--watch"],
+        ["hook", "--harness", "codex"],
+        ["hook", "--harness", "claude-code", "--watch"],
         ["page", "check", "page", "--render"],
         ["thread", "reply", "page", "--for", "c1", "--text", "export"],
     ],
@@ -688,6 +690,7 @@ def test_claude_and_codex_load_the_same_plugin_payload():
         "pyproject.toml",
         "uv.lock",
         "hooks/hooks.json",
+        "hooks/codex.json",
         "hooks/scripts/loop-guard.py",
         "skills/leaf/SKILL.md",
         "skills/leaf/references/authoring-asks.md",
@@ -2790,7 +2793,9 @@ def test_hooks_do_not_mint_the_successful_init_marker_for_a_deleted_page(page_di
     shutil.rmtree(page_dir)
     page_dir.mkdir()
 
-    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "stale-session"})
+    hooks_model.cmd_hook(
+        "claude-code", {"hook_event_name": "Stop", "session_id": "stale-session"}
+    )
 
     assert list(page_dir.iterdir()) == []
 

@@ -667,6 +667,7 @@ def run(dir: str, host: str | None, standing: bool, temporary: bool) -> None:
     Browser harnesses use `--temporary`; a user page in an agent session uses
     `server start`. A page already served prints that server's URL and exits.
     """
+    from leaf.harness import session_harness
     from leaf.hosting import cmd_serve, cmd_serve_temporary
 
     page_dir = resolve_dir(dir)
@@ -678,7 +679,7 @@ def run(dir: str, host: str | None, standing: bool, temporary: bool) -> None:
         cmd_serve_temporary(page_dir)
         return
     try:
-        cmd_serve(page_dir, host, standing, acquire=True)
+        cmd_serve(page_dir, host, standing, harness=session_harness(), acquire=True)
     except RuntimeError as error:
         raise SystemExit(str(error)) from None
 
@@ -689,6 +690,7 @@ def run(dir: str, host: str | None, standing: bool, temporary: bool) -> None:
 @click.option("--revive", is_flag=True, hidden=True)
 @click.option("--acquire", is_flag=True, hidden=True)
 @click.option("--claim", hidden=True)
+@click.option("--harness", required=True, hidden=True)
 @click.option("--handshake", type=int, required=True, hidden=True)
 def _serve(
     dir: str,
@@ -697,10 +699,12 @@ def _serve(
     revive: bool,
     acquire: bool,
     claim: str | None,
+    harness: str,
     handshake: int,
 ) -> None:
     """Private child process spawned by server start and Watch revival."""
     from leaf.detached import Handshake
+    from leaf.harness import harness_from_argument
     from leaf.hosting import cmd_serve
 
     with Handshake(handshake) as answer:
@@ -709,6 +713,7 @@ def _serve(
             host,
             standing,
             revive,
+            harness=harness_from_argument(harness),
             handshake=answer,
             acquire=acquire,
             prepared_claim=json.loads(claim) if claim is not None else None,
@@ -1022,15 +1027,20 @@ def task_end(dir: str, task_id: str, outcome: str, detail: str | None) -> None:
 
 @cli.command(hidden=True)
 @click.option(
+    "--harness",
+    required=True,
+    help="The harness whose registration runs this hook.",
+)
+@click.option(
     "--watch",
     is_flag=True,
     help="Watch the session's pages until input, printing what wakes the session.",
 )
-def hook(watch: bool) -> None:
+def hook(harness: str, watch: bool) -> None:
     """Answer an agent-harness hook on stdin."""
     from leaf.hooks import main
 
-    main(watch=watch)
+    main(harness, watch=watch)
 
 
 @cli.command(hidden=True)

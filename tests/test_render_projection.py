@@ -6465,10 +6465,11 @@ def test_the_render_gate_reads_a_page_that_has_finished_arriving(
         def _get(self):
             state_read = self.path.startswith("/api/state")
             page_read = state_read and self.headers.get("Referer")
-            # Bounded, and far inside the gate's own deadline for a served document: a
+            # Bounded, and inside the gate's own deadline for a served document: a
             # runtime that stopped reading state at startup is named by the assertion
             # below rather than by a gate whose server appeared to stop answering.
-            if state_read and not page_read and not arrived.wait(10):
+            held_for = render_checks_model.SERVED_TIMEOUT_MS / 2000
+            if state_read and not page_read and not arrived.wait(held_for):
                 expired.append(self.path)
             answer = super()._get()
             if page_read and not landed:

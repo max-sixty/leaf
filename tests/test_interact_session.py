@@ -2213,7 +2213,7 @@ def test_only_a_fresh_turn_whose_hooks_take_input_reads_listening(
     for page in (claimed, codex_claimed_page):
         cleanup_model.write_json(
             page / "status.json",
-            {"state": "waiting", "detail": "", "ts": now.isoformat(), "after": 0},
+            {"state": "waiting", "detail": "", "ts": now.isoformat()},
         )
     codex = page_state(codex_claimed_page)
     # Every other clause of the rule holds, so only the carrier can read it away.
@@ -2260,7 +2260,7 @@ def test_only_a_fresh_turn_whose_hooks_take_input_reads_listening(
     )
     cleanup_model.write_json(
         claimed / "status.json",
-        {"state": "waiting", "detail": "", "ts": opened.isoformat(), "after": 0},
+        {"state": "waiting", "detail": "", "ts": opened.isoformat()},
     )
     stale = page_state(claimed)
     assert (stale["turn_takes_input"], stale["turn_closed"]) == (True, None)
@@ -2269,7 +2269,7 @@ def test_only_a_fresh_turn_whose_hooks_take_input_reads_listening(
     # A status the turn writes renews it: the agent is there to have written it.
     cleanup_model.write_json(
         claimed / "status.json",
-        {"state": "waiting", "detail": "", "ts": now.isoformat(), "after": 0},
+        {"state": "waiting", "detail": "", "ts": now.isoformat()},
     )
     assert page_state(claimed)["activity"]["kind"] == "listening"
 
@@ -5534,7 +5534,7 @@ def test_idle_activity_refreshes_when_its_interaction_ownership_expires(
     declare_work(page_dir, "reading it", item=comment["id"], ts=started.isoformat())
     cleanup_model.write_json(
         page_dir / "status.json",
-        {"state": "idle", "detail": "", "ts": started.isoformat(), "after": 0},
+        {"state": "idle", "detail": "", "ts": started.isoformat()},
     )
 
     monkeypatch.setattr(
@@ -6063,6 +6063,43 @@ def test_delivery_distinguishes_composing_an_ask_from_changing_input_in_hand(pag
     )
     assert quiet not in selected
     assert undone in selected and changed in selected
+
+
+def test_a_put_down_start_holds_no_input_in_hand(page_dir):
+    """A `waiting` declaration puts down the start before it, so admission no longer
+    counts the started move as work in hand: a later edit on its widget stays quiet,
+    as it did before the start, and wakes nobody."""
+    (page_dir / "index.html").write_text(
+        PAGE.replace(
+            "</section>",
+            '<lf-draft id="draft"><pre>Blue room.</pre></lf-draft></section>',
+        )
+    )
+    publish(page_dir)
+
+    def edit(text):
+        return append_command(
+            page_dir,
+            {
+                "kind": "action",
+                "author": "user",
+                "revision": 1,
+                "widget": "draft",
+                "action": "edit",
+                "detail": {"text": text},
+            },
+        )
+
+    first = edit("Green room.")
+    assert not first["attention"]
+    assert _start(page_dir, first["id"], "Reading the draft").exit_code == 0
+    declared = CliRunner().invoke(
+        cli_model.cli, ["status", str(page_dir), "waiting", "Read it over"]
+    )
+    assert declared.exit_code == 0, declared.output
+    [workflow] = page_state(page_dir)["workflows"]
+    assert (workflow["input"], workflow["stage"]) == (first["id"], "sent")
+    assert not edit("Red room.")["attention"]
 
 
 def test_signoff_withdrawals_reports_and_errors_remain_deliverable(page_dir):
@@ -13339,7 +13376,7 @@ def test_a_user_move_no_carrier_will_pick_up_messages_its_claude_code_session(
         record_claim(page_dir, turn="turn-4", turn_opened=opened.isoformat())
         cleanup_model.write_json(
             page_dir / "status.json",
-            {"state": "waiting", "detail": "", "ts": opened.isoformat(), "after": 0},
+            {"state": "waiting", "detail": "", "ts": opened.isoformat()},
         )
         # `None` leaves the record as it stands: more input after the same ending.
         # A `shell` flip is the same ending seen again; a new prompt renews the

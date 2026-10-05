@@ -3194,11 +3194,6 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
             "state": "waiting" if state == "working" else state,
             "detail": "" if state == "working" else detail,
             "ts": ts.isoformat(timespec="seconds"),
-            "after": (
-                events_model.read_events(d)[-1]["seq"]
-                if events_model.read_events(d)
-                else 0
-            ),
         }
         if stream is not None:
             # What a transport watched for itself, written the way an App Server
@@ -3208,7 +3203,11 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
                     "session": "s",
                     "turn": "turn-live",
                     "ts": ts.isoformat(timespec="seconds"),
-                    "after": status["after"],
+                    "after": (
+                        events_model.read_events(d)[-1]["seq"]
+                        if events_model.read_events(d)
+                        else 0
+                    ),
                 }
                 | stream
             }

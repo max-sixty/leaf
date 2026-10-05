@@ -800,6 +800,23 @@
           "additionalProperties": false
         }
       },
+      "put_down": {
+        "record": {
+          "type": "object",
+          "properties": {
+            "attention": {"type": "boolean"},
+            "id": {"type": "string", "minLength": 1},
+            "ts": {"type": "string", "minLength": 1},
+            "author": {"const": "agent"},
+            "kind": {"const": "put_down"},
+            "seq": {"type": "integer", "minimum": 1},
+            "agent": {"type": "string", "minLength": 1},
+            "session": {"type": "string", "minLength": 1}
+          },
+          "required": ["attention", "id", "ts", "author", "kind", "seq"],
+          "additionalProperties": false
+        }
+      },
       "task_end": {
         "record": {
           "type": "object",

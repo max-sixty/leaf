@@ -253,12 +253,7 @@ def browser_state(
             "coverage": coverage,
             "published_at": published_at,
         }
-    workflows = canonical_workflows(
-        threads,
-        thread_reading,
-        page=active_page,
-        put_down=present["status"].get("after", 0),
-    )
+    workflows = canonical_workflows(threads, thread_reading, page=active_page)
     activity = canonical_activity(
         present,
         workflows,

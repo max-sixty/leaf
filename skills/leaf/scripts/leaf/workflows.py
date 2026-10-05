@@ -65,7 +65,7 @@ from .projection import (
     PageReading,
     recorded_state,
 )
-from .tasks import canonical_tasks, item_starts, open_tasks
+from .tasks import item_starts, open_tasks
 
 
 def admission_workflows(readings) -> tuple[list[dict], dict]:
@@ -207,15 +207,14 @@ def canonical_workflows(
     *,
     page: PageReading | None = None,
     events: list | None = None,
-    put_down: int = 0,
 ) -> list[dict]:
     """The unsettled user inputs and strongest evidence held for each.
 
-    `put_down` is the log position of the agent's latest `waiting` or `idle`
-    declaration (`status["after"]`): every start at or before it is put down, so a
-    move it named is no longer in hand. A start holds a move it names, and a start on
-    an open task over a widget holds that widget's moves delivered before it, as the
-    work the task answers. The workflow names the start holding it as `held_by`,
+    A standing start (`tasks.item_starts`) holds a move it names, and a start running
+    on an open task over a widget holds that widget's moves delivered before it, as
+    the work the task answers. A `put_down` in the log, which `leaf status waiting`
+    and `idle` write, ends every start before it, so the moves they named are no
+    longer in hand. The workflow names the start holding it as `held_by`,
     which `activity` takes off before serving.
 
     This is one interaction-scoped projection over the document and log: append
@@ -252,21 +251,11 @@ def canonical_workflows(
         for event_id in event["events"]:
             deliveries.setdefault(event_id, {})[event["phase"]] = event
 
-    starts = {
-        item: start
-        for item, start in item_starts(events).items()
-        if start["seq"] > put_down
-    }
+    starts = item_starts(events)
     widget_starts: dict[str, list[dict]] = {}
-    for task in canonical_tasks(events):
-        running = task["running"]
-        if (
-            task["state"] == "open"
-            and running
-            and running["seq"] > put_down
-            and task["subject"]["kind"] == "widget"
-        ):
-            widget_starts.setdefault(task["subject"]["id"], []).append(running)
+    for task in open_tasks(events):
+        if task["running"] and task["subject"]["kind"] == "widget":
+            widget_starts.setdefault(task["subject"]["id"], []).append(task["running"])
 
     def delivered_at(source: dict) -> int:
         delivery = deliveries.get(source["id"], {})

@@ -5267,7 +5267,7 @@ def test_a_claimed_page_without_a_declaration_serves_its_state(page_dir, server)
     status, raw = fetch(f"{server}/api/state")
 
     assert status == 200, raw
-    assert json.loads(raw)["status"] == {"state": "waiting", "detail": "", "after": 0}
+    assert json.loads(raw)["status"] == {"state": "waiting", "detail": ""}
 
 
 def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):

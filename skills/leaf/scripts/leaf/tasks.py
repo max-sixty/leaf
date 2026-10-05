@@ -27,8 +27,11 @@ item still running, the activity fold reads it stalled (`activity`). A later sta
 the same item replaces it, which is how the next turn takes the item in hand again.
 A `waiting` or `idle` declaration puts down every start written before it: the
 moves those started are no longer in hand, and the tasks stay open with nothing
-running on them (`workflows.canonical_workflows`, `put_down`). A start on a page
-declared `idle` reopens the page with a bare `waiting` just before it.
+running on them. The put-down is a `put_down` event in the log, which `leaf status`
+writes ahead of the declaration whenever a start stands (`put_down`), so admission,
+which reads only the document and the log, sees it as every other reader does. A
+start on a page declared `idle` reopens the page with a bare `waiting` after it,
+which writes no `put_down`.
 
 The door admits a task on an open thread, on a live page widget that declares
 `x-work` or holds an unsettled move (`work.widget_seat_error`), or on the page; a
@@ -54,8 +57,15 @@ PAGE_SUBJECT = "page"
 
 
 def item_starts(events: list) -> dict[str, dict]:
-    """The newest `start` naming each item, by the item's id."""
-    return {event["item"]: event for event in events if event["kind"] == "start"}
+    """The start standing on each item, by the item's id: the newest naming it, unless
+    a `put_down` came after it."""
+    starts: dict[str, dict] = {}
+    for event in events:
+        if event["kind"] == "start":
+            starts[event["item"]] = event
+        elif event["kind"] == "put_down":
+            starts.clear()
+    return starts
 
 
 def last_start(events: list) -> str | None:
@@ -89,7 +99,6 @@ def canonical_tasks(events: list) -> list[dict]:
 
     def end(task: dict, state: str, event: dict, detail: str | None) -> None:
         task["state"] = state
-        task["running"] = None
         task["outcome"] = {
             "id": event["id"],
             "seq": event["seq"],
@@ -114,11 +123,6 @@ def canonical_tasks(events: list) -> list[dict]:
                 "running": None,
                 "outcome": None,
             }
-            continue
-        if event["kind"] == "start":
-            task = tasks.get(event["item"])
-            if task is not None and task["state"] == "open":
-                task["running"] = running(event)
         elif event["kind"] == "task_end" and event["task"] in tasks:
             end(tasks[event["task"]], event["outcome"], event, event.get("detail"))
         elif event["kind"] == "note":
@@ -126,6 +130,10 @@ def canonical_tasks(events: list) -> list[dict]:
                 task = tasks.get(identity)
                 if task is not None and task["state"] == "open":
                     end(task, "done", event, f"v{event['version']}")
+    standing = item_starts(events)
+    for task in tasks.values():
+        if task["state"] == "open" and task["id"] in standing:
+            task["running"] = running(standing[task["id"]])
     return list(tasks.values())
 
 
@@ -262,13 +270,27 @@ def cmd_start(page_dir: Path, item: str, text: str) -> dict:
             )
             # Work in hand reopens a page the agent had closed: `idle` says it was
             # done with the page, and every carrier stands down for an idle page. The
-            # reopening `waiting` stands just before this start, which it would
-            # otherwise put down.
+            # reopening is a bare declaration, with no `put_down` to take this start
+            # back.
             if page.status["state"] == "idle":
-                page.set_status("waiting", "", after=record["seq"] - 1)
+                page.set_status("waiting", "")
             return record
 
     return write(page_dir)
+
+
+def put_down(page) -> dict | None:
+    """Put down every start standing on the page `page`, an open
+    `service.PageTransaction`, as `leaf status waiting` and `idle` do; the record, or
+    None when no start stands and the log has nothing to add."""
+    from .event_contracts import append_admitted
+    from .harness import message_identity
+
+    if not item_starts(page.events):
+        return None
+    return append_admitted(
+        page, {"kind": "put_down", "author": "agent", **message_identity()}
+    )
 
 
 def cmd_end(page_dir: Path, task: str, outcome: str, detail: str | None) -> dict:

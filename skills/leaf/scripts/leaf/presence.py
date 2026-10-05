@@ -173,9 +173,8 @@ def presence_with_activity(
     status = {
         key: value
         for key, value in stored_status.items()
-        if key in {"state", "detail", "ts", "after"}
+        if key in {"state", "detail", "ts"}
     }
-    status.setdefault("after", 0)
     claim = page_claim(page_dir)
     active = claim if claim_is_active(claim) else None
     # What the wait owner has acknowledged after the complete batch reached its

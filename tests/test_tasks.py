@@ -390,7 +390,10 @@ def test_a_start_reopens_a_page_its_agent_closed(page_dir):
     written(leaf("status", page_dir, "idle"))
     assert state_json(page_dir)["activity"]["kind"] == "closed"
     task = written(leaf("task", "open", page_dir, "page", "Add a glossary"))
-    written(leaf("task", "start", page_dir, task["id"], "Drafting the glossary"))
+    start = written(
+        leaf("task", "start", page_dir, task["id"], "Drafting the glossary")
+    )
+    assert events_model.read_events(page_dir)[-1] == start
     state = state_json(page_dir)
     assert state["status"]["state"] == "waiting"
     assert (state["activity"]["kind"], state["activity"]["detail"]) == (
@@ -401,7 +404,8 @@ def test_a_start_reopens_a_page_its_agent_closed(page_dir):
 
 def test_a_waiting_declaration_puts_down_every_start_before_it(page_dir):
     """`status waiting` says what the agent wants back, and the banner shows it: every
-    start written before it is put down. A started move goes back to its delivery
+    start written before it is put down, by a `put_down` in the log that a declaration
+    with no start standing does not repeat. A started move goes back to its delivery
     stage, and a started task stays open with nothing running on it. A start after
     the declaration is in hand again."""
     publish(page_dir)
@@ -415,6 +419,10 @@ def test_a_waiting_declaration_puts_down_every_start_before_it(page_dir):
     assert state_json(page_dir)["activity"]["kind"] == "working"
 
     written(leaf("status", page_dir, "waiting", "Pick a plan"))
+    log = events_model.read_events(page_dir)
+    assert log[-1]["kind"] == "put_down"
+    written(leaf("status", page_dir, "waiting", "Pick a plan"))
+    assert events_model.read_events(page_dir) == log
     state = state_json(page_dir)
     assert state["status"]["detail"] == "Pick a plan"
     assert state["activity"]["kind"] not in {"working", "stalled"}

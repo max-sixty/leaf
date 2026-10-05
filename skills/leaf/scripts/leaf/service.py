@@ -360,23 +360,14 @@ class PageTransaction:
     def status(self) -> dict:
         return read_status(self.page_dir)
 
-    def set_status(self, state: str, detail: str, *, after: int | None = None) -> dict:
+    def set_status(self, state: str, detail: str) -> dict:
         """Write the page's `waiting` or `idle` declaration and return it as written.
 
-        The work the agent has in hand is no status: it is the log's `start` events
-        (`tasks`), and a declaration puts down every start at or before its `after`,
-        the log's end unless given. The stream the harness observes carries across a
-        `waiting`, and `idle` clears it with the leaf."""
-        if after is None:
-            after = self.events[-1]["seq"] if self.events else 0
-        status = {
-            "state": state,
-            "detail": detail,
-            "ts": now_iso(),
-            # Order the agent's declaration against delivery transitions without
-            # comparing wall-clock timestamps that are only precise to a second.
-            "after": after,
-        }
+        The work the agent has in hand is no status: it is the log's `start` events,
+        and the `put_down` that `leaf status` writes beside a declaration takes them
+        back (`tasks`). The stream the harness observes carries across a `waiting`,
+        and `idle` clears it with the leaf."""
+        status = {"state": state, "detail": detail, "ts": now_iso()}
         if state != "idle" and (stream := self.status.get("stream")):
             status["stream"] = stream
         write_json(self.page_dir / STATUS_FILE, status)
@@ -745,7 +736,7 @@ def read_status(page_dir: Path) -> dict:
     "Stage"). The first status write replaces it."""
     record = read_json(page_dir / STATUS_FILE)
     if record is None or "state" not in record:
-        return {"state": "waiting", "detail": "", "after": 0}
+        return {"state": "waiting", "detail": ""}
     return record
 
 

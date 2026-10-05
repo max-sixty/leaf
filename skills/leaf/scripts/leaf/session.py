@@ -46,19 +46,23 @@ STOP_HOOK_S = 20
 
 
 def cmd_waiting(page_dir: Path, detail: str) -> tuple[dict, list[dict]]:
-    """Declare the page waiting on its user and return the declaration, with the user
-    moves still owed an answer, which the page goes on showing over it."""
+    """Declare the page waiting on its user, putting down every start that stands
+    (`tasks.put_down`), and return the declaration, with the user moves still owed an
+    answer, which the page goes on showing over it."""
     from .revisioning import activate_source
     from .served_state.page import full_state
+    from .tasks import put_down
 
     with PageTransaction(page_dir) as page:
         activate_source(page_dir, transaction=page)
+        put_down(page)
         status = page.set_status("waiting", detail)
         return status, full_state(page_dir, page.events)["activity"]["obligations"]
 
 
 def cmd_idle(page_dir: Path, detail: str) -> dict:
-    """Idle, unless the page still owes its user an answer.
+    """Idle, putting down every start that stands, unless the page still owes its
+    user an answer.
 
     Idling over an event nobody has answered ends the leaf on a user still
     owed one — unread, or read and left. The watcher's whole batch, not the
@@ -71,7 +75,7 @@ def cmd_idle(page_dir: Path, detail: str) -> dict:
     or an acknowledgement advancing the cursor orders against them."""
     from .activity import blocking_obligations, unanswered
     from .served_state.page import full_state
-    from .tasks import open_tasks
+    from .tasks import open_tasks, put_down
 
     with PageTransaction(page_dir) as page:
         events = page.events
@@ -109,6 +113,7 @@ def cmd_idle(page_dir: Path, detail: str) -> dict:
                 '`leaf task end <page> <id> done "<where the result is>"`, or '
                 '`dropped "<why>"`.'
             )
+        put_down(page)
         return page.set_status("idle", detail)
 
 

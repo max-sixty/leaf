@@ -1332,7 +1332,7 @@ def neighbour_page(directory, title=None, dead=False, published=True, port=59999
     # A neighbour the agent has finished with.
     cleanup_model.write_json(
         directory / "status.json",
-        {"state": "idle", "detail": "", "ts": None, "after": 0},
+        {"state": "idle", "detail": "", "ts": None},
     )
     if published:
         append_carried_log_record(

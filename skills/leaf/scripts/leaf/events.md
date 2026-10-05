@@ -26,7 +26,8 @@ page and is not a global identifier. The kinds:
 | `error` | page | the runtime | | the page reported a failure in front of the user; heard like a report, never counted against the user |
 | `task` | agent | `leaf task open` | `subject`: `{kind: thread, id}` (an open thread), `{kind: widget, id}` (a live page widget that declares `x-work` or holds an unsettled move), or `{kind: page}`; `title`; server-stamped `revision` on a widget task | the agent takes on work it owes there; it stands through replies, resolutions, versions and session ends (`tasks.py`) |
 | `task_end` | agent | `leaf task end` | `task`, an open task; `outcome` (`done`, `failed`, or `dropped`); optional `detail` | ends one open task, as a note that `settles` it does |
-| `start` | agent | `leaf task start` | `item`, a user move the agent owes (its event id) or an open task; the banner's `text`; `turn`, the claimant turn that wrote it, when the poster holds the page | takes the item in hand: a move reads Working and a task runs, until the move is answered or the task ends; the newest start on an item replaces the one before |
+| `start` | agent | `leaf task start` | `item`, a user move the agent owes (its event id) or an open task; the banner's `text`; `turn`, the claimant turn that wrote it, when the poster holds the page | takes the item in hand: a move reads Working and a task runs, until the move is answered, the task ends, or a `put_down` follows; the newest start on an item replaces the one before |
+| `put_down` | agent | `leaf status waiting` and `leaf status idle`, when a start stands | | ends every start before it: the moves they named go back to their delivery stage and the tasks stay open with nothing running (`tasks.item_starts`) |
 | `undo` | user | `POST /api/event` | `undoes` | withdraws one gesture of the user's own (`UNDOABLE_KINDS`: resolve, unresolve, action, done) |
 
 An `anchor` names a passage by `section` and `quote`, with `prefix` and `suffix`

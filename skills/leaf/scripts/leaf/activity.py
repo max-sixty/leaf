@@ -423,16 +423,13 @@ def _canonical_tasks(
 ) -> tuple[list[dict], dict[str, tuple[bool, bool]]]:
     """Age the start running on each open task as a Working move's is aged, and
     return beside them how quiet and whether dropped each is. Nobody holding the page
-    has nothing in hand, so an unheld page's tasks run nothing, and a `waiting` or
-    `idle` declaration puts down every start written before it: the task stays open,
-    with nothing running on it."""
-    put_down = present["status"].get("after", 0)
+    has nothing in hand, so an unheld page's tasks run nothing."""
     result = []
     aging = {}
     for raw in tasks:
         task = dict(raw)
         start = task["running"]
-        if start is not None and (not held or start["seq"] <= put_down):
+        if start is not None and not held:
             task["running"] = None
         elif start is not None:
             quiet, dropped = _start_age(start, present, now, turn)

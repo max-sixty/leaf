@@ -3401,7 +3401,7 @@ def test_a_status_kind_change_is_announced_in_the_banners_own_words(browser, ser
         )
     told(page)
     expect(live).to_contain_text("Claude is waiting for approval")
-    lease.close()
+    leases_model.release_lease(lease)
 
     held = []
 

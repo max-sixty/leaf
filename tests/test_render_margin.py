@@ -32,7 +32,7 @@ from render_cases_layout import (
     ring_faults,
     rings_drawn,
     standing_ring,
-    toggle_asks,
+    toggle_queue,
     token_colour,
     with_one_ask,
 )
@@ -595,7 +595,7 @@ def test_a_surface_over_the_rail_hands_the_user_the_map(browser, serve):
     drawn, but at 1100 it stands over the rail, so the banner offers the Page Map in the
     markers' place; at 1920 the rail stands clear of it and the margin stays the way in.
     The Map is read as offered rather than as visible, since the toolbar may fold it behind
-    the More door at a width the banner is crowded at. The Asks drawer stands over the left
+    the More door at a width the banner is crowded at. The Queue panel stands over the left
     of the window, away from the rail, so it leaves the markers and the margin alone."""
     comment = {
         "kind": "comment",
@@ -640,7 +640,7 @@ def test_a_surface_over_the_rail_hands_the_user_the_map(browser, serve):
     margins_laid_out(page)
     assert not page.evaluate(offered), "closing the panel left the map offered"
 
-    toggle_asks(page)
+    toggle_queue(page)
     margins_laid_out(page)
     expect(marker).to_be_visible()
     assert not page.evaluate(offered), "the drawer on the left withdrew the rail"
@@ -2784,12 +2784,12 @@ def test_the_page_map_dialog_walks_its_rows_from_the_search(browser, serve):
 
 def test_the_chrome_names_an_ask_by_its_question(browser, serve):
     """An Ask is named by its heading, not its heading run into its options and their
-    chips: the Asks drawer row, and the Page Map group for it, whose one row says why the
+    chips: the Queue panel row, and the Page Map group for it, whose one row says why the
     Ask is there rather than naming it a second time."""
     page = open_page(browser, serve(ASK_PAGE))
     page.keyboard.press("g")
-    page.keyboard.press("Shift+a")
-    row = page.locator("button.lf-asks-row").first
+    page.keyboard.press("Shift+q")
+    row = page.locator("button.lf-queue-row").first
     expect(row).to_contain_text("Which jobs are worth starting?")
     expect(row).not_to_contain_text("Replace the")
     page.keyboard.press("Escape")
@@ -8290,13 +8290,13 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     resized_shell(page, 1920, 900)
 
     page.keyboard.press("g")
-    page.keyboard.press("Shift+a")
+    page.keyboard.press("Shift+q")
     expect(preview).to_be_hidden()
-    expect(page.locator(".lf-asks-panel")).to_have_class(re.compile(r"\bopen\b"))
+    expect(page.locator(".lf-queue-panel")).to_have_class(re.compile(r"\bopen\b"))
     # Exchanging one auxiliary surface for another is lateral, so the drawer's Escape
     # lands on the page and the card it displaced is not put back up.
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-asks-panel")).not_to_have_class(re.compile(r"\bopen\b"))
+    expect(page.locator(".lf-queue-panel")).not_to_have_class(re.compile(r"\bopen\b"))
     expect(preview).to_be_hidden()
     assert page.evaluate("() => document.activeElement === document.body")
     marker.click()
@@ -8539,16 +8539,16 @@ def test_the_thread_card_survives_drawers_and_authored_sidebars(browser, serve):
     marker.click()
     expect(page.locator(".lf-margin-thread")).to_have_count(1)
 
-    banner_control(page, ".lf-asks").click()
-    expect(page.locator("body")).to_have_attribute("data-lf-auxiliary-surface", "asks")
+    banner_control(page, ".lf-queue").click()
+    expect(page.locator("body")).to_have_attribute("data-lf-auxiliary-surface", "queue")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     marker.click()
     expect(page.locator(".lf-margin-preview")).to_be_visible()
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
     marker.click()
-    banner_control(page, ".lf-asks").click()
+    banner_control(page, ".lf-queue").click()
     expect(page.locator("body")).not_to_have_attribute(
-        "data-lf-auxiliary-surface", "asks"
+        "data-lf-auxiliary-surface", "queue"
     )
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     marker.click()
@@ -9020,6 +9020,179 @@ def test_a_scroll_that_carries_the_card_writes_nothing(browser, serve):
     writes = scroll_writes(page, (-20, -20, 20, 20, 20))
     assert writes == [], writes
     assert page.evaluate(offset) == pytest.approx(before, abs=0.5)
+
+
+@pytest.mark.parametrize("target", ["sec-mounts", "bracket"])
+def test_a_card_beside_an_element_scrolled_past_its_top_waits_at_the_windows_top(
+    browser, serve, target
+):
+    """Beside an element, a card stays level with some line of it. A scroll that takes
+    the element's top past the window's, with the rest still showing, leaves the card
+    held at the window's top, below the banner, in the window's plane, so the scroll
+    writes nothing. Stood level with the element's clipped top instead, the card sat
+    under the banner in the page's plane: the browser carried it with each scroll
+    frame and the next placement pulled it back, and Shift+a up to an Ask with a
+    thread shook its card. Once the element's foot passes the window's top, the card
+    leaves with it. On an Ask's options, the binding badge the banner holds in stands
+    in the window's plane too, for the same reason."""
+    comment = {**COMMENT_ON_ASK, "anchor": {"section": target}}
+    page = open_page(browser, serve(ASK_PAGE, events=[comment]))
+    resized(page, 1440, 600)
+    marker = page.locator(f'[data-lf-margin-for="{target}"] .lf-margin-marker')
+    marker.evaluate(
+        "node => node.scrollIntoView({block: 'center', behavior: 'instant'})"
+    )
+    marker.click()
+    card = page.locator(".lf-margin-preview")
+    expect(card).to_have_attribute("data-lf-thread-placement", "right")
+    reading = """async id => {
+      const geometry = await window.__lfRuntimeImport('/runtime/geometry.js');
+      const target = document.getElementById(id).getBoundingClientRect();
+      return {
+        card: document.querySelector('.lf-margin-preview').getBoundingClientRect().top,
+        top: target.top, bottom: target.bottom,
+        window: geometry.shownWindow({gap: 8}).top,
+      };
+    }"""
+
+    def scroll_by(by):
+        page.evaluate("by => document.scrollingElement.scrollBy(0, by)", by)
+        rendered(page)
+        return page.evaluate(reading, target)
+
+    at = page.evaluate(reading, target)
+    assert at["bottom"] - at["top"] > 60, at
+    at = scroll_by(at["top"] - at["window"] + 20)
+    expect(card).to_have_attribute("data-lf-plane", "window")
+    assert at["card"] == pytest.approx(at["window"], abs=0.5), at
+    writes = scroll_writes(page, (5, 5, -5, 5))
+    assert writes == [], writes
+    at = page.evaluate(reading, target)
+    assert at["card"] == pytest.approx(at["window"], abs=0.5), at
+    at = scroll_by(at["bottom"] - at["window"] + 20)
+    expect(card).to_have_attribute("data-lf-plane", "page")
+    assert at["card"] == pytest.approx(at["bottom"], abs=0.5), at
+
+
+PANE_FILLER = "".join(
+    f"<p>Filler paragraph {i} about the release.</p>" for i in range(12)
+)
+PANE_PAGE = leaf_page(
+    "Release pane",
+    f"""<h1>Release</h1>
+<lf-pane id="evidence" label="Evidence"><div id="pane-body">
+{PANE_FILLER}
+<section id="pane-sec"><h2>Rollout</h2><p>One.</p><p>Two.</p><p>Three.</p><p>Four.</p>
+</section>
+{PANE_FILLER}
+</div></lf-pane>
+{PANE_FILLER}""",
+    head="<style>#pane-body { height: 420px; overflow: auto; }</style>",
+    layout="wide",
+)
+
+
+def test_a_card_a_panes_edge_holds_stays_put_as_the_pane_scrolls(browser, serve):
+    """A card under an element in a scrolling pane, held in by the pane's foot, stands
+    in the pane's plane: it is anchored to the pane, which the pane's own scroll does not
+    move, so that scroll writes nothing to the card. Read as the page's plane, the card
+    was anchored to the element, carried up with each scroll frame, and placed back. A
+    scroll of the page carries the pane and the card together, and keeps the card's
+    side, which the pane's size holds rather than where the page shows it."""
+    comment = {**COMMENT_ON_ASK, "anchor": {"section": "pane-sec"}}
+    page = open_page(browser, serve(PANE_PAGE, events=[comment]))
+    resized(page, 1440, 900)
+    page.evaluate("() => document.getElementById('pane-sec').scrollIntoView()")
+    page.locator('[data-lf-margin-for="pane-sec"] .lf-margin-marker').click()
+    card = page.locator(".lf-margin-preview")
+    expect(card).to_have_attribute("data-lf-thread-placement", "below")
+    reading = """() => ({
+      card: document.querySelector('.lf-margin-preview').getBoundingClientRect().top,
+      bottom: document.getElementById('pane-sec').getBoundingClientRect().bottom,
+      foot: document.getElementById('pane-body').getBoundingClientRect().bottom,
+    })"""
+    at = page.evaluate(reading)
+    page.evaluate(
+        "by => document.getElementById('pane-body').scrollBy(0, by)",
+        at["bottom"] - at["foot"] + 60,
+    )
+    rendered(page)
+    expect(card).to_have_attribute("data-lf-plane", "region")
+    before = page.evaluate(reading)
+    writes = scroll_writes(
+        page, (5, 5, -5, 5), scroller="document.getElementById('pane-body')"
+    )
+    # The target's trace, drawn from its box as the pane clips it, still follows the
+    # pane's scroll; this test is about the card.
+    assert [w for w in writes if "lf-margin-preview" in w["target"]] == [], writes
+    assert page.evaluate(reading)["card"] == pytest.approx(before["card"], abs=0.5)
+    before = page.evaluate(reading)
+    writes = scroll_writes(page, (5, 5, -5, 5))
+    assert [w for w in writes if "lf-margin-preview" in w["target"]] == [], writes
+    expect(card).to_have_attribute("data-lf-thread-placement", "below")
+    after = page.evaluate(reading)
+    assert after["card"] - after["foot"] == pytest.approx(
+        before["card"] - before["foot"], abs=0.5
+    )
+
+
+NESTED_PANE_PAGE = leaf_page(
+    "Nested panes",
+    f"""<h1>Release</h1>
+<lf-pane id="evidence" label="Evidence"><div id="pane-body">
+{PANE_FILLER}
+<div id="inner" data-bound="start" style="height: 700px">
+{PANE_FILLER}
+<section id="pane-sec"><h2>Rollout</h2><p>One.</p><p>Two.</p><p>Three.</p><p>Four.</p>
+</section>
+{PANE_FILLER}{PANE_FILLER}
+</div>
+{PANE_FILLER}
+</div></lf-pane>""",
+    head="<style>#pane-body { height: 300px; overflow: auto; }</style>",
+    layout="wide",
+)
+
+
+def test_a_card_an_outer_panes_edge_holds_stands_in_that_panes_plane(browser, serve):
+    """Inside a bounded block that itself scrolls inside a pane, the edge holding the
+    card in can be the outer pane's, which clips the inner block. The card is anchored
+    to the box whose edge holds it, so the outer pane's scroll writes nothing to it."""
+    comment = {**COMMENT_ON_ASK, "anchor": {"section": "pane-sec"}}
+    page = open_page(browser, serve(NESTED_PANE_PAGE, events=[comment]))
+    resized(page, 1440, 900)
+    page.evaluate(
+        """() => {
+          const pane = document.getElementById('pane-body');
+          const inner = document.getElementById('inner');
+          const box = (node) => node.getBoundingClientRect();
+          pane.scrollTop += box(inner).top - box(pane).top - 10;
+          const sec = document.getElementById('pane-sec');
+          inner.scrollTop += box(sec).top - box(inner).top - 20;
+        }"""
+    )
+    rendered(page)
+    page.locator('[data-lf-margin-for="pane-sec"] .lf-margin-marker').click()
+    card = page.locator(".lf-margin-preview")
+    expect(card).to_have_attribute("data-lf-thread-placement", "below")
+    reading = """() => ({
+      card: document.querySelector('.lf-margin-preview').getBoundingClientRect().top,
+      bottom: document.getElementById('pane-sec').getBoundingClientRect().bottom,
+      foot: document.getElementById('pane-body').getBoundingClientRect().bottom,
+    })"""
+    at = page.evaluate(reading)
+    page.evaluate(
+        "by => document.getElementById('inner').scrollBy(0, by)",
+        at["bottom"] - at["foot"] + 60,
+    )
+    rendered(page)
+    expect(card).to_have_attribute("data-lf-plane", "region")
+    before = page.evaluate(reading)
+    writes = scroll_writes(
+        page, (5, 5, -5, 5), scroller="document.getElementById('pane-body')"
+    )
+    assert [w for w in writes if "lf-margin-preview" in w["target"]] == [], writes
+    assert page.evaluate(reading)["card"] == pytest.approx(before["card"], abs=0.5)
 
 
 def test_a_scroll_that_carries_the_response_bar_writes_nothing(browser, serve):

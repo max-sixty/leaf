@@ -20,6 +20,7 @@ from render_harness import (
     EXAMPLES,
     consume_browser_errors,
     example_media,
+    expect_asks_answered,
     holding,
     open_page,
     round_trip,
@@ -322,7 +323,7 @@ def test_another_option_becomes_a_real_option_without_starting_a_thread(browser,
     expect(added.locator(".lf-compose-submit")).to_have_attribute(
         "aria-disabled", "true"
     )
-    expect(page.locator(".lf-asks")).to_have_text("Asks 0/3")
+    expect_asks_answered(page, "0/3")
 
     new_option = page.locator("#jobs > lf-option[data-lf-added]")
     assert new_option.count() == 1, (

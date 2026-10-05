@@ -154,6 +154,44 @@ def build() -> dict:
                     },
                 ),
             ),
+            # One Ask answered and one open, and a task the agent ended beside one it
+            # still holds: only the answered Ask and the ended task are done.
+            "done": _done(
+                (
+                    {
+                        "kind": "action",
+                        "widget": "ship",
+                        "action": "choose",
+                        "detail": {"options": ["ship-now"]},
+                    },
+                    {"kind": "comment", "text": "Rebuild the chart."},
+                    {
+                        "kind": "task",
+                        "author": "agent",
+                        "agent": "Agent",
+                        "session": "served-records",
+                        "subject": {"kind": "thread", "id": "e2"},
+                        "title": "Rebuild the chart",
+                    },
+                    {
+                        "kind": "task",
+                        "author": "agent",
+                        "agent": "Agent",
+                        "session": "served-records",
+                        "subject": {"kind": "thread", "id": "e2"},
+                        "title": "Check the colours",
+                    },
+                    {
+                        "kind": "task_end",
+                        "author": "agent",
+                        "agent": "Agent",
+                        "session": "served-records",
+                        "task": "e4",
+                        "outcome": "done",
+                        "detail": "Matched the theme",
+                    },
+                )
+            ),
         },
     }
 
@@ -167,6 +205,17 @@ ASK_PAGE = leaf_page(
     '<lf-option id="ship-now">Now</lf-option><lf-option id="ship-later">Later</lf-option>'
     "</lf-options></lf-ask>",
 )
+
+
+def _done(events: tuple[dict, ...]) -> dict:
+    """The two readings the browser selects what is done from, as it is handed them:
+    the whole Ask reading, and the ended tasks served beside the open ones."""
+    state = reading(ASK_PAGE, events)
+    asks = state["views"]["1"]["document"]["asks"]
+    return {
+        "asks": {key: asks[key] for key in ("all", "unanswered")},
+        "tasks": state["ended_tasks"],
+    }
 
 
 def _queued(events: tuple[dict, ...], work: tuple[dict, ...] = ()) -> dict:

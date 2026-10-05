@@ -664,10 +664,8 @@ ASK_IN_A_CARD_PAGE = leaf_page(
 # shows through — every shipped widget draws one, and a wrapper a page styles boxless
 # hangs it on the boxes its contents make — so what says the walk is in one place is
 # the outermost page element wearing it, never the count of elements that do. Scoped to
-# main because the Asks drawer's row mirrors the same fact in the chrome.
+# main because the Queue panel's row mirrors the same fact in the chrome.
 STANDING_ASK = "main [data-lf-ask]:not([data-lf-ask] [data-lf-ask])"
-# Where the drawer's rows say their decision's own words, which is the half of a row a static
-# lint can never read: the words are whatever the page renders, after every upgrade.
 # Every widget that measures a number off a live box, authored into the page and sent in
 # a reply, so the two readings of each can be compared instead of pinned to a number. The
 # words are the same in both, which is what makes the room they need the same.
@@ -703,12 +701,15 @@ MESSAGE_ROOM_PAGE = leaf_page(
 )
 
 
-ASK_ROW_SAYS = """() => [...document.querySelectorAll('button.lf-asks-row')].map((r) => ({
+# What each Queue panel row says, with the list it stands in ("you", "agent" or "done").
+# Rows under a closed Done fold are in the document and measure as nothing.
+QUEUE_ROW_SAYS = """() => [...document.querySelectorAll('button.lf-queue-row')].map((r) => ({
   at: r.getAttribute('data-lf-at'),
-  kind: r.querySelector('.lf-asks-kind').textContent,
-  says: r.querySelector('.lf-asks-says').textContent,
-  answer: r.querySelector('.lf-asks-answer').textContent,
-  state: r.getAttribute('data-lf-answer-state'),
+  list: r.closest('[data-lf-queue]').dataset.lfQueue,
+  kind: r.dataset.lfKind,
+  word: r.querySelector('.lf-queue-kind').textContent,
+  title: r.querySelector('.lf-queue-title').textContent,
+  where: r.querySelector('.lf-queue-where').textContent,
   w: Math.round(r.getBoundingClientRect().width),
   h: Math.round(r.getBoundingClientRect().height),
 }))"""

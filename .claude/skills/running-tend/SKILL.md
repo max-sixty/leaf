@@ -57,9 +57,10 @@ Read the failing test's record in main's earlier complete runs before choosing a
 fix: each `ci` run uploads its junit results
 (`gh run download <run> -p 'pytest-results-*'`). A test that failed with the same
 message, then passed on code that didn't fix it, then failed again, is
-non-deterministic, so fix the cause rather than the symptom this run shows. A
-test that failed before with different messages is one that unrelated changes
-keep breaking, the strongest candidate for simplifying.
+non-deterministic, so fix the cause rather than the symptom this run shows.
+Different messages across runs call for checking the intervening changes and the
+behavior each failure caught; simplify when unrelated changes repeatedly break
+the test without changing that behavior.
 
 Two test-owned failures recur:
 

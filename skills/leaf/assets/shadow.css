@@ -542,7 +542,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
    so the popover's UA box is taken off; whether it is open is read off the popover
    alone, so a light dismiss leaves no frame between. */
 .lf-react-strip > .lf-react-palette[popover] {
-          position: static; inset: auto; margin: 0; padding: 0; border: 0;
+          position: static; margin: 0; padding: 0; border: 0;
           width: auto; height: auto; overflow: visible; color: inherit;
           background: none; }
 .lf-react-strip > .lf-react-palette:popover-open {

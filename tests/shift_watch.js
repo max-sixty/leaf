@@ -13,7 +13,7 @@
 // mechanical scroller's ownership. Portals with one unique anchor, in their tree or
 // inside the `anchor-scope` that limits its name, and a direct native anchor inset,
 // inline or in their tree's own rules, retain that scroller too; nested CSS
-// expressions and ambiguous names receive no inferred ownership.
+// expressions, ambiguous names and rules that disagree receive no inferred ownership.
 //
 // Each trusted gesture owns its counted rendering until declared completion.
 // Native effects it began retain only their sampled displacement within their
@@ -112,14 +112,17 @@
       `^(?:${anchor}|calc\\((?:${anchor}\\s*[+-]\\s*-?[\\d.]+px|-?[\\d.]+px\\s*\\+\\s*${anchor}|${anchor})\\))$`,
     ).test(value);
   };
-  // The inset a positioned box declares on an axis: its inline style, else the last
-  // style rule of its own tree that matches it now, in sheet order. A page states a
-  // native anchor's insets in its stylesheet as often as a placer writes them inline,
-  // and the direct form is read the same way from either. Read only for a box naming
-  // an anchor, since every frame samples it.
+  // What decides a positioned box's inset on an axis, as the declarations that can win
+  // it: an important inline one alone, else the important rules of its own tree that
+  // match it now, else its inline style, else every matching rule. Within a tier the
+  // cascade weighs specificity, layers and order, which no API reports, so the inset
+  // counts as anchored only where every candidate there is a direct anchor inset: rules
+  // that disagree are ambiguous, like a name that is. A page states a native anchor's
+  // insets in its stylesheet as often as a placer writes them inline. Read only for a
+  // box naming an anchor, since every frame samples it.
   const declaredRules = (node, property) => {
     const root = node.getRootNode();
-    let value = "";
+    const found = { important: [], normal: [] };
     const visit = (rules) => {
       for (const rule of rules) {
         if (rule instanceof CSSMediaRule && !matchMedia(rule.conditionText).matches)
@@ -133,7 +136,11 @@
           } catch {
             // A selector `matches` cannot take, such as a pseudo-element's.
           }
-          if (matches) value = rule.style.getPropertyValue(property) || value;
+          const value = matches && rule.style.getPropertyValue(property);
+          if (value)
+            found[
+              rule.style.getPropertyPriority(property) ? "important" : "normal"
+            ].push(value);
         } else if (rule.cssRules) visit(rule.cssRules);
       }
     };
@@ -142,11 +149,23 @@
       ...(root.adoptedStyleSheets ?? []),
     ])
       visit(sheet.cssRules);
-    return value;
+    return found;
   };
-  const declaredInset = (node, style, property) =>
-    node.style.getPropertyValue(property) ||
-    (style.positionAnchor.startsWith("--") ? declaredRules(node, property) : "");
+  const anchoredInset = (node, style, property, axis) => {
+    const inline = node.style.getPropertyValue(property);
+    let candidates = inline ? [inline] : [];
+    if (
+      !node.style.getPropertyPriority(property) &&
+      style.positionAnchor.startsWith("--")
+    ) {
+      const rules = declaredRules(node, property);
+      if (rules.important.length) candidates = rules.important;
+      else if (!inline) candidates = rules.normal;
+    }
+    return (
+      candidates.length > 0 && candidates.every((value) => anchorInset(value, axis))
+    );
+  };
   // The box a positioned box's `position-anchor` names. A name an `anchor-scope`
   // limits resolves inside the scoping box, so a name declared once per repeated
   // component still names one anchor for each; elsewhere it must be unique in its tree.
@@ -444,15 +463,11 @@
         anchorX:
           !range &&
           ["fixed", "absolute"].includes(style.position) &&
-          ["left", "right"].some((side) =>
-            anchorInset(declaredInset(node, style, side), "left"),
-          ),
+          ["left", "right"].some((side) => anchoredInset(node, style, side, "left")),
         anchorY:
           !range &&
           ["fixed", "absolute"].includes(style.position) &&
-          ["top", "bottom"].some((side) =>
-            anchorInset(declaredInset(node, style, side), "top"),
-          ),
+          ["top", "bottom"].some((side) => anchoredInset(node, style, side, "top")),
         insetX: range ? null : `${node.style.left}|${node.style.right}`,
         insetY: range ? null : `${node.style.top}|${node.style.bottom}`,
         position: range ? "static" : style.position,

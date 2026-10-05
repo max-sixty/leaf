@@ -1506,7 +1506,8 @@ def test_typing_root_scroll_keeps_a_fixed_field_but_not_its_local_carry(browser,
 
 
 @pytest.mark.parametrize(
-    "fault", ["", "portal_x", "portal_y", "anchor_x", "anchor_y", "declared_unused"]
+    "fault",
+    ["", "portal_x", "portal_y", "anchor_x", "anchor_y", "declared_unused", "rule_unused"],
 )
 @pytest.mark.parametrize("transform", ["none", "scale(.8)", "scale(.8) rotate(10deg)"])
 @pytest.mark.parametrize("declared", ["inline", "scoped_rule"])
@@ -1515,7 +1516,11 @@ def test_native_anchor_scroll_retains_local_motion_proof(
 ):
     """A portal following its anchor's scroll is credited whether its insets are
     written inline or stated in its tree's stylesheet, and whether its anchor's name is
-    unique or repeated under `anchor-scope`; moving either independently still fails."""
+    unique or repeated under `anchor-scope`; moving either independently still fails.
+    A direct anchor inset that a more specific rule overrides credits nothing, even
+    where a later rule in sheet order states it."""
+    if fault == "rule_unused" and declared == "inline":
+        pytest.skip("rules disagreeing needs the insets in rules")
     field_style = "position:fixed;position-anchor:--target;left:calc(anchor(left) + 100px);top:calc(anchor(top) + 10px)"
     if fault == "declared_unused":
         field_style = "position:fixed;position-anchor:--target;left:100px;top:50px"
@@ -1525,6 +1530,11 @@ def test_native_anchor_scroll_retains_local_motion_proof(
         field_style = ""
         scope = "anchor-scope:--target"
         decoy = '<div style="anchor-scope:--target"><div style="anchor-name:--target">Another</div></div>'
+    if fault == "rule_unused":
+        # The id's static inset wins on specificity; the anchored rule comes last.
+        sheet = """<style>#field { position:fixed;position-anchor:--target;left:100px;top:50px }
+.down #field { top:30px }
+.f { left:calc(anchor(left) + 100px);top:calc(anchor(top) + 10px) }</style>"""
     change = {
         "": "",
         "portal_x": 'field.style.left="calc(anchor(left) + 110px)"',
@@ -1532,7 +1542,9 @@ def test_native_anchor_scroll_retains_local_motion_proof(
         "anchor_x": 'target.style.marginLeft="10px"',
         "anchor_y": 'target.style.marginTop="70px"',
         "declared_unused": 'field.style.top="40px"',
+        "rule_unused": 'document.body.classList.add("down")',
     }[fault]
+    name = "textarea#field.f" if fault == "rule_unused" else "textarea#field"
     page = browser.new_page()
     page.goto(
         "data:text/html,"
@@ -1540,7 +1552,7 @@ def test_native_anchor_scroll_retains_local_motion_proof(
 <div style="transform:{transform};transform-origin:left top">
 <div id="scroller" style="height:140px;width:300px;overflow:auto">
 <div style="width:600px;height:300px"><div id="target" style="anchor-name:--target;margin-top:60px;width:70px;height:30px">The target</div></div></div></div>
-<textarea id="field" style="{field_style}"></textarea></div>{decoy}
+<textarea id="field" class="{"f" if fault == "rule_unused" else ""}" style="{field_style}"></textarea></div>{decoy}
 <p id="evidence" style="position:absolute;left:10px;top:400px">Independent painted source</p>
 <script>field.addEventListener('beforeinput',()=>{{scroller.scrollLeft+=20;scroller.scrollTop+=20;evidence.style.left='30px';{change}}})</script></body>""")
     )
@@ -1563,7 +1575,7 @@ def test_native_anchor_scroll_retains_local_motion_proof(
     errors = take_browser_errors(page)
     if fault:
         assert any(
-            "typing in textarea#field moved textarea#field" in error for error in errors
+            f"typing in {name} moved {name}" in error for error in errors
         ), (fault, before, after, errors)
     else:
         assert errors == [], (before, after, errors)

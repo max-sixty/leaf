@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createSemanticApplication } from "./application.ts";
 import { createPresentationCoordinator } from "./presentation.ts";
-import { servedThread, servedWorkflow } from "../../tests/served.mjs";
+import { servedReading, servedThread, servedWorkflow } from "../../tests/served.mjs";
 
 const spec = { unit: "widget" };
 const descriptor = {
@@ -1259,4 +1259,42 @@ test("a reaction root is not a spoken turn awaiting the user", () => {
 
   app.adopt(accepted);
   assert.equal(app.read().effective.thread.all[0].attention, null);
+});
+
+test("a Done this tab sends ends its task at once, and its undo puts the task back", () => {
+  // The task the agent put on the user, as the server serves it.
+  const task = servedReading("queues on both sides").tasks.find(
+    (candidate) => candidate.ends === "done",
+  );
+  const onYou = (app) => app.read().effective.queues.onYou.map(({ id }) => id);
+  const done = (app) => app.read().effective.done.map(({ id, state }) => [id, state]);
+
+  const app = setup();
+  const open = state(2);
+  open.browser.tasks = [task];
+  open.browser.ended_tasks = [];
+  app.adopt(open);
+  assert.deepEqual(onYou(app), [task.id]);
+  app.enqueue(
+    { kind: "task_end", task: task.id, outcome: "done", attempt: "done" },
+    "now",
+  );
+  assert.deepEqual(onYou(app), []);
+  assert.deepEqual(done(app), [[task.id, "done"]]);
+  // A refused Done puts the task back as the log has it.
+  app.refuse("done");
+  assert.equal(onYou(app)[0], task.id);
+  assert.deepEqual(done(app), []);
+
+  const later = setup();
+  const ended = state(2);
+  ended.browser.tasks = [];
+  ended.browser.ended_tasks = [
+    { ...task, state: "done", outcome: { ...task.outcome, id: "e20", ts: "now" } },
+  ];
+  later.adopt(ended);
+  assert.deepEqual(onYou(later), []);
+  later.enqueue({ kind: "undo", undoes: "e20", attempt: "undo" }, "now");
+  assert.deepEqual(onYou(later), [task.id]);
+  assert.deepEqual(done(later), []);
 });

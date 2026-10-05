@@ -3871,8 +3871,8 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
             "revision": 1,
             "seq": 2,
             # On every entry, and null for a page widget: the key names which of the
-            # page's two documents the decision was made in, and `asks` above has
-            # carried it exactly this way all along.
+            # page's two documents the decision was made in, as each task's `thread`
+            # does.
             "thread": None,
         }
     ]

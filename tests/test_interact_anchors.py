@@ -2181,8 +2181,8 @@ def test_page_state_holds_a_decision_made_on_a_widget_an_agent_sent(page_dir):
 
     `page state` projects the published version's elements, and a widget carried by a
     message is in none of them — so a press on an AskUserQuestion resolved no
-    declaration and stood nowhere. A session picking the page up read `asks` reporting
-    the question answered and `state` reporting that nobody had answered anything,
+    declaration and stood nowhere. A session picking the page up read the question's
+    task as answered and `state` reporting that nobody had answered anything,
     while the browser had been folding that same action all along.
 
     It is named by its thread rather than by a version, because thread markup is

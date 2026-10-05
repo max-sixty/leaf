@@ -41,8 +41,11 @@ def append_interactions(page_dir: Path, records: list[dict]) -> None:
     )
     with os.fdopen(fd, "wb") as stream:
         fcntl.flock(stream.fileno(), fcntl.LOCK_EX)
-        stream.write(data)
-        stream.flush()
+        try:
+            stream.write(data)
+            stream.flush()
+        finally:
+            fcntl.flock(stream.fileno(), fcntl.LOCK_UN)
 
 
 def client_records(session: str, page: str, entries: list[dict]) -> list[dict]:

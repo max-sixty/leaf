@@ -5369,7 +5369,7 @@ def test_neighbours_follow_their_servers_and_ignore_deleted_pages(page_dir, tmp_
     lease.write(files_model.read_json(stopped / "service.json")["server_id"].encode())
     lease.flush()
     assert titles() == ["Scratch", "Starts later"]
-    lease.close()
+    leases_model.release_lease(lease)
     assert titles() == ["Scratch"]
 
     shutil.rmtree(stopped)

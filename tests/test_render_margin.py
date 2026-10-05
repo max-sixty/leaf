@@ -5259,7 +5259,7 @@ def test_a_thread_uses_a_free_margin_and_tracks_its_source(browser, serve):
 
 def test_a_thread_beside_its_words_takes_the_room_to_the_visible_edge(browser, serve):
     """Room right of a thread's words short of the card's measure narrows the card, not
-    its height, and the card spends none of that room keeping its cluster clear.
+    its height, and the card spends none of that room keeping its pin clear.
 
     The width is the arrangement: this thread is on the gallery's right-hand title
     comparison, so the room right of it grows with half the viewport, and the case only says
@@ -5302,13 +5302,14 @@ def test_a_thread_beside_its_words_takes_the_room_to_the_visible_edge(browser, s
     room = geometry["viewport"] - 8 - (geometry["wordsRight"] + 8)
     assert geometry["minimum"] <= room < geometry["preferred"], geometry
     assert geometry["pinRight"] > geometry["wordsRight"], geometry
-    # Clearing the pin would cost the card width, so the card stands over it, beside
-    # the words, and takes the whole room to the visible edge (comment-placement.js).
+    # Clearing the pin would cost the card width, so the card keeps no gap past it: it
+    # stands beside the words, over whatever of the pin reaches that far, and takes
+    # the whole room to the visible edge (comment-placement.js).
     assert geometry["placement"] == "right", geometry
     assert geometry["cardLeft"] == pytest.approx(geometry["wordsRight"] + 8, abs=0.5), (
         geometry
     )
-    assert geometry["cardLeft"] < geometry["pinRight"], geometry
+    assert geometry["cardLeft"] < geometry["pinRight"] + 8, geometry
     assert geometry["cardRight"] == pytest.approx(geometry["viewport"] - 8, abs=0.5), (
         geometry
     )

@@ -9331,3 +9331,62 @@ def test_a_scaled_floating_draft_keeps_its_room_when_its_passage_scrolls_away(
     assert banner_bottom + 6 <= after["y"] + 0.1, (before, after)
     assert after["y"] + after["height"] <= 592.1, (before, after)
     assert after["width"] <= before["width"] + 0.1, (before, after)
+
+
+@pytest.mark.parametrize("surface", ["composer", "composer-widget", "composer-panel"])
+def test_pending_message_headers_match_their_bodies(browser, serve, surface):
+    """Delivery follows hoisted headers, including in a shadow-root thread.
+
+    Hold both user messages before admission, then admit each separately. Headers
+    and bodies must share each message's delivery paint through both transitions.
+    """
+    page, _box, send, _after, reply = pressed_send_surface(browser, serve, surface)
+    held = []
+
+    def hold(route):
+        if route.request.post_data_json.get("kind") in {"comment", "reply"}:
+            held.append(route)
+        else:
+            route.continue_()
+
+    page.route("**/api/event", hold)
+    send.click()
+    holding(page, held, 1, "the unconfirmed root comment")
+    expect(reply).to_be_visible()
+    write(reply, "A second unconfirmed message.")
+    page.keyboard.press("Enter")
+    rendered(page)
+    region = (
+        page.locator("lf-diff .lf-page-thread")
+        if surface == "composer-widget"
+        else page.locator(".lf-margin-preview .lf-page-thread")
+        if surface == "composer"
+        else page.locator(".lf-threads > .lf-thread", has_text="Sent from the box.")
+    )
+    expect(region.locator(".lf-msg")).to_have_count(2)
+
+    def reading():
+        return region.evaluate(
+            """root => {
+              const opacity = node => {
+                let value = 1;
+                for (; node && node !== root; node = node.parentElement)
+                  value *= Number(getComputedStyle(node).opacity);
+                return value;
+              };
+              return {
+                headers: [...root.querySelectorAll('.lf-msg-head')].map(opacity),
+                bodies: [...root.querySelectorAll('.lf-msg-body')].map(opacity),
+              };
+            }"""
+        )
+
+    assert reading() == {"headers": [0.5, 0.5], "bodies": [0.5, 0.5]}
+    held.pop().continue_()
+    holding(page, held, 1, "the reply following its admitted root")
+    rendered(page)
+    assert reading() == {"headers": [1, 0.5], "bodies": [1, 0.5]}
+    held.pop().continue_()
+    page.unroute("**/api/event", hold)
+    round_trip(page)
+    assert reading() == {"headers": [1, 1], "bodies": [1, 1]}

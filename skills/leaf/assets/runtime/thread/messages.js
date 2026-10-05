@@ -3,7 +3,9 @@
    Every surface uses the same message, header and body vocabulary. Generated
    metadata, prose, workflow and reaction placement have one owner. Message headers
    declare their stationary text-reflow boundary; a hoisted root header leaves that
-   declaration to the thread's complete metadata row. An
+   declaration to the thread's complete metadata row. Delivery state covers the
+   complete message: a hoisted header carries it itself, while an internal header
+   inherits it from the message. An
    immutable descriptor changes prose without reconnecting the validated authored
    fragment. A new message cues its own words once on first presentation, in every
    surface: one the user just sent, and any turn, whoever wrote it, joining a thread
@@ -216,6 +218,7 @@ export class MessageView {
     this.node.classList.toggle("lf-unread", Boolean(model.unread));
     keeps(this.node, "data-attempt", model.attempt || null);
     keeps(this.node, "aria-busy", model.pending ? "true" : null);
+    keeps(this.#header, "aria-busy", model.pending && externalHeader ? "true" : null);
     keeps(this.node, "data-failure", model.failure || null);
     if (model.nativeAuthored && model.body.authored && !this.#authored)
       this.#authored = authoredMessage({

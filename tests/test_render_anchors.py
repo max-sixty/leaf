@@ -674,7 +674,7 @@ def test_monitoring_regions_share_one_collaboration_layer(browser, serve):
     expect(page.locator("#lp-check-finance")).to_be_in_viewport()
     # The panel stood over the region the comment is about, so the trip cleared it.
     panel_settled(page, open=False)
-    expect(page.locator(".lf-asks-row")).to_have_count(0)
+    expect(page.locator(".lf-queue-row")).to_have_count(0)
 
     assert _traffic(page).sends == sent
     assert events_model.read_events(serve.page_dir) == before

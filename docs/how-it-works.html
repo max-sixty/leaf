@@ -542,7 +542,7 @@ flowchart TD
             </p>
             <lf-diagram
               id="updates-diagram"
-              parts="node:Sources node:Reply node:Awaits node:Stamp node:Report node:Status node:Pickup node:Turn node:Reads node:Banner node:Beside node:Thread node:Asks node:Versions node:Widget"
+              parts="node:Sources node:Reply node:Awaits node:Stamp node:Report node:Status node:Pickup node:Turn node:Reads node:Banner node:Beside node:Thread node:Queue node:Versions node:Widget"
             >
               <pre>
 flowchart LR
@@ -557,14 +557,14 @@ flowchart LR
   end
   subgraph Reads["Where you read it"]
     Thread["the thread"]
-    Asks["the Asks drawer"]
+    Queue["the Queue panel"]
     Versions["the page and its versions menu"]
     Widget["the widget"]
     Banner["the banner, tab icon and Leaves drawer"]
     Beside["the label beside your comment or widget"]
   end
   Reply --&gt; Thread
-  Awaits --&gt; Asks
+  Awaits --&gt; Queue
   Stamp --&gt; Versions
   Report --&gt; Widget
   Status --&gt; Banner
@@ -612,7 +612,7 @@ flowchart LR
               <li id="updates-written-awaits">
                 <strong><code>leaf thread reply … --awaits</code></strong> A question
                 for you. The thread reads <em>On you to answer</em>, and the question
-                joins the Asks drawer.
+                joins the Queue panel.
               </li>
               <li id="updates-written-comment">
                 <strong
@@ -2009,9 +2009,9 @@ flowchart TD
             <p id="chrome-what">
               Leaf adds its own controls around a page: a banner at the top of the
               window, a bottom bar of keyboard hints and status, markers for comments
-              and decisions, and panels for threads and Asks. None of them changes the
-              page's layout, so opening or closing one leaves the text wrapped as it was
-              and the reading position where it was.
+              and decisions, and panels for threads and the queue. None of them changes
+              the page's layout, so opening or closing one leaves the text wrapped as it
+              was and the reading position where it was.
             </p>
             <p id="chrome-bars">
               The banner and the bottom bar have fixed heights, and the page scrolls
@@ -2032,7 +2032,7 @@ flowchart TD
             <p id="chrome-surfaces-what">
               A thread card opens in the margin beside its marker. Where the margin is
               narrower than the card, the card overlaps the edge of the text. The
-              Threads panel and the Asks drawer open over the page's edges, one at a
+              Threads panel and the Queue panel open over the page's edges, one at a
               time.
             </p>
 
@@ -2142,7 +2142,7 @@ flowchart TD
               <figure id="chrome-surfaces">
                 <svg class="drawing" viewBox="0 0 240 160" role="img">
                   <title>
-                    The Asks drawer and the Threads panel open over the page's edges
+                    The Queue panel and the Threads panel open over the page's edges
                   </title>
                   <rect class="frame" x="1" y="1" width="238" height="158" rx="6" />
                   <rect class="frame-head" x="2" y="2" width="236" height="18" rx="5" />
@@ -2177,12 +2177,10 @@ flowchart TD
                     height="4"
                     rx="2"
                   />
-                  <g id="chrome-asks-drawer">
+                  <g id="chrome-queue-panel">
                     <rect class="over" x="6" y="24" width="72" height="112" rx="5" />
-                    <text class="strong" x="42" y="44" text-anchor="middle">Asks</text>
-                    <text class="strong" x="42" y="58" text-anchor="middle">
-                      drawer
-                    </text>
+                    <text class="strong" x="42" y="44" text-anchor="middle">Queue</text>
+                    <text class="strong" x="42" y="58" text-anchor="middle">panel</text>
                   </g>
                   <g id="chrome-threads-panel">
                     <rect class="over" x="152" y="24" width="82" height="112" rx="5" />
@@ -2195,7 +2193,7 @@ flowchart TD
                   </g>
                 </svg>
                 <figcaption id="cap-chrome-surfaces">
-                  <strong>Panels over the page</strong>The Asks drawer and the Threads
+                  <strong>Panels over the page</strong>The Queue panel and the Threads
                   panel open over the page's edges, one at a time. The page keeps its
                   width underneath.
                 </figcaption>

@@ -1022,15 +1022,20 @@ def task_end(dir: str, task_id: str, outcome: str, detail: str | None) -> None:
 
 @cli.command(hidden=True)
 @click.option(
+    "--harness",
+    required=True,
+    help="The harness whose registration runs this hook.",
+)
+@click.option(
     "--watch",
     is_flag=True,
     help="Watch the session's pages until input, printing what wakes the session.",
 )
-def hook(watch: bool) -> None:
+def hook(harness: str, watch: bool) -> None:
     """Answer an agent-harness hook on stdin."""
     from leaf.hooks import main
 
-    main(watch=watch)
+    main(harness, watch=watch)
 
 
 @cli.command(hidden=True)

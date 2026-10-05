@@ -184,10 +184,13 @@ Input that owes nothing, such as a resolve, a report or a page error, waits for 
 watcher and rides along when the turn goes on anyway. A repeated Stop
 (`stop_hook_active`) has named its debts once and lets the turn end; only newly
 arrived owed input continues it again.
-A second Stop registration, gated on `$CLAUDECODE`, runs `hook --watch`, which
-Claude Code keeps in the background (`asyncRewake`) as the session's watch between
-turns (`session.watch_between_turns`): its exit 2 wakes the session with its
-stderr, and every other ending is silent.
+Each harness has its own registrations, which pass its name (`hook --harness
+<name>`); the hook takes the session from its payload and reads neither from its
+environment (`harness.hook_harness`).
+A second Claude Code Stop registration runs `hook --watch`, which Claude Code
+keeps in the background (`asyncRewake`) as the session's watch between turns
+(`session.watch_between_turns`): its exit 2 wakes the session with its stderr, and
+every other ending is silent.
 Its unanswered-work guard reads `activity.turn_obligations` over the page's
 activity, selected from the same `workflows` projection the browser reads; it does not reconstruct threads
 itself. The hook planner reads each page once under its transaction, including

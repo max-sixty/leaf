@@ -4097,7 +4097,9 @@ def test_each_carrier_hands_the_agent_what_the_snapshot_shows(
     # hook of the turn it opens hands the delivery over.
     assert session_model.cmd_wait(page_dir) == 0
     woke = capsys.readouterr().out
-    hooks_model.cmd_hook({"hook_event_name": "UserPromptSubmit", "session_id": session})
+    hooks_model.cmd_hook(
+        "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": session}
+    )
     context = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
         "additionalContext"
     ]

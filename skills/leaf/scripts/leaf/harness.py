@@ -583,6 +583,9 @@ _ENVIRONMENT_HARNESSES: tuple[type[EnvironmentHarness], ...] = (
     CodexHarness,
     PiHarness,
 )
+# The harnesses whose hooks Leaf registers, by the name a registration passes
+# (`hook_harness`).
+HOOK_HARNESSES = {harness.name: harness for harness in _ENVIRONMENT_HARNESSES}
 HARNESSES: dict[str, type[Harness]] = {
     harness.name: harness for harness in (*_ENVIRONMENT_HARNESSES, EmbeddedHarness)
 }
@@ -633,6 +636,22 @@ def session_harness() -> Harness | None:
     if not implied:
         return None
     harness, session = implied[0]
+    return harness(
+        session=session,
+        agent=os.environ.get(AGENT_VARIABLE) or harness.default_agent,
+    )
+
+
+def hook_harness(name: str, session: str) -> EnvironmentHarness:
+    """The harness a hook registration names, for the session its payload names.
+
+    A hook's environment is no evidence of its harness: Codex states no thread
+    to its hooks, and a hook inherits the variables of every harness above its
+    own, so a Codex task started from a Claude Code shell carries that session's
+    identity. So each harness registers its own hooks, each passing its name:
+    `hooks/hooks.json` for Claude Code, `hooks/codex.json`, which Codex's
+    manifest names in place of that default, and the Pi extension `hooks/pi.ts`."""
+    harness = HOOK_HARNESSES[name]
     return harness(
         session=session,
         agent=os.environ.get(AGENT_VARIABLE) or harness.default_agent,

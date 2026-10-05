@@ -447,7 +447,7 @@ try:
         assert json.loads(served.stdout)["url"]
         assert watch.poll() is None
         assert not adapter_is_live("codex-thread")
-    stopped = subprocess.run([sys.executable, "-m", "leaf", "hook"],
+    stopped = subprocess.run([sys.executable, "-m", "leaf", "hook", "--harness", "codex"],
                              input=json.dumps({"hook_event_name": "Stop", "session_id": "codex-thread"}),
                              capture_output=True, text=True)
     assert stopped.returncode == 0, stopped.stderr
@@ -539,7 +539,7 @@ try:
         assert json.loads(result.stdout)["url"]
         identities.append(lease.stat().st_ino)
     stopped = subprocess.run(
-        [sys.executable, "-m", "leaf", "hook"],
+        [sys.executable, "-m", "leaf", "hook", "--harness", "codex"],
         input=json.dumps({"hook_event_name": "Stop", "session_id": "codex-thread"}),
         capture_output=True, text=True,
     )

@@ -5,6 +5,14 @@
   "engines": {
     "node": ">=22.18"
   },
+  "pi": {
+    "extensions": [
+      "./hooks/pi.ts"
+    ],
+    "skills": [
+      "./skills"
+    ]
+  },
   "scripts": {
     "build:browser": "node build/browser/build.mjs",
     "check:browser": "node build/browser/build.mjs --check",
@@ -25,16 +33,14 @@
     "@observablehq/plot": "0.6.17",
     "@pierre/diffs": "1.5.1",
     "@preact/signals-core": "1.14.4",
-    "@shikijs/core": "4.4.3",
-    "@shikijs/engine-javascript": "4.4.3",
-    "@shikijs/langs": "4.4.3",
-    "@shikijs/themes": "4.4.3",
+    "@shikijs/core": "4.5.0",
+    "@shikijs/engine-javascript": "4.5.0",
+    "@shikijs/langs": "4.5.0",
     "acorn": "8.18.0",
     "agentic-mermaid": "0.4.1",
     "diff": "9.0.0",
     "esbuild": "0.28.2",
     "happy-dom": "20.14.5",
-    "highlight.js": "11.12.0",
     "lit": "3.3.3",
     "lit-html": "3.3.0",
     "marked": "18.0.14",

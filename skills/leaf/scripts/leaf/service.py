@@ -1,7 +1,7 @@
 """Page claims, serialized transactions, and status.
 
 The transaction holds the page's append lease; what may be appended under it is
-`event_contracts`' to say. Claim discovery runs in a cold host hook, so
+`event_contracts`' to say. Claim discovery runs in a cold harness hook, so
 process inspection and page-event semantics are imported only by their callers."""
 
 import hashlib
@@ -29,6 +29,7 @@ from leaf.schema import (
     UNNAMED_AGENT,
 )
 from leaf.state import (
+    CLAIMED_SUFFIX,
     EVENTS_FILE,
     close_session_turn,
     ensure_session,
@@ -36,13 +37,14 @@ from leaf.state import (
     now_iso,
     open_session_turn,
     page_key,
+    session_file,
     session_lock_path,
     session_record,
     write_json,
 )
 
 if TYPE_CHECKING:
-    from leaf.host import Harness
+    from leaf.harness import Harness
 
 # A repeated live detail carries only liveness. Renew it comfortably before the
 # fifteen-minute activity boundary without turning tool output into file churn.
@@ -62,7 +64,7 @@ def claim_path(page_dir: Path) -> Path:
 
 # What a reader takes straight off a claim: these fields by name, one of the
 # lifetime keys `claim_is_active` cascades on, and a `harness` whose value
-# `host.claim_harness` looks up in `HARNESSES`.
+# `harness.claim_harness` looks up in `HARNESSES`.
 CLAIM_IDENTITY = frozenset(
     {"page", "ts", "released", "id", "harness", "agent", "generation", "acquisition"}
 )
@@ -72,7 +74,7 @@ CLAIM_LIFETIMES = frozenset({"job", "activity", "pid"})
 def readable_claim(claim: dict | None) -> dict | None:
     """The record if this version can read it as a claim, else None.
 
-    The claims directory is one per machine, and several worktrees, hosts and
+    The claims directory is one per machine, and several worktrees, harnesses and
     sessions write it at once, each running the leaf it was built from. So a
     record here can have been written by another version, and Stage owes nothing
     to what an older one wrote: there is no migration and no shim that reads the
@@ -92,7 +94,7 @@ def readable_claim(claim: dict | None) -> dict | None:
     does not own."""
     if not isinstance(claim, dict) or not CLAIM_IDENTITY <= claim.keys():
         return None
-    from leaf.host import HARNESSES
+    from leaf.harness import HARNESSES
 
     if claim["harness"] not in HARNESSES:
         return None
@@ -118,7 +120,7 @@ def claim_is_active(claim: dict | None) -> bool:
     """Whether a claim still names a live owner: the job record a background
     job's claim points at, the recent touch an `activity` claim stands on, or
     the process every other claim's pid names (`Harness.lifetime`). The only
-    reading of that rule: cold hooks and the CLI both call it, so a host that
+    reading of that rule: cold hooks and the CLI both call it, so a harness that
     states its lifetime a new way joins here alone, beside the one constructor
     above that writes what this reads."""
     if not claim or claim["released"] is not None:
@@ -141,8 +143,8 @@ def claim_is_active(claim: dict | None) -> bool:
 def claimant_matches(claim: dict | None, harness: "Harness | None") -> bool:
     """Whether the record names this harness, or neither names a claimant.
 
-    Host identity is independent of liveness: readers pass the active claim
-    when asking which host owns the page now. Resource retirement instead uses
+    Harness identity is independent of liveness: readers pass the active claim
+    when asking which harness owns the page now. Resource retirement instead uses
     the exact acquisition reading (`same_claim`).
     """
     if harness is None:
@@ -293,6 +295,9 @@ class PageTransaction:
             path.parent.mkdir(parents=True, exist_ok=True)
             yield previous, projected
             write_json(path, claim)
+            # Lets Codex's tool hook skip a session that never held a page
+            # (`state.hook_needed`).
+            session_file(claim["id"], CLAIMED_SUFFIX).touch()
 
     def restore_claim(self, expected: dict, previous: dict | None) -> None:
         """Roll back one failed claim without erasing a successor's."""
@@ -355,64 +360,16 @@ class PageTransaction:
     def status(self) -> dict:
         return read_status(self.page_dir)
 
-    def set_status(
-        self,
-        state: str,
-        detail: str,
-        *,
-        work: dict | None = None,
-    ) -> dict:
-        """Write the page declaration and any typed local evidence it renews, and
-        return it as written.
+    def set_status(self, state: str, detail: str) -> dict:
+        """Write the page's `waiting` or `idle` declaration and return it as written.
 
-        A local line is the same sentence read at a second seat: the page's one
-        line says what the agent is doing, and a typed subject says so where the
-        work lives. One command writes both because they are one claim, so a
-        write after a turn has ended renews the page line and the subject line
-        together.
-
-        Standing work carries across every other status write, so a page-wide
-        status update does not silently drop what a helper is holding. A new
-        claim replaces the old claim on its semantic subject; `idle`
-        clears them all with the leaf.
-        """
-        status = {
-            "state": state,
-            "detail": detail,
-            "ts": now_iso(),
-            # Order the agent's declaration against delivery transitions without
-            # comparing wall-clock timestamps that are only precise to a second.
-            "after": self.events[-1]["seq"] if self.events else 0,
-        }
+        The work the agent has in hand is no status: it is the log's `start` events,
+        and the `put_down` that `leaf status` writes beside a declaration takes them
+        back (`tasks`). The stream the harness observes carries across a `waiting`,
+        and `idle` clears it with the leaf."""
+        status = {"state": state, "detail": detail, "ts": now_iso()}
         if state != "idle" and (stream := self.status.get("stream")):
             status["stream"] = stream
-        claims = [] if state == "idle" else list(self.status.get("work", []))
-        if work:
-            claims = [held for held in claims if held["subject"] != work["subject"]]
-            voice = self.voice()
-            claim = self.claim
-            claims.append(
-                {
-                    "id": secrets.token_hex(4),
-                    **work,
-                    "detail": detail,
-                    "ts": status["ts"],
-                    **voice,
-                    # The claimant's turn that wrote it, which is how the Stop hook
-                    # tells work this turn declared from work an earlier turn left
-                    # (`activity.turn_obligations`). Another session's claim names
-                    # none. A Claude Code subagent runs as its parent's session, so
-                    # a claim it wrote would name the parent's turn; workers leave
-                    # status to the session driving the page.
-                    "turn": (
-                        claim.get("turn")
-                        if claim and claim["id"] == voice["session"]
-                        else None
-                    ),
-                }
-            )
-        if claims:
-            status["work"] = claims
         write_json(self.page_dir / STATUS_FILE, status)
         return status
 
@@ -423,7 +380,7 @@ class PageTransaction:
         holds the page. `UNNAMED_AGENT` covers a page nothing has claimed,
         where there is no name to use and inventing one would put words in a
         program's mouth."""
-        from leaf.host import message_identity
+        from leaf.harness import message_identity
 
         identity = message_identity()
         claim = self.claim
@@ -721,7 +678,7 @@ def _held_by(binding: dict | None, session_id: str, attempt: str) -> bool:
 def prepare_claim(harness: "Harness", page_dir: Path) -> dict:
     """Capture an unpublished acquisition in the claimant's process.
 
-    Lifetime and cwd come from the launching host, not a detached child. Preparing
+    Lifetime and cwd come from the launching harness, not a detached child. Preparing
     the canonical session is independent of any page ownership publication.
     """
     session = ensure_session(harness.session, harness.lifetime())
@@ -739,13 +696,13 @@ def prepare_claim(harness: "Harness", page_dir: Path) -> dict:
 
 
 def take_page_claim(page_dir: Path) -> tuple[dict | None, dict] | None:
-    """Make the host session the page's watcher, if a host supplied one.
+    """Make the harness session the page's watcher, if a harness supplied one.
 
     `server start`, a named `leaf wait` and `page claim` claim; authoring
     commands do not. A
     bare-shell serve makes no claim and therefore starts as standing.
     """
-    from leaf.host import session_harness
+    from leaf.harness import session_harness
 
     harness = session_harness()
     if not harness:
@@ -779,7 +736,7 @@ def read_status(page_dir: Path) -> dict:
     "Stage"). The first status write replaces it."""
     record = read_json(page_dir / STATUS_FILE)
     if record is None or "state" not in record:
-        return {"state": "waiting", "detail": "", "after": 0}
+        return {"state": "waiting", "detail": ""}
     return record
 
 
@@ -809,49 +766,3 @@ def requires_agent_attention(event: dict) -> bool:
     A record without the admitted decision is absent input.
     """
     return event.get("attention") is True
-
-
-# The fields every stored work claim carries (`PageService.set_status`).
-CLAIM_FIELDS = frozenset(
-    {"id", "subject", "after", "detail", "ts", "agent", "session", "turn"}
-)
-
-
-def claim_update_sources(status: dict) -> list[dict]:
-    """The status store's work claims at their public boundary.
-
-    `status.json` remains the small replace-in-place store its transient claims
-    need. The browser and `page state` receive typed source envelopes instead, so
-    every downstream consumer reads the same target and lifecycle vocabulary.
-
-    A claim lacking a field `PageService.set_status` writes today, such as the
-    poster's voice, was written by an older leaf and is absent here, so every
-    envelope carries the name its work is shown under.
-    """
-    sources = []
-    for claim in status.get("work", []):
-        target = claim.get("subject", {})
-        required = CLAIM_FIELDS | (
-            {"revision"} if target.get("kind") == "widget" else set()
-        )
-        if not required <= claim.keys():
-            continue
-        source = {
-            "id": claim["id"],
-            "target": target,
-            "source": "claim",
-            "action": "working",
-            "detail": {"text": claim["detail"]},
-            "text": claim["detail"],
-            "ts": claim["ts"],
-            "log_floor": claim["after"],
-            "agent": claim["agent"],
-            "session": claim["session"],
-            "turn": claim["turn"],
-        }
-        if event := claim.get("event"):
-            source["event"] = event
-        if target["kind"] == "widget":
-            source["revision"] = claim["revision"]
-        sources.append(source)
-    return sources

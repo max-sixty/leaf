@@ -1,4 +1,4 @@
-"""Preview input readings and the user handoff's host connection.
+"""Preview input readings and the user handoff's harness connection.
 
 `leaf-dev preview` resolves three things from wherever its source sits: the
 package layer, the media directory, and the set of paths a watcher subscribes
@@ -22,7 +22,7 @@ from urllib.parse import urlsplit
 
 import pytest
 from conftest import LEAF_COMMAND
-from interact_support import ROOT, fetch, stamp, wait_for
+from interact_support import ROOT, STATED_TIMEOUT, declare_idle, fetch, stamp, wait_for
 from leaf import codex_adapter, leases, server, service, session
 from leaf_dev import preview
 
@@ -264,7 +264,7 @@ def test_serving_connects_codex_feedback_before_handing_over_its_url(
     """
     stamp(page_dir)
     if initially_idle:
-        session.cmd_status(page_dir, "idle", "")
+        declare_idle(page_dir)
     queued = Path(codex_queue["PREVIEW_QUEUE_RECORD"])
     ready = tmp_path / "ready.json"
     done = tmp_path / "done"
@@ -275,7 +275,8 @@ import sys
 import time
 from pathlib import Path
 from leaf.service import PageTransaction, page_claim
-from leaf.host import session_harness
+from leaf.state import write_json
+from leaf.harness import session_harness
 from leaf.hosting import cmd_stop
 from leaf_dev.preview import PreviewService
 
@@ -308,7 +309,7 @@ try:
             output, errors = foreground.communicate(timeout=30)
             sys.exit(errors)
         started = (json.loads(line)["url"], "")
-    ready.write_text(json.dumps(started))
+    write_json(ready, started)
     while not done.exists():
         time.sleep(0.01)
 finally:
@@ -350,7 +351,7 @@ finally:
         text=True,
     )
     if delivery_available is not True:
-        output, errors = task.communicate(timeout=60)
+        output, errors = task.communicate(timeout=STATED_TIMEOUT)
         assert task.returncode != 0, f"{output}{errors}"
         expected = (
             "cannot find the `codex` executable"
@@ -370,18 +371,17 @@ finally:
             ready.exists,
             bool,
             failure="the user preview never handed over its URL",
-            timeout=60,
         )
         url, _ = json.loads(ready.read_text())
         claim = service.page_claim(page_dir)
         assert claim["id"] == "preview-thread"
         assert claim["pid"] == task.pid, (
-            "detached child replaced its launching host lifetime"
+            "detached child replaced its launching harness lifetime"
         )
         assert codex_adapter.adapter_is_live("preview-thread")
         if initially_idle:
             assert service.read_status(page_dir)["state"] == "idle"
-            session.cmd_status(page_dir, "waiting", "Review this page")
+            session.cmd_waiting(page_dir, "Review this page")
         endpoint = urlsplit(url)._replace(path="/api/event").geturl()
         status, body = fetch(
             endpoint,
@@ -406,7 +406,7 @@ finally:
         assert 'operation="delivery read"' in arguments[-1]
     finally:
         done.touch()
-        output, errors = task.communicate(timeout=15)
+        output, errors = task.communicate(timeout=STATED_TIMEOUT)
     assert task.returncode == 0, f"{output}{errors}"
     wait_for(
         lambda: codex_adapter.adapter_is_live("preview-thread"),
@@ -429,9 +429,10 @@ def test_serving_preserves_a_direct_codex_wait(
 import json, subprocess, sys, time
 from pathlib import Path
 from leaf.leases import wait_is_live, adapter_is_live
-from leaf.session import cmd_status
+from leaf.service import PageTransaction
+from leaf.session import cmd_waiting
 page = Path(sys.argv[1])
-cmd_status(page, "waiting", "Review this page")
+cmd_waiting(page, "Review this page")
 watch = subprocess.Popen([sys.executable, "-m", "leaf", "wait", str(page)],
                          stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 try:
@@ -447,14 +448,15 @@ try:
         assert json.loads(served.stdout)["url"]
         assert watch.poll() is None
         assert not adapter_is_live("codex-thread")
-    stopped = subprocess.run([sys.executable, "-m", "leaf", "hook"],
+    stopped = subprocess.run([sys.executable, "-m", "leaf", "hook", "--harness", "codex"],
                              input=json.dumps({"hook_event_name": "Stop", "session_id": "codex-thread"}),
                              capture_output=True, text=True)
     assert stopped.returncode == 0, stopped.stderr
     reason = json.loads(stopped.stdout)["reason"]
     assert "leaf wait" in reason and "no delivery adapter" not in reason
 finally:
-    cmd_status(page, "idle", "")
+    with PageTransaction(page) as held:
+        held.set_status("idle", "")
     output, errors = watch.communicate(timeout=30)
     assert watch.returncode == 2, (output, errors)
 """
@@ -467,7 +469,7 @@ finally:
         stderr=subprocess.PIPE,
         text=True,
     )
-    output, errors = task.communicate(timeout=60)
+    output, errors = task.communicate(timeout=STATED_TIMEOUT)
     assert task.returncode == 0, f"{output}{errors}"
 
 
@@ -484,6 +486,8 @@ def test_an_abandoned_handoff_does_not_disable_the_server_it_reuses(
             "server",
             "_serve",
             str(page),
+            "--harness",
+            json.dumps({"name": "codex", "session": "codex-thread", "agent": "Codex"}),
             "--handshake",
             str(child.fileno()),
         ],
@@ -494,13 +498,13 @@ def test_an_abandoned_handoff_does_not_disable_the_server_it_reuses(
         text=True,
     )
     child.close()
-    caller.settimeout(30)
+    caller.settimeout(STATED_TIMEOUT)
     try:
         with caller.makefile("rb") as announced:
             assert json.loads(announced.readline())["url"] == before["url"]
     finally:
         caller.close()
-    output, errors = task.communicate(timeout=60)
+    output, errors = task.communicate(timeout=STATED_TIMEOUT)
     assert task.returncode == 0, f"{output}{errors}"
     assert server.running_server(page) == before
 
@@ -524,6 +528,7 @@ from pathlib import Path
 from leaf.hosting import cmd_stop
 from leaf.leases import adapter_lease_path
 from leaf.service import PageTransaction
+from leaf.state import write_json
 pages = list(map(Path, sys.argv[1:3]))
 ready, done = map(Path, sys.argv[3:])
 lease = adapter_lease_path("codex-thread")
@@ -538,13 +543,13 @@ try:
         assert json.loads(result.stdout)["url"]
         identities.append(lease.stat().st_ino)
     stopped = subprocess.run(
-        [sys.executable, "-m", "leaf", "hook"],
+        [sys.executable, "-m", "leaf", "hook", "--harness", "codex"],
         input=json.dumps({"hook_event_name": "Stop", "session_id": "codex-thread"}),
         capture_output=True, text=True,
     )
     assert stopped.returncode == 0, stopped.stderr
     assert not stopped.stdout, stopped.stdout
-    ready.write_text(json.dumps(identities))
+    write_json(ready, identities)
     while not done.exists():
         time.sleep(0.01)
 finally:
@@ -575,7 +580,6 @@ finally:
             ready.exists,
             bool,
             failure="the shared delivery handoff did not finish",
-            timeout=60,
         )
         assert len(set(json.loads(ready.read_text()))) == 1
         assert leases.wait_is_live(first, "codex-thread")
@@ -583,7 +587,7 @@ finally:
         assert codex_adapter.adapter_is_live("codex-thread")
     finally:
         done.touch()
-        output, errors = task.communicate(timeout=15)
+        output, errors = task.communicate(timeout=STATED_TIMEOUT)
     assert task.returncode == 0, f"{output}{errors}"
 
 
@@ -593,7 +597,7 @@ def test_failed_delivery_preserves_the_existing_preview(
     page_dir, monkeypatch, failure, handoff
 ):
     """Failure before acceptance preserves both listener and original watcher."""
-    from leaf.host import session_harness
+    from leaf.harness import session_harness
     from leaf.hosting import claim_and_start, cmd_serve, cmd_stop
     from leaf.server import running_server
     from leaf.service import page_claim
@@ -618,7 +622,7 @@ def test_failed_delivery_preserves_the_existing_preview(
                 with claim_and_start(page_dir):
                     pass
             else:
-                cmd_serve(page_dir, acquire=True)
+                cmd_serve(page_dir, harness=session_harness(), acquire=True)
         assert page_claim(page_dir) == claim
         assert not original.ended
         assert json.loads((page_dir / "service.json").read_text()) == published
@@ -697,7 +701,7 @@ def test_a_preview_captures_acquisition_before_an_accepted_commit_is_interrupted
                 failure="accepted start did not publish its claim",
             )
             if transferred:
-                from leaf.host import ClaudeCodeHarness
+                from leaf.harness import ClaudeCodeHarness
 
                 with service.PageTransaction(page_dir) as page:
                     page.take_claim(ClaudeCodeHarness("successor", "Claude"))
@@ -728,9 +732,9 @@ def test_private_startup_keeps_previous_owner_until_acceptance(
     original = preview.PreviewService(page_dir, user=True)
     url, _ = original.start()
     previous = page_claim(page_dir)
-    # A different host is the candidate, so ending its session cannot itself end
+    # A different harness is the candidate, so ending its session cannot itself end
     # the original watcher while the candidate is still unpublished.
-    from leaf import host
+    from leaf import harness
 
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "candidate")
     try:
@@ -743,7 +747,9 @@ def test_private_startup_keeps_previous_owner_until_acceptance(
                 raise ValueError("caller leaves before accepting reuse")
             end_session(prepared.claim["id"])
             if refusal == "new_generation":
-                ensure_session(prepared.claim["id"], host.session_harness().lifetime())
+                ensure_session(
+                    prepared.claim["id"], harness.session_harness().lifetime()
+                )
         assert page_claim(page_dir) == previous
         assert not original.ended
         assert fetch(url)[0] == 200
@@ -755,7 +761,7 @@ def test_service_publication_failure_keeps_previous_preview_claim(
     page_dir, monkeypatch
 ):
     from leaf import hosting
-    from leaf.host import session_harness
+    from leaf.harness import session_harness
     from leaf.service import page_claim, prepare_claim
     from leaf.state import write_json
 
@@ -782,7 +788,11 @@ def test_service_publication_failure_keeps_previous_preview_claim(
     try:
         with pytest.raises(PermissionError, match="service cannot be published"):
             hosting.cmd_serve(
-                page_dir, acquire=True, prepared_claim=intent, handshake=Accepted()
+                page_dir,
+                harness=session_harness(),
+                acquire=True,
+                prepared_claim=intent,
+                handshake=Accepted(),
             )
         assert page_claim(page_dir) == previous
         assert not original.ended

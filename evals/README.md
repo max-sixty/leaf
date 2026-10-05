@@ -1,108 +1,105 @@
 # Leaf evals
 
-One task catalog runs through Promptfoo on Claude Code and Codex. Start small:
+Each `evals/<task>/case.yaml` is a Promptfoo test that runs on Claude Code and Codex.
+`leaf-dev eval` builds the Leaf arms, turns the selected cases into a Promptfoo
+config, and runs `promptfoo eval`; Promptfoo does the rest.
 
 ```sh
 npm ci --prefix evals
 uv run leaf-dev eval brief-document-needs-no-outline
-uv run leaf-dev eval reading --host codex
-uv run leaf-dev eval document --condition both
-uv run leaf-dev eval document/mid-turn --host both --runs 2
-uv run leaf-dev eval dashboard/reader --host cc
+uv run leaf-dev eval reading document/resume --harness cc
+uv run leaf-dev eval task-outlasts-the-turn --base
+uv run leaf-dev eval document --condition both --repeat 3
+npm run view --prefix evals
 ```
 
-`leaf-dev eval [CASE]...` accepts case globs or a task/context address. No argument
-selects the task primaries and short instruction cases. A bare `document` selects
-its complete workflow; `document/*` selects its isolated diagnostic contexts.
-`reading` asks about every reading surface together; `reading/plain` isolates one.
-Grouping contexts saves catalog duplication, not model calls.
+## Choosing what runs
 
-The defaults are both hosts, one repetition, and Leaf at the merge base with
-`main` versus the working tree. `--base REF` selects another baseline. `--condition
-html` runs an available plain HTML control; `--condition both` runs it beside the
-Leaf revisions. HTML is sampled once per host and repetition, because it does not
-consume Leaf's version. Cases without an HTML condition run only on Leaf. A
-selection with no requested condition fails before executing model calls.
+- **Cases.** Each argument is a case name or glob. A bare task (`document`) runs
+  its complete workflow; `task/context` (`document/resume`) runs one of its
+  diagnostic contexts, declared under `variants`. No argument runs every task.
+- **Arms.** The working tree always runs. `--base` adds the merge base with `main`
+  as a second arm, and `--base REF` adds that ref; put cases before it. An arm
+  holds only the plugin payload, with no git history, so an agent can't look up
+  another version of Leaf through it.
+- **Harnesses.** `--harness cc`, `codex` or `both` (the default).
+- **Conditions.** `--condition html` runs the plain HTML control on the tasks that
+  declare one (document, dashboard and queue); `both` runs it beside Leaf. The
+  control gets the same request and judge with no Leaf skill, runtime or widgets.
+- **Promptfoo options.** Anything after the cases goes to `promptfoo eval`, such as
+  `--repeat 3`, `-j 4` or `--filter-pattern`.
 
-Every sample gets a fresh workspace and authenticated home outside the repository.
-Claude Code uses Opus; Codex uses `gpt-6.1-sol` at medium reasoning. Native rubric
-assertions use the same Sonnet judge for either author host; complete composition
-workflows also use a fixed judge. Runs spend the signed-in accounts' usage.
+## Reading the results
 
-Results, generated config, native traces, page evidence and an HTML report go under
-`.tmp/eval/`. Assertions failing and provider errors both fail the command; the
-summary distinguishes execution errors. Caching, sharing, telemetry and Promptfoo's
-result database are disabled. Timing and costs remain diagnostics.
+Promptfoo prints a table with a row per test and a column per provider: a harness on
+one arm (`cc/candidate`, `codex/base`), suffixed `/workflow` for complete tasks, and
+`cc/html/workflow` for the HTML control. Each assertion's `metric` is a named score,
+so a comparison reads per metric across columns.
 
-## One catalog, with different amounts of work
+`npm run view --prefix evals` opens Promptfoo's viewer on every run recorded on
+this machine, each named by branch, commits and cases. It shows each sample's
+output, assertion reasons, metadata, cost and tokens, and compares runs.
 
-Each `evals/<task>/case.yaml` is the task's canonical catalog entry. Short tasks are
-native Promptfoo tests: `vars.prompt` carries the request; `assert` contains native
-`regex`, `not-regex`, `llm-rubric` or JavaScript assertions. Keep provenance in the
-leading comment and the behavior under `metadata.purpose`. Each assertion's `metric`
-names the reading. No executor is needed for a one-turn reply.
+Complete tasks keep their evidence (prompts, native traces, page directories)
+under `.tmp/eval/<run>/samples/`, one directory per sample named by its case, and
+each sample's `metadata.work` names its directory. A judged sample's screenshots
+are under `screenshots/`, in a directory of the same name. `results.json` there
+holds the whole run.
 
-A task needing files, revisions or live feedback instead declares
-`metadata.executor`, `metadata.case`, and `metadata.conditions`. The executor owns
-its existing Python trajectory and the fixed checks returned by `expected_checks`;
-Promptfoo still owns scheduling, repetition, assertions and reports. There is no
-workflow language or second assertion registry. Missing completion or duplicate
-checks fail preparation; missing evidence fails the generated native assertion.
-Optional `variants` name diagnostic contexts, overriding the primary's metadata.
-Each expands to a task/context address. Contexts remain selectable when larger tasks
-cover the same behavior, so a failing workflow can be narrowed without another
-public suite type.
+## Case format
 
-The complete task primaries are document, dashboard, queue, reading,
-disposable-report, short-chat-answer and unknown-package. The first three compose
-and revise larger examples; their common visual judgments inspect the actual
-authored request and screenshots. After the common comparison, Leaf workflows separately admit a user choice
-on the authored page, ask a fresh agent to read it without editing, and check that
-a further completed, stamped revision preserves it. Common screenshot judgments
-use the page saved before this Leaf-only feedback. They do not replace the historical seeded
-state or feedback fixtures. Those remain separately executable diagnostic contexts
-until running the larger examples establishes that they detect the same failures.
-Fewer task definitions does not establish fewer model calls or equivalent coverage.
-Short instruction cases retain their original assertions. Candidate case merges
-stay intact until replaying their earlier failures establishes that the larger case
-preserves the regression signal. Topic overlap alone does not establish equivalent
-coverage.
+A short case is one prompt with native assertions: `vars.prompt` carries the
+request, and `assert` holds `regex`, `llm-rubric` or JavaScript assertions. The
+runner prepends a line telling the agent to use the Leaf skill. The agent may only
+read (Claude Code's Skill and Read tools; Codex's read-only sandbox), so a prompt
+that needs a page asks for its HTML in the reply. The leading comment records where
+the case came from and what it measured, `metadata.purpose` the behavior it pins,
+and `metadata.tags` its area.
 
-Plain HTML and Leaf receive the same user request, data, revision and quality
-criteria; the HTML agent receives no Leaf skill, runtime or widgets. Composition
-checks judge the resulting page, not just a promised action. Leaf-only checks are
-only generated for the Leaf condition. Host and model vary together, so a CC/Codex
-comparison measures the combined author configuration.
+A complete task instead names `metadata.executor`, a `leaf_dev` module, and
+`metadata.scenario`, a key of that module's `CASES`. The executor builds fixtures, runs the agent
+through resumed phases or live user rounds, and returns a boolean per check; its
+`expected_checks` declares the check names, which become one assertion each, so a
+check that never ran fails rather than disappearing. An executor whose output lists
+screenshots, beside the request they answer, also declares `rubrics`: `agent-rubric`
+assertions a screenshot judge grades by opening them. It writes them to the `shots`
+directory it is given, the only place the judge may read. `metadata.conditions` and
+`metadata.harnesses` restrict where it runs.
 
-`dashboard/reader` independently calibrates the fixed Claude reader using the
-shipped triage-board example: a seeded counting defect beside its corrected count control. It scores count
-detection and false alarms; general usability verdicts remain diagnostics. Accepting
-the count control does not establish that the entire page satisfies the request.
-It uses host CC and the Leaf condition; both Leaf revisions render the controls.
-It does not test the dashboard author. Selecting only Codex for this calibration
-fails selection. Author comparisons still support both hosts.
+| Executor | Runs |
+| --- | --- |
+| `arrangement_eval` | Authors and revises a page from `request.md` and screenshots each version at three widths for the judge, and on Leaf seeds a user choice, has a fresh reader report it, and checks a further revision keeps it. |
+| `usability_eval` | Seeded pages read, resumed and revised, and live handoffs where the harness posts user moves through the served page. Fixtures are in `usability/fixtures/`. |
+| `delivery_eval` | Comments posted between turns and mid-turn, each of which must be picked up, started and answered. |
+| `reader_eval` | Calibrates the screenshot judge: `dashboard/reader-seeded` and `reader-clean` each show it one triage board, with a seeded count defect or the correct count, and ask both whether the count matches the cards. |
 
-## Assertions and evidence
+The assertion helpers live here: `reference-read.cjs` passes when the agent read a
+file matching `config.path` (Codex shell reads are matched heuristically, so read
+the trace when it matters); `text-regex.cjs` is a regex with flags and negation;
+`scenario-check.cjs` reads an executor's check.
 
-A JavaScript reference assertion uses `reference-read.cjs` and `config.path`, a
-regex for the expected file address. Reference checks require successful output
-rather than attempted tool use. Codex shell matching is evidence of a read, not
-exact proof of the bytes consumed; inspect the trace when that distinction matters.
-`text-regex.cjs` preserves flags and negation through `config.pattern`,
-`config.flags` and `config.negate`; native Promptfoo regex assertions have no flags.
+## Isolation and models
 
-Short cases score the returned response and instruction use. They do not execute
-the authored HTML, plugin discovery or hooks. Complete workflows run their required
-file, browser and feedback steps and preserve their evidence. `leaf-dev
-verify-codex-task` remains the real plugin and transport integration check;
-`verify-site` owns deployed website boundaries. Browser benchmarks and deterministic
-tests keep their own commands. A model judge's pass is weak evidence until calibrated
-against independent judgments.
+Every provider runs in a fresh workspace outside the repository, under a home of its
+own holding only a copy of the host's login, so runs spend the signed-in accounts'
+usage and never an API key. `harness.MODELS` pins the models: Opus for Claude
+Code, `gpt-6.1-sol` at medium reasoning for Codex, Sonnet for `llm-rubric`, which
+grades text and opens nothing, and `gpt-6.1-sol` for the screenshot judge. That
+judge runs on the installed `codex` under a permission profile that lets it read
+the run's `screenshots/` and no other file of the repository. Promptfoo counts a
+judge's tokens but not its cost, and doesn't record which screenshots it opened, so
+read its reason. No judge has been calibrated against human judgments, so treat a
+judged pass as weak evidence and read the outputs.
 
-`dev/leaf_dev/eval.py` owns catalog selection and the meaningful matrix.
-`promptfoo.py` owns native invocation and reporting. `scenario_provider.py` forwards
-one complete task to its declared executor with an explicit host and condition.
-Host sessions are shared by those executors rather than reimplemented per task.
+Another judge may grade the same samples differently, so a judged difference is
+partly the judge's. To compare judges, point `screenshot_judge` in
+`dev/leaf_dev/eval.py` at another model or provider (an `anthropic:claude-agent-sdk`
+grader restricted to `Read` on the screenshot tree works), rerun the same cases, and
+compare the runs in the viewer, starting with the `dashboard/reader-*` calibration.
+
+These cases score instruction use and the agent loop. `leaf-dev verify-codex-task`
+covers plugin installation, discovery and hooks, and `leaf-dev verify-site` the
+website.
 
 ```sh
 npm test --prefix evals

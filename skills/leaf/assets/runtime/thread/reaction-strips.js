@@ -38,7 +38,11 @@ export class ReactionStripView {
         <span
           class="lf-react-palette"
           id=${this.#paletteId}
+          popover="auto"
           role="group"
+          @toggle=${(event) => {
+            if (event.newState === "closed") this.#registration.close();
+          }}
           aria-label="Reactions for this reply"
         >
           ${repeat(
@@ -73,8 +77,14 @@ export class ReactionStripView {
 
   #press(name) {
     const model = this.#model;
-    const sent = this.#commands.actions.toggleReaction(model.key, model.parent, name);
+    const sent = this.#commands.actions.toggleReaction(
+      model.key,
+      model.parent,
+      name,
+      Boolean(model.choices.find((choice) => choice.name === name).standing),
+    );
     this.#registration.close();
+    this.#commands.pressed();
     void sent;
   }
 

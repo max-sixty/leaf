@@ -3,7 +3,7 @@
 import copy
 import hashlib
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from .data import read_data
@@ -48,6 +48,11 @@ class PageSnapshot:
     revision_names: dict[int, str]
     others: tuple[dict, ...]
     reading: str
+
+    def through(self, sequence: int) -> "PageSnapshot":
+        """This snapshot served as the page stood once event `sequence` was appended
+        (`PageRead.through`)."""
+        return replace(self, context=self.context.through(sequence))
 
 
 def capture_page_snapshot(

@@ -19,15 +19,15 @@ not initialize or hand the page over again. With no subject in `$ARGUMENTS`,
 present the work already under discussion. Leaf's writing instructions supply
 defaults only; any user-specific instructions on tone, structure, depth, or format
 take precedence. When the user states a preference meant for every page, save it
-in your host's memory, where later sessions will read it; Leaf keeps none.
+in your harness's memory, where later sessions will read it; Leaf keeps none.
 
 $ARGUMENTS
 
 ## Operate
 
-When the host sets `$LEAF`, use that launcher for every command shown as `leaf`.
+When the harness sets `$LEAF`, use that launcher for every command shown as `leaf`.
 Otherwise resolve the directory containing this `SKILL.md` and use its
-`../../bin/leaf` launcher; your host contract may name that path directly or put
+`../../bin/leaf` launcher; your harness contract may name that path directly or put
 it on `PATH`. If the resolved file is absent, report that the plugin payload is
 incomplete. A checkout keeps the launcher at `bin/leaf`. Pages conventionally
 live at `~/.local/state/leaf/pages/<slug>/`, though every command takes the
@@ -60,15 +60,15 @@ directory explicitly; export or copy anything that must outlive the page directo
    the views and Asks that stamp adds. Review a quick page when a stamp makes it
    a record. A page declaring `<meta name="lf-review" content="sign-off">` is
    always a record, since approval requires a stamped version.
-4. Read `references/conversation-loop.md` and exactly one host contract:
-   `references/host-claude-code.md` in Claude Code; in Codex,
-   `references/host-codex-app-server.md` when `LEAF_CODEX_APP_SERVER` is set or the
-   user gave you the task's App Server endpoint, and `references/host-codex.md`
-   otherwise. Set the
-   page's status as the conversation reference defines, hand over by the host's
+4. Read `references/conversation-loop.md` and exactly one harness contract:
+   `references/harness-claude-code.md` in Claude Code; `references/harness-pi.md` in
+   Pi; in Codex, `references/harness-codex-app-server.md` when
+   `LEAF_CODEX_APP_SERVER` is set or the user gave you the task's App Server
+   endpoint, and `references/harness-codex.md` otherwise. Set the
+   page's status as the conversation reference defines, hand over by the harness's
    route, name the gesture available to the user, and finish the turn with the
-   exact URL, or with what the host contract hands over instead.
-5. When a delivery arrives, read `references/event-batches.md`, the host
+   exact URL, or with what the harness contract hands over instead.
+5. When a delivery arrives, read `references/event-batches.md`, the harness
    contract, and, for user messages,
    `references/threads.md`, and answer every event as they say.
    Say what you are doing before doing it, as `references/conversation-loop.md`,
@@ -155,13 +155,14 @@ so a phase does not depend on discovering a chain of references.
 
 ### First handoff
 
-- `references/conversation-loop.md`: before a page handoff, a working status, or
+- `references/conversation-loop.md`: before a page handoff, starting work on the page, or
   work long enough to delegate.
-- `references/host-claude-code.md`: before the first handoff in Claude Code or
+- `references/harness-claude-code.md`: before the first handoff in Claude Code or
   recovery of its direct wait loop.
-- `references/host-codex.md`: before the first handoff in Codex reached through its
+- `references/harness-pi.md`: before the first handoff in Pi.
+- `references/harness-codex.md`: before the first handoff in Codex reached through its
   queue, which includes the desktop app, and for the delivery its later turns receive.
-- `references/host-codex-app-server.md`: before the first handoff in a Codex task
+- `references/harness-codex-app-server.md`: before the first handoff in a Codex task
   Leaf reaches over App Server, and for the delivery turns Leaf starts there.
 
 ### Continue after input
@@ -177,8 +178,10 @@ so a phase does not depend on discovering a chain of references.
   URL, whether an operation changes a page's URL, `--host`, a standing page,
   re-vendoring a served page, a page a Leaf update broke, or resuming another
   session's page.
-- `references/packages.md`: for a package-design request, a page-authored module, or
-  a design comment whose fix belongs in a package.
+- `references/module-authoring.md`: before writing or changing browser behavior in
+  a page script, page-owned widget, or package widget.
+- `references/packages.md`: for package design, registry declarations, theme rules,
+  data contracts, or a design comment whose fix belongs in a package.
 
 ### Use a separate Codex watcher
 

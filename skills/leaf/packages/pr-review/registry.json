@@ -1,6 +1,6 @@
 {
   "$data": {
-    "description": "Reusable pull-request facts supplied by a review host.",
+    "description": "Reusable pull-request facts supplied by a review harness.",
     "contracts": {
       "pull-request": {
         "description": "One observed pull request, including its Markdown author description, revision, diff statistics, and checks.",

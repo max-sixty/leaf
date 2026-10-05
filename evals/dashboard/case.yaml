@@ -9,29 +9,39 @@ metadata:
   - leaf
   - html
   executor: leaf_dev.arrangement_eval
-  case: dashboard
+  scenario: dashboard
 variants:
   constructs:
     metadata:
       executor: leaf_dev.usability_eval
-      case: constructs
+      scenario: constructs
       purpose: Read and revise authored constructs and chart data.
       conditions:
       - leaf
   shared-source:
     metadata:
       executor: leaf_dev.usability_eval
-      case: shared-source
+      scenario: shared-source
       purpose: Update shared data without rewriting unaffected records.
       conditions:
       - leaf
-  reader:
+  reader-seeded:
     metadata:
       executor: leaf_dev.reader_eval
-      case: calibration
-      purpose: Calibrate the fixed reader on a seeded triage-board counting defect
-        and clean control.
+      scenario: seeded
+      purpose: Calibrate the screenshot judge, which should find the triage board's
+        seeded count defect.
       conditions:
       - leaf
-      hosts:
+      harnesses:
+      - cc
+  reader-clean:
+    metadata:
+      executor: leaf_dev.reader_eval
+      scenario: clean
+      purpose: Calibrate the screenshot judge, which should accept the triage board's
+        correct count.
+      conditions:
+      - leaf
+      harnesses:
       - cc

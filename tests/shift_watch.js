@@ -10,14 +10,17 @@
 // parent. Controls and declared regions keep their actual boxes. Runtime-declared
 // bounded reflow retains its historical ownership, stationary-boundary and clipping
 // proof. Layout coordinates remove scrolling; sticky descendants retain their
-// mechanical scroller's ownership. Portals with one unique same-tree anchor and
-// a direct native anchor inset retain that scroller too; nested CSS expressions
-// and ambiguous names receive no inferred ownership.
+// mechanical scroller's ownership. Portals with one unique anchor, in their tree or
+// inside the `anchor-scope` that limits its name, and a direct native anchor inset,
+// inline or in their tree's own rules, retain that scroller too; nested CSS
+// expressions, ambiguous names and rules that disagree receive no inferred ownership.
 //
-// Each trusted gesture owns its bounded rendering, including geometry motion it
-// began. News starts passive rendering except the first frame shared with the
-// gesture or continuing motion already owned by it. A typing field is observed at
-// beforeinput, independently of Chrome's clipped/shadowed source rectangles. Motion
+// Each trusted gesture owns its counted rendering until declared completion.
+// Native effects it began retain only their sampled displacement within their
+// own subtree; their continued lifetime never owns unrelated page movement.
+// News starts passive rendering except the first frame shared with the gesture.
+// A typing field is observed at beforeinput, independently of Chrome's clipped or
+// shadowed source rectangles. Motion
 // already running on its ancestors belongs to the gesture that began that motion.
 // Continuing translation is credited from sampled animated property values, not
 // the ancestor's whole box: independent movement of it or its children still fails.
@@ -108,6 +111,103 @@
     return new RegExp(
       `^(?:${anchor}|calc\\((?:${anchor}\\s*[+-]\\s*-?[\\d.]+px|-?[\\d.]+px\\s*\\+\\s*${anchor}|${anchor})\\))$`,
     ).test(value);
+  };
+  // What decides a positioned box's inset on an axis, as the declarations that can win
+  // it: an important inline one alone, else the important rules of the box's own tree
+  // that match it now, else its inline style, else every matching rule. Within a tier
+  // the cascade weighs specificity, layers and order, which no API reports, so the
+  // inset counts as anchored only where every candidate there is a direct anchor
+  // inset: rules that disagree are ambiguous, like a name that is. Rules are read only
+  // for a box naming an anchor, since every frame samples it, and only those that
+  // state an inset at all, gathered once per sheet.
+  const INSETS = ["top", "right", "bottom", "left"];
+  const insetRules = new WeakMap();
+  const rulesStatingInsets = (sheet) => {
+    const length = sheet.cssRules.length;
+    const known = insetRules.get(sheet);
+    if (known?.length === length) return known.rules;
+    const rules = [];
+    const visit = (list, conditions) => {
+      for (const rule of list) {
+        if (rule instanceof CSSStyleRule) {
+          if (INSETS.some((side) => rule.style.getPropertyValue(side)))
+            rules.push({ rule, conditions });
+        } else if (rule.cssRules)
+          visit(
+            rule.cssRules,
+            rule instanceof CSSMediaRule || rule instanceof CSSSupportsRule
+              ? [...conditions, rule]
+              : conditions,
+          );
+      }
+    };
+    visit(sheet.cssRules, []);
+    insetRules.set(sheet, { length, rules });
+    return rules;
+  };
+  const holds = (condition) =>
+    condition instanceof CSSMediaRule
+      ? matchMedia(condition.conditionText).matches
+      : CSS.supports(condition.conditionText);
+  // An inline inset loses only to an important rule, so a box with one reads those
+  // alone: the comment box's placer writes its insets on every frame it moves.
+  const declaredRules = (node, property, importantOnly) => {
+    const root = node.getRootNode();
+    const found = { important: [], normal: [] };
+    for (const sheet of [
+      ...(root.styleSheets ?? []),
+      ...(root.adoptedStyleSheets ?? []),
+    ])
+      for (const { rule, conditions } of rulesStatingInsets(sheet)) {
+        const value = rule.style.getPropertyValue(property);
+        if (!value || (importantOnly && !rule.style.getPropertyPriority(property)))
+          continue;
+        if (!conditions.every(holds)) continue;
+        let matches = false;
+        try {
+          matches = node.matches(rule.selectorText);
+        } catch {
+          // A selector `matches` cannot take, such as a pseudo-element's.
+        }
+        if (matches)
+          found[rule.style.getPropertyPriority(property) ? "important" : "normal"].push(
+            value,
+          );
+      }
+    return found;
+  };
+  const anchoredInset = (node, style, property, axis) => {
+    const inline = node.style.getPropertyValue(property);
+    if (inline && node.style.getPropertyPriority(property))
+      return anchorInset(inline, axis);
+    if (!style.positionAnchor.startsWith("--"))
+      return inline ? anchorInset(inline, axis) : false;
+    const rules = declaredRules(node, property, Boolean(inline));
+    const candidates = rules.important.length
+      ? rules.important
+      : inline
+        ? [inline]
+        : rules.normal;
+    return (
+      candidates.length > 0 && candidates.every((value) => anchorInset(value, axis))
+    );
+  };
+  // The box a positioned box's `position-anchor` names. A name an `anchor-scope`
+  // limits resolves inside the scoping box, so a name declared once per repeated
+  // component still names one anchor for each; elsewhere it must be unique in its tree.
+  const anchorOf = (node, style, anchors) => {
+    const name = style.positionAnchor;
+    if (!name.startsWith("--")) return null;
+    const names = (value) => value.split(",").map((part) => part.trim());
+    for (let at = up(node); at instanceof Element; at = up(at)) {
+      const scope = getComputedStyle(at).anchorScope;
+      if (scope !== "all" && !names(scope).includes(name)) continue;
+      const found = [at, ...at.querySelectorAll("*")].filter((el) =>
+        names(getComputedStyle(el).anchorName).includes(name),
+      );
+      return found.length === 1 ? found[0] : null;
+    }
+    return anchors.get(node.getRootNode())?.get(name) ?? null;
   };
   const boxes = (nodes) =>
     new Map([...nodes].map((node) => [node, node.getBoundingClientRect()]));
@@ -375,26 +475,32 @@
         exposed(element) &&
         paintedElement.checkVisibility({ checkOpacity: true });
       const clipping = clippingAxes(style);
+      const axes =
+        node instanceof Element &&
+        (node.scrollLeft ||
+          node.scrollTop ||
+          node.scrollWidth > node.clientWidth ||
+          node.scrollHeight > node.clientHeight)
+          ? scrollAxes(node)
+          : null;
       const paint = {
         parent: up(node),
-        anchor: range
-          ? null
-          : (anchors.get(node.getRootNode())?.get(style.positionAnchor) ?? null),
+        anchor: range ? null : anchorOf(node, style, anchors),
         anchorX:
           !range &&
           ["fixed", "absolute"].includes(style.position) &&
-          [node.style.left, node.style.right].some((value) =>
-            anchorInset(value, "left"),
-          ),
+          ["left", "right"].some((side) => anchoredInset(node, style, side, "left")),
         anchorY:
           !range &&
           ["fixed", "absolute"].includes(style.position) &&
-          [node.style.top, node.style.bottom].some((value) =>
-            anchorInset(value, "top"),
-          ),
+          ["top", "bottom"].some((side) => anchoredInset(node, style, side, "top")),
         insetX: range ? null : `${node.style.left}|${node.style.right}`,
         insetY: range ? null : `${node.style.top}|${node.style.bottom}`,
         position: range ? "static" : style.position,
+        scrollXx: axes?.x.x ?? 1,
+        scrollXy: axes?.x.y ?? 0,
+        scrollYx: axes?.y.x ?? 0,
+        scrollYy: axes?.y.y ?? 1,
         block:
           !range && ["fixed", "absolute"].includes(style.position)
             ? node.offsetParent
@@ -469,7 +575,7 @@
   };
   const readingAt = (node, at) => placed.get(node)?.findLast((item) => item.at <= at);
   // A coordinate binding can stand longer than the retained ledger. Its origin
-  // begins at the oldest complete frame once the earlier history is retired.
+  // begins at the shared history boundary once the earlier samples are retired.
   const poseAt = (node, at) => Math.max(readingAt(node, at).poseAt, retainedFrom);
   const boxAt = (node, at) => readingAt(node, at)?.rect;
   const paintAt = (node, at) => readingAt(node, at)?.paint;
@@ -486,12 +592,46 @@
   // Layout coordinates remove scrolling, which Chrome also removes from its shifts.
   const scrollAt = (node, at) =>
     scrolled.get(node)?.findLast((item) => item.at <= at)?.scroll;
+  // Scroll offsets are local layout pixels; protected poses are viewport pixels.
+  // Retain each source's axes with its pose so a later transform cannot rewrite
+  // the coordinate space in which an earlier scroll was observed.
+  const viewportScroll = (node, at, offset = scrollAt(node, at)) => {
+    const paint = paintAt(node, at);
+    if (!paint) {
+      const history = (samples) => ({
+        count: samples?.length ?? 0,
+        first: samples?.[0].at,
+        last: samples?.at(-1).at,
+      });
+      throw new Error(
+        `Missing retained scroll paint: ${JSON.stringify({
+          node: name(node),
+          nodeType: node.nodeType,
+          connected: node.isConnected,
+          at: String(at),
+          atType: typeof at,
+          atFinite: Number.isFinite(at),
+          retainedFrom: String(retainedFrom),
+          offset: offset ?? null,
+          poses: history(placed.get(node)),
+          scrolls: history(scrolled.get(node)),
+        })}; caller: ${new Error().stack}`,
+      );
+    }
+    const left = offset?.left ?? 0,
+      top = offset?.top ?? 0;
+    return {
+      left: left * paint.scrollXx + top * paint.scrollYx,
+      top: left * paint.scrollXy + top * paint.scrollYy,
+    };
+  };
   const layoutAt = (node, at) => {
     const rect = boxAt(node, at);
     if (!rect) return null;
     // The root border box travels with its own native scroll; nested scrollport
     // borders stay put while their contents move.
-    const rootScroll = node === document.scrollingElement ? scrollAt(node, at) : null;
+    const rootScroll =
+      node === document.scrollingElement ? viewportScroll(node, at) : null;
     let left = rect.left + (rootScroll?.left ?? 0),
       top = rect.top + (rootScroll?.top ?? 0);
     for (
@@ -500,15 +640,15 @@
       child = parent, parent = paintAt(parent, at).parent
     ) {
       if (paintAt(child, at).position === "fixed") break;
-      const scroll = scrollAt(parent, at);
-      left += scroll?.left ?? 0;
-      top += scroll?.top ?? 0;
+      const scroll = viewportScroll(parent, at);
+      left += scroll.left;
+      top += scroll.top;
     }
     return { left, top, right: left + rect.width, bottom: top + rect.height };
   };
   // Each input's rendering: when it began; the latest frame it owns; the motion
-  // it began, and the start of the latest frame that motion moved; whether news has
-  // landed since; and a keystroke's typing, which holds its field; the box of the field
+  // it began; whether news has landed since; and a keystroke's typing, which holds
+  // its field; the box of the field
   // and of each element holding it at the key; the animations already moving any of
   // them; and until when the typing rule reads it.
   const renderings = [];
@@ -533,9 +673,7 @@
       start,
       first: true,
       through: Infinity,
-      moved: -Infinity,
       own,
-      motion: false,
       told: false,
       last: false,
       typing,
@@ -547,18 +685,15 @@
   const tick = (time) => {
     const at = read(time);
     if (open) {
-      // The input's motion is what began after it and before news since it, which
-      // may begin motion of its own. Still running here, it moves this frame, as it
-      // moved the one before if it ran at that frame's start, finishing in it.
+      // Effects begun before news retain their exact property evidence below.
+      // A persistent attachment or a still-running time effect does not keep the
+      // creator's counted input rendering open after its declared completion.
       if (!open.told)
         for (const animation of begun(open.start)) open.own.add(animation);
-      const motion = [...open.own].some(({ playState }) => playState === "running");
-      if (motion || open.motion) open.moved = at;
-      open.motion = motion;
       if (open.last) end();
       // A settled reading here counts updates before this one; this frame's own
       // callbacks may still move a box, so the rendering runs through the next.
-      else open.last = settled() && !motion;
+      else open.last = settled();
     }
     // A gesture owns its counted rendering until canonical completion. News seals
     // that credit; continuing motion retains its separate ownership below. A newer
@@ -601,13 +736,21 @@
     },
     true,
   );
-  // Chrome lays out the resized viewport before dispatching resize. The preceding
-  // pose seals typing; taking a new pose here would attribute the resize to the key.
-  window.addEventListener("resize", () => {
+  // A viewport resize is input, and its new size is the fact. Chrome lays out the
+  // resized viewport before dispatching resize, which precedes the frame's callbacks,
+  // so tick() always runs after it; a layout-shift record delivered between the two,
+  // as one from an earlier frame can be on a busy machine, has its pose read at the new
+  // size, so the observer looks at the size before reading. The preceding pose seals
+  // typing; taking a new pose here would attribute the resize to the key.
+  let viewport = [innerWidth, innerHeight];
+  const resized = () => {
+    if (innerWidth === viewport[0] && innerHeight === viewport[1]) return;
+    viewport = [innerWidth, innerHeight];
     const before = frames.at(-1)?.at ?? nativePerformance.now();
     if (open?.typing?.until === Infinity) open.typing.until = before;
     begin(nativePerformance.now());
-  });
+  };
+  window.addEventListener("resize", resized);
   // When the page adopted each server reading.
   new MutationObserver(() => {
     unwatch();
@@ -796,7 +939,15 @@
       const scroll = ancestryAt(sticky, to).reduce((sum, owner) => {
         const prior = scrollAt(owner, from),
           next = scrollAt(owner, to);
-        return sum + (prior && next ? next[axis] - prior[axis] : 0);
+        return (
+          sum +
+          (prior && next
+            ? viewportScroll(owner, to, {
+                left: next.left - prior.left,
+                top: next.top - prior.top,
+              })[axis]
+            : 0)
+        );
       }, 0);
       const shifted = after[axis] - before[axis];
       // Scroll carries the sticky owner on that axis, through at most its native
@@ -835,17 +986,22 @@
         was.anchor === now.anchor &&
         was.plane !== now.plane
       ) {
-        const before = boxAt(was.anchor, poseAt(owner, from)),
-          after = boxAt(now.anchor, to);
+        // A selection's point is measured from its frame's box: the subject anchor's
+        // in the page's plane, the holding region's in a region's, the window's in
+        // the window's.
+        const origin = (selection, time) =>
+          selection.frame ? boxAt(selection.frame, time) : { left: 0, top: 0 };
+        const before = origin(was, poseAt(owner, from)),
+          after = origin(now, to);
         if (before && after) {
           for (const [axis, size, start] of [
             ["left", "width", "left"],
             ["top", "height", "top"],
           ]) {
             if (anchored[axis]) continue;
-            const predicted = (selection, anchor) =>
+            const predicted = (selection, frame) =>
               selection.point[axis] +
-              (selection.plane === "page" ? anchor[axis] : 0) -
+              frame[axis] -
               (selection.edges[axis] === start ? 0 : selection.size[size]);
             motion[axis] += predicted(now, after) - predicted(was, before);
             anchored[axis] = true;
@@ -978,13 +1134,8 @@
       }
     }
   };
-  const inputOwns = (at) => {
-    const rendering = renderings.findLast(({ start }) => start <= at);
-    return (
-      renderings.some((gesture) => at >= gesture.start && at <= gesture.through) ||
-      (rendering && at <= rendering.moved)
-    );
-  };
+  const inputOwns = (at) =>
+    renderings.some((gesture) => at >= gesture.start && at <= gesture.through);
   const audit = () => {
     if (frames.length < 2) return;
     const at = nativePerformance.now(),
@@ -1111,6 +1262,7 @@
     }
   };
   const observer = new PerformanceObserver((list) => {
+    resized();
     const entries = list.getEntries();
     for (const entry of entries) {
       const frame = frames.findLastIndex(({ start }) => start <= entry.startTime);
@@ -1167,13 +1319,16 @@
         .map((rendering) => rendering.typing.at),
     );
     while (frames.length > 2 && frames[1].start < needed) frames.shift();
-    retainedFrom = frames[0]?.at ?? -Infinity;
+    // Native frame starts associate painted shifts; poses are sampled later in the
+    // callback's synchronous turn. Retaining that frame cannot retire an earlier
+    // input pose its readers still need. All coordinate histories keep the same
+    // earliest required reading.
+    retainedFrom = Math.min(needed, frames[0]?.at ?? -Infinity);
     for (let i = renderings.length - 1; i >= 0; i--) {
       const rendering = renderings[i];
       if (
         rendering !== open &&
         rendering.through < retainedFrom &&
-        rendering.moved < retainedFrom &&
         (rendering.typing?.until ?? -Infinity) < retainedFrom &&
         ![...rendering.own].some(({ playState }) => playState === "running")
       )

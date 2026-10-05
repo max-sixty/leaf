@@ -35,7 +35,7 @@ ANSWER_ASK_INSTRUCTION = (
 WAIT_BATCH_OUTPUT_INSTRUCTION = (
     "Print one page's complete ordered batch, thread context, and response "
     "requirements as an immutable delivery, whose `acknowledge` says how to confirm "
-    "it. `leaf delivery read <id>` reads that same delivery. Where the host's hook "
+    "it. `leaf delivery read <id>` reads that same delivery. Where the harness's hook "
     "carries input into the turn, as in Claude Code, print one line naming the page "
     "with new input instead, and end."
 )
@@ -395,6 +395,28 @@ EXTENSION_SCHEMA = {
             "uniqueItems": True,
         },
         "x-history": {"const": True},
+        # The markup an upgraded widget's first paint shows until its module draws:
+        # one element, the structure the module will draw, with words that size it
+        # as the drawing will. Delivery writes it as each occurrence's first child,
+        # marked `data-lf-prepaint` (`revision_delivery.mark_declared`), so the
+        # browser lays out the widget's real structure before any module runs, and
+        # the module takes it out in the step that draws its replacement. `{"as": tag}`
+        # writes another widget's, for one that first paints as that widget will
+        # stand in it: a command with no seat draws a readings seat at its head.
+        "x-prepaint": {
+            "oneOf": [
+                # Its form is held where it is parsed (`registry/widgets.py`).
+                {"type": "string"},
+                {
+                    "type": "object",
+                    "properties": {
+                        "as": {"type": "string", "pattern": f"^{WIDGET_NAME}$"}
+                    },
+                    "required": ["as"],
+                    "additionalProperties": False,
+                },
+            ]
+        },
         "x-views": {"const": True},
         "x-withdrawn-as": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "x-word": {"enum": ["module"]},
@@ -584,8 +606,8 @@ BINARY_TYPES = frozenset(MEDIA_TYPES.values()) - {"image/svg+xml"}
 def agent_name(event: dict) -> str | None:
     """The name an agent-authored event is shown under, and None for any other
     author's: its posting session's `agent`, or `UNNAMED_AGENT` where it was written
-    outside a host session and so carries none. The log stores no placeholder
-    (`host.message_identity`); every reading that shows the event names it through
+    outside a harness session and so carries none. The log stores no placeholder
+    (`harness.message_identity`); every reading that shows the event names it through
     here, so the browser, the margin, the activity feed and the transcript agree."""
     if event["author"] != "agent":
         return None

@@ -22,7 +22,7 @@ this one owns only how long it lasts.
 A pure function of its arguments, which no file can make stale, is memoized at module
 level instead, bounded by entry count (`revision_artifact._shared_registry`,
 `thread_context._fragment`). So is a reading of the machine rather than of a page, in
-one slot replaced whole (`presence.neighbor_candidates`, `host._registry_listing`).
+one slot replaced whole (`presence.neighbor_candidates`, `harness._registry_listing`).
 """
 
 import threading

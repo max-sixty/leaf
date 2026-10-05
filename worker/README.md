@@ -183,7 +183,7 @@ from the user's. `turn_interrupted` and
 `turn_interrupt_failed` record the follower stopping a turn it can no longer watch, and
 `turn_abandoned_interrupt_started` and `turn_abandoned_interrupt_completed` the same for
 a turn found running on a resumed thread. `turn_failure_reported` says how many of that
-delivery's moves the host settled with a failure receipt and how many it could not; a
+delivery's moves the harness settled with a failure receipt and how many it could not; a
 turn that answered everything it was given writes no such record.
 `container_continuation_receipted` marks a start the Worker's dispatch is not holding
 — a move a follower found waiting when its turn ended — and says whether the
@@ -308,15 +308,15 @@ debugging log. Live incidents use
 `wrangler tail`; historical incidents use the REST API or Cloudflare's Observability
 query builder.
 
-The local end-to-end verifier prints the same container records and leaves them at
-`.tmp/verify-site/run-*/website-agent-local.log` for a later agent to inspect. Each
-run builds its own site, binds an OS-assigned HTTP port, and gives each website host
-a private App Server socket. It gives the child App
+The local end-to-end journey (`leaf-dev journey local`) prints the same container
+records and leaves them at `.tmp/verify-site/run-*/website-agent-local.log` for a later
+agent to inspect. Each run builds its own site, binds an OS-assigned HTTP port, and gives
+each website harness a private App Server socket. It gives the child App
 Server a temporary plugin-free `CODEX_HOME` seeded with copies of the host login and
 website config, matching production without changing personal state. Its JSON result
-records `responseVisibleMs` from the first non-empty agent reply the open Threads panel
-actually displays; `repliedMs` is the independent durable-state observation and is not a
-substitute for that user-visible milestone.
+records `sinceSendMs.responseVisible` from the first non-empty agent reply the open
+Threads panel actually displays; `sinceAdmissionMs.replied` is when the container
+admitted that reply and is not a substitute for that user-visible milestone.
 
 ## Hosted-agent delivery
 
@@ -332,7 +332,7 @@ Leaf retains that immutable delivery locally and starts it directly after the cu
 turn completes. The website-specific App Server starts
 without the authoring plugin, so skill discovery cannot turn a small user response
 into a full authoring workflow. Its developer instructions are the shipped
-`skills/leaf/references/host-codex-app-server.md`, whole, followed by leaf.page's own
+`skills/leaf/references/harness-codex-app-server.md`, whole, followed by leaf.page's own
 additions in `HOSTED_INSTRUCTIONS`, so the hosted agent and a terminal App Server task
 read one delivery and reply contract. The App Server's `PATH` starts with the
 container's own `leaf` launcher, the name that contract uses. The hosted task can
@@ -431,7 +431,7 @@ npm run dev
 ## Remote development
 
 The one standing remote development environment runs the same Worker, Container image,
-credential proxy, and browser benchmark at
+credential proxy, and agent journey at
 `https://leaf-website-dev.maxsixty.workers.dev`. It is an ordinary Wrangler `dev`
 environment with its own Worker, container application, Durable Objects, and Analytics
 Engine dataset. The shared rate-limit namespace is the only bound resource it reuses
@@ -455,7 +455,7 @@ CLOUDFLARE_API_TOKEN=... OPENAI_API_KEY=... npm run deploy:dev --prefix worker
 Later deployments need only `CLOUDFLARE_API_TOKEN`, loaded from 1Password as above. The
 command builds the current checkout, deploys only that named environment, gives its
 commit plus working-tree state a release identity, waits for that exact release, and
-runs the complete agent benchmark:
+runs the agent journey (`leaf-dev journey`):
 
 ```sh
 npm run deploy:dev --prefix worker

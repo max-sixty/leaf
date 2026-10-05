@@ -130,15 +130,25 @@ export const readingRegionFor = (node) => {
 // A key press is not among them: its target is where focus already stands, which
 // arrived by `focusin`, or the body, which is where a click on words leaves it.
 let recentRegionId = null;
+// Chrome can focus body between pointerdown on unfocusable words and pointerup.
+// That focus belongs to the same press; pointerdown has already named its place.
+let pressing = false;
 const pageRoot = () => document.querySelector("body > main");
 const actedIn = (event) => {
   const at = event.composedPath()[0];
   const region = readingRegionFor(at);
+  if (event.type === "pointerdown") pressing = true;
   if (region) recentRegionId = region.id;
-  else if (at === document.body || under(at, pageRoot())) recentRegionId = null;
+  else if (
+    (at === document.body || under(at, pageRoot())) &&
+    !(event.type === "focusin" && at === document.body && pressing)
+  )
+    recentRegionId = null;
 };
 for (const type of ["pointerdown", "wheel", "touchstart", "focusin"])
   addEventListener(type, actedIn, { capture: true, passive: true });
+for (const type of ["pointerup", "pointercancel"])
+  addEventListener(type, () => (pressing = false), { capture: true });
 export const recentReadingRegion = () => readingRegion(recentRegionId);
 export const userReadingRegion = () => {
   const at = deepFocus();

@@ -1,11 +1,11 @@
 {
   "$data": {
-    "description": "Reusable contracts for observed Command Hub facts supplied by the host rather than authored into a version.",
+    "description": "Reusable contracts for observed Command Hub facts supplied by the harness rather than authored into a version.",
     "contracts": {
       "lf-worktree": {
         "description": "Current worktree evidence keyed by the id of its authored lf-worktree seat.",
         "instructions": {
-          "coordinator": "After worktree evidence changes, replace the complete page-bound source snapshot rather than republishing it as prose or appending an event:\n\n```bash\nleaf data set \"$PAGE\" <source-id> --file worktrees.json\n```\n\nRead `data_bindings` from `leaf page state \"$PAGE\"` to find source ids using the `lf-worktree` contract and their consuming widget ids. `worktrees.json` is an object keyed by authored worktree widget id. Each value carries `branch`, `base`, `head`, non-negative `ahead`, `behind`, `additions`, `deletions`, and `commits`, a `tests` value of `passing`, `failing`, `running`, or `not-run`, an RFC 3339 `observedAt` timestamp with a timezone, and optional `files` and `diff` strings. Keep a key stable for the same worktree, and give a different worktree a new authored lf-worktree id; a reused id would attach old comments to the wrong worktree. Gather these facts with host tools; Leaf validates, transports, and presents them but does not run git or inspect worker directories."
+          "coordinator": "After worktree evidence changes, replace the complete page-bound source snapshot rather than republishing it as prose or appending an event:\n\n```bash\nleaf data set \"$PAGE\" <source-id> --file worktrees.json\n```\n\nRead `data_bindings` from `leaf page state \"$PAGE\"` to find source ids using the `lf-worktree` contract and their consuming widget ids. `worktrees.json` is an object keyed by authored worktree widget id. Each value carries `branch`, `base`, `head`, non-negative `ahead`, `behind`, `additions`, `deletions`, and `commits`, a `tests` value of `passing`, `failing`, `running`, or `not-run`, an RFC 3339 `observedAt` timestamp with a timezone, and optional `files` and `diff` strings. Keep a key stable for the same worktree, and give a different worktree a new authored lf-worktree id; a reused id would attach old comments to the wrong worktree. Gather these facts with harness tools; Leaf validates, transports, and presents them but does not run git or inspect worker directories."
         },
         "schema": {
           "type": "object",
@@ -280,6 +280,9 @@
       }
     },
     "x-upgrade": true,
+    "x-prepaint": {
+      "as": "lf-command-readings"
+    },
     "x-example": "<lf-command id=\"aviary-command\" label=\"A squirrel-proof garden\" phase=\"week 2 of 4\">\n  <lf-agent id=\"lead\" state=\"working\"><strong>lead</strong> Coordinates the whole garden.</lf-agent>\n  <lf-task id=\"goal-feeders\" status=\"active\" talk>\n    <strong>Rebuild the feeders</strong>\n    <lf-agent id=\"w-1\" state=\"working\" on=\"goal-feeders\"><strong>w-1</strong> Fitting the baffles.</lf-agent>\n  </lf-task>\n</lf-command>"
   },
   "lf-command-readings": {
@@ -298,6 +301,7 @@
     "additionalProperties": false,
     "x-content": "empty",
     "x-upgrade": true,
+    "x-prepaint": "<section class=\"panel lf-command-head\"><h2>Outcome</h2><div class=\"lf-command-outcome\"><strong>&nbsp;</strong><span class=\"lf-command-progress\" aria-hidden=\"true\"></span><span>&nbsp;</span></div><div class=\"lf-command-facts\"><span class=\"lf-command-pair\"><span class=\"lf-command-tile lf-ui\"><span class=\"lf-command-count\">0</span> <span>running</span></span><span class=\"lf-command-tile lf-ui\"><span class=\"lf-command-count\">0</span> <span>workers</span></span></span><span class=\"lf-command-pair\"><span class=\"lf-command-tile lf-ui\"><span class=\"lf-command-count\">0</span> <span>quiet</span></span><span class=\"lf-command-tile lf-ui\"><span class=\"lf-command-count\">0</span> <span>stopped</span></span></span></div></section>",
     "x-example": "<div class=\"layout-sidebar\">\n  <lf-command id=\"garden-command\" label=\"A squirrel-proof garden\" phase=\"week 2 of 4\" readings=\"garden-readings\">\n    <lf-task id=\"goal-feeders\" status=\"active\"><strong>Rebuild the feeders</strong></lf-task>\n  </lf-command>\n  <aside><lf-command-readings id=\"garden-readings\"></lf-command-readings></aside>\n</div>"
   },
   "lf-task": {
@@ -399,8 +403,8 @@
     }
   },
   "lf-worktree": {
-    "description": "A stable, commentable address for observed worktree evidence supplied by the host.",
-    "x-instructions": "Keep one empty, stable element beside each worker whose evidence the host can inspect, binding source to the worktree snapshot. Reuse a source id when widgets read the same snapshot; give independent feeds different ids. Give a replacement worktree a new element id so old comments cannot attach to different work.",
+    "description": "A stable, commentable address for observed worktree evidence supplied by the harness.",
+    "x-instructions": "Keep one empty, stable element beside each worker whose evidence the harness can inspect, binding source to the worktree snapshot. Reuse a source id when widgets read the same snapshot; give independent feeds different ids. Give a replacement worktree a new element id so old comments cannot attach to different work.",
     "type": "object",
     "properties": {
       "id": {

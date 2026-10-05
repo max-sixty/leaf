@@ -3,8 +3,8 @@
 Idle posts two successive comments; mid-turn posts during the setup turn. Each
 trajectory uses an isolated home, page and state directory, and retains streams
 and the admitted event log. Every expected comment must be picked up, receive an
-accepted thread claim and a reply in its handling turn, and complete that turn.
-Latency and work before the claim remain diagnostics: a Bash call can contain
+accepted start (`leaf task start`) and a reply in its handling turn, and complete that turn.
+Latency and work before the start remain diagnostics: a Bash call can contain
 several operations, so its trace alone cannot prove their internal order.
 """
 
@@ -16,8 +16,8 @@ from pathlib import Path
 
 from leaf.event_log import read_events
 
-from leaf_dev.harness import (
-    accepted_thread_claims,
+from leaf_dev.arms import (
+    accepted_starts,
     blocks,
     completed,
     hook_delivered,
@@ -27,6 +27,7 @@ from leaf_dev.harness import (
     waits_started,
 )
 from leaf_dev.review_scenario import REQUEST, prepare
+from leaf_dev.usability_eval import Case, Run, execute_live
 
 # When each of a case's comments is posted: `idle` at the end of a turn, `running`
 # once the setup turn has the page's URL.
@@ -61,11 +62,9 @@ def stop_blocked(record: dict) -> bool:
     )
 
 
-def run_session(arm: Path, case: str, run: Path, *, host: str = "cc") -> None:
+def run_session(arm: Path, case: str, run: Path, *, harness: str = "cc") -> None:
     """Drive delivery timing through the same feedback loop as larger examples."""
-    from leaf_dev.usability_eval import Case, Run, execute_live
-
-    run.mkdir(parents=True)
+    run.mkdir(parents=True, exist_ok=True)
     work = scratch()
     (run / "work-dir").write_text(f"{work}\n")
     page, state = work / "page", run / "state"
@@ -76,7 +75,7 @@ def run_session(arm: Path, case: str, run: Path, *, host: str = "cc") -> None:
         for n in range(len(CASES[case]))
     )
     scenario = Case(case, (REQUEST,), rounds=rounds, injection=CASES[case])
-    execute_live(Run(case, arm, run, host), scenario, work, page)
+    execute_live(Run(case, arm, run, harness), scenario, work, page)
     (run / "events.jsonl").write_text(
         leaf("page", "events", str(page), check=True).stdout
     )
@@ -115,7 +114,7 @@ def score(run: Path) -> list[dict]:
         delivery, route, before_claim, claimed, ended = None, None, [], None, None
         turn_completed = False
         handling = False
-        accepted = accepted_thread_claims(stream, comment["id"])
+        accepted = accepted_starts(stream, comment["id"])
         for record in stream[stream.index(marker) + 1 :]:
             handling = handling or any(
                 b.get("type") == "tool_result" and b.get("tool_use_id") in accepted
@@ -246,11 +245,14 @@ def grade(case: str, readings: list[dict]) -> dict[str, bool]:
 
 
 def execute_scenario(
-    case: str, payload: Path, work: Path, *, host: str = "cc", condition: str = "leaf"
+    case: str,
+    payload: Path,
+    work: Path,
+    *,
+    harness: str = "cc",
+    condition: str = "leaf",
 ) -> dict:
-    if condition != "leaf":
-        raise ValueError("Leaf delivery admission checks require the Leaf condition")
-    run_session(payload, case, work, host=host)
+    run_session(payload, case, work, harness=harness)
     readings = score(work)
     return {
         "output": json.dumps(readings),

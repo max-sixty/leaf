@@ -6,21 +6,39 @@
 # plugin are the same tree — and this runs that project: uv keeps one
 # environment per installed version and syncs it in place on first use.
 # `--no-dev` because the project's dev group is the test suite and the
-# `leaf-dev` tooling, recorded in the shipped lock but never a host's to
+# `leaf-dev` tooling, recorded in the shipped lock but never a harness's to
 # install. `-q` because an agent reads stderr back and an ordinary sync has
 # nothing to say; a failed resolve is reported either way.
 #
 # The module rather than the `leaf` console script: where this path is long
-# enough to pass the ~127-byte shebang limit — a host cache path reaches it —
+# enough to pass the ~127-byte shebang limit — a harness cache path reaches it —
 # uv writes the console script as a `/bin/sh` trampoline, and `-m` leaves no
 # trampoline to reason about. `__main__.py` fixes `prog_name`, so usage lines
-# still read `leaf`. Which host session is running, and under what id, is read
-# from the environment in `host.py`, not set here.
-# SessionEnd must release claims within the host's shutdown deadline even before
+# still read `leaf`. Which harness session is running, and under what id, is the
+# hook registration's and payload's to say, or a shell command's environment's
+# (`harness.py`), never this launcher's.
+# SessionEnd must release claims within the harness's shutdown deadline even before
 # this install has an environment. Its canonical cleanup is a standalone stdlib
 # Python 3.9 program; it never imports the managed Leaf package.
+#
+# Codex runs its tool hook after every tool call, so where the environment
+# exists a Codex hook first asks the same standalone program, on that
+# environment's interpreter, whether the session has anything for it
+# (`state.hook_needed`). That spares uv and the package's imports wherever no
+# page was claimed. Without the environment, or with any answer but "nothing",
+# the hook runs whole.
 root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
+state="$root/skills/leaf/scripts/leaf/state.py"
 if [ "$#" -eq 1 ] && [ "$1" = session-end ]; then
-    exec python3 -S "$root/skills/leaf/scripts/leaf/state.py"
+    exec python3 -S "$state"
+fi
+if [ "$#" -eq 3 ] && [ "$1" = hook ] && [ "$2" = --harness ] && [ "$3" = codex ] &&
+    [ -x "$root/.venv/bin/python" ]; then
+    payload=$(cat)
+    printf '%s' "$payload" | "$root/.venv/bin/python" -S "$state" hook-gate
+    [ "$?" -eq 3 ] && exit 0
+    exec uv run -q --no-dev --project "$root" python -m leaf "$@" <<EOF
+$payload
+EOF
 fi
 exec uv run -q --no-dev --project "$root" python -m leaf "$@"

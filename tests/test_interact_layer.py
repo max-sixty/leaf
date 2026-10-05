@@ -1,7 +1,6 @@
 """CLI, plugin payload, layer, and customization tests."""
 
 import ast
-import contextlib
 import json
 import os
 import re
@@ -18,14 +17,16 @@ import tinycss2
 import tomllib
 import yaml
 from click.testing import CliRunner
-from conftest import LEAF_COMMAND, PagePool
+from conftest import LEAF_COMMAND, PagePool, _retire
 from interact_support import (
+    COMPOSITE_TIMEOUT,
     PAGE,
     PAGE_PACKAGES,
     PLUGIN_ROOT,
     ROOT,
     SHIPPED_PACKAGES,
     SKILL_ROOT,
+    STATED_TIMEOUT,
     add_test_widget,
     append_carried_log_record,
     case_alias,
@@ -34,9 +35,11 @@ from interact_support import (
     element_declaration,
     fetch,
     install_payload,
+    lock_contention,
     publish,
     record_claim,
     shipped_payload,
+    wait_for,
 )
 from leaf import cli as cli_model
 from leaf import data as data_model
@@ -320,8 +323,8 @@ def test_wt_merge_runs_every_npm_gate_ci_runs():
 def test_the_root_instructions_name_every_directory_of_the_projects_own_tree():
     """A top-level directory a session works in must be named where sessions read.
 
-    The dotted directories belong to the hosts and the tooling that read them, and
-    a session finds each through the host rather than through this map. The rest
+    The dotted directories belong to the harnesses and the tooling that read them, and
+    a session finds each through the harness rather than through this map. The rest
     are the project's own tree, and every one of them is somewhere a session is
     sent to read or write. A session that lands in one the map never names has
     only the files in front of it to say what the directory is for — which is how
@@ -365,7 +368,9 @@ def test_workflow_shell_continuations_use_literal_blocks():
 
 
 def test_hidden_hook_remains_callable():
-    result = CliRunner().invoke(cli_model.cli, ["hook"], input="{}")
+    result = CliRunner().invoke(
+        cli_model.cli, ["hook", "--harness", "codex"], input="{}"
+    )
 
     assert result.exit_code == 0
     assert result.output == ""
@@ -463,7 +468,7 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
         assert "thread_title event is invalid" in refused.output
     assert events_model.read_events(page_dir) == before
 
-    # A reply's --title names only a thread nothing has named, so a name the host
+    # A reply's --title names only a thread nothing has named, so a name the harness
     # gave the thread while the agent worked stands; edit renames one.
     followed = runner.invoke(
         cli_model.cli,
@@ -505,26 +510,11 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
     assert both.exit_code == 2
     assert "THREAD and --for cannot be used together" in both.output
 
-    [working] = written(
-        ["status", str(page_dir), "working", "reading the traces", "--on", later]
-    )
-    assert [claim["subject"] for claim in working["work"]] == [
-        {"kind": "thread", "id": root}
-    ]
+    [task] = written(["task", "open", str(page_dir), later, "Trace the store"])
+    assert task["subject"] == {"kind": "thread", "id": root}
 
     [closed] = written(["thread", "resolve", str(page_dir), later])
     assert (closed["kind"], closed["parent"]) == ("resolve", later)
-
-    # `idle` reaches the status write by its own route, so the subject a claim
-    # needs is refused before either route runs. Otherwise the line reports a
-    # claim the page never took.
-    for refused_state in ("waiting", "idle"):
-        refused = runner.invoke(
-            cli_model.cli,
-            ["status", str(page_dir), refused_state, "done", "--on", root],
-        )
-        assert refused.exit_code != 0, refused.output
-        assert "use it with `working`" in refused.output
 
 
 def test_init_help_names_the_source_revision_and_version_layout():
@@ -545,8 +535,8 @@ def test_init_help_names_the_source_revision_and_version_layout():
 @pytest.mark.parametrize(
     "args",
     [
-        ["hook"],
-        ["hook", "--watch"],
+        ["hook", "--harness", "codex"],
+        ["hook", "--harness", "claude-code", "--watch"],
         ["page", "check", "page", "--render"],
         ["thread", "reply", "page", "--for", "c1", "--text", "export"],
     ],
@@ -572,7 +562,7 @@ def test_shim_dispatches_every_command_through_one_uv_run(tmp_path, monkeypatch,
     # that appear somewhere in it: an index named here would take the host's say
     # away, and the project has to be the payload beside the launcher rather
     # than whatever project the caller's directory sits in. `--no-dev` because
-    # the dev group is the suite and the repo's own scripts, neither a host's to
+    # the dev group is the suite and the repo's own scripts, neither a harness's to
     # install. The module rather than the `leaf` console script because a long
     # payload path turns the console script into a `/bin/sh` trampoline.
     assert dispatched == [
@@ -590,7 +580,7 @@ def test_shim_dispatches_every_command_through_one_uv_run(tmp_path, monkeypatch,
 
 def test_the_version_and_root_flags_describe_the_payload_this_leaf_ran_out_of(tmp_path):
     """Which copy of leaf answered is otherwise unknowable from outside it. A
-    host session runs the payload its plugin cache holds and a checkout stands
+    harness session runs the payload its plugin cache holds and a checkout stands
     beside it; `bin/leaf` is identical across versions and nothing the CLI
     prints says where it came from. `--version` prints the running source identity
     for reports and harnesses, while `--root` retains the exact payload directory
@@ -598,7 +588,7 @@ def test_the_version_and_root_flags_describe_the_payload_this_leaf_ran_out_of(tm
 
     Two copies asked the same question, because either half alone is satisfied
     by a flag that prints a constant, or the directory the command was typed in.
-    The second is a host's install, run through its own launcher, and nothing
+    The second is a harness's install, run through its own launcher, and nothing
     about it is this checkout.
 
     Eager and page-free, so it answers with no page named and nothing written
@@ -608,7 +598,7 @@ def test_the_version_and_root_flags_describe_the_payload_this_leaf_ran_out_of(tm
     cached = install_payload(
         tmp_path / "plugins" / "cache" / "marketplace" / "leaf" / cached_commit
     )
-    # A host's copy carries no `.git`, so the time it was made is the only date it
+    # A harness's copy carries no `.git`, so the time it was made is the only date it
     # has: every file written then, the running module's own included.
     copied_at = 1_790_000_000
     layer = cached / "skills" / "leaf" / "scripts" / "leaf" / "layer.py"
@@ -685,6 +675,7 @@ def test_claude_and_codex_load_the_same_plugin_payload():
         "pyproject.toml",
         "uv.lock",
         "hooks/hooks.json",
+        "hooks/codex.json",
         "hooks/scripts/loop-guard.py",
         "skills/leaf/SKILL.md",
         "skills/leaf/references/authoring-asks.md",
@@ -694,9 +685,9 @@ def test_claude_and_codex_load_the_same_plugin_payload():
         "skills/leaf/references/conversation-loop.md",
         "skills/leaf/references/threads.md",
         "skills/leaf/references/event-batches.md",
-        "skills/leaf/references/host-claude-code.md",
-        "skills/leaf/references/host-codex.md",
-        "skills/leaf/references/host-codex-app-server.md",
+        "skills/leaf/references/harness-claude-code.md",
+        "skills/leaf/references/harness-codex.md",
+        "skills/leaf/references/harness-codex-app-server.md",
         "skills/leaf/references/page-checkpoints.md",
         "skills/leaf/references/packages.md",
         "skills/leaf/references/page-authoring.md",
@@ -716,7 +707,7 @@ def test_claude_and_codex_load_the_same_plugin_payload():
     assert instructions, "no project instructions in the shipped payload"
     for agents in instructions:
         assert agents.is_file() and not agents.is_symlink()
-    # A host's copy must not contain links that escape the plugin tree.
+    # A harness's copy must not contain links that escape the plugin tree.
     escaping = [
         path
         for path in shipped_payload()
@@ -775,7 +766,7 @@ def test_a_run_keeps_its_temporary_tree_out_of_the_candidate_payload(tmp_path):
             ],
             capture_output=True,
             text=True,
-            timeout=120,
+            timeout=COMPOSITE_TIMEOUT,
             check=False,
         )
 
@@ -1048,15 +1039,17 @@ def test_a_lent_page_comes_back_as_the_shape_it_was_made_from(tmp_path, monkeypa
     (first / "leaf.js").symlink_to(tmp_path / "nowhere")
     (first / "widgets" / "lf-planted.js").symlink_to(tmp_path / "nowhere")
     (first / "media" / "elsewhere").symlink_to(tmp_path, target_is_directory=True)
-    cleanup_model.write_json(first / "status.json", {"state": "working"})
+    cleanup_model.write_json(first / "status.json", {"state": "idle"})
     pool.give_back("plain", first)
 
     second = pool.lend("plain", tmp_path / "second", initialize)
 
     template = pool.shapes["plain"].template
     assert {path.relative_to(second).as_posix() for path in second.rglob("*")} == shape
-    for name in ("theme.css", "widgets/lf-tabs.js", "status.json", "registry.json"):
+    for name in ("theme.css", "widgets/lf-tabs.js", "registry.json"):
         assert (second / name).read_bytes() == (template / name).read_bytes(), name
+    # A status the test wrote is a file it added, so the reset takes it away.
+    assert not (second / "status.json").exists()
     linked = "runtime/chrome.css"
     assert (second / linked).stat().st_ino == (template / linked).stat().st_ino
 
@@ -1336,6 +1329,71 @@ def test_no_has_rule_restyles_the_whole_document():
     )
 
 
+def test_layout_style_and_widgets_never_read_each_other():
+    """A Layout places boxes, a style sets type and spacing, and a widget reads its own
+    box and the theme's tokens (assets/AGENTS.md, "Space and scrolling"). So a Layout
+    class is named only in layouts.css and a style class only in the kernel theme, and
+    layouts.css sets no type: where one has to answer another, the owner sets a token
+    saying what the box is, as `--lf-full-height` does, and the reader keys on that.
+
+    A Layout class is one layouts.css styles; a style class is one the kernel theme
+    gives its own type or spacing tokens (`--t-*`, `--sp-*`)."""
+    layouts = schema_model.ASSETS / "layouts.css"
+    theme = schema_model.ASSETS / "theme.css"
+    owned = {
+        layouts: {
+            name
+            for _conditions, _enclosing, selector, _declarations in _style_rules(
+                layouts
+            )
+            for name in re.findall(r"\.(layout-[a-z-]+)", selector)
+        },
+        theme: {
+            match[1]
+            for _conditions, _enclosing, selector, declarations in _style_rules(theme)
+            if (match := re.fullmatch(r"\.([a-z][a-z-]*)", selector))
+            and any(name.startswith(("--t-", "--sp-")) for name, _ in declarations)
+        },
+    }
+    assert {"layout-column", "layout-workspace"} <= owned[layouts], owned[layouts]
+    assert owned[theme] == {"density-working"}, owned[theme]
+    roots = (schema_model.ASSETS, schema_model.BUNDLED_PACKAGES)
+    readers = []
+    for source in sorted(path for root in roots for path in root.rglob("*.[cj]s*")):
+        if "vendor" in source.parts:
+            continue
+        foreign = [names for home, names in owned.items() if home != source]
+        named = re.compile(r"\b(" + "|".join(sorted(set().union(*foreign))) + r")\b")
+        where = source.relative_to(schema_model.ASSETS.parent)
+        if source.suffix == ".css":
+            readers += [
+                f"{where}: {selector}"
+                for _conditions, _enclosing, selector, _declarations in _style_rules(
+                    source
+                )
+                if named.search(selector)
+            ]
+        elif source.suffix == ".js":
+            # A module reads a class through a string; a comment may name one.
+            readers += [
+                f"{where}: {literal[1]}"
+                for literal in re.findall(
+                    r"([\"'`])((?:(?!\1).)*)\1", source.read_text()
+                )
+                if named.search(literal[1])
+            ]
+    typed = [
+        f"{selector} sets {name}"
+        for _conditions, _enclosing, selector, declarations in _style_rules(layouts)
+        for name, _value in declarations
+        if name.startswith("font") or name in ("letter-spacing", "line-height")
+    ]
+    assert not readers, "a Layout or style class read outside its owner:\n" + "\n".join(
+        readers
+    )
+    assert not typed, "layouts.css sets type:\n" + "\n".join(typed)
+
+
 def _pseudo_arguments(compound, pseudos):
     """Each `pseudo(…)` in the compound, for every pseudo named, as (start, end, argument),
     where `compound[start:end]` is the whole call."""
@@ -1563,7 +1621,7 @@ def test_the_layer_sheets_spell_the_runtime_s_layout_numbers():
     ):
         assert spelling in sheet, f"the layer sheets no longer spell {spelling}"
     for spelling in (
-        'html[data-lf-live] body[data-lf-auxiliary-surface="asks"]',
+        'html[data-lf-live] body[data-lf-auxiliary-surface="queue"]',
         'html[data-lf-live] body[data-lf-auxiliary-surface="threads"]',
     ):
         assert spelling in sheet, f"the layer sheets no longer spell {spelling}"
@@ -2135,6 +2193,178 @@ def test_the_resources_a_fixture_owns_are_taken_from_that_fixture():
     assert not bypassed, bypassed
 
 
+def test_a_wait_takes_the_suites_deadline():
+    """A wait in the suite bounds a hang; it does not time the work it waits for.
+
+    A literal deadline is sized to how long the work took where it was written, and
+    a busy runner takes many times that, so a correct product fails the test there
+    (tests/AGENTS.md, "Functional results do not depend on execution speed").
+    A Python-side wait takes `STATED_TIMEOUT`, or a constant derived from it. A
+    browser wait takes `SERVED_TIMEOUT_MS`, which `render_harness` makes the default
+    of every Playwright wait and `expect` that names none, or `HANDOVER_DEADLINE_MS`
+    where it spans a page handover. So each bound is set in one place. A wait whose
+    length is its subject names that value where it is defined, which keeps it out
+    of this check without a list of exceptions here.
+
+    Read are every `timeout` or `timeout_ms` a call passes or a helper defaults;
+    the deadline a thread, future, event or socket takes first, and a page's
+    default deadline; and a deadline a local loop computes from `monotonic()`. A
+    zero timeout asks without waiting and is left alone. A sleep
+    (`wait_for_timeout`) is a pause or an absence window, not a deadline.
+    """
+    deadline_names = {"timeout", "timeout_ms"}
+    deadline_first = {
+        "join",
+        "result",
+        "set_default_navigation_timeout",
+        "set_default_timeout",
+        "settimeout",
+        "wait",
+    }
+    # Literal deadlines in files another change is rewriting, at most this many in
+    # each, to move onto the suite's deadlines once that change lands. Each is a hang
+    # bound like the rest.
+    held_elsewhere = {
+        "test_render_anchors.py": 1,
+        "test_render_controls.py": 3,
+        "test_render_gate.py": 6,
+        "test_render_navigation.py": 9,
+        "test_render_startup.py": 8,
+        "test_render_threads.py": 8,
+    }
+
+    def literal(node) -> bool:
+        if isinstance(node, ast.BinOp):
+            return literal(node.left) and literal(node.right)
+        return (
+            isinstance(node, ast.Constant)
+            and type(node.value) in (int, float)
+            and node.value != 0
+        )
+
+    def called(func) -> str | None:
+        return (
+            func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", None)
+        )
+
+    def defaults(arguments):
+        positional = arguments.posonlyargs + arguments.args
+        yield from zip(
+            positional[len(positional) - len(arguments.defaults) :], arguments.defaults
+        )
+        yield from zip(arguments.kwonlyargs, arguments.kw_defaults)
+
+    literals = {}
+    for path in sorted((ROOT / "tests").rglob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+                computed = (
+                    isinstance(node.left, ast.Call)
+                    and called(node.left.func) == "monotonic"
+                    and literal(node.right)
+                )
+            elif isinstance(node, ast.Call):
+                computed = any(
+                    keyword.arg in deadline_names and literal(keyword.value)
+                    for keyword in node.keywords
+                ) or (
+                    called(node.func) in deadline_first
+                    and isinstance(node.func, ast.Attribute)
+                    and bool(node.args)
+                    and literal(node.args[0])
+                )
+            elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
+                computed = any(
+                    argument.arg in deadline_names
+                    and default is not None
+                    and literal(default)
+                    for argument, default in defaults(node.args)
+                )
+            else:
+                continue
+            if computed:
+                literals.setdefault(path.name, []).append(
+                    f"{path.relative_to(ROOT)}:{node.lineno} "
+                    + ast.unparse(node).split("\n", 1)[0]
+                )
+    fixed = [
+        site
+        for name, sites in literals.items()
+        if len(sites) > held_elsewhere.get(name, 0)
+        for site in sites
+    ]
+    assert not fixed, (
+        "these waits fix their own deadline; bound them with STATED_TIMEOUT "
+        "(interact_support.py), or in a browser with SERVED_TIMEOUT_MS or "
+        f"HANDOVER_DEADLINE_MS (leaf.render_checks): {fixed}"
+    )
+
+
+@pytest.mark.parametrize("launcher_ends", ["wait", "exit"])
+def test_a_spawned_process_ends_with_what_it_started(spawn, launcher_ends):
+    """`spawn`'s teardown ends a child's descendants as well as the child, since a
+    handle often names a launcher, as `under_codex`'s fake host does the shell
+    that runs its command. That holds whether the launcher is still running or
+    has already exited and left its child behind."""
+    launcher = spawn(
+        ["/bin/sh", "-c", f"sleep 600 & echo $!; {launcher_ends}"],
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    descendant = int(launcher.stdout.readline())
+    if launcher_ends == "exit":
+        launcher.wait(timeout=STATED_TIMEOUT)
+
+    _retire(launcher)
+
+    def running():
+        try:
+            os.kill(descendant, 0)
+        except ProcessLookupError:
+            return False
+        return True
+
+    wait_for(running, lambda alive: not alive, failure="the launcher's child survived")
+
+
+def test_no_test_ends_a_process_with_sigkill():
+    """SIGKILL gives a process no chance to end what it started, so a test ends one
+    by closing the pipe it reads or with SIGTERM (tests/AGENTS.md, "A process the
+    suite starts ends with the run"). The source is read for it, since no fixture
+    sees which signal a test sends: `Popen.kill()`, `signal.SIGKILL`, signal 9
+    passed to `kill`, `killpg` or `send_signal`, and a shell `kill` given signal 9
+    or KILL in a command a test runs."""
+    shell_kill = re.compile(r"\bkill\s+-(?:9|KILL|SIGKILL)\b")
+    killed = []
+    for path in sorted((ROOT / "tests").glob("*.py")):
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            if (
+                (isinstance(node, ast.Attribute) and node.attr == "SIGKILL")
+                or (
+                    isinstance(node, ast.Call)
+                    and isinstance(node.func, ast.Attribute)
+                    and node.func.attr == "kill"
+                    and not node.args
+                )
+                or (
+                    isinstance(node, ast.Call)
+                    and isinstance(node.func, ast.Attribute)
+                    and node.func.attr in {"kill", "killpg", "send_signal"}
+                    and node.args
+                    and isinstance(node.args[-1], ast.Constant)
+                    and node.args[-1].value == 9
+                )
+                or (
+                    isinstance(node, ast.Constant)
+                    and isinstance(node.value, str)
+                    and shell_kill.search(node.value)
+                )
+            ):
+                killed.append(f"{path.name}:{node.lineno} {ast.unparse(node)[:80]}")
+    assert not killed, killed
+
+
 def test_page_packages_are_explicit_and_survive_reinitialization(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     home = tmp_path / "home"
@@ -2534,30 +2764,33 @@ def test_page_commands_do_not_mint_the_successful_init_marker(tmp_path):
 
 
 def test_concurrent_page_init_serializes_creation(tmp_path, monkeypatch):
-    """One page lock covers creation before the page log exists."""
+    """One page lock covers creation before the page log exists: a second init
+    that arrives while the first is creating the page waits on that lock, and
+    creates only once the first has finished.
+
+    The first creation is held inside the lock until the second is found waiting
+    on it. Without the lock the second would begin creating beside the first, which
+    the same wait observes instead."""
     page = tmp_path / "page"
     first_entered = threading.Event()
     release_first = threading.Event()
-    second_waiting = threading.Event()
-    calls = 0
+    second_entered = threading.Event()
+    creations = []
     errors = []
     original_init = vendoring_model._init_page
-    original_page_locked = vendoring_model.page_locked
+    # The page's lock is a flock on the directory, which the first init takes
+    # uncontended; the second is the one taker that can find it held.
+    second_waiting = lock_contention(monkeypatch, page, by="second-init")
 
     def paused_init(page_dir, selected):
-        nonlocal calls
-        calls += 1
-        if calls == 1:
+        creator = threading.current_thread().name
+        creations.append(creator)
+        if creator == "first-init":
             first_entered.set()
-            assert release_first.wait(5)
+            assert release_first.wait(STATED_TIMEOUT), "the first init was never let go"
+        else:
+            second_entered.set()
         original_init(page_dir, selected)
-
-    @contextlib.contextmanager
-    def observed_page_locked(locked):
-        if locked == page and threading.current_thread().name == "second-init":
-            second_waiting.set()
-        with original_page_locked(locked) as held:
-            yield held
 
     def initialize():
         try:
@@ -2566,24 +2799,34 @@ def test_concurrent_page_init_serializes_creation(tmp_path, monkeypatch):
             errors.append(error)
 
     monkeypatch.setattr(vendoring_model, "_init_page", paused_init)
-    monkeypatch.setattr(vendoring_model, "page_locked", observed_page_locked)
     first = threading.Thread(target=initialize, name="first-init")
     second = threading.Thread(target=initialize, name="second-init")
     first.start()
     try:
-        assert first_entered.wait(5)
+        wait_for(
+            first_entered.is_set,
+            bool,
+            failure="the first init never began creating the page",
+        )
         second.start()
-        assert second_waiting.wait(5)
-        assert calls == 1
+        wait_for(
+            lambda: second_waiting.is_set() or second_entered.is_set(),
+            bool,
+            failure="the second init neither waited on the page lock nor began creating",
+        )
+        assert not second_entered.is_set(), (
+            "the second init began creating while the first held the page"
+        )
     finally:
         release_first.set()
-        first.join(timeout=5)
+        first.join(timeout=STATED_TIMEOUT)
         if second.ident is not None:
-            second.join(timeout=5)
+            second.join(timeout=STATED_TIMEOUT)
 
-    assert not first.is_alive() and not second.is_alive()
+    assert not first.is_alive(), "the first init never finished"
+    assert not second.is_alive(), "the second init never finished"
     assert errors == []
-    assert calls == 2
+    assert creations == ["first-init", "second-init"]
     assert (page / cleanup_model.EVENTS_FILE).is_file()
 
 
@@ -2593,7 +2836,9 @@ def test_hooks_do_not_mint_the_successful_init_marker_for_a_deleted_page(page_di
     shutil.rmtree(page_dir)
     page_dir.mkdir()
 
-    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "stale-session"})
+    hooks_model.cmd_hook(
+        "claude-code", {"hook_event_name": "Stop", "session_id": "stale-session"}
+    )
 
     assert list(page_dir.iterdir()) == []
 
@@ -3791,7 +4036,7 @@ cli.cli.main(args=sys.argv[1:], standalone_mode=False)
                 env=environment,
                 capture_output=True,
                 text=True,
-                timeout=10,
+                timeout=STATED_TIMEOUT,
                 check=False,
             )
             assert independent.returncode == 0, independent.stdout + independent.stderr
@@ -3812,7 +4057,7 @@ cli.cli.main(args=sys.argv[1:], standalone_mode=False)
                 text=True,
             )
             assert child.stdout.readline().strip() == "waiting on shared destination"
-        out, err = child.communicate(timeout=10)
+        out, err = child.communicate(timeout=STATED_TIMEOUT)
         assert child.returncode == 0, out + err
     assert set(json.loads((package / "registry.json").read_text())) == {
         f"lf-parallel-{index}" for index in range(len(routes))
@@ -3830,7 +4075,7 @@ cli.cli.main(args=sys.argv[1:], standalone_mode=False)
             assert (
                 installing.stdout.readline().strip() == "waiting on shared destination"
             )
-        out, err = installing.communicate(timeout=10)
+        out, err = installing.communicate(timeout=STATED_TIMEOUT)
         if held_package == package:
             assert installing.returncode == 0, out + err
         else:
@@ -4105,7 +4350,8 @@ def test_package_recognizes_a_page_without_runtime_status(tmp_path, monkeypatch)
     page = tmp_path / "page"
     initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
     assert initialized.exit_code == 0, initialized.output
-    (page / "status.json").unlink()
+    # A page has no status until its agent declares one.
+    assert not (page / "status.json").exists()
     before = (page / "theme.css").read_bytes()
 
     layer = project / ".leaf"
@@ -4194,7 +4440,7 @@ def test_package_refuses_members_aliased_into_an_initialized_page(
 @pytest.mark.parametrize(
     ("source_name", "page_name"),
     [
-        ("theme.css", "status.json"),
+        ("theme.css", "events.jsonl"),
         ("widgets", schema_model.MEDIA_DIR),
         ("vendor", "revisions"),
     ],

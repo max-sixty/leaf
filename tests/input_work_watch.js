@@ -4,7 +4,9 @@
 // it runs while an input's other work is waiting. Native await continuations do not
 // call Promise.prototype.then. Their owner captures the callback that commits an
 // effect before awaiting, and invokes it afterwards. Leaf draft sends put words away
-// synchronously before awaiting delivery (drafts.js).
+// synchronously before awaiting delivery (drafts.js). A reactive element's update is
+// the exception the watch follows itself: Lit defers it behind a native await, and the
+// request that starts it names its cause (`adoptReactive`).
 // The watch's own scheduling uses the saved platform methods and is never counted.
 (() => {
   "use strict";
@@ -49,23 +51,29 @@
     }
     for (const subscriber of subscribers) subscriber(source, completedEdit);
   };
+  const enter = (source) => {
+    // A nested focus or synthetic event can run after its caller changed the DOM.
+    // Read those writes under that caller before the nested callback starts.
+    checkpoint(current());
+    const previous = callbackSource;
+    callbackSource = source;
+    callbackDepth++;
+    return () => {
+      try {
+        checkpoint(source);
+      } finally {
+        callbackDepth--;
+        callbackSource = previous;
+      }
+    };
+  };
   const wrap = (callback, source) =>
     function (...args) {
-      // A nested focus or synthetic event can run after its caller changed the DOM.
-      // Read those writes under that caller before the nested callback starts.
-      checkpoint(current());
-      const previous = callbackSource;
-      callbackSource = source;
-      callbackDepth++;
+      const leave = enter(source);
       try {
         return callback.apply(this, args);
       } finally {
-        try {
-          checkpoint(source);
-        } finally {
-          callbackDepth--;
-          callbackSource = previous;
-        }
+        leave();
       }
     };
 
@@ -247,6 +255,57 @@
       );
     };
   }
+  // A reactive element (Lit's lifecycle: `requestUpdate` starts an update, which a native
+  // `await` defers to `scheduleUpdate`) commits its update for whatever requested it.
+  // The request that starts the update names its source, as scheduling a timer does,
+  // and connecting the element names the source of its first; the update runs under
+  // that source, so a field it rewrites keeps its cause.
+  const updateSources = new WeakMap();
+  const reactive = new WeakSet();
+  const adoptReactive = (constructor) => {
+    for (
+      let prototype = constructor?.prototype;
+      prototype && prototype !== HTMLElement.prototype;
+      prototype = Object.getPrototypeOf(prototype)
+    ) {
+      if (
+        reactive.has(prototype) ||
+        !Object.hasOwn(prototype, "requestUpdate") ||
+        !Object.hasOwn(prototype, "scheduleUpdate")
+      )
+        continue;
+      reactive.add(prototype);
+      const request = prototype.requestUpdate;
+      const schedule = prototype.scheduleUpdate;
+      prototype.requestUpdate = function (...args) {
+        const starts = !this.isUpdatePending;
+        const result = request.apply(this, args);
+        if (starts && this.isUpdatePending) updateSources.set(this, current());
+        return result;
+      };
+      prototype.scheduleUpdate = function (...args) {
+        const source = updateSources.get(this) ?? null;
+        updateSources.delete(this);
+        return wrap(schedule, source).apply(this, args);
+      };
+      // The first update, requested as the element is made, waits for it to be
+      // connected, so connecting it is what that update answers to.
+      if (Object.hasOwn(prototype, "connectedCallback")) {
+        const connect = prototype.connectedCallback;
+        prototype.connectedCallback = function (...args) {
+          if (!this.hasUpdated && this.isUpdatePending)
+            updateSources.set(this, current());
+          return connect.apply(this, args);
+        };
+      }
+    }
+  };
+  const define = CustomElementRegistry.prototype.define;
+  CustomElementRegistry.prototype.define = function (name, constructor, options) {
+    adoptReactive(constructor);
+    return define.call(this, name, constructor, options);
+  };
+
   Promise.prototype.then = function (fulfilled, rejected) {
     const source = current();
     return then.call(
@@ -258,6 +317,12 @@
   window.lfInputWork = {
     current,
     capture: (callback) => wrap(callback, current()),
+    // A generic scheduler can observe enqueue/run/finish without replacing its
+    // callbacks. Capture at enqueue, enter at run, and checkpoint before release.
+    captureScope() {
+      const source = current();
+      return () => enter(source);
+    },
     dispatching: () =>
       finishing.size > 0 || parents.some((parent) => parent.dispatching()),
     dispatched: () =>

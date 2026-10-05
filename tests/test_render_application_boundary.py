@@ -22,6 +22,7 @@ from render_cases_interaction import (
 from render_harness import (
     banner_control,
     consume_browser_errors,
+    expect_asks_answered,
     holding,
     leaf_page,
     open_page,
@@ -297,10 +298,9 @@ def test_browser_trace_sheds_repeated_gestures_when_delivery_stalls(browser, ser
                 entry["type"] == "click"
                 for entry in response.request.post_data_json["entries"]
             )
-        ),
-        timeout=15_000,
+        )
     ):
-        page.wait_for_timeout(2500)
+        pass
 
     rows = [
         json.loads(line)
@@ -346,10 +346,9 @@ def test_browser_trace_keeps_actions_ahead_of_new_repeated_observations(browser,
                 entry["type"] == "click" and entry["pointer"]["x"] == 599
                 for entry in response.request.post_data_json["entries"]
             )
-        ),
-        timeout=15_000,
+        )
     ):
-        page.wait_for_timeout(2500)
+        pass
 
     rows = [
         json.loads(line)
@@ -955,7 +954,7 @@ def test_admission_holds_approval_until_the_answer_is_in_the_log(
     expect(page.locator("#release-ship .lf-pick")).to_have_attribute(
         "aria-checked", "true"
     )
-    expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
+    expect_asks_answered(page, "0/1")
     expect(approval).to_be_disabled()
     expect(approval).to_have_attribute(
         "title", "Answer every Ask before approving this work"
@@ -974,7 +973,7 @@ def test_admission_holds_approval_until_the_answer_is_in_the_log(
     held[0].continue_()
     page.unroute("**/api/event")
     round_trip(page)
-    expect(page.locator(".lf-asks")).to_have_text("Asks 1/1")
+    expect_asks_answered(page, "1/1")
     expect(approval).to_be_enabled()
     expect(approval).to_have_attribute(
         "title", "Approve this work; the page stays open for follow-up"
@@ -1285,7 +1284,7 @@ def test_widget_controller_owns_presentation_across_values_and_lifetimes(
     )
     assert held_render == ["widget:page-local:render"]
     page.evaluate("heldWidgetUpdate.release(); stopHeldWidgetReading()")
-    page.wait_for_function("readLeafPresentation().pending.length === 0", timeout=3000)
+    page.wait_for_function("readLeafPresentation().pending.length === 0")
 
     # Several children prepared by one owner are one requirement. A later call for the
     # same reading includes the earlier promise rather than superseding it.
@@ -1312,7 +1311,7 @@ def test_widget_controller_owns_presentation_across_values_and_lifetimes(
     page.evaluate("firstPreparation.release('first')")
     assert page.evaluate("preparationReady") is False
     page.evaluate("secondPreparation.release('second')")
-    page.wait_for_function("preparationReady", timeout=3000)
+    page.wait_for_function("preparationReady")
 
     # Deferral installs a held render ticket for each selected value. Refusal publishes
     # the newest authoritative value, but neither it nor the older optimistic ticket may
@@ -1346,7 +1345,7 @@ def test_widget_controller_owns_presentation_across_values_and_lifetimes(
           dragging(document.body, false);
         }"""
     )
-    page.wait_for_function("projectionReady", timeout=3000)
+    page.wait_for_function("projectionReady")
     assert page.evaluate("readLeafPresentation().pending") == [
         "widget:page-local:render"
     ]
@@ -1386,7 +1385,7 @@ def test_widget_controller_owns_presentation_across_values_and_lifetimes(
         "entry => entry.event.attempt === attempt)",
         arg=attempt,
     )
-    page.wait_for_function("presentationReady", timeout=3000)
+    page.wait_for_function("presentationReady")
     page.unroute("**/api/event")
 
     # A removed owner retires both regions. Reconnecting the same instance reattaches
@@ -1406,7 +1405,7 @@ def test_widget_controller_owns_presentation_across_values_and_lifetimes(
           pageLocal.remove();
         }"""
     )
-    page.wait_for_function("beforeRemovalReady", timeout=3000)
+    page.wait_for_function("beforeRemovalReady")
     page.evaluate(
         """() => {
           document.querySelector('main').append(pageLocal);
@@ -1420,7 +1419,7 @@ def test_widget_controller_owns_presentation_across_values_and_lifetimes(
         "widget:page-local:preparation"
     ]
     page.evaluate("reconnectPreparation.release('reconnected')")
-    page.wait_for_function("reconnectedReady", timeout=3000)
+    page.wait_for_function("reconnectedReady")
 
     # A synchronous render failure cannot escape the publisher or leave a partial
     # widget as presentation proof. The coordinator reports it, installs the existing
@@ -1438,7 +1437,7 @@ def test_widget_controller_owns_presentation_across_values_and_lifetimes(
     expect(page.locator("#page-local .lf-error")).to_have_text(
         "<lf-local> failed: <lf-local> renderState threw: deliberate render failure"
     )
-    page.wait_for_function("readLeafPresentation().pending.length === 0", timeout=3000)
+    page.wait_for_function("readLeafPresentation().pending.length === 0")
     assert page.evaluate("window.__failedLocalRenders") == 1
     assert take_browser_errors(page) == [
         "leaf: Presentation failed: <lf-local> renderState threw: deliberate render failure"
@@ -1538,7 +1537,6 @@ def test_thread_presentation_waits_for_its_frozen_widgets_only(browser, serve):
             pending.includes('widget:thread-local:preparation') &&
             pending.includes('widget:page-local:preparation');
         }""",
-        timeout=5000,
     )
     page.evaluate(
         "threadReady = false; allReady = false; "
@@ -1548,7 +1546,7 @@ def test_thread_presentation_waits_for_its_frozen_widgets_only(browser, serve):
     )
     assert page.evaluate("threadReady") is False
     page.evaluate("threadPreparation.release('thread')")
-    page.wait_for_function("threadReady", timeout=3000)
+    page.wait_for_function("threadReady")
     expect(page.locator("body")).to_have_attribute("data-lf-applied", "1")
     expect(page.locator("#thread-local")).to_have_attribute(
         "data-rendered-choice", "chosen"
@@ -1558,7 +1556,7 @@ def test_thread_presentation_waits_for_its_frozen_widgets_only(browser, serve):
         "readLeafPresentation().pending"
     )
     page.evaluate("pagePreparation.release('page')")
-    page.wait_for_function("allReady", timeout=3000)
+    page.wait_for_function("allReady")
 
     # A descendant owns its own fail-soft result. Its failure reports once and settles,
     # while the parent list, count, and narrowing keep the same candidate reading.
@@ -1601,7 +1599,6 @@ def test_thread_presentation_waits_for_its_frozen_widgets_only(browser, serve):
           readLeafPresentation().pending.includes(
             'widget:thread-failing:preparation'
           )""",
-        timeout=5000,
     )
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 2")
     expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text("Threads")
@@ -1611,7 +1608,7 @@ def test_thread_presentation_waits_for_its_frozen_widgets_only(browser, serve):
         ".then(() => { threadReady = true; }); "
         "failedThreadPreparation.reject(new Error('frozen descendant failure')); true"
     )
-    page.wait_for_function("threadReady", timeout=3000)
+    page.wait_for_function("threadReady")
     expect(page.locator("#thread-failing")).to_have_count(1)
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 2")
     expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text("Threads")
@@ -1806,7 +1803,6 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
     page.wait_for_function(
         """() => window.completeListFailures === 2 &&
           window.threadRetryHeld === true""",
-        timeout=5000,
     )
 
     assert page.evaluate("() => !window.threadPreparationSettled")
@@ -1852,13 +1848,11 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
           window.readLeafPresentation().pending.includes(
             'widget:thread-held:preparation'
           )""",
-        timeout=5000,
     )
     page.evaluate("window.threadPreparation.release('prepared')")
     page.wait_for_function("() => window.threadPreparationSettled === true")
     page.wait_for_function(
         "() => !window.readLeafPresentation().pending.includes('thread')",
-        timeout=5000,
     )
     expect(page.locator("#thread-held")).to_have_count(1)
     expect(page.locator('[data-id="held-widget-thread"]')).to_have_count(1)
@@ -2017,7 +2011,7 @@ def test_a_refused_thread_reading_leaves_a_user_who_moved_on_where_they_went(
             "text": "A thread whose reading is refused once.",
         },
     )
-    page.wait_for_function("() => window.waiting === true", timeout=5000)
+    page.wait_for_function("() => window.waiting === true")
 
     write(went, "where the user went")
     went.evaluate("node => node.setSelectionRange(6, 10, 'backward')")
@@ -2105,7 +2099,7 @@ def test_thread_readiness_waits_for_the_keyed_thread_list(browser, serve):
     )
     # The held owner was actually called. Read the same readiness door as page
     # authors and the render gate, without naming its internal renderer tickets.
-    page.wait_for_function("() => window.threadListHeld === true", timeout=3000)
+    page.wait_for_function("() => window.threadListHeld === true")
     assert (
         page.evaluate(
             "() => document.querySelector('script[data-lf-entry]').lfReadiness(null, 'presented')"

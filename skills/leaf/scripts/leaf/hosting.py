@@ -22,7 +22,7 @@ from urllib.parse import urlsplit
 
 from .detached import Handshake, StartRefused, starting_detached
 from .files import read_json
-from .host import session_harness
+from .harness import Harness, harness_argument, session_harness
 from .leases import page_locked, release_lease, take_lease
 from .schema import SERVER_LOCK, SERVICE_FILE
 from .server import (
@@ -273,12 +273,13 @@ def _serve_claim(
     service: dict | None,
     standing: bool,
     revive: bool,
+    harness: Harness | None,
 ) -> bool:
-    """Validate this launch against desired state and page ownership."""
+    """Validate this launch, for `harness`, against desired state and page
+    ownership."""
     if revive and (not service or not service["enabled"]):
         sys.exit("service was stopped; not reviving")
 
-    harness = session_harness()
     claimed = bool(
         not standing
         and harness is not None
@@ -286,7 +287,7 @@ def _serve_claim(
     )
     if not standing and harness is not None and not claimed:
         sys.exit(
-            f"this host session no longer owns {page_dir}; the server was not started"
+            f"this harness session no longer owns {page_dir}; the server was not started"
         )
     if revive and service and service["lifetime"] == "session" and not claimed:
         sys.exit("this session no longer owns the service; not reviving")
@@ -375,11 +376,13 @@ def cmd_serve(
     standing: bool = False,
     revive: bool = False,
     *,
+    harness: Harness | None,
     handshake: Handshake | None = None,
     acquire: bool = False,
     prepared_claim: dict | None = None,
 ) -> None:
-    """Prepare a serving resource, then publish it and ownership on acceptance.
+    """Prepare a serving resource for `harness`, the session its starter acts
+    for, then publish it and ownership on acceptance.
 
     The page lock serializes preparation through commitment, so another start
     cannot adopt an uncommitted listener. Binding and delivery preparation happen
@@ -397,7 +400,6 @@ def cmd_serve(
     require_cross_process_locking()
     lease = None
     httpd = None
-    harness = session_harness()
     delivery = (
         harness.preparing_delivery()
         if acquire and not standing and harness is not None and handshake is None
@@ -412,7 +414,9 @@ def cmd_serve(
                 claimed = (
                     bool(not standing and harness is not None)
                     if acquire
-                    else _serve_claim(page_dir, page, service, standing, revive)
+                    else _serve_claim(
+                        page_dir, page, service, standing, revive, harness
+                    )
                 )
             url = _reuse_server(page_dir, host, standing)
             if url is None:
@@ -447,7 +451,9 @@ def cmd_serve(
                                 if httpd is not None:
                                     write_json(page_dir / SERVICE_FILE, service)
                         else:
-                            _serve_claim(page_dir, page, service, standing, revive)
+                            _serve_claim(
+                                page_dir, page, service, standing, revive, harness
+                            )
                             claim = page.claim if claimed else None
                             if httpd is not None:
                                 write_json(page_dir / SERVICE_FILE, service)
@@ -514,6 +520,7 @@ def _starting_server(
     standing: bool = False,
     revive: bool = False,
     *,
+    harness: Harness | None,
     acquire: bool = False,
     claim: dict | None = None,
 ):
@@ -529,7 +536,10 @@ def _starting_server(
             *(["--revive"] if revive else []),
             *(["--acquire"] if acquire else []),
             *(["--claim", json.dumps(claim)] if claim is not None else []),
+            "--harness",
+            harness_argument(harness),
         ],
+        harness=harness,
         what=f"the server for {page_dir}",
     ) as ready:
         yield PageStart(ready["url"], ready["claim"], page_dir)
@@ -540,14 +550,17 @@ def start_server(
     host: str | None = None,
     standing: bool = False,
     revive: bool = False,
+    *,
+    harness: Harness | None,
 ) -> PageStart:
-    """Start or reuse a server without acquiring page ownership.
+    """Start or reuse a server for `harness` without acquiring page ownership.
 
-    A revival commits only while the desired service remains enabled and the
-    session still owns it. The detached producer checks those facts while holding
+    A revival commits only while the desired service remains enabled and
+    `harness`'s session still owns it. The detached producer checks those facts
+    while holding
     the page transition lock. Every revival retains the recorded address.
     """
-    with _starting_server(page_dir, host, standing, revive) as started:
+    with _starting_server(page_dir, host, standing, revive, harness=harness) as started:
         pass
     return started
 
@@ -571,7 +584,7 @@ def claim_and_start(page_dir: Path, host: str | None = None, standing: bool = Fa
         claim = prepare_claim(harness, page_dir) if not standing and harness else None
         try:
             with _starting_server(
-                page_dir, host, standing, acquire=True, claim=claim
+                page_dir, host, standing, harness=harness, acquire=True, claim=claim
             ) as ready:
                 yield ready
         except BaseException:
@@ -717,7 +730,9 @@ def restarting_server(page_dir: Path):
         )
         return
     try:
-        start_server(page_dir, standing=standing, revive=True)
+        start_server(
+            page_dir, standing=standing, revive=True, harness=session_harness()
+        )
     except StartRefused as error:
         sys.exit(f"{page_dir}'s server did not start again: {error}")
 

@@ -220,12 +220,15 @@
               border-radius: var(--r); background: var(--card); }
 }
 /* A titled option's title heads its card, or, at working density (`--lf-density`,
- * theme.css), runs into its consequence on one row with its chips at the row's end.
- * Each form says its own, so neither resets the other. */
-@container not style(--lf-density: working) {
+ * theme.css) in a group wide enough to hold a row, runs into its consequence on one
+ * row with its chips at the row's end. A narrow group, such as an Ask's options track,
+ * keeps cards at any density: a row there broke the title around the floated chips.
+ * The group is the query's container (container-type above), so both conditions read
+ * the same box. Each form says its own, so neither resets the other. */
+@container not (style(--lf-density: working) and (width >= 30rem)) {
   :scope:is(lf-option) > strong { display: block; margin: 0 0 4px; }
 }
-@container style(--lf-density: working) {
+@container style(--lf-density: working) and (width >= 30rem) {
   :scope:is(lf-options):has(> lf-option > strong) > lf-option {
     & > strong { margin-inline-end: .35em; }
     & > lf-chip { float: inline-end; margin: 0 0 0 6px; }
@@ -741,8 +744,11 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
   /* The runtime's semantic location mark normally rings the whole Decision. Within an
    * options control that makes the permanent frame look like a second, stateful border.
    * Suppress that outer paint while focus is inside this control; keyboard focus is
-   * carried by the exact row, while pointer focus needs no extra channel at all. */
-  [data-lf-ask]:has(
+   * carried by the exact row, while pointer focus needs no extra channel at all.
+   * The decision is an ancestor of the control, so it is matched as a widget root
+   * (an lf-ask) as well as a descendant of one: a bare selector here reaches only
+   * descendants, and an Ask standing at the page's top level kept its ring. */
+  :is(:scope, :scope *)[data-lf-ask]:has(
     lf-options[choose]:not(:where([data-lf-exhibit]) *) :is(:focus, .lf-focus)
   ) { --lf-ask-ring: none; }
   :scope:is(lf-options)[choose]:not([settled]):not(:where([data-lf-exhibit]) *)
@@ -1617,12 +1623,12 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
     border-bottom-color: currentColor;
     background: transparent;
   }
-    /* A page tab is a section of the page, not a box on it: it declares the frame only
-     * so its first line trims under the strip and, like `main`, holds the page's flow,
-     * so a wide exhibit in a page tab grows out as it would on a page without tabs. */
+    /* A page tab is a section of the page, not a box on it: like `main`, it trims its
+     * edges (so its first line trims under the strip) and draws nothing, so a wide
+     * exhibit in a page tab grows out as it would on a page without tabs. */
   :scope:is(lf-tabs).lf-rendered[data-lf-tabs-flow="page"] > lf-tab:not([hidden]) {
     padding: var(--sp-4) 0 0;
-    --lf-page-flow: 1;
+    --lf-block-frame: trim;
   }
   :scope:is(lf-tabs).lf-rendered[data-lf-tabs-flow="page"] > lf-tab[hidden] {
     align-self: start;
@@ -1660,7 +1666,7 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
       margin-block: 0 32px; border: 0; border-radius: 0; background: transparent;
       --lf-block-frame: 0;
       &::before { border-radius: 0; background: var(--paper); }
-      & > lf-tab { padding: var(--sp-4) 0 0; --lf-page-flow: 1; }
+      & > lf-tab { padding: var(--sp-4) 0 0; --lf-block-frame: trim; }
     }
   }
   @scope (html[data-lf-interactive] :scope) {
@@ -2117,6 +2123,88 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
  * question's opening and reaches around the context and control the standing ring says
  * are one Ask. */
 :scope:is(lf-ask) { display: block; }
+/* The options track. An Ask whose evidence includes a figure (its heading first, a
+ * chart, image or table after it, and one option list last) outruns a window when
+ * stacked: the options land below the figure they turn on. Where the Ask is 50rem
+ * wide or more, the list stands in a 16rem track beside the premise and evidence and
+ * sticks while they scroll, so the question, its figure and every option share one
+ * window. 50rem leaves the evidence 32rem at the least, which a chart and a short
+ * table still read at; a narrower Ask stacks like any other. A reading column is narrower, so in
+ * a column the track takes the room the page grants the Ask with `data-width`
+ * (authoring-asks.md); room the page did not grant stays the render check's to refuse.
+ * The content decides the form, so there is no attribute for it. An Ask of words alone
+ * stays stacked: its context is shorter than a list set at 16rem, so a track would
+ * leave a column of air beside the list. A control other than a list has no room in
+ * 16rem.
+ *
+ * The width is the Ask's own, so the Ask is the size container its children query. A
+ * container cannot restyle itself, so the Ask stays a block and its children make the
+ * form: the context floats in a column at the start, each block clearing the one
+ * above, and the list, the one block left in flow, stands under the heading at the
+ * end, beside the floats, where it can stick. The Ask's `::after` clears the floats, so
+ * the Ask is as tall as its taller column. Floats keep the margins that flow would
+ * collapse, so each block in the column keeps only its start margin.
+ *
+ * A size container is a formatting context of its own, so in either form its first and
+ * last children's margins stay inside it instead of collapsing with its neighbours'.
+ * The block before the Ask is outside the Ask's scope, so the Ask cannot take that
+ * block's end margin away. It moves its heading's start margin onto itself instead, as
+ * the gap a heading in an Ask stands at (`--sp-4`), which collapses with the end margin
+ * before it as the heading's would have. That margin is said at zero specificity, so
+ * a frame that trims its first block's start margin (`--lf-block-frame`) trims the
+ * Ask's as it would have the heading's. The list drops its end margin in favour of
+ * whatever follows.
+ *
+ * A container also re-bases `cqi`, which `--lf-room` is written in (layouts.css), so a
+ * breakout inside the Ask would measure the Ask rather than the shell. The Ask resolves
+ * that room once, as its parent would, and hands it to its children as a length.
+ * Beside the list, the free room is set to zero, so nothing in the context reaches
+ * under the track. */
+@property --lf-ask-room { syntax: "<length-percentage>"; inherits: true; initial-value: 0px; }
+/* The Ask that qualifies says so to its own children (`--lf-ask-track`, which does not
+ * inherit), and each rule below asks its parent with a style query. An ordinary Ask held
+ * inside one, among its evidence or in an option, finds the same named container, but
+ * its children's parent is that Ask, which never says so. */
+@property --lf-ask-track { syntax: "<integer>"; inherits: false; initial-value: 0; }
+:scope:is(lf-ask):has(> :is(h1, h2, h3, h4, h5, h6):first-child ~ :is(figure, img, svg, table, lf-chart, lf-shot) ~ lf-options:last-child) {
+  container: lf-ask / inline-size;
+  --lf-ask-room: var(--lf-room, 0px);
+  --lf-ask-track: 1;
+  & > :is(h1, h2, h3, h4, h5, h6):first-child { margin-block-start: 0; }
+}
+@container lf-ask (width >= 0) {
+  @container style(--lf-ask-track: 1) {
+    :scope:is(lf-ask) > * { --lf-room: var(--lf-ask-room); }
+    :scope:is(lf-ask) > lf-options { margin-block-end: 0; }
+  }
+}
+@container lf-ask (width >= 50rem) {
+  @container style(--lf-ask-track: 1) {
+    /* `:nth-child(n)` outranks what sets a block's own width and margins, such as a
+     * declared width (`[data-lf-space]`) or `.facts`. The heading's end margin stands
+     * above the first block and the list alike. */
+    :scope:is(lf-ask) > :not(:first-child, lf-options):nth-child(n) {
+      float: inline-start;
+      clear: inline-start;
+      inline-size: calc(100% - 16rem - var(--sp-4));
+      margin-block-end: 0;
+      --lf-free-l: 0px;
+      --lf-free-r: 0px;
+    }
+    :scope:is(lf-ask) > :nth-child(2) { margin-block-start: 0; }
+    :scope:is(lf-ask) > lf-options {
+      inline-size: 16rem;
+      margin-block-start: 0;
+      margin-inline-start: auto;
+      position: sticky;
+      top: calc(var(--lf-top) + var(--sp-3));
+    }
+    :scope:is(lf-ask)::after { content: ""; display: block; clear: both; }
+  }
+}
+:where(:scope:is(lf-ask):has(> :is(h1, h2, h3, h4, h5, h6):first-child ~ :is(figure, img, svg, table, lf-chart, lf-shot) ~ lf-options:last-child)) {
+  margin-block-start: var(--sp-4);
+}
 /* An Ask that is a full-height workspace's body (`--lf-full-height` on main, layouts.css) and is a
  * heading and one answer gives the answer what the heading leaves, so a widget composing
  * its own regions there, such as a playground, fills the window. With context between
@@ -2224,19 +2312,11 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
  * the painted bar against the exhibit's own boxes over every sample the corpus has
  * (test_the_gutter_runs_beside_the_exhibit_and_no_further) — loud where the rule goes
  * quiet, and what a leading suggestion meets the day one is written. */
-:scope:is(lf-sample) { display: table; table-layout: fixed; width: 100%;
+/* A table box keeps to its content unless given a width, so the sample states the room's
+ * (`--lf-breakout-width`, layouts.css), which an authored width widens. */
+:scope:is(lf-sample) { display: table; table-layout: fixed; width: var(--lf-breakout-width);
               box-sizing: border-box; margin: 18px 0; padding-left: var(--sp-4);
               border-left: 3px solid var(--border-2); --lf-block-frame: 1; }
-/* An authored width widens a block by negative margins (theme.css, the breakout rule),
- * which an auto-width box fills and a table box with its own width does not: the sample
- * moved left by the margin and kept the column's width. So a sample given room adds the
- * surplus to its width, as the kernel's table rule does, and under the same selector.
- * Only its own breakout's: `--lf-surplus` inherits, and a sample in a list inside wide
- * evidence took the section's surplus on top of the item's width. */
-@media screen {
-  :scope:is(lf-sample)[data-lf-space]:not([data-lf-space="column"]) {
-    width: calc(100% + var(--lf-surplus)); }
-}
 /* Containment does not apply to a table, so the sample cannot be the size container
  * a framed box is (theme.css, at the pane's body). Its width is fixed, so it states the
  * cap for what it holds as a percentage instead, which resolves against its cell. */
@@ -2301,7 +2381,8 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
 :scope:is(lf-chart).lf-rendered, :scope:is(lf-tree).lf-rendered, :scope:is(lf-code).lf-rendered {
              font: inherit; color: inherit; overflow: visible; }
 /* The authored body, before its module replaces it. Nothing here says white-space: the
-   body is a <pre>, which is the whole reason it is one. Everything here undoes the rule
+   body is a <pre>, which is the whole reason it is one (a draft, whose module draws
+   wrapped prose, says its own below). Everything here undoes the rule
    near the top that dresses a <pre> as evidence the page is showing — a box, a rule, a
    mono face, an inset. This <pre> is not that: it is the widget's own content, about to
    be rendered or edited, inside an element that has already said how it looks and how
@@ -2489,6 +2570,13 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
 :scope:is(lf-draft) { display: block; border: 1px dashed var(--border-2); border-radius: 6px;
            padding: 10px 14px; margin: 12px 0; background: var(--card); }
 .lf-draft-body, .lf-draft-edit.lf-ui { white-space: pre-wrap; }
+/* The authored <pre> stands where the drawn body will, so it wraps as that body does
+   and drops what the module's decoder drops (`decodeBodyRecord`, projection/authored.js):
+   the indentation the HTML around it gave every line, and the line of spaces before an
+   indented closing tag. pre-line keeps the draft's line breaks and drops both, so the first
+   paint has the drawn body's lines; it reads otherwise only where the draft's own lines
+   are indented relative to one another or hold runs of spaces. */
+:scope:is(lf-draft) > pre { white-space: pre-line; }
 .lf-draft-pencil { opacity: 1; }
 /* The one control whose face is deliberately the document's: the box shows the page's
    words in the page's serif, or the word under the press reflows out from under the

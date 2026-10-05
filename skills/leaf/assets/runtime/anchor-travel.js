@@ -42,6 +42,7 @@ import {
   clippedContents,
   clipsPast,
   landingBand,
+  localScrollBy,
   placeHolder,
   shownBox,
   shownRect,
@@ -90,8 +91,8 @@ export function createAnchorTravel({
   // journey, whether it goes to threads or Asks: it replaces the journey's entry, which
   // already holds where the journey began. Once the user has moved off that landing, the
   // next trip pushes again. A journey is not a walk (the glossary's ordered movement
-  // among one kind of destination): steps of a thread walk and of an Ask walk, or a
-  // press on a margin marker, can all be trips of one journey. The landing is a lookup
+  // among one category of destination): steps of the thread walk and of the queue
+  // walk, or a press on a margin marker, can all be trips of one journey. The landing is a lookup
   // rather than a node because the thread pass repaints marks, and the entry
   // carries a token for this document's journey because only this load holds the
   // lookup.
@@ -211,7 +212,9 @@ export function createAnchorTravel({
                   { at: input, block: "nearest" },
                   {
                     at: current.where,
-                    when: () => !readableDestination(input),
+                    when: () =>
+                      !readableDestination(current.where) ||
+                      !readableDestination(input),
                   },
                 ]
               : [{ at: current.where }],
@@ -224,6 +227,10 @@ export function createAnchorTravel({
         present: async () => {
           const current = resolve();
           if (!current) return;
+          if (!readableDestination(current.where))
+            mayArrive.handoff(() => {
+              scrollRevealedPlace(current.where, current.where, "instant", "center");
+            });
           if (current.open)
             mayArrive.handoff(() => {
               release = current.open();
@@ -473,7 +480,11 @@ export function createAnchorTravel({
       const byY = inside
         ? nearestBy(destination.top, destination.bottom, top, bottom)
         : 0;
-      if (byX || byY) box.scrollBy({ left: byX, top: byY, behavior: "instant" });
+      if (byX || byY)
+        box.scrollBy({
+          ...localScrollBy(box, { x: byX, y: byY }),
+          behavior: "instant",
+        });
       if (box === pageScroller || getComputedStyle(box).position === "fixed") break;
     }
     scrollIntoReadingBand(alignment, holder, block, behavior);

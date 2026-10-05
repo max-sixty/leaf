@@ -394,7 +394,7 @@ remaining targets. The Threads panel remains the complete conversation index.
 
 Omitting the rail is valid. Comments open in Threads, and selection offers the
 banner's Comment on selection control. A custom package can supply the same
-page presentation through "Page annotation presentation" in `packages.md`;
+page presentation through "Page annotation presentation" in `module-authoring.md`;
 do not reconstruct the event log or annotation inventory in page code.
 
 ## Draw the subject
@@ -471,7 +471,7 @@ whitespace. Verbatim source quotations keep their exact text; logs and transcrip
 stay literal and uncolored when they are not source code.
 
 The runtime injects the status banner, thread panel, Versions menu, keyboard
-shortcuts, live-leaves drawer, and active-asks drawer, which lists the page's open Asks.
+shortcuts, live-leaves drawer, and Queue panel, which lists the page's open Asks.
 Do not duplicate that chrome or keep a second list of the Asks in the page.
 
 Keep content within its allocated column, visual surface, or pane. The theme scrolls a `<pre>` or a table
@@ -509,7 +509,7 @@ instances and arbitrary module state do not survive the reload. Both update path
 wait while the user is composing, dragging, or undoing, has a gesture the server
 has not yet admitted, or has the version menu open.
 
-Page modules follow `references/packages.md`, "What a behavior module owes". In
+Page modules follow `references/module-authoring.md`, "What a behavior module owes". In
 particular, its `once()`, `quoted()`, `offer()`, `layoutChanged()`, and durable-state
 rules keep authored controls correct after reconnection and thread quoting.
 
@@ -738,7 +738,8 @@ For a page with Asks, the check also saves the window at each of the first eight
 as `a` reaches it from the top, which is how a user working the page meets each
 question. At each arrival, confirm that the question, shared premise, alternatives,
 and evidence that distinguishes them are visible together, the displayed numbers
-match the available actions, and the next press of `a` reaches the next open Ask
+match the available actions, and the next press of `a` reaches the next thing waiting
+on the user (an open Ask, a thread whose question is theirs, or a move to send again)
 while the complete page remains visible.
 
 Without a way to inspect the rendered page, read `leaf page state <page>`'s

@@ -39,6 +39,7 @@ import {
   shownBand,
   shownExtent,
   shownParts,
+  shownWindow,
   skipped,
 } from "/runtime/geometry.js";
 import { shadowHost, under, upFrom } from "/runtime/shadow.js";
@@ -149,9 +150,11 @@ function placeMarginEntryLabel(control) {
   if (!label || !control.checkVisibility()) return;
   const marginEntryBox = control.getBoundingClientRect();
   const labelBox = label.getBoundingClientRect();
+  // The window the page shows, under the banner and over the bottom bar (geometry.js).
+  const room = shownWindow({ gap: 4 });
   const edgeAligned = Math.max(
-    4,
-    Math.min(marginEntryBox.right - labelBox.width, innerWidth - 4 - labelBox.width),
+    room.left,
+    Math.min(marginEntryBox.right - labelBox.width, room.right - labelBox.width),
   );
   const cluster = control.closest(".lf-margin-cluster") ?? control.parentElement;
   const clusterMarginEntries = [
@@ -168,17 +171,14 @@ function placeMarginEntryLabel(control) {
     labelRect("after", clusterRight + 6, centered, labelBox),
     labelRect("before", clusterLeft - 6 - labelBox.width, centered, labelBox),
   ];
-  const blockers = [
-    ...[...document.querySelectorAll(".lf-margin-entry")].filter(
-      (candidate) => candidate !== control && candidate.checkVisibility(),
-    ),
-    ...document.querySelectorAll(".lf-banner, .lf-shortcut-bar"),
-  ].map((candidate) => candidate.getBoundingClientRect());
+  const blockers = [...document.querySelectorAll(".lf-margin-entry")]
+    .filter((candidate) => candidate !== control && candidate.checkVisibility())
+    .map((candidate) => candidate.getBoundingClientRect());
   const fits = ({ rect }) =>
-    rect.left >= 4 &&
-    rect.right <= innerWidth - 4 &&
-    rect.top >= 4 &&
-    rect.bottom <= innerHeight - 4;
+    rect.left >= room.left &&
+    rect.right <= room.right &&
+    rect.top >= room.top &&
+    rect.bottom <= room.bottom;
   const choice =
     candidates.find(
       (candidate) =>

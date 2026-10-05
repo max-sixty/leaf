@@ -26,7 +26,7 @@ arm or serving a page, lives in one module here and the others import it. Code
 reaches a module by importing it from this package, never through `sys.path`,
 `PYTHONPATH` or a file path.
 
-- `harness.py`: arms (the plugin payload at a ref, or as the working tree has it) and
+- `arms.py`: arms (the plugin payload at a ref, or as the working tree has it) and
   an A/B's pair of them, whose base defaults to the merge base with `main`
   (`base_ref`); pages served from an authored source on an arm; the machine's load
   average a timed command prints; the isolated `claude -p` children evals run; and
@@ -82,10 +82,9 @@ reaches a module by importing it from this package, never through `sys.path`,
   examples, base plugin against HEAD's, with no model, and prints each arm's wall
   time. Its arms, pages and state stay in its own run directory under
   `.tmp/bench-check/`.
-- `leaf-dev eval [CASE]...` scores the task catalog on Claude Code and Codex.
-  Tasks include short native Promptfoo tests and authored, resumed or live workflows;
-  explicit contexts select focused regressions, and `--condition both` includes HTML
-  where meaningful. `evals/README.md` owns the format and execution contract.
+- `leaf-dev eval [CASE]...` runs the eval catalog through Promptfoo on Claude Code
+  and Codex, on the working tree and with `--base` the merge base too.
+  `evals/README.md` owns the format and how to read the results.
 
 ## Examples and previews
 
@@ -106,11 +105,18 @@ in `leaf-assets.json` and the README's image URLs that name it.
   chooses available HTTP and inspector ports.
 - `leaf-dev verify-site` verifies a release at an origin, or with `wrangler` the
   site `leaf-dev site` built, through the local Worker and container, and prints the
-  startup profile; CI runs `wrangler` on pull requests. With `--agent`, or `local`
-  for the Python adapter alone, it runs the hosted-agent journey and emits one JSON
-  sample. Each local run has private listener ports, temporary site, container build
-  context and state, and retained logs under `.tmp/verify-site/run-*/`. `worker/README.md` owns hosted-agent
+  startup profile; CI runs `wrangler` on pull requests. Each local run has private
+  listener ports, temporary site, container build context and state, and retained
+  logs under `.tmp/verify-site/run-*/`. `worker/README.md` owns hosted-agent
   diagnostics and the failure contract.
+- `leaf-dev journey TARGET` runs one user's journey, a request through Threads to
+  record that a release passed its checks, answered with a revision and a reply, on
+  any harness: `cc` or `codex`
+  on this working tree, `local` for the website's adapter, `wrangler`, or a website
+  origin. It prints one JSON sample: the title, published revision and reply timed
+  on the page server's clock from the comment's admission, and what only the browser
+  sees from the send; on `cc` or `codex`, also the agent's turn split into delivery,
+  model and tool phases. `publish-site` runs it against each release.
 - `worker/deploy-dev.sh` (`npm run deploy:dev --prefix worker`) deploys the checkout
   to the standing `leaf-website-dev` environment and verifies it. Production deploys
   only through `.github/workflows/publish-site.yaml`.

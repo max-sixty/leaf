@@ -1,6 +1,6 @@
 """Verify that leaf.page serves one exact, coherent release in a real browser.
 
-    uv run leaf-dev verify-site [TARGET] [--release RELEASE] [--agent]
+    uv run leaf-dev verify-site [TARGET] [--release RELEASE]
 
 The release pass loads three pages, holds each to the release `leaf-dev site` built
 (or `--release`), and prints their startup profile. `wrangler` runs it against the
@@ -8,13 +8,9 @@ built site through the local Worker and its page container, printing the Worker'
 beside a failure; `.github/workflows/publish-site.yaml` runs it there before deploying
 and again against the deployed release.
 
-`--agent` instead sends one private comment through the Threads composer and requires
-the hosted Codex task to publish the requested heading and reply. A `startup_failed`
-receipt gets one more ask; any other failure receipt fails on the first
-(`worker/README.md` owns that contract). It prints the turn's timings to stderr and
-one JSON sample on stdout. Without `--release` it takes the release the origin names.
-`local` runs the agent pass through the Python adapter against the host's Codex
-login, bypassing the Worker, container limits, and credential proxy.
+This module also owns reaching the website for `leaf-dev journey`: a user session
+whose private container serves the release (`agent_session`), the website's adapter
+on this machine (`local_adapter`), and the local Worker (`local_worker`).
 """
 
 from __future__ import annotations
@@ -39,8 +35,8 @@ from playwright.sync_api import APIResponse, BrowserContext, Page
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
 from leaf_dev import ROOT
+from leaf_dev.arms import codex_home, copy_working, environment, run_directory
 from leaf_dev.browser import chrome
-from leaf_dev.harness import codex_home, copy_working, environment, run_directory
 from leaf_dev.site import asset_site
 from leaf_dev.startup import observe_startup as record_startup
 from leaf_dev.startup import startup_reading
@@ -61,20 +57,6 @@ PAGES = (
     ("/examples/triage-board/", "example", True),
     ("/examples/feature-gallery/versions/v1.html", "example", False),
 )
-
-
-# A turn's wait ends at `TURN_PATIENCE` unless the page says a turn is still working on
-# the comment, which holds it to `TURN_LIMIT`. `TURN_LIMIT` bounds the whole pass, so
-# raising it means raising `publish-site.yaml`'s `timeout-minutes` too.
-TURN_PATIENCE = 300
-TURN_LIMIT = 600
-TURN_ASKS = 2
-# The reload after the turn gets this long to present, then as long again to follow
-# the published revision: its container may take seconds to answer the first read.
-TURN_PRESENTATION = 120_000
-# How long Threads gets to draw a reply the container has admitted; the runtime's own
-# quiet-stream bound (`SILENCE_MS` in `runtime/state-feed.js`) is the same 30 s.
-VISIBLE_REPLY_PATIENCE = 30_000
 
 
 class AgentSession(NamedTuple):
@@ -508,128 +490,6 @@ def agent_session(
         time.sleep(10)
 
 
-def still_answering(state: dict, event_id: str) -> bool:
-    """Whether the page's `activity` says a working turn still owes this comment a
-    reply, which a wall clock cannot tell."""
-    activity = state.get("activity") or {}
-    if activity.get("kind") != "working":
-        return False
-    return any(
-        obligation.get("input") == event_id and not obligation.get("dropped")
-        for obligation in activity.get("obligations") or ()
-    )
-
-
-class TurnReading(NamedTuple):
-    """What one deployment ask reached before its turn stopped answering it."""
-
-    state: dict
-    published: dict | None
-    replies: list[dict]
-    answer: dict | None
-
-
-class AgentProfile:
-    """Observed milestones for one hosted-agent request, all from its first send."""
-
-    def __init__(self) -> None:
-        self.started = time.monotonic()
-        self.visible_reply_started_ms: float | None = None
-        self.milestones: dict[str, float] = {}
-        self.activities: list[tuple[float, str, str]] = []
-        self.ask_count = 0
-        self.reference: str | None = None
-        self.event_ids: list[str] = []
-
-    def mark(self, name: str) -> None:
-        self.milestones.setdefault(name, time.monotonic() - self.started)
-
-    def observe(self, state: dict) -> None:
-        activity = state.get("activity") or {}
-        reading = (activity.get("kind") or "unknown", activity.get("detail") or "")
-        if self.activities and self.activities[-1][1:] == reading:
-            return
-        self.activities.append((time.monotonic() - self.started, *reading))
-
-
-class AgentAsks(NamedTuple):
-    """The reading the pass ended on, with the asks and revision behind it."""
-
-    turn: TurnReading
-    asks: int
-    revision: int
-    profile: AgentProfile
-
-
-def agent_profile(profile: AgentProfile) -> dict:
-    """One comment-to-answer profile, in milliseconds from the first send."""
-
-    def ms(name: str) -> float | None:
-        at = profile.milestones.get(name)
-        return None if at is None else at * 1000
-
-    return {
-        "sessionReference": profile.reference,
-        "eventIds": profile.event_ids,
-        "asks": profile.ask_count,
-        "acknowledgedMs": [
-            ms(f"acknowledged {ask}") for ask in range(1, profile.ask_count + 1)
-        ],
-        "activity": [
-            {"atMs": at * 1000, "kind": kind, "detail": detail}
-            for at, kind, detail in profile.activities
-        ],
-        "titledMs": ms("titled"),
-        "publishedMs": ms("published"),
-        "responseVisibleMs": ms("response visible"),
-        "repliedMs": ms("replied"),
-        "answeredMs": ms("answered"),
-    }
-
-
-def startup_failed(replies: list[dict]) -> bool:
-    """Whether the container settled this ask by reporting a turn that never ran."""
-    return any(reply.get("failure") == "startup_failed" for reply in replies)
-
-
-def turn_failed(replies: list[dict]) -> bool:
-    """Whether the host closed the turn with one of its failure receipts."""
-    return any("failure" in reply for reply in replies)
-
-
-def deployment_answer(replies: list[dict]) -> dict | None:
-    """Return a real agent reply rather than a host-generated failure receipt."""
-    return next((reply for reply in replies if "failure" not in reply), None)
-
-
-def check_turn_answered(
-    url: str, heading: str, turn: TurnReading, asks: int, revision: int
-) -> None:
-    """Require the turn to have published the heading and answered, reading only what
-    the container admitted. A missing publication includes the source-validation
-    reading, distinguishing a rejected source from a valid source missing the heading."""
-    state, published, replies, answer = turn
-    tried = f" to {asks} asks" if asks > 1 else ""
-    reading = (state.get("activity") or {}).get("kind") or "no activity"
-    said = "; it replied: " + " / ".join(event["text"] for event in replies)
-    check(
-        published is not None,
-        f"{url} agent did not publish ‘{heading}’{tried}; it reached revision "
-        f"{state['active']['revision']} from {revision} with the page "
-        f"reading {reading}"
-        + (said if replies else " and did not reply")
-        + f"; source validation: {state['source_error'] or 'no error'}",
-    )
-    check(
-        replies != [],
-        f"{url} agent published but did not reply{tried}; the page read {reading}",
-    )
-    check(
-        answer is not None,
-        f"{url} agent returned an unexpected reply{tried}{said}",
-    )
-
-
 def start_direct_agent(context, url: str, comment: dict) -> None:
     """Run the local adapter's side of the production Worker dispatch."""
     endpoint = urljoin(url, "_leaf/agent/")
@@ -643,343 +503,6 @@ def start_direct_agent(context, url: str, comment: dict) -> None:
         reading.get("status") in {"started", "settled"},
         f"{endpoint}start returned {reading}",
     )
-
-
-def read_agent_state(context, state_url: str, layer: str, release: str) -> dict:
-    """Read the authoritative state for one activated deployment session."""
-    response = answered(
-        context.request.get(
-            state_url,
-            headers={"Leaf-Layer": layer, "Leaf-Release": release},
-            timeout=120_000,
-        ),
-        state_url,
-    )
-    return response.json()
-
-
-def ask_for_the_heading(
-    context,
-    page,
-    url: str,
-    state_url: str,
-    layer: str,
-    release: str,
-    heading: str,
-    profile: AgentProfile,
-    ask: int,
-    *,
-    direct_agent: bool = False,
-) -> dict:
-    """Send one deployment-check comment through the user's real composer."""
-    text = (
-        f"Change the main heading to ‘{heading}’. Leave everything else unchanged, "
-        "publish the revision, and reply with ‘deployment verified’."
-    )
-    box = page.locator(".lf-general leaf-text")
-    box.focus()
-    page.keyboard.insert_text(text)
-    if ask == 1:
-        profile.started = time.monotonic()
-        profile.visible_reply_started_ms = page.evaluate(
-            "window.__leafVerifier.startVisibleReplyClock"
-        )
-    with page.expect_response(
-        lambda response: (
-            response.url.endswith("/api/event") and response.request.method == "POST"
-        )
-    ) as response_info:
-        box.press("ControlOrMeta+Enter")
-    posted = response_info.value
-    check(posted.ok, f"{url} rejected its deployment-check comment")
-    profile.reference = posted.headers.get("leaf-session-reference")
-    profile.mark(f"acknowledged {ask}")
-    # Read the admitted event from state rather than the intercepted response body,
-    # which Playwright can wait on forever once the page has consumed it.
-    accepted = read_agent_state(context, state_url, layer, release)
-    profile.observe(accepted)
-    attempt = posted.request.post_data_json["attempt"]
-    comment = next(
-        (
-            event
-            for event in accepted.get("events", [])
-            if event.get("attempt") == attempt
-        ),
-        None,
-    )
-    check(comment is not None, f"{url} did not return its deployment-check comment")
-    profile.event_ids.append(comment["id"])
-    if direct_agent:
-        start_direct_agent(context, url, comment)
-    return comment
-
-
-def await_turn(
-    context,
-    url: str,
-    state_url: str,
-    layer: str,
-    release: str,
-    comment: dict,
-    revision: int,
-    heading: str,
-    published: dict | None,
-    deadline: float,
-    profile: AgentProfile,
-) -> TurnReading:
-    """Read the page until this ask is answered or nothing is answering it."""
-    started = time.monotonic()
-    replies: list[dict] = []
-    answer = None
-    current: dict = {}
-    while True:
-        current = read_agent_state(context, state_url, layer, release)
-        profile.observe(current)
-        replies = [
-            event
-            for event in current.get("events", [])
-            if event.get("kind") == "reply" and event.get("parent") == comment["id"]
-        ]
-        if replies:
-            profile.mark("replied")
-        if any(
-            event.get("kind") == "thread_title" and event.get("thread") == comment["id"]
-            for event in current.get("events", [])
-        ):
-            profile.mark("titled")
-        answer = deployment_answer(replies)
-        active = current["active"]
-        if published is None and active["revision"] > revision:
-            # The turn may publish a checkpoint first, so read the document for the
-            # heading rather than taking the first new revision.
-            document = context.request.get(urljoin(url, active["url"]), timeout=120_000)
-            if document.ok and heading in document.text():
-                published = active
-                profile.mark("published")
-        if published is not None and answer is not None:
-            profile.mark("answered")
-            break
-        # A host failure receipt closes the turn; otherwise either half of a success
-        # can arrive first, so one waits for the other.
-        if turn_failed(replies):
-            break
-        if time.monotonic() >= deadline:
-            break
-        waited = time.monotonic() - started
-        if waited >= TURN_PATIENCE and not still_answering(current, comment["id"]):
-            break
-        time.sleep(2)
-    return TurnReading(current, published, replies, answer)
-
-
-def ask_until_answered(
-    context,
-    page,
-    url: str,
-    state_url: str,
-    layer: str,
-    release: str,
-    heading: str,
-    state: dict,
-    *,
-    direct_agent: bool = False,
-) -> AgentAsks:
-    """Ask the deployed agent for `heading` until it answers or stops answering.
-
-    A `startup_failed` receipt is retried once while a healthy turn's budget remains;
-    any other receipt, or a turn that stops without answering, ends the pass.
-    """
-    published = None
-    asks = 0
-    profile = AgentProfile()
-    deadline = time.monotonic() + TURN_LIMIT
-    while True:
-        asks += 1
-        profile.ask_count = asks
-        # A second ask continues the revision the first left, and keeps what it
-        # published.
-        revision = state["active"]["revision"]
-        comment = ask_for_the_heading(
-            context,
-            page,
-            url,
-            state_url,
-            layer,
-            release,
-            heading,
-            profile,
-            asks,
-            direct_agent=direct_agent,
-        )
-        state, published, replies, answer = await_turn(
-            context,
-            url,
-            state_url,
-            layer,
-            release,
-            comment,
-            revision,
-            heading,
-            published,
-            deadline,
-            profile,
-        )
-        if answer is not None or not (
-            asks < TURN_ASKS
-            and startup_failed(replies)
-            and deadline - time.monotonic() >= TURN_PATIENCE
-        ):
-            return AgentAsks(
-                TurnReading(state, published, replies, answer),
-                asks,
-                revision,
-                profile,
-            )
-        print(
-            f"↻ {url} settled its ask with a startup failure; sending one new message",
-            file=sys.stderr,
-        )
-
-
-def wait_for_visible_reply(page, parent: str, answer_id: str) -> bool:
-    """Open an answered thread's held news, then require its reply on screen."""
-    try:
-        page.wait_for_function(
-            """({parent, id}) => window.__leafVerifier.visibleReplyRecorded(id) ||
-              [...document.querySelectorAll('.lf-threads > .lf-thread')].some(
-                thread => thread.dataset.id === parent &&
-                  [...thread.querySelectorAll('.lf-thread-news')].some(
-                    notice => notice.checkVisibility()))""",
-            arg={"parent": parent, "id": answer_id},
-            timeout=VISIBLE_REPLY_PATIENCE,
-        )
-        if not page.evaluate(
-            "id => window.__leafVerifier.visibleReplyRecorded(id)", answer_id
-        ):
-            page.locator(
-                f'.lf-threads > .lf-thread[data-id="{parent}"] .lf-thread-news'
-            ).click()
-            page.wait_for_function(
-                "id => window.__leafVerifier.visibleReplyRecorded(id)",
-                arg=answer_id,
-                timeout=VISIBLE_REPLY_PATIENCE,
-            )
-    except PlaywrightTimeout:
-        return False
-    return True
-
-
-def verify_agent_turn(
-    browser,
-    release: str | None,
-    *,
-    origin: str,
-    direct_agent: bool = False,
-) -> dict:
-    """Require one deployed Codex turn to publish `heading` on a private page and reply.
-
-    The heading checks are containments: the agent may quote the heading, and the
-    runtime may add its own words to pointable text.
-    """
-    context, page, failures, url, state_url, state = agent_session(
-        browser, release, origin=origin, direct_agent=direct_agent
-    )
-    initial_startup = startup_reading(page)
-    if release is None:
-        release = state.get("release")
-        check(isinstance(release, str), f"{state_url} returned no release")
-    # The comment is posted under the layer its own container holds, not the edge's.
-    layer = state["layer"]["generation"]
-    heading = f"Deployment {release[:8]} verified"
-    page.locator(".lf-threads-toggle").click()
-    turn, asks, revision, profile = ask_until_answered(
-        context,
-        page,
-        url,
-        state_url,
-        layer,
-        release,
-        heading,
-        state,
-        direct_agent=direct_agent,
-    )
-    check_turn_answered(url, heading, turn, asks, revision)
-    published, answer = turn.published, turn.answer
-    reply_visible = wait_for_visible_reply(page, answer["parent"], answer["id"])
-    visible_reply_at = page.evaluate(
-        "id => window.__leafVerifier.visibleReplyAt(id)", answer["id"]
-    )
-    if visible_reply_at is not None:
-        profile.milestones["response visible"] = (
-            visible_reply_at - profile.visible_reply_started_ms
-        ) / 1000
-    print(json.dumps(agent_profile(profile), indent=2), file=sys.stderr)
-    if not reply_visible or visible_reply_at is None:
-        debug = page.evaluate("window.__leafVerifier.visibleReplyDebug")
-        raise RuntimeError(
-            f"{url} reply never became visible in Threads after opening its "
-            f"held news; the answer was read out of "
-            f"{turn.state['reading']}, and the page reports {json.dumps(debug)}"
-        )
-    reloaded = page.reload(wait_until="load", timeout=120_000)
-    check(
-        reloaded is not None and reloaded.ok,
-        f"{url} did not reload after its agent turn",
-    )
-    await_presentation(page, url, failures, timeout=TURN_PRESENTATION)
-    startup = startup_reading(page)
-    # The runtime presents without waiting for its first read, which is what brings
-    # the revision back, so that follow gets its own wait and its own timing.
-    followed_at = time.monotonic()
-    try:
-        page.wait_for_function(
-            "window.__leafVerifier.revisionAtLeast",
-            arg=published["revision"],
-            timeout=TURN_PRESENTATION,
-        )
-    except PlaywrightTimeout:
-        pass
-    followed_in = (time.monotonic() - followed_at) * 1000
-    # After the wait, so an error on the way there is reported rather than the
-    # revision it never reached.
-    check(not failures, f"{url} reported browser errors: {failures}")
-    shown = page.evaluate("window.__leafVerifier.revision")
-    # The banner separates a page whose first read answered with an old revision from
-    # one that presented offline and was never told.
-    banner = page.evaluate("window.__leafVerifier.status")
-    check(
-        (shown or "").isdigit() and int(shown) >= published["revision"],
-        f"{url} stands on revision {shown} rather than following the published "
-        f"{published['revision']}, with the banner reading ‘{banner}’",
-    )
-    rendered = page.locator("h1").inner_text()
-    check(
-        heading in rendered,
-        f"{url} rendered ‘{rendered}’ rather than the agent's published ‘{heading}’",
-    )
-    print(
-        f"✓ hosted agent published revision {published['revision']} and replied: "
-        f"{answer['text']}; the reloaded page followed it {followed_in:.0f} ms "
-        "after presentation",
-        file=sys.stderr,
-    )
-    result = {
-        "origin": origin,
-        "release": release,
-        "page": startup_profile(initial_startup),
-        "comment": agent_profile(profile),
-        "change": {
-            "heading": heading,
-            "revision": published["revision"],
-            "reply": answer["text"],
-        },
-        "changedPage": {
-            **startup_profile(startup),
-            "followedRevisionMs": followed_in,
-        },
-    }
-    context.close()
-    return result
 
 
 def answers(url: str) -> bool:
@@ -1184,54 +707,30 @@ def built_release() -> str:
 @click.argument("target", default="https://leaf.page")
 @click.option(
     "--release",
-    help="Require this release (default: the one `leaf-dev site` built; with "
-    "`--agent` at an origin, whichever it serves). `local` checks its own build.",
+    help="Require this release (default: the one `leaf-dev site` built).",
 )
-@click.option(
-    "--agent",
-    is_flag=True,
-    help="Verify one agent edit and reply instead of the release boundary.",
-)
-def verify_site(target: str, release: str | None, agent: bool) -> None:
-    """Verify a release at TARGET, or run the agent journey there with `--agent`.
-
-    TARGET is an origin, `wrangler` for the built site through the local Worker, or
-    `local` for the agent journey through the Python adapter alone.
-    """
-    if target == "local":
-        with local_adapter() as (origin, built):
-            run_verification(origin, built, agent=True, direct_agent=True)
-        return
+def verify_site(target: str, release: str | None) -> None:
+    """Verify a release at TARGET: an origin, or `wrangler` for the built site
+    through the local Worker. `leaf-dev journey` runs the agent at either."""
     if target == "wrangler":
         with local_worker() as (origin, built):
             run_verification(
                 origin,
                 release or built,
-                agent=agent,
-                settle_after_activation=None if agent else wait_for_host_network,
+                settle_after_activation=wait_for_host_network,
             )
         return
-    if not agent:
-        release = release or built_release()
-    run_verification(target.rstrip("/"), release, agent=agent)
+    run_verification(target.rstrip("/"), release or built_release())
 
 
 def run_verification(
     origin: str,
-    release: str | None,
+    release: str,
     *,
-    agent: bool,
-    direct_agent: bool = False,
     settle_after_activation: Callable[[], None] | None = None,
 ) -> None:
-    """Run the release pass, or with `agent` the agent pass, against `origin`."""
+    """Run the release pass against `origin`."""
     with chrome() as browser:
-        if agent:
-            result = verify_agent_turn(
-                browser, release, origin=origin, direct_agent=direct_agent
-            )
-            print(json.dumps(result, indent=2))
-            return
         print("Leaf startup profile (observed, not a pass/fail budget):", flush=True)
         for path, kind, activate in PAGES:
             profile = verify_page(

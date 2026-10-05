@@ -15,7 +15,7 @@ from typing import NamedTuple
 from .detached import StartRefused
 from .event_log import read_events
 from .files import file_stamp, next_reading, read_json
-from .host import Harness, claim_harness, session_harness
+from .harness import Harness, claim_harness, session_harness
 from .leases import release_lease, take_lease, waiter_lease_path
 from .locations import path_location, paths_same
 from .machine import state_home
@@ -45,71 +45,37 @@ REVIVAL_CHECK_S = 5
 STOP_HOOK_S = 20
 
 
-def check_local_claim(state: str) -> None:
-    """A local claim says "I am on this now", so the two other states have
-    nothing to put there: `waiting` is the user's move, and `idle` is the end of
-    the agent's side. Its own function because `idle` takes a different route to
-    the same status write, and a claim admitted on one route and refused on the
-    other would be reported to the agent as written either way.
-    """
-    if state != "working":
-        sys.exit("--on says what you are working on; use it with `working`")
-
-
-def cmd_status(
-    page_dir: Path,
-    state: str,
-    detail: str,
-    on: str | None = None,
-) -> tuple[dict, list[dict]]:
-    """Write the declaration and return it, with the user moves still owed an
-    answer, which the page goes on showing over a `waiting` written ahead of them."""
-    # The banner's dot already says the agent is working; the sentence is the
-    # whole of what a working status adds, so a status without one is refused
-    # rather than shown as a bare "working".
-    if state == "working" and not detail:
-        sys.exit(
-            "working needs a detail naming the work and its subject, such as "
-            '"running the browser suite against the new banner"'
-        )
+def cmd_waiting(page_dir: Path, detail: str) -> tuple[dict, list[dict]]:
+    """Declare the page waiting on its user, putting down every start that stands
+    (`tasks.put_down`), and return the declaration, with the user moves still owed an
+    answer, which the page goes on showing over it."""
     from .revisioning import activate_source
     from .served_state.page import full_state
+    from .tasks import put_down
 
     with PageTransaction(page_dir) as page:
         activate_source(page_dir, transaction=page)
-        work = None
-        if on is not None:
-            check_local_claim(state)
-            from .work import standing_work_claims, work_subject
-
-            work = work_subject(
-                page_dir,
-                page.events,
-                on,
-                standing=standing_work_claims(page.status, page.events),
-            )
-        status = page.set_status(state, detail, work=work)
+        put_down(page)
+        status = page.set_status("waiting", detail)
         return status, full_state(page_dir, page.events)["activity"]["obligations"]
 
 
-def cmd_idle(page_dir: Path, detail: str, on: str | None) -> dict:
-    """Idle, unless the page still owes its user an answer.
+def cmd_idle(page_dir: Path, detail: str) -> dict:
+    """Idle, putting down every start that stands, unless the page still owes its
+    user an answer.
 
     Idling over an event nobody has answered ends the leaf on a user still
     owed one — unread, or read and left. The watcher's whole batch, not the
     user-facing count, so a worker's report cannot be left standing as
     provisional state forever either. The answers it holds the page for are
-    `activity.blocking_obligations`, a claimed move's included: the Stop hook lets
-    the turn that claimed one end over it, but closing the page answers nothing.
+    `activity.blocking_obligations`, a started move's included: the Stop hook lets
+    the turn that started one end over it, but closing the page answers nothing. It
+    holds the page for every open task too, which only its ending discharges.
     The check and the transition share the log lock, so an event arriving
     or an acknowledgement advancing the cursor orders against them."""
-    # Ahead of the transaction, which reaches `set_status` without a subject:
-    # refused here, `idle --on` cannot be reported back as a claim the page
-    # never took.
-    if on is not None:
-        check_local_claim("idle")
     from .activity import blocking_obligations, unanswered
     from .served_state.page import full_state
+    from .tasks import open_tasks, put_down
 
     with PageTransaction(page_dir) as page:
         events = page.events
@@ -137,6 +103,17 @@ def cmd_idle(page_dir: Path, detail: str, on: str | None) -> dict:
                 f"{unanswered(owed, 'acknowledged')}; answer before idling. "
                 + ANSWER_ASK_INSTRUCTION
             )
+        # A task is work the agent still owes, which closing the page would leave
+        # standing on a page nobody holds.
+        if tasks := open_tasks(events):
+            named = "; ".join(f"{task['id']} ({task['title']})" for task in tasks)
+            sys.exit(
+                f"{len(tasks)} open task{'s' if len(tasks) != 1 else ''}: {named}. "
+                "End each before idling with "
+                '`leaf task end <page> <id> done "<where the result is>"`, or '
+                '`dropped "<why>"`.'
+            )
+        put_down(page)
         return page.set_status("idle", detail)
 
 
@@ -222,13 +199,14 @@ class Watch:
         lands during the pass moves the stamps `await_news` compares against."""
         return (list(self.watched), self.reading())
 
-    def await_news(self, mark: tuple, timeout: float = REVIVAL_CHECK_S) -> None:
-        """Return once anything the pass since `mark` read has moved, or after
-        `timeout` with nothing moved. A pass that found a different set of pages
-        returns at once: `mark` stamped the old set."""
+    def await_news(self, mark: tuple, timeout: float = REVIVAL_CHECK_S) -> bool:
+        """Return True once anything the pass since `mark` read has moved, or False
+        after `timeout` with nothing moved. A pass that found a different set of
+        pages returns True at once: `mark` stamped the old set."""
         watched, before = mark
-        if self.watched == watched:
-            next_reading(self.reading, before, timeout=timeout)
+        if self.watched != watched:
+            return True
+        return next_reading(self.reading, before, timeout=timeout) != before
 
     def tick(self):
         """Yield each page while its ownership and delivery lock is held."""
@@ -255,7 +233,7 @@ class Watch:
             try:
                 from .hosting import start_server
 
-                started = start_server(page_dir, revive=True)
+                started = start_server(page_dir, revive=True, harness=self.harness)
             except StartRefused as error:
                 print(error, file=sys.stderr)
                 started = None
@@ -483,7 +461,7 @@ def _ended_watch(readings: list[PageTick], page_dir: Path | None) -> int:
 
 
 def new_input_line(page_dir: Path) -> str:
-    """What a watch says on finding input where the host's prompt hook carries it
+    """What a watch says on finding input where the harness's prompt hook carries it
     into the turn: it only wakes the session."""
     return (
         f"{page_dir} has new input; Leaf's prompt hook puts it in your context with "
@@ -546,23 +524,29 @@ def _log_end(page_dir: Path) -> int:
     return 0
 
 
-def watch_between_turns(harness: Harness) -> str | None:
-    """The session's watch run by the host's own Stop hook, which the host starts
+def watch_between_turns(harness: Harness, *, interrupted: bool = False) -> str | None:
+    """The session's watch run by the harness's own Stop hook, which the harness starts
     in the background as each turn ends (`Harness.watches_between_turns`), and
     what it wakes the session with, or None where it ends without waking it.
 
     It wakes the session for a page with new input, which the prompt hook then
     hands over as the turn the wake opens begins, and for live pages none of whose
     servers can be brought back. It ends silently where another watch already
-    holds the session's lease, no page is left to watch, or the host process that
-    started it has gone (`Harness.host_runs`), leaving the session's input to its
+    holds the session's lease, no page is left to watch, or the harness process that
+    started it has gone (`Harness.process_runs`), leaving the session's input to its
     `nudge`.
 
     Input that was already pending as the turn ended waits for the Stop hook
     beside this one, which hands it to the turn it continues. It is the wake's to
     carry only once that hook let the turn end over it, or failed to answer within
     its own timeout. Input arriving later wakes the session at once, between two
-    turns or within one, where it reaches the turn at its next tool result."""
+    turns or within one, where it reaches the turn at its next tool result.
+
+    A watch started as the user interrupted the turn wakes only for that later
+    input: the turn the pending input was handed to is the one the user stopped,
+    and their next prompt carries it. Input admitted between the interruption and
+    the watch's first look at the log waits for that prompt too, since nothing
+    records what the stopped turn was handed."""
     watch = Watch(harness)
     if not watch.acquire():
         return None
@@ -582,6 +566,8 @@ def watch_between_turns(harness: Harness) -> str | None:
         claim = reading.transaction.active_claim
         last = reading.batch[-1]["seq"]
         end, settled = first_sight(reading.page_dir, last)
+        if interrupted:
+            return last > end
         return (
             (claim is not None and claim.get("turn_closed") is not None)
             or last > end
@@ -589,7 +575,7 @@ def watch_between_turns(harness: Harness) -> str | None:
         )
 
     try:
-        while harness.host_runs():
+        while harness.process_runs():
             mark = watch.mark()
             reading = read_watch_pass(
                 watch, None, lambda tick: woke.append(tick.page_dir), ready

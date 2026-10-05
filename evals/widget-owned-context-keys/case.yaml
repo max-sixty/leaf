@@ -1,5 +1,6 @@
 # User-requested widget digits exposed Ask-owned allocation and duplicated hints.
-# This case checks explicit context aliases, stable roles, and Leaf-owned presentation.
+# One run on each host separated baseline synthetic clicks from candidate direct
+# callbacks and removal of separate handlers; this is narrow two-host evidence.
 description: widget-owned-context-keys
 metadata:
   purpose: A widget declares local keys and explicitly forwardable context aliases once.
@@ -9,7 +10,7 @@ metadata:
 vars:
   prompt: |
     An existing Leaf package widget owns a swipe deck with passButton and keepButton,
-    canSwipe(), and existing button click handlers. Add its keyboard integration:
+    canSwipe(), and swipe(verdict) called by its button click handlers. Add its keyboard integration:
     Left/Right act only inside the deck, while 1/2 also work at its enclosing Ask's
     opening and associated thread or margin representative. The deck also works
     standalone. Disabled actions must retain their numbers, and typing digits in
@@ -24,10 +25,10 @@ assert:
   config:
     path: skills/leaf/SKILL\.md
 - type: javascript
-  metric: reads-packages
+  metric: reads-module-authoring
   value: file://reference-read.cjs
   config:
-    path: skills/leaf/references/packages\.md
+    path: skills/leaf/references/(?:packages|module-authoring)\.md
 - type: regex
   metric: declares-context-aliases
   value: 'contextKeys\s*:'
@@ -39,7 +40,9 @@ assert:
     Pass and Keep have stable dotted ids, concise titles, ordinary ArrowLeft and
     ArrowRight keys, explicit contextKeys 1 and 2, decision: true, their real
     controls, requested bindingBadge seats or explicit null, canSwipe availability,
-    and invocation through the existing button click paths. It attaches the
+    and direct invocation of swipe("pass") / swipe("keep") from run. The command
+    declaration owns native button clicks and disabled state, so the response removes
+    the separate click listeners and disabled painters instead of calling click(). It attaches the
     declaration to the deck and calls paintKeys when availability changes.
     It does not attach the complete local-arrow scope to the Ask, assign numbers
     from live actions, duplicate callbacks into a second Ask row list, install

@@ -77,6 +77,17 @@ interactions. Start their fictional histories with `data-sample-events`, sharing
 one parent-local JSON fixture when the candidates need the same conversation
 (`skills/leaf/references/page-authoring.md`, "Live samples").
 
+## Choose what the user reviews
+
+Show the change or unresolved choice that needs the user's judgment, with the
+comparison and tradeoff needed to assess it. Name the feedback sought. When
+nothing needs their judgment, hand over the verified result.
+
+Verify behavior expected to stay unchanged against the baseline yourself and
+report what you checked and found. An unchanged sample can explain a changed
+contract; make it optional to operate and keep regression verification with the
+agent. Present visible and interaction changes using the proof below.
+
 ## Prove and hand off a visible change
 
 Review at a representative desktop viewport (`skills/leaf/assets/AGENTS.md`,
@@ -163,7 +174,7 @@ URL; each start rebuilds the page from the fixture, and `--slot <name>` runs ano
 A plain preview takes no task claim, so its presses reach only the page's log;
 use it for screenshots and browser checks. `--user` claims the page at
 the directory printed at startup (`.tmp/previews/<example>-user` by default;
-`--slot` chooses the directory name) so the user's comments reach the host, which
+`--slot` chooses the directory name) so the user's comments reach the harness, which
 also makes every click this session drives there read as an unanswered user
 move. So drive only claimless previews, start any `--user` preview from the
 session the user talks to, and answer the user's feedback before restarting
@@ -182,12 +193,18 @@ idle a preview to quiet the loop; `idle` closes the page in the browser.
    Annotation mode sends visual comments with the next chat message; Leaf's text
    selection and comment affordance send an anchored thread directly.
 
-## Test the hosted website agent
+## Run the agent journey
 
-`uv run --project <root> leaf-dev verify-site local` builds the site, starts the
-website adapter against the host's Codex login, asks for one heading edit, and
-verifies the publication, reply, and changed page in Chrome. It bypasses the
-Cloudflare Worker, container limits, and credential proxy, and needs no Docker.
+`uv run --project <root> leaf-dev journey TARGET` runs one user's journey in
+Chrome: on the triage board, it tells the agent through Threads that a release
+passed its checks and asks it to record that, leaving how to the agent, then checks
+a reply shows and a reload presents a revision naming the release. It prints how long each step took, the agent's steps on the page
+server's clock, so the same journey benchmarks every harness. TARGET is `cc` or
+`codex` for an isolated session of that harness running this working tree's
+plugin, `local` for the website's adapter against the host's Codex login (no
+Worker, container limits, credential proxy or Docker), `wrangler` for the built
+site through the local Worker, or a website origin. A run on this machine spends
+the harness's login.
 
 Use CI for Linux-specific evidence and the complete Worker/container boundary:
 pull requests run the site build, dry-run deploy, and `verify-site wrangler`, and
@@ -198,10 +215,10 @@ delivery through it and `OPENAI_API_KEY` is exported, run:
 ```bash
 npm ci --prefix <root>/worker
 npm run build --prefix <root>/worker
-uv run --project <root> leaf-dev verify-site wrangler --agent
+uv run --project <root> leaf-dev journey wrangler
 ```
 
-The `publish-site` workflow's run against the deployed release is the only
+The `publish-site` workflow's journey against the deployed release is the only
 production reading.
 
 ## Test a terminal Codex task
@@ -266,28 +283,18 @@ A page that explains how a Leaf interface behaves lets the user operate it
 
 ## Score an instruction change
 
-Each `evals/<case>/case.yaml` is a native Promptfoo test. The runner gives Claude
-Code and Codex the same task, the same assertions, and a staged copy of Leaf's
-instructions. Install the separate eval dependencies once, then select the cases
-that bear on an instruction change:
+Score an instruction change by running the cases that bear on it on both the merge
+base and the working tree:
 
 ```bash
 npm ci --prefix evals
-uv run leaf-dev eval [CASE]... [--base REF] [--host cc|codex|both] [--runs N]
+uv run leaf-dev eval [CASE]... --base [--harness cc|codex] [--repeat N]
+npm run view --prefix evals
 ```
 
-The defaults are both hosts, one run, and the merge base with `main`. Each sample
-has a fresh workspace and home with the host's account login. Promptfoo owns the
-assertions, judgments, traces, and HTML report under `.tmp/eval/`;
-the runner prints passes separately for each host and base/candidate arm. Read
-`evals/README.md` for the provider models and case format.
-
-A reference-read assertion requires successful tool output, rather than counting
-a denied attempt. Claude exposes Read/Skill results; Codex shell evidence requires
-a completed successful command naming the file and returning text. Shell matching
-is a heuristic, so inspect traces before treating a reference-read pass as proof.
-These static cases test instruction use, while `leaf-dev verify-codex-task` owns
-plugin installation, discovery, and hooks.
+`evals/README.md` owns selection, arms, conditions, the case format, where the
+results go and how far a pass can be trusted. Read the outputs as well as the pass
+counts.
 
 The suite is a library that grows with the instructions, so a later edit, whether a fix
 or a cut, is scored against the behaviors earlier edits had to produce. Add to it
@@ -297,27 +304,19 @@ criterion, or context in its prompt, so coverage grows without the cases
 proliferating; add a new case only where no existing one can carry the behavior.
 Keep a case small: one prompt carrying only the context the behavior needs, and a
 few assertions. Measure with whatever scenarios and guardrails the change needs, and
-keep what you add whether or not it separated the arms. The leading comment says where the case came from and what it measured, so a
-reader can tell a case that told two wordings apart from one that has only guarded;
-`metadata.purpose` names the clause it pins, and `metadata.tags` its area.
+keep what you add whether or not it separated the arms. The leading comment says
+whether the case told two wordings apart or has only guarded.
 
-A prompt ends by asking for the HTML in the reply, since the child has no page
-directory. It can read the staged skill and its references. A prompt pointing at
-a file beyond the references names that file from the skill's base directory. The
-prompt never states the behavior under test. Grade a fixed form with a `regex`
-assertion, and a judgment with an `llm-rubric` assertion whose `value` states the
-passing reading without requiring particular wording.
+The prompt never states the behavior under test. A prompt pointing at a file beyond
+the references names that file from the skill's base directory. Grade a fixed form
+with a `regex` assertion, and a judgment with an `llm-rubric` assertion whose `value`
+states the passing reading without requiring particular wording.
 
 Run cold, a case that states the situation plainly usually passes on both arms: the
 failing session had its own earlier turns or a competing instruction pulling the
 other way, so paste those into the prompt. A rule that loses only to a long
-session's context needs a replay of that session instead.
-Complete workflows use the same catalog and command. `leaf-dev eval document`
-authors and revises a document; `document/resume`
-selects a controlled state-reading context. `--condition both` compares the authored example with
-ordinary HTML. `evals/README.md` owns selection, conditions and evidence limits.
-Keep focused contexts until a combined workflow detects their original failures.
-No grader has been calibrated against human judgments, so a pass is weak evidence.
+session's context needs a replay of that session instead. Keep a task's diagnostic
+contexts until its complete workflow detects their original failures.
 
 ## Refresh the public catalog stills
 
@@ -325,26 +324,26 @@ When a change adds or removes a worked example or changes its first viewport,
 run `wt refresh-previews` from the repository root on macOS once the examples
 are ready, and again after integrating `main` or any later fix that changes a
 first viewport. It pushes the stills to `max-sixty/leaf-assets` and moves the pin
-in `leaf-assets.json` and the README's image URLs; that push is part of the
-authorized change. `uv run leaf-dev record-demo` does the same for the README's
+in `leaf-assets.json` and the README's image URLs. `uv run leaf-dev record-demo` does the same for the README's
 recording and stills and the site's card. Run `wt setup` first in a new checkout;
 if Worktrunk asks to approve the project commands, ask the user to run
 `wt config approvals add`.
 
 ## Land a change
 
-Thread appearance changes run `tests/test_render_thread_snapshots.py` through the
-ordinary gate. Review the failure's captured images before accepting an intentional
+Thread appearance changes run `tests/test_render_thread_snapshots.py`, which compares
+images on macOS only, so run it on a Mac before landing; a pull request's Linux CI runs
+its journey without comparing. Review the failure's captured images before accepting an intentional
 change; `dev/leaf_dev/thread_snapshots.py` owns the pinned-image capture and acceptance workflow.
 
 A red gate is the branch's to fix. A pull request's `test` job and the local
 pre-merge `tests` run the broad selection and the nightly tests the branch edits;
 the rest of the nightly-marked tests run once main moves, and `tend-ci-fix` answers
-them when they fail (`tests/AGENTS.md`, "Run the narrowest useful surface").
+them when they fail (`tests/AGENTS.md`, "Run what the change needs").
 `wt merge` checks the rebased tree and lands it; `✗ Can't push to local main branch`
 is a fast-forward failure.
 
-Installed sessions load host caches, not the checkout. Claude Code picks up a
+Installed sessions load harness caches, not the checkout. Claude Code picks up a
 push on its marketplace sweep; the post-merge hook refreshes an installed Codex
 plugin, and after a merge that skipped hooks, run
 `codex plugin marketplace upgrade leaf`.

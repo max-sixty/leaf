@@ -2,8 +2,8 @@
 
 Lease files are stable coordination points, created on first use and retained
 after release. Only the descriptor's exclusive kernel lock proves a holder is
-live; file existence says nothing. Closing the descriptor or process exit releases
-the lease, including a crash. Neither holders nor session cleanup remove these
+live; file existence says nothing. `release_lease` or process exit releases the
+lease, including a crash. Neither holders nor session cleanup remove these
 files. A taker verifies the acquired inode still has its name, since another
 process may have removed or replaced the shared path while it was opening it.
 """
@@ -116,7 +116,15 @@ def take_lease(path: Path, *, prepare: Callable[[BinaryIO], None] | None = None)
 
 
 def release_lease(lease) -> None:
-    """Release the descriptor's kernel lock, retaining its coordination file."""
+    """Release the descriptor's kernel lock, retaining its coordination file.
+
+    The lock belongs to the open file, which every copy of the descriptor shares,
+    and closing one copy leaves it held while another stands. A process that holds
+    a lease and starts subprocesses lends its descriptors to each child from fork
+    until exec closes them, so closing alone could leave a released lease held for
+    as long as a child on a busy machine waits to run. Unlocking releases the open
+    file itself, whichever copies remain."""
+    fcntl.flock(lease, fcntl.LOCK_UN)
     lease.close()
 
 
@@ -156,6 +164,7 @@ def page_locked(page_dir: Path):
     try:
         yield
     finally:
+        fcntl.flock(held, fcntl.LOCK_UN)
         os.close(held)
 
 
@@ -182,8 +191,8 @@ def contract_writer(function):
 def waiter_lease_path(page_dir: Path | None, session_id: str | None) -> Path | None:
     """The one lease a wait holds for its watch set.
 
-    A host wait covers every page its session owns, so its lease belongs to the
-    session and takes only its id. Outside a host, a named page is the entire
+    A harness wait covers every page its session owns, so its lease belongs to the
+    session and takes only its id. Outside a harness, a named page is the entire
     watch set and holds a page-local lease. An unnamed bare-shell wait has no
     watch set and no lease.
     """
@@ -193,7 +202,7 @@ def waiter_lease_path(page_dir: Path | None, session_id: str | None) -> Path | N
 
 
 def adapter_lease_path(session_id: str) -> Path:
-    """The live proof for a detached host delivery adapter.
+    """The live proof for a detached harness delivery adapter.
 
     A wait lease says only that some process can read page events.  The Codex
     Stop hook needs the narrower fact that the process can durably hand those
@@ -228,13 +237,13 @@ def titles_log(session_id: str) -> Path:
 
 
 def mark_hooks(session_id: str) -> None:
-    """Record that the host ran a Leaf hook for this session. The mark stands for
+    """Record that the harness ran a Leaf hook for this session. The mark stands for
     the session's life, and its SessionEnd hook removes it."""
     hooks_path(session_id).touch()
 
 
 def hooks_ran(session_id: str) -> bool:
-    """Whether the host has run a Leaf hook for this session. A host whose hooks
+    """Whether the harness has run a Leaf hook for this session. A harness whose hooks
     can carry input carries it only where they run: a session launched without the
     plugin's hooks, with hooks disabled, or whose hooks read another state home
     never marks this one."""

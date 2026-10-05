@@ -148,7 +148,7 @@ sequenceDiagram
   Agent-&gt;&gt;Leaf: authored files · commands
   Leaf-&gt;&gt;Browser: page + current state
   Browser-&gt;&gt;Leaf: comments · drags · picks
-  Leaf-&gt;&gt;Agent: the host's carrier brings the event batch
+  Leaf-&gt;&gt;Agent: the harness's carrier brings the event batch
 </pre>
             </lf-diagram>
           </section>
@@ -228,9 +228,9 @@ Leaf: /home/you/review has new input; Leaf's prompt hook puts it in your context
       "handling": {
         "h1": "The user already sees the action applied.",
         "h2": "If you need clarification, ask in a thread on the picked option. To override the pick in a later version, mark the element `restated` and say why in the version note.",
-        "h3": "It answers the page's Ask, so the page shows it as waiting on you until the markup records it. Name the work it selects or unblocks with `leaf status &lt;page&gt; working \"&lt;the work, in a line&gt;\"` before starting it, then do it, write it in, and stamp a version.",
+        "h3": "It answers the page's Ask, so the page shows it as waiting on you until the markup records it. Name the work it selects or unblocks with `leaf task start &lt;page&gt; &lt;event-id&gt; \"&lt;the work, in a line&gt;\"` before starting it, then do it, write it in, and stamp a version.",
         "h4": "This event's thread has no title yet: name it by adding `--title \"&lt;a few words&gt;\"` to the reply that answers it, so the thread panel lists its subject rather than its opening words. If Leaf has named it from its opening message by then, that name stands.",
-        "h5": "When the event asks for work, name that work before any other, including reading the source it concerns: `leaf status &lt;page&gt; working \"&lt;the work, in a line&gt;\" --on &lt;address&gt;`, where `&lt;address&gt;` is the event's `answer.to`. The move then reads Working, and the line stands beside the thread and in the banner until you answer. Do the work and put its result on the page, with whatever shows it (captures, a figure, the numbers), then answer with `leaf thread reply &lt;page&gt; --for &lt;event-id&gt; &lt; reply.md`: what changed, in a sentence or two, linking the section that shows it. When the event asks for no work, as a question may not, answer it with that reply at once. The page carries the work, and the thread only the conversation about it. `leaf thread reply` checks any saved page edit and makes it live before posting. If a revision removes what the thread is anchored on, move the thread in the reply that reports it with `--section &lt;id&gt;` (narrowed by `--quote` or `--part` if needed), or `--detach` it if its subject has left the page. Add `--awaits` only if your reply's prose asks the user something.",
+        "h5": "When the event asks for work, name that work before any other, including reading the source it concerns: `leaf task start &lt;page&gt; &lt;event-id&gt; \"&lt;the work, in a line&gt;\"`. The move then reads Working, and the line stands beside the thread and in the banner until you answer. Do the work and put its result on the page, with whatever shows it (captures, a figure, the numbers), then answer with `leaf thread reply &lt;page&gt; --for &lt;event-id&gt; &lt; reply.md`: what changed, in a sentence or two, linking the section that shows it. When the event asks for no work, as a question may not, answer it with that reply at once. The page carries the work, and the thread only the conversation about it. `leaf thread reply` checks any saved page edit and makes it live before posting. If a revision removes what the thread is anchored on, move the thread in the reply that reports it with `--section &lt;id&gt;` (narrowed by `--quote` or `--part` if needed), or `--detach` it if its subject has left the page. Add `--awaits` only if your reply's prose asks the user something.",
         "h6": "Your reply renders as Markdown in a narrow column: give each point its own short paragraph or list item, link a page section as `[its name](#section-id)`, and fence code or markup."
       },
       "events": [
@@ -314,7 +314,7 @@ Leaf: /home/you/review has new input; Leaf's prompt hook puts it in your context
 
 # acknowledge the complete delivery, then name the work before starting it
 $ leaf delivery ack 2d5bdcc4
-$ leaf status ./review working "splitting the shed policy between the API and the importer" --on ebe8f367
+$ leaf task start ./review ebe8f367 "splitting the shed policy between the API and the importer"
 
 # revise ./review/index.html; a valid save goes live at once
 $ leaf thread reply ./review --for ebe8f367 --title "Shed policy per caller" --text "Done: [the shed section](#shed-premise) now drops the oldest work for the batch importer and keeps rejection at the API boundary."
@@ -331,7 +331,7 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
           </section>
 
           <section id="delivery">
-            <h2>Each host delivers the same envelope</h2>
+            <h2>Each harness delivers the same envelope</h2>
             <p id="wait-trick">
               In Claude Code, a Leaf hook watches in the background from the end of each
               turn and wakes the agent when feedback arrives, and Leaf's prompt hook
@@ -340,7 +340,7 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
               queues it as the task's next message, or, where Leaf is a client of the
               task's Codex App Server, starts a turn with it. Every route carries a
               delivery of the same shape, which names the route and says who
-              acknowledges it. The host owns delivery, so an open page does not prove
+              acknowledges it. The harness owns delivery, so an open page does not prove
               that an agent received your comments.
             </p>
             <p id="receipt-work-response-lede">
@@ -363,9 +363,8 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
                 <strong>Work</strong>: what the agent is doing. A move that asks for an
                 answer, delivered into the agent's running turn, makes the banner read
                 <em>Claude working — on your update</em> until the agent says what it is
-                doing. <code>leaf status</code> names the operation, and its
-                <code>--on</code> names the thread or widget being worked on, which
-                makes that move's label read Working.
+                doing. <code>leaf task start</code> takes the move in hand with a line
+                naming the operation, which makes that move's label read Working.
               </li>
               <li id="response-evidence">
                 <strong>Response</strong>: what settled the move: a reply in its thread
@@ -400,7 +399,7 @@ stateDiagram-v2
   state "Settled" as Settled
   state "Delivered, not yet answered" as Held {
     [*] --&gt; Picked
-    Picked --&gt; Working: the agent claims its work
+    Picked --&gt; Working: the agent starts it
   }
   [*] --&gt; Sent: you send a move owed an answer
   Sent --&gt; Queued: Codex queues it for the next turn
@@ -432,7 +431,7 @@ flowchart TD
   New -- no --&gt; Again(["Leaf kept this turn going already?"])
   Again -- yes --&gt; Ends["the turn ends"]
   Again -- no --&gt; Owed(["a delivered move unanswered?"])
-  Owed -- yes --&gt; Claimed(["this turn claimed its work?"])
+  Owed -- yes --&gt; Claimed(["this turn started it?"])
   Claimed -- no --&gt; Remind["Leaf names what is owed; the turn goes on"]
   Claimed -- yes --&gt; Watched(["a watcher runs, or the page is closed?"])
   Owed -- no --&gt; Watched
@@ -448,14 +447,14 @@ flowchart TD
             </lf-diagram>
             <ul id="turn-end-rules">
               <li id="turn-end-claim">
-                <strong>A claim answers for its turn.</strong> Work longer than a few
+                <strong>A start answers for its turn.</strong> Work longer than a few
                 minutes runs in background workers, and their results wake the agent in
-                a later turn. So a move the agent claimed in this turn with
-                <code>leaf status … --on</code> lets the turn end: the move reads
-                Working, with the claim's words beside it. The claim holds only for the
-                turn that wrote it. The next turn answers the move or claims it again,
-                and two minutes after an unrenewed claim's turn ends, the banner says
-                the turn ended.
+                a later turn. So a move the agent started in this turn with
+                <code>leaf task start</code> lets the turn end: the move reads Working,
+                with the start's line beside it. The start holds only for the turn that
+                wrote it. The next turn answers the move or starts it again, and two
+                minutes after an unrenewed start's turn ends, the banner says the turn
+                ended.
               </li>
               <li id="turn-end-watch">
                 <strong>A page between turns is watched or closed.</strong> Without
@@ -466,7 +465,8 @@ flowchart TD
               <li id="turn-end-idle">
                 <strong>Closing answers nothing.</strong>
                 <code>leaf status … idle</code> refuses while any delivered move is
-                unanswered, claimed or not.
+                unanswered, started or not, and while any task the agent opened is still
+                open.
               </li>
             </ul>
           </section>
@@ -492,11 +492,11 @@ flowchart TD
           <section id="updates-seats">
             <h2>The agent says what it is doing before it does it</h2>
             <p id="updates-lede">
-              While an agent works on a page, it keeps a status: one sentence naming the
-              operation and its subject, written before the step starts, so what you
-              read is what is happening now. The status stands in the banner at the top
-              of the page and beside the thread or widget the work is about, and replies
-              in the thread carry the rest.
+              While an agent works on a page, it names what it has in hand: your move,
+              or a task it opened, with one sentence naming the operation, written
+              before the step starts, so what you read is what is happening now. The
+              sentence stands in the banner at the top of the page and beside the thread
+              or widget the work is about, and replies in the thread carry the rest.
             </p>
             <lf-chronology id="updates-timeline">
               <lf-chronology-entry id="updates-sent" at="0s" kind="observation">
@@ -513,14 +513,14 @@ flowchart TD
                 <strong>The work is named</strong> Before doing the work, the agent
                 writes
                 <code
-                  >leaf status … working "cutting the lede to two sentences" --on
-                  &lt;thread&gt;</code
+                  >leaf task start … &lt;comment&gt; "cutting the lede to two
+                  sentences"</code
                 >, which puts that line beside the thread and in the banner, and your
                 comment reads Working.
               </lf-chronology-entry>
               <lf-chronology-entry id="updates-phase" at="1m" kind="intervention">
                 <strong>Each new phase gets a new line</strong> When the work moves from
-                editing to checking, the agent writes the status again:
+                editing to checking, the agent starts the comment again:
                 <em>Claude working — checking the page at phone width</em>.
               </lf-chronology-entry>
               <lf-chronology-entry id="updates-done" at="2m" kind="observation">
@@ -536,13 +536,12 @@ flowchart TD
             <p id="updates-map-lede">
               Some updates the agent writes with a command. The rest Leaf writes itself,
               from what it can observe: how far your input has got, and whether the
-              agent's turn and watcher are still running. A status and the agent's turn
-              each show in two places; the dotted line is a status written with
-              <code>--on</code>.
+              agent's turn and watcher are still running. A start and the agent's turn
+              each show in two places.
             </p>
             <lf-diagram
               id="updates-diagram"
-              parts="node:Sources node:Reply node:Awaits node:Stamp node:Report node:Status node:Pickup node:Turn node:Reads node:Banner node:Beside node:Thread node:Asks node:Versions node:Widget"
+              parts="node:Sources node:Reply node:Awaits node:Stamp node:Report node:Status node:Pickup node:Turn node:Reads node:Banner node:Beside node:Thread node:Queue node:Versions node:Widget"
             >
               <pre>
 flowchart LR
@@ -551,24 +550,24 @@ flowchart LR
     Awaits["agent: leaf thread reply --awaits"]
     Stamp["agent: leaf page stamp"]
     Report["agent: leaf page report"]
-    Status["agent: leaf status"]
+    Status["agent: leaf task start · leaf status"]
     Pickup["Leaf: how far your input got"]
     Turn["Leaf: the agent's turn and watcher"]
   end
   subgraph Reads["Where you read it"]
     Thread["the thread"]
-    Asks["the Asks drawer"]
+    Queue["the Queue panel"]
     Versions["the page and its versions menu"]
     Widget["the widget"]
     Banner["the banner, tab icon and Leaves drawer"]
     Beside["the label beside your comment or widget"]
   end
   Reply --&gt; Thread
-  Awaits --&gt; Asks
+  Awaits --&gt; Queue
   Stamp --&gt; Versions
   Report --&gt; Widget
   Status --&gt; Banner
-  Status -.-&gt; Beside
+  Status --&gt; Beside
   Turn --&gt; Banner
   Turn --&gt; Beside
   Pickup --&gt; Beside
@@ -580,25 +579,27 @@ flowchart LR
             <h3 id="updates-written-heading">Written by the agent</h3>
             <ul id="updates-written">
               <li id="updates-written-working">
-                <strong><code>leaf status … working "…"</code></strong> What it is
-                doing, in the banner:
-                <em>Claude working — running the browser suite</em>. With
-                <code>--on</code>, the same line stands beside that thread or widget
-                until the agent answers there. The tab icon takes the banner's colour,
-                and the page's row in the Leaves drawer repeats the line.
+                <strong><code>leaf task start … &lt;id&gt; "…"</code></strong> What it
+                is doing, in the banner:
+                <em>Claude working — running the browser suite</em>. The id is your move
+                the work answers, or a task the agent opened, on the page or a widget,
+                for work no move asked for; the same line stands beside that thread or
+                widget until the agent answers there or ends the task. The tab icon
+                takes the banner's colour, and the page's row in the Leaves drawer
+                repeats the line.
               </li>
               <li id="updates-written-waiting">
                 <strong><code>leaf status … waiting "…"</code></strong> What it wants
-                from you, as in <em>Claude awaits — pick one of the two layouts</em>,
-                shown while a watcher runs or the agent's turn does. With no sentence
-                the banner invites a comment:
-                <em>Claude awaits — select text to comment</em>.
+                from you, which puts down whatever it had started, as in
+                <em>Claude awaits — pick one of the two layouts</em>, shown while a
+                watcher runs or the agent's turn does. With no sentence the banner
+                invites a comment: <em>Claude awaits — select text to comment</em>.
               </li>
               <li id="updates-written-idle">
                 <strong><code>leaf status … idle</code></strong> The agent has finished
                 with the page, and the banner reads <em>Leaf closed</em>. Leaf refuses
-                it while input of yours has not been picked up or a picked-up move still
-                has no answer.
+                it while input of yours has not been picked up, a picked-up move still
+                has no answer, or a task the agent opened is still open.
               </li>
               <li id="updates-written-reply">
                 <strong><code>leaf thread reply --for …</code></strong> An answer in
@@ -612,7 +613,7 @@ flowchart LR
               <li id="updates-written-awaits">
                 <strong><code>leaf thread reply … --awaits</code></strong> A question
                 for you. The thread reads <em>On you to answer</em>, and the question
-                joins the Asks drawer.
+                joins the Queue panel.
               </li>
               <li id="updates-written-comment">
                 <strong
@@ -658,7 +659,7 @@ flowchart LR
                 </tr>
                 <tr id="updates-observed-queued">
                   <td>Queued</td>
-                  <td>The agent's host queued it for the agent's next turn.</td>
+                  <td>The agent's harness queued it for the agent's next turn.</td>
                 </tr>
                 <tr id="updates-observed-picked">
                   <td>Picked up</td>
@@ -667,8 +668,7 @@ flowchart LR
                 <tr id="updates-observed-working">
                   <td>Working</td>
                   <td>
-                    A status written with <code>--on</code> names this input's thread or
-                    widget.
+                    The agent started this input with <code>leaf task start</code>.
                   </td>
                 </tr>
                 <tr id="updates-observed-replying">
@@ -689,27 +689,27 @@ flowchart LR
                 <tr id="updates-observed-stale">
                   <td>Update stale</td>
                   <td>
-                    The Working status about it went a quarter of an hour without
-                    renewal, or two minutes past the end of the turn that wrote it. A
-                    pickup reads the same once nothing has renewed its turn for a
-                    quarter of an hour, and a streamed reply once its connection drops.
+                    The agent's start on it went a quarter of an hour without renewal,
+                    or two minutes past the end of the turn that wrote it. A pickup
+                    reads the same once nothing has renewed its turn for a quarter of an
+                    hour, and a streamed reply once its connection drops.
                   </td>
                 </tr>
                 <tr id="updates-observed-failed">
                   <td>Interrupted, Not answered</td>
                   <td>
-                    The host stopped the turn, or reported that it failed, before it
+                    The harness stopped the turn, or reported that it failed, before it
                     answered.
                   </td>
                 </tr>
               </tbody>
             </table>
-            <p id="updates-observed-hosts">
-              A label the agent's host does not report never appears. Queued comes from
-              Codex's own queue. Replying, Interrupted, and Codex's step readings need
-              Leaf connected to the task's Codex App Server, and Not answered needs a
-              host that records its failures, as the leaf.page website's does. Claude
-              Code tells Leaf when a turn ended and when it waits on a dialog.
+            <p id="updates-observed-harnesses">
+              A label the agent's harness does not report never appears. Queued comes
+              from Codex's own queue. Replying, Interrupted, and Codex's step readings
+              need Leaf connected to the task's Codex App Server, and Not answered needs
+              a harness that records its failures, as the leaf.page website's does.
+              Claude Code tells Leaf when a turn ended and when it waits on a dialog.
             </p>
           </section>
 
@@ -725,14 +725,14 @@ flowchart LR
               <li id="updates-on-phase">
                 <strong>When the work changes.</strong> A new subject, or a new phase
                 such as reading, editing, testing, or waiting on a result, gets a new
-                line. <code>leaf status</code> refuses <code>working</code> with no
-                sentence, since the banner already says that the agent is working.
+                line, by starting the item again; a start always carries one, since the
+                banner already says that the agent is working.
               </li>
               <li id="updates-on-long-work">
                 <strong>During long work.</strong> Work longer than a few minutes goes
                 to background workers, so the agent stays free to answer your next
-                comment. Its status names what is still running, beside the move the
-                work answers, and it writes it again when a worker reports (<a
+                comment. Its start names what is still running, beside the move the work
+                answers, and it starts the move again when a worker reports (<a
                   href="#turn-end"
                   >when the agent's turn can end</a
                 >).
@@ -758,19 +758,20 @@ flowchart LR
               The banner states only what Leaf can observe about the agent's session,
               the agent process that holds the page: whether it still runs, whether its
               turn is running, whether a watcher runs between its turns, and the last
-              status it wrote. The server decides the reading, so every open page and
-              the agent's own <code>leaf page state</code> show the same one. The Leaves
-              drawer shows only the status each other page's agent last wrote.
+              status or start it wrote. The server decides the reading, so every open
+              page and the agent's own <code>leaf page state</code> show the same one.
+              The Leaves drawer shows only the reading each other page's server
+              publishes.
             </p>
             <ul id="updates-facts">
               <li id="updates-fact-turn">
                 <strong>The turn.</strong> Leaf's hooks and carriers stamp a turn as it
                 opens and closes. An open turn is believed while something in it renewed
-                it within a quarter of an hour: its opening, a status, or a step the
-                host reports. Claude Code also publishes each session's state, which
-                tells Leaf when a turn waits on a dialog such as a permission prompt,
-                and when a turn ended without a hook, so an interrupted turn reads as
-                ended the moment you press Escape.
+                it within a quarter of an hour: its opening, a status or start, or a
+                step the harness reports. Claude Code also publishes each session's
+                state, which tells Leaf when a turn waits on a dialog such as a
+                permission prompt, and when a turn ended without a hook, so an
+                interrupted turn reads as ended the moment you press Escape.
               </li>
               <li id="updates-fact-watcher">
                 <strong>The watcher.</strong> Claude Code's watch hook, a
@@ -779,11 +780,10 @@ flowchart LR
                 Claude Code turn runs, since that turn's hooks take new input too.
               </li>
               <li id="updates-fact-status">
-                <strong>The status.</strong> A working status, and each
-                <code>--on</code> line, is believed until it goes a quarter of an hour
-                without renewal or two minutes pass after the turn that wrote it ends,
-                whichever comes first. The two minutes let an agent woken again straight
-                away renew it before the page reports it gone.
+                <strong>The start.</strong> Each start is believed until it goes a
+                quarter of an hour without renewal or two minutes pass after the turn
+                that wrote it ends, whichever comes first. The two minutes let an agent
+                woken again straight away renew it before the page reports it gone.
               </li>
             </ul>
             <lf-diagram
@@ -798,7 +798,7 @@ flowchart TD
   Alive -- yes --&gt; Believed(["work believed?"])
   Believed -- yes --&gt; Working["Claude working"]
   Believed -- no --&gt; Taking(["taking input?"])
-  Taking -- yes --&gt; Stale(["stale working status?"])
+  Taking -- yes --&gt; Stale(["stale start?"])
   Stale -- yes --&gt; Stalled["turn ended · last checked in"]
   Stale -- no --&gt; Listening["Claude awaits"]
   Taking -- no --&gt; Stuck(["input stalled?"])
@@ -807,12 +807,12 @@ flowchart TD
 </pre>
             </lf-diagram>
             <p id="updates-believed">
-              Work is believed when a working status or <code>--on</code> line is still
-              inside the rule above, when the host reports a step for the running turn,
-              or when a move that asks for an answer was delivered into the running
-              turn. Input has stalled when it stayed Sent for two minutes, or when the
-              turn that picked it up ended without answering it. Once a working reading
-              is about a minute old, the banner shows its age, as in
+              Work is believed when a start is still inside the rule above, when the
+              harness reports a step for the running turn, or when a move that asks for
+              an answer was delivered into the running turn. Input has stalled when it
+              stayed Sent for two minutes, or when the turn that picked it up ended
+              without answering it. Once a working reading is about a minute old, the
+              banner shows its age, as in
               <em>Claude working · 5m ago — running the browser suite</em>.
             </p>
             <table id="updates-readings">
@@ -833,7 +833,7 @@ flowchart TD
                 <tr id="updates-reading-steps">
                   <td>Codex thinking, Codex using a tool, Claude waiting for you</td>
                   <td>
-                    The host reported what the session is doing now. Waiting for you,
+                    The harness reported what the session is doing now. Waiting for you,
                     for input, or for approval means the agent waits on you in its own
                     window, and the page announces it.
                   </td>
@@ -849,16 +849,16 @@ flowchart TD
                 <tr id="updates-reading-ended">
                   <td>Claude’s turn ended 3m ago</td>
                   <td>
-                    The turn that wrote a working status ended more than two minutes ago
-                    without renewing it, and the agent is still taking input. The
-                    disclosure keeps the status's words.
+                    The turn that wrote a start ended more than two minutes ago without
+                    renewing it, and the agent is still taking input. The disclosure
+                    keeps the start's words.
                   </td>
                 </tr>
                 <tr id="updates-reading-quiet">
                   <td>Claude last checked in 20m ago</td>
                   <td>
-                    A working status has gone a quarter of an hour without renewal, and
-                    the agent is still taking input.
+                    A start has gone a quarter of an hour without renewal, and the agent
+                    is still taking input.
                   </td>
                 </tr>
                 <tr id="updates-reading-away">
@@ -924,7 +924,7 @@ flowchart TD
                 <tr id="updates-notice-failure">
                   <td>Response failed, Response interrupted</td>
                   <td>
-                    The agent's host reports that an answer to you failed or stopped.
+                    The agent's harness reports that an answer to you failed or stopped.
                   </td>
                 </tr>
                 <tr id="updates-notice-active">
@@ -2009,9 +2009,9 @@ flowchart TD
             <p id="chrome-what">
               Leaf adds its own controls around a page: a banner at the top of the
               window, a bottom bar of keyboard hints and status, markers for comments
-              and decisions, and panels for threads and Asks. None of them changes the
-              page's layout, so opening or closing one leaves the text wrapped as it was
-              and the reading position where it was.
+              and decisions, and panels for threads and the queue. None of them changes
+              the page's layout, so opening or closing one leaves the text wrapped as it
+              was and the reading position where it was.
             </p>
             <p id="chrome-bars">
               The banner and the bottom bar have fixed heights, and the page scrolls
@@ -2032,7 +2032,7 @@ flowchart TD
             <p id="chrome-surfaces-what">
               A thread card opens in the margin beside its marker. Where the margin is
               narrower than the card, the card overlaps the edge of the text. The
-              Threads panel and the Asks drawer open over the page's edges, one at a
+              Threads panel and the Queue panel open over the page's edges, one at a
               time.
             </p>
 
@@ -2142,7 +2142,7 @@ flowchart TD
               <figure id="chrome-surfaces">
                 <svg class="drawing" viewBox="0 0 240 160" role="img">
                   <title>
-                    The Asks drawer and the Threads panel open over the page's edges
+                    The Queue panel and the Threads panel open over the page's edges
                   </title>
                   <rect class="frame" x="1" y="1" width="238" height="158" rx="6" />
                   <rect class="frame-head" x="2" y="2" width="236" height="18" rx="5" />
@@ -2177,12 +2177,10 @@ flowchart TD
                     height="4"
                     rx="2"
                   />
-                  <g id="chrome-asks-drawer">
+                  <g id="chrome-queue-panel">
                     <rect class="over" x="6" y="24" width="72" height="112" rx="5" />
-                    <text class="strong" x="42" y="44" text-anchor="middle">Asks</text>
-                    <text class="strong" x="42" y="58" text-anchor="middle">
-                      drawer
-                    </text>
+                    <text class="strong" x="42" y="44" text-anchor="middle">Queue</text>
+                    <text class="strong" x="42" y="58" text-anchor="middle">panel</text>
                   </g>
                   <g id="chrome-threads-panel">
                     <rect class="over" x="152" y="24" width="82" height="112" rx="5" />
@@ -2195,7 +2193,7 @@ flowchart TD
                   </g>
                 </svg>
                 <figcaption id="cap-chrome-surfaces">
-                  <strong>Panels over the page</strong>The Asks drawer and the Threads
+                  <strong>Panels over the page</strong>The Queue panel and the Threads
                   panel open over the page's edges, one at a time. The page keeps its
                   width underneath.
                 </figcaption>
@@ -2389,7 +2387,9 @@ flowchart TD
                 </tr>
                 <tr id="data-row-status">
                   <td><code>status.json</code></td>
-                  <td>The agent's declared status, which the banner shows</td>
+                  <td>
+                    The agent's declared waiting or idle status, which the banner shows
+                  </td>
                 </tr>
                 <tr id="data-row-interactions">
                   <td><code>interactions.jsonl</code></td>

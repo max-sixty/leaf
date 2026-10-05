@@ -53,7 +53,7 @@ migration, compatibility shim, or removal promise. Leave old state and recovery
 instructions out of the handoff.
 
 The state home is one directory per machine, written at once by every worktree,
-host and session on it, each running the leaf it was built from, so a record
+harness and session on it, each running the leaf it was built from, so a record
 older than the code reading it is ordinary rather than exceptional. If a record
 lacks fields this version expects, Leaf ignores it where it is loaded and treats
 the thing it described as absent. It neither migrates the record nor fails the
@@ -65,7 +65,7 @@ protects, change it where that produces a better app, and say in the commit
 which behavior changed.
 
 Written contracts describe the current code; they impose no compatibility
-obligation. Packages, hosts, integrations, and consumers of the references are
+obligation. Packages, harnesses, integrations, and consumers of the references are
 all in this tree. When a different contract makes the code simpler, update it
 and every consumer together, including prose that relies on the old shape.
 
@@ -108,8 +108,9 @@ when the current change leaves it as easy to make as it was before.
 ## Repository map
 
 The repository is the plugin: `.claude-plugin/marketplace.json` and
-`.agents/plugins/marketplace.json` both name `./` as the payload, so Claude Code
-and Codex install the tracked tree whole.
+`.agents/plugins/marketplace.json` both name `./` as the payload, and
+`package.json`'s `pi` key makes it a Pi package, so Claude Code, Codex and Pi
+install the tracked tree whole.
 
 - `pyproject.toml`, `uv.lock`, and `bin/leaf`: the uv project and the launcher
   that runs it;
@@ -117,9 +118,10 @@ and Codex install the tracked tree whole.
   projection, vendoring, and export, with their internal contracts beside them;
 - `skills/leaf/assets/`: the browser runtime, registry, theme, and icon;
 - `skills/leaf/packages/`: the bundled content vocabularies, widgets, and modules;
-- `skills/leaf/references/`: contracts for page authors, package authors, and hosts;
+- `skills/leaf/references/`: contracts for page authors, package authors, and harnesses;
 - `.claude/skills/developing-leaf/`: the maintainer workflow and vocabulary;
-- `hooks/hooks.json`: the shared host hooks;
+- `hooks/`: each harness's registrations of the `leaf hook` entry: `hooks.json`
+  for Claude Code, `codex.json` for Codex, and `pi.ts`, the Pi extension;
 - `evals/`: cases a headless agent answers, scoring the shipped instructions;
 - `examples/`: the authored pages the site publishes and the render corpus;
 - `tests/`: the file, CLI, browser, and published-site boundaries, and in
@@ -156,12 +158,14 @@ The sections above **Repository map** are the maintainer's direction; change the
 only when the user asks. An `AGENTS.md` holds what an agent needs before changing
 its area: goals, invariants that span modules, who owns what, and the gates to
 run. A contract one module owns goes in that module's header, a helper's in its
-docstring, and how a rule was found in the commit message. A workflow for one
+docstring, and how a rule was found in the commit message. A header also records the
+product decisions its module embodies and the alternatives they rejected; a change
+that reverses one rewrites that record and says so in its commit. A workflow for one
 kind of task goes in `/developing-leaf`.
 
 ### The install runs this tree
 
-An install is the tracked tree copied into a host's plugin cache, and nothing is
+An install is the tracked tree copied into a harness's plugin cache, and nothing is
 built at install time: `bin/leaf` is `uv run --no-dev` on the tree, so the
 install must be writable, and Leaf writes nothing else there. Point Codex
 at the git source, since a local-directory marketplace copies a checkout's
@@ -179,7 +183,12 @@ holds no binary files and no large ones. An image a tool in this repository
 reads, such as the demo recording, a catalog preview, an example page's image,
 or an eval case's capture, is published to `max-sixty/leaf-assets` at the path
 its reader looks for it and pinned by `leaf-assets.json`
-(`dev/leaf_dev/leaf_assets.py`). Evidence, such as screenshots, probe
+(`dev/leaf_dev/leaf_assets.py`). Publishing there belongs to the change that
+needs the images and takes no separate approval: it appends a commit and moves
+only this checkout's pin, so no other branch reads a different image. The new
+pin also carries whatever other branches published since the old one, so a
+conflict in `leaf-assets.json` takes the later pin, and a directory both
+branches published is published again from the merged tree. Evidence, such as screenshots, probe
 captures, recordings and raw run output, stays in `.tmp/` and reaches the user
 on a Leaf page; a note keeps the finding and the command that reproduces it,
 not the capture. The suite refuses a binary file, and pre-commit refuses a new
@@ -296,9 +305,10 @@ Before finishing a feature:
   format and phrasing to the agent. Score the change with `evals/` before and
   after (`/developing-leaf`, "Score an instruction change").
 
-`uv run pytest tests` and `npm run test:runtime` are the everyday gate
-(`tests/AGENTS.md`). Two TypeScript trees, `worker/src/` and `build/browser/`, and
-the JavaScript lock every committed bundle is built from have gates the suite and
+Before handing over, run the tests that hold what the change touches; the broad
+selection, `uv run pytest tests`, and `npm run test:runtime` run at landing
+(`tests/AGENTS.md`, "Run what the change needs"). Two TypeScript trees,
+`worker/src/` and `build/browser/`, and the JavaScript lock every committed bundle is built from have gates the suite and
 pre-commit do not reach. Both landing paths run all of them: a pull request in its
 `test` job, and `wt merge` in the pre-merge blocks of `.config/wt.toml`, which name
 each command. `wt hook pre-merge` runs that local gate without landing, on a committed

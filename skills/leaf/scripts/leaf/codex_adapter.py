@@ -6,7 +6,7 @@ the same Codex task instead of waiting for the agent to ask again. It owns the s
 task's delivery record, offers one delivery at a time, and reconciles the receipt its
 page is owed however that delivery was taken.
 
-While a proven async tool hook has a running turn, it can offer the shared record
+While a proven tool hook has a running turn, it can offer the shared record
 between steps (`codex.offer_hook_delivery`). The adapter reserves its own route
 only when that turn is idle or no such hook has run, and an unread hook pointer
 then falls back to the same durable delivery.
@@ -70,7 +70,7 @@ from .codex import (
 from .codex_state import delivery_lock_path, hook_turn, step_delivery_turn
 from .detached import Handshake, starting_detached
 from .event_log import read_cursor
-from .host import CodexHarness, session_harness
+from .harness import CodexHarness, Harness, session_harness
 from .leases import (
     adapter_is_live,
     adapter_lease_path,
@@ -353,7 +353,7 @@ class TaskConnection:
 
         A resume may omit older turns. Exhaust its explicit pagination before
         abandoning an absent delivery; summaries or unloaded items cannot prove
-        absence. Abandonment gives up this host's attempt, never the provider turn.
+        absence. Abandonment gives up this harness's attempt, never the provider turn.
         """
         codex.settle_answered_deliveries(self.thread_id)
         with flocked(delivery_lock_path(self.thread_id)):
@@ -903,12 +903,15 @@ def run_adapter(
         failures = 0
         while True:
             try:
-                recovered = _recover_receipt(harness.session)
+                # Receipt recovery judges page ownership as retirement does, so
+                # both wait out a starter's claim handoff under the start lock
+                # (`session-lifetime.md`, "Carriers").
+                with flocked(start_lock):
+                    recovered = _recover_receipt(harness.session)
+                    if not recovered and not owned_pages(harness.session):
+                        retire()
+                        return 0
                 if not recovered:
-                    with flocked(start_lock):
-                        if not owned_pages(harness.session):
-                            retire()
-                            return 0
                     recovered = _offer_queued_delivery(
                         codex_path,
                         harness.session,
@@ -975,21 +978,25 @@ def cmd_codex_start(
 ) -> dict:
     """Claim PAGE and start one detached delivery carrier for this task, or find
     the one already running; return which, with its task and transport."""
-    with preparing_adapter(codex_path, app_server) as prepared:
+    with preparing_adapter(session_harness(), codex_path, app_server) as prepared:
         claim_page(page_dir)
         return prepared
 
 
 @contextmanager
-def preparing_adapter(codex_path: str | None = None, app_server: str | None = None):
-    """Retain a ready carrier until the caller commits page ownership.
+def preparing_adapter(
+    harness: Harness | None,
+    codex_path: str | None = None,
+    app_server: str | None = None,
+):
+    """Retain a ready carrier for `harness`'s task until the caller commits page
+    ownership.
 
     The same task start lock serializes carrier startup and no-page retirement.
     Holding it across the caller's publication lets delivery prepare before any
     claim exists, without a carrier retiring in that gap. A new carrier captures
-    the launching host's canonical session generation before subscribing to turns.
+    the launching harness's canonical session generation before subscribing to turns.
     """
-    harness = session_harness()
     if harness is None or harness.name != CodexHarness.name:
         raise RuntimeError("`leaf codex start` must run inside a Codex task")
     executable = codex_path or shutil.which("codex")
@@ -1014,7 +1021,7 @@ def preparing_adapter(codex_path: str | None = None, app_server: str | None = No
             yield {"task": session_id, "app_server": running, "started": False}
             return
         # The connection captures its causal lifecycle before observing turns.
-        # Establish it in the launching host, independently of page ownership.
+        # Establish it in the launching harness, independently of page ownership.
         ensure_session(session_id, harness.lifetime())
         with starting_detached(
             [
@@ -1024,6 +1031,7 @@ def preparing_adapter(codex_path: str | None = None, app_server: str | None = No
                 executable,
                 *(["--app-server", app_server] if app_server is not None else []),
             ],
+            harness=harness,
             what="Codex delivery",
             log=adapter_log_path(session_id),
             cwd=state_home(),

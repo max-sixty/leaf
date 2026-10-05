@@ -12,15 +12,25 @@ import {
   commentSide,
 } from "/runtime/annotation-overlay/comment-placement.js";
 
-const boundary = new DOMRect(8, 50, 1284, 797);
+// The card's widths as theme.css declares them, which the placement reads off the root.
+document.documentElement.style.setProperty("--thread-card-min", "320px");
+document.documentElement.style.setProperty("--thread-card", "592px");
+
+// A window boundary, keyed by its edges as commentBoundary keys one.
+const windowBoundary = (left, top, width, height) =>
+  Object.assign(new DOMRect(left, top, width, height), {
+    inRegion: null,
+    key: [left, top, left + width, top + height],
+  });
+const boundary = windowBoundary(8, 50, 1284, 797);
 // A paragraph `width` wide from x = `left`, from y = `top` to `bottom`.
 const block = (left, width, top, bottom) => new DOMRect(left, top, width, bottom - top);
 // A page scrolled `scrollTop` into a document `height` tall, in an 850px scrollport.
-const scroller = (scrollTop, height = 3000) => ({
-  scrollTop,
-  scrollHeight: height,
-  clientHeight: 850,
-});
+const scroller = (scrollTop, height = 3000) => {
+  const box = { scrollTop, scrollHeight: height, clientHeight: 850 };
+  box.ownerDocument = { scrollingElement: box };
+  return box;
+};
 const side = (clear, { scrolled = 1000, document = 3000, coarse = false } = {}) =>
   commentSide({
     clear,
@@ -83,7 +93,6 @@ test("a submitted frame survives supersession until it lands, then follows scrol
       clear,
       boundary,
       row: clear.top,
-      minimumWidth: 320,
       scroller: scroller(1000),
       coarse: false,
     };
@@ -109,7 +118,7 @@ test("a submitted frame survives supersession until it lands, then follows scrol
       middlewareData: {
         scaled: {
           scale: { x: 1, y: 1 },
-          column: scrolled.right - input.minimumWidth,
+          column: scrolled.right - 320,
           line: card.line(scrolled, scrolled.top),
         },
         held: { height: box.height },
@@ -120,9 +129,126 @@ test("a submitted frame survives supersession until it lands, then follows scrol
     const reflowed = block(300, 700, 200, 400);
     assert.equal(card.choose({ ...input, clear: reflowed }).fresh, true);
     card.adopt({ box, placement: editor.capture() });
-    const resized = new DOMRect(8, 50, 1084, 797);
+    const resized = windowBoundary(8, 50, 1084, 797);
     const afterResize = card.choose({ ...input, boundary: resized });
     assert.equal(afterResize.fresh, true);
     assert.equal(afterResize.hold, undefined);
   }
+});
+
+test("a page scroll that moves a region's shown bounds keeps the side", () => {
+  // A region boundary is keyed by the region's whole size, so a scroll of the page that
+  // moves and clips its shown bounds chooses no side afresh, while a resize does.
+  const region = (top, height, size = [0, 0, 900, 600]) =>
+    Object.assign(new DOMRect(100, top, 900, height), { inRegion: {}, key: size });
+  const clear = block(120, 860, 300, 500);
+  const input = {
+    clear,
+    row: clear.top,
+    scroller: scroller(1000),
+    coarse: false,
+  };
+  const card = commentPlacement();
+  assert.equal(card.choose({ ...input, boundary: region(58, 597) }).fresh, true);
+  assert.equal(card.choose({ ...input, boundary: region(50, 560) }).fresh, false);
+  assert.equal(
+    card.choose({ ...input, boundary: region(50, 560, [0, 0, 900, 500]) }).fresh,
+    true,
+  );
+});
+
+test("a growing card holds its top while read and its foot for the turn that joins a draft", () => {
+  const clear = block(300, 660, 300, 500);
+  const input = {
+    clear,
+    boundary,
+    row: clear.top,
+    scroller: scroller(1000),
+    coarse: false,
+  };
+  const card = commentPlacement();
+  const land = () =>
+    card.landed({
+      x: 980,
+      y: 292,
+      middlewareData: {
+        scaled: { scale: { x: 1, y: 1 }, column: 0, line: card.line(clear, clear.top) },
+        held: { height: 200 },
+      },
+    });
+  const place = (reading) => {
+    const { fresh, hold } = card.choose(input);
+    const edge = card.holding({ fresh, hold, ...reading });
+    land();
+    return edge;
+  };
+  const turn = (key, author) => ({ key, author });
+  assert.equal(
+    place({ transcript: 100, drafting: false, latest: turn("a", "agent") }),
+    "top",
+  );
+  // The user starts a reply: its first line holds the top.
+  assert.equal(
+    place({
+      transcript: 100,
+      drafting: true,
+      latest: turn("a", "agent"),
+      draftText: "Hi",
+    }),
+    "top",
+  );
+  // An agent turn joins while they draft: the reply row holds, keyed to that turn.
+  assert.equal(
+    place({
+      transcript: 160,
+      drafting: true,
+      latest: turn("b", "agent"),
+      draftText: "Hi",
+    }),
+    "foot",
+  );
+  assert.equal(
+    place({
+      transcript: 160,
+      drafting: true,
+      latest: turn("b", "agent"),
+      draftText: "Hi",
+    }),
+    "foot",
+  );
+  // A new edit releases it.
+  assert.equal(
+    place({
+      transcript: 160,
+      drafting: true,
+      latest: turn("b", "agent"),
+      draftText: "Hi!",
+    }),
+    "top",
+  );
+  assert.deepEqual(card.heldAt("top"), { top: -8 });
+  assert.equal(card.heldHeight(), 200);
+});
+
+test("beside, a margin row stays usable where the card keeps its minimum width", async () => {
+  const ui = await import("/vendor/floating-ui.esm.js");
+  // A paragraph ending at 600, and a margin row 40px wide out past it.
+  const clear = block(300, 300, 300, 500);
+  const reference = (rowRight) => {
+    const placement = commentPlacement();
+    placement.choose({ clear, boundary, scroller: scroller(1000), coarse: false });
+    return placement.options(ui, {
+      clear,
+      row: clear.top,
+      margin: { left: rowRight - 40, right: rowRight },
+      boundary,
+      fit() {},
+    }).reference;
+  };
+  // The card may narrow from its preferred measure to keep the row usable.
+  assert.equal(reference(693).right, 693);
+  // Past a row ending at 964, 320 remains to the boundary at 1292 after the gap.
+  assert.equal(reference(964).right, 964);
+  // One pixel less than its minimum sends the card over the row.
+  assert.equal(reference(965).right, clear.right);
 });

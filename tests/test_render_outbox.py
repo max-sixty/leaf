@@ -45,6 +45,7 @@ from render_harness import (
     banner_control,
     consume_browser_errors,
     draft_control,
+    expect_asks_answered,
     expect_banner_control_offered,
     holding,
     leaf_page,
@@ -1868,12 +1869,12 @@ def test_z_returns_a_recordless_decision_to_undecided(browser, serve):
     old = page.locator("#sug-refill lf-old")
     accept = suggestion_control(page, "sug-refill", "accept")
     expect(old).to_be_visible()
-    expect(page.locator(".lf-asks")).to_have_text("Asks 0/3")
+    expect_asks_answered(page, "0/3")
 
     accept.click()
     round_trip(page)
     expect(old).to_be_hidden()
-    expect(page.locator(".lf-asks")).to_have_text("Asks 1/3")
+    expect_asks_answered(page, "1/3")
 
     undo(page)
     # Pending again, in every reading of it: the retired half is back on the page,
@@ -1883,7 +1884,7 @@ def test_z_returns_a_recordless_decision_to_undecided(browser, serve):
     expect(suggestion_control(page, "sug-refill", "accept")).to_have_attribute(
         "aria-label", re.compile(r"^Accept the suggested change")
     )
-    expect(page.locator(".lf-asks")).to_have_text("Asks 0/3")
+    expect_asks_answered(page, "0/3")
     assert suggestion_control(page, "sug-refill", "accept").count() == 1, (
         "undo left more than one Accept record for the same suggestion"
     )
@@ -2158,7 +2159,7 @@ def test_a_second_tab_takes_the_decision_back_too(browser, serve):
 
     undo(one)
     expect(two.locator("#sug-refill lf-old")).to_be_visible()
-    expect(two.locator(".lf-asks")).to_have_text("Asks 0/3")
+    expect_asks_answered(two, "0/3")
     # Everything the change had when it was pending, including what the theme paints
     # from ranges the module registers — a rebuild that dropped those would leave a
     # proposal on the page with nothing marking what it changes.
@@ -2215,7 +2216,7 @@ def test_a_withdrawn_decision_is_still_withdrawn_after_a_reload(browser, serve):
 
     again = open_page(browser, url)
     expect(again.locator("#sug-refill lf-old")).to_be_visible()
-    expect(again.locator(".lf-asks")).to_have_text("Asks 0/3")
+    expect_asks_answered(again, "0/3")
 
 
 def test_the_composer_never_stands_on_its_own_mark(browser, serve):
@@ -2262,10 +2263,8 @@ def test_the_composer_never_stands_on_its_own_mark(browser, serve):
     )
 
 
-def test_the_comment_field_follows_its_passage_then_stays_with_the_writer(
-    browser, serve
-):
-    """The field follows a visible passage and stays in the window when it leaves."""
+def test_the_comment_field_follows_its_passage_out_of_view(browser, serve):
+    """The same native field follows its passage, including beyond the window."""
     page = open_page(browser, serve(LONG_PAGE))
     page.locator("#p30").scroll_into_view_if_needed()
     page.locator("#p30").click(click_count=3)
@@ -2294,7 +2293,7 @@ def test_the_comment_field_follows_its_passage_then_stays_with_the_writer(
         "() => document.getElementById('p30').getBoundingClientRect().bottom < 0"
     )
     rendered(page)
-    expect(page.locator(".lf-fab-bar")).to_have_attribute("data-lf-plane", "window")
+    expect(page.locator(".lf-fab-bar")).to_have_attribute("data-lf-plane", "page")
     expect(page.locator(".lf-fab-input")).to_be_focused()
 
 
@@ -2321,8 +2320,8 @@ def test_a_comment_field_scrolled_away_and_back_is_still_there(
     it: standing beside its target, with their words and their caret in it. Geometry
     says where the field stands, never whether: an item's field used to read "the
     target is off screen" as "the target is gone" and put the field away, words and
-    all, the moment its item left the window. While the target is away, the focused
-    field stays in the window with the draft; on return it stands beside the target."""
+    all, the moment its item left the window. The field now follows out of view
+    without retiring its draft; on return it stands beside the target."""
     page = open_page(
         browser, serve(LONG_PAGE if scroller == "page" else PANED_LONG_PAGE)
     )
@@ -2354,7 +2353,9 @@ def test_a_comment_field_scrolled_away_and_back_is_still_there(
     scroll_settled(page)
     rendered(page)
     expect(box).to_be_visible()
-    expect(box).to_have_attribute("data-lf-plane", "window")
+    expect(box).to_have_attribute("data-lf-plane", "page")
+    away_box = box.bounding_box()
+    assert away_box["y"] + away_box["height"] < 0, away_box
     expect(field).to_be_focused()
     expect(field).to_have_js_property("value", "Half a thought")
     page.evaluate(f"{away}.scrollTo({{top: {start}, behavior: 'instant'}})")
@@ -2370,10 +2371,8 @@ def test_a_comment_field_scrolled_away_and_back_is_still_there(
     expect(field).to_have_js_property("value", "Half a thought more")
 
 
-def test_a_comment_field_stays_in_view_when_its_pane_scrolls_past_the_target(
-    browser, serve
-):
-    """A bounded pane can move the target away without taking the draft or caret."""
+def test_a_comment_field_follows_when_its_pane_scrolls_past_the_target(browser, serve):
+    """A bounded pane carries the field away while retaining its draft and caret."""
     page = open_page(browser, serve(PANED_LONG_PAGE))
     resized(page, 1440, 900)
     pane_posture(page, page.locator("#reading"), "bounded")
@@ -2393,7 +2392,9 @@ def test_a_comment_field_stays_in_view_when_its_pane_scrolls_past_the_target(
     expect(box).to_be_visible()
     expect(field).to_be_focused()
     expect(field).to_have_js_property("value", "Half a thought")
-    expect(box).to_have_attribute("data-lf-plane", "window")
+    expect(box).to_have_attribute("data-lf-plane", "page")
+    away_box = box.bounding_box()
+    assert away_box["y"] + away_box["height"] < 0, away_box
     assert box.bounding_box()["width"] == pytest.approx(width, abs=1)
     page.keyboard.type(" more")
     expect(field).to_have_js_property("value", "Half a thought more")
@@ -2920,7 +2921,6 @@ def test_an_optimistic_presentation_fault_does_not_change_delivery_result(
             and request.post_data_json.get("kind") == "action"
             and request.post_data_json.get("widget") == "sug-refill"
         ),
-        timeout=2_000,
     ):
         suggestion_control(page, "sug-refill", "accept").click()
     round_trip(page)
@@ -3045,7 +3045,6 @@ def test_an_async_projection_wake_cannot_commit_a_fallible_candidate(browser, se
     expect(page.locator("body")).to_have_attribute("data-lf-reading", accepted_reading)
     page.wait_for_function(
         "async () => !(await window.__lfRuntimeImport('/runtime/application.js')).hasPending()",
-        timeout=1_000,
     )
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
     # The user's comment after the accept is their newest gesture, and a comment is not

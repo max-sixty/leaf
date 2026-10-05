@@ -4599,6 +4599,14 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_i
     assert playground.locator(".lf-playground-instruction-title").evaluate(
         voice
     ) == playground.locator(".lf-playground-presets-title").evaluate(voice)
+    # The presets band heading the controls is ruled off from them, over the generic
+    # region header's unruled box.
+    assert playground.locator(".lf-playground-presets").evaluate(
+        """node => {
+          const style = getComputedStyle(node);
+          return [style.borderBottomStyle, style.paddingBottom];
+        }"""
+    ) == ["solid", "14px"]
     first_control = playground.locator("lf-playground-control").first
     control_box = first_control.bounding_box()
     controls_box = controls.bounding_box()
@@ -7117,6 +7125,26 @@ def test_a_quoted_swipe_deck_is_a_static_labeled_exhibit(browser, serve):
     passed = page.locator("#session-pass").bounding_box()
     kept = page.locator("#session-keep").bounding_box()
     assert passed and kept and passed["y"] + passed["height"] <= kept["y"]
+
+
+def test_a_quoted_swipe_queue_spaces_its_flat_cards(browser, serve):
+    """A quoted queue is flat rather than a stack, so its cards stand in flow, a gap
+    apart rather than touching."""
+    source = SWIPE_PAGE.replace(
+        '<lf-ask id="session-triage-decision">',
+        '<lf-sample id="swipe-example" label="session triage">',
+    ).replace("</lf-ask>", "</lf-sample>")
+    page = open_page(browser, serve(source))
+    boxes = [page.locator(f"#swipe-{card}").bounding_box() for card in ("a", "b", "c")]
+    gaps = [
+        lower["y"] - (upper["y"] + upper["height"]) for upper, lower in pairwise(boxes)
+    ]
+    gap = page.evaluate(
+        "() => parseFloat(getComputedStyle(document.documentElement)"
+        ".getPropertyValue('--sp-2'))"
+    )
+    assert gap > 0
+    assert gaps == pytest.approx([gap, gap], abs=0.5)
 
 
 def test_an_empty_quoted_swipe_queue_says_it_is_empty(browser, serve):

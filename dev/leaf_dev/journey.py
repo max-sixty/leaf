@@ -3,10 +3,12 @@ page's own record.
 
     uv run leaf-dev journey TARGET [--release RELEASE]
 
-The user opens the triage board in Chrome, asks through the Threads composer for a
-new main heading, a published revision and a reply, then waits for the answer to
-show in Threads and for a reload to present the published revision. Every target
-gets the same ask and the same checks. TARGET names what answers:
+The user opens the triage board in Chrome and tells the agent, through the Threads
+composer, that a release passed its deployment checks, asking it to record that on
+the board. How the page records it is the agent's call, as with a real user's
+request; the journey requires only a reply in Threads and a reload presenting a
+published revision that names the release. Every target gets the same ask and the
+same checks. TARGET names what answers:
 
 - `cc` or `codex`: an isolated Claude Code or Codex session running this working
   tree's plugin, asked to serve the page and handle its comments (`REQUEST`);
@@ -297,18 +299,20 @@ def deployment_answer(replies: list[dict]) -> dict | None:
 
 
 def check_turn_answered(
-    url: str, heading: str, turn: TurnReading, asks: int, revision: int
+    url: str, marker: str, turn: TurnReading, asks: int, revision: int
 ) -> None:
-    """Require the turn to have published the heading and answered, reading only what
-    the server admitted. A missing publication includes the source-validation
-    reading, distinguishing a rejected source from a valid source missing the heading."""
+    """Require the turn to have published a revision naming `marker` and answered,
+    reading only what the server admitted. A missing publication includes the
+    source-validation reading, distinguishing a rejected source from a valid source
+    that never names the marker."""
     state, published, replies, answer = turn
     tried = f" to {asks} asks" if asks > 1 else ""
     reading = (state.get("activity") or {}).get("kind") or "no activity"
     said = "; it replied: " + " / ".join(event["text"] for event in replies)
     check(
         published is not None,
-        f"{url} agent did not publish ‘{heading}’{tried}; it reached revision "
+        f"{url} agent did not publish a revision naming ‘{marker}’{tried}; it "
+        f"reached revision "
         f"{state['active']['revision']} from {revision} with the page "
         f"reading {reading}"
         + (said if replies else " and did not reply")
@@ -335,14 +339,18 @@ def read_state(session: Session) -> dict:
     return response.json()
 
 
-def ask_for_the_heading(
-    session: Session, heading: str, profile: AgentProfile, ask: int
+def ask_to_record(
+    session: Session, marker: str, profile: AgentProfile, ask: int
 ) -> dict:
-    """Send one ask through the user's real composer; return its admitted comment."""
+    """Send one ask through the user's real composer; return its admitted comment.
+
+    The ask says what happened and leaves how the page shows it to the agent, as a
+    user would, so the journey times the agent's own way of working rather than a
+    scripted edit."""
     page, url = session.page, session.url
     text = (
-        f"Change the main heading to ‘{heading}’ and reply ‘deployment verified’. "
-        "Leave everything else unchanged."
+        f"Release {marker} passed its deployment checks. Record that on the board, "
+        "and tell me when it's done."
     )
     box = page.locator(".lf-general leaf-text")
     box.focus()
@@ -387,7 +395,7 @@ def await_turn(
     session: Session,
     comment: dict,
     revision: int,
-    heading: str,
+    marker: str,
     published: dict | None,
     deadline: float,
     profile: AgentProfile,
@@ -409,11 +417,11 @@ def await_turn(
         active = current["active"]
         if published is None and active["revision"] > revision:
             # The turn may publish a checkpoint first, so read the document for the
-            # heading rather than taking the first new revision.
+            # marker rather than taking the first new revision.
             document = session.context.request.get(
                 urljoin(session.url, active["url"]), timeout=120_000
             )
-            if document.ok and heading in document.text():
+            if document.ok and marker in document.text():
                 published = active
         if published is not None and answer is not None:
             break
@@ -445,8 +453,8 @@ def await_title(session: Session, thread: str, state: dict) -> dict:
     return state
 
 
-def ask_until_answered(session: Session, heading: str) -> AgentAsks:
-    """Ask for `heading` until the agent answers or stops answering.
+def ask_until_answered(session: Session, marker: str) -> AgentAsks:
+    """Ask the agent to record `marker` until it answers or stops answering.
 
     A `startup_failed` receipt is retried once while a healthy turn's budget remains;
     any other receipt, or a turn that stops without answering, ends the pass.
@@ -462,9 +470,9 @@ def ask_until_answered(session: Session, heading: str) -> AgentAsks:
         # A second ask continues the revision the first left, and keeps what it
         # published.
         revision = state["active"]["revision"]
-        comment = ask_for_the_heading(session, heading, profile, asks)
+        comment = ask_to_record(session, marker, profile, asks)
         state, published, replies, answer = await_turn(
-            session, comment, revision, heading, published, deadline, profile
+            session, comment, revision, marker, published, deadline, profile
         )
         if answer is not None or not (
             asks < TURN_ASKS
@@ -518,19 +526,19 @@ def wait_for_visible_reply(page, parent: str, answer_id: str) -> bool:
 
 
 def run_journey(session: Session, version: str) -> dict:
-    """Ask the agent behind `session` to publish a heading naming `version` and to
-    reply, then require Threads to show the reply and a reload to present the
-    published revision. Return the journey's profile.
+    """Tell the agent behind `session` that release `version` passed its checks and
+    ask it to record that, then require a reply in Threads and a reload presenting a
+    published revision that names the release. Return the journey's profile.
 
-    The heading checks are containments: the agent may quote the heading, and the
-    runtime may add its own words to pointable text.
+    The page check is a containment of the release's short hash anywhere in the
+    page: where and how the agent records it is the agent's call.
     """
     page, url = session.page, session.url
     initial_startup = startup_reading(page)
-    heading = f"Deployment {version[:8]} verified"
+    marker = version[:8]
     page.locator(".lf-threads-toggle").click()
-    turn, asks, revision, profile = ask_until_answered(session, heading)
-    check_turn_answered(url, heading, turn, asks, revision)
+    turn, asks, revision, profile = ask_until_answered(session, marker)
+    check_turn_answered(url, marker, turn, asks, revision)
     published, answer = turn.published, turn.answer
     answered_comment = next(
         event for event in turn.state["events"] if event["id"] == answer["parent"]
@@ -591,10 +599,11 @@ def run_journey(session: Session, version: str) -> dict:
         f"{url} stands on revision {shown} rather than following the published "
         f"{published['revision']}, with the banner reading ‘{banner}’",
     )
-    rendered = page.locator("h1").inner_text()
+    rendered = page.locator("main").inner_text()
     check(
-        heading in rendered,
-        f"{url} rendered ‘{rendered}’ rather than the agent's published ‘{heading}’",
+        marker in rendered,
+        f"{url} rendered a page that never names ‘{marker}’, which the agent's "
+        "published revision did",
     )
     print(
         f"✓ the agent published revision {published['revision']} and replied: "
@@ -607,7 +616,7 @@ def run_journey(session: Session, version: str) -> dict:
         "page": startup_profile(initial_startup),
         "comment": comment,
         "change": {
-            "heading": heading,
+            "marker": marker,
             "revision": published["revision"],
             "reply": answer["text"],
         },

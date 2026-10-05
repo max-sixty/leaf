@@ -105,8 +105,9 @@ in `leaf-assets.json` and the README's image URLs that name it.
   listener ports, temporary site, container build context and state, and retained
   logs under `.tmp/verify-site/run-*/`. `worker/README.md` owns hosted-agent
   diagnostics and the failure contract.
-- `leaf-dev journey TARGET` runs one user's journey, a heading edit asked through
-  Threads and answered with a revision and a reply, on any harness: `cc` or `codex`
+- `leaf-dev journey TARGET` runs one user's journey, a request through Threads to
+  record that a release passed its checks, answered with a revision and a reply, on
+  any harness: `cc` or `codex`
   on this working tree, `local` for the website's adapter, `wrangler`, or a website
   origin. It prints one JSON sample: the title, published revision and reply timed
   on the page server's clock from the comment's admission, and what only the browser

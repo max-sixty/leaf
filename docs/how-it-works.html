@@ -465,7 +465,8 @@ flowchart TD
               <li id="turn-end-idle">
                 <strong>Closing answers nothing.</strong>
                 <code>leaf status … idle</code> refuses while any delivered move is
-                unanswered, started or not.
+                unanswered, started or not, and while any task the agent opened is still
+                open.
               </li>
             </ul>
           </section>
@@ -589,16 +590,16 @@ flowchart LR
               </li>
               <li id="updates-written-waiting">
                 <strong><code>leaf status … waiting "…"</code></strong> What it wants
-                from you, as in <em>Claude awaits — pick one of the two layouts</em>,
-                shown while a watcher runs or the agent's turn does. With no sentence
-                the banner invites a comment:
-                <em>Claude awaits — select text to comment</em>.
+                from you, which puts down whatever it had started, as in
+                <em>Claude awaits — pick one of the two layouts</em>, shown while a
+                watcher runs or the agent's turn does. With no sentence the banner
+                invites a comment: <em>Claude awaits — select text to comment</em>.
               </li>
               <li id="updates-written-idle">
                 <strong><code>leaf status … idle</code></strong> The agent has finished
                 with the page, and the banner reads <em>Leaf closed</em>. Leaf refuses
-                it while input of yours has not been picked up or a picked-up move still
-                has no answer.
+                it while input of yours has not been picked up, a picked-up move still
+                has no answer, or a task the agent opened is still open.
               </li>
               <li id="updates-written-reply">
                 <strong><code>leaf thread reply --for …</code></strong> An answer in

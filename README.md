@@ -9,14 +9,14 @@ or follow live work in a page you can comment on and change. The agent responds 
 revising the page.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/max-sixty/leaf-assets/8eed3bf728b48bb97b2d1ead909e611ca0ad0cb0/demo/session-dark.png">
-  <img alt="A Leaf page with an anchored comment, the agent's reply, and a revised plan" src="https://raw.githubusercontent.com/max-sixty/leaf-assets/8eed3bf728b48bb97b2d1ead909e611ca0ad0cb0/demo/session-light.png">
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/max-sixty/leaf-assets/d8f21142347850b0bc024ffec8d6b9f7f49b94ba/demo/session-dark.png">
+  <img alt="A Leaf page with an anchored comment, the agent's reply, and a revised plan" src="https://raw.githubusercontent.com/max-sixty/leaf-assets/d8f21142347850b0bc024ffec8d6b9f7f49b94ba/demo/session-light.png">
 </picture>
 
 <details>
 <summary>Watch the comment-and-revision loop</summary>
 
-![A Leaf page receiving a comment, revising the work, and preserving a moved card](https://raw.githubusercontent.com/max-sixty/leaf-assets/8eed3bf728b48bb97b2d1ead909e611ca0ad0cb0/demo/demo.gif)
+![A Leaf page receiving a comment, revising the work, and preserving a moved card](https://raw.githubusercontent.com/max-sixty/leaf-assets/d8f21142347850b0bc024ffec8d6b9f7f49b94ba/demo/demo.gif)
 
 </details>
 
@@ -44,8 +44,15 @@ codex plugin marketplace add max-sixty/leaf
 codex plugin add leaf@leaf
 ```
 
+Pi (a highly experimental trial, which the rest of these docs don't cover yet):
+
+```
+pi install git:github.com/max-sixty/leaf
+```
+
 Then ask: “Use Leaf to write up the options for this change.” The explicit skill is
-`/leaf [topic]` in Claude Code and `$leaf [topic]` in Codex; without a topic, it
+`/leaf [topic]` in Claude Code, `$leaf [topic]` in Codex, and
+`/skill:leaf [topic]` in Pi; without a topic, it
 presents the work already under discussion.
 The result opens in a browser page; its comments return to the same agent task.
 

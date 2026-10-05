@@ -7,13 +7,14 @@ import re
 import shutil
 import textwrap
 import threading
-import time
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 from pathlib import Path
 
 import model_folds as model
 import pytest
+import tinycss2
+import tinycss2.parser
 from click.testing import CliRunner
 from interact_support import (
     ACCEPT,
@@ -24,6 +25,7 @@ from interact_support import (
     PAGE_PACKAGES,
     PILOT_PURGE,
     SHELVED,
+    STATED_TIMEOUT,
     TRIAL_CACHE,
     TRIAL_LOG,
     Json,
@@ -55,6 +57,7 @@ from interact_support import (
     fetch,
     fresh_process,
     live_versions,
+    lock_contention,
     publish,
     published,
     stamp,
@@ -74,8 +77,8 @@ from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
 from leaf import events as event_folds_model
 from leaf import files as files_model
+from leaf import harness as harness_model
 from leaf import hooks as hooks_model
-from leaf import host as host_model
 from leaf import media as media_model
 from leaf import page_view as page_view_model
 from leaf import passages as passages_model
@@ -729,14 +732,17 @@ def test_two_concurrent_undos_cannot_both_take_back_one_gesture(
         )[1]
     )["state"]["events"][-1]
 
-    # The old handler validated outside the append transaction. Let its first
-    # validation wait briefly for the second: on that shape both requests read the
-    # same standing target and proceed, while the transactional handler keeps the
-    # second outside until the first append is visible. A bounded wait keeps the
-    # correct serialization from deadlocking the probe itself.
+    # The old handler validated outside the append transaction. Hold its first
+    # validation until the second request states where it is: on that shape both
+    # requests read the same standing target, so the second validates too, while
+    # the transactional handler keeps the second waiting on the log the first holds
+    # until the first append is visible.
     real_undo_error = event_contracts_model.undo_error
     validation_lock = threading.Lock()
     second_validation = threading.Event()
+    second_held = lock_contention(
+        monkeypatch, page_dir, page_dir / schema_model.EVENTS_FILE
+    )
     validation_calls = 0
 
     def expose_validation_gap(event, events, within, absorbed):
@@ -746,7 +752,11 @@ def test_two_concurrent_undos_cannot_both_take_back_one_gesture(
             validation_calls += 1
             call = validation_calls
         if call == 1:
-            second_validation.wait(timeout=1)
+            wait_for(
+                lambda: second_validation.is_set() or second_held.is_set(),
+                bool,
+                failure="the second undo neither validated nor waited on the log",
+            )
         else:
             second_validation.set()
         return error
@@ -756,7 +766,7 @@ def test_two_concurrent_undos_cannot_both_take_back_one_gesture(
     results = []
 
     def withdraw(attempt):
-        start.wait(timeout=5)
+        start.wait(timeout=STATED_TIMEOUT)
         results.append(
             fetch(
                 f"{server}/api/event",
@@ -776,11 +786,11 @@ def test_two_concurrent_undos_cannot_both_take_back_one_gesture(
     ]
     for thread in threads:
         thread.start()
-    start.wait(timeout=5)
+    start.wait(timeout=STATED_TIMEOUT)
     for thread in threads:
-        thread.join(timeout=10)
+        thread.join(timeout=STATED_TIMEOUT)
 
-    assert not any(thread.is_alive() for thread in threads)
+    assert not any(thread.is_alive() for thread in threads), "an undo never returned"
     assert validation_calls == 2
     assert {status for status, _ in results} == {200, 400}
     refusal = next(json.loads(body) for status, body in results if status == 400)
@@ -1991,6 +2001,37 @@ def test_a_widget_data_input_is_one_complete_contract(page_dir, change, message)
     declare_data_input(page_dir, "project-feed", {"type": "array"})
     registry = json.loads((page_dir / "registry.json").read_text())
     change(registry["lf-test-data"])
+
+    with pytest.raises(registry_contract.RegistryError, match=message):
+        registry_validation.validate_registry(registry, "test registry")
+
+
+@pytest.mark.parametrize(
+    ("prepaint", "upgrade", "message"),
+    [
+        ("<span>0 running</span>", False, "requires x-upgrade: true"),
+        ("<span>0</span><span>1</span>", True, "must be one element"),
+        ("<td>0</td>", True, "must be one element"),
+        ("<div>", True, "must be one element"),
+        ("<div><span>0</div>", True, "must be one element"),
+        ('<div><span id="count">0</span></div>', True, "no id"),
+        ("<div><lf-chip>0</lf-chip></div>", True, "may not hold <lf-chip>"),
+        ({"as": "lf-nothing"}, True, "declares no x-prepaint markup"),
+    ],
+)
+def test_a_prepaint_is_one_plain_element_only_a_module_takes_out(
+    page_dir, prepaint, upgrade, message
+):
+    """Delivery copies an x-prepaint into every occurrence for the first paint, and the
+    widget's module takes it out, so it must be markup that stays one element where it
+    is written and that nothing but that module acts on."""
+    registry = json.loads((page_dir / "registry.json").read_text())
+    tag = next(
+        tag
+        for tag, entry in registry.items()
+        if not tag.startswith("$") and entry.get("x-upgrade")
+    )
+    registry[tag].update({"x-prepaint": prepaint, "x-upgrade": upgrade})
 
     with pytest.raises(registry_contract.RegistryError, match=message):
         registry_validation.validate_registry(registry, "test registry")
@@ -3640,7 +3681,7 @@ How this text reaches the agent, by example
 @DELIVERY@
 
 5. The agent confirms the complete delivery, then follows `handling`: it names
-   any work the comment asks for with `leaf status`, does it,
+   any work the comment asks for with `leaf task start`, does it,
    and replies in the thread with `leaf thread reply`.
 
 What this file records
@@ -3718,7 +3759,12 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
         "comment over App Server": {"kind": "comment", **untitled, **owes("turn")},
         "comment with a drawing": {
             "kind": "comment",
-            "drawing": {"format": "leaf-drawing/2", "strokes": [[[0, 0], [9, 9]]]},
+            "drawing": {
+                "format": "leaf-drawing/2",
+                "strokes": [[[0, 0], [9, 9]]],
+                "viewport": [1200, 900],
+                "scheme": "light",
+            },
             **owes("reply"),
         },
         "comment with a pasted image": {
@@ -3816,7 +3862,7 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
     # delivery Claude Code's prompt hook takes.
     (page_dir / "index.html").write_text(WALKTHROUGH_PAGE)
     publish(page_dir)
-    session_model.cmd_status(page_dir, "waiting", "")
+    session_model.cmd_waiting(page_dir, "")
     posted = {
         "kind": "comment",
         "revision": 1,
@@ -3830,7 +3876,7 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
     capsys.readouterr()
     assert session_model.cmd_wait(page_dir) == 0
     assert "has new input" in capsys.readouterr().out
-    envelope = consume_pending_input(host_model.session_harness().session)
+    envelope = consume_pending_input(harness_model.session_harness().session)
     record = json.loads(logged)
     [batch] = envelope["batches"]
     [delivered] = batch["events"]
@@ -3932,7 +3978,7 @@ page's path are pinned, so the file stays the same from run to run.
 A carrier is the route that takes new user input to the agent's task:
 
   leaf wait          The agent runs `leaf wait` in the background. It prints
-                     the delivery as JSON and exits, and the host hands that
+                     the delivery as JSON and exits, and the harness hands that
                      output to the agent as the command's result, which wakes
                      it. The agent acknowledges the delivery itself, with
                      `leaf wait --ack <delivery-id>`, and answers with
@@ -3964,7 +4010,7 @@ all four, and it names its `carrier`. Two things differ, each stated once:
 carrier confirmed it; and the comment's `answer` is a `reply`, for `leaf thread reply`,
 except on App Server, where it is a `turn` the turn's own messages write. The
 `handling` follows from the answer, so each agent is told only its own route.
-The agent's standing instructions (its host contract, and on leaf.page the
+The agent's standing instructions (its harness contract, and on leaf.page the
 developer instructions) are not part of a delivery; test_website_server records
 leaf.page's.
 
@@ -4014,10 +4060,10 @@ def test_each_carrier_hands_the_agent_what_the_snapshot_shows(
     assert status == 200, answer
     logged = events_model.read_events(page_dir)[-1]
 
-    session_model.cmd_status(page_dir, "waiting", "")
+    session_model.cmd_waiting(page_dir, "")
     capsys.readouterr()
     # A bare shell's wait, the printing kind, which claims nothing.
-    session = host_model.session_harness().session
+    session = harness_model.session_harness().session
     for name in ("CLAUDE_CODE_SESSION_ID", "CLAUDE_PID"):
         monkeypatch.delenv(name)
     assert session_model.cmd_wait(page_dir) == 0
@@ -4039,7 +4085,7 @@ def test_each_carrier_hands_the_agent_what_the_snapshot_shows(
 
     thread = "codex-thread"
     prepared = codex_model.prepare_codex_delivery(
-        page_dir, host_model.EmbeddedHarness(thread, "Codex", os.getpid())
+        page_dir, harness_model.EmbeddedHarness(thread, "Codex", os.getpid())
     )
     started = codex_model.app_server_turn_start_params(thread, prepared.payload)
     delivery_model.cmd_delivery_read(prepared.payload["id"])
@@ -4051,7 +4097,9 @@ def test_each_carrier_hands_the_agent_what_the_snapshot_shows(
     # hook of the turn it opens hands the delivery over.
     assert session_model.cmd_wait(page_dir) == 0
     woke = capsys.readouterr().out
-    hooks_model.cmd_hook({"hook_event_name": "UserPromptSubmit", "session_id": session})
+    hooks_model.cmd_hook(
+        "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": session}
+    )
     context = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
         "additionalContext"
     ]
@@ -4230,7 +4278,9 @@ def test_event_kinds_are_the_kernel_contract_not_a_layer_extension(page_dir, tmp
         registry_validation.validate_registry(registry, "incoming")
 
 
-def test_an_empty_host_name_uses_the_host_default(page_dir, sessionless, monkeypatch):
+def test_an_empty_agent_name_uses_the_harness_default(
+    page_dir, sessionless, monkeypatch
+):
     published(page_dir)
     monkeypatch.setenv("LEAF_SESSION_ID", "worker-1")
     monkeypatch.setenv("LEAF_AGENT", "")
@@ -4759,26 +4809,35 @@ def test_sample_checks_available_history_beside_forward_thread_references(
     )
 
 
-def test_check_reads_only_the_page_stylesheet_and_stays_near_free(page_dir):
-    """A version's CSS is what its <style> blocks hold. Reading the whole file as one
-    made a megabyte of base64 (one screenshot as a data: URI) into a stylesheet to
-    tokenize, and the rule scanner reading it used to backtrack quadratically across any
-    long brace-free run, which took the better part of an hour. The clock bound is three
-    orders of magnitude above the fixed cost, so it fails on a re-introduced quadratic
-    and not on a slow machine; the assertion above it fails on the shape that fed it the
-    page."""
+def test_check_tokenizes_only_the_page_stylesheet(page_dir, monkeypatch):
+    """A version's CSS is what its <style> blocks and style="" attributes hold.
+    Reading the whole file as one stylesheet made a megabyte of base64 (one
+    screenshot as a data: URI) into CSS to tokenize, and the hand-written rule
+    scanner that read it backtracked quadratically across the long brace-free run,
+    which took the better part of an hour. tinycss2 now owns the CSS grammar and
+    its linear cost, so what leaf owns is what it hands the tokenizer: every string
+    any check stage tokenizes is recorded, and none may carry the data URI."""
     blob = "A" * 1_000_000
     html = PAGE.replace(
         "<h2>Plan</h2>",
-        f'<h2>Plan</h2><p><img alt="shot" src="data:image/png;base64,{blob}"></p>',
+        f'<h2>Plan</h2><p style="color: rebeccapurple"><img alt="shot" '
+        f'src="data:image/png;base64,{blob}"></p>',
     )
     (page_dir / "index.html").write_text(html)
-    parser = structure_model.SourceDocument(html)
-    assert parser.css == ""
+    tokenized = []
+    tokenize = tinycss2.parse_component_value_list
 
-    started = time.monotonic()
+    def recording(css, *args, **kwargs):
+        tokenized.append(css)
+        return tokenize(css, *args, **kwargs)
+
+    # Every tinycss2 entry point tokenizes a string through this one function.
+    monkeypatch.setattr(tinycss2.parser, "parse_component_value_list", recording)
+    monkeypatch.setattr(tinycss2, "parse_component_value_list", recording)
+
     assert check(page_dir).exit_code == 0
-    assert time.monotonic() - started < 10
+    assert "color: rebeccapurple" in tokenized
+    assert not [len(css) for css in tokenized if blob in css]
 
 
 def test_check_reports_css_syntax_errors_in_every_source_the_page_writes(page_dir):

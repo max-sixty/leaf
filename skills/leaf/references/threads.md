@@ -16,7 +16,7 @@ including edits and retired content. Quote exact visible authored words inside
 one widget part. The command refuses ambiguous, retired, replaced, or
 cross-boundary text instead of creating a detached comment. The thread's id is its
 opening comment's `id`, in the record `leaf thread open` prints. `leaf page state
-<page> <id>`, `leaf thread reply`, `edit` and `resolve`, and `leaf status --on` all
+<page> <id>`, `leaf thread reply`, `edit` and `resolve`, and `leaf task open` all
 take the id of any message in the thread.
 
 Title a thread with `--title` on the command that first handles it: the `open` that
@@ -43,10 +43,10 @@ boundary: every immutable historical document shows the same markup. It must the
 validate against every pinned revision's captured registry, not only the active
 registry. Use only widget vocabulary shared by those registries. If no shared widget
 fits, ask in prose with `--text` (and `--awaits` on a reply), or use a page widget
-when the question and its answer belong in the final record. Markup holding a data
-widget, such as a chart, is drawn once in the host's browser before it is posted, and
-refused with the error the page would show if its body does not draw. A host with no
-browser posts it undrawn.
+when the question and its answer belong in the final record. Markup is checked as it
+is posted but not drawn, so a data widget, such as a chart, whose body does not draw
+reaches you as an `error` event when the user opens its thread; answer with a corrected
+reply.
 
 The thread panel is a narrow column over the right of the page, so a paragraph that
 reads fine in chat is a wall there. A reply says what changed or where to look: a sentence or
@@ -138,7 +138,29 @@ leaf thread reply <page> --awaits --text "Which store should own it?"
 
 To add an agent-initiated turn to a thread that currently owes no reply, name the
 thread instead of `--for`: `leaf thread reply <page> <message-id>`. Leaf refuses
-it while any event in that thread has a standing reply obligation.
+an ordinary reply this way while any event in that thread has a standing reply
+obligation. Progress updates below can name the thread while its answer is due.
+
+### Progress updates
+
+Use `--ephemeral` for an interim update that is useful while work is underway:
+
+```bash
+leaf thread reply <page> --for <event-id> --ephemeral --text "Checking the keyboard route."
+```
+
+This posts progress without answering the input or ending its start. You can
+also name the thread to post progress there. The updates stay visible until the
+next non-ephemeral agent reply in that thread, then fold under “Previous updates”
+without summary prose. The original messages remain available to expand and edit.
+Intervening user messages remain visible; separate runs of updates fold separately.
+One update can fold on its own. An explicit summary can cover those updates instead.
+
+An ephemeral update is progress text, so it cannot carry `--awaits`, widget markup,
+failure or an anchor move. Put questions and results in ordinary replies. The shared
+disclosure appears in the panel and contextual thread surfaces. A completing reply
+held behind a new-reply notice keeps its progress visible until the reply is shown;
+originals already being read or focused stay expanded.
 
 A widget whose registry entry declares a local `x-awaits` already joins the
 page's Ask list and keeps its thread "On you" while that Ask stands. Leaf refuses
@@ -157,7 +179,7 @@ Every `leaf thread` write prints the records it appended, one JSON line each, as
 `thread_title` record after the message. A refusal lists the ids it knows.
 
 An ordinary reply leaves the thread open, or reopens a resolved thread, so the user
-can inspect the answer or revised page. Reactions and failure receipts do not reopen it. The user closes it by default. Resolve it yourself only when the
+can inspect the answer or revised page. Reactions, ephemeral updates and failure receipts do not reopen it. The user closes it by default. Resolve it yourself only when the
 user asks, when a delivered event's handling says to, as for a reaction or a
 version request, or when no review or follow-up can change the outcome.
 Completing the requested work does not meet that bar by itself; when uncertain,
@@ -180,7 +202,9 @@ not read yet needs no follow-up from you, and a read one is not an answer.
 
 ## Summarize a long discussion
 
-When delivered context suggests summarization, read the original messages with
+New input in a long thread may carry a suggested range to summarize. Choose whether
+and when a summary would help the user navigate the discussion; the suggestion adds
+no response obligation. Read the original messages with
 `leaf page state <page> <thread-id>` and select a contiguous range whose endpoints are spoken
 messages rather than reactions. Summarize its decisions,
 reasoning, and remaining questions. Keep the current exchange outside the range
@@ -196,7 +220,15 @@ remain available to unfold. It answers no question and resolves no thread.
 Use Markdown prose rather than interactive markup. Read the originals before
 resummarizing; do not build a new account solely from an older summary.
 
+The disclosure defaults to “Earlier discussion”; set `--label` to name the range.
+To fold messages without adding summary prose, pass an explicit empty `--text`:
+
+```bash
+leaf thread summarize <page> --from <first-message-id> --through <last-message-id> --label 'Previous updates' --text ''
+```
+
 As the discussion grows, write another summary with the desired endpoints.
 An overlapping summary replaces the earlier summary; disjoint ranges can retain
 separate summaries. New messages outside the endpoints remain visible. Editing a
-covered message invalidates its summary so stale prose cannot hide the correction.
+covered message invalidates a summary containing prose so stale prose cannot hide
+the correction. A fold without prose keeps the revised originals available.

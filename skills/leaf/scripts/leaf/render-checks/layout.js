@@ -1,4 +1,5 @@
 import {
+  openAsks,
   pageScroller,
   readingPosture,
   readingRegions,
@@ -8,8 +9,9 @@ import {
   uiInside,
 } from "/runtime/widget-api.js";
 import { laidOutItems } from "./framing.js";
-import { at as element } from "./locate.js";
+import { at as element, place } from "./locate.js";
 import { openRoots } from "./open-roots.js";
+import { shrunkLabelReading } from "./words.js";
 
 export const rootOverflow = () => pageScroller.scrollWidth - pageScroller.clientWidth;
 const at = (el) => (el === pageScroller ? "<root scrollport>" : element(el));
@@ -24,10 +26,15 @@ export function marginResidents() {
     .join(" ");
 }
 
-// One settled-width geometry sample. These readers are synchronous and read-only:
-// taking them in one browser turn preserves their findings while removing the
-// protocol round trips between fields. Resize and rendering completion belong to the
-// caller, so a sample neither advances the page nor waits for a different layout.
+// One settled-width geometry sample: the readings the gate reports across the width
+// sweep, each field read by its own consumer in render_gate/readings.py. Which findings
+// the gate answers for at every width is its choice, not a property of the reader:
+// strandedMargins and reachabilityReading also move with the width, and the gate
+// reports them only at the viewports it renders (validation.md). These readers are
+// synchronous and read-only: taking them in one browser turn preserves their findings
+// while removing the protocol round trips between fields. Resize and rendering
+// completion belong to the caller, so a sample neither advances the page nor waits for
+// a different layout.
 export function geometryReading(open) {
   return {
     overflow: rootOverflow(),
@@ -35,6 +42,8 @@ export function geometryReading(open) {
     margin: marginResidents(),
     arrangement: arrangedBoxes(open),
     panes: heldPanes(),
+    regions: overflowingRegions(),
+    labels: shrunkLabelReading(),
   };
 }
 
@@ -109,7 +118,9 @@ export function heldPanes() {
         (r) => rects.filter((o) => o.top < r.bottom - 1 && r.top < o.bottom - 1).length,
       ),
     );
-    return [{ at: element(body), held, panes: rects.length, beside }];
+    return [
+      { at: element(body), place: place(body), held, panes: rects.length, beside },
+    ];
   });
 }
 const AUTHORED_PANE = '[data-lf-reading-role="pane"]:not([data-lf-generated])';
@@ -120,8 +131,9 @@ const AUTHORED_PANE = '[data-lf-reading-role="pane"]:not([data-lf-generated])';
 // which the Layout marks (`--lf-reading-region: layout`, layouts.css). A bounded block
 // declares that it scrolls, and a widget's own regions are its to hold, so neither is
 // here. A workspace the window is too small to hold flows and scrolls as a page, and is
-// no screen. Each comes back with its id, the name every finding uses, and how far its
-// body runs past its scrollport.
+// no screen. Each comes back with its id, the name every finding uses, how far its
+// body runs past its scrollport, and how many of the Asks still open to the user it
+// holds: a region stacking several is a queue read as one long scroll.
 export function overflowingRegions() {
   const main = document.querySelector("body > main.layout-workspace");
   if (
@@ -134,12 +146,24 @@ export function overflowingRegions() {
     (host.parentElement === main &&
       getComputedStyle(host).getPropertyValue("--lf-reading-region").trim() ===
         "layout");
+  // Shown ones only: a queue's closed items hold open Asks too, and a region that
+  // already is the queue is not stacking them.
+  const asks = openAsks()
+    .map((ask) => document.getElementById(ask.id))
+    .filter((ask) => ask?.checkVisibility());
   return readingRegions().flatMap((region) => {
     if (!main.contains(region.host) || !screenRegion(region.host)) return [];
     if (!shownRegionBounds(region) || readingPosture(region) !== "bounded") return [];
     const over = region.body.scrollHeight - region.body.clientHeight;
     return over > 1
-      ? [{ id: region.id, at: element(region.host), over: Math.round(over) }]
+      ? [
+          {
+            id: region.id,
+            at: element(region.host),
+            over: Math.round(over),
+            asks: asks.filter((ask) => region.body.contains(ask)).length,
+          },
+        ]
       : [];
   });
 }
@@ -294,9 +318,9 @@ export function misplacedBoxes() {
   // rather than of a list of tags, because the fault is visual and so is the property
   // — a widget that stands outside a frame, a tint or a fill reads as a broken page,
   // and one that grows through a transparent wrapper (a section, a tab's panel) reads
-  // as the exhibit it is. A box that draws one says so where it draws it (--lf-block-frame,
-  // theme.css) and the theme reads that declaration to withhold the room; this is what
-  // says so when a box that draws hasn't made it. (Nothing to do with x-paints, which is
+  // as the exhibit it is. A box that draws one says so where it draws it
+  // (--lf-block-frame: 1, theme.css) and the theme reads that declaration to withhold
+  // the room; this is what says so when a box that draws hasn't made it. (Nothing to do with x-paints, which is
   // about words rather than boxes: an attribute rendered as paint instead of text, and
   // spoken for whoever is listening.)
   const draws = (el) => {
@@ -342,11 +366,13 @@ export function misplacedBoxes() {
         : Math.round(Math.max(b.right - right, left - b.left));
     if (past > 1) over.set(el, [past, wide, frame, host]);
   }
-  // Each finding names its element and its kind beside the words, so a reader that
-  // takes this pass at several widths (the gate's sweep) can tell one fault met again
-  // from a new one without reading the sentence, whose pixel count moves with the width.
+  // Each finding carries its element's place (locate.js) and its kind beside the words,
+  // so a reader that takes this pass at several widths (the gate's sweep) can tell one
+  // fault met again from a new one without reading the sentence, whose pixel count
+  // moves with the width.
   const found = [];
-  const report = (el, kind, text) => found.push({ at: at(el), kind, text });
+  const report = (el, kind, text) =>
+    found.push({ at: at(el), place: place(el), kind, text });
   for (const [el, [past, wide, frame, host]] of over) {
     if ([...over.keys()].some((other) => other !== el && other.contains(el))) continue;
     if (host)

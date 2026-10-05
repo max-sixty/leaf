@@ -12,16 +12,18 @@ The playground draws its own regions: the preview is a stage, and the controls a
 instruction to the agent stand in a rail beside it, on the same `2fr 1fr` tracks as a
 wide page's body and rail, wherever it has 43.5rem; narrower, they stack. A preview that needs
 width, such as two candidates side by side, belongs on a wide page (`<main
-class="layout-wide">`), or on a workspace page (`<main class="layout-workspace">`) whose
+class="layout-wide">`), or on a workspace page (`<main class="layout-workspace density-working">`) whose
 body is the playground's Ask, where the stage grows to the window's height. Draw
-candidates on the stage without a card of their own; the stage is their surface.
+candidates directly on the stage without separate cards.
 
 The preview is the surface the user operates. An A/B comparison keeps both candidates
-mounted there with the same configuration and starting content. When the candidates
-render one custom input model, apply each drag, scroll, reorder, or edit once and draw
-both from that state; derive their measurements beside them. Live Leaf samples share
-the configuration and authored starting history, while practice gestures belong to
-each child's independent log. Reset brings a sample back to that starting history.
+mounted there with the same configuration and starting content. Candidates that stand
+side by side start their names, notes and drawings on shared lines across the row,
+however each wraps, so the user compares them straight across; each drawing keeps its
+own height. When the candidates render one custom input model, apply each drag,
+scroll, reorder, or edit once and draw both from that state; derive their measurements
+beside them. Live Leaf samples share the configuration and authored starting history,
+while practice gestures belong to each child's independent log. Reset brings a sample back to that starting history.
 
 Start from the real artifact. Wrap the existing component, document, or generated output
 instead of rebuilding its appearance in page-local markup. A companion package may carry
@@ -50,16 +52,14 @@ inspection settings their own labeled controls and page-local state, outside the
 playground's submitted values. Style these controls with the layer's control idioms
 (`references/page-authoring.md`, "Theme and vocabulary"). Changing a case preserves
 the configuration; applying a preset preserves the case; all compared candidates use
-the same case. When editing
-the data is itself the task, that data belongs in the configuration.
+the same case. When editing the data is the task, that data belongs in the configuration.
 
 Controls expose parameters the user can vary independently. Offer presets when
 combining several such parameters gives the user useful starting points for further
 tuning. Choose presets that differ across several parameters, and compose each
 as one look so its parts read together on every surface they change, rather than
-taking each control's best value on its own. Free combinations of controls may clash;
-a preset may not, because the
-user judges its idea by how it looks. Before handoff, look at each preset where the user
+taking each control's best value on its own. A preset's settings must work together,
+since the user judges it by the preview. Before handoff, look at each preset where the user
 will see it, on every surface it changes and in both themes, and rework or drop any you
 would not ship. A preset sets every control its look depends on, since a control it
 leaves out keeps the user's last value. Name the outcome—`Status strip`, not `Preset 2`.
@@ -150,7 +150,7 @@ including after Reset, wears the playground's properties and attributes from its
 first paint. The outer root and stylesheet belong to the review page. A static
 sketch or snippet can stay directly in the preview.
 
-The output is the instruction the user copies and the host receives. Write a complete
+The output is the instruction the user copies and the harness receives. Write a complete
 task with an object, destination, and requested evidence. Use `lf-playground-value` only
 where a selected value makes that task more precise. The action still includes every
 control in `detail.values`, including controls the prose does not repeat.
@@ -159,7 +159,7 @@ control in `detail.values`, including controls the prose does not repeat.
 
 A preview that needs JavaScript keeps its page-specific behavior in an inline
 `<script type="module">` block. Put the real candidates in an ordinary element or a
-page-specific custom element, following `references/packages.md`, "What a behavior
+page-specific custom element, following `references/module-authoring.md`, "What a behavior
 module owes".
 
 Wait for `customElements.whenDefined("lf-playground")` before reading

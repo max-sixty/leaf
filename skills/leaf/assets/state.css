@@ -5,7 +5,6 @@
 @layer lf-state {
   [data-lf-retired] { display: none; }
 
-  /* A suggestion with no surviving slot has no body to display. */
-  lf-suggestion[data-lf-state="accept"]:not(:has(lf-new)),
-  lf-suggestion[data-lf-state="reject"]:not(:has(lf-old)) { display: none; }
+  /* Retiring the only slot leaves its wrapper empty. Keep that wrapper in the
+     layout tree so Undo can restore the text in the same place. */
 }

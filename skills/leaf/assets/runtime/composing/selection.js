@@ -6,12 +6,11 @@
    through `display: contents`; only `.lf-fab-input` draws. `showComposer` states the
    whole visible outcome from `composerOpen`, `pendingAnchor`, and `fabAnchor`;
    `openComposer`'s `focus` option decides focus independently. Outside clicks and
-   Escape hide without discarding words. A successful send or an explicit draft close
-   discards the local record.
+   Escape hide without discarding words. A successful send settles only the submitted draft generation.
 
    A hidden draft is news and a place: hiding one that still holds words says so once,
-   and `KEPT_DRAFT` is the address that brings it back — the same stored record startup
-   reopens (`openDraft`), reached mid-session. Every path that discards words empties
+   and Resume writing brings its editor back. Startup reopens a stored composer
+   record through `openDraft`. Every path that discards words empties
    the box first, so those hide silently.
 
    Boot constructs the command owner with explicit travel, delivery, and repaint
@@ -28,6 +27,8 @@ import {
   sendMessage,
   transferDraft,
   watchDraft,
+  rememberWriting,
+  registerWritingDestination,
 } from "../drafts.js";
 
 import { pageSelection, rangeAnchor } from "./capture.js";
@@ -38,6 +39,7 @@ import { PRESS } from "../keyboard/bindings.js";
 import { takesLetters } from "../focus.js";
 import { repaint } from "../repaint.js";
 import { restrictUserIntent, retainUserIntent } from "../user-intent.js";
+import { bindQueuedWork } from "../queued-work.js";
 
 import { closestAcross, elementById, inChrome } from "../passages.js";
 
@@ -140,7 +142,7 @@ export function createSelectionComposer({
   openPageThread,
   threadTransitionOrigin,
   anchorStands,
-  anchorTargetAt,
+  anchorTravelAt,
   bringForward,
   fabAnchorAt,
   fabPointAt,
@@ -150,7 +152,6 @@ export function createSelectionComposer({
   endFabFocus,
   landFabFocus,
   showFab,
-  formatGoToAddress,
   createComment,
   landSent,
   refreshThread,
@@ -386,7 +387,7 @@ export function createSelectionComposer({
     if (composerOpen && !open && composerHolds())
       notice(
         anchorStands(pendingAnchor)
-          ? `Draft kept — ${formatGoToAddress(KEPT_DRAFT)} returns to it`
+          ? `Draft kept — g i resumes writing`
           : "Draft kept — it returns when its passage does",
       );
     composerOpen = open;
@@ -492,8 +493,10 @@ export function createSelectionComposer({
       drawingSupplied &&
       JSON.stringify(composerRecord(ctx)?.drawing ?? null) !==
         JSON.stringify(pendingDrawing)
-    )
+    ) {
       saveComposerDraft();
+      rememberWriting(composerInput);
+    }
   }
   // The box is one view of the draft standing on this passage, and it follows the plain
   // boxes' rule with one thing of its own: the composer is chrome as well as a box, so a
@@ -588,48 +591,32 @@ export function createSelectionComposer({
   // about the mode a draft was written in. A record whose passage does not stand opens
   // nothing: the box would go straight back down, saying its words were kept, and they
   // return when the passage does.
-  function openDraft(record = pendingComposer()) {
+  function openDraft(record = pendingComposer(), { focus = true } = {}) {
     if (!record || !anchorStands(record.anchor)) return false;
     openComposer(record.anchor, record.text, {
       suggest: Boolean(record.suggest),
       about: record.about ?? null,
       drawing: record.drawing ?? null,
+      focus,
     });
     return true;
   }
 
-  // `g D`: the draft the composer put away, as a place. Hiding the box keeps its words and
-  // the only route back was to reselect that exact passage on that exact version — durable
-  // and unreachable, which is the same as lost for a user who does not know where the
-  // words went. A destination rather than a page letter: the page's alphabet is small, and
-  // what this press does is travel to a passage and open the box standing on it, which is
-  // what every other uppercase mnemonic in the sequence does with its own auxiliary surface.
-  //
-  // Dead while the composer is up, because then the draft is already in front of the
-  // user and `c` is the press that enters it. Live off the stored record rather than
-  // this module's own state: a draft written in another tab, or before a reload, is the
-  // same draft and answers the same address.
-  //
-  // Dead too where this version no longer holds the passage the draft is about. Those
-  // words survive the version they were written against and come back when their passage
-  // does; until then there is nowhere to stand the box, and a destination that lands
-  // nowhere is worse than none.
-  const KEPT_DRAFT = {
-    id: "composer.kept-draft",
-    keys: ["Shift+d"],
-    description: "Go to the draft you have not sent",
-    title: "your draft",
-    when: () => !composerOpen && keptDraft() !== null,
-    run: () => {
-      const record = keptDraft();
-      if (!record) return;
-      // The box is placed against its passage, so the passage has to be somewhere the
-      // user can see before the box is measured — the same travel `c` makes to an item
-      // it is about to open a box on.
-      bringForward(anchorTargetAt(record.anchor));
-      openDraft(record);
-    },
-  };
+  registerWritingDestination(COMPOSER_KEY, (ctx) => {
+    const record = composerRecord(ctx);
+    if (!record || !anchorStands(record.anchor)) return null;
+    return {
+      where: anchorTravelAt(record.anchor),
+      input: () =>
+        composerOpen && composerCtx(pendingAnchor) === ctx ? composerInput : null,
+      open: () => {
+        openDraft(composerRecord(ctx), { focus: false });
+        const handoff = beginFabFocus();
+        return () => endFabFocus(handoff);
+      },
+      present: fabPositioned,
+    };
+  });
 
   function mount() {
     declareResponseOptionKeys();
@@ -677,6 +664,9 @@ export function createSelectionComposer({
           },
         );
         if (!sent) return;
+        const revealSent = bindQueuedWork((options) =>
+          openPageThread(sent.id, options),
+        );
         // The semantic publication is synchronous, while the retained thread list
         // commits its keyed DOM asynchronously. Wait for that presentation before
         // choosing the destination: otherwise an already-open panel can be asked to
@@ -693,7 +683,7 @@ export function createSelectionComposer({
         // gesture may already have moved the user elsewhere while presentation was
         // settling.
         if (shouldReveal || panelIsOpen()) {
-          const destination = await openPageThread(sent.id, {
+          const destination = await revealSent({
             focus: shouldReveal ? "thread" : false,
             travel: false,
             flash: false,
@@ -821,7 +811,6 @@ export function createSelectionComposer({
     detachComposer,
     carryComposerToReply,
     openDraft,
-    KEPT_DRAFT,
     mount,
   };
 }

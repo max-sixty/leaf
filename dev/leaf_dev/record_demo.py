@@ -23,8 +23,8 @@ from pathlib import Path
 
 import click
 from leaf.delivery import freeze_delivery, pending_batches, receive_delivery
+from leaf.harness import session_harness
 from leaf.hook_carrier import hook_acknowledgement
-from leaf.host import session_harness
 from leaf.hosting import claim_and_start, cmd_stop
 from leaf.projection import folded_positions
 from leaf.publishing import cmd_stamp
@@ -33,7 +33,8 @@ from leaf.render_gate.scheme import rendered_revision, served
 from leaf.served_state.context import read_page
 from leaf.served_state.page import read_served_page
 from leaf.service import PageTransaction
-from leaf.session import cmd_status
+from leaf.session import cmd_waiting
+from leaf.tasks import cmd_start
 from leaf.thread import cmd_reply
 from leaf.vendoring import cmd_init
 from PIL import Image
@@ -42,6 +43,7 @@ from playwright.sync_api import Page
 from leaf_dev import LEAF_COMMAND
 from leaf_dev.browser import chrome, settle, tab
 from leaf_dev.leaf_assets import publish, stage
+from leaf_dev.recording import write_gif
 
 GIF_SIZE = (1120, 700)
 # The viewport used for the README's representative stills.
@@ -214,7 +216,7 @@ def select_text(page: Page, selector: str, text: str) -> None:
 
 
 class DemoWaiter:
-    """One background `leaf wait`, taking each delivery the way this host's agent
+    """One background `leaf wait`, taking each delivery the way this harness's agent
     does: it reads a complete delivery, explicitly acknowledges it, and
     rearms the wait. The demo itself stands in for the reader."""
 
@@ -284,8 +286,9 @@ def record(
     shot(1600)
 
     select_text(page, "#p2", "Backfill history")
-    # The selection raises the response bar with its field open and focused, so the
-    # demo types into it and sends with Mod+Enter.
+    # The selected words offer the response action. Open it before typing, then
+    # send from the focused field with Mod+Enter.
+    page.get_by_role("button", name="Comment on selection").click()
     field = page.locator(".lf-fab-input")
     field.focus()
     page.keyboard.insert_text("Can the backfill stay online?")
@@ -305,7 +308,7 @@ def record(
     comment_id = next(
         event["id"] for event in waiter.receive() if event["kind"] == "comment"
     )
-    cmd_status(page_dir, "working", "answering the backfill question", on=comment_id)
+    cmd_start(page_dir, comment_id, "answering the backfill question")
     page.wait_for_function(
         "() => document.querySelector('.lf-status-detail').textContent.includes('answering')"
     )
@@ -321,7 +324,7 @@ def record(
     )
     (page_dir / "index.html").write_text(demo_page(2), encoding="utf-8")
     cmd_stamp(page_dir, "Backfill stays online; rehearsal progress is now 3 of 4")
-    cmd_status(page_dir, "waiting", "")
+    cmd_waiting(page_dir, "")
     page.wait_for_function(
         "() => document.querySelector('meta[name=lf-revision][data-lf-runtime]')"
         "?.content === '2'"
@@ -329,6 +332,9 @@ def record(
     if page.url != live_url:
         raise RuntimeError(f"the live page navigated from {live_url} to {page.url}")
     wait_until_ready(page)
+    page.locator(".lf-thread").get_by_role(
+        "button", name="1 new reply", exact=True
+    ).click()
     page.wait_for_selector(".lf-thread .lf-msg.agent")
     shot(2300)
 
@@ -375,7 +381,7 @@ def shoot_stills(browser, url: str, page_dir: Path, into: Path) -> None:
         demo_page(2, folded_board(page_dir)), encoding="utf-8"
     )
     cmd_stamp(page_dir, "On-call staffing moved into During, as the board now reads")
-    cmd_status(page_dir, "waiting", "")
+    cmd_waiting(page_dir, "")
 
     for name, size, scheme in STILLS:
         with tab(browser, size, scheme) as page:
@@ -404,21 +410,6 @@ def shoot_stills(browser, url: str, page_dir: Path, into: Path) -> None:
             )
 
 
-def write_gif(frames: list[Image.Image], durations: list[int], output: Path) -> None:
-    palette_frames = [
-        frame.quantize(colors=192, method=Image.Quantize.MEDIANCUT) for frame in frames
-    ]
-    palette_frames[0].save(
-        output,
-        save_all=True,
-        append_images=palette_frames[1:],
-        duration=durations,
-        loop=0,
-        optimize=True,
-        disposal=1,
-    )
-
-
 @click.command("record-demo")
 @click.option(
     "--output",
@@ -433,14 +424,14 @@ def record_demo(output: Path | None) -> None:
         page_dir = Path(scratch) / "page"
         # A state home of its own, so the host's open pages stay out of the banner's
         # `All leaves`. Set before any leaf command so each inherits it. The agent's
-        # name shows only under a host session, which the recording keeps.
+        # name shows only under a harness session, which the recording keeps.
         os.environ["XDG_STATE_HOME"] = f"{scratch}/state"
         os.environ["LEAF_AGENT"] = "Claude"
         with redirect_stdout(io.StringIO()):
             cmd_init(page_dir)
         (page_dir / "index.html").write_text(demo_page(1), encoding="utf-8")
         cmd_stamp(page_dir, "Migration rehearsal started; 2 of 4 checks complete")
-        cmd_status(page_dir, "waiting", "")
+        cmd_waiting(page_dir, "")
         with claim_and_start(page_dir) as started:
             pass
         url = started.url

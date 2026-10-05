@@ -1,17 +1,17 @@
 # The one project: the repository is the plugin, and the plugin is this uv
-# project. A host copies the tracked tree into its plugin cache; `bin/leaf`
+# project. A harness copies the tracked tree into its plugin cache; `bin/leaf`
 # there runs `uv run --project <that copy>`, and the environment appears on the
 # first run, synced into `.venv` beside this file: one environment per
 # installed version.
 #
 # The module lives at `skills/leaf/scripts/leaf` because the skill directory is
-# what a host reads, and `module-root` points the build backend at it rather
+# what a harness reads, and `module-root` points the build backend at it rather
 # than moving the tree to suit packaging. `uv sync` installs the project
 # editable, so `schema.py`'s `SKILL_ROOT` still resolves through `__file__`
 # into the tree and finds `assets/` and `packages/` beside it.
 #
 # Dependencies state the lowest version the suite passes on, with no upper cap.
-# `uv.lock` ships in the install, so a host runs the versions the suite last
+# `uv.lock` ships in the install, so a harness runs the versions the suite last
 # passed on.
 #
 # The dev group is what the suite and `leaf-dev` need on top of the runtime:
@@ -97,7 +97,7 @@ dev = [
 
 # An install never syncs the members, but uv reads their `pyproject.toml` files to
 # check the lock on every unfrozen run, so a partial copy of the tree that runs
-# `bin/leaf` carries them (`leaf_dev.harness.PAYLOAD`).
+# `bin/leaf` carries them (`leaf_dev.arms.PAYLOAD`).
 [tool.uv.workspace]
 members = ["dev", "worker"]
 
@@ -118,3 +118,11 @@ markers = [
   "nightly: a pull request can land without it; `--run-nightly` runs it",
   "watch_shifts: a surveyed nightly test also rejects unsolicited layout shifts and typing that carries its field",
 ]
+# A test still running after half an hour is hung, not slow: the slowest takes under
+# three minutes on CI, so even ten times slower it finishes. The worker prints every
+# thread's stack, which names the call that blocked, and exits; xdist reports the test
+# as crashed and starts a fresh worker for the rest. Without this, a call with no
+# deadline of its own (`page.evaluate`, a new page, a lock) holds the run until the CI
+# job's six-hour limit.
+faulthandler_timeout = 1800
+faulthandler_exit_on_timeout = true

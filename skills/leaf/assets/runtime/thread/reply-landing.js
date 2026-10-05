@@ -24,7 +24,8 @@
    surface back first (`off-flow.js`). These landings serve thread navigation,
    sending, and editor growth. Merely entering a reply reveals its writing area
    instead (`landing.js`): a visible pinned row or a separate transcript keeps
-   the turn the user was reading, even when it is not the latest one. */
+   the turn the user was reading, even when it is not the latest one. A separate
+   transcript opened for reading shows its latest turn (`showLatestTurn`). */
 import { landingBand, seenRect, shownBox } from "../geometry.js";
 import { focused } from "../keyboard/scopes.js";
 import { scrollBehavior } from "../motion.js";
@@ -34,21 +35,28 @@ import { renderedParent } from "../shadow.js";
 import { bringBackSurfaceOf } from "../off-flow.js";
 import { retainUserIntent } from "../user-intent.js";
 import { scrollIntoReadingBand } from "../landing-scroll.js";
-import { atScrollEnd, scrollToEnd } from "../scrolling.js";
-import { SAYS_IN } from "./selectors.js";
+import { atScrollEnd, moveScrollerBy, scrollToEnd } from "../scrolling.js";
+import { SAYS_IN, SAY_ROW } from "./selectors.js";
 
-const REPLY_ROW = ".lf-thread-reply, .lf-say";
 const replyRowOf = (held, control) => {
   const reply =
     control === held
-      ? held.querySelector(":scope > .lf-thread-reply, :scope > .lf-say")
-      : control.closest(REPLY_ROW);
+      ? [...held.children].find((node) => node.matches(SAY_ROW))
+      : control.closest(SAY_ROW);
   return reply?.parentElement === held ? reply : null;
 };
 // A reply row pinned to its scroller's foot (a panel card's) stands in the band
 // while the thread's end lies below it, so aiming a scroll at it moves nothing: its place
 // in the transcript is the thread's end.
-const pinned = (reply) => reply && getComputedStyle(reply).position === "sticky";
+export function replyPinned(reply) {
+  if (!reply || getComputedStyle(reply).position !== "sticky") return false;
+  const scroller = scrollerFor(reply);
+  const floor =
+    scroller.getBoundingClientRect().bottom -
+    parseFloat(getComputedStyle(scroller).paddingBottom) -
+    parseFloat(getComputedStyle(reply).bottom);
+  return Math.abs(reply.getBoundingClientRect().bottom - floor) < 1;
+}
 // The common transcript is a separate reading region only when its container bounds it.
 const separateTranscript = (held) => {
   const transcript = held.querySelector(":scope > .lf-thread-transcript");
@@ -84,12 +92,34 @@ export const landingTarget = (held, control) => {
   if (shownBox(held).height <= room) return { node: held };
   const reply = replyRowOf(held, control);
   // The thread itself, landed as a whole, is not a way into its pinned reply.
-  if (pinned(reply))
+  if (replyPinned(reply))
     return control === held ? { node: null } : { node: held, block: "end" };
   if (reply && shownBox(reply).height <= room) return { node: reply };
   if (control === held && onScreen(held)) return { node: null };
   return { node: control };
 };
+
+// The turn a user comes back to a thread for: its latest message, or the summary
+// standing for earlier ones.
+export const latestTurn = (transcript) =>
+  [...transcript.querySelectorAll(":scope > :is(.lf-msg, .lf-thread-checkpoint)")].at(
+    -1,
+  ) ?? null;
+
+// A separate transcript opened for reading shows its latest turn: the transcript's end,
+// or that turn's head where it alone is taller than the transcript, as a long thread
+// lands in the Threads list (landing.js, `threadLandingStart`). The turn carries its
+// own head, so it is measured from the transcript's top.
+export function showLatestTurn(transcript) {
+  scrollToEnd(transcript);
+  const latest = latestTurn(transcript);
+  if (!latest) return;
+  const over =
+    transcript.getBoundingClientRect().top +
+    transcript.clientTop -
+    latest.getBoundingClientRect().top;
+  if (over > 0) moveScrollerBy(transcript, -over);
+}
 
 export function scrollThreadIntoView(
   held,
@@ -178,7 +208,7 @@ export function followBoxGrowth(input) {
     if (!onScreen(reply)) revealWritingArea(held, input, reply);
     return;
   }
-  if (!pinned(reply)) return revealWritingArea(held, input, reply);
+  if (!replyPinned(reply)) return revealWritingArea(held, input, reply);
   const height = reply.getBoundingClientRect().height;
   const grew = height - (rowHeights.get(input) ?? height);
   rowHeights.set(input, height);
@@ -192,7 +222,8 @@ export function followBoxGrowth(input) {
 export function readBoxPlace(input) {
   const held = input.closest(SAYS_IN);
   const reply = held && replyRowOf(held, input);
-  if (pinned(reply)) rowHeights.set(input, reply.getBoundingClientRect().height);
+  // The edit may be the one that takes a natural row to its sticky floor.
+  if (reply) rowHeights.set(input, reply.getBoundingClientRect().height);
   const transcript = held && separateTranscript(held);
   if (transcript)
     transcriptPlaces.set(input, {
@@ -213,7 +244,8 @@ export function readBoxPlace(input) {
 // whatever it cannot: a bounded block not yet full grows in the page instead.
 export function holdBox(control) {
   const held = control?.closest?.(SAYS_IN);
-  if (!held || pinned(replyRowOf(held, control)) || !onScreen(control)) return () => {};
+  if (!held || replyPinned(replyRowOf(held, control)) || !onScreen(control))
+    return () => {};
   const top = control.getBoundingClientRect().top;
   return () => {
     if (focused() !== control || !control.isConnected) return;

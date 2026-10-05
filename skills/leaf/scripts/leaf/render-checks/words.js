@@ -6,7 +6,7 @@ import {
   verbatimBoundaryIdentity,
   verbatimOwnerIdentity,
 } from "/runtime/widget-api.js";
-import { at } from "./locate.js";
+import { at, place } from "./locate.js";
 import { openRoots } from "./open-roots.js";
 
 const compositionalWords = (owner, declarations) => {
@@ -210,26 +210,10 @@ export function coveredWords({
   return [...new Set(found)];
 }
 
-// Code that came out the colour of the code around it. Colouring takes two halves that
-// meet nowhere a static lint can reach: the runtime writes data-lf-syn in the browser,
-// and the theme answers it with a var() the browser resolves. Either half can stop
-// working with nothing said — the tokenizer failing throws, and the console error is
-// already a finding here, but a stylesheet that no longer answers a role, or answers it
-// with an ink too near the paper, is silent. What reaches the user is a page of code in
-// one flat colour, which is what they report as the highlighting being gone; it was
-// reported that way, on a comment that was 3.3:1 against the block it sat on.
-//
-// So both halves are asked of the drawn result rather than of the declarations behind it.
-// A palette can be read out of the stylesheet; what a role came out as cannot, because a
-// project overlays its own theme over this one and the browser is the only thing that
-// knows which declaration won.
-//
-// Once per role and surface rather than once per span: the fault belongs to the role, not
-// to the hundredth span wearing it, and a role reads differently on a diff's del tint than
-// on the plain block, so the pair is what a reading answers for. A page of code costs a
-// couple of dozen of them rather than one per token — measured at under 10ms across the
-// examples. The line is per role, since the palette is where the fix goes and a role
-// failing on two tints is one thing to change.
+// Inspect the theme's actual token paint, including declared widget shadow roots.
+// Shiki supplies styles; page CSS resolves their variables. A theme may intentionally
+// give a token the surrounding ink, so the gate checks legibility rather than requiring
+// every syntax category to look different. Group identical styles by painted surface.
 //
 // What a colour is comes back from the browser painting it, not from a parse of how it
 // wrote it down — getComputedStyle serializes a hex as rgb() in 0–255 and a color-mix as
@@ -280,27 +264,21 @@ export function unreadSyntax() {
   for (const span of openRoots(document).flatMap((r) => [
     ...r.querySelectorAll("[data-lf-syn]"),
   ])) {
-    const role = span.dataset.lfSyn;
-    if (found.has(role) || !span.textContent.trim()) continue;
+    const style = span.style.cssText;
+    if (found.has(style) || !span.textContent.trim()) continue;
     if (!span.checkVisibility({ visibilityProperty: true, opacityProperty: true }))
       continue;
     const layers = under(span);
     const on = paint(...layers);
-    if (seen.has(`${role} on ${on}`)) continue;
-    seen.add(`${role} on ${on}`);
     const ink = paint(...layers, getComputedStyle(span).color);
-    const plain = paint(...layers, getComputedStyle(upFrom(span)).color);
+    const surface = `${style} ink ${ink} on ${on}`;
+    if (seen.has(surface)) continue;
+    seen.add(surface);
     const read = ratio(ink, on);
-    if (String(ink) === String(plain))
+    if (read < 4.5)
       found.set(
-        role,
-        `code marked ${role} is the ink of the code around it — ` +
-          `nothing answered [data-lf-syn="${role}"]`,
-      );
-    else if (read < 4.5)
-      found.set(
-        role,
-        `code marked ${role} reads at ${read.toFixed(1)}:1 ` +
+        style,
+        `code styled ${JSON.stringify(style)} reads at ${read.toFixed(1)}:1 ` +
           `against the block it is set on`,
       );
   }
@@ -449,7 +427,7 @@ export function shrunkLabels(floor) {
       const set = parseFloat(getComputedStyle(holder).fontSize);
       const drawn = set * Math.hypot(ctm.c, ctm.d);
       if (drawn >= floor || drawn >= set - 0.05) continue;
-      const found = drawings.get(svg) ?? { at: at(svg), labels: 0 };
+      const found = drawings.get(svg) ?? { at: at(svg), place: place(svg), labels: 0 };
       found.labels += 1;
       if (!(found.drawn <= drawn))
         Object.assign(found, {

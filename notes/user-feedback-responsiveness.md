@@ -26,13 +26,14 @@ can still prove the delegate is live.
 
 Read deterministic sequence and state at their owners: projection tests for
 sent/queued/opened/active/stale/settled evidence; real gestures for local results;
-agent traces for claim ordering. Use the website verifier as the vertical smoke
-test, with causal phase traces rather than a sleep treated as proof.
+agent traces for claim ordering. Use `leaf-dev journey` as the vertical test: it
+times a real request on any harness from the page's own log, and on `cc` and
+`codex` splits the agent's turn into delivery, model and tool phases.
 
 ```bash
-uv run leaf-dev eval 'document/idle' 'document/mid-turn' --help
+uv run leaf-dev eval --help
 uv run leaf-dev bench-latency --help
-uv run leaf-dev verify-site --help
+uv run leaf-dev journey --help
 ```
 
 ## Initial latency targets
@@ -47,14 +48,20 @@ phase traces before revising them.
 | Turn entry to visible pickup | Without waiting for model output; under 1 s |
 | Input in model context to accepted claim | Before substantive work; under 2 s |
 | Status or result write to browser paint | Next state application; under 1 s |
+| Comment admission to thread title | under 2 s |
+| Comment admission to reply, for a small page change | under 7 s |
 
-Work duration has no universal budget. Status should change when the operation
+The last two are the journey's `titled` and `replied` steps. On 2026-10-05,
+Claude Code titled in 1.4–2.2 s and replied in 7.8–17.5 s, Codex titled in
+3.8–6.1 s and replied in 65–125 s, and the website's adapter in 2.7–2.9 s and 14.2–19.4 s.
+
+Other work has no universal budget. Status should change when the operation
 changes, without timer-driven chatter. Measure the hosted agent's status updates
 as well as its reply so improving feedback does not delay the answer.
 
 ## Proposed improvements
 
-- **Cheap claims:** test a typed host operation against the CLI path before adding
+- **Cheap claims:** test a typed harness operation against the CLI path before adding
   another interface. The [Codex brief](codex-integration.md#typed-operations) owns
   that experiment.
 - **Claim admission:** check whether the claim door can atomically require an

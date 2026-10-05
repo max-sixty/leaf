@@ -37,6 +37,7 @@ import shutil
 import subprocess
 import time
 from contextlib import contextmanager
+from datetime import datetime, timezone
 from functools import cache
 from pathlib import Path
 from types import SimpleNamespace
@@ -45,7 +46,7 @@ from urllib.parse import parse_qsl, urlencode, urlsplit
 import pytest
 from browser_sources import browser_function
 from click.testing import CliRunner
-from interact_support import append_carried_log_record, wait_for
+from interact_support import STATED_TIMEOUT, append_carried_log_record, wait_for
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import files as files_model
@@ -78,27 +79,66 @@ ROOT = Path(__file__).parent.parent
 WRITE_WATCH_SOURCE = Path(__file__).with_name("write_watch.js")
 SHIFT_WATCH_SOURCE = Path(__file__).with_name("shift_watch.js")
 WORDS_WATCH_SOURCE = Path(__file__).with_name("words_watch.js")
+INPUT_WORK_WATCH_SOURCE = Path(__file__).with_name("input_work_watch.js")
+WATCH_PLATFORM_SOURCE = Path(__file__).with_name("watch_platform.js")
+
+
+def rendering_job_binding_source():
+    """Bind generic input scopes to the runtime's synchronous job lifecycle seam."""
+    return """Object.defineProperty(HTMLScriptElement.prototype, 'lfObserveQueuedWork', {
+      configurable: true,
+      set(observe) {
+        Object.defineProperty(this, 'lfObserveQueuedWork', {
+          value: observe, writable: true, enumerable: true, configurable: true,
+        });
+        const captured = new WeakMap(), entered = new WeakMap();
+        observe((phase, job) => {
+          if (phase === 'enqueue') captured.set(job, lfInputWork.captureScope());
+          else if (phase === 'run') entered.set(job, captured.get(job)());
+          else if (phase === 'finish') {
+            entered.get(job)();
+            entered.delete(job);
+            captured.delete(job);
+          } else if (phase === 'cancel') captured.delete(job);
+        });
+      },
+    });"""
 
 
 @cache
 def shift_watch_source():
-    """Install the sensor with the runtime's document-free control and clipping vocabulary."""
+    """Bind the sensor to the runtime's control, clipping, and scroll-space readings."""
     controls = subprocess.check_output(
         [
             "node",
+            "--import",
+            "./tests/runtime/dom.mjs",
             "--input-type=module",
             "--eval",
             (
                 'import { WORKS } from "./skills/leaf/assets/runtime/control-selectors.js";'
                 'import { clippingAxes } from "./skills/leaf/assets/runtime/rect.js";'
-                "process.stdout.write(JSON.stringify([WORKS,clippingAxes.toString()]));"
+                'import { scrollAxes } from "./skills/leaf/assets/runtime/geometry.js";'
+                'import { shadowHost, upFrom, renderedParent } from "./skills/leaf/assets/runtime/shadow.js";'
+                "process.stdout.write(JSON.stringify([WORKS,...[clippingAxes,shadowHost,upFrom,renderedParent,scrollAxes].map(fn=>fn.toString())]));"
             ),
         ],
         cwd=ROOT,
         text=True,
+        timeout=STATED_TIMEOUT,
     )
-    interactive, clipping = json.loads(controls)
-    return f"((interactive, clippingAxes) => {{\n{SHIFT_WATCH_SOURCE.read_text()}\n}})({json.dumps(interactive)}, {clipping});"
+    interactive, clipping, host, parent, rendered_parent, axes = json.loads(controls)
+    return (
+        WATCH_PLATFORM_SOURCE.read_text()
+        + "\n"
+        + "const nativePerformance = window.lfWatchPlatform.performance;\n"
+        + "const nativeFrame = callback => window.lfWatchPlatform.frame(callback);\n"
+        + "const nativeTask = (callback, ...args) => window.lfWatchPlatform.later(callback, ...args);\n"
+        + f"((interactive, clippingAxes) => {{\n"
+        f"const shadowHost = {host};\nconst upFrom = {parent};\n"
+        f"const renderedParent = {rendered_parent};\nconst scrollAxes = {axes};\n"
+        f"{SHIFT_WATCH_SOURCE.read_text()}\n}})({json.dumps(interactive)}, {clipping});"
+    )
 
 
 EXAMPLE_PACKAGES = json.loads((ROOT / "examples" / "layer.json").read_text())
@@ -491,8 +531,27 @@ def serve(tmp_path, monkeypatch, initialized_page):
             )
             assert initialized.exit_code == 0, initialized.output
 
+        def run_leaf(*args, input_text=None):
+            result = CliRunner().invoke(cli_model.cli, list(args), input=input_text)
+            assert result.exit_code == 0, result.output
+
+        def prepare(target):
+            prepare_page(
+                target,
+                fixture,
+                run_leaf,
+                initialize=False,
+                seed_log=seed_log,
+                final_status=None,
+                current_note="t",
+                earlier_note="t",
+            )
+
         # Local package contents vary between tests even when their selected path
-        # is the same, so only immutable bundled selections share a template.
+        # is the same, so only immutable bundled selections share a template. An
+        # example is a shape of its own, versions stamped and log seeded, since
+        # preparing one stamps every version it ships: seconds per page, paid once
+        # per worker rather than once per test.
         if (
             layer_registry is not None
             or layer_widgets
@@ -502,30 +561,46 @@ def serve(tmp_path, monkeypatch, initialized_page):
             )
         ):
             initialize(d)
+            if fixture:
+                prepare(d)
         else:
             template_name = (
                 "examples"
                 if packages is None
                 else "examples-" + ("-".join(selected_packages) or "no-packages")
             )
-            initialized_page(template_name, d, initialize)
+            if fixture:
+                example_name = example.resolve().relative_to(ROOT.resolve()).as_posix()
+                initialized_page(
+                    "--".join(
+                        (
+                            template_name,
+                            example_name.replace("/", "-"),
+                            "seeded" if seed_log else "unseeded",
+                        )
+                    ),
+                    d,
+                    lambda target: (initialize(target), prepare(target)),
+                )
+            else:
+                initialized_page(template_name, d, initialize)
         if fixture:
-
-            def run_leaf(*args, input_text=None):
-                result = CliRunner().invoke(cli_model.cli, list(args), input=input_text)
-                assert result.exit_code == 0, result.output
-
-            prepare_page(
-                d,
-                fixture,
-                run_leaf,
-                initialize=False,
-                seed_log=seed_log,
-                final_status=None,
-                current_note="t",
-                earlier_note="t",
-            )
-        else:
+            # The page pool can lend a copy hours after it stamped the template.
+            # Its current publication is new to this test, so keep the timestamp
+            # used by worker freshness readings new too. Earlier notes and seeded
+            # history retain their fixture times.
+            log = d / "events.jsonl"
+            lines = log.read_text(encoding="utf-8").splitlines()
+            for index in range(len(lines) - 1, -1, -1):
+                event = json.loads(lines[index])
+                if event["kind"] == "note":
+                    event["ts"] = datetime.now(timezone.utc).isoformat(
+                        timespec="seconds"
+                    )
+                    lines[index] = json.dumps(event, separators=(",", ":"))
+                    log.write_text("\n".join(lines) + "\n", encoding="utf-8")
+                    break
+        if not fixture:
             html = source
             (d / "index.html").write_text(html)
             references = structure_model.SourceDocument(html).media_refs
@@ -696,7 +771,7 @@ def _until(page, fact, wanted):
     forever cannot keep a false fact alive."""
     traffic = _traffic(page)
     began = None
-    deadline = time.monotonic() + 30
+    deadline = time.monotonic() + render_checks_model.SERVED_TIMEOUT_MS / 1000
     while True:
         raw = traffic._raw()
         reading = traffic._parse(raw)
@@ -821,7 +896,7 @@ def sending(page, what):
 # that dispatches the route here — until the list has it.
 def holding(page, held, count, what):
     """Wait until `held` has collected `count` requests the route put there."""
-    deadline = time.monotonic() + 30
+    deadline = time.monotonic() + render_checks_model.SERVED_TIMEOUT_MS / 1000
     while len(held) < count:
         if time.monotonic() >= deadline:
             raise AssertionError(
@@ -1098,38 +1173,12 @@ def displayed(page):
 
     Visibility checks can force layout before a render-blocking stylesheet arrives;
     first contentful paint excludes that unstyled reading."""
-    page.wait_for_function(FIRST_PAINT)
-
-
-HANDOVER_DEADLINE_MS = 90_000
-"""How long a complete page handover may take before the page counts as wedged.
-
-`navigate` carried a whole handover — the document, and then the wait for the
-stamps the page raises over it — on no stated end of its own, so it took
-Playwright's implicit 30s: a deadline on the work a page does rather than on a
-fact another process states, and no more room for all of it than
-`SERVED_TIMEOUT_MS` gives a single probe. The corpus is the heaviest page the
-suite carries it on: a cold handover of it reaches readiness in 16-18s on an
-idle four-core host, and in 19-24s once the nightly's second worker is driving a
-browser beside it. That is 80% of the old budget at the top of the range, and the
-nightly for 95a542a9 spent all of it on
-`test_composed_corpus_runs_authored_page_modules`.
-
-`restarting` takes the same constant, and its 30s was stated rather than
-implicit: a page whose server was replaced under it comes back up through this
-same handover. The harness's remaining unstated navigations — `opened_tab`'s
-`goto`, and the runtime install `wait_for_revision` waits for — keep the implicit
-default, as do the direct `wait_until_ready` calls in the test modules. Those are
-re-waits and primings on small fixtures, none of them has failed, and they are a
-change to make on their own terms rather than inside a CI repair.
-
-Sized like `STATED_TIMEOUT` in `interact_support.py` and generous for the same
-reason: it separates a page that never arrives from a machine that has not got
-there yet, so it is set where a merely slow handover still finishes and a wedged
-one still fails well inside the nightly step's own bound. Waiting longer weakens
-no claim, since the stamps say the same thing whenever they arrive and nothing
-here reads how quickly a page came up — the suite's startup readings are the
-phase profile `leaf-dev verify-site wrangler` takes."""
+    try:
+        page.wait_for_function(FIRST_PAINT)
+    except PlaywrightTimeout as error:
+        raise AssertionError(
+            f"{page.url} never reported a first contentful paint"
+        ) from error
 
 
 def draft_key(page, ctx: str) -> str:
@@ -1219,16 +1268,24 @@ def judge_watches():
     last act changed have painted (`shift_watch.js`, `lfShiftsJudged`), and then every
     loss of typed words so far (`words_watch.js`, `lfWordsJudged`).
 
-    Chrome hands a frame's shifts to the observer only after it paints, and a loss waits
-    a moment for the press that may answer for it, so a test whose last act moves the
-    page or takes words away would end before the report. `conftest.py` calls this as
-    the test body returns, while the pages' servers still answer: a page left painting
+    Chrome hands a frame's shifts to the observer only after it paints, so a test whose
+    last act moves the page or takes words away would end before the report. Judgement
+    waits for that evidence with a hang deadline; elapsed time cannot count as a
+    completed paint. `conftest.py` calls this as the test body returns, while the
+    pages' servers still answer: a page left painting
     after its server is gone lets its failed fetches reach the console."""
     for page, _ in _BROWSER_PROBLEM_LISTS or ():
         if not page.is_closed():
             for frame in page.frames:
-                frame.evaluate("() => window.lfShiftsJudged?.()")
-                frame.evaluate("() => window.lfWordsJudged?.()")
+                frame.wait_for_function(
+                    """async () => {
+                        await window.lfShiftsJudged?.();
+                        await window.lfWordsJudged?.();
+                        return true;
+                    }""",
+                    timeout=render_checks_model.SERVED_TIMEOUT_MS,
+                    polling=100,
+                )
 
 
 def watched(page):
@@ -1261,7 +1318,20 @@ def watched(page):
     page.on("pageerror", lambda e: errors.append(str(e)))
     render_checks_model.install_window_errors(page)
     page.add_init_script(path=WRITE_WATCH_SOURCE)
-    page.add_init_script(path=WORDS_WATCH_SOURCE)
+    # One init script keeps cause tracking installed before its words subscriber;
+    # Playwright does not promise an order between separately registered scripts.
+    page.add_init_script(
+        script="\n".join(
+            source.read_text()
+            for source in (
+                WATCH_PLATFORM_SOURCE,
+                INPUT_WORK_WATCH_SOURCE,
+                WORDS_WATCH_SOURCE,
+            )
+        )
+        + "\n"
+        + rendering_job_binding_source()
+    )
     if _TEST is None or watches_shifts(_TEST):
         page.add_init_script(script=shift_watch_source())
     # Diagnostics join the document's captured module graph, not the mutable layer.
@@ -1296,7 +1366,7 @@ def restarting(page):
     """
     mark = len(page.lf_errors)
     yield
-    wait_until_ready(page, timeout_ms=HANDOVER_DEADLINE_MS)
+    wait_until_ready(page)
     del page.lf_errors[mark:]
 
 
@@ -1307,7 +1377,7 @@ def take_browser_errors(page):
     return errors
 
 
-def reported_browser_errors(page, *expected, timeout=10):
+def reported_browser_errors(page, *expected):
     """Wait for the complete report a fault draws, then consume it.
 
     One fault is reported by every boundary that carried it, and the later words can be
@@ -1323,7 +1393,7 @@ def reported_browser_errors(page, *expected, timeout=10):
     console messages to this process only while it is inside one."""
     assert expected, "expected browser problems cannot be empty"
     wanted = list(expected)
-    deadline = time.monotonic() + timeout
+    deadline = time.monotonic() + render_checks_model.SERVED_TIMEOUT_MS / 1000
     while page.lf_errors != wanted and time.monotonic() < deadline:
         page.wait_for_timeout(25)
     errors = take_browser_errors(page)
@@ -1339,6 +1409,23 @@ def consume_browser_errors(page, *expected):
         any(fragment in error for fragment in expected) for error in errors
     ), errors
     return errors
+
+
+def xfail_browser_problem(page, *expected, reason):
+    """Quarantine one verified main defect after the journey's assertions finish.
+
+    A fixed defect passes. Any other browser problem, including another report of
+    the named loss, fails. Keep the assertion after xfail so --runxfail exposes
+    the original failure rather than clearing it into a pass.
+    """
+    assert expected, "known browser problems cannot be empty"
+    page.evaluate("lfWordsJudged()")
+    errors = take_browser_errors(page)
+    if not errors:
+        return
+    assert errors == list(expected), errors
+    pytest.xfail(reason)
+    raise AssertionError(errors)
 
 
 # What navigate reports when a ResizeObserver loop notice comes back on the confirming
@@ -1361,13 +1448,15 @@ def navigate(page, url, *, wait_until="load", upgraded=True):
 
     def complete_navigation():
         start = len(errors)
-        page.goto(url, wait_until=wait_until, timeout=HANDOVER_DEADLINE_MS)
+        page.goto(
+            url, wait_until=wait_until, timeout=render_checks_model.HANDOVER_DEADLINE_MS
+        )
         if upgraded:
-            wait_until_ready(page, timeout_ms=HANDOVER_DEADLINE_MS)
+            wait_until_ready(page)
         else:
             page.wait_for_function(
                 "() => document.querySelector('.lf-banner') !== null",
-                timeout=HANDOVER_DEADLINE_MS,
+                timeout=render_checks_model.HANDOVER_DEADLINE_MS,
             )
         # Let the rendering turn that earned the readiness stamp finish. A loop
         # notice is delivered by that turn, rather than by the DOM write alone.
@@ -1479,6 +1568,37 @@ def expect_banner_control_offered(control, *, offered=True):
         expect(control).to_have_css("display", "none")
 
 
+# How many of the page's active Asks are answered, as "answered/total": the publisher's
+# own Ask reading, which the Queue panel's Done list and the `a` walk select from. Before
+# the page has admitted a state answer the reading is empty, which is no count at all.
+_ASKS_ANSWERED = """async () => {
+  const { readApplication } = await window.__lfRuntimeImport('/runtime/semantic-state.js');
+  window.__lfAsksAnswered = () => {
+    const application = readApplication();
+    if (application.phase !== 'ready') return null;
+    const { all, unanswered } = application.effective.asks;
+    return `${all.length - unanswered.length}/${all.length}`;
+  };
+}"""
+
+
+def expect_asks_answered(page, answered: str) -> None:
+    """Wait until the page's Ask reading holds `answered` ("answered/total").
+
+    The deadline bounds a hang; on expiry the failure names the reading the page held.
+    """
+    page.evaluate(_ASKS_ANSWERED)
+    try:
+        page.wait_for_function(
+            "(want) => window.__lfAsksAnswered() === want",
+            arg=answered,
+            timeout=render_checks_model.SERVED_TIMEOUT_MS,
+        )
+    except PlaywrightTimeout as error:
+        held = page.evaluate("() => window.__lfAsksAnswered()")
+        raise AssertionError(f"answered Asks read {held}, not {answered}") from error
+
+
 def open_page(
     browser,
     url,
@@ -1538,7 +1658,7 @@ def open_page(
     return page
 
 
-def opened_tab(page, destination, press, timeout=10_000):
+def opened_tab(page, destination, press):
     """Press once and return a controlled tab after Chromium opens `destination`.
 
     Playwright can permanently lose the Page for a target Chromium opened. The browser's
@@ -1570,7 +1690,7 @@ def opened_tab(page, destination, press, timeout=10_000):
 
     before = set(page_targets())
     opened = {}
-    deadline = time.monotonic() + timeout / 1000
+    deadline = time.monotonic() + render_checks_model.SERVED_TIMEOUT_MS / 1000
     try:
         try:
             press()
@@ -1616,7 +1736,9 @@ def opened_tab(page, destination, press, timeout=10_000):
                     f"Chromium did not close page target {target_id}"
                 )
             if opened:
-                close_deadline = time.monotonic() + timeout / 1000
+                close_deadline = (
+                    time.monotonic() + render_checks_model.SERVED_TIMEOUT_MS / 1000
+                )
                 while set(opened) & set(page_targets()):
                     if time.monotonic() >= close_deadline:
                         raise AssertionError(
@@ -1654,6 +1776,14 @@ def opened_tab(page, destination, press, timeout=10_000):
 # crossing that transition are lost just as silently.
 arm_interception = render_gate_model.arm_interception
 
+# A browser wait bounds a hang; it does not time the work it waits for (tests/AGENTS.md,
+# "Functional results do not depend on execution speed"). One that names no deadline
+# takes `SERVED_TIMEOUT_MS`, the bound on one probe or request: an `expect` assertion,
+# whose own default is five seconds, and every page action, wait and expectation on a
+# page `readable` prepares. A wait that spans a page handover names
+# `HANDOVER_DEADLINE_MS`.
+expect.set_options(timeout=render_checks_model.SERVED_TIMEOUT_MS)
+
 
 def readable(page):
     """Install what the suite reads off a page, before the page navigates.
@@ -1668,19 +1798,14 @@ def readable(page):
 
     They are therefore installed where a page is made rather than asked for by each
     test, which is what `WatchedBrowser` is for. A page that already carries them is
-    left alone, since a second response listener would report every failure twice.
+    left alone, since a second console listener would report every problem twice.
     """
     if getattr(page, "lf_errors", None) is not None:
         return page
+    page.set_default_timeout(render_checks_model.SERVED_TIMEOUT_MS)
     page.lf_traffic = Traffic(page)
     arm_interception(page)
-    errors = watched(page)
-    # The console's own word for a bad response is "Failed to load resource", which
-    # names nothing; carry the status and URL so a failure says what went missing.
-    page.on(
-        "response",
-        lambda r: errors.append(f"{r.status} {r.url}") if r.status >= 400 else None,
-    )
+    watched(page)
     return page
 
 
@@ -1907,7 +2032,7 @@ def regions_side_by_side(regions: str, columns: str = "1fr 1fr") -> str:
     """The page's own stylesheet setting a workspace body's panes side by side, as a
     page writes it: a grid, which stacks where the workspace flows."""
     return f"""<style>
-#{regions} {{ display: grid; grid-template-columns: {columns}; gap: var(--sp-4); }}
+#{regions} {{ display: grid; grid-template-columns: {columns}; }}
 @media (width < 720px) {{ #{regions} {{ grid-template-columns: 1fr; }} }}
 </style>"""
 
@@ -2011,6 +2136,33 @@ def select(page, start, end, steps=8):
     """Drag and release a selection."""
     hold_selection(page, start, end, steps)
     page.mouse.up()
+
+
+def select_words(page, passage):
+    """Triple-click a passage's words, which is not the same point as its box.
+
+    Playwright aims at the element's centre, and a short paragraph in a wide column is
+    mostly empty there. The response bar the user already opened on a neighbouring
+    passage stands in that empty half — it is placed to keep its own target clear, not
+    the page — so a gesture aimed at the centre lands on the field instead of on the
+    words and never reaches the passage. The words are where a user aims, so the
+    click goes to the start of the first line the passage draws."""
+    locator = page.locator(passage)
+    locator.scroll_into_view_if_needed()
+    x, y = locator.evaluate(
+        """element => {
+          const range = element.ownerDocument.createRange();
+          range.selectNodeContents(element);
+          const [line] = range.getClientRects();
+          const box = element.getBoundingClientRect();
+          if (!line) return [box.width / 2, box.height / 2];
+          return [
+            line.left + Math.min(24, line.width / 2) - box.left,
+            line.top + line.height / 2 - box.top,
+          ];
+        }"""
+    )
+    locator.click(click_count=3, position={"x": x, "y": y})
 
 
 def write(box, text):
@@ -2141,9 +2293,11 @@ def live_counts(page):
 
 
 def still_page(browser, url, width=1200):
-    """The page at `url` for a reader who asked for reduced motion, under a clock that
-    stays on one instant, so what changes on it is what the test did: no film plays
-    itself and no age ticks over to the next minute while the test reads."""
+    """The page at `url` with reduced motion and a fixed wall-clock date.
+
+    Age labels stay fixed; timers, rendering and observer delivery still run. Tests
+    of timer behavior explicitly advance this context's controlled timer clock.
+    """
     context = browser.new_context(
         viewport={"width": width, "height": 900}, reduced_motion="reduce"
     )
@@ -2151,16 +2305,15 @@ def still_page(browser, url, width=1200):
     return open_page(browser, url, context=context)
 
 
-# Two of the page's clock ticks and room to spare (`TICK_MS`, state-feed.js): at rest the
-# clock is all that runs, and a tick that wrote would write inside the window.
+# Two of the page's timer ticks (`TICK_MS`, state-feed.js), advanced explicitly so a
+# slow machine still executes the callbacks the reading covers.
 REST_SECONDS = 5
 
 
 def left_alone(page):
     """Prepare a still_page and its Leaf frames for their reading: rendered, arrival
     notices retired, and the pointer off its controls. Advance its controlled timer
-    clock through every callback while Date.now stays fixed; the following test keeps
-    real-time timers.
+    clock through every due callback while Date.now stays fixed.
     """
 
     def prepare_children(parent):
@@ -2196,14 +2349,14 @@ def at_rest(page):
     each frame it asks for, each time it moves the focus, and each animation it runs
     without end, in its own document and each one it frames, such as a live sample.
 
-    It starts once the still_page is `left_alone` and watches in real time for
-    `REST_SECONDS`. Frames are counted where they are asked for, so a loop that writes
-    nothing but still wakes the page every frame is named too."""
+    It starts once the still_page is `left_alone` and advances the timer clock through
+    `REST_SECONDS`, running each due callback. Frames are counted where they are asked
+    for, so a loop that writes nothing but still wakes the page every frame is named too."""
     left_alone(page)
     frames = page.frames
     for frame in frames:
         frame.evaluate(_REST_ARM)
-    time.sleep(REST_SECONDS)
+    page.clock.run_for(REST_SECONDS * 1000)
     findings = []
     for frame in frames:
         rest = frame.evaluate(_REST_READ)

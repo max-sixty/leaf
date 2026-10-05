@@ -19,6 +19,8 @@ import pytest
 from click.testing import CliRunner
 from conftest import LEAF_COMMAND
 from interact_support import (
+    COMPOSITE_TIMEOUT,
+    STATED_TIMEOUT,
     append_carried_log_record,
     consume_pending_input,
     install_payload,
@@ -29,14 +31,14 @@ from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import exporting as exporting_model
 from leaf import files as files_model
+from leaf import harness as harness_model
 from leaf import hooks as hooks_model
-from leaf import host as host_model
 from leaf import leases as leases_model
 from leaf import media as media_model
 from leaf import server as server_model
 from leaf import service as service_model
 from leaf import state as cleanup_model
-from leaf.render_checks import wait_until_ready
+from leaf.render_checks import HANDOVER_DEADLINE_MS, wait_until_ready
 from leaf.schema import ELEMENT_ID
 from leaf.structure import UTF8_BOM
 from leaf_dev import preview as preview_model
@@ -80,7 +82,7 @@ def preview_slot(tmp_path, monkeypatch):
 
 
 def start_preview(spawn, command: list[str], log: Path, **kwargs):
-    """Run a preview the way a host's background runner does, and read its URL.
+    """Run a preview the way a harness's background runner does, and read its URL.
 
     Its output goes to a file the test reads, and it leads a process group of its
     own, so `spawn` ends the `uv run` child doing the work along with the launcher
@@ -92,7 +94,6 @@ def start_preview(spawn, command: list[str], log: Path, **kwargs):
             cwd=ROOT,
             stdout=output,
             stderr=subprocess.STDOUT,
-            start_new_session=True,
             text=True,
             **kwargs,
         )
@@ -103,21 +104,24 @@ def start_preview(spawn, command: list[str], log: Path, **kwargs):
         return any(line.startswith("http://") for line in text.splitlines())
 
     output = wait_for(
-        log.read_text, announced, failure="the preview printed no URL", timeout=90
+        log.read_text,
+        announced,
+        failure="the preview printed no URL",
+        timeout=COMPOSITE_TIMEOUT,
     )
     url = next(line for line in output.splitlines() if line.startswith("http://"))
     return process, url
 
 
 def end_preview(process) -> None:
-    """Stop a preview the way a host's runner stops a task.
+    """Stop a preview the way a harness's runner stops a task.
 
     The exit status is not the evidence: a signal that lands while `watchfiles`
     waits comes back out of it as `KeyboardInterrupt`, so the same stop exits 130
     or 143 depending on where it lands. What the stop left running is.
     """
     os.killpg(process.pid, signal.SIGTERM)
-    process.wait(timeout=30)
+    process.wait(timeout=STATED_TIMEOUT)
 
 
 def test_interrupting_a_live_preview_exits_without_a_traceback(preview_slot, spawn):
@@ -134,11 +138,10 @@ def test_interrupting_a_live_preview_exits_without_a_traceback(preview_slot, spa
         cwd=ROOT,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
-        start_new_session=True,
         text=True,
     )
 
-    deadline = time.monotonic() + 90
+    deadline = time.monotonic() + COMPOSITE_TIMEOUT
     while not server_model.running_server(page):
         if preview.poll() is not None:
             output, _ = preview.communicate()
@@ -148,7 +151,7 @@ def test_interrupting_a_live_preview_exits_without_a_traceback(preview_slot, spa
         time.sleep(0.05)
 
     os.killpg(preview.pid, signal.SIGINT)
-    output, _ = preview.communicate(timeout=10)
+    output, _ = preview.communicate(timeout=STATED_TIMEOUT)
 
     assert preview.returncode == 130, output
     assert server_model.running_server(page) is None
@@ -209,13 +212,12 @@ preview.preview.main(args=sys.argv[1:])
             log.read_text,
             lambda output: "Cleanup started" in output,
             failure="the stop signal never reached service cleanup",
-            timeout=10,
         )
         process.send_signal(next_signal)
     finally:
         process.stdin.write("release\n")
         process.stdin.flush()
-    process.wait(timeout=30)
+    process.wait(timeout=STATED_TIMEOUT)
 
     output = log.read_text()
     assert "Cleanup finished" in output, output
@@ -261,7 +263,6 @@ def test_terminating_a_preview_while_its_service_starts_leaves_none(
             cwd=ROOT,
             stdout=output,
             stderr=subprocess.STDOUT,
-            start_new_session=True,
         )
 
     def serving_child():
@@ -277,11 +278,11 @@ def test_terminating_a_preview_while_its_service_starts_leaves_none(
         serving_child,
         lambda pids: pids or process.poll() is not None,
         failure="the preview never spawned its service",
-        timeout=90,
+        timeout=COMPOSITE_TIMEOUT,
     )
     assert children, (tmp_path / "preview.log").read_text()
     os.killpg(process.pid, signal.SIGTERM)
-    process.wait(timeout=30)
+    process.wait(timeout=STATED_TIMEOUT)
     wait_for(serving_child, lambda pids: not pids, failure="the service outlived it")
     assert server_model.running_server(page) is None
     service = files_model.read_json(page / "service.json")
@@ -307,7 +308,7 @@ def test_a_leaf_failure_exits_the_preview_without_a_wrapper_traceback(
         capture_output=True,
         check=False,
         text=True,
-        timeout=90,
+        timeout=COMPOSITE_TIMEOUT,
     )
 
     assert result.returncode == 1, f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
@@ -335,7 +336,7 @@ def test_a_watch_subscription_collects_before_its_first_read(tmp_path):
         edited.write_text("<p>edited</p>", encoding="utf-8")
         time.sleep(1)
         reported = set()
-        deadline = time.monotonic() + 10
+        deadline = time.monotonic() + STATED_TIMEOUT
         while str(edited) not in reported:
             assert time.monotonic() < deadline, (
                 f"the edit was never reported: {reported}"
@@ -466,7 +467,7 @@ def test_a_preview_records_real_gestures_outside_the_task(
         )
         expect(
             driven.get_by_role("heading", name="A preview follows source edits")
-        ).to_be_visible(timeout=30000)
+        ).to_be_visible(timeout=HANDOVER_DEADLINE_MS)
     expect(driven.locator("#opt-shim")).to_have_attribute("chosen", "")
     assert (page_dir / "events.jsonl").read_bytes().startswith(feedback)
     assert (page_dir / "events.jsonl").stat().st_ino == inode
@@ -509,7 +510,7 @@ def test_a_preview_records_real_gestures_outside_the_task(
         capture_output=True,
         check=False,
         text=True,
-        timeout=90,
+        timeout=COMPOSITE_TIMEOUT,
     )
     assert refused.returncode == 1
     assert "another preview is serving" in refused.stderr
@@ -529,7 +530,7 @@ def test_a_preview_records_real_gestures_outside_the_task(
 def _reachable(url: str) -> bool:
     """Whether a preview's published address still answers."""
     try:
-        with urllib.request.urlopen(url, timeout=5) as answer:
+        with urllib.request.urlopen(url, timeout=STATED_TIMEOUT) as answer:
             return answer.status == 200
     except (urllib.error.URLError, OSError):
         return False
@@ -573,7 +574,9 @@ def test_an_unclaimed_preview_keeps_its_gestures_out_of_the_stop_hook(
         page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "text": "probe"},
     )
-    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": session})
+    hooks_model.cmd_hook(
+        "claude-code", {"hook_event_name": "Stop", "session_id": session}
+    )
     assert capsys.readouterr().out == ""
 
 
@@ -662,13 +665,12 @@ def test_a_user_preview_restarts_under_its_original_codex_claim(
             "PYTHONHOME": sys.base_prefix,
             "LEAF_PREVIEWS_ROOT": str(directory.parent),
         },
-        start_new_session=True,
     )
     wait_for(
         lambda: log.read_text() if log.exists() else "",
         lambda output: "Watching " in output,
         failure="the preview under the Codex task did not start",
-        timeout=90,
+        timeout=COMPOSITE_TIMEOUT,
     )
     claim = service_model.page_claim(directory)
     assert claim["pid"] == owner.pid
@@ -678,7 +680,6 @@ def test_a_user_preview_restarts_under_its_original_codex_claim(
         log.read_text,
         lambda output: "Reloaded detached" in output,
         failure="the preview did not restart for its runtime",
-        timeout=60,
     )
     assert server_model.running_server(directory)
     assert service_model.page_claim(directory) == claim
@@ -691,14 +692,12 @@ def test_a_user_preview_restarts_under_its_original_codex_claim(
             lambda: server_model.running_server(directory),
             lambda running: not running,
             failure="the refresh did not stop the service",
-            timeout=30,
         )
         transaction.release_claim()
     wait_for(
         log.read_text,
         lambda output: "no longer owns" in output,
         failure="the preview did not report its lost claim",
-        timeout=30,
     )
     assert server_model.running_server(directory) is None
     assert service_model.page_claim(directory)["released"] is not None
@@ -730,7 +729,7 @@ def test_preview_watches_runtime_and_source_without_losing_user_state(
         with theme.open("a", encoding="utf-8") as stream:
             stream.write("\nh1 { color: rgb(17, 83, 129); }\n")
         expect(page.locator("h1")).to_have_css(
-            "color", "rgb(17, 83, 129)", timeout=30000
+            "color", "rgb(17, 83, 129)", timeout=HANDOVER_DEADLINE_MS
         )
     assert (
         json.loads((directory / "registry.json").read_text())["$layer"]["generation"]
@@ -745,7 +744,7 @@ def test_preview_watches_runtime_and_source_without_losing_user_state(
     revised = original.replace("Rollout", "A watched source revision", 1)
     source.write_text(revised, encoding="utf-8")
     expect(page.get_by_role("heading", name="A watched source revision")).to_be_visible(
-        timeout=30000
+        timeout=HANDOVER_DEADLINE_MS
     )
     expect(page.locator("#opt-shim")).to_have_attribute("chosen", "")
     assert (directory / "events.jsonl").read_bytes().startswith(feedback)
@@ -755,7 +754,6 @@ def test_preview_watches_runtime_and_source_without_losing_user_state(
         log.read_text,
         lambda output: "Preview update refused" in output,
         failure="the invalid preview update was not refused",
-        timeout=30,
     )
     expect(
         page.get_by_role("heading", name="A watched source revision")
@@ -768,7 +766,7 @@ def test_preview_watches_runtime_and_source_without_losing_user_state(
         encoding="utf-8",
     )
     expect(page.get_by_role("heading", name="Recovered watched source")).to_be_visible(
-        timeout=30000
+        timeout=HANDOVER_DEADLINE_MS
     )
     expect(page.locator("#opt-shim")).to_have_attribute("chosen", "")
     assert (directory / "events.jsonl").read_bytes().startswith(feedback)
@@ -880,7 +878,7 @@ def test_a_failed_preview_bootstrap_hears_the_replacement_server(
             runtime / "skills" / "leaf" / "packages" / "default" / "registry.json"
         ).write_text("{", encoding="utf-8")
         expect(page.locator("body")).to_have_attribute(
-            "data-lf-presented", "1", timeout=30000
+            "data-lf-presented", "1", timeout=HANDOVER_DEADLINE_MS
         )
         expect(status).not_to_be_visible()
     if resource == "widgets/lf-options.js":
@@ -932,7 +930,7 @@ def test_a_failed_bootstrap_hears_a_static_registry_generation(
         )
         expect(status).to_be_visible()
         expect(page.locator("body")).to_have_attribute(
-            "data-lf-presented", "1", timeout=10000
+            "data-lf-presented", "1", timeout=HANDOVER_DEADLINE_MS
         )
     assert len(probes) >= 2
     assert len(documents) == 2
@@ -979,7 +977,6 @@ def test_a_service_that_goes_away_mid_start_says_only_that_and_comes_back(
                 lambda: _reachable(url),
                 lambda reachable: not reachable,
                 failure="the runtime edit did not stop the service",
-                timeout=30,
             )
         route.continue_()
 
@@ -1007,7 +1004,7 @@ def test_a_service_that_goes_away_mid_start_says_only_that_and_comes_back(
             lambda: server_model.running_server(directory),
             bool,
             failure="the preview did not bring its service back",
-            timeout=90,
+            timeout=COMPOSITE_TIMEOUT,
         )
 
 
@@ -1026,7 +1023,6 @@ def test_preview_adds_immutable_media_before_stamping_source(watched_preview):
         lambda: (directory / "index.html").read_text(),
         lambda source: source == revised,
         failure="the source referencing new media was not stamped",
-        timeout=30,
     )
     assert (directory / "media" / image.name).read_bytes() == expected
 
@@ -1035,7 +1031,6 @@ def test_preview_adds_immutable_media_before_stamping_source(watched_preview):
         log.read_text,
         lambda output: "use a new filename" in output,
         failure="the changed media bytes were not refused",
-        timeout=30,
     )
     assert (directory / "media" / image.name).read_bytes() == expected
 
@@ -1046,7 +1041,6 @@ def test_preview_adds_immutable_media_before_stamping_source(watched_preview):
         lambda: (directory / "media" / second.name).exists(),
         bool,
         failure="the new media did not reach the preview",
-        timeout=30,
     )
     assert (directory / "media" / image.name).read_bytes() == expected
 
@@ -1063,10 +1057,9 @@ def test_terminating_a_preview_mid_update_leaves_no_service(served_preview):
             lambda: json.loads((directory / "service.json").read_text())["enabled"],
             lambda enabled: not enabled,
             failure="watcher did not begin the update",
-            timeout=30,
         )
         os.killpg(process.pid, signal.SIGTERM)
-    process.wait(timeout=30)
+    process.wait(timeout=STATED_TIMEOUT)
     assert server_model.running_server(directory) is None
     assert (directory / "events.jsonl").is_file()
     assert (directory / "index.html").read_bytes() == source.read_bytes()
@@ -1092,7 +1085,6 @@ def test_a_user_preview_update_keeps_the_sessions_wait_watching(
             [*LEAF_COMMAND, "wait"],
             stdout=output,
             stderr=subprocess.STDOUT,
-            start_new_session=True,
             text=True,
         )
     session = os.environ["CLAUDE_CODE_SESSION_ID"]
@@ -1100,7 +1092,6 @@ def test_a_user_preview_update_keeps_the_sessions_wait_watching(
         lambda: waiter.poll() is None and leases_model.wait_is_live(directory, session),
         bool,
         failure="the wait did not start watching the preview",
-        timeout=30,
     )
     if edit == "source":
         source.write_text(
@@ -1114,7 +1105,6 @@ def test_a_user_preview_update_keeps_the_sessions_wait_watching(
         log.read_text,
         lambda output: "Reloaded watched" in output,
         failure="the preview did not finish its update",
-        timeout=60,
     )
     assert server_model.running_server(directory)
     assert waiter.poll() is None, waited.read_text()
@@ -1128,7 +1118,7 @@ def test_a_user_preview_update_keeps_the_sessions_wait_watching(
             "text": "still there?",
         },
     )
-    assert waiter.wait(timeout=30) == 0, waited.read_text()
+    assert waiter.wait(timeout=STATED_TIMEOUT) == 0, waited.read_text()
     assert "has new input" in waited.read_text()
     [batch] = consume_pending_input(session)["batches"]
     assert [event["text"] for event in batch["events"]] == ["still there?"]
@@ -1169,7 +1159,6 @@ def test_a_user_preview_brings_back_a_service_that_is_down_but_wanted(
             log.read_text,
             lambda output: "can't serve" in output,
             failure="the occupied preview address was not reported",
-            timeout=10,
         )
         assert files_model.read_json(directory / "service.json")["enabled"]
 
@@ -1177,7 +1166,6 @@ def test_a_user_preview_brings_back_a_service_that_is_down_but_wanted(
         lambda: server_model.running_server(directory),
         bool,
         failure="the preview did not bring its server back",
-        timeout=10,
     )
     assert process.poll() is None, log.read_text()
     assert server_model.running_server(directory)["port"] == port
@@ -1197,12 +1185,12 @@ def test_a_preview_relinquishes_a_service_another_session_claims(
     """The old author's watcher ends without disabling the successor's service."""
     _, _, directory, process, url, log = served_preview
     if unclaimed:
-        # A plain-terminal --user preview has no host session. Exercise its same
+        # A plain-terminal --user preview has no harness session. Exercise its same
         # cleanup boundary directly; the subprocess owns the serving resource.
         monkeypatch.delenv("CLAUDE_CODE_SESSION_ID", raising=False)
         cleanup = preview_model.PreviewService(directory, user=True)
     with service_model.PageTransaction(directory) as transaction:
-        transaction.take_claim(host_model.ClaudeCodeHarness("successor", "Claude"))
+        transaction.take_claim(harness_model.ClaudeCodeHarness("successor", "Claude"))
     if unclaimed:
         assert cleanup.ended
         cleanup.stop()
@@ -1210,7 +1198,6 @@ def test_a_preview_relinquishes_a_service_another_session_claims(
         lambda: process.poll(),
         lambda status: status is not None,
         failure="the former owner's preview kept following the successor's page",
-        timeout=10,
     )
     assert process.returncode == 0, log.read_text()
     assert service_model.page_claim(directory)["id"] == "successor"
@@ -1438,7 +1425,7 @@ def test_interactive_export_with_an_ask_reaches_application_presentation(
         "content", "width=device-width, initial-scale=1, viewport-fit=cover"
     )
     expect(page.locator("body")).to_have_attribute(
-        "data-lf-presented", "1", timeout=10000
+        "data-lf-presented", "1", timeout=HANDOVER_DEADLINE_MS
     )
     expect(page.locator(".lf-chrome")).to_have_count(0)
 
@@ -1461,7 +1448,7 @@ def test_an_interactive_export_paints_a_widget_owned_text_box(browser, serve, tm
     page = browser.new_page()
     page.goto(interactive.as_uri(), wait_until="load")
     expect(page.locator("body")).to_have_attribute(
-        "data-lf-presented", "1", timeout=10000
+        "data-lf-presented", "1", timeout=HANDOVER_DEADLINE_MS
     )
     form = page.locator("#jobs > .lf-another")
     field = form.locator("leaf-text")
@@ -1714,7 +1701,7 @@ def test_the_example_preview_command_exports_a_file_that_opens_on_its_own(
         capture_output=True,
         check=False,
         text=True,
-        timeout=90,
+        timeout=COMPOSITE_TIMEOUT,
     )
     assert result.returncode == 0, f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
     out = Path(result.stdout.splitlines()[-1])
@@ -1753,7 +1740,7 @@ def test_exporting_an_example_leaves_the_live_preview_untouched(
         assert (page_dir / "index.html").read_bytes() == live_source
     finally:
         CliRunner().invoke(cli_model.cli, ["server", "stop", str(page_dir)])
-        live_server.wait(timeout=5)
+        live_server.wait(timeout=STATED_TIMEOUT)
 
 
 def test_export_refuses_server_dependent_samples(serve, tmp_path):
@@ -1911,7 +1898,7 @@ def test_an_export_embeds_only_the_widgets_its_markup_names(browser, serve, tmp_
     """A widget the page and its messages never name brings none of its modules.
 
     The page draws code and a reply carries a diagram; nothing names a diff, so
-    Pierre's renderer, the largest bundle the layer vendors, stays out of the file.
+    Pierre's renderer stays out of the file.
     """
     serve(
         leaf_page(
@@ -2114,14 +2101,7 @@ def test_inline_threads_keep_their_words_without_live_controls_in_print(
     if not resolved:
         result = CliRunner().invoke(
             cli_model.cli,
-            [
-                "status",
-                str(serve.page_dir),
-                "working",
-                "checking the shard",
-                "--on",
-                root["id"],
-            ],
+            ["task", "start", str(serve.page_dir), root["id"], "checking the shard"],
         )
         assert result.exit_code == 0, result.output
     if resolved:

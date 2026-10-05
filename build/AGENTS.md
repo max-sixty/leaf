@@ -28,5 +28,5 @@ input a bundle reads. `package.json` pins every JavaScript version that ships.
 a comment behind for each item it removes (lit/lit#5298), so a list the chrome redraws
 grows for as long as the page is open. The releases it skips carry typings and a fix
 to the `ref` directive, which neither Leaf nor Web Awesome uses. Lift it to a release
-that carries lit/lit#5299; `test_a_closed_surface_leaves_the_page_as_it_found_it` fails
-while the leak stands.
+that carries lit/lit#5299; the closed-surface journey of
+`test_a_still_page_comes_back_from_every_journey_as_it_was` fails while the leak stands.

@@ -136,29 +136,25 @@
 }
 
 /* A rail pane is a panel: the card a wide page draws each region in, titled in the panel's
- * small capitals. */
+ * small capitals. Only a playground draws these regions, so the rules name no scope
+ * root: `:scope` would weigh a class, and the presets band's rule below would lose its
+ * bottom rule and padding to the generic header's. */
 :is(.lf-playground-controls-region, .lf-playground-instruction-region) {
   border-color: var(--rule);
   background: var(--card);
 }
 
-:scope:is(lf-playground)
-  :is(.lf-playground-controls-region, .lf-playground-instruction-region)
-> header {
+:is(.lf-playground-controls-region, .lf-playground-instruction-region) > header {
   padding: 14px 18px 0;
   border: 0;
 }
 
-:scope:is(lf-playground)
-  :is(.lf-playground-controls-region, .lf-playground-instruction-region)
-> :not(header, footer) {
+:is(.lf-playground-controls-region, .lf-playground-instruction-region) > :not(header, footer) {
   --lf-pane-top: 12px;
   padding: var(--lf-pane-top) 18px 16px;
 }
 
-:scope:is(lf-playground)
-  :is(.lf-playground-controls-region, .lf-playground-instruction-region)
-> footer {
+:is(.lf-playground-controls-region, .lf-playground-instruction-region) > footer {
   padding: 12px 18px;
 }
 

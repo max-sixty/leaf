@@ -39,7 +39,9 @@ from leaf.registry.schema import schema_error
 from leaf.schema import MESSAGE_KINDS, WIDGET_KINDS
 from leaf.served_state.thread import browser_thread
 from leaf.structure import review_mode
-from leaf.workflows import obligation_reading
+from leaf.tasks import task_error
+from leaf.work import widget_seat_error
+from leaf.workflows import admission_workflows, obligation_reading
 
 # The envelope the append lease itself assigns. Admission validates the complete
 # record, so pre-admission shape checks supply representative envelope fields.
@@ -609,7 +611,30 @@ def admission_error(
         or _reanchor_error(view, event, events)
         or read_contract_error(event, events)
         or _withdrawal_error(view, event, events, readings)
+        or _task_error(view, event, events, readings)
     )
+
+
+def _task_error(view, event: dict, events: list, readings) -> str | None:
+    """A task stands on an open thread, a widget that seats work, or the page; an
+    outcome ends a task still open; a start names an open task or a move the agent
+    owes (`tasks.task_error`)."""
+    if event["kind"] not in {"task", "task_end", "start"}:
+        return None
+    workflows = admission_workflows(readings)[0] if event["kind"] != "task_end" else []
+    threads = (
+        build_threads(events, view.within, withdrawn=taken_back(events))
+        if event["kind"] == "task"
+        else {}
+    )
+
+    def seat_error(widget: str) -> str | None:
+        if not view.revisions:
+            return f"{widget!r} is not a widget on this page"
+        return widget_seat_error(readings.page(view.revisions[-1]), widget, workflows)
+
+    owed = {item["input"] for item in workflows if item["next_actor"] == "agent"}
+    return task_error(event, events, threads, seat_error, owed)
 
 
 def _publication_error(view, event: dict) -> str | None:
@@ -662,6 +687,10 @@ def admitted_event(view, events: list, event: dict) -> dict:
         raise EventRefused(error)
     if kind in WIDGET_KINDS:
         event = admit_widget_event(view.document(event["revision"]), event, readings)
+    if kind == "task" and event["subject"]["kind"] == "widget":
+        # The revision the task was opened against, which the stamp that completes
+        # it must come after (`publishing`).
+        event = {**event, "revision": view.revisions[-1]}
     # Fold only a validated event. Attention is server-owned and boolean by
     # construction; the placeholder completes the stored shape before that fold.
     if error := event_record_error(
@@ -679,16 +708,13 @@ def admitted_event(view, events: list, event: dict) -> dict:
             **event,
             "seq": events[-1]["seq"] + 1 if events else 1,
         }
-        claims = view.claims
         # The sender's vocabulary validates its command; the active vocabulary
         # decides what that command changes for the page the agent owes now.
         revisions = view.revisions
         active_registry = view.registry(revisions[-1] if revisions else None)
         before = AdmissionReadings(view, events, active_registry)
         after = AdmissionReadings(view, [*events, candidate], active_registry)
-        attention = obligation_reading(before, claims) != obligation_reading(
-            after, claims
-        )
+        attention = obligation_reading(before) != obligation_reading(after)
     event = {**event, "attention": attention}
     return event
 

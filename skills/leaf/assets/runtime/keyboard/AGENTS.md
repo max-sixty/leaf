@@ -106,7 +106,7 @@ state, and press come from the one row the key uses.
 
 Every page command declares `touch`, and the register refuses one that does not; `false`
 says a finger reaches the result directly. Walks, paging, scrolling, and Go-to move the
-reader, which a finger does by scrolling and by tapping the Threads list, the Asks drawer,
+reader, which a finger does by scrolling and by tapping the Threads list, the Queue panel,
 or the Page Map. `n` walks a search that has closed, which a finger searches again from
 More. Choosing a match is the soft keyboard's Enter, or selecting the marked words.
 The ⌥ aim names a target, which a finger does by selecting words or through Select
@@ -114,6 +114,11 @@ element. `c` and `e` act on a selection, the item the user stands on, or the pag
 selection's Comment on selection step and response options, a thread's own controls,
 and the Threads box all take a tap. Ask digits duplicate the Decision's own control. The
 command reference and caret browsing describe or extend the keyboard itself.
+
+A command that preserves the reader's current context declares `retainStanding`.
+More holds a transient focus, caret and selection checkpoint before borrowing focus;
+its derived control restores that checkpoint before checking and invoking the row.
+Closing More or standing outside it retires the checkpoint.
 
 ## Modules
 

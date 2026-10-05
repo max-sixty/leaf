@@ -3,7 +3,8 @@
 // (skills/leaf/assets/AGENTS.md). The browser fixture installs it on every page a test
 // opens (render_harness.watched), so every test checks it.
 //
-// A field holds words once a trusted `beforeinput` edits it and the edit leaves text: a
+// A trusted `beforeinput` names an edit attempt; its actual input establishes held
+// words when the edit leaves text: a
 // textarea, an input that takes text, an editable element, or the host of a
 // `leaf-text`'s closed editor, whose `value` is the text. At every frame while any field
 // holds words, each is asked whether its words are still on the page: the field itself,
@@ -15,28 +16,37 @@
 // past waits out of view for it to come back.
 //
 // Words that are gone are the user's to have put away, so a key or a press must come
-// after the last edit, within a moment of the words going: Escape, Send, Cancel, a press
+// after the last edit, in the operation that puts the words away: Escape, Send, Cancel, a press
 // elsewhere, choosing another target, or an edit in another tab of the page that reaches
 // this one as storage news. What only moves the user around the words does
-// not count: a key that typed (one a trusted `beforeinput` followed), a modifier, the
-// caret keys, Tab, the page's scroll keys, and a press on the field itself. A wheel,
+// not count: a key whose typing applied or was cancelled,
+// a modifier, the caret keys, Tab, the page's scroll keys, and a press on the field itself. A wheel,
 // a scroll, a resize, a timer and the server's news are none of them either. Words gone
 // with no such key or press are reported on the console as a browser problem, which
 // fails the test like any other; a test whose words go for a reason the rule allows, as
 // a box's subject leaving the document, consumes the report where it causes it. Either
 // way the field is no longer watched until the user types in it again.
 //
-// The watch keeps the browser's own frame and timer functions from before the page
-// loads, so a test that counts the frames or timers a page asks for counts none of its.
+// Input provenance comes from input_work_watch.js: a delayed callback retains the
+// exact trusted input that scheduled it, while unrelated timers and news retain none.
+// A component declaring `input` as its exact native field may commit `value` before
+// that field paints. The first reading of that value edge retains its source,
+// including a passive source, until the same field paints the same value. Its exact
+// source survives a later native no-op, while a cancelled typing attempt revokes
+// its key credit. A different field, value or actual newer edit cannot borrow it;
+// words are judged only after native paint.
+// A trusted paste may edit a closed editor without native beforeinput. Its own host
+// input commits that edit only within the same paste callback; a cancelled or no-edit
+// paste never suspends observation, and its unused attempt ends with the dispatch.
+// Native value controls link their editor through `input` and expose the committed
+// `value`; an enclosing temporary value editor also declares its editing state as
+// `open`. A trusted put-away gesture's exact close, retaining that value, ends that
+// editor's lifetime before its asynchronous close paint. Capture the first close edge, including a passive one, then verify it in the next native
+// task after the whole callback and its microtasks: a later listener can cancel it,
+// and another input cannot claim it.
+// The watch keeps its own frame function, so its observation never owns page work.
 (() => {
-  const frame = window.requestAnimationFrame.bind(window);
-  const later = window.setTimeout.bind(window);
-  const cancel = window.clearTimeout.bind(window);
-  // How long before the words went a key or press may come and still be what put them
-  // away, a send whose answer re-renders the box; and how long after, a press whose
-  // surface closes before the press's own click arrives.
-  const BEFORE = 2000;
-  const AFTER = 200;
+  const { frame, later: task } = window.lfWatchPlatform;
   const text = (field) =>
     typeof field.value === "string" ? field.value : (field.textContent ?? "");
   const drawn = (node) => node.isConnected && node.checkVisibility();
@@ -58,150 +68,300 @@
     field instanceof HTMLInputElement
       ? TYPED.has(field.type)
       : field instanceof Element && field.matches(FIELDS);
-
-  // The recent keys and presses that can put words away: when, and for a press, the
-  // node pressed, which a field's own press is not.
-  const gestures = [];
-  const gestured = (at, node = null) => {
-    gestures.push({ at, node });
-    if (gestures.length > 20) gestures.shift();
-  };
-  // A press in this document, or in a same-origin document holding it, as a sample's
-  // host page drives the sample inside it, on this document's clock.
-  for (let view = window; ; view = view.parent) {
-    let held;
-    try {
-      held = view.document;
-    } catch {
-      break;
+  function* valueOwners(field) {
+    let input = field;
+    for (let host = input.getRootNode().host; host; host = input.getRootNode().host) {
+      if (host.input !== input || typeof host.value !== "string") break;
+      yield host;
+      input = host;
     }
-    const skew = view.performance.timeOrigin - performance.timeOrigin;
-    for (const type of [
-      "pointerdown",
-      "mousedown",
-      "touchstart",
-      "click",
-      "contextmenu",
-    ])
-      held.addEventListener(
-        type,
-        (event) => {
-          if (event.isTrusted)
-            gestured(event.timeStamp + skew, event.composedPath()[0]);
-        },
-        true,
-      );
-    if (view === view.parent) break;
   }
-  // The same user's edit in another tab of the page, which reaches this one as storage
-  // news and may take the words over: what they did there they did here.
-  addEventListener("storage", (event) => {
-    if (event.isTrusted) gestured(event.timeStamp);
+  const heldEdit = (field, words, typedOrder) => ({
+    words,
+    typedOrder,
+    // This is the owner's declared input chain, not an arbitrary ancestor's `open`.
+    editor: [...valueOwners(field)].find((owner) => owner.open === true) ?? null,
+    close: null,
   });
-  // Keys that move the user among the words, or the page under them, rather than
-  // doing anything to them.
+
+  // Applied or cancelled typing cannot put words away. An uncancelled native
+  // no-op retains command credit and never replaces the held words. Native keyup
+  // ends the key operation, and a newer input gesture supersedes it. Native edit
+  // stages retain it while focus may move to the default's editing destination.
   const MOVES =
     /^(Shift|Control|Alt|Meta|CapsLock|Tab|Arrow\w+|Home|End|PageUp|PageDown| )$/;
-  // A key counts from its keydown, and a `beforeinput` following it in the same task
-  // takes it back as typing; a chord is a command whatever the field makes of it, as
-  // Linux's Chrome still hands a contenteditable the line break of a Control+Enter the
-  // page sent on.
+  const editingKeys = new WeakSet();
   let key = null;
   addEventListener(
     "keydown",
     (event) => {
-      if (!event.isTrusted || MOVES.test(event.key)) return;
-      const at = event.timeStamp;
-      gestured(at);
-      if (event.ctrlKey || event.metaKey || event.altKey) return;
-      key = at;
-      later(() => {
-        if (key === at) key = null;
-      });
+      if (!event.isTrusted) return;
+      key = null;
+      if (!event.ctrlKey && !event.metaKey && !event.altKey)
+        key = window.lfInputWork.current();
     },
     true,
   );
-  // Fields a trusted `beforeinput` named, with when, read at the next frame once the edit
-  // has applied. `beforeinput` rather than `input`: a `leaf-text` announces its edits
-  // with an `input` of its own making, which is not trusted. The edit's own trusted
-  // `input` is read too, ahead of the page's handlers, so words a handler takes away in
+  addEventListener(
+    "keyup",
+    (event) => {
+      if (event.isTrusted && key?.event.code === event.code) key = null;
+    },
+    true,
+  );
+  addEventListener("blur", (event) => {
+    if (event.isTrusted) key = null;
+  });
+  // beforeinput identifies the trusted native attempt; input confirms its edit.
+  // leaf-text commits through its own untrusted host input, after its native input.
+  // Read each input ahead of page handlers, so words a handler takes away in
   // the same turn, announcing it with an `input` of its own or not, are still the words
   // the user typed.
   const edited = new Map();
+  const pasting = new Map();
+  addEventListener(
+    "paste",
+    (event) => {
+      const field = event.composedPath()[0];
+      if (event.isTrusted && typed(field)) {
+        const input = (event) => {
+          // A host's canonical input need not compose through an enclosing widget.
+          if (!event.composed) readInput(event);
+        };
+        pasting.set(field, {
+          source: window.lfInputWork.current(),
+          words: text(field),
+          input,
+        });
+        field.addEventListener("input", input);
+      }
+    },
+    true,
+  );
   addEventListener(
     "beforeinput",
     (event) => {
       if (!event.isTrusted) return;
-      if (key !== null && gestures.at(-1)?.at === key) gestures.pop();
-      key = null;
       const field = event.composedPath()[0];
+      const editingKey = key?.event;
+      key = null;
       if (!typed(field)) return;
-      edited.set(field, { typedAt: event.timeStamp, words: "" });
+      edited.set(field, {
+        typedOrder: window.lfInputWork.current().order,
+        key: editingKey,
+        attempt: event,
+        words: "",
+        ready: false,
+      });
       watching();
     },
     true,
   );
-  addEventListener(
-    "input",
-    (event) => {
-      const edit = edited.get(event.composedPath()[0]);
-      if (edit && event.isTrusted) edit.words = text(event.composedPath()[0]);
-    },
-    true,
-  );
+  const endPaste = (field) => {
+    field.removeEventListener("input", pasting.get(field).input);
+    pasting.delete(field);
+  };
+  const readInput = (event) => {
+    const edit = edited.get(event.composedPath()[0]);
+    const field = event.composedPath()[0];
+    const paste = pasting.get(field);
+    if (
+      !edit &&
+      field.localName === "leaf-text" &&
+      drawn(field) &&
+      paste &&
+      window.lfInputWork.current()?.event === paste.source.event &&
+      text(field) !== paste.words
+    ) {
+      edited.set(field, {
+        typedOrder: paste.source.order,
+        words: text(field),
+        ready: true,
+      });
+      endPaste(field);
+    }
+    // leaf-text's native input precedes its host value update; its own input
+    // announces the updated host. Read that announcement before page handlers.
+    if (edit && (event.isTrusted || field.localName === "leaf-text")) {
+      if (edit.key) editingKeys.add(edit.key);
+      edit.words = text(field);
+      edit.ready = field.localName !== "leaf-text" || !event.isTrusted;
+    }
+  };
+  addEventListener("input", readInput, true);
 
   // Each field holding words: the words, and when the user last edited them.
   const holding = new Map();
-  const putAway = (field, typedAt, gone) =>
-    gestures.some(
-      ({ at, node }) =>
-        at > typedAt &&
-        at >= gone - BEFORE &&
-        at <= gone + AFTER &&
-        !(node && (node === field || field.contains(node))),
+  const pending = new Map();
+  // A value component names its actual field with `input` (WA input/textarea).
+  // Its value commits before its native-await renderer paints the inner field.
+  // Retain that exact value operation until the same field proves its paint;
+  // a select's typed filter is not its `input` and never borrows its selected value.
+  const painting = new Map();
+  const putAway = (field, typedOrder, source) => {
+    if (!source || source.order <= typedOrder) return false;
+    // Native disclosure activation puts away only the fields its close hides.
+    // The same dispatch cannot redeem a passive loss elsewhere on the page.
+    if (source.nativeDefault) {
+      if (source.event.defaultPrevented || drawn(field)) return false;
+      let owner = field;
+      while (owner && owner !== source.nativeDefault)
+        owner = owner.parentNode ?? owner.host;
+      if (!owner) return false;
+    }
+    const { event, node } = source;
+    if (event.type === "keydown")
+      return !MOVES.test(event.key) && !editingKeys.has(event);
+    if (event.type === "storage") return true;
+    return (
+      [
+        "pointerdown",
+        "mousedown",
+        "touchstart",
+        "pointerup",
+        "mouseup",
+        "touchend",
+        "click",
+        "contextmenu",
+      ].includes(event.type) && !(node && (node === field || field.contains(node)))
     );
-  const judge = (field, { words, typedAt }, gone) => {
-    if (putAway(field, typedAt, gone)) return;
+  };
+  const acknowledgeClose = (field, held, close) => {
+    close.pending = false;
+    if (holding.get(field) !== held && pending.get(field)?.held !== held) return;
+    if (held.close !== close) return;
+    const editor = held.editor;
+    if (
+      ![...valueOwners(field)].includes(editor) ||
+      editor.open !== false ||
+      close.value !== held.words ||
+      editor.value !== close.value ||
+      !putAway(field, held.typedOrder, close.source)
+    )
+      return;
+    if (holding.get(field) === held) holding.delete(field);
+    if (pending.get(field)?.held === held) pending.delete(field);
+    painting.delete(field);
+  };
+  const judge = (field, held, source) => {
+    const { words, typedOrder } = held;
     // Back by the time of judging: a re-render that put them straight back.
-    if (shownIn(words)) return;
+    const heir = shownIn(words);
+    if (heir) {
+      holding.set(heir, held);
+      watching();
+      return;
+    }
+    if (putAway(field, typedOrder, source)) return;
     const place = window.lfPlace?.(field) ?? field.localName;
     console.error(
       `typed words left the screen without a key or press: ${JSON.stringify(words)}` +
         ` in ${place}`,
     );
   };
-  // Losses waiting out AFTER for the key or press that may still answer for them.
-  const pending = new Map();
-  const look = () => {
-    const at = performance.now();
-    for (const [field, { typedAt, words: heard }] of edited) {
+  const look = (source, afterFrame = false) => {
+    // Input-work orders identify new gestures, not callback execution time. Native
+    // beforeinput/input are stages of the key's default; a newer pointer or paste
+    // gesture supersedes it, while an old sourced callback cannot end a newer key.
+    if (
+      key &&
+      source &&
+      source.order > key.order &&
+      source.event !== key.event &&
+      source.event.type !== "beforeinput" &&
+      source.event.type !== "input"
+    )
+      key = null;
+    if (!source && afterFrame) for (const field of pasting.keys()) endPaste(field);
+    for (const [
+      field,
+      { typedOrder, key: editingKey, attempt, words: heard, ready },
+    ] of edited) {
+      if (attempt?.defaultPrevented && editingKey) editingKeys.add(editingKey);
+      if (!ready && !afterFrame) continue;
+      edited.delete(field);
+      if (!ready) continue;
+      painting.delete(field);
       // What the field holds now, or, where something emptied it in the edit's own
       // turn, what its `input` heard.
       const words = text(field).trim() ? text(field) : heard;
-      if (words.trim()) holding.set(field, { words, typedAt });
+      if (words.trim()) holding.set(field, heldEdit(field, words, typedOrder));
       else holding.delete(field);
     }
-    edited.clear();
     for (const [field, held] of holding) {
-      if (drawn(field) && text(field) === held.words) continue;
+      // A paste transaction announces its new value from the host after writing it.
+      // The nested input listener checkpoints before that announcement is read.
+      const paste = pasting.get(field);
+      if (paste && paste.source.event === source?.event) continue;
+      const owners = [...valueOwners(field)];
+      const editor = held.editor;
+      const linked = editor && owners.includes(editor);
+      if (linked) {
+        if (editor.open === true) held.close = null;
+        else if (editor.open === false && !held.close) {
+          const close = { source, value: editor.value, pending: !!source };
+          held.close = close;
+          // The next native task sees the whole callback and its microtasks. For
+          // work after the input dispatch, that callback owns its own close edge.
+          if (source) task(() => acknowledgeClose(field, held, close));
+        }
+      }
+      // An uncommitted native edit attempt must not hide a separate close edge.
+      if (edited.has(field)) continue;
+      if (drawn(field) && text(field) === held.words) {
+        const owner = owners.find((candidate) => candidate.value !== held.words);
+        if (owner) {
+          const operation = painting.get(field);
+          if (
+            !operation ||
+            operation.held !== held ||
+            !owners.includes(operation.owner) ||
+            operation.owner.value !== operation.value ||
+            operation.value !== owner.value
+          )
+            painting.set(field, {
+              held,
+              owner,
+              value: owner.value,
+              source,
+            });
+        } else painting.delete(field);
+        continue;
+      }
       holding.delete(field);
+      const operation = painting.get(field);
+      painting.delete(field);
+      const matched =
+        operation &&
+        operation.held === held &&
+        owners.includes(operation.owner) &&
+        operation.owner.value === operation.value &&
+        drawn(field) &&
+        text(field) === operation.value;
+      const effectSource = matched ? operation.source : source;
       const heir = shownIn(held.words);
       if (heir) holding.set(heir, held);
-      else {
-        const due = () => {
-          pending.delete(due);
-          judge(field, held, at);
-        };
-        pending.set(due, later(due, AFTER));
-      }
+      else
+        pending.set(field, {
+          held,
+          source: effectSource,
+        });
+    }
+  };
+  const judgePending = () => {
+    for (const [field, { held, source }] of pending) {
+      if (held.close?.pending) continue;
+      pending.delete(field);
+      judge(field, held, source);
     }
   };
   // One frame at a time while there is anything to watch, and none on a page nobody has
   // typed in.
   let looking = false;
   const watch = () => {
-    look();
-    looking = holding.size > 0 || edited.size > 0;
+    if (!window.lfInputWork.dispatching()) look(undefined, true);
+    judgePending();
+    looking = holding.size > 0 || edited.size > 0 || pending.size > 0;
     if (looking) frame(watch);
   };
   const watching = () => {
@@ -209,13 +369,12 @@
     looking = true;
     frame(watch);
   };
-  // Every loss so far judged now, with no more keys or presses to wait for: the browser
-  // fixture awaits this as the test body returns (`render_harness.judge_watches`).
-  window.lfWordsJudged = () => {
-    look();
-    for (const [due, timer] of pending) {
-      cancel(timer);
-      due();
-    }
+  window.lfInputWork.subscribe(look);
+  // Losses are read at the operation's own checkpoint; a frame also sees passive
+  // work. No later input is allowed to redeem words already lost.
+  window.lfWordsJudged = async () => {
+    await window.lfInputWork.dispatched();
+    look(undefined, true);
+    judgePending();
   };
 })();

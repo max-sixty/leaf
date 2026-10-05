@@ -15,6 +15,7 @@ import {
   saveDraft,
   sendMessage,
   watchDraft,
+  rememberWriting,
 } from "../drafts.js";
 import { focused, keys } from "../keyboard/scopes.js";
 import { pageScope } from "../keyboard/register.js";
@@ -68,6 +69,7 @@ export function createPanelComposer({
   function openPageDrawing(drawing) {
     generalDrawing = drawing;
     saveGeneralDraft();
+    rememberWriting(generalInput);
     setPanel(true);
     generalInput.focus({ preventScroll: true });
     sync();
@@ -99,7 +101,13 @@ export function createPanelComposer({
       },
     });
     sync();
-    stopMirroringDraft = mirrorDraft(generalInput, sync, "general");
+    stopMirroringDraft = mirrorDraft(generalInput, sync, "general", {
+      resume: () => ({
+        where: generalInput,
+        input: () => generalInput,
+        open: () => setPanel(true),
+      }),
+    });
     stopWatchingDraft = watchDraft("general", (_value, payload) => {
       generalDrawing = drawingIn(payload);
       sync();
@@ -143,9 +151,9 @@ export function createPanelComposer({
       {
         id: "thread.waiting.toggle",
         // `w` for the words the control says. It is the phrase the page already uses for
-        // the same question asked of its widgets (a/A), asked here of the thread —
-        // so the user learns one idea and reaches it two ways rather than learning
-        // "needs you" beside it.
+        // the same question the queue walk (a/A) asks of the page, asked here of
+        // the thread — so the user learns one idea and reaches it two ways rather
+        // than learning "needs you" beside it.
         //
         // The shortcut uses the visible control's toggle, including leaving Resolved
         // when requesting waiting threads and preserving every other restriction.

@@ -5,9 +5,9 @@ Usage: leaf wait [OPTIONS] PAGE
 
   Print one page's complete ordered batch, thread context, and response
   requirements as an immutable delivery, whose `acknowledge` says how to confirm
-  it. `leaf delivery read <id>` reads that same delivery. Where the host's hook
-  carries input into the turn, as in Claude Code, print one line naming the page
-  with new input instead, and end.
+  it. `leaf delivery read <id>` reads that same delivery. Where the harness's
+  hook carries input into the turn, as in Claude Code, print one line naming the
+  page with new input instead, and end.
 
 Options:
   --ack DELIVERY_ID  Confirm receipt of this complete delivery before waiting.
@@ -54,29 +54,24 @@ Usage: leaf thread summarize [OPTIONS] PAGE
 Options:
   --from MESSAGE     [required]
   --through MESSAGE  [required]
-  --text TEXT        summary Markdown (default: stdin)
+  --text TEXT        summary Markdown; pass '' to fold without prose (default:
+                     stdin)
+  --label TEXT       disclosure label (default: Earlier discussion)
   --help             Show this message and exit.
 
 ## leaf status --help
-Usage: leaf status [OPTIONS] PAGE {working|waiting|idle} [DETAIL]
+Usage: leaf status [OPTIONS] PAGE {waiting|idle} [DETAIL]
 
-  Set the agent's banner state.
+  Say the page waits on its user, or that you are done with it.
 
-  Use working with DETAIL, required, naming your current work and its subject,
-  or waiting with the answer you want from the user. Waiting without DETAIL
-  invites text comments. Use idle when finished; unacknowledged input and
-  unanswered user moves prevent it.
-
-  With working, --on names an open thread, by any message in it, or a widget:
-  whatever a delivered event gives as its address, which then reads Working. The
-  user sees DETAIL beside that subject as well as in the banner. Your next reply
-  ends a thread claim; `leaf page stamp --completes` ends a widget claim. Renew
-  the status as work changes: a claim left after your turn ends, or without
-  updates, eventually reads as stalled.
+  Use waiting with DETAIL naming the answer you want from the user; waiting
+  without DETAIL invites text comments. Either puts down every item you started
+  before it. Use idle when finished; unacknowledged input, unanswered user moves
+  and open tasks prevent it. Work in hand is no status: name it with `leaf task
+  start`.
 
 Options:
-  --on SUBJECT  The open thread or widget this work is about.
-  --help        Show this message and exit.
+  --help  Show this message and exit.
 
 ## leaf thread open --help
 Usage: leaf thread open [OPTIONS] PAGE
@@ -122,6 +117,8 @@ Options:
   --text TEXT     reply text (default: stdin)
   --markup TEXT   widget markup to render after the text, validated here
   --awaits        the reply's prose asks the user a question
+  --ephemeral     progress update; folds when the next ordinary agent reply
+                  arrives
   --title TEXT    name the thread for the panel unless it has a name: a few
                   words, at most 80 characters
   --help          Show this message and exit.
@@ -187,11 +184,12 @@ Usage: leaf page stamp [OPTIONS] PAGE
   Stamp PAGE/index.html with a changelog.
 
   Checks the exact source first, then records it as the next public version.
-  Repeat --completes for each active widget work claim this version completes. A
-  widget claim otherwise survives unrelated versions, and a version cannot
-  silently remove its page target.
+  Repeat --completes for each widget whose open tasks this version completes,
+  which ends them done, citing the version. A task on a widget otherwise
+  survives unrelated versions, and a version cannot silently remove its widget.
 
 Options:
   --text TEXT         changelog text (default: stdin)
-  --completes WIDGET  active widget work this version completes (repeatable)
+  --completes WIDGET  a widget whose open tasks this version completes
+                      (repeatable)
   --help              Show this message and exit.

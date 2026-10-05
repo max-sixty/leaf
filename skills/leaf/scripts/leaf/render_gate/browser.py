@@ -13,7 +13,7 @@ So the host names its browser, and where it has named none, leaf asks the host
 where its programs are before it guesses. Three readings, in order:
 
 - an environment variable, which is a direct statement. LEAF_BROWSER_EXECUTABLE
-  is the name in the namespace `host.py` already uses for LEAF_AGENT and
+  is the name in the namespace `harness.py` already uses for LEAF_AGENT and
   LEAF_SESSION_ID, and it stays first; CHROME_PATH (chrome-launcher, and so
   Lighthouse) and CHROME_BIN (karma-chrome-launcher) predate Playwright and mean
   the same thing, so a host that already set one for another tool has named this
@@ -39,6 +39,7 @@ failures above rather than through them.
 
 import os
 import shutil
+import signal
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -217,6 +218,31 @@ def launch_browser(p):
         if executable := discovered_executable():
             return p.chromium.launch(executable_path=executable), executable
         raise
+
+
+@contextmanager
+def ending(browser):
+    """Hold a launched browser, and end it on exit by killing its process group:
+    Playwright starts the browser as the leader of a group of its own, so the group is
+    the browser and every process it started.
+
+    An installed Chrome's graceful shutdown takes about 4s after under 1s of work, and
+    saves nothing here: the profile is Playwright's throwaway one, which Playwright
+    removes once the process exits. The pid is read on entry, while the browser still
+    answers."""
+    processes = browser.new_browser_cdp_session().send("SystemInfo.getProcessInfo")
+    pid = next(
+        process["id"]
+        for process in processes["processInfo"]
+        if process["type"] == "browser"
+    )
+    try:
+        yield browser
+    finally:
+        # A browser that crashed has no group left, and its pid may name another's.
+        if browser.is_connected():
+            os.killpg(pid, signal.SIGKILL)
+        browser.close()
 
 
 def browser_hint() -> str:

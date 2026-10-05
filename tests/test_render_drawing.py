@@ -5,10 +5,13 @@ import json
 import re
 
 import pytest
+from click.testing import CliRunner
 from interact_support import append_carried_log_record
+from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf.render_checks import rendered, wait_until_ready
+from PIL import Image, ImageChops
 from playwright.sync_api import expect
 from render_cases_interaction import (
     THREAD_DIFF_PAGE,
@@ -26,6 +29,7 @@ from render_harness import (
     open_page,
     panel_settled,
     sending,
+    stamp_page,
     told,
     write,
 )
@@ -125,9 +129,11 @@ def mark_relation(page, mark, target):
 
 def test_a_drawing_is_sent_and_replayed_as_an_ordinary_comment(browser, serve):
     """One pointer stroke starts on one semantic anchor, crosses the page beyond it,
-    and the accepted comment keeps its ink positioned over that anchor."""
+    and the accepted comment keeps its ink positioned over that anchor. The record
+    carries the window it was drawn in, its layout viewport and color scheme, which
+    is what lays the page out again for the agent's picture of it."""
     url = serve(FEATURE_GALLERY)
-    page = open_page(browser, url)
+    page = open_page(browser, url, color_scheme="dark")
     target = page.locator("#bg-choice-trail")
     target.evaluate("el => { el.style.position = 'relative'; el.style.zIndex = '1'; }")
     scroll_width = page.evaluate("document.documentElement.scrollWidth")
@@ -154,6 +160,10 @@ def test_a_drawing_is_sent_and_replayed_as_an_ordinary_comment(browser, serve):
     assert event["text"] == "This bend is the part I mean."
     drawing = event["drawing"]
     assert drawing["format"] == "leaf-drawing/2"
+    assert drawing["viewport"] == page.evaluate(
+        "[document.documentElement.clientWidth, document.documentElement.clientHeight]"
+    )
+    assert drawing["scheme"] == "dark"
     (stroke,) = drawing["strokes"]
     assert 2 <= len(stroke) <= 256
     target_box = target.bounding_box()
@@ -273,6 +283,60 @@ def around(page, box):
     )
 
 
+def test_an_anchored_drawing_scales_with_the_box_it_was_drawn_in(browser, serve):
+    """An anchored drawing replays at its element's current size, each axis by its own
+    ratio to the recorded box, so the mark keeps its share of the element in a narrower
+    window. A stroke drawn after the element resized joins at the new size, and the
+    record's box is that size."""
+    page = open_page(browser, serve(TARGETS_PAGE))
+    prose = page.locator("#prose")
+    wide = page.viewport_size
+    draw_over(page, prose)
+    expect(page.locator(".lf-drawing-pending")).to_have_count(1)
+    drawn_at = prose.bounding_box()
+
+    page.set_viewport_size({"width": 420, "height": wide["height"]})
+    narrow = prose.bounding_box()
+    assert narrow["width"] < 0.8 * drawn_at["width"]
+    assert narrow["height"] > drawn_at["height"], "the paragraph must reflow"
+    stroke_over(page, prose, points=((0.3, 0.3), (0.5, 0.7), (0.7, 0.3)))
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_focused()
+    with sending(page, "the resized drawing"):
+        page.keyboard.press("ControlOrMeta+Enter")
+
+    event = events_model.read_events(serve.page_dir)[-1]
+    drawing = event["drawing"]
+    assert drawing["box"] == pytest.approx(
+        [narrow["width"], narrow["height"]], abs=0.01
+    )
+    first, second = drawing["strokes"]
+    # Each stroke is a share of the one box, whichever size it was drawn at.
+    assert first[0][0] / drawing["box"][0] == pytest.approx(STROKE[0][0], abs=0.02)
+    assert first[0][1] / drawing["box"][1] == pytest.approx(STROKE[0][1], abs=0.02)
+    assert second[0][0] / drawing["box"][0] == pytest.approx(0.3, abs=0.02)
+
+    posted = f'.lf-drawing-posted[data-thread="{event["id"]}"]'
+    expect(page.locator(posted)).to_have_count(1)
+
+    def shares():
+        """The mark's offset and size as shares of the element's current box."""
+        rendered(page)
+        dx, dy, width, height = mark_relation(page, posted, "#prose")
+        box = prose.bounding_box()
+        return [
+            dx / box["width"],
+            dy / box["height"],
+            width / box["width"],
+            height / box["height"],
+        ]
+
+    at_narrow = shares()
+    page.set_viewport_size(wide)
+    assert prose.bounding_box()["width"] == pytest.approx(drawn_at["width"], abs=0.5)
+    assert shares() == pytest.approx(at_narrow, abs=0.01)
+
+
 def test_a_drawing_says_the_words_it_stands_over_and_the_box_it_was_drawn_in(
     browser, serve
 ):
@@ -354,6 +418,127 @@ def test_a_drawing_says_the_words_it_stands_over_and_the_box_it_was_drawn_in(
     assert (
         sent("the ring under cut-away rows")["drawing"]["says"] == "India juliet kilo."
     )
+
+
+# The swatch is taller than the pane that scrolls it, and its foot is a blue band: the
+# user scrolls the pane to the bottom and draws on the band, so a picture opened with the
+# pane at its top has to bring the ink, not just the swatch, back into view.
+SWATCH_PAGE = leaf_page(
+    "drawn swatch",
+    '<h1 id="t">Swatch</h1><p id="lede">The swatch below is half the window wide.</p>'
+    '<div id="pane"><div id="filler"></div><div id="swatch"></div></div>',
+    head="<style>#pane { height: 320px; overflow: auto }"
+    " #filler { height: 600px }"
+    " #swatch { width: 50vw; height: 600px;"
+    " background: linear-gradient(rgb(0, 200, 0) 84%, rgb(0, 0, 220) 84%) }</style>",
+)
+# Across the band, which runs from 84% of the swatch's height to its foot.
+BAND_STROKE = ((0.22, 0.95), (0.5, 0.88), (0.78, 0.95))
+
+
+def test_a_drawing_is_pictured_in_the_window_it_was_drawn_in(browser, serve):
+    """`leaf page picture` lays the comment's revision out again in the window the
+    drawing was made in, whatever window or version the page is in since, and paints the
+    comment's ink, and no later comment's, over the element it was drawn on, with the
+    ink scrolled into view inside the pane holding it: the swatch, half the window wide,
+    is as wide as it was then, and the ink keeps its place on the band."""
+    page = open_page(browser, serve(SWATCH_PAGE), color_scheme="dark")
+    page.set_viewport_size({"width": 800, "height": 600})
+    page.locator("#pane").evaluate("pane => { pane.scrollTop = pane.scrollHeight; }")
+    rendered(page)
+    swatch = page.locator("#swatch")
+    draw_over(page, swatch, points=BAND_STROKE)
+    with sending(page, "the drawing on the swatch"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    event = events_model.read_events(serve.page_dir)[-1]
+    assert event["anchor"] == {"section": "swatch"}
+    ink = page.locator(f'.lf-drawing-posted[data-thread="{event["id"]}"] path')
+    ink_color = ink.evaluate("path => getComputedStyle(path).stroke")
+    page.set_viewport_size({"width": 1200, "height": 900})
+    stamp_page(serve.page_dir, SWATCH_PAGE.replace("50vw", "25vw"), "Narrow the swatch")
+    # A later drawing on the same swatch, just above the band and inside the picture's
+    # crop, which the user had not drawn when they drew the first.
+    box_width, box_height = event["drawing"]["box"]
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": event["revision"],
+            "anchor": event["anchor"],
+            "drawing": {
+                **event["drawing"],
+                "strokes": [
+                    [
+                        [0.3 * box_width, 0.78 * box_height],
+                        [0.7 * box_width, 0.78 * box_height],
+                    ]
+                ],
+            },
+        },
+    )
+
+    pictured = CliRunner().invoke(
+        cli_model.cli, ["page", "picture", str(serve.page_dir), event["id"]]
+    )
+    assert pictured.exit_code == 0, pictured.output
+    image = Image.open(pictured.output.strip()).convert("RGB")
+
+    def where(color):
+        """The bounding box of the picture's pixels within a few levels of `color`."""
+        red, green, blue = ImageChops.difference(
+            image, Image.new("RGB", image.size, color)
+        ).split()
+        furthest = ImageChops.lighter(ImageChops.lighter(red, green), blue)
+        return furthest.point(lambda level: 255 if level <= 8 else 0).getbbox()
+
+    green = where((0, 200, 0))
+    band = where((0, 0, 220))
+    drawn = where(tuple(int(part) for part in re.findall(r"\d+", ink_color)[:3]))
+    assert green and band and drawn, (green, band, drawn)
+    # Only this comment's ink: the later drawing above the band is not painted.
+    assert drawn[1] >= band[1], (drawn, band)
+    # 50vw of the 800px window the drawing was made in, on the revision it was made on:
+    # 576px, cut at the crop, in the page's window now, and 200px on its version now.
+    assert green[2] - green[0] == pytest.approx(400, abs=2)
+    assert image.width < 800 and image.height < 600
+    # The band is 16% of the 600px swatch, and the ink crosses it where it was drawn.
+    width, height = band[2] - band[0], band[3] - band[1]
+    assert height == pytest.approx(96, abs=2)
+    (left, low), (_, high), (right, _) = BAND_STROKE
+    band_top = 0.84
+    assert (drawn[0] - band[0]) / width == pytest.approx(left, abs=0.03)
+    assert (drawn[2] - band[0]) / width == pytest.approx(right, abs=0.03)
+    assert (drawn[1] - band[1]) / height == pytest.approx(
+        (high - band_top) / (1 - band_top), abs=0.05
+    )
+    assert (drawn[3] - band[1]) / height == pytest.approx(
+        (low - band_top) / (1 - band_top), abs=0.05
+    )
+    # Drawn in the dark scheme: the page beside the swatch is dark.
+    assert sum(image.getpixel((2, 2))) < 200
+
+    missing = CliRunner().invoke(
+        cli_model.cli, ["page", "picture", str(serve.page_dir), "nope"]
+    )
+    assert missing.exit_code != 0 and "no message nope" in missing.output
+    # An element the revision does not hold, as one a data source drew and has since
+    # dropped, leaves no ink to picture.
+    lost = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": event["revision"],
+            "anchor": {"section": "gone"},
+            "drawing": event["drawing"],
+        },
+    )
+    unresolved = CliRunner().invoke(
+        cli_model.cli, ["page", "picture", str(serve.page_dir), lost["id"]]
+    )
+    assert unresolved.exit_code != 0
+    assert "its element #gone does not resolve" in unresolved.output
 
 
 def test_a_keyboard_send_reaches_send_while_the_stroke_still_owes_its_press(
@@ -1069,6 +1254,8 @@ def test_an_inline_thread_keeps_drawing_context_on_the_page(browser, serve):
     drawing = {
         "format": "leaf-drawing/2",
         "strokes": [[[-20, 74], [50, 10], [120, 74]]],
+        "viewport": [1280, 720],
+        "scheme": "light",
     }
     append_carried_log_record(
         serve.page_dir,

@@ -25,6 +25,8 @@
 import { html, render, repeat } from "../vendor/browser-runtime.js";
 import { el } from "./widget-elements.js";
 import { repaint } from "./repaint.js";
+import { deepFocus, focusDestination, readCaret, releaseFocus } from "./focus.js";
+import { selectEnds } from "./passages.js";
 
 const EMPTY = Object.freeze([]);
 
@@ -34,7 +36,7 @@ export const BANNER_CONTROL_RANK = Object.freeze({
   layer: 30,
   leaves: 40,
   latest: 50,
-  asks: 60,
+  queue: 60,
   map: 70,
   // The page's commands a finger reaches here rather than by key (touch-controls.js),
   // among themselves in the shortcut line's order.
@@ -121,6 +123,44 @@ const overflowBtn = bannerActions.querySelector(".lf-banner-more");
 overflowBtn.popoverTargetElement = overflowMenu;
 overflowMenu.lfInvoker = overflowBtn;
 
+// More temporarily borrows the reader's focus. Context-preserving commands return
+// that browser checkpoint before acting; it never becomes a remembered page target.
+let opener = null;
+function holdOpener(node = deepFocus()) {
+  if (node === overflowBtn || overflowMenu.contains(node)) return;
+  const selection = getSelection();
+  opener = {
+    node,
+    caret: readCaret(node),
+    ends:
+      selection?.rangeCount && !selection.isCollapsed
+        ? [
+            [selection.anchorNode, selection.anchorOffset],
+            [selection.focusNode, selection.focusOffset],
+          ]
+        : null,
+  };
+}
+overflowBtn.addEventListener("pointerdown", () => holdOpener());
+document.addEventListener("focusout", (event) => {
+  if (event.relatedTarget === overflowBtn) holdOpener(event.composedPath()[0]);
+});
+document.addEventListener("focusin", (event) => {
+  if (event.target !== overflowBtn && !overflowMenu.contains(event.target))
+    opener = null;
+});
+export function bannerStanding() {
+  const at = deepFocus();
+  return at === overflowBtn || overflowMenu.contains(at) ? opener : null;
+}
+export function restoreBannerStanding(held) {
+  opener = null;
+  if (held?.node?.isConnected && held.node !== document.body)
+    focusDestination(held.node, held.caret);
+  else releaseFocus();
+  if (held?.ends?.every(([node]) => node.isConnected)) selectEnds(...held.ends);
+}
+
 function paintControl(entry) {
   entry.control.classList.toggle("lf-news-shown", entry.conditional && entry.offered);
   // These are paint only. The owner's entry is the value read by layout and door
@@ -147,6 +187,7 @@ overflowMenu.addEventListener("toggle", (event) => {
   render(rowTemplate(), bannerActions);
   if (open && document.activeElement === overflowBtn)
     menu.find(focusable)?.focusTarget.focus();
+  if (!open) opener = null;
   repaint();
 });
 

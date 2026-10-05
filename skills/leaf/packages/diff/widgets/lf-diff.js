@@ -8,13 +8,15 @@
  * reconcile unchanged lines by their datum coordinate, retaining selection and line threads.
  * Manifest evidence commits together after open files load. Lazy disclosure joins
  * the pending source render before reading its evidence, and a closed file shows
- * none of the previous revision while it loads current evidence. */
+ * none of the previous revision while it loads current evidence. Passage reveal
+ * clears this widget's file filter; addressed datum reveal also hydrates its file. */
 import {
   DISCLOSE,
   announce,
   beginWalk,
   dataBody,
   failSoft,
+  ensureSyntaxLanguage,
   focusDestination,
   focused,
   holdFocus,
@@ -42,8 +44,8 @@ import {
   watchData,
 } from "/runtime/widget-api.js";
 import "../vendor/webawesome.esm.js";
-// Pierre's renderer is by far the largest thing a Leaf page can pull, and only a diff
-// that is actually rendering has any use for it — an authored <lf-diff> bound to data
+// Only a diff that is actually rendering has any use for Pierre's renderer —
+// an authored <lf-diff> bound to data
 // that has not arrived yet does not. So it is imported on first use rather than at
 // module load: the page pays for the renderer when it draws a diff, and a version whose
 // diff has been taken back out stops paying on the next load. The promise is kept, so
@@ -59,40 +61,19 @@ const OPTIONS = Object.freeze({
   hunkSeparators: "line-info-basic",
   lineDiffType: "word-alt",
   overflow: "scroll",
-  theme: { light: "github-light", dark: "github-dark" },
 });
 
-// Pierre's two fixed Shiki themes are reduced to the same small role vocabulary
-// lf-code uses. The diff geometry and inline spans remain Pierre's; Leaf's theme
-// keeps syntax ink consistent across the two code surfaces.
-const TOKEN_ROLES = new Map([
-  ["#6A737D/#6A737D", "cm"],
-  ["#D73A49/#F97583", "kw"],
-  ["#032F62/#9ECBFF", "st"],
-  ["#032F62/#DBEDFF", "st"],
-  ["#005CC5/#79B8FF", "nu"],
-  ["#6F42C1/#B392F0", "fn"],
-  ["#22863A/#85E89D", "ty"],
-  ["#E36209/#FFAB70", "ty"],
-  ["#B31D28/#FDAEB7", "kw"],
-]);
-
-function adoptSyntaxRoles(root) {
-  for (const token of root.querySelectorAll("[style*='--diffs-token-light']")) {
-    const light = token.style
-      .getPropertyValue("--diffs-token-light")
-      .trim()
-      .toUpperCase();
-    const dark = token.style
-      .getPropertyValue("--diffs-token-dark")
-      .trim()
-      .toUpperCase();
-    const role = TOKEN_ROLES.get(`${light}/${dark}`);
-    token.style.removeProperty("--diffs-token-light");
-    token.style.removeProperty("--diffs-token-dark");
-    if (!token.style.length) token.removeAttribute("style");
-    if (role) token.dataset.lfSyn = role;
-  }
+// Keep Pierre's Shiki styles intact. The marker lets the render gate inspect
+// themed glyphs without prescribing their colors or translating them into roles.
+function markSyntax(root, foreground) {
+  for (const token of root.querySelectorAll("span[style]"))
+    if (
+      (token.style.color && token.style.color !== foreground) ||
+      token.style.fontStyle ||
+      token.style.fontWeight ||
+      token.style.textDecoration
+    )
+      token.dataset.lfSyn = "";
 }
 
 const changeCounts = (file) =>
@@ -564,10 +545,17 @@ function pathOnlyRenames(source) {
 }
 
 async function renderFile(file, sharedStyles, open) {
-  const { preloadDiffHTML } = await pierre();
-  file.lang = langForPath(file.name) ?? "text";
+  const lang = langForPath(file.name);
+  const [{ preloadDiffHTML }, { themeName, foreground }] = await Promise.all([
+    pierre(),
+    ensureSyntaxLanguage(lang),
+  ]);
+  file.lang = lang ?? "text";
   const template = document.createElement("template");
-  template.innerHTML = await preloadDiffHTML({ fileDiff: file, options: OPTIONS });
+  template.innerHTML = await preloadDiffHTML({
+    fileDiff: file,
+    options: { ...OPTIONS, theme: themeName },
+  });
   const rendered = template.content;
 
   // The static rendering has no Pierre interaction manager, so its unused icon sprite
@@ -590,7 +578,7 @@ async function renderFile(file, sharedStyles, open) {
     if (!sharedStyles.has(kind)) sharedStyles.set(kind, style);
     else style.remove();
   }
-  adoptSyntaxRoles(rendered);
+  markSyntax(rendered, foreground);
 
   const pre = rendered.querySelector("pre");
   if (!pre) throw new Error(`Pierre returned no diff for ${file.name || "a file"}`);
@@ -653,8 +641,13 @@ customElements.define(
   "lf-diff",
   class extends HTMLElement {
     controller = widgetController(this);
+    revealPassage = ({ detail }) => {
+      const entry = this.fileEntries?.find(({ node }) => node.contains(detail.target));
+      if (entry?.filtered) this.clearFilter();
+    };
 
     connectedCallback() {
+      this.addEventListener("lf-reveal", this.revealPassage);
       this.stopActions ??= this.controller.subscribe(this.paintReviewAvailability);
       if (!this.threadSurface)
         this.threadSurface = consumeThreads(this, (collection, surfaces) => {
@@ -804,6 +797,7 @@ customElements.define(
     }
 
     disconnectedCallback() {
+      this.removeEventListener("lf-reveal", this.revealPassage);
       this.stopActions?.();
       this.stopActions = null;
       this.rendering = (this.rendering ?? 0) + 1;

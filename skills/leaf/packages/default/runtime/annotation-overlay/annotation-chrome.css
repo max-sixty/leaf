@@ -69,7 +69,13 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      transparent header/reply slots neither take document flow nor intercept presses. */
   .lf-fab-bar:not([data-lf-target-only], [data-lf-presentation="inline"]) {
     box-sizing: border-box;
-    min-width: min(var(--thread-card-min), var(--lf-float-w, 100vw));
+    --lf-response-display: inline-grid;
+    min-width: min-content;
+    grid-template-columns: minmax(var(--lf-response-min-width), 1fr) max-content;
+    grid-template-rows: minmax(var(--lf-response-height), 1fr);
+    grid-auto-rows: auto;
+    align-items: end;
+    max-height: var(--lf-float-h, calc(100vh - var(--lf-banner-h) - 16px));
     max-width: min(var(--lf-float-w, calc(100vw - 16px)), var(--thread-card));
     padding: var(--lf-comment-frame-top) calc(var(--lf-comment-inset) + 1px)
       var(--lf-comment-frame-bottom);
@@ -83,9 +89,25 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   /* A floating surface anchored in the page's plane (floating.js) shows wherever its
      placement puts it, its anchor scrolled away or not. */
   :is(.lf-fab-bar, .lf-margin-preview) { position-visibility: always; }
+  /* Window-plane paint stays independent of the scroll anchor it released. */
+  :is(.lf-fab-bar, .lf-margin-preview)[data-lf-plane="window"] {
+    will-change: opacity;
+  }
   .lf-fab-bar { --lf-response-min-width: 216px; }
   .lf-fab-bar:not([data-lf-presentation="inline"]) .lf-compose-field {
-    min-width: var(--lf-response-min-width); }
+    min-height: var(--lf-response-height);
+    grid-column: 1; grid-row: 1; align-self: stretch;
+    grid-template-rows: minmax(0, 1fr); }
+  .lf-fab-bar:not([data-lf-presentation="inline"]) > .lf-response-more {
+    grid-column: 2; grid-row: 1; }
+  .lf-fab-bar:not([data-lf-presentation="inline"]) > .lf-response-options {
+    grid-column: 1 / -1; grid-row: 2; }
+  .lf-fab-bar:not([data-lf-presentation="inline"]):has(.lf-composer-media:not([hidden])) {
+    grid-template-columns: auto minmax(var(--lf-response-min-width), 1fr) max-content; }
+  .lf-fab-bar:not([data-lf-presentation="inline"]):has(.lf-composer-media:not([hidden]))
+    .lf-compose-field { grid-column: 2; }
+  .lf-fab-bar:not([data-lf-presentation="inline"]):has(.lf-composer-media:not([hidden]))
+    > .lf-response-more { grid-column: 3; }
   .lf-visual-marks { display: contents; }
   /* Every projected state is a moment (anchor-paint.js), drawn as one accent contour;
      an action's target alone keeps the hairline. */
@@ -101,7 +123,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-visual-mark.lf-shaped { border: 0; border-radius: 0 !important; }
   .lf-visual-mark-shape { display: block; width: 100%; height: 100%; overflow: hidden; }
   .lf-fab-bar:not([data-lf-presentation="inline"]) .lf-composer-media {
-    flex: 0 1 auto; min-width: 42px; }
+    grid-column: 1; grid-row: 1; min-width: 42px; }
   /* margin-projection.js writes the width and height cap the card's placement gives it
      (comment-placement.js); these are the fallbacks for a card no placement has sized
      yet, so only they are held to the viewport. The selected thread's transcript is
@@ -110,7 +132,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      and the bottom bar the way they do. Its insets are its placement's alone:
      floating.js writes the edges that hold it and clears the others, so an edge the
      stylesheet set would stretch a card held by its foot. */
-  .lf-margin-preview { position: fixed;
+  .lf-margin-preview { position: fixed; pointer-events: auto;
     z-index: var(--lf-z-margin-preview);
     /* As wide as its thread, between the bounds its placement gives it
        (margin-projection.js, `placeThreadPreview`). */
@@ -165,9 +187,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-margin-preview-step:last-child > .lf-action-icon { inset-inline-end: 4px; }
   .lf-margin-preview-step:not(:disabled):hover { background: var(--chip);
     color: var(--ink); }
-  /* Only the turns scroll: the metadata and reply keep their own rows, so the
-     scrollbar describes the content it moves. The card grows to its content until
-     placement exhausts the room; every intervening holder can then shrink. */
+  /* Only the turns scroll, each with its head: the actions and reply keep their own
+     places, so the scrollbar describes the content it moves. The card grows to its
+     content until placement exhausts the room; every intervening holder can then
+     shrink. */
   .lf-margin-preview-list, .lf-margin-thread, .lf-margin-thread-body {
     display: flex; flex-direction: column;
     min-height: 0; min-width: 0; }
@@ -184,7 +207,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     block-size: var(--lf-thread-body-extent, 0px);
     min-block-size: 0; max-block-size: 100%; pointer-events: none; }
   .lf-margin-thread .lf-page-thread > * { grid-column: 1; }
-  .lf-margin-thread .lf-thread-root-meta { grid-row: 1; }
   .lf-margin-thread .lf-thread-transcript { grid-row: 2; }
   .lf-margin-thread .lf-reply-space { grid-row: 3; }
   .lf-margin-thread .lf-thread-reply { grid-row: 4; }
@@ -211,8 +233,44 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     grid-template-rows: minmax(0, max-content); }
   .lf-margin-thread .lf-thread-reply leaf-text { min-width: 0;
     max-height: none; }
-  .lf-margin-preview .lf-thread-root-meta { flex: none;
-    align-items: center; gap: 4px; min-height: var(--lf-comment-head); }
+  /* The card's actions stand over the top of its transcript, where each message's head
+     sticks while that message is read, so the row always names who wrote the words
+     beneath it and a scrolled card never labels an agent's words with the user's name.
+     A head's lead centres its name on the actions, as the root's metadata row in the
+     Threads list does, and reaches into the gap before its message, so the card grows
+     by nothing; the root's head is that row's height. A head stops where the actions
+     start (`--lf-margin-controls-width`, thread-card.js); a percentage cap, unlike
+     padding, adds nothing to the card's width. A head covers only its own message, so
+     the words under it take its height as their `--lf-top` and `scroll-margin`
+     (theme.css, at `--lf-top`): a reveal lands them below it and the runtime's reading
+     counts what it covers as hidden, while a whole message lands flush with its own
+     head. The card draws no reactions, so an agent's head keeps no room for their
+     trigger under a finger. */
+  .lf-margin-thread .lf-thread-transcript .lf-msg-body {
+    --lf-top: var(--lf-comment-head); }
+  .lf-margin-thread .lf-thread-transcript .lf-msg-body * {
+    scroll-margin-top: calc(var(--lf-top) + var(--focus-ring-room)); }
+  .lf-margin-thread .lf-thread-transcript .lf-msg-meta { overflow: hidden; }
+  .lf-margin-thread .lf-thread-transcript .lf-msg-sending { min-width: 0;
+    overflow: hidden; text-overflow: ellipsis; }
+  .lf-margin-thread-controls { position: absolute; inset-block-start: 0;
+    inset-inline-end: 0; z-index: 2; display: flex; align-items: center; gap: 4px;
+    min-height: var(--lf-comment-head); padding-inline-start: var(--sp-2);
+    background: var(--paper); }
+  /* A head takes its message's ground, so an arriving turn's cue tints both. */
+  .lf-margin-thread .lf-thread-transcript .lf-msg { background-color: var(--paper); }
+  .lf-margin-thread .lf-thread-transcript .lf-msg-head { position: sticky;
+    inset-block-start: 0; z-index: 1; background-color: inherit;
+    max-inline-size: calc(100% - var(--lf-margin-controls-width, 0px));
+    min-height: auto; padding-inline-end: 0;
+    overflow: hidden; white-space: nowrap;
+    --lf-card-head-lead: calc((var(--lf-comment-head)
+      - var(--lf-msg-name-size) * var(--lf-ui-lh)) / 2);
+    padding-block-start: var(--lf-card-head-lead);
+    margin-block-start: calc(-1 * var(--lf-card-head-lead)); }
+  .lf-margin-thread .lf-thread-transcript > .lf-msg:first-child > .lf-msg-head {
+    box-sizing: border-box; min-height: var(--lf-comment-head);
+    margin-block-start: 0; padding-block-end: var(--lf-card-head-lead); }
   @media (forced-colors: active) {
     .lf-margin-preview { border: 1px solid CanvasText; box-shadow: none; }
   }

@@ -235,15 +235,15 @@ leaf server start ./review</code></pre>
               </p>
               <p id="answer-flow">
                 For a comment requesting a policy change, the agent reads the delivery
-                and follows its receipt instructions. It then marks that thread as
-                Working, so the user can see which input it is handling. The agent reads
-                the current page and thread, revises the policy, and answers in the
-                thread. This example uses a CLI command to post the reply; the harness
-                routes below explain when Leaf captures a turn's messages instead.
+                and follows its receipt instructions. It then starts work on that event,
+                so the user can see which input it is handling. The agent reads the
+                current page and thread, revises the policy, and answers in the thread.
+                This example uses a CLI command to post the reply; the harness routes
+                below explain when Leaf captures a turn's messages instead.
               </p>
               <pre
                 id="response-commands"
-              ><code class="language-bash">leaf status ./review working "Checking the importer's queue policy" --on &lt;thread-id&gt;
+              ><code class="language-bash">leaf task start ./review &lt;event-id&gt; "Checking the importer's queue policy"
 leaf page state ./review
 leaf page state ./review &lt;thread-id&gt;
 # Revise ./review/index.html; check and review the result.
@@ -264,8 +264,8 @@ leaf status ./review waiting "Does the revised policy match the workload?"</code
                   The page asks which queue policy to use with
                   <code>lf-options id="queue-policy" choose</code>. When the user
                   chooses Drop oldest, Leaf delivers that choice to the agent. The agent
-                  marks <code>queue-policy</code> Working, reads the current choice, and
-                  revises the HTML to show the selected option:
+                  starts the choice event, reads the current choice, and revises the
+                  HTML to show the selected option:
                 </p>
                 <pre
                   id="decision-markup"
@@ -275,25 +275,26 @@ leaf status ./review waiting "Does the revised policy match the workload?"</code
 &lt;/lf-options&gt;</code></pre>
                 <p id="decision-stamp-reading">
                   After checking and reviewing the result, the agent stamps the revision
-                  to record the decision. <code>--completes queue-policy</code> ends the
-                  work claim on that component:
+                  to record the decision. The stamped markup answers the choice event
+                  and ends its start:
                 </p>
                 <pre
                   id="decision-commands"
-                ><code class="language-bash">leaf status ./review working "Recording the chosen queue policy" --on queue-policy
+                ><code class="language-bash">leaf task start ./review &lt;event-id&gt; "Recording the chosen queue policy"
 leaf page state ./review
 # Add chosen to the picked option in ./review/index.html; check and review.
-leaf page stamp ./review --text "Queue policy: drop oldest" --completes queue-policy</code></pre>
+leaf page stamp ./review --text "Queue policy: drop oldest"</code></pre>
               </details>
               <details id="delivery-example">
                 <summary>Delivery fields and answer semantics</summary>
                 <p id="answer-addresses">
                   In a delivery requiring a thread reply, <code>answer.to</code> is the
-                  thread id used to read the conversation and mark its work as Working.
-                  <code>answer.for</code> is the event id used to answer the specific
-                  input. The <a href="#handling-example">example batch</a> uses
-                  <code>9d41b20f</code> for both because the comment opens a new thread.
-                  A later message has its own event id within that thread.
+                  thread id used to read the conversation. The event's
+                  <code>id</code> identifies the move to start, and
+                  <code>answer.for</code> identifies the input the reply answers. The
+                  <a href="#handling-example">example batch</a> uses
+                  <code>9d41b20f</code> for all three because the comment opens a new
+                  thread. A later message has its own event id within that thread.
                 </p>
                 <p id="answer-kinds-details">
                   A user comment requires a reply in its thread. A decision on a page
@@ -323,7 +324,9 @@ leaf page stamp ./review --text "Queue policy: drop oldest" --completes queue-po
                   <tbody>
                     <tr>
                       <td><code>carrier</code>, <code>acknowledge</code></td>
-                      <td>The receipt and reply contract, and who confirms receipt.</td>
+                      <td>
+                        The delivery route and the instruction for confirming receipt.
+                      </td>
                     </tr>
                     <tr>
                       <td><code>page</code>, <code>through_seq</code></td>
@@ -453,11 +456,11 @@ leaf page stamp ./review --text "Queue policy: drop oldest" --completes queue-po
               <p id="page-ending">
                 <code>leaf status ./review idle</code> marks the page finished and stops
                 its feedback watch. Leaf refuses this command while input still needs
-                receipt confirmation or an answer. A page marked Waiting keeps watching
-                for new input.
+                receipt confirmation or an answer, or an agent task remains open. A page
+                marked Waiting keeps watching for new input.
               </p>
               <details id="turn-end-details">
-                <summary>Background work and completing a claim</summary>
+                <summary>Background work and durable tasks</summary>
                 <p id="long-work">
                   Work longer than a few minutes runs in background workers, whose
                   results wake another agent turn. A developer can also open a
@@ -465,15 +468,27 @@ leaf page stamp ./review --text "Queue policy: drop oldest" --completes queue-po
                   without sending them to an agent session.
                 </p>
                 <p id="widget-completion">
-                  Marking a thread or component Working creates a work claim, which
-                  associates the work with that input. A reply in the thread completes
-                  its claim. A component's claim continues through unrelated revisions;
-                  the stamp that completes its work names it with
-                  <code>--completes</code>.
+                  A start names the move or task the agent is handling in this turn. A
+                  reply or stamped decision answers a move and ends its start. Work that
+                  outlasts the turn gets a task, which remains open through replies,
+                  thread resolution, unrelated revisions, and the end of its session.
+                  Work no user move requested also gets a task. The agent opens it on a
+                  thread, a work-bearing widget, or the page as a whole, then starts it
+                  using the id printed by <code>leaf task open</code>:
                 </p>
                 <pre
                   id="widget-completion-command"
-                ><code class="language-bash">leaf page stamp ./review --text "Queue policy recorded" --completes &lt;widget-id&gt;</code></pre>
+                ><code class="language-bash">leaf task open ./review page "Check the importer policy"
+leaf task start ./review &lt;task-id&gt; "Checking the importer under load"
+# Run the check and put its result on the page.
+leaf task end ./review &lt;task-id&gt; done "The load check is recorded on the page"</code></pre>
+                <p id="task-completion">
+                  A task ends with <code>done</code>, <code>failed</code>, or
+                  <code>dropped</code>, and a note saying where its result is or why
+                  there is none. A stamp with <code>--completes &lt;widget-id&gt;</code>
+                  ends each open task on that widget as done. A task remains on the
+                  agent's queue until one of these outcomes ends it.
+                </p>
               </details>
             </section>
             <section id="communication-commands">
@@ -538,10 +553,21 @@ leaf page stamp ./review --text "Queue policy: drop oldest" --completes queue-po
                   <tr>
                     <td>
                       <strong>Declare work and report progress</strong><br />Set page
-                      status, claim work on a thread or widget, or report a widget's
-                      declared state transition.
+                      status to waiting or idle, or report a widget's declared state
+                      transition.
                     </td>
                     <td><code>leaf status</code><br /><code>leaf page report</code></td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <strong>Track work</strong><br />Open work that outlasts a turn or
+                      has no user move, start a move or task with its current operation,
+                      or end a task with its outcome.
+                    </td>
+                    <td>
+                      <code>leaf task open</code><br /><code>leaf task start</code>
+                      <br /><code>leaf task end</code>
+                    </td>
                   </tr>
                   <tr>
                     <td>
@@ -608,7 +634,7 @@ leaf page stamp ./review --text "Queue policy: drop oldest" --completes queue-po
           <section id="delivery">
             <h2>Harness differences</h2>
             <p id="hosts-reading">
-              The page and feedback model stays the same across harnesses. The
+              The page and feedback model stay the same across harnesses. The
               integration determines when feedback enters an agent turn, who confirms
               its receipt, and how the reply reaches the page. Starting the page server
               normally selects and connects the appropriate integration automatically.
@@ -686,8 +712,8 @@ leaf page stamp ./review --text "Queue policy: drop oldest" --completes queue-po
                 Code, the Stop hook can deliver new input owed an answer into that turn
                 or remind the agent of an unanswered input or missing watcher. It
                 reminds once for the same obligation; if the turn ends again, the next
-                turn receives the outstanding input. A claim made in this turn lets the
-                turn end while its work continues.
+                turn receives the outstanding input. A start written in this turn lets
+                the turn end while its work continues.
               </p>
             </details>
             <details id="host-entry-points">
@@ -726,8 +752,8 @@ leaf page stamp ./review --text "Queue policy: drop oldest" --completes queue-po
                 For a <code>turn</code> answer, Leaf streams the agent's first
                 user-facing message into the addressed thread, then commits that opening
                 together with the final message. On the Claude Code and Codex queue
-                routes, chat messages stay in the host; the agent writes the page answer
-                with <code>leaf thread reply</code>.
+                routes, chat messages stay in the harness; the agent writes the page
+                answer with <code>leaf thread reply</code>.
               </p>
               <p id="automatic-commands">
                 The integration runs the hook commands above automatically. Its private
@@ -836,7 +862,7 @@ python -m leaf server _serve &lt;page&gt; --handshake &lt;fd&gt;</code></pre>
                       </p>
                       <p>
                         <code>leaf hook</code> and <code>leaf session-end</code> read
-                        host JSON on stdin. Claude Code's background Stop hook uses
+                        harness JSON on stdin. Claude Code's background Stop hook uses
                         <code>hooks/scripts/loop-guard.py --watch</code>.
                       </p>
                     </td>
@@ -956,20 +982,20 @@ python -m leaf server _serve &lt;page&gt; --handshake &lt;fd&gt;</code></pre>
                   href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/conversation-loop.md"
                   >Conversation handoff</a
                 >
-                owns statuses and the response loop.
+                owns tasks, starts, statuses, and the response loop.
               </p>
               <p id="contracts-hosts">
                 Harness routes are specified in
                 <a
-                  href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/host-claude-code.md"
+                  href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/harness-claude-code.md"
                   >Claude Code</a
                 >,
                 <a
-                  href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/host-codex.md"
+                  href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/harness-codex.md"
                   >Codex queue delivery</a
                 >, and
                 <a
-                  href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/host-codex-app-server.md"
+                  href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/harness-codex-app-server.md"
                   >Codex App Server</a
                 >.
                 <a
@@ -986,10 +1012,12 @@ python -m leaf server _serve &lt;page&gt; --handshake &lt;fd&gt;</code></pre>
           <section id="updates-seats">
             <h2>The agent says what it is doing before it does it</h2>
             <p id="updates-lede">
-              The agent writes a status before starting each step, naming the work and
-              its subject. The banner at the top of the page shows that status. A status
-              attached to a thread or component also appears beside it. The agent's
-              replies carry the discussion and results.
+              Before each step, the agent names the work and the item it is handling.
+              That item can be a user move, such as a comment or choice, or a task the
+              agent opened for separate work. <code>leaf task start</code> identifies
+              the item and supplies the sentence describing the work. The banner shows
+              that sentence, and it also appears beside the thread or component the work
+              concerns. The agent's replies carry the discussion and results.
             </p>
             <p id="updates-session">
               An agent session is the conversation attached to the page in a harness
@@ -1012,14 +1040,14 @@ python -m leaf server _serve &lt;page&gt; --handshake &lt;fd&gt;</code></pre>
                 <strong>The work is named</strong> Before doing the work, the agent
                 writes
                 <code
-                  >leaf status … working "cutting the lede to two sentences" --on
-                  &lt;thread&gt;</code
+                  >leaf task start … &lt;event-id&gt; "cutting the lede to two
+                  sentences"</code
                 >, which puts that line beside the thread and in the banner, and your
                 comment reads Working.
               </lf-chronology-entry>
               <lf-chronology-entry id="updates-phase" at="1m" kind="intervention">
                 <strong>Each new phase gets a new line</strong> When the work moves from
-                editing to checking, the agent writes the status again:
+                editing to checking, the agent starts the same move again:
                 <em>Claude working — checking the page at phone width</em>.
               </lf-chronology-entry>
               <lf-chronology-entry id="updates-done" at="2m" kind="observation">
@@ -1033,14 +1061,14 @@ python -m leaf server _serve &lt;page&gt; --handshake &lt;fd&gt;</code></pre>
           <section id="updates-map">
             <h2>Every update, and where you read it</h2>
             <p id="updates-map-lede">
-              The agent writes statuses, replies, and version notes. Leaf adds
-              observations about feedback delivery and agent activity. The diagram shows
-              where each update appears; the dotted line links a status written with
-              <code>--on</code> to its thread or component.
+              The agent writes work declarations, statuses, replies, and version notes.
+              Leaf adds observations about feedback delivery and agent activity. The
+              diagram shows where each update appears; starting work puts its line in
+              the banner and beside the move or task being handled.
             </p>
             <lf-diagram
               id="updates-diagram"
-              parts="node:Sources node:Reply node:Awaits node:Stamp node:Report node:Status node:Pickup node:Turn node:Reads node:Banner node:Beside node:Thread node:Asks node:Versions node:Widget"
+              parts="node:Sources node:Reply node:Awaits node:Stamp node:Report node:Status node:Pickup node:Turn node:Reads node:Banner node:Beside node:Thread node:Queue node:Versions node:Widget"
             >
               <pre>
 flowchart LR
@@ -1049,24 +1077,24 @@ flowchart LR
     Awaits["agent: leaf thread reply --awaits"]
     Stamp["agent: leaf page stamp"]
     Report["agent: leaf page report"]
-    Status["agent: leaf status"]
+    Status["agent: leaf task start · leaf status"]
     Pickup["Leaf: how far your input got"]
     Turn["Leaf: the agent's turn and watcher"]
   end
   subgraph Reads["Where you read it"]
     Thread["the thread"]
-    Asks["the Asks drawer"]
+    Queue["the Queue panel"]
     Versions["the page and its versions menu"]
     Widget["the widget"]
     Banner["the banner, tab icon and Leaves drawer"]
     Beside["the label beside your comment or widget"]
   end
   Reply --&gt; Thread
-  Awaits --&gt; Asks
+  Awaits --&gt; Queue
   Stamp --&gt; Versions
   Report --&gt; Widget
   Status --&gt; Banner
-  Status -.-&gt; Beside
+  Status --&gt; Beside
   Turn --&gt; Banner
   Turn --&gt; Beside
   Pickup --&gt; Beside
@@ -1078,25 +1106,26 @@ flowchart LR
             <h3 id="updates-written-heading">Written by the agent</h3>
             <ul id="updates-written">
               <li id="updates-written-working">
-                <strong><code>leaf status … working "…"</code></strong> What it is
-                doing, in the banner:
-                <em>Claude working — running the browser suite</em>. With
-                <code>--on</code>, the same line stands beside that thread or widget
-                until the agent answers there. The tab icon takes the banner's colour,
-                and the page's row in the Leaves drawer repeats the line.
+                <strong><code>leaf task start … &lt;id&gt; "…"</code></strong> The
+                current operation, in the banner:
+                <em>Claude working — running the browser suite</em>. The id names the
+                user move being answered or an open task. The same line appears beside
+                its thread or widget until the move is answered or the task ends. The
+                tab icon takes the banner's colour, and the page's row in the Leaves
+                drawer repeats the line.
               </li>
               <li id="updates-written-waiting">
                 <strong><code>leaf status … waiting "…"</code></strong> What it wants
                 from you, as in <em>Claude awaits — pick one of the two layouts</em>,
-                shown while a watcher runs or the agent's turn does. With no sentence
-                the banner invites a comment:
+                shown while a watcher or agent turn runs. This clears current starts;
+                tasks remain open. With no sentence the banner invites a comment:
                 <em>Claude awaits — select text to comment</em>.
               </li>
               <li id="updates-written-idle">
                 <strong><code>leaf status … idle</code></strong> The agent has finished
                 with the page, and the banner reads <em>Leaf closed</em>. Leaf refuses
-                it while input of yours has not been picked up or a picked-up move still
-                has no answer.
+                it while input of yours has not been picked up, a picked-up move still
+                has no answer, or a task the agent opened is still open.
               </li>
               <li id="updates-written-reply">
                 <strong><code>leaf thread reply --for …</code></strong> An answer in
@@ -1110,7 +1139,7 @@ flowchart LR
               <li id="updates-written-awaits">
                 <strong><code>leaf thread reply … --awaits</code></strong> A question
                 for you. The thread reads <em>On you to answer</em>, and the question
-                joins the Asks drawer.
+                joins the Queue panel.
               </li>
               <li id="updates-written-comment">
                 <strong
@@ -1167,8 +1196,7 @@ flowchart LR
                 <tr id="updates-observed-working">
                   <td>Working</td>
                   <td>
-                    The agent has named work on this thread or component with
-                    <code>--on</code>.
+                    The agent started this input with <code>leaf task start</code>.
                   </td>
                 </tr>
                 <tr id="updates-observed-replying">
@@ -1191,7 +1219,7 @@ flowchart LR
                 <tr id="updates-observed-stale">
                   <td>Update stale</td>
                   <td>
-                    A Working status has received no update for 15 minutes, or its turn
+                    The agent's start has received no update for 15 minutes, or its turn
                     ended more than two minutes ago. An input picked up by a turn also
                     becomes stale after 15 minutes without further turn activity. A
                     streaming reply becomes stale when its connection drops.
@@ -1227,14 +1255,14 @@ flowchart LR
               <li id="updates-on-phase">
                 <strong>When the work changes.</strong> A new subject, or a new phase
                 such as reading, editing, testing, or waiting on a result, gets a new
-                line. <code>leaf status</code> refuses <code>working</code> with no
-                sentence, since the banner already says that the agent is working.
+                line, by starting the item again; a start always carries one, since the
+                banner already says that the agent is working.
               </li>
               <li id="updates-on-long-work">
                 <strong>During long work.</strong> Work longer than a few minutes goes
                 to background workers, so the agent stays free to answer your next
-                comment. Its status names what is still running, beside the move the
-                work answers, and it writes it again when a worker reports (<a
+                comment. Its start names what is still running, beside the move the work
+                answers, and it starts the move again when a worker reports (<a
                   href="#turn-end"
                   >when the agent's turn can end</a
                 >).
@@ -1257,21 +1285,21 @@ flowchart LR
           <section id="updates-silence">
             <h2>How Leaf decides what the banner says</h2>
             <p id="updates-silence-lede">
-              The banner combines the agent's last status with observed activity:
-              whether the session is running, whether a turn is active, and whether an
-              integration is watching for feedback. The server computes this activity,
-              so browser tabs and <code>leaf page state</code> report the same result.
-              The Leaves drawer lists other pages using the activity summaries their
-              servers publish.
+              The banner combines the agent's last start or status with observed
+              activity: whether the session is running, whether a turn is active, and
+              whether an integration is watching for feedback. The server computes this
+              activity, so browser tabs and <code>leaf page state</code> report the same
+              result. The Leaves drawer lists other pages using the activity summaries
+              their servers publish.
             </p>
             <ul id="updates-facts">
               <li id="updates-fact-turn">
                 <strong>The turn.</strong> The harness integration records when a turn
-                starts and ends. Leaf treats it as active while its opening, a status
-                update, or a reported step is less than 15 minutes old. Claude Code also
-                reports the session's activity directly, including permission dialogs
-                and interrupted turns. An interruption can therefore mark the turn ended
-                as soon as the user presses Escape.
+                starts and ends. Leaf treats it as active while its opening, a start, a
+                status update, or a reported step is less than 15 minutes old. Claude
+                Code also reports the session's activity directly, including permission
+                dialogs and interrupted turns. An interruption can therefore mark the
+                turn ended as soon as the user presses Escape.
               </li>
               <li id="updates-fact-watcher">
                 <strong>The watcher.</strong> Claude Code's watch hook,
@@ -1281,11 +1309,10 @@ flowchart LR
                 feedback through its hooks.
               </li>
               <li id="updates-fact-status">
-                <strong>The status.</strong> A working status and each
-                <code>--on</code> line stop counting as active after 15 minutes without
-                an update. They also stop two minutes after the turn that wrote them
+                <strong>The start.</strong> A start stops counting as active after 15
+                minutes without an update, or two minutes after the turn that wrote it
                 ends, if that occurs sooner. This delay lets an immediately resumed
-                agent renew its status before Leaf reports that the work stopped.
+                agent renew its start before Leaf reports that the work stopped.
               </li>
             </ul>
             <lf-diagram
@@ -1300,7 +1327,7 @@ flowchart TD
   Alive -- yes --&gt; Believed(["work still active?"])
   Believed -- yes --&gt; Working["Claude working"]
   Believed -- no --&gt; Taking(["taking input?"])
-  Taking -- yes --&gt; Stale(["stale working status?"])
+  Taking -- yes --&gt; Stale(["stale start?"])
   Stale -- yes --&gt; Stalled["turn ended · last checked in"]
   Stale -- no --&gt; Listening["Claude awaits"]
   Taking -- no --&gt; Stuck(["input stalled?"])
@@ -1309,13 +1336,13 @@ flowchart TD
 </pre>
             </lf-diagram>
             <p id="updates-believed">
-              Leaf shows work as active when a working status is still current, when the
-              harness reports a step in an active turn, or when that turn has received
-              input requiring an answer. The freshness rules above determine when a
-              status or turn stops counting as active. Input is stalled if it remains
-              Sent for two minutes, or if the turn that received it ends without
-              answering. After about a minute, the banner also shows the status's age,
-              for example <em>Claude working · 5m ago — running the browser suite</em>.
+              Leaf shows work as active when a start is still current, when the harness
+              reports a step in an active turn, or when that turn has received input
+              requiring an answer. The freshness rules above determine when a start or
+              turn stops counting as active. Input is stalled if it remains Sent for two
+              minutes, or if the turn that received it ends without answering. After
+              about a minute, the banner also shows the working reading's age, for
+              example <em>Claude working · 5m ago — running the browser suite</em>.
             </p>
             <table id="updates-readings">
               <thead>
@@ -1351,16 +1378,16 @@ flowchart TD
                 <tr id="updates-reading-ended">
                   <td>Claude’s turn ended 3m ago</td>
                   <td>
-                    The turn ended more than two minutes ago without a newer work
-                    status. The integration is still available for feedback. Expanding
-                    the banner shows the previous status text.
+                    The turn that wrote a start ended more than two minutes ago without
+                    a new start. The integration is still available for feedback.
+                    Expanding the banner shows the start's line.
                   </td>
                 </tr>
                 <tr id="updates-reading-quiet">
                   <td>Claude last checked in 20m ago</td>
                   <td>
-                    The agent has not updated its working status for 15 minutes. The
-                    integration is still available to receive feedback.
+                    The agent has not renewed its start for 15 minutes. The integration
+                    is still available to receive feedback.
                   </td>
                 </tr>
                 <tr id="updates-reading-away">
@@ -2171,11 +2198,11 @@ flowchart TD
             <h2>Wide pages</h2>
             <p id="wide-page-what">
               Applying a Layout other than <code>layout-column</code> to
-              <code>main</code> makes a wide page. It fills the window up to 1600px,
-              with an outer margin that grows from 24px to 64px. Its blocks and title
-              share a left edge, while paragraphs still wrap at 720px. Wide pages use
-              larger titles than column pages. A workspace uses a smaller title to keep
-              its header on one row.
+              <code>main</code> makes a wide page. Its blocks and title share a left
+              edge, while paragraphs still wrap at 720px. Wide, sidebar, and tiles pages
+              fill the window up to 1600px, with an outer margin that grows from 24px to
+              64px, and use larger titles than column pages. A workspace takes the whole
+              window inside a 12px gutter and uses the theme's title size.
             </p>
             <p id="wide-page-tracks">
               <code>layout-wide</code> arranges content vertically in a single wide
@@ -2477,7 +2504,9 @@ flowchart TD
               </figure>
             </div>
 
-            <pre id="workspace-markup"><code>&lt;main class="layout-workspace"&gt;
+            <pre
+              id="workspace-markup"
+            ><code>&lt;main class="layout-workspace density-working"&gt;
   &lt;header&gt;&lt;h1&gt;Payments alerts&lt;/h1&gt;&lt;/header&gt;
   &lt;div id="regions"&gt;
     &lt;lf-pane label="Queue"&gt;…&lt;/lf-pane&gt;
@@ -2486,9 +2515,15 @@ flowchart TD
 &lt;/main&gt;
 
 &lt;style&gt;
-  #regions { display: grid; grid-template-columns: 1fr 2fr; gap: var(--sp-4); }
+  #regions { display: grid; grid-template-columns: 1fr 2fr; }
   @media (width &lt; 720px) { #regions { grid-template-columns: 1fr; } }
 &lt;/style&gt;</code></pre>
+            <p id="workspace-density">
+              <code>density-working</code> reduces type size and spacing for a compact
+              working surface. It is independent of the Layout: a workspace can use
+              ordinary reading sizes, and a pane or table on another page can use
+              working density.
+            </p>
             <p id="workspace-examples">
               Examples:
               <a href="/examples/notification-playground/">Notification playground</a>,
@@ -2524,9 +2559,12 @@ flowchart TD
             <p id="chrome-what">
               Leaf adds controls around the authored HTML. This interface is called
               <em>chrome</em>: the top banner, bottom bar, comment and decision markers,
-              thread panels, and Asks drawer. An Ask requests a user decision; the
-              drawer collects those requests. Opening these controls preserves the
-              page's text wrapping and reading position.
+              thread panels, and Queue panel. An Ask requests a user decision. The
+              experimental Queue panel lists what the user and agent each have to act
+              on: Asks and threads awaiting the user, and unanswered moves and open
+              agent tasks. The banner shows both queues' counts; pressing them opens the
+              panel. Opening these controls preserves the page's text wrapping and
+              reading position.
             </p>
             <p id="chrome-bars">
               The banner and bottom bar have fixed heights, and the page scrolls between
@@ -2547,7 +2585,7 @@ flowchart TD
             <p id="chrome-surfaces-what">
               A thread card opens beside its marker in the margin. If the margin is
               narrower than the card, it overlaps the text's edge. The Threads panel and
-              Asks drawer open over the page's edges, one at a time.
+              Queue panel open over the page's edges, one at a time.
             </p>
 
             <div class="panels" id="chrome-figure">
@@ -2656,7 +2694,7 @@ flowchart TD
               <figure id="chrome-surfaces">
                 <svg class="drawing" viewBox="0 0 240 160" role="img">
                   <title>
-                    The Asks drawer and the Threads panel open over the page's edges
+                    The Queue panel and the Threads panel open over the page's edges
                   </title>
                   <rect class="frame" x="1" y="1" width="238" height="158" rx="6" />
                   <rect class="frame-head" x="2" y="2" width="236" height="18" rx="5" />
@@ -2691,12 +2729,10 @@ flowchart TD
                     height="4"
                     rx="2"
                   />
-                  <g id="chrome-asks-drawer">
+                  <g id="chrome-queue-panel">
                     <rect class="over" x="6" y="24" width="72" height="112" rx="5" />
-                    <text class="strong" x="42" y="44" text-anchor="middle">Asks</text>
-                    <text class="strong" x="42" y="58" text-anchor="middle">
-                      drawer
-                    </text>
+                    <text class="strong" x="42" y="44" text-anchor="middle">Queue</text>
+                    <text class="strong" x="42" y="58" text-anchor="middle">panel</text>
                   </g>
                   <g id="chrome-threads-panel">
                     <rect class="over" x="152" y="24" width="82" height="112" rx="5" />
@@ -2709,7 +2745,7 @@ flowchart TD
                   </g>
                 </svg>
                 <figcaption id="cap-chrome-surfaces">
-                  <strong>Panels over the page</strong>The Asks drawer and the Threads
+                  <strong>Panels over the page</strong>The Queue panel and the Threads
                   panel open over the page's edges, one at a time. The page keeps its
                   width underneath.
                 </figcaption>
@@ -2906,7 +2942,9 @@ flowchart TD
                 </tr>
                 <tr id="data-row-status">
                   <td><code>status.json</code></td>
-                  <td>The agent's work declarations and observed activity</td>
+                  <td>
+                    The agent's declared waiting or idle status and observed activity
+                  </td>
                 </tr>
                 <tr id="data-row-interactions">
                   <td><code>interactions.jsonl</code></td>

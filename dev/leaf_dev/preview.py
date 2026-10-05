@@ -8,7 +8,7 @@ opens offline.
 
 A plain preview takes no claim: its comments settle in the page's log and nowhere
 else, so a session can drive it. `--user` claims the page for this session, so presses
-arrive through the host's feedback path, and serves it from the page's durable
+arrive through the harness's feedback path, and serves it from the page's durable
 service, which the preview stops on the way out. In Codex it also starts or joins
 the task's delivery adapter, so comments can start a new turn after this one ends.
 
@@ -275,12 +275,17 @@ class PreviewService:
         first is kept. A refused start is retried on later watcher polls; the same
         refusal is printed once while it stands."""
         from leaf.detached import StartRefused
+        from leaf.harness import claim_harness
         from leaf.hosting import start_server
 
         if time.monotonic() < self.revive_at:
             return
         try:
-            start_server(self.page, revive=True)
+            start_server(
+                self.page,
+                revive=True,
+                harness=claim_harness(self.claim) if self.claim else None,
+            )
         except StartRefused as error:
             refusal = str(error)
             if refusal != self.revive_refusal:
@@ -791,7 +796,7 @@ def export_preview(
     runtime: Path, launcher: Path, source: Path, slot: str | None
 ) -> None:
     """Write the page as one offline file under `.tmp/`, and print its path."""
-    from leaf_dev.harness import run_directory
+    from leaf_dev.arms import run_directory
 
     out_dir = run_directory(TMP / "exports")
     with tempfile.TemporaryDirectory(prefix="preview-export-", dir=TMP) as staging:

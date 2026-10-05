@@ -31,7 +31,9 @@ the diff beside those pictures:
 
 import base64
 import io
+import json
 import re
+from pathlib import Path
 
 import pytest
 from interact_support import wait_for, yaml_document
@@ -616,20 +618,30 @@ def test_a_right_edge_passage_reopens_a_usable_card_without_moving_typing(
     assert card["right"] <= boundary["right"] + 1
 
 
-@pytest.mark.parametrize("region", ["document", "pane"])
-@pytest.mark.parametrize("route", ["target", "selection"])
-def test_a_wheel_return_paints_the_comment_box_at_its_attachment_in_the_first_frame(
+@pytest.mark.parametrize(
+    "region,route",
+    [
+        (region, route)
+        for region in ("document", "pane", "combined")
+        for route in ("target", "selection")
+    ]
+    + [("code", "target"), ("content", "selection")],
+)
+def test_a_wheel_return_attaches_the_comment_box_in_the_first_visible_frame(
     browser, serve, region, route
 ):
-    """The compositor returns the passage before JS gets the scroll event. The draft
-    may still occupy its window attachment, then reattach to the passage; neither
-    posture permits a stale shifted page attachment. Reading rectangles in a frame
-    forces layout and hides that paint, so locate both surfaces in actual compositor
-    screenshots, independent of fonts or screenshot bytes."""
+    """The first compositor frame showing the returned passage already attaches its box.
+
+    Reading rectangles after the wheel forces layout and conceals the bad frame, so
+    read Chrome's actual compositor screenshots. The initial passage rectangle, box
+    height, side and gap supply the expected attachment independently of the return.
+    """
     marker_style = """<style>
       #paint-target { background: #ff0044; }
-      .lf-fab-bar { outline: 2px solid #00cc44 !important; }
+      .lf-fab-bar { outline: 8px solid #00cc44 !important; }
     </style>"""
+    if region == "combined":
+        marker_style += "<style>#paint-target { outline:24px solid #ff0044 !important; outline-offset:0 !important; }</style>"
     passage = '<p id="paint-target">The export keeps each tenant in an archive.</p>'
     if region == "document":
         source = leaf_page(
@@ -641,6 +653,51 @@ def test_a_wheel_return_paints_the_comment_box_at_its_attachment_in_the_first_fr
             head=marker_style,
         )
         size, wheel, scroller = (900, 600), 1500, None
+    elif region == "combined":
+        source = leaf_page(
+            "Attachment through both scrolling ancestors",
+            '<h1 id="title">Comments follow the passage</h1>'
+            '<div style="height:650px"></div>'
+            '<lf-pane id="paint-pane" label="Findings"><div>'
+            '<div style="height:100px"></div>'
+            + passage
+            + '<div style="height:1800px"></div></div></lf-pane>'
+            '<div style="height:2200px"></div>',
+            head=marker_style
+            + """<style>
+              #paint-pane { width:450px; height:500px; display:flex; flex-direction:column; }
+              #paint-pane > div { overflow:auto; flex:1; min-height:0; }
+            </style>""",
+        )
+        size, wheel, scroller = (900, 700), 1200, "#paint-pane > div"
+    elif region == "code":
+        source = leaf_page(
+            "Pointed rows own their attachment",
+            '<h1>Comments follow the code row</h1><lf-code id="paint-code"><pre>'
+            + "\n".join(f"row_{i} = {i}" for i in range(1, 65))
+            + '</pre></lf-code><div style="height:800px"></div>',
+            head=marker_style
+            + """<style>
+              #paint-code { display:block; width:420px; }
+              #paint-code > pre { height:240px; max-height:240px; overflow:auto; }
+              .lf-code-line[data-line="6"] { background:#ff0044 !important; }
+            </style>""",
+        )
+        size, wheel, scroller = (1200, 700), 900, "#paint-code > pre"
+    elif region == "content":
+        source = leaf_page(
+            "Quoted text owns its inner scroll coordinate",
+            '<h1>Comments follow the actual words</h1><p id="paint-target">'
+            "The export keeps each tenant in an archive.<br>"
+            + "<span>More lines in this reading region.<br></span>" * 50
+            + '</p><div style="height:1800px"></div>',
+            head=marker_style
+            + """<style>
+              #paint-target { height:72px; overflow:auto; background:none; }
+              #paint-target::first-line { background:#ff0044; }
+            </style>""",
+        )
+        size, wheel, scroller = (1200, 700), 1000, "#paint-target"
     else:
         source = leaf_page(
             "Compositor attachment in a pane",
@@ -654,24 +711,116 @@ def test_a_wheel_return_paints_the_comment_box_at_its_attachment_in_the_first_fr
             layout="workspace",
         )
         size, wheel, scroller = (1440, 600), 1200, "#paint-pane > div"
-    page = open_page(browser, serve(source))
+    page = open_page(
+        browser,
+        serve(source),
+        init_script="""window.attachmentHistory = [];
+          const identify = node => node instanceof Element
+            ? {tag:node.localName, id:node.id, class:node.getAttribute('class')}
+            : null;
+          new MutationObserver(records => {
+            const bar = document.querySelector('.lf-fab-bar');
+            if (!bar) return;
+            for (const record of records) {
+              if (!(record.target instanceof Element)) continue;
+              const moved = [...record.addedNodes, ...record.removedNodes]
+                .some(node => node === bar || node.contains(bar));
+              if (record.target !== bar && !record.target.contains(bar) && !moved)
+                continue;
+              attachmentHistory.push({at:performance.now(), kind:record.type,
+                node:identify(record.target), name:record.attributeName,
+                old:record.oldValue, style:record.target.getAttribute('style'),
+                plane:record.target.getAttribute('data-lf-plane'), moved});
+            }
+          }).observe(document, {subtree:true, childList:true, attributes:true,
+            attributeOldValue:true,
+            attributeFilter:['style','data-lf-plane','data-lf-placement']});
+          document.addEventListener('scroll', event => attachmentHistory.push({
+            at:performance.now(), eventAt:event.timeStamp, kind:'scroll',
+            node:identify(event.target)}), {capture:true, passive:true});
+        """,
+    )
     resized(page, *size)
-    target = page.locator("#paint-target")
+    target = page.locator(
+        '#paint-code .lf-code-line[data-line="6"]'
+        if region == "code"
+        else "#paint-target"
+    )
     if region == "document":
         target.evaluate(
             "node => scrollTo(0, node.getBoundingClientRect().top + scrollY - 400)"
         )
         rendered(page)
-    else:
+    elif region in ("pane", "combined"):
         pane_posture(page, page.locator("#paint-pane"), "bounded")
+    if region == "combined":
+        page.locator("#paint-pane").evaluate(
+            "node => scrollTo(0, node.getBoundingClientRect().top + scrollY - 100)"
+        )
+        rendered(page)
     if route == "target":
         target.click(modifiers=["Alt"], position={"x": 30, "y": 10})
     else:
         box = target.bounding_box()
+        if region == "content":
+            box = target.evaluate(
+                "node => { const r=document.createRange(); r.selectNodeContents(node.firstChild); return r.getBoundingClientRect().toJSON(); }"
+            )
         select(page, (box["x"] + 2, box["y"] + 10), (box["x"] + 150, box["y"] + 10))
         page.locator(".lf-fab-input").click()
     page.locator(".lf-fab-input").type("Keep these words while the page leaves. " * 6)
     rendered(page)
+    before_target = target.bounding_box()
+    content_box = before_target
+    if region == "content":
+        before_target = target.evaluate(
+            "node => { const r=document.createRange(); r.selectNodeContents(node.firstChild); return r.getBoundingClientRect().toJSON(); }"
+        )
+    before_box = page.locator(".lf-fab-bar").bounding_box()
+    # These arrangements give the card no inline lane. It stands over the block
+    # in the document and under it in the pane, one comment gap away. The bar's
+    # content determines its height, but neither its measured spot nor any return
+    # reading supplies the expected position.
+    side = "top" if region == "document" else "right" if region == "code" else "bottom"
+    assert (
+        page.locator(".lf-fab-bar").get_attribute("data-lf-placement")
+        == f"{side}-start"
+    )
+    expected_top = (
+        before_target["y"] - 8 - before_box["height"]
+        if side == "top"
+        else before_target["y"] - 8
+        if side == "right"
+        else content_box["y"] + content_box["height"] + 8
+    )
+    assert abs(before_box["y"] - expected_top) <= 1, (before_target, before_box)
+    # A thick outer marker distinguishes the target from pointed-state paint in
+    # the nested arrangement; its outset is independent of the field position.
+    marker_outset = (
+        24
+        * target.evaluate(
+            "node => node.getBoundingClientRect().width / node.offsetWidth"
+        )
+        if region == "combined"
+        else 0
+    )
+    expected_offset = expected_top - 8 - (before_target["y"] - marker_outset)
+
+    def painted_tops(image):
+        pixels = image.load()
+        target_rows, box_rows = [], []
+        for y in range(image.height):
+            for x in range(image.width):
+                red, green, blue = pixels[x, y]
+                if red > 180 and green < 60 and blue < 130:
+                    target_rows.append(y)
+                if green > 130 and red < 60 and blue < 130:
+                    box_rows.append(y)
+        return (
+            min(target_rows) if target_rows else None,
+            min(box_rows) if box_rows else None,
+        )
+
     cdp = page.context.new_cdp_session(page)
     events, complete = [], []
     cdp.on("Tracing.dataCollected", lambda data: events.extend(data["value"]))
@@ -679,13 +828,39 @@ def test_a_wheel_return_paints_the_comment_box_at_its_attachment_in_the_first_fr
     cdp.send(
         "Tracing.start",
         {
-            "categories": "disabled-by-default-devtools.screenshot,benchmark",
+            "categories": "disabled-by-default-devtools.screenshot,benchmark,blink.user_timing",
             "transferMode": "ReportEvents",
         },
     )
-    page.mouse.move(120 if scroller else 100, 350)
+    trace_clock = page.evaluate("""() => {
+      performance.mark('leaf-wheel-trace-clock');
+      return performance.now();
+    }""")
+    if region == "combined":
+        page.mouse.move(880, 650)
+        page.mouse.wheel(0, 350)
+        scroll_settled(page)
+    mouse = (
+        (before_target["x"] + 50, content_box["y"] + 35)
+        if region in ("code", "content")
+        else (120 if scroller else 100, 100 if region == "combined" else 350)
+    )
+    page.mouse.move(*mouse)
     page.mouse.wheel(0, wheel)
     scroll_settled(page, scroller)
+    rendered(page)
+    # Prove the editor followed out of view before returning. This screenshot
+    # can settle outgoing layout but cannot erase a later returning compositor frame.
+    outgoing = Image.open(io.BytesIO(page.screenshot())).convert("RGB")
+    outgoing_target, outgoing_box = painted_tops(outgoing)
+    assert outgoing_target is None, "The wheel never took the passage out of view"
+    assert outgoing_box is None, "The editor parked in the window instead of following"
+    if region == "combined":
+        # Returning the outer document alone does not reveal the pane's subject.
+        page.mouse.move(880, 650)
+        page.mouse.wheel(0, -350)
+        scroll_settled(page)
+        page.mouse.move(120, 350)
     page.mouse.wheel(0, -wheel)
     scroll_settled(page, scroller)
     cdp.send("Tracing.end")
@@ -699,48 +874,254 @@ def test_a_wheel_return_paints_the_comment_box_at_its_attachment_in_the_first_fr
         trace_finished,
         bool,
         failure="Chrome never completed the compositor screenshot trace",
-        timeout=10,
     )
     frames = [event for event in events if event["name"] == "Screenshot"]
     readings = []
+    tolerances = []
     for event in frames:
         image = Image.open(
             io.BytesIO(base64.b64decode(event["args"]["snapshot"]))
         ).convert("RGB")
-        pixels = image.load()
-        target_rows, box_rows = [], []
-        for y in range(image.height):
-            for x in range(image.width):
-                red, green, blue = pixels[x, y]
-                if red - green > 60 and red - blue > 20:
-                    target_rows.append(y)
-                if green - red > 20 and green - blue > 20 and green > 130:
-                    box_rows.append(y)
+        scale = size[0] / image.width
+        tolerances.append(2 * scale)
+        target_top, box_top = painted_tops(image)
         readings.append(
             (
-                min(target_rows) if target_rows else None,
-                min(box_rows) if box_rows else None,
+                target_top * scale if target_top is not None else None,
+                box_top * scale if box_top is not None else None,
             )
         )
-    shown = [
-        (target_top, box_top)
-        for target_top, box_top in readings
-        if target_top is not None and box_top is not None
-    ]
-    assert len(shown) >= 2 and any(top is None for top, _ in readings), readings
-    # The offscreen passage leaves an active draft in the window. A returning
-    # compositor frame may still show that declared posture before JS reattaches it.
-    window_tops = {
-        box_top
-        for target_top, box_top in readings
-        if target_top is None and box_top is not None
-    }
-    offset = shown[-1][1] - shown[-1][0]
-    assert all(
-        abs(box_top - target_top - offset) <= 1
-        or any(abs(box_top - window_top) <= 1 for window_top in window_tops)
-        for target_top, box_top in shown
-    ), readings
+    try:
+        shown = [
+            (target_top, box_top)
+            for target_top, box_top in readings
+            if target_top is not None and box_top is not None
+        ]
+        assert len(shown) >= 2 and any(top is None for top, _ in readings), readings
+        # Chrome downsamples trace screenshots, so two samples allow the antialiased
+        # background/outline edges. This is pixel sampling tolerance, not a motion budget.
+        tolerance = max(tolerances)
+        # The final frame must independently attach, as well as the first visible frame.
+        final_target, final_box = readings[-1]
+        assert final_target is not None and final_box is not None, readings
+        assert abs(final_target - (before_target["y"] - marker_outset)) <= tolerance, (
+            readings
+        )
+        assert abs(final_box - final_target - expected_offset) <= tolerance, readings
+
+        departed = False
+        returned = []
+        for target_top, box_top in readings:
+            if target_top is None:
+                departed = True
+            elif departed:
+                returned.append((target_top, box_top))
+        assert returned, readings
+        first_target, first_box = returned[0]
+        assert (
+            first_box is not None
+            and abs(first_box - first_target - expected_offset) <= tolerance
+        ), (expected_offset, readings)
+        assert all(
+            box_top is not None
+            and abs(box_top - target_top - expected_offset) <= tolerance
+            for target_top, box_top in returned
+        ), readings
+
+    except AssertionError as error:
+        # Preserve the frames that failed, rather than painting a later screenshot.
+        # The journal records raw attributes/events only; nothing reads layout during
+        # the returning wheel. Its final read cannot change the completed trace.
+        evidence = (
+            Path(__file__).resolve().parent.parent
+            / ".tmp"
+            / "test-results"
+            / f"wheel-return-{region}-{route}"
+        )
+        evidence.mkdir(parents=True, exist_ok=True)
+        for index, event in enumerate(frames):
+            (evidence / f"frame-{index:03}.jpg").write_bytes(
+                base64.b64decode(event["args"]["snapshot"])
+            )
+        (evidence / "trace.json").write_text(
+            json.dumps(
+                {
+                    "region": region,
+                    "route": route,
+                    "viewport": size,
+                    "expected_offset": expected_offset,
+                    "initial_target": before_target,
+                    "initial_box": before_box,
+                    "clock": {
+                        "performance_ms": trace_clock,
+                        "trace_microseconds": next(
+                            event["ts"]
+                            for event in events
+                            if event["name"] == "leaf-wheel-trace-clock"
+                        ),
+                    },
+                    "frames": [
+                        {"at": event["ts"], "painted_tops": reading}
+                        for event, reading in zip(frames, readings, strict=True)
+                    ],
+                    "history": page.evaluate("attachmentHistory"),
+                },
+                indent=2,
+            )
+        )
+        error.add_note(f"Original compositor frames and raw history: {evidence}")
+        raise
+
+    if region == "combined":
+        field = page.locator(".lf-fab-input")
+        field.click()
+        page.keyboard.press("ArrowLeft")
+        page.keyboard.press("ArrowLeft")
+        draft = field.evaluate(
+            "node => ({value:node.value, caret:[node.selectionStart,node.selectionEnd]})"
+        )
+        page.mouse.move(120, 350)
+        page.mouse.wheel(0, wheel)
+        scroll_settled(page, scroller)
+        away = field.bounding_box()
+        assert away["y"] + away["height"] < 0, away
+        page.keyboard.press("Escape")
+        page.keyboard.press("g")
+        page.keyboard.press("i")
+        wait_until_ready(page)
+        expect(field).to_be_focused()
+        assert (
+            field.evaluate(
+                "node => ({value:node.value, caret:[node.selectionStart,node.selectionEnd]})"
+            )
+            == draft
+        )
+        wait_for(
+            field.bounding_box,
+            lambda resumed: (
+                0 <= resumed["y"] and resumed["y"] + resumed["height"] <= size[1]
+            ),
+            failure="Resume writing did not bring the original editor into view",
+        )
+        wait_for(
+            target.bounding_box,
+            lambda subject: (
+                0 <= subject["y"] and subject["y"] + subject["height"] <= size[1]
+            ),
+            failure="Resume writing did not reveal its original passage",
+        )
+
+
+@pytest.mark.parametrize("consumer", ["editor", "thread"])
+@pytest.mark.parametrize("transform", ["scale(.8)", "scale(.8) rotate(10deg)"])
+def test_a_quote_surface_follows_scaled_inner_scroll_and_retains_native_editing(
+    browser, serve, consumer, transform
+):
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Attachment to words inside a scaled scroller",
+                '<h1>Review selected words</h1><div id="scaled"><p id="quote">'
+                "First reading line.<br>Second reading line.<br>"
+                "The export keeps each tenant in an archive.<br>"
+                + "<span>More lines in this reading region, with a long unwrapped reading line.<br></span>"
+                * 50
+                + '</p></div><div style="height:1200px"></div>',
+                head=f"<style>#scaled{{transform:{transform};transform-origin:left top}}"
+                "#quote{height:150px;width:420px;overflow:auto;white-space:nowrap}</style>",
+            )
+        ),
+    )
+    resized(page, 1200, 700)
+    target = page.locator("#quote")
+
+    def words():
+        return target.evaluate("""node => {
+          const range = document.createRange();
+          range.setStart(node.childNodes[4], 0); range.setEnd(node.childNodes[4], 12);
+          return range.getBoundingClientRect().toJSON();
+        }""")
+
+    first = words()
+    select(
+        page,
+        (first["left"] + 1, first["top"] + first["height"] / 2),
+        (first["right"] - 1, first["top"] + first["height"] / 2),
+    )
+    page.keyboard.press("c")
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_focused()
+    page.keyboard.insert_text("Words about this quote")
+    rendered(page)
+    page.keyboard.press("ArrowLeft")
+    page.keyboard.press("ArrowLeft")
+    original = field.element_handle()
+    draft = field.evaluate("node => ({value:node.value, caret:node.selectionStart})")
+    if consumer == "thread":
+        page.keyboard.press("Enter")
+        rendered(page)
+        surface = page.locator(".lf-margin-preview:visible")
+    else:
+        surface = page.locator(".lf-fab-bar")
+    expect(surface).to_be_visible()
+    before, quote_before = surface.bounding_box(), words()
+    assert before["x"] > quote_before["right"], before
+    box = target.bounding_box()
+    page.mouse.move(box["x"] + 100, box["y"] + 80)
+    page.mouse.wheel(20, 20)
+    scroll_settled(page, "#quote")
+    rendered(page)
+    after, quote_after = surface.bounding_box(), words()
+    for axis in ["x", "y"]:
+        assert after[axis] - before[axis] == pytest.approx(
+            quote_after[axis] - quote_before[axis], abs=1
+        ), (before, after, quote_before, quote_after)
+    if consumer == "thread":
+        # The card's original controls still receive presses through inert carriers.
+        reply = surface.get_by_role("textbox", name="Reply", exact=True)
+        reply.click()
+        expect(reply).to_be_focused()
+        return
+    resized(page, 1100, 700)
+    expect(field).to_be_focused()
+    assert field.evaluate("(node, original) => node === original", original)
+    assert (
+        field.evaluate("node => ({value:node.value, caret:node.selectionStart})")
+        == draft
+    )
+    page.keyboard.insert_text("\nAnother line about the export.\nOne more line.")
+    rendered(page)
+    grown = field.evaluate("node => ({value:node.value, caret:node.selectionStart})")
+    resized(page, 1200, 700)
+    assert (
+        field.evaluate("node => ({value:node.value, caret:node.selectionStart})")
+        == grown
+    )
+    assert field.evaluate("(node, original) => node === original", original)
+    box = target.bounding_box()
+    page.mouse.move(box["x"] + 100, box["y"] + 80)
+    page.mouse.wheel(0, 500)
+    scroll_settled(page, "#quote")
+    assert words()["bottom"] < target.bounding_box()["y"]
+    page.keyboard.press("Escape")
+    page.keyboard.press("g")
+    page.keyboard.press("i")
+    expect(field).to_be_focused()
+    wait_for(
+        lambda: (words(), target.bounding_box(), field.bounding_box()),
+        lambda read: (
+            read[1]["y"] - 0.5 <= read[0]["top"]
+            and read[0]["bottom"] <= read[1]["y"] + read[1]["height"] + 0.5
+            and 0 <= read[2]["y"] <= read[2]["y"] + read[2]["height"] <= 700
+        ),
+        failure="Resume writing did not reveal the actual quoted words and native editor",
+    )
+    assert field.evaluate("(node, original) => node === original", original)
+    assert (
+        field.evaluate("node => ({value:node.value, caret:node.selectionStart})")
+        == grown
+    )
 
 
 def test_a_comment_keeps_its_measure_when_its_passage_scrolls_away(browser, serve):
@@ -770,8 +1151,10 @@ def test_a_comment_keeps_its_measure_when_its_passage_scrolls_away(browser, serv
 
     page.mouse.wheel(0, 1500)
     scroll_settled(page)
-    expect(bar).to_have_attribute("data-lf-plane", "window")
-    assert abs(bar.bounding_box()["width"] - width) <= 1
+    expect(bar).to_have_attribute("data-lf-plane", "page")
+    away = bar.bounding_box()
+    assert away["y"] + away["height"] < 0, away
+    assert abs(away["width"] - width) <= 1
     page.mouse.wheel(0, -1500)
     scroll_settled(page)
     expect(bar).to_have_attribute("data-lf-plane", "page")
@@ -1055,3 +1438,145 @@ def test_send_grows_thread_around_the_words(
                 opening["gap"], abs=1
             ), opening
     judge_watches()
+
+
+@pytest.mark.parametrize("scale", [0.5, 2])
+def test_room_for_a_surface_uses_the_scrollports_visible_scale(browser, serve, scale):
+    """One room request exposes the surface without scrolling its passage away."""
+    source = leaf_page(
+        "Room beside scaled words",
+        f"""<h1>Room beside scaled words</h1>
+<div style="transform:scale({scale});transform-origin:left top">
+<div id="scroller" style="height:300px;overflow:auto;width:300px">
+<div style="height:180px"></div><p id="target">Words to discuss.</p>
+<div style="height:1200px"></div></div></div>""",
+    )
+    page = open_page(browser, serve(source))
+    reading = page.evaluate(
+        """async () => {
+          const {makeRoom} = await window.__lfRuntimeImport(
+            '/runtime/annotation-overlay/comment-placement.js');
+          const scroller = document.querySelector('#scroller');
+          const target = document.querySelector('#target');
+          const boundary = scroller.getBoundingClientRect();
+          const before = target.getBoundingClientRect();
+          const height = boundary.height * .6;
+          const overflow = before.bottom + 8 + height - boundary.bottom;
+          const moved = makeRoom('bottom', before, before, height, boundary, scroller);
+          const after = target.getBoundingClientRect();
+          return {moved, overflow, remaining:after.bottom + 8 + height - boundary.bottom,
+                  visible:after.top >= boundary.top && after.bottom <= boundary.bottom};
+        }"""
+    )
+    assert reading["overflow"] > 5, reading
+    assert reading["moved"], reading
+    assert abs(reading["remaining"]) <= 0.5, reading
+    assert reading["visible"], reading
+
+
+@pytest.mark.parametrize("source", ["document", "inner"])
+@pytest.mark.parametrize("read", ["before-scroll", "after-scroll"])
+@pytest.mark.parametrize("existing", [False, True])
+def test_native_attachment_measures_solver_and_scroll_origin_together(
+    browser, serve, source, read, existing
+):
+    """A wheel during either side of an asynchronous solve is carried exactly once."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Placement during a wheel",
+                "<h1>Keep this quoted passage attached</h1>"
+                '<p id="quote" style="height:150px;width:420px;overflow:auto">'
+                "First reading line.<br>Second reading line.<br>"
+                "The export keeps each tenant in an archive.<br>"
+                + "More lines in this reading region.<br>" * 50
+                + '</p><div style="height:1200px"></div>',
+            )
+        ),
+    )
+    page.evaluate(
+        """async ([read, source, existing]) => {
+          const {floatingPlacement, floatingUi} =
+            await window.__lfRuntimeImport('/runtime/annotation-overlay/floating.js');
+          const ui = await floatingUi();
+          const paragraph = document.querySelector('#quote');
+          const node = paragraph.childNodes[4];
+          const range = document.createRange();
+          range.setStart(node, 0); range.setEnd(node, 12);
+          const box = document.createElement('div');
+          box.style = 'position:fixed;width:100px;height:60px;background:white';
+          document.querySelector('.lf-chrome').append(box);
+          const captured = range.getBoundingClientRect();
+          const reference = {
+            contextNode: node, contextElement: paragraph,
+            // Presenters can hand the owner a solved passage snapshot or a live
+            // virtual reference; both share its scroll/anchor measurement boundary.
+            getBoundingClientRect: () => source === 'document'
+              ? captured : range.getBoundingClientRect(),
+          };
+          const owner = floatingPlacement({floating: box, update: () => {}});
+          window.detachPlacement = () => {
+            const framed = box.parentElement !== document.querySelector('.lf-chrome');
+            box.remove();
+            owner.stop();
+            return framed;
+          };
+          if (existing) {
+            owner.begin();
+            const answer = await owner.position(ui.computePosition, reference,
+              {placement:'right-start', middleware:[]}, () => 'page', paragraph);
+            owner.stand(answer);
+          }
+          const gate = new Promise(done => {window.releaseSolve = done;});
+          window.solveEntered = false;
+          window.solveRead = false;
+          owner.begin();
+          window.solve = owner.position(async (...args) => {
+            window.solveEntered = true;
+            if (read === 'after-scroll') await gate;
+            const answer = await ui.computePosition(...args);
+            window.solveRead = true;
+            if (read === 'before-scroll') await gate;
+            return answer;
+          }, reference, {placement:'right-start', middleware:[]}, () => 'page', paragraph)
+            .then(answer => owner.stand(answer));
+          window.attachmentReading = () => ({
+            quote: range.getBoundingClientRect().toJSON(),
+            box: box.getBoundingClientRect().toJSON(),
+            plane: box.dataset.lfPlane,
+          });
+        }""",
+        [read, source, existing],
+    )
+    page.wait_for_function("window.solveEntered")
+    if read == "before-scroll":
+        page.wait_for_function("window.solveRead")
+    else:
+        assert page.evaluate("window.solveRead") is False
+    if source == "inner":
+        box = page.locator("#quote").bounding_box()
+        page.mouse.move(box["x"] + 100, box["y"] + 80)
+        moved = "document.querySelector('#quote').scrollTop"
+    else:
+        page.mouse.move(100, 500)
+        moved = "scrollY"
+    page.mouse.wheel(0, 30)
+    page.wait_for_function(f"{moved} > 0")
+    scroll_settled(page, "#quote" if source == "inner" else None)
+    if existing:
+        page.screenshot()
+        pending = page.evaluate("attachmentReading()")
+        assert pending["box"]["x"] == pytest.approx(pending["quote"]["right"], abs=1), (
+            pending
+        )
+        assert pending["box"]["y"] == pytest.approx(pending["quote"]["top"], abs=1), (
+            pending
+        )
+    page.evaluate("async () => {releaseSolve(); await solve;}")
+    page.screenshot()
+    state = page.evaluate("attachmentReading()")
+    assert state["plane"] == "page", state
+    assert state["box"]["x"] == pytest.approx(state["quote"]["right"], abs=1), state
+    assert state["box"]["y"] == pytest.approx(state["quote"]["top"], abs=1), state
+    assert page.evaluate("detachPlacement()"), "the detached placement had no frame"

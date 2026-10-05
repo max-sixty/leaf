@@ -12,8 +12,10 @@
     "skills/leaf/assets/runtime/collapse.js",
     "skills/leaf/assets/runtime/pending/model.js",
     "skills/leaf/assets/runtime/projection/model.js",
+    "skills/leaf/assets/runtime/queues.js",
     "skills/leaf/assets/runtime/thread/identity.js",
-    "skills/leaf/assets/runtime/thread/model.js"
+    "skills/leaf/assets/runtime/thread/model.js",
+    "skills/leaf/assets/runtime/thread/workflow.js"
   ],
   "entryPoints": {
     "skills/leaf/assets/vendor/browser-runtime.js": "build/browser/index.ts",
@@ -21,7 +23,7 @@
   },
   "outputRoot": "skills/leaf/assets/vendor",
   "lockfile": "package-lock.json",
-  "lockfileSha256": "5544cd381239dc8dee775996840de14b1858b7fca869a39899a70d3f1f50d8d8",
+  "lockfileSha256": "5cc058420ee32fc5e60bca5998f45b9f7a8f3826f1a63292a246450fc2866807",
   "commands": {
     "install": "npm ci",
     "build": "npm run build:browser",
@@ -42,16 +44,14 @@
     "@observablehq/plot": "0.6.17",
     "@pierre/diffs": "1.5.1",
     "@preact/signals-core": "1.14.4",
-    "@shikijs/core": "4.4.3",
-    "@shikijs/engine-javascript": "4.4.3",
-    "@shikijs/langs": "4.4.3",
-    "@shikijs/themes": "4.4.3",
+    "@shikijs/core": "4.5.0",
+    "@shikijs/engine-javascript": "4.5.0",
+    "@shikijs/langs": "4.5.0",
     "acorn": "8.18.0",
     "agentic-mermaid": "0.4.1",
     "diff": "9.0.0",
     "esbuild": "0.28.2",
     "happy-dom": "20.14.5",
-    "highlight.js": "11.12.0",
     "lit": "3.3.3",
     "lit-html": "3.3.0",
     "marked": "18.0.14",
@@ -74,6 +74,7 @@
     "createSemanticApplication",
     "describeFailure",
     "html",
+    "noChange",
     "nothing",
     "render",
     "repeat"
@@ -161,12 +162,12 @@
   "pageModules": "Browser-ready authored page modules are captured with their revision; they are not contributor-build inputs.",
   "outputs": {
     "skills/leaf/assets/vendor/browser-runtime.js": {
-      "bytes": 27501,
-      "sha256": "e1984c78da1db0d7c35d242b9fef01a45d8a8ea8ad81748d6cb458b00e9d6917"
+      "bytes": 29432,
+      "sha256": "6df941839cc4449186e243c1574d9ae183b5bdb9ff6fc43c3d12c456d1100644"
     },
     "build/browser/generated/browser-runtime.js.map": {
-      "bytes": 176568,
-      "sha256": "8c339c05cee2b9e42e51d9f4fe10dd5cd75117baa05ed9af2239750a88d2bb6a"
+      "bytes": 192494,
+      "sha256": "858c039d3378cbd5a36d3f0b651df275cd660ca07aff0f0d80367703fb4299cb"
     },
     "skills/leaf/assets/vendor/lit.js": {
       "bytes": 32081,

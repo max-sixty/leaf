@@ -9,7 +9,14 @@ from pathlib import Path
 
 import pytest
 from conftest import LEAF_COMMAND
-from interact_support import add_test_widget, append_carried_log_record, install_payload
+from interact_support import (
+    add_test_widget,
+    append_carried_log_record,
+    append_command,
+    install_payload,
+    state_json,
+    wait_for,
+)
 from leaf import event_log as events_model
 from leaf import render_checks as render_checks_model
 from leaf.render_gate import browser as browser_model
@@ -35,10 +42,12 @@ from render_harness import (
     SAMPLE_MARKUP,
     SAMPLE_TEXT,
     SETTLED_PAGE,
+    consume_browser_errors,
     example_media,
     leaf_page,
     open_page,
     page_registry,
+    panel_settled,
     primed,
     resized,
     scroll_settled,
@@ -253,7 +262,8 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
     the page's own arrangement is at its tightest before it changes. A sidebar page with
     four tiles in its body changes twice there: its tiles wrap before its track stacks.
     Each open Ask, a suggestion as much as an lf-ask, gets the window `a` brings it
-    into, as the user working the page meets it.
+    into, as the user working the page meets it, including those `a` reaches past a
+    page widget move handed back to the user, which is a stop of its own and no Ask.
     A second check replaces the first's screens rather than adding to them."""
     tiles = "".join(
         f"<lf-metric id='m{i}' value='{i}'>metric {i}</lf-metric>" for i in range(4)
@@ -262,7 +272,10 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
         leaf_page(
             "a sidebar page",
             "<header><h1>Rollout</h1></header>"
-            f"<div id='body'><div class='layout-tiles' id='2026-numbers'>{tiles}</div>"
+            "<div id='body'><lf-ask id='ship-ask'><h2>Ship now?</h2>"
+            "<lf-options id='ship' choose><lf-option id='ship-now'>Now</lf-option>"
+            "<lf-option id='ship-later'>Later</lf-option></lf-options></lf-ask>"
+            f"<div class='layout-tiles' id='2026-numbers'>{tiles}</div>"
             + "".join(
                 f"<p id='para-{i}'>{'Body paragraph. ' * 30}</p>" for i in range(60)
             )
@@ -278,6 +291,34 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
             layout="sidebar",
         )
     )
+    # The first Ask is answered, and the host gave up on picking the answer up, which
+    # hands the move back: the walk's first stop is that widget, ahead of every Ask.
+    moved = append_command(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "ship",
+            "action": "choose",
+            "detail": {"options": ["ship-now"]},
+        },
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "pickup",
+            "author": "page",
+            "attention": False,
+            "events": [moved["id"]],
+            "phase": "failed",
+            "failure": "turn_failed",
+            "session": "screens",
+            "turn": "turn-1",
+        },
+    )
+    on_you = state_json(serve.page_dir)["queues"]["on_you"]
+    assert {"kind": "widget", "id": "ship"} in [item["subject"] for item in on_you]
 
     def check():
         ran = subprocess.run(
@@ -414,7 +455,7 @@ def test_a_driver_that_never_starts_is_reported_rather_than_raised(serve, tmp_pa
 
 
 def test_an_installed_payload_passes_its_real_browser_gate(tmp_path, headless_shell):
-    """Exercise the copied artifact a host installs, never an import from this checkout.
+    """Exercise the copied artifact a harness installs, never an import from this checkout.
 
     Its browser gate runs on both of the browsers a host can supply, since the install
     is where a host with a Chromium and no Chrome meets it."""
@@ -1250,53 +1291,42 @@ def test_plain_check_runs_the_code_a_page_authored(serve, tmp_path, headless_she
     )
 
 
-def test_a_message_is_refused_where_its_widget_would_fail(
-    serve, tmp_path, headless_shell
+def test_a_widget_that_fails_in_a_message_reports_when_its_thread_draws(
+    browser, serve, tmp_path
 ):
-    """A message's markup is frozen once it is in the log, and a chart in a reply has
-    no box to draw in while its thread is shut, so the post is the one moment its author
-    can fix it and the page check will never see it. The post runs a data widget once
-    and refuses the message on the error the page would report, and posts one that
-    draws. Markup with no data widget posts without a browser, and so does a data
-    widget on a host with none, with a note that it went undrawn."""
-    serve(LONG_PAGE)
+    """A message's markup is validated as it is posted, and drawn only where a browser
+    shows it, so a reply carrying a chart posts as fast as one without and needs no
+    browser. A body its module cannot draw reports to the author when the user opens
+    its thread, as the page's own widgets do, naming the widget; the log freezes the
+    message, so the author answers with a corrected reply."""
+    url = serve(LONG_PAGE)
     d = serve.page_dir
-
-    def open_thread(markup, browser=headless_shell):
-        return subprocess.run(
-            [*LEAF_COMMAND, "thread", "open", str(d), "--text", "See this."]
-            + ["--markup", markup],
-            capture_output=True,
-            text=True,
-            check=False,
-            env=unnamed_browser() | {"LEAF_BROWSER_EXECUTABLE": str(browser)},
-        )
-
-    before = events_model.read_events(d)
-    refused = open_thread('<lf-chart id="t-bad"><pre>\n{ marks: [ }\n</pre></lf-chart>')
-    assert refused.returncode == 1, refused.stdout + refused.stderr
-    assert "✗ comment markup: 1 error(s)" in refused.stderr
-    assert '<lf-chart id="t-bad"> failed: ' in refused.stderr
-    assert "does not parse" in refused.stderr
-    assert events_model.read_events(d) == before
-
-    drawn = open_thread(
-        '<lf-chart id="t-good"><pre>\n{ ariaLabel: "Nothing yet", marks: [] }\n</pre>'
-        "</lf-chart>"
+    posted = subprocess.run(
+        [*LEAF_COMMAND, "thread", "open", str(d), "--text", "See this."]
+        + ["--markup", '<lf-chart id="t-bad"><pre>\n{ marks: [ }\n</pre></lf-chart>'],
+        capture_output=True,
+        text=True,
+        check=False,
+        env=unnamed_browser() | {"LEAF_BROWSER_EXECUTABLE": str(tmp_path / "none")},
     )
-    assert drawn.returncode == 0, drawn.stdout + drawn.stderr
-    [posted] = [json.loads(line) for line in drawn.stdout.splitlines()]
-    assert 'id="t-good"' in posted["markup"]
+    assert posted.returncode == 0, posted.stdout + posted.stderr
+    assert not posted.stderr, "posting asks for no browser"
 
-    choice = open_thread(
-        '<lf-options id="t-pick"><lf-option id="t-pick-a">A</lf-option></lf-options>',
-        browser=tmp_path / "not-a-browser",
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    expect(page.locator(".lf-thread-panel #t-bad .lf-error")).to_contain_text(
+        "does not parse"
     )
-    assert choice.returncode == 0, choice.stdout + choice.stderr
-
-    undrawn = open_thread(
-        '<lf-chart id="t-unrun"><pre>\n{ marks: [ }\n</pre></lf-chart>',
-        browser=tmp_path / "not-a-browser",
+    report = '<lf-chart id="t-bad"> failed: '
+    consume_browser_errors(page, report)
+    reported = wait_for(
+        lambda: [
+            event["text"]
+            for event in events_model.read_events(d)
+            if event["kind"] == "error"
+        ],
+        bool,
+        failure="the page never reported the chart",
     )
-    assert undrawn.returncode == 0, undrawn.stdout + undrawn.stderr
-    assert "· comment markup: not run, no browser launched: " in undrawn.stderr
+    assert len(reported) == 1 and reported[0].startswith(report), reported

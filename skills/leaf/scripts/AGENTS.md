@@ -1,6 +1,6 @@
 # The Python side
 
-This directory is the project's module root, and `leaf/` is the package a host
+This directory is the project's module root, and `leaf/` is the package a harness
 installs. `leaf/__main__.py` is the CLI as `python -m leaf`, which `bin/leaf` and
 every leaf subprocess run; the `leaf` console script is the same entry. `leaf/cli.py`
 composes the commands and stays a facade: domain logic, and any branching across the
@@ -34,16 +34,20 @@ subpackage's initializer is only a marker, never a second API.
 - `thread_context`, `thread`: thread identity, frozen markup, delivery context,
   thread writes, and the reply lifecycle;
 - `workflows`, `activity`: unsettled user moves with their evidence, and the
-  page-level fold over workflows, status, claim, turn, and watcher;
+  page-level fold over workflows, tasks, starts, status, claim, turn, and watcher;
 - `asks`: the one implementation of page and thread Asks, which every surface reads;
-- `work`: transient subject claims and widget work seats;
-- `delivery`, `session`, `hooks`, `hook_carrier`, `host`: the delivery envelope
-  and its receipt, status and the `leaf wait` watch, the host hooks' entry, the
+- `work`: the subjects work stands on: what an id names, which widgets seat a task,
+  and which widget tasks a version would leave without a target;
+- `tasks` (experimental, expected to change a lot): the agent's queue as the log
+  holds it: the tasks it owes until it ends them and the `start` that takes a move or
+  task in hand, their fold, admission gate, and `leaf task`;
+- `delivery`, `session`, `hooks`, `hook_carrier`, `harness`: the delivery envelope
+  and its receipt, status and the `leaf wait` watch, the harness hooks' entry, the
   prompt and Stop hooks as a session's carrier, and harness declarations;
 - `codex_state`: Codex delivery eligibility and shared delivery serialization paths;
 - `codex`, `codex_adapter`: Codex delivery records and App Server turn folds, and
   the detached carrier behind `leaf codex start`;
-- `thread_titles`: the title Leaf asks the host's model for when a user opens a
+- `thread_titles`: the title Leaf asks the harness's model for when a user opens a
   thread, before the agent's reply could name it;
 - `state`: dependency-free session lifetime and turn publication, standalone cold
   SessionEnd, shared paths, page identity, locks and durable replacement;
@@ -84,10 +88,11 @@ the served response, `reading` names filesystem changes for freshness reads, and
 
 Within `render_gate/`, `scheme` owns one browser and color lifecycle, `readings` owns
 the probe readings and their findings, `version` owns retry policy, `page_code` owns
-the run plain `page check` and message markup take, `preview` owns ephemeral servers, `browser` owns the
-browser launch, `screens` owns the screens a passing check saves for the author, and
-`command` owns the CLI boundary, and `widget_quality` owns the report `package check
---render` gives a widget's author, which refuses nothing.
+the run plain `page check` takes, `preview` owns ephemeral servers, `browser` owns the
+browser's launch and end, `screens` owns the screens a passing check saves for the
+author, `picture` owns the picture `page picture` draws of a drawing comment,
+`command` owns the CLI boundary, and `widget_quality` owns the report
+`package check --render` gives a widget's author, which refuses nothing.
 
 Within `validation/`, `markup` owns shared document structure, `instances` owns
 registry-declared instance rules, `admission` owns what an agent's writer hands in,

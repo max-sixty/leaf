@@ -174,14 +174,6 @@ def target_document(title, body):
     )
 
 
-@pytest.mark.xfail(
-    reason=(
-        "Main 6ddf85e5d: the visual-review inline comment seat does not reveal its "
-        "focused editor after a desktop-to-phone resize"
-    ),
-    raises=AssertionError,
-    strict=True,
-)
 def test_visual_review_keeps_its_inline_comment_editor_in_view_after_phone_resize(
     browser, serve
 ):
@@ -284,9 +276,9 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     base_target, candidate_target, corrected_target = targets
     denied = browser.new_page()
     response = denied.goto(f"{base_target.origin}/versions/v1.html")
-    assert response and response.status == 403
+    assert response and response.status == 401
     # The refusal is the point of this page: the reviewer has no capture credential.
-    consume_browser_errors(denied, "403")
+    consume_browser_errors(denied, "401")
     denied.close()
 
     context = browser.new_context(
@@ -388,7 +380,7 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     user = open_page(browser, review_url)
     resized(user, 1366, 768)
     response = user.context.request.get(f"{target_base}v1.html")
-    assert response.status == 403
+    assert response.status == 401
     widget = user.locator("#journey")
     fills_the_window(user, widget, True)
     first = widget.locator('[data-lf-datum="open-release-list"]')
@@ -492,9 +484,10 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     expect(user.get_by_role("dialog")).to_be_hidden()
     assert user.evaluate("() => document.activeElement === document.body")
     user.keyboard.press("g")
-    user.keyboard.press("Shift+d")
+    user.keyboard.press("i")
     expect(field).to_be_focused()
     expect(field).to_have_js_property("value", "Restore Back to releases")
+    scroll_settled(user)
     assert_keyboard_focus(user, field)
 
     resized(user, 1366, 768)
@@ -513,7 +506,7 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     expect(user.get_by_role("dialog")).to_be_hidden()
     assert user.evaluate("() => document.activeElement === document.body")
     user.keyboard.press("g")
-    user.keyboard.press("Shift+d")
+    user.keyboard.press("i")
     expect(field).to_be_focused()
     expect(field).to_have_js_property("value", "Restore Back to releases")
     field.press("End")
@@ -633,3 +626,66 @@ def test_a_visual_review_states_where_its_pair_differs_in_every_view(browser, se
                     frame.querySelector('.lf-shotdiff').getBoundingClientRect().top]"""
     )
     assert first_mark_top == pytest.approx(image_top, abs=1)
+
+
+# The frame a box draws, beside the theme tokens it might draw from, resolved where it
+# stands so a dark scheme or a page's own token reads the same way.
+FRAME = """box => {
+  const s = getComputedStyle(box);
+  const token = (name) => {
+    const probe = document.createElement('span');
+    probe.style.color = `var(${name})`;
+    box.append(probe);
+    const color = getComputedStyle(probe).color;
+    probe.remove();
+    return color;
+  };
+  const r = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--r'));
+  return {border: s.borderTopColor, width: s.borderTopWidth,
+    radius: parseFloat(s.borderTopLeftRadius), gap: s.rowGap, r,
+    rule: token('--rule'), border2: token('--border-2')};
+}"""
+
+
+def test_a_visual_review_keeps_its_own_frame_where_a_pane_grid_meets_at_hairlines(
+    browser, serve
+):
+    """A workspace draws a page's grid of panes as one frame, the panes meeting at a
+    1px ring. A visual review that is the workspace's body composes its own regions,
+    and its evidence is a pane it generates standing directly in it, so the grid rules
+    took it for a page's grid: the review wore the grid's rule-coloured border, `--r`
+    corners and 1px row gap, and the evidence the ring, in place of the review's
+    `--border-2` frame at 1.25×`--r` with an evidence pane drawing only its inner rule.
+    The page's own grid of panes is the control that keeps the hairline grid."""
+    page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
+    resized(page, 1280, 800)
+    review = page.locator("main.layout-workspace > lf-visual-review")
+    evidence = review.locator(":scope > .lf-vr-evidence-region")
+    expect(evidence).to_have_attribute("data-lf-reading-role", "pane")
+    frame = review.evaluate(FRAME)
+    assert frame["border"] == frame["border2"] != frame["rule"], frame
+    assert frame["radius"] == pytest.approx(1.25 * frame["r"]), frame
+    assert frame["gap"] == "normal", frame
+    expect(evidence).to_have_css("box-shadow", "none")
+    page.close()
+
+    grid = leaf_page(
+        "pane grid",
+        """
+  <header><h1>Alerts</h1></header>
+  <div id="regions">
+    <lf-pane id="queue" label="Queue"><div><p>Three alerts wait.</p></div></lf-pane>
+    <lf-pane id="detail" label="Detail"><div><p>Disk pressure on db-2.</p></div></lf-pane>
+  </div>
+""",
+        head="<style>#regions { display: grid; grid-template-columns: 1fr 2fr; }</style>",
+        layout="workspace",
+    )
+    page = open_page(browser, serve(grid, packages=()))
+    resized(page, 1280, 800)
+    frame = page.locator("#regions").evaluate(FRAME)
+    assert frame["border"] == frame["rule"] and frame["width"] == "1px", frame
+    assert frame["radius"] == pytest.approx(frame["r"]) and frame["gap"] == "1px", frame
+    for pane in ("#queue", "#detail"):
+        ring = page.locator(pane).evaluate("node => getComputedStyle(node).boxShadow")
+        assert ring == f"{frame['rule']} 0px 0px 0px 1px", (pane, ring)

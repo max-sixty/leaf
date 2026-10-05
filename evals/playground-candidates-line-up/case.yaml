@@ -1,0 +1,84 @@
+# From Claude Code session b183bf1f-f4ac-4d43-a4c8-2715f434c4d9: a playground
+# compared today's thread card with four candidates in an auto-fill grid, each
+# column a heading, a one-line note and the card stacked by content height. At
+# the 1440px window the author checked, every note took one line; in the user's
+# wider window some notes wrapped, so the cards in one row started at different
+# heights and the user marked the misalignment.
+# On 29e0cfd65 the cards lined up in 3 of 17 runs across both hosts; the
+# shared-lines sentence passed 4/4. A wording that named no parts ("line up part
+# for part") let one Claude Code run subgrid the card's own rows and stretch
+# every card to one height, which cards-keep-their-height catches.
+description: playground-candidates-line-up
+metadata:
+  purpose: 'Playground: candidates compared side by side line up part for part, whatever
+    their labels and notes wrap to.'
+  tags:
+  - playground
+vars:
+  prompt: |
+    The user asks: "When a later version rewrites the passage a thread quoted,
+    the thread card only shows the new words. Sketch some ways the card could
+    keep what I originally quoted visible, so I can pick one."
+
+    You have read the thread card's code and copied its computed styles. Every
+    candidate draws this card, with one change to the anchor line or the first
+    message:
+
+      <article class="tc">
+        <div class="tc-sum"><span>Claude-slop discussion</span><span class="tc-age">11h</span></div>
+        <p class="q">§ section · The two queues today <a class="jump" href="#">page</a></p>
+        <div class="tc-msg"><div class="tc-who"><b>You</b><span>11h ago</span></div><p>claude-slop</p></div>
+        <div class="tc-msg"><div class="tc-who"><b>Claude</b><span>11h ago</span></div>
+          <p>Agreed. The heading is now 'The two queues today', and the other two section headings are plain too.</p></div>
+        <div class="tc-reply">Reply</div>
+      </article>
+
+    The designs, each with a name and a one-line note for the user:
+    - today: "Today, as shipped" — "The panel names the section by its new words."
+    - tag: "A · Tag, reveal on hover" — "One quiet word; hover, focus or tap shows
+      what you quoted." Adds the word "rewritten" after the anchor line.
+    - then-now: "B · Then and now" — "The quoted words stay, set back, above the
+      current place." Adds a line `was "what an item is stays open"` above it.
+    - on-message: "C · Quote on your message" — "Your words carry what they were
+      written on." Adds `on "what an item is stays open" · since rewritten` under
+      "You".
+    - show-change: "D · Show the change" — "The marker word is a link that opens
+      the edit on the page itself." Adds a "rewritten" link after the anchor line.
+
+    The playground's Design control chooses among A to D, and a page-local Case
+    selector switches between "Heading rewritten", "Paragraph rewritten" and
+    "Passage unchanged". The page is a wide page.
+
+    Write the playground using the installed leaf:leaf skill; read the playground
+    package's instructions at packages/playground/instructions/author.md inside the
+    leaf skill's base directory. The page directory is not reachable here, so reply
+    with the page's HTML, including its <style>. Show one case's cards; the other
+    cases can be placeholders.
+assert:
+- type: javascript
+  metric: reads-playground-instructions
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/packages/playground/instructions/author\.md
+- type: llm-rubric
+  metric: candidates-line-up
+  value: |
+    Read the page's CSS and the markup of the candidates in the preview. Consider
+    every width at which two or more candidates stand side by side in one row,
+    including widths where a candidate's name or note wraps to more lines than its
+    neighbour's. Pass only if, in each such row, every candidate's card begins at
+    the same height as its neighbours' whatever its name and note wrap to, so the
+    user compares the cards straight across. Any mechanism that holds this counts:
+    for example subgrid rows shared across the row, labels and cards placed in
+    shared grid rows, or names and notes set where they cannot change the cards'
+    starting line. Fail if each candidate is one grid or flex cell that stacks its
+    name, note and card by content height, so the cards line up only while every
+    note happens to take the same number of lines. A layout that never puts two
+    candidates side by side also fails.
+- type: llm-rubric
+  metric: cards-keep-their-height
+  value: |
+    Read the page's CSS for the candidates' cards. Pass if each card is as tall as
+    its own content, so a candidate that adds a line draws a taller card than one
+    that doesn't. Fail if the CSS stretches the cards in a row to one height, pads
+    them to a common height, or clips them to one.

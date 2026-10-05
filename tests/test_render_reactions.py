@@ -39,6 +39,7 @@ from render_harness import (
     panel_settled,
     resized,
     round_trip,
+    scroll_settled,
     select,
     sending,
     shortcut_bar_text,
@@ -1878,13 +1879,11 @@ diff --git a/value.txt b/value.txt
     expect(second).to_be_focused()
 
 
-def test_a_visual_action_follows_its_own_scroller_until_the_target_is_gone(
+def test_a_visual_action_follows_its_own_scroller_even_when_the_target_is_gone(
     browser, serve
 ):
-    """The shared placement path listens to nested scroll boxes and clips target
-    geometry to what is actually shown. While its editor is open, the bar stays
-    available in the window when the target scrolls away, then rejoins the target
-    when it returns."""
+    """An editing field keeps the native attachment through its visual's scroller,
+    including beyond the visible part of the diagram, and returns with its target."""
     page = open_page(browser, serve(PART_DIAGRAM_PAGE))
     diagram = page.locator("#flow")
     start = diagram.locator('g[data-id="S"]')
@@ -1895,6 +1894,7 @@ def test_a_visual_action_follows_its_own_scroller_until_the_target_is_gone(
     control.focus()
     page.keyboard.press("Enter")
     expect(page.locator(".lf-fab-input")).to_be_focused()
+    rendered(page)
     before_target = start.bounding_box()
     before_bar = bar.bounding_box()
     moved = diagram.evaluate(
@@ -1924,13 +1924,37 @@ def test_a_visual_action_follows_its_own_scroller_until_the_target_is_gone(
     ), (before_target, before_bar, after_target, after_bar)
 
     diagram.evaluate("element => { element.scrollLeft = element.scrollWidth; }")
-    expect(bar).to_have_attribute("data-lf-plane", "window")
-    expect(bar).to_be_visible()
+    expect(bar).to_have_attribute("data-lf-plane", "page")
+    scroll_settled(page, "#flow")
+    away_target, away_bar = start.bounding_box(), bar.bounding_box()
+    assert (
+        abs((away_bar["x"] - before_bar["x"]) - (away_target["x"] - before_target["x"]))
+        <= 2
+    ), (before_target, before_bar, away_target, away_bar)
     expect(page.locator(".lf-fab-input")).to_be_focused()
     diagram.evaluate("element => { element.scrollLeft = 0; }")
     expect(bar).to_be_visible()
     expect(bar).to_have_attribute("data-lf-plane", "page")
     expect(page.locator(".lf-fab-input")).to_be_focused()
+
+    # The registered provider declares geometry changes inside the same SVG host.
+    # That publication invalidates the native attachment without a scroll callback.
+    before_part, before_field = start.bounding_box(), bar.bounding_box()
+    page.evaluate("""() => {
+      const diagram = document.querySelector('#flow');
+      const part = diagram.visualParts.get('node:S').element;
+      part.setAttribute('transform', (part.getAttribute('transform') ?? '') + ' translate(0 60)');
+      return diagram.visualPartRegistration.update();
+    }""")
+    rendered(page)
+    after_part, after_field = start.bounding_box(), bar.bounding_box()
+    assert (
+        abs(
+            (after_field["y"] - before_field["y"])
+            - (after_part["y"] - before_part["y"])
+        )
+        <= 2
+    ), (before_part, before_field, after_part, after_field)
 
 
 def test_dragging_a_diagram_label_keeps_the_passage_and_plain_click_dismisses_it(
@@ -2047,10 +2071,12 @@ def test_a_keyboard_reaction_returns_focus_to_the_visual_target(browser, serve):
     )
 
 
-def test_a_selection_change_replaces_and_clears_a_visual_target(browser, serve):
+def test_a_selection_change_offers_a_visual_target_without_replacing_an_open_composer(
+    browser, serve
+):
     """Selection changes can come from touch handles and browser commands without a
-    mouseup or keyup in the page. The new passage replaces the visual target, and
-    clearing that passage dismisses the shared action surface.
+    mouseup or keyup in the page. They offer the new passage without silently moving
+    an open composer; an explicit Comment press moves it to that passage.
 
     The user takes the page back while the composer's focus handoff is still in
     flight, which is the state the press leaves behind: opening Comment marks the
@@ -2058,8 +2084,7 @@ def test_a_selection_change_replaces_and_clears_a_visual_target(browser, serve):
     keeps that gap open for the whole of the selection rather than leaving its width to
     the machine — measured here, the handoff lands about eight milliseconds after the
     press returns, which is the same span the driver spends making the next call. The
-    passage is the bar's whether or not the handoff has landed, and it was the ordering
-    below that CI lost on.
+    passage is offered whether or not the handoff has landed.
     """
     page = open_page(browser, serve(PART_DIAGRAM_PAGE))
     control = page.get_by_role("button", name="Respond to Start request")
@@ -2079,14 +2104,20 @@ def test_a_selection_change_replaces_and_clears_a_visual_target(browser, serve):
             }"""
         )
     bar = page.locator(".lf-fab-bar")
-    expect(bar).to_have_attribute("aria-label", re.compile("Request path"))
+    expect(page.get_by_role("button", name="Comment on selection")).to_be_visible()
+    expect(bar).to_have_attribute("aria-label", re.compile("Start request"))
     expect(bar).to_be_visible()
-    expect(start).not_to_have_class(re.compile(r"\blf-pending\b"))
 
     page.evaluate(
         "() => { document.activeElement.blur(); getSelection().removeAllRanges(); }"
     )
-    expect(bar).to_be_hidden()
+    expect(page.get_by_role("button", name="Comment on selection")).to_be_hidden()
+    expect(bar).to_be_visible()
+
+    page.locator("h1").select_text()
+    page.get_by_role("button", name="Comment on selection").click()
+    expect(bar).to_have_attribute("aria-label", re.compile("Request path"))
+    expect(start).not_to_have_class(re.compile(r"\blf-pending\b"))
 
 
 def test_a_thread_at_rest_shows_only_the_marks_that_stand_in_it(browser, serve):
@@ -2556,11 +2587,11 @@ def test_an_ok_on_the_agents_latest_reply_takes_the_thread_out_of_waiting(
 
 
 def test_a_remote_resolve_disarms_the_open_reply_list_it_takes_away(browser, serve):
-    """A remote resolve takes away the strip whose list is open without a pointer or
-    focus gesture in this tab: the thread's card stays where it stands, drawn resolved,
-    and a resolved thread's messages wear no strip. The detached list stops owning
-    digits, so a later key cannot react to a message that no longer offers it, and the
-    user stays on the thread they were in."""
+    """A remote resolve waits behind the open card's notice, so the strip whose list is
+    open stays. A digit there means what the strip drew, and a resolved thread offers
+    no reaction, so it sends nothing; as the user's gesture in the thread it shows the
+    resolution, whose messages wear no strip. The detached list stops owning digits,
+    and the user stays on the thread they were in."""
     url = serve(PANEL_PAGE)
     root, reply = _thread(serve.page_dir)
     page = open_page(browser, url)
@@ -2574,10 +2605,14 @@ def test_a_remote_resolve_disarms_the_open_reply_list_it_takes_away(browser, ser
 
     thread_model.cmd_resolve(serve.page_dir, root)
     told(page)
+    expect(card.get_by_role("button", name="Resolved", exact=True)).to_be_visible()
+    expect(card).to_have_attribute("data-resolved", "false")
+    expect(strip).to_have_class(re.compile("lf-react-open"))
+    count = len(events_model.read_events(serve.page_dir))
+    page.keyboard.press("1")
     expect(card).to_have_attribute("data-resolved", "true")
     expect(page.locator(".lf-react-open")).to_have_count(0)
     expect(card.locator(":scope > .lf-thread-summary")).to_be_focused()
-    count = len(events_model.read_events(serve.page_dir))
     page.keyboard.press("1")
     page.wait_for_timeout(100)
     assert len(events_model.read_events(serve.page_dir)) == count

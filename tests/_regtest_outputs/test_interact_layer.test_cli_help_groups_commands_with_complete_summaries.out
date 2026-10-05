@@ -11,11 +11,12 @@ Options:
 Commands:
   codex     Launch Codex and connect Leaf pages to its tasks.
   data      Set or clear page-bound external data.
-  delivery  Read input delivered by any Leaf host.
+  delivery  Read input delivered by any Leaf harness.
   package   Create, check, install, and run packages.
   page      Create, check, stamp, and read pages.
   server    Start, run, or stop the local server.
-  status    Set the agent's banner state.
+  status    Say the page waits on its user, or is done.
+  task      Open, start, or end the agent's work on the page.
   thread    Open, answer, edit, summarize, or resolve a thread.
   wait      Confirm a delivery, if given, then wait for the next batch.
 
@@ -84,6 +85,7 @@ Commands:
   init          Create or re-vendor a page directory.
   instructions  Read instructions for selected components and audience.
   media         Add images, video, or audio and print their page paths.
+  picture       Picture a drawing comment as the user saw it.
   report        Report a state change onto a page widget, as a worker.
   stamp         Stamp the current source as the next version.
   state         Print where the page, a thread, or a widget stands.

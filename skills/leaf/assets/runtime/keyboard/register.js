@@ -25,7 +25,13 @@ import {
   lineOf,
   word,
 } from "./bindings.js";
-import { focused } from "./scopes.js";
+import { focused, paintKeys, watchCommandScopes } from "./scopes.js";
+// Native activation reads declarations without assembling or validating the keyboard
+// during feature construction. Both element and page commands share one control owner.
+watchCommandScopes(() => [
+  ...[...scopes.values()].flat(),
+  { rows: [...commands.values()] },
+]);
 import { under } from "../shadow.js";
 
 export const ELEMENTS = Symbol("the scopes of the focused element");
@@ -85,16 +91,19 @@ const RUNG_LADDER = [
 
 const PAGE_COMMANDS = [
   "comment.create",
+  "writing.resume",
+  "selection.restore",
   "target.picker.open",
   "reaction.open",
   "page.search.open",
   "page.search.repeat",
   "thread.walk",
-  "ask.walk",
+  "queue.walk",
   // Scrolling is available in the page and in a covering auxiliary surface, which reuses
   // the rows marked `covering` while the modal floor suspends the rest of page scope.
   "page.move",
   "scroll.move",
+  "reading.align.top",
   "history.undo",
   // Below the walks that reach one list at a time, because `g` opens a door to all of
   // them: on a narrow window the sequence hides a second way to somewhere the user can
@@ -134,12 +143,14 @@ export function pageScope(name, declaration) {
   scopes.set(name, declarations);
   resolved = null;
   validated = false;
+  paintKeys();
   return () => {
     const remaining = scopes.get(name)?.filter((item) => item !== declaration) ?? [];
     if (remaining.length) scopes.set(name, remaining);
     else scopes.delete(name);
     resolved = null;
     validated = false;
+    paintKeys();
   };
 }
 
@@ -152,6 +163,7 @@ export function pageCommand(row) {
   commands.set(row.id, row);
   resolved = null;
   validated = false;
+  paintKeys();
   return row;
 }
 

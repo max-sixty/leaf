@@ -159,7 +159,8 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  * The ring is the fallback rather than the rule: every control with a ring of its own
  * outranks this, and what is left is the controls that were wearing the platform's
  * outline or, where a widget had restyled them, nothing at all. Named like every other
- * ring the layer draws, so the corpus floor can credit it (--lf-focus-ring, theme.css).
+ * ring the layer draws, so the suite's ring samples can credit it (--lf-focus-ring,
+ * theme.css).
  *
  * Every rule here is written to be outranked. The value guard sits in :where() so it
  * costs nothing, which leaves each rule at the weight of the thing it is answering — the
@@ -299,21 +300,34 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-thread-transcript > .lf-msg:first-child { margin-top: 0; }
 .lf-msg.agent { position: relative; }
 .lf-msg-head { display: flex; align-items: baseline; gap: var(--sp-2);
-          font-size: var(--t-6); }
-.lf-thread-root-meta { display: flex; align-items: center; gap: var(--sp-2);
+          font-size: var(--t-6); --lf-msg-name-size: 13px; }
+.lf-thread-root-meta { display: grid; align-items: center; gap: var(--sp-2);
+          grid-template-columns: minmax(0, max-content) minmax(var(--aim-floor), 1fr)
+            minmax(max(28px, var(--aim-floor)), max-content);
           min-height: max(28px, var(--aim-floor));
           padding-inline: var(--lf-thread-text-inset) 0;
           font-size: var(--t-6); }
-/* Metadata may shrink, but spare room belongs to the action group: a growing news
-   label keeps its leading edge and stays reachable beside an overlapping panel. */
-.lf-thread-root-meta > .lf-msg-head { display: flex; flex: 0 1 auto; min-width: 0;
+/* The receipt keeps its widest words even when empty. News takes the room left
+   between metadata and actions, so its words truncate before they carry its leading
+   edge or push an action out of reach. */
+.lf-thread-root-meta > .lf-msg-head { grid-column: 1; display: flex; min-width: 0;
           overflow: hidden; white-space: nowrap; }
 .lf-thread-root-meta .lf-msg-meta { flex: 1; overflow: hidden; }
 .lf-thread-root-meta .lf-msg-sending { min-width: 0; overflow: hidden;
           text-overflow: ellipsis; }
-.lf-msg-head b { font-size: 13px; font-weight: 600; color: var(--ink); }
+.lf-msg-workflow { display: inline-block; flex: none;
+          width: var(--lf-reserved-width, auto); font-weight: 600; }
+.lf-msg-workflow:not(:has(.lf-msg-sending)) { visibility: hidden; }
+.lf-msg-workflow::before { content: "\00b7"; margin-inline-end: 6px;
+          color: var(--muted-2); }
+.lf-msg-workflow > .lf-msg-sending::before { content: none; }
+.lf-msg-head b { font-size: var(--lf-msg-name-size); font-weight: 600; color: var(--ink); }
 .lf-thread-meta-actions { display: inline-flex; flex: none; align-items: center;
           gap: 4px; margin-inline-start: auto; }
+.lf-thread-root-meta > .lf-thread-meta-actions { grid-column: 3; }
+.lf-thread-root-meta > .lf-thread-news { grid-column: 2; justify-self: start;
+          max-width: 100%; overflow: hidden; text-overflow: ellipsis;
+          white-space: nowrap; }
 /* What a seat holds while it would move the page under the reader (thread/held-news.js).
    The rows it appears in already stand at the height of a control beside it: the head
    row's Resolve, the resolved row's Reopen. Centred rather than on the row's baseline,
@@ -490,9 +504,9 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
    and eraser. */
 .lf-react-palette { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 4px; }
 .lf-react-open > .lf-react-trigger { display: none; }
-.lf-react-surface:not(.lf-react-open) .lf-react:not([aria-pressed="true"]) {
+.lf-react-surface .lf-react-palette:not(:popover-open) > .lf-react:not([aria-pressed="true"]) {
           display: none; }
-.lf-react-strip:not(.lf-react-open) > .lf-react-palette:not(:has(> [aria-pressed="true"])) {
+.lf-react-strip > .lf-react-palette:not(:popover-open, :has(> [aria-pressed="true"])) {
           display: none; }
 /* A reply with no feedback keeps no row. Its add control sits over the unused
    top-right corner and appears only for the message under pointer or keyboard focus.
@@ -500,10 +514,10 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
    message or the threads after it. At rest only feedback already left earns
    flow space. */
 .lf-react-strip { display: flex; align-items: center; flex-wrap: wrap; gap: 4px;
-          margin-top: 0; }
+          margin-top: 0; anchor-scope: --lf-react-trigger; }
 .lf-react-strip:has(.lf-react[aria-pressed="true"]) { margin-top: 4px; }
 .lf-react-strip > .lf-react-trigger {
-          appearance: none; position: absolute; z-index: 2;
+          appearance: none; position: absolute; z-index: 2; anchor-name: --lf-react-trigger;
           inset-block-start: -3px; inset-inline-end: -2px;
           box-sizing: border-box; inline-size: 26px; block-size: 26px; padding: 0;
           display: inline-flex; align-items: center; justify-content: center;
@@ -517,15 +531,30 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
           > .lf-react-strip > .lf-react-trigger,
 .lf-react-strip > .lf-react-trigger:is(:focus-visible, .lf-focus-visible) {
           opacity: 1; }
-.lf-msg.agent:has(> .lf-react-strip.lf-react-open) { z-index: 4; }
-.lf-react-strip.lf-react-open > .lf-react-palette {
-          position: absolute; z-index: 3;
-          inset-block-start: calc(max(28px, var(--aim-floor)) + 2px);
-          inset-inline-end: -2px; width: max-content; max-width: calc(100% + 4px);
+/* The list is an auto popover, in the top layer: open, it stands over everything in
+   the thread, the sticky title and reply row included, so its message is never raised
+   among the rows to carry it, and closing it hands focus back to where the user opened
+   it from, the platform's return. Its trigger is its source, so a press on the trigger
+   is not a press outside it, and its anchor, named here since a source sets none. Hung
+   below the trigger, or above where the window has no room below, it follows the
+   message as the list scrolls, and closes once the trigger is out of view
+   (reactions.js). Closed, it is the strip's own row of standing reactions, in flow,
+   so the popover's UA box is taken off; whether it is open is read off the popover
+   alone, so a light dismiss leaves no frame between. */
+.lf-react-strip > .lf-react-palette[popover] {
+          position: static; margin: 0; padding: 0; border: 0;
+          width: auto; height: auto; overflow: visible; color: inherit;
+          background: none; }
+.lf-react-strip > .lf-react-palette:popover-open {
+          position: fixed; position-anchor: --lf-react-trigger;
+          position-visibility: anchors-visible;
+          position-try-fallbacks: flip-block;
+          top: calc(anchor(bottom) + 4px); right: anchor(right); left: auto; bottom: auto;
+          width: max-content; max-width: calc(100vw - 16px);
           padding: 4px;
           border: 1px solid var(--border-2); border-radius: var(--r);
           background: var(--card); box-shadow: 0 4px 12px var(--shade); }
-:where(.lf-react-strip.lf-react-open > .lf-react-palette) > .lf-react {
+:where(.lf-react-strip > .lf-react-palette:popover-open) > .lf-react {
           box-sizing: border-box; inline-size: 32px; block-size: 32px; padding: 0;
           font-size: 16px; }
 @media (hover: none) {
@@ -884,7 +913,7 @@ pre:hover + .lf-code-copy,
 .lf-react-said { font-family: var(--sans); color: var(--mark-ink); }
 /* The response foot sits after flexible mechanical space in a retained flow body.
    Details' summary is its own disclosure outside that body. */
-.lf-reply-continuity::details-content,
+.lf-reply-continuity[open]::details-content,
 .lf-reply-continuity:not(details) { display: flex; flex-direction: column;
   min-block-size: var(--lf-thread-body-extent, 0px); }
 .lf-reply-space { flex: 1 0 0; min-block-size: 0; }

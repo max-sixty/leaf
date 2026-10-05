@@ -120,6 +120,11 @@ function toRanges(segments, spans) {
 customElements.define(
   "lf-suggestion",
   class extends HTMLElement {
+    // What the Ask was answered with: the decision.
+    static answerWords(state) {
+      return outcomeOf(state) === "accept" ? "Accepted" : "Rejected";
+    }
+
     #deciding = null; // the decision in flight, so a second press joins it
     #staging = false; // the synchronous span before that promise exists
     #failed = null;
@@ -360,13 +365,6 @@ customElements.define(
           when: () => this.#offered().includes(key),
           run: () => this.#margin?.activate(key),
         })),
-        {
-          answer: () => {
-            const outcome = this.#outcome();
-            if (!outcome) return "";
-            return outcome === "accept" ? "Accepted" : "Rejected";
-          },
-        },
       );
       commands(this, this.#commandScope);
     }
@@ -662,7 +660,7 @@ customElements.define(
     }
 
     // Which of the three changes this is, for anything naming it away from the page:
-    // a row on the Asks drawer, the label on a comment anchored here. The slots are the
+    // a row in the Queue panel, the label on a comment anchored here. The slots are the
     // whole of the answer — both is a rewrite, lf-new alone inserts, lf-old alone
     // deletes — and it is the reading #voice already speaks on the slots themselves,
     // said once for the element. A settled suggestion keeps the word it had: the

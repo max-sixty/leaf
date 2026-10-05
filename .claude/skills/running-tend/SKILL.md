@@ -39,7 +39,7 @@ change meets the deferral condition in **Fix the underlying issue**.
 Before approving a product change, run the few tests that exercise the failures
 the diff most plausibly introduces, chosen from the product paths and contracts
 it touches rather than the test files it edits, and within the local limit in
-`tests/AGENTS.md` ("Run the narrowest useful surface"): the complete `test` job
+`tests/AGENTS.md` ("Run what the change needs"): the complete `test` job
 reports the rest once the change lands. A docs-only or generated-workflow change
 may need none; a selected failure withholds approval.
 Where a test itself is at issue, `tests/AGENTS.md` says which boundary it
@@ -50,7 +50,19 @@ profiles from CI.
 ## Reading a red suite
 
 Nearly every test drives a real browser, so a traceback can name a symptom
-several boundaries after its cause. Two test-owned failures recur:
+several boundaries after its cause. Before updating a test to its new expectation,
+apply `tests/AGENTS.md`, **A failure is evidence about the test too**.
+
+Read the failing test's record in main's earlier complete runs before choosing a
+fix: each `ci` run uploads its junit results
+(`gh run download <run> -p 'pytest-results-*'`). A test that failed with the same
+message, then passed on code that didn't fix it, then failed again, is
+non-deterministic, so fix the cause rather than the symptom this run shows.
+Different messages across runs call for checking the intervening changes and the
+behavior each failure caught; simplify when unrelated changes repeatedly break
+the test without changing that behavior.
+
+Two test-owned failures recur:
 
 - **A read or press before the page said it was ready**, which a re-run hides.
   State the ordering (`tests/AGENTS.md`, **State races are arrangements, not
@@ -66,12 +78,18 @@ several boundaries after its cause. Two test-owned failures recur:
 
 Every failure in the run is the session's, including those earlier runs also hit;
 a tracking issue records a failure but doesn't fix it. Open one pull request per
-cause that no open pull request already covers.
+cause that no open pull request already covers. For each durable failure, look
+for the pull request that introduced it, first among those merged since the last
+run where the failing check passed and then earlier, since a failure that comes
+and goes can pass after its cause landed. Establish the cause from the failing
+diagnostic and the pull request's diff. Where a pull request introduced it, fix
+the failure in terms of what that change set out to do and link it from the fix's
+description.
 
 ## A red `ci` on main is live
 
-Pull requests run the everyday and website-worker gates; main runs the complete
-suite once, alongside its runtime, browser-framework and bundle gates. A red `ci`
+Pull requests run the broad selection and the website-worker gate; main runs the
+complete suite once, alongside its runtime, browser-framework and bundle gates. A red `ci`
 on main affects whoever pulls next, so treat it as live. Main holds one complete-suite slot and a newer commit
 replaces the one waiting, which GitHub records as a cancelled run whose `test`
 job has no runner (`runner_id` 0); that is not a regression. A `test` that
@@ -114,9 +132,9 @@ the run summary rather than treating it as having no changes.
 Open an issue only for a concrete, material opportunity or incompatibility in
 Leaf's current code or agent workflow. Check the affected implementation and
 upstream documentation before deciding. Hooks, waking agents, background work,
-plugins, MCP, and permissions can affect Leaf's host integration; a release
+plugins, MCP, and permissions can affect Leaf's harness integration; a release
 mentioning one of them does not by itself justify an issue. Claude Code's
-`asyncWake` is the calibration example: a host capability that could improve
+`asyncWake` is the calibration example: a harness capability that could improve
 Leaf's comment-to-agent wake loop warrants investigation. Routine fixes,
 cosmetic changes, and speculative relevance do not.
 

@@ -54,13 +54,27 @@ def is_reaction(event: dict) -> bool:
 
 
 def spoken_turns(thread: dict) -> list:
-    """The thread's messages with words in them. A reaction is a mark on a
-    message rather than a turn in the thread, so every reading of who spoke
-    last walks this list rather than `msgs`: whose turn a thread is
-    (`unanswered_turns`), and whether the user owes the agent's latest turn an
-    answer (`served_state.thread`), which the browser receives in each thread's
-    `attention`."""
+    """Messages with words, including retained ephemeral updates.
+
+    Reactions are marks rather than words. Presentation ranges include ephemeral
+    messages; semantic turn-taking reads :func:`conversation_turns` instead.
+    """
     return [m for m in thread["msgs"] if not is_reaction(m)]
+
+
+def conversation_turns(thread: dict) -> list:
+    """Spoken messages that participate in the exchange, excluding progress updates."""
+    return [message for message in spoken_turns(thread) if not message.get("ephemeral")]
+
+
+def thread_replied_after(thread: dict, after: int) -> bool:
+    """Whether an ordinary agent reply ended thread work after its starting sequence."""
+    return any(
+        message["kind"] == "reply"
+        and message["author"] == "agent"
+        and message["seq"] > after
+        for message in conversation_turns(thread)
+    )
 
 
 def bare_reaction(thread: dict) -> bool:
@@ -208,6 +222,8 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
     effect replaces a closing answer without itself closing a thread. ``anchor`` is
     the thread's current page location, and ``detached_from`` retains the last real
     anchor only when an explicit null replacement leaves the thread detached.
+    ``rewritten_from`` retains the anchor a ``reanchor`` moved off, whose quoted words a
+    version rewrote, until a reply chooses the thread's place again.
     A new spoken reply resumes the thread; reactions and failure receipts
     leave its closure standing. A later resolution closes it again.
 
@@ -248,6 +264,7 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
                 "title": None,
                 "anchor": message.get("anchor"),
                 "detached_from": None,
+                "rewritten_from": None,
                 "msgs": [message],
                 "resolved": None,
             }
@@ -267,6 +284,7 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
             continue
         if e["kind"] == "reanchor":
             if thread := threads.get(e["thread"]):
+                thread["rewritten_from"] = thread["anchor"]
                 thread["anchor"] = e["anchor"]
                 thread["detached_from"] = None
             continue
@@ -296,6 +314,7 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
                     "title": None,
                     "anchor": e.get("anchor"),
                     "detached_from": None,
+                    "rewritten_from": None,
                     "msgs": [],
                     "resolved": None,
                 }
@@ -303,13 +322,14 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
                 thread_for[e["parent"]] = thread
             messages[e["id"]] = message
             thread["msgs"].append(message)
-            if "token" not in e and "failure" not in e:
+            if "token" not in e and "failure" not in e and not e.get("ephemeral"):
                 thread["resolved"] = None
             if "anchor" in e:
                 thread["detached_from"] = (
                     thread["anchor"] if e["anchor"] is None else None
                 )
                 thread["anchor"] = e["anchor"]
+                thread["rewritten_from"] = None
             thread_for[e["id"]] = thread
         # A resolve names a message rather than opening one, so a thread the log
         # lost whole — no reply of its own survived either — leaves it nothing to close.
@@ -323,9 +343,11 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
 def active_summaries(events: list, threads: dict) -> dict[str, list[dict]]:
     """Current presentation summaries for every thread, by thread id.
 
-    Summaries replace overlapping summaries whole. An edit after a summary invalidates
-    it when it changes any covered message, because the stored prose no longer
-    summarizes the current transcript. The original messages remain the authority.
+    Summaries replace overlapping summaries whole. Editing a covered message
+    invalidates a summary containing prose. A fold without prose keeps showing the
+    revised originals. Ephemeral updates acquire a fold when the next ordinary
+    agent reply arrives. Explicit summaries own any overlap with these derived
+    folds; no extra event is written. The original messages remain the authority.
     """
     edits = {}
     written = {}
@@ -334,10 +356,59 @@ def active_summaries(events: list, threads: dict) -> dict[str, list[dict]]:
             edits[event["message"]] = event["seq"]
         elif event["kind"] == "summary" and event["thread"] in threads:
             written.setdefault(event["thread"], []).append(event)
-    return {
-        thread_id: _thread_summaries(thread, written.get(thread_id, []), edits)
-        for thread_id, thread in threads.items()
-    }
+    result = {}
+    for thread_id, thread in threads.items():
+        explicit = _thread_summaries(thread, written.get(thread_id, []), edits)
+        covered = {identity for summary in explicit for identity in summary["covers"]}
+        automatic = _thread_summaries(thread, _ephemeral_ranges(thread, covered), {})
+        summaries = [*explicit, *automatic]
+        positions = {
+            message["id"]: index for index, message in enumerate(thread["msgs"])
+        }
+        result[thread_id] = sorted(
+            summaries, key=lambda summary: positions[summary["from"]]
+        )
+    return result
+
+
+def _ephemeral_ranges(thread: dict, covered: set) -> list[dict]:
+    """Completed contiguous runs of progress, preserving intervening conversation.
+
+    A user message breaks a run but does not complete progress. The next ordinary
+    agent reply completes all pending runs. Its identity is also the presentation
+    dependency: a renderer holding that reply must hold its folds with it.
+    """
+    pending = []
+    run = []
+    ranges = []
+    for message in spoken_turns(thread):
+        if message.get("ephemeral") and message["id"] not in covered:
+            run.append(message)
+            continue
+        if run:
+            pending.append(run)
+            run = []
+        if (
+            message.get("ephemeral")
+            or message["kind"] != "reply"
+            or message["author"] != "agent"
+            or message.get("failure")
+        ):
+            continue
+        for group in pending:
+            ranges.append(
+                {
+                    "id": f"ephemeral:{group[0]['id']}:{message['id']}",
+                    "seq": message["seq"],
+                    "from": group[0]["id"],
+                    "through": group[-1]["id"],
+                    "text": "",
+                    "label": "Previous updates",
+                    "trigger": message["id"],
+                }
+            )
+        pending = []
+    return ranges
 
 
 def _thread_summaries(thread: dict, summaries: list, edits: dict) -> list[dict]:
@@ -354,7 +425,9 @@ def _thread_summaries(thread: dict, summaries: list, edits: dict) -> list[dict]:
         active = [
             summary for summary in active if covered.isdisjoint(summary["covers"])
         ]
-        if any(edits.get(identity, 0) > event["seq"] for identity in covers):
+        if event["text"] and any(
+            edits.get(identity, 0) > event["seq"] for identity in covers
+        ):
             continue
         active.append(
             {
@@ -364,6 +437,8 @@ def _thread_summaries(thread: dict, summaries: list, edits: dict) -> list[dict]:
                 "through": event["through"],
                 "covers": covers,
                 "text": event["text"],
+                "label": event.get("label", "Earlier discussion"),
+                **({"trigger": event["trigger"]} if "trigger" in event else {}),
             }
         )
     return sorted(active, key=lambda summary: positions[summary["from"]])
@@ -432,7 +507,7 @@ def unanswered_turns(thread: dict) -> list[dict]:
     thread, so an `ok` the user puts on the agent's answer does not hand the thread
     back, and a reaction nobody has replied to is no thread at all. Resolution does
     not enter here; `awaits_agent` adds it."""
-    turns = spoken_turns(thread)
+    turns = conversation_turns(thread)
     floor = -1
     newest_before = None
     for index, message in enumerate(turns):

@@ -41,13 +41,14 @@ from .files import (
     missing_revision,
     published_versions,
     read_json,
+    revision_names,
     revision_num,
     revision_path,
     stamped_version,
     version_num,
     version_revisions,
 )
-from .interaction_log import append_interactions, client_records, now_iso
+from .interaction_log import append_interactions, client_records
 from .layer import foreign_runtime
 from .locations import path_is_within
 from .media import MAX_MEDIA_UPLOAD_BYTES, MediaUploadError, store_uploaded_media
@@ -84,7 +85,7 @@ from .served_state import reading as served_reading
 from .served_state.service import PageStateService
 from .server import preview_metadata
 from .service import PageTransaction
-from .state import write_json
+from .state import now_iso, write_json
 from .structure import FRAME_ANCESTORS_CSP
 from .user_views import FRESH_FOR_S, observe_user_view, read_user_views
 
@@ -262,6 +263,12 @@ class PageEndpoint:
         # A declared body this request never drained. Those bytes would be read as the
         # next request line on a reused connection, so the answer has to end it.
         self.body_unread = False
+        # Set by a route whose successful answer is housekeeping rather than
+        # interaction history, which `respond` leaves out of the trace: an attention
+        # check, which an untouched page makes four times a second, and a resource's
+        # bytes, which a document load asks for a few hundred times. A refusal or
+        # fault on either is still traced.
+        self.housekeeping = False
 
     @property
     def layer(self) -> str:
@@ -286,12 +293,10 @@ class PageEndpoint:
         answer.headers.update(self._delivery_headers())
         # The request boundary sees successful answers and refusals alike. Keep
         # query strings (including the access key) and request bodies out of it.
-        # Successful attention checks are housekeeping, not interaction history;
-        # recording every look would make an untouched page append four times a second.
         if (
             self.page_dir is not None
             and getattr(self, "parent", None) is None
-            and (self.path != "/api/news" or answer.status_code != 200)
+            and not (self.housekeeping and answer.status_code < 400)
         ):
             try:
                 append_interactions(
@@ -345,9 +350,9 @@ class PageEndpoint:
     def page_state(self, view_revision: int | None = None) -> dict:
         """The current reading used by GET and accepted POST responses.
 
-        A claim's ``log_floor`` is meaningful only beside the same log snapshot it
-        followed. Every response therefore keeps the page transaction through both
-        files.
+        The status a reading dates its activity by is meaningful only beside the log
+        snapshot it was read with. Every response therefore keeps the page
+        transaction through both files.
 
         The reading is taken after the activation this response performs and
         before any file the state is built from is read, and that order is the whole
@@ -431,6 +436,7 @@ class PageEndpoint:
         This explicit attention door renews the user lease, throttled to a recency.
         Ordinary state reads and captured previews do not prove a user is looking.
         """
+        self.housekeeping = True
         if self.page_snapshot is not None:
             reading = self.page_snapshot.reading
         else:
@@ -517,6 +523,7 @@ class PageEndpoint:
         units, malformed or multiple ranges, and If-Range without a validator get the
         complete representation. A valid unsatisfiable range earns 416.
         """
+        self.housekeeping = True
         ctype = resource.mime
         if ctype not in BINARY_TYPES:
             ctype += "; charset=utf-8"
@@ -666,6 +673,13 @@ class PageEndpoint:
         per method, and a route added later cannot be the one that forgot to ask.
         POST preparation is deliberately after that gate, so an unknown peer cannot
         choose a body-read cost.
+
+        A refused key answers 401 in one shape on every route, the event door
+        included. It is no judgment of what was sent, which nobody read, and it
+        holds only until the browser presents the key again: opening the printed
+        link in any tab sets the cookie the next request carries. So it is never an
+        event rejection, whose `final` would have the browser drop the gesture; the
+        runtime keeps the gesture pending and names the link (`layer-client.js`).
         """
         prepared = False
         try:
@@ -677,7 +691,7 @@ class PageEndpoint:
             if not self.authorized():
                 if prepare:
                     self.body_unread = True
-                return self._refuse(NO_KEY, 403)
+                return self._json({"error": NO_KEY}, 401)
             sample_answer = self._sample_request()
             if sample_answer is not None:
                 return sample_answer
@@ -817,15 +831,12 @@ class PageEndpoint:
         if match is None:
             return None
         revision = int(match.group("revision"))
-        revisions = (
-            set(self.page_snapshot.artifacts)
+        names = (
+            self.page_snapshot.revision_names
             if self.page_snapshot is not None
-            else set(list_revisions(self.page_dir))
+            else revision_names(self.page_dir)
         )
-        if revision not in revisions:
-            return None
-        expected = self._revision_name(revision).removesuffix(".html")
-        if match.group("name") != expected:
+        if names.get(revision) != match.group("name") + ".html":
             return None
         artifact = self._artifact(revision)
         self.response_layer = artifact.registry["$layer"]["generation"]
@@ -837,7 +848,14 @@ class PageEndpoint:
         )
         if resource is None:
             return None
-        return self._resource_content(resource)
+        response = self._resource_content(resource)
+        # The revision name carries its manifest digest and the address is in the URL,
+        # so these bytes never change. Every document of one page shares this namespace:
+        # a gallery's live samples are each a whole runtime importing the same modules,
+        # and refetching each one per document queued them behind one another on the
+        # origin's few connections for seconds.
+        response.headers["Cache-Control"] = "private, max-age=31536000, immutable"
+        return response
 
     def _serve_page_path(self) -> Response | None:
         path = self.path

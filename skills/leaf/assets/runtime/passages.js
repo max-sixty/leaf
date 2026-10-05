@@ -294,7 +294,7 @@ export const elementOver = (n) => {
 // A widget riding a message stands inside the thread panel, so the panel is `.lf-ui`
 // over every word it says — and read straight, a question an agent asked in a reply says
 // nothing whatever. That silence did not read as one: it read as an empty slot, so the
-// group named its options by their ids in the accessibility tree, the Asks drawer named the
+// group named its options by their ids in the accessibility tree, the Asks list named the
 // question by its id, and every widget reading its own words in a message got "" and fell
 // back to something else.
 //
@@ -641,6 +641,57 @@ export function pageRange(sel) {
   range.setStart(startContainer, startOffset);
   range.setEnd(endContainer, endOffset);
   return range;
+}
+
+// Native page selections share one endpoint writer, including their provenance.
+// Native selectionchange arrives asynchronously, so its endpoints say whether it is
+// still the programmatic write or a later user adjustment (including touch handles).
+let writtenSelection = null;
+let writtenBackward = false;
+export function selectEnds(anchor, focus) {
+  const selection = getSelection();
+  const from = document.createRange(),
+    to = document.createRange();
+  from.setStart(...anchor);
+  to.setStart(...focus);
+  writtenBackward = from.compareBoundaryPoints(Range.START_TO_START, to) > 0;
+  selection.setBaseAndExtent(...anchor, ...focus);
+  writtenSelection = selectionEnds(selection);
+}
+const selectionEnds = (selection) => {
+  const range = selection.rangeCount ? pageRange(selection) : null;
+  return [
+    selection.anchorNode,
+    selection.anchorOffset,
+    selection.focusNode,
+    selection.focusOffset,
+    range?.startContainer,
+    range?.startOffset,
+    range?.endContainer,
+    range?.endOffset,
+  ];
+};
+export function programmaticSelection(selection) {
+  if (!writtenSelection) return false;
+  if (selectionEnds(selection).every((end, i) => end === writtenSelection[i]))
+    return true;
+  writtenSelection = null;
+  return false;
+}
+
+// Boundary points retain the working end even where the platform reports "none"
+// after setBaseAndExtent. A composed selection clamped in light DOM instead uses
+// the platform's direction for the range inside its declared shadow tree.
+export function selectionBackward(selection, range = pageRange(selection)) {
+  if (
+    selection.anchorNode.getRootNode() !== range.commonAncestorContainer.getRootNode()
+  )
+    return programmaticSelection(selection)
+      ? writtenBackward
+      : selection.direction === "backward";
+  const probe = document.createRange();
+  probe.setStart(selection.anchorNode, selection.anchorOffset);
+  return probe.compareBoundaryPoints(Range.START_TO_START, range) > 0;
 }
 
 // Whether a range covers a node, asked so a shadow tree answers the same as the light

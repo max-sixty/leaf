@@ -5,8 +5,10 @@
    declare their stationary text-reflow boundary; a hoisted root header leaves that
    declaration to the thread's complete metadata row. An
    immutable descriptor changes prose without reconnecting the validated authored
-   fragment. A locally sent message cues its own words once on first presentation,
-   in every surface; admission and later descriptor paints never replay the cue.
+   fragment. A new message cues its own words once on first presentation, in every
+   surface: one the user just sent, and any turn, whoever wrote it, joining a thread
+   view that was already presented. Opening a view cues nothing it already holds, and
+   admission and later descriptor paints never replay the cue.
    The fragment is captured inertly before its first upgrade; panel
    presentation waits for preparation before capturing typed authored state. */
 import { html, render, nothing } from "../../vendor/browser-runtime.js";
@@ -24,8 +26,18 @@ import {
   stageAuthoredStates,
 } from "../projection/authored.js";
 import { stageWidgetDescriptors } from "../widget-descriptors.js";
-import { strongestWorkflow, workflowLabel, workflowTitle } from "./workflow.js";
-import { markDeclared, renderQuiet, renderSaid } from "../presentation.js";
+import {
+  strongestWorkflow,
+  workflowLabel,
+  workflowTitle,
+  WORKFLOW_LABELS,
+} from "./workflow.js";
+import {
+  markDeclared,
+  renderQuiet,
+  renderSaid,
+  writePrepaint,
+} from "../presentation.js";
 import { highlightBlocks } from "../syntax.js";
 import { ago } from "../presence.js";
 import { elementById, pageQueryAll } from "../passages.js";
@@ -39,6 +51,7 @@ import { rememberPassageParts } from "../widget-loader.js";
 import { ReactionStripView } from "./reaction-strips.js";
 import { keeps } from "../keeps.js";
 import { motion } from "../motion.js";
+import { reserve } from "../widget-elements.js";
 
 export const loadMarked = () =>
   loadMarkdown((error) =>
@@ -102,11 +115,13 @@ export function prepareAuthoredMessage(message, thread) {
     });
     const authored = stageAuthoredStates(template.content, new Map());
     rememberPassageParts(template.content, ["event", message.id]);
+    const text = template.content.textContent;
+    writePrepaint(template.content);
     const nodes = Object.freeze([...template.content.childNodes]);
     authoredMessages.set(key, {
       message: message.id,
       body: {
-        text: template.content.textContent,
+        text,
         document: { thread, message: message.id },
       },
       authored,
@@ -182,15 +197,16 @@ export class MessageView {
   #reaction = null;
   #authored = null;
   #dressed = false;
-  #sendMotion = null;
+  #arrivalMotion = null;
   #header = document.createElement("div");
+  #workflowSlot = null;
 
   constructor(commands) {
     this.#commands = commands;
     this.node = document.createElement("div");
   }
 
-  present(model, externalHeader = false) {
+  present(model, { externalHeader = false, arrived = false } = {}) {
     const prior = this.#model;
     this.#model = model;
     const panel = model.panel;
@@ -226,16 +242,19 @@ export class MessageView {
           model.reactions,
         )
       : nothing;
+    const receipt = model.workflowLabel
+      ? html`<span class="lf-msg-sending" title=${model.workflowTitle}
+          >${model.workflowLabel}</span
+        >`
+      : nothing;
     render(
       html`
         <b>${model.by}</b
         ><span class="lf-msg-meta"
           ><time datetime=${model.timestamp}>${model.age}</time> ${
-            model.workflowLabel
-              ? html`<span class="lf-msg-sending" title=${model.workflowTitle}
-                  >${model.workflowLabel}</span
-                >`
-              : nothing
+            externalHeader
+              ? html`<span class="lf-msg-workflow">${receipt}</span>`
+              : receipt
           }
           ${
             model.failure
@@ -256,6 +275,10 @@ export class MessageView {
       `,
       this.#header,
     );
+    const workflowSlot = this.#header.querySelector(".lf-msg-workflow");
+    if (workflowSlot && workflowSlot !== this.#workflowSlot)
+      reserve(workflowSlot, WORKFLOW_LABELS);
+    this.#workflowSlot = workflowSlot;
     render(
       html`
         ${externalHeader ? nothing : this.#header}
@@ -300,13 +323,15 @@ export class MessageView {
       this.node.querySelector(":scope > .lf-msg-body"),
       model,
     );
-    if (!prior && model.pending) {
+    if (!prior && (model.pending || arrived)) {
       // A background cue can finish while the message remains unconfirmed. The
       // shared motion gate answers for restoration and reduced motion; opacity
-      // continues to describe delivery independently (marks.css).
-      this.#sendMotion = motion(
+      // continues to describe delivery independently (marks.css). It settles on the
+      // message's own ground, which a surface may paint (the margin card's sticky
+      // heads take it).
+      this.#arrivalMotion = motion(
         this.node,
-        [{ backgroundColor: "var(--hi-tint)" }, { backgroundColor: "transparent" }],
+        [{ backgroundColor: "var(--hi-tint)", offset: 0 }],
         1200,
       );
     }
@@ -337,7 +362,7 @@ export class MessageView {
   }
 
   retire() {
-    this.#sendMotion?.cancel();
+    this.#arrivalMotion?.cancel();
     this.#reaction?.retire();
     this.#commands.read.forgetBody(this.node);
   }

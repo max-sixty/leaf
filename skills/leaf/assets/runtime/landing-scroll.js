@@ -2,11 +2,15 @@
  *
  * Anchor travel and widget walks share this operation: the owning reading region
  * places the destination at its landing band, then each enclosing region reveals
- * what the inner move leaves out of view. The moves change only scrollTop, so a
+ * what the inner move leaves out of view. A start landing reveals the opening
+ * through enclosing regions even when the item's full extent is taller than them.
+ * The moves change only scrollTop, so a
  * shadow boundary or smooth motion never takes away sideways reading position.
- * CSS scroll-padding and the destination's scroll-margin clear pinned headers.
+ * CSS scroll-padding and the destination's scroll-margin clear pinned headers, and a
+ * nearest landing takes its bottom margin too, which clears a pinned foot such as a long
+ * thread's reply row.
  */
-import { landingBand, shownBox } from "./geometry.js";
+import { landingBand, shownBox, scrollAxes } from "./geometry.js";
 import { scrollersOf } from "./reading-regions.js";
 import { moveScrollerBy, reachable } from "./scrolling.js";
 
@@ -19,23 +23,39 @@ const nearestBy = ({ top, bottom }, band) =>
         ? Math.min(bottom - band.bottom, top - band.top)
         : 0;
 
+const scrollMargin = (where, side = "Top") =>
+  where instanceof Range
+    ? 0
+    : Number.parseFloat(getComputedStyle(where)[`scrollMargin${side}`]) || 0;
+
 function placementBy(where, block, box) {
   const rect = where instanceof Range ? where.getBoundingClientRect() : shownBox(where);
   const band = landingBand(box);
   const room = band.bottom - band.top;
-  const margin =
-    where instanceof Range
-      ? 0
-      : Number.parseFloat(getComputedStyle(where).scrollMarginTop) || 0;
-  if (block === "nearest" && !(where instanceof Range))
-    return nearestBy({ top: rect.top - margin, bottom: rect.bottom }, band);
+  const margin = scrollMargin(where);
   const place =
-    where instanceof Range
-      ? (room - rect.height) / 2
-      : block === "start"
-        ? margin
+    block === "start"
+      ? margin
+      : where instanceof Range
+        ? (room - rect.height) / 2
         : Math.max((room - rect.height) / 2, margin);
-  return rect.top - band.top - place;
+  const movement =
+    block === "nearest" && !(where instanceof Range)
+      ? nearestBy(
+          {
+            top: rect.top - margin,
+            bottom: rect.bottom + scrollMargin(where, "Bottom"),
+          },
+          band,
+        )
+      : rect.top - band.top - place;
+  return movement;
+}
+
+function verticalTravel(box, movement) {
+  const scale = scrollAxes(box).y.y;
+  const local = scale === 0 ? 0 : reachable(box, movement / scale);
+  return { local, moved: local * scale };
 }
 
 export function scrollIntoReadingBand(where, holder, block, behavior) {
@@ -43,16 +63,19 @@ export function scrollIntoReadingBand(where, holder, block, behavior) {
   if (!box) return;
   const rect = where instanceof Range ? where.getBoundingClientRect() : shownBox(where);
   let { top, bottom } = rect;
-  const by = placementBy(where, block, box);
-  let moved = reachable(box, by);
-  if (Math.abs(moved) >= 1) moveScrollerBy(box, by, behavior);
+  if (block === "start") {
+    // The opening, not the whole tall item, is the extent this landing promises.
+    bottom = top + 1;
+    top -= scrollMargin(where);
+  }
+  let { local, moved } = verticalTravel(box, placementBy(where, block, box));
+  if (Math.abs(moved) >= 1) moveScrollerBy(box, local, behavior);
   for (const outer of around) {
     top -= moved;
     bottom -= moved;
     const band = landingBand(outer);
     if (!band) return;
-    const by = nearestBy({ top, bottom }, band);
-    moved = reachable(outer, by);
-    if (Math.abs(moved) >= 1) moveScrollerBy(outer, moved, behavior);
+    ({ local, moved } = verticalTravel(outer, nearestBy({ top, bottom }, band)));
+    if (Math.abs(moved) >= 1) moveScrollerBy(outer, local, behavior);
   }
 }

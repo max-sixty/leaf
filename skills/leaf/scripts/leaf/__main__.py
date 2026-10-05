@@ -4,10 +4,10 @@
 SessionEnd cleanup, which runs its standalone stdlib owner directly. A subprocess Leaf
 starts has `sys.executable` in hand and needs no launcher or environment manager.
 
-Hosts call `leaf hook` on every turn, including sessions holding no page. Its two
-protocol invocations enter the dependency-light hook owner before importing Click
-or registering other commands. Help and every other invocation use the CLI, whose
-`prog_name` stays `leaf` for both entry forms.
+Harnesses call `leaf hook --harness NAME` on every turn, including sessions holding no
+page. That invocation, and the same with `--watch` after it, enter the dependency-light
+hook owner before importing Click or registering other commands. Help and every other
+invocation use the CLI, whose `prog_name` stays `leaf` for both entry forms.
 `leaf session-end` delegates to the same cleanup owner in a managed interpreter.
 """
 
@@ -21,10 +21,14 @@ def main() -> None:
 
         end_session()
         return
-    if args in (["hook"], ["hook", "--watch"]):
+    if (
+        len(args) > 2
+        and args[:2] == ["hook", "--harness"]
+        and args[3:] in ([], ["--watch"])
+    ):
         from leaf.hooks import main as hook
 
-        hook(watch=args == ["hook", "--watch"])
+        hook(args[2], watch=args[3:] == ["--watch"])
         return
     from leaf.cli import cli
 

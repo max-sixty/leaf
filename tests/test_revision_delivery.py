@@ -7,7 +7,9 @@ from urllib.parse import urljoin, urlsplit
 import pytest
 import tinycss2
 from interact_support import PAGE
+from leaf import revisioning as revisioning_model
 from leaf.exporting import AssetInliner
+from leaf.files import revision_path
 from leaf.http import scope_page_urls
 from leaf.revision_artifact import ArtifactError, Resource, capture_artifact
 from leaf.revision_delivery import (
@@ -105,6 +107,7 @@ def test_stylesheets_rebase_nested_imports_urls_and_preserve_inert_values():
   filter: url(#local);
   content: "url(../not-an-asset.png)";
   --embedded: url("data:image/svg+xml;base64,PHN2Zy8+");
+  background-image: image-set(url(../images/1x.png) 1x, "../images/2x.png" 2x);
 } }
 """
     delivered = deliver_resource(
@@ -120,6 +123,10 @@ def test_stylesheets_rebase_nested_imports_urls_and_preserve_inert_values():
     assert "filter: url(#local)" in delivered
     assert 'content: "url(../not-an-asset.png)";' in delivered
     assert 'url("data:image/svg+xml;base64,PHN2Zy8+")' in delivered
+    assert (
+        f'image-set(url("{ROOT}/page/images/1x.png") 1x, '
+        f'"{ROOT}/page/images/2x.png" 2x)'
+    ) in delivered
     assert "/* url(../not-an-asset.png) */" in delivered
     assert not any(
         token.type == "error" for token in tinycss2.parse_stylesheet(delivered)
@@ -164,6 +171,38 @@ main { background: image-set("./a.png" 1x, url(./b.png) 2x); }
 
     AssetInliner(reader).css(sheet, "/page/style.css")
     assert set(read) == expected
+
+
+def test_a_revision_shares_the_files_it_captured_unchanged(page_dir):
+    """A new revision links each resource the one before it captured with the same
+    bytes, and writes the ones that changed."""
+    sheet = page_dir / "page" / "style.css"
+    sheet.parent.mkdir(exist_ok=True)
+    source = PAGE.replace(
+        "</head>", '<link rel="stylesheet" href="page/style.css"></head>'
+    )
+
+    def activate(text, css):
+        sheet.write_text(css)
+        (page_dir / "index.html").write_text(source.replace("Ship dark.", text))
+        activated = revisioning_model.activate_source(page_dir)
+        assert activated.error is None, activated.error
+        bundle = revision_path(page_dir, activated.revision).with_suffix("")
+        manifest = json.loads((bundle / "manifest.json").read_bytes())
+        return {
+            logical: bundle / ("resources" + logical)
+            for logical in manifest["resources"]
+        }
+
+    first = activate("Ship dark.", "main { color: red; }")
+    second = activate("Ship it dark.", "main { color: blue; }")
+
+    changed = {"/page/style.css"}
+    assert changed < set(first) and set(first) == set(second)
+    shared = {p for p in first if first[p].stat().st_ino == second[p].stat().st_ino}
+    assert shared == set(first) - changed
+    assert second["/page/style.css"].read_text() == "main { color: blue; }"
+    assert first["/page/style.css"].read_text() == "main { color: red; }"
 
 
 def test_page_widget_alias_uses_its_captured_path_for_import_resolution():
@@ -345,8 +384,11 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
     a package's pane before any script runs. An occurrence's own `data-width`,
     `data-bound` or `data-height` says it for that occurrence. An element naming page
     media carries the box that holds all of it, read from the images, so a frame stands
-    in their shape before they decode. Markup inside a template is inert, and
-    everything else in the source stays as written."""
+    in their shape before they decode. A widget declaring the structure its module will
+    draw (`x-prepaint`) carries it as its first child, marked as delivery's, so the
+    browser lays that structure out before the module runs, and one that first paints
+    as another widget will stand in it carries that widget's (`as`). Markup inside a
+    template is inert, and everything else in the source stays as written."""
 
     def png(width, height):
         return Resource(
@@ -360,6 +402,8 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
         "lf-chip": {"x-inline": True},
         "lf-feed": {"x-bound": "end"},
         "lf-plot": {"x-height": 400},
+        "lf-meter": {"x-prepaint": '<span class="lf-meter-face">0 left</span>'},
+        "lf-gauge": {"x-prepaint": {"as": "lf-meter"}},
     }
     source = (
         "<!doctype html><html><head><title>T</title></head><body><main>"
@@ -369,7 +413,10 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
         '<pre data-bound="start">log</pre>'
         '<lf-plot id="plot"></lf-plot><lf-plot id="tall" data-height="240"></lf-plot>'
         '<lf-pair id="pair" before="/media/a.png" after="/media/b.png"></lf-pair>'
-        "<template><lf-zone id=later label=Later><p>x</p></lf-zone></template>"
+        '<lf-meter id="meter" value="3"><p>3 left</p></lf-meter>'
+        '<lf-gauge id="gauge"></lf-gauge>'
+        "<template><lf-zone id=later label=Later><p>x</p></lf-zone>"
+        "<lf-meter id=inert></lf-meter></template>"
         "</main></body></html>"
     )
     delivered = compose_document(
@@ -405,7 +452,19 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
         "data-lf-media-height": "800",
     }
     assert marks[("lf-zone", "later")] == {}
-    unmarked = delivered
+    prepaint = (
+        '<lf-meter id="meter" value="3"><span data-lf-prepaint data-lf-gen="1" '
+        'class="lf-meter-face">0 left</span><p>3 left</p></lf-meter>'
+    )
+    assert prepaint in delivered
+    assert (
+        '<lf-gauge id="gauge"><span data-lf-prepaint data-lf-gen="1" '
+        'class="lf-meter-face">0 left</span></lf-gauge>'
+    ) in delivered
+    assert "<lf-meter id=inert></lf-meter>" in delivered
+    unmarked = delivered.replace(
+        '<span data-lf-prepaint data-lf-gen="1" class="lf-meter-face">0 left</span>', ""
+    )
     for mark in (
         ' data-lf-reading-role="pane"',
         ' data-lf-inline=""',

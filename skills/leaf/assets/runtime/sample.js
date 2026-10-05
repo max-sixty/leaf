@@ -30,6 +30,8 @@ async function request(url, body) {
 // Presentation waits on the child's state read, which can be slow without failing.
 // The child reports startup errors; the owner cancels a replaced or detached frame.
 function presented(frame, url, signal) {
+  const expected = new URL(url);
+  expected.hash = "";
   return new Promise((resolve, reject) => {
     let observer;
     const cleanup = () => {
@@ -50,7 +52,12 @@ function presented(frame, url, signal) {
     });
     const loaded = () => {
       const doc = frame.contentDocument;
-      if (!doc || frame.contentWindow.location.href !== url) return;
+      if (!doc) return;
+      // Startup may select a tab or restore a fragment before load. That changes
+      // the child's reading place, while the loaded document remains the one requested.
+      const actual = new URL(doc.URL);
+      actual.hash = "";
+      if (actual.href !== expected.href) return;
       // A failed document response can load without any Leaf scripts to report it.
       if (
         !doc.documentElement.hasAttribute("data-lf-live") &&

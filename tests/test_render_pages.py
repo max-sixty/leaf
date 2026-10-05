@@ -30,7 +30,7 @@ from render_cases_interaction import (
     SEATED_ASK_WIDGETS,
     live_url,
 )
-from render_cases_layout import banner_control, toggle_asks, with_one_ask
+from render_cases_layout import banner_control, toggle_queue, with_one_ask
 from render_cases_navigation import (
     composer_quote,
 )
@@ -91,6 +91,42 @@ from render_harness import (
 )
 
 pytestmark = pytest.mark.nightly
+
+
+def test_sort_source_follows_the_initial_step_when_code_arrives_later(browser, serve):
+    """The film may paint its first step before the code's tokenizer returns."""
+    example = next(path for path in EXAMPLES if path.stem == "rust-sort")
+    context = browser.new_context(
+        reduced_motion="reduce", viewport={"width": 1440, "height": 900}
+    )
+    held = []
+    context.route("**/vendor/syntax.esm.js", lambda route: held.append(route))
+    page = open_page(
+        browser,
+        serve(example),
+        context=context,
+        upgraded=False,
+        wait_until="domcontentloaded",
+    )
+    expect(page.locator("#sort-film .sort-moment")).to_have_attribute(
+        "data-part", "moment:random:7:0"
+    )
+    expect(page.locator("#sort-source [data-lf-indicated]")).to_have_count(0)
+    assert held
+    for route in held:
+        route.continue_()
+    context.unroute_all(behavior="wait")
+    wait_until_ready(page)
+    source = page.locator("#sort-source")
+    indicated = source.locator("[data-lf-indicated]")
+    expect(indicated).to_have_count(1)
+    body = source.bounding_box()
+    line = indicated.bounding_box()
+    assert body["y"] + 40 <= line["y"]
+    assert line["y"] + line["height"] <= body["y"] + body["height"] - 40
+    expect(page.locator("#sort-film .sort-moment")).to_have_attribute(
+        "data-part", "moment:random:7:0"
+    )
 
 
 def test_sort_film_comment_restores_its_input_and_step(browser, serve):
@@ -393,7 +429,9 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
             card = page.locator(f'.lf-thread[data-id="{thread["id"]}"]')
             expect(
                 card.get_by_role(
-                    "button", name="Reopen", exact=True, include_hidden=True
+                    "button",
+                    name=re.compile(r"\bReopen(?: thread)?$"),
+                    include_hidden=True,
                 )
             ).to_have_count(1)
             anchor = thread["anchor"]
@@ -1051,7 +1089,14 @@ def test_a_failed_resolution_restores_a_focused_inline_reply(browser, serve):
     assert reply.evaluate(
         "node => [node.selectionStart, node.selectionEnd, node.selectionDirection]"
     ) == [5, 16, "backward"]
+    # The remote resolution waits behind the thread's notice while the focused
+    # draft is in view. The user can reveal it without losing their reply.
+    notice = thread.locator(".lf-thread-news")
+    expect(notice).to_have_text("Resolved")
+    expect(thread).to_have_attribute("data-resolved", "false")
+    notice.click()
     expect(thread.get_by_role("button", name="Reopen")).to_be_visible()
+    expect(reply).to_have_js_property("value", "keep this inline reply")
 
 
 def test_failed_resolve_candidate_restores_focused_reply(browser, serve):
@@ -1110,11 +1155,17 @@ def test_failed_resolve_candidate_restores_focused_reply(browser, serve):
     page.unroute("**/api/state*")
     nudge(page_dir)
     expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
-    # The resolved card stays where the user is writing in it.
-    expect(page.locator(".lf-thread")).to_have_attribute("data-resolved", "true")
+    # The card keeps the user's editing place and holds the remote resolution
+    # behind a notice until they choose to show it.
+    thread = page.locator(".lf-thread")
+    expect(thread.locator(".lf-thread-news")).to_have_text("Resolved")
+    expect(thread).to_have_attribute("data-resolved", "false")
     expect(page.locator(".lf-thread leaf-text")).to_have_js_property(
         "value", "keep this unfinished reply"
     )
+    thread.locator(".lf-thread-news").click()
+    expect(thread).to_have_attribute("data-resolved", "true")
+    expect(thread.get_by_role("button", name="Reopen")).to_be_visible()
 
 
 def test_a_failed_state_keeps_focus_in_the_open_versions_menu(browser, serve):
@@ -2031,6 +2082,54 @@ def test_authored_blocks_choose_column_wide_or_available_space(browser, serve):
     )
     assert narrow["box"] < narrow["viewport"]
     assert root_overflow(page) == 0
+
+
+def test_named_wide_is_the_evidence_width_in_every_layout(browser, serve):
+    """`wide` is the shared capped evidence width wherever a block stands. A wide
+    Layout's track and a workspace pane are wider than `--wide` at a large window, so
+    the breakout's growth alone left a named-wide block at the holder's width there:
+    1598px in `layout-wide` and 1442px in a pane at 1726px. The cap holds an authored
+    occurrence and a package default (a board) alike, at the page's own `--wide`, while
+    a block that names no width still fills its holder and `available` takes it all. A
+    narrow window's pane still bounds the wide block."""
+    blocks = """
+<div id="named" data-width="wide">Named wide.</div>
+<lf-board id="board"><lf-column id="todo" label="Todo"><lf-card id="card">One</lf-card></lf-column></lf-board>
+<div id="plain">No width named.</div>
+<div id="available" data-width="available">Available.</div>
+"""
+    wide_page = leaf_page("Wide track", blocks, layout="wide")
+    workspace_page = leaf_page(
+        "Workspace pane",
+        f'<lf-pane id="pane" label="Evidence"><div id="holder">{blocks}</div></lf-pane>',
+        layout="workspace",
+    )
+    configured = leaf_page(
+        "Configured width",
+        blocks,
+        head="<style>:root { --wide: 900px; }</style>",
+        layout="wide",
+    )
+    measure = """() => Object.fromEntries(
+      ['named', 'board', 'plain', 'available'].map(id => {
+        const box = document.getElementById(id).getBoundingClientRect();
+        return [id, {width: Math.round(box.width), left: Math.round(box.left)}];
+      }))"""
+    for source, cap in ((wide_page, 1080), (workspace_page, 1080), (configured, 900)):
+        page = open_page(browser, serve(source))
+        resized(page, 1726, 900)
+        at = page.evaluate(measure)
+        assert at["plain"]["width"] > cap + 200, at
+        assert at["available"]["width"] == at["plain"]["width"], at
+        for capped in ("named", "board"):
+            assert at[capped]["width"] == pytest.approx(cap, abs=1), (capped, at)
+            assert at[capped]["left"] == at["plain"]["left"], (capped, at)
+        assert root_overflow(page) == 0
+
+        resized(page, 540, 720)
+        narrow = page.evaluate(measure)
+        assert narrow["named"]["width"] == narrow["plain"]["width"] < 540, narrow
+        assert root_overflow(page) == 0
 
 
 def test_a_sample_fills_the_room_its_authored_width_takes(browser, serve):
@@ -3016,7 +3115,7 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     takes, so the release-notes shot, the wide exhibit in the control, grows left only
     to stop short of it.
 
-    The Asks drawer stands over the left margin and moves nothing in it. A narrow viewport
+    The Queue panel stands over the left margin and moves nothing in it. A narrow viewport
     returns the aside to the flow, and print proves paper reserves no blank margin for a
     posture it cannot use.
 
@@ -3136,7 +3235,7 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
         "() => Number(getComputedStyle(document.querySelector('lf-toc a')).opacity) === 0"
     )
 
-    # The Asks drawer stands over the page's left margin and moves nothing in it: the fixed
+    # The Queue panel stands over the page's left margin and moves nothing in it: the fixed
     # ToC and the sidebar stay where the page put them, under the drawer while it stands.
     resized(page, 1700, 900)
     margin = """() => {
@@ -3145,10 +3244,10 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
           return {sidebarLeft: sidebar.left, tocLeft: toc.left};
         }"""
     before = page.evaluate(margin)
-    banner_control(page, ".lf-asks").click()
-    expect(page.locator(".lf-asks-panel")).to_be_visible()
+    banner_control(page, ".lf-queue").click()
+    expect(page.locator(".lf-queue-panel")).to_be_visible()
     page.wait_for_function(
-        """() => document.querySelector('.lf-asks-panel').getAnimations().length === 0"""
+        """() => document.querySelector('.lf-queue-panel').getAnimations().length === 0"""
     )
     assert page.evaluate(margin) == before
     geometry = page.evaluate(
@@ -3171,8 +3270,8 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     assert abs(geometry["tocBottom"] - (geometry["lineTop"] - 24)) <= 1, (
         f"the map's foot is not the band's top less its inset: {geometry}"
     )
-    banner_control(page, ".lf-asks").click()
-    expect(page.locator(".lf-asks-panel")).to_be_hidden()
+    banner_control(page, ".lf-queue").click()
+    expect(page.locator(".lf-queue-panel")).to_be_hidden()
 
     resized(page, 1400, 900)
 
@@ -3437,8 +3536,8 @@ def test_margin_residents_stand_where_the_room_beside_the_column_holds_them(
         else:
             assert at["note"]["float"] == "none", (width, at)
 
-    # The Asks drawer stands over the page and grants or withdraws no margin.
-    toggle_asks(page)
+    # The Queue panel stands over the page and grants or withdraws no margin.
+    toggle_queue(page)
     panelled = page.evaluate(reading)
     assert panelled["sidebars"] == at["sidebars"]
     assert panelled["taken"] == at["taken"]
@@ -3620,5 +3719,5 @@ def test_a_page_refuses_a_browser_that_never_had_the_link(browser, serve):
     page.goto(url.rsplit("?", 1)[0], wait_until="load")
 
     assert schema_model.NO_KEY in page.locator("body").inner_text()
-    # The refusal is the subject: a user without the key is answered 403.
-    consume_browser_errors(page, "403")
+    # The refusal is the subject: a user without the key is answered 401.
+    consume_browser_errors(page, "401")

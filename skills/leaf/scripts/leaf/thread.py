@@ -1,4 +1,4 @@
-"""Thread writes and the host-neutral delivery-bound reply lifecycle."""
+"""Thread writes and the harness-neutral delivery-bound reply lifecycle."""
 
 import sys
 from pathlib import Path
@@ -14,7 +14,7 @@ from leaf.files import (
     require_revision,
     revision_path,
 )
-from leaf.host import message_identity
+from leaf.harness import message_identity
 from leaf.leases import contract_writer
 from leaf.passages import SourceReading
 from leaf.projection import (
@@ -31,7 +31,6 @@ from leaf.validation.admission import (
     check_markup,
     logged_id,
     read_text_arg,
-    run_markup,
     thread_obligation,
 )
 
@@ -91,7 +90,7 @@ def release_delivery_reply(session_id: str, delivery_id: str, target: dict) -> N
     Reserving the address is what stops a second writer answering a delivery the
     provider is about to answer itself. A delivery that ends without ever reaching a
     provider turn has no such answer coming, and until the reservation is given up it
-    also blocks the host from saying so, so the user is left with neither.
+    also blocks the harness from saying so, so the user is left with neither.
     """
     _clear_delivery_reply(session_id, delivery_reply_attempt(delivery_id), target)
 
@@ -348,11 +347,8 @@ def cmd_comment(
     revision they are looking at and read as they see it: a slot
     their decision retired is off the page, and a draft they edited holds their words,
     so a quote is met here the way it would land there."""
-    # Reading a body may wait on stdin, and running markup reads the log; do both
-    # before taking the page lease.
+    # Reading a body may wait on stdin; do that before taking the page lease.
     body = read_text_arg(page_dir, text)
-    if markup:
-        run_markup(page_dir, "comment", markup)
     with PageTransaction(page_dir) as page:
         events = page.events
         revision, anchor = _current_anchor(
@@ -408,6 +404,7 @@ def cmd_reply(
     identity: dict | None = None,
     validate_source: bool = False,
     claimed_session: str | None = None,
+    ephemeral: bool = False,
 ) -> dict | None:
     """Post one complete threaded reply, optionally moving or detaching its anchor.
 
@@ -424,12 +421,13 @@ def cmd_reply(
     answers twice; ``skip`` omits a receipt when no answer is owed. The default ``refuse`` rejects a stale
     response address from an ordinary CLI writer.
 
-    ``failure`` records a host-owned failure code alongside its presentation text;
+    ``failure`` records a harness-owned failure code alongside its presentation text;
     ordinary agent answers omit it.
+
+    ``ephemeral`` posts progress at the same response address without answering it.
+    It remains content, and cannot carry a question, widgets, failure or relocation.
     """
     body = read_text_arg(page_dir, text)
-    if markup:
-        run_markup(page_dir, "reply", markup)
     posting_identity = message_identity() if identity is None else identity
     with PageTransaction(page_dir) as page:
         if claimed_session is not None:
@@ -446,12 +444,13 @@ def cmd_reply(
             )
             if existing:
                 same_scope = (
-                    existing.get("responds") == for_event
+                    existing.get("responds") == (None if ephemeral else for_event)
                     if for_event is not None or to is not None
                     else True
                 )
                 if (
                     existing["kind"] != "reply"
+                    or bool(existing.get("ephemeral")) != ephemeral
                     or (to is not None and existing["parent"] != to)
                     or not same_scope
                 ):
@@ -527,19 +526,23 @@ def cmd_reply(
                         f"event {for_event!r} no longer requires a reply to {to!r}; "
                         "read the current delivery or thread state"
                     )
-            elif expected["kind"] == "turn" and expected["attempt"] != attempt:
+            elif (
+                not ephemeral
+                and expected["kind"] == "turn"
+                and expected["attempt"] != attempt
+            ):
                 sys.exit(
                     f"event {for_event!r} is answered by this turn's messages; "
                     "finish the reply in your final message"
                 )
         else:
             standing = thread_obligation(events, responses, thread_id)
-            if standing is not None and standing["kind"] == "turn":
+            if not ephemeral and standing is not None and standing["kind"] == "turn":
                 sys.exit(
                     f"thread {thread_id!r} is answered by this turn's messages; "
                     "finish the reply in your final message"
                 )
-            if standing is not None:
+            if not ephemeral and standing is not None:
                 sys.exit(
                     f"thread {thread_id!r} currently requires a response; "
                     f"{answer_command(standing)} answers it"
@@ -550,6 +553,10 @@ def cmd_reply(
         ):
             return None
         moving = bool(quote or section or part)
+        if ephemeral and (awaits or markup or failure or moving or detach):
+            sys.exit(
+                "--ephemeral is for progress text; it cannot ask a question, carry widgets, report failure, or move the thread"
+            )
         if detach and moving:
             sys.exit("--detach cannot be combined with --quote, --section, or --part")
         relocating = moving or detach
@@ -671,8 +678,14 @@ def cmd_reply(
             **posting_identity,
             "parent": to,
             "text": body,
-            **({"responds": for_event} if for_event is not None else {}),
+            **(
+                {"responds": for_event}
+                if for_event is not None and not ephemeral
+                else {}
+            ),
         }
+        if ephemeral:
+            event["ephemeral"] = True
         if awaits:
             event["awaits"] = True
         if markup:
@@ -705,7 +718,7 @@ def fail_answer(
 ) -> dict | None:
     """Tell the user no answer to one move is coming, in the move's own terms.
 
-    A host that gives up on a move settles the obligation the move's workflow
+    A harness that gives up on a move settles the obligation the move's workflow
     `answer` names and hands the next step back to the user, so a failed move is
     never left owed with nobody to answer it:
 
@@ -889,12 +902,14 @@ def cmd_summarize(
     from_message: str,
     through_message: str,
     text,
+    *,
+    label: str | None = None,
 ) -> dict:
     """Append a presentation summary over one contiguous message range, in the
     thread its first message sits in."""
     from leaf.registry.storage import require_registry
 
-    body = read_text_arg(page_dir, text)
+    body = read_text_arg(page_dir, text, allow_empty=text == "")
     with PageTransaction(page_dir) as page:
         require_registry(page_dir)
         return append_admitted(
@@ -907,6 +922,7 @@ def cmd_summarize(
                 "from": from_message,
                 "through": through_message,
                 "text": body,
+                **({"label": label} if label is not None else {}),
             },
         )
 

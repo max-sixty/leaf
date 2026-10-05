@@ -50,8 +50,12 @@
 #              corner and `drawing.box` is its width and height, so a stroke's share
 #              of the box says which part of a picture it marks; a drawing on the
 #              whole page has no `box`, and its offsets start at the page's top-left
-#              corner. Any `text` explains the mark. Otherwise it is an ordinary
-#              comment, answered the same way.
+#              corner. Where the words and offsets leave unclear what the mark covers,
+#              `leaf page picture PAGE ID`, given the comment's `id`, shows what the
+#              user saw: it prints the path of a PNG of the comment's revision laid
+#              out in their window and color scheme (`drawing.viewport`,
+#              `drawing.scheme`), with the ink over it. Any `text` explains the mark.
+#              Otherwise it is an ordinary comment, answered the same way.
 #      clause 2, does not apply:
 #        when: {"required": ["text"], "properties": {"text": {"pattern": "\\]\\(/media/"}}}
 #        text: The message carries an image as a Markdown link to
@@ -67,15 +71,16 @@
 #        text: A design comment is about how the page looks or behaves rather than
 #              what it says. Its anchor's `section` is a widget's id or, when it
 #              starts `lf-`, a part of Leaf's own chrome, such as `lf-banner`,
-#              `lf-threads` (the Threads panel), `lf-asks`, `lf-versions` or
-#              `lf-composer`; `part`, when present, names the control the click landed
-#              on. Find the source that produces what it names and fix it in this
-#              page's own source, unless the behavior belongs to a package's widget or
-#              the user asks for a wider fix: then change the package as the Leaf
-#              skill's `references/packages.md` says, re-vendor, and note the
-#              re-vendor on the stamp. A fix that belongs in Leaf itself is the user's
-#              to raise, as the Leaf skill's "Improve Leaf through use" says. The
-#              stamped version that carries the fix is the result the reply reports.
+#              `lf-threads` (the Threads panel), `lf-queue` (the Queue panel),
+#              `lf-versions` or `lf-composer`; `part`, when present, names the control
+#              the click landed on. Find the source that produces what it names and
+#              fix it in this page's own source, unless the behavior belongs to a
+#              package's widget or the user asks for a wider fix: then change the
+#              package as the Leaf skill's `references/packages.md` says, re-vendor,
+#              and note the re-vendor on the stamp. A fix that belongs in Leaf itself
+#              is the user's to raise, as the Leaf skill's "Improve Leaf through use"
+#              says. The stamped version that carries the fix is the result the reply
+#              reports.
 #      clause 5, applies:
 #        when: {"required": ["thread", "answer"], "properties": {"thread": {"required": ["title"], "properties": {"title": {"type": "null"}}}, "answer": {"properties": {"kind": {"const": "reply"}}}}}
 #        text: This event's thread has no title yet: name it by adding `--title "<a
@@ -92,25 +97,26 @@
 #      clause 7, applies:
 #        (no `when`, so it always applies)
 #        text: When the event asks for work, name that work before any other,
-#              including reading the source it concerns: `leaf status <page> working
-#              "<the work, in a line>" --on <address>`, where `<address>` is the
-#              event's `answer.to`. The move then reads Working, and the line stands
-#              beside the thread and in the banner until you answer. Do the work and
-#              put its result on the page, with whatever shows it (captures, a figure,
-#              the numbers), then answer with `leaf thread reply <page> --for
-#              <event-id>`: what changed, in a sentence or two, linking the section
-#              that shows it. When the event asks for no work, as a question may not,
-#              answer it with that reply at once. The page carries the work, and the
-#              thread only the conversation about it. `leaf thread reply` checks any
-#              saved page edit and makes it live before posting. If a revision removes
-#              what the thread is anchored on, move the thread in the reply that
-#              reports it with `--section <id>` (narrowed by `--quote` or `--part` if
-#              needed), or `--detach` it if its subject has left the page. Add
-#              `--awaits` only if your reply's prose asks the user something.
+#              including reading the source it concerns: `leaf task start <page>
+#              <event-id> "<the work, in a line>"`. The move then reads Working, and
+#              the line stands beside the thread and in the banner until you answer.
+#              Do the work and put its result on the page, with whatever shows it
+#              (captures, a figure, the numbers), then answer with `leaf thread reply
+#              <page> --for <event-id> < reply.md`: what changed, in a sentence or
+#              two, linking the section that shows it. When the event asks for no
+#              work, as a question may not, answer it with that reply at once. The
+#              page carries the work, and the thread only the conversation about it.
+#              `leaf thread reply` checks any saved page edit and makes it live before
+#              posting. If a revision removes what the thread is anchored on, move the
+#              thread in the reply that reports it with `--section <id>` (narrowed by
+#              `--quote` or `--part` if needed), or `--detach` it if its subject has
+#              left the page. Add `--awaits` only if your reply's prose asks the user
+#              something.
 #      clause 8, applies:
 #        (no `when`, so it always applies)
-#        text: Your reply renders as Markdown, so show code or markup in a fenced
-#              block.
+#        text: Your reply renders as Markdown in a narrow column: give each point its
+#              own short paragraph or list item, link a page section as `[its
+#              name](#section-id)`, and fence code or markup.
 #      clause 9, does not apply:
 #        when: {"required": ["meaning"], "properties": {"meaning": {"required": ["scope"], "properties": {"scope": {"const": "thread"}}}}}
 #        text: The widget is in a thread message: continue the work the user's answer
@@ -157,8 +163,8 @@
 #            ],
 #            "handling": {
 #              "h1": "This event's thread has no title yet: name it by adding `--title \"<a few words>\"` to the reply that answers it, so the thread panel lists its subject rather than its opening words. If Leaf has named it from its opening message by then, that name stands.",
-#              "h2": "When the event asks for work, name that work before any other, including reading the source it concerns: `leaf status <page> working \"<the work, in a line>\" --on <address>`, where `<address>` is the event's `answer.to`. The move then reads Working, and the line stands beside the thread and in the banner until you answer. Do the work and put its result on the page, with whatever shows it (captures, a figure, the numbers), then answer with `leaf thread reply <page> --for <event-id>`: what changed, in a sentence or two, linking the section that shows it. When the event asks for no work, as a question may not, answer it with that reply at once. The page carries the work, and the thread only the conversation about it. `leaf thread reply` checks any saved page edit and makes it live before posting. If a revision removes what the thread is anchored on, move the thread in the reply that reports it with `--section <id>` (narrowed by `--quote` or `--part` if needed), or `--detach` it if its subject has left the page. Add `--awaits` only if your reply's prose asks the user something.",
-#              "h3": "Your reply renders as Markdown, so show code or markup in a fenced block."
+#              "h2": "When the event asks for work, name that work before any other, including reading the source it concerns: `leaf task start <page> <event-id> \"<the work, in a line>\"`. The move then reads Working, and the line stands beside the thread and in the banner until you answer. Do the work and put its result on the page, with whatever shows it (captures, a figure, the numbers), then answer with `leaf thread reply <page> --for <event-id> < reply.md`: what changed, in a sentence or two, linking the section that shows it. When the event asks for no work, as a question may not, answer it with that reply at once. The page carries the work, and the thread only the conversation about it. `leaf thread reply` checks any saved page edit and makes it live before posting. If a revision removes what the thread is anchored on, move the thread in the reply that reports it with `--section <id>` (narrowed by `--quote` or `--part` if needed), or `--detach` it if its subject has left the page. Add `--awaits` only if your reply's prose asks the user something.",
+#              "h3": "Your reply renders as Markdown in a narrow column: give each point its own short paragraph or list item, link a page section as `[its name](#section-id)`, and fence code or markup."
 #            },
 #            "events": [
 #              {
@@ -198,7 +204,7 @@
 #      }
 #
 # 5. The agent confirms the complete delivery, then follows `handling`: it names
-#    any work the comment asks for with `leaf status`, does it,
+#    any work the comment asks for with `leaf task start`, does it,
 #    and replies in the thread with `leaf thread reply`.
 #
 # What this file records
@@ -242,22 +248,23 @@
 #              by then, that name stands.
 #          - text: >-
 #              When the event asks for work, name that work before any other, including
-#              reading the source it concerns: `leaf status <page> working "<the work,
-#              in a line>" --on <address>`, where `<address>` is the event's `answer.to`.
-#              The move then reads Working, and the line stands beside the thread and in
-#              the banner until you answer. Do the work and put its result on the page,
-#              with whatever shows it (captures, a figure, the numbers), then answer with
-#              `leaf thread reply <page> --for <event-id>`: what changed, in a sentence
-#              or two, linking the section that shows it. When the event asks for no work,
-#              as a question may not, answer it with that reply at once. The page carries
-#              the work, and the thread only the conversation about it. `leaf thread reply`
-#              checks any saved page edit and makes it live before posting. If a revision
-#              removes what the thread is anchored on, move the thread in the reply that
-#              reports it with `--section <id>` (narrowed by `--quote` or `--part` if needed),
-#              or `--detach` it if its subject has left the page. Add `--awaits` only if
-#              your reply's prose asks the user something.
+#              reading the source it concerns: `leaf task start <page> <event-id> "<the
+#              work, in a line>"`. The move then reads Working, and the line stands beside
+#              the thread and in the banner until you answer. Do the work and put its result
+#              on the page, with whatever shows it (captures, a figure, the numbers), then
+#              answer with `leaf thread reply <page> --for <event-id> < reply.md`: what
+#              changed, in a sentence or two, linking the section that shows it. When the
+#              event asks for no work, as a question may not, answer it with that reply
+#              at once. The page carries the work, and the thread only the conversation
+#              about it. `leaf thread reply` checks any saved page edit and makes it live
+#              before posting. If a revision removes what the thread is anchored on, move
+#              the thread in the reply that reports it with `--section <id>` (narrowed
+#              by `--quote` or `--part` if needed), or `--detach` it if its subject has
+#              left the page. Add `--awaits` only if your reply's prose asks the user something.
 #          - text: >-
-#              Your reply renders as Markdown, so show code or markup in a fenced block.
+#              Your reply renders as Markdown in a narrow column: give each point its own
+#              short paragraph or list item, link a page section as `[its name](#section-id)`,
+#              and fence code or markup.
 #
 # After changing a clause, re-record this file and review the diff:
 #
@@ -279,22 +286,23 @@ comment:
         by then, that name stands.
     - text: >-
         When the event asks for work, name that work before any other, including
-        reading the source it concerns: `leaf status <page> working "<the work,
-        in a line>" --on <address>`, where `<address>` is the event's `answer.to`.
-        The move then reads Working, and the line stands beside the thread and in
-        the banner until you answer. Do the work and put its result on the page,
-        with whatever shows it (captures, a figure, the numbers), then answer with
-        `leaf thread reply <page> --for <event-id>`: what changed, in a sentence
-        or two, linking the section that shows it. When the event asks for no work,
-        as a question may not, answer it with that reply at once. The page carries
-        the work, and the thread only the conversation about it. `leaf thread reply`
-        checks any saved page edit and makes it live before posting. If a revision
-        removes what the thread is anchored on, move the thread in the reply that
-        reports it with `--section <id>` (narrowed by `--quote` or `--part` if needed),
-        or `--detach` it if its subject has left the page. Add `--awaits` only if
-        your reply's prose asks the user something.
+        reading the source it concerns: `leaf task start <page> <event-id> "<the
+        work, in a line>"`. The move then reads Working, and the line stands beside
+        the thread and in the banner until you answer. Do the work and put its result
+        on the page, with whatever shows it (captures, a figure, the numbers), then
+        answer with `leaf thread reply <page> --for <event-id> < reply.md`: what
+        changed, in a sentence or two, linking the section that shows it. When the
+        event asks for no work, as a question may not, answer it with that reply
+        at once. The page carries the work, and the thread only the conversation
+        about it. `leaf thread reply` checks any saved page edit and makes it live
+        before posting. If a revision removes what the thread is anchored on, move
+        the thread in the reply that reports it with `--section <id>` (narrowed
+        by `--quote` or `--part` if needed), or `--detach` it if its subject has
+        left the page. Add `--awaits` only if your reply's prose asks the user something.
     - text: >-
-        Your reply renders as Markdown, so show code or markup in a fenced block.
+        Your reply renders as Markdown in a narrow column: give each point its own
+        short paragraph or list item, link a page section as `[its name](#section-id)`,
+        and fence code or markup.
 
 comment over App Server:
   event:
@@ -312,7 +320,9 @@ comment over App Server:
         reply in your final message: the answer, or what changed and where it appears.
         The reply leaves the thread on its anchor.
     - text: >-
-        Your reply renders as Markdown, so show code or markup in a fenced block.
+        Your reply renders as Markdown in a narrow column: give each point its own
+        short paragraph or list item, link a page section as `[its name](#section-id)`,
+        and fence code or markup.
 
 comment with a drawing:
   event:
@@ -320,6 +330,8 @@ comment with a drawing:
     drawing:
       format: leaf-drawing/2
       strokes: [[[0, 0], [9, 9]]]
+      viewport: [1200, 900]
+      scheme: light
     answer:
       kind: reply
   told:
@@ -333,26 +345,31 @@ comment with a drawing:
         are offsets from that element's top-left corner and `drawing.box` is its
         width and height, so a stroke's share of the box says which part of a picture
         it marks; a drawing on the whole page has no `box`, and its offsets start
-        at the page's top-left corner. Any `text` explains the mark. Otherwise it
-        is an ordinary comment, answered the same way.
+        at the page's top-left corner. Where the words and offsets leave unclear
+        what the mark covers, `leaf page picture PAGE ID`, given the comment's `id`,
+        shows what the user saw: it prints the path of a PNG of the comment's revision
+        laid out in their window and color scheme (`drawing.viewport`, `drawing.scheme`),
+        with the ink over it. Any `text` explains the mark. Otherwise it is an ordinary
+        comment, answered the same way.
     - text: >-
         When the event asks for work, name that work before any other, including
-        reading the source it concerns: `leaf status <page> working "<the work,
-        in a line>" --on <address>`, where `<address>` is the event's `answer.to`.
-        The move then reads Working, and the line stands beside the thread and in
-        the banner until you answer. Do the work and put its result on the page,
-        with whatever shows it (captures, a figure, the numbers), then answer with
-        `leaf thread reply <page> --for <event-id>`: what changed, in a sentence
-        or two, linking the section that shows it. When the event asks for no work,
-        as a question may not, answer it with that reply at once. The page carries
-        the work, and the thread only the conversation about it. `leaf thread reply`
-        checks any saved page edit and makes it live before posting. If a revision
-        removes what the thread is anchored on, move the thread in the reply that
-        reports it with `--section <id>` (narrowed by `--quote` or `--part` if needed),
-        or `--detach` it if its subject has left the page. Add `--awaits` only if
-        your reply's prose asks the user something.
+        reading the source it concerns: `leaf task start <page> <event-id> "<the
+        work, in a line>"`. The move then reads Working, and the line stands beside
+        the thread and in the banner until you answer. Do the work and put its result
+        on the page, with whatever shows it (captures, a figure, the numbers), then
+        answer with `leaf thread reply <page> --for <event-id> < reply.md`: what
+        changed, in a sentence or two, linking the section that shows it. When the
+        event asks for no work, as a question may not, answer it with that reply
+        at once. The page carries the work, and the thread only the conversation
+        about it. `leaf thread reply` checks any saved page edit and makes it live
+        before posting. If a revision removes what the thread is anchored on, move
+        the thread in the reply that reports it with `--section <id>` (narrowed
+        by `--quote` or `--part` if needed), or `--detach` it if its subject has
+        left the page. Add `--awaits` only if your reply's prose asks the user something.
     - text: >-
-        Your reply renders as Markdown, so show code or markup in a fenced block.
+        Your reply renders as Markdown in a narrow column: give each point its own
+        short paragraph or list item, link a page section as `[its name](#section-id)`,
+        and fence code or markup.
 
 comment with a pasted image:
   event:
@@ -368,22 +385,23 @@ comment with a pasted image:
         answering: its alt text is a label, not a description of what it shows.
     - text: >-
         When the event asks for work, name that work before any other, including
-        reading the source it concerns: `leaf status <page> working "<the work,
-        in a line>" --on <address>`, where `<address>` is the event's `answer.to`.
-        The move then reads Working, and the line stands beside the thread and in
-        the banner until you answer. Do the work and put its result on the page,
-        with whatever shows it (captures, a figure, the numbers), then answer with
-        `leaf thread reply <page> --for <event-id>`: what changed, in a sentence
-        or two, linking the section that shows it. When the event asks for no work,
-        as a question may not, answer it with that reply at once. The page carries
-        the work, and the thread only the conversation about it. `leaf thread reply`
-        checks any saved page edit and makes it live before posting. If a revision
-        removes what the thread is anchored on, move the thread in the reply that
-        reports it with `--section <id>` (narrowed by `--quote` or `--part` if needed),
-        or `--detach` it if its subject has left the page. Add `--awaits` only if
-        your reply's prose asks the user something.
+        reading the source it concerns: `leaf task start <page> <event-id> "<the
+        work, in a line>"`. The move then reads Working, and the line stands beside
+        the thread and in the banner until you answer. Do the work and put its result
+        on the page, with whatever shows it (captures, a figure, the numbers), then
+        answer with `leaf thread reply <page> --for <event-id> < reply.md`: what
+        changed, in a sentence or two, linking the section that shows it. When the
+        event asks for no work, as a question may not, answer it with that reply
+        at once. The page carries the work, and the thread only the conversation
+        about it. `leaf thread reply` checks any saved page edit and makes it live
+        before posting. If a revision removes what the thread is anchored on, move
+        the thread in the reply that reports it with `--section <id>` (narrowed
+        by `--quote` or `--part` if needed), or `--detach` it if its subject has
+        left the page. Add `--awaits` only if your reply's prose asks the user something.
     - text: >-
-        Your reply renders as Markdown, so show code or markup in a fenced block.
+        Your reply renders as Markdown in a narrow column: give each point its own
+        short paragraph or list item, link a page section as `[its name](#section-id)`,
+        and fence code or markup.
 
 comment a newer message answers through:
   event:
@@ -403,22 +421,23 @@ suggestion:
         with your reason for declining.
     - text: >-
         When the event asks for work, name that work before any other, including
-        reading the source it concerns: `leaf status <page> working "<the work,
-        in a line>" --on <address>`, where `<address>` is the event's `answer.to`.
-        The move then reads Working, and the line stands beside the thread and in
-        the banner until you answer. Do the work and put its result on the page,
-        with whatever shows it (captures, a figure, the numbers), then answer with
-        `leaf thread reply <page> --for <event-id>`: what changed, in a sentence
-        or two, linking the section that shows it. When the event asks for no work,
-        as a question may not, answer it with that reply at once. The page carries
-        the work, and the thread only the conversation about it. `leaf thread reply`
-        checks any saved page edit and makes it live before posting. If a revision
-        removes what the thread is anchored on, move the thread in the reply that
-        reports it with `--section <id>` (narrowed by `--quote` or `--part` if needed),
-        or `--detach` it if its subject has left the page. Add `--awaits` only if
-        your reply's prose asks the user something.
+        reading the source it concerns: `leaf task start <page> <event-id> "<the
+        work, in a line>"`. The move then reads Working, and the line stands beside
+        the thread and in the banner until you answer. Do the work and put its result
+        on the page, with whatever shows it (captures, a figure, the numbers), then
+        answer with `leaf thread reply <page> --for <event-id> < reply.md`: what
+        changed, in a sentence or two, linking the section that shows it. When the
+        event asks for no work, as a question may not, answer it with that reply
+        at once. The page carries the work, and the thread only the conversation
+        about it. `leaf thread reply` checks any saved page edit and makes it live
+        before posting. If a revision removes what the thread is anchored on, move
+        the thread in the reply that reports it with `--section <id>` (narrowed
+        by `--quote` or `--part` if needed), or `--detach` it if its subject has
+        left the page. Add `--awaits` only if your reply's prose asks the user something.
     - text: >-
-        Your reply renders as Markdown, so show code or markup in a fenced block.
+        Your reply renders as Markdown in a narrow column: give each point its own
+        short paragraph or list item, link a page section as `[its name](#section-id)`,
+        and fence code or markup.
 
 design comment:
   event:
@@ -432,32 +451,34 @@ design comment:
         A design comment is about how the page looks or behaves rather than what
         it says. Its anchor's `section` is a widget's id or, when it starts `lf-`,
         a part of Leaf's own chrome, such as `lf-banner`, `lf-threads` (the Threads
-        panel), `lf-asks`, `lf-versions` or `lf-composer`; `part`, when present,
-        names the control the click landed on. Find the source that produces what
-        it names and fix it in this page's own source, unless the behavior belongs
-        to a package's widget or the user asks for a wider fix: then change the
-        package as the Leaf skill's `references/packages.md` says, re-vendor, and
-        note the re-vendor on the stamp. A fix that belongs in Leaf itself is the
-        user's to raise, as the Leaf skill's "Improve Leaf through use" says. The
-        stamped version that carries the fix is the result the reply reports.
+        panel), `lf-queue` (the Queue panel), `lf-versions` or `lf-composer`; `part`,
+        when present, names the control the click landed on. Find the source that
+        produces what it names and fix it in this page's own source, unless the
+        behavior belongs to a package's widget or the user asks for a wider fix:
+        then change the package as the Leaf skill's `references/packages.md` says,
+        re-vendor, and note the re-vendor on the stamp. A fix that belongs in Leaf
+        itself is the user's to raise, as the Leaf skill's "Improve Leaf through
+        use" says. The stamped version that carries the fix is the result the reply
+        reports.
     - text: >-
         When the event asks for work, name that work before any other, including
-        reading the source it concerns: `leaf status <page> working "<the work,
-        in a line>" --on <address>`, where `<address>` is the event's `answer.to`.
-        The move then reads Working, and the line stands beside the thread and in
-        the banner until you answer. Do the work and put its result on the page,
-        with whatever shows it (captures, a figure, the numbers), then answer with
-        `leaf thread reply <page> --for <event-id>`: what changed, in a sentence
-        or two, linking the section that shows it. When the event asks for no work,
-        as a question may not, answer it with that reply at once. The page carries
-        the work, and the thread only the conversation about it. `leaf thread reply`
-        checks any saved page edit and makes it live before posting. If a revision
-        removes what the thread is anchored on, move the thread in the reply that
-        reports it with `--section <id>` (narrowed by `--quote` or `--part` if needed),
-        or `--detach` it if its subject has left the page. Add `--awaits` only if
-        your reply's prose asks the user something.
+        reading the source it concerns: `leaf task start <page> <event-id> "<the
+        work, in a line>"`. The move then reads Working, and the line stands beside
+        the thread and in the banner until you answer. Do the work and put its result
+        on the page, with whatever shows it (captures, a figure, the numbers), then
+        answer with `leaf thread reply <page> --for <event-id> < reply.md`: what
+        changed, in a sentence or two, linking the section that shows it. When the
+        event asks for no work, as a question may not, answer it with that reply
+        at once. The page carries the work, and the thread only the conversation
+        about it. `leaf thread reply` checks any saved page edit and makes it live
+        before posting. If a revision removes what the thread is anchored on, move
+        the thread in the reply that reports it with `--section <id>` (narrowed
+        by `--quote` or `--part` if needed), or `--detach` it if its subject has
+        left the page. Add `--awaits` only if your reply's prose asks the user something.
     - text: >-
-        Your reply renders as Markdown, so show code or markup in a fenced block.
+        Your reply renders as Markdown in a narrow column: give each point its own
+        short paragraph or list item, link a page section as `[its name](#section-id)`,
+        and fence code or markup.
 
 reaction on the page:
   event:
@@ -486,22 +507,23 @@ reply:
         context, and `leaf page state <page> <thread-id>` reads its history in pages.
     - text: >-
         When the event asks for work, name that work before any other, including
-        reading the source it concerns: `leaf status <page> working "<the work,
-        in a line>" --on <address>`, where `<address>` is the event's `answer.to`.
-        The move then reads Working, and the line stands beside the thread and in
-        the banner until you answer. Do the work and put its result on the page,
-        with whatever shows it (captures, a figure, the numbers), then answer with
-        `leaf thread reply <page> --for <event-id>`: what changed, in a sentence
-        or two, linking the section that shows it. When the event asks for no work,
-        as a question may not, answer it with that reply at once. The page carries
-        the work, and the thread only the conversation about it. `leaf thread reply`
-        checks any saved page edit and makes it live before posting. If a revision
-        removes what the thread is anchored on, move the thread in the reply that
-        reports it with `--section <id>` (narrowed by `--quote` or `--part` if needed),
-        or `--detach` it if its subject has left the page. Add `--awaits` only if
-        your reply's prose asks the user something.
+        reading the source it concerns: `leaf task start <page> <event-id> "<the
+        work, in a line>"`. The move then reads Working, and the line stands beside
+        the thread and in the banner until you answer. Do the work and put its result
+        on the page, with whatever shows it (captures, a figure, the numbers), then
+        answer with `leaf thread reply <page> --for <event-id> < reply.md`: what
+        changed, in a sentence or two, linking the section that shows it. When the
+        event asks for no work, as a question may not, answer it with that reply
+        at once. The page carries the work, and the thread only the conversation
+        about it. `leaf thread reply` checks any saved page edit and makes it live
+        before posting. If a revision removes what the thread is anchored on, move
+        the thread in the reply that reports it with `--section <id>` (narrowed
+        by `--quote` or `--part` if needed), or `--detach` it if its subject has
+        left the page. Add `--awaits` only if your reply's prose asks the user something.
     - text: >-
-        Your reply renders as Markdown, so show code or markup in a fenced block.
+        Your reply renders as Markdown in a narrow column: give each point its own
+        short paragraph or list item, link a page section as `[its name](#section-id)`,
+        and fence code or markup.
 
 reply in an untitled thread:
   event:
@@ -523,22 +545,23 @@ reply in an untitled thread:
         by then, that name stands.
     - text: >-
         When the event asks for work, name that work before any other, including
-        reading the source it concerns: `leaf status <page> working "<the work,
-        in a line>" --on <address>`, where `<address>` is the event's `answer.to`.
-        The move then reads Working, and the line stands beside the thread and in
-        the banner until you answer. Do the work and put its result on the page,
-        with whatever shows it (captures, a figure, the numbers), then answer with
-        `leaf thread reply <page> --for <event-id>`: what changed, in a sentence
-        or two, linking the section that shows it. When the event asks for no work,
-        as a question may not, answer it with that reply at once. The page carries
-        the work, and the thread only the conversation about it. `leaf thread reply`
-        checks any saved page edit and makes it live before posting. If a revision
-        removes what the thread is anchored on, move the thread in the reply that
-        reports it with `--section <id>` (narrowed by `--quote` or `--part` if needed),
-        or `--detach` it if its subject has left the page. Add `--awaits` only if
-        your reply's prose asks the user something.
+        reading the source it concerns: `leaf task start <page> <event-id> "<the
+        work, in a line>"`. The move then reads Working, and the line stands beside
+        the thread and in the banner until you answer. Do the work and put its result
+        on the page, with whatever shows it (captures, a figure, the numbers), then
+        answer with `leaf thread reply <page> --for <event-id> < reply.md`: what
+        changed, in a sentence or two, linking the section that shows it. When the
+        event asks for no work, as a question may not, answer it with that reply
+        at once. The page carries the work, and the thread only the conversation
+        about it. `leaf thread reply` checks any saved page edit and makes it live
+        before posting. If a revision removes what the thread is anchored on, move
+        the thread in the reply that reports it with `--section <id>` (narrowed
+        by `--quote` or `--part` if needed), or `--detach` it if its subject has
+        left the page. Add `--awaits` only if your reply's prose asks the user something.
     - text: >-
-        Your reply renders as Markdown, so show code or markup in a fenced block.
+        Your reply renders as Markdown in a narrow column: give each point its own
+        short paragraph or list item, link a page section as `[its name](#section-id)`,
+        and fence code or markup.
 
 reply with a pasted image:
   event:
@@ -558,22 +581,23 @@ reply with a pasted image:
         answering: its alt text is a label, not a description of what it shows.
     - text: >-
         When the event asks for work, name that work before any other, including
-        reading the source it concerns: `leaf status <page> working "<the work,
-        in a line>" --on <address>`, where `<address>` is the event's `answer.to`.
-        The move then reads Working, and the line stands beside the thread and in
-        the banner until you answer. Do the work and put its result on the page,
-        with whatever shows it (captures, a figure, the numbers), then answer with
-        `leaf thread reply <page> --for <event-id>`: what changed, in a sentence
-        or two, linking the section that shows it. When the event asks for no work,
-        as a question may not, answer it with that reply at once. The page carries
-        the work, and the thread only the conversation about it. `leaf thread reply`
-        checks any saved page edit and makes it live before posting. If a revision
-        removes what the thread is anchored on, move the thread in the reply that
-        reports it with `--section <id>` (narrowed by `--quote` or `--part` if needed),
-        or `--detach` it if its subject has left the page. Add `--awaits` only if
-        your reply's prose asks the user something.
+        reading the source it concerns: `leaf task start <page> <event-id> "<the
+        work, in a line>"`. The move then reads Working, and the line stands beside
+        the thread and in the banner until you answer. Do the work and put its result
+        on the page, with whatever shows it (captures, a figure, the numbers), then
+        answer with `leaf thread reply <page> --for <event-id> < reply.md`: what
+        changed, in a sentence or two, linking the section that shows it. When the
+        event asks for no work, as a question may not, answer it with that reply
+        at once. The page carries the work, and the thread only the conversation
+        about it. `leaf thread reply` checks any saved page edit and makes it live
+        before posting. If a revision removes what the thread is anchored on, move
+        the thread in the reply that reports it with `--section <id>` (narrowed
+        by `--quote` or `--part` if needed), or `--detach` it if its subject has
+        left the page. Add `--awaits` only if your reply's prose asks the user something.
     - text: >-
-        Your reply renders as Markdown, so show code or markup in a fenced block.
+        Your reply renders as Markdown in a narrow column: give each point its own
+        short paragraph or list item, link a page section as `[its name](#section-id)`,
+        and fence code or markup.
 
 reply in a long thread:
   event:
@@ -592,29 +616,31 @@ reply in a long thread:
         context, and `leaf page state <page> <thread-id>` reads its history in pages.
     - when: {"required": ["thread"], "properties": {"thread": {"required": ["summary_hint"]}}, "not": {"required": ["token"]}}
       text: >-
-        This event's thread has grown long, and its entry in the batch's `threads`
-        carries a `summary_hint`. Once you have replied, read the messages from
-        its `from` through its `through` and summarize them with `leaf thread summarize
-        <page> --from <from> --through <through>`, as the Leaf skill's `references/threads.md`,
-        "Summarize a long discussion", says.
+        This thread has enough earlier discussion to consider a summary; its entry
+        in the batch's `threads` carries a `summary_hint`. If a summary would help
+        the user navigate it, read the originals from `from` through `through` and
+        use `leaf thread summarize <page> --from <from> --through <through>`, following
+        the Leaf skill's `references/threads.md`, "Summarize a long discussion".
+        Choose whether and when to summarize; this hint adds no response obligation.
     - text: >-
         When the event asks for work, name that work before any other, including
-        reading the source it concerns: `leaf status <page> working "<the work,
-        in a line>" --on <address>`, where `<address>` is the event's `answer.to`.
-        The move then reads Working, and the line stands beside the thread and in
-        the banner until you answer. Do the work and put its result on the page,
-        with whatever shows it (captures, a figure, the numbers), then answer with
-        `leaf thread reply <page> --for <event-id>`: what changed, in a sentence
-        or two, linking the section that shows it. When the event asks for no work,
-        as a question may not, answer it with that reply at once. The page carries
-        the work, and the thread only the conversation about it. `leaf thread reply`
-        checks any saved page edit and makes it live before posting. If a revision
-        removes what the thread is anchored on, move the thread in the reply that
-        reports it with `--section <id>` (narrowed by `--quote` or `--part` if needed),
-        or `--detach` it if its subject has left the page. Add `--awaits` only if
-        your reply's prose asks the user something.
+        reading the source it concerns: `leaf task start <page> <event-id> "<the
+        work, in a line>"`. The move then reads Working, and the line stands beside
+        the thread and in the banner until you answer. Do the work and put its result
+        on the page, with whatever shows it (captures, a figure, the numbers), then
+        answer with `leaf thread reply <page> --for <event-id> < reply.md`: what
+        changed, in a sentence or two, linking the section that shows it. When the
+        event asks for no work, as a question may not, answer it with that reply
+        at once. The page carries the work, and the thread only the conversation
+        about it. `leaf thread reply` checks any saved page edit and makes it live
+        before posting. If a revision removes what the thread is anchored on, move
+        the thread in the reply that reports it with `--section <id>` (narrowed
+        by `--quote` or `--part` if needed), or `--detach` it if its subject has
+        left the page. Add `--awaits` only if your reply's prose asks the user something.
     - text: >-
-        Your reply renders as Markdown, so show code or markup in a fenced block.
+        Your reply renders as Markdown in a narrow column: give each point its own
+        short paragraph or list item, link a page section as `[its name](#section-id)`,
+        and fence code or markup.
 
 reaction on a message:
   event:
@@ -643,9 +669,9 @@ pick on the page:
         the version note.
     - text: >-
         It answers the page's Ask, so the page shows it as waiting on you until
-        the markup records it. Name the work it selects or unblocks with `leaf status
-        <page> working "<the work, in a line>"` before starting it, then do it,
-        write it in, and stamp a version.
+        the markup records it. Name the work it selects or unblocks with `leaf task
+        start <page> <event-id> "<the work, in a line>"` before starting it, then
+        do it, write it in, and stamp a version.
 
 option the user added:
   event:
@@ -721,9 +747,9 @@ decided suggestion:
         the version note.
     - text: >-
         It answers the page's Ask, so the page shows it as waiting on you until
-        the markup records it. Name the work it selects or unblocks with `leaf status
-        <page> working "<the work, in a line>"` before starting it, then do it,
-        write it in, and stamp a version.
+        the markup records it. Name the work it selects or unblocks with `leaf task
+        start <page> <event-id> "<the work, in a line>"` before starting it, then
+        do it, write it in, and stamp a version.
 
 pick inside a thread:
   event:
@@ -737,22 +763,23 @@ pick inside a thread:
         The user already sees the action applied.
     - text: >-
         When the event asks for work, name that work before any other, including
-        reading the source it concerns: `leaf status <page> working "<the work,
-        in a line>" --on <address>`, where `<address>` is the event's `answer.to`.
-        The move then reads Working, and the line stands beside the thread and in
-        the banner until you answer. Do the work and put its result on the page,
-        with whatever shows it (captures, a figure, the numbers), then answer with
-        `leaf thread reply <page> --for <event-id>`: what changed, in a sentence
-        or two, linking the section that shows it. When the event asks for no work,
-        as a question may not, answer it with that reply at once. The page carries
-        the work, and the thread only the conversation about it. `leaf thread reply`
-        checks any saved page edit and makes it live before posting. If a revision
-        removes what the thread is anchored on, move the thread in the reply that
-        reports it with `--section <id>` (narrowed by `--quote` or `--part` if needed),
-        or `--detach` it if its subject has left the page. Add `--awaits` only if
-        your reply's prose asks the user something.
+        reading the source it concerns: `leaf task start <page> <event-id> "<the
+        work, in a line>"`. The move then reads Working, and the line stands beside
+        the thread and in the banner until you answer. Do the work and put its result
+        on the page, with whatever shows it (captures, a figure, the numbers), then
+        answer with `leaf thread reply <page> --for <event-id> < reply.md`: what
+        changed, in a sentence or two, linking the section that shows it. When the
+        event asks for no work, as a question may not, answer it with that reply
+        at once. The page carries the work, and the thread only the conversation
+        about it. `leaf thread reply` checks any saved page edit and makes it live
+        before posting. If a revision removes what the thread is anchored on, move
+        the thread in the reply that reports it with `--section <id>` (narrowed
+        by `--quote` or `--part` if needed), or `--detach` it if its subject has
+        left the page. Add `--awaits` only if your reply's prose asks the user something.
     - text: >-
-        Your reply renders as Markdown, so show code or markup in a fenced block.
+        Your reply renders as Markdown in a narrow column: give each point its own
+        short paragraph or list item, link a page section as `[its name](#section-id)`,
+        and fence code or markup.
     - when: {"required": ["meaning"], "properties": {"meaning": {"required": ["scope"], "properties": {"scope": {"const": "thread"}}}}}
       text: >-
         The widget is in a thread message: continue the work the user's answer selects
@@ -776,7 +803,9 @@ pick inside a thread over App Server:
         reply in your final message: the answer, or what changed and where it appears.
         The reply leaves the thread on its anchor.
     - text: >-
-        Your reply renders as Markdown, so show code or markup in a fenced block.
+        Your reply renders as Markdown in a narrow column: give each point its own
+        short paragraph or list item, link a page section as `[its name](#section-id)`,
+        and fence code or markup.
     - when: {"required": ["meaning"], "properties": {"meaning": {"required": ["scope"], "properties": {"scope": {"const": "thread"}}}}}
       text: >-
         The widget is in a thread message: continue the work the user's answer selects
@@ -787,7 +816,8 @@ resolve:
     kind: resolve
   told:
     - text: >-
-        The user closed the thread. You owe nothing on it.
+        The user closed the thread. You owe no reply in it; a task you opened on
+        it still stands until you end it.
 
 unresolve:
   event:
@@ -803,8 +833,9 @@ done:
     kind: done
   told:
     - text: >-
-        The user approved the page's sign-off. The page stays open: keep it watched,
-        and its status working, while you do what the approval unblocks.
+        The user approved the page's sign-off. The page stays open: keep it watched
+        while you do what the approval unblocks, and show that work on the page
+        as a task (`leaf task open <page> page "<the work>"`, then `leaf task start`).
 
 undo:
   event:

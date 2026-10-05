@@ -41,7 +41,7 @@ def _leaf_version(ctx: click.Context, _param: click.Parameter, value: bool) -> N
 def _leaf_root(ctx: click.Context, _param: click.Parameter, value: bool) -> None:
     """Print which copy of leaf this is, and stop.
 
-    A host session runs the payload its plugin cache holds, not the checkout,
+    A harness session runs the payload its plugin cache holds, not the checkout,
     and the two are only ever the same by accident: the cache is a snapshot from
     whenever the marketplace last swept, and `bin/leaf` is identical across
     versions, so a stale copy answers exactly like a current one. The payload
@@ -367,15 +367,15 @@ def state(dir: str, target: str | None, after: int | None, limit: int | None) ->
     "--completes",
     multiple=True,
     metavar="WIDGET",
-    help="active widget work this version completes (repeatable)",
+    help="a widget whose open tasks this version completes (repeatable)",
 )
 def stamp(dir: str, text: str, completes: tuple[str, ...]) -> None:
     """Stamp PAGE/index.html with a changelog.
 
     Checks the exact source first, then records it as the next public version. Repeat
-    --completes for each active widget work claim this version completes. A
-    widget claim otherwise survives unrelated versions, and a version cannot
-    silently remove its page target.
+    --completes for each widget whose open tasks this version completes, which ends
+    them done, citing the version. A task on a widget otherwise survives unrelated
+    versions, and a version cannot silently remove its widget.
     """
     from leaf.publishing import cmd_stamp
 
@@ -406,6 +406,23 @@ def export(dir: str, out: Path, version: int) -> None:
     from leaf.exporting import cmd_export
 
     sys.exit(cmd_export(resolve_dir(dir), out, version))
+
+
+@page.command(short_help="Picture a drawing comment as the user saw it.")
+@click.argument("dir", metavar="PAGE")
+@click.argument("message", metavar="ID")
+def picture(dir: str, message: str) -> None:
+    """Draw comment ID's drawing over the page as the user saw it, and print the
+    path of the PNG.
+
+    Opens the comment's revision in the host's browser, with the log applied
+    through the comment, at the window size and color scheme the drawing was
+    made in, and crops to the ink and the page around it. Bound data is read as
+    it stands now, and the host's fonts may differ from the user's.
+    """
+    from leaf.render_gate.picture import cmd_picture
+
+    sys.exit(cmd_picture(resolve_dir(dir), message))
 
 
 @page.command(short_help="Report a state change onto a page widget, as a worker.")
@@ -456,12 +473,12 @@ def events(dir: str, after: int, follow: bool) -> None:
 @click.argument("dir", metavar="PAGE")
 def claim(dir: str) -> None:
     """Make PAGE this session's, as a named `leaf wait PAGE` does before it
-    watches, for a host whose own hook watches between turns. A watch another
+    watches, for a harness whose own hook watches between turns. A watch another
     session runs stops watching it."""
     from leaf.service import claim_page
 
     if not claim_page(resolve_dir(dir)):
-        sys.exit("only an agent host session can claim a page")
+        sys.exit("only an agent harness session can claim a page")
 
 
 @page.command(short_help="Print the page's exchange as Markdown.")
@@ -473,7 +490,7 @@ def transcript(dir: str) -> None:
     cmd_transcript(resolve_dir(dir))
 
 
-@cli.group(short_help="Read input delivered by any Leaf host.")
+@cli.group(short_help="Read input delivered by any Leaf harness.")
 def delivery() -> None:
     """Handle transport-independent Leaf deliveries."""
 
@@ -510,9 +527,16 @@ def thread() -> None:
 @click.argument("dir", metavar="PAGE")
 @click.option("--from", "from_message", required=True, metavar="MESSAGE")
 @click.option("--through", "through_message", required=True, metavar="MESSAGE")
-@click.option("--text", help="summary Markdown (default: stdin)")
+@click.option(
+    "--text", help="summary Markdown; pass '' to fold without prose (default: stdin)"
+)
+@click.option("--label", help="disclosure label (default: Earlier discussion)")
 def thread_summarize(
-    dir: str, from_message: str, through_message: str, text: str | None
+    dir: str,
+    from_message: str,
+    through_message: str,
+    text: str | None,
+    label: str | None,
 ) -> None:
     """Replace --from through --through in the panel with a Markdown summary.
 
@@ -522,7 +546,11 @@ def thread_summarize(
     """
     from leaf.thread import cmd_summarize
 
-    _print_records(cmd_summarize(resolve_dir(dir), from_message, through_message, text))
+    _print_records(
+        cmd_summarize(
+            resolve_dir(dir), from_message, through_message, text, label=label
+        )
+    )
 
 
 @cli.group(short_help="Set or clear page-bound external data.")
@@ -607,7 +635,7 @@ def serve_flags(command):
 def start(dir: str, host: str | None, standing: bool) -> None:
     """Start a page's server and print its URL.
 
-    Returns once the server and this host's feedback route are ready; the server itself keeps running in a
+    Returns once the server and this harness's feedback route are ready; the server itself keeps running in a
     session of its own. `leaf server stop` takes one down, and a session server
     goes down with the session that claimed it besides. A page already served
     reconnects delivery and prints that server's URL. `--standing` claims no
@@ -639,6 +667,7 @@ def run(dir: str, host: str | None, standing: bool, temporary: bool) -> None:
     Browser harnesses use `--temporary`; a user page in an agent session uses
     `server start`. A page already served prints that server's URL and exits.
     """
+    from leaf.harness import session_harness
     from leaf.hosting import cmd_serve, cmd_serve_temporary
 
     page_dir = resolve_dir(dir)
@@ -650,7 +679,7 @@ def run(dir: str, host: str | None, standing: bool, temporary: bool) -> None:
         cmd_serve_temporary(page_dir)
         return
     try:
-        cmd_serve(page_dir, host, standing, acquire=True)
+        cmd_serve(page_dir, host, standing, harness=session_harness(), acquire=True)
     except RuntimeError as error:
         raise SystemExit(str(error)) from None
 
@@ -661,6 +690,7 @@ def run(dir: str, host: str | None, standing: bool, temporary: bool) -> None:
 @click.option("--revive", is_flag=True, hidden=True)
 @click.option("--acquire", is_flag=True, hidden=True)
 @click.option("--claim", hidden=True)
+@click.option("--harness", required=True, hidden=True)
 @click.option("--handshake", type=int, required=True, hidden=True)
 def _serve(
     dir: str,
@@ -669,10 +699,12 @@ def _serve(
     revive: bool,
     acquire: bool,
     claim: str | None,
+    harness: str,
     handshake: int,
 ) -> None:
     """Private child process spawned by server start and Watch revival."""
     from leaf.detached import Handshake
+    from leaf.harness import harness_from_argument
     from leaf.hosting import cmd_serve
 
     with Handshake(handshake) as answer:
@@ -681,6 +713,7 @@ def _serve(
             host,
             standing,
             revive,
+            harness=harness_from_argument(harness),
             handshake=answer,
             acquire=acquire,
             prepared_claim=json.loads(claim) if claim is not None else None,
@@ -696,40 +729,28 @@ def stop(dir: str) -> None:
     print(json.dumps({"stopped": cmd_stop(resolve_dir(dir))}))
 
 
-@cli.command(short_help="Set the agent's banner state.")
+@cli.command(short_help="Say the page waits on its user, or is done.")
 @click.argument("dir", metavar="PAGE")
-@click.argument("state", type=click.Choice(["working", "waiting", "idle"]))
+@click.argument("state", type=click.Choice(["waiting", "idle"]))
 @click.argument("detail", required=False, default="")
-@click.option(
-    "--on",
-    "on",
-    metavar="SUBJECT",
-    help="The open thread or widget this work is about.",
-)
-def status(dir: str, state: str, detail: str, on: str | None) -> None:
-    """Set the agent's banner state.
+def status(dir: str, state: str, detail: str) -> None:
+    """Say the page waits on its user, or that you are done with it.
 
-    Use working with DETAIL, required, naming your current work and its
-    subject, or waiting with the answer you want from the user. Waiting without
-    DETAIL invites text comments. Use idle when finished; unacknowledged input
-    and unanswered user moves prevent it.
-
-    With working, --on names an open thread, by any message in it, or a widget:
-    whatever a delivered event gives as its address, which then reads Working.
-    The user sees DETAIL beside that subject as well as in the banner.
-    Your next reply ends a thread claim; `leaf page stamp --completes` ends
-    a widget claim. Renew the status as work changes: a claim left after your
-    turn ends, or without updates, eventually reads as stalled.
+    Use waiting with DETAIL naming the answer you want from the user; waiting
+    without DETAIL invites text comments. Either puts down every item you started
+    before it. Use idle when finished; unacknowledged input, unanswered user moves
+    and open tasks prevent it. Work in hand is no status: name it with
+    `leaf task start`.
     """
     from leaf.activity import unanswered
-    from leaf.session import cmd_idle, cmd_status
+    from leaf.session import cmd_idle, cmd_waiting
 
     page_dir = resolve_dir(dir)
     owed = []
     if state == "idle":
-        written = cmd_idle(page_dir, detail, on)
+        written = cmd_idle(page_dir, detail)
     else:
-        written, owed = cmd_status(page_dir, state, detail, on=on)
+        written, owed = cmd_waiting(page_dir, detail)
     print(json.dumps(written, ensure_ascii=False))
     if state == "waiting" and owed:
         click.echo(
@@ -858,6 +879,11 @@ def thread_open(
 @click.option(
     "--awaits", is_flag=True, help="the reply's prose asks the user a question"
 )
+@click.option(
+    "--ephemeral",
+    is_flag=True,
+    help="progress update; folds when the next ordinary agent reply arrives",
+)
 @_title_option
 def thread_reply(
     dir: str,
@@ -870,6 +896,7 @@ def thread_reply(
     text: str,
     markup: str,
     awaits: bool,
+    ephemeral: bool,
     title: str | None,
 ) -> None:
     """Post a threaded reply as the agent (--text or stdin).
@@ -901,6 +928,7 @@ def thread_reply(
         part=part,
         detach=detach,
         validate_source=True,
+        ephemeral=ephemeral,
     )
     _print_records(accepted)
     _name(page_dir, accepted["id"], title)
@@ -950,22 +978,86 @@ def thread_resolve(dir: str, thread: str) -> None:
     _print_records(cmd_resolve(resolve_dir(dir), thread))
 
 
+@cli.group(short_help="Open, start, or end the agent's work on the page.")
+def task() -> None:
+    """Show the work you owe on the page and the item you have in hand.
+
+    An item on your queue is a user move you owe an answer, named by the move's
+    event id, or a task you opened. `leaf task start` takes one in hand for this
+    turn, with the line the banner shows. A task stays on your queue through
+    replies, resolutions, versions and the end of the session that opened it;
+    `leaf task end`, or a stamp that `--completes` its widget, ends it. Every write
+    prints the record it appended, one JSON line, as `page events` prints it.
+    """
+
+
+@task.command(
+    "open", short_help="Take on work no move asked for, or that outlasts the turn."
+)
+@click.argument("dir", metavar="PAGE")
+@click.argument("subject", metavar="SUBJECT")
+@click.argument("title", metavar="TITLE")
+def task_open(dir: str, subject: str, title: str) -> None:
+    """Open a task titled TITLE on SUBJECT: an open thread, by any message in it or a
+    widget its messages carry; a page widget that declares x-work or holds an
+    unsettled move; or `page` for the page as a whole. Its id is the printed
+    record's `id`."""
+    from leaf.tasks import cmd_open
+
+    _print_records(cmd_open(resolve_dir(dir), subject, title))
+
+
+@task.command(
+    "start", short_help="Take a move or task in hand, with the banner's line."
+)
+@click.argument("dir", metavar="PAGE")
+@click.argument("item", metavar="ID")
+@click.argument("text", metavar="LINE")
+def task_start(dir: str, item: str, text: str) -> None:
+    """Take ID in hand for this turn: the event id of a user move you owe, as its
+    delivery names it, or an open task's id. LINE names the work and its subject in
+    one sentence; it reads Working beside the move or task and in the banner. Your
+    answer to the move, or the task's end, ends it; left in hand after your turn
+    ends, it reads stalled until you answer it or start it again."""
+    from leaf.tasks import cmd_start
+
+    _print_records(cmd_start(resolve_dir(dir), item, text))
+
+
+@task.command("end", short_help="End a task: done, failed, or dropped.")
+@click.argument("dir", metavar="PAGE")
+@click.argument("task_id", metavar="TASK")
+@click.argument("outcome", type=click.Choice(["done", "failed", "dropped"]))
+@click.argument("detail", metavar="[DETAIL]", required=False)
+def task_end(dir: str, task_id: str, outcome: str, detail: str | None) -> None:
+    """End TASK with OUTCOME. DETAIL says where the result is, such as the
+    version or reply holding it, or why there is none."""
+    from leaf.tasks import cmd_end
+
+    _print_records(cmd_end(resolve_dir(dir), task_id, outcome, detail))
+
+
 @cli.command(hidden=True)
+@click.option(
+    "--harness",
+    required=True,
+    help="The harness whose registration runs this hook.",
+)
 @click.option(
     "--watch",
     is_flag=True,
     help="Watch the session's pages until input, printing what wakes the session.",
 )
-def hook(watch: bool) -> None:
-    """Answer an agent-host hook on stdin."""
+def hook(harness: str, watch: bool) -> None:
+    """Answer an agent-harness hook on stdin."""
     from leaf.hooks import main
 
-    main(watch=watch)
+    main(harness, watch=watch)
 
 
 @cli.command(hidden=True)
 def session_end() -> None:
-    """Release ownership for the host's SessionEnd payload on stdin."""
+    """Release ownership for the harness's SessionEnd payload on stdin."""
     from leaf.state import main
 
     main()

@@ -26,10 +26,12 @@ Each is kept in the memory of the page it was read from, for as long as the proc
 keeps that page (`page_memory`).
 """
 
+import errno
 import hashlib
 import json
 import os
 import posixpath
+import re
 import tempfile
 import threading
 from collections.abc import Mapping
@@ -375,11 +377,62 @@ def _parse_css(source: str, declarations: bool):
     return tinycss2.parse_stylesheet(source)
 
 
+@dataclass(frozen=True)
+class _CssReading:
+    """One stylesheet's parse, kept as its serialization around the URLs it loads.
+
+    `references` holds each URL token as `_css_references` finds it, as its value,
+    its written representation and its type. `segments` is the serialized sheet
+    split around them, one more segment than references, or None where the split
+    cannot be made (`_read_css`), and `order` names the reference between each pair
+    of segments: the walk visits an `image-set`'s strings before its `url()`s, so
+    the order a sheet writes its URLs in is not the order they are found in.
+    Joining the segments with each reference's representation is the serialization
+    `rewrite_css` would write with that reference changed, so a re-addressing costs
+    a join rather than a parse."""
+
+    references: tuple[tuple[str, str, str], ...]
+    segments: tuple[str, ...] | None
+    order: tuple[int, ...] = ()
+
+
+# Delimits each URL in a sheet's serialization while `_read_css` splits it. Private
+# use code points, so a sheet that contains one is read without a split.
+_CSS_MARK = ("", "")
+
+
 @lru_cache(maxsize=512)
-def _css_dependencies(source: str, declarations: bool = False) -> tuple[str, ...]:
-    return tuple(
-        token.value for token in _css_references(_parse_css(source, declarations))
+def _read_css(source: str, declarations: bool) -> _CssReading:
+    """Parse a stylesheet once for every address it is delivered at.
+
+    A sheet's text is the same for every page that vendored the same layer and every
+    revision that captured it, while the address it is delivered at names one
+    revision. Parsing the composed theme takes a few hundred milliseconds, which a
+    parse keyed on the address paid again for every new revision's first document.
+    The bound is in entries: a document's `style` attributes are sheets too, and a
+    few large layer sheets must outlast a page's worth of them."""
+    tokens = _parse_css(source, declarations)
+    found = list(_css_references(tokens))
+    references = tuple(
+        (token.value, token.representation, token.type) for token in found
     )
+    if any(mark in source for mark in _CSS_MARK) or len(set(map(id, found))) != len(
+        found
+    ):
+        return _CssReading(references, None)
+    for index, token in enumerate(found):
+        token.representation = f"{_CSS_MARK[0]}{index}{_CSS_MARK[1]}"
+    parts = re.split(
+        f"{_CSS_MARK[0]}([0-9]+){_CSS_MARK[1]}", tinycss2.serialize(tokens)
+    )
+    order = tuple(int(index) for index in parts[1::2])
+    if sorted(order) != list(range(len(found))):
+        return _CssReading(references, None)
+    return _CssReading(references, tuple(parts[0::2]), order)
+
+
+def _css_dependencies(source: str, declarations: bool = False) -> tuple[str, ...]:
+    return tuple(value for value, _, _ in _read_css(source, declarations).references)
 
 
 def rewrite_css(source: str, address, *, declarations: bool = False) -> str:
@@ -392,9 +445,26 @@ def rewrite_css(source: str, address, *, declarations: bool = False) -> str:
     dependencies from the same `_css_references`, so all three agree on which URLs a
     sheet has.
     """
+    reading = _read_css(source, declarations)
+    targets = {value: address(value) for value, _, _ in reading.references}
+    if all(target == value for value, target in targets.items()):
+        return source
+    if reading.segments is not None and None not in targets.values():
+        written = [reading.segments[0]]
+        for index, segment in zip(reading.order, reading.segments[1:], strict=True):
+            value, representation, kind = reading.references[index]
+            target = targets[value]
+            if target != value:
+                quoted = '"' + serialize_string_value(target) + '"'
+                representation = f"url({quoted})" if kind == "url" else quoted
+            written.extend((representation, segment))
+        return "".join(written)
+    return _rewrite_parsed(source, targets, declarations)
+
+
+def _rewrite_parsed(source: str, targets: dict, declarations: bool) -> str:
+    """`rewrite_css` over a fresh parse, for an omitted URL or an unsplit sheet."""
     tokens = _parse_css(source, declarations)
-    references = list(_css_references(tokens))
-    targets = {token.value: address(token.value) for token in references}
     omitted = {reference for reference, value in targets.items() if value is None}
 
     def available(entries):
@@ -415,16 +485,14 @@ def rewrite_css(source: str, address, *, declarations: bool = False) -> str:
 
     if omitted:
         tokens = available(tokens)
-    changed = bool(omitted)
     for token in list(_css_references(tokens)):
         value = targets[token.value]
         if value == token.value:
             continue
-        changed = True
         quoted = '"' + serialize_string_value(value) + '"'
         token.representation = f"url({quoted})" if token.type == "url" else quoted
         token.value = value
-    return tinycss2.serialize(tokens) if changed else source
+    return tinycss2.serialize(tokens)
 
 
 def _path_stamp(path: Path) -> tuple:
@@ -746,21 +814,19 @@ def stage_artifact(page_dir: Path, revision: int, artifact: RevisionArtifact) ->
         ) as temporary:
             staged = Path(temporary) / name
             staged.mkdir()
-            contents = {"index.html": artifact.html, "manifest.json": artifact.manifest}
-            contents.update(
-                {
-                    "resources" + path: resource.data
-                    for path, resource in artifact.resources.items()
-                }
-            )
+            captured = _captured_files(page_dir)
             written = []
-            for relative, data in contents.items():
-                target = staged / relative
+            for relative, data in (
+                ("index.html", artifact.html),
+                ("manifest.json", artifact.manifest),
+            ):
+                written.append(_write_durably(staged / relative, data))
+            for path, resource in artifact.resources.items():
+                target = staged / ("resources" + path)
                 target.parent.mkdir(parents=True, exist_ok=True)
-                with target.open("xb") as stream:
-                    stream.write(data)
-                    stream.flush()
-                    os.fsync(stream.fileno())
+                earlier = captured.get(resource.digest)
+                if earlier is None or not _linked(earlier, target):
+                    _write_durably(target, resource.data)
                 written.append(target)
             fsync_parents(written + list(staged.rglob("*")))
             os.rename(staged, destination)
@@ -768,6 +834,47 @@ def stage_artifact(page_dir: Path, revision: int, artifact: RevisionArtifact) ->
     elif (destination / "manifest.json").read_bytes() != artifact.manifest:
         raise ArtifactError(f"{destination}: immutable artifact digest collision")
     return name
+
+
+def _write_durably(target: Path, data: bytes) -> Path:
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with target.open("xb") as stream:
+        stream.write(data)
+        stream.flush()
+        os.fsync(stream.fileno())
+    return target
+
+
+def _linked(earlier: Path, target: Path) -> bool:
+    """Link `target` to a file an earlier bundle captured, unless that file has as
+    many links as its filesystem allows (ext4 stops at 65,000, which a page that
+    never re-vendors reaches after as many revisions)."""
+    try:
+        os.link(earlier, target)
+    except OSError as error:
+        if error.errno != errno.EMLINK:
+            raise
+        return False
+    return True
+
+
+def _captured_files(page_dir: Path) -> dict[str, Path]:
+    """The resource files the newest revision captured, by digest.
+
+    Successive revisions of a page capture mostly the same layer, a few hundred files
+    and several megabytes, so a new bundle links each resource the newest one already
+    holds rather than writing and syncing its bytes again. Sharing an inode is safe
+    because nothing writes a captured file after its bundle is made; whatever else
+    links to one, such as a site build's deduplication, only reads it."""
+    revision = latest_revision(page_dir)
+    if revision is None:
+        return {}
+    bundle = revision_path(page_dir, revision).with_suffix("")
+    manifest = json.loads((bundle / "manifest.json").read_bytes())
+    return {
+        record["digest"]: bundle / ("resources" + logical)
+        for logical, record in manifest["resources"].items()
+    }
 
 
 def staged_reading(page_dir: Path, name: str) -> SourceReading:

@@ -2,9 +2,31 @@
  * Check native Promptfoo agent metadata for successful reference consumption.
  * Claude exposes completed Read/Skill results. Shell reads (Claude Bash and
  * Codex commandExecution) are evidence heuristics: a successful read command
- * naming the requested path and returning text, not proof of every byte read.
+ * naming the requested path after brace expansion and returning text, not proof
+ * of every byte read. Quoted and escaped spans are ineligible for expansion;
+ * this is still a read-evidence heuristic, not a shell interpreter.
  * The regex in assertion.config.path selects the reference across staged paths.
  */
+const { expand } = require("brace-expansion");
+
+function expandedReadArguments(text) {
+  // Protect whole quoted/escaped spans before expansion; restoring them keeps
+  // the original heuristic's literal-path matching. Never execute the command.
+  let prefix = "__leaf_read_literal__";
+  while (text.includes(prefix)) prefix += "_";
+  const literals = [];
+  const protectedText = text.replace(
+    /\\[\s\S]|'[^']*'|"(?:\\[\s\S]|[^"\\])*"/g,
+    (literal) => `${prefix}${literals.push(literal) - 1}__`,
+  );
+  return expand(protectedText).map((argument) =>
+    argument.replace(
+      new RegExp(`${prefix}(\\d+)__`, "g"),
+      (_token, index) => literals[Number(index)],
+    ),
+  );
+}
+
 function hasOutput(output) {
   if (typeof output === "string") return output.trim().length > 0;
   if (Array.isArray(output)) return output.some((block) => hasOutput(block?.text));
@@ -15,9 +37,12 @@ function readCommand(command, path) {
   if (typeof command !== "string") return false;
   // App Server reports shell wrappers as well as bare command strings.
   const wrapper = command.match(
-    /^\S*\b(?:bash|zsh|fish|sh)\s+-[a-z]*c\s+(['"])([\s\S]*)\1$/,
+    /^\S*\b(bash|zsh|fish|sh)\s+-[a-z]*c\s+(['"])([\s\S]*)\2$/,
   );
-  const body = wrapper ? wrapper[2] : command;
+  const body = wrapper ? wrapper[3] : command;
+  // Expand only the known Bash/Zsh wrapper semantics, or bare Bash-tool
+  // commands. Other recognized shells keep the original literal-path reading.
+  const expandsBraces = !wrapper || ["bash", "zsh"].includes(wrapper[1]);
   return body.split(/&&|\|\||[;|\n]/).some((part) => {
     // Deliberately restrict this heuristic to familiar commands that emit reads.
     const reading = part
@@ -25,7 +50,12 @@ function readCommand(command, path) {
       .match(
         /^(?:\/[\w./-]+\/)?(?:cat|sed|head|tail|less|more|bat|rg|grep)\s+([\s\S]*)$/,
       );
-    return reading !== null && path.test(reading[1]);
+    return (
+      reading !== null &&
+      (expandsBraces ? expandedReadArguments(reading[1]) : [reading[1]]).some(
+        (argument) => path.test(argument),
+      )
+    );
   });
 }
 

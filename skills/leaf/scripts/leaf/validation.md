@@ -63,15 +63,13 @@ in that time: the event `leaf wait` would deliver, intercepted rather than read 
 browser's own error channels, so the check and the watcher fail on one set in one
 wording. A widget that fails soft posts one too. A quick page never reaches `--render`,
 and no static reading says whether a module throws or whether a data body is one its
-module can read. Message markup that places a data or page widget is run the same way,
-as a page of its own, before the thread command that carries it takes the log: the log
-freezes it, and a chart in a shut thread has no room to draw in any later run. A run
-serves the page's log, so what earlier messages place runs in it too; the post-time run
-is what keeps those clean. Leaf runs without a browser, so where the host has none,
-every browser gate (these runs, `--render`, and `package check --render`) is skipped
-with a note and leaves the status alone: the page posts the same `error` events
-whenever a browser draws it, so a browserless host such as leaf.page's container loses
-the early reading, not the report.
+module can read. Message markup is not run, so a thread command never waits on a
+browser: a message's widget reports its failure as an `error` event when its thread
+draws. Leaf runs without a browser, so where the host has none, every browser gate
+(this run, `--render`, and `package check --render`) is skipped with a note and leaves
+the status alone: the page posts the same `error` events whenever a browser draws it,
+so a browserless host such as leaf.page's container loses the early reading, not the
+report.
 `render_gate/page_code.py` owns the run.
 
 An ordinary document's thread namespace is the thread ids its log holds,
@@ -133,6 +131,10 @@ into rows, and the swept widths where that changes, and it fails a workspace who
 stand side by side at the desktop viewport and stack in one column at a width where the
 Layout still fills the window, since stacked there they share one window's height. A
 body of rows at the desktop viewport is a design of rows, whatever a wider window does.
+At each swept width it also reads, as advice, each drawing whose fit to its box draws
+labels under 10px and each region of a full-height workspace that runs past its room,
+and reports each unbroken run of widths where one appears, with its reading at the
+narrowest of them. Swept sideways faults are reported by run the same way.
 
 A version that passes gets screens for the author to read (`render_gate/screens.py`):
 the page's first eight screens down from its top at the desktop viewport, at the

@@ -323,7 +323,6 @@
 
       const localNote = document.querySelector("#bg-shortcut-note");
       const focusNote = document.querySelector("#bg-shortcut-focus-note");
-      focusNote.addEventListener("click", () => localNote.focus());
       commands(document.querySelector("#bg-local-shortcuts"), "In the note sample", [
         {
           id: "note.focus",
@@ -332,7 +331,7 @@
           bindingBadge: null,
           title: "Write note",
           description: "Focus the sample note",
-          run: () => focusNote.click(),
+          run: () => localNote.focus(),
         },
       ]);
 
@@ -384,6 +383,7 @@
           you: "2be2443f0bb6cc49fc86b52f340e6073",
           resolved: "bab3cdfcfb8c02aacbb27da731de947a",
           summary: "9ee465bb3f9c1fa309ea9cb1767fa365",
+          updates: "bg-progress-question",
         }[view];
         void sample.showThread(thread, {
           surface: "panel",
@@ -435,9 +435,23 @@
               An <code>lf-ask</code> is one complete Ask: its heading names the
               question, and one nested widget owns the answer. This sample uses
               <code>lf-options</code>, which records a choice Leaf can replay as page
-              state. The banner shows completed/total. Press <kbd>a</kbd> for the next
-              Ask waiting on you; open <strong>Asks</strong>, or press <kbd>g</kbd> then
-              <kbd>Shift+A</kbd>, to review every active Ask and its current answer.
+              state. Press <kbd>a</kbd> for the next thing waiting on you, in page
+              order: an open Ask, a thread whose question is yours to answer, such as
+              the gallery thread that asks about a pasted image, or a move whose reply
+              failed and needs sending again. After its status, the banner counts what
+              waits on you and what waits on the agent. Press those counts, open
+              <strong>Queue</strong> in More, or press <kbd>g</kbd> then
+              <kbd>Shift+Q</kbd>, to see both lists in one panel, with answered Asks and
+              finished tasks folded under Done; Enter on a row goes where
+              <kbd>a</kbd> would. The Queue panel is experimental. Within a view,
+              <kbd>a</kbd> scrolls to the question. When it opens another view, the
+              question appears immediately and its tab name briefly highlights.
+              <kbd>Shift+A</kbd> walks back. Reduced motion removes the glide and
+              highlight. When <kbd>a</kbd> reaches a commented Ask, its discussion stays
+              closed while you read and choose, including when Tab enters its controls.
+              Press <kbd>c</kbd> to reply in that existing discussion, <kbd>t</kbd> to
+              read it, or its Thread marker to open it under a finger. Returning to an
+              Ask you have answered also keeps its controls clear.
             </p>
             <lf-ask id="bg-choice-ask">
               <h3>Which map should the sample team carry?</h3>
@@ -474,7 +488,7 @@
             <p id="bg-history-return-guide">
               Follow
               <a id="bg-history-reference" href="#bg-kept-draft"
-                >the kept-draft sample</a
+                >the Resume writing sample</a
               >, then use browser Back. The viewport and focus return to this link;
               press <kbd>c</kbd> to comment on the link. Forward returns to the sample.
             </p>
@@ -664,9 +678,46 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               </p>
             </section>
 
+            <section id="bg-align-current-item">
+              <h3 id="bg-align-current-item-heading" tabindex="0">
+                <strong>Align current item at top</strong
+                ><span class="bg-feature-detail"
+                  >: keep reading from the same item</span
+                >
+              </h3>
+              <p id="bg-align-current-item-guide">
+                Select some words in this guide, or focus its heading, then scroll until
+                it sits lower on screen. Press <kbd>g</kbd> and <kbd>z</kbd>, or choose
+                Align current item at top in More page controls: its reading block moves
+                just below the banner, keeping your focus and selection. A focused Ask
+                aligns its question; a focused thread in Threads aligns its card inside
+                the panel. A bounded reading area aligns within its own scroller.
+                Browser Back has no new stop to undo. Inside an editor, typing
+                <kbd>g</kbd><kbd>z</kbd> writes those letters.
+              </p>
+            </section>
+
+            <section id="bg-restored-selection">
+              <h3>
+                <strong>Restore selection</strong
+                ><span class="bg-feature-detail"
+                  >: return to the words you selected</span
+                >
+              </h3>
+              <p id="bg-restored-selection-guide">
+                Select a passage here, then press <kbd>Escape</kbd> and read somewhere
+                else. Press <kbd>g</kbd> and <kbd>v</kbd>, or choose Restore selection
+                in More page controls: the page reveals the passage and selects the same
+                words with the same working end. A live revision can replace their
+                markup; removed or ambiguous words report that the passage is
+                unavailable. Selecting inside an editor keeps its native meaning.
+                <kbd>g</kbd> then <kbd>V</kbd> still opens versions.
+              </p>
+            </section>
+
             <section id="bg-kept-draft">
               <h3>
-                <strong>Kept draft</strong
+                <strong>Resume writing</strong
                 ><span class="bg-feature-detail"
                   >: come back to words the box put away</span
                 >
@@ -675,11 +726,16 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 Select a few words here, press <kbd>c</kbd>, and type a sentence without
                 sending it. Press <kbd>Escape</kbd>: the box goes, the words stay, and a
                 notice names the destination that returns to them. Scroll somewhere
-                else, then press <kbd>g</kbd> and <kbd>Shift+D</kbd> — the page travels
-                back to this passage and reopens the box on the sentence. That
-                destination stands in the sequence only while a kept draft does, so
-                pressing <kbd>g</kbd> with nothing written offers no such place to go.
+                else, then press <kbd>g</kbd> and <kbd>i</kbd>, or choose Resume writing
+                in More: the page returns to this editor and restores the caret. Send
+                the comment, move elsewhere and use Resume writing again: its
+                conversation opens ready for your next reply. Editing a reply or the
+                draft block below makes that editor the destination; focusing a box
+                alone leaves it alone.
               </p>
+              <lf-draft id="bg-resume-edit">
+                <pre>The revised message belongs here.</pre>
+              </lf-draft>
               <p id="bg-kept-draft-move">
                 To carry unfinished words to another item, press <kbd>s</kbd> and choose
                 the paragraph above, then type without sending. Move focus to
@@ -690,10 +746,11 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               </p>
               <p id="bg-visible-draft-guide">
                 Keep a comment open and scroll its passage out of view: the field
-                remains in the window with its words and focus. Scroll back to see it
-                reattach. On a wide window, <kbd>Tab</kbd> to a contents link and press
-                <kbd>c</kbd>, then type. Narrow the window until the contents sidebar
-                disappears; the field remains available, and widening reattaches it.
+                follows it away with its draft intact. Scroll back: the passage and
+                editor return together, including after one large wheel jump. Try the
+                same inside a scrolling pane, then scroll the surrounding page too.
+                Press <kbd>Escape</kbd>, then <kbd>g</kbd> and <kbd>i</kbd>: the
+                original passage, words and caret return for continued writing.
               </p>
               <p id="bg-revision-editor-guide">
                 Open Threads, expand the lunch question, and leave its empty reply
@@ -742,6 +799,14 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               >
                 Long discussion
               </button>
+              <button
+                type="button"
+                class="button"
+                data-view="updates"
+                aria-pressed="false"
+              >
+                Previous updates
+              </button>
               <label for="bg-panel-width">Sample width</label>
               <select id="bg-panel-width" class="field">
                 <option value="30rem">Wide</option>
@@ -752,7 +817,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               <template
                 id="bg-panel-sample-page"
                 data-sample
-                data-sample-threads="72e031c5bf0d485ba9054628e09869d4 2be2443f0bb6cc49fc86b52f340e6073 bab3cdfcfb8c02aacbb27da731de947a 9ee465bb3f9c1fa309ea9cb1767fa365"
+                data-sample-threads="72e031c5bf0d485ba9054628e09869d4 2be2443f0bb6cc49fc86b52f340e6073 bab3cdfcfb8c02aacbb27da731de947a 9ee465bb3f9c1fa309ea9cb1767fa365 bg-progress-question"
               >
                 <h1>Workshop agenda</h1>
                 <p id="bg-thread-pending">
@@ -770,6 +835,10 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 <p id="bg-thread-checkpoint">
                   <strong>A summarized discussion.</strong> The workshop planning thread
                   keeps its earlier decisions in a summary.
+                </p>
+                <p id="bg-thread-updates">
+                  <strong>Previous updates.</strong> Open the folded checks above the
+                  answer. These ephemeral updates folded when the answer arrived.
                 </p>
               </template>
             </lf-sample>
@@ -831,7 +900,10 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               which puts the thread spoken in last first under its day. Collapsed titles
               retain their message count, last message activity, and current status; “On
               you” also names the action owed. Each thread has a short title chosen by
-              the agent; open one to read the full messages beneath it.
+              the agent; open one to read the full messages beneath it. Reply follows a
+              short conversation directly; in a long conversation it stays visible while
+              you scroll. While you write in a short thread, an arriving reply waits
+              behind “new reply” until you open it.
             </p>
             <p id="bg-thread-notices">
               <strong>New information.</strong> Have the agent add a message after the
@@ -840,6 +912,18 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               uses that same line. Replies still unread when the page opens are
               announced once on arrival; rereading a stage or tool update creates no new
               notice.
+            </p>
+            <p id="bg-reply-lifetime">
+              <strong>An unfinished reply.</strong> Open a thread inline or in Threads
+              and begin a reply. Have the agent resolve it while the caret is in your
+              words: the editor and caret stay put. Tab to Send and press Enter to send
+              the reply and reopen the thread. Have the agent resolve another unfinished
+              reply, then Tab past Send: the editor stays visible. Return to the reply
+              and press Escape, or press elsewhere, to put it away and keep the words.
+              Reopen the thread, start a reply, and use Resolve yourself: the editor
+              closes and keeps its draft. Reload the page, choose Resolved under View,
+              and open that thread: the editor stays closed until Reopen recovers the
+              words.
             </p>
             <p id="bg-new-thread">
               <strong>A clean passage.</strong> Select some of these words, or
@@ -945,8 +1029,8 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               <p id="bg-resolved-text">
                 <strong>A resolved thread.</strong> The room has a projector. Its
                 earlier question is resolved. Open Threads in the banner, select
-                “Resolved”, and try “Reopen” to bring its Thread control back to the
-                page.
+                “Resolved”, open the thread, and press its underlined “Resolved” to
+                bring its Thread control back to the page.
               </p>
             </section>
             <section id="bg-thread-state-summary">
@@ -958,18 +1042,23 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 latest exchange stays below the summary, and keyboard focus can reach
                 the disclosure.
               </p>
+              <p id="bg-thread-updates">
+                <strong>Previous updates.</strong> The ephemeral schedule checks fold
+                automatically when their final answer arrives, without adding a digest.
+                Choose “Previous updates” in the practice page, then expand the folded
+                checks with a press or Enter.
+              </p>
               <p id="bg-thread-unread">
                 <strong>Unread replies.</strong> The seeded agent replies start unread.
                 Open Threads and use “Next unread”, or press <kbd>u</kbd> there, to
                 reveal the earliest unread reply, including one covered by a summary. A
                 fully exposed short reply leaves the count; scroll through a long reply
                 to read all of it. The blue rail marks each unread message without
-                shifting the transcript, and a collapsed summary counts its unread
-                originals until you expand them. Interactive replies clear when their
-                visible body has been shown too; replying, answering, or resolving also
-                marks the thread's current messages read. A margin control whose thread
-                holds unread replies carries the same dot as Threads. “On you to answer”
-                still identifies an outstanding question after it is read.
+                shifting the transcript. Interactive replies clear when their visible
+                body has been shown too; replying, answering, or resolving also marks
+                the thread's current messages read. A margin control whose thread holds
+                unread replies carries the same dot as Threads. “On you to answer” still
+                identifies an outstanding question after it is read.
               </p>
             </section>
           </section>
@@ -1044,14 +1133,73 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             </table>
           </section>
 
+          <section id="bg-ask-track">
+            <p class="eyebrow bg-feature-elements">lf-ask · lf-chart · lf-options</p>
+            <h2>
+              <strong>An Ask beside its figure</strong
+              ><span class="bg-feature-detail">: the options track</span>
+            </h2>
+            <p id="bg-ask-track-guide">
+              This Ask holds a chart and ends in one option list, and it takes the wide
+              measure. In a window wide enough for both, the list stands in a column
+              beside the chart and stays put while the evidence scrolls past it; narrow
+              the window and the list drops below the chart again.
+            </p>
+            <lf-ask id="bg-track-ask" data-width="wide">
+              <h3>Which trail should the sample team hike on Saturday?</h3>
+              <p id="bg-track-premise">
+                The team walks at a sample pace of 300 m of climb an hour, and the last
+                bus leaves the trailhead at 17:00.
+              </p>
+              <lf-chart id="bg-track-climb" data-height="180">
+                <pre>
+{
+  ariaLabel: "Climb by sample trail: Ridge loop 900 m, Lake path 350 m, Pass traverse 1,250 m",
+  marginLeft: 100,
+  x: {grid: true, label: "climb (m)"},
+  y: {label: null},
+  marks: [
+    Plot.barX(
+      [
+        {trail: "Ridge loop", climb: 900},
+        {trail: "Lake path", climb: 350},
+        {trail: "Pass traverse", climb: 1250},
+      ],
+      {y: "trail", x: "climb", fill: "var(--series-1)"},
+    ),
+    Plot.ruleX([0]),
+  ],
+}
+</pre>
+              </lf-chart>
+              <p id="bg-track-reading">
+                The traverse's climb takes a little over four hours on its own, which
+                leaves no margin before the bus.
+              </p>
+              <lf-options id="bg-track-choice" choose>
+                <lf-option id="bg-track-ridge">
+                  <strong>Ridge loop</strong> Three hours of climbing with views the
+                  whole way.
+                </lf-option>
+                <lf-option id="bg-track-lake">
+                  <strong>Lake path</strong> An easy morning, back long before the bus.
+                </lf-option>
+                <lf-option id="bg-track-pass">
+                  <strong>Pass traverse</strong> The longest day, and a tight finish.
+                </lf-option>
+              </lf-options>
+            </lf-ask>
+          </section>
+
           <section id="bg-side-list">
             <p class="eyebrow">list="side"</p>
             <h2><strong>A queue beside the item it opens</strong></h2>
             <p id="bg-side-list-guide">
               The tab list stands left of the open item, each row its name and summary.
-              Walk it with the up and down arrows. Open an item to answer its Ask;
+              Walk it with the up and down arrows. Answer the first item's Ask and its
+              row shows a check and the option you picked, and undo takes them away;
               narrow the window below the set's 36rem and the list becomes a row above
-              the item.
+              the item, its rows keeping only the check.
             </p>
             <lf-tabs id="bg-side-queue" list="side">
               <lf-tab
@@ -1415,9 +1563,12 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 file's own numbers with an elided row where it skips; Tree shows file
                 structure. Use “Copy code” on the right of either block below, or
                 <kbd>Tab</kbd> to it and press <kbd>Enter</kbd>. The clipboard keeps the
-                code's whitespace and leaves out line numbers and Notes.
+                code's whitespace and leaves out line numbers and Notes. Bash separates
+                commands, arguments, and flags with the same syntax colors as a diff.
               </p>
-              <pre id="bg-plain-code"><code>leaf page check ./proposal
+              <pre
+                id="bg-plain-code"
+              ><code class="language-bash">leaf page check ./proposal --render
 leaf page stamp ./proposal --text "Ready for review"</code></pre>
               <lf-code id="bg-code" language="python" lines="40-43,58-59" hi="41-42">
                 <pre>
@@ -2071,8 +2222,8 @@ switch --readers checkout-api,orders-api</code></pre>
               <lf-column id="bg-work-ready" label="Ready">
                 <lf-card id="bg-work"
                   ><strong>Check the sample route</strong>
-                  A live work claim puts a Working indicator here because this card has
-                  no other margin control to carry its workflow state.
+                  An open task on this card puts a Working indicator here because the
+                  card has no other margin control to carry it.
                 </lf-card>
               </lf-column>
               <lf-column id="bg-work-tried" label="Tried"></lf-column>

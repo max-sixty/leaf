@@ -21,6 +21,8 @@ from collections.abc import Callable
 from contextlib import contextmanager
 from pathlib import Path
 
+from .harness import Harness, detached_environment
+
 
 class StartRefused(RuntimeError):
     """A detached start the producer refused, carrying its reason."""
@@ -34,6 +36,7 @@ class StartUnconfirmed(RuntimeError):
 def starting_detached(
     arguments: list[str],
     *,
+    harness: Harness | None,
     what: str,
     log: Path | None = None,
     cwd: Path | None = None,
@@ -60,6 +63,7 @@ def starting_detached(
                     str(child.fileno()),
                 ],
                 cwd=cwd,
+                env=detached_environment(harness),
                 stdin=subprocess.DEVNULL,
                 stdout=output,
                 stderr=output,

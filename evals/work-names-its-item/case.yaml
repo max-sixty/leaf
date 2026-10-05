@@ -1,13 +1,15 @@
 # Added with step 4 of the What needs you plan, which folds `leaf status working --on`
 # into the task commands: work on a delivered move is shown against that move's own id,
-# and work no move asked for gets an item the agent opens. Scores conversation-loop.md,
-# "When to write" and "Status and handoff". The criterion is the behavior, not either
-# version's command, so the case guards both arms.
+# work no move asked for gets an item the agent opens, and the handoff shows what the
+# agent wants back rather than leaving that work marked in progress. Scores
+# conversation-loop.md, "When to write" and "Status and handoff". The criterion is the
+# behavior, not either version's command, so the case guards both arms.
 description: work-names-its-item
 metadata:
   purpose: 'Conversation loop: before starting work, the agent shows it on the page against
-    the delivered move that asked for it, and shows work no move asked for under an item of
-    its own.'
+    the delivered move that asked for it, shows work no move asked for under an item of
+    its own, and at the handoff shows what it wants back with nothing left marked in
+    progress.'
   tags:
   - wait-loop
 vars:
@@ -20,11 +22,12 @@ vars:
     acknowledged: "The rollout section's second paragraph repeats the first. Tighten
     it." Its answer is a reply addressed `--for c7e2a9d1`.
 
-    You will tighten the rollout section first, then write the glossary. Read whatever
-    instructions you need. Only Skill and Read run here, so write out, in order, each
-    command you would run on the page from now until you start editing for the
-    comment, and then each one you would run on the page before you start writing the
-    glossary.
+    You will tighten the rollout section and answer the comment, then write the
+    glossary, then hand the page back asking the user which glossary terms to cut.
+    Read whatever instructions you need. Only Skill and Read run here, so write out,
+    in order, each command you would run on the page from now until the end of the
+    turn: before you start editing for the comment, before you start writing the
+    glossary, and once the glossary is written.
 assert:
 - type: javascript
   metric: loads-leaf
@@ -39,11 +42,15 @@ assert:
 - type: llm-rubric
   metric: judgment
   value: |
-    Pass only if both hold. First, before any edit for the comment, a command shows
-    that work on the page against the comment itself, naming id c7e2a9d1, with a line
-    saying what the work is. Second, before the glossary work starts, a command shows
-    that work on the page with a line naming it; since no comment asked for it, this may
-    be a page-wide working line or an item the agent opens for it and marks as in hand.
-    Fail if either piece of work starts without such a command, if the comment's work is
-    shown against some other id, or if a reply to c7e2a9d1 is written before its work is
-    named.
+    Pass only if all three hold. First, before any edit for the comment, a command
+    shows that work on the page against the comment itself, naming id c7e2a9d1, with
+    a line saying what the work is. Second, before the glossary work starts, a command
+    shows that work on the page with a line naming it; since no comment asked for it,
+    this may be a page-wide working line or an item the agent opens for it and marks
+    as in hand. Third, once the glossary is written, the turn ends on a waiting
+    declaration naming what the agent wants back (which glossary terms to cut), with
+    no command after it that marks work as in progress again; ending the glossary item
+    as done before it is also fine. Fail if either piece of work starts without such
+    a command, if the comment's work is shown against some other id, if a reply to
+    c7e2a9d1 is written before its work is named, or if the last word on the page's
+    status is a line saying work is under way.

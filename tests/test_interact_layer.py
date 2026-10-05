@@ -2323,8 +2323,9 @@ def test_no_test_ends_a_process_with_sigkill():
     """SIGKILL gives a process no chance to end what it started, so a test ends one
     by closing the pipe it reads or with SIGTERM (tests/AGENTS.md, "A process the
     suite starts ends with the run"). The source is read for it, since no fixture
-    sees which signal a test sends: `Popen.kill()`, `signal.SIGKILL`, and a shell
-    `kill` given signal 9 or KILL in a command a test runs."""
+    sees which signal a test sends: `Popen.kill()`, `signal.SIGKILL`, signal 9
+    passed to `kill`, `killpg` or `send_signal`, and a shell `kill` given signal 9
+    or KILL in a command a test runs."""
     shell_kill = re.compile(r"\bkill\s+-(?:9|KILL|SIGKILL)\b")
     killed = []
     for path in sorted((ROOT / "tests").glob("*.py")):
@@ -2336,6 +2337,14 @@ def test_no_test_ends_a_process_with_sigkill():
                     and isinstance(node.func, ast.Attribute)
                     and node.func.attr == "kill"
                     and not node.args
+                )
+                or (
+                    isinstance(node, ast.Call)
+                    and isinstance(node.func, ast.Attribute)
+                    and node.func.attr in {"kill", "killpg", "send_signal"}
+                    and node.args
+                    and isinstance(node.args[-1], ast.Constant)
+                    and node.args[-1].value == 9
                 )
                 or (
                     isinstance(node, ast.Constant)

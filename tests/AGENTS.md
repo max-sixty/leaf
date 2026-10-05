@@ -155,8 +155,10 @@ vendor hard-linked into it; a test of initialization crosses `page init` itself.
 Many runs of the suite share one machine, from different worktrees and sessions, each
 with several workers. A process a test leaves running, or one that spends CPU while it
 waits, slows all of them. So a process a test starts ends on every way out of the
-test: when the test passes, fails or is interrupted, and when its worker dies before
-teardown runs.
+test. `spawn`'s teardown ends a child and everything in its group when the test
+passes, fails or is interrupted. A worker that dies runs no teardown, so a process
+that would otherwise run on carries its own link to the worker: a page server watches
+the session claim the worker holds, and a held process reads the worker's pipe.
 
 Take each resource from its owner: a child process from `spawn`, a page server from
 `_no_page_outlives_its_test`, a preview from `preview_slot` and `start_preview`, an

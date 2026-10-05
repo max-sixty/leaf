@@ -163,8 +163,8 @@ of its life unheld and picks up again when a session takes it.
 
 ## The hook
 
-The `hook` command, registered on Stop, UserPromptSubmit, SessionEnd, and Codex's
-PostToolUse and Interrupt, and called at the same points of a run by Leaf's Pi
+The `hook` command, registered on SessionStart/resume, Stop, UserPromptSubmit,
+SessionEnd, and Codex's PostToolUse and Interrupt, and called at the run boundaries by Leaf's Pi
 extension (`hooks/pi.ts`), keeps a turn from ending while it leaves one of this session's pages unwatched
 (a page whose carrier is a process of its own; Claude Code's watch is its next
 Stop hook)
@@ -250,7 +250,8 @@ launcher runs the application through `uv`, which supplies the supported
 interpreter and dependencies. The application entry routes the hook to its
 lightweight owner before importing the CLI or page reading. It marks the session
 and records Codex provider turns even before a page is acquired. It reads active
-ownership through `service.owned_pages`; a session holding no page avoids the
+ownership through `service.owned_pages`; resume and prompt hooks also inspect
+retained claims for reconnect notices. A session with no retained page avoids the
 delivery and page-reading stacks.
 
 SessionEnd calls the launcher's `session-end` entry, which runs its standalone
@@ -268,6 +269,24 @@ over a page carrying `preview.json`, which only a checkout's `leaf-dev preview`
 writes; nothing else about that page changes. The guard reads the file's presence
 rather than the serve path's validating reader, because it fails open by saying
 nothing.
+
+### Reconnect notices
+
+Resume and prompt hooks inspect the session's last claims before selecting active
+ownership. An enabled session service with inactive ownership or no exact live
+server lease emits a reconnect notice with `leaf server start <page>`, which restores
+serving and feedback delivery. The notice also covers the orphan grace period,
+while the old listener may still be running. Explicit releases, stopped services,
+standing services, developer previews, and pages another session claimed are excluded.
+
+`reconnect.py` reserves one notice per harness/session/page in
+`sessions/<session>.<harness>.reconnect`. This notification record survives SessionEnd
+and generation changes. Matching active ownership and exact live serving close the
+outage, both when a hook observes recovery and when a serve commits it. A later outage
+can then emit another notice. Reservation is serialized with ownership and desired
+service changes; hook stdout proves no model receipt, so output is at-most-once.
+SessionStart does not open a new turn or reacquire a page. The Stop hook does not
+continue a turn to deliver a reconnect notice.
 
 ## Carriers
 

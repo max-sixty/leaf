@@ -13,10 +13,14 @@ The payload names the session and turn: hook subprocesses need not have the tool
 process's environment. Stop or Interrupt closes that observed turn, including a
 turn not yet claimed by any page; a newer prompt protects its own epoch.
 
-Hooks with no owned page avoid page reading. Page-owning prompt and Stop hooks
+Hooks with no retained claim avoid page reading. Page-owning prompt and Stop hooks
 reach `hook_carrier`; Codex's tool hook reaches the delivery records in `codex`;
 and a second Claude Code Stop hook watches between turns (`cmd_watch`). The
 application entry routes `leaf hook` here before loading the CLI.
+
+Resume and prompt hooks also inspect retained claims for disconnected pages
+(`reconnect`), before selecting active ownership. That notice does not reclaim a
+page or reopen a turn at SessionStart, and it persists across session generations.
 
 Each harness's registrations name it (`--harness`) and its payload names the
 session; `harness.hook_harness` says why neither comes from the environment."""
@@ -47,6 +51,26 @@ def cmd_hook(harness: str, payload: dict) -> None:
     if not sid:
         return
     expected = session_record(sid)
+    if event == "SessionStart":
+        if payload.get("source") == "resume":
+            from .harness import HOOK_HARNESSES
+            from .reconnect import notices
+
+            context = notices(harness, sid, expected)
+            if context:
+                import json
+
+                with flocked(session_lock_path(sid)):
+                    if session_record(sid) == expected:
+                        print(
+                            json.dumps(
+                                HOOK_HARNESSES[harness].hook_context(
+                                    event, "\n\n".join(context)
+                                )
+                            ),
+                            flush=True,
+                        )
+        return
     turn_id = payload.get("turn_id")
     if event == "UserPromptSubmit":
         expected = prompt_turn(sid, turn_id)
@@ -97,9 +121,14 @@ def cmd_hook(harness: str, payload: dict) -> None:
                 )
             )
         return
-    # A session holding no page has no turn to open or close on one, no input to
-    # carry, and nothing owed, so its prompt and Stop hooks end here.
-    if not owned_pages(sid):
+    context = []
+    if event == "UserPromptSubmit":
+        from .reconnect import notices
+
+        context = notices(harness, sid, expected)
+    # A retained reconnect notice may concern a page whose claim is inactive.
+    # With neither it nor current ownership, there is no page input to carry.
+    if not context and not owned_pages(sid):
         if event == "Stop":
             close_session_turn(sid, turn_id, expected=expected)
         return
@@ -107,7 +136,9 @@ def cmd_hook(harness: str, payload: dict) -> None:
     from .harness import HOOK_HARNESSES
     from .hook_carrier import carry_turn
 
-    ended = carry_turn(HOOK_HARNESSES[harness], event, sid, payload, expected)
+    ended = carry_turn(
+        HOOK_HARNESSES[harness], event, sid, payload, expected, context=context
+    )
     if ended:
         close_session_turn(sid, turn_id, expected=expected)
 

@@ -1,7 +1,7 @@
 """The prompt and Stop hooks as a session's carrier, under Claude Code or Pi: they
 carry the page input pending on the session's pages into its turn and enforce the
-agent conversation loop. `hooks` reaches this module only for a session holding a
-page.
+agent conversation loop. `hooks` reaches this module for active ownership or a
+reconnect notice about a page the session previously served.
 
 Claude Code runs the prompt hook as every turn begins, including a turn the end
 of a background task opens, idle or between two tool calls, and adds what the
@@ -18,6 +18,7 @@ the turn a preview and its path, so a delivery that large goes as a pointer its
 reader confirms once read. Every inline envelope requires the same confirmation."""
 
 import json
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -297,10 +298,11 @@ def carry_turn(
     sid: str,
     payload: dict,
     expected: dict | None | object = ...,
+    *,
+    context: Sequence[str] = (),
 ) -> bool | None:
-    """Answer a prompt, Stop, or other page-reading hook `harness` ran for a
-    session holding a page: open or close its turn, hand over its pending input,
-    and name what its pages are owed, in the output that harness reads."""
+    """Compose this lifecycle's page input, obligations, and reconnect context
+    into the one hook output its harness reads."""
     expected = session_record(sid) if expected is ... else expected
     plans = read_plans(sid)
     if session_record(sid) != expected or any(
@@ -323,7 +325,7 @@ def carry_turn(
     ):
         return True
     reasons = remedies(plans, batches)
-    if not reasons and not batches:
+    if not reasons and not batches and not context:
         return
     # The message avoids "unattended": a page can be watched and still be owed
     # an answer, and the runtime spends that word on a different fact — a page
@@ -332,7 +334,7 @@ def carry_turn(
     # pages owing the same thing used to carry three copies of the same
     # instruction into the turn, which is most of what the message weighed.
     protocols = list(dict.fromkeys(protocol for _, protocol in reasons if protocol))
-    attention = (
+    attention = list(context) + (
         [
             "Leaf needs attention:",
             *(f"- {line}" for line, _ in reasons),

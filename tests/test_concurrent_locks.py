@@ -76,10 +76,8 @@ def test_a_released_lease_is_free_while_a_child_still_holds_its_descriptor(
     tmp_path, spawn
 ):
     """A holder that starts subprocesses lends each one its descriptors until the
-    child's exec closes them, and a busy machine can hold a child there long after
-    the holder lets go. A released lease must read free all the same: a page
-    server's title subprocess outliving a `leaf wait` the test ran in-process left
-    the wait reading live, so a user's comment messaged nobody. This child keeps the
+    child's exec closes them, and a busy machine can keep a child there after the
+    holder lets go. A released lease reads free all the same. This child keeps the
     descriptor until the test ends."""
     path = tmp_path / "lease"
     lease = leases.take_lease(path)

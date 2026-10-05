@@ -42,6 +42,7 @@ from leaf import files as files_model
 from leaf import harness as harness_model
 from leaf import hosting as hosting_model
 from leaf import layer as layer_model
+from leaf import leases as leases_model
 from leaf import packages as packages_model
 from leaf import page_memory as page_memory_model
 from leaf import passages as passages_model
@@ -1298,7 +1299,7 @@ def _no_page_outlives_its_test(tmp_path, isolated_session):
     the suite starts ends with the run")."""
     yield
     while HELD_LEASES:
-        HELD_LEASES.pop().close()
+        leases_model.release_lease(HELD_LEASES.pop())
     for root in (tmp_path, isolated_session):
         for lease in root.rglob("server.lock"):
             if server_model.running_server(lease.parent):

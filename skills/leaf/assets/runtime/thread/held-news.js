@@ -56,17 +56,13 @@
    would move the box under the press. Anything held in a seat is not drawn, so it stays
    unread until it shows.
 
-   Decisions. A panel card holds news behind its notice, the same rule as every other
-   surface (#1694; the user's decision, 2026-10-04). Two alternatives were rejected.
-   Filling the list (#1480, which #1525 had recorded as the choice) makes the open card
-   as tall as the panel with its reply box at the foot, so a reply lands in the room
-   above the box but later cards wait below the fold. Letting a list that cannot scroll
-   push its contents down shows the reply at once but needs the shift watch to stop
-   checking such lists. The notice's cost is that it hides the answer until a press,
-   an opening, an arrival or a reply. Arrival is
-   the routes that call `showHeld`, not a fact derived from focus events: that
-   derivation missed focus moving inside one shadow tree and took a dialog handing
-   focus back for an arrival (#1780 holds the attempt and its revert).
+   Decisions. A panel card holds news behind its notice, like every other surface (#1694;
+   the user's decision, 2026-10-04). Rejected: filling the list (#1480), which makes the
+   open card as tall as the panel and leaves later cards below the fold; and letting a
+   list that cannot scroll push its contents down, which needs the shift watch to stop
+   checking such lists. Arrival is the routes that call `showHeld`, not a fact derived
+   from focus events: that missed focus moving inside one shadow tree and took a dialog
+   handing focus back for an arrival (#1780).
 
    `HeldReading` is the same rule for a widget's region whose rows only the log or the
    clock decides, such as a command's lists of stopped goals and live workers: a reading

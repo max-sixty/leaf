@@ -365,7 +365,10 @@
   background: color-mix(in srgb, var(--field) 42%, var(--paper));
 }
 
-.lf-vr-shot-host lf-shot {
+/* The capture is a widget of its own (lf-shot, the default package), whose root rule
+   gives it a block margin. Equal weight would go to that rule, since its scope root is
+   the nearer one, so the stage names its own root to set the capture's box. */
+:scope:is(lf-visual-review) .lf-vr-shot-host lf-shot {
   margin: 0;
   width: calc(var(--lf-vr-frame-width, 100%) + 2px);
   max-width: none;
@@ -632,7 +635,8 @@
     overflow: visible;
   }
 
-  .lf-vr-shot-host lf-shot {
+  /* At the screen rule's weight, so it wins by standing later. */
+  :scope:is(lf-visual-review) .lf-vr-shot-host lf-shot {
     width: min(100%, var(--lf-vr-capture-width, 100%));
     max-width: 100%;
   }

@@ -1478,7 +1478,7 @@ def test_a_refused_reopen_preserves_a_filter_typed_during_its_reveal(
     rendered(page)
     hold_visible_thread_presentation(page, root)
 
-    card.get_by_role("button", name="Reopen").click()
+    card.get_by_role("button", name=re.compile(r"\bReopen(?: thread)?$")).click()
     holding(page, held, 1, "the refused reopen with a held reveal")
     page.wait_for_function(
         "window.visibleThreadPresentationHeld === true", timeout=3000
@@ -1518,7 +1518,7 @@ def test_a_refused_reopen_preserves_a_filter_typed_during_restoration(
     card.locator(".lf-thread-summary").click()
     rendered(page)
 
-    card.get_by_role("button", name="Reopen").click()
+    card.get_by_role("button", name=re.compile(r"\bReopen(?: thread)?$")).click()
     holding(page, held, 1, "the refused reopen whose restoration will wait")
     expect(page.locator('[data-filter-value="open"]')).to_have_attribute(
         "aria-pressed", "true"
@@ -1566,7 +1566,7 @@ def test_settlement_controls_share_one_request_across_page_and_panel(
     panel = page.locator(f'.lf-thread[data-id="{root}"]')
     with page.expect_request("**/api/event"):
         inline.get_by_role("button", name="Resolve thread", exact=True).click()
-    pending = inline.get_by_role("button", name="Reopen")
+    pending = inline.get_by_role("button", name="Reopen", exact=True)
     expect(pending).to_be_disabled()
     expect(pending).to_have_attribute("aria-busy", "true")
     expect(page.locator(".lf-threads")).to_contain_text("No open threads.")
@@ -1634,7 +1634,7 @@ def test_a_poll_accounted_settlement_repaints_before_its_post_response(
     with page.expect_request("**/api/event"):
         inline.get_by_role("button", name="Resolve thread", exact=True).click()
     holding(page, held, 1, "the resolution whose response remains held")
-    pending = inline.get_by_role("button", name="Reopen")
+    pending = inline.get_by_role("button", name="Reopen", exact=True)
     expect(pending).to_be_disabled()
     expect(pending).to_have_attribute("aria-busy", "true")
 
@@ -1647,8 +1647,10 @@ def test_a_poll_accounted_settlement_repaints_before_its_post_response(
     told(page)
     reads.cut()
     for settled in (
-        inline.get_by_role("button", name="Reopen"),
-        panel.get_by_role("button", name="Reopen", include_hidden=True),
+        inline.get_by_role("button", name="Reopen", exact=True),
+        panel.get_by_role(
+            "button", name=re.compile(r"\bReopen(?: thread)?$"), include_hidden=True
+        ),
     ):
         expect(settled).to_be_enabled(timeout=1000)
         expect(settled).not_to_have_attribute("aria-busy", "true", timeout=1000)
@@ -3150,7 +3152,7 @@ def test_a_failed_reopen_reveal_still_processes_its_durable_answer(held_events, 
         }"""
     )
 
-    page.get_by_role("button", name="Reopen").click()
+    page.get_by_role("button", name=re.compile(r"\bReopen(?: thread)?$")).click()
     holding(page, held, 2, "the reopen and its presentation report")
     page.wait_for_function(
         """async () => {
@@ -3193,7 +3195,9 @@ def test_a_failed_reopen_reveal_still_processes_its_durable_answer(held_events, 
     )
     expect(page.locator(f'.lf-thread[data-id="{root}"]')).to_be_visible()
     expect(
-        page.get_by_role("button", name="Reopen", include_hidden=True)
+        page.get_by_role(
+            "button", name=re.compile(r"\bReopen(?: thread)?$"), include_hidden=True
+        )
     ).to_have_count(1)
 
 
@@ -4670,7 +4674,9 @@ def test_a_late_reply_reopens_its_resolved_thread(browser, serve):
     expect(thread).to_be_visible()
     thread.locator(".lf-thread-summary").press("Enter")
     expect(thread.locator(".lf-msg.agent")).to_be_visible()
-    expect(thread.get_by_role("button", name="Reopen")).to_have_count(0)
+    expect(
+        thread.get_by_role("button", name=re.compile(r"\bReopen(?: thread)?$"))
+    ).to_have_count(0)
     page.reload()
     told(page)
     expect(thread).to_be_visible()
@@ -5112,7 +5118,9 @@ def test_an_external_resolution_keeps_a_panel_reply_until_it_is_sent(
         page.locator('[data-filter-value="resolved"]').click()
         expect(card).to_be_visible()
         with sending(page, "reopen the deliberately dismissed reply"):
-            card.get_by_role("button", name="Reopen").click()
+            card.get_by_role(
+                "button", name=re.compile(r"\bReopen(?: thread)?$")
+            ).click()
         expect(reply).to_have_js_property("value", words)
         return
 

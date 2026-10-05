@@ -1015,7 +1015,7 @@ def test_a_reopening_in_a_page_seat_waits_where_reopen_stood(browser, serve, poi
     row = thread.locator(":scope > .lf-page-thread-resolved")
     news = row.get_by_role("button", name="Reopened · 1 new reply")
     expect(news).to_be_visible()
-    expect(row.get_by_role("button", name="Reopen")).to_have_count(0)
+    expect(row.get_by_role("button", name="Reopen", exact=True)).to_have_count(0)
     expect(thread.locator(".lf-msg")).to_have_count(2)
     assert _box_height(thread) == pytest.approx(height, abs=0.5)
 

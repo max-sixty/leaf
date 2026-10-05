@@ -1177,7 +1177,7 @@ def test_a_thread_news_resolves_stays_where_it_stands_until_the_user_moves_on(
         expect(card).to_have_attribute("data-resolved", str(kind == "resolve").lower())
         expect(card).to_have_attribute("open", "")
         assert after.bounding_box() == below
-    reopen = card.get_by_role("button", name="Reopen")
+    reopen = card.get_by_role("button", name="Reopen", exact=True)
     assert reopen.bounding_box() == control
     expect(status).to_have_text("Resolved")
     expect(status).to_be_visible()
@@ -1263,7 +1263,7 @@ def test_a_news_resolved_card_keeps_its_place_after_an_offscreen_draft_is_cleare
     expect(card).to_have_attribute("data-resolved", "true")
     expect(reply).to_have_count(0)
     with sending(page, "explicitly reopen the saved reply"):
-        card.get_by_role("button", name="Reopen").click()
+        card.get_by_role("button", name="Reopen", exact=True).click()
     expect(reply).to_be_focused()
     expect(reply).to_have_js_property("value", words)
     append_carried_log_record(

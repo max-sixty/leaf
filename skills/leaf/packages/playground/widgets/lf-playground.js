@@ -96,6 +96,11 @@ function jsonSnapshot(value, path = "configuration") {
 customElements.define(
   "lf-playground",
   class extends HTMLElement {
+    // What the Ask was answered with: the instruction the chosen configuration sent.
+    static answerWords(state) {
+      return state.choose.detail.instruction;
+    }
+
     #controller = widgetController(this);
     #controls = [];
     #controlByName = new Map();
@@ -561,8 +566,6 @@ customElements.define(
         "lf-btn primary lf-playground-submit",
         this.getAttribute("submit-label") ?? "Use these settings",
       );
-      this.#reset.addEventListener("click", () => this.#apply(this.#defaults));
-      this.#submit.addEventListener("click", () => this.#choose());
       this.#copy.append(copyTrigger);
       actions.append(this.#reset, this.#copy, this.#submit);
       if (OFFLINE) {
@@ -643,30 +646,25 @@ customElements.define(
     }
 
     #commands() {
-      commands(
-        this,
-        "In a playground",
-        [
-          {
-            id: "playground.choose",
-            contextKeys: ["1"],
-            bindingBadge: null,
-            control: this.#submit,
-            decision: true,
-            title: () => this.#submit.textContent,
-            when: () => this.#available(),
-            run: () => this.#submit.click(),
-          },
-          {
-            id: "playground.reset",
-            keys: ["Alt+0"],
-            control: this.#reset,
-            title: "reset controls",
-            run: () => this.#reset.click(),
-          },
-        ],
-        { answer: () => this.#instruction() },
-      );
+      commands(this, "In a playground", [
+        {
+          id: "playground.choose",
+          contextKeys: ["1"],
+          bindingBadge: null,
+          control: this.#submit,
+          decision: true,
+          title: () => this.#submit.textContent,
+          when: () => !this.#choosing && this.#available(),
+          run: () => this.#choose(),
+        },
+        {
+          id: "playground.reset",
+          keys: ["Alt+0"],
+          control: this.#reset,
+          title: "reset controls",
+          run: () => this.#apply(this.#defaults),
+        },
+      ]);
     }
 
     #readInput(control) {
@@ -836,7 +834,6 @@ customElements.define(
 
     #paintAvailability() {
       if (!this.#submit) return;
-      this.#submit.toggleAttribute("disabled", this.#choosing || !this.#available());
       paintKeys();
     }
 

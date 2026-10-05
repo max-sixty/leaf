@@ -50,6 +50,12 @@ function option(value, label) {
 customElements.define(
   "lf-targeting",
   class extends HTMLElement {
+    // What the Ask was answered with: the size of the submitted configuration.
+    static answerWords(state) {
+      const { targets, changes } = state.submit.detail;
+      return `${targets.length} targets · ${changes.length} changes`;
+    }
+
     #controller = widgetController(this);
     #preview = null;
     #editor = null;
@@ -210,7 +216,6 @@ customElements.define(
         this.getAttribute("submit-label") ?? "Submit changes",
       );
       this.#revert.addEventListener("click", () => this.#revertDraft());
-      this.#submit.addEventListener("click", () => void this.#submitChanges());
       actions.append(this.#revert, this.#submit);
 
       this.#editor.append(toolbar, this.#candidateList, targets, changes, actions);
@@ -307,45 +312,37 @@ customElements.define(
     }
 
     #commands() {
-      commands(
-        this,
-        "In visual targeting",
-        [
-          {
-            id: "targeting.submit",
-            contextKeys: ["1"],
-            bindingBadge: null,
-            control: this.#submit,
-            decision: true,
-            title: () => this.#submit.textContent,
-            when: () => this.#canSubmit(),
-            run: () => this.#submit.click(),
-          },
-          {
-            id: "targeting.focused-element",
-            keys: ["Enter"],
-            title: "choose boundary",
-            when: () =>
-              this.#armed &&
-              targetCandidates(this.#preview, document.activeElement).length > 0,
-            run: () => this.#showCandidates(document.activeElement),
-          },
-          {
-            id: "targeting.cancel-selection",
-            keys: ["Escape"],
-            title: "stop selecting",
-            when: () => this.#armed,
-            run: () => {
-              this.disarm();
-              this.#arm.focus({ preventScroll: true });
-            },
-          },
-        ],
+      commands(this, "In visual targeting", [
         {
-          answer: () =>
-            `${this.#configuration.targets.length} targets · ${this.#configuration.changes.length} changes`,
+          id: "targeting.submit",
+          contextKeys: ["1"],
+          bindingBadge: null,
+          control: this.#submit,
+          decision: true,
+          title: () => this.#submit.textContent,
+          when: () => this.#canSubmit(),
+          run: () => void this.#submitChanges(),
         },
-      );
+        {
+          id: "targeting.focused-element",
+          keys: ["Enter"],
+          title: "choose boundary",
+          when: () =>
+            this.#armed &&
+            targetCandidates(this.#preview, document.activeElement).length > 0,
+          run: () => this.#showCandidates(document.activeElement),
+        },
+        {
+          id: "targeting.cancel-selection",
+          keys: ["Escape"],
+          title: "stop selecting",
+          when: () => this.#armed,
+          run: () => {
+            this.disarm();
+            this.#arm.focus({ preventScroll: true });
+          },
+        },
+      ]);
     }
 
     #setArmed(armed) {
@@ -807,7 +804,6 @@ customElements.define(
 
     #paintAvailability() {
       if (!this.#submit) return;
-      this.#submit.toggleAttribute("disabled", !this.#canSubmit());
       this.#revert.toggleAttribute("disabled", !this.#dirty);
       paintKeys();
     }

@@ -54,7 +54,7 @@ refuses one that moves it silently.
 
 A user's answer to a page Ask is the other: it shows as waiting on you until a
 stamped version takes it in, and until then it holds your turn open unless that turn
-claimed its work. Where the answering widget declares a markup form for its state
+started it. Where the answering widget declares a markup form for its state
 (its `x-state` `record`), that version's markup has to show the answer in that form:
 `chosen` on exactly the picked `lf-option` elements, with an option the user added
 written in as an ordinary option under its id and words, or the user's words as the
@@ -114,5 +114,5 @@ only as the registry's `$restated` says. Keep an Ask live while it is being
 applied, and settle it only after the work no longer revisits it. Keep a section
 live while the user is still commenting there.
 
-Before handing the page back, check that its status and outstanding work agree
-with what you report to the user.
+Before handing the page back, check that its status, open tasks and outstanding
+work agree with what you report to the user.

@@ -36,7 +36,7 @@ export const BANNER_CONTROL_RANK = Object.freeze({
   layer: 30,
   leaves: 40,
   latest: 50,
-  asks: 60,
+  queue: 60,
   map: 70,
   // The page's commands a finger reaches here rather than by key (touch-controls.js),
   // among themselves in the shortcut line's order.

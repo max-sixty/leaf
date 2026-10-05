@@ -25,6 +25,7 @@ from interact_support import (
     PAGE_PACKAGES,
     PILOT_PURGE,
     SHELVED,
+    STATED_TIMEOUT,
     TRIAL_CACHE,
     TRIAL_LOG,
     Json,
@@ -56,6 +57,7 @@ from interact_support import (
     fetch,
     fresh_process,
     live_versions,
+    lock_contention,
     publish,
     published,
     stamp,
@@ -730,14 +732,17 @@ def test_two_concurrent_undos_cannot_both_take_back_one_gesture(
         )[1]
     )["state"]["events"][-1]
 
-    # The old handler validated outside the append transaction. Let its first
-    # validation wait briefly for the second: on that shape both requests read the
-    # same standing target and proceed, while the transactional handler keeps the
-    # second outside until the first append is visible. A bounded wait keeps the
-    # correct serialization from deadlocking the probe itself.
+    # The old handler validated outside the append transaction. Hold its first
+    # validation until the second request states where it is: on that shape both
+    # requests read the same standing target, so the second validates too, while
+    # the transactional handler keeps the second waiting on the log the first holds
+    # until the first append is visible.
     real_undo_error = event_contracts_model.undo_error
     validation_lock = threading.Lock()
     second_validation = threading.Event()
+    second_held = lock_contention(
+        monkeypatch, page_dir, page_dir / schema_model.EVENTS_FILE
+    )
     validation_calls = 0
 
     def expose_validation_gap(event, events, within, absorbed):
@@ -747,7 +752,11 @@ def test_two_concurrent_undos_cannot_both_take_back_one_gesture(
             validation_calls += 1
             call = validation_calls
         if call == 1:
-            second_validation.wait(timeout=1)
+            wait_for(
+                lambda: second_validation.is_set() or second_held.is_set(),
+                bool,
+                failure="the second undo neither validated nor waited on the log",
+            )
         else:
             second_validation.set()
         return error
@@ -757,7 +766,7 @@ def test_two_concurrent_undos_cannot_both_take_back_one_gesture(
     results = []
 
     def withdraw(attempt):
-        start.wait(timeout=5)
+        start.wait(timeout=STATED_TIMEOUT)
         results.append(
             fetch(
                 f"{server}/api/event",
@@ -777,11 +786,11 @@ def test_two_concurrent_undos_cannot_both_take_back_one_gesture(
     ]
     for thread in threads:
         thread.start()
-    start.wait(timeout=5)
+    start.wait(timeout=STATED_TIMEOUT)
     for thread in threads:
-        thread.join(timeout=10)
+        thread.join(timeout=STATED_TIMEOUT)
 
-    assert not any(thread.is_alive() for thread in threads)
+    assert not any(thread.is_alive() for thread in threads), "an undo never returned"
     assert validation_calls == 2
     assert {status for status, _ in results} == {200, 400}
     refusal = next(json.loads(body) for status, body in results if status == 400)
@@ -1992,6 +2001,37 @@ def test_a_widget_data_input_is_one_complete_contract(page_dir, change, message)
     declare_data_input(page_dir, "project-feed", {"type": "array"})
     registry = json.loads((page_dir / "registry.json").read_text())
     change(registry["lf-test-data"])
+
+    with pytest.raises(registry_contract.RegistryError, match=message):
+        registry_validation.validate_registry(registry, "test registry")
+
+
+@pytest.mark.parametrize(
+    ("prepaint", "upgrade", "message"),
+    [
+        ("<span>0 running</span>", False, "requires x-upgrade: true"),
+        ("<span>0</span><span>1</span>", True, "must be one element"),
+        ("<td>0</td>", True, "must be one element"),
+        ("<div>", True, "must be one element"),
+        ("<div><span>0</div>", True, "must be one element"),
+        ('<div><span id="count">0</span></div>', True, "no id"),
+        ("<div><lf-chip>0</lf-chip></div>", True, "may not hold <lf-chip>"),
+        ({"as": "lf-nothing"}, True, "declares no x-prepaint markup"),
+    ],
+)
+def test_a_prepaint_is_one_plain_element_only_a_module_takes_out(
+    page_dir, prepaint, upgrade, message
+):
+    """Delivery copies an x-prepaint into every occurrence for the first paint, and the
+    widget's module takes it out, so it must be markup that stays one element where it
+    is written and that nothing but that module acts on."""
+    registry = json.loads((page_dir / "registry.json").read_text())
+    tag = next(
+        tag
+        for tag, entry in registry.items()
+        if not tag.startswith("$") and entry.get("x-upgrade")
+    )
+    registry[tag].update({"x-prepaint": prepaint, "x-upgrade": upgrade})
 
     with pytest.raises(registry_contract.RegistryError, match=message):
         registry_validation.validate_registry(registry, "test registry")
@@ -3641,7 +3681,7 @@ How this text reaches the agent, by example
 @DELIVERY@
 
 5. The agent confirms the complete delivery, then follows `handling`: it names
-   any work the comment asks for with `leaf status`, does it,
+   any work the comment asks for with `leaf task start`, does it,
    and replies in the thread with `leaf thread reply`.
 
 What this file records
@@ -3822,7 +3862,7 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
     # delivery Claude Code's prompt hook takes.
     (page_dir / "index.html").write_text(WALKTHROUGH_PAGE)
     publish(page_dir)
-    session_model.cmd_status(page_dir, "waiting", "")
+    session_model.cmd_waiting(page_dir, "")
     posted = {
         "kind": "comment",
         "revision": 1,
@@ -4020,7 +4060,7 @@ def test_each_carrier_hands_the_agent_what_the_snapshot_shows(
     assert status == 200, answer
     logged = events_model.read_events(page_dir)[-1]
 
-    session_model.cmd_status(page_dir, "waiting", "")
+    session_model.cmd_waiting(page_dir, "")
     capsys.readouterr()
     # A bare shell's wait, the printing kind, which claims nothing.
     session = harness_model.session_harness().session
@@ -4057,7 +4097,9 @@ def test_each_carrier_hands_the_agent_what_the_snapshot_shows(
     # hook of the turn it opens hands the delivery over.
     assert session_model.cmd_wait(page_dir) == 0
     woke = capsys.readouterr().out
-    hooks_model.cmd_hook({"hook_event_name": "UserPromptSubmit", "session_id": session})
+    hooks_model.cmd_hook(
+        "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": session}
+    )
     context = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
         "additionalContext"
     ]

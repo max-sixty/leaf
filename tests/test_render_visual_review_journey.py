@@ -174,14 +174,6 @@ def target_document(title, body):
     )
 
 
-@pytest.mark.xfail(
-    reason=(
-        "Main 6ddf85e5d: the visual-review inline comment seat does not reveal its "
-        "focused editor after a desktop-to-phone resize"
-    ),
-    raises=AssertionError,
-    strict=True,
-)
 def test_visual_review_keeps_its_inline_comment_editor_in_view_after_phone_resize(
     browser, serve
 ):
@@ -495,6 +487,7 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     user.keyboard.press("i")
     expect(field).to_be_focused()
     expect(field).to_have_js_property("value", "Restore Back to releases")
+    scroll_settled(user)
     assert_keyboard_focus(user, field)
 
     resized(user, 1366, 768)

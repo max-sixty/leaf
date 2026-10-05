@@ -1,6 +1,6 @@
 Third-party licenses for syntax
 
-===== @shikijs/core 4.4.3 (MIT) =====
+===== @shikijs/core 4.5.0 (MIT) =====
 MIT License
 
 Copyright (c) 2021 Pine Wu
@@ -24,7 +24,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-===== @shikijs/engine-javascript 4.4.3 (MIT) =====
+===== @shikijs/engine-javascript 4.5.0 (MIT) =====
 MIT License
 
 Copyright (c) 2021 Pine Wu
@@ -48,7 +48,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-===== @shikijs/langs 4.4.3 (MIT) =====
+===== @shikijs/langs 4.5.0 (MIT) =====
 MIT License
 
 Copyright (c) 2021 Pine Wu
@@ -72,7 +72,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-===== @shikijs/primitive 4.4.3 (MIT) =====
+===== @shikijs/primitive 4.5.0 (MIT) =====
 MIT License
 
 Copyright (c) 2021 Pine Wu
@@ -96,7 +96,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-===== @shikijs/types 4.4.3 (MIT) =====
+===== @shikijs/types 4.5.0 (MIT) =====
 MIT License
 
 Copyright (c) 2021 Pine Wu

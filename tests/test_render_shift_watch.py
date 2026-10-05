@@ -1140,7 +1140,11 @@ def test_a_press_in_the_page_holding_a_frame_is_input_to_it(browser):
 def test_message_age_may_shift_metadata_but_leaves_the_thread_in_place(
     browser, serve, surface
 ):
-    """Age and receipt may rearrange; the thread and its controls stay put."""
+    """Age advances while the thread and its controls stay put.
+
+    Metadata may move or stay reserved. The passive-region fault controls above
+    exercise the watcher's permitted motion independently of this surface's layout.
+    """
     source = (
         leaf_page(
             "Inline task thread",
@@ -1183,31 +1187,17 @@ def test_message_age_may_shift_metadata_but_leaves_the_thread_in_place(
     expect(timestamp).to_have_text("just now")
     # Age changes are news after Chrome's recent-input grace, even when opening the
     # surface and resizing it happened immediately before this clock transition.
-    page.wait_for_timeout(600)
+    rendered(page)
+    page.wait_for_function(
+        "at => performance.now() - at > 500", arg=page.evaluate("performance.now()")
+    )
     protected = surface_root.locator("b, button, leaf-text, .lf-msg-body")
     boxes = "nodes => nodes.map(node => node.getBoundingClientRect().toJSON())"
     before = protected.evaluate_all(boxes)
     assert before
-    owner = surface_root.locator(".lf-thread-root-meta").first
+    thread_before = surface_root.bounding_box()
+    owner = header.locator("xpath=..")
     owner_before = owner.bounding_box()
-    receipt.evaluate(
-        """receipt => {
-          window.ageShifts = [];
-          new PerformanceObserver(list => {
-            for (const entry of list.getEntries()) {
-              for (const source of entry.sources) {
-                if (source.node === receipt || receipt.contains(source.node)) {
-                  window.ageShifts.push({
-                    input: entry.hadRecentInput,
-                    before: source.previousRect.toJSON(),
-                    after: source.currentRect.toJSON(),
-                  });
-                }
-              }
-            }
-          }).observe({type: 'layout-shift'});
-        }"""
-    )
     held = []
     page.route("**/api/state*", lambda route: held.append(route))
     now = datetime.now().astimezone()
@@ -1216,9 +1206,6 @@ def test_message_age_may_shift_metadata_but_leaves_the_thread_in_place(
         (timedelta(minutes=10), "10m ago"),
         (timedelta(hours=3), "3h ago"),
     ]:
-        receipt_before = receipt.bounding_box()
-        header_before = header.bounding_box()
-        count = page.evaluate("window.ageShifts.length")
         # Advance Leaf's calibrated server clock without changing the browser's
         # monotonic clock: native LayoutShift and frame readings must share time.
         page.evaluate(
@@ -1231,16 +1218,9 @@ def test_message_age_may_shift_metadata_but_leaves_the_thread_in_place(
             (now + delta).isoformat(),
         )
         expect(timestamp).to_have_text(age)
+        expect(receipt).to_have_text("Sent")
         judge_watches()
-        native = page.evaluate("window.ageShifts")[count:]
-        assert native and all(not entry["input"] for entry in native)
-        assert any(entry["before"]["x"] != entry["after"]["x"] for entry in native)
-        assert receipt.bounding_box()["x"] != receipt_before["x"]
-        header_after = header.bounding_box()
-        assert (header_after["x"], header_after["y"]) == (
-            header_before["x"],
-            header_before["y"],
-        )
+        assert surface_root.bounding_box() == thread_before
         assert owner.bounding_box() == owner_before
         assert protected.evaluate_all(boxes) == before
 
@@ -1552,6 +1532,12 @@ def test_native_anchor_scroll_retains_local_motion_proof(browser, fault, transfo
 <p id="evidence" style="position:absolute;left:10px;top:400px">Independent painted source</p>
 <script>field.addEventListener('beforeinput',()=>{{scroller.scrollLeft+=20;scroller.scrollTop+=20;evidence.style.left='30px';{change}}})</script></body>""")
     )
+    # Chrome moves the field after its anchor's scroll a frame late. The watch
+    # credits that catch-up to the scroll only from a pose taken before the scroll.
+    # A scroll that lands before the watch's first frame leaves it none, and Chrome
+    # reports the catch-up as a layout shift of the field. The watch's frame callback
+    # runs ahead of any the page registers, so a painted frame here gives it that pose.
+    paint(page)
     page.evaluate("scroller.scrollLeft=20;scroller.scrollTop=20")
     paint(page)
     before = page.locator("#field").bounding_box()

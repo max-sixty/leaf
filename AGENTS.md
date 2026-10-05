@@ -120,8 +120,8 @@ install the tracked tree whole.
 - `skills/leaf/packages/`: the bundled content vocabularies, widgets, and modules;
 - `skills/leaf/references/`: contracts for page authors, package authors, and harnesses;
 - `.claude/skills/developing-leaf/`: the maintainer workflow and vocabulary;
-- `hooks/hooks.json`: the shared harness hooks, and `hooks/pi.ts`, the Pi extension
-  that calls the same `leaf hook` entry;
+- `hooks/`: each harness's registrations of the `leaf hook` entry: `hooks.json`
+  for Claude Code, `codex.json` for Codex, and `pi.ts`, the Pi extension;
 - `evals/`: cases a headless agent answers, scoring the shipped instructions;
 - `examples/`: the authored pages the site publishes and the render corpus;
 - `tests/`: the file, CLI, browser, and published-site boundaries, and in
@@ -158,7 +158,9 @@ The sections above **Repository map** are the maintainer's direction; change the
 only when the user asks. An `AGENTS.md` holds what an agent needs before changing
 its area: goals, invariants that span modules, who owns what, and the gates to
 run. A contract one module owns goes in that module's header, a helper's in its
-docstring, and how a rule was found in the commit message. A workflow for one
+docstring, and how a rule was found in the commit message. A header also records the
+product decisions its module embodies and the alternatives they rejected; a change
+that reverses one rewrites that record and says so in its commit. A workflow for one
 kind of task goes in `/developing-leaf`.
 
 ### The install runs this tree
@@ -181,7 +183,12 @@ holds no binary files and no large ones. An image a tool in this repository
 reads, such as the demo recording, a catalog preview, an example page's image,
 or an eval case's capture, is published to `max-sixty/leaf-assets` at the path
 its reader looks for it and pinned by `leaf-assets.json`
-(`dev/leaf_dev/leaf_assets.py`). Evidence, such as screenshots, probe
+(`dev/leaf_dev/leaf_assets.py`). Publishing there belongs to the change that
+needs the images and takes no separate approval: it appends a commit and moves
+only this checkout's pin, so no other branch reads a different image. The new
+pin also carries whatever other branches published since the old one, so a
+conflict in `leaf-assets.json` takes the later pin, and a directory both
+branches published is published again from the merged tree. Evidence, such as screenshots, probe
 captures, recordings and raw run output, stays in `.tmp/` and reaches the user
 on a Leaf page; a note keeps the finding and the command that reproduces it,
 not the capture. The suite refuses a binary file, and pre-commit refuses a new

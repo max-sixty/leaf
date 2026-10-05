@@ -18,9 +18,11 @@ const BOUNDARY_MS = 900;
 let walking = null; // {key, noun, read, target, boundary}; never a list snapshot
 let boundaryTimer = 0;
 
+// "Thread 2 of 5", or, for a walk over several kinds that names its list in the
+// qualifier, "2 of 5 waiting on you · Thread" with the kind given there instead.
 export function walkPositionLabel(noun, position, total, qualifier = "") {
-  if (!noun) throw new Error("leaf: a walk position needs a noun");
-  return `${noun} ${position} of ${total}${qualifier ? ` ${qualifier}` : ""}`;
+  if (!noun && !qualifier) throw new Error("leaf: a walk position needs a noun");
+  return [noun, `${position} of ${total}`, qualifier].filter(Boolean).join(" ");
 }
 
 // The common reading for a DOM or model list. `identity` is the owner's stable key;
@@ -64,10 +66,13 @@ export function walkPosition() {
 // `<id>.edge`, for the owner's own scope; `id` is also the walk's position key and the
 // prefix of each route. `steps` names the four routes and their words, in the order
 // ArrowUp, ArrowDown, Home, End, for a list whose ends have a meaning of their own.
-// `landed(row)` runs after a press that moved focus to another row. `scroll: false`
+// `items` is the list a position counts, where it is narrower than the stops the walk
+// lands on, as a fold's door between items is a stop and not an item; a landing off
+// every item reports no position. `landed(row)` runs after a press that moved focus to
+// another row. `scroll: false`
 // holds the page still for a list read off what is in view, such as the Page Map's
 // visible markers, where scrolling to the landed row would change the list the walk
-// is over. Tabs and spatial grids own cyclic policies; the page's Ask walk steps by
+// is over. Tabs and spatial grids own cyclic policies; the page's queue walk steps by
 // document position.
 const STEPS = Object.freeze(["previous", "next", "first", "last"]);
 const capital = (word) => word[0].toUpperCase() + word.slice(1);
@@ -76,6 +81,7 @@ export function rowWalk({
   noun,
   plural,
   rows,
+  items = rows,
   steps = STEPS,
   landed,
   scroll = true,
@@ -91,7 +97,7 @@ export function rowWalk({
     const row = pick(rows());
     if (!row) return;
     row.focus({ preventScroll: !scroll });
-    beginWalk(id, noun, () => listWalkPosition(rows(), focused()));
+    beginWalk(id, noun, () => listWalkPosition(items(), focused()));
     if (row !== was) landed?.(row);
   };
   return [

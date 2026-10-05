@@ -4608,15 +4608,16 @@ def test_a_thread_completion_keeps_the_users_later_destination(
     if kind == "reply":
         write(thread.locator("leaf-text"), "A reply whose delivery is held.")
 
-    thread.get_by_role(
-        "button",
-        name={
-            "unresolve": "Reopen",
-            "resolve": "Resolve thread",
-            "reply": "Send",
-        }[kind],
-        exact=True,
-    ).click()
+    # Reopen's accessible name leads with who resolved the thread, so it is found by
+    # the class the panel gives it, as test_a_resolved_thread_can_be_reopened does.
+    if kind == "unresolve":
+        thread.locator(".lf-reopen").click()
+    else:
+        thread.get_by_role(
+            "button",
+            name={"resolve": "Resolve thread", "reply": "Send"}[kind],
+            exact=True,
+        ).click()
     holding(page, held, 1, "the thread operation")
 
     later_thread = page.locator(f'.lf-thread[data-id="{COMPLETION_ROOTS["later"]}"]')

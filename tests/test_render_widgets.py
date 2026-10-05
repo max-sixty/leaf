@@ -7135,10 +7135,10 @@ def test_a_quoted_swipe_queue_spaces_its_flat_cards(browser, serve):
         '<lf-sample id="swipe-example" label="session triage">',
     ).replace("</lf-ask>", "</lf-sample>")
     page = open_page(browser, serve(source))
-    boxes = [
-        page.locator(f"#swipe-{card}").bounding_box() for card in ("a", "b", "c")
+    boxes = [page.locator(f"#swipe-{card}").bounding_box() for card in ("a", "b", "c")]
+    gaps = [
+        lower["y"] - (upper["y"] + upper["height"]) for upper, lower in pairwise(boxes)
     ]
-    gaps = [lower["y"] - (upper["y"] + upper["height"]) for upper, lower in pairwise(boxes)]
     gap = page.evaluate(
         "() => parseFloat(getComputedStyle(document.documentElement)"
         ".getPropertyValue('--sp-2'))"

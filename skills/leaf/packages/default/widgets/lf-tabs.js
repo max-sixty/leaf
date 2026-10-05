@@ -72,7 +72,7 @@ import {
   selectableOffer,
   setRuntimeRootStyle,
   tabStore,
-  watchAnswers,
+  watchAsks,
 } from "/runtime/widget-api.js";
 
 // The page's navigation strip, where one stands: the first tab set in main, drawn as
@@ -303,7 +303,7 @@ customElements.define(
           changed ? `Δ${changed}` : "",
         );
         const slot = btn.querySelector(":scope > .lf-tab-answer");
-        const answers = slot ? this.#answers(panel) : [];
+        const answers = slot ? answersWithin(panel) : [];
         const answered = answers.length > 0 && !answers.includes(null);
         const answer = answered && answers.length === 1 ? answers[0] : "";
         if (slot) {
@@ -327,21 +327,10 @@ customElements.define(
       }
     }
 
-    // One panel's Ask answers. A widget breaking the answer contract is reported and
-    // costs only its own row the answer, so every other row still paints.
-    #answers(panel) {
-      try {
-        return answersWithin(panel);
-      } catch (error) {
-        reportError(error);
-        return [];
-      }
-    }
-
     // A side list's answers follow the page's Ask reading.
     #listenForAsks() {
       if (!this.#side || !this.#buttons.size || this.#stopAsks) return;
-      this.#stopAsks = watchAnswers(this, this, () => this.#marks());
+      this.#stopAsks = watchAsks(this, () => this.#marks());
     }
 
     #listenForDiff() {

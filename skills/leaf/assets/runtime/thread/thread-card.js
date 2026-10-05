@@ -460,12 +460,17 @@ export class ThreadView {
     const settlement = model.settlement
       ? this.#settlement(model, headerSettlement)
       : null;
-    // The title holds one control, and the one that takes its place takes the user
-    // standing on it, as anything replacing a node hands its focus across.
+    // The title holds one control, Reopen or the notice in its place, and the card's
+    // notice stands there or in a row of its own. Whichever takes the place of the one
+    // the user stands on takes them with it, as anything replacing a node hands its
+    // focus across.
     const titleControl = headerSettlement ? (model.news ? news : settlement) : null;
+    const successor = model.news ? notice.node : titleControl;
     const handedOn =
-      standing && standing === this.#titleControl && standing !== titleControl
-        ? titleControl
+      standing &&
+      standing !== successor &&
+      [this.#titleControl, this.#news.node, this.#titleNews.node].includes(standing)
+        ? successor
         : null;
     this.#titleControl = titleControl;
     const marginControls = model.surface === "margin" ? this.#marginControls : null;

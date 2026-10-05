@@ -169,24 +169,28 @@ function difference(was, now) {
 }
 
 // The thread `now` with what `was`, the thread as the seat drew it, did not show held
-// back: what the log says of it, as drawn. That is its settlement; its messages, the new
-// ones left out, a reaction taken off still standing, and each one's words as drawn,
-// which only an edit changes; and the progress folds a held reply completes. The rest
-// reads as it stands, such as a message's delivery, which changes its head row in place,
-// as in a thread that holds nothing. A held thread is read from this as from any other,
-// so everything the reading derives from it, such as whose turn it is, agrees with
-// what it draws.
+// back: what the log's news changed, as drawn. That is its settlement; its messages, the
+// new ones left out, a reaction taken off still standing, and each one's words as drawn,
+// which only an edit changes; and the progress folds a held reply completes. A held
+// thread is read from this as from any other, so what the reading derives from those,
+// such as its title, its reaction strips or its controls, agrees with what it draws.
+// Whose turn it is and each message's delivery read as they stand, as the server
+// derives them: they change the title's status and a message's head row in place, as
+// in a thread that holds nothing, so a resolution held from the card already takes its
+// turn off the title.
 function withheld(was, now) {
   const key = (message) => message.attempt ?? message.id;
   const standing = new Map(now.msgs.map((message) => [key(message), message]));
   const msgs = was.msgs.flatMap((prior) => {
     const message = standing.get(key(prior));
-    if (message) return [{ ...message, text: prior.text, edited: prior.edited }];
-    return isReaction(prior) ? [prior] : [];
+    if (!message) return isReaction(prior) ? [prior] : [];
+    const { text, body, edited } = prior;
+    return [{ ...message, text, body, edited }];
   });
   const shown = new Set(msgs.map(({ id }) => id));
   return {
     ...now,
+    root: msgs.find((message) => key(message) === key(now.root)) ?? now.root,
     resolved: was.resolved,
     msgs,
     summaries: now.summaries.filter(

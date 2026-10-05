@@ -11531,7 +11531,7 @@ def test_a_diff_row_fills_to_the_end_of_its_line_and_to_the_end_of_a_narrow_box(
     page.locator('lf-diff [data-lf-datum=\'["app/routes.py","new",201]\']').evaluate(
         _SELECT_IN_ROW, "new route"
     )
-    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    page.get_by_role("button", name="Comment on selection").click()
     write(
         page.locator(".lf-composer leaf-text"),
         "A remark of the ordinary length a reviewer writes, long enough that the line it "
@@ -11995,7 +11995,7 @@ def test_a_comment_on_a_wrapped_diff_line_names_the_line_an_unwrapped_one_names(
     flat = row.evaluate(_SELECT_IN_ROW, _DIFF_TAIL)
     assert flat["text"] == _DIFF_TAIL, flat
     assert flat["cut"], f"the words selected are inside the box already: {flat}"
-    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    page.get_by_role("button", name="Comment on selection").click()
     write(
         page.locator(".lf-composer leaf-text"), "Unwrapped, this line runs off the box."
     )
@@ -12008,7 +12008,7 @@ def test_a_comment_on_a_wrapped_diff_line_names_the_line_an_unwrapped_one_names(
     assert folded["height"] > flat["height"] and not folded["cut"], (
         f"the line did not wrap, so both anchors describe one geometry: {folded}"
     )
-    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    page.get_by_role("button", name="Comment on selection").click()
     write(
         page.locator(".lf-composer leaf-text"), "Wrapped, the same words are on screen."
     )

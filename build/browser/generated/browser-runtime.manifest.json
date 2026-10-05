@@ -12,8 +12,10 @@
     "skills/leaf/assets/runtime/collapse.js",
     "skills/leaf/assets/runtime/pending/model.js",
     "skills/leaf/assets/runtime/projection/model.js",
+    "skills/leaf/assets/runtime/queues.js",
     "skills/leaf/assets/runtime/thread/identity.js",
-    "skills/leaf/assets/runtime/thread/model.js"
+    "skills/leaf/assets/runtime/thread/model.js",
+    "skills/leaf/assets/runtime/thread/workflow.js"
   ],
   "entryPoints": {
     "skills/leaf/assets/vendor/browser-runtime.js": "build/browser/index.ts",
@@ -161,12 +163,12 @@
   "pageModules": "Browser-ready authored page modules are captured with their revision; they are not contributor-build inputs.",
   "outputs": {
     "skills/leaf/assets/vendor/browser-runtime.js": {
-      "bytes": 27569,
-      "sha256": "6cad88187e76f61d9e59b39809155f4f928b426b5f4f3b4be56a717bb56a50d3"
+      "bytes": 29274,
+      "sha256": "a92e071bb32cb837ba2d9228e58ffc434029c886f4ae4f84ecfa6451bd50b9e2"
     },
     "build/browser/generated/browser-runtime.js.map": {
-      "bytes": 177228,
-      "sha256": "0fa79acda77cc5870da4470264022560734fa90bac6e3b648ee2efcb16e96eab"
+      "bytes": 191285,
+      "sha256": "6fa9aafb5b42ae4dd826d8c83cfaebbbae791317caa06f61d588d8246211b709"
     },
     "skills/leaf/assets/vendor/lit.js": {
       "bytes": 32081,

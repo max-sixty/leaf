@@ -734,7 +734,7 @@ def _until(page, fact, wanted):
     forever cannot keep a false fact alive."""
     traffic = _traffic(page)
     began = None
-    deadline = time.monotonic() + 30
+    deadline = time.monotonic() + render_checks_model.SERVED_TIMEOUT_MS / 1000
     while True:
         raw = traffic._raw()
         reading = traffic._parse(raw)
@@ -859,7 +859,7 @@ def sending(page, what):
 # that dispatches the route here — until the list has it.
 def holding(page, held, count, what):
     """Wait until `held` has collected `count` requests the route put there."""
-    deadline = time.monotonic() + 30
+    deadline = time.monotonic() + render_checks_model.SERVED_TIMEOUT_MS / 1000
     while len(held) < count:
         if time.monotonic() >= deadline:
             raise AssertionError(
@@ -1524,6 +1524,37 @@ def expect_banner_control_offered(control, *, offered=True):
         expect(control).not_to_have_css("display", "none")
     else:
         expect(control).to_have_css("display", "none")
+
+
+# How many of the page's active Asks are answered, as "answered/total": the publisher's
+# own Ask reading, which the Queue panel's Done list and the `a` walk select from. Before
+# the page has admitted a state answer the reading is empty, which is no count at all.
+_ASKS_ANSWERED = """async () => {
+  const { readApplication } = await window.__lfRuntimeImport('/runtime/semantic-state.js');
+  window.__lfAsksAnswered = () => {
+    const application = readApplication();
+    if (application.phase !== 'ready') return null;
+    const { all, unanswered } = application.effective.asks;
+    return `${all.length - unanswered.length}/${all.length}`;
+  };
+}"""
+
+
+def expect_asks_answered(page, answered: str, *, timeout_ms: int = 15_000) -> None:
+    """Wait until the page's Ask reading holds `answered` ("answered/total").
+
+    The deadline bounds a hang; on expiry the failure names the reading the page held.
+    """
+    page.evaluate(_ASKS_ANSWERED)
+    try:
+        page.wait_for_function(
+            "(want) => window.__lfAsksAnswered() === want",
+            arg=answered,
+            timeout=timeout_ms,
+        )
+    except PlaywrightTimeout as error:
+        held = page.evaluate("() => window.__lfAsksAnswered()")
+        raise AssertionError(f"answered Asks read {held}, not {answered}") from error
 
 
 def open_page(

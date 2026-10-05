@@ -52,6 +52,7 @@ from render_cases_layout import banner_control
 from render_harness import (
     consume_browser_errors,
     displayed,
+    expect_asks_answered,
     expect_banner_control_offered,
     navigate,
     open_page,
@@ -2226,8 +2227,8 @@ def test_the_published_page_counts_every_declared_ask(served_example, browser):
     """The inventory includes request Decisions beside state Asks."""
     _, url = served_example("command-hub")
     page = open_page(browser, url)
-    decisions = page.locator(".lf-asks")
-    expect(decisions).to_have_text("Asks 0/5")
+    decisions = page.locator(".lf-queue")
+    expect_asks_answered(page, "0/5")
     expect_banner_control_offered(decisions)
 
 
@@ -2235,18 +2236,18 @@ def test_a_published_decision_survives_reload(served_example, browser):
     """A published example uses Leaf's durable log rather than browser-only state."""
     _, url = served_example("heat-loss")
     page = open_page(browser, url)
-    decisions = page.locator(".lf-asks")
-    expect(decisions).to_have_text("Asks 0/1")
+    decisions = page.locator(".lf-queue")
+    expect_asks_answered(page, "0/1")
     expect_banner_control_offered(decisions)
     chosen = "() => [...document.querySelectorAll('lf-option[chosen]')].map(o => o.id)"
     with sending(page, "the published option pick"):
         page.locator("#heat-opt-floor .lf-pick").click()
     expect(page.locator("#heat-first")).to_have_attribute("data-lf-user-override", "1")
     assert "heat-opt-floor" in page.evaluate(chosen)
-    expect(decisions).to_have_text("Asks 1/1")
+    expect_asks_answered(page, "1/1")
     page.reload(wait_until="load")
     wait_until_ready(page)
-    expect(decisions).to_have_text("Asks 1/1")
+    expect_asks_answered(page, "1/1")
     assert "heat-opt-floor" in page.evaluate(chosen)
 
 

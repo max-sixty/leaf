@@ -946,7 +946,7 @@ def live_watcher(page_dir, page):
     try:
         yield
     finally:
-        lease.close()
+        leases_model.release_lease(lease)
     # Outside the finally: a block that raised has its own failure to report, and
     # nothing after it to wait for.
     told(page)

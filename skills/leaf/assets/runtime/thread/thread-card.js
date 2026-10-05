@@ -157,12 +157,14 @@ export function threadReading(
   });
 }
 
-function navigationSummary(navigation, model) {
+function navigationSummary(navigation, model, settlement) {
   if (!navigation) return nothing;
   const pendingTitle = model.titlePending;
   const title = model.summary.topic;
   const latest = model.summary.latest;
-  const status = model.status;
+  // The reserved box under the title's Reopen carries that control's words; otherwise
+  // the status reads the thread as it stands, since the row keeps its size.
+  const status = settlement ? model.resolvedBy || "Resolved" : model.status;
   const draft = Boolean(loadDraft("reply:" + model.key));
   // While a title is on its way, the title slot says so in words drawn apart from any
   // title; the theme keeps the placeholder muted while naming is under way.
@@ -188,6 +190,7 @@ function navigationSummary(navigation, model) {
         status
           ? html`<span
               class="lf-thread-status"
+              data-lf-settlement=${settlement ? "" : nothing}
               data-lf-turn=${model.attention?.kind === "needs_user" ? "user" : nothing}
               data-lf-folded=${model.statusFolded ? "" : nothing}
               title=${
@@ -449,13 +452,16 @@ export class ThreadView {
     }
     const wanted = new Set(model.messages.map((message) => message.key));
     for (const [key, view] of this.#messages) if (!wanted.has(key)) view.retire();
-    const settlement = model.settlement ? this.#settlement(model) : null;
+    const headerSettlement = panel && model.resolved && !replySlot && !model.folding;
+    const settlement = model.settlement
+      ? this.#settlement(model, headerSettlement)
+      : null;
     const marginControls = model.surface === "margin" ? this.#marginControls : null;
     let headerActions = null;
     if (!model.resolved || replySlot || model.folding || marginControls) {
       const actions = marginControls
         ? [marginControls.nav, settlement, marginControls.close].filter(Boolean)
-        : [settlement].filter(Boolean);
+        : [headerSettlement ? null : settlement].filter(Boolean);
       for (const child of [...this.#metadataActions.children])
         if (!actions.includes(child)) child.remove();
       actions.forEach((control, index) => {
@@ -575,7 +581,8 @@ export class ThreadView {
     `;
     render(
       html`
-        ${navigationSummary(navigation, model)}
+        ${navigationSummary(navigation, model, headerSettlement ? settlement : null)}
+        ${headerSettlement ? settlement : nothing}
         ${
           model.surface === "outlet"
             ? html`<summary
@@ -599,20 +606,22 @@ export class ThreadView {
         ${replySlot ? (this.#continuity?.gap ?? nothing) : nothing}
         ${reply ? this.#reply.node : (this.#replyReservation ?? nothing)}
         ${
-          model.resolved && !replySlot && !model.folding && !marginControls
+          model.resolved &&
+          !replySlot &&
+          !model.folding &&
+          !marginControls &&
+          (!panel || model.news)
             ? html`<div
                 class=${panel ? "lf-thread-actions" : "lf-page-thread-resolved lf-ui"}
               >
                 <span
                   >${
-                    model.resolvedBy
-                      ? html`<span class=${panel ? "lf-resolved-by" : nothing}
-                          >${model.resolvedBy}</span
-                        >`
+                    !panel && model.resolvedBy
+                      ? html`<span>${model.resolvedBy}</span>`
                       : nothing
                   }</span
                 >
-                ${news}${settlement}
+                ${news}${panel ? nothing : settlement}
               </div>`
             : nothing
         }
@@ -706,17 +715,17 @@ export class ThreadView {
       ?.focus({ preventScroll: true });
   }
 
-  // Resolve is a check; Reopen is a word, or, where it stands in Resolve's place, the
-  // check drawn done, at Resolve's size.
-  #settlement(model) {
+  // The panel's resolved title keeps its state label as the reopening action.
+  // Other surfaces use Reopen or the completed check in Resolve's place.
+  #settlement(model, header = false) {
     const state = model.settlement;
     const reopen = state.kind === "unresolve";
-    const face = `${state.kind}${state.icon ? " icon" : ""}`;
+    const face = `${state.kind}${state.icon ? " icon" : ""}${header ? " header" : ""}`;
     let button = this.#settlements.get(face);
     if (!button) {
       button = offer(
         "button",
-        `lf-btn ${reopen ? "lf-reopen" : "lf-resolve"} ${state.icon ? "lf-icon-action" : "lf-thread-action"}`,
+        `lf-btn ${reopen ? "lf-reopen" : "lf-resolve"} ${header ? "lf-thread-header-action lf-thread-action" : state.icon ? "lf-icon-action" : "lf-thread-action"}`,
       );
       button.type = "button";
       button.onclick = this.#settle;
@@ -735,12 +744,22 @@ export class ThreadView {
     }
     keeps(button, "aria-disabled", state.pending || model.folding);
     keeps(button, "aria-busy", state.pending && !model.folding);
-    if (state.icon) {
+    if (header) {
+      keeps(button, "aria-label", `${model.resolvedBy || "Resolved"} · Reopen thread`);
+      keeps(button, "title", `${model.resolvedBy || "Resolved"} · Reopen thread`);
+    } else if (state.icon) {
       const label = model.folding ? "Resolved" : state.label;
       keeps(button, "aria-label", label);
       keeps(button, "title", label);
     }
-    render(state.icon ? iconTemplate("check", "lf-action-icon") : state.label, button);
+    render(
+      header
+        ? model.resolvedBy || "Resolved"
+        : state.icon
+          ? iconTemplate("check", "lf-action-icon")
+          : state.label,
+      button,
+    );
     return button;
   }
 

@@ -28,6 +28,9 @@ export const applicationState = createSemanticApplication({
   },
 });
 export const readApplication = applicationState.read;
+// What the page calls its agent: the name the server's answer gives, or "the agent"
+// before one has arrived. Every surface naming the agent's side reads it here.
+export const agentName = () => readApplication().authoritative?.agent || "the agent";
 export const projectView = applicationState.projectView;
 export const selectWidgets = applicationState.selectWidgets;
 export const attachApplicationPresentation = (region, renderer) =>
@@ -37,13 +40,15 @@ export const attachWidgetPresentation = (widget, kind, renderer) =>
 
 // Where a document-wide renderer stands in one presentation pass. The projection
 // materializes provenance words and coordinate chrome inside authored elements, the
-// thread resolves its passages over the nodes that leaves, and the Ask inventory
-// reads the thread those passages placed. Declaring the order here is what lets
+// thread resolves its passages over the nodes that leaves, the Ask inventory reads
+// the thread those passages placed, and the Queue panel names Asks and threads by the
+// words both have drawn and reads each Ask's answer. Declaring the order here is what lets
 // every publisher simply publish.
 export const PRESENTATION_ORDER = Object.freeze({
   projection: 0,
   thread: 1,
   asks: 2,
+  queue: 3,
 });
 
 // The document-wide presenters, in registration order. `presentDocument` is what a

@@ -24,7 +24,7 @@ from render_cases_layout import (
     BANNER_ORDER,
     banner_control,
     button_radius,
-    toggle_asks,
+    toggle_queue,
     token_colour,
     with_one_ask,
 )
@@ -1328,6 +1328,112 @@ def test_news_that_answers_a_thread_waiting_on_you_leaves_its_card_in_place(
     assert card.locator(".lf-thread-summary").bounding_box() == stood
 
 
+@pytest.mark.parametrize("touch", [False, True])
+@pytest.mark.parametrize("agent", ["Codex", "Maximilian Roos Research Assistant"])
+def test_resolved_thread_has_one_surface_and_reopens_from_its_title(
+    browser, serve, touch, agent
+):
+    """A resolved card keeps its ground and a reachable action beside its age.
+
+    Pressing that action reopens the conversation without folding its disclosure;
+    the button's accessible name names the action while its visible face says the state.
+    """
+    context = browser.new_context(
+        viewport={"width": 390 if touch else 800, "height": 900},
+        has_touch=touch,
+        is_mobile=touch,
+        reduced_motion="reduce",
+    )
+    url = serve(
+        leaf_page(
+            "Resolved thread",
+            '<h1>Resolved thread</h1><p id="subject">A shared surface.</p>',
+        )
+    )
+    root = panel_comment(
+        serve.page_dir, "Keep this discussion together.", {"section": "subject"}
+    )
+    for event in (
+        {
+            "kind": "reply",
+            "parent": root,
+            "text": "The answer has several paragraphs.\n\nIts margins are part of the card.",
+        },
+        {"kind": "thread_title", "thread": root, "title": "A shared surface"},
+        {"kind": "resolve", "parent": root},
+    ):
+        append_carried_log_record(
+            serve.page_dir, {"author": "agent", "agent": agent, **event}
+        )
+    other = panel_comment(serve.page_dir, "Another resolved discussion.")
+    append_carried_log_record(
+        serve.page_dir, {"kind": "resolve", "author": "user", "parent": other}
+    )
+    page = open_page(browser, url, context=context)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    page.locator(".lf-thread-filter-toggle").click()
+    page.locator('[data-filter-kind="status"][data-filter-value="resolved"]').click()
+    thread = page.locator(f'.lf-threads > .lf-thread[data-id="{root}"]')
+    summary = thread.locator(".lf-thread-summary")
+    reopen = thread.get_by_role("button", name="Reopen", include_hidden=True)
+    page.locator(f'.lf-thread[data-id="{other}"] > .lf-thread-summary').click()
+    rendered(page)
+    expect(thread).not_to_have_attribute("open", "")
+    expect(reopen).to_be_hidden()
+    assert reopen.evaluate("button => button.parentElement.tagName") == "DETAILS"
+    summary.click()
+    summary.focus()
+    rendered(page)
+    image = Image.open(io.BytesIO(thread.screenshot())).convert("RGB")
+    start = int(summary.bounding_box()["height"]) + 4
+    # The clear strip inside the border crosses message margins and the card's foot.
+    # Separate child backgrounds leave panel-colored bands along this strip.
+    assert len({image.getpixel((3, y)) for y in range(start, image.height - 2)}) == 1
+    expect(reopen).to_have_text(f"✓ Resolved by {agent}")
+    expect(reopen).to_have_attribute(
+        "aria-label", f"✓ Resolved by {agent} · Reopen thread"
+    )
+    expect(reopen).to_have_attribute("title", f"✓ Resolved by {agent} · Reopen thread")
+    assert reopen.evaluate("""button => {
+        const r = button.getBoundingClientRect();
+        return [r.top + 1, r.bottom - 1].every(y =>
+            button.contains(document.elementFromPoint(r.x + r.width / 2, y)));
+    }"""), "The whole Reopen target must take the press, including its top and bottom."
+    assert reopen.bounding_box()["height"] >= float(
+        page.locator("body")
+        .evaluate('node => getComputedStyle(node).getPropertyValue("--aim-floor")')
+        .strip()
+        .removesuffix("px")
+    )
+    boxes = thread.evaluate("""node => ['.lf-thread-header-action', '.lf-thread-recency'].map(sel => {
+        const range = document.createRange(); range.selectNodeContents(node.querySelector(sel));
+        const r = range.getBoundingClientRect(); return {top:r.top, bottom:r.bottom};
+    })""")
+    assert boxes[0] == boxes[1]
+    if touch:
+        reopen.tap()
+    else:
+        summary.focus()
+        page.keyboard.press("Tab")
+        expect(reopen).to_be_focused()
+        page.keyboard.press("Enter")
+    told(page)
+    expect(thread).to_have_attribute("data-resolved", "false")
+    expect(thread).to_have_attribute("open", "")
+    expect(thread.locator(".lf-thread-reply leaf-text")).to_be_visible()
+    assert (
+        len(
+            [
+                event
+                for event in events_model.read_events(serve.page_dir)
+                if event["kind"] == "unresolve" and event["parent"] == root
+            ]
+        )
+        == 1
+    )
+
+
 @pytest.mark.parametrize("width", [320, 800])
 @pytest.mark.parametrize("scheme", ["light", "dark"])
 def test_a_thread_keeps_submit_in_its_field_and_resolve_with_its_metadata(
@@ -1750,7 +1856,7 @@ def test_the_banner_reads_in_one_order_at_every_width(browser, serve, other_leaf
 
     # More follows the primary reading loop, with one order at every width.
     widest = max(orders.values(), key=len)
-    for wanted in ("All leaves", "Asks", "Accept all", "v1", "Approve version"):
+    for wanted in ("All leaves", "Queue", "Accept all", "v1", "Approve version"):
         assert any(wanted in name for name in widest), (
             f"{wanted} was not on the row at all, so this order proves little: {widest}"
         )
@@ -2532,13 +2638,13 @@ WIDE_PAGE = leaf_page(
 SURFACE_PAGES = {
     "threads-column": ("threads", lambda: LONG_PAGE),
     "threads-wide-page": ("threads", lambda: WIDE_PAGE),
-    "asks": ("asks", lambda: with_one_ask(LONG_PAGE)),
+    "queue": ("queue", lambda: with_one_ask(LONG_PAGE)),
 }
 
 
 def toggle_surface(page, surface, open=True):
-    if surface == "asks":
-        toggle_asks(page, open)
+    if surface == "queue":
+        toggle_queue(page, open)
     else:
         page.locator(".lf-threads-toggle").click()
         panel_settled(page, open)
@@ -2549,7 +2655,7 @@ def toggle_surface(page, surface, open=True):
 def test_an_auxiliary_surface_stands_over_the_page_and_moves_none_of_it(
     browser, serve, case, width
 ):
-    """Opening Threads or the Asks drawer never moves the page: each stands over its edge of
+    """Opening Threads or the Queue panel never moves the page: each stands over its edge of
     the window, so the reading column keeps its place, its width and its wrapping, a
     wide page's side track stays where its Layout put it, and the document neither grows nor
     scrolls under it. The page beside the surface stays live rather than going inert
@@ -2569,15 +2675,17 @@ def test_an_auxiliary_surface_stands_over_the_page_and_moves_none_of_it(
       };
     }"""
     before = page.evaluate(shape)
-    region = page.locator(".lf-asks-panel" if surface == "asks" else ".lf-thread-panel")
+    region = page.locator(
+        ".lf-queue-panel" if surface == "queue" else ".lf-thread-panel"
+    )
 
     toggle_surface(page, surface)
     expect(region).to_be_visible()
     region.evaluate("el => el.getAnimations().forEach((a) => a.finish())")
     assert page.evaluate(shape) == pytest.approx(before, abs=0.5)
     box = region.bounding_box()
-    edge = 0 if surface == "asks" else width
-    assert (box["x"] if surface == "asks" else box["x"] + box["width"]) == (
+    edge = 0 if surface == "queue" else width
+    assert (box["x"] if surface == "queue" else box["x"] + box["width"]) == (
         pytest.approx(edge, abs=1)
     )
     assert not page.locator("main").evaluate("el => el.inert")

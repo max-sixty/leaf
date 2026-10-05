@@ -104,6 +104,7 @@ from render_harness import (
     consume_browser_errors,
     draft_control,
     example_media,
+    expect_asks_answered,
     expect_banner_control_offered,
     fills_the_window,
     holding,
@@ -3071,11 +3072,11 @@ def test_a_revision_retires_every_declared_identity_it_removes(browser, serve):
         "Ask removed", "<h1>No question</h1><p>The decision is gone.</p>"
     )
     page = open_page(browser, live_url(serve(first)))
-    expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
+    expect_asks_answered(page, "0/1")
 
     stamp_page(serve.page_dir, second, "remove the question")
     wait_for_revision(page, 2)
-    expect_banner_control_offered(page.locator(".lf-asks"), offered=False)
+    expect_banner_control_offered(page.locator(".lf-queue"), offered=False)
     descriptors = page.evaluate(
         """async () => {
           const {readApplication} = await window.__lfRuntimeImport(
@@ -3107,8 +3108,8 @@ def test_a_live_revision_reorders_the_page_and_ask_inventory_together(browser, s
         f"<h1>Two questions</h1>{second_question}{first_question}",
     )
     page = open_page(browser, live_url(serve(first)))
-    banner_control(page, ".lf-asks").click()
-    rows = page.locator(".lf-asks-row")
+    banner_control(page, ".lf-queue").click()
+    rows = page.locator(".lf-queue-row")
     expect(rows).to_have_count(2)
 
     def identities(selector, attribute):
@@ -3118,7 +3119,7 @@ def test_a_live_revision_reorders_the_page_and_ask_inventory_together(browser, s
         )
 
     assert identities("main > lf-ask", "id") == ["first-ask", "second-ask"]
-    assert identities(".lf-asks-row", "data-lf-at") == [
+    assert identities(".lf-queue-row", "data-lf-at") == [
         "first-ask",
         "second-ask",
     ]
@@ -3127,7 +3128,7 @@ def test_a_live_revision_reorders_the_page_and_ask_inventory_together(browser, s
     wait_for_revision(page, 2)
 
     assert identities("main > lf-ask", "id") == ["second-ask", "first-ask"]
-    assert identities(".lf-asks-row", "data-lf-at") == [
+    assert identities(".lf-queue-row", "data-lf-at") == [
         "second-ask",
         "first-ask",
     ]
@@ -3193,7 +3194,7 @@ customElements.define("lf-conditional", class extends HTMLElement {
             layer_widgets={"lf-conditional.js": module},
         ),
     )
-    expect_banner_control_offered(page.locator(".lf-asks"), offered=False)
+    expect_banner_control_offered(page.locator(".lf-queue"), offered=False)
 
     for phase, count in (("open", 1), ("closed", 0)):
         append_command(
@@ -3209,9 +3210,10 @@ customElements.define("lf-conditional", class extends HTMLElement {
         )
         told(page)
         if count:
-            expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
-            banner_control(page, ".lf-asks").click()
-        expect(page.locator(".lf-asks-row")).to_have_count(count)
+            expect_asks_answered(page, "0/1")
+            banner_control(page, ".lf-queue").click()
+        # The phase move is the agent's to answer, so only the Ask's row is counted.
+        expect(page.locator(".lf-queue-row[data-lf-kind='ask']")).to_have_count(count)
 
 
 def test_a_live_revision_reapplies_the_authored_thread_seat_predicate(browser, serve):
@@ -3577,10 +3579,8 @@ def test_revision_reveals_an_active_region_without_any_reading_landmark(browser,
     expect(page.locator("#standing-control")).to_be_visible()
 
 
-def test_ask_repaints_keep_the_drawers_reading_until_an_explicit_arrival(
-    browser, serve
-):
-    """The drawer's standing mark may repaint without returning to its focused Ask."""
+def test_ask_repaints_keep_the_queues_reading_until_an_explicit_arrival(browser, serve):
+    """The Queue row's standing mark may repaint without returning to its focused Ask."""
     questions = "".join(
         f'<lf-ask id="ask-{index}"><h2>Question {index} about this project</h2>'
         f'<lf-options id="options-{index}" choose>'
@@ -3592,10 +3592,10 @@ def test_ask_repaints_keep_the_drawers_reading_until_an_explicit_arrival(
     page = open_page(browser, serve(leaf_page("Reading the Ask inventory", questions)))
     resized(page, 1200, 900)
     page.keyboard.press("g")
-    page.keyboard.press("Shift+a")
-    page.locator('.lf-asks-row[data-lf-at="ask-0"]').click()
+    page.keyboard.press("Shift+q")
+    page.locator('.lf-queue-row[data-lf-at="ask-0"]').click()
     expect(page.locator("#ask-0")).to_be_focused()
-    list_selector = ".lf-asks-panel .lf-drawer-list"
+    list_selector = ".lf-queue-panel .lf-drawer-list"
     drawer = page.locator(list_selector)
     drawer.evaluate(
         """list => list.addEventListener('scroll', () => {
@@ -3619,11 +3619,11 @@ def test_ask_repaints_keep_the_drawers_reading_until_an_explicit_arrival(
     expect(page.locator("#ask-1")).to_be_focused()
     scroll_settled(page, list_selector)
     assert drawer.evaluate("list => list.scrollTop") < reading
-    row = page.locator('.lf-asks-row[data-lf-at="ask-1"]')
-    assert row.locator(".lf-asks-says").evaluate(
+    row = page.locator('.lf-queue-row[data-lf-at="ask-1"]')
+    assert row.locator(".lf-queue-title").evaluate(
         "words => words.getBoundingClientRect().top >= "
         "words.closest('.lf-drawer-list').getBoundingClientRect().top"
-    ), "explicit Ask navigation still reveals its matching drawer row"
+    ), "explicit Ask navigation still reveals its matching Queue row"
 
 
 @pytest.mark.parametrize("newer_reading", [False, True])
@@ -4817,7 +4817,7 @@ def test_the_ring_says_where_the_user_is_standing(browser, serve):
     # Answering takes it off with the focus still inside: the ring is for the question
     # the user is working, and an answered one is no longer a question.
     page.locator("#lq-token .lf-pick").click()
-    expect(page.locator(".lf-asks")).to_have_text("Asks 2/5")
+    expect_asks_answered(page, "2/5")
     expect(page.locator("[data-lf-ask]")).to_have_count(0)
     expect(page.locator("#lq-token .lf-pick")).to_be_focused()
 
@@ -5006,7 +5006,7 @@ def test_the_ask_walk_follows_registry_declarations(browser, serve):
     )
 
     page = open_page(browser, live_url(url))
-    expect(page.locator(".lf-asks")).to_have_text("Asks 1/4")
+    expect_asks_answered(page, "1/4")
     # The blanket answer went with the declaration that named its verb.
     expect(page.locator(".lf-answer-all")).to_have_count(0)
     for expected in [
@@ -5037,7 +5037,7 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     fraction = page.locator("#t-feeders > .lf-chips")
     expect(fraction).to_contain_text("1/2 done")
     expect_banner_control_offered(
-        page.locator(".lf-asks"), offered=False
+        page.locator(".lf-queue"), offered=False
     )  # nothing waits on the user
 
     sent = CliRunner().invoke(
@@ -5061,7 +5061,7 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     # The marker is paint, so the word beside it (x-paints) has to move with the
     # attribute or a user listening is told what the page said a poll ago.
     assert "review" in task.aria_snapshot()
-    expect_banner_control_offered(page.locator(".lf-asks"), offered=False)
+    expect_banner_control_offered(page.locator(".lf-queue"), offered=False)
 
     # A second report supersedes the first — absolute values fold — and the
     # fraction chip recounts across the tree.
@@ -5075,7 +5075,7 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     said = task.aria_snapshot()
     assert "done" in said and "review" not in said, said
     expect(fraction).to_contain_text("2/2 done")
-    expect_banner_control_offered(page.locator(".lf-asks"), offered=False)
+    expect_banner_control_offered(page.locator(".lf-queue"), offered=False)
 
     # The overruling version: its markup keeps `active` and publishes typed report
     # settlements resolved from `overruled`, so replay stops them
@@ -7870,8 +7870,7 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     for event in THREAD_ASKS:
         append_carried_log_record(serve.page_dir, event)
     page = open_page(browser, url)
-    decisions = page.locator(".lf-asks")
-    expect(decisions).to_have_text("Asks 0/2")
+    expect_asks_answered(page, "0/2")
 
     page.keyboard.press("a")
     expect(page.locator(".lf-thread-panel")).to_be_visible()
@@ -7890,7 +7889,7 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     expect(page.locator(".lf-thread:has(#tq-one) > .lf-thread-summary")).to_be_focused()
 
     page.locator("#tq-redis").click()
-    expect(decisions).to_have_text("Asks 1/2")
+    expect_asks_answered(page, "1/2")
 
     page.locator(".lf-thread:has(#tq-set) .lf-thread-summary").click()
     expect(page.locator("#tq-set .lf-done")).to_be_visible()
@@ -7930,11 +7929,10 @@ def test_a_thread_question_asks_until_answered(browser, serve):
 
     page.locator("#tq-logs").click()
     expect(page.locator("#tq-logs")).to_have_attribute("chosen", "")
-    expect(decisions).to_have_text("Asks 1/2")
+    expect_asks_answered(page, "1/2")
     with sending(page, "the answer"):
         page.locator("#tq-set .lf-done").click()
-    expect(decisions).to_have_text("Asks 2/2")
-    expect(decisions).to_have_attribute("data-lf-complete", "")
+    expect_asks_answered(page, "2/2")
     expect(page.locator("#tq-set .lf-done")).to_have_attribute("aria-pressed", "true")
     expect(page.locator(".lf-notice")).to_have_text("Marked answered — sent")
     # Said once, by the log's answer. An `answered` attribute on the group said it
@@ -7958,7 +7956,7 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     # writes, so there is nothing for a version or a markup copy to fall behind.
     other = open_page(browser, url)
     expect(other.locator("#tq-set .lf-done")).to_have_attribute("aria-pressed", "true")
-    expect(other.locator(".lf-asks")).to_have_text("Asks 2/2")
+    expect_asks_answered(other, "2/2")
     assert (
         render_checks_model.evaluate_probe(
             other, "undeclaredAttrs", page_registry(other)
@@ -7980,12 +7978,12 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     expect(page.locator("#tq-set .lf-done")).to_have_attribute("aria-pressed", "false")
     expect(page.locator("#tq-logs")).to_have_attribute("chosen", "")
     expect(page.locator("#tq-set-decision > h3")).to_have_text("Which extras apply?")
-    expect(decisions).to_have_text("Asks 2/2")
+    expect_asks_answered(page, "2/2")
     holding(page, held, 1, "the thread answer's withdrawal")
     held[0].continue_()
     page.unroute("**/api/event")
     round_trip(page)
-    expect(decisions).to_have_text("Asks 1/2")
+    expect_asks_answered(page, "1/2")
 
     # The sequence's promise holds from a mark: g T leaves the option's digit scope and
     # reaches Threads, on the title of the thread it shows open. A stray digit there
@@ -8237,13 +8235,13 @@ def test_closing_a_thread_withdraws_the_question_in_it(browser, serve):
     url = serve(REPLY_HOST_PAGE)
     append_carried_log_record(serve.page_dir, THREAD_ASKS[0])
     page = open_page(browser, url)
-    expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
+    expect_asks_answered(page, "0/1")
 
     append_carried_log_record(
         serve.page_dir, {"kind": "resolve", "author": "agent", "parent": "c-which"}
     )
     told(page)
-    expect_banner_control_offered(page.locator(".lf-asks"), offered=False)
+    expect_banner_control_offered(page.locator(".lf-queue"), offered=False)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page, True)
     page.locator(".lf-thread-filter-toggle").click()
@@ -8482,8 +8480,8 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve):
     write(draft.get_by_role("textbox", name="Edit ledger-cargo"), provided)
     draft_control(page, "save", "ledger-cargo").click()
     round_trip(page)
-    expect(page.locator(".lf-asks")).to_have_text("Asks 1/5")
-    expect_banner_control_offered(page.locator(".lf-asks"))
+    expect_asks_answered(page, "1/5")
+    expect_banner_control_offered(page.locator(".lf-queue"))
 
     honoring = re.sub(
         r'<lf-draft id="ledger-cargo" needed>.*?</lf-draft>',
@@ -8495,8 +8493,8 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve):
     wait_for_revision(page, 2)
     # The saved answer remains in the reviewable Ask inventory after the source
     # drops `needed`; it is completed, not newly owed to the user.
-    expect(page.locator(".lf-asks")).to_have_text("Asks 1/5")
-    expect_banner_control_offered(page.locator(".lf-asks"))
+    expect_asks_answered(page, "1/5")
+    expect_banner_control_offered(page.locator(".lf-queue"))
     expect(page.locator("#ledger-cargo")).not_to_have_attribute("needed")
     expect(page.locator("#ledger-cargo")).not_to_have_attribute("data-lf-user-override")
     expect(page.locator("#ledger-fixture > .lf-task-meta")).not_to_contain_text(
@@ -8518,8 +8516,8 @@ def test_command_hub_derives_the_operator_reading_from_its_goal_tree(browser, se
     expect(head).to_contain_text("5 workers")
     expect(head).to_contain_text("1 quiet")
     expect(head).to_contain_text("5 stopped")
-    expect(page.locator(".lf-asks")).to_have_text("Asks 0/5")
-    expect_banner_control_offered(page.locator(".lf-asks"))
+    expect_asks_answered(page, "0/5")
+    expect_banner_control_offered(page.locator(".lf-queue"))
     expect(page.locator("#hub-readings > .lf-fleet-view")).to_contain_text(
         "Fleet · 5 live workers"
     )
@@ -9021,8 +9019,8 @@ def test_command_hub_keeps_a_real_request_outside_a_quoted_decision(browser, ser
         flags=re.DOTALL,
     )
     page = open_page(browser, serve(html))
-    expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
-    expect_banner_control_offered(page.locator(".lf-asks"))
+    expect_asks_answered(page, "0/1")
+    expect_banner_control_offered(page.locator(".lf-queue"))
     expect(page.locator("#hub-readings > .lf-command-head")).to_contain_text(
         "1 stopped"
     )
@@ -9706,8 +9704,8 @@ customElements.define(\"lf-area\", class extends HTMLElement {
     expect(
         page.locator("#hub > lf-command-readings > .lf-stopped-view")
     ).to_contain_text("Custom project goal")
-    expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
-    expect_banner_control_offered(page.locator(".lf-asks"))
+    expect_asks_answered(page, "0/1")
+    expect_banner_control_offered(page.locator(".lf-queue"))
 
 
 def test_a_spent_press_and_a_static_badge_say_so_before_the_press(browser, serve):

@@ -118,8 +118,9 @@ newest publisher reading. Optional recorded scalar attributes have a null initia
 value and must be removed when that value returns.
 
 A widget that declares `x-awaits` says what its answered Ask was answered with: its class
-declares `static answerWords(state, element)`, returning concise words for the Asks
-drawer's row and a queue's row. `state` is the same complete state `renderState`
+declares `static answerWords(state, element)`, returning concise words for its row
+under Done in the Queue panel and a queue's row. The Queue panel is experimental and
+expected to change a lot. `state` is the same complete state `renderState`
 receives, and `element` is the widget, for authored markup such as an option's name;
 read nothing the module renders. Leaf calls it only while the Ask is answered, with the
 state of the publication that carries the Ask inventory, so the words never wait on a

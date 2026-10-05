@@ -415,19 +415,22 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     min-height: calc(var(--lf-banner-row) - 1px);
     justify-content: safe flex-end; overflow: hidden;
     padding: 4px 5px; }
-  /* On two rows the queue counts lead the second, under the sentence's start, and the
-     run takes what they leave: the sentence is what the user reads the status row for,
-     so where the window is narrow it gets the whole row rather than share it with the
-     counts. The run's controls keep to its trailing edge either way. The counts are the
-     reading loop's, so a gesture's steps that stand in its place on the run take their
-     room too (banner-toolbar.js): those steps fill a phone's row. */
+  /* On two rows the sentence is what the user reads the status row for, so it takes the
+     first whole, and the queue counts lead the second, under the sentence's start,
+     where the run leaves room for them whole. The run is placed first, from the
+     trailing edge, at its controls' full words, and takes the line's rest; the counts
+     follow it on that line only where they fit, and otherwise wrap to a third line the
+     banner's stated height does not draw. So Approval, or a gesture's steps standing
+     in the reading loop's place, never truncate to seat the counts; the counts stay in
+     the status's disclosure meanwhile. */
   @container style(--lf-banner-rows: 2) {
-    .lf-banner { flex-wrap: wrap; }
+    .lf-banner { flex-wrap: wrap; flex-direction: row-reverse;
+      box-sizing: border-box; height: var(--lf-banner-h);
+      clip-path: inset(-100vh -100vw 0); }
     .lf-banner-status { flex-basis: 100%; }
-    .lf-banner-actions { flex: 1 1 0; }
-    .lf-banner > .lf-status-queues { margin-inline-start: var(--lf-status-inset-left); }
-    .lf-banner:has(> .lf-banner-actions[data-lf-gesture]) > .lf-status-queues {
-      display: none; }
+    .lf-banner-actions { flex: 1 1 auto; order: 1; }
+    .lf-banner > .lf-status-queues { order: 2;
+      margin-inline-start: var(--lf-status-inset-left); }
   }
   /* Reading targets keep their reservations. Approval takes the remaining room,
      down to the shared aim floor, and truncates its label when a larger face needs

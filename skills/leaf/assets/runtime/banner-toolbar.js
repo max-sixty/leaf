@@ -21,10 +21,6 @@
  *   steps stand at a time, and the higher rank is the nearer gesture: words selected
  *   inside a mode or a search are what the user is doing now, and the mode's steps
  *   return once the selection goes.
- *
- * The run says when a gesture holds the row (`data-lf-gesture`), so the reading loop's
- * other occupant of a narrow banner's second row, the queue counts, gives way with it
- * (chrome.css).
  */
 import { html, render, repeat } from "../vendor/browser-runtime.js";
 import { el } from "./widget-elements.js";
@@ -178,7 +174,6 @@ function paint() {
   render(rowTemplate(), bannerActions);
   render(menuTemplate(), overflowMenu);
   for (const entry of controls.values()) paintControl(entry);
-  bannerActions.toggleAttribute("data-lf-gesture", nearestGesture() !== -Infinity);
 }
 
 const focusable = (entry) =>

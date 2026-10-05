@@ -4153,29 +4153,41 @@ STATUS_PRESS = """() => {
 STATUS_COUNTS = """() => {
   const counts = document.querySelector('.lf-status-queues');
   const box = counts.getBoundingClientRect();
-  const banner = document.querySelector('.lf-banner').getBoundingClientRect();
+  const bar = document.querySelector('.lf-banner');
+  const banner = bar.getBoundingClientRect();
+  // Where the banner's rows end: its rule below them draws no row.
+  const rowsEnd = banner.bottom - parseFloat(getComputedStyle(bar).borderBottomWidth);
   const meets = (other) => box.left < other.right - 0.5 && other.left < box.right - 0.5
     && box.top < other.bottom - 0.5 && other.top < box.bottom - 0.5;
   const others = [document.querySelector('.lf-banner-status'),
     ...document.querySelectorAll('.lf-banner-actions > :not([hidden])')];
+  const approval = document.querySelector('.lf-banner-actions > .lf-signoff');
   return {shown: counts.clientWidth, needed: counts.scrollWidth,
+          left: box.left, top: box.top,
+          statusLeft: document.querySelector('.lf-status-button').getBoundingClientRect().left,
+          statusBottom: document.querySelector('.lf-banner-status').getBoundingClientRect().bottom,
           inBanner: box.left >= banner.left && box.right <= banner.right
             && box.top >= banner.top && box.bottom <= banner.bottom,
+          drawn: box.top < rowsEnd - 0.5 && box.bottom > banner.top + 0.5,
+          approval: approval?.checkVisibility()
+            ? {shown: approval.clientWidth, needed: approval.scrollWidth} : null,
           overlaps: others.filter((n) => meets(n.getBoundingClientRect()))
             .map((n) => n.className)};
 }"""
 
 
-@pytest.mark.parametrize("width", [1280, 390])
-def test_the_status_press_grows_into_free_room_and_moves_nothing(browser, serve, width):
+@pytest.mark.parametrize(("width", "counts_drawn"), [(1280, True), (390, False)])
+def test_the_status_press_grows_into_free_room_and_moves_nothing(
+    browser, serve, width, counts_drawn
+):
     """The status press is as wide as its words: its ring and its hit box are the
     sentence's, not the empty banner's. As the sentence the agent declares grows, the
     press grows rightward into the room the controls leave, and nothing else on the banner
-    moves; once that room runs out its words truncate rather than push More. The queue
-    counts stand beside the status, whole and still throughout. At 390 the status has a
-    row of its own and the counts lead the run's row, so the sentence's room is that
-    whole row: an ordinary sentence of the agent's shows whole there, where the counts
-    sharing its row had cut it to a word."""
+    moves; once that room runs out its words truncate rather than push More. Approval and
+    the queue counts stay whole throughout. At 390 the status has a row of its own, so
+    the sentence's room is that whole row: an ordinary sentence of the agent's shows
+    whole there, where the counts sharing its row had cut it to a word. Approval fills
+    the run's row there, so the counts give way rather than truncate it."""
     html = SUGGESTION_PAGE.replace(
         "<title>suggestions</title>",
         '<title>suggestions</title>\n<meta name="lf-review" content="sign-off">',
@@ -4206,7 +4218,6 @@ def test_the_status_press_grows_into_free_room_and_moves_nothing(browser, serve,
         BANNER_WATCH, f":is({NEIGHBOUR}, .lf-status-queues):not(.lf-status-button)"
     )
     assert any("lf-banner-more" in name for name in beside["names"]), beside["names"]
-    assert any("lf-status-queues" in name for name in beside["names"]), beside["names"]
 
     longer = say("running the browser suite")
     assert longer["shown"] >= longer["needed"], longer
@@ -4220,16 +4231,61 @@ def test_the_status_press_grows_into_free_room_and_moves_nothing(browser, serve,
         f"a sentence longer than the room was shown whole: {endless}"
     )
     assert endless["right"] <= endless["roomRight"] + 0.5, endless
-    # The sentence gives up its room, never the counts: they stay whole, inside the
-    # banner, and clear of the status's room and every control.
+    # The sentence gives up its room, and the counts never cut Approval: where they
+    # are drawn they stand whole, inside the banner, clear of the status and every
+    # control, and otherwise the banner leaves them out whole.
     counts = page.evaluate(STATUS_COUNTS)
-    assert counts["shown"] >= counts["needed"] > 0, counts
-    assert counts["inBanner"] and not counts["overlaps"], counts
+    assert counts["approval"], counts
+    assert counts["approval"]["shown"] >= counts["approval"]["needed"], counts
+    assert counts["drawn"] == counts_drawn, counts
+    if counts_drawn:
+        assert counts["shown"] >= counts["needed"] > 0, counts
+        assert counts["inBanner"] and not counts["overlaps"], counts
     assert (endless["left"], endless["top"]) == (short["left"], short["top"])
     moved = displaced(beside, page.evaluate("() => window.__lfBoxes()"))
     assert not moved, "a status past its room pushed the banner:\n  " + "\n  ".join(
         moved
     )
+
+
+def test_the_counts_lead_a_phone_s_second_row_where_the_run_leaves_room(browser, serve):
+    """On a phone the status sentence has the first row, and the queue counts lead the
+    second, under the sentence's start, where the run leaves them room whole. A finger's
+    search steps fill that row, so the counts give way to them rather than cut a step,
+    and come back where they stood once the search closes."""
+    context = browser.new_context(
+        viewport={"width": 390, "height": 800}, has_touch=True, is_mobile=True
+    )
+    page = open_page(browser, serve(SUGGESTION_PAGE), context=context)
+    expect(page.locator(".lf-status-queues")).to_have_text("3 on you")
+    page_at_rest(page)
+    resting = page.evaluate(STATUS_COUNTS)
+    assert resting["drawn"] and resting["inBanner"], resting
+    assert resting["shown"] >= resting["needed"] > 0, resting
+    assert not resting["overlaps"], resting
+    assert resting["left"] == pytest.approx(resting["statusLeft"], abs=1), resting
+    assert resting["top"] >= resting["statusBottom"] - 0.5, resting
+
+    page.keyboard.press("/")
+    page.keyboard.type("feeder")
+    expect(
+        page.locator(".lf-banner-actions > .lf-btn", has_text="Next")
+    ).to_be_visible()
+    page_at_rest(page)
+    searching = page.evaluate(STATUS_COUNTS)
+    assert not searching["drawn"], searching
+    clipped = page.evaluate(BANNER_ROWS)["clipped"]
+    assert not clipped, f"the search steps were cut off: {clipped}"
+
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-banner-actions > .lf-btn", has_text="Next")).to_be_hidden()
+    page_at_rest(page)
+    back = page.evaluate(STATUS_COUNTS)
+    assert (back["drawn"], back["left"], back["top"]) == (
+        True,
+        resting["left"],
+        resting["top"],
+    ), (resting, back)
 
 
 def test_a_recorded_move_is_acknowledged_in_the_status_and_nowhere_else(browser, serve):

@@ -1513,9 +1513,7 @@ def test_code_copy_enter_leaves_nested_links_usable(browser, serve):
 
 def test_hidden_code_copy_controls_do_not_enter_layout(browser, serve):
     """A long hidden queue must not make every page layout place its copy controls."""
-    blocks = "".join(
-        f'<pre><code>example {index}</code></pre>' for index in range(100)
-    )
+    blocks = "".join(f"<pre><code>example {index}</code></pre>" for index in range(100))
     page = open_page(
         browser,
         serve(
@@ -1529,10 +1527,13 @@ def test_hidden_code_copy_controls_do_not_enter_layout(browser, serve):
     )
     controls = page.locator(".lf-chrome > .lf-code-copy")
     expect(controls).to_have_count(100)
-    assert page.evaluate(
-        """() => [...document.querySelectorAll('.lf-chrome > .lf-code-copy')]
-            .filter(control => control.getClientRects().length).length"""
-    ) == 0
+    assert (
+        page.evaluate(
+            """() => [...document.querySelectorAll('.lf-chrome > .lf-code-copy')]
+                .filter(control => control.getClientRects().length).length"""
+        )
+        == 0
+    )
 
 
 @pytest.mark.parametrize("holder", ["disclosure", "tab"])

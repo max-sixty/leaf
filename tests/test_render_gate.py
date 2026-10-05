@@ -11,6 +11,7 @@ import tinycss2
 from click.testing import CliRunner
 from interact_support import (
     COMMAND_HUB_PACKAGE,
+    STATED_TIMEOUT,
     add_test_widget,
     append_carried_log_record,
     append_command,
@@ -1236,7 +1237,9 @@ def test_a_reload_mid_flight_never_wedges_round_trip(browser, serve, monkeypatch
     page.on("framenavigated", release_after_reload)
     try:
         banner_control(page, ".lf-answer-all").click()
-        assert answer_ready.wait(10), "the first event reached no server answer"
+        assert answer_ready.wait(STATED_TIMEOUT), (
+            "the first event reached no server answer"
+        )
         page.goto(url, wait_until="load")
         assert reload_committed.is_set(), "the replacement document did not commit"
         wait_until_ready(page)
@@ -2178,7 +2181,7 @@ def test_the_state_wait_covers_a_status_that_moves_neither_log_nor_data(browser,
         wait_until_ready(page, held, through="state")
         assert "Pick a shard." in page.locator(".lf-status-text").text_content()
     finally:
-        lease.close()
+        leases_model.release_lease(lease)
 
 
 def test_the_readiness_wait_names_the_stage_a_page_still_owes(browser, serve):
@@ -2808,7 +2811,10 @@ def test_page_fixture_renders(browser, serve, source):
     holds it, so no box shows more inset than it draws.
 
     And nothing the runtime adds stands among the elements the page wrote, where it
-    would change which child the page's own rules find first, last, or next."""
+    would change which child the page's own rules find first, last, or next.
+
+    Then the page is scrolled (`scroll_findings`), on the same page the probes read,
+    since both want the page as a reader first opens it."""
     url = serve(source)
     failures = render_gate_model.render_version(browser, url).failures
     assert failures == [], "\n".join(failures)
@@ -2823,6 +2829,8 @@ def test_page_fixture_renders(browser, serve, source):
     assert framing == [], framing
     stray = render_checks_model.evaluate_probe(page, "apparatusAmongAuthored")
     assert stray == [], stray
+    following = scroll_findings(page)
+    assert following == [], "\n".join(following)
 
 
 # The page's longest scroller, the one its reader spends the scroll in.
@@ -2836,8 +2844,7 @@ READING_SCROLLER = (
 SCROLL_PASS = (30,) * 8 + (-30,) * 8
 
 
-@pytest.mark.parametrize("source", CORPUS_SOURCES, ids=lambda p: p.stem)
-def test_a_scroll_writes_only_what_it_changes(browser, serve, source):
+def scroll_findings(page):
     """Scrolling a page writes to its DOM only where the scroll changed a state: which
     section is current, which row a key reaches. Nothing is rewritten with the value it
     already held (the browser fixture fails that on any page), and nothing is placed
@@ -2848,25 +2855,22 @@ def test_a_scroll_writes_only_what_it_changes(browser, serve, source):
     range, which every page with a quoted comment does, so a write on every scroll event
     makes the scroll judder. The pass runs twice and the second is read: the first is
     where the pass's own arrivals happen, such as a margin row laid out as it comes
-    into view."""
-    page = open_page(browser, serve(source))
+    into view. A page too short for the pass has nothing to read."""
     reach = page.evaluate(
         f"() => {{ const s = {READING_SCROLLER}; return s.scrollHeight - s.clientHeight; }}"
     )
     # From a third of the way in, the pass must reach its depth before the page ends.
     if reach < 1.5 * sum(step for step in SCROLL_PASS if step > 0):
-        pytest.skip("nothing on this page scrolls as far as the pass goes")
+        return []
     page.evaluate(
         f"reach => {{ {READING_SCROLLER}.scrollTop = Math.round(reach / 3); }}", reach
     )
     rendered(page)
     scroll_writes(page, SCROLL_PASS, READING_SCROLLER)
-    following = scroll_followers(scroll_writes(page, SCROLL_PASS, READING_SCROLLER))
-    assert following == [], "\n".join(following)
+    return scroll_followers(scroll_writes(page, SCROLL_PASS, READING_SCROLLER))
 
 
-@pytest.mark.parametrize("source", CORPUS_SOURCES, ids=lambda p: p.stem)
-def test_a_page_at_rest_does_nothing(browser, serve, source):
+def rest_findings(page, source):
     """A page nobody touches writes nothing, asks for no frame, moves no focus, and runs
     no animation without end, in its own document or any it frames. Its clock still
     ticks, to read the server and age what it shows, and a tick that changed nothing
@@ -2876,15 +2880,13 @@ def test_a_page_at_rest_does_nothing(browser, serve, source):
 
     The reader has asked for reduced motion, which is when a page owes stillness: one who
     allows motion may be shown a page's own film playing itself (rust-sort's)."""
-    page = still_page(browser, serve(source))
     if source == FEATURE_GALLERY:
         gallery_frames = page.locator("[data-interaction-frame]")
         assert gallery_frames.count() > 0
         expect(
             page.locator("[data-interaction-frame][data-interaction-ready]")
         ).to_have_count(gallery_frames.count())
-    findings = at_rest(page)
-    assert findings == [], "\n".join(findings)
+    return at_rest(page)
 
 
 @pytest.mark.parametrize("work", [1, 10])
@@ -3241,8 +3243,7 @@ UNWIND = 3
 AGAIN = 3
 
 
-@pytest.mark.parametrize("source", CORPUS_SOURCES, ids=lambda p: p.stem)
-def test_a_closed_surface_leaves_the_page_as_it_found_it(browser, serve, source):
+def surface_findings(page):
     """Opening a surface from the page and closing it again returns the page the first
     round trip left, and holds no more than it did. The first trip may build what the
     surface keeps for next time and leave what it changed on purpose, such as threads
@@ -3254,35 +3255,42 @@ def test_a_closed_surface_leaves_the_page_as_it_found_it(browser, serve, source)
 
     Each surface the page offers must open, so a key that stopped opening one fails
     here rather than passing for having left nothing behind. The keys start from the
-    page, where a page's own script may have left the focus inside a sample."""
-    page = still_page(browser, serve(source))
+    page, where a page's own script may have left the focus inside a sample.
+
+    Nothing happens between one trip's close and the next trip's keys, so the reading
+    a trip closes on is the next trip's starting point; only a surface's first trip
+    reads whether it opened."""
     left_alone(page)
     page.evaluate(RELEASE_FOCUS)
 
-    def round_trip(keys):
-        before = reader_state(page)
+    def press(keys):
         for key in keys:
             page.keyboard.press(key)
             rendered(page)
-        opened = reader_state(page) != before
+
+    def unwind():
         for _ in range(UNWIND):
             page.keyboard.press("Escape")
             rendered(page)
-        return opened, reader_state(page), live_counts(page)
+        return reader_state(page)
 
     findings = []
+    left = reader_state(page)
     for surface, (keys, door) in SURFACES.items():
         if door and not page.locator(door).first.is_visible():
             continue
-        opened, first, counts = round_trip(keys)
+        press(keys)
+        opened = reader_state(page) != left
+        first = left = unwind()
         if not opened:
             findings.append(f"{'+'.join(keys)} opened no {surface}")
             continue
-        trips = [counts]
+        trips = [live_counts(page)]
         for _ in range(AGAIN):
-            _, again, counts = round_trip(keys)
-            trips.append(counts)
-            if changes := state_changes(first, again):
+            press(keys)
+            left = unwind()
+            trips.append(live_counts(page))
+            if changes := state_changes(first, left):
                 findings.append(
                     f"the {surface} closed again leaving\n" + "\n".join(changes[:12])
                 )
@@ -3293,15 +3301,14 @@ def test_a_closed_surface_leaves_the_page_as_it_found_it(browser, serve, source)
                 findings.append(
                     f"the {surface} leaks {what}: {held} after each round trip"
                 )
-    assert findings == [], "\n".join(findings)
+    return findings
 
 
 # From the widest window the corpus is read at down to a phone's.
 RESIZE_PATH = tuple(range(1200, 439, -80))
 
 
-@pytest.mark.parametrize("source", CORPUS_SOURCES, ids=lambda p: p.stem)
-def test_a_resized_page_comes_back_as_it_was(browser, serve, source):
+def resize_findings(page, path):
     """What a page says at a width depends on the width, not on the widths it passed
     through: a page taken through a resize and back says at each width on the way back
     what it said there on the way out, including accessible controls and their layout,
@@ -3310,15 +3317,15 @@ def test_a_resized_page_comes_back_as_it_was(browser, serve, source):
     resets those inputs after the resize has rendered and compares their actual
     positions too, since native scroll snapping can settle away from zero.
     Both ends are tried: a state written on the way down and one written on the
-    way up are cleared by different widths.
+    way up are cleared by different widths, so each journey runs on a page opened at
+    the end it starts from.
 
     Unlike a scroll, a resize lays the whole page out again and repaints it, so what it
     writes at each step costs nothing beside that; a write that restates what stood is
     failed wherever it happens (`write_watch.js`)."""
-    url = serve(source)
-    findings = []
+    assert page.viewport_size["width"] == path[0]
 
-    def at_width(page, width):
+    def at_width(width):
         resized(page, width, 900)
         rendered(page)
         page.wait_for_function(
@@ -3351,18 +3358,17 @@ def test_a_resized_page_comes_back_as_it_was(browser, serve, source):
             "scroll positions: " + json.dumps(positions, sort_keys=True),
         ]
 
-    for path in (RESIZE_PATH, RESIZE_PATH[::-1]):
-        page = still_page(browser, url, width=path[0])
-        left_alone(page)
-        said = {width: at_width(page, width) for width in path}
-        for width in path[-2::-1]:
-            if changes := state_changes(said[width], at_width(page, width)):
-                findings.append(
-                    f"opened at {path[0]}px, taken to {path[-1]}px and back to {width}px:\n"
-                    + "\n".join(changes[:12])
-                )
-                break
-    assert findings == [], "\n\n".join(findings)
+    left_alone(page)
+    said = {width: at_width(width) for width in path}
+    for width in path[-2::-1]:
+        if changes := state_changes(said[width], at_width(width)):
+            # Hand the page on at the width it opened at, as a whole journey does.
+            resized(page, path[0], 900)
+            return [
+                f"opened at {path[0]}px, taken to {path[-1]}px and back to {width}px:\n"
+                + "\n".join(changes[:12])
+            ]
+    return []
 
 
 # The words in the field holding the focus, found through the shadow trees on the way
@@ -3441,16 +3447,17 @@ TYPED_BOXES = {
 }
 
 
-@pytest.mark.parametrize("source", CORPUS_SOURCES, ids=lambda p: p.stem)
-def test_words_in_a_box_survive_scrolling_away_and_back(browser, serve, source):
+def typed_box_findings(page):
     """A box the user is typing in is still there, holding their words and the focus,
     after every scroller on the page has been sent to either end and back: scrolling is
     reading, and what the user wrote waits for them. The browser fixture fails a box
-    that went away on the way even where it came back (`words_watch.js`)."""
-    url = serve(source)
+    that went away on the way even where it came back (`words_watch.js`).
+
+    The boxes share one page. A user abandons each one before the next, deleting its
+    words with keys and closing it with Escape, so it leaves no draft behind: a page
+    comment's draft would otherwise come back in the next box `c` opens."""
     findings = []
     for box, route in TYPED_BOXES.items():
-        page = still_page(browser, url)
         left_alone(page)
         page.evaluate(RELEASE_FOCUS)
         keys = route(page)
@@ -3473,13 +3480,48 @@ def test_words_in_a_box_survive_scrolling_away_and_back(browser, serve, source):
             rendered(page)
             if words not in page.evaluate(SHOWN_WORDS):
                 findings.append(f"the {box} scrolled to the {end} and back is gone")
-                break
-            if page.evaluate(FOCUSED_WORDS) != words:
+            elif page.evaluate(FOCUSED_WORDS) != words:
                 findings.append(
                     f"the {box} scrolled to the {end} and back lost the focus"
                 )
-                break
-    assert findings == [], "\n".join(findings)
+            if findings:
+                # Where the words went is unknown, so no later box starts clean.
+                return findings
+        page.keyboard.press("ControlOrMeta+a")
+        page.keyboard.press("Backspace")
+        assert page.evaluate(FOCUSED_WORDS) == "", f"the {box} kept its words"
+        for _ in range(UNWIND):
+            page.keyboard.press("Escape")
+            rendered(page)
+    return findings
+
+
+@pytest.mark.parametrize("source", CORPUS_SOURCES, ids=lambda p: p.stem)
+def test_a_still_page_comes_back_from_every_journey_as_it_was(browser, serve, source):
+    """A still_page goes through each journey that must leave it as it found it: left
+    alone (`rest_findings`), every surface opened and closed (`surface_findings`),
+    resized to a phone's width and back (`resize_findings`), and each typed box scrolled
+    away and back (`typed_box_findings`).
+
+    They share one page because each reads only what its own journey changes, and
+    the page the journey before handed over is one a reader could have reached.
+    Resting reads the untouched page, so it goes first. A resize starting narrow
+    needs a page that first painted narrow, so that journey gets a page of its own."""
+    url = serve(source)
+    page = still_page(browser, url, width=RESIZE_PATH[0])
+    findings = {
+        "at rest": rest_findings(page, source),
+        "closed surfaces": surface_findings(page),
+        "resized from the widest": resize_findings(page, RESIZE_PATH),
+        "typed boxes": typed_box_findings(page),
+        "resized from the narrowest": resize_findings(
+            still_page(browser, url, width=RESIZE_PATH[-1]), RESIZE_PATH[::-1]
+        ),
+    }
+    failed = {journey: found for journey, found in findings.items() if found}
+    assert failed == {}, "\n\n".join(
+        f"{journey}:\n" + "\n".join(found) for journey, found in failed.items()
+    )
 
 
 def test_frame_edges_pass_through_whatever_stands_at_them(browser, serve):
@@ -5059,45 +5101,61 @@ def test_both_drawers_stand_on_the_one_edge_the_user_drew(browser, serve, other_
 def test_the_render_gate_reports_code_the_user_cannot_tell_from_its_block(
     browser, serve
 ):
-    """The syntax reading distinguishes unanswered and faint roles, each painted
-    surface a role appears on, and code rendered into a declared shadow root.
+    """The gate checks native token paint on each background and in shadow roots.
 
-    One fault page gives each mechanism a distinct role, so one public-gate reading
-    attributes all four independently. One control page carries an ordinary block and
-    the shipped diff surface. Population assertions keep either pass from succeeding
-    because the tokenizer or shadow renderer produced nothing."""
+    A theme may use surrounding ink for an italic comment; contrast still catches
+    faint keywords, strings on tinted code lines, and numbers in dark diff lines.
+    Identically styled names on the same background have different inherited inks,
+    so a readable earlier name must not hide the later faint palette override.
+    Population assertions prove every faulty surface was actually tokenized.
+    """
     page = open_page(browser, serve(CODE_FAULT_PAGE))
     population = page.evaluate(
         """() => ({
           document: [...new Set([...document.querySelectorAll('[data-lf-syn]')]
-            .map(span => span.dataset.lfSyn))].sort(),
+            .map(span => span.style.color))].sort(),
           shadow: [...new Set([...document.querySelector('#shadowed').shadowRoot
-            .querySelectorAll('[data-lf-syn]')].map(span => span.dataset.lfSyn))].sort(),
+            .querySelectorAll('[data-lf-syn]')].map(span => span.style.color))].sort(),
+          comment: getComputedStyle(document.querySelector('#snippet [data-lf-syn]')).fontStyle,
+          names: ['#snippet', '#snippet-faint-name'].map(selector => {
+            const block = document.querySelector(selector);
+            const token = [...block.querySelectorAll('[data-lf-syn]')]
+              .find(span => span.textContent === 'ceiling');
+            return {style: token.style.cssText, ink: getComputedStyle(token).color,
+              background: getComputedStyle(block).backgroundColor};
+          }),
         })"""
     )
     page.close()
-    assert {"cm", "kw", "st"} <= set(population["document"]), population
-    assert "nu" in population["shadow"], population
+    assert {"var(--syn-comment)", "var(--syn-keyword)", "var(--syn-string)"} <= set(
+        population["document"]
+    ), population
+    assert "var(--syn-number)" in population["shadow"], population
+    assert population["comment"] == "italic", population
+    readable, faint = population["names"]
+    assert readable["style"] == faint["style"], population
+    assert readable["background"] == faint["background"], population
+    assert readable["ink"] != faint["ink"], population
 
     failures = render_gate_model.render_version(
         browser, serve(CODE_FAULT_PAGE)
     ).failures
-    syntax = [finding for finding in failures if "] code marked " in finding]
+    syntax = [finding for finding in failures if "] code styled " in finding]
     assert failures == syntax, failures
-    assert len(syntax) == 4, failures
-    assert any(
-        finding.startswith("[light] code marked cm is the ink of the code around it")
-        for finding in syntax
-    ), syntax
-    assert any(
-        finding.startswith("[light] code marked kw reads at ") for finding in syntax
-    ), syntax
-    assert any(
-        finding.startswith("[light] code marked st reads at ") for finding in syntax
-    ), syntax
-    assert any(
-        finding.startswith("[dark] code marked nu reads at ") for finding in syntax
-    ), syntax
+    assert len(syntax) == 4, "\n".join(failures)
+    for appearance, color in (
+        ("light", "keyword"),
+        ("light", "string"),
+        ("light", "name"),
+        ("dark", "number"),
+    ):
+        assert any(
+            finding.startswith(
+                f'[{appearance}] code styled "color: var(--syn-{color});'
+            )
+            and "reads at " in finding
+            for finding in syntax
+        ), syntax
 
     page = open_page(browser, serve(CODE_CONTROL_PAGE))
     population = page.evaluate(

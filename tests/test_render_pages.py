@@ -100,7 +100,7 @@ def test_sort_source_follows_the_initial_step_when_code_arrives_later(browser, s
         reduced_motion="reduce", viewport={"width": 1440, "height": 900}
     )
     held = []
-    context.route("**/vendor/highlight.esm.js", lambda route: held.append(route))
+    context.route("**/vendor/syntax.esm.js", lambda route: held.append(route))
     page = open_page(
         browser,
         serve(example),

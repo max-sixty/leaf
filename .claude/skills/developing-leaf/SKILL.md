@@ -184,9 +184,9 @@ idle a preview to quiet the loop; `idle` closes the page in the browser.
 ## Run the agent journey
 
 `uv run --project <root> leaf-dev journey TARGET` runs one user's journey in
-Chrome: on the triage board, it asks through Threads for a heading edit, a
-published revision and a reply, then checks the reply shows and a reload presents
-the revision. It prints how long each step took, the agent's steps on the page
+Chrome: on the triage board, it tells the agent through Threads that a release
+passed its checks and asks it to record that, leaving how to the agent, then checks
+a reply shows and a reload presents a revision naming the release. It prints how long each step took, the agent's steps on the page
 server's clock, so the same journey benchmarks every harness. TARGET is `cc` or
 `codex` for an isolated session of that harness running this working tree's
 plugin, `local` for the website's adapter against the host's Codex login (no

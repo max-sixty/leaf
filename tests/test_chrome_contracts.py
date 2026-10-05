@@ -1244,12 +1244,12 @@ def test_a_thread_news_resolves_stays_where_it_stands_until_the_user_moves_on(
     browser, serve, asked
 ):
     """Under Open, the agent resolving the thread the user is reading used to fold its
-    card away, and every card after it rose. The card stays where it stands, drawn
-    resolved, with Reopen in Resolve's place and face, and the news taking the
-    resolution back draws it open again; the browser fixture's shift watch fails
-    anything that moves. Its summary says Resolved within the same title row, without
-    moving the card below it. The news lands well after the user's last
-    input, past the half second in which Chrome credits a frame to that input.
+    card away, and every card after it rose. The card stays where it stands, drawn as
+    it was, with the resolution behind its notice, and the news taking the resolution
+    back leaves nothing to hold; the browser fixture's shift watch fails anything that
+    moves. Its title stops saying whose turn it is, since nobody's is, without moving
+    the card below it. The news lands well after the user's last input, past the half second in
+    which Chrome credits a frame to that input.
 
     The card leaves the Open list once its going moves nothing the user sees. As the
     open card it stays while they scroll it away, since another card would open in its
@@ -1297,13 +1297,15 @@ def test_a_thread_news_resolves_stays_where_it_stands_until_the_user_moves_on(
         )
         told(page)
         rendered(page)
-        expect(card).to_have_attribute("data-resolved", str(kind == "resolve").lower())
+        expect(card.get_by_role("button", name="Resolved", exact=True)).to_have_count(
+            int(kind == "resolve")
+        )
+        expect(card).to_have_attribute("data-resolved", "false")
         expect(card).to_have_attribute("open", "")
         assert after.bounding_box() == below
-    reopen = card.get_by_role("button", name="Reopen", exact=True)
-    assert reopen.bounding_box() == control
-    expect(status).to_have_text("Resolved")
-    expect(status).to_be_visible()
+    resolve = card.get_by_role("button", name="Resolve thread")
+    assert resolve.bounding_box() == control
+    expect(status).to_have_count(0)
 
     threads = page.locator(".lf-threads")
     threads.hover()
@@ -1360,7 +1362,7 @@ def test_a_news_resolved_card_keeps_its_place_after_an_offscreen_draft_is_cleare
     )
     told(page)
     rendered(page)
-    expect(card).to_have_attribute("data-resolved", "true")
+    expect(card.get_by_role("button", name="Resolved", exact=True)).to_be_visible()
     expect(reply).to_have_js_property("value", words)
     assert after.bounding_box() == below
 
@@ -1400,7 +1402,7 @@ def test_a_news_resolved_card_keeps_its_place_after_an_offscreen_draft_is_cleare
     page.keyboard.press("Backspace")
     rendered(page)
     expect(card).to_be_visible()
-    expect(card).to_have_attribute("data-resolved", "true")
+    expect(card.get_by_role("button", name="Resolved", exact=True)).to_be_visible()
     expect(reply).to_be_visible()
     expect(reply).to_be_focused()
     expect(reply).to_have_js_property("value", "")

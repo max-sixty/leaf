@@ -5563,30 +5563,33 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
     element in the page wearing every private class at once must render exactly as
     its unclassed twin.
 
-    A class some document-level rule also names (the shared vocabulary in chrome.css,
-    or a face the authored theme states) stays off the probe, since the movement that
-    rule causes is the reach it was given on purpose. Which names belong to that
-    vocabulary is chrome.css's to say and review's to judge; this holds the scope."""
+    The chrome sheet reaches the page only through the classes its owner declares
+    shared (`chromeSharedClasses`, runtime/stylesheets.js): a rule written outside the
+    block that names any other class is a private rule leaking out, not a widening.
+    Those classes, and the faces the authored theme states for a private name at
+    document level, stay off the probe, since the movement their rules cause is the
+    reach they were given on purpose."""
     page = open_page(
         browser,
         serve(leaf_page("t", "<h1>t</h1><section id=s><p>words</p></section>")),
     )
     surface = page.evaluate("""async () => {
-        const {chromeSheet: sheet} = await window.__lfRuntimeImport('/runtime/stylesheets.js');
+        const {chromeSheet: sheet, chromeSharedClasses: declared} =
+            await window.__lfRuntimeImport('/runtime/stylesheets.js');
         const classes = sel => [...(sel || "").matchAll(/\\.([A-Za-z0-9_-]+)/g)].map(m => m[1]);
-        const scoped = new Set(), shared = new Set();
+        const scoped = new Set(), unscoped = new Set(), themed = new Set();
         const collect = (rules, into, privateRules = null) => { for (const r of rules) {
             if (r instanceof CSSScopeRule) {
                 if (privateRules) collect(r.cssRules, privateRules, privateRules);
             }
             else if (r.selectorText) classes(r.selectorText).forEach(c => into.add(c));
             else if (r.cssRules) collect(r.cssRules, into, privateRules); } };
-        collect(sheet.cssRules, shared, scoped);
+        collect(sheet.cssRules, unscoped, scoped);
         for (const other of [...document.styleSheets, ...document.adoptedStyleSheets]
                  .filter(s => s !== sheet))
-            collect(other.cssRules, shared);
+            collect(other.cssRules, themed);
         const probe = document.createElement("div"), plain = document.createElement("div");
-        const worn = [...scoped].filter(c => !shared.has(c));
+        const worn = [...scoped].filter(c => !declared.includes(c) && !themed.has(c));
         probe.className = worn.join(" ");
         probe.textContent = plain.textContent = "probe";
         // A block after both, so neither twin stands at the section's edge, where the
@@ -5601,11 +5604,21 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         body.className = "lf-msg-body";
         body.textContent = "Authored thread words";
         document.getElementById("s").append(body);
-        return { worn,
+        return { worn, unscoped: [...unscoped], declared: [...declared],
                  moved: Object.keys(a).filter(p => a[p] !== b[p]),
                  bodySelection: getComputedStyle(body).userSelect,
                  plainSelection: getComputedStyle(plain).userSelect };
     }""")
+    unscoped, declared = set(surface["unscoped"]), set(surface["declared"])
+    assert not unscoped - declared, (
+        "chrome rules outside its @scope block name classes the sheet does not declare "
+        f"shared, so a page element wearing one meets them: {sorted(unscoped - declared)}"
+        " — move the rule into the block, or add the class to chromeSharedClasses"
+    )
+    assert not declared - unscoped, (
+        "chromeSharedClasses declares classes no rule outside the @scope block names: "
+        f"{sorted(declared - unscoped)}"
+    )
     assert surface["worn"], (
         "the probe wears no private class — the @scope block is missing or empty, so "
         "this compares two unclassed twins"

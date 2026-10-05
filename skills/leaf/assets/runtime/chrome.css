@@ -13,7 +13,8 @@
    names do not escape that root. The global vocabulary is deliberately small: shared
    `.lf-ui`, `.lf-btn`, `.lf-outline-chip`, `.lf-key-badge`, `.lf-skip`, the margin
    entries, and the markers the runtime paints on page elements. Adding a global selector widens the
-   widget contract and must be covered by the render suite. Most of that vocabulary is
+   widget contract, so each class one names is declared in `chromeSharedClasses`
+   (stylesheets.js), and the render suite refuses any other. Most of that vocabulary is
    faced in theme.css and shadow.css rather than here, for the reason the block below
    this header gives; what stands globally in this sheet is what has to beat the page.
 

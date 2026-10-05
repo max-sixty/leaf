@@ -199,9 +199,11 @@ customElements.define(
         reveal: (id) => this.#reveal(id),
       });
       this.treeDetails.addEventListener("toggle", () => this.#draw());
-      if (quoted(this)) return;
-      this.previous.addEventListener("click", () => this.#step(-1));
-      this.next.addEventListener("click", () => this.#step(1));
+      if (quoted(this)) {
+        this.previous.disabled = true;
+        this.next.disabled = true;
+        return;
+      }
       this.slider.addEventListener("input", () => {
         this.#navigate(this.#items()[Number(this.slider.value)]?.id ?? null);
       });
@@ -505,12 +507,6 @@ customElements.define(
         !this.#frames().length || !this.#checkpoints().length || quoted(this)
           ? ""
           : null,
-      );
-      keeps(this.previous, "disabled", position <= 0 || quoted(this) ? "" : null);
-      keeps(
-        this.next,
-        "disabled",
-        position >= items.length - 1 || quoted(this) ? "" : null,
       );
       keeps(this.slider, "max", String(Math.max(0, items.length - 1)));
       this.slider.value = String(position);

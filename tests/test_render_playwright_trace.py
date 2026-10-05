@@ -91,6 +91,19 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
         if candidate["id"] == action["id"] and name == "after"
     )
     slider.fill(str(after_index))
+    # Buttons and native activation use the command's single navigation path.
+    # Each gesture must advance exactly once, including at the keyboard.
+    next_button = widget.get_by_role("button", name="Next", exact=True)
+    previous_button = widget.get_by_role("button", name="Previous", exact=True)
+    for activation in ("click", "Enter", "Space"):
+        if activation == "click":
+            next_button.click()
+        else:
+            next_button.focus()
+            user.keyboard.press(activation)
+        expect(slider).to_have_value(str(after_index + 1))
+        previous_button.click()
+        expect(slider).to_have_value(str(after_index))
     phase = action["phases"]["after"]
     image = next(image for image in record["images"] if image["id"] == phase["imageId"])
     stream = next(

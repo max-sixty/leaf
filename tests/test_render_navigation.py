@@ -13296,13 +13296,14 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
 
     Read off the user's list, both the ring and `c` went with the count: the moment the
     remark was sent the ring left from under the user, and `c` fell through from the
-    question to whichever item their focus happened to rest in. That is a different
-    thread, not a shorter way into the same one — a remark on the widget is filed
-    where a remark on the question the widget stands as is not — so the next line of a
+    thread they had started to whichever item their focus happened to rest in. That
+    starts a second thread rather than continuing the first, so the next line of a
     remark landed somewhere the first line was not. The agent's reply moved both back.
     Nothing the user did moved either, which is the whole of the complaint; the reply
     phase here is what says the ring has stopped tracking the count rather than merely
-    tracking it late.
+    tracking it late. `c` names the user's own thread throughout, because its target,
+    the widget, lies within the Ask the user holds (`commentDestination`), and the press
+    lands in that thread's reply box.
 
     A picked group is the control on the other side. It is answered, so it is off both
     readings and must stay off: the switch is about a seat the user is mid-sentence in,
@@ -13370,7 +13371,7 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
     # And with it shut, which is every other reading below.
     page.locator("#shape .lf-settle").focus()
     expect(page.locator("#shape-decision")).to_have_attribute("data-lf-ask", "1")
-    expect(line).to_contain_text("comment on the ask")
+    expect(line).to_contain_text("comment on the thread")
     # The count is completion, not the open walk's position, so focus leaves it stable.
     expect_asks_answered(page, "1/3")
 
@@ -13381,9 +13382,8 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
     #
     # The source is the user's again once the thread in its answer control has
     # been answered.
-    for root in [
-        e["id"] for e in events_model.read_events(d) if e.get("kind") == "comment"
-    ]:
+    roots = [e["id"] for e in events_model.read_events(d) if e.get("kind") == "comment"]
+    for root in roots:
         append_carried_log_record(
             d,
             {
@@ -13400,7 +13400,22 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
     expect_asks_answered(page, "1/3")
     expect(page.locator("#shape .lf-settle")).to_be_focused()
     expect(page.locator("#shape-decision")).to_have_attribute("data-lf-ask", "1")
-    expect(line).to_contain_text("comment on the ask")
+    expect(line).to_contain_text("comment on the thread")
+
+    # And the press means that thread, so the next line joins the one the first line
+    # opened rather than starting another on the Ask or the widget. Whichever surface
+    # draws the thread is the destination's choice; which thread it is is this test's.
+    page.keyboard.press("c")
+    page.wait_for_function(
+        """root => {
+          let at = document.activeElement;
+          while (at?.shadowRoot?.activeElement) at = at.shadowRoot.activeElement;
+          return at?.matches('.lf-thread-reply leaf-text')
+            && at.closest('.lf-page-thread')?.dataset.thread === root;
+        }""",
+        arg=roots[0],
+    )
+    expect(page.locator(".lf-fab-input")).to_be_hidden()
     page.evaluate("() => document.activeElement?.blur()")
 
     # The picked group is the control on the other side: answered, so off both readings,

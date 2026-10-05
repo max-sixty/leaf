@@ -39,7 +39,9 @@ landed on.
 
 Activation records a `reanchor` for every affected open thread, even when no reply
 addresses it. The original message retains its quote; `build_threads` reads the
-latest explicit reply transition or automatic reanchor as the current location.
+latest explicit reply transition or automatic reanchor as the current location, and
+keeps the anchor an automatic reanchor moved off as `rewritten_from` until a reply
+places the thread again, so the panel can go on naming the words that changed.
 Quoted text that the predecessor's file reading cannot resolve, such as words a
 data projection generates, stays with its runtime owner. An automatic transition
 cannot invent a replacement passage or detach a thread: a reply makes those choices.

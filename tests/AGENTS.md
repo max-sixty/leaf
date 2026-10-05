@@ -152,6 +152,12 @@ vendor hard-linked into it; a test of initialization crosses `page init` itself.
 
 ### A process the suite starts ends with the run
 
+Many runs of the suite share one machine, from different worktrees and sessions, each
+with several workers. A process a test leaves running, or one that spends CPU while it
+waits, slows all of them. So a process a test starts ends on every way out of the
+test: when the test passes, fails or is interrupted, and when its worker dies before
+teardown runs.
+
 Take each resource from its owner: a child process from `spawn`, a page server from
 `_no_page_outlives_its_test`, a preview from `preview_slot` and `start_preview`, an
 in-process HTTP server from `running_http_server`, a Unix socket directory from
@@ -159,6 +165,15 @@ in-process HTTP server from `running_http_server`, a Unix socket directory from
 this. A test of a standing server stops it explicitly, and a `Popen` handle alone does
 not own a detached server's tree. A cleanup fixture takes the state home from
 `isolated_session`'s value and sweeps only it and `tmp_path`.
+
+A process that waits for the test blocks reading a pipe the worker holds, as
+`session_process` does. The test releases it by closing the pipe, and the pipe also
+closes when the worker ends, however it ends. Waiting for a file or a state the test
+body has yet to write leaves the process running when the test fails first, and a
+polling loop spends CPU for as long as it waits. End a process by closing its pipe or
+with SIGTERM, not SIGKILL, which gives it no chance to end what it started. To check a
+new held process, make the test fail right after starting it, then confirm with
+`pgrep -fl <tmp_path>` that nothing it started is still running.
 
 ### Reloading is not resetting
 

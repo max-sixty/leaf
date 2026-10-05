@@ -1525,8 +1525,7 @@ def test_hidden_code_copy_controls_do_not_enter_layout(browser, serve):
             )
         ),
     )
-    controls = page.locator(".lf-chrome > .lf-code-copy")
-    expect(controls).to_have_count(100)
+    expect(page.locator("details pre")).to_have_count(100)
     assert (
         page.evaluate(
             """() => [...document.querySelectorAll('.lf-chrome > .lf-code-copy')]
@@ -1534,6 +1533,8 @@ def test_hidden_code_copy_controls_do_not_enter_layout(browser, serve):
         )
         == 0
     )
+    page.locator("summary").click()
+    expect(page.locator(".lf-chrome > .lf-code-copy").first).to_be_visible()
 
 
 @pytest.mark.parametrize("holder", ["disclosure", "tab"])

@@ -9,26 +9,31 @@ opened. Working always names one of them: `leaf task start` writes a `start` eve
 naming the item with the line the banner shows, and the item is in hand, running,
 from then on.
 
-The agent's task is work it owes on a thread, a page widget, or the page as a whole.
-`leaf task open` writes a `task` event, and it stands until a `task_end` gives it one
-outcome, `done`, `failed` or `dropped`, with a detail saying where the result is or
-why there is none, or until a stamped version that names its widget with
-`--completes` ends it `done`, the note citing that version. A reply, a resolution,
-another version, or the end of the session that opened it leaves it open: that is
-what a task adds over a move, which its answer settles. Work that outlasts the turn
-that took it on, such as a worker's build, a CI wait, or a change promised for the
-next version, so stays on the agent's side: an open task holds its thread `waiting`
-(`served_state.browser`), counts under `on_agent` in `page state`, and is named in
-the banner. Work no user move asked for, such as writing or revising the page on the
-agent's own initiative, is a task the agent opens on the page or the widget it
-concerns; housekeeping, such as re-vendoring or restarting the server, owes the user
-nothing and is no item.
+The agent's task is work it owes on a thread, a page widget, an element of the page,
+or the page as a whole. `leaf task open` writes a `task` event, and it stands until a
+`task_end` gives it one outcome, `done`, `failed` or `dropped`, with a detail saying
+where the result is or why there is none, or until a stamped version that names its
+widget with `--completes` ends it `done`, the note citing that version. A reply, a
+resolution, another version, or the end of the session that opened it leaves it
+open: that is what a task adds over a move, which its answer settles. Work that
+outlasts the turn that took it on, such as a worker's build, a CI wait, or a change
+promised for the next version, so stays on the agent's side: an open task holds its
+thread `waiting` (`served_state.browser`), counts under `on_agent` in `page state`,
+and is named in the banner. Work no user move asked for, such as writing or revising
+the page on the agent's own initiative, is a task the agent opens on the page or the
+widget or section it concerns; housekeeping, such as re-vendoring or restarting the
+server, owes the user nothing and is no item.
 
-The user's tasks are read from the document and the threads (`page_tasks`): each
-Ask in the markup is one, under the Ask's id, from the version that adds it, and
-ends `done` when its widget is answered (`asks`); each agent turn in a thread that
-asks the user (`asks.thread_awaits_user`) is one, under that turn's id, and ends at
-the user's answer there. The document starts state, so neither writes an event.
+The user's tasks come from three places, and their owner and subject say how each
+ends. Each Ask in the markup is one, under the Ask's id, from the version that adds
+it, ended `done` when its widget is answered (`asks`); each agent turn in a thread
+that asks the user (`asks.thread_awaits_user`) is one, under that turn's id, ended at
+the user's answer there; the document starts state, so neither writes an event, and
+`page_tasks` reads them. The third is a `task` event the agent writes with `--on
+user`: on a thread it ends at the user's next message there, and anywhere else at the
+user's Done, their own `task_end`, which `undo` takes back. The agent can end any task
+on the user: ending an Ask's retires the Ask, and a question's settles it, since both
+readings take an ended one off the user (`task_ends`).
 
 A start lasts until its item ends: a task's end, or for a move the reply or stamped
 version that answers it (`workflows.canonical_workflows`), and it holds its item
@@ -43,11 +48,13 @@ which reads only the document and the log, sees it as every other reader does. A
 start on a page declared `idle` reopens the page with a bare `waiting` after it,
 which writes no `put_down`.
 
-The door admits a task on an open thread, on a live page widget that declares
-`x-work` or holds an unsettled move (`work.widget_seat_error`), or on the page; a
-start on an open task of the agent's or a move the agent owes. Every reader takes
-the log's tasks from `canonical_tasks`, every task on the page from `page_tasks`, and
-starts from `item_starts`.
+The door admits the agent's task on an open thread, on a live page widget that
+declares `x-work` or holds an unsettled move (`work.widget_seat_error`), on any
+element of the page, or on the page, and a task on the user on any of those, a widget
+needing no seat; a start on an open task of the agent's or a move the agent owes; and
+an end of an open task, the user's only of one on them that no widget answers
+(`task_error`). Every reader takes the log's tasks from `canonical_tasks`, every task
+on the page from `page_tasks` and `ask_tasks`, and starts from `item_starts`.
 
 Not yet: a task whose session has ended reads open until another session ends it.
 
@@ -64,7 +71,6 @@ from .schema import MESSAGE_KINDS
 from .thread_context import thread_names
 
 OUTCOMES = ("done", "failed", "dropped")
-OWNERS = ("agent", "user")
 
 # What `task open` takes for the page as a whole; any other id names a thread, a
 # widget, or an element of the page.

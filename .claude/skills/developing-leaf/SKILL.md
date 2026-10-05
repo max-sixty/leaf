@@ -295,8 +295,7 @@ When a change adds or removes a worked example or changes its first viewport,
 run `wt refresh-previews` from the repository root on macOS once the examples
 are ready, and again after integrating `main` or any later fix that changes a
 first viewport. It pushes the stills to `max-sixty/leaf-assets` and moves the pin
-in `leaf-assets.json` and the README's image URLs; that push is part of the
-authorized change. `uv run leaf-dev record-demo` does the same for the README's
+in `leaf-assets.json` and the README's image URLs. `uv run leaf-dev record-demo` does the same for the README's
 recording and stills and the site's card. Run `wt setup` first in a new checkout;
 if Worktrunk asks to approve the project commands, ask the user to run
 `wt config approvals add`.

@@ -181,7 +181,9 @@ holds no binary files and no large ones. An image a tool in this repository
 reads, such as the demo recording, a catalog preview, an example page's image,
 or an eval case's capture, is published to `max-sixty/leaf-assets` at the path
 its reader looks for it and pinned by `leaf-assets.json`
-(`dev/leaf_dev/leaf_assets.py`). Evidence, such as screenshots, probe
+(`dev/leaf_dev/leaf_assets.py`). Publishing there belongs to the change that
+needs the images and takes no separate approval: it appends a commit and moves
+only this checkout's pin, so no other branch reads a different image. Evidence, such as screenshots, probe
 captures, recordings and raw run output, stays in `.tmp/` and reaches the user
 on a Leaf page; a note keeps the finding and the command that reproduces it,
 not the capture. The suite refuses a binary file, and pre-commit refuses a new

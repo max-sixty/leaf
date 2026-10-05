@@ -9501,11 +9501,10 @@ def test_an_agent_message_edit_updates_the_panel_and_its_inline_thread(browser, 
     )
     told(page)
     panel_thread.get_by_role("button", name="1 new reply", exact=True).click()
-    inline_thread.get_by_role("button", name="1 new reply", exact=True).click()
 
     expect(inline.locator(".lf-msg-body")).to_contain_text("The north bracket fits.")
     expect(panel.locator(".lf-msg-text")).to_contain_text("The north bracket fits.")
-    expect(panel.locator('pre code [data-lf-syn="kw"]').first).to_have_text("def")
+    expect(panel.locator("pre code [data-lf-syn]").first).to_have_text("def")
     # The disclosure is on the head, and a thread's first message lends its head to the
     # card, where the thread's own actions sit beside the author. So the mark belongs to
     # the card holding the message rather than to the message node, on both surfaces.

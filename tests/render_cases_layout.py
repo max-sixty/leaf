@@ -659,15 +659,15 @@ def draw_edge(page, edge, by):
     page.mouse.up()
 
 
-# Enough code for the roles to differ from each other and from the block: a comment, a
+# Enough code for the colors to differ from each other and from the block: a comment, a
 # keyword, a string, a name, a number.
 CODE_BLOCK = """<pre id="snippet"><code class="language-python"># the ceiling doubles per approval
 def ceiling(limit, approvals):
     return "over" if approvals > 12 else limit
 </code></pre>"""
 
-# A role that reads on the block and not on the tint one of its lines wears. The clean
-# line comes first on purpose: a gate that stopped at a role's first span would take that
+# A color that reads on the block and not on the tint one of its lines wears. The clean
+# line comes first on purpose: a gate that stopped at a color's first span would take that
 # line's reading, which clears the threshold, and never reach the one two lines down, and
 # a walkthrough's hi band is the surface where a code line is most often set on something
 # other than --pre-bg.
@@ -677,8 +677,8 @@ second = "on the band"
 </pre></lf-code>"""
 
 # The same reading, in a shadow tree. lf-diff renders the page's words into one, so its
-# spans are in no document.querySelectorAll. The fault page changes only its number role,
-# so that role's finding and the population assertion prove the probe crossed the root.
+# spans are in no document.querySelectorAll. The fault page changes only its number color,
+# so that color's finding and the population assertion prove the probe crossed the root.
 # The token is what goes back rather than a rule: a custom property inherits through the
 # boundary where a selector does not, which is both why this reaches the spans and why a
 # project's own palette reaches them too, gate or no gate.
@@ -694,24 +694,30 @@ diff --git a/gateway/limits.py b/gateway/limits.py
 </pre></lf-diff>"""
 SHADOWED_DIFF = SHADOWED_DIFF_BODY.format(id="shadowed") + "\n</main>"
 
-# These bugs go back as CSS, which is the shape the regressions take for real: the
-# attribute lands either way, and it is the stylesheet answering it that stops working.
-# Each uses a different role, so one public-gate reading still attributes the faults
-# independently. The media query keeps fixed fault colours out of the dark control half.
+# Palette overrides cross native theme spans and shadow boundaries. A comment using
+# the surrounding ink is a valid theme choice; faint keywords, tinted strings and a
+# dark diff's numbers still need contrast findings. The later function name has the
+# same native style and background as its earlier readable control but inherits faint
+# ink. The media query keeps fixed fault colors out of the dark control half.
 CODE_FAULT_PAGE = LONG_PAGE.replace(
     "</head>",
     """<style>
 #shadowed { --syn-number: #1c1b18; }
 @media (prefers-color-scheme: light) {
-  #snippet [data-lf-syn="cm"] { color: inherit; }
-  #snippet [data-lf-syn="kw"] { color: #8b8577; }
+  #snippet { --syn-comment: var(--code-ink); }
+  #snippet { --syn-keyword: #8b8577; }
+  #snippet-faint-name { --syn-name: #8b8577; }
   #tinted { --hi-tint: #6f6a60; }
 }
 </style>
 </head>""",
 ).replace(
     "</main>",
-    CODE_BLOCK + TINTED_CODE + SHADOWED_DIFF_BODY.format(id="shadowed") + "\n</main>",
+    CODE_BLOCK
+    + CODE_BLOCK.replace('id="snippet"', 'id="snippet-faint-name"')
+    + TINTED_CODE
+    + SHADOWED_DIFF_BODY.format(id="shadowed")
+    + "\n</main>",
 )
 
 # The shipped dark comment ink must clear the add-line tint behind it. A large real patch

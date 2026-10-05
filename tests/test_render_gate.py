@@ -5059,45 +5059,61 @@ def test_both_drawers_stand_on_the_one_edge_the_user_drew(browser, serve, other_
 def test_the_render_gate_reports_code_the_user_cannot_tell_from_its_block(
     browser, serve
 ):
-    """The syntax reading distinguishes unanswered and faint roles, each painted
-    surface a role appears on, and code rendered into a declared shadow root.
+    """The gate checks native token paint on each background and in shadow roots.
 
-    One fault page gives each mechanism a distinct role, so one public-gate reading
-    attributes all four independently. One control page carries an ordinary block and
-    the shipped diff surface. Population assertions keep either pass from succeeding
-    because the tokenizer or shadow renderer produced nothing."""
+    A theme may use surrounding ink for an italic comment; contrast still catches
+    faint keywords, strings on tinted code lines, and numbers in dark diff lines.
+    Identically styled names on the same background have different inherited inks,
+    so a readable earlier name must not hide the later faint palette override.
+    Population assertions prove every faulty surface was actually tokenized.
+    """
     page = open_page(browser, serve(CODE_FAULT_PAGE))
     population = page.evaluate(
         """() => ({
           document: [...new Set([...document.querySelectorAll('[data-lf-syn]')]
-            .map(span => span.dataset.lfSyn))].sort(),
+            .map(span => span.style.color))].sort(),
           shadow: [...new Set([...document.querySelector('#shadowed').shadowRoot
-            .querySelectorAll('[data-lf-syn]')].map(span => span.dataset.lfSyn))].sort(),
+            .querySelectorAll('[data-lf-syn]')].map(span => span.style.color))].sort(),
+          comment: getComputedStyle(document.querySelector('#snippet [data-lf-syn]')).fontStyle,
+          names: ['#snippet', '#snippet-faint-name'].map(selector => {
+            const block = document.querySelector(selector);
+            const token = [...block.querySelectorAll('[data-lf-syn]')]
+              .find(span => span.textContent === 'ceiling');
+            return {style: token.style.cssText, ink: getComputedStyle(token).color,
+              background: getComputedStyle(block).backgroundColor};
+          }),
         })"""
     )
     page.close()
-    assert {"cm", "kw", "st"} <= set(population["document"]), population
-    assert "nu" in population["shadow"], population
+    assert {"var(--syn-comment)", "var(--syn-keyword)", "var(--syn-string)"} <= set(
+        population["document"]
+    ), population
+    assert "var(--syn-number)" in population["shadow"], population
+    assert population["comment"] == "italic", population
+    readable, faint = population["names"]
+    assert readable["style"] == faint["style"], population
+    assert readable["background"] == faint["background"], population
+    assert readable["ink"] != faint["ink"], population
 
     failures = render_gate_model.render_version(
         browser, serve(CODE_FAULT_PAGE)
     ).failures
-    syntax = [finding for finding in failures if "] code marked " in finding]
+    syntax = [finding for finding in failures if "] code styled " in finding]
     assert failures == syntax, failures
-    assert len(syntax) == 4, failures
-    assert any(
-        finding.startswith("[light] code marked cm is the ink of the code around it")
-        for finding in syntax
-    ), syntax
-    assert any(
-        finding.startswith("[light] code marked kw reads at ") for finding in syntax
-    ), syntax
-    assert any(
-        finding.startswith("[light] code marked st reads at ") for finding in syntax
-    ), syntax
-    assert any(
-        finding.startswith("[dark] code marked nu reads at ") for finding in syntax
-    ), syntax
+    assert len(syntax) == 4, "\n".join(failures)
+    for appearance, color in (
+        ("light", "keyword"),
+        ("light", "string"),
+        ("light", "name"),
+        ("dark", "number"),
+    ):
+        assert any(
+            finding.startswith(
+                f'[{appearance}] code styled "color: var(--syn-{color});'
+            )
+            and "reads at " in finding
+            for finding in syntax
+        ), syntax
 
     page = open_page(browser, serve(CODE_CONTROL_PAGE))
     population = page.evaluate(

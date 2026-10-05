@@ -47,8 +47,11 @@ export const workflowTitle = (workflow) => {
   return [label, workflow.detail].filter(Boolean).join(" · ");
 };
 
-export const isLiveWorkflow = (workflow) =>
-  !workflow.condition && ["working", "replying"].includes(workflow.stage);
+// Whether the agent is at work on a move: the stage `served_state.browser.at_work`
+// reads the same way, whatever the move's condition.
+export const atWork = (workflow) => ["working", "replying"].includes(workflow.stage);
+
+export const isLiveWorkflow = (workflow) => !workflow.condition && atWork(workflow);
 
 export const isWorkflowProgress = (workflow) =>
   !workflow.condition && ["picked_up", "working", "replying"].includes(workflow.stage);

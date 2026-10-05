@@ -2849,12 +2849,12 @@ def test_a_rejected_streamed_reply_still_releases_its_website_turn(page_dir):
 
 
 @pytest.mark.parametrize(
-    ("read_elsewhere", "reopen"),
-    [(False, "click"), (False, "r"), (False, "Enter"), (True, None)],
-    ids=["click", "card-r", "card-enter", "elsewhere"],
+    ("read_elsewhere", "reveal"),
+    [(False, "click"), (False, "arrive"), (True, None)],
+    ids=["click", "arrive", "elsewhere"],
 )
 def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
-    browser, serve, read_elsewhere, reopen
+    browser, serve, read_elsewhere, reveal
 ):
     """A resolve during a turn cannot hide its completed answer from Open Threads.
 
@@ -2935,14 +2935,14 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
             for event in read_events(page_dir)
             if event["kind"] == "reply" and event["parent"] == comment["id"]
         )
-        if reopen == "click":
+        if reveal == "click":
             assert verify_site.wait_for_visible_reply(page, comment["id"], answer_id)
         else:
+            # Choosing the thread's title is an arrival, which shows what it holds.
             title = thread.locator(":scope > .lf-thread-summary")
-            title.focus()
+            title.click()
             expect(title).to_be_focused()
             expect(thread).to_have_attribute("open", "")
-            page.keyboard.press(reopen)
         expect(news).to_have_count(0)
         page.wait_for_function(
             "window.__leafVerifier.visibleReplyRecorded", arg=answer_id

@@ -352,8 +352,13 @@ export class HeldNews {
       .filter(({ key }) => !this.#threads.has(key))
       .map((thread) => {
         const was = drawn.get(thread.key);
+        // A card the reading takes off the screen, or one already leaving it, shows
+        // nothing for news to move.
+        const shown = thread.visible !== false && !thread.folding;
         const held =
-          was && !this.#released.has(thread.key) ? difference(was, thread) : null;
+          was && shown && !this.#released.has(thread.key)
+            ? difference(was, thread)
+            : null;
         if (!held || gestured(thread.key) || !this.#moves(thread.key, held))
           return { ...thread, news: null };
         this.#holds.add(thread.key);

@@ -164,6 +164,7 @@ def page_locked(page_dir: Path):
     try:
         yield
     finally:
+        fcntl.flock(held, fcntl.LOCK_UN)
         os.close(held)
 
 

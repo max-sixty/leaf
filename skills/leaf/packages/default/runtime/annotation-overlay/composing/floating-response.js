@@ -1,39 +1,36 @@
 /* Floating presentation of the one native response bar.
 
-   Composition owns the gesture's anchor, origin, pointed row and native editor seat.
-   This selected presentation reads that live response and owns only its physical
-   placement: card sizing, collision geometry, off-flow reveals and withholding when
-   the usable window has no room. No second anchor or editor is captured here.
-   While its passage is offscreen, the editor keeps its attached width as a cap so
-   moving into the window does not reflow its controls; a narrower window can shrink it.
-   An inline seat suspends this placement; restoring the default home resumes it. */
+   Composition owns its durable target and native editor. This owner chooses its initial
+   side, measure and CSS attachment. While editing, the browser carries that attachment
+   through every ancestor scroll; generic repaint and scroll publications do not solve
+   another position. Target or field resize, viewport resize and declared layout
+   changes invalidate the attachment. Replacing its target or native seat retires it. The compact response strip retains ordinary
+   collision placement and scroll observation.
+
+   An editing field follows its passage out of view. The existing Resume writing route
+   reveals that same field; no window seat or duplicate input stands in for it. */
 import { cancelRender, nextRender } from "/runtime/rendering.js";
 import { resolveAnchor } from "/runtime/anchor-resolution.js";
 import { sameAnchor } from "/runtime/anchor-coordinate.js";
 import { declareOffFlowSurface } from "/runtime/off-flow.js";
-import {
-  clippedContents,
-  clippedRect,
-  pagePlaneRect,
-  shownBox,
-  skipped,
-} from "/runtime/geometry.js";
+import { shownBox } from "/runtime/geometry.js";
 import {
   passageGeometry,
   rangeGeometry,
   targetElement,
   targetParts,
-  targetSegments,
+  targetRange,
 } from "/runtime/resolved-target.js";
 import { pageRange, pageText } from "/runtime/passages.js";
 import { pageSelection, selectionAnchor } from "/runtime/composing/capture.js";
 import { holdFocus } from "/runtime/focus.js";
 import { coarsePointer } from "/runtime/pointer.js";
-import { overlaps, union } from "/runtime/rect.js";
+import { LAYOUT } from "/runtime/widget-elements.js";
+import { under } from "/runtime/shadow.js";
+import { union } from "/runtime/rect.js";
 import { shownRegionBounds } from "/runtime/reading-regions.js";
 import { floatingPlacement, floatingUi } from "../floating.js";
 import {
-  cardMinimum,
   commentAttachment,
   commentBoundary,
   commentPlacement,
@@ -53,6 +50,7 @@ export function createFloatingResponsePlacement({
   dismiss,
   standsIn,
   scrollToElement,
+  scrollToRange,
 }) {
   const floatBoundary = (region = null) =>
     commentBoundary({ region, right: panel.open ? panel.offsetLeft : Infinity });
@@ -69,7 +67,7 @@ export function createFloatingResponsePlacement({
     update: () => scheduleFabPosition(),
   });
   let fabContentHeight = null;
-  let unanchoredWidth = null;
+  let nativeAttachment = false;
   const fabFrameAt = () =>
     response.open && response.floating && !panelIsOpen()
       ? {
@@ -101,19 +99,19 @@ export function createFloatingResponsePlacement({
     );
   };
 
-  // One lifecycle for the one floating surface. Floating UI observes the target's scroll,
-  // resize, layout shift, and the bar's own content size. Leaf's explicit layout signals
-  // still call placeFab because a document revision can replace the semantic target rather
-  // than merely move its old node.
+  // The editing observer reports size changes only: CSS anchors own scroll following.
+  // A compact strip still observes scroll and layout shifts. Explicit publication may
+  // replace a target or editor seat; composition stops this owner for that handoff.
   // Native-seat readiness belongs to composition; stopping this presenter retires
   // only its observers and geometry, never a handoff waiting for an inline seat.
   function stopFabPositioning({ reset = false } = {}) {
+    nativeAttachment = false;
+    fabBar.style.removeProperty("height");
     fabPosition.stop();
     cancelRender(fabPositionFrame);
     fabPositionFrame = 0;
     fabContentHeight = null;
     if (!reset) return;
-    unanchoredWidth = null;
     fabPlacement.forget();
     fabBar.removeAttribute("data-lf-placement");
     for (const property of ["--lf-float-w", "--lf-float-h"])
@@ -129,13 +127,34 @@ export function createFloatingResponsePlacement({
     });
   }
 
+  let observationModes = null;
   function watchFabPosition(target, autoUpdate) {
     const reference = {
       contextElement: response.pointIn(target) ?? target,
       getBoundingClientRect: () =>
         anchorGeometry(response.anchor)?.box ?? target.getBoundingClientRect(),
     };
-    fabPosition.watch(target, reference, autoUpdate);
+    if (!observationModes) {
+      observationModes = {
+        editing: (reference, floating, update) =>
+          autoUpdate(
+            reference,
+            floating,
+            () => {
+              nativeAttachment = false;
+              update();
+            },
+            { ancestorScroll: !fabPosition.nativeAvailable(), layoutShift: false },
+          ),
+        compact: autoUpdate,
+      };
+    }
+    const observes = observationModes;
+    fabPosition.watch(
+      target,
+      reference,
+      response.open ? observes.editing : observes.compact,
+    );
   }
   // A visual's durable anchor is also the geometry authority. Resolve it again after a
   // reflow instead of remembering where the pointer happened to land; what a pointing
@@ -145,8 +164,10 @@ export function createFloatingResponsePlacement({
     if (anchor?.quote) {
       const selection = pageSelection();
       const current = selection ? selectionAnchor(selection) : null;
-      if (current && sameAnchor(anchor, current))
-        return rangeGeometry(pageRange(selection));
+      if (current && sameAnchor(anchor, current)) {
+        const range = pageRange(selection);
+        return rangeGeometry(range);
+      }
       // Entering the compact field deliberately collapses the browser selection after
       // its durable passage has been captured. Resolve that passage again so layout can
       // keep the field beside it; an ordinary selection collapse still returns null and
@@ -161,14 +182,11 @@ export function createFloatingResponsePlacement({
     if (!anchor || !standsIn(anchor, found)) return null;
     const words = anchor.quote ? passageGeometry(found) : null;
     if (words) return words;
-    // In the page's plane, as the quoted words above are: the page's own boxes cut it (a
-    // pane or a board scrolled past it), and the window does not, so an item the user
-    // scrolls off screen still has an attachment box. `placeFab` reads whether that
-    // attachment is visible before choosing page or window placement.
-    const clips = new Map();
+    // The full authored box supplies the attachment even when an ancestor clips it.
+    // Its visibility is presentation, and cannot make Resume writing reject the target.
     const box = union(
       targetParts(found)
-        .map((part) => pagePlaneRect(shownBox(part), part, clips))
+        .map((part) => shownBox(part))
         .filter(Boolean),
     );
     // A pointed row is small enough to stand by whole. An element has no passage
@@ -177,49 +195,36 @@ export function createFloatingResponsePlacement({
     const elementBox = point
       ? pointBand(union(targetParts(found).map((part) => shownBox(part))), point)
       : box;
-    return elementBox ? { box: elementBox, attachment: null } : null;
+    return elementBox
+      ? {
+          box: elementBox,
+          attachment: null,
+          contextNode: point ?? targetElement(found),
+        }
+      : null;
   }
   // The passage remains the exact anchor, but its resolved place is not spare space: a
   // short selection cannot lend the words around it to the response field. Keep the bar
   // beside that whole place, or above/below it when the rail is too narrow.
   function placeFab() {
     if (!response.anchor) return false;
+    if (response.open && nativeAttachment) return true;
     const geometry = anchorGeometry(response.anchor);
     const target = geometry?.box;
     const owner = response.target;
-    // An open editor stays in front of its writer. Its subject still owns the draft
-    // when a resize, disclosure or scroll removes the subject's visible box; only its
-    // placement becomes unanchored, in the window, until that box returns.
-    const clips = new Map();
-    const visible =
-      target &&
-      owner &&
-      !skipped(owner) &&
-      (response.anchor.quote
-        ? clippedContents(target, owner, clips)
-        : clippedRect(target, owner, clips));
+    if (!target) return false;
     const windowBoundary = floatBoundary();
-    const unanchored = Boolean(
-      response.open && owner && !(visible && overlaps(visible, windowBoundary)),
-    );
-    if (unanchored) {
-      unanchoredWidth ??= fabBar.getBoundingClientRect().width || null;
-    } else {
-      unanchoredWidth = null;
-    }
-    if (!target && !unanchored) return false;
     const place = commentAttachment({
       target: owner,
       point: response.anchor.quote ? null : response.pointIn(owner),
       passage: geometry,
     });
-    const boundary =
-      !unanchored && place.region
-        ? floatBoundary(shownRegionBounds(place.region))
-        : windowBoundary;
+    const boundary = place.region
+      ? floatBoundary(shownRegionBounds(place.region))
+      : windowBoundary;
     if (boundary.width <= 0 || boundary.height <= 0) return false;
-    const roomRect = unanchored ? null : place.extent;
-    const keepClear = unanchored ? null : place.clear;
+    const roomRect = place.extent;
+    const keepClear = place.clear;
     const scroller = place.scroller;
     const verticalRoom = (side) =>
       reachableRoom(side, roomRect, boundary, scroller).reachable;
@@ -228,10 +233,7 @@ export function createFloatingResponsePlacement({
     // side narrower than the bar's minimum, use the whole boundary and let shift overlap
     // the target instead of silently moving the draft.
     const setWidth = (available, scale) => {
-      // Leaving the passage does not give the user's editor a new measure.
-      const room = unanchoredWidth
-        ? Math.min(available, unanchoredWidth / scale)
-        : available;
+      const room = available;
       fabBar.style.setProperty("--lf-float-w", layoutPx(Math.max(0, room)));
       if (Math.ceil(fabBar.offsetWidth) > Math.ceil(room))
         fabBar.style.setProperty(
@@ -245,7 +247,7 @@ export function createFloatingResponsePlacement({
     const vertical = (side) => /^(top|bottom)$/.test(side);
     const setHeight = (side, scale) => {
       if (!response.open) return;
-      const room = !unanchored && vertical(side) ? verticalRoom(side) : boundary.height;
+      const room = vertical(side) ? verticalRoom(side) : boundary.height;
       const height =
         nativeFrameSize().reservedHeight > Math.round(room / scale)
           ? boundary.height
@@ -256,7 +258,6 @@ export function createFloatingResponsePlacement({
       clear: keepClear,
       extent: roomRect,
       boundary,
-      minimumWidth: cardMinimum(),
       scroller,
       coarse: coarsePointer.matches,
     });
@@ -273,9 +274,8 @@ export function createFloatingResponsePlacement({
           clear: keepClear,
           row: place.row,
           column: place.column,
-          margin: !unanchored && place.margin,
+          margin: place.margin,
           boundary,
-          minimumWidth: cardMinimum(),
           fit({ side: placed, width, scale }) {
             if (!stillCurrent()) return;
             setWidth(width, scale.x);
@@ -304,7 +304,6 @@ export function createFloatingResponsePlacement({
               Math.abs(contentHeight - fabContentHeight) > 0.5;
             fabContentHeight = contentHeight;
             if (
-              !unanchored &&
               vertical(placed) &&
               contentChanged &&
               makeRoom(placed, keepClear, roomRect, height, boundary, scroller)
@@ -320,10 +319,11 @@ export function createFloatingResponsePlacement({
           ui.computePosition,
           {
             contextElement: owner ?? document.documentElement,
+            contextNode: place.contextNode,
             getBoundingClientRect: () => reference,
           },
           { placement, middleware },
-          plane,
+          response.open ? () => "page" : plane,
           owner ?? document.documentElement,
         );
       })
@@ -331,7 +331,11 @@ export function createFloatingResponsePlacement({
         if (!position || !stillCurrent()) return;
         fabPlacement.landed(position);
         keeps(fabBar, "data-lf-placement", position.placement);
+        // An auto-height absolute box borrows its inset-modified available height.
+        // Intrinsic sizing keeps moving that inset from masquerading as content resize.
+        fabBar.style.height = response.open ? "max-content" : "";
         fabPosition.stand(position);
+        nativeAttachment = response.open && fabPosition.follows();
         fabBar.style.removeProperty("visibility");
         positioned(true);
         stoodAgain();
@@ -369,6 +373,13 @@ export function createFloatingResponsePlacement({
     returning?.();
   }
   function mount() {
+    // Widgets declare moves inside a stable outer box here. Scroll has its own
+    // mechanical owner and never emits this geometry-invalidating publication.
+    document.addEventListener(LAYOUT, (event) => {
+      if (!response.anchor || !under(response.target, event.target)) return;
+      nativeAttachment = false;
+      scheduleFabPosition();
+    });
     // Floating, the box is carried away with its passage and comes back with it, by the
     // passage's first line, which a block taller than the window would not bring back;
     // inline, it is in flow and the browser's own reveals reach it.
@@ -377,14 +388,16 @@ export function createFloatingResponsePlacement({
       away: () => fabWithheld,
       bringBack: (behavior) => {
         const found = resolveAnchor(response.anchor, pageText());
-        const start = response.anchor.quote && found && targetSegments(found)[0]?.node;
+        const range = response.anchor.quote && targetRange(found);
+        if (range) return scrollToRange(range, behavior);
         const target = response.target;
-        const line = start?.parentElement ?? response.pointIn(target) ?? target;
+        const line = response.pointIn(target) ?? target;
         if (line) scrollToElement(line, behavior, "nearest");
       },
     });
   }
   return {
+    holdsHome: fabPosition.holdsHome,
     place: placeFab,
     stop: stopFabPositioning,
     frame: fabFrameAt,

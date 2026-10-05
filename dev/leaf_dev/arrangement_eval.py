@@ -2,12 +2,14 @@
 
 Leaf and ordinary HTML receive the same task and revision request. Each sample
 contains only its selected condition; the HTML child sees no Leaf payload,
-instructions or runtime. CC and Codex authors use the shared host interface;
-fresh fixed Claude judges receive only neutral screenshots and the user request.
-Rendered validity and judge evidence establish execution. Separate output-quality
-assertions measure completion, readability and usable decisions. Leaf also seeds
-a choice after the common comparison, asks a fresh reader for its current state,
-and checks that a separate resumed revision preserves that choice.
+instructions or runtime. CC and Codex authors use the shared harness interface.
+
+The sample's output is what a judge needs: the user's request and each version's
+screenshots by width, written to `shots`, the one directory its judge may read.
+`rubrics` are the Promptfoo `agent-rubric` assertions the judge grades from it by
+opening the screenshots; the fixed checks cover execution and the render gate.
+Leaf also seeds a choice after the common comparison, asks a fresh reader for its
+current state, and checks that a separate resumed revision preserves that choice.
 """
 
 import json
@@ -21,8 +23,7 @@ from leaf.render_checks import rendered
 from leaf.structure import SourceDocument
 
 from leaf_dev import ROOT, arrangement_plain
-from leaf_dev.browser import chrome, load, settle, tab
-from leaf_dev.harness import (
+from leaf_dev.arms import (
     blocks,
     completed,
     observed_sum,
@@ -32,12 +33,13 @@ from leaf_dev.harness import (
     serving,
     token_counts,
 )
-from leaf_dev.harness import trace_result as result
+from leaf_dev.arms import trace_result as result
+from leaf_dev.browser import chrome, load, settle, tab
+from leaf_dev.usability_eval import admit
 
 TASKS = ROOT / "evals"
 CASES = ("document", "dashboard", "queue")
 PHASES = (1, 2)
-MODEL = "claude-opus-5-5"
 WIDTHS = {
     "laptop": ((1440, 900), "a 1440px laptop window"),
     "narrow": ((900, 900), "a 900px window"),
@@ -65,31 +67,13 @@ VOCAB = {
 }
 
 
-def claude(
-    prompt: str, cwd: Path, out: Path, err: Path, *, tools, dirs, env=None, resume=None
-):
-    """Run one isolated Claude turn and retain its complete trace."""
-    return run_agent(
-        cwd,
-        prompt,
-        "--model",
-        MODEL,
-        "--tools",
-        tools,
-        *(("--resume", resume) if resume else ()),
-        out=out,
-        err=err,
-        dirs=dirs,
-        env=env,
-    )
-
-
 @dataclass(frozen=True)
 class Run:
     subject: str
     payload: Path
     directory: Path
-    host: str = "cc"
+    shots: Path
+    harness: str = "cc"
     condition: str = "leaf"
 
     @property
@@ -150,7 +134,7 @@ Do not start an agent feedback watcher or wait for input. Reply with its path.
 
 
 def author(run: Run, cwd: Path) -> None:
-    """Author and revise with the same host session, preserving the initial page."""
+    """Author and revise with the same harness session, preserving the initial page."""
     cwd.mkdir(parents=True, exist_ok=True)
     (run.directory / "work-dir").write_text(str(cwd))
     run.state.mkdir(parents=True)
@@ -168,13 +152,11 @@ def author(run: Run, cwd: Path) -> None:
             if run.condition == "leaf"
             else {}
         ),
-        "host": run.host,
+        "harness": run.harness,
     }
     first = run_agent(
         cwd,
         prompts[0],
-        "--model",
-        MODEL,
         out=run.directory / "stream-1.jsonl",
         err=run.directory / "err-1.txt",
         **child,
@@ -190,8 +172,6 @@ def author(run: Run, cwd: Path) -> None:
         second = run_agent(
             cwd,
             prompts[1],
-            "--model",
-            MODEL,
             "--resume",
             session,
             out=run.directory / "stream-2.jsonl",
@@ -222,8 +202,6 @@ def author(run: Run, cwd: Path) -> None:
         run_agent(
             cwd,
             continuation,
-            "--model",
-            MODEL,
             "--resume",
             result(second)["session_id"],
             out=run.directory / "stream-3.jsonl",
@@ -239,8 +217,6 @@ def author(run: Run, cwd: Path) -> None:
 
 def seed_and_read_choice(run: Run) -> None:
     """Admit a real user choice, then read it without the author's conversation."""
-    from leaf_dev.usability_eval import admit
-
     page = run.authored_page
     record = {"seeded": False}
     elements = SourceDocument((page / "index.html").read_text()).lf_elements
@@ -289,8 +265,6 @@ def seed_and_read_choice(run: Run) -> None:
             trace = run_agent(
                 Path(temporary),
                 prompt,
-                "--model",
-                MODEL,
                 out=destination / "stream.jsonl",
                 err=destination / "err.txt",
                 dirs=[run.payload, page],
@@ -298,7 +272,7 @@ def seed_and_read_choice(run: Run) -> None:
                     "LEAF": str(run.payload / "bin/leaf"),
                     "XDG_STATE_HOME": str(run.state),
                 },
-                host=run.host,
+                harness=run.harness,
             )
         raw = result(trace).get("result", "")
         match = re.search(r"\{.*\}", raw, re.DOTALL)
@@ -409,35 +383,6 @@ def page_scores(page: Path) -> dict:
     }
 
 
-def review_prompt(subject: str, captures: list[str], phase: int) -> str:
-    request = (TASKS / subject / "request.md").read_text()
-    revised = (
-        f"\nStanding preference added after the first version:\n{PREFERENCE}"
-        if phase >= 2
-        else ""
-    )
-    return f"""Review a page built for this request, judging only what a user sees.
-
-<request>
-{request}
-</request>
-{revised}
-
-Read every screenshot with Read before judging. Each width's screenshots run top
-to bottom with overlap. Fixed viewer controls, if present, are outside the page's
-content. A region with its own scroll shows only its first screen here.
-
-{chr(10).join(captures)}
-
-Judge whether the page preserves the task's substantive information, lets the user
-find and read the evidence, and provides the decisions or navigation the task needs
-at each width. For phase two also check the standing width preference. Report only
-visible defects; do not infer interaction behavior from an unoperated screenshot.
-Reply only with JSON:
-{{"task_complete": true|false, "readable": true|false, "usable": true|false,
-"preference": true|false, "defects": ["…"], "reasons": ["…"]}}"""
-
-
 def gate(run: Run, phase: int, page: Path) -> dict:
     """Independently check the authored page, retaining the check's output."""
     if run.condition == "html":
@@ -449,14 +394,15 @@ def gate(run: Run, phase: int, page: Path) -> dict:
     return reading
 
 
-def capture_phase(run: Run, phase: int, page: Path | None = None) -> list[str]:
-    """Capture one authored or later trajectory phase with the same browser reader."""
-    shots = run.directory / "shots"
-    shots.mkdir(exist_ok=True)
+def capture_phase(
+    run: Run, phase: int, page: Path | None = None
+) -> dict[str, list[str]]:
+    """Screenshot one version at each width, top to bottom, keyed by width."""
+    run.shots.mkdir(parents=True, exist_ok=True)
+    captures = {name: [] for name in WIDTHS}
     page = page or run.page(phase)
     if page is None:
-        return []
-    captures = []
+        return captures
     server = (
         arrangement_plain.serving(page)
         if run.condition == "html"
@@ -479,107 +425,72 @@ def capture_phase(run: Run, phase: int, page: Path | None = None) -> list[str]:
                     else:
                         rendered(view)
                         settle(view)
-                    path = shots / f"p{phase}-{name}-{index}.png"
+                    path = run.shots / f"p{phase}-{name}-{index}.png"
                     view.screenshot(path=path)
-                    captures.append(str(path))
+                    captures[name].append(str(path))
     return captures
 
 
-def capture(run: Run) -> dict[int, list[str]]:
+def capture(run: Run) -> dict[int, dict[str, list[str]]]:
     """Capture the initial and width-revised page phases."""
     return {phase: capture_phase(run, phase) for phase in PHASES}
 
 
-def stage(run: Run, phase: int, side: str, into: Path) -> tuple[list[str], set[str]]:
-    """Stage captures under neutral names, with no source or arm names nearby."""
-    lines, expected = [], set()
+def listing(captures: dict[str, list[str]]) -> list[str]:
+    """A version's screenshot paths as the judge reads them, by width."""
+    lines = []
     for name, (_, label) in WIDTHS.items():
-        files = sorted(
-            (run.directory / "shots").glob(f"p{phase}-{name}-*.png"),
-            key=lambda file: int(file.stem.rsplit("-", 1)[1]),
-        )
         lines.append(f"  On {label}, top to bottom:")
-        for index, source in enumerate(files):
-            target = into / f"{side}-{name}-{index}.png"
-            shutil.copyfile(source, target)
-            lines.append(f"    {target}")
-            expected.add(target.name)
-    return lines, expected
+        lines += [f"    {path}" for path in captures[name]]
+    return lines
 
 
-def capture_reads(trace: list[dict]) -> set[str]:
-    """Capture filenames whose Read call returned nonempty successful output."""
-    content = list(blocks(trace))
-    successful = {
-        block["tool_use_id"]
-        for block in content
-        if block.get("type") == "tool_result"
-        and not block.get("is_error", False)
-        and block.get("content")
-    }
-    return {
-        Path(block["input"]["file_path"]).name
-        for block in content
-        if block.get("type") == "tool_use"
-        and block.get("name") == "Read"
-        and block["id"] in successful
-    }
+def brief(subject: str, captures: dict[int, dict[str, list[str]]]) -> str:
+    """What the judge reads: the request, the later preference, each version's screenshots."""
+    lines = [
+        f"<request>\n{(TASKS / subject / 'request.md').read_text()}</request>",
+        "",
+        f"After version 1, the user added a standing preference: {PREFERENCE}",
+    ]
+    for phase in PHASES:
+        lines += ["", f"Version {phase} screenshots:", *listing(captures[phase])]
+    return "\n".join(lines)
 
 
-def valid_verdict(value, phase: int) -> bool:
-    """A verdict must separately declare every requested quality judgment."""
-    return (
-        isinstance(value, dict)
-        and all(
-            type(value.get(key)) is bool
-            for key in ("task_complete", "readable", "usable", "preference")
-        )
-        and isinstance(value.get("defects"), list)
-        and isinstance(value.get("reasons"), list)
-        and bool(value["reasons"])
-    )
+JUDGING = (
+    "Open every screenshot the output lists for version {phase} before judging. "
+    "Each width's screenshots run top to bottom with overlap. Fixed viewer "
+    "controls are outside the page's content, and a region with its own "
+    "scroll shows only its first screen. Judge only what a user sees; don't infer "
+    "interaction behavior from an unoperated screenshot. "
+)
 
 
-def judge_output(run: Run, phase: int, directory: Path) -> dict:
-    """A fresh, fixed judge receives neutral captures without author context."""
-    directory.mkdir(parents=True)
-    with tempfile.TemporaryDirectory(prefix="leaf-output-judge-") as temporary:
-        cwd, shots = Path(temporary) / "cwd", Path(temporary) / "shots"
-        cwd.mkdir()
-        shots.mkdir()
-        captures, expected = stage(run, phase, "page", shots)
-        prompt = review_prompt(run.subject, captures, phase)
-        (directory / "prompt.txt").write_text(prompt)
-        trace = claude(
-            prompt,
-            cwd,
-            directory / "stream.jsonl",
-            directory / "err.txt",
-            tools="Read",
-            dirs=[shots],
-        )
-    answer = result(trace)
-    raw = answer.get("result", "")
-    found = re.search(r"\{.*\}", raw, re.DOTALL)
-    try:
-        verdict = json.loads(found[0]) if found else None
-    except json.JSONDecodeError:
-        verdict = None
-    unread = sorted(expected - capture_reads(trace))
-    record = {
-        "phase": phase,
-        "completed": completed(trace),
-        "captures_read": bool(expected) and not unread,
-        "valid_verdict": valid_verdict(verdict, phase),
-        "unread": unread,
-        "verdict": verdict,
-        "raw": raw,
-        "cost_usd": answer.get("total_cost_usd"),
-        "cost_known": answer.get("total_cost_usd") is not None,
-        "trace": str(directory / "stream.jsonl"),
-    }
-    (directory / "verdict.json").write_text(json.dumps(record, indent=2))
-    return record
+def rubrics(scenario: str) -> list[dict]:
+    """The judged quality of each version, and of the revision against the preference.
+
+    Splitting quality into separate verdicts would have the judge read every
+    screenshot once per verdict; its reason names what failed."""
+    return [
+        *(
+            {
+                "type": "agent-rubric",
+                "metric": f"phase-{phase}-quality",
+                "value": JUDGING.format(phase=phase)
+                + f"Pass only if, at every width, version {phase} keeps the request's "
+                "substantive information, lets the user find and read the evidence, and "
+                "provides the decisions or navigation the request needs.",
+            }
+            for phase in PHASES
+        ),
+        {
+            "type": "agent-rubric",
+            "metric": "phase-2-preference",
+            "value": JUDGING.format(phase=2)
+            + "Pass only if version 2 follows the standing width preference the "
+            "output quotes.",
+        },
+    ]
 
 
 def expected_checks(case: str, *, condition="leaf") -> list[str]:
@@ -591,20 +502,8 @@ def expected_checks(case: str, *, condition="leaf") -> list[str]:
         *(
             f"phase-{phase}-{check}"
             for phase in PHASES
-            for check in (
-                "completed",
-                "page",
-                "render",
-                "captures",
-                "judge-completed",
-                "captures-read",
-                "valid-verdict",
-                "task-complete",
-                "readable",
-                "usable",
-            )
+            for check in ("completed", "page", "render", "captures")
         ),
-        "phase-2-preference",
         *(
             [
                 "choice-seeded",
@@ -622,20 +521,17 @@ def expected_checks(case: str, *, condition="leaf") -> list[str]:
 
 
 def execute_scenario(
-    case: str, payload: Path, work: Path, *, host="cc", condition="leaf"
+    case: str, payload: Path, work: Path, *, shots: Path, harness="cc", condition="leaf"
 ) -> dict:
     """Execute only the selected condition; Promptfoo owns the condition matrix."""
-    if condition not in ("leaf", "html"):
-        raise ValueError(f"Unknown condition: {condition}")
     work.mkdir(parents=True, exist_ok=True)
     checks = dict.fromkeys(expected_checks(case, condition=condition), False)
-    run = Run(case, payload, work, host, condition)
+    run = Run(case, payload, work, shots, harness, condition)
     diagnostics = {
         "subject": case,
-        "host": host,
+        "harness": harness,
         "condition": condition,
         "phases": {},
-        "judgments": [],
     }
     costs = []
     with tempfile.TemporaryDirectory(prefix="leaf-author-") as temporary:
@@ -691,13 +587,7 @@ def execute_scenario(
             checks[f"phase-{phase}-completed"] = bool(trace.get("completed"))
             page = run.page(phase)
             checks[f"phase-{phase}-page"] = page is not None
-            checks[f"phase-{phase}-captures"] = all(
-                any(
-                    Path(path).name.startswith(f"p{phase}-{width}-")
-                    for path in captures[phase]
-                )
-                for width in WIDTHS
-            )
+            checks[f"phase-{phase}-captures"] = all(captures[phase].values())
             row = {"trace": trace, "captures": captures[phase]}
             if page:
                 reading = gate(run, phase, page)
@@ -708,33 +598,9 @@ def execute_scenario(
                     "gate": reading,
                 }
             diagnostics["phases"][phase] = row
-            if not checks[f"phase-{phase}-captures"]:
-                continue
-            record = judge_output(run, phase, work / "judges" / f"phase-{phase}")
-            costs.append(record["cost_usd"])
-            for check, field in (
-                ("judge-completed", "completed"),
-                ("captures-read", "captures_read"),
-                ("valid-verdict", "valid_verdict"),
-            ):
-                checks[f"phase-{phase}-{check}"] = record[field]
-            if (
-                record["completed"]
-                and record["captures_read"]
-                and record["valid_verdict"]
-            ):
-                for check, field in (
-                    ("task-complete", "task_complete"),
-                    ("readable", "readable"),
-                    ("usable", "usable"),
-                ):
-                    checks[f"phase-{phase}-{check}"] = record["verdict"][field]
-                if phase == 2:
-                    checks["phase-2-preference"] = record["verdict"]["preference"]
-            diagnostics["judgments"].append(record)
     checks["completed"] = all(checks[f"phase-{phase}-completed"] for phase in PHASES)
     return {
-        "output": json.dumps(diagnostics),
+        "output": brief(case, captures),
         "metadata": {"checks": checks, "diagnostics": diagnostics},
         **({"cost": cost} if (cost := observed_sum(costs)) is not None else {}),
     }

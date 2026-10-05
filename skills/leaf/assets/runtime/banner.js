@@ -237,17 +237,19 @@ function paintTab() {
 let saidKind;
 let saidActionableWork;
 
-// The page's two queues (`runtime/queues.js`) end the status room, apart from the
+// The page's two queues (`runtime/queues.js`) stand beside the status, apart from the
 // sentence: how much waits on the user, which `a` walks, and how much waits on the
-// agent, which is the row's whole account of the agent's side, with the disclosure
+// agent, which is the banner's whole account of the agent's side, with the disclosure
 // naming their kinds and each open task's title. They are page facts, like the Threads
 // count, and stand apart from the sentence so the agent's words changing never carries
-// them; the sentence gives up its room to the ellipsis first, so on a narrow row the
-// counts stay whole. Their box is reserved for the counts they usually reach, as the
-// Threads control is for "Threads: 999", and only grows, so a count changing moves none
-// of their words. They are read from the application's publication rather than the
-// state answer: a reply the user sends leaves their count and joins the agent's in the
-// turn it is sent. A press on them opens the Queue panel, which lists what they count.
+// them. On one row they end the status's room, which gives up its words to the ellipsis
+// first; where the banner takes two rows, the sentence has the first to itself and the
+// counts lead the second, ahead of the controls (chrome.css). Their box is reserved for
+// the counts they usually reach, as the Threads control is for "Threads: 999", and only
+// grows, so a count changing moves none of their words. They are read from the
+// application's publication rather than the state answer: a reply the user sends leaves
+// their count and joins the agent's in the turn it is sent. A press on them opens the
+// Queue panel, which lists what they count.
 const QUEUE_WORDS = Object.freeze({
   ask: ["Ask", "Asks"],
   question: ["question", "questions"],
@@ -278,10 +280,9 @@ function queueWords() {
   return {
     summary: [said(onYou, "you"), said(onAgent, agent)].filter(Boolean).join(" · "),
     explanation: [named(onYou, "you"), named(onAgent, agent)].filter(Boolean).join(" "),
-    // The widest the counts reach in use, under a hundred a side, which their box
-    // keeps. The counts are a press, and news must not move one, so a page's ordinary
-    // traffic stays inside it; more widens it once (banner-status-view.js).
-    widest: `99 on you · 99 on ${agent}`,
+    // The widest the counts usually reach, under ten a side, which their box keeps;
+    // more widens it once (banner-status-view.js).
+    widest: `9 on you · 9 on ${agent}`,
   };
 }
 const WITHOUT_QUEUES = new Set(["broken", "unreachable", "publication"]);
@@ -345,7 +346,7 @@ function copyControl(trigger, success, error) {
 }
 
 // How old a Leaf payload is, so a user who meets a problem can tell whether it
-// predates the fixes since. A payload read from Git carries its commit's date; a host's
+// predates the fixes since. A payload read from Git carries its commit's date; a harness's
 // plugin cache, which drops `.git`, carries the time it copied the commit, one update
 // sweep after it landed (`layer.payload_provenance`).
 const payloadAge = (provenance) => ago(provenance.committed ?? provenance.installed);
@@ -413,7 +414,7 @@ function renderPreview(state) {
 }
 
 // The vendored layer is the Leaf version this page actually runs. It can remain older
-// than the plugin now installed on the host, so this reads the provenance captured by
+// than the plugin now installed in the harness, so this reads the provenance captured by
 // `page init` rather than a live package or server version. Pages built outside Git
 // retain a stable identity through the composed layer fingerprint.
 let layerReferenceElement = null;
@@ -711,7 +712,7 @@ export function mountBanner({ approveVersion, paintApproval }) {
   // The queues move with the application's publication, not only with a state answer.
   watchSemantic(() => lastStatus && presentStatus(lastStatus));
   for (const control of [queueBtn, othersBtn]) showNews(control, false);
-  banner.append(bannerStatus, bannerActions);
+  banner.append(bannerStatus, bannerStatus.queues, bannerActions);
   reserveBannerControls();
   approveBtn.onclick = async () => {
     if (approving) return;

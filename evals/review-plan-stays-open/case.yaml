@@ -1,4 +1,4 @@
-# From the arrangement eval's `document` subject (notes/arrangement-eval/, #45), where
+# From the arrangement eval's `document` subject (#45), where
 # Leaf pages kept putting the whole "Plan if we pick Postgres" in a collapsed
 # `<details>` at the foot of a review the team reads top to bottom and comments on.
 # Base at 75da924af, whose Reading cost sent "exhaustive support" under `<details>`,

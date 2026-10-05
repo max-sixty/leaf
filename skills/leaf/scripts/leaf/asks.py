@@ -411,6 +411,11 @@ class _AskReducer:
         """Whether a standing action that admission marked as this Ask's answer
         (`meaning.answer`) still holds its answer: the user decided it while it
         asked, whatever a later version made of the question."""
+        # TODO: a re-pick after a later version settles the group drops the Ask.
+        # Admission stamps `meaning.answer` only while `x-awaits.when` holds
+        # (`answering_action`, event_meaning.py), and `settled` turns it off, so the
+        # re-pick replaces a stamped action with an unstamped one and this reading
+        # loses the Ask. Left for the Tasks model, which replaces this interim reading.
         unit = record["attrs"].get("id")
         return any(
             "answer" in (held[0].get("meaning") or {})

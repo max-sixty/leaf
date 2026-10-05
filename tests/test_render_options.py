@@ -807,14 +807,6 @@ def test_ask_addresses_are_screen_only_apparatus(browser, serve):
     expect(badges.first).to_be_hidden()
 
 
-@pytest.mark.xfail(
-    reason=(
-        "Native package scope prevents joined-control suppression of the Ask ring"
-        " on main 2bd9; CI run 37057440971."
-    ),
-    raises=AssertionError,
-    strict=False,
-)
 def test_a_card_group_taking_a_pick_reads_as_one_control(browser, serve):
     """The offer is the group's, made once, rather than a word written on every member.
 
@@ -1448,14 +1440,6 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
         )
 
 
-@pytest.mark.xfail(
-    reason=(
-        "Native package scope prevents joined-control suppression of the Ask ring"
-        " on main 2bd9; CI run 37057440971."
-    ),
-    raises=AssertionError,
-    strict=False,
-)
 def test_one_band_says_where_the_user_is_standing(browser, serve):
     """The user's band is drawn once, on the exact option row being worked.
 

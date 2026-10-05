@@ -87,7 +87,7 @@ def cmd_open(page_dir: Path, subject: str, title: str) -> dict:
     """Open a task on the thread `subject` names, by any message in it or a widget
     frozen in it, in the posting session's voice; the record."""
     from .event_contracts import append_admitted
-    from .host import message_identity
+    from .harness import message_identity
     from .leases import contract_writer
     from .service import PageTransaction
     from .work import page_subject
@@ -116,7 +116,7 @@ def cmd_end(page_dir: Path, task: str, outcome: str, detail: str | None) -> dict
     """End `task` with `outcome`, `detail` saying where the result is or why there
     is none; the record."""
     from .event_contracts import append_admitted
-    from .host import message_identity
+    from .harness import message_identity
     from .leases import contract_writer
     from .service import PageTransaction
 

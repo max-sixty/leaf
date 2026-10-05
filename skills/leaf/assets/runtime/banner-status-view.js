@@ -2,13 +2,15 @@
  *
  * `banner.js` derives one immutable reading. This synchronous light-DOM Lit view
  * retains the native disclosure controls while placing them in the ordinary and
- * publication layouts; no outside code writes or reparents anything inside it. The
- * queue counts (`queues`) stand outside the press, at the status's trailing edge, in a
- * box reserved for the counts they usually reach (`queuesWidest`), so the sentence
- * changing never carries them and their changing moves nothing. Counts past that
- * widen the box once, and it keeps the width while the page is open. The counts are a
- * press, one of the Queue panel's doors (drawers.js wires it), so the panel they count
- * is one press from the row they are read on.
+ * publication layouts; no outside code writes or reparents anything inside it.
+ *
+ * The queue counts (`queues`) are the view's second box, which the banner places
+ * beside the status rather than inside it, so the banner can give them whichever row
+ * leaves the sentence its room (chrome.css). The box is reserved for the counts they
+ * usually reach (`queuesWidest`), so the sentence changing never carries them and their
+ * changing moves nothing. Counts past that widen the box once, and it keeps the width
+ * while the page is open. The counts are a press, one of the Queue panel's doors
+ * (drawers.js wires it), so the panel they count is one press from where they are read.
  */
 import { html, nothing, render } from "../vendor/browser-runtime.js";
 import { el, reserve } from "./widget-elements.js";
@@ -83,6 +85,7 @@ class BannerStatusView extends HTMLElement {
     if (model.publication && this.#detail.matches(":popover-open"))
       this.#detail.hidePopover();
 
+    this.#queues.toggleAttribute("hidden", !model.queues);
     keeps(this.#dot, "class", "lf-dot" + (model.tone ? " " + model.tone : ""));
     keeps(this.#button, "title", model.explanation);
     keeps(this.#text, "title", model.explanation);
@@ -111,10 +114,7 @@ class BannerStatusView extends HTMLElement {
       return;
     }
 
-    render(
-      html`${this.#button}${model.queues ? this.#queues : nothing}${this.#detail}`,
-      this,
-    );
+    render(html`${this.#button}${this.#detail}`, this);
     render(html`${this.#dot}${this.#text}`, this.#button);
     render(model.summary, this.#text);
     render(model.queues, this.#queues);

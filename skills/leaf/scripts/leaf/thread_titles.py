@@ -1,11 +1,11 @@
 """Name a thread from its opening message, with one small model request on the
-host's own model.
+harness's own model.
 
 A thread's title is a `thread_title` event, and an agent that answers with `leaf
 thread reply` names an untitled thread on that reply, as its delivery's handling
 asks. That reply comes when the agent's work does, which can be minutes, and a turn
 Leaf starts over App Server writes its reply with its own messages, so it has no
-command to put a title on at all. So Leaf asks for a title itself, where the host's
+command to put a title on at all. So Leaf asks for a title itself, where the harness's
 model is in reach:
 
 - a Claude Code session's page server, as the user's comment opening the thread is
@@ -15,11 +15,11 @@ model is in reach:
   turn answering the thread (`name_untitled_threads`), through an ephemeral thread
   on that server (`app_server_title`). The page server cannot reach that server.
 
-Both hosts are sent the same request (`title_request`): a system prompt saying to
+Both harnesses are sent the same request (`title_request`): a system prompt saying to
 title the thread, then the passage the thread is on and its first spoken message,
 each between tags of its own, and a last line asking for the title. That is the
 request's whole context: none of the task's transcript, and none of the tools or
-the context the host loads by default. Both answer in the same schema. The request
+the context the harness loads by default. Both answer in the same schema. The request
 runs beside the agent's work and never delays it.
 
 The title is written as the session that holds the page's claim, and only while the
@@ -47,7 +47,7 @@ from .codex import (
 )
 from .event_log import EventRefused
 from .events import build_threads, spoken_turns
-from .host import IDENTITY_VARIABLES
+from .harness import IDENTITY_VARIABLES
 from .leases import titles_log
 from .revision_artifact import active_enclosing
 from .service import PageTransaction
@@ -111,6 +111,11 @@ TITLE_CONFIG = {
 # from overriding that auth. Thinking took Haiku's request from 1–2 s to 3–7 s, for
 # no better titles. Worktrunk's empty system prompt becomes `INSTRUCTIONS`, and its
 # plain-text answer the schema.
+#
+# The model answers in 1–2 s, and the rest of a request is `claude` starting and
+# exiting, which a busy machine stretches many times over. Without the nonessential
+# traffic Claude Code makes for an interactive session, the request took 8.4 s
+# rather than 15.8 s at a load average of 200, the median of four interleaved pairs.
 CLAUDE_CODE_COMMAND = (
     "-p",
     "--no-session-persistence",
@@ -119,6 +124,10 @@ CLAUDE_CODE_COMMAND = (
     "--safe-mode",
     "--setting-sources=user",
 )
+CLAUDE_CODE_ENVIRONMENT = {
+    "MAX_THINKING_TOKENS": "0",
+    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
+}
 
 Record = Callable[..., None]
 # How much of the passage and of the message a request carries: the first this many
@@ -129,7 +138,7 @@ Generate = Callable[[str, Path], dict]
 
 
 def title_request(page_dir: Path, thread_id: str) -> str:
-    """What a host is asked for a thread's title: the passage the thread is on and
+    """What a harness is asked for a thread's title: the passage the thread is on and
     its first spoken message, each between its own tags, then `ASK`. Empty when the
     thread has neither, as one a drawing opened and nobody has written in yet."""
     with PageTransaction(page_dir) as page:
@@ -172,7 +181,7 @@ def claude_code_title(request: str, page_dir: Path) -> dict:
             "--output-format",
             "json",
         ],
-        env=env | {"MAX_THINKING_TOKENS": "0"},
+        env=env | CLAUDE_CODE_ENVIRONMENT,
         input=request,
         capture_output=True,
         text=True,
@@ -192,6 +201,9 @@ def claude_code_title(request: str, page_dir: Path) -> dict:
     return {
         "title": answer["structured_output"]["title"].strip(),
         "durationMs": round((time.monotonic() - started) * 1000),
+        # The model's share of `durationMs`; the rest is `claude` starting and
+        # exiting, which a busy machine stretches and the model does not.
+        "apiDurationMs": answer["duration_api_ms"],
         "inputTokens": usage["input_tokens"],
         "outputTokens": usage["output_tokens"],
     }

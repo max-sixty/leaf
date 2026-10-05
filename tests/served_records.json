@@ -15,6 +15,7 @@
     "title": null,
     "anchor": null,
     "detached_from": null,
+    "rewritten_from": null,
     "msgs": [
       {
         "id": "e1",
@@ -102,6 +103,7 @@
           "title": null,
           "anchor": null,
           "detached_from": null,
+          "rewritten_from": null,
           "msgs": [
             {
               "id": "e1",
@@ -207,6 +209,7 @@
           "title": null,
           "anchor": null,
           "detached_from": null,
+          "rewritten_from": null,
           "msgs": [
             {
               "id": "e1",
@@ -270,6 +273,7 @@
           "title": null,
           "anchor": null,
           "detached_from": null,
+          "rewritten_from": null,
           "msgs": [
             {
               "id": "e3",
@@ -311,6 +315,7 @@
           "title": null,
           "anchor": null,
           "detached_from": null,
+          "rewritten_from": null,
           "msgs": [
             {
               "id": "e4",
@@ -370,6 +375,7 @@
           "title": null,
           "anchor": null,
           "detached_from": null,
+          "rewritten_from": null,
           "msgs": [
             {
               "id": "e7",

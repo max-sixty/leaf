@@ -3,7 +3,8 @@
 This file owns browser-wide contracts: how the page should look and move, module
 boundaries, startup, state authority, and the render gates. Each module's header
 owns its local contract. Page-authoring rules live in
-`../references/page-authoring.md`, package contracts in `../references/packages.md`,
+`../references/page-authoring.md`, module authoring in
+`../references/module-authoring.md`, package contracts in `../references/packages.md`,
 and rules shared with Python in root `AGENTS.md`, "Cross-runtime invariants".
 
 ## Layout and motion
@@ -13,10 +14,33 @@ desktop viewport.
 
 ### Space and scrolling
 
-The page owns its arrangement: a shipped Layout class (`@layer lf-layouts` in the
-theme) or its own CSS. Leaf owns what pages and widgets coordinate through: the
+The page owns its arrangement: a shipped Layout class (`layouts.css`, `@layer
+lf-layouts`) or its own CSS. Leaf owns what pages and widgets coordinate through: the
 bands, the reading measure as typography, and each widget's contract to fill the box
 it is given, declare the minimum it needs, and never let its content size its holder.
+
+Three things shape a page, and none of them reads another:
+
+- A **Layout** (`layouts.css`) says where boxes stand and how large they are. It sets
+  no type or widget form, and takes the room between boxes from the theme's spacing
+  tokens (`--sp-*`), so a style that tightens spacing tightens a Layout's gaps with it.
+- A **style** (the kernel's `theme.css`) sets type, spacing and form as tokens under a
+  class any block can take, such as `density-working`, whatever Layout holds it.
+- **Widgets and chrome** read their own box (its width, whether its height is definite)
+  and the theme's tokens. They never name a Layout or style class, so a widget behaves
+  the same in a shipped Layout as on a page whose own CSS gives it the same box.
+
+Where one has to answer another, the owner sets a token saying what the box is, or
+which style it stands under, and the reader keys on that token with a style query:
+`--lf-full-height` (the body has a definite height to fill), `--lf-wide-page` (the page
+spans the window, so the theme sets its title a size up), `--lf-resident` (what stands
+in the column's margin), and `--lf-density` (the working setting, for what a width alone
+cannot decide). A width needs no token, since a size query on the reader's own container
+answers it. Before adding a token, ask whether a hand-written page giving the same box
+would want the same answer; if not, the token names the Layout rather than the box. Only
+the page itself, and the checks that advise its author, name Layout classes;
+`test_layout_style_and_widgets_never_read_each_other` holds every sheet and module to
+this.
 
 Auxiliary runtime controls overlay the page's existing geometry. Adding a control
 preserves content position, wrapping, and block size, including when its CSS loads
@@ -88,11 +112,13 @@ takes the growth into what they scrolled past, or below it. A short thread's rep
 box follows its last message; a long panel thread pins the
 box at its scroller's foot. News that would move a reply in flow waits behind the
 thread's existing notice; a pinned reply lets the transcript grow above it.
-Where news would move what the reader is reading, it waits behind a control of fixed size until they
-open it: in a seat in the page's flow, an agent's reply, the reopening it brings, and a
+Where news would move what the reader is reading, it waits behind a control of fixed size:
+in a seat in the page's flow, an agent's reply, the reopening it brings, and a
 thread the agent starts wait behind a notice in a row the seat already draws, and a
 thread that would open a seat of its own, as on a diff line with no thread, waits in
-the margin behind its marker (`thread/held-news.js`). In the Threads panel, a card
+the margin behind its marker (`thread/held-news.js`). It shows once a gesture of theirs
+takes them to it: opening the notice or the thread, walking to the thread or one of its
+Asks, or replying there. In the Threads panel, a card
 news takes out of the view, as another actor resolving its thread under Open does,
 stays where it stands, drawn as the news left it in the shape it stood in, until its
 going would move nothing the user sees or they change the view
@@ -114,7 +140,9 @@ or typing carrying its field (`tests/shift_watch.js`).
 A widget paints its final box before it upgrades. The theme gives each widget, under
 `html[data-lf-interactive]`, the size its module will draw it at, so first paint
 already has the page's geometry and upgrade adds behavior without moving what follows,
-in a served page and an export alike. The
+in a served page and an export alike. Where the module draws a fixed structure, delivery
+writes that structure in for the first paint (`x-prepaint`), so the browser sizes it,
+wrapping included, rather than the theme summing its parts. The
 widget quality check `keeps-first-box` measures each widget's box at first paint and
 once the page presents (`leaf package check PACKAGE --render`,
 `scripts/leaf/render_gate/widget_quality.py`); the suite runs it over every bundled
@@ -140,16 +168,17 @@ failure.
 
 ### Words stay where they were typed
 
-What the user has typed stays in front of them until they put it away. A box holding
+What the user has typed stays with its native editor until they put it away. A box holding
 words closes only in answer to a key or a press that means to close it (Send,
 Cancel, Escape, a press elsewhere, another target) or when its subject leaves the
 document; a scroll, a resize, a panel, a closed disclosure, a timer, or the server's
 news never closes it. Geometry decides where a box stands, never whether: a box
-whose existing subject loses its visible attachment stays in the usable window,
-keeping its words, anchor, and focus, and reattaches when that target returns.
-Only where no usable window remains does it wait out of view with its words,
-anchor, and caret, standing again, focus returned, when room returns (`standFab`,
-`runtime/composing/surface.js`). A re-render that replaces a box's node hands its
+follows its passage through every scrolling ancestor, including out of view,
+keeping its words, anchor, and caret. Resume writing (`g i`) reveals that same
+editor and its passage. Native CSS attachment carries continuous scroll; target
+or field resize invalidates physical placement (`floating-response.js`).
+Only where no usable room remains does the presenter withhold the box; its
+words and caret remain with its native node (`standFab`, `runtime/composing/surface.js`). A re-render that replaces a box's node hands its
 words and caret to the replacement. The suite's browser fixture fails any test
 whose page loses typed words without a key or press (`tests/words_watch.js`), and
 every corpus page is scrolled to both ends and back with each typed box open
@@ -242,7 +271,7 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Child pages and gallery playback | `sample.js`, `interaction-gallery*.js` |
 | Shadow trees and styles | `shadow.js`, `shadow-stage.js`, `stylesheets.js` |
 | Elements a paint belongs to while they stand, and the stages they stand in | `arrivals.js` |
-| Utilities | `icons.js`, `markdown.js`, `syntax.js`, `motion.js`, `storage.js`, `interaction-log.js` |
+| Utilities | `icons.js`, `markdown.js`, `syntax.js`, `motion.js`, `color-scheme.js`, `storage.js`, `interaction-log.js` |
 
 The executable body declaration `data-annotations` selects the default physical
 renderer or page-owned presentation. `leaf.js` imports the default package's
@@ -325,6 +354,8 @@ selects from:
 | when a document-wide renderer paints | the publication that opened the epoch, in the order `runtime/semantic-state.js` declares |
 | where each thread's passage lands | `anchor-placement.js`'s resolution of its anchor in this version |
 | the row inside a target a comment stands by | `pointed-place.js`: the line a pointing gesture landed on, held by the composer until sent, then under the thread's key with the words that find it again; where it stands now is `anchor-placement.js`'s placement record (`point`, `pointRow`), written in its read, the only writer, which takes in what a send hands over; presentation only, and only the pointed threads' row, card and travel follow it |
+| the side and line a comment's box and its thread card stand by, whether they stand past its margin row, and which edge a growing one holds | the default package's `comment-placement.js` (`commentSide`, `options`, `holding`), from the card's declared widths, for both surfaces; each surface's own module measures its content and reports its gestures, and decides neither |
+| whether a margin row stands in the rail or as a pin, its seat, and the order rows are seated in | `margin-layout.js`, through `margin-placement.js`'s folds (`rowPosture`, `seatRows`, `packRows`, `arrivals`) |
 | geometry readings: what a scroller shows, what a surface hides, what sticky headers stand over, how much of the window the page shows | `geometry.js` (`visibleBand`, `declareOccluder`, `headerInset`, `shownWindow`, `seenRect`), so being on screen has one answer |
 
 Do not add a second cache, pending map, widget-specific replay list, or DOM
@@ -366,7 +397,7 @@ scrolling work while widgets upgrade. Page keys wait, because a command reads
 state the first answer brings: the bootstrap holds printed keys pressed before
 presentation and the keyboard controller replays them in order once the page
 presents, while any other key or a pointer press drops the held run. Durable
-controls wait for `data-lf-presented` (`../references/packages.md`, "A theme change"). An async
+controls wait for `data-lf-presented` (`../references/module-authoring.md`, "Startup and presentation"). An async
 producer joins settlement before `data-lf-upgraded`, or stays off the
 presentation path through `afterPresentation`, which declares the deferred
 arrival so `pageReadiness` still answers for it. `presentPage` owns the one

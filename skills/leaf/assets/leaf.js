@@ -29,6 +29,7 @@ import {
 } from "./runtime/presentation.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./runtime/page-paint.js";
 import { nextFrame, renderingSettled } from "./runtime/rendering.js";
+import { observeQueuedWork } from "./runtime/queued-work.js";
 import { mountApplication } from "./runtime/application.js";
 import {
   applicationState,
@@ -138,10 +139,12 @@ holdArrivingBounds();
 // scene readings answer different questions: which readiness fact the page has yet to state
 // (`pageReadiness`), and whether its chrome and geometry have caught up with the input
 // handled since, and which native layers currently expose reading and controls.
+// Job lifecycle tracing binds at enqueue without replacing any rendering callback.
 const validationEntry = document.querySelector("script[data-lf-entry]");
 if (validationEntry) {
   validationEntry.lfReadiness = pageReadiness;
   validationEntry.lfRenderingSettled = renderingSettled;
+  validationEntry.lfObserveQueuedWork = observeQueuedWork;
   validationEntry.lfNativeLayers = nativeLayers;
 }
 import { overflowMenu } from "./runtime/banner-toolbar.js";
@@ -273,6 +276,7 @@ const navigation = createNavigation({
     openPageThread: (...args) => app.threadDestinations.openPageThread(...args),
     scrollToThread: (...args) => anchorTravel.scrollToThread(...args),
     threadHere: () => app.threadDestinations.threadHere(),
+    threadAtStanding: () => app.threadDestinations.threadAtStanding(),
     threadTarget: (...args) => app.threadDestinations.threadTarget(...args),
   },
 });
@@ -385,6 +389,7 @@ const version = createVersionController({
   compositionInput: fabInput,
   openThread: (id, options) =>
     app.threadDestinations.openPageThread(id, { ...options, travel: false }),
+  refreshThread: () => app.refreshThread(),
   midComposition: () => app.midComposition(),
   hasPending: () => app.hasPending(),
   readAndApply: (...args) => app.readAndApply(...args),
@@ -541,10 +546,7 @@ asks = createAskView({
   prepareTrip: anchorTravel.prepareTrip,
   arrive: anchorTravel.arrive,
   refreshThread: () => app.refreshThread(),
-  revealThread: (id) => {
-    threadsBox.showNews(id);
-    return narrowing.revealThread(id);
-  },
+  revealThread: (id) => narrowing.revealThread(id),
   announce,
   repaint,
 });
@@ -595,7 +597,7 @@ selectionComposer = createSelectionComposer({
   openPageThread: app.threadDestinations.openPageThread,
   threadTransitionOrigin: app.overlay?.threadTransitionOrigin,
   anchorStands: (...args) => responseSurface.anchorStands(...args),
-  anchorTargetAt: (...args) => responseSurface.anchorTargetAt(...args),
+  anchorTravelAt: (...args) => responseSurface.anchorTravelAt(...args),
   bringForward: (...args) => responseSurface.bringForward(...args),
   fabAnchorAt: (...args) => responseSurface.fabAnchorAt(...args),
   fabPointAt: (...args) => responseSurface.fabPointAt(...args),
@@ -621,13 +623,15 @@ responseSurface = createResponseSurface({
   landIn: landing.landIn,
   setPanel: (...args) => threadPanelController.setPanel(...args),
   threadHere: () => app.threadDestinations.threadHere(),
-  threadTarget: (thread) =>
-    app.threadDestinations.threadTarget(thread.dataset.thread ?? thread.dataset.id),
+  threadAtStanding: () => app.threadDestinations.threadAtStanding(),
+  replyThreadAtStanding: () => app.threadDestinations.replyThreadAtStanding(),
+  threadTarget: (id) => app.threadDestinations.threadTarget(id),
   standingTarget,
   composerHolds: selectionComposer.composerHolds,
   responseOptionsAreOpen: selectionComposer.responseOptionsAreOpen,
   markAt: anchorPaint?.markAt,
   scrollToElement: anchorTravel.scrollToElement,
+  scrollToRange: anchorTravel.scrollToRange,
   visualActionAnchor: anchorControls.visualActionAnchor,
   hideComposer: selectionComposer.hideComposer,
   openComposer: selectionComposer.openComposer,
@@ -732,7 +736,7 @@ threadPanelController = createThreadPanelController({
   narrowing,
   auxiliarySurfaces,
   elements: { panel, toggleBtn, threadsBox, inPanel: panelElements.inPanel },
-  threadHere: app.threadDestinations.threadHere,
+  threadAtStanding: app.threadDestinations.threadAtStanding,
   placedAt: anchorPlacement.placedAt,
   showThread: landing.showThread,
   refreshThread: app.refreshThread,
@@ -1052,10 +1056,14 @@ async function presentPage() {
   repaint();
   app.overlay?.flushLayout();
   landFragment();
-  await landArrival();
+  // The geometry readers PRESENTATION replaces run in the turn the stamp above opens
+  // interaction, after the landing's synchronous part, rather than after an editor
+  // the landing waits for: awaited first, a margin map presented its authored spans.
+  const arrival = landArrival();
+  document.dispatchEvent(new Event(PRESENTATION));
+  await arrival;
   if (savedView && savedView.revision < runtime.currentRevision)
     notice(`Updated to ${runtime.currentLabel}`, { background: true });
-  document.dispatchEvent(new Event(PRESENTATION));
 }
 
 async function startPage() {

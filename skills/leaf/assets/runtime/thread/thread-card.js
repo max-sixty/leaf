@@ -249,6 +249,17 @@ const marginControlsSizes = sizeObserver((entries) => {
     );
 });
 
+// A panel card's reply row is pinned over the turns above it at the list's foot, so the
+// card states the row's height and a landing in those turns stops above it (chrome.css).
+// The row grows with its draft, so the height is read rather than a token.
+const replyRowSizes = sizeObserver((entries) => {
+  for (const { target, borderBoxSize } of entries)
+    target.parentElement?.style.setProperty(
+      "--lf-thread-reply-h",
+      `${borderBoxSize[0].blockSize}px`,
+    );
+});
+
 export class ThreadView {
   #commands;
   #messageCommands;
@@ -887,7 +898,15 @@ export class ThreadView {
       ...this.#commands.reply,
       onChange: replyChanged,
     });
-    return { node: row, dispose: lifetime.dispose };
+    if (!panel) return { node: row, dispose: lifetime.dispose };
+    replyRowSizes.observe(row);
+    return {
+      node: row,
+      dispose: () => {
+        replyRowSizes.unobserve(row);
+        lifetime.dispose();
+      },
+    };
   }
 
   #prepareLanding(reopen) {

@@ -5508,7 +5508,7 @@ def test_a_playground_preset_reset_copy_and_narrow_layout_share_the_same_state(
     copy.press("Enter")
     assert copy_width("Copied") == reserved_width
     assert "12px radius" in page.evaluate("navigator.clipboard.readText()")
-    expect(copy).to_have_accessible_name("Copy instruction", timeout=3000)
+    expect(copy).to_have_accessible_name("Copy instruction")
     page.evaluate(
         """() => {
           window.clipboardWrites = [];
@@ -5543,7 +5543,7 @@ def test_a_playground_preset_reset_copy_and_narrow_layout_share_the_same_state(
         }"""
     )
     assert copy_width("Copied") == reserved_width
-    expect(copy).to_have_accessible_name("Copy instruction", timeout=3000)
+    expect(copy).to_have_accessible_name("Copy instruction")
     page.evaluate(
         """() => {
           navigator.clipboard.writeText = () => { throw new Error('refused'); };

@@ -3891,8 +3891,11 @@ def test_a_failed_verifier_page_reports_its_browser_errors(browser):
         ),
     )
     page.goto(url)
+    # The document throws before anything could present it, so this wait runs out by
+    # design; its length is what the test spends watching nothing arrive.
+    never_presents_ms = 100
     with pytest.raises(RuntimeError) as caught:
-        verify_site.await_presentation(page, url, failures, timeout=100)
+        verify_site.await_presentation(page, url, failures, timeout=never_presents_ms)
     assert "widget resource unavailable" in str(caught.value)
     assert "runtime initialization failed" in str(caught.value)
     assert "no startup milestone" in str(caught.value)
@@ -4015,9 +4018,7 @@ def test_the_agent_response_clock_follows_a_stream_into_its_durable_reply(browse
       node.dataset.mid = 'answer';
       node.querySelector('.lf-msg-text').textContent = 'Complete answer';
     }""")
-    page.wait_for_function(
-        "window.__leafVerifier.visibleReplyRecorded", arg="answer", timeout=10_000
-    )
+    page.wait_for_function("window.__leafVerifier.visibleReplyRecorded", arg="answer")
     assert page.evaluate("window.__leafVerifier.visibleReplyAt('answer')") is not None
 
 

@@ -159,7 +159,7 @@ def test_page_availability_announces_once_while_work_stage_changes_remain_quiet(
     told(page)
     expect(page.locator(".lf-notice")).to_have_text("Agent active on this page")
     expect(page.locator(".lf-live")).to_have_text("Agent active on this page")
-    expect(page.locator(".lf-notice")).to_be_hidden(timeout=6000)
+    expect(page.locator(".lf-notice")).to_be_hidden()
 
     session_model.cmd_status(serve.page_dir, "working", "Using a tool")
     told(page)

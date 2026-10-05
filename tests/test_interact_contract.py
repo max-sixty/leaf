@@ -1920,6 +1920,26 @@ def test_candidate_vocabulary_preserves_commands_in_frozen_thread_markup(page_di
             },
             "records must name distinct",
         ),
+        (
+            {
+                "builds": {
+                    "description": "Build facts.",
+                    "schema": {},
+                    "resources": "images[].url",
+                }
+            },
+            "resources must be a list",
+        ),
+        (
+            {
+                "builds": {
+                    "description": "Build facts.",
+                    "schema": {},
+                    "resources": ["images["],
+                }
+            },
+            "resource expression 'images[' is invalid",
+        ),
     ],
 )
 def test_the_registry_door_validates_data_contracts(page_dir, contracts, message):

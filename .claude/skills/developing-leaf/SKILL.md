@@ -117,11 +117,23 @@ uv run playwright show-trace --host 127.0.0.1 --port 0 \
   .tmp/recordings/NAME/worktree/trace.zip
 ```
 
-When showing a timeline in Leaf, place a direct link to the same recording in the
-running Trace Viewer beside its controls. The viewer supplies action details,
-Before/Action/After DOM snapshots, source, console and network inspection; Leaf
-supplies the anchored discussion. Keep both previews running and verify that the
+When showing a timeline in Leaf, select the optional `playwright` package and
+read its author instructions. Bind `lf-trace` to the original archive's imported
+`playwright-trace` source; that contract's producer instructions own the import
+command. The widget combines action checkpoints and optional intermediate frames
+in one chronological timeline, with comments on images and saved accessibility
+elements, and a direct link to the
+same recording in the running Trace Viewer. The viewer supplies DOM, source,
+console and network inspection. Keep both previews running and verify that the
 viewer URL reaches the user's browser before handing it over.
+
+For an important result, perform the input and use a Playwright expectation to
+establish the intended browser state. Review the successful expectation's After
+checkpoint; returning from the input alone does not prove an asynchronous update
+finished. Native tracing groups name those operations without adding captures.
+Add `--checkpoint-images` alongside `--record` when the review needs native PNG images
+at those checkpoints. Taking them adds capture work and briefly hides the live
+caret, so omit it when ordinary motion and caret behavior are the evidence.
 
 `uv run leaf-dev stills` compares HEAD with the merge base with `main` and crops
 each changed catalogue state into a before/after pair. Commit first, since it

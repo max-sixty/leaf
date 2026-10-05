@@ -639,6 +639,129 @@ def test_typing_grows_a_panel_reply_in_flow_or_above_its_pinned_foot(
         assert latest["y"] + latest["height"] <= after["box"][0] + 0.5, (latest, after)
 
 
+@pytest.mark.parametrize(
+    ("viewport", "walking"),
+    [((1200, 900), False), ((390, 740), False), ((390, 740), True)],
+    ids=["wide", "narrow", "narrow-walk-status"],
+)
+def test_reading_inside_a_long_thread_keeps_its_title_and_reply_row_on_the_lists_edges(
+    browser, serve, viewport, walking
+):
+    """Scrolled into the middle of an open thread, its title stands on the list's top
+    edge and its reply row on the bottom edge, and nothing of the transcript shows
+    beyond either. The list pads both ends for focus rings, and over a covering panel
+    a walk status deepens the foot; a row pinned inside that padding left a strip of
+    the thread's words visible below Reply, while the title scrolled away with the
+    words. Hit tests read what the user sees at each edge, so a row standing short of
+    it shows as the wrong element there."""
+    url = serve(LONG_PAGE)
+    root = panel_comment(serve.page_dir, "A thread long enough to read inside.")
+    for index in range(14):
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "agent": "Codex",
+                "parent": root,
+                "text": f"Answer {index}. " * 12,
+            },
+        )
+    panel_comment(serve.page_dir, "A later thread.")
+    context = browser.new_context(
+        viewport={"width": viewport[0], "height": viewport[1]}, reduced_motion="reduce"
+    )
+    page = open_page(browser, url, context=context)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    card = page.locator(f'.lf-thread[data-id="{root}"]')
+    if card.get_attribute("open") is None:
+        card.locator(":scope > .lf-thread-summary").click()
+    expect(card).to_have_attribute("open", "")
+    if walking:
+        card.locator(":scope > .lf-thread-summary").evaluate(
+            "el => el.focus({preventScroll: true})"
+        )
+        page.keyboard.press("t")
+        page.keyboard.press("Shift+t")
+        expect(card.locator(":scope > .lf-thread-summary")).to_be_focused()
+        expect(page.locator(".lf-bottom-status")).to_contain_text("Thread")
+        page.wait_for_function(
+            "() => document.querySelector('.lf-threads').style"
+            ".getPropertyValue('--lf-threads-foot')"
+        )
+    edges = card.evaluate(
+        """async card => {
+          const list = card.parentElement;
+          list.scrollTop = card.offsetTop + (card.offsetHeight - list.clientHeight) / 2;
+          const port = list.getBoundingClientRect();
+          const top = port.top + list.clientTop;
+          const bottom = top + list.clientHeight;
+          const title = card.querySelector(':scope > .lf-thread-summary');
+          const reply = card.querySelector(':scope > .lf-thread-reply');
+          const x = (port.left + port.right) / 2;
+          const at = (y) => document.elementFromPoint(x, y);
+          const foot = reply.getBoundingClientRect().bottom;
+          const below = [];
+          for (let y = foot + 0.5; y < bottom; y += 2) below.push(y);
+          const reading = {
+            top, bottom,
+            title: title.getBoundingClientRect().top,
+            reply: foot,
+            atTop: title.contains(at(top + 1)),
+            atBottom: [...below, bottom - 0.5].every((y) => reply.contains(at(y))),
+            inside: card.getBoundingClientRect().top < top
+              && card.getBoundingClientRect().bottom > bottom,
+          };
+          // Every row passes under the title: nothing it holds at rest, such as a
+          // reaction trigger raised over its message, paints through it.
+          const through = new Set();
+          const start = list.scrollTop;
+          for (let y = card.offsetTop; y < card.offsetTop + card.offsetHeight; y += 6) {
+            list.scrollTop = y;
+            await new Promise(requestAnimationFrame);
+            const box = title.getBoundingClientRect();
+            for (let x = box.left + 2; x < box.right; x += 4) {
+              const hit = document.elementFromPoint(x, box.top + box.height / 2);
+              if (!title.contains(hit)) through.add(hit?.className?.baseVal ?? hit?.className);
+            }
+          }
+          list.scrollTop = start;
+          return {...reading, through: [...through]};
+        }"""
+    )
+    assert edges["inside"], edges
+    assert edges["title"] == pytest.approx(edges["top"], abs=0.5), edges
+    # Under a walk status the row's controls stand above the room it reserves, and the
+    # row's own ground reaches the edge below them.
+    assert (edges["reply"] < edges["bottom"] - 20) is walking, edges
+    assert edges["reply"] <= edges["bottom"], edges
+    assert edges["atTop"] and edges["atBottom"], edges
+    assert edges["through"] == [], edges
+    # An overlay a row raises while open scrolls up under the title with its words.
+    message = card.locator(".lf-msg.agent").first
+    message.hover()
+    message.locator(".lf-react-trigger").click()
+    expect(message.locator(":scope > .lf-react-strip")).to_contain_class(
+        "lf-react-open"
+    )
+    covered = message.evaluate(
+        """async message => {
+          const list = message.closest('.lf-threads');
+          const title = list.querySelector(':scope > .lf-thread[open] > .lf-thread-summary');
+          list.scrollTop += message.getBoundingClientRect().top
+            - title.getBoundingClientRect().top - 12;
+          for (let i = 0; i < 2; i++) await new Promise(requestAnimationFrame);
+          const box = title.getBoundingClientRect();
+          const xs = [];
+          for (let x = box.left + 2; x < box.right; x += 4) xs.push(x);
+          return xs.filter((x) => !title.contains(
+            document.elementFromPoint(x, box.top + box.height / 2))).length;
+        }"""
+    )
+    assert covered == 0
+
+
 def test_incoming_reply_follows_a_visible_composer_below_earlier_words(browser, serve):
     url = serve(LONG_PAGE)
     root = panel_comment(serve.page_dir, "A thread with a draft.")

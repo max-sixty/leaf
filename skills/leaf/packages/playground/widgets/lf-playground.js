@@ -566,8 +566,6 @@ customElements.define(
         "lf-btn primary lf-playground-submit",
         this.getAttribute("submit-label") ?? "Use these settings",
       );
-      this.#reset.addEventListener("click", () => this.#apply(this.#defaults));
-      this.#submit.addEventListener("click", () => this.#choose());
       this.#copy.append(copyTrigger);
       actions.append(this.#reset, this.#copy, this.#submit);
       if (OFFLINE) {
@@ -656,15 +654,15 @@ customElements.define(
           control: this.#submit,
           decision: true,
           title: () => this.#submit.textContent,
-          when: () => this.#available(),
-          run: () => this.#submit.click(),
+          when: () => !this.#choosing && this.#available(),
+          run: () => this.#choose(),
         },
         {
           id: "playground.reset",
           keys: ["Alt+0"],
           control: this.#reset,
           title: "reset controls",
-          run: () => this.#reset.click(),
+          run: () => this.#apply(this.#defaults),
         },
       ]);
     }
@@ -836,7 +834,6 @@ customElements.define(
 
     #paintAvailability() {
       if (!this.#submit) return;
-      this.#submit.toggleAttribute("disabled", this.#choosing || !this.#available());
       paintKeys();
     }
 

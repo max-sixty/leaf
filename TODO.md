@@ -336,6 +336,16 @@ height and where a switch lands wait on the workspace decision under Layout.
   broad selection is about 3,700 s of test time on a CI runner. If the rate rose,
   look at which escapes a cheap fixed set of tests would have caught, and choose
   that set by measured catches per second rather than by kind.
+- **Guard thread appearance on CI again.** The thread snapshot gate compares images
+  on macOS only (`dev/leaf_dev/thread_snapshots.py`), so a pull request's Linux CI
+  checks the delivery journey but not how it looks. Fonts and antialiasing differ by
+  OS, so Mac and Linux images never match. A Linux image could only be made on CI's
+  own runner, which meant pushing, downloading the run's images and accepting them
+  by hand. Find an approach where whoever changes the appearance can render the
+  compared images themselves. Candidates: render Linux baselines locally in the
+  same container CI runs, the approach Playwright recommends (an arm64 image on a
+  Mac matches CI only on an arm64 runner); or a hosted visual-review service that
+  renders both sides itself.
 
 ## Etc
 

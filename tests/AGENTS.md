@@ -24,8 +24,8 @@ stays in `.tmp/`.
 
 Linux browser tests use `tests/fonts.conf` and `fonts-dejavu` for their native
 UI, serif and mono faces, including bold and italic styles. Install that package before `wt setup`; CI installs it
-explicitly. The PNG rendering profile binds the fontconfig and installed font bytes,
-and an actual Chromium font reading verifies those faces. Mac uses its native fonts.
+explicitly, and an actual Chromium font reading verifies those faces. Mac uses its
+native fonts, and the thread appearance gate compares its images on macOS only.
 
 ## A failure is evidence about the test too
 

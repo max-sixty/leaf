@@ -26,7 +26,12 @@ import {
   stageAuthoredStates,
 } from "../projection/authored.js";
 import { stageWidgetDescriptors } from "../widget-descriptors.js";
-import { strongestWorkflow, workflowLabel, workflowTitle } from "./workflow.js";
+import {
+  strongestWorkflow,
+  workflowLabel,
+  workflowTitle,
+  WORKFLOW_LABELS,
+} from "./workflow.js";
 import {
   markDeclared,
   renderQuiet,
@@ -46,6 +51,7 @@ import { rememberPassageParts } from "../widget-loader.js";
 import { ReactionStripView } from "./reaction-strips.js";
 import { keeps } from "../keeps.js";
 import { motion } from "../motion.js";
+import { reserve } from "../widget-elements.js";
 
 export const loadMarked = () =>
   loadMarkdown((error) =>
@@ -193,6 +199,7 @@ export class MessageView {
   #dressed = false;
   #arrivalMotion = null;
   #header = document.createElement("div");
+  #workflowSlot = null;
 
   constructor(commands) {
     this.#commands = commands;
@@ -235,16 +242,19 @@ export class MessageView {
           model.reactions,
         )
       : nothing;
+    const receipt = model.workflowLabel
+      ? html`<span class="lf-msg-sending" title=${model.workflowTitle}
+          >${model.workflowLabel}</span
+        >`
+      : nothing;
     render(
       html`
         <b>${model.by}</b
         ><span class="lf-msg-meta"
           ><time datetime=${model.timestamp}>${model.age}</time> ${
-            model.workflowLabel
-              ? html`<span class="lf-msg-sending" title=${model.workflowTitle}
-                  >${model.workflowLabel}</span
-                >`
-              : nothing
+            externalHeader
+              ? html`<span class="lf-msg-workflow">${receipt}</span>`
+              : receipt
           }
           ${
             model.failure
@@ -265,6 +275,10 @@ export class MessageView {
       `,
       this.#header,
     );
+    const workflowSlot = this.#header.querySelector(".lf-msg-workflow");
+    if (workflowSlot && workflowSlot !== this.#workflowSlot)
+      reserve(workflowSlot, WORKFLOW_LABELS);
+    this.#workflowSlot = workflowSlot;
     render(
       html`
         ${externalHeader ? nothing : this.#header}

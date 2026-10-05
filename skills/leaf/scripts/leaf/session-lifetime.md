@@ -221,7 +221,8 @@ current publication with an open matching turn under page→session locks; clean
 uses the matching publication after closure. A resumed new generation replaces
 an older live fold instead of borrowing it.
 Codex's synchronous prompt hook records the provider turn even before a
-page is claimed. Its asynchronous PostToolUse hook identifies an unknown session-scoped turn
+page is claimed. Once the session has claimed a page (`state.hook_needed`), its
+synchronous PostToolUse hook identifies an unknown session-scoped turn
 once, or renews only the already observed running provider turn and offers one immutable pointer between steps. The observation's
 revision advances on a prompt, ending, or tool step: the queue rechecks it under
 the same delivery lock before reserving its route, so even a renewed step within

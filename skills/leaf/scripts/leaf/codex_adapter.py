@@ -6,7 +6,7 @@ the same Codex task instead of waiting for the agent to ask again. It owns the s
 task's delivery record, offers one delivery at a time, and reconciles the receipt its
 page is owed however that delivery was taken.
 
-While a proven async tool hook has a running turn, it can offer the shared record
+While a proven tool hook has a running turn, it can offer the shared record
 between steps (`codex.offer_hook_delivery`). The adapter reserves its own route
 only when that turn is idle or no such hook has run, and an unread hook pointer
 then falls back to the same durable delivery.

@@ -6,8 +6,9 @@ without these hooks still gets the envelope printed, rather than waking to an
 empty turn. SessionEnd invalidates the session generation without reading pages.
 
 Codex's synchronous prompt hook records the provider turn even before the session
-claims a page. Its async tool hook can identify an unknown session turn once, offer a pointer
-between steps, and leave receipt to the agent's actual delivery read.
+claims a page. Once the session has claimed one (`state.hook_needed`), its tool
+hook can identify an unknown session turn once, offer a pointer between steps, and
+leave receipt to the agent's actual delivery read.
 The payload names the session and turn: hook subprocesses need not have the tool
 process's environment. Stop or Interrupt closes that observed turn, including a
 turn not yet claimed by any page; a newer prompt protects its own epoch.

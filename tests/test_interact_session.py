@@ -13972,6 +13972,76 @@ def test_the_registered_hook_leaves_library_execution_to_uv(
     assert not python_called.exists()
 
 
+def test_codex_tool_hook_starts_leaf_only_for_a_session_that_claimed_a_page(
+    page_dir, tmp_path
+):
+    """Codex runs its tool hook after every tool call of every task, and most hold
+    no page, so the launcher asks the environment's interpreter first and starts
+    uv only for a session that has claimed one. Every other Codex hook runs whole,
+    and so does the tool hook wherever the question cannot be asked: a failure
+    there must not drop it."""
+    project = tmp_path / "plugin"
+    launcher = project / "bin/leaf"
+    launcher.parent.mkdir(parents=True)
+    launcher.write_bytes((PLUGIN_ROOT / "bin/leaf").read_bytes())
+    launcher.chmod(0o755)
+    program = project / "skills/leaf/scripts/leaf/state.py"
+    program.parent.mkdir(parents=True)
+    program.write_bytes(
+        (PLUGIN_ROOT / "skills/leaf/scripts/leaf/state.py").read_bytes()
+    )
+    interpreter = project / ".venv/bin/python"
+    interpreter.parent.mkdir(parents=True)
+    interpreter.symlink_to(sys.executable)
+    tools = tmp_path / "tools"
+    tools.mkdir()
+    called = tmp_path / "uv-called"
+    uv = tools / "uv"
+    uv.write_text('#!/bin/sh\n/bin/cat > "$UV_CALLED"\n')
+    uv.chmod(0o755)
+
+    def run(event, session):
+        called.unlink(missing_ok=True)
+        payload = json.dumps({"hook_event_name": event, "session_id": session})
+        done = subprocess.run(
+            ["/bin/sh", "-c", _registered_hook_command("codex", event)],
+            input=payload,
+            env=os.environ
+            | {
+                "PLUGIN_ROOT": str(project),
+                "PATH": f"{tools}:/usr/bin:/bin",
+                "UV_CALLED": str(called),
+            },
+            capture_output=True,
+            text=True,
+            timeout=STATED_TIMEOUT,
+            check=False,
+        )
+        assert (done.returncode, done.stdout, done.stderr) == (0, "", "")
+        return json.loads(called.read_text()) if called.exists() else None
+
+    session = harness_model.session_harness().session
+    assert run("PostToolUse", session) is None
+    assert run("Stop", session) == {"hook_event_name": "Stop", "session_id": session}
+
+    # Claiming a page marks the session for the rest of its generation.
+    assert service_model.claim_page(page_dir)
+    assert run("PostToolUse", session) == {
+        "hook_event_name": "PostToolUse",
+        "session_id": session,
+    }
+    assert run("PostToolUse", "another-session") is None
+
+    # An interpreter that cannot answer leaves the hook to run whole.
+    interpreter.unlink()
+    interpreter.write_text("#!/bin/sh\nexit 1\n")
+    interpreter.chmod(0o755)
+    assert run("PostToolUse", "another-session") == {
+        "hook_event_name": "PostToolUse",
+        "session_id": "another-session",
+    }
+
+
 def test_the_registered_session_end_releases_shared_claims_without_an_environment(
     page_dir, tmp_path
 ):

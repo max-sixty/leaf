@@ -6,7 +6,6 @@
           {
             "type": "command",
             "command": "\"$PLUGIN_ROOT/bin/leaf\" hook --harness codex 2>/dev/null || true",
-            "async": true,
             "timeout": 20
           }
         ]

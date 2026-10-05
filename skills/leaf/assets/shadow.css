@@ -159,7 +159,8 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  * The ring is the fallback rather than the rule: every control with a ring of its own
  * outranks this, and what is left is the controls that were wearing the platform's
  * outline or, where a widget had restyled them, nothing at all. Named like every other
- * ring the layer draws, so the corpus floor can credit it (--lf-focus-ring, theme.css).
+ * ring the layer draws, so the suite's ring samples can credit it (--lf-focus-ring,
+ * theme.css).
  *
  * Every rule here is written to be outranked. The value guard sits in :where() so it
  * costs nothing, which leaves each rule at the weight of the thing it is answering — the
@@ -299,7 +300,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-thread-transcript > .lf-msg:first-child { margin-top: 0; }
 .lf-msg.agent { position: relative; }
 .lf-msg-head { display: flex; align-items: baseline; gap: var(--sp-2);
-          font-size: var(--t-6); }
+          font-size: var(--t-6); --lf-msg-name-size: 13px; }
 .lf-thread-root-meta { display: flex; align-items: center; gap: var(--sp-2);
           min-height: max(28px, var(--aim-floor));
           padding-inline: var(--lf-thread-text-inset) 0;
@@ -311,7 +312,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-thread-root-meta .lf-msg-meta { flex: 1; overflow: hidden; }
 .lf-thread-root-meta .lf-msg-sending { min-width: 0; overflow: hidden;
           text-overflow: ellipsis; }
-.lf-msg-head b { font-size: 13px; font-weight: 600; color: var(--ink); }
+.lf-msg-head b { font-size: var(--lf-msg-name-size); font-weight: 600; color: var(--ink); }
 .lf-thread-meta-actions { display: inline-flex; flex: none; align-items: center;
           gap: 4px; margin-inline-start: auto; }
 /* What a seat holds while it would move the page under the reader (thread/held-news.js).

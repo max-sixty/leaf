@@ -1,7 +1,6 @@
 """CLI, plugin payload, layer, and customization tests."""
 
 import ast
-import contextlib
 import json
 import os
 import re
@@ -18,8 +17,9 @@ import tinycss2
 import tomllib
 import yaml
 from click.testing import CliRunner
-from conftest import LEAF_COMMAND, PagePool
+from conftest import LEAF_COMMAND, PagePool, _retire
 from interact_support import (
+    COMPOSITE_TIMEOUT,
     PAGE,
     PAGE_PACKAGES,
     PLUGIN_ROOT,
@@ -35,9 +35,11 @@ from interact_support import (
     element_declaration,
     fetch,
     install_payload,
+    lock_contention,
     publish,
     record_claim,
     shipped_payload,
+    wait_for,
 )
 from leaf import cli as cli_model
 from leaf import data as data_model
@@ -776,7 +778,7 @@ def test_a_run_keeps_its_temporary_tree_out_of_the_candidate_payload(tmp_path):
             ],
             capture_output=True,
             text=True,
-            timeout=120,
+            timeout=COMPOSITE_TIMEOUT,
             check=False,
         )
 
@@ -1629,7 +1631,7 @@ def test_the_layer_sheets_spell_the_runtime_s_layout_numbers():
     ):
         assert spelling in sheet, f"the layer sheets no longer spell {spelling}"
     for spelling in (
-        'html[data-lf-live] body[data-lf-auxiliary-surface="asks"]',
+        'html[data-lf-live] body[data-lf-auxiliary-surface="queue"]',
         'html[data-lf-live] body[data-lf-auxiliary-surface="threads"]',
     ):
         assert spelling in sheet, f"the layer sheets no longer spell {spelling}"
@@ -2201,6 +2203,122 @@ def test_the_resources_a_fixture_owns_are_taken_from_that_fixture():
     assert not bypassed, bypassed
 
 
+def test_a_python_side_wait_takes_the_suites_deadline():
+    """A wait in the suite bounds a hang; it does not time the work it waits for.
+
+    A literal deadline is sized to how long the work took where it was written, and
+    a busy runner takes many times that, so a correct product fails the test there
+    (tests/AGENTS.md, "Functional results do not depend on execution speed").
+    Every Python-side wait takes `STATED_TIMEOUT`, or a constant derived from it,
+    so the one bound is set in one place. A wait whose length is its subject names
+    that value where it is defined, which keeps it out of this check without a
+    list of exceptions here.
+
+    The calls read are the blocking waits whose deadline is in seconds: the
+    standard library's threads, futures, processes, sockets and HTTP clients, and
+    the suite's own `wait_for`, plus a deadline a local loop computes from
+    `monotonic()`. A zero timeout asks without waiting and is left alone. Browser
+    waits, in milliseconds, are bounded by `SERVED_TIMEOUT_MS`.
+    """
+    with_timeout = {
+        "call",
+        "check_output",
+        "communicate",
+        "create_connection",
+        "get",
+        "HTTPConnection",
+        "join",
+        "recv",
+        "result",
+        "run",
+        "urlopen",
+        "wait",
+        "wait_for",
+    }
+    deadline_first = {"join", "result", "settimeout", "wait"}
+    # Sites in files another change holds, to move onto the suite's deadline once
+    # it lands. Each is a hang bound like the rest.
+    held_elsewhere = {
+        ("test_render_gate.py", "answer_ready.wait(10)"),
+    }
+
+    def literal(node) -> bool:
+        if isinstance(node, ast.BinOp):
+            return literal(node.left) and literal(node.right)
+        return (
+            isinstance(node, ast.Constant)
+            and type(node.value) in (int, float)
+            and node.value != 0
+        )
+
+    def called(func) -> str | None:
+        return (
+            func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", None)
+        )
+
+    literals = []
+    for path in sorted((ROOT / "tests").rglob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+                computed = (
+                    isinstance(node.left, ast.Call)
+                    and called(node.left.func) == "monotonic"
+                    and literal(node.right)
+                )
+            elif isinstance(node, ast.Call):
+                name = called(node.func)
+                computed = (
+                    name in with_timeout
+                    and any(
+                        keyword.arg == "timeout" and literal(keyword.value)
+                        for keyword in node.keywords
+                    )
+                ) or (
+                    name in deadline_first
+                    and isinstance(node.func, ast.Attribute)
+                    and bool(node.args)
+                    and literal(node.args[0])
+                )
+            else:
+                continue
+            if computed:
+                site = (path.name, ast.unparse(node))
+                if site not in held_elsewhere:
+                    literals.append(f"{path.relative_to(ROOT)}:{node.lineno} {site[1]}")
+    assert not literals, (
+        "these waits fix their own deadline; bound them with STATED_TIMEOUT "
+        f"(interact_support.py): {literals}"
+    )
+
+
+@pytest.mark.parametrize("launcher_ends", ["wait", "exit"])
+def test_a_spawned_process_ends_with_what_it_started(spawn, launcher_ends):
+    """`spawn`'s teardown ends a child's descendants as well as the child, since a
+    handle often names a launcher, as `under_codex`'s fake host does the shell
+    that runs its command. That holds whether the launcher is still running or
+    has already exited and left its child behind."""
+    launcher = spawn(
+        ["/bin/sh", "-c", f"sleep 600 & echo $!; {launcher_ends}"],
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    descendant = int(launcher.stdout.readline())
+    if launcher_ends == "exit":
+        launcher.wait(timeout=STATED_TIMEOUT)
+
+    _retire(launcher)
+
+    def running():
+        try:
+            os.kill(descendant, 0)
+        except ProcessLookupError:
+            return False
+        return True
+
+    wait_for(running, lambda alive: not alive, failure="the launcher's child survived")
+
+
 def test_page_packages_are_explicit_and_survive_reinitialization(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     home = tmp_path / "home"
@@ -2600,30 +2718,33 @@ def test_page_commands_do_not_mint_the_successful_init_marker(tmp_path):
 
 
 def test_concurrent_page_init_serializes_creation(tmp_path, monkeypatch):
-    """One page lock covers creation before the page log exists."""
+    """One page lock covers creation before the page log exists: a second init
+    that arrives while the first is creating the page waits on that lock, and
+    creates only once the first has finished.
+
+    The first creation is held inside the lock until the second is found waiting
+    on it. Without the lock the second would begin creating beside the first, which
+    the same wait observes instead."""
     page = tmp_path / "page"
     first_entered = threading.Event()
     release_first = threading.Event()
-    second_waiting = threading.Event()
-    calls = 0
+    second_entered = threading.Event()
+    creations = []
     errors = []
     original_init = vendoring_model._init_page
-    original_page_locked = vendoring_model.page_locked
+    # The page's lock is a flock on the directory, which the first init takes
+    # uncontended; the second is the one taker that can find it held.
+    second_waiting = lock_contention(monkeypatch, page, by="second-init")
 
     def paused_init(page_dir, selected):
-        nonlocal calls
-        calls += 1
-        if calls == 1:
+        creator = threading.current_thread().name
+        creations.append(creator)
+        if creator == "first-init":
             first_entered.set()
-            assert release_first.wait(STATED_TIMEOUT)
+            assert release_first.wait(STATED_TIMEOUT), "the first init was never let go"
+        else:
+            second_entered.set()
         original_init(page_dir, selected)
-
-    @contextlib.contextmanager
-    def observed_page_locked(locked):
-        if locked == page and threading.current_thread().name == "second-init":
-            second_waiting.set()
-        with original_page_locked(locked) as held:
-            yield held
 
     def initialize():
         try:
@@ -2632,19 +2753,26 @@ def test_concurrent_page_init_serializes_creation(tmp_path, monkeypatch):
             errors.append(error)
 
     monkeypatch.setattr(vendoring_model, "_init_page", paused_init)
-    monkeypatch.setattr(vendoring_model, "page_locked", observed_page_locked)
     first = threading.Thread(target=initialize, name="first-init")
     second = threading.Thread(target=initialize, name="second-init")
     first.start()
     try:
-        assert first_entered.wait(STATED_TIMEOUT), "the first init never started"
+        wait_for(
+            first_entered.is_set,
+            bool,
+            failure="the first init never began creating the page",
+        )
         second.start()
-        assert second_waiting.wait(STATED_TIMEOUT), "the second init never asked"
-        assert calls == 1
+        wait_for(
+            lambda: second_waiting.is_set() or second_entered.is_set(),
+            bool,
+            failure="the second init neither waited on the page lock nor began creating",
+        )
+        assert not second_entered.is_set(), (
+            "the second init began creating while the first held the page"
+        )
     finally:
         release_first.set()
-        # Both creations copy a whole runtime, so these are hang bounds rather
-        # than a measure of how quickly the lock passes from one to the other.
         first.join(timeout=STATED_TIMEOUT)
         if second.ident is not None:
             second.join(timeout=STATED_TIMEOUT)
@@ -2652,7 +2780,7 @@ def test_concurrent_page_init_serializes_creation(tmp_path, monkeypatch):
     assert not first.is_alive(), "the first init never finished"
     assert not second.is_alive(), "the second init never finished"
     assert errors == []
-    assert calls == 2
+    assert creations == ["first-init", "second-init"]
     assert (page / cleanup_model.EVENTS_FILE).is_file()
 
 
@@ -3860,7 +3988,7 @@ cli.cli.main(args=sys.argv[1:], standalone_mode=False)
                 env=environment,
                 capture_output=True,
                 text=True,
-                timeout=10,
+                timeout=STATED_TIMEOUT,
                 check=False,
             )
             assert independent.returncode == 0, independent.stdout + independent.stderr
@@ -3881,7 +4009,7 @@ cli.cli.main(args=sys.argv[1:], standalone_mode=False)
                 text=True,
             )
             assert child.stdout.readline().strip() == "waiting on shared destination"
-        out, err = child.communicate(timeout=10)
+        out, err = child.communicate(timeout=STATED_TIMEOUT)
         assert child.returncode == 0, out + err
     assert set(json.loads((package / "registry.json").read_text())) == {
         f"lf-parallel-{index}" for index in range(len(routes))
@@ -3899,7 +4027,7 @@ cli.cli.main(args=sys.argv[1:], standalone_mode=False)
             assert (
                 installing.stdout.readline().strip() == "waiting on shared destination"
             )
-        out, err = installing.communicate(timeout=10)
+        out, err = installing.communicate(timeout=STATED_TIMEOUT)
         if held_package == package:
             assert installing.returncode == 0, out + err
         else:

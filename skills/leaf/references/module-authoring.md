@@ -117,6 +117,16 @@ result, or after cancellation has restored the prior local DOM. Resume reconcile
 newest publisher reading. Optional recorded scalar attributes have a null initial
 value and must be removed when that value returns.
 
+A widget that declares `x-awaits` says what its answered Ask was answered with: its class
+declares `static answerWords(state, element)`, returning concise words for its row
+under Done in the Queue panel and a queue's row. The Queue panel is experimental and
+expected to change a lot. `state` is the same complete state `renderState`
+receives, and `element` is the widget, for authored markup such as an option's name;
+read nothing the module renders. Leaf calls it only while the Ask is answered, with the
+state of the publication that carries the Ask inventory, so the words never wait on a
+render; it normalizes their whitespace and bounds what it displays. A widget without one
+names no answer.
+
 ## The widget controller
 
 `widgetController(owner)` is the one semantic interface; callers supply no options.
@@ -530,12 +540,6 @@ buttons, checkboxes, radios, and selectable controls are addressable because the
 discrete activation. A custom element with a complete host-level `focus()` and `click()`
 contract passes `true` as `offer()`'s fifth `pressable` argument; its tag then supplies the
 same addressable marker as a native control.
-
-When the scope belongs to an Ask, `options.answer` may read its concise current answer for
-the answered row in the Asks drawer. Leaf normalizes whitespace and bounds the displayed
-answer; the package owns its meaning and words. Attach the answer reader to one stable scope
-owned by the Ask, even when several descendant scopes contribute controls. Answer metadata
-stays readable after a scope's availability condition closes, while the command rows remain gated.
 
 Register the command once, not every nearby button. Evidence nested inside an
 option is not an answer, and a shared-margin entry may sit outside the Ask source. When

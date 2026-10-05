@@ -78,7 +78,7 @@ item.
 | **Content frame** | `body > main`, the root of authored content and its reading column in flow posture |
 | **Layout** | A shipped class (`layouts.css`, the `lf-layouts` cascade layer) that arranges the box it is on: `layout-column`, `layout-wide`, `layout-sidebar`, `layout-tiles`, `layout-workspace`. A starting point the page's own CSS adjusts; nothing reads it back |
 | **Wide page** | A content frame carrying a Layout other than `layout-column`: every block starts at one left edge and takes the page's width, while text keeps the reading measure. It is a width, not a separate kind of page |
-| **Frame** | A box whose size comes from outside it: `main`, a root tab panel, a pane, a cell of a Layout or of the page's own grid, or any box declaring `--lf-block-frame: 1`. What it holds takes the frame's width, never the page's room, unless the frame holds the page's own flow (`--lf-page-flow: 1`: `main` and a root tab panel), where a surface breaks out as it would with no frame |
+| **Frame** | A box whose size comes from outside it: `main`, a root tab panel, a pane, a cell of a Layout or of the page's own grid, or any box declaring `--lf-block-frame`. A frame that draws one (`1`) holds what it holds to its width, never the page's room; a frame that only trims its edges and draws nothing (`trim`: `main`, a root tab panel, a command's goal) lets a surface break out as it would with no frame |
 | **Text** and **surface** | How a block uses its frame's width: text (a paragraph, list item, term or description, quote, caption or heading) keeps the reading measure however wide its frame, and every other box is a surface that fills its frame. A surface with `x-space` or `data-width` past the column breaks out of it on a column page, and a `wide` one holds to `--wide` in a frame wider than that |
 | **Bounded block** | A block that holds its own height and scrolls inside it (`x-bound`, `data-bound`); a reading region while it stands in the page, so what it scrolls moves it rather than the page |
 | **Workspace** | A page on `main.layout-workspace`, which keeps task regions together |
@@ -101,13 +101,13 @@ stylesheet decides whether their bodies scroll.
 | Term | Identity criterion |
 |---|---|
 | **Chrome** | Runtime-owned interface outside authored content, rooted at the one `.lf-chrome` container |
-| **Banner** | The persistent chrome row carrying page status and the primary Approval and Threads controls, with secondary global controls in its overflow disclosure. While a user's gesture holds a next step, such as Comment on selection after a touch selection or Exit Draw mode while a finger is in Draw mode, that step stands on the row in Approval and Threads' place |
+| **Banner** | The persistent chrome row carrying page status, which ends with the two queues' counts (a press on them opens the Queue panel), and the primary Approval and Threads controls, with secondary global controls in its overflow disclosure. While a user's gesture holds a next step, such as Comment on selection after a touch selection or Exit Draw mode while a finger is in Draw mode, that step stands on the row in Approval and Threads' place |
 | **Bottom bar** | The row at the window's foot, at one stated height (`--lf-bottom-bar-h`), holding the shortcut bar and the status; the page ends above it as it starts below the banner |
 | **Auxiliary surface** | Chrome opened `beside`, `over`, or `covering` the content frame |
 | **Thread panel** | The right-side auxiliary surface containing threads; it stands over the page and takes no width from it, and covers the page only where it leaves less than a usable page beside it |
-| **Drawer** | A mutually exclusive auxiliary surface that slides in at the window's left edge, one at a time; the Asks drawer stands over the page as the thread panel does, and the Leaves drawer always covers |
+| **Drawer** | A mutually exclusive auxiliary surface that slides in at the window's left edge, one at a time; the Queue panel stands over the page as the thread panel does, and the Leaves drawer always covers |
 
-The current drawers are the **Asks drawer** and **Leaves drawer**. Use *covering auxiliary
+The current drawers are the **Queue panel** (experimental) and the **Leaves drawer**. Use *covering auxiliary
 surface*, not *modal workspace*: a covering surface and a modal dialog are different
 web interaction primitives. A covering surface makes the page inert behind it; a surface
 over the page, such as the thread panel on a desktop window, takes no width from
@@ -166,7 +166,8 @@ spine instead.
 | **Go-to sequence** | The `g` prefix grammar that builds a current map of Go-to targets, paints transient hint codes, and resolves complete ordered addresses |
 | **Target picker** | The `s` interaction that presents addressable elements and ends when the user chooses one or closes it |
 | **Page search** | The `/` interaction that filters or walks text matches for a query |
-| **Walk** | Ordered semantic movement among same-kind destinations |
+| **Walk** | Ordered semantic movement among one category of destination: open threads (`t`), the user's queue (`a`), a list's rows |
+| **Queue** | What one side has to act on: the user's (`on_you`: open Asks, then each other thread whose attention is the user's, and page moves to send again) or the agent's (`on_agent`: owed replies, claimed work, open tasks). `agent_state.queues` and `runtime/queues.js` select both from the same readings; `a` walks the user's, and the Queue panel lists both, with what is done (answered Asks, ended tasks) folded beneath |
 | **Trip** | One travel to a destination, a thread's passage, an Ask, a datum, or the element a followed fragment link names: it clears the auxiliary surface hiding the destination, then stays when the user already has it or departs, leaving a history entry. A fragment link always departs, by the entry the browser's navigation adds; Back or Forward to an entry whose fragment names an element the page has hidden since is a trip that departs by no entry |
 | **Journey** | Consecutive trips each leaving from the last one's landing, which share one history entry so Back returns to where the first began; it may mix threads and Asks, and is not a walk |
 | **Standing** | Holding a destination or a control inside it: a thread on the page or in the panel, an Ask, or authored page content. A panel thread's title and its messages are one destination. Chrome controls, margin markers, mark notes, and contents-outline links are apparatus rather than destinations |
@@ -217,7 +218,7 @@ These terms name Leaf concepts that no standard term covers, so they stay:
   layer that holds nothing, which focus restoration has no name for.
 - **Unwind**, not *dismiss*: one Escape takes off whichever step stands innermost, a
   selection or a narrowing as well as a surface, and only surfaces are dismissed.
-- **Walk**: ordered movement among same-kind destinations, as a DOM `TreeWalker` walks;
+- **Walk**: ordered movement among one category of destination, as a DOM `TreeWalker` walks;
   roving focus moves within one widget.
 - **Frame**, **Text**, and **surface**: the CSS terms (containing block, `margin-trim`)
   each cover half of a frame, which both sizes what it holds and trims its edge margins.

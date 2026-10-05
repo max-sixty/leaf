@@ -34,6 +34,7 @@ from interact_support import ModelPage, model_layer
 from leaf.event_contracts import admitted_event
 from leaf.passages import SourceReading
 from leaf.served_state.browser import browser_state
+from leaf.service import claim_update_sources
 from leaf.structure import SourceDocument
 
 NOW = "2026-09-19T12:00:00+00:00"
@@ -86,6 +87,7 @@ def reading(
     *,
     registry: dict | None = None,
     revision: int | None = None,
+    work: tuple[dict, ...] | list[dict] = (),
 ) -> dict:
     """The `/api/state` reading of one page, folded in this process.
 
@@ -101,6 +103,10 @@ def reading(
     so what this folds is a log the page could really have. A command the door
     would refuse raises `EventRefused` here rather than folding: the fixture cannot
     state a premise the product would not have accepted.
+
+    `work` are the claims `leaf status working --on` writes to the status store, as
+    that store holds them; the server reads them as `service.claim_update_sources`
+    does.
     """
     if isinstance(documents, str):
         documents = {1: documents}
@@ -131,7 +137,7 @@ def reading(
         {rev: SourceReading(document, registry) for rev, document in parsed.items()},
         log,
         active_revision,
-        UNCLAIMED,
+        {**UNCLAIMED, "claims": claim_update_sources({"work": list(work)})},
         active,
         {active_revision},
         NOW,

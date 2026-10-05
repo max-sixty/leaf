@@ -1188,7 +1188,7 @@ def test_message_age_may_shift_metadata_but_leaves_the_thread_in_place(
     boxes = "nodes => nodes.map(node => node.getBoundingClientRect().toJSON())"
     before = protected.evaluate_all(boxes)
     assert before
-    owner = surface_root.locator(".lf-thread-root-meta").first
+    owner = header.locator("xpath=..")
     owner_before = owner.bounding_box()
     receipt.evaluate(
         """receipt => {

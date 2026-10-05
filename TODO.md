@@ -168,19 +168,7 @@ and its chrome coordinate.
   (`syncLayoutRegion`) and the render check's held-panes reading (`heldPanes`), which
   both look only at `main`, have to look at that block too. It waits for a page that
   needs it; a workspace page's own pane grid stays plain CSS.
-- **Settle what a box declares to the width rules before patching them again.** One
-  flag, `--lf-block-frame`, decides three things: a box's edge margins are trimmed,
-  wide blocks inside it stay inside it, and a table in it fills it. `main` and a page
-  tab's panel want only the trim and opt out of the rest with `--lf-page-flow` (#1723).
-  A task inside `lf-command` wants only the trim too and has no way to say so, so a wide
-  worktree in it stays at 604px where it would take 672px. Rules that undo another rule
-  have also lived in lower cascade layers, where they lose without a sign: moving the
-  width rules into `lf-layouts` (#1617) disabled the page tab's hand-back and the
-  diagram package's no-runtime rule, and the bug reached a user a day after CI had
-  caught and muted it. Decide what
-  a box states (that its edges trim, that it draws a frame, that it holds the page's own
-  flow) so each rule reads one declaration and no box has to undo a rule meant for
-  another.
+
 - **Show each floating surface across the content it can hold.** `leaf-dev stills`
   screenshots the same states on the base and the branch, so it reports a change but
   misses a surface that is wrong on both. Until PR 1440 a margin thread card took all
@@ -222,23 +210,6 @@ and its chrome coordinate.
 - **Layout values that wait for a task:** a selection-and-detail component whose phone
   form shows one side at a time; canvas regions, whose reading position is
   two-dimensional; slides as a presentation of `lf-tabs`.
-- **Place the comment composer correctly on a page that sets a margin on `html`.**
-  With `html { margin-left: 40px }` the floating composer lands 40px left of its lane
-  and overlaps the element it comments on, on any page wide enough to place it
-  beside its target. The reference rect handed to Floating UI (`composing/surface.js`,
-  `placeFab`) and the fixed bar disagree by the root's margin.
-  `test_an_aimed_comment_keeps_its_place_with_the_asks_drawer_open` reproduces it at
-  1200px with the drawer closed and runs at 900px, where the composer goes above or
-  below, until this is fixed.
-- **Land a sent comment's thread where its comment box stood.** A comment typed beside
-  an option near the top of the window (the box standing just under the banner) came
-  back as a margin card level with the option, about 330px lower, so the words the
-  user just wrote jump across the page on send. The send's carry transition
-  (`composing/surface.js`, the card placement in `margin-projection.js`) animates the
-  jump rather than avoiding it. The card and the box choose their places by different
-  rules: the box from the target and the room at the moment it opened, the card from the
-  margin's own layout. Either the card opens where the box stood, or the box opens where
-  the card will stand.
 - **Unconfirmed: scrolling a live sample sometimes sticks.** A user reported it
   while a sample still scrolled inside a fixed-height frame, with no reproduction.
   The frame now takes its page's height, so nothing scrolls inside it; check that the

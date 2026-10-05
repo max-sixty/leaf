@@ -47,8 +47,8 @@ def native_trace(tmp_path, browser):
     second = context.new_page()
     second.set_content("<button>Review</button><button>Review</button>")
     second.get_by_role("button", name="Review", exact=True).nth(1).click()
-    with pytest.raises(Exception, match="Timeout"):
-        second.get_by_role("button", name="Missing", exact=True).click(timeout=100)
+    with pytest.raises(Exception, match="strict mode violation"):
+        second.get_by_role("button", name="Review", exact=True).click()
     context.tracing.stop(path=trace)
     context.close()
     return trace
@@ -190,7 +190,7 @@ def test_native_trace_import_keeps_pixels_pages_action_errors_and_saved_tree_ide
         for node in phase["tree"]["nodes"]
     )
     failed = next(action for action in value["actions"] if action["error"])
-    assert "Timeout" in failed["error"]
+    assert "strict mode violation" in failed["error"]
     assert failed["endTime"] >= failed["startTime"]
     assert "private-input-value" not in json.dumps(
         [action["title"] for action in value["actions"]]

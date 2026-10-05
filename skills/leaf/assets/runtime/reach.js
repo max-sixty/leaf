@@ -242,8 +242,11 @@ function classify(el) {
   // A box that already carries a stop of its own is somewhere the user can be put,
   // whoever put it there; this pass neither adds to it nor takes it away.
   if (!mayScroll.has(el)) {
-    if (el.tabIndex >= 0) return;
-    mayScroll.set(el, wearsLentStop(el) ? null : el.getAttribute("tabindex"));
+    if (el.tabIndex >= 0 && !claimedStops.has(el)) return;
+    mayScroll.set(
+      el,
+      wearsLentStop(el) || claimedStops.has(el) ? null : el.getAttribute("tabindex"),
+    );
   }
   // The box itself, not the page's: a candidate's own resize is exactly the moment
   // its answer can change, and asking it there is one observation per candidate

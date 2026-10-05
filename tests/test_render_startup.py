@@ -3670,8 +3670,9 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     # the message, so it stands in the thread's corner and the row ends here.
     expect(held_thread.locator(":scope > .lf-msg-sending")).to_have_count(0)
     assert held_workflow.evaluate(
-        "node => node.parentElement.matches('.lf-msg-meta') "
-        "&& node.previousElementSibling.matches('time')"
+        "node => { const slot = node.closest('.lf-msg-workflow') ?? node; "
+        "return slot.parentElement.matches('.lf-msg-meta') "
+        "&& slot.previousElementSibling.matches('time'); }"
     )
 
     # New words do not detach the claim from the comment that started the work.
@@ -3904,8 +3905,9 @@ def test_a_message_workflow_changes_phase_in_place_and_then_stands_still(
     expect(workflow).to_be_visible()
     expect(workflow).to_have_text("Sent")
     assert workflow.evaluate(
-        "node => node.parentElement.matches('.lf-msg-meta') "
-        "&& node.previousElementSibling.matches('time')"
+        "node => { const slot = node.closest('.lf-msg-workflow') ?? node; "
+        "return slot.parentElement.matches('.lf-msg-meta') "
+        "&& slot.previousElementSibling.matches('time'); }"
     )
     expect(workflow.locator("time")).to_have_count(0)
     expect(thread.locator(":scope > .lf-msg-sending")).to_have_count(0)

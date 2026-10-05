@@ -129,11 +129,13 @@
     { once: true },
   );
 
-  // The marks under `node` taken off. No revision's markup carries them, so a copy of
-  // the page taken to stand for what its author wrote is read without them.
+  // The marks under `node` taken off, and what delivery wrote in for the first paint
+  // (`x-prepaint`, `data-lf-prepaint`). No revision's markup carries either, so a copy
+  // of the page taken to stand for what its author wrote is read without them.
   const unmarked = (node) => {
     for (const member of node.querySelectorAll(`[${OPENING}]`))
       member.removeAttribute(OPENING);
+    for (const written of node.querySelectorAll("[data-lf-prepaint]")) written.remove();
     return node;
   };
 

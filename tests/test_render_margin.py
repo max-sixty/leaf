@@ -5259,7 +5259,7 @@ def test_a_thread_uses_a_free_margin_and_tracks_its_source(browser, serve):
 
 def test_a_thread_beside_its_words_takes_the_room_to_the_visible_edge(browser, serve):
     """Room right of a thread's words short of the card's measure narrows the card, not
-    its height.
+    its height, and the card spends none of that room keeping its pin clear.
 
     The width is the arrangement: this thread is on the gallery's right-hand title
     comparison, so the room right of it grows with half the viewport, and the case only says
@@ -5283,13 +5283,13 @@ def test_a_thread_beside_its_words_takes_the_room_to_the_visible_edge(browser, s
           const list = cardNode.querySelector('.lf-thread-transcript');
           const card = cardNode.getBoundingClientRect();
           const words = document.querySelector('#bg-thread-text').getBoundingClientRect();
-          // The pin on the words reaches past them, and the card clears it too.
           const pin = document.querySelector('[data-lf-margin-for="bg-thread-text"]')
             .getBoundingClientRect();
           const style = getComputedStyle(cardNode);
           return {placement: cardNode.dataset.lfThreadPlacement,
                   cardLeft: card.left, cardRight: card.right, cardWidth: card.width,
-                  wordsRight: Math.max(words.right, pin.right), viewport: innerWidth,
+                  wordsRight: words.right, pinLeft: pin.left, pinRight: pin.right,
+                  viewport: innerWidth,
                   preferred: parseFloat(style.getPropertyValue('--thread-card')),
                   minimum: parseFloat(style.getPropertyValue('--thread-card-min')),
                   clipped: list.scrollHeight - list.clientHeight};
@@ -5297,13 +5297,19 @@ def test_a_thread_beside_its_words_takes_the_room_to_the_visible_edge(browser, s
     )
     # The room between the words and the visible edge is what the card has to fit
     # into, and this case is the one where that room falls short of the preferred
-    # measure without falling short of the minimum.
+    # measure without falling short of the minimum. The pin on the words reaches past
+    # them, and the room past it falls short of the measure too.
     room = geometry["viewport"] - 8 - (geometry["wordsRight"] + 8)
     assert geometry["minimum"] <= room < geometry["preferred"], geometry
+    assert geometry["pinRight"] > geometry["wordsRight"], geometry
+    # Clearing the pin would cost the card width, so the card keeps no gap past it: it
+    # stands beside the words, over whatever of the pin reaches that far, and takes
+    # the whole room to the visible edge (comment-placement.js).
     assert geometry["placement"] == "right", geometry
     assert geometry["cardLeft"] == pytest.approx(geometry["wordsRight"] + 8, abs=0.5), (
         geometry
     )
+    assert geometry["cardLeft"] < geometry["pinRight"] + 8, geometry
     assert geometry["cardRight"] == pytest.approx(geometry["viewport"] - 8, abs=0.5), (
         geometry
     )
@@ -5770,7 +5776,8 @@ LONG_THREAD = [
 
 
 def open_long_thread(browser, serve, height=900):
-    """The long thread's margin card, its transcript scrolled partway down."""
+    """The long thread's margin card, which opens on its latest message, scrolled
+    partway back up."""
     page = open_page(browser, serve(LONG_THREAD_PAGE, events=LONG_THREAD))
     page.emulate_media(reduced_motion="reduce")
     resized(page, 1440, height)
@@ -5781,9 +5788,14 @@ def open_long_thread(browser, serve, height=900):
     room = transcript.evaluate("list => list.scrollHeight - list.clientHeight")
     assert room > 300, f"the transcript scrolls {room}px, too little to stand mid-way"
     transcript.hover()
-    page.mouse.wheel(0, room // 2)
     page.wait_for_function(
-        "list => list.scrollTop > 100", arg=transcript.element_handle()
+        "([list, room]) => list.scrollTop >= room - 1",
+        arg=[transcript.element_handle(), room],
+    )
+    page.mouse.wheel(0, -(room // 2))
+    page.wait_for_function(
+        "([list, room]) => list.scrollTop < room - 100",
+        arg=[transcript.element_handle(), room],
     )
     scroll_settled(page, ".lf-margin-preview .lf-thread-transcript")
     return page, preview, transcript
@@ -5793,18 +5805,18 @@ def open_long_thread(browser, serve, height=900):
 def test_the_margin_reply_outside_the_transcript_shows_its_whole_ring(
     browser, serve, height
 ):
-    """Scrolling moves turns while both control rows stay outside the scrollport."""
+    """Scrolling moves turns under the actions while both stay put, and the reply row
+    stays outside the scrollport."""
     page, preview, transcript = open_long_thread(browser, serve, height)
-    header = preview.locator(".lf-thread-root-meta")
+    header = preview.locator(".lf-margin-thread-controls")
     row = preview.locator(".lf-thread-reply")
     original = [header.bounding_box(), row.bounding_box()]
     transcript.evaluate("list => list.scrollTop = 40")
     rendered(page)
     assert header.bounding_box() == pytest.approx(original[0], abs=0.5)
     assert row.bounding_box() == pytest.approx(original[1], abs=0.5)
-    assert (
-        header.bounding_box()["y"] + header.bounding_box()["height"]
-        <= transcript.bounding_box()["y"] + 0.5
+    assert header.bounding_box()["y"] == pytest.approx(
+        transcript.bounding_box()["y"], abs=0.5
     )
     assert (
         row.bounding_box()["y"]
@@ -6358,9 +6370,8 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     geometry = preview.evaluate(
         """preview => {
           const thread = preview.querySelector('.lf-page-thread');
-          // The first message's head is hoisted out of its message and onto the row the
-          // thread opens with, which carries its controls beside the author.
-          const metaRow = thread.querySelector(':scope > .lf-thread-root-meta');
+          // The controls stand over the transcript's top, beside each message's head.
+          const metaRow = thread.querySelector(':scope > .lf-margin-thread-controls');
           const close = preview.querySelector('.lf-margin-preview-close');
           const resolve = thread.querySelector('.lf-resolve');
           const mr = metaRow.getBoundingClientRect();
@@ -6663,6 +6674,43 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(browser,
     expect(preview).to_be_hidden()
     expect(page.locator(f'.lf-thread[data-id="{root_id}"] leaf-text')).to_be_focused()
     assert page.evaluate("() => window.__cardOpenings") == []
+
+
+@pytest.mark.parametrize("width", [1920, 2400])
+def test_a_margin_card_clears_its_row_only_where_that_costs_no_width(
+    browser, serve, width
+):
+    """Where the room past the margin row holds the card's whole measure, the card
+    stands there, clear of the row; short of that, clearing it would narrow the card,
+    so the card stands beside the words instead, over the row (comment-placement.js).
+    Either way, short of its measure it takes the room to the visible edge."""
+    page = open_page(browser, serve(ASK_PAGE, events=[PARAGRAPH_ON_ASK]))
+    resized(page, width, 900)
+    page.locator('.lf-margin-marker[data-lf-kinds="comment"]').click()
+    preview = page.locator(".lf-margin-preview")
+    expect(preview).to_have_attribute("data-lf-thread-placement", re.compile(r".+"))
+    rendered(page)
+    geometry = page.evaluate(
+        """() => {
+          const controls = document.querySelector('[data-lf-kinds="comment"]')
+            .closest('[data-lf-margin-for]').getBoundingClientRect();
+          const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
+          return {controlsRight: controls.right, cardLeft: card.left,
+                  cardRight: card.right, viewport: innerWidth};
+        }"""
+    )
+    past = geometry["viewport"] - 8 - (geometry["controlsRight"] + 8) >= 592
+    assert past == (width == 2400), geometry
+    assert geometry["cardLeft"] == pytest.approx(
+        (geometry["controlsRight"] if past else page.evaluate(WORDS_RIGHT)) + 8,
+        abs=0.5,
+    ), geometry
+    assert geometry["cardRight"] == pytest.approx(
+        geometry["viewport"] - 8
+        if geometry["viewport"] - 8 - geometry["cardLeft"] < 592
+        else geometry["cardLeft"] + 592,
+        abs=0.5,
+    ), geometry
 
 
 def test_a_thread_margin_entry_opens_inline_when_the_panel_is_closed(browser, serve):
@@ -8148,7 +8196,7 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     assert capped["bottom"] <= 472.5, capped
     assert capped["scrollHeight"] > capped["clientHeight"], capped
     # The thread scrolls while its opening metadata and settlement remain usable.
-    metadata = preview.locator(".lf-thread-root-meta")
+    metadata = preview.locator(".lf-margin-thread-controls")
     resolve = preview.get_by_role("button", name="Resolve thread", exact=True)
     metadata_box = metadata.bounding_box()
     resolve_box = resolve.bounding_box()

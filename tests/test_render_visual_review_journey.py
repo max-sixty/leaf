@@ -174,14 +174,6 @@ def target_document(title, body):
     )
 
 
-@pytest.mark.xfail(
-    reason=(
-        "Main 6ddf85e5d: the visual-review inline comment seat does not reveal its "
-        "focused editor after a desktop-to-phone resize"
-    ),
-    raises=AssertionError,
-    strict=True,
-)
 def test_visual_review_keeps_its_inline_comment_editor_in_view_after_phone_resize(
     browser, serve
 ):

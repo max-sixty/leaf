@@ -52,7 +52,7 @@ import {
 } from "./anchor-resolution.js";
 import { announce, notice } from "./notifications.js";
 import { claimsEsc, focused, saying } from "./keyboard/scopes.js";
-import { handBack } from "./focus.js";
+import { handBack, returningFocus } from "./focus.js";
 import { repaint } from "./repaint.js";
 
 import {
@@ -394,7 +394,9 @@ export function createReactionController({
   function closeSurface(surface) {
     if (surface === marginSurface) return;
     surface?.classList.remove("lf-react-open");
-    pickerFor(surface)?.trigger.setAttribute("aria-expanded", "false");
+    const picker = pickerFor(surface);
+    if (picker) returningFocus(() => picker.palette.hidePopover());
+    picker?.trigger.setAttribute("aria-expanded", "false");
   }
 
   // A page picker lives in the target's shared margin entry options and therefore owns its
@@ -418,9 +420,10 @@ export function createReactionController({
     }
     if (on === reactArmed && (surface === reactSurface || !surface)) return;
     if (on && claimsEsc(focused())) return;
-    // Closing hides the palette synchronously. Capture its focused control first: once
-    // CSS makes it invisible, the browser reports body and loses the fact needed to
-    // return to the compact response that opened it.
+    // Closing hides the palette synchronously. Capture its focused control first: a
+    // reply's list hands focus back to its opener as it closes, and the margin's goes
+    // with its contribution, after which the browser reports where focus went rather
+    // than the choice the user stood on, the fact the return below reads.
     const closingActive = on ? null : focused();
     closeSurface(reactSurface);
     if (on) {
@@ -464,6 +467,7 @@ export function createReactionController({
       if (reactSurface !== marginSurface) {
         reactSurface.classList.add("lf-react-open");
         const picker = pickerFor(reactSurface);
+        picker.palette.showPopover({ source: picker.trigger });
         picker.trigger.setAttribute("aria-expanded", "true");
         if (surface && reactFrom === picker.trigger)
           picker.palette.querySelector(".lf-react")?.focus({ preventScroll: true });

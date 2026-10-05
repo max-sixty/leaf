@@ -734,7 +734,9 @@ def test_reading_inside_a_long_thread_keeps_its_title_and_reply_row_on_the_lists
     assert edges["bottom"] - 20 < edges["reply"] <= edges["bottom"], edges
     assert edges["atTop"] and edges["atBottom"], edges
     assert edges["through"] == [], edges
-    # An overlay a row raises while open scrolls up under the title with its words.
+    # An open reaction list hangs below its trigger in the top layer, and goes once the
+    # trigger leaves the list, so scrolling its message up under the title still leaves
+    # the title whole.
     message = card.locator(".lf-msg.agent").first
     message.hover()
     message.locator(".lf-react-trigger").click()

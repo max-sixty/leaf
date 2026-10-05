@@ -206,6 +206,11 @@ class SnapshotRun:
         if not self.updating and baseline.is_file():
             shutil.copyfile(baseline, expected)
         self.observations[stage] = reading
+        # A profile without this case's images still runs the whole journey, so a
+        # new case's first CI run leaves every stage's actual image for review.
+        if not self.updating and not baseline.is_file():
+            self.failures.append(f"{stage}: missing approved image: {baseline}")
+            return
         try:
             # Pixelmatch ignores antialias edges and small perceptual color changes.
             # Every remaining mismatch fails; there is no whole-image allowance.

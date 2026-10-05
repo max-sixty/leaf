@@ -207,6 +207,9 @@ def test_a_click_on_a_panes_words_makes_it_the_subject_of_every_scroll_key(
     assert right == 0, (left, right)
 
     page.locator("#right-start").click()
+    reading = """async () => (await window.__lfRuntimeImport(
+      '/runtime/reading-regions.js')).userReadingRegion()?.host.id ?? null"""
+    assert page.evaluate(reading) == "right-reading"
     page.keyboard.press("d")
     page.wait_for_function(f"() => ({tops})()[1] > 0")
     scroll_settled(page, "#right-reading > :not(header, footer)")
@@ -215,6 +218,7 @@ def test_a_click_on_a_panes_words_makes_it_the_subject_of_every_scroll_key(
     page.locator("#left-head").focus()
     page.keyboard.press("Escape")
     assert page.evaluate("() => document.activeElement === document.body")
+    assert page.evaluate(reading) is None
 
 
 def test_a_pane_bodys_ring_is_drawn_whole_against_the_workspace_edges(browser, serve):

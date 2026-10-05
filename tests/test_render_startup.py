@@ -3743,11 +3743,13 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     expect(workflows).to_have_count(1)
 
     # A thread the user has closed asks nothing: its card, closed from another tab,
-    # stays where it stands and says it is resolved.
+    # stays where it stands, holding the resolution behind its notice, and its title
+    # no longer says the agent is working on it.
     append_carried_log_record(d, {"kind": "resolve", "author": "user", "parent": held})
     told(page)
     expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
-    expect(held_thread.locator(".lf-thread-status")).to_have_text("Resolved")
+    expect(held_thread.locator(".lf-thread-news")).to_have_text("Resolved")
+    expect(held_thread.locator(".lf-thread-status")).to_have_count(0)
     expect(workflows).to_have_count(1)
 
     # Reopening restores the task, which no reply ends. Its start goes with the page

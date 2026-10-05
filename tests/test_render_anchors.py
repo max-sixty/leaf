@@ -1511,6 +1511,30 @@ def test_code_copy_enter_leaves_nested_links_usable(browser, serve):
     expect(page).to_have_url(re.compile(r"#destination$"))
 
 
+def test_hidden_code_copy_controls_do_not_enter_layout(browser, serve):
+    """A long hidden queue must not make every page layout place its copy controls."""
+    blocks = "".join(
+        f'<pre><code>example {index}</code></pre>' for index in range(100)
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Hidden code queue",
+                '<h1 id="title">Queue</h1><details><summary>Examples</summary>'
+                + blocks
+                + "</details>",
+            )
+        ),
+    )
+    controls = page.locator(".lf-chrome > .lf-code-copy")
+    expect(controls).to_have_count(100)
+    assert page.evaluate(
+        """() => [...document.querySelectorAll('.lf-chrome > .lf-code-copy')]
+            .filter(control => control.getClientRects().length).length"""
+    ) == 0
+
+
 @pytest.mark.parametrize("holder", ["disclosure", "tab"])
 def test_code_copy_leaves_the_window_with_its_hidden_source(browser, serve, holder):
     """Chrome copy controls leave with hidden code and return ready for a finger."""

@@ -24,8 +24,8 @@ stays in `.tmp/`.
 
 Linux browser tests use `tests/fonts.conf` and `fonts-dejavu` for their native
 UI, serif and mono faces, including bold and italic styles. Install that package before `wt setup`; CI installs it
-explicitly. The PNG rendering profile binds the fontconfig and installed font bytes,
-and an actual Chromium font reading verifies those faces. Mac uses its native fonts.
+explicitly, and an actual Chromium font reading verifies those faces. Mac uses its
+native fonts, and the thread appearance gate compares its images on macOS only.
 
 ## A failure is evidence about the test too
 
@@ -69,7 +69,10 @@ reaches the runtime. A change lands only on a green landing gate, which runs the
 selection: a pull request's `test` job, or `wt merge`'s pre-merge. A failure there that
 your selection missed is the gate doing its job; fix it and push. Every other nightly
 test is CI's to report: the `test` job in `ci.yaml` runs the complete suite once main
-moves, and `tend-ci-fix` answers what it fails. Don't run the broad selection, `--run-nightly`, `-m nightly`, or
+moves, and `tend-ci-fix` answers what it fails. That trade is the user's choice
+(2026-10-04): a pull request can land green and break a nightly test it never ran, and
+main can stay red while `tend-ci-fix` repairs it, so a red main is no reason to widen a
+change, its gate, or its test selection. Don't run the broad selection, `--run-nightly`, `-m nightly`, or
 a whole browser file locally outside a landing: each takes minutes to over an hour
 and slows every other session on the machine. To learn what main fails, read that
 job's run, and reproduce a failure it names by node id.

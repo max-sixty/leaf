@@ -713,7 +713,8 @@ export function createGoToSequence({
           when: () => atGoToTargets() && live(destination),
           run: (binding) => {
             setGoToSequence(false);
-            destination.run(binding);
+            if (destination.run) destination.run(binding);
+            else word(destination.control).click();
           },
         })),
         {

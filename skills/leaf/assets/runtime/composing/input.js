@@ -1,6 +1,5 @@
 import { rememberWriting } from "../drafts.js";
-import { focused, keys } from "../keyboard/scopes.js";
-import { repaint } from "../repaint.js";
+import { focused, keys, paintKeys } from "../keyboard/scopes.js";
 import { keeps, keepsHidden, keepsText } from "../keeps.js";
 import { advertisesKeys, submitBindings, submitLabel } from "../keyboard/bindings.js";
 import { readPastedMedia, scopedMediaUrl, writePastedMedia } from "../media.js";
@@ -222,6 +221,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     if (altBtn) altBtn.title = altBtn.textContent;
     let sending = false;
     let uploading = false;
+    const canSend = () => !sending && !uploading && !busy() && hasContent(draftValue());
     // Everything the box shows about its standing, written only where it differs from
     // what stands: a text node replaced inside the chrome restyles far more than the node.
     const paint = (contextualHint) => {
@@ -249,11 +249,9 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       const action = sendLabel();
       keeps(sendBtn, "aria-label", action);
       keeps(sendBtn, "title", sendKeys ? `${action} (${sendKeys})` : action);
-      // Keep a disabled send reachable so the user can discover why it will not send;
-      // submit() is the behavioral guard and aria-disabled exposes the same state.
-      const disabled = sending || uploading || busy() || !hasContent(draftValue());
-      keeps(sendBtn, "aria-disabled", disabled);
-      if (altBtn) keeps(altBtn, "aria-disabled", disabled);
+      // These native input actions keep their focus seat while refusing a send.
+      keeps(sendBtn, "aria-disabled", !canSend());
+      if (altBtn) keeps(altBtn, "aria-disabled", !canSend());
     };
     inputPaints.set(ta, paint);
     const refresh = () => {
@@ -261,7 +259,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       // the next key. The rest of its dressing can wait for the shared paint.
       paintOwn();
       stale.add(ta);
-      repaint();
+      paintKeys();
     };
     const draftChanged = () => {
       save(draftValue());
@@ -384,7 +382,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         label: submitLabel,
         description: "Submit what you have typed",
         title: sends,
-        run: () => sendBtn.click(),
+        run: () => pressed(send),
       },
     ]);
     // A press on a submit control is the send key pressed from the box, so it leaves the

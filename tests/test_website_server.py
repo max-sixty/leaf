@@ -44,6 +44,7 @@ from leaf.files import revision_path
 from leaf.hosting import LeafHTTPServer
 from leaf.http import page_delivery
 from leaf.machine import pid_alive
+from leaf.render_checks import rendered
 from leaf.revision_artifact import capture_artifact
 from leaf.revision_delivery import compose_document
 from leaf.served_state import page as served_page
@@ -2883,14 +2884,26 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     harness = website_server.WebsiteCodexHarness("codex")
     turn = hosted_follower(harness, page_dir, prepared)
     turn.begin()
+    # Present the accepted turn before resolving it: coalescing these server writes
+    # would never exercise a workflow receipt disappearing beside the news control.
+    told(page)
+    rendered(page)
+    thread = page.locator(f'.lf-threads > [data-id="{comment["id"]}"]')
+    metadata = thread.locator(".lf-thread-root-meta > .lf-msg-head")
+    expect(metadata.locator(".lf-msg-sending")).to_have_count(1)
+    news = thread.locator(".lf-thread-news")
+    expect(news).to_be_visible()
+    news_left = news.bounding_box()["x"]
     cmd_resolve(page_dir, comment["id"])
     told(page)
+    rendered(page)
     # The agent's resolution is news, so the card the user is looking at stays in
     # Open Threads, drawn resolved, rather than folding out from in front of them.
-    thread = page.locator(f'.lf-threads > [data-id="{comment["id"]}"]')
     expect(thread).to_have_count(1)
     expect(thread).to_have_attribute("data-resolved", "true")
     expect(thread).to_be_visible()
+    expect(metadata.locator(".lf-msg-sending")).to_have_count(0)
+    assert news.bounding_box()["x"] == news_left
     if read_elsewhere:
         write(box, "A separate thread")
         box.press("ControlOrMeta+Enter")
@@ -2903,6 +2916,7 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
         other_thread = page.locator(f'.lf-thread[data-id="{other["id"]}"]')
         expect(other_thread).to_have_attribute("open", "")
 
+    expect(news).to_have_text("1 new reply")
     turn.commit(
         {
             "id": "app-server-turn",
@@ -2919,6 +2933,9 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     )
 
     told(page)
+    rendered(page)
+    assert news.bounding_box()["x"] == news_left
+    expect(news).to_have_text("Reopened · 1 new reply")
     if read_elsewhere:
         expect(other_thread).to_have_attribute("open", "")
         expect(thread.locator(".lf-msg.agent")).to_be_hidden()

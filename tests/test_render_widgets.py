@@ -8460,7 +8460,6 @@ def test_ask_contextual_bindings_are_independent_of_widget_bindings(browser, ser
           const inspect = document.createElement('button');
           inspect.id = 'inspect-action';
           inspect.textContent = 'Inspect';
-          inspect.onclick = () => { inspect.dataset.activated = '1'; };
           source.append(inspect);
           suggestion.append(source);
           commands(source, 'Suggestion action', [
@@ -8472,7 +8471,7 @@ def test_ask_contextual_bindings_are_independent_of_widget_bindings(browser, ser
               decision: true,
               title: 'Inspect',
               line: 'Inspect',
-              run: () => inspect.click(),
+              run: () => { inspect.dataset.activated = '1'; },
             },
           ]);
         }"""
@@ -8567,13 +8566,12 @@ def test_a_widget_digit_shadows_only_the_matching_ask_alias(browser, serve):
           const suggestion = document.getElementById('sug');
           const inspect = document.createElement('button');
           inspect.textContent = 'Inspect';
-          inspect.onclick = () => { inspect.dataset.activated = '1'; };
           suggestion.append(inspect);
           commands(inspect, 'Inspect control', [
             {
               id: 'test.inspect', keys: ['1'], contextKeys: ['3'], control: inspect, label: 'I',
               decision: true, title: 'Inspect', line: 'Inspect',
-              run: () => inspect.click(),
+              run: () => { inspect.dataset.activated = '1'; },
             },
             {
               id: 'test.local-three', keys: ['3'],
@@ -8788,7 +8786,7 @@ def test_ask_actions_replace_unusable_package_binding_badge_faces(browser, serve
             commands(control, id, [{
                id: `test.${id}`, keys: [], contextKeys: [String(nextKey++)], control, bindingBadge,
               decision: true, title: `Activate ${id}`, line: id,
-              run: () => control.click(),
+              run: () => { control.dataset.activated = '1'; },
             }]);
           };
 

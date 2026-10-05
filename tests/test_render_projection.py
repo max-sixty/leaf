@@ -322,8 +322,10 @@ def test_pr_review_package_keeps_the_authors_brief_distinct_and_stable(browser, 
         "passed"
     )
     assert card.evaluate("el => el.__reviewIdentity") is True
+    assert page.evaluate("() => getSelection().toString()") == selected
+    page.get_by_role("button", name="Comment on selection").click()
     expect(page.locator("#lf-composer-quote")).to_contain_text(f"“{selected}”")
-    expect(page.locator(".lf-fab-input")).not_to_be_focused()
+    expect(page.locator(".lf-fab-input")).to_be_focused()
 
     resized(page, 390, 900)
     assert root_overflow(page) == 0
@@ -552,7 +554,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
         )
     )
     assert selected == "└─ if request.token"
-    expect(page.locator("#lf-composer-quote")).to_contain_text(f"“{selected}”")
+    expect(page.get_by_role("button", name="Comment on selection")).to_be_visible()
 
     updated = (
         call_diff.replace(
@@ -574,8 +576,9 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     )
     assert lines.nth(2).evaluate("el => el.__callIdentity") is True
     assert page.evaluate("() => getSelection().toString()") == selected
+    page.get_by_role("button", name="Comment on selection").click()
     expect(page.locator("#lf-composer-quote")).to_contain_text(f"“{selected}”")
-    expect(page.locator(".lf-fab-input")).not_to_be_focused()
+    expect(page.locator(".lf-fab-input")).to_be_focused()
 
     page.keyboard.press("Escape")
     expect(page.locator("#patch [data-line-type]")).to_have_count(0)
@@ -9131,7 +9134,7 @@ def test_command_hub_repaints_anchors_after_generated_projections_change(
           document.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
         }"""
     )
-    page.locator(".lf-fab-input").click()
+    page.get_by_role("button", name="Comment on selection").click()
     write(page.locator(".lf-composer leaf-text"), "Keep this branch evidence visible.")
     page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)

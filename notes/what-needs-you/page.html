@@ -275,8 +275,10 @@
                 <tr>
                   <th scope="row">7. Items outlive their session</th>
                   <td>
-                    A task whose session ended without an outcome lands on you, and a
-                    dispatched session can take it over.
+                    A task whose session ended without an outcome stays on the agent's
+                    queue, marked as having no session behind it, and the next session
+                    on the page picks it up. A dispatched session's task links back to
+                    the one that dispatched it.
                   </td>
                   <td>Not started</td>
                 </tr>
@@ -302,12 +304,12 @@
               <lf-options id="after-four-pick" choose>
                 <lf-option id="after-four-orphans"
                   ><strong>Tasks whose session ended</strong> The first half of step 7.
-                  A task left open when its session ended, without an outcome, lands on
-                  your queue to end or hand on. Today it stays on the agent's queue
-                  until some later session happens to end it, so nobody is told it
-                  stopped. Recommended: this is the last way a task can quietly stall,
-                  and step 4's starts already record which session holds what. A few
-                  days.</lf-option
+                  A task left open when its session ended stays on the agent's queue.
+                  The page marks it as having no session behind it, and the next session
+                  to hold the page is handed it to carry on. Today nothing marks it, so
+                  it reads as under way while nobody is on it. Recommended: this is the
+                  last way a task can quietly stall, and step 4's starts already record
+                  which session holds what. A few days.</lf-option
                 >
                 <lf-option id="after-four-review"
                   ><strong>Either side adds to the other's queue</strong> Step 6. You
@@ -477,12 +479,12 @@ leaf task end PAGE TASK done "Version 4"
 stateDiagram-v2
   state "Open, on the agent" as Open
   state "Done, failed or dropped" as Ended
-  state "Unobserved, on you (step 7)" as Unobserved
+  state "No session, still on the agent (step 7)" as Unobserved
   [*] --&gt; Open: leaf task open
-  Open --&gt; Open: a reply, Resolve, a version, the session ending
+  Open --&gt; Open: a reply, Resolve, a version
   Open --&gt; Ended: leaf task end
   Open --&gt; Unobserved: its session ends
-  Unobserved --&gt; Open: a session takes it over
+  Unobserved --&gt; Open: the next session picks it up
     </pre>
             </lf-diagram>
           </section>
@@ -771,7 +773,7 @@ stateDiagram-v2
                   back at the task that dispatched it, which is a parent link. That
                   belongs in step 7, <em>Items outlive their session</em>, which already
                   deals with work that moves between sessions: it is also where a task
-                  whose session ended without an outcome lands on your queue.
+                  whose session ended without an outcome is handed to the next session.
                 </li>
               </ul>
               <p>

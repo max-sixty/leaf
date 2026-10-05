@@ -137,7 +137,6 @@ import {
   effectiveScroller,
   readingRegionFor,
   registerReadingRegion,
-  shownRegionBounds,
 } from "/runtime/reading-regions.js";
 
 import { focused, keys, paintKeys } from "/runtime/keyboard/scopes.js";
@@ -596,6 +595,20 @@ export function createMarginProjection({
     });
   }
 
+  // How far past its border box the card paints: its shadow's furthest offset, blur and
+  // spread, in its own pixels.
+  function paintReach(card) {
+    const shadows = getComputedStyle(card).boxShadow.split(/,(?![^(]*\))/);
+    return Math.max(
+      0,
+      ...shadows.map((shadow) => {
+        const [x = 0, y = 0, blur = 0, spread = 0] = (
+          shadow.match(/-?[\d.]+px/g) ?? []
+        ).map(parseFloat);
+        return Math.max(Math.abs(x), Math.abs(y)) + blur + spread;
+      }),
+    );
+  }
   // Placement supplies the outer bounds; the native tracks share them between
   // reading and writing. A scroll that only carries a fitting card writes nothing;
   // clipped contents receive newly available room without requiring a complete fit.
@@ -693,7 +706,7 @@ export function createMarginProjection({
         ui.autoUpdate,
       );
     const boundary = commentBoundary({
-      region: place.region && shownRegionBounds(place.region),
+      region: place.region,
     });
     if (!boundary.width || !boundary.height) {
       void floatingUi().then((ui) => stillCurrent() && watch(ui));
@@ -840,19 +853,21 @@ export function createMarginProjection({
         };
         // An unchanged declaration is the browser's own no-op, and `keeps` is the rest's.
         previewPlacement.stand(position);
-        const card = preview.getBoundingClientRect();
+        const card = previewPlacement.clientBox(position);
         previewAway = card.bottom <= boundary.top || card.top >= boundary.bottom;
         // Leaving with what it is about, the card passes under the chrome, which stacks
         // over it, and a reading region it stands in cuts it at the region's edge as it
-        // cuts the words.
+        // cuts the words. An edge further out than the card paints cuts nothing, and
+        // stands at that reach, so a scroll that moves it there writes nothing.
         const region = boundary.inRegion;
         if (region) {
+          const reach = -paintReach(preview);
           const inset = [
             (region.top - card.top) / scale.y,
             (card.right - region.right) / scale.x,
             (card.bottom - region.bottom) / scale.y,
             (region.left - card.left) / scale.x,
-          ];
+          ].map((cut) => Math.max(cut, reach));
           preview.style.clipPath = `inset(${inset.map(layoutPx).join(" ")})`;
         } else preview.style.removeProperty("clip-path");
         keeps(preview, "data-lf-thread-placement", THREAD_SIDES[side]);

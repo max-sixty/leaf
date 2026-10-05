@@ -85,10 +85,10 @@ import { moveScrollerBy } from "/runtime/scrolling.js";
 import {
   containingReadingRegionFor,
   effectiveScroller,
+  shownRegionBounds,
 } from "/runtime/reading-regions.js";
 import { pointBand } from "/runtime/pointed-place.js";
 import { marginSpot } from "./margin-layout.js";
-import { heldByWindow } from "./floating.js";
 
 // One fresh mechanical reading for the editor and the card it becomes. Resolving the
 // durable subject or passage remains with the caller; both surfaces read its boxes here.
@@ -130,17 +130,35 @@ export const LEAST_HEIGHT = 96;
 // scrollport's gutter and, for the comment box, an open panel's left edge (`right`). A
 // pane a resize narrowed, or a short strip of one a scroll left, so yields to the window,
 // which carries the surface rather than withdrawing a draft the user is writing. The
-// boundary names the region it stands in (`inRegion`), which then cuts the surface.
+// boundary names the region's shown bounds it stands in (`inRegion`), which then cut the
+// surface. Its `key` is what holds the side (`choose`): the window's edges, or the
+// region's whole box size and the window's, since a scroll of the page moves and clips a
+// region's shown bounds without changing the room it has, and a resize changes it.
 export function commentBoundary({ region = null, right = Infinity } = {}) {
   const shown = (within) => shownWindow({ within, gap: COMMENT_GAP });
-  const inRegion = region && shown(region);
-  return inRegion &&
+  const bounds = region && shownRegionBounds(region);
+  const inRegion = bounds && shown(bounds);
+  if (
+    inRegion &&
     Math.ceil(inRegion.width) >= Math.ceil(cardMinimum()) &&
     inRegion.height >= LEAST_HEIGHT
-    ? Object.assign(inRegion, { inRegion: region })
-    : Object.assign(shown({ right: Math.min(shellRight(), right) }), {
-        inRegion: null,
-      });
+  ) {
+    const whole = region.body.getBoundingClientRect();
+    return Object.assign(inRegion, {
+      inRegion: bounds,
+      key: [
+        whole.width,
+        whole.height,
+        window.visualViewport.width,
+        window.visualViewport.height,
+      ],
+    });
+  }
+  const shell = shown({ right: Math.min(shellRight(), right) });
+  return Object.assign(shell, {
+    inRegion: null,
+    key: [shell.left, shell.top, shell.right, shell.bottom],
+  });
 }
 
 const vertical = (side) => side === "top" || side === "bottom";
@@ -228,9 +246,9 @@ export const cardMeasure = () => rootLength("--thread-card");
    `landed` takes the answer's inline start, and returns what the answer says about the
    surface: its `scale` and where the rule stood its held edge before the boundary
    shifted it in (`spot`, `{ top }` and `{ foot }` from the rule's line), which is what a
-   `hold` returns to keep it there. `plane` reads whether the boundary holds the surface
-   at the window edge, in client coordinates, and chooses the page or window plane
-   (floating.js). `line` is where, in client pixels, the held side's line stands now.
+   `hold` returns to keep it there. `plane` names the constraint that bound the answer
+   (floating.js): `"page"` where the rule's line holds the surface, and where the
+   boundary shifted it in, the edge it stands against and that edge's client line. `line` is where, in client pixels, the held side's line stands now.
    `forget` drops the side so the next placement chooses again, and `scrolled` keeps it
    across the scroll the surface itself asked for (`makeRoom`).
 
@@ -299,15 +317,7 @@ export function commentPlacement() {
       // remains its semantic anchor; no rectangle here pretends to represent it.
       const unanchored = !clear;
       extent ??= boundary;
-      const key = [
-        Number(unanchored),
-        boundary.left,
-        boundary.top,
-        boundary.right,
-        boundary.bottom,
-        extent.left,
-        extent.right,
-      ];
+      const key = [Number(unanchored), ...boundary.key, extent.left, extent.right];
       const frame = pending;
       pending = null;
       const adopted =
@@ -544,16 +554,15 @@ export function commentPlacement() {
         reference: box,
         placement: `${side}-start`,
         middleware,
-        plane: ({ y, middlewareData }) => {
+        plane: ({ middlewareData }) => {
           if (unanchored) return "window";
-          const { scale, line: positionedLine } = middlewareData.scaled;
-          const top = line(clear, row) + (y - positionedLine) * scale.y;
-          const bottom = top + middlewareData.held.height * scale.y;
-          return heldIn &&
-            Math.abs(middlewareData.shift?.y ?? 0) >= 0.5 &&
-            heldByWindow(top, bottom, COMMENT_GAP)
-            ? "window"
-            : "page";
+          const shift = middlewareData.shift?.y ?? 0;
+          if (!heldIn || Math.abs(shift) < 0.5) return "page";
+          // Held in, it stands in the plane of the edge holding it, which floating.js
+          // finds from that edge's client line: the boundary's, less its gap.
+          return shift > 0
+            ? { edge: "top", at: boundary.top - COMMENT_GAP }
+            : { edge: "bottom", at: boundary.bottom + COMMENT_GAP };
         },
       };
     },

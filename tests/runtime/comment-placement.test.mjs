@@ -12,7 +12,13 @@ import {
   commentSide,
 } from "/runtime/annotation-overlay/comment-placement.js";
 
-const boundary = new DOMRect(8, 50, 1284, 797);
+// A window boundary, keyed by its edges as commentBoundary keys one.
+const windowBoundary = (left, top, width, height) =>
+  Object.assign(new DOMRect(left, top, width, height), {
+    inRegion: null,
+    key: [left, top, left + width, top + height],
+  });
+const boundary = windowBoundary(8, 50, 1284, 797);
 // A paragraph `width` wide from x = `left`, from y = `top` to `bottom`.
 const block = (left, width, top, bottom) => new DOMRect(left, top, width, bottom - top);
 // A page scrolled `scrollTop` into a document `height` tall, in an 850px scrollport.
@@ -120,9 +126,31 @@ test("a submitted frame survives supersession until it lands, then follows scrol
     const reflowed = block(300, 700, 200, 400);
     assert.equal(card.choose({ ...input, clear: reflowed }).fresh, true);
     card.adopt({ box, placement: editor.capture() });
-    const resized = new DOMRect(8, 50, 1084, 797);
+    const resized = windowBoundary(8, 50, 1084, 797);
     const afterResize = card.choose({ ...input, boundary: resized });
     assert.equal(afterResize.fresh, true);
     assert.equal(afterResize.hold, undefined);
   }
+});
+
+test("a page scroll that moves a region's shown bounds keeps the side", () => {
+  // A region boundary is keyed by the region's whole size, so a scroll of the page that
+  // moves and clips its shown bounds chooses no side afresh, while a resize does.
+  const region = (top, height, size = [0, 0, 900, 600]) =>
+    Object.assign(new DOMRect(100, top, 900, height), { inRegion: {}, key: size });
+  const clear = block(120, 860, 300, 500);
+  const input = {
+    clear,
+    row: clear.top,
+    minimumWidth: 320,
+    scroller: scroller(1000),
+    coarse: false,
+  };
+  const card = commentPlacement();
+  assert.equal(card.choose({ ...input, boundary: region(58, 597) }).fresh, true);
+  assert.equal(card.choose({ ...input, boundary: region(50, 560) }).fresh, false);
+  assert.equal(
+    card.choose({ ...input, boundary: region(50, 560, [0, 0, 900, 500]) }).fresh,
+    true,
+  );
 });

@@ -28,7 +28,6 @@ import { coarsePointer } from "/runtime/pointer.js";
 import { LAYOUT } from "/runtime/widget-elements.js";
 import { under } from "/runtime/shadow.js";
 import { union } from "/runtime/rect.js";
-import { shownRegionBounds } from "/runtime/reading-regions.js";
 import { floatingPlacement, floatingUi } from "../floating.js";
 import {
   cardMinimum,
@@ -92,8 +91,8 @@ export function createFloatingResponsePlacement({
       reservedHeight: Math.round(rowEnd + parseFloat(style.paddingBottom)),
     };
   };
-  const fabFits = (bounds = null) => {
-    const boundary = floatBoundary(bounds);
+  const fabFits = () => {
+    const boundary = floatBoundary();
     return (
       boundary.width > 0 &&
       Math.ceil(boundary.width) >= Math.ceil(fabBar.getBoundingClientRect().width)
@@ -220,9 +219,7 @@ export function createFloatingResponsePlacement({
       point: response.anchor.quote ? null : response.pointIn(owner),
       passage: geometry,
     });
-    const boundary = place.region
-      ? floatBoundary(shownRegionBounds(place.region))
-      : windowBoundary;
+    const boundary = place.region ? floatBoundary(place.region) : windowBoundary;
     if (boundary.width <= 0 || boundary.height <= 0) return false;
     const roomRect = place.extent;
     const keepClear = place.clear;

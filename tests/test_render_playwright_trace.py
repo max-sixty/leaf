@@ -148,9 +148,9 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
         for frame in record["images"]
         if frame["kind"] == "frame" and frame["pageId"] == first_page["id"]
     ]
-    assert (
-        frames
-    ), "The native trace must supply intermediate images for this regression"
+    assert frames, (
+        "The native trace must supply intermediate images for this regression"
+    )
     points.extend((frame["timestamp"], "image", frame["id"], None) for frame in frames)
     points.sort(key=lambda point: point[0])
     expect(slider).to_have_attribute("max", str(len(points) - 1))
@@ -372,9 +372,9 @@ def test_trace_initial_selection_opens_evidence_and_keeps_earlier_empty_stops(
     before = action["phases"]["before"]
     after = action["phases"]["after"]
     assert not before["imageId"] and not before["tree"]["nodes"]
-    assert after["tree"][
-        "nodes"
-    ], "Navigation completion must supply real review evidence"
+    assert after["tree"]["nodes"], (
+        "Navigation completion must supply real review evidence"
+    )
     data_model.cmd_data_set(directory, "navigation-trace", record)
     user = open_page(browser, url)
     widget = user.locator("#journey")

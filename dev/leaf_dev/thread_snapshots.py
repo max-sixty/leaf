@@ -1,7 +1,8 @@
 """Reviewed PNG expectations for one real message-delivery journey.
 
 Images and viewport geometry live in max-sixty/leaf-assets, pinned by the existing
-leaf-assets.json's thread_snapshots_revision. Tests compare current Leaf directly against that immutable set;
+leaf-assets.json's thread_snapshots_revision. Tests compare current Leaf directly
+against that immutable set;
 no historical runtime, source patch or baseline build is involved. Appearance is
 compared on macOS only: fonts and antialiasing differ by OS, and a Linux image could
 be made only on CI's own runner (TODO.md, "Development velocity"). Elsewhere the

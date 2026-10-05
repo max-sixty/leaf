@@ -302,8 +302,9 @@ if Worktrunk asks to approve the project commands, ask the user to run
 
 ## Land a change
 
-Thread appearance changes run `tests/test_render_thread_snapshots.py` through the
-ordinary gate. Review the failure's captured images before accepting an intentional
+Thread appearance changes run `tests/test_render_thread_snapshots.py`, which compares
+images on macOS only, so run it on a Mac before landing; a pull request's Linux CI runs
+its journey without comparing. Review the failure's captured images before accepting an intentional
 change; `dev/leaf_dev/thread_snapshots.py` owns the pinned-image capture and acceptance workflow.
 
 A red gate is the branch's to fix. A pull request's `test` job and the local

@@ -17,7 +17,7 @@ from leaf import event_log
 from leaf.served_state import context as served_context
 from leaf_dev import ROOT
 from leaf_dev.thread_journey import NEXT_WORDS, WORDS, delivery_journey
-from leaf_dev.thread_snapshots import CASES, SnapshotRun
+from leaf_dev.thread_snapshots import CASES, COMPARED, SnapshotRun
 from PIL import Image
 from pytest_image_snapshot import ImageMismatchError, ImageNotFoundError
 from render_harness import consume_browser_errors, leaf_page, open_page
@@ -26,8 +26,8 @@ from render_harness import consume_browser_errors, leaf_page, open_page
 @pytest.mark.skipif(
     sys.platform != "linux", reason="Linux's fixed native font contract"
 )
-def test_linux_browser_resolves_the_profile_fonts(browser, serve):
-    """Native UI, serif and mono styles all use the faces bound into the profile."""
+def test_linux_browser_resolves_the_fixed_fonts(browser, serve):
+    """Native UI, serif and mono styles all use the faces the fixed fontconfig names."""
     faces = {
         "system-ui": ("DejaVu Sans", "DejaVuSans", "Oblique"),
         "serif": ("DejaVu Serif", "DejaVuSerif", "Italic"),
@@ -199,6 +199,7 @@ def test_message_delivery_appearance_and_first_frame(
         )
 
 
+@pytest.mark.skipif(not COMPARED, reason="thread appearance is reviewed on macOS")
 def test_accept_publishes_only_a_successful_unchanged_capture(
     browser, thread_expected_store, tmp_path, monkeypatch
 ):
@@ -245,49 +246,3 @@ def test_accept_publishes_only_a_successful_unchanged_capture(
     result = runner.invoke(accept, [str(directory)])
     assert result.exit_code != 0 and "missing capture" in result.output
     assert published == []
-
-
-def test_a_ci_run_assembles_into_the_capture_its_cases_completed(
-    thread_expected_store, tmp_path
-):
-    """A CI run's evidence becomes the same reviewable capture `capture` writes, and
-    only once every case passed its delivery assertions."""
-    import click
-    from leaf_dev.thread_journey import STAGES
-    from leaf_dev.thread_snapshots import COMPLETE, assemble, capture_files
-
-    profile = next(path.name for path in thread_expected_store.iterdir())
-
-    def attempt(number):
-        return (
-            tmp_path
-            / f"evidence/pytest-results-test-7-{number}/thread-snapshots/runs/uid"
-        )
-
-    for case in CASES:
-        evidence = attempt(2) / case.name
-        evidence.mkdir(parents=True)
-        readings = {}
-        for stage in STAGES:
-            approved = thread_expected_store / profile / f"{case.name}-{stage}"
-            shutil.copyfile(
-                approved.with_suffix(".png"), evidence / f"{stage}.actual.png"
-            )
-            readings[stage] = {
-                "region": json.loads(approved.with_suffix(".json").read_text())
-            }
-        (evidence / "observations.json").write_text(json.dumps(readings))
-        (evidence / COMPLETE).write_text(profile)
-    # A re-run's later attempt is the one that stands, and a run of the same
-    # attempt-1 cases does not make the choice ambiguous.
-    shutil.copytree(attempt(2), attempt(1))
-    for png in attempt(1).glob("*/*.png"):
-        png.write_bytes(b"an earlier attempt")
-    directory = assemble(tmp_path / "evidence", tmp_path / "captures")
-    assert capture_files(directory, profile) == capture_files(
-        thread_expected_store, profile
-    )
-    for number in (1, 2):
-        (attempt(number) / CASES[0].name / COMPLETE).unlink()
-    with pytest.raises(click.ClickException, match="no attempt"):
-        assemble(tmp_path / "evidence", tmp_path / "captures")

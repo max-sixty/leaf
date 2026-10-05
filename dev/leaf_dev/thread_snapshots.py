@@ -2,24 +2,23 @@
 
 Images and viewport geometry live in max-sixty/leaf-assets, pinned by the existing
 leaf-assets.json. Tests compare current Leaf directly against that immutable set;
-no historical runtime, source patch or baseline build is involved. Each rendering
-profile names the OS, architecture and locked Chromium version. Linux also binds
-the shared native fontconfig and installed DejaVu font bytes. Missing profiles
-fail: browser upgrades require deliberately reviewed captures, including the Linux
-CI profile. Existing fetch-assets warms the same cache as every other asset reader.
+no historical runtime, source patch or baseline build is involved. Appearance is
+compared on macOS only: fonts and antialiasing differ by OS, and a Linux image could
+be made only on CI's own runner (TODO.md, "Development velocity"). Elsewhere the
+journey and its delivery assertions still run and keep their images as evidence.
+A profile names the macOS version, architecture and locked Chromium version, and a
+missing profile fails: browser upgrades require deliberately reviewed captures.
+Existing fetch-assets warms the same cache as every other asset reader.
 
     uv run pytest -n0 tests/test_render_thread_snapshots.py
     uv run leaf-dev thread-snapshots capture
-    uv run leaf-dev thread-snapshots fetch <ci-run-id>
     uv run leaf-dev thread-snapshots accept .tmp/thread-snapshots/captures/<run>
 
 Capture runs the same journey and hard delivery assertions, writing all 42 PNG images and
 geometry readings to a new evidence folder. Review its actual images and observations,
 then accept publishes that profile through leaf_assets.stage / publish and updates
-the ordinary asset pin. Acceptance never occurs in normal tests. CI keeps every run's
-evidence, and a case that passed its delivery assertions marks its images complete
-under its profile, so fetch assembles a CI run into the same evidence folder as
-capture: the Linux profile is reviewed and accepted the way a local one is. Small antialias noise is excluded by Pixelmatch's AA handling and
+the ordinary asset pin. Acceptance never occurs in normal tests. CI retains failed
+run evidence. Small antialias noise is excluded by Pixelmatch's AA handling and
 calibrated 0.01 perceptual tolerance; every other mismatched pixel fails, with no
 whole-image allowance. Independently compare viewport geometry so a translated crop
 cannot conceal placement changes.
@@ -52,7 +51,6 @@ from playwright.sync_api import Page
 from pytest_image_snapshot import ImageMismatchError
 
 from leaf_dev import ROOT, leaf_assets
-from leaf_dev.browser import linux_font_fingerprint
 from leaf_dev.thread_journey import STAGES
 
 
@@ -82,16 +80,16 @@ CASES = (
 )
 
 
+# The one platform whose appearance is reviewed and compared.
+COMPARED = sys.platform == "darwin"
+
+
 def render_profile(browser_version: str) -> str:
     """The rendering environment whose images this run can compare meaningfully."""
-    system = platform.system().lower()
-    version = (
-        platform.mac_ver()[0]
-        if system == "darwin"
-        else platform.freedesktop_os_release()["VERSION_ID"]
+    return (
+        f"darwin-{platform.mac_ver()[0]}-{platform.machine()}"
+        f"-chromium-{browser_version}"
     )
-    fonts = f"-fonts-{linux_font_fingerprint()}" if system == "linux" else ""
-    return f"{system}-{version}-{platform.machine()}-chromium-{browser_version}{fonts}"
 
 
 @contextmanager
@@ -185,6 +183,9 @@ class SnapshotRun:
             )
         actual = self.output / f"{stage}.actual.png"
         actual.write_bytes(png)
+        self.observations[stage] = reading
+        if not COMPARED:
+            return
         baseline = self.store / self.profile / f"{self.case.name}-{stage}.png"
         geometry = baseline.with_suffix(".json")
         if self.updating:
@@ -201,7 +202,6 @@ class SnapshotRun:
         expected.parent.mkdir(parents=True, exist_ok=True)
         if not self.updating and baseline.is_file():
             shutil.copyfile(baseline, expected)
-        self.observations[stage] = reading
         try:
             # Pixelmatch ignores antialias edges and small perceptual color changes.
             # Every remaining mismatch fails; there is no whole-image allowance.
@@ -215,8 +215,6 @@ class SnapshotRun:
 
     def finish(self) -> None:
         """Report every changed checkpoint together after the journey completes."""
-        # Reached only once the delivery assertions passed: these are a capture.
-        (self.output / COMPLETE).write_text(self.profile)
         assert not self.failures, (
             "\n".join(self.failures)
             + f"\nReadings: {self.output / 'observations.json'}\nEvidence: {self.output}"
@@ -224,8 +222,6 @@ class SnapshotRun:
 
 
 ASSET_DIRECTORY = "tests/thread-snapshots"
-# A case's run evidence holds this file, naming its profile, once its journey passed.
-COMPLETE = "complete"
 
 
 def expected_store() -> Path:
@@ -241,6 +237,8 @@ def thread_snapshots():
 @thread_snapshots.command("capture")
 def capture():
     """Run all delivery assertions and capture current appearance for review."""
+    if not COMPARED:
+        raise click.ClickException("thread appearance is captured on macOS only")
     directory = ROOT / ".tmp/thread-snapshots/captures" / uuid.uuid4().hex
     directory.mkdir(parents=True)
     result = subprocess.run(
@@ -263,90 +261,8 @@ def capture():
             f"capture assertions failed; review evidence in {directory}"
         )
     (profile,) = (path.name for path in directory.iterdir() if path.is_dir())
-    seal(directory, profile)
-
-
-@thread_snapshots.command("fetch")
-@click.argument("run_id")
-def fetch(run_id: str):
-    """Assemble a CI run's captures for review, as capture does on this machine."""
-    tested = subprocess.run(
-        ["gh", "run", "view", run_id, "--json", "headSha", "--jq", ".headSha"],
-        cwd=ROOT,
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout.strip()
-    head = subprocess.run(
-        ["git", "rev-parse", "HEAD"],
-        cwd=ROOT,
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout.strip()
-    if tested != head:
-        raise click.ClickException(
-            f"run {run_id} tested {tested[:12]}, not this checkout's HEAD {head[:12]}"
-        )
-    with tempfile.TemporaryDirectory(prefix="leaf-thread-ci-") as raw:
-        subprocess.run(
-            [
-                "gh",
-                "run",
-                "download",
-                run_id,
-                "--pattern",
-                "pytest-results-*",
-                "--dir",
-                raw,
-            ],
-            cwd=ROOT,
-            check=True,
-        )
-        directory = assemble(Path(raw), ROOT / ".tmp/thread-snapshots/captures")
-    seal(directory, next(path.name for path in directory.iterdir() if path.is_dir()))
-
-
-def assemble(evidence: Path, captures: Path) -> Path:
-    """Lay out the latest attempt whose every case passed its delivery assertions as
-    a capture folder under `captures`. Each attempt of a CI run uploads its own
-    artifact, named with the attempt last (`pytest-results-test-<run>-<attempt>`)."""
-    runs = {}
-    for marker in evidence.glob(f"*/thread-snapshots/runs/*/*/{COMPLETE}"):
-        runs.setdefault(marker.parent.parent, {})[marker.parent.name] = marker
-    complete = {
-        run: cases
-        for run, cases in runs.items()
-        if set(cases) == {case.name for case in CASES}
-    }
-    if not complete:
-        raise click.ClickException(
-            f"no attempt in {evidence} passed every case's delivery assertions"
-        )
-    cases = complete[
-        max(complete, key=lambda run: int(run.parents[2].name.rsplit("-", 1)[1]))
-    ]
-    profiles = {marker.read_text() for marker in cases.values()}
-    if len(profiles) != 1:
-        raise click.ClickException(f"one attempt rendered several profiles: {profiles}")
-    (profile,) = profiles
-    directory = captures / uuid.uuid4().hex / profile
-    directory.mkdir(parents=True)
-    for case, marker in cases.items():
-        readings = json.loads((marker.parent / "observations.json").read_text())
-        for stage in STAGES:
-            shutil.copyfile(
-                marker.parent / f"{stage}.actual.png", directory / f"{case}-{stage}.png"
-            )
-            (directory / f"{case}-{stage}.json").write_text(
-                json.dumps(readings[stage]["region"], indent=2) + "\n"
-            )
-    return directory.parent
-
-
-def seal(directory: Path, profile: str) -> None:
-    """Record a complete capture's bytes, so accept publishes exactly what was reviewed."""
     files = capture_files(directory, profile)
+
     (directory / "capture.json").write_text(
         json.dumps(
             {

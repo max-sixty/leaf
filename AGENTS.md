@@ -120,8 +120,8 @@ install the tracked tree whole.
 - `skills/leaf/packages/`: the bundled content vocabularies, widgets, and modules;
 - `skills/leaf/references/`: contracts for page authors, package authors, and harnesses;
 - `.claude/skills/developing-leaf/`: the maintainer workflow and vocabulary;
-- `hooks/hooks.json`: the shared harness hooks, and `hooks/pi.ts`, the Pi extension
-  that calls the same `leaf hook` entry;
+- `hooks/`: each harness's registrations of the `leaf hook` entry: `hooks.json`
+  for Claude Code, `codex.json` for Codex, and `pi.ts`, the Pi extension;
 - `evals/`: cases a headless agent answers, scoring the shipped instructions;
 - `examples/`: the authored pages the site publishes and the render corpus;
 - `tests/`: the file, CLI, browser, and published-site boundaries, and in
@@ -158,7 +158,9 @@ The sections above **Repository map** are the maintainer's direction; change the
 only when the user asks. An `AGENTS.md` holds what an agent needs before changing
 its area: goals, invariants that span modules, who owns what, and the gates to
 run. A contract one module owns goes in that module's header, a helper's in its
-docstring, and how a rule was found in the commit message. A workflow for one
+docstring, and how a rule was found in the commit message. A header also records the
+product decisions its module embodies and the alternatives they rejected; a change
+that reverses one rewrites that record and says so in its commit. A workflow for one
 kind of task goes in `/developing-leaf`.
 
 ### The install runs this tree

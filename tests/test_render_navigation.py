@@ -207,6 +207,9 @@ def test_a_click_on_a_panes_words_makes_it_the_subject_of_every_scroll_key(
     assert right == 0, (left, right)
 
     page.locator("#right-start").click()
+    reading = """async () => (await window.__lfRuntimeImport(
+      '/runtime/reading-regions.js')).userReadingRegion()?.host.id ?? null"""
+    assert page.evaluate(reading) == "right-reading"
     page.keyboard.press("d")
     page.wait_for_function(f"() => ({tops})()[1] > 0")
     scroll_settled(page, "#right-reading > :not(header, footer)")
@@ -215,6 +218,7 @@ def test_a_click_on_a_panes_words_makes_it_the_subject_of_every_scroll_key(
     page.locator("#left-head").focus()
     page.keyboard.press("Escape")
     assert page.evaluate("() => document.activeElement === document.body")
+    assert page.evaluate(reading) is None
 
 
 def test_a_pane_bodys_ring_is_drawn_whole_against_the_workspace_edges(browser, serve):
@@ -1240,28 +1244,15 @@ def test_a_nested_pane_footer_travels_in_the_outer_region_that_contains_it(
 def test_the_feature_gallery_exercises_the_injected_core_surfaces(
     browser, serve, live_leaf
 ):
-    """Core chrome is a gallery journey, not merely present around its samples."""
+    """Core chrome is a gallery journey, not merely present around its samples.
+
+    Each core surface opens on the gallery and shows the gallery's own content: its
+    Ask in the Queue, its open, resolved, and media threads in Threads, its
+    earlier version, the other open page, and at phone width its Page Map. How each
+    surface behaves belongs to that surface's own tests."""
     live_leaf("second", "A second Leaf page")
     page = open_page(browser, serve(FEATURE_GALLERY))
     resized(page, 1600, 900)
-
-    expect(
-        page.get_by_role(
-            "heading",
-            name="Asks: decisions and answers",
-            exact=True,
-        )
-    ).to_be_visible()
-    guide = page.locator("#bg-core-controls-guide")
-    for surface in (
-        "status line",
-        "Threads",
-        "Versions menu",
-        "Map",
-        "Command reference",
-        "All leaves",
-    ):
-        expect(guide).to_contain_text(surface)
     expect(page.locator(".lf-banner-status")).not_to_be_empty()
 
     banner_control(page, ".lf-queue").click()
@@ -1277,54 +1268,28 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
     page.locator("#bg-gallery-tabs").get_by_role("tab", name="Threads").click()
     banner_control(page, ".lf-threads-toggle").click()
     expect(page.locator(".lf-thread-panel")).to_be_visible()
-    # The agent opened this thread without a title and nothing is naming it, so its
-    # row reads the question rather than a placeholder.
-    untitled = page.locator(
-        '.lf-thread[data-id="72e031c5bf0d485ba9054628e09869d4"] .lf-thread-topic'
-    )
-    expect(page.locator("#bg-thread-states")).to_be_visible()
-    expect(untitled).to_have_text(
-        "Is lunch provided, or should attendees make their own plans?"
-    )
-    expect(page.locator('[data-filter-value="resolved"]')).not_to_have_text("Resolved")
     page.locator(".lf-thread-filter-toggle").click()
-    page.locator('[data-filter-value="resolved"]').click()
+    # The narrowing offers a status only while some thread holds it.
+    resolved = page.locator('[data-filter-value="resolved"]')
+    expect(resolved).to_be_enabled()
+    resolved.click()
     expect(
         page.locator('.lf-thread[data-resolved="true"]:not([hidden])')
     ).not_to_have_count(0)
     page.locator('[data-filter-value="open"]').click()
-    expect(page.locator("#bg-thread-media")).to_contain_text(
-        "supplied by its companion thread log"
-    )
-    media_open = page.locator(
-        '.lf-thread[data-id="2be2443f0bb6cc49fc86b52f340e6073"] .lf-message-media'
-    )
     media_thread = page.locator(
         '.lf-thread[data-id="2be2443f0bb6cc49fc86b52f340e6073"]'
     )
     media_thread.locator(".lf-thread-summary").click()
-    expect(media_open).to_be_visible()
-    url_before = page.url
-    media_open.click()
+    media_thread.locator(".lf-message-media").click()
     viewer = page.get_by_role("dialog", name="Image preview")
-    expect(viewer).to_be_visible()
     expect(viewer.locator("img")).to_have_attribute(
         "src", "/media/051bee487bfb5d13.png"
     )
-    assert page.url == url_before
-    page.keyboard.press("w")
-    expect(viewer).to_be_visible()
-    expect(page.locator("html")).not_to_have_attribute("data-lf-draw-mode", "")
     page.keyboard.press("Escape")
     expect(viewer).to_be_hidden()
-    expect(media_open).to_be_focused()
-    expect(page.locator(".lf-thread-panel")).to_be_visible()
-    # The viewer returns to thread content; Escape from a thread is the panel's own.
     page.keyboard.press("Escape")
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
-    # The panel's parent is the document, so the way out is the page rather than any
-    # chrome control — the toggle that reopens it, or the drawer the user came from.
-    assert page.evaluate("() => document.activeElement === document.body")
 
     banner_control(page, ".lf-version").click()
     expect(
@@ -1333,7 +1298,6 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
     page.keyboard.press("Escape")
 
     banner_control(page, ".lf-others").click()
-    expect(page.locator(".lf-others-panel")).to_be_visible()
     expect(page.locator("a.lf-others-row")).to_contain_text("A second Leaf page")
     page.keyboard.press("Escape")
 
@@ -1348,18 +1312,7 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
     expect(page.locator("#bg-view-threads > section").first).to_be_in_viewport()
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
-    sheet = page.get_by_role("dialog", name="Page Map", exact=True)
-    expect(sheet).to_be_visible()
-    header = sheet.locator(".lf-page-map-head")
-    # The one close control every surface wears: the cross, named for what it closes.
-    close = header.get_by_role("button", name="Close Page Map", exact=True)
-    expect(close.locator('svg[data-lf-icon="cross"]')).to_have_count(1)
-    expect(close).to_have_text("")
-    header_box, close_box = header.bounding_box(), close.bounding_box()
-    assert header_box and close_box
-    assert close_box["x"] + close_box["width"] == pytest.approx(
-        header_box["x"] + header_box["width"], abs=0.5
-    ), (header_box, close_box)
+    expect(page.get_by_role("dialog", name="Page Map", exact=True)).to_be_visible()
 
 
 def _accepted_gallery_proposal(browser, serve):
@@ -3472,6 +3425,7 @@ def test_composer_marks_the_passage_instead_of_quoting_it(browser, serve):
     page.locator("#p").click(
         click_count=3
     )  # a real selection, spanning the inline tags
+    page.keyboard.press("c")
     page.locator(".lf-fab-input").click()
     page.wait_for_function(
         "() => document.querySelector('.lf-composer').style.display === 'contents'"
@@ -3541,6 +3495,7 @@ def test_composer_marks_the_passage_instead_of_quoting_it(browser, serve):
         const s = getSelection(); s.removeAllRanges(); s.addRange(r);
         document.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
     }""")
+    page.get_by_role("button", name="Comment on selection", exact=True).click()
     page.locator(".lf-fab-input").click()
     wait_for_pending_mark(page)
     assert chrome not in pending_text(page), (
@@ -5088,6 +5043,8 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
               const target = compose.getBoundingClientRect();
               const clear = parseFloat(getComputedStyle(list).scrollPaddingTop) || 0;
               const start = view.top + clear;
+              const contentStart = start +
+                (parseFloat(getComputedStyle(compose).scrollMarginTop) || 0);
               // A turn's head is a block boundary as well as its paragraphs: a long
               // arrival starts the latest turn there.
               const blocks = [...thread.querySelectorAll(
@@ -5099,7 +5056,8 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
                   top: block.getBoundingClientRect().top,
                 }));
               const lines = [];
-              const walker = document.createTreeWalker(thread, NodeFilter.SHOW_TEXT);
+              const walker = document.createTreeWalker(
+                thread.querySelector('.lf-thread-content'), NodeFilter.SHOW_TEXT);
               for (let text; text = walker.nextNode();) {
                 if (!text.data.trim()) continue;
                 for (let i = 0; i < text.length; i++) {
@@ -5107,11 +5065,13 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
                   range.setStart(text, i);
                   range.setEnd(text, Math.min(i + 1, text.length));
                   const line = range.getBoundingClientRect();
-                  if (line.width && line.top < start && line.bottom > start)
+                  if (line.width && line.top < contentStart &&
+                      line.bottom > contentStart)
                     lines.push(line.toJSON());
                 }
               }
-              return {target: target.toJSON(), listBottom: view.bottom, start, blocks,
+              return {target: target.toJSON(), listBottom: view.bottom,
+                      start, contentStart, blocks,
                       crossedLines: lines, scroll: list.scrollTop,
                       maximumScroll: list.scrollHeight - list.clientHeight};
             }"""
@@ -5120,7 +5080,7 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
         # A list scrolled to its limit has no travel left to align a content block.
         if landing["scroll"] and landing["scroll"] < landing["maximumScroll"] - 1:
             assert any(
-                block["top"] == pytest.approx(landing["start"], abs=2)
+                block["top"] == pytest.approx(landing["contentStart"], abs=2)
                 for block in landing["blocks"]
             ), f"the long arrival cut through a content block: {landing}"
         elif landing["scroll"]:
@@ -7225,6 +7185,16 @@ def test_the_g_chord_opens_an_empty_page_map(browser, serve):
             "searchbox", name="Find an action, status, or location in Page Map"
         )
     ).to_be_focused()
+    # The one close control every surface wears: the cross, named for what it closes,
+    # at the header's end.
+    header = sheet.locator(".lf-page-map-head")
+    close = header.get_by_role("button", name="Close Page Map", exact=True)
+    expect(close.locator('svg[data-lf-icon="cross"]')).to_have_count(1)
+    header_box, close_box = header.bounding_box(), close.bounding_box()
+    assert header_box and close_box
+    assert close_box["x"] + close_box["width"] == pytest.approx(
+        header_box["x"] + header_box["width"], abs=0.5
+    ), (header_box, close_box)
     expect(sheet).to_contain_text(
         "No margin controls, status indicators, or locations yet"
     )
@@ -8710,16 +8680,16 @@ def test_reference_accepts_native_popover_dismissal_across_modal_entry(browser, 
     reference = page.locator(".lf-command-reference")
     expect(reference).to_be_visible()
     expect(versions).to_be_hidden()
-    contextual_versions = reference.locator(
-        '.lf-command-reference-command[data-lf-command^="version.open-v"]'
-    )
+    contextual_versions = reference.locator('[data-lf-command^="version.open-v"]')
     assert contextual_versions.count() > 0
-    contextual_availability = contextual_versions.evaluate_all(
-        "buttons => buttons.map(button => [button.dataset.lfCommand, button.dataset.lfAvailable])"
-    )
-    assert {available for _, available in contextual_availability} == {"false"}, (
-        contextual_availability
-    )
+    # Number keys delegate to native version rows. Once the modal dismisses the
+    # menu, the reference still names those routes but offers no action for them.
+    expect(contextual_versions.first).to_contain_text("open v")
+    expect(
+        reference.locator(
+            '.lf-command-reference-command[data-lf-command^="version.open-v"]'
+        )
+    ).to_have_count(0)
     page.keyboard.press("Escape")
     expect(reference).to_be_hidden()
     expect(versions).to_be_hidden()

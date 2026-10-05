@@ -120,14 +120,17 @@ export function threadAttention(thread) {
     });
   }
   // A task the agent opened on the thread holds it after the move it answered has
-  // settled; its title says what the agent still owes.
-  if (thread.attention?.kind === "waiting" && thread.attention.reason === "task")
+  // settled; its title says what the agent still owes, and while a start runs on it,
+  // that start's line says what the agent is doing about it.
+  if (thread.attention?.kind === "waiting" && thread.attention.reason === "task") {
+    const { title, line } = thread.attention.task;
     return Object.freeze({
       kind: "waiting",
-      label: "Task open",
+      label: line ? "Working" : "Task open",
       workflow: null,
-      secondary: thread.attention.task.title,
+      secondary: line ?? title,
     });
+  }
   if (thread.attention?.kind === "waiting")
     return Object.freeze({
       kind: "waiting",

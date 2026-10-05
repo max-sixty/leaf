@@ -24,7 +24,7 @@ from leaf_dev.arms import (
     URL,
     LiveChild,
     PageClient,
-    accepted_thread_claims,
+    accepted_starts,
     blocks,
     commands,
     completed,
@@ -1290,7 +1290,7 @@ def ran_between(trace: list[dict], start: int, end: int) -> list[str]:
 
 
 def claimed_first(trace: list[dict], thread: str) -> bool:
-    """An accepted claim for this thread before the turn's first reply call."""
+    """An accepted start on this thread's comment before the turn's first reply call."""
     reply = next(
         (
             index
@@ -1299,9 +1299,7 @@ def claimed_first(trace: list[dict], thread: str) -> bool:
         ),
         len(trace),
     )
-    return any(
-        index < reply for index in accepted_thread_claims(trace, thread).values()
-    )
+    return any(index < reply for index in accepted_starts(trace, thread).values())
 
 
 def answered(events: list[dict], event_id: str) -> list[dict]:

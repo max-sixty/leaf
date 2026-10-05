@@ -231,16 +231,20 @@ export const bindings = declaredBindings;
 // The command identities under one row. Equivalent bindings keep the row's identity
 // and share its implementation; distinct results are routes and expose only those exact
 // identities. Dispatch and every command-facing projection consume this split.
-export const commandEntries = (row, active = bindings(row)) => {
+export const commandEntries = (
+  row,
+  active = bindings(row),
+  { includeUnavailable = false } = {},
+) => {
   const routes = commandRoutes(row);
   if (!routes.length)
-    return commandAvailable(row)
+    return includeUnavailable || commandAvailable(row)
       ? [{ id: row.id, binding: active[0], route: null }]
       : [];
   return routes
     .filter(
       (route) =>
-        commandAvailable(row, route) &&
+        (includeUnavailable || commandAvailable(row, route)) &&
         (active.includes(route.binding) ||
           contextBindings(route).some((binding) => active.includes(binding))),
     )
@@ -256,9 +260,9 @@ export const commandEntries = (row, active = bindings(row)) => {
 // distinct commands expand into routes; a compact row and one deliberately unavailable
 // from the command reference keep their own identity. The command reference and shortcut bar both consume this
 // projection so route additions cannot reach one surface without the other.
-export const commandPresentations = (row, active = bindings(row)) => {
+export const commandPresentations = (row, active = bindings(row), options = {}) => {
   if (row.runFromCommandReference === false) return [{ id: row.id, route: null }];
-  return commandEntries(row, active);
+  return commandEntries(row, active, options);
 };
 // A row's rendering is made of its own bindings, so it cannot advertise a key it does not
 // answer. Three rows existed only to carry a partner key — `u`, `k` and `]`, each

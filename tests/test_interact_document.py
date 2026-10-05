@@ -31,7 +31,6 @@ from interact_support import (
     _board,
     _decided,
     _report,
-    _status,
     _tasks_version,
     append_carried_log_record,
     append_command,
@@ -2624,14 +2623,15 @@ def test_any_id_names_one_subject_for_every_command(page_dir):
         read = run("page", "state", name)
         assert read.exit_code == 0, read.output
         assert json.loads(read.output)["thread"]["id"] == opened["id"]
-    claimed = runner.invoke(
+    opened_task = runner.invoke(
         cli_model.cli,
-        ["status", str(page_dir), "working", "weighing it", "--on", "t-ask"],
+        ["task", "open", str(page_dir), "t-ask", "Weigh it"],
     )
-    assert claimed.exit_code == 0, claimed.output
-    assert [claim["subject"] for claim in json.loads(claimed.output)["work"]] == [
-        {"kind": "thread", "id": opened["id"]}
-    ]
+    assert opened_task.exit_code == 0, opened_task.output
+    assert json.loads(opened_task.output)["subject"] == {
+        "kind": "thread",
+        "id": opened["id"],
+    }
 
     not_a_thread = run("thread", "resolve", "g1")
     assert not_a_thread.exit_code != 0
@@ -3080,10 +3080,12 @@ def test_publishing_records_typed_settlements_for_provisional_agent_facts(page_d
     sent = _report(page_dir, "t-parser", "status", "status=review")
     assert sent.exit_code == 0
     report_id = json.loads(sent.output)["id"]
-    claimed = _status(
-        page_dir, "working", "checking the rollout", "--on", "rollout-card"
+    opened = CliRunner().invoke(
+        cli_model.cli,
+        ["task", "open", str(page_dir), "rollout-card", "Check the rollout"],
     )
-    assert claimed.exit_code == 0, claimed.output
+    assert opened.exit_code == 0, opened.output
+    task = json.loads(opened.output)
 
     _tasks_version(page_dir, "review")
     add_board()
@@ -3092,7 +3094,7 @@ def test_publishing_records_typed_settlements_for_provisional_agent_facts(page_d
     note = [e for e in events_model.read_events(page_dir) if e["kind"] == "note"][-1]
     assert note["settles"] == [
         {"kind": "report", "id": report_id},
-        {"kind": "work", "id": "rollout-card"},
+        {"kind": "task", "id": task["id"]},
     ]
 
     # The report ended at v2, so v3 owes it nothing.
@@ -5019,8 +5021,8 @@ def test_page_state_carries_a_report_until_a_version_answers_it(page_dir):
 
 
 def test_update_feed_orders_clock_ties_by_log_causality(page_dir, monkeypatch):
-    """A claim sits after the log floor it observed and before the next event.
-    Equal second-precision timestamps cannot reverse that known causal order."""
+    """Reports are ordered by the log, so equal second-precision timestamps cannot
+    reverse their known causal order."""
     task = (
         '<lf-tasks id="work"><lf-task id="t-parser" status="review">'
         "<strong>Parser</strong></lf-task></lf-tasks>"
@@ -5042,12 +5044,6 @@ def test_update_feed_orders_clock_ties_by_log_causality(page_dir, monkeypatch):
             "detail": {"status": "done"},
         },
     )
-    thread = append_carried_log_record(
-        page_dir,
-        {"kind": "comment", "id": "c1", "author": "user", "text": "why?"},
-    )
-    assert _status(page_dir, "working", "checking", "--on", thread["id"]).exit_code == 0
-    claim_id = files_model.read_json(page_dir / "status.json")["work"][0]["id"]
     second = append_command(
         page_dir,
         {
@@ -5063,7 +5059,6 @@ def test_update_feed_orders_clock_ties_by_log_causality(page_dir, monkeypatch):
     updates = state_json(page_dir)["updates"]
     assert [(update["source"], update["id"]) for update in updates] == [
         ("report", first["id"]),
-        ("claim", claim_id),
         ("report", second["id"]),
     ]
 

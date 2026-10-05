@@ -1254,6 +1254,8 @@ def test_an_inline_thread_keeps_drawing_context_on_the_page(browser, serve):
     drawing = {
         "format": "leaf-drawing/2",
         "strokes": [[[-20, 74], [50, 10], [120, 74]]],
+        "viewport": [1280, 720],
+        "scheme": "light",
     }
     append_carried_log_record(
         serve.page_dir,

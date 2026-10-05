@@ -69,7 +69,10 @@ reaches the runtime. A change lands only on a green landing gate, which runs the
 selection: a pull request's `test` job, or `wt merge`'s pre-merge. A failure there that
 your selection missed is the gate doing its job; fix it and push. Every other nightly
 test is CI's to report: the `test` job in `ci.yaml` runs the complete suite once main
-moves, and `tend-ci-fix` answers what it fails. Don't run the broad selection, `--run-nightly`, `-m nightly`, or
+moves, and `tend-ci-fix` answers what it fails. That trade is the user's choice
+(2026-10-04): a pull request can land green and break a nightly test it never ran, and
+main can stay red while `tend-ci-fix` repairs it, so a red main is no reason to widen a
+change, its gate, or its test selection. Don't run the broad selection, `--run-nightly`, `-m nightly`, or
 a whole browser file locally outside a landing: each takes minutes to over an hour
 and slows every other session on the machine. To learn what main fails, read that
 job's run, and reproduce a failure it names by node id.
@@ -152,6 +155,14 @@ vendor hard-linked into it; a test of initialization crosses `page init` itself.
 
 ### A process the suite starts ends with the run
 
+Many runs of the suite share one machine, from different worktrees and sessions, each
+with several workers. A process a test leaves running, or one that spends CPU while it
+waits, slows all of them. So a process a test starts ends on every way out of the
+test. `spawn`'s teardown ends a child and everything in its group when the test
+passes, fails or is interrupted. A worker that dies runs no teardown, so a process
+that would otherwise run on carries its own link to the worker: a page server watches
+the session claim the worker holds, and a held process reads the worker's pipe.
+
 Take each resource from its owner: a child process from `spawn`, a page server from
 `_no_page_outlives_its_test`, a preview from `preview_slot` and `start_preview`, an
 in-process HTTP server from `running_http_server`, a Unix socket directory from
@@ -159,6 +170,16 @@ in-process HTTP server from `running_http_server`, a Unix socket directory from
 this. A test of a standing server stops it explicitly, and a `Popen` handle alone does
 not own a detached server's tree. A cleanup fixture takes the state home from
 `isolated_session`'s value and sweeps only it and `tmp_path`.
+
+A process that waits for the test blocks reading a pipe the worker holds, as
+`session_process` does. The test releases it by closing the pipe, and the pipe also
+closes when the worker ends, however it ends. Waiting for a file or a state the test
+body has yet to write leaves the process running when the test fails first, and a
+polling loop spends CPU for as long as it waits. End a process by closing its pipe or
+with SIGTERM, not SIGKILL, which gives it no chance to end what it started
+(`test_no_test_ends_a_process_with_sigkill` enforces this). To check a new held
+process, make the test fail right after starting it, then confirm with
+`pgrep -fl <tmp_path>` that nothing it started is still running.
 
 ### Reloading is not resetting
 
@@ -296,7 +317,13 @@ the decision with a hang deadline that allows the grace period and scheduling ro
 
 A new wait fixes its deadline when it begins and names the missing evidence on
 timeout. Pure-Python state polls use `interact_support.wait_for`, and every
-Python-side wait takes its deadline from `STATED_TIMEOUT`, which the suite checks.
+Python-side wait takes its deadline from `STATED_TIMEOUT`. A browser wait takes
+`SERVED_TIMEOUT_MS`, which `render_harness` makes the default of every Playwright
+wait and `expect`, so it names no deadline unless it spans a page handover
+(`HANDOVER_DEADLINE_MS`). The suite checks both
+(`test_a_wait_takes_the_suites_deadline`). A call with no deadline of its own, such
+as `page.evaluate`, is bounded only by the per-test limit in `pyproject.toml`, which
+ends the worker with every thread's stack after half an hour.
 
 ### A state the page passes through is not a state to poll for
 

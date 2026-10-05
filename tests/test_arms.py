@@ -3,23 +3,21 @@
 import json
 
 import pytest
-from leaf_dev.arms import accepted_thread_claims, commands, completed, trace_result
+from leaf_dev.arms import accepted_starts, commands, completed, trace_result
 from leaf_dev.eval_codex import records_for
 
 
 def test_codex_command_and_turn_success_are_observed_harness_results():
     # App Server's observed commandExecution notifications, reduced to the fields
-    # relevant to successful Leaf status admission. Unknown/nonzero exits must
-    # never turn a printed status into an accepted claim.
-    output = json.dumps(
-        {"state": "working", "work": [{"subject": {"kind": "thread", "id": "comment"}}]}
-    )
+    # relevant to successful Leaf start admission. Unknown/nonzero exits must
+    # never turn a printed start into an accepted one.
+    output = json.dumps({"kind": "start", "item": "comment", "text": "editing"})
     for exit_code in (0, 1, None):
         item = {
             "id": "claim",
             "type": "commandExecution",
             "status": "completed",
-            "command": "leaf status page working editing --on comment",
+            "command": "leaf task start page comment editing",
             "aggregatedOutput": output,
             "exitCode": exit_code,
         }
@@ -29,7 +27,7 @@ def test_codex_command_and_turn_success_are_observed_harness_results():
             {"method": "item/completed", "params": {"item": item}}, "session", ""
         )
         assert commands(trace[0]) == [item["command"]]
-        assert accepted_thread_claims(trace, "comment") == (
+        assert accepted_starts(trace, "comment") == (
             {"claim": 1} if exit_code == 0 else {}
         )
         for status in ("completed", "failed", "interrupted"):

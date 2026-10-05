@@ -148,7 +148,7 @@ def test_gallery_thread_rows_name_action_in_existing_status(browser, serve):
     resolved = page.locator('.lf-thread[data-id="bab3cdfcfb8c02aacbb27da731de947a"]')
     expect(
         resolved.locator(":scope > .lf-thread-summary .lf-thread-status")
-    ).to_have_text("Resolved")
+    ).to_have_text("✓ Resolved by Codex")
 
 
 def focus_panel_thread(thread):
@@ -1789,6 +1789,10 @@ def test_a_pasted_image_survives_the_reply_draft_and_renders_from_the_message(
         "src", "/media/051bee487bfb5d13.png"
     )
     assert page.url == url_before
+    # The modal viewer holds the keyboard: a page command does not reach the page.
+    page.keyboard.press("w")
+    expect(viewer).to_be_visible()
+    expect(page.locator("html")).not_to_have_attribute("data-lf-draw-mode", "")
     close = viewer.get_by_role("button", name="Close image preview", exact=True)
     expect(close.locator('svg[data-lf-icon="cross"]')).to_have_count(1)
     close.click()
@@ -2139,14 +2143,7 @@ def test_a_work_claim_cannot_move_a_later_control_under_the_pointer(browser, ser
 
     claimed = CliRunner().invoke(
         cli_model.cli,
-        [
-            "status",
-            str(serve.page_dir),
-            "working",
-            "reading the traces",
-            "--on",
-            source,
-        ],
+        ["task", "start", str(serve.page_dir), source, "reading the traces"],
     )
     assert claimed.exit_code == 0, claimed.output
     told(page)
@@ -2164,7 +2161,7 @@ def test_a_new_sent_message_does_not_hide_work_on_an_earlier_message(browser, se
     root = panel_comment(serve.page_dir, "Check the capacity.", {"section": "how-cap"})
     active = CliRunner().invoke(
         cli_model.cli,
-        ["status", str(serve.page_dir), "working", "checking capacity", "--on", root],
+        ["task", "start", str(serve.page_dir), root, "checking capacity"],
     )
     assert active.exit_code == 0, active.output
     page = open_page(browser, url)
@@ -4577,7 +4574,7 @@ def test_a_thread_completion_keeps_the_users_later_destination(
     thread.get_by_role(
         "button",
         name={
-            "unresolve": "Reopen",
+            "unresolve": re.compile(r"\bReopen thread$"),
             "resolve": "Resolve thread",
             "reply": "Send",
         }[kind],

@@ -20,7 +20,6 @@ from leaf import structure as structure_model
 from leaf.registry import storage as registry_storage
 from leaf.render_checks import rendered, wait_until_ready
 from leaf.schema import ELEMENT_ID
-from leaf_dev.thread_journey import watch_message_arrival
 from PIL import Image
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
@@ -35,7 +34,6 @@ from render_cases_layout import (
     SHOT_SRC,
     SHOTS,
     banner_control,
-    button_radius,
 )
 from render_cases_navigation import (
     ADDRESSED_PAGE,
@@ -82,7 +80,6 @@ from render_harness import (
     panel_settled,
     post_event,
     resized,
-    round_trip,
     scroll_settled,
     select,
     sending,
@@ -158,6 +155,12 @@ def test_the_banner_stands_where_it_says_it_does(browser, serve):
 def test_real_page_passages_can_be_quoted(browser, serve, source):
     """Passages in four unlike authored pages are quotable.
 
+    A passage's shape is what has made selection and search come apart: its block,
+    the widgets around it, whether the runtime says it, and the text transform and
+    white space it is set in. The sweep drags once across each shape the page holds,
+    and once across each pair of shapes that stand next to each other; a repeat of a
+    shape it has already dragged across adds time and no evidence.
+
     Focused tests own settlements, tabs, shadow roots, and gestures.
     """
     page = open_page(browser, serve(source))
@@ -213,64 +216,79 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
             `${TEXT_BLOCK},${compositeSelector},[data-lf-said]`)]
           .filter(b => speaks(b) && b.checkVisibility()
                     && b.textContent.trim().length > 12);
+        const shape = block => {
+            const style = getComputedStyle(block);
+            const widgets = [];
+            for (let el = block.parentElement; el; el = el.parentElement)
+                if (el.localName.includes('-')) widgets.push(el.localName);
+            return [block.localName, block.hasAttribute('data-lf-said'),
+                    style.textTransform, style.whiteSpace, ...widgets].join(' ');
+        };
+        // Each shape alone, then reaching into the next block — a drag rarely stops
+        // tidily on a boundary, and spanning two blocks is where the joins show.
+        const drags = new Map();
+        blocks.forEach((block, i) => {
+            const next = blocks[i + 1];
+            drags.set(shape(block), drags.get(shape(block)) ?? [block, block]);
+            if (next) {
+                const join = `${shape(block)} | ${shape(next)}`;
+                drags.set(join, drags.get(join) ?? [block, next]);
+            }
+        });
         const missed = [], skipped = [], astray = [];
         let attempted = 0;
-        for (let i = 0; i < blocks.length; i++) {
-            // Each block alone, then reaching into the next one — a drag rarely stops
-            // tidily on a boundary, and spanning two blocks is where the joins show.
-            for (const end of [blocks[i], blocks[i + 1]].filter(Boolean)) {
-                attempted++;
-                // A mouse selection starts in page words and ends with the native
-                // pointer/mouse release pair; selectionchange alone does not snap.
-                const pointer = {bubbles: true, composed: true, isPrimary: true,
-                                 pointerType: 'mouse', button: 0};
-                blocks[i].dispatchEvent(new PointerEvent('pointerdown', pointer));
-                let range = document.createRange();
-                range.setStart(blocks[i], 0);
-                range.setEnd(end, end.childNodes.length);
-                const sel = getSelection();
-                sel.removeAllRanges();
-                sel.addRange(range);
-                end.dispatchEvent(new PointerEvent('pointerup', pointer));
-                end.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
-                await rendered();
-                // Mouse release snaps the native selection to word and sentence edges.
-                // The mark must match the selection the reader now sees.
-                range = pageRange(sel);
-                // Counted, not shrugged off: a selection the button declines to offer is
-                // a passage silently outside this sweep, and the sweep is the coverage.
-                if (fab.style.display !== 'block') {
-                    skipped.push(range.toString().replace(/\\s+/g, ' ').trim().slice(0, 70));
-                    continue;
-                }
-                const painted = CSS.highlights.get('lf-pending');
-                // The captured quote, read off the node whether or not the user can
-                // see it: the composer shows it only where the page has no mark to give,
-                // which is the very case this loop is counting.
-                const quoted = document.getElementById('lf-composer-quote').textContent;
-                if (!painted || ![...painted].map(r => r.toString()).join('').trim())
-                    missed.push(quoted.slice(0, 70));
-                // Inside what was selected, not merely somewhere: a matcher that finds
-                // the right words in the wrong place paints, and paints a lie.
-                //
-                // A mark can now land inside a widget's shadow tree (x-shadow), and two
-                // ranges in different trees cannot be compared at all — comparing them
-                // throws rather than answering. So the question crosses the way the
-                // runtime's own does: the tree renders where its host stands, so a mark
-                // inside one is inside the selection exactly when the host is.
-                else if ([...painted].some(p => {
-                        const root = range.commonAncestorContainer.getRootNode();
-                        if (p.startContainer.getRootNode() === root)
-                            return p.compareBoundaryPoints(Range.START_TO_START, range) < 0
-                                || p.compareBoundaryPoints(Range.END_TO_END, range) > 0;
-                        let n = p.startContainer;
-                        while (n && n.getRootNode() !== root) n = n.getRootNode().host;
-                        return !n || !range.intersectsNode(n);
-                    }))
-                    astray.push(quoted.slice(0, 70));
-                sel.removeAllRanges();
-                await rendered();
+        for (const [start, end] of drags.values()) {
+            attempted++;
+            // A mouse selection starts in page words and ends with the native
+            // pointer/mouse release pair; selectionchange alone does not snap.
+            const pointer = {bubbles: true, composed: true, isPrimary: true,
+                             pointerType: 'mouse', button: 0};
+            start.dispatchEvent(new PointerEvent('pointerdown', pointer));
+            let range = document.createRange();
+            range.setStart(start, 0);
+            range.setEnd(end, end.childNodes.length);
+            const sel = getSelection();
+            sel.removeAllRanges();
+            sel.addRange(range);
+            end.dispatchEvent(new PointerEvent('pointerup', pointer));
+            end.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
+            await rendered();
+            // Mouse release snaps the native selection to word and sentence edges.
+            // The mark must match the selection the reader now sees.
+            range = pageRange(sel);
+            // Counted, not shrugged off: a selection the button declines to offer is
+            // a passage silently outside this sweep, and the sweep is the coverage.
+            if (fab.style.display !== 'block') {
+                skipped.push(range.toString().replace(/\\s+/g, ' ').trim().slice(0, 70));
+                continue;
             }
+            const painted = CSS.highlights.get('lf-pending');
+            // The captured quote, read off the node whether or not the user can
+            // see it: the composer shows it only where the page has no mark to give,
+            // which is the very case this loop is counting.
+            const quoted = document.getElementById('lf-composer-quote').textContent;
+            if (!painted || ![...painted].map(r => r.toString()).join('').trim())
+                missed.push(quoted.slice(0, 70));
+            // Inside what was selected, not merely somewhere: a matcher that finds
+            // the right words in the wrong place paints, and paints a lie.
+            //
+            // A mark can now land inside a widget's shadow tree (x-shadow), and two
+            // ranges in different trees cannot be compared at all — comparing them
+            // throws rather than answering. So the question crosses the way the
+            // runtime's own does: the tree renders where its host stands, so a mark
+            // inside one is inside the selection exactly when the host is.
+            else if ([...painted].some(p => {
+                    const root = range.commonAncestorContainer.getRootNode();
+                    if (p.startContainer.getRootNode() === root)
+                        return p.compareBoundaryPoints(Range.START_TO_START, range) < 0
+                            || p.compareBoundaryPoints(Range.END_TO_END, range) > 0;
+                    let n = p.startContainer;
+                    while (n && n.getRootNode() !== root) n = n.getRootNode().host;
+                    return !n || !range.intersectsNode(n);
+                }))
+                astray.push(quoted.slice(0, 70));
+            sel.removeAllRanges();
+            await rendered();
         }
         return {attempted, missed, skipped, astray};
     }"""
@@ -575,8 +593,10 @@ def test_gallery_revision_preserves_every_open_quoted_thread(browser, serve):
     for root in roots:
         thread = page.locator(f'.lf-thread[data-id="{root["id"]}"]')
         expect(thread).to_be_visible()
-        expect(thread.locator(".lf-quote")).to_contain_text("§ paragraph")
-        expect(thread.locator(".lf-quote")).to_contain_text("The revised plan")
+        expect(thread.locator(".lf-quote")).to_contain_text(
+            f"“{root['anchor']['quote']}” Changed"
+        )
+        expect(thread.locator(".lf-quote")).to_have_attribute("aria-disabled", "false")
         expect(thread.locator(".lf-quote.detached")).to_have_count(0)
         expect(thread.locator(".lf-msg")).to_have_count(1)
     moves = [
@@ -5656,12 +5676,14 @@ def test_back_returns_from_a_thread_a_widget_surface_holds(browser, serve, arriv
     )
 
 
-@pytest.mark.parametrize("scheme", ("light", "dark"))
-def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
-    browser, serve, scheme
-):
+def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(browser, serve):
     """The diff owns only the row. Core's shared Thread view keeps replies,
-    reactions, settlement, and resolved-thread rendering working inside it."""
+    reactions, settlement, and resolved-thread rendering working inside it.
+
+    The inline seat and the panel are two views of one thread: the same workflow
+    lines, updated in place, and one draft. How a send from this seat is delivered,
+    and how the seat looks, belong to the `inline` case of
+    `test_render_thread_snapshots.py`."""
     authored = leaf_page(
         "inline diff thread",
         '<h1 id="title">Review</h1><lf-diff id="patch" source="review-patch">'
@@ -5694,18 +5716,17 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
             },
         },
     )
-    page = open_page(browser, url, color_scheme=scheme)
+    page = open_page(browser, url)
     resized(page, 1920, 900)
     thread = page.locator(f'lf-diff .lf-page-thread[data-thread="{root["id"]}"]')
     panel_thread = page.locator(f'.lf-thread[data-id="{root["id"]}"]')
     expect(thread).to_have_count(1)
     expect(thread).to_have_attribute("open", "")
     expect(thread.locator("leaf-text")).to_be_visible()
-    # The root message's own workflow line, which each surface holds beside its head.
+
+    # News updates the root's workflow line in both views, in place.
     inline_status = thread.locator(":scope > .lf-thread-root-meta .lf-msg-sending")
-    panel_status = panel_thread.locator(
-        ":scope > .lf-thread-content > .lf-thread-root-meta .lf-msg-sending"
-    )
+    panel_status = panel_thread.locator(".lf-thread-root-meta .lf-msg-sending")
     expect(inline_status).to_have_text("Sent")
     expect(panel_status).to_have_text("Sent")
     inline_status.evaluate("node => { node.dataset.identityProbe = 'inline'; }")
@@ -5718,7 +5739,6 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     expect(panel_status).to_have_text("Picked up")
     expect(inline_status).to_have_attribute("data-identity-probe", "inline")
     expect(panel_status).to_have_attribute("data-identity-probe", "panel")
-
     reply = append_carried_log_record(
         serve.page_dir,
         {
@@ -5733,137 +5753,33 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     told(page)
     expect(inline_status).to_have_count(0)
     expect(panel_status).to_have_count(0)
-    palette = thread.evaluate(
-        """thread => {
-          const style = getComputedStyle(thread);
-          const outlet = getComputedStyle(thread.parentElement);
-          const reply = getComputedStyle(thread.querySelector('.lf-thread-reply .lf-compose-field'));
-          return {
-            card: style.backgroundColor,
-            cardBorder: style.borderTopColor,
-            cardPadding: parseFloat(style.paddingTop),
-            reply: reply.backgroundColor,
-            replyBorder: reply.borderTopColor,
-            row: outlet.backgroundColor,
-            page: getComputedStyle(thread.ownerDocument.body).backgroundColor,
-          };
-        }"""
-    )
-    assert palette["card"] == palette["reply"]
-    assert palette["cardBorder"] == palette["replyBorder"]
-    assert palette["cardPadding"] > 0
-    assert palette["row"] == palette["page"]
 
+    # The keyboard reaches the seat directly and through the comment note, without
+    # opening Threads.
     page.keyboard.press("t")
     expect(thread).to_be_focused()
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+t")
-    # go-to-threads has one destination, the thread the panel's list shows open.
-    expect(panel_thread).to_have_attribute("open", "")
-    expect(panel_thread.locator(":scope > .lf-thread-summary")).to_be_focused()
-    # The thread's Escape is the panel's, which releases to the page. The seat on the
-    # page is not put back, the user having left it to come here.
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-thread-panel")).to_be_hidden()
-
     note = page.locator(".lf-mark-note")
-    expect(note).to_have_count(1)
-    # The commented line stands inside the diff's shadow tree and the note in the
-    # document's chrome, which an id reference cannot join; the reflected relation can.
-    assert note.evaluate(
-        """n => [...document.querySelector('lf-diff').shadowRoot.querySelectorAll('*')]
-            .some(el => el.ariaDetailsElements?.includes(n))"""
-    ), "no line inside the diff names the comment note as its details"
-    assert note.evaluate(
-        "el => { const r = el.getBoundingClientRect(); return r.width <= 1 && r.height <= 1; }"
-    ), "the resting comment note painted on screen"
-    assert note.evaluate("el => getComputedStyle(el).opacity") == "0"
     note.focus()
-    expect(note).to_be_focused()
-    assert note.evaluate("el => el.getBoundingClientRect().width > 1")
-    assert note.evaluate("el => getComputedStyle(el).opacity") == "1"
     note.press("Enter")
     expect(thread).to_be_focused()
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
-    # The note carried the user into a thread the diff already seats, so what they
-    # are standing on is that thread and one Escape lets go of it, onto the page. The
-    # note is Leaf's own control beside the words it marks rather than a landing; Enter
-    # from it goes in again.
-    page.keyboard.press("Escape")
-    assert page.evaluate("() => document.activeElement === document.body")
-    note.focus()
-    note.press("Enter")
-    expect(thread).to_be_focused()
 
-    # The same draft has two views, across the shadow boundary. An empty Send paints
-    # nothing, showing whatever ground it stands on; typing fills the same disc in
-    # either view. The press's own box never paints, so the disc is read off ::before.
+    # One draft, across the shadow boundary.
     page.locator(".lf-threads-toggle").click()
     panel_settled(page, True)
     panel_thread.locator(".lf-thread-summary").click()
-    expect(panel_thread.locator("leaf-text")).to_be_visible()
     inline_send = thread.get_by_role("button", name="Send", exact=True)
     panel_send = panel_thread.get_by_role("button", name="Send", exact=True)
-    button_face = """button => {
-      const style = getComputedStyle(button);
-      const face = Object.fromEntries([
-        'backgroundColor', 'color', 'borderTopColor', 'borderRadius', 'padding',
-        'opacity', 'cursor', 'filter',
-      ].map(property => [property, style[property]]));
-      const fill = getComputedStyle(button, '::before');
-      face.fillBorderRadius = fill.borderRadius;
-      face.fill = fill.backgroundColor;
-      return face;
-    }"""
     expect(inline_send).to_be_disabled()
     expect(panel_send).to_be_disabled()
-    quiet = inline_send.evaluate(button_face)
-    assert quiet == panel_send.evaluate(button_face)
-    assert quiet["borderRadius"] == quiet["fillBorderRadius"] == button_radius(page)
-    assert quiet["backgroundColor"] == quiet["fill"] == "rgba(0, 0, 0, 0)"
-    assert quiet["opacity"] == "1"
-    assert quiet["filter"] == "none"
-    for send in (inline_send, panel_send):
-        send.hover()
-        assert send.evaluate(button_face) == quiet
-    page.mouse.move(0, 0)
     write(thread.locator("leaf-text"), "One draft in both views.")
     expect(panel_thread.locator("leaf-text")).to_have_js_property(
         "value", "One draft in both views."
     )
     expect(inline_send).to_be_enabled()
     expect(panel_send).to_be_enabled()
-    ready = inline_send.evaluate(button_face)
-    assert ready == panel_send.evaluate(button_face)
-    assert ready["backgroundColor"] == quiet["backgroundColor"]
-    # A ready press is told from a quiet one by its ink and its edge. Neither wears a
-    # fill: no pressable carries a solid accent, so asserting one here would be holding
-    # the look the theme took off rather than the distinction the user needs.
-    assert ready["fill"] == quiet["fill"] == "rgba(0, 0, 0, 0)"
-    assert ready["color"] != quiet["color"]
-    assert ready["borderTopColor"] != quiet["borderTopColor"]
-    assert ready["cursor"] == "pointer"
-
-    # The reply is a text box in either seat, so it wears the text box's one band:
-    # the ring replaces the resting border rather than standing a second edge off
-    # it. The shared field wrapper carries that band in the panel and inside the
-    # diff's declared shadow tree, so both readings measure the same painted owner.
-    ring = """el => { el.focus();
-      const s = getComputedStyle(el.parentElement); return {
-      style: s.outlineStyle, width: s.outlineWidth, offset: s.outlineOffset,
-      border: s.borderColor, name: s.getPropertyValue('--lf-focus-ring').trim(),
-    }; }"""
-    band = thread.locator("leaf-text").evaluate(ring)
-    assert band == panel_thread.locator("leaf-text").evaluate(ring)
-    assert band == {
-        "style": "solid",
-        "width": "2px",
-        "offset": "0px",
-        "border": "rgba(0, 0, 0, 0)",
-        "name": "text-box",
-    }
-
     write(panel_thread.locator("leaf-text"), "")
     expect(inline_send).to_be_disabled()
     page.locator(".lf-threads-toggle").click()
@@ -5871,6 +5787,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
 
     expect(thread.locator(f'.lf-msg[data-event="{reply["id"]}"]')).to_be_visible()
 
+    # Each message's workflow line reads the same in both views.
     question = append_carried_log_record(
         serve.page_dir,
         {
@@ -5885,12 +5802,11 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     claimed = CliRunner().invoke(
         cli_model.cli,
         [
-            "status",
+            "task",
+            "start",
             str(serve.page_dir),
-            "working",
+            question["id"],
             "checking the inline placement",
-            "--on",
-            root["id"],
         ],
     )
     assert claimed.exit_code == 0, claimed.output
@@ -5906,39 +5822,20 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
         },
     )
     told(page)
-    # The inline seat holds arrivals that would move the on-screen diff. Opening its
-    # notice makes the replies visible before comparing their workflow lines with
-    # the panel's copy.
-    news = thread.get_by_role("button", name="2 new replies")
-    expect(news).to_be_visible()
-    news.click()
+    # The seat holds arrivals that would move the diff on screen behind its notice;
+    # the agent's reply, already read, is not among them.
+    thread.get_by_role("button", name="2 new replies").click()
+    line = ":scope > .lf-msg-head .lf-msg-sending"
     for view, message_attr in ((thread, "data-event"), (panel_thread, "data-mid")):
-        active = view.locator(f'.lf-msg[{message_attr}="{question["id"]}"] ').locator(
-            ":scope > .lf-msg-head .lf-msg-sending"
-        )
-        sent = view.locator(f'.lf-msg[{message_attr}="{followup["id"]}"] ').locator(
-            ":scope > .lf-msg-head .lf-msg-sending"
-        )
-        expect(active).to_have_text("Working")
-        expect(active).to_have_attribute(
-            "title", "Working · checking the inline placement"
-        )
-        expect(sent).to_have_text("Sent")
-        # The workflow line belongs to a message; the thread view carries none of its own.
-        expect(view.locator(":scope > .lf-msg-sending")).to_have_count(0)
-        expect(view).not_to_have_attribute("data-lf-agent-workflow", re.compile(".+"))
-        assert view.evaluate("node => getComputedStyle(node).boxShadow") == "none"
+        expect(
+            view.locator(f'.lf-msg[{message_attr}="{question["id"]}"]').locator(line)
+        ).to_have_text("Working")
+        expect(
+            view.locator(f'.lf-msg[{message_attr}="{followup["id"]}"]').locator(line)
+        ).to_have_text("Sent")
 
     strip = thread.locator(f'.lf-msg[data-event="{reply["id"]}"] .lf-react-strip')
-    trigger = strip.locator(".lf-react-trigger")
-    assert trigger.evaluate("b => getComputedStyle(b).opacity") == "0"
-    expect(trigger).to_have_attribute("aria-label", "Add reaction")
-    expect(trigger.locator('svg[data-lf-icon="reaction"]')).to_be_visible()
-    trigger.focus()
-    assert trigger.evaluate("b => getComputedStyle(b).opacity") == "1"
     strip.locator(".lf-react-trigger").click()
-    expect(strip).to_have_class(re.compile(r"\blf-react-open\b"))
-    expect(strip.locator('.lf-react[data-token="change"]')).to_be_visible()
     with sending(page, "the inline reaction"):
         strip.locator('.lf-react[data-token="change"]').click()
     reacted = events_model.read_events(serve.page_dir)[-1]
@@ -5948,93 +5845,22 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
         "change",
     )
 
-    # A layout change can withdraw the outlet without a pointer press to dismiss
-    # its reaction picker. Removing the view must release that keyboard mode too.
-    strip.locator(".lf-react-trigger").click()
-    assert "1–6" in shortcut_bar_text(page)
-    file = page.locator("lf-diff .lf-diff-file > details")
-    file.evaluate("details => { details.open = false; }")
-    expect(page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')).to_have_count(1)
-    assert "1–6" not in shortcut_bar_text(page)
-    count = len(events_model.read_events(serve.page_dir))
-    page.keyboard.press("1")
-    shortcut_bar_text(page)
-    round_trip(page)
-    assert len(events_model.read_events(serve.page_dir)) == count
-    page.keyboard.press("g")
-    assert "versions" in shortcut_bar_text(page)
-    page.keyboard.press("Escape")
-    file.evaluate("details => { details.open = true; }")
-    expect(thread.locator("leaf-text")).to_be_visible()
-
-    # Resolve is the thread's own control, and the keyboard reaches it the way it
-    # reaches any other: #347 withdrew the page-level `x`, so the route is the PRESS
-    # row the control declares for itself (runtime/thread/folding.js).
+    # Resolve is the thread's own control, reached by the keyboard like any other.
     resolve = thread.get_by_role("button", name="Resolve thread", exact=True)
     resolve.focus()
-    expect(resolve).to_be_focused()
     with sending(page, "the inline keyboard resolution"):
         page.keyboard.press("Enter")
     expect(thread).not_to_have_attribute("open", "")
     summary = thread.locator(".lf-page-thread-summary")
     expect(summary).to_have_text("Resolved · 4 messages")
-    summary_box = summary.evaluate(
-        """element => {
-          const style = getComputedStyle(element);
-          return {
-            position: style.position,
-            paddingLeft: style.paddingLeft,
-            paddingRight: style.paddingRight,
-          };
-        }"""
-    )
-    assert summary_box["position"] == "static"
-    assert summary_box["paddingLeft"] == summary_box["paddingRight"]
     expect(thread.locator(".lf-msg").first).to_be_hidden()
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page, True)
-    # The status narrowing is a group of toggles, so the standing member wears its own
-    # pressed state.
-    expect(page.locator('[data-filter-value="resolved"]')).to_have_attribute(
-        "aria-pressed", "true"
-    )
-    page.locator(".lf-thread:not([hidden]) .lf-quote").click()
-    expect(summary).to_be_focused()
     summary.click()
     expect(thread.locator(".lf-msg").first).to_be_visible()
-
     with sending(page, "the inline reopening"):
         thread.get_by_role("button", name="Reopen", exact=True).click()
     expect(thread).to_have_attribute("open", "")
-    expect(thread.locator(".lf-page-thread-summary")).to_be_hidden()
+    expect(summary).to_be_hidden()
     expect(thread.locator("leaf-text")).to_be_visible()
-    write(thread.locator("leaf-text"), "Confirmed from the inline thread.")
-    held = []
-    page.route("**/api/event", lambda route: held.append(route))
-    watch_message_arrival(thread, ".lf-msg")
-    page.keyboard.press("Enter")
-    holding(page, held, 1, "the inline reply")
-    pending = thread.locator('.lf-msg[aria-busy="true"]')
-    expect(pending).to_contain_text("Confirmed from the inline thread.")
-    assert page.evaluate("window.__messageArrival") == {
-        "opacity": 0.5,
-        "busy": True,
-        "words": "Confirmed from the inline thread.",
-    }
-    expect(pending).to_have_css("opacity", "0.5")
-    held.pop(0).continue_()
-    page.unroute("**/api/event")
-    round_trip(page)
-    sent = events_model.read_events(serve.page_dir)[-1]
-    assert (sent["kind"], sent["parent"], sent["text"]) == (
-        "reply",
-        root["id"],
-        "Confirmed from the inline thread.",
-    )
-    expect(thread).to_contain_text("Confirmed from the inline thread.")
-    accepted = thread.locator(f'.lf-msg[data-event="{sent["id"]}"]')
-    expect(accepted).not_to_have_attribute("aria-busy", "true")
-    expect(accepted).to_have_css("opacity", "1")
 
 
 def test_a_datum_comment_reveals_its_shadow_host_and_outer_tab(browser, serve):

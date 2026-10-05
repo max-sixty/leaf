@@ -395,15 +395,7 @@ export function commentPlacement() {
     },
     options(
       ui,
-      {
-        clear,
-        row,
-        column = null,
-        margin = null,
-        boundary,
-        fit,
-        hold = null,
-      },
+      { clear, row, column = null, margin = null, boundary, fit, hold = null },
     ) {
       const minimumWidth = cardMinimum();
       const across = vertical(side);

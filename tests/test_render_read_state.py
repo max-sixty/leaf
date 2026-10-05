@@ -171,7 +171,8 @@ def test_first_unread_opens_the_exact_message_and_exposure_acknowledges_it(
     panel_settled(page)
     card = page.locator(f'.lf-thread[data-id="{root}"]')
     expect(card.locator(".lf-thread-unread")).to_have_text("1 unread")
-    page.locator(".lf-first-unread").click()
+    with sending(page, "first unread acknowledgement"):
+        page.locator(".lf-first-unread").click()
     expect(card).to_have_attribute("open", "")
     expect(card.locator(f'.lf-msg[data-mid="{root}"]')).to_be_focused()
     expect(card.locator(f'.lf-msg[data-mid="{root}"]')).not_to_have_class(

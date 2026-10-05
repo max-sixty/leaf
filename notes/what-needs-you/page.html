@@ -748,23 +748,95 @@ stateDiagram-v2
           <section id="task-shape-questions">
             <h2>Hierarchy, and who says a task is done</h2>
             <p>
-              <strong>Hierarchy.</strong> Leaf's tasks have no parent today: a task
-              names its subject (a thread) and nothing else. Pi's do, because its tasks
-              form an ownership tree. Two Leaf cases would want one: a task that answers
-              your message, and a task handed to another session by the one that
-              dispatched it. Step 4 covers the first, since Working names your move and
-              a task opened for it can record that move. The second waits for step 7. A
-              general tree can wait until a case needs more than those two links.
+              Two questions about the shape of a task: whether one task can belong to
+              another, and who decides that a task is finished. Neither changes what is
+              landing now; both shape steps 6 and 7.
             </p>
-            <p>
-              <strong>Who says it's done.</strong> Both, by the kind of result. Where
-              the result can be checked mechanically (a TODO written, a test passing, a
-              file moved), the agent ends the task as done. Where it is a judgment (a
-              design, a rewrite, a choice of wording), the agent reports it done and the
-              task lands on your queue to review; reading it accepts it, and replying
-              reopens it. That is step 6, and the agent's instructions say which case is
-              which, the way they already say when to ask with an Ask.
-            </p>
+
+            <section id="task-hierarchy">
+              <h3>Can one task belong to another?</h3>
+              <p>
+                <strong>Today, no.</strong> A Leaf task has exactly one link: its
+                subject, the thread, widget or page it is about. Nothing points from one
+                task to another, or from a task to the message that asked for it. Step 4
+                keeps that.
+              </p>
+              <p>
+                <strong>Pi's tasks form a tree.</strong> A task that spawns subtasks
+                owns them, and it can wait on them until they finish. Leaf has no
+                equivalent yet.
+              </p>
+              <p>Two Leaf cases could want a link like that:</p>
+              <ul>
+                <li>
+                  <strong>Work that answers your message.</strong> Say you comment "make
+                  the table wider". Step 4 needs no task for this: Working names your
+                  comment itself, so the thread reads Working until the agent's reply
+                  settles it. Only work that outlasts the turn, such as a CI run or a
+                  build, gets a task, and that task names the thread your comment is in
+                  rather than the comment. That is enough to show the work beside the
+                  right thread. It can't say which of several comments in one thread the
+                  work answers; if that ever matters, the fix is one field naming the
+                  comment, not a tree.
+                </li>
+                <li>
+                  <strong>Work handed to another session.</strong> Say the agent here
+                  dispatches a separate session to fix a bug, as this session has done
+                  several times this week. The work now belongs to a session this page
+                  knows nothing about, so the page can't show it as under way or learn
+                  when it ends. Fixing that needs the dispatched session's task to point
+                  back at the task that dispatched it, which is a parent link. That
+                  belongs in step 7, <em>Items outlive their session</em>, which already
+                  deals with work that moves between sessions: it is also where a task
+                  whose session ended without an outcome lands on your queue.
+                </li>
+              </ul>
+              <p>
+                <strong>Why not a general tree now:</strong> a tree brings rules nothing
+                here needs yet. Does a parent end when its children do? Whose queue
+                shows a child? Can a child outlive its parent? The two cases above need
+                at most one link each, so the tree can wait until a case needs more.
+              </p>
+            </section>
+
+            <section id="task-done">
+              <h3>Who decides a task is done?</h3>
+              <p>
+                <strong>Today, the agent alone.</strong> It ends a task with
+                <code>leaf task end</code> as done, failed or dropped, with a note
+                saying where the result is or why there is none. A version stamped with
+                <code>--completes</code> also ends the task on that widget as done. You
+                have no step in it.
+              </p>
+              <p>
+                <strong
+                  >Proposed: it depends on whether the result can be checked.</strong
+                >
+              </p>
+              <ul>
+                <li>
+                  <strong>A result the agent can check</strong>, such as a TODO written,
+                  a test passing, a file moved or a PR merged. The agent ends the task
+                  as done and its note cites the evidence. Nothing goes on your queue,
+                  because there is nothing for you to judge.
+                </li>
+                <li>
+                  <strong>A result only you can judge</strong>, such as a design, a
+                  rewrite or a choice of wording. The agent finishes its part and the
+                  task moves onto your queue to review, for example "Rewrote § Pi
+                  comparison". <kbd>a</kbd> reaches it with everything else on you.
+                  Reading it and moving on accepts it, which ends the task. Replying
+                  sends it back to the agent's queue, with your reply as the next thing
+                  to answer.
+                </li>
+              </ul>
+              <p>
+                Moving a task from the agent's queue to yours is step 6,
+                <em>Either side adds to the other's queue</em>. The agent decides which
+                case a task is, guided by its instructions, the same way it already
+                decides whether to ask you with an Ask or in a thread.
+              </p>
+            </section>
           </section>
 
           <section id="pi">

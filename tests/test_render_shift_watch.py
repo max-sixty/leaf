@@ -1558,9 +1558,7 @@ def test_native_anchor_scroll_retains_local_motion_proof(browser, fault, transfo
     # credits a portal's catch-up only from a pose that saw the anchor before its
     # scroller moved; its frame callback runs ahead of any the page registers, so a
     # painted frame here gives it that pose.
-    import os as _os
-    if not _os.environ.get("LF_SETUP_BASE"):
-        paint(page)
+    paint(page)
     page.evaluate("scroller.scrollLeft=20;scroller.scrollTop=20")
     paint(page)
     before = page.locator("#field").bounding_box()

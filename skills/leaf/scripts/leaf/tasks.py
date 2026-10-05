@@ -128,7 +128,8 @@ def _outcome(event: dict, detail: str | None) -> dict:
 def canonical_tasks(events: list) -> list[dict]:
     """Every task the log holds, oldest first, with its current state and the start
     running on it while it is open. An ending naming no task the log holds is skipped,
-    as other folds skip a lost line."""
+    as other folds skip a lost line, and so is a task with no `owner`, which an earlier
+    Leaf wrote."""
     tasks: dict[str, dict] = {}
     withdrawn = taken_back(events)
 
@@ -138,6 +139,10 @@ def canonical_tasks(events: list) -> list[dict]:
 
     for event in events:
         if event["kind"] == "task":
+            # A task an earlier Leaf wrote names no owner; it is absent here, as
+            # AGENTS.md "Stage" has a record missing a field this version reads.
+            if "owner" not in event:
+                continue
             tasks[event["id"]] = {
                 "id": event["id"],
                 "owner": event["owner"],

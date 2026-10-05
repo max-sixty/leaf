@@ -681,3 +681,23 @@ def test_the_agent_ends_an_asks_task_and_a_questions(page_dir):
     assert ended[question["id"]]["state"] == "done"
     again = leaf("task", "end", page_dir, ask["id"], "done")
     assert "has already ended" in again.output
+
+
+def test_a_task_an_earlier_leaf_wrote_without_an_owner_is_absent(page_dir):
+    """A record missing a field this version reads is ignored where it is loaded: the
+    page still reads, and the task is on neither queue."""
+    publish(page_dir)
+    append_carried_log_record(
+        page_dir,
+        {
+            "kind": "task",
+            "author": "agent",
+            "subject": {"kind": "page"},
+            "title": "Written before owners",
+        },
+    )
+    state = state_json(page_dir)
+    assert state["tasks"] == []
+    assert state["queues"]["on_agent"] == []
+    served = full_state(page_dir, events_model.read_events(page_dir))
+    assert served["browser"]["tasks"] == []

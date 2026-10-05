@@ -98,6 +98,16 @@ def test_a_task_holds_its_thread_on_the_agent_past_reply_and_resolve(page_dir):
     state = state_json(page_dir)
     assert state["queues"]["on_agent"] == []
     assert state["tasks"] == []
+    # The browser is served the ended task beside the open ones, for the Queue panel's
+    # Done list, with its outcome.
+    served = full_state(page_dir, events_model.read_events(page_dir))
+    assert served["browser"]["tasks"] == []
+    [ended] = served["browser"]["ended_tasks"]
+    assert (ended["id"], ended["state"], ended["outcome"]["detail"]) == (
+        task["id"],
+        "done",
+        "version 2",
+    )
 
 
 def test_the_door_refuses_a_task_off_the_page_and_an_outcome_twice(page_dir):

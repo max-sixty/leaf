@@ -5,7 +5,7 @@
    answered or not, wherever it is drawn: an Ask frozen into a reply is where a user
    working it is, never the page Ask its thread is about. A presentation can stand at the
    source target it shows in authored flow or chrome, as its owner declares (`declareSide`): the margin for its
-   cluster controls, the thread card, and a thread in the Threads panel; the Asks drawer
+   cluster controls, the thread card, and a thread in the Threads panel; the Queue panel
    for its rows; the details shelf for the elements that name its notes. A side's answer
    drawn in the chrome itself, such as a margin control on a widget frozen into a reply,
    stands only where an Ask holds it. Chrome no side
@@ -44,6 +44,16 @@ export const askHolding = (asks, node) =>
       return at && (at === node || under(node, at));
     })) ??
   null;
+
+// The source target a presentation node shows, by its owner's declaration, or null
+// for a node no side claims.
+export function sideOf(node) {
+  for (const side of sides) {
+    const place = side(node);
+    if (place) return place;
+  }
+  return null;
+}
 
 export function placeOf(node) {
   const at = node?.nodeType === 1 ? node : node?.parentElement;

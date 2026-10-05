@@ -32,7 +32,7 @@ from render_cases_layout import (
     ring_faults,
     rings_drawn,
     standing_ring,
-    toggle_asks,
+    toggle_queue,
     token_colour,
     with_one_ask,
 )
@@ -595,7 +595,7 @@ def test_a_surface_over_the_rail_hands_the_user_the_map(browser, serve):
     drawn, but at 1100 it stands over the rail, so the banner offers the Page Map in the
     markers' place; at 1920 the rail stands clear of it and the margin stays the way in.
     The Map is read as offered rather than as visible, since the toolbar may fold it behind
-    the More door at a width the banner is crowded at. The Asks drawer stands over the left
+    the More door at a width the banner is crowded at. The Queue panel stands over the left
     of the window, away from the rail, so it leaves the markers and the margin alone."""
     comment = {
         "kind": "comment",
@@ -640,7 +640,7 @@ def test_a_surface_over_the_rail_hands_the_user_the_map(browser, serve):
     margins_laid_out(page)
     assert not page.evaluate(offered), "closing the panel left the map offered"
 
-    toggle_asks(page)
+    toggle_queue(page)
     margins_laid_out(page)
     expect(marker).to_be_visible()
     assert not page.evaluate(offered), "the drawer on the left withdrew the rail"
@@ -2784,12 +2784,12 @@ def test_the_page_map_dialog_walks_its_rows_from_the_search(browser, serve):
 
 def test_the_chrome_names_an_ask_by_its_question(browser, serve):
     """An Ask is named by its heading, not its heading run into its options and their
-    chips: the Asks drawer row, and the Page Map group for it, whose one row says why the
+    chips: the Queue panel row, and the Page Map group for it, whose one row says why the
     Ask is there rather than naming it a second time."""
     page = open_page(browser, serve(ASK_PAGE))
     page.keyboard.press("g")
-    page.keyboard.press("Shift+a")
-    row = page.locator("button.lf-asks-row").first
+    page.keyboard.press("Shift+q")
+    row = page.locator("button.lf-queue-row").first
     expect(row).to_contain_text("Which jobs are worth starting?")
     expect(row).not_to_contain_text("Replace the")
     page.keyboard.press("Escape")
@@ -8290,13 +8290,13 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     resized_shell(page, 1920, 900)
 
     page.keyboard.press("g")
-    page.keyboard.press("Shift+a")
+    page.keyboard.press("Shift+q")
     expect(preview).to_be_hidden()
-    expect(page.locator(".lf-asks-panel")).to_have_class(re.compile(r"\bopen\b"))
+    expect(page.locator(".lf-queue-panel")).to_have_class(re.compile(r"\bopen\b"))
     # Exchanging one auxiliary surface for another is lateral, so the drawer's Escape
     # lands on the page and the card it displaced is not put back up.
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-asks-panel")).not_to_have_class(re.compile(r"\bopen\b"))
+    expect(page.locator(".lf-queue-panel")).not_to_have_class(re.compile(r"\bopen\b"))
     expect(preview).to_be_hidden()
     assert page.evaluate("() => document.activeElement === document.body")
     marker.click()
@@ -8539,16 +8539,16 @@ def test_the_thread_card_survives_drawers_and_authored_sidebars(browser, serve):
     marker.click()
     expect(page.locator(".lf-margin-thread")).to_have_count(1)
 
-    banner_control(page, ".lf-asks").click()
-    expect(page.locator("body")).to_have_attribute("data-lf-auxiliary-surface", "asks")
+    banner_control(page, ".lf-queue").click()
+    expect(page.locator("body")).to_have_attribute("data-lf-auxiliary-surface", "queue")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     marker.click()
     expect(page.locator(".lf-margin-preview")).to_be_visible()
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
     marker.click()
-    banner_control(page, ".lf-asks").click()
+    banner_control(page, ".lf-queue").click()
     expect(page.locator("body")).not_to_have_attribute(
-        "data-lf-auxiliary-surface", "asks"
+        "data-lf-auxiliary-surface", "queue"
     )
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     marker.click()

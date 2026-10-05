@@ -54,6 +54,7 @@ from render_harness import (
     admit_before_presenting_comment,
     any_owner_entry,
     example_media,
+    expect_asks_answered,
     hold_pending_thread_presentation,
     holding,
     leaf_page,
@@ -3969,7 +3970,7 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_user(browser, serve):
     page.keyboard.press("n")
     expect(theirs_title).to_be_focused()
     # The card the narrowing hides keeps its node. A widget an agent sent in a reply is
-    # instantiated once, in that card, and the banner's Asks count and the drawer find it by
+    # instantiated once, in that card, and the Ask reading and the Queue find it by
     # id in the document — hidden is the list's business, gone would be a claim about the
     # log (test_a_narrowing_hides_a_thread_without_taking_its_question_off_the_page).
     expect(
@@ -6289,7 +6290,7 @@ def test_a_panel_reads_a_log_that_lost_the_message_a_reply_answers(browser, serv
 
     page = open_page(browser, url)
     resized(page, 1280, 900)
-    expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
+    expect_asks_answered(page, "0/1")
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     expect(page.locator(".lf-thread")).to_have_count(1)
@@ -7284,16 +7285,16 @@ def test_the_line_offers_the_thread_g_t_lands_on_its_own_keys(browser, serve):
 def test_a_narrowing_hides_a_thread_without_taking_its_question_off_the_page(
     browser, serve
 ):
-    """The banner's Asks count and the drawer read the log; the panel's narrowing is a view.
+    """The Ask reading and the Queue read the log; the panel's narrowing is a view.
 
     A question an agent asks in a reply is a widget instantiated once, in the panel's
     card, and every other reading of it finds that widget by id in the document. So
     when "Waiting on you" took the answered thread's card out of the list, it took the
-    question out of the page: Asks 2/2 became 1/1, the drawer listed one ask, and a
+    question out of the page: Asks 2/2 became 1/1, the Asks list held one, and a
     minute later — the narrowing let go — both came back, with nothing in the log
     having moved. A blind drive spent a locator timeout on the flip.
 
-    The card the narrowing hides is hidden, not gone, so the count and the drawer hold."""
+    The card the narrowing hides is hidden, not gone, so the count and the Queue hold."""
     page = open_page(
         browser, serve(next(p for p in EXAMPLES if p.stem == "ship-review"))
     )
@@ -7305,7 +7306,7 @@ def test_a_narrowing_hides_a_thread_without_taking_its_question_off_the_page(
     round_trip(page)
     question.locator(".lf-done").click()
     round_trip(page)
-    expect(page.locator(".lf-asks")).to_have_text("Asks 2/2")
+    expect_asks_answered(page, "2/2")
     page.locator(".lf-thread-filter-toggle").click()
     page.locator(".lf-needs").click()
     expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text("Threads")
@@ -7315,9 +7316,9 @@ def test_a_narrowing_hides_a_thread_without_taking_its_question_off_the_page(
     expect(
         page.locator('.lf-threads > .lf-thread[hidden][data-resolved="false"]')
     ).to_have_count(1)
-    expect(page.locator(".lf-asks")).to_have_text("Asks 2/2")
-    banner_control(page, ".lf-asks").click()
-    expect(page.locator(".lf-asks-row")).to_have_count(2)
+    expect_asks_answered(page, "2/2")
+    banner_control(page, ".lf-queue").click()
+    expect(page.locator(".lf-queue-row[data-lf-kind='ask']")).to_have_count(2)
 
 
 def test_a_narrowing_that_hides_the_card_the_user_stands_in_lands_them_on_the_list(
@@ -8614,23 +8615,28 @@ def test_a_thread_resolved_while_its_reply_is_written_keeps_the_user_on_it(
     if finish == "reload":
         page.reload()
         wait_until_ready(page)
-        page.locator('.lf-margin-marker[data-lf-kinds="comment"]').click()
-        expect(box).to_be_visible()
-        expect(box).to_have_js_property("value", "Half a thought")
-        expect(thread).to_have_attribute("data-resolved", "true")
+        page.locator(".lf-threads-toggle").click()
+        panel_settled(page)
+        page.locator(".lf-thread-filter-toggle").click()
+        page.locator('[data-filter-value="resolved"]').click()
+        card = page.locator(f'.lf-thread[data-id="{root}"]')
+        expect(card).to_have_attribute("data-resolved", "true")
+        with sending(page, "reopen the thread with the saved reply"):
+            card.get_by_role("button", name="Reopen thread").click()
+        round_trip(page)
+        expect(card.locator(":scope > .lf-thread-reply leaf-text")).to_have_js_property(
+            "value", "Half a thought"
+        )
         return
     if finish == "clear":
         page.keyboard.press("ControlOrMeta+a")
         page.keyboard.press("Backspace")
         rendered(page)
-        expect(thread.locator(":scope > .lf-thread-reply leaf-text")).to_have_count(0)
-        if kind == "margin":
-            expect(page.locator(".lf-margin-preview")).to_be_hidden()
-            expect(
-                page.locator('.lf-margin-marker[data-lf-kinds="comment"]')
-            ).to_have_count(0)
-        else:
-            expect(thread).not_to_have_attribute("open", "")
+        expect(box).to_be_visible()
+        expect(box).to_be_focused()
+        expect(box).to_have_js_property("value", "")
+        assert box.evaluate("box => [box.selectionStart, box.selectionEnd]") == [0, 0]
+        expect(thread).to_have_attribute("data-resolved", "true")
         return
     page.keyboard.type(" tr")
     expect(box).to_have_js_property("value", "Half tr a thought")

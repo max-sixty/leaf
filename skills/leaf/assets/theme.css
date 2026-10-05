@@ -661,7 +661,7 @@ html { background: var(--paper); }
     main { padding-block: 24px; }
   }
 }
-/* The auxiliary surfaces — the Asks drawer on the left, the thread panel on the right, the
+/* The auxiliary surfaces — the Queue drawer on the left, the thread panel on the right, the
  * Leaves drawer — stand over the page and never take room from it. The page's geometry is
  * the author's, and a surface the user raises for a moment does not reflow it: the shell
  * is the same width with a surface up as without one, so every container query, rail and
@@ -709,7 +709,7 @@ body {
     var(--lf-auxiliary-width, 0px));
 }
 @media screen {
-  html[data-lf-live] body[data-lf-auxiliary-surface="asks"] {
+  html[data-lf-live] body[data-lf-auxiliary-surface="queue"] {
     --lf-auxiliary-width: var(--lf-drawer-slot-width, 300px);
   }
   html[data-lf-live] body[data-lf-auxiliary-surface="threads"] {

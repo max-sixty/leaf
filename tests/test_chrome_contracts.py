@@ -24,7 +24,7 @@ from render_cases_layout import (
     BANNER_ORDER,
     banner_control,
     button_radius,
-    toggle_asks,
+    toggle_queue,
     token_colour,
     with_one_ask,
 )
@@ -1974,7 +1974,7 @@ def test_the_banner_reads_in_one_order_at_every_width(browser, serve, other_leaf
 
     # More follows the primary reading loop, with one order at every width.
     widest = max(orders.values(), key=len)
-    for wanted in ("All leaves", "Asks", "Accept all", "v1", "Approve version"):
+    for wanted in ("All leaves", "Queue", "Accept all", "v1", "Approve version"):
         assert any(wanted in name for name in widest), (
             f"{wanted} was not on the row at all, so this order proves little: {widest}"
         )
@@ -2756,13 +2756,13 @@ WIDE_PAGE = leaf_page(
 SURFACE_PAGES = {
     "threads-column": ("threads", lambda: LONG_PAGE),
     "threads-wide-page": ("threads", lambda: WIDE_PAGE),
-    "asks": ("asks", lambda: with_one_ask(LONG_PAGE)),
+    "queue": ("queue", lambda: with_one_ask(LONG_PAGE)),
 }
 
 
 def toggle_surface(page, surface, open=True):
-    if surface == "asks":
-        toggle_asks(page, open)
+    if surface == "queue":
+        toggle_queue(page, open)
     else:
         page.locator(".lf-threads-toggle").click()
         panel_settled(page, open)
@@ -2773,7 +2773,7 @@ def toggle_surface(page, surface, open=True):
 def test_an_auxiliary_surface_stands_over_the_page_and_moves_none_of_it(
     browser, serve, case, width
 ):
-    """Opening Threads or the Asks drawer never moves the page: each stands over its edge of
+    """Opening Threads or the Queue panel never moves the page: each stands over its edge of
     the window, so the reading column keeps its place, its width and its wrapping, a
     wide page's side track stays where its Layout put it, and the document neither grows nor
     scrolls under it. The page beside the surface stays live rather than going inert
@@ -2793,15 +2793,17 @@ def test_an_auxiliary_surface_stands_over_the_page_and_moves_none_of_it(
       };
     }"""
     before = page.evaluate(shape)
-    region = page.locator(".lf-asks-panel" if surface == "asks" else ".lf-thread-panel")
+    region = page.locator(
+        ".lf-queue-panel" if surface == "queue" else ".lf-thread-panel"
+    )
 
     toggle_surface(page, surface)
     expect(region).to_be_visible()
     region.evaluate("el => el.getAnimations().forEach((a) => a.finish())")
     assert page.evaluate(shape) == pytest.approx(before, abs=0.5)
     box = region.bounding_box()
-    edge = 0 if surface == "asks" else width
-    assert (box["x"] if surface == "asks" else box["x"] + box["width"]) == (
+    edge = 0 if surface == "queue" else width
+    assert (box["x"] if surface == "queue" else box["x"] + box["width"]) == (
         pytest.approx(edge, abs=1)
     )
     assert not page.locator("main").evaluate("el => el.inert")

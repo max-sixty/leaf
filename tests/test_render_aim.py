@@ -286,10 +286,10 @@ def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve
 
 
 @pytest.mark.parametrize("width", [900, 1200])
-def test_an_aimed_comment_keeps_its_place_with_the_asks_drawer_open(
+def test_an_aimed_comment_keeps_its_place_with_the_queue_panel_open(
     browser, serve, width
 ):
-    """The Asks drawer stands over the page without moving its coordinate plane.
+    """The Queue panel stands over the page without moving its coordinate plane.
 
     A broad authored rule may position ordinary divs, and the drawer may arrive over a
     target without another pointer event. Neither may move the chrome's document origin or
@@ -312,7 +312,7 @@ def test_an_aimed_comment_keeps_its_place_with_the_asks_drawer_open(
     page.keyboard.down("Alt")
     expect(page.locator(".lf-aim")).to_have_attribute("data-for", "lq-keep")
     # Open by script so the pointer remains parked on the target while the drawer arrives.
-    page.locator(".lf-asks").evaluate("node => node.click()")
+    page.locator(".lf-queue").evaluate("node => node.click()")
     edge_settled(page, EDGES[1])
     aligned = page.evaluate(
         """() => {
@@ -1714,12 +1714,12 @@ def test_a_covering_auxiliary_surface_holds_design_paint_beneath_it(browser, ser
     """
     page = open_page(browser, serve(ASKS_PAGE))
     resized(page, 700, 900)
-    banner_control(page, ".lf-asks").click()
+    banner_control(page, ".lf-queue").click()
     edge_settled(page, EDGES[1])
     page.keyboard.press("l")
     expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
     resized(page, 560, 900)
-    drawer = page.locator(".lf-asks-panel")
+    drawer = page.locator(".lf-queue-panel")
     expect(drawer).to_be_visible()
 
     target = page.locator("#lq-keep")
@@ -1737,7 +1737,7 @@ def test_a_covering_auxiliary_surface_holds_design_paint_beneath_it(browser, ser
     expect(page.locator(".lf-aim")).to_be_hidden()
     planes = page.evaluate(
         """() => ({
-          drawer: Number(getComputedStyle(document.querySelector('.lf-asks-panel')).zIndex),
+          drawer: Number(getComputedStyle(document.querySelector('.lf-queue-panel')).zIndex),
           legend: Number(getComputedStyle(
             document.querySelector('.lf-legend-box[data-for="lq-keep"]')).zIndex),
         })"""

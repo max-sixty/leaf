@@ -1631,7 +1631,7 @@ def test_the_layer_sheets_spell_the_runtime_s_layout_numbers():
     ):
         assert spelling in sheet, f"the layer sheets no longer spell {spelling}"
     for spelling in (
-        'html[data-lf-live] body[data-lf-auxiliary-surface="asks"]',
+        'html[data-lf-live] body[data-lf-auxiliary-surface="queue"]',
         'html[data-lf-live] body[data-lf-auxiliary-surface="threads"]',
     ):
         assert spelling in sheet, f"the layer sheets no longer spell {spelling}"

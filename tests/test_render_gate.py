@@ -11,6 +11,7 @@ import tinycss2
 from click.testing import CliRunner
 from interact_support import (
     COMMAND_HUB_PACKAGE,
+    STATED_TIMEOUT,
     add_test_widget,
     append_carried_log_record,
     append_command,
@@ -1236,7 +1237,9 @@ def test_a_reload_mid_flight_never_wedges_round_trip(browser, serve, monkeypatch
     page.on("framenavigated", release_after_reload)
     try:
         banner_control(page, ".lf-answer-all").click()
-        assert answer_ready.wait(10), "the first event reached no server answer"
+        assert answer_ready.wait(STATED_TIMEOUT), (
+            "the first event reached no server answer"
+        )
         page.goto(url, wait_until="load")
         assert reload_committed.is_set(), "the replacement document did not commit"
         wait_until_ready(page)
@@ -2178,7 +2181,7 @@ def test_the_state_wait_covers_a_status_that_moves_neither_log_nor_data(browser,
         wait_until_ready(page, held, through="state")
         assert "Pick a shard." in page.locator(".lf-status-text").text_content()
     finally:
-        lease.close()
+        leases_model.release_lease(lease)
 
 
 def test_the_readiness_wait_names_the_stage_a_page_still_owes(browser, serve):

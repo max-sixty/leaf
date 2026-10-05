@@ -2236,11 +2236,6 @@ def test_a_python_side_wait_takes_the_suites_deadline():
         "wait_for",
     }
     deadline_first = {"join", "result", "settimeout", "wait"}
-    # Sites in files another change holds, to move onto the suite's deadline once
-    # it lands. Each is a hang bound like the rest.
-    held_elsewhere = {
-        ("test_render_gate.py", "answer_ready.wait(10)"),
-    }
 
     def literal(node) -> bool:
         if isinstance(node, ast.BinOp):
@@ -2283,9 +2278,9 @@ def test_a_python_side_wait_takes_the_suites_deadline():
             else:
                 continue
             if computed:
-                site = (path.name, ast.unparse(node))
-                if site not in held_elsewhere:
-                    literals.append(f"{path.relative_to(ROOT)}:{node.lineno} {site[1]}")
+                literals.append(
+                    f"{path.relative_to(ROOT)}:{node.lineno} {ast.unparse(node)}"
+                )
     assert not literals, (
         "these waits fix their own deadline; bound them with STATED_TIMEOUT "
         f"(interact_support.py): {literals}"

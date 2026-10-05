@@ -10,13 +10,16 @@ CI profile. Existing fetch-assets warms the same cache as every other asset read
 
     uv run pytest -n0 tests/test_render_thread_snapshots.py
     uv run leaf-dev thread-snapshots capture
+    uv run leaf-dev thread-snapshots fetch <ci-run-id>
     uv run leaf-dev thread-snapshots accept .tmp/thread-snapshots/captures/<run>
 
 Capture runs the same journey and hard delivery assertions, writing all 42 PNG images and
 geometry readings to a new evidence folder. Review its actual images and observations,
 then accept publishes that profile through leaf_assets.stage / publish and updates
-the ordinary asset pin. Acceptance never occurs in normal tests. CI retains failed
-run evidence. Small antialias noise is excluded by Pixelmatch's AA handling and
+the ordinary asset pin. Acceptance never occurs in normal tests. CI keeps every run's
+evidence, and a case that passed its delivery assertions marks its images complete
+under its profile, so fetch assembles a CI run into the same evidence folder as
+capture: the Linux profile is reviewed and accepted the way a local one is. Small antialias noise is excluded by Pixelmatch's AA handling and
 calibrated 0.01 perceptual tolerance; every other mismatched pixel fails, with no
 whole-image allowance. Independently compare viewport geometry so a translated crop
 cannot conceal placement changes.
@@ -212,6 +215,8 @@ class SnapshotRun:
 
     def finish(self) -> None:
         """Report every changed checkpoint together after the journey completes."""
+        # Reached only once the delivery assertions passed: these are a capture.
+        (self.output / COMPLETE).write_text(self.profile)
         assert not self.failures, (
             "\n".join(self.failures)
             + f"\nReadings: {self.output / 'observations.json'}\nEvidence: {self.output}"
@@ -219,6 +224,8 @@ class SnapshotRun:
 
 
 ASSET_DIRECTORY = "tests/thread-snapshots"
+# A case's run evidence holds this file, naming its profile, once its journey passed.
+COMPLETE = "complete"
 
 
 def expected_store() -> Path:
@@ -256,8 +263,64 @@ def capture():
             f"capture assertions failed; review evidence in {directory}"
         )
     (profile,) = (path.name for path in directory.iterdir() if path.is_dir())
-    files = capture_files(directory, profile)
+    seal(directory, profile)
 
+
+@thread_snapshots.command("fetch")
+@click.argument("run_id")
+def fetch(run_id: str):
+    """Assemble a CI run's captures for review, as capture does on this machine."""
+    with tempfile.TemporaryDirectory(prefix="leaf-thread-ci-") as raw:
+        subprocess.run(
+            [
+                "gh",
+                "run",
+                "download",
+                run_id,
+                "--pattern",
+                "pytest-results-*",
+                "--dir",
+                raw,
+            ],
+            cwd=ROOT,
+            check=True,
+        )
+        directory = assemble(Path(raw), ROOT / ".tmp/thread-snapshots/captures")
+    seal(directory, next(path.name for path in directory.iterdir() if path.is_dir()))
+
+
+def assemble(evidence: Path, captures: Path) -> Path:
+    """Lay out one run's complete evidence as a capture folder under `captures`."""
+    runs = {}
+    for marker in evidence.glob(f"**/thread-snapshots/runs/*/*/{COMPLETE}"):
+        runs.setdefault(marker.parent.parent, {})[marker.parent.name] = marker
+    complete = [
+        cases for cases in runs.values() if set(cases) == {case.name for case in CASES}
+    ]
+    if len(complete) != 1:
+        raise click.ClickException(
+            f"expected one run whose every case passed its delivery assertions in "
+            f"{evidence}, found {len(complete)}"
+        )
+    (cases,) = complete
+    (profile,) = {marker.read_text() for marker in cases.values()}
+    directory = captures / uuid.uuid4().hex / profile
+    directory.mkdir(parents=True)
+    for case, marker in cases.items():
+        readings = json.loads((marker.parent / "observations.json").read_text())
+        for stage in STAGES:
+            shutil.copyfile(
+                marker.parent / f"{stage}.actual.png", directory / f"{case}-{stage}.png"
+            )
+            (directory / f"{case}-{stage}.json").write_text(
+                json.dumps(readings[stage]["region"], indent=2) + "\n"
+            )
+    return directory.parent
+
+
+def seal(directory: Path, profile: str) -> None:
+    """Record a complete capture's bytes, so accept publishes exactly what was reviewed."""
+    files = capture_files(directory, profile)
     (directory / "capture.json").write_text(
         json.dumps(
             {

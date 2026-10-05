@@ -245,3 +245,37 @@ def test_accept_publishes_only_a_successful_unchanged_capture(
     result = runner.invoke(accept, [str(directory)])
     assert result.exit_code != 0 and "missing capture" in result.output
     assert published == []
+
+
+def test_a_ci_run_assembles_into_the_capture_its_cases_completed(
+    thread_expected_store, tmp_path
+):
+    """A CI run's evidence becomes the same reviewable capture `capture` writes, and
+    only once every case passed its delivery assertions."""
+    import click
+    from leaf_dev.thread_journey import STAGES
+    from leaf_dev.thread_snapshots import COMPLETE, assemble, capture_files
+
+    profile = next(path.name for path in thread_expected_store.iterdir())
+    run = tmp_path / "artifact/.tmp/thread-snapshots/runs/gw-uid"
+    for case in CASES:
+        evidence = run / case.name
+        evidence.mkdir(parents=True)
+        readings = {}
+        for stage in STAGES:
+            approved = thread_expected_store / profile / f"{case.name}-{stage}"
+            shutil.copyfile(
+                approved.with_suffix(".png"), evidence / f"{stage}.actual.png"
+            )
+            readings[stage] = {
+                "region": json.loads(approved.with_suffix(".json").read_text())
+            }
+        (evidence / "observations.json").write_text(json.dumps(readings))
+        (evidence / COMPLETE).write_text(profile)
+    directory = assemble(tmp_path / "artifact", tmp_path / "captures")
+    assert capture_files(directory, profile) == capture_files(
+        thread_expected_store, profile
+    )
+    (run / CASES[0].name / COMPLETE).unlink()
+    with pytest.raises(click.ClickException, match="found 0"):
+        assemble(tmp_path / "artifact", tmp_path / "captures")

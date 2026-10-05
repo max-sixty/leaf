@@ -210,12 +210,13 @@ const newsLabel = ({ settled, replies, reactions, threads }) =>
     .filter(Boolean)
     .join(" · ");
 
-/** The control that says what a row holds and shows it. `set(news)` gives it the
- *  reading's `news` ({label, reopened, open}); `open` returns the thread to land a
+/** The control that says what a row holds and shows it. `set(news, header)` gives it
+ *  the reading's `news` ({label, reopened, open}); `open` returns the thread to land a
  *  keyboard on, since the notice goes with what it held. A held reopening's notice stands
  *  where Reopen did, in Reopen's face, which sets its row's height, and is the thread's
  *  reopen control (`lf-reopen`), so the thread's Enter and `r` keep their meaning and
- *  press it to show the thread reopened. */
+ *  press it to show the thread reopened. `header` places it in a resolved panel card's
+ *  title, where Reopen stands in that title's action face. */
 export function newsNotice() {
   const node = offer("button", "lf-outline-chip lf-thread-news");
   let open = () => null;
@@ -235,11 +236,14 @@ export function newsNotice() {
   ]);
   return {
     node,
-    set(news) {
+    set(news, header = false) {
       keepsText(node, news.label);
-      node.classList.toggle("lf-outline-chip", !news.reopened);
-      for (const face of ["lf-btn", "lf-thread-action", "lf-reopen"])
-        node.classList.toggle(face, news.reopened);
+      const action = header || news.reopened;
+      node.classList.toggle("lf-outline-chip", !action);
+      for (const face of ["lf-btn", "lf-thread-action"])
+        node.classList.toggle(face, action);
+      node.classList.toggle("lf-reopen", news.reopened);
+      node.classList.toggle("lf-thread-header-action", header);
       open = news.open;
     },
   };

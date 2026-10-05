@@ -2590,7 +2590,10 @@ def test_a_settlement_from_elsewhere_moves_nothing_in_a_short_panel_thread(
     assert len(events_model.read_events(serve.page_dir)) == logged
 
     news_lands({"kind": "unresolve", "author": "user", "parent": root})
-    notice = thread.get_by_role("button", name="Reopened", exact=True)
+    # The resolved card draws no row below its messages, so its notice stands in the
+    # title, in Reopen's place.
+    notice = thread.locator(":scope > .lf-thread-news")
+    expect(notice).to_have_text("Reopened")
     expect(notice).to_be_visible()
     expect(thread).to_have_attribute("data-resolved", "true")
     notice.click()

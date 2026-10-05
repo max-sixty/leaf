@@ -157,14 +157,14 @@ export function threadReading(
   });
 }
 
-function navigationSummary(navigation, model, settlement) {
+function navigationSummary(navigation, model, control) {
   if (!navigation) return nothing;
   const pendingTitle = model.titlePending;
   const title = model.summary.topic;
   const latest = model.summary.latest;
-  // The reserved box under the title's Reopen carries that control's words; otherwise
+  // The reserved box under the title's control carries that control's words; otherwise
   // the status reads the thread as it stands, since the row keeps its size.
-  const status = settlement ? model.resolvedBy || "Resolved" : model.status;
+  const status = control ?? model.status;
   const draft = Boolean(loadDraft("reply:" + model.key));
   // While a title is on its way, the title slot says so in words drawn apart from any
   // title; the theme keeps the placeholder muted while naming is under way.
@@ -190,7 +190,7 @@ function navigationSummary(navigation, model, settlement) {
         status
           ? html`<span
               class="lf-thread-status"
-              data-lf-settlement=${settlement ? "" : nothing}
+              data-lf-settlement=${control ? "" : nothing}
               data-lf-turn=${model.attention?.kind === "needs_user" ? "user" : nothing}
               data-lf-folded=${model.statusFolded ? "" : nothing}
               title=${
@@ -365,12 +365,13 @@ export class ThreadView {
   }
 
   // What the thread draws after its messages that its settlement swaps: the reply box
-  // while it stands open, the row holding Reopen once resolved; none while the thread
-  // is folded, where neither shows.
+  // while it stands open, a page thread's row holding Reopen once resolved; none while
+  // the thread is folded, where neither shows. A resolved panel card's Reopen stands in
+  // its title, which keeps its size.
   get settlementRow() {
     if (this.node.localName === "details" && !this.node.open) return null;
     return this.node.querySelector(
-      ":scope > .lf-thread-reply, :scope > .lf-thread-actions, :scope > .lf-page-thread-resolved",
+      ":scope > .lf-thread-reply, :scope > .lf-page-thread-resolved",
     );
   }
 
@@ -428,9 +429,13 @@ export class ThreadView {
       this.#replyReservation = slot;
     }
     const replySlot = reply || Boolean(this.#replyReservation);
-    if (model.news) this.#news.set(model.news);
-    const news = model.news ? this.#news.node : nothing;
     const panel = model.surface === "panel";
+    // A resolved panel card's title holds its one control: Reopen, or, while the thread
+    // holds news, the notice in Reopen's place, since the card has no other row to
+    // draw it in without growing.
+    const headerSettlement = panel && model.resolved && !replySlot && !model.folding;
+    if (model.news) this.#news.set(model.news, headerSettlement);
+    const news = model.news ? this.#news.node : nothing;
     const navigation = panel ? this.#navigation : null;
     this.node.classList.toggle("lf-thread-compact", Boolean(navigation));
     const hiding = !model.visible && !model.folding && !this.node.hidden;
@@ -452,7 +457,6 @@ export class ThreadView {
     }
     const wanted = new Set(model.messages.map((message) => message.key));
     for (const [key, view] of this.#messages) if (!wanted.has(key)) view.retire();
-    const headerSettlement = panel && model.resolved && !replySlot && !model.folding;
     const settlement = model.settlement
       ? this.#settlement(model, headerSettlement)
       : null;
@@ -581,8 +585,16 @@ export class ThreadView {
     `;
     render(
       html`
-        ${navigationSummary(navigation, model, headerSettlement ? settlement : null)}
-        ${headerSettlement ? settlement : nothing}
+        ${navigationSummary(
+          navigation,
+          model,
+          !headerSettlement
+            ? null
+            : model.news
+              ? model.news.label
+              : settlement && (model.resolvedBy || "Resolved"),
+        )}
+        ${headerSettlement ? (model.news ? news : settlement) : nothing}
         ${
           model.surface === "outlet"
             ? html`<summary
@@ -606,22 +618,12 @@ export class ThreadView {
         ${replySlot ? (this.#continuity?.gap ?? nothing) : nothing}
         ${reply ? this.#reply.node : (this.#replyReservation ?? nothing)}
         ${
-          model.resolved &&
-          !replySlot &&
-          !model.folding &&
-          !marginControls &&
-          (!panel || model.news)
-            ? html`<div
-                class=${panel ? "lf-thread-actions" : "lf-page-thread-resolved lf-ui"}
-              >
+          model.resolved && !replySlot && !model.folding && !marginControls && !panel
+            ? html`<div class="lf-page-thread-resolved lf-ui">
                 <span
-                  >${
-                    !panel && model.resolvedBy
-                      ? html`<span>${model.resolvedBy}</span>`
-                      : nothing
-                  }</span
+                  >${model.resolvedBy ? html`<span>${model.resolvedBy}</span>` : nothing}</span
                 >
-                ${news}${panel ? nothing : settlement}
+                ${news}${settlement}
               </div>`
             : nothing
         }

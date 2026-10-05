@@ -25,6 +25,7 @@ from interact_support import (
     PAGE_PACKAGES,
     PILOT_PURGE,
     SHELVED,
+    STATED_TIMEOUT,
     TRIAL_CACHE,
     TRIAL_LOG,
     Json,
@@ -56,6 +57,7 @@ from interact_support import (
     fetch,
     fresh_process,
     live_versions,
+    lock_contention,
     publish,
     published,
     stamp,
@@ -730,14 +732,17 @@ def test_two_concurrent_undos_cannot_both_take_back_one_gesture(
         )[1]
     )["state"]["events"][-1]
 
-    # The old handler validated outside the append transaction. Let its first
-    # validation wait briefly for the second: on that shape both requests read the
-    # same standing target and proceed, while the transactional handler keeps the
-    # second outside until the first append is visible. A bounded wait keeps the
-    # correct serialization from deadlocking the probe itself.
+    # The old handler validated outside the append transaction. Hold its first
+    # validation until the second request states where it is: on that shape both
+    # requests read the same standing target, so the second validates too, while
+    # the transactional handler keeps the second waiting on the log the first holds
+    # until the first append is visible.
     real_undo_error = event_contracts_model.undo_error
     validation_lock = threading.Lock()
     second_validation = threading.Event()
+    second_held = lock_contention(
+        monkeypatch, page_dir, page_dir / schema_model.EVENTS_FILE
+    )
     validation_calls = 0
 
     def expose_validation_gap(event, events, within, absorbed):
@@ -747,7 +752,11 @@ def test_two_concurrent_undos_cannot_both_take_back_one_gesture(
             validation_calls += 1
             call = validation_calls
         if call == 1:
-            second_validation.wait(timeout=1)
+            wait_for(
+                lambda: second_validation.is_set() or second_held.is_set(),
+                bool,
+                failure="the second undo neither validated nor waited on the log",
+            )
         else:
             second_validation.set()
         return error
@@ -757,7 +766,7 @@ def test_two_concurrent_undos_cannot_both_take_back_one_gesture(
     results = []
 
     def withdraw(attempt):
-        start.wait(timeout=5)
+        start.wait(timeout=STATED_TIMEOUT)
         results.append(
             fetch(
                 f"{server}/api/event",
@@ -777,11 +786,11 @@ def test_two_concurrent_undos_cannot_both_take_back_one_gesture(
     ]
     for thread in threads:
         thread.start()
-    start.wait(timeout=5)
+    start.wait(timeout=STATED_TIMEOUT)
     for thread in threads:
-        thread.join(timeout=10)
+        thread.join(timeout=STATED_TIMEOUT)
 
-    assert not any(thread.is_alive() for thread in threads)
+    assert not any(thread.is_alive() for thread in threads), "an undo never returned"
     assert validation_calls == 2
     assert {status for status, _ in results} == {200, 400}
     refusal = next(json.loads(body) for status, body in results if status == 400)

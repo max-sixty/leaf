@@ -260,7 +260,7 @@
                     Task is the primitive on both queues, and an Ask is a task on you
                     that a widget answers (<a href="#asks-as-tasks">Asks as tasks</a>).
                   </td>
-                  <td>Next: choosing a shape</td>
+                  <td>Next: shape B, building</td>
                 </tr>
                 <tr>
                   <th scope="row">6. Either side adds to the other's queue</th>
@@ -500,7 +500,7 @@
                   Quick, but a task on you still needs a widget or a thread
                   question.</lf-option
                 >
-                <lf-option id="asks-shape-pick-record"
+                <lf-option id="asks-shape-pick-record" chosen
                   ><strong>B. One task record, with how it ends</strong> Recommended: it
                   is the generic version you described. Any subject can be a task on
                   you, an Ask is the case a widget ends, and every item gets an id that
@@ -513,6 +513,71 @@
                 >
               </lf-options>
             </lf-ask>
+
+            <section id="asks-b-design">
+              <h3>B, as it would be built</h3>
+              <p>
+                You picked B. These are the decisions that turn it into code. Each keeps
+                to what Leaf already has where that's enough.
+              </p>
+              <ul>
+                <li>
+                  <strong>The record.</strong> A task gains <code>owner</code>, either
+                  <code>agent</code> or <code>user</code>. How it ends follows from its
+                  owner and subject, so no field records it:
+                  <ul>
+                    <li>
+                      the agent's task ends with <code>leaf task end</code> or a
+                      <code>--completes</code> stamp, as today;
+                    </li>
+                    <li>
+                      your task on a widget ends when the widget is answered, which is
+                      what <code>x-awaits</code> already declares;
+                    </li>
+                    <li>your task on a thread ends at your reply;</li>
+                    <li>
+                      your task on a section or the page ends at your Done, or at your
+                      reply in its thread.
+                    </li>
+                  </ul>
+                  The agent can end or drop any task, which also retires an Ask.
+                </li>
+                <li>
+                  <strong>Where your tasks come from.</strong> An Ask in the markup is a
+                  task on you from the version that adds it. The document starts state,
+                  so stamping writes no event, and the task's id is the Ask's id. A
+                  reply with <code>--awaits</code> is a task on you on its thread.
+                  <code>leaf task open PAGE SUBJECT "…" --on user</code> puts one on you
+                  about anything else, where SUBJECT can also be any section.
+                </li>
+                <li>
+                  <strong>The queues.</strong> Yours holds your tasks and the sends to
+                  retry. The agent's holds your moves it owes an answer to and its own
+                  tasks. The <code>ask</code> and <code>question</code> kinds become
+                  <code>task</code> with <code>owner: "user"</code>, and
+                  <code>page state</code> lists every task with its owner, in place of a
+                  separate <code>asks</code> list.
+                </li>
+                <li>
+                  <strong>Done.</strong> A task on you with no widget gets a Done
+                  control, on its row in the Queue panel and where <kbd>a</kbd> lands.
+                  It has a key and a touch route like every action, and pressing it
+                  writes your <code>task_end</code>.
+                </li>
+                <li>
+                  <strong>What stays.</strong> <code>lf-ask</code> stays the way to
+                  frame a widget's question and evidence. <kbd>a</kbd>, the banner
+                  counts and the panel already read the queues. Accept all, and a thread
+                  in a widget's seat taking the Ask off your queue, keep working on the
+                  task.
+                </li>
+              </ul>
+              <p>
+                It builds in two moves. First comes one <code>tasks</code> reading with
+                owners, which A described, and it changes nothing you see. Then come
+                <code>--on user</code> and Done. The code stays marked experimental.
+              </p>
+            </section>
           </section>
         </lf-tab>
 

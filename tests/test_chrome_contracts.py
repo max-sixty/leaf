@@ -758,6 +758,92 @@ def test_reading_inside_a_long_thread_keeps_its_title_and_reply_row_on_the_lists
     assert covered == 0
 
 
+def test_tab_into_a_long_thread_lands_above_its_pinned_reply_row(browser, serve):
+    """A long thread's reply row is pinned over the turns that scroll under it. Tab
+    onto a control there once left it under the row: the browser scrolls focus into
+    view only out of the list's box, and the row is inside it. The turns now keep the
+    row's height clear below a landing, its ring included, while the row itself
+    keeps none, since the caret lives in it and typing must not scroll the list."""
+    url = serve(LONG_PAGE)
+    root = panel_comment(serve.page_dir, "A thread long enough to Tab through.")
+    for index in range(14):
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "agent": "Codex",
+                "parent": root,
+                "text": f"Answer {index}. " * 12,
+            },
+        )
+    context = browser.new_context(
+        viewport={"width": 1200, "height": 900}, reduced_motion="reduce"
+    )
+    page = open_page(browser, url, context=context)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    card = page.locator(f'.lf-thread[data-id="{root}"]')
+    if card.get_attribute("open") is None:
+        card.locator(":scope > .lf-thread-summary").click()
+    expect(card).to_have_attribute("open", "")
+    # Stand one reaction button just under the row's top and focus the one before it.
+    placed = card.evaluate(
+        """card => {
+          const list = card.parentElement;
+          const reply = card.querySelector(':scope > .lf-thread-reply');
+          const triggers = [...card.querySelectorAll('.lf-msg.agent .lf-react-trigger')];
+          const target = triggers[Math.floor(triggers.length / 2)];
+          list.scrollTop += target.getBoundingClientRect().top
+            - reply.getBoundingClientRect().top - 8;
+          triggers[triggers.indexOf(target) - 1].focus({preventScroll: true});
+          target.dataset.tabTarget = '';
+          const t = target.getBoundingClientRect(), r = reply.getBoundingClientRect();
+          return {under: t.top > r.top && t.top < r.bottom};
+        }"""
+    )
+    assert placed["under"], placed
+    page.keyboard.press("Tab")
+    target = card.locator("[data-tab-target]")
+    expect(target).to_be_focused()
+    page.wait_for_function(
+        """() => {
+          const t = document.querySelector('[data-tab-target]').getBoundingClientRect();
+          const r = document.querySelector('.lf-threads > .lf-thread[open] > .lf-thread-reply')
+            .getBoundingClientRect();
+          return t.bottom <= r.top;
+        }"""
+    )
+    landed = target.evaluate(
+        """el => {
+          const row = el.closest('.lf-thread').querySelector(':scope > .lf-thread-reply');
+          // The row stands the ring's room above the list's foot.
+          const ring = parseFloat(getComputedStyle(row).bottom);
+          const t = el.getBoundingClientRect();
+          const r = row.getBoundingClientRect();
+          const hit = document.elementFromPoint((t.left + t.right) / 2, (t.top + t.bottom) / 2);
+          return {clear: r.top - t.bottom, ring, shown: el === hit || el.contains(hit)};
+        }"""
+    )
+    assert landed["ring"] > 0 and landed["clear"] >= landed["ring"] - 0.5, landed
+    assert landed["shown"], landed
+    # Typing several lines in the row while it is pinned mid-thread keeps the reader
+    # there. The list follows the growing draft, but a cover around the caret made the
+    # browser carry it to the thread's end on every key.
+    threads = page.locator(".lf-threads")
+    card.evaluate(
+        "card => card.parentElement.scrollTop = card.offsetTop"
+        " + (card.offsetHeight - card.parentElement.clientHeight) / 2"
+    )
+    field = card.locator(".lf-thread-reply leaf-text")
+    field.click()
+    before = threads.evaluate("el => el.scrollTop")
+    write(field, ("A draft line.\n" * 4).strip())
+    page.evaluate("() => new Promise(requestAnimationFrame)")
+    after = threads.evaluate("el => [el.scrollTop, el.scrollHeight - el.clientHeight]")
+    assert before <= after[0] < after[1] - 200, (before, after)
+
+
 def test_incoming_reply_follows_a_visible_composer_below_earlier_words(browser, serve):
     url = serve(LONG_PAGE)
     root = panel_comment(serve.page_dir, "A thread with a draft.")

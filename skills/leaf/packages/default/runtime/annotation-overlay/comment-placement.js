@@ -241,9 +241,9 @@ export function commentSide({ clear, extent, boundary, width, scroller, coarse }
     : "top";
 }
 
-// The card's minimum width, which chooses the side for both surfaces, and its preferred
-// measure, which decides whether they stand past the margin row. `commentPlacement`
-// reads both itself, so the comment box and its card are never placed from two widths.
+// The card's minimum width chooses the side and whether both surfaces stand past the
+// margin row. Its preferred measure caps the card's width. `commentPlacement` reads
+// the minimum itself, so the comment box and its card share one placement threshold.
 const rootLength = (name) =>
   parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name));
 export const cardMinimum = () => rootLength("--thread-card-min");

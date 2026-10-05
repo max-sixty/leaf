@@ -1509,10 +1509,22 @@ def test_typing_root_scroll_keeps_a_fixed_field_but_not_its_local_carry(browser,
     "fault", ["", "portal_x", "portal_y", "anchor_x", "anchor_y", "declared_unused"]
 )
 @pytest.mark.parametrize("transform", ["none", "scale(.8)", "scale(.8) rotate(10deg)"])
-def test_native_anchor_scroll_retains_local_motion_proof(browser, fault, transform):
+@pytest.mark.parametrize("declared", ["inline", "scoped_rule"])
+def test_native_anchor_scroll_retains_local_motion_proof(
+    browser, fault, transform, declared
+):
+    """A portal following its anchor's scroll is credited whether its insets are
+    written inline or stated in its tree's stylesheet, and whether its anchor's name is
+    unique or repeated under `anchor-scope`; moving either independently still fails."""
     field_style = "position:fixed;position-anchor:--target;left:calc(anchor(left) + 100px);top:calc(anchor(top) + 10px)"
     if fault == "declared_unused":
         field_style = "position:fixed;position-anchor:--target;left:100px;top:50px"
+    sheet, scope, decoy = "", "", ""
+    if declared == "scoped_rule":
+        sheet = f"<style>#field {{ {field_style} }}</style>"
+        field_style = ""
+        scope = "anchor-scope:--target"
+        decoy = '<div style="anchor-scope:--target"><div style="anchor-name:--target">Another</div></div>'
     change = {
         "": "",
         "portal_x": 'field.style.left="calc(anchor(left) + 110px)"',
@@ -1524,11 +1536,11 @@ def test_native_anchor_scroll_retains_local_motion_proof(browser, fault, transfo
     page = browser.new_page()
     page.goto(
         "data:text/html,"
-        + quote(f"""<!doctype html><body style="margin:0">
+        + quote(f"""<!doctype html>{sheet}<body style="margin:0"><div style="{scope}">
 <div style="transform:{transform};transform-origin:left top">
 <div id="scroller" style="height:140px;width:300px;overflow:auto">
 <div style="width:600px;height:300px"><div id="target" style="anchor-name:--target;margin-top:60px;width:70px;height:30px">The target</div></div></div></div>
-<textarea id="field" style="{field_style}"></textarea>
+<textarea id="field" style="{field_style}"></textarea></div>{decoy}
 <p id="evidence" style="position:absolute;left:10px;top:400px">Independent painted source</p>
 <script>field.addEventListener('beforeinput',()=>{{scroller.scrollLeft+=20;scroller.scrollTop+=20;evidence.style.left='30px';{change}}})</script></body>""")
     )

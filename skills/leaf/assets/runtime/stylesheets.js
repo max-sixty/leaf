@@ -32,6 +32,34 @@ export function constructSheet(text, name) {
 }
 
 export const chromeSheet = constructSheet(sheets.chrome, "chrome");
+
+// The chrome sheet's shared vocabulary: every class a rule outside its `@scope (.lf-chrome)`
+// block names, and so every class with which that sheet reaches an element in the page.
+// Every other class it names is private to the chrome (chrome.css's header), so a name a
+// widget or page coins cannot meet a private rule. Writing a rule outside the block
+// widens the widget contract; this list is where that is decided, and the render suite
+// (test_a_coined_class_cannot_reach_the_chromes_rules) holds the sheet to it both ways.
+export const chromeSharedClasses = Object.freeze([
+  "lf-aiming",
+  "lf-btn",
+  "lf-composer-media",
+  "lf-composer-media-item",
+  "lf-composer-media-open",
+  "lf-composer-media-remove",
+  "lf-focus-visible",
+  "lf-general",
+  "lf-ins-block",
+  "lf-media-open",
+  "lf-message-media",
+  "lf-over-item",
+  "lf-react-mark",
+  "lf-say",
+  "lf-skip",
+  "lf-thread-reply",
+  "lf-ui",
+  "lf-version-inline",
+  "lf-version-inline-deletion",
+]);
 export const marksSheet = constructSheet(sheets.marks, "marks");
 export const annotationMarkSheets = sheets.annotations
   ? [constructSheet(sheets.annotations.marks, "annotation marks")]

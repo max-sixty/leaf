@@ -4,9 +4,12 @@
    Changes in one script publish once. Immediate updates settle subscribed renderers
    synchronously before focus or control lookup, without selecting a layout here. */
 import { afterScript } from "./rendering.js";
-import { focused } from "./keyboard/scopes.js";
+import { focused, watchCommandAvailability } from "./keyboard/scopes.js";
 import {
   normalizeReading,
+  contributionCommand,
+  contributionOwnsCommand,
+  contributionCommandDisabled,
   contributionControl,
   contributionContains,
   forgetContributionControls,
@@ -18,7 +21,14 @@ const contributionSources = new WeakMap();
 export const contributionSource = (model) => contributionSources.get(model);
 function publishReading(offered) {
   const declared = offered.read();
-  const normalized = normalizeReading(declared, offered.key);
+  const normalized = normalizeReading(declared, offered.key, offered.reading);
+  if (
+    !offered.activate &&
+    normalized.entries.some(
+      (entry) => entry.behavior !== "status" && !contributionOwnsCommand(entry),
+    )
+  )
+    throw new TypeError("An unscoped contribution action needs an activate function");
   offered.readingActions = new Map(
     (declared.readings ?? []).map(({ id, activate }) => [id, activate]),
   );
@@ -45,6 +55,19 @@ function settle({ immediate = false } = {}) {
 }
 
 export const contributionEntries = () => contributions.values();
+// Private command closures are invalidated by paintKeys. Refresh only a changed
+// projection, before native controls and shortcut attributes consume that reading.
+watchCommandAvailability(() => {
+  for (const offered of contributions)
+    if (
+      offered.reading.entries.some(
+        (entry) =>
+          contributionOwnsCommand(entry) &&
+          entry.disabled !== contributionCommandDisabled(entry),
+      )
+    )
+      offered.registration.update({ immediate: true });
+});
 // A render that reads every contribution presents whatever change was owed.
 export function presentingContributions() {
   owed = false;
@@ -59,7 +82,7 @@ export function registerContribution({ key, target, source = target, read, activ
   if (!owner) throw new TypeError("A contribution needs a key");
   if (typeof read !== "function")
     throw new TypeError("A contribution needs a read function");
-  if (typeof activate !== "function")
+  if (activate !== undefined && typeof activate !== "function")
     throw new TypeError("A contribution needs an activate function");
   const offered = { key: owner, target, source, read, activate, reading: null };
   publishReading(offered);
@@ -104,11 +127,14 @@ export function registerContribution({ key, target, source = target, read, activ
       return contributionContains(offered, node);
     },
     activate(entryKey, context = {}) {
+      if (!contributions.has(offered)) return false;
       const current = entry(text(entryKey));
       if (
         !current ||
         !current.visible ||
-        current.disabled ||
+        (contributionOwnsCommand(current)
+          ? contributionCommandDisabled(current)
+          : current.disabled) ||
         current.behavior === "status"
       )
         return false;
@@ -119,11 +145,14 @@ export function registerContribution({ key, target, source = target, read, activ
           destination.focus({ preventScroll: true });
           return true;
         });
-      offered.activate(current.activation, {
+      const activationContext = {
         ...context,
         entry: current,
         focus: originOwnsFocus ? focusCurrentSurface : () => false,
-      });
+      };
+      const command = contributionCommand(current);
+      if (command) command.row.run(command.binding, activationContext);
+      else offered.activate(current.activation, activationContext);
       return true;
     },
     activateReading(id) {

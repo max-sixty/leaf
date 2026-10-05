@@ -98,6 +98,16 @@ def test_a_task_holds_its_thread_on_the_agent_past_reply_and_resolve(page_dir):
     state = state_json(page_dir)
     assert state["queues"]["on_agent"] == []
     assert state["tasks"] == []
+    # The browser is served the ended task beside the open ones, for the Queue panel's
+    # Done list, with its outcome.
+    served = full_state(page_dir, events_model.read_events(page_dir))
+    assert served["browser"]["tasks"] == []
+    [ended] = served["browser"]["ended_tasks"]
+    assert (ended["id"], ended["state"], ended["outcome"]["detail"]) == (
+        task["id"],
+        "done",
+        "version 2",
+    )
 
 
 def test_the_door_refuses_a_task_off_the_page_and_an_outcome_twice(page_dir):
@@ -200,3 +210,45 @@ def test_on_you_lists_open_asks_and_questions_left_in_prose(page_dir):
     state = state_json(page_dir)
     assert [item["kind"] for item in state["queues"]["on_agent"]] == ["work"]
     assert state["queues"]["on_agent"][0]["detail"] == "Recolouring"
+
+
+def test_a_thread_is_on_you_once_however_many_moves_it_holds_for_you(page_dir):
+    """A thread whose reply failed is one item on the user, named by the thread, and a
+    question the agent then leaves in it makes it that question rather than a second
+    item: `a` stops at a thread once."""
+    publish(page_dir)
+    comment = append_carried_log_record(
+        page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "Retitle it."},
+    )
+    append_carried_log_record(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "parent": comment["id"],
+            "responds": comment["id"],
+            "failure": "turn_failed",
+            "text": "No answer is coming.",
+        },
+    )
+    state = state_json(page_dir)
+    asks = [("ask", ask["id"]) for ask in state["asks"]]
+    assert [item["next_actor"] for item in state["workflows"]] == ["user"]
+    assert kinds(state["queues"]["on_you"]) == asks + [("recovery", comment["id"])]
+
+    written(
+        leaf(
+            "thread",
+            "reply",
+            page_dir,
+            comment["id"],
+            "--text",
+            "Short or long title?",
+            "--awaits",
+        )
+    )
+    state = state_json(page_dir)
+    assert [item["next_actor"] for item in state["workflows"]] == ["user"]
+    assert kinds(state["queues"]["on_you"]) == asks + [("question", comment["id"])]
+    assert state["queues"]["on_agent"] == []

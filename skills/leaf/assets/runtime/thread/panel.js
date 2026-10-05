@@ -151,9 +151,9 @@ export function createPanelComposer({
       {
         id: "thread.waiting.toggle",
         // `w` for the words the control says. It is the phrase the page already uses for
-        // the same question asked of its widgets (a/A), asked here of the thread —
-        // so the user learns one idea and reaches it two ways rather than learning
-        // "needs you" beside it.
+        // the same question the queue walk (a/A) asks of the page, asked here of
+        // the thread — so the user learns one idea and reaches it two ways rather
+        // than learning "needs you" beside it.
         //
         // The shortcut uses the visible control's toggle, including leaving Resolved
         // when requesting waiting threads and preserving every other restriction.

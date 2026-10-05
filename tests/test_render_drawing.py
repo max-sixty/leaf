@@ -439,9 +439,9 @@ BAND_STROKE = ((0.22, 0.95), (0.5, 0.88), (0.78, 0.95))
 def test_a_drawing_is_pictured_in_the_window_it_was_drawn_in(browser, serve):
     """`leaf page picture` lays the comment's revision out again in the window the
     drawing was made in, whatever window or version the page is in since, and paints the
-    ink over the element it was drawn on, with the ink scrolled into view inside the
-    pane holding it: the swatch, half the window wide, is as wide as it was then, and
-    the ink keeps its place on the band."""
+    comment's ink, and no later comment's, over the element it was drawn on, with the
+    ink scrolled into view inside the pane holding it: the swatch, half the window wide,
+    is as wide as it was then, and the ink keeps its place on the band."""
     page = open_page(browser, serve(SWATCH_PAGE), color_scheme="dark")
     page.set_viewport_size({"width": 800, "height": 600})
     page.locator("#pane").evaluate("pane => { pane.scrollTop = pane.scrollHeight; }")
@@ -456,6 +456,27 @@ def test_a_drawing_is_pictured_in_the_window_it_was_drawn_in(browser, serve):
     ink_color = ink.evaluate("path => getComputedStyle(path).stroke")
     page.set_viewport_size({"width": 1200, "height": 900})
     stamp_page(serve.page_dir, SWATCH_PAGE.replace("50vw", "25vw"), "Narrow the swatch")
+    # A later drawing on the same swatch, just above the band and inside the picture's
+    # crop, which the user had not drawn when they drew the first.
+    box_width, box_height = event["drawing"]["box"]
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": event["revision"],
+            "anchor": event["anchor"],
+            "drawing": {
+                **event["drawing"],
+                "strokes": [
+                    [
+                        [0.3 * box_width, 0.78 * box_height],
+                        [0.7 * box_width, 0.78 * box_height],
+                    ]
+                ],
+            },
+        },
+    )
 
     pictured = CliRunner().invoke(
         cli_model.cli, ["page", "picture", str(serve.page_dir), event["id"]]
@@ -475,6 +496,8 @@ def test_a_drawing_is_pictured_in_the_window_it_was_drawn_in(browser, serve):
     band = where((0, 0, 220))
     drawn = where(tuple(int(part) for part in re.findall(r"\d+", ink_color)[:3]))
     assert green and band and drawn, (green, band, drawn)
+    # Only this comment's ink: the later drawing above the band is not painted.
+    assert drawn[1] >= band[1], (drawn, band)
     # 50vw of the 800px window the drawing was made in, on the revision it was made on:
     # 576px, cut at the crop, in the page's window now, and 200px on its version now.
     assert green[2] - green[0] == pytest.approx(400, abs=2)

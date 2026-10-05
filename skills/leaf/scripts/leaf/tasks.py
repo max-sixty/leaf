@@ -17,6 +17,10 @@ markup; the door refuses a resolved thread and anything else. The fold is the lo
 alone, so every reader takes it from `canonical_tasks`.
 
 Not yet: a task whose session has ended reads open until another session ends it.
+
+Experimental: tasks and the two queues are new, and their shape is expected to
+change a lot (notes/what-needs-you/). Change them freely; nothing outside this
+repository depends on them.
 """
 
 import sys
@@ -53,11 +57,6 @@ def canonical_tasks(events: list) -> list[dict]:
                 "session": event["session"],
             }
     return list(tasks.values())
-
-
-def open_tasks(events: list) -> list[dict]:
-    """The tasks no `task_end` has ended."""
-    return [task for task in canonical_tasks(events) if task["state"] == "open"]
 
 
 def task_error(event: dict, events: list, threads: dict) -> str | None:

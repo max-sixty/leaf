@@ -275,18 +275,28 @@ def _widget_state(state: dict, page_dir: Path, widget: str, enclosing: dict) -> 
 def queues(
     asks: list[dict], threads: list[dict], workflows: list[dict], tasks: list[dict]
 ) -> dict:
-    """What is on the user and what is on the agent, as two lists of items, for an
-    agent reading the page whole.
+    """What is on the user and what is on the agent, as two lists of items.
 
-    `on_you` holds each open Ask on the page or in a thread (`ask`); each thread
-    whose attention is the user's for a question its agent turn leaves in prose
-    with no Ask in it (`question`); and each move whose response failed, for the
-    user to send again (`recovery`). `on_agent` holds each move the agent owes an
-    answer (`answer`), each subject it has claimed work on with nothing owed
-    (`work`), and each open task (`task`). Every item names its `subject` and the
-    `thread` it stands in, or null on the page. Each is selected from a reading
-    the served state already made: the Asks, each thread's `attention`, the
-    workflows, and the open tasks."""
+    `on_you` holds each open Ask on the page or in a thread (`ask`); then each
+    other thread whose attention is the user's, once however many moves it holds
+    for them: for a question its agent turn leaves in prose (`question`), or for a
+    move whose response failed, to send again (`recovery`); then each page widget
+    move whose response failed (`recovery`). A thread holding an open Ask is that
+    Ask's item alone. `on_agent` holds each move the agent owes an answer
+    (`answer`), each subject it has claimed work on with nothing owed (`work`), and
+    each open task (`task`). Every item names its `subject` and the `thread` it
+    stands in, or null on the page. Each is selected from a reading the served
+    state already made: the Asks, each thread's `attention`, the workflows, and the
+    open tasks.
+
+    The browser selects the same two lists from its own reading of these four
+    (`runtime/queues.js`), with the tab's unresolved sends already folded into the
+    threads' attention and the workflows, and a thread message the tab is still
+    sending counted on the agent; `served_records.py` holds a reading the two must
+    agree on.
+
+    Experimental, like tasks (`tasks.py`): the item kinds and fields are expected to
+    change a lot."""
     asked = {ask["thread"] for ask in asks}
     on_you = [
         {
@@ -299,15 +309,16 @@ def queues(
     ]
     on_you += [
         {
-            "kind": "question",
+            "kind": "question"
+            if thread["attention"]["reason"] == "ask"
+            else "recovery",
             "id": thread["id"],
             "subject": {"kind": "thread", "id": thread["id"]},
             "thread": thread["id"],
         }
         for thread in threads
         if thread["attention"] is not None
-        and (thread["attention"]["kind"], thread["attention"]["reason"])
-        == ("needs_user", "ask")
+        and thread["attention"]["kind"] == "needs_user"
         and thread["id"] not in asked
     ]
     on_agent = []
@@ -317,8 +328,10 @@ def queues(
             "subject": workflow["subject"],
             "thread": workflow["thread"],
         }
+        # A move handed back in a thread is that thread's item above.
         if workflow["next_actor"] == "user":
-            on_you.append({"kind": "recovery", **item})
+            if workflow["thread"] is None:
+                on_you.append({"kind": "recovery", **item})
         elif workflow["answer"] is not None:
             on_agent.append(
                 {

@@ -28,10 +28,8 @@ import { coarsePointer } from "/runtime/pointer.js";
 import { LAYOUT } from "/runtime/widget-elements.js";
 import { under } from "/runtime/shadow.js";
 import { union } from "/runtime/rect.js";
-import { shownRegionBounds } from "/runtime/reading-regions.js";
 import { floatingPlacement, floatingUi } from "../floating.js";
 import {
-  cardMinimum,
   commentAttachment,
   commentBoundary,
   commentPlacement,
@@ -92,8 +90,8 @@ export function createFloatingResponsePlacement({
       reservedHeight: Math.round(rowEnd + parseFloat(style.paddingBottom)),
     };
   };
-  const fabFits = (bounds = null) => {
-    const boundary = floatBoundary(bounds);
+  const fabFits = () => {
+    const boundary = floatBoundary();
     return (
       boundary.width > 0 &&
       Math.ceil(boundary.width) >= Math.ceil(fabBar.getBoundingClientRect().width)
@@ -220,9 +218,7 @@ export function createFloatingResponsePlacement({
       point: response.anchor.quote ? null : response.pointIn(owner),
       passage: geometry,
     });
-    const boundary = place.region
-      ? floatBoundary(shownRegionBounds(place.region))
-      : windowBoundary;
+    const boundary = place.region ? floatBoundary(place.region) : windowBoundary;
     if (boundary.width <= 0 || boundary.height <= 0) return false;
     const roomRect = place.extent;
     const keepClear = place.clear;
@@ -259,7 +255,6 @@ export function createFloatingResponsePlacement({
       clear: keepClear,
       extent: roomRect,
       boundary,
-      minimumWidth: cardMinimum(),
       scroller,
       coarse: coarsePointer.matches,
     });
@@ -275,10 +270,10 @@ export function createFloatingResponsePlacement({
         const { reference, placement, middleware, plane } = fabPlacement.options(ui, {
           clear: keepClear,
           row: place.row,
+          lastRow: place.lastRow,
           column: place.column,
           margin: place.margin,
           boundary,
-          minimumWidth: cardMinimum(),
           fit({ side: placed, width, scale }) {
             if (!stillCurrent()) return;
             setWidth(width, scale.x);

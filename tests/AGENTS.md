@@ -171,8 +171,9 @@ A process that waits for the test blocks reading a pipe the worker holds, as
 closes when the worker ends, however it ends. Waiting for a file or a state the test
 body has yet to write leaves the process running when the test fails first, and a
 polling loop spends CPU for as long as it waits. End a process by closing its pipe or
-with SIGTERM, not SIGKILL, which gives it no chance to end what it started. To check a
-new held process, make the test fail right after starting it, then confirm with
+with SIGTERM, not SIGKILL, which gives it no chance to end what it started
+(`test_no_test_ends_a_process_with_sigkill` enforces this). To check a new held
+process, make the test fail right after starting it, then confirm with
 `pgrep -fl <tmp_path>` that nothing it started is still running.
 
 ### Reloading is not resetting

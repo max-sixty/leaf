@@ -1765,6 +1765,43 @@ diff --git a/gateway/limits.py b/gateway/limits.py
     head='<meta name="lf-review" content="sign-off">',
 )
 
+# One interaction demo, the gallery's suggestion replay, under the opt-in that installs
+# the runtime's playback row, laid out as the feature gallery lays that row out. The
+# `accept` scenario (interaction-gallery.js) names its suggestion `bg-motion-accept`.
+INTERACTION_PLAYBACK_PAGE = leaf_page(
+    "Interaction playback",
+    """
+<section class="interaction-gallery" id="demos" data-interaction-gallery
+         data-interaction-viewport="2">
+<h2>Interactions</h2>
+<lf-tabs id="demo-tabs">
+  <lf-tab id="demo-accept" label="Accept a suggestion">
+    <figure class="interaction-demo" data-interaction-demo="accept">
+      <template id="demo-accept-page" data-sample>
+        <p id="demo-accept-copy">The importer now
+          <lf-suggestion id="bg-motion-accept"><lf-old>usually finishes</lf-old><lf-new>finishes</lf-new></lf-suggestion>
+          before the next run begins.</p>
+      </template>
+      <div class="interaction-stage interaction-frame-stage">
+        <iframe class="interaction-frame" data-interaction-frame name="interaction-accept"
+                title="Contained Leaf suggestion animation" tabindex="-1"
+                aria-hidden="true"></iframe>
+        <span class="interaction-pointer" hidden aria-hidden="true"></span>
+      </div>
+      <figcaption>The pointer presses Accept.</figcaption>
+    </figure>
+  </lf-tab>
+</lf-tabs>
+</section>
+""",
+    head="""<style>
+.interaction-gallery .lf-interaction-controls {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+}
+.interaction-gallery .lf-interaction-status { flex-basis: 100%; }
+</style>""",
+)
+
 SIGNOFF_STABILITY_PAGE = LONG_PAGE.replace(
     "<title>long</title>",
     '<title>long</title><meta name="lf-review" content="sign-off">',
@@ -1840,13 +1877,12 @@ CONTROL_ARCHETYPES = (
         "target": '#stable-shot .lf-shotcap[data-lf-state="after"]',
     },
     {
-        # The gallery's playback row. The runtime injects one Play/Pause/Replay control
-        # beside Loop and Viewport, so the changing word must cost the button no width.
-        # Pressing Replay sends it through every word it has. `example` because a demo is
-        # a scenario the module names rather than markup a page can compose, so the
-        # mechanism stands on the gallery and nowhere a synthetic page reaches.
+        # The interaction gallery's playback row. The runtime injects one
+        # Play/Pause/Replay control beside Loop and Viewport, so the changing word must
+        # cost the button no width. Pressing Replay sends it through every word it has.
+        # Its own page because the row exists only under the gallery opt-in.
         "name": "interaction-playback",
-        "source": FEATURE_GALLERY,
+        "source": INTERACTION_PLAYBACK_PAGE,
         "target": "[data-interaction-toggle]",
     },
     {
@@ -3381,7 +3417,7 @@ def test_a_status_kind_change_is_announced_in_the_banners_own_words(browser, ser
         )
     told(page)
     expect(live).to_contain_text("Claude is waiting for approval")
-    lease.close()
+    leases_model.release_lease(lease)
 
     held = []
 
@@ -3854,7 +3890,7 @@ def test_each_control_archetype_holds_its_neighbours_still(browser, serve, arche
     # The synthetic page composes every mechanism a page can author, and carries the
     # standing comment the margin entry's row is made of. An archetype naming another
     # source is one whose causal state cannot coexist with that composed page, or whose
-    # mechanism lives only in a shipped gallery.
+    # mechanism lives only in a shipped gallery or under a page-wide opt-in.
     source = archetype.get("source")
     page = open_page(
         browser,
@@ -3874,8 +3910,6 @@ def test_each_control_archetype_holds_its_neighbours_still(browser, serve, arche
             ],
         ),
     )
-    if source == FEATURE_GALLERY:
-        page.locator("#bg-gallery-tabs").get_by_role("tab", name="Interactions").click()
     page_at_rest(page)
     page.evaluate(DEFINE_BOXES)
     control = page.locator(archetype["target"])

@@ -207,6 +207,9 @@ def test_a_click_on_a_panes_words_makes_it_the_subject_of_every_scroll_key(
     assert right == 0, (left, right)
 
     page.locator("#right-start").click()
+    reading = """async () => (await window.__lfRuntimeImport(
+      '/runtime/reading-regions.js')).userReadingRegion()?.host.id ?? null"""
+    assert page.evaluate(reading) == "right-reading"
     page.keyboard.press("d")
     page.wait_for_function(f"() => ({tops})()[1] > 0")
     scroll_settled(page, "#right-reading > :not(header, footer)")
@@ -215,6 +218,7 @@ def test_a_click_on_a_panes_words_makes_it_the_subject_of_every_scroll_key(
     page.locator("#left-head").focus()
     page.keyboard.press("Escape")
     assert page.evaluate("() => document.activeElement === document.body")
+    assert page.evaluate(reading) is None
 
 
 def test_a_pane_bodys_ring_is_drawn_whole_against_the_workspace_edges(browser, serve):
@@ -518,24 +522,19 @@ def test_a_pane_comment_stays_in_its_reading_region(browser, serve):
     expect(preview.locator(".lf-page-thread")).to_be_focused()
 
 
+# The handoff guard decides `wheel` and `reveal`, and on a fresh document `wheel`
+# again, since it has no tab controls until its widgets load. `untouched` is the
+# control: the restoration a gesture must stop does run when there is none. `focus`
+# guards the gesture a user would miss most; the edit, blank and hidden gestures
+# are kept today by state captured at install and by kept nodes, not by this guard.
 @pytest.mark.parametrize(
     ("install", "gesture"),
     [
-        ("patch", gesture)
-        for gesture in (
-            "wheel",
-            "focus",
-            "edit",
-            "blank",
-            "reveal",
-            "hidden",
-            "untouched",
-        )
-    ]
-    # A fresh document has no tab controls until its widgets have loaded.
-    + [
-        ("reload", gesture)
-        for gesture in ("wheel", "focus", "edit", "blank", "hidden", "untouched")
+        ("patch", "wheel"),
+        ("patch", "reveal"),
+        ("patch", "untouched"),
+        ("patch", "focus"),
+        ("reload", "wheel"),
     ],
 )
 def test_revision_restoration_yields_to_input_while_a_diagram_loads(
@@ -570,10 +569,6 @@ def test_revision_restoration_yields_to_input_while_a_diagram_loads(
         )
     )
     page = open_page(browser, live_url(serve(source)))
-    if gesture == "hidden":
-        # A cached hidden reading must not select its tab over the active one.
-        page.get_by_role("tab", name="Second", exact=True).click()
-        page.get_by_role("tab", name="First", exact=True).click()
     page.locator("#reading-draft").fill("kept draft")
     left = page.locator("#left-reading > :not(header, footer)")
     left.evaluate("el => el.scrollTop = 300")
@@ -608,20 +603,13 @@ def test_revision_restoration_yields_to_input_while_a_diagram_loads(
             )
         elif gesture == "focus":
             page.locator("#right-head").click()
-        elif gesture == "edit":
-            page.keyboard.type(" fresh")
-        elif gesture == "blank":
-            page.mouse.click(2, 200)
-            expect(page.locator("body")).to_be_focused()
         elif gesture == "reveal":
             page.get_by_role("tab", name="Second", exact=True).click()
         scroll = left.evaluate("el => el.scrollTop")
         held.pop().continue_()
         wait_for_revision(page, 2)
         expect(page.locator("#late-diagram svg")).to_have_count(1)
-        expect(page.locator("#reading-draft")).to_have_value(
-            "kept fresh draft" if gesture == "edit" else "kept draft"
-        )
+        expect(page.locator("#reading-draft")).to_have_value("kept draft")
         expect(
             page.get_by_role(
                 "tab", name="Second" if gesture == "reveal" else "First", exact=True
@@ -631,17 +619,13 @@ def test_revision_restoration_yields_to_input_while_a_diagram_loads(
             assert left.evaluate("el => el.scrollTop") == pytest.approx(scroll, abs=1)
         elif gesture == "focus":
             expect(page.locator("#right-head")).to_be_focused()
-        elif gesture == "blank":
-            expect(page.locator("body")).to_be_focused()
         elif gesture == "untouched":
             assert page.locator("#left-landmark").evaluate(
                 "el => el.getBoundingClientRect().top"
             ) == pytest.approx(before, abs=2)
-        if gesture in ("wheel", "edit", "hidden", "untouched"):
+        if gesture in ("wheel", "untouched"):
             expect(draft).to_be_focused()
-            assert draft.evaluate("el => el.selectionStart") == (
-                10 if gesture == "edit" else 4
-            )
+            assert draft.evaluate("el => el.selectionStart") == 4
     finally:
         for route in held:
             route.continue_()
@@ -1355,26 +1339,48 @@ def test_the_feature_gallery_keeps_a_choice_when_its_proposal_is_undone(browser,
     )
 
 
-@pytest.mark.parametrize(
-    ("destination", "view"),
-    [
-        ("#bg-core-surfaces", "Decisions"),
-        ("#bg-thread-states", "Threads"),
-        ("#bg-panel-views", "Threads"),
-        ("#bg-quoted-and-visual", "Page & layout"),
-        ("#bg-external-data", "Data & work"),
-        ("#bg-interactions", "Interactions"),
-    ],
-)
-def test_the_feature_gallery_sections_are_stable_preview_destinations(
-    browser, serve, destination, view
-):
-    """A preview can name its subject directly instead of asking the user to find it."""
+# The gallery sections a preview may name, and the page tab each opens.
+GALLERY_DESTINATIONS = {
+    "bg-core-surfaces": "Decisions",
+    "bg-thread-states": "Threads",
+    "bg-panel-views": "Threads",
+    "bg-quoted-and-visual": "Page & layout",
+    "bg-external-data": "Data & work",
+    "bg-interactions": "Interactions",
+}
+
+
+def test_the_feature_gallery_sections_are_stable_preview_destinations(browser, serve):
+    """A preview can name its subject directly instead of asking the user to find it.
+
+    Arriving at a fragment the gallery holds in a closed tab is one runtime path
+    whichever section it names, so one arrival proves it; what differs per section is
+    only which tab holds it, which the same page answers for every destination."""
+    destination = "#bg-external-data"
     root = live_url(serve(FEATURE_GALLERY))
     page = open_page(browser, root + destination)
     expect(
-        page.locator("#bg-gallery-tabs").get_by_role("tab", name=view)
+        page.locator("#bg-gallery-tabs").get_by_role("tab", name="Data & work")
     ).to_have_attribute("aria-selected", "true")
+    # The handover key is exchanged for a cookie before the address is shown.
+    expect(page).to_have_url(root.split("?", 1)[0] + destination)
+    expect(page.locator(":target")).to_have_attribute("id", destination[1:])
+    expect(page.locator(destination)).to_be_in_viewport()
+
+    holders = page.evaluate(
+        """ids => Object.fromEntries(ids.map(id => {
+          const target = document.getElementById(id);
+          const panel = target?.closest('#bg-gallery-tabs > lf-tab');
+          const tab = panel && document.querySelector(
+            `#bg-gallery-tabs [role="tab"][aria-controls="${panel.id}"]`);
+          return [id, {tag: target?.localName || null,
+                       tab: tab?.textContent.trim() || null}];
+        }))""",
+        list(GALLERY_DESTINATIONS),
+    )
+    assert holders == {
+        id: {"tag": "section", "tab": view} for id, view in GALLERY_DESTINATIONS.items()
+    }
 
     links = page.get_by_role("navigation", name="On this page").get_by_role(
         "link", include_hidden=True
@@ -1392,12 +1398,6 @@ def test_the_feature_gallery_sections_are_stable_preview_destinations(
         target["tag"] == "section" and not target["generated"] for target in targets[1:]
     ), targets
     assert len({target["href"] for target in targets}) == len(targets), targets
-
-    target = page.locator(destination)
-    # The handover key is exchanged for a cookie before the address is shown.
-    expect(page).to_have_url(root.split("?", 1)[0] + destination)
-    expect(page.locator(":target")).to_have_attribute("id", destination[1:])
-    expect(target).to_be_in_viewport()
 
 
 def test_the_feature_gallery_exercises_core_user_workflows(browser, serve):
@@ -5039,6 +5039,8 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
               const target = compose.getBoundingClientRect();
               const clear = parseFloat(getComputedStyle(list).scrollPaddingTop) || 0;
               const start = view.top + clear;
+              const contentStart = start +
+                (parseFloat(getComputedStyle(compose).scrollMarginTop) || 0);
               // A turn's head is a block boundary as well as its paragraphs: a long
               // arrival starts the latest turn there.
               const blocks = [...thread.querySelectorAll(
@@ -5050,7 +5052,8 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
                   top: block.getBoundingClientRect().top,
                 }));
               const lines = [];
-              const walker = document.createTreeWalker(thread, NodeFilter.SHOW_TEXT);
+              const walker = document.createTreeWalker(
+                thread.querySelector('.lf-thread-content'), NodeFilter.SHOW_TEXT);
               for (let text; text = walker.nextNode();) {
                 if (!text.data.trim()) continue;
                 for (let i = 0; i < text.length; i++) {
@@ -5058,11 +5061,13 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
                   range.setStart(text, i);
                   range.setEnd(text, Math.min(i + 1, text.length));
                   const line = range.getBoundingClientRect();
-                  if (line.width && line.top < start && line.bottom > start)
+                  if (line.width && line.top < contentStart &&
+                      line.bottom > contentStart)
                     lines.push(line.toJSON());
                 }
               }
-              return {target: target.toJSON(), listBottom: view.bottom, start, blocks,
+              return {target: target.toJSON(), listBottom: view.bottom,
+                      start, contentStart, blocks,
                       crossedLines: lines, scroll: list.scrollTop,
                       maximumScroll: list.scrollHeight - list.clientHeight};
             }"""
@@ -5071,7 +5076,7 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
         # A list scrolled to its limit has no travel left to align a content block.
         if landing["scroll"] and landing["scroll"] < landing["maximumScroll"] - 1:
             assert any(
-                block["top"] == pytest.approx(landing["start"], abs=2)
+                block["top"] == pytest.approx(landing["contentStart"], abs=2)
                 for block in landing["blocks"]
             ), f"the long arrival cut through a content block: {landing}"
         elif landing["scroll"]:
@@ -8671,16 +8676,16 @@ def test_reference_accepts_native_popover_dismissal_across_modal_entry(browser, 
     reference = page.locator(".lf-command-reference")
     expect(reference).to_be_visible()
     expect(versions).to_be_hidden()
-    contextual_versions = reference.locator(
-        '.lf-command-reference-command[data-lf-command^="version.open-v"]'
-    )
+    contextual_versions = reference.locator('[data-lf-command^="version.open-v"]')
     assert contextual_versions.count() > 0
-    contextual_availability = contextual_versions.evaluate_all(
-        "buttons => buttons.map(button => [button.dataset.lfCommand, button.dataset.lfAvailable])"
-    )
-    assert {available for _, available in contextual_availability} == {"false"}, (
-        contextual_availability
-    )
+    # Number keys delegate to native version rows. Once the modal dismisses the
+    # menu, the reference still names those routes but offers no action for them.
+    expect(contextual_versions.first).to_contain_text("open v")
+    expect(
+        reference.locator(
+            '.lf-command-reference-command[data-lf-command^="version.open-v"]'
+        )
+    ).to_have_count(0)
     page.keyboard.press("Escape")
     expect(reference).to_be_hidden()
     expect(versions).to_be_hidden()

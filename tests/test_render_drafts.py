@@ -353,6 +353,8 @@ diff --git a/reading.py b/reading.py
     expect(field).to_be_visible()
     page.locator(".lf-threads").evaluate("list => list.scrollTop = 70")
     scroll_settled(page, ".lf-threads")
+    before_click = page.locator(".lf-threads").evaluate("list => list.scrollTop")
+    assert before_click > 0
     assert field.evaluate(
         "field => field.getBoundingClientRect().top > "
         "field.getRootNode().host.closest('.lf-threads').getBoundingClientRect().top"
@@ -361,7 +363,9 @@ diff --git a/reading.py b/reading.py
     field.click()
 
     expect(field).to_be_focused()
-    assert page.locator(".lf-threads").evaluate("list => list.scrollTop") == 70
+    assert (
+        page.locator(".lf-threads").evaluate("list => list.scrollTop") == before_click
+    )
 
 
 @pytest.mark.watch_shifts
@@ -4035,12 +4039,9 @@ def test_replaced_reply_compositions_keep_their_carets_and_leave_commands(
     told(page)
     expect(after).to_be_focused()
     # One margin card remains the current selection. The other native session keeps
-    # its caret until the user selects its next route; a hidden mirror is not that route.
+    # its words and caret until the user selects its next route.
     page.evaluate("() => window.lfWordsJudged()")
-    consume_browser_errors(
-        page,
-        'typed words left the screen without a key or press: "My unfinished first answer."',
-    )
+    assert take_browser_errors(page) == []
     for root, word in zip(roots, words):
         box = page.locator(f'.lf-thread[data-id="{root}"] leaf-text')
         expect(box).to_have_js_property("value", word)

@@ -498,15 +498,20 @@ export function createReactionController({
         // Hiding a focused choice may leave focus on that now-hidden node or drop it to
         // body before the browser paints. The user may choose another control during
         // that frame; only those two states mean the palette still owes its return.
-        if (destination !== document.body)
-          nextRender(() => {
+        if (destination !== document.body) {
+          const returnFocus = () => {
             if (
               destination.isConnected &&
               destination.checkVisibility?.() &&
               (focused() === active || focused() === document.body)
             )
               destination.focus({ preventScroll: true });
-          });
+          };
+          // A reaction press may release held news and repaint this thread before
+          // the next frame. Put focus on its trigger now so that repaint carries it.
+          returnFocus();
+          nextRender(returnFocus);
+        }
       }
     }
     repaint();

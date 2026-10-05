@@ -136,6 +136,63 @@ test("a contribution invokes its declared command and derives refusal from it", 
   target.remove();
 });
 
+test("a control lookup during contribution normalization waits for the complete reading", async () => {
+  const { registerContribution, watchContributions } =
+    await import("../../skills/leaf/assets/runtime/contributions.js");
+  const { contributionEntry } =
+    await import("../../skills/leaf/assets/runtime/contribution-controls.js");
+  const target = document.createElement("section");
+  document.body.append(target);
+  let registration;
+  let reading = false;
+  let state = "idle";
+  const seen = [];
+  const scope = commandScope("Reading transaction", [
+    {
+      id: "probe.reading",
+      title: "Apply",
+      control: () => registration?.control("apply"),
+      run: () => {},
+    },
+  ]);
+  const stop = watchContributions(({ immediate }) => {
+    seen.push({ reading, state: registration.entry("apply").state, immediate });
+  });
+  try {
+    registration = registerContribution({
+      key: "reading-transaction-probe",
+      target,
+      read: () => {
+        reading = true;
+        try {
+          return {
+            state,
+            entries: [
+              contributionEntry({
+                key: "apply",
+                icon: "check",
+                label: "Apply",
+                state,
+                scope,
+                activation: "probe.reading",
+              }),
+            ],
+          };
+        } finally {
+          reading = false;
+        }
+      },
+    });
+    state = "engaged";
+    registration.update({ immediate: true });
+    assert.deepEqual(seen, [{ reading: false, state: "engaged", immediate: true }]);
+  } finally {
+    stop();
+    registration?.unregister();
+    target.remove();
+  }
+});
+
 test("a shared button selects its live state and context-only routes retain their argument", () => {
   const owner = document.createElement("section");
   const button = document.createElement("button");

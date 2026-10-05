@@ -84,6 +84,7 @@ from render_harness import (
     resized,
     round_trip,
     scroll_settled,
+    scroll_writes,
     select,
     sending,
     stamp_page,
@@ -1558,8 +1559,9 @@ def test_a_draft_below_its_passage_keeps_its_lane_whatever_it_holds(browser, ser
     assert abs(restored["x"] - empty["x"]) <= 1, (empty, restored)
 
 
+@pytest.mark.parametrize("move", ["inline", "class", "ancestor"])
 def test_a_side_comment_rechooses_its_rail_after_horizontal_target_motion(
-    browser, serve
+    browser, serve, move
 ):
     """Reference geometry, not content size, invalidates the chosen margin rail."""
     page = open_page(browser, serve(LONG_PAGE))
@@ -1572,7 +1574,17 @@ def test_a_side_comment_rechooses_its_rail_after_horizontal_target_motion(
     bar = page.locator(".lf-fab-bar")
     expect(bar).to_have_attribute("data-lf-placement", "right-start")
 
-    target.evaluate("node => { node.style.transform = 'translateX(600px)' }")
+    if move == "inline":
+        target.evaluate("node => { node.style.transform = 'translateX(600px)' }")
+    elif move == "class":
+        page.add_style_tag(
+            content=".shifted-comment-target { transform: translateX(600px) }"
+        )
+        target.evaluate("node => node.classList.add('shifted-comment-target')")
+    else:
+        target.evaluate(
+            "node => { node.parentElement.style.transform = 'translateX(600px)' }"
+        )
     expect(bar).to_have_attribute("data-lf-placement", "left-start")
     target_after = target.bounding_box()
     after = bar.bounding_box()
@@ -1583,6 +1595,11 @@ def test_a_side_comment_rechooses_its_rail_after_horizontal_target_motion(
     expect(field).to_have_js_property(
         "value", "Keep this comment connected when its paragraph moves."
     )
+    assert not [
+        write
+        for write in scroll_writes(page, (5, 5, -5, 5))
+        if "lf-fab" in write["target"]
+    ]
 
 
 def test_a_comment_rechooses_its_side_after_vertical_target_motion(browser, serve):

@@ -353,6 +353,8 @@ diff --git a/reading.py b/reading.py
     expect(field).to_be_visible()
     page.locator(".lf-threads").evaluate("list => list.scrollTop = 70")
     scroll_settled(page, ".lf-threads")
+    before_click = page.locator(".lf-threads").evaluate("list => list.scrollTop")
+    assert before_click > 0
     assert field.evaluate(
         "field => field.getBoundingClientRect().top > "
         "field.getRootNode().host.closest('.lf-threads').getBoundingClientRect().top"
@@ -361,7 +363,9 @@ diff --git a/reading.py b/reading.py
     field.click()
 
     expect(field).to_be_focused()
-    assert page.locator(".lf-threads").evaluate("list => list.scrollTop") == 70
+    assert (
+        page.locator(".lf-threads").evaluate("list => list.scrollTop") == before_click
+    )
 
 
 @pytest.mark.watch_shifts

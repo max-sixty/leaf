@@ -67,11 +67,22 @@
                                      width: calc(var(--lf-diff-actions) + 14px);
                                      height: calc(var(--lf-diff-action-top)
                                                   + var(--lf-diff-action-h) - 12px); }
+/* The drawing's spacing runs between its parts and never past its edges: the toolbar
+   has no margin above it and a file none below it (.lf-diff-file). The host states how
+   far the diff stands off, and an edge margin in here collapses out through the host
+   past the frame trim, which zeroes the host's own margin at a frame's start or end but
+   cannot reach into this tree, so a diff opening a column or closing a panel moved what
+   followed it 8px at upgrade.
+   The filter gives up width before the bar wraps, down to the room its placeholder
+   needs, so the bar of an ordinary diff keeps one row down to a phone's full-width
+   column and the height its author states (x-height) holds there as at a desktop's. A
+   review's bar, with a press and a longer count, wraps sooner, and wherever a bar
+   wraps the stated height is the estimate x-height says it is. */
 .lf-diff-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px;
-                 margin: 8px 0; padding: 8px 10px; border: 1px solid var(--code-border);
+                 margin: 0 0 8px; padding: 8px 10px; border: 1px solid var(--code-border);
                  border-radius: var(--r); background: var(--code-chrome);
                  color: var(--code-muted); font: var(--t-6) var(--sans); }
-.lf-diff-search-label { flex: 1 1 220px; }
+.lf-diff-search-label { flex: 1 1 6rem; min-width: 0; }
 .lf-diff-search { flex: 1 1 auto; width: 100%; }
 .lf-diff-progress { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .lf-diff-wrap-label { display: inline-flex; align-items: center; gap: 6px; flex: none;
@@ -118,7 +129,7 @@
    pinned summary: that one lifts the header over the rows that pass under it, and
    lifted alone it covered the press too, on every file, so a click on "Mark reviewed"
    opened and closed the file instead. */
-.lf-diff-file { position: relative; display: flow-root; margin: 8px 0;
+.lf-diff-file { position: relative; display: flow-root; margin: 8px 0 0;
                 --lf-diff-press: 110px;
                 /* How tall the bar of presses on the file's name line stands, and how far
                    down the name it starts. Both are said here because the pull below is
@@ -151,6 +162,10 @@
                         width: fit-content; height: var(--lf-diff-action-h);
                         margin: var(--lf-diff-action-top) 11px 0 auto;
                         font-family: var(--sans); }
+/* A file with no press, an inline patch outside review, has no bar to pull its row
+   over, so the bar takes no room either: held open, it stood as a blank band between
+   the toolbar and the file's name. */
+.lf-diff-file-actions:empty { display: none; }
 .lf-diff-review { display: block; box-sizing: border-box;
                   width: var(--lf-diff-press); height: var(--lf-diff-action-h);
                   padding: 2px 8px; font-family: inherit; font-size: var(--t-6); }

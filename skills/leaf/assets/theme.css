@@ -143,12 +143,15 @@
   --lf-banner-row: max(42px, calc(var(--t-5) * var(--lf-ui-lh) + 19px),
     calc(var(--aim-floor) + 9px));
   --lf-banner-status-row: max(36px, calc(var(--t-5) * var(--lf-ui-lh) + 4px));
-  /* The complete toolbar owns 30em of UI type and leaves 210px for
-     status, insets, and the gap. Both rooms are independent of page capabilities.
+  /* The complete toolbar owns 30em of UI type, the queue counts beside the status
+     11em, about what "9 on you · 9 on Claude" takes, and 220px is left for the status,
+     insets, and the gaps. Below that the banner takes two rows, and the sentence has the
+     first to itself (chrome.css). The rooms are independent of page capabilities and of
+     whether anything waits, since the counts come and go with the log after first paint.
      A larger UI font raises the same capacity boundary before first paint. */
   --lf-banner-actions-w: calc(30 * var(--t-5));
   --lf-banner-rows: clamp(1, round(up,
-    calc((var(--lf-banner-actions-w) + 210px + var(--lf-safe-left)
+    calc((var(--lf-banner-actions-w) + 11 * var(--t-5) + 220px + var(--lf-safe-left)
       + var(--lf-safe-right)) / 100vw)), 2);
   --lf-banner-h: calc(var(--lf-banner-status-row) * (var(--lf-banner-rows) - 1) + var(--lf-banner-row)
     + var(--lf-safe-top));

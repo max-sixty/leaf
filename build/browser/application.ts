@@ -22,6 +22,7 @@ import {
   isMessageEvent,
 } from "../../skills/leaf/assets/runtime/pending/model.js";
 import { PENDING } from "../../skills/leaf/assets/runtime/thread/identity.js";
+import { selectQueues } from "../../skills/leaf/assets/runtime/queues.js";
 
 // The pure model's input types are inferred from its existing implementation. They
 // remain one contract while those folds move to compiled source independently.
@@ -201,6 +202,16 @@ interface WireWorkflow {
   dropped: boolean;
 }
 
+/** One open task, as `served_state.browser` serves it. */
+interface WireTask {
+  id: string;
+  subject: { kind: "thread" | "widget"; id: string };
+  thread: string | null;
+  title: string;
+  agent: string | null;
+  session: string | null;
+}
+
 /** The public Ask record packages read. */
 export interface AskRecord {
   id: string;
@@ -271,6 +282,7 @@ export interface AuthoritativeState {
       done?: Event[];
     };
     receipts: Event[];
+    tasks?: WireTask[];
   };
   activity: unknown;
   reading?: string;
@@ -671,6 +683,14 @@ export function createSemanticApplication({
         },
       },
       asks,
+      // What is on the user and what is on the agent, selected from the readings
+      // above once this tab's sends are folded into them (`runtime/queues.js`).
+      queues: selectQueues({
+        asks: asks.user,
+        threads,
+        workflows,
+        tasks: ready ? (state?.browser.tasks ?? []) : [],
+      }),
       // Inside the publication signature, so a read that changes only the view's
       // updates, publication time, or undo list still reaches its watchers.
       view,

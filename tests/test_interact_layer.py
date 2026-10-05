@@ -18,7 +18,7 @@ import tinycss2
 import tomllib
 import yaml
 from click.testing import CliRunner
-from conftest import LEAF_COMMAND, PagePool
+from conftest import LEAF_COMMAND, PagePool, _retire
 from interact_support import (
     PAGE,
     PAGE_PACKAGES,
@@ -38,6 +38,7 @@ from interact_support import (
     publish,
     record_claim,
     shipped_payload,
+    wait_for,
 )
 from leaf import cli as cli_model
 from leaf import data as data_model
@@ -2199,6 +2200,33 @@ def test_the_resources_a_fixture_owns_are_taken_from_that_fixture():
                         f"{path.name}:{node.lineno} {ending} — the browser fixture does"
                     )
     assert not bypassed, bypassed
+
+
+@pytest.mark.parametrize("launcher_ends", ["wait", "exit"])
+def test_a_spawned_process_ends_with_what_it_started(spawn, launcher_ends):
+    """`spawn`'s teardown ends a child's descendants as well as the child, since a
+    handle often names a launcher, as `under_codex`'s fake host does the shell
+    that runs its command. That holds whether the launcher is still running or
+    has already exited and left its child behind."""
+    launcher = spawn(
+        ["/bin/sh", "-c", f"sleep 600 & echo $!; {launcher_ends}"],
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    descendant = int(launcher.stdout.readline())
+    if launcher_ends == "exit":
+        launcher.wait(timeout=STATED_TIMEOUT)
+
+    _retire(launcher)
+
+    def running():
+        try:
+            os.kill(descendant, 0)
+        except ProcessLookupError:
+            return False
+        return True
+
+    wait_for(running, lambda alive: not alive, failure="the launcher's child survived")
 
 
 def test_page_packages_are_explicit_and_survive_reinitialization(tmp_path, monkeypatch):

@@ -3339,6 +3339,65 @@ def test_a_finger_ends_a_task_on_you_from_the_banner_row(browser, serve):
     expect(done).to_have_count(0)
 
 
+NESTED_TASKS_PAGE = leaf_page(
+    "Nested tasks",
+    '<section id="plan"><h2>Plan</h2>'
+    '<p id="step">Ship it on Tuesday, after the backfill.</p></section>'
+    '<p id="tail">Nothing else is planned.</p>',
+)
+
+
+def test_x_ends_the_innermost_task_the_user_stands_on(browser, serve):
+    """Standing on a task inside another, `x` ends the inner one: a task on a section
+    inside the page, with no heading for the page's own task to stand at, and a task
+    on a paragraph inside that section."""
+    url = serve(NESTED_TASKS_PAGE)
+    d = serve.page_dir
+
+    def put_on_user(subject, title):
+        return append_carried_log_record(
+            d,
+            {
+                "kind": "task",
+                "author": "agent",
+                "agent": "Agent",
+                "session": "nested-tasks",
+                "owner": "user",
+                "subject": subject,
+                "title": title,
+            },
+        )
+
+    put_on_user({"kind": "page"}, "Read it through")
+    plan = put_on_user({"kind": "element", "id": "plan"}, "Check the plan")
+    step = put_on_user({"kind": "element", "id": "step"}, "Check the step")
+    page = open_page(browser, url)
+    counts = page.locator(".lf-status-queues")
+    expect(counts).to_have_text("3 on you")
+    position = page.locator(".lf-walk-position")
+
+    # The step stands inside the plan, which stands inside the page's `main`.
+    page.locator("#step").click()
+    with sending(page, "the step's Done"):
+        page.keyboard.press("x")
+    expect(counts).to_have_text("2 on you")
+    assert events_model.read_events(d)[-1]["task"] == step["id"]
+
+    page.locator("#step").click()
+    with sending(page, "the plan's Done"):
+        page.keyboard.press("x")
+    expect(counts).to_have_text("1 on you")
+    assert events_model.read_events(d)[-1]["task"] == plan["id"]
+
+    # Off every section, nothing the user stands on is the page's own task, which `a`
+    # arrives at its head.
+    page.locator("#tail").click()
+    assert "x\ndone" not in shortcut_bar_text(page)
+    page.keyboard.press("Shift+a")
+    expect(position).to_have_text("1 of 1 waiting on you · Task")
+    assert "x\ndone" in shortcut_bar_text(page)
+
+
 def test_an_a_step_newer_focus_cancels_at_a_thread_claims_no_arrival(browser, serve):
     """`a` arriving at a thread with the panel shut opens it on the page, and the
     opening can wait on the page. Focus the user moves meanwhile cancels the arrival:

@@ -134,8 +134,11 @@ export function createQueueWalk({
   }
 
   // The item the user stands on, if any: the thread holding them, the Ask holding their
-  // place, or the element that does. Standing in a thread that holds an open Ask is not
-  // standing on that Ask, as it never was for the Ask walk this replaces.
+  // place, or the innermost element that does, in page order the last that holds them,
+  // as `askHolding` reads Asks. The page's own stop is its head element alone, never
+  // what that holds, since on a page without a heading the head is `main`. Standing in
+  // a thread that holds an open Ask is not standing on that Ask, as it never was for
+  // the Ask walk this replaces.
   function standingStop(list) {
     const held = threadHere();
     const thread = held?.dataset.id ?? held?.dataset.thread;
@@ -153,8 +156,9 @@ export function createQueueWalk({
     );
     if (ask) return ask;
     return (
-      list.find((stop) => {
-        if (stop.kind !== "widget" && stop.kind !== "page") return false;
+      list.findLast((stop) => {
+        if (stop.kind === "page") return stopElement(stop) === here;
+        if (stop.kind !== "widget") return false;
         const at = stopElement(stop);
         return at && (at === here || under(here, at));
       }) ?? null

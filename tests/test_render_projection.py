@@ -1575,6 +1575,7 @@ def test_a_source_replacement_preserves_the_focused_draft_and_its_original_ancho
         )
         > 0
     )
+    original_bar = page.locator(".lf-fab-bar").bounding_box()
 
     data_model.cmd_data_set(serve.page_dir, "document", "Replacement source words.")
     told(page)
@@ -1589,13 +1590,13 @@ def test_a_source_replacement_preserves_the_focused_draft_and_its_original_ancho
     assert page.evaluate("() => CSS.highlights.get('lf-pending').size") == 0
     expect(page.locator("#source.lf-pending, #source .lf-pending")).to_have_count(0)
     # Earlier data no longer supplies a passage fragment. The surviving datum
-    # supplies the same element attachment to the editor and a freshly opened card.
+    # keeps the editor beside it; sending hands that position to the first card.
     bar = page.locator(".lf-fab-bar")
     expect(bar).to_have_attribute("data-lf-placement", re.compile("(top|bottom)-start"))
     rendered(page)
     before = bar.bounding_box()
     datum = page.locator("#source [data-lf-datum]").bounding_box()
-    assert before["x"] > datum["x"] + 100
+    assert before["x"] == pytest.approx(original_bar["x"], abs=1)
 
     with sending(page, "the draft about the replaced source"):
         draft.press("ControlOrMeta+Enter")
@@ -1622,11 +1623,18 @@ def test_a_source_replacement_preserves_the_focused_draft_and_its_original_ancho
     )
     card = page.locator(".lf-margin-preview")
     expect(card).to_have_css("opacity", "1")
+    rendered(page)
+    assert card.bounding_box()["x"] == pytest.approx(before["x"], abs=1)
     page.keyboard.press("Escape")
     page.locator(".lf-margin-marker").click()
     expect(card).to_have_css("opacity", "1")
     rendered(page)
-    assert card.bounding_box()["x"] == pytest.approx(before["x"], abs=1)
+    # Reopening is a fresh placement on the datum's current full-width box; it
+    # need not retain the old quote's inline start after its words disappeared.
+    reopened = card.bounding_box()
+    assert datum["x"] < reopened["x"] + reopened["width"]
+    assert reopened["x"] < datum["x"] + datum["width"]
+    assert reopened["y"] == pytest.approx(datum["y"] + datum["height"] + 8, abs=2)
 
 
 def test_a_large_diff_filters_navigates_and_replays_explicit_file_reviews(

@@ -62,6 +62,15 @@
    block offsets for the card to hold. The attachment is then the card's current one:
    scrolling retains it, while a boundary or target-width change chooses afresh.
 
+   Which edge a growing surface holds is this module's for both surfaces, so neither
+   can drift from the other. A surface whose content grows by turns holds the edge the
+   user is working at (`holding`): its top while they read or type, its foot, with the
+   reply row on it, once a turn joins the transcript as they draft or send, keyed to
+   that turn so the next one releases it, and its foot where it stands over what it is
+   about and is read. The caller reports the transcript's extent, whether the user is
+   drafting, the latest turn and the draft's words; a surface with no turns, the
+   comment box, never asks, and its free edges grow as floating.js holds them.
+
    Every box here is a client rectangle. Floating UI works in the surface's positioning
    space, which a transformed ancestor scales, so each length crosses by the reference's
    scale, and `fit` is handed lengths in that space, as CSS sizes the surface in it. */
@@ -219,10 +228,9 @@ export const cardMeasure = () => rootLength("--thread-card");
    `choose` holds a side, choosing one where none is held or the boundary or `extent`'s
    width has changed, and says whether it chose afresh. `options` then gives
    `computePosition` the reference to stand by, its placement and its middleware.
-   `landed` takes the answer's inline start, and returns what the answer says about the
-   surface: its `scale` and where the rule stood its held edge before the boundary
-   shifted it in (`spot`, `{ top }` and `{ foot }` from the rule's line), which is what a
-   `hold` returns to keep it there. `plane` reads whether the boundary holds the surface
+   `landed` takes the answer's inline start and where the rule stood the surface's top
+   and foot before the boundary shifted it in, from the rule's line, which `heldAt`
+   then offers a `hold` to keep it there; it returns the surface's `scale`. `plane` reads whether the boundary holds the surface
    at the window edge, in client coordinates, and chooses the page or window plane
    (floating.js). `line` is where, in client pixels, the held side's line stands now.
    `forget` drops the side so the next placement chooses again, and `scrolled` keeps it
@@ -248,6 +256,10 @@ export function commentPlacement() {
   let initialHold = null;
   // Whether `clear` has stood in the boundary since the side was chosen.
   let seen = false;
+  // The edge held at the last landing and the reading it answered (`holding`), and the
+  // reading the placement in flight answers, which its landing records.
+  let held = null;
+  let reading = null;
   const forget = () => {
     side = null;
     inline = null;
@@ -256,6 +268,8 @@ export function commentPlacement() {
     carriedInline = null;
     initialHold = null;
     seen = false;
+    held = null;
+    reading = null;
   };
   const line = (clear, row) =>
     side === "bottom"
@@ -276,6 +290,42 @@ export function commentPlacement() {
       pending = frame;
     },
     forget,
+    // Which edge this placement holds, `top` or `foot`, from what the caller reports:
+    // the transcript's extent, whether the user is drafting, the latest turn
+    // (`{ key, author }`) and the draft's words. `fresh` and `hold` are `choose`'s.
+    holding({ fresh, hold, transcript, drafting, latest = null, draftText = "" }) {
+      if (hold) held = { ...hold, transcript };
+      if (fresh) held = null;
+      const turned = held && Math.abs(transcript - held.transcript) > 0.5;
+      // A turn changes the transcript on one pass, then the card's own size changes
+      // its measurement on the next. Borrow the reply's line for that turn, keyed by
+      // the projected message's stable key so admitting a Send keeps the same hold. A
+      // later reading turn or a new edit releases it; an arriving turn while drafting
+      // borrows it anew, and a Send borrows it through the handoff out of the reply row.
+      const newDraft = drafting && !held?.drafting;
+      const continuedDraft = drafting && draftText && draftText !== held?.draftText;
+      const keepReplyLine = Boolean(
+        latest &&
+        !newDraft &&
+        !continuedDraft &&
+        ((held?.replyTurn && held.replyTurn === latest.key) ||
+          (turned && (drafting || (held?.drafting && latest.author === "user")))),
+      );
+      reading = {
+        transcript,
+        drafting,
+        replyTurn: keepReplyLine ? latest.key : null,
+        draftText,
+      };
+      // Adoption holds the message's start: expanded composer choices may add a row
+      // below it that the thread does not carry. Later placements use the surface's own
+      // top/foot reading, including the normal above-side and reply-line holds.
+      return !hold && (keepReplyLine || (!drafting && side === "top")) ? "foot" : "top";
+    },
+    // The held edge's offset for `options`' `hold`, and the height between the held
+    // top and foot, which caps a held surface no shorter than it last stood.
+    heldAt: (edge) => held && { [edge]: held[edge] },
+    heldHeight: () => (held ? held.foot - held.top : 0),
     scrolled() {
       input = null;
     },
@@ -552,10 +602,11 @@ export function commentPlacement() {
       const { scale, column, line } = middlewareData.scaled;
       if (vertical(side)) inline ??= x - column;
       const top = (y - (middlewareData.shift?.y ?? 0) - line) * scale.y;
-      return {
-        scale,
-        spot: { top, foot: top + middlewareData.held.height * scale.y },
-      };
+      const spot = { top, foot: top + middlewareData.held.height * scale.y };
+      // The reading this placement answered, so a turn that joined while it was worked
+      // out is one the next placement still sees join.
+      if (reading) held = { ...spot, ...reading };
+      return { scale };
     },
   };
 }

@@ -9,6 +9,15 @@ import click
 from leaf.files import read_json
 
 
+def prepaint_markup(registry, tag: str) -> str | None:
+    """The markup a widget's first paint shows (`x-prepaint`): its own, or that of the
+    widget it names with `as`, which validation holds to one that declares markup."""
+    declared = registry.get(tag, {}).get("x-prepaint")
+    if isinstance(declared, dict):
+        declared = registry[declared["as"]]["x-prepaint"]
+    return declared
+
+
 def event_clauses(entry: dict, registry: dict | None) -> list[dict]:
     """What the layer asks of the agent for one delivered event, read off the
     vendored `$events`: the event kind's `handling` clauses, then the `answering`

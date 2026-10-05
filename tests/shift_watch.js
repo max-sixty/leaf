@@ -894,17 +894,22 @@
         was.anchor === now.anchor &&
         was.plane !== now.plane
       ) {
-        const before = boxAt(was.anchor, poseAt(owner, from)),
-          after = boxAt(now.anchor, to);
+        // A selection's point is measured from its frame's box: the subject anchor's
+        // in the page's plane, the holding region's in a region's, the window's in
+        // the window's.
+        const origin = (selection, time) =>
+          selection.frame ? boxAt(selection.frame, time) : { left: 0, top: 0 };
+        const before = origin(was, poseAt(owner, from)),
+          after = origin(now, to);
         if (before && after) {
           for (const [axis, size, start] of [
             ["left", "width", "left"],
             ["top", "height", "top"],
           ]) {
             if (anchored[axis]) continue;
-            const predicted = (selection, anchor) =>
+            const predicted = (selection, frame) =>
               selection.point[axis] +
-              (selection.plane === "page" ? anchor[axis] : 0) -
+              frame[axis] -
               (selection.edges[axis] === start ? 0 : selection.size[size]);
             motion[axis] += predicted(now, after) - predicted(was, before);
             anchored[axis] = true;

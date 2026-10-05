@@ -28,10 +28,8 @@ import { coarsePointer } from "/runtime/pointer.js";
 import { LAYOUT } from "/runtime/widget-elements.js";
 import { under } from "/runtime/shadow.js";
 import { union } from "/runtime/rect.js";
-import { shownRegionBounds } from "/runtime/reading-regions.js";
 import { floatingPlacement, floatingUi } from "../floating.js";
 import {
-  cardMinimum,
   commentAttachment,
   commentBoundary,
   commentPlacement,
@@ -86,8 +84,8 @@ export function createFloatingResponsePlacement({
         parseFloat(style.paddingTop),
     );
   };
-  const fabFits = (bounds = null) => {
-    const boundary = floatBoundary(bounds);
+  const fabFits = () => {
+    const boundary = floatBoundary();
     return (
       boundary.width > 0 &&
       Math.ceil(boundary.width) >= Math.ceil(fabBar.getBoundingClientRect().width)
@@ -213,9 +211,7 @@ export function createFloatingResponsePlacement({
       point: response.anchor.quote ? null : response.pointIn(owner),
       passage: geometry,
     });
-    const boundary = place.region
-      ? floatBoundary(shownRegionBounds(place.region))
-      : windowBoundary;
+    const boundary = place.region ? floatBoundary(place.region) : windowBoundary;
     if (boundary.width <= 0 || boundary.height <= 0) return false;
     // Width before coordinates: the side is chosen from the card's minimum, then the size
     // pass gives CSS that side's actual inline room. If a later resize makes the chosen
@@ -243,7 +239,6 @@ export function createFloatingResponsePlacement({
       clear: place.clear,
       extent: place.extent,
       boundary,
-      minimumWidth: cardMinimum(),
       scroller: place.scroller,
       coarse: coarsePointer.matches,
     });
@@ -258,10 +253,10 @@ export function createFloatingResponsePlacement({
         const { reference, placement, middleware, plane } = fabPlacement.options(ui, {
           clear: place.clear,
           row: place.row,
+          lastRow: place.lastRow,
           column: place.column,
           margin: place.margin,
           boundary,
-          minimumWidth: cardMinimum(),
           fit({ width, height, scale }) {
             if (!stillCurrent()) return;
             setWidth(width, scale.x);

@@ -40,8 +40,8 @@
    actions reveals the focused control itself.
 
    `test_no_focus_mark_the_panel_draws_on_a_walk_down_its_list_is_cut_or_covered` and
-   `test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus` hold this
-   for the panel's own walk and for every shipped page's tab order. They ask one question: where the control can be seen, so can the ring
+   `test_each_sampled_focus_ring_is_shown_whole_in_its_surface` hold this
+   for the panel's own walk and for each surface a key opens. They ask one question: where the control can be seen, so can the ring
    that names it. A control that itself stands under a fixed bar is not a finding —
    that is a fact about where it was put — and neither is a box too tall for the region
    it is in. */

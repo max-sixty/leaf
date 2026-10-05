@@ -218,7 +218,8 @@ export function commentSide({ clear, extent, boundary, width, scroller, coarse }
 }
 
 // The card's minimum width, which chooses the side for both surfaces, and its preferred
-// measure, which decides whether they stand past the margin row.
+// measure, which decides whether they stand past the margin row. `commentPlacement`
+// reads both itself, so the comment box and its card are never placed from two widths.
 const rootLength = (name) =>
   parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name));
 export const cardMinimum = () => rootLength("--thread-card-min");
@@ -336,7 +337,6 @@ export function commentPlacement() {
       extent = clear,
       boundary,
       row = clear?.top ?? boundary.top,
-      minimumWidth,
       scroller,
       coarse,
     }) {
@@ -383,7 +383,7 @@ export function commentPlacement() {
             clear,
             extent,
             boundary,
-            width: minimumWidth,
+            width: cardMinimum(),
             scroller,
             coarse,
           });
@@ -401,11 +401,11 @@ export function commentPlacement() {
         column = null,
         margin = null,
         boundary,
-        minimumWidth,
         fit,
         hold = null,
       },
     ) {
+      const minimumWidth = cardMinimum();
       const across = vertical(side);
       const unanchored = !clear;
       // Floating UI reads a window attachment point for the unanchored posture,

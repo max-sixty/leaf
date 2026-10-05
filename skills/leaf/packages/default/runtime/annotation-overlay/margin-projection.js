@@ -728,7 +728,6 @@ export function createMarginProjection({
       row: place.row,
       extent: place.extent,
       boundary,
-      minimumWidth: cardMinimum(),
       scroller,
       coarse: coarsePointer.matches,
     });
@@ -749,7 +748,6 @@ export function createMarginProjection({
           column: place.column,
           margin: place.margin,
           boundary,
-          minimumWidth: cardMinimum(),
           fit({ width, height, scale }) {
             if (!stillCurrent()) return;
             // Capture when fitting actually starts, after the module load and any

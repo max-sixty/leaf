@@ -25,7 +25,10 @@ version that answers it (`workflows.canonical_workflows`), and it holds its item
 only for the turn that wrote it. It names that turn, and once the turn ends with the
 item still running, the activity fold reads it stalled (`activity`). A later start on
 the same item replaces it, which is how the next turn takes the item in hand again.
-A start on a page declared `idle` reopens the page with a bare `waiting`.
+A `waiting` or `idle` declaration puts down every start written before it: the
+moves those started are no longer in hand, and the tasks stay open with nothing
+running on them (`workflows.canonical_workflows`, `put_down`). A start on a page
+declared `idle` reopens the page with a bare `waiting` just before it.
 
 The door admits a task on an open thread, on a live page widget that declares
 `x-work` or holds an unsettled move (`work.widget_seat_error`), or on the page; a
@@ -60,9 +63,11 @@ def last_start(events: list) -> str | None:
 
 def running(start: dict) -> dict:
     """The reading a start gives the item it names: the line, when and by whom, and
-    the turn it holds the item for, or None for another session's start."""
+    the turn it holds the item for (`turn` is None for a start another session
+    wrote)."""
     return {
         "id": start["id"],
+        "item": start["item"],
         "text": start["text"],
         "seq": start["seq"],
         "ts": start["ts"],
@@ -221,6 +226,14 @@ def cmd_start(page_dir: Path, item: str, text: str) -> dict:
     from .revisioning import activate_source
     from .service import PageTransaction
 
+    # The banner's dot already says the agent is working; the line is the whole of
+    # what a start adds, and one sentence is what the banner has room for.
+    if not text.strip() or "\n" in text or "\r" in text:
+        sys.exit(
+            "a start's line names the work and its subject in one sentence, such as "
+            '"running the browser suite against the new banner"'
+        )
+
     @contract_writer
     def write(page_dir: Path) -> dict:
         with PageTransaction(page_dir) as page:
@@ -244,9 +257,11 @@ def cmd_start(page_dir: Path, item: str, text: str) -> dict:
                 },
             )
             # Work in hand reopens a page the agent had closed: `idle` says it was
-            # done with the page, and every carrier stands down for an idle page.
+            # done with the page, and every carrier stands down for an idle page. The
+            # reopening `waiting` stands just before this start, which it would
+            # otherwise put down.
             if page.status["state"] == "idle":
-                page.set_status("waiting", "")
+                page.set_status("waiting", "", after=record["seq"] - 1)
             return record
 
     return write(page_dir)

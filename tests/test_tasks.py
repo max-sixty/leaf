@@ -74,7 +74,7 @@ def test_a_task_holds_its_thread_on_the_agent_past_reply_and_resolve(page_dir):
         "task": {
             "id": task["id"],
             "title": "Rebuild the banner quieter",
-            "running": None,
+            "line": None,
         },
     }
     assert [item["id"] for item in state["tasks"]] == [task["id"]]
@@ -310,7 +310,7 @@ def test_a_thread_task_runs_under_its_start_line(page_dir):
     assert thread["attention"]["task"] == {
         "id": task["id"],
         "title": "Rebuild the chart",
-        "running": "Waiting on the build",
+        "line": "Waiting on the build",
     }
 
 
@@ -387,3 +387,102 @@ def test_a_start_reopens_a_page_its_agent_closed(page_dir):
         "working",
         "Drafting the glossary",
     )
+
+
+def test_a_waiting_declaration_puts_down_every_start_before_it(page_dir):
+    """`status waiting` says what the agent wants back, and the banner shows it: every
+    start written before it is put down. A started move goes back to its delivery
+    stage, and a started task stays open with nothing running on it. A start after
+    the declaration is in hand again."""
+    publish(page_dir)
+    comment = append_carried_log_record(
+        page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "Tighten it."},
+    )
+    task = written(leaf("task", "open", page_dir, "page", "Draft the plan"))
+    written(leaf("task", "start", page_dir, task["id"], "Drafting the plan"))
+    written(leaf("task", "start", page_dir, comment["id"], "Tightening it"))
+    assert state_json(page_dir)["activity"]["kind"] == "working"
+
+    written(leaf("status", page_dir, "waiting", "Pick a plan"))
+    state = state_json(page_dir)
+    assert state["status"]["detail"] == "Pick a plan"
+    assert state["activity"]["kind"] not in {"working", "stalled"}
+    assert [item["stage"] for item in state["workflows"]] == ["sent"]
+    [served] = state["tasks"]
+    assert (served["id"], served["running"]) == (task["id"], None)
+
+    written(leaf("task", "start", page_dir, task["id"], "Drafting the second plan"))
+    state = state_json(page_dir)
+    assert state["activity"]["detail"] == "Drafting the second plan"
+
+
+def test_idle_refuses_over_an_open_task(page_dir):
+    """Closing the page discharges no task: idle names each open one and how to end
+    it, and goes through once they have ended."""
+    publish(page_dir)
+    task = written(leaf("task", "open", page_dir, "page", "Add a glossary"))
+    refused = leaf("status", page_dir, "idle")
+    assert refused.exit_code != 0
+    assert f"1 open task: {task['id']} (Add a glossary)" in refused.output
+    assert "leaf task end <page> <id> done" in refused.output
+    written(leaf("task", "end", page_dir, task["id"], "dropped", "not needed"))
+    written(leaf("status", page_dir, "idle"))
+
+
+def test_a_start_on_a_widget_task_holds_the_moves_delivered_before_it(page_dir):
+    """A task on a widget answers the moves on it: once started, the move the user
+    made there reads Working and lets the turn that started it end over it. A move
+    made after the start is not in hand."""
+    (page_dir / "index.html").write_text(
+        PAGE.replace("<lf-options>", '<lf-options id="choice" choose>', 1)
+    )
+    publish(page_dir)
+    pick = append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "choice",
+            "action": "choose",
+            "detail": {"options": ["flag-first"]},
+        },
+    )
+    task = written(leaf("task", "open", page_dir, "choice", "Build the chosen plan"))
+    start = written(leaf("task", "start", page_dir, task["id"], "Building flag first"))
+    [workflow] = state_json(page_dir)["workflows"]
+    assert (workflow["input"], workflow["stage"], workflow["detail"]) == (
+        pick["id"],
+        "working",
+        "Building flag first",
+    )
+    assert [held["item"] for held in workflow["started_by"]] == [task["id"]]
+    assert workflow["started_by"][0]["seq"] == start["seq"]
+
+    later = append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "choice",
+            "action": "choose",
+            "detail": {"options": ["backfill-first"]},
+        },
+    )
+    [workflow] = state_json(page_dir)["workflows"]
+    assert (workflow["input"], workflow["stage"], workflow["started_by"]) == (
+        later["id"],
+        "sent",
+        [],
+    )
+
+
+def test_a_start_line_is_one_sentence(page_dir):
+    publish(page_dir)
+    task = written(leaf("task", "open", page_dir, "page", "Add a glossary"))
+    for line in ("", "   ", "two\nlines"):
+        refused = leaf("task", "start", page_dir, task["id"], line)
+        assert refused.exit_code != 0
+        assert "names the work and its subject in one sentence" in refused.output

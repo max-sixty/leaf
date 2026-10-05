@@ -65,11 +65,13 @@ def cmd_idle(page_dir: Path, detail: str) -> dict:
     user-facing count, so a worker's report cannot be left standing as
     provisional state forever either. The answers it holds the page for are
     `activity.blocking_obligations`, a started move's included: the Stop hook lets
-    the turn that started one end over it, but closing the page answers nothing.
+    the turn that started one end over it, but closing the page answers nothing. It
+    holds the page for every open task too, which only its ending discharges.
     The check and the transition share the log lock, so an event arriving
     or an acknowledgement advancing the cursor orders against them."""
     from .activity import blocking_obligations, unanswered
     from .served_state.page import full_state
+    from .tasks import open_tasks
 
     with PageTransaction(page_dir) as page:
         events = page.events
@@ -96,6 +98,16 @@ def cmd_idle(page_dir: Path, detail: str) -> dict:
             sys.exit(
                 f"{unanswered(owed, 'acknowledged')}; answer before idling. "
                 + ANSWER_ASK_INSTRUCTION
+            )
+        # A task is work the agent still owes, which closing the page would leave
+        # standing on a page nobody holds.
+        if tasks := open_tasks(events):
+            named = "; ".join(f"{task['id']} ({task['title']})" for task in tasks)
+            sys.exit(
+                f"{len(tasks)} open task{'s' if len(tasks) != 1 else ''}: {named}. "
+                "End each before idling with "
+                '`leaf task end <page> <id> done "<where the result is>"`, or '
+                '`dropped "<why>"`.'
             )
         return page.set_status("idle", detail)
 

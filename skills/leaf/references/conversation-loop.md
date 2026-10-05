@@ -85,11 +85,10 @@ leaf task start <page> <task> "drafting the glossary entries"
 ```
 
 `leaf task open` prints the task's record; its `id` is the task. When its work is
-done, end it with `leaf task end <page> <task> done "<where the result is>"`: a task
-nothing ends stays on you, and once your turn ends with it still started, the page
-reads your work as stalled. Housekeeping such
-as re-vendoring, restarting the server, or merging owes the user nothing and needs
-no item.
+done, end it with `leaf task end <page> <task> done "<where the result is>"`; a task
+nothing ends stays on you, and `leaf status … idle` refuses while one is open.
+Housekeeping such as re-vendoring, restarting the server, or merging owes the user
+nothing and needs no item.
 
 User input comes before the work in hand, in this order:
 
@@ -118,7 +117,9 @@ leaf status <page> waiting "<what you want back>"
 The detail names the concrete answer or decision, not the fact that you are
 waiting. For an informational page with no concrete ask, leave it empty; the
 banner then invites the user to select text to comment. Finish the turn by the
-handoff route in the main skill, "Operate".
+handoff route in the main skill, "Operate". A `waiting` puts down every item you
+started before it, so the banner shows what you want back; a task stays open on
+you until you end it.
 
 What ends a start depends on its item. Your reply answering a move ends that
 move's start, and so does a stamped version whose markup records a press on an

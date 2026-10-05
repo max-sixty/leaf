@@ -60,7 +60,7 @@ from .projection import (
     PageReading,
     recorded_state,
 )
-from .tasks import item_starts, open_tasks
+from .tasks import canonical_tasks, item_starts, open_tasks
 
 
 def admission_workflows(readings) -> tuple[list[dict], dict]:
@@ -202,8 +202,16 @@ def canonical_workflows(
     *,
     page: PageReading | None = None,
     events: list | None = None,
+    put_down: int = 0,
 ) -> list[dict]:
     """The unsettled user inputs and strongest evidence held for each.
+
+    `put_down` is the log position of the agent's latest `waiting` or `idle`
+    declaration (`status["after"]`): every start at or before it is put down, so a
+    move it named is no longer in hand. A start holds a move it names, and a start on
+    an open task over a widget holds that widget's moves delivered before it, as the
+    work the task answers. The workflow names the start holding it as `held_by`,
+    which `activity` takes off before serving.
 
     This is one interaction-scoped projection over the document and log: append
     means Sent, queue acceptance means Queued, entry into an exact agent turn
@@ -239,7 +247,49 @@ def canonical_workflows(
         for event_id in event["events"]:
             deliveries.setdefault(event_id, {})[event["phase"]] = event
 
-    starts = item_starts(events)
+    starts = {
+        item: start
+        for item, start in item_starts(events).items()
+        if start["seq"] > put_down
+    }
+    widget_starts: dict[str, list[dict]] = {}
+    for task in canonical_tasks(events):
+        running = task["running"]
+        if (
+            task["state"] == "open"
+            and running
+            and running["seq"] > put_down
+            and task["subject"]["kind"] == "widget"
+        ):
+            widget_starts.setdefault(task["subject"]["id"], []).append(running)
+
+    def delivered_at(source: dict) -> int:
+        delivery = deliveries.get(source["id"], {})
+        return max(
+            (
+                entry["seq"]
+                for entry in (delivery.get("opened"), delivery.get("queued"))
+                if entry
+            ),
+            default=source["seq"],
+        )
+
+    def holding(source: dict, target: dict, delivered: int) -> dict | None:
+        """The start that holds this move: its own, or the newest start on a task over
+        its widget written once the move was delivered."""
+        if source["id"] in starts:
+            return starts[source["id"]]
+        if target["kind"] != "widget":
+            return None
+        return max(
+            (
+                start
+                for start in widget_starts.get(target["id"], [])
+                if start["seq"] >= delivered
+            ),
+            key=lambda start: start["seq"],
+            default=None,
+        )
 
     def workflow(
         source: dict,
@@ -251,12 +301,12 @@ def canonical_workflows(
     ) -> dict:
         """One move's workflow. `covering` are the starts that take it in hand for the
         turn that wrote them, which is how the Stop hook tells a move the open turn
-        has started (`activity.started_in_turn`): the move's own, and in a thread every
-        start on an input the thread's one reply answers."""
+        has started (`activity.started_in_turn`): the one holding it, and in a thread
+        every start on an input the thread's one reply answers."""
         delivery = deliveries.get(source["id"], {})
         opened = delivery.get("opened")
         queued = delivery.get("queued")
-        start = starts.get(source["id"])
+        start = holding(source, target, delivered_at(source))
         if start:
             stage, evidence = "working", start
         elif opened:
@@ -302,6 +352,7 @@ def canonical_workflows(
             "condition": None,
             "next_actor": "agent",
             "response": None,
+            "held_by": start,
             "started_by": [
                 {
                     "item": held["item"],
@@ -500,7 +551,9 @@ def canonical_workflows(
                     target,
                     coordinate,
                     answer=answer,
-                    covering=[starts[source["id"]]] if source["id"] in starts else [],
+                    covering=[held]
+                    if (held := holding(source, target, delivered_at(source)))
+                    else [],
                 )
             )
 

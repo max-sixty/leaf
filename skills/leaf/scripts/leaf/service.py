@@ -355,19 +355,22 @@ class PageTransaction:
     def status(self) -> dict:
         return read_status(self.page_dir)
 
-    def set_status(self, state: str, detail: str) -> dict:
+    def set_status(self, state: str, detail: str, *, after: int | None = None) -> dict:
         """Write the page's `waiting` or `idle` declaration and return it as written.
 
         The work the agent has in hand is no status: it is the log's `start` events
-        (`tasks`). The stream the host observes carries across a `waiting`, and
-        `idle` clears it with the leaf."""
+        (`tasks`), and a declaration puts down every start at or before its `after`,
+        the log's end unless given. The stream the host observes carries across a
+        `waiting`, and `idle` clears it with the leaf."""
+        if after is None:
+            after = self.events[-1]["seq"] if self.events else 0
         status = {
             "state": state,
             "detail": detail,
             "ts": now_iso(),
             # Order the agent's declaration against delivery transitions without
             # comparing wall-clock timestamps that are only precise to a second.
-            "after": self.events[-1]["seq"] if self.events else 0,
+            "after": after,
         }
         if state != "idle" and (stream := self.status.get("stream")):
             status["stream"] = stream

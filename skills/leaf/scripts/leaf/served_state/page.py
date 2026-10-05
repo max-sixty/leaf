@@ -34,7 +34,12 @@ def project_activity(
         return browser.pop("activity")
     # No active document means no page containment; thread obligations remain.
     threads = build_threads(context.events, {})
-    evidence = canonical_workflows(threads, None, events=context.events)
+    evidence = canonical_workflows(
+        threads,
+        None,
+        events=context.events,
+        put_down=context.presence["status"].get("after", 0),
+    )
     activity = canonical_activity(
         context.presence,
         evidence,

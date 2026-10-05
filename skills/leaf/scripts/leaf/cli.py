@@ -715,9 +715,10 @@ def status(dir: str, state: str, detail: str) -> None:
     """Say the page waits on its user, or that you are done with it.
 
     Use waiting with DETAIL naming the answer you want from the user; waiting
-    without DETAIL invites text comments. Use idle when finished; unacknowledged
-    input and unanswered user moves prevent it. Work in hand is no status: name it
-    with `leaf task start`.
+    without DETAIL invites text comments. Either puts down every item you started
+    before it. Use idle when finished; unacknowledged input, unanswered user moves
+    and open tasks prevent it. Work in hand is no status: name it with
+    `leaf task start`.
     """
     from leaf.activity import unanswered
     from leaf.session import cmd_idle, cmd_waiting

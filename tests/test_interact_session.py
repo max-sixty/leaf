@@ -973,7 +973,7 @@ def test_thread_attention_names_the_workflow_the_thread_waits_on():
         "kind": "waiting",
         "reason": "task",
         "workflow": None,
-        "task": {"id": "t1", "title": "Rebuild", "running": None},
+        "task": {"id": "t1", "title": "Rebuild", "line": None},
     }
 
 
@@ -1911,8 +1911,8 @@ def test_a_start_is_one_log_record_read_at_the_banner_and_the_move(
 ):
     """`leaf task start` writes one record, in the log rather than the status file:
     the page's banner reads its line, and so does the receipt on the move it names,
-    under the user's own words. A `waiting` declaration or a pickup leaves it standing;
-    only the move's answer ends it."""
+    under the user's own words. A pickup leaves it standing, a `waiting` declaration
+    puts it down, and the move's answer ends it."""
     append_carried_log_record(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "why?"}
     )
@@ -1941,9 +1941,11 @@ def test_a_start_is_one_log_record_read_at_the_banner_and_the_move(
     )
     assert live["activity"]["detail"] == "reading the traces"
 
-    # A page-wide waiting line answers nothing on the thread.
+    # A waiting line answers nothing on the thread, but it puts the start down: the
+    # move is no longer in hand until the agent starts it again.
     assert _status(page_dir, "waiting", "look at v2").exit_code == 0
-    assert [item["stage"] for item in page_state(page_dir)["workflows"]] == ["working"]
+    assert [item["stage"] for item in page_state(page_dir)["workflows"]] == ["sent"]
+    assert _start(page_dir, "c1", "reading the traces").exit_code == 0
 
     # Nor does a pickup replace the start: it is a durable transport fact about the
     # exact user events.

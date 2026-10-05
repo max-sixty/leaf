@@ -152,7 +152,7 @@ def _apply_thread_attention(
                 "task": {
                     "id": task["id"],
                     "title": task["title"],
-                    "running": task["running"]["text"]
+                    "line": task["running"]["text"]
                     if task["running"] and task["running"]["condition"] is None
                     else None,
                 },
@@ -252,7 +252,12 @@ def browser_state(
             "coverage": coverage,
             "published_at": published_at,
         }
-    workflows = canonical_workflows(threads, thread_reading, page=active_page)
+    workflows = canonical_workflows(
+        threads,
+        thread_reading,
+        page=active_page,
+        put_down=present["status"].get("after", 0),
+    )
     activity = canonical_activity(
         present,
         workflows,

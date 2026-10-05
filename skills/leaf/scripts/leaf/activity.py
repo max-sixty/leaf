@@ -387,19 +387,21 @@ def _start_age(
 def _canonical_workflows(
     evidence: list[dict], present: dict, now: datetime, *, held: bool, turn: Turn
 ) -> tuple[list[dict], dict[str, tuple[bool, bool]]]:
-    """Age each workflow's evidence, and return beside them how quiet and whether
-    dropped each Working move's start is, which the page reading below dates by."""
+    """Age each workflow's evidence, and return beside them, for each Working move,
+    the start that holds it and how quiet and whether dropped that start is, which
+    the page reading below dates by."""
     result = []
     aging = {}
     for raw in evidence:
         item = dict(raw)
+        start = item.pop("held_by", None)
         stage = item["stage"]
         if stage == "working":
             if held:
                 quiet, dropped = _start_age(item, present, now, turn)
                 if quiet:
                     item["condition"] = {"kind": "stale", "operation": "work"}
-                aging[item["id"]] = (quiet, dropped)
+                aging[item["id"]] = (start, quiet, dropped)
             else:
                 stage = item["fallback_stage"]
                 item["ts"] = item["fallback_ts"]
@@ -421,13 +423,16 @@ def _canonical_tasks(
 ) -> tuple[list[dict], dict[str, tuple[bool, bool]]]:
     """Age the start running on each open task as a Working move's is aged, and
     return beside them how quiet and whether dropped each is. Nobody holding the page
-    has nothing in hand, so an unheld page's tasks run nothing."""
+    has nothing in hand, so an unheld page's tasks run nothing, and a `waiting` or
+    `idle` declaration puts down every start written before it: the task stays open,
+    with nothing running on it."""
+    put_down = present["status"].get("after", 0)
     result = []
     aging = {}
     for raw in tasks:
         task = dict(raw)
         start = task["running"]
-        if start is not None and not held:
+        if start is not None and (not held or start["seq"] <= put_down):
             task["running"] = None
         elif start is not None:
             quiet, dropped = _start_age(start, present, now, turn)
@@ -462,7 +467,7 @@ def canonical_activity(
     `turn` under the binding's attempt: every consumer that holds the agent to an
     answer, or refuses a second writer, reads that answer rather than the
     binding."""
-    from .tasks import item_starts, open_tasks
+    from .tasks import open_tasks
 
     now = datetime.fromisoformat(now_iso)
     status = present["status"]
@@ -511,9 +516,8 @@ def canonical_activity(
     # The items in hand: each Working move, by the start that holds it, and each task
     # a start runs on, each beside how quiet and whether dropped that start is. Their
     # newest start is the line the banner shows.
-    starts = item_starts(events)
     in_hand = [
-        (starts[item["input"]], aging[item["id"]])
+        (aging[item["id"]][0], aging[item["id"]][1:])
         for item in workflows
         if item["stage"] == "working"
     ] + [(task["running"], task_aging[task["id"]]) for task in tasks if task["running"]]

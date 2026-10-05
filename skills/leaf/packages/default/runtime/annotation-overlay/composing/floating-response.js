@@ -98,7 +98,9 @@ export function createFloatingResponsePlacement({
     );
   };
 
-  // The editing observer reports size changes only: CSS anchors own scroll following.
+  // The editing observer reports target size and layout shifts: CSS anchors own
+  // scroll following, while a target that moves across the available room must
+  // let the shared placement rule choose its side again.
   // A compact strip still observes scroll and layout shifts. Explicit publication may
   // replace a target or editor seat; composition stops this owner for that handoff.
   // Native-seat readiness belongs to composition; stopping this presenter retires
@@ -143,7 +145,7 @@ export function createFloatingResponsePlacement({
               nativeAttachment = false;
               update();
             },
-            { ancestorScroll: !fabPosition.nativeAvailable(), layoutShift: false },
+            { ancestorScroll: !fabPosition.nativeAvailable(), layoutShift: true },
           ),
         compact: autoUpdate,
       };

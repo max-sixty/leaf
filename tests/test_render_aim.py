@@ -84,6 +84,7 @@ from render_harness import (
     resized,
     round_trip,
     scroll_settled,
+    scroll_writes,
     select,
     sending,
     stamp_page,
@@ -1583,6 +1584,11 @@ def test_a_side_comment_rechooses_its_rail_after_horizontal_target_motion(
     expect(field).to_have_js_property(
         "value", "Keep this comment connected when its paragraph moves."
     )
+    assert not [
+        write
+        for write in scroll_writes(page, (5, 5, -5, 5))
+        if "lf-fab" in write["target"]
+    ]
 
 
 def test_a_comment_rechooses_its_side_after_vertical_target_motion(browser, serve):

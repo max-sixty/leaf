@@ -5787,6 +5787,8 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(browser, serv
     page.locator(".lf-threads-toggle").click()
     panel_settled(page, False)
 
+    expect(thread.locator(f'.lf-msg[data-event="{reply["id"]}"]')).to_be_visible()
+
     # Each message's workflow line reads the same in both views.
     question = append_carried_log_record(
         serve.page_dir,
@@ -5823,8 +5825,9 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(browser, serv
         },
     )
     told(page)
-    # The seat holds arrivals that would move the diff on screen behind its notice.
-    thread.get_by_role("button", name=re.compile(r"new repl")).click()
+    # The seat holds arrivals that would move the diff on screen behind its notice;
+    # the agent's reply, already read, is not among them.
+    thread.get_by_role("button", name="2 new replies").click()
     line = ":scope > .lf-msg-head .lf-msg-sending"
     for view, message_attr in ((thread, "data-event"), (panel_thread, "data-mid")):
         expect(

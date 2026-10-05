@@ -1307,9 +1307,8 @@ def test_send_grows_thread_around_the_words(
     }""")
     # Send's room stands beside every line under a finger and in a scrolled draft,
     # and after the last words otherwise; the sent message holds it where the draft did.
-    every_line = field.evaluate("el => el.endRoomOnEveryLine")
-    assert every_line == (touch or long is True)
-    held = "every-line" if every_line else "last-line"
+    held = field.evaluate("el => el.endRoom")
+    assert held == ("every-line" if touch or long is True else "last-line")
     with sending(page, "comment"):
         if touch:
             page.locator(".lf-fab-bar").get_by_role(

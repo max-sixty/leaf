@@ -368,17 +368,19 @@ const livePreview = ViewPlugin.fromClass(
   { decorations: (plugin) => plugin.decorations },
 );
 
-// The last line with words, which a sent Markdown message ends on: its rendering drops
-// the blank lines after it. A suggestion keeps them, so one ending in a blank line ends
-// its room a line lower once sent. A blank line has no words to run under the action,
-// and an inline box after its break would stand on a line of its own.
+// The last line, while it holds words. A blank last line has none to run under the
+// action, and an inline box after its break would stand on a line of its own. The room
+// stays on the last line rather than on the last with words, so the line above gives it
+// up as Shift+Enter opens a line, not when the first character lands on the new one: the
+// keystroke that changes the lines is the one that rewraps them.
 const lastLine = Decoration.line({ class: "lf-field-last" });
-const endRoom = EditorView.decorations.compute(["doc"], (state) => {
-  for (let at = state.doc.lines; at > 0; at--) {
-    const line = state.doc.line(at);
-    if (line.text.trim()) return Decoration.set([lastLine.range(line.from)]);
-  }
-  return Decoration.none;
+const lastWithWords = (state) => {
+  const last = state.doc.line(state.doc.lines);
+  return last.text.trim() ? last : null;
+};
+const lastLineRoom = EditorView.decorations.compute(["doc"], (state) => {
+  const last = lastWithWords(state);
+  return last ? Decoration.set([lastLine.range(last.from)]) : Decoration.none;
 });
 
 class LeafText extends HTMLElement {
@@ -485,7 +487,7 @@ class LeafText extends HTMLElement {
         ]),
         new LanguageSupport(markdownLanguage),
         livePreview,
-        endRoom,
+        lastLineRoom,
         fieldTheme,
         EditorView.lineWrapping,
         this.#editable.of(EditorState.readOnly.of(this.#readOnly)),
@@ -627,10 +629,12 @@ class LeafText extends HTMLElement {
     else this.#internals.states.add("placeholder-shown");
   }
 
-  // Whether the field holds its action's room on every line now rather than after its
-  // last words only: what a sent message keeping the draft's wrapping holds too.
-  get endRoomOnEveryLine() {
-    return parseFloat(getComputedStyle(this.#frame).paddingInlineEnd) > 0;
+  // Where the field holds its action's room now: `every-line`, `last-line` after its
+  // last words, or `none` while its last line is blank. A sent message keeping the
+  // draft's wrapping holds the same.
+  get endRoom() {
+    if (parseFloat(getComputedStyle(this.#frame).paddingInlineEnd) > 0) return "every-line";
+    return lastWithWords(this.#state) ? "last-line" : "none";
   }
 
   get value() {

@@ -1418,7 +1418,7 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_with_its_metadata(
         )
 
     short = geometry()
-    assert not field_box.evaluate("el => el.endRoomOnEveryLine")
+    assert field_box.evaluate("el => el.endRoom") == "none"
     text_inset = short["textStart"] - short["field"]["x"]
     assert short["textStart"] == pytest.approx(short["message"]["x"], abs=1)
     assert short["field"]["right"] == pytest.approx(short["message"]["right"], abs=1)
@@ -1474,12 +1474,83 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_with_its_metadata(
         field_box.evaluate("(el, top) => el.scrollTop = top", position)
         scrolling = geometry()
         # A scrolled draft carries every line past Send, so each keeps its room.
-        assert field_box.evaluate("el => el.endRoomOnEveryLine")
+        assert field_box.evaluate("el => el.endRoom") == "every-line"
         assert scrolling["send"]["bottom"] < scrolling["field_box"]["bottom"]
         assert scrolling["textStart"] - scrolling["field"]["x"] == pytest.approx(
             text_inset, abs=1
         )
         assert scrolling["textEnd"] <= scrolling["send"]["x"]
+
+
+def test_opening_a_line_under_a_full_last_line_moves_no_words(browser, serve):
+    """Send's room stands after the field's last words, so it changes lines with the
+    keystroke that changes the lines. A last line whose words fill the field puts the
+    room on a line of its own; Shift+Enter then opens the new line in that room's
+    place and the first character typed there moves nothing above it. When the room
+    stayed on the last line with words instead, that first character took it away and
+    the field shrank under the caret."""
+    url = serve(LONG_PAGE)
+    panel_comment(serve.page_dir, "Keep the first paragraph.", {"section": "p0"})
+    page = open_page(
+        browser,
+        url,
+        init_script="""
+          window.editorRoots = new Map();
+          const attach = Element.prototype.attachShadow;
+          Element.prototype.attachShadow = function(options) {
+            const root = attach.call(this, options);
+            if (this.localName === 'leaf-text') window.editorRoots.set(this, root);
+            return root;
+          };
+        """,
+    )
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    thread = page.locator(".lf-threads > .lf-thread:not([hidden])")
+    thread.locator(".lf-thread-summary").click()
+    field = thread.locator(".lf-thread-reply leaf-text")
+    field.click()
+
+    def reading():
+        return field.evaluate(
+            """host => {
+              const rows = [];
+              for (const line of window.editorRoots.get(host).querySelectorAll('.cm-line')) {
+                const range = document.createRange();
+                range.selectNodeContents(line);
+                for (const r of range.getClientRects()) {
+                  if (r.width < 0.5) continue;
+                  const row = rows.find(o => Math.abs(o.top - r.top) < 4);
+                  if (row) row.right = Math.max(row.right, r.right);
+                  else rows.push({top: r.top, right: r.right});
+                }
+              }
+              const box = host.getBoundingClientRect();
+              return {top: box.top, height: box.height,
+                      rows: rows.sort((a, b) => a.top - b.top)};
+            }"""
+        )
+
+    page.keyboard.insert_text("The first paragraph runs long enough to wrap once")
+    before = reading()
+    for key in "abcde " * 40:
+        page.keyboard.type(key)
+        after = reading()
+        if after["height"] > before["height"] and len(after["rows"]) == len(
+            before["rows"]
+        ):
+            break
+        before = after
+    else:
+        pytest.fail("no last line filled the field before its room")
+    full = reading()
+    page.keyboard.press("Shift+Enter")
+    opened = reading()
+    page.keyboard.type("S")
+    typed = reading()
+    assert opened["height"] == full["height"] == typed["height"], (full, opened, typed)
+    assert opened["top"] == full["top"] == typed["top"]
+    assert typed["rows"][: len(full["rows"])] == full["rows"]
 
 
 @pytest.mark.parametrize("thread_count", [1, 2])

@@ -177,9 +177,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-margin-preview[data-lf-comment-frame] .lf-msg:first-of-type > .lf-msg-body > .lf-msg-text > p:first-child { margin-top: 0; }
   .lf-margin-preview[data-lf-comment-frame] .lf-msg:first-of-type > .lf-msg-body > .lf-msg-text > p:last-child { margin-bottom: 0; }
   /* The editor's room for Send, held where the editor held it when the words were sent
-     (text-field.js, `endRoomOnEveryLine`): on every line, or after the last words
-     only — the last paragraph of words, before any pasted images, or a suggestion's
-     text. */
+     (text-field.js, `endRoom`): on every line, after the last words only — the last
+     paragraph of words, before any pasted images, or a suggestion's text — or, where
+     the draft ended on a blank line, nowhere. */
   .lf-margin-preview[data-lf-comment-frame="every-line"] .lf-msg:first-of-type > .lf-msg-body {
     padding-inline-end: calc(var(--lf-comment-text-pad-end) + var(--lf-comment-send-room)); }
   .lf-margin-preview[data-lf-comment-frame="last-line"] .lf-msg:first-of-type > .lf-msg-body > .lf-msg-text

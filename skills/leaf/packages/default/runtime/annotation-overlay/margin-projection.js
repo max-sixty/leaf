@@ -299,7 +299,7 @@ export function createMarginProjection({
       height: box.height,
       messageWidth: parseFloat(style.width),
       messageHeight: parseFloat(style.height),
-      roomOnEveryLine: element.endRoomOnEveryLine === true,
+      endRoom: element.endRoom ?? "none",
       scroll: element.scrollTop,
     };
   }
@@ -362,7 +362,7 @@ export function createMarginProjection({
     keeps(
       preview,
       "data-lf-comment-frame",
-      previewMessageViewport && (origin.roomOnEveryLine ? "every-line" : "last-line"),
+      previewMessageViewport && origin.endRoom,
     );
     const properties = {
       "--lf-comment-width": previewMessageViewport && `${origin.frame.width}px`,

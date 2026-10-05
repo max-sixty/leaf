@@ -158,7 +158,7 @@ customElements.define(
           keys: [" "],
           title: () => `show ${this.#nextState()}`,
           when: () => this.dataset.lfShotControls !== "off",
-          run: () => this.#margin?.activate("toggle"),
+          run: () => this.#show(this.#nextState()),
         },
       ]);
       commands(box, this.#flip);
@@ -405,16 +405,13 @@ customElements.define(
                 icon: position > 50 ? "compare-after" : "compare-before",
                 label,
                 accessibleLabel: `${label} — ${this.#alt}`,
-                activation: "toggle",
+                activation: "screenshot.toggle",
                 className: "lf-shot-toggle",
                 scope: this.#flip,
               }),
             ],
             readings: [],
           };
-        },
-        activate: (activation) => {
-          if (activation === "toggle") this.#show(this.#nextState());
         },
       });
     }

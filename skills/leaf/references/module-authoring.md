@@ -360,7 +360,12 @@ so crossing that semantic boundary replaces the host instead of emulating a butt
 element or a function returning the element that currently anchors the action. `source`
 defaults to that target and may separately name the semantic owner when presentation has
 to move to a surviving ancestor.
-`activate(token, context)` is the sole effect path and receives the projected origin,
+An entry that presents a declared command sets `scope` to its `commandScope` capability
+and `activation` to that command's stable id. Leaf derives the entry's disabled state
+from the command's availability and invokes the same `run(binding, context)` callback
+as its keyboard route. Keep its semantic action in `run`; no separate `activate`
+callback is needed for these entries. Other actions use `activate(token, context)`.
+The context carries the projected origin,
 surface, input kind, current entry, and a focus capability. That capability moves the
 current surface only when activation owned keyboard standing and otherwise returns
 false. The returned registration
@@ -485,11 +490,21 @@ const actions = commandScope("In a swipe deck", [
     control: passButton,
     bindingBadge: passHint,
     when: canSwipe,
-    run: () => passButton.click(),
+    run: () => swipe("pass"),
   },
 ]);
 commands(deck, actions);
 ```
+
+For a native button, `control` and `run` declare one activation path: Leaf invokes
+`run` for both its click and its keyboard command, and paints native disabled state
+from `when`. Remove a separate button click listener and disabled painter. Call
+`paintKeys()` after private state used by `when` changes; closures are not reactive.
+Use the semantic action directly in `run`, never the same button's `click()`. Native
+inputs keep their platform activation and editing behavior; a row that focuses an
+editor or activates a checkbox does not replace that native behavior. Generated
+contribution controls use the same callback through their surface-aware registration
+("Focus, motion, and travel" above).
 
 Set `decision: true` and provide `control` when a command starts, advances, answers, or
 revises the Ask containing `source`. This semantic role neither assigns a binding nor
@@ -559,7 +574,8 @@ controller.
 Every row passed to `commands()` has a stable dotted `id`, such as `draft.save`. Keep that
 identity when its key or wording changes: the command browser and repeated widget
 instances use it instead of display prose. If one compact row binds keys with different
-meanings, add `routes` with an `id`, `title`, and ordinary `binding` or explicit `contextKeys` for each meaning. The
+meanings, add `routes` with an `id`, `title`, and ordinary `binding` or explicit `contextKeys` for each meaning. A route may
+declare its own `when` when its control is available independently of its siblings. The
 shortcut bar stays compact, while the command reference lists and runs each route on its own.
 Use `runFromCommandReference: false` only for a parameterized step that cannot be run without a
 choice the command reference does not have, such as a generated hint tied to the live viewport. An

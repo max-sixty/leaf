@@ -15,12 +15,13 @@ The envelope names the carrier that brings it into an agent's context, and the
 two facts that differ by carrier are stated once for the whole delivery rather
 than per event. `acknowledge` says who confirms receipt: the reader of a `leaf
 wait`, in the way its harness runs that command, or nobody, where the carrier
-confirmed it itself. A host hook always names the reader's confirmation route.
+confirmed it itself. The `hook` carrier names the reader's confirmation route;
+Codex tool hooks offer a `queue` envelope whose pointer read confirms pickup.
 A carrier whose turn speaks for the delivery, App Server,
 turns the one thread reply the delivery owes into a `turn` answer, which that
 turn's own messages write; every other carrier leaves it a `reply` for `leaf thread
-reply`. Each event's `answer` is that same address, so its `answering` clauses
-follow from the answer rather than from the carrier.
+reply`. Each event's `answer` is that same address. Its delivered `handling`
+combines registry clauses for the event kind and for that answer kind.
 """
 
 import json

@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>Threads in Leaf</title>
+    <meta
+      name="description"
+      content="How comments attach to passages in Leaf, how replies appear beside the passage and in the Threads panel, with a fictional exchange to try."
+    />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+  </head>
+  <body class="site-page">
+    <main class="layout-column">
+      <nav class="sitenav" aria-label="Site">
+        <a class="brand" href="/">leaf</a>
+        <a href="/examples/">Examples</a>
+        <a href="/how-it-works/">How it works</a>
+        <a href="/extending/">Extending</a>
+        <a href="https://github.com/max-sixty/leaf">GitHub</a>
+      </nav>
+
+      <header id="top">
+        <p class="eyebrow">using leaf</p>
+        <h1>Threads</h1>
+        <p class="lede" id="lede">
+          A comment attaches a conversation to a passage. Replies stay beside that
+          passage, so the discussion and the page can be read together.
+        </p>
+      </header>
+
+      <section id="comments">
+        <h2>Comments and replies</h2>
+        <p id="comment-route">
+          Select a passage, then use the comment control or press <kbd>c</kbd> to write
+          a comment. The thread keeps that passage as its anchor. Its marker opens the
+          conversation beside the passage, where the agent's reply and the reply box
+          appear.
+        </p>
+        <p id="panel-route">
+          The <strong>Threads</strong> control in the banner opens the thread panel.
+          Select a thread to read its messages and reply. Its passage link returns to
+          the anchor on the page.
+        </p>
+      </section>
+
+      <section id="practice">
+        <h2>Try a thread</h2>
+        <p id="sample-introduction">
+          This fictional exchange shows an agent's reply after revising the importer
+          policy. Open the marker beside the sentence to read the exchange, or open
+          <strong>Threads</strong> in the sample's top row. Select the sentence to try a
+          comment. The sample has its own temporary log; no agent answers its practice
+          comments. Reset restores the fictional exchange.
+        </p>
+        <script id="queue-history" type="application/json">
+          [
+            {
+              "id": "queue-comment",
+              "kind": "comment",
+              "author": "user",
+              "anchor": { "section": "queue-policy" },
+              "text": "Can the importer discard the oldest job rather than rejecting new work?"
+            },
+            {
+              "kind": "reply",
+              "author": "agent",
+              "parent": "queue-comment",
+              "text": "Updated: the importer now drops the oldest queued job. The API still rejects new work when its queue is full."
+            },
+            {
+              "kind": "thread_title",
+              "author": "agent",
+              "agent": "Example agent",
+              "session": "fictional-importer-review",
+              "thread": "queue-comment",
+              "title": "Importer queue policy"
+            }
+          ]
+        </script>
+        <lf-sample id="queue-exchange" label="fictional importer review" window>
+          <template id="queue-page" data-sample data-sample-events="queue-history">
+            <h1>Importer queue policy</h1>
+            <p id="queue-policy">
+              When the queue is full, the importer discards the oldest queued job and
+              admits the new one.
+            </p>
+          </template>
+        </lf-sample>
+      </section>
+
+      <footer class="site-footer" id="colophon">
+        <p id="links">
+          <a href="/how-it-works/#loop">How it works: the communication loop</a> ·
+          <a href="/examples/">Examples</a>
+        </p>
+        <p id="license">Leaf is open source, under the MIT license.</p>
+      </footer>
+    </main>
+  </body>
+</html>

@@ -20,7 +20,8 @@ vars:
 
     Reading it will show one user comment, id 7c41d0e2, in thread 9b52c1a3:
     "Keep the existing layout; only change the cache behavior."
-    Its answering clause calls for a plain `leaf thread reply`.
+    Its handling clause calls for a plain `leaf thread reply`.
+    The returned envelope has `carrier: "queue"` and `acknowledge: null`.
 
     Read whatever instructions you need. Only Skill and Read run here, so write the
     exact commands you would run next, including the reply to the page, and say

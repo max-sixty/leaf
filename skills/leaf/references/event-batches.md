@@ -28,9 +28,10 @@ machine's immutable delivery store.
 
 Some hosts deliver it inline; others deliver a pointer that `leaf delivery read <id>`
 resolves to the same object. Your host contract names which. The shape is the same on
-every carrier, and `carrier` names the one that delivered it: `wait` for `leaf
-wait`'s output, `hook` for the context a host hook adds to the turn it opens,
-`queue` for a pointer Codex queued, `app-server` for a turn Leaf started. Two things differ by carrier, and the envelope states each once:
+every carrier. `carrier` selects the receipt and reply contract: `wait` for `leaf
+wait`'s output, `hook` for Claude Code's hook context, `queue` for a Codex
+pointer offered through its tool hook or queued as the next message, `app-server`
+for a turn Leaf started. Two things differ by carrier, and the envelope states each once:
 
 - `acknowledge` says who confirms receipt and how. On `wait` it is the reader of
   wait, in the way your host runs the next one. On `hook`, its reader confirms
@@ -62,7 +63,7 @@ retry key `attempt`, then adds these delivery readings:
 - `answer`, when present, freezes the answer the event owed at capture: its
   `kind` (`reply`, `turn` or `markup`) with the address it is written
   under, the same object `leaf page state` lists for the move's workflow. The
-  event's `answering` clauses say how to write it. Until the answer is written,
+  event's `handling` clauses say how to write it. Until the answer is written,
   `leaf status idle` refuses, and the Stop hook holds the turn open unless that turn
   claimed the move's work (`references/conversation-loop.md`, "Long-running work").
   Re-read current state before writing because later evidence may already have
@@ -75,7 +76,9 @@ retry key `attempt`, then adds these delivery readings:
 - `handling`, when present, lists clause ids in the batch's `handling` object,
   in the order to read them. That object gives each distinct instruction's text
   once; ids belong only to that batch. Follow every named clause for this event:
-  together they cover this event's case and the answer it owes.
+  together they cover this event's case and the answer it owes. Leaf combines
+  the registry's event-kind `handling` and answer-kind `answering` instructions
+  into this one list before delivery.
 
 The batch-level `threads` carry each thread's title (null until named),
 anchor, closure state, earlier messages, and standing gestures on sent widgets.
@@ -154,7 +157,7 @@ names.
 
 Acknowledgement is transport receipt, not semantic settlement. Write every
 still-current `answer` with the operation its kind names, naming the work each one
-starts with a `working` status as its `answering` clauses say
+starts with a `working` status as its `handling` clauses say
 (`references/conversation-loop.md`, "When to write"), then re-enter the host's wait
 loop: `waiting` after every obligation has been answered and the user owns the next
 move, `working` while you continue.

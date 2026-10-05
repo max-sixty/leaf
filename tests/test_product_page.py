@@ -11,18 +11,12 @@ from pathlib import Path
 import click
 import pytest
 from click.testing import CliRunner
-from interact_support import append_carried_log_record
 from jsonschema import Draft202012Validator
 from leaf import cli as cli_model
-from leaf import delivery as delivery_model
 from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
-from leaf import files as files_model
 from leaf import service as service_model
-from leaf.hook_carrier import hook_acknowledgement
 from leaf.registry import validation as registry_validation
-from leaf.registry.contract import event_clauses
-from leaf.registry.storage import active_registry
 from leaf.structure import SourceDocument
 from leaf.validation import compatibility as validation_model
 from leaf_dev import record_demo
@@ -61,6 +55,7 @@ def test_docs_pages_leave_delivery_markup_to_leaf():
         "how-it-works.html",
         "registry.html",
         "event-log.html",
+        "threads.html",
     }
     for page in pages:
         text = page.read_text()
@@ -184,97 +179,6 @@ def test_package_tutorial_registry_entry_is_valid(page_dir):
 
     registry_validation.validate_registry(registry, "package tutorial")
     validation_model.validate_registry_examples(registry, "package tutorial")
-
-
-def test_how_it_works_quotes_the_real_check_and_stamp_lines(page_dir):
-    """Both lines the transcript shows an agent, taken from the commands themselves.
-
-    A shown line is a promise about what the user will see. The changelog is the
-    page's own, so the stamp record is generated here with the transcript's text and
-    compared field by field: a renamed or added field has to be written into the page
-    before this passes again. Record, voice and captured artifact identities differ
-    per page; the artifact coordinate must match its committed revision marker.
-    """
-    checked = CliRunner().invoke(cli_model.cli, ["page", "check", str(page_dir)])
-    assert checked.exit_code == 0, checked.output
-    success = next(
-        line for line in checked.output.splitlines() if line.startswith("✓ index.html:")
-    )
-
-    changelog = "Two ways to shed load — which?"
-    stamped = CliRunner().invoke(
-        cli_model.cli, ["page", "stamp", str(page_dir), "--text", changelog]
-    )
-    assert stamped.exit_code == 0, stamped.output
-
-    transcript = html.unescape((DOCS / "how-it-works.html").read_text())
-    assert success in transcript
-    lines = transcript.splitlines()
-    command = next(i for i, line in enumerate(lines) if "$ leaf page stamp" in line)
-    shown = json.loads(lines[command + 1])
-    record = json.loads(stamped.output)
-    assert shown.keys() == record.keys()
-    assert (
-        record["publication"]
-        == files_model.revision_path(page_dir, record["revision"]).stem
-    )
-    assert re.fullmatch(r"r1-[0-9a-f]{16}", shown["publication"])
-    per_run = {"id", "ts", "session", "agent", "publication"}
-    assert {k: v for k, v in shown.items() if k not in per_run} == {
-        k: v for k, v in record.items() if k not in per_run
-    }
-
-
-def test_how_it_works_delivery_has_the_shape_a_real_delivery_has(page_dir):
-    """The captured envelope is hand-copied, so it carries what a delivery carries now.
-
-    A batch names each thread its events land in, with that thread's
-    metadata, and the page's sample once kept an empty list beside a comment that
-    opened one. The entry keys are read off a delivery frozen here rather than
-    listed, so a field the envelope gains has to be written into the page too. Each
-    event's handling is the text the shipped layer delivers for it today, so a
-    reworded clause has to be copied into the sample.
-    """
-    transcript = html.unescape((DOCS / "how-it-works.html").read_text())
-    # The page indents the envelope for reading, so it opens on a line of its own.
-    shown, _ = json.JSONDecoder().raw_decode(transcript, transcript.index("\n{\n") + 1)
-    assert shown["format"] == delivery_model.DELIVERY_FORMAT
-    comment = append_carried_log_record(
-        page_dir, {"kind": "comment", "author": "user", "text": "Please answer"}
-    )
-    with service_model.PageTransaction(page_dir) as page:
-        stored = next(event for event in page.events if event["id"] == comment["id"])
-        real = delivery_model.freeze_delivery(
-            [delivery_model.batch_data(page_dir, page, [stored])],
-            carrier="hook",
-            acknowledge=hook_acknowledgement,
-        )
-    # The transcript is Claude Code's loop, whose prompt hook carries the delivery
-    # and confirms it, so nothing is left for the agent to acknowledge.
-    assert shown.keys() == real.keys()
-    assert shown["carrier"] == "hook"
-    assert f"leaf delivery ack {shown['id']}" in shown["acknowledge"]
-    assert f"leaf delivery ack {real['id']}" in real["acknowledge"]
-    [real_batch] = real["batches"]
-    (real_thread,) = real_batch["threads"]
-    registry = active_registry(page_dir)
-
-    for batch in shown["batches"]:
-        assert batch.keys() == real_batch.keys()
-        named = [c for event in batch["events"] for c in event["threads"]]
-        assert [c["id"] for c in batch["threads"]] == list(dict.fromkeys(named))
-        for thread in batch["threads"]:
-            assert thread.keys() == real_thread.keys()
-        digests = {c["id"]: c for c in batch["threads"]}
-        for event in batch["events"]:
-            shown_clauses = [batch["handling"][h] for h in event["handling"]]
-            # A clause reads the event's thread beside the event.
-            case = dict(event)
-            if event["threads"]:
-                case["thread"] = digests[event["threads"][0]]
-            told = event_clauses(case, registry)
-            delivered = [c["text"] for c in told]
-            assert shown_clauses == delivered, event["id"]
 
 
 EVENT_LOG = DOCS / "event-log.html"

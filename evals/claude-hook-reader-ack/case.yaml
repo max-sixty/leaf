@@ -1,17 +1,20 @@
 # Added for the cutover from hook stdout receipts to actual reader acknowledgement.
 # Live idle/mid-turn scenarios prove the host path; this pins the instruction order.
+# Extended during the delivered handling reconciliation to guard receipt, local
+# work claims and thread naming from the event's merged clause references.
 description: claude-hook-reader-ack
 metadata:
-  purpose: "A Claude hook delivery is reader-confirmed: acknowledge its complete inline envelope before work, without competing with the Stop hook's watch."
+  purpose: "A Claude hook delivery is reader-confirmed: acknowledge its complete inline envelope before work, then follow each event's merged handling clauses for its local work claim and named reply."
   tags: [wait-loop]
 vars:
   prompt: |
     You are a Claude Code session using Leaf. You just received this complete inline envelope from Leaf's prompt hook:
-    {"format":"leaf-delivery-v3","id":"dc81eabb","carrier":"hook","acknowledge":"Once this complete delivery is in your context, confirm it with `leaf delivery ack dc81eabb`. Until then, the user's moves read Sent.","batches":[{"page":"/tmp/review","through_seq":1,"threads":[],"handling":{},"events":[{"kind":"comment","id":"comment-a","seq":1,"author":"user","text":"Please revise the opening to name the owner.","answer":{"kind":"reply","to":"comment-a","for":"comment-a"},"threads":["comment-a"],"subject":{"kind":"thread","id":"comment-a"},"handling":[]}]}]}
+    {"format":"leaf-delivery-v3","id":"dc81eabb","carrier":"hook","acknowledge":"Once this complete delivery is in your context, confirm it with `leaf delivery ack dc81eabb`. Until then, the user's moves read Sent.","batches":[{"page":"/tmp/review","through_seq":1,"threads":[{"id":"comment-a","title":null,"elided":0,"messages":[]}],"handling":{"h1":"This event's thread has no title yet: name it by adding `--title \"<a few words>\"` to the reply that answers it, so the thread panel lists its subject rather than its opening words. If Leaf has named it from its opening message by then, that name stands.","h2":"When the event asks for work, name that work before any other, including reading the source it concerns: `leaf status <page> working \"<the work, in a line>\" --on <address>`, where `<address>` is the event's `answer.to`. The move then reads Working, and the line stands beside the thread and in the banner until you answer. Do the work and put its result on the page, with whatever shows it (captures, a figure, the numbers), then answer with `leaf thread reply <page> --for <event-id>`: what changed, in a sentence or two, linking the section that shows it. When the event asks for no work, as a question may not, answer it with that reply at once. The page carries the work, and the thread only the conversation about it. `leaf thread reply` checks any saved page edit and makes it live before posting. If a revision removes what the thread is anchored on, move the thread in the reply that reports it with `--section <id>` (narrowed by `--quote` or `--part` if needed), or `--detach` it if its subject has left the page. Add `--awaits` only if your reply's prose asks the user something."},"events":[{"kind":"comment","id":"comment-a","seq":1,"author":"user","text":"Please revise the opening to name the owner.","answer":{"kind":"reply","to":"comment-a","for":"comment-a"},"threads":["comment-a"],"subject":{"kind":"thread","id":"comment-a"},"handling":["h1","h2"]}]}]}
 
     The page is already served. Read the Leaf instructions needed for your host.
     Only Skill and Read run here; write each other tool call you would make, with
-    its full JSON input, before starting the requested revision. Then end your answer.
+    its full JSON input, before starting the requested revision. Then describe
+    the revision and write the response commands you would run after finishing it.
 assert:
 - type: javascript
   metric: reads-claude-code-host
@@ -25,3 +28,14 @@ assert:
     delivery with `leaf delivery ack dc81eabb`, before any status/work/reply.
     Fail if a tool call starts `leaf wait`, or if it says the hook already confirmed
     receipt and omits the acknowledgment. Reading further instructions first is fine.
+- type: llm-rubric
+  metric: merged-handling
+  value: |
+    Pass only if, after acknowledging the delivery and before reading or editing
+    the page, the response writes leaf status /tmp/review working with a concrete
+    description of the opening revision and --on comment-a. After describing the
+    revision, it writes leaf thread reply /tmp/review with --title naming the
+    thread's subject and a reply saying what changed. It may use --for comment-a
+    or infer the only outstanding reply. Fail if it tries to read an event.answering
+    field, asks for missing answering clauses, or ignores either of the clauses
+    referenced by this event's handling array.

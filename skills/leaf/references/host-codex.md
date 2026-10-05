@@ -31,8 +31,10 @@ explicitly when you are claiming a page without serving it.
 
 While your turn is running, Leaf's asynchronous tool hook offers new input between
 steps, after the current model request and tool calls finish. Read its pointer
-with `leaf delivery read <id>`; reading it confirms pickup in this turn. The
-hook cannot interrupt a running request or start an idle turn.
+with `leaf delivery read <id>`; reading it confirms pickup in this turn. This
+envelope has `carrier: "queue"` and `acknowledge: null`, because the hook offers
+the same delivery the adapter would queue. The hook cannot interrupt a running
+request or start an idle turn.
 
 When your task is idle, or a hook's pointer was not read before the turn ended,
 the adapter hands the delivery to `codex queue` as the task's next user message: a
@@ -42,7 +44,7 @@ acknowledges queued delivery once Codex's queue accepts it, so do not run `leaf 
 `leaf wait --ack` while it holds the task. The same delivery id may return after an
 uncertain queue response, which is the retry `references/event-batches.md` describes.
 
-Answer every obligation with the operation its delivered `answering` clause names,
+Answer every obligation with the operation its delivered `handling` clause names,
 `leaf thread reply` for a plain reply. Your final message stays in the Codex
 chat and never reaches the page. Leaf does not observe the task's turns either, so
 the banner shows only the status you declare.

@@ -30,7 +30,7 @@ from render_cases_interaction import (
     SEATED_ASK_WIDGETS,
     live_url,
 )
-from render_cases_layout import banner_control, toggle_asks, with_one_ask
+from render_cases_layout import banner_control, toggle_queue, with_one_ask
 from render_cases_navigation import (
     composer_quote,
 )
@@ -3102,7 +3102,7 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     takes, so the release-notes shot, the wide exhibit in the control, grows left only
     to stop short of it.
 
-    The Asks drawer stands over the left margin and moves nothing in it. A narrow viewport
+    The Queue panel stands over the left margin and moves nothing in it. A narrow viewport
     returns the aside to the flow, and print proves paper reserves no blank margin for a
     posture it cannot use.
 
@@ -3222,7 +3222,7 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
         "() => Number(getComputedStyle(document.querySelector('lf-toc a')).opacity) === 0"
     )
 
-    # The Asks drawer stands over the page's left margin and moves nothing in it: the fixed
+    # The Queue panel stands over the page's left margin and moves nothing in it: the fixed
     # ToC and the sidebar stay where the page put them, under the drawer while it stands.
     resized(page, 1700, 900)
     margin = """() => {
@@ -3231,10 +3231,10 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
           return {sidebarLeft: sidebar.left, tocLeft: toc.left};
         }"""
     before = page.evaluate(margin)
-    banner_control(page, ".lf-asks").click()
-    expect(page.locator(".lf-asks-panel")).to_be_visible()
+    banner_control(page, ".lf-queue").click()
+    expect(page.locator(".lf-queue-panel")).to_be_visible()
     page.wait_for_function(
-        """() => document.querySelector('.lf-asks-panel').getAnimations().length === 0"""
+        """() => document.querySelector('.lf-queue-panel').getAnimations().length === 0"""
     )
     assert page.evaluate(margin) == before
     geometry = page.evaluate(
@@ -3257,8 +3257,8 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     assert abs(geometry["tocBottom"] - (geometry["lineTop"] - 24)) <= 1, (
         f"the map's foot is not the band's top less its inset: {geometry}"
     )
-    banner_control(page, ".lf-asks").click()
-    expect(page.locator(".lf-asks-panel")).to_be_hidden()
+    banner_control(page, ".lf-queue").click()
+    expect(page.locator(".lf-queue-panel")).to_be_hidden()
 
     resized(page, 1400, 900)
 
@@ -3523,8 +3523,8 @@ def test_margin_residents_stand_where_the_room_beside_the_column_holds_them(
         else:
             assert at["note"]["float"] == "none", (width, at)
 
-    # The Asks drawer stands over the page and grants or withdraws no margin.
-    toggle_asks(page)
+    # The Queue panel stands over the page and grants or withdraws no margin.
+    toggle_queue(page)
     panelled = page.evaluate(reading)
     assert panelled["sidebars"] == at["sidebars"]
     assert panelled["taken"] == at["taken"]

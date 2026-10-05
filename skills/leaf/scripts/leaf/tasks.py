@@ -59,11 +59,6 @@ def canonical_tasks(events: list) -> list[dict]:
     return list(tasks.values())
 
 
-def open_tasks(events: list) -> list[dict]:
-    """The tasks no `task_end` has ended."""
-    return [task for task in canonical_tasks(events) if task["state"] == "open"]
-
-
 def task_error(event: dict, events: list, threads: dict) -> str | None:
     """Why the append door refuses a task event: a task stands on an open thread
     of `threads` (`events.build_threads`), and an outcome ends a task still open."""

@@ -244,8 +244,8 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
    holds a thread waiting on the agent has left the user's list while the user is still
    standing in it. Exactly one decision wears it at a time: every shipped widget
    draws one box for it to paint on, and one a page styles boxless hangs it on the
-   boxes its contents make (shownParts). While the Asks drawer is open, its row mirrors
-   the same fact — for a decision the drawer lists, which is one the user still owes. It is an outline like every other mark the
+   boxes its contents make (shownParts). While the Queue panel is open, the row naming
+   the decision mirrors the same fact. It is an outline like every other mark the
    runtime paints on the page's own elements: it moves nothing on arriving, and it
    keeps its place for nothing, being the element's own paint rather than a box in
    the chrome that would have to chase it down every scroll, reflow and drag. A widget
@@ -357,7 +357,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      through every widget. Answered at the root, because a rule per surface is a list
      that stops being complete: the banner, the shortcut bar and the panel's head were named
      and the panel itself, the drawers, the toolbar's menu, the command reference, the find
-     row and the asks list were left open, all of them selectable and every one of them
+     row and the queue list were left open, all of them selectable and every one of them
      the same drag. What a user may still copy out of here says so for itself, at
      .lf-quote and .lf-msg-body below. */
   :scope, .lf-legend { position: static; }
@@ -490,10 +490,16 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      the sentence: on one row between the status's room and the run, in a box reserved
      for the counts they usually reach (banner.js), which only grows. Their words start
      at its fixed leading edge in tabular digits, so a count changing moves none of
-     them, and a sentence changing reaches them only as the press's ellipsis. */
+     them, and a sentence changing reaches them only as the press's ellipsis. They are a
+     press of their own, opening the Queue panel, in the status press's face and ring. */
   .lf-banner > .lf-status-queues { flex: none;
-    min-width: var(--lf-reserved-width, 0); white-space: nowrap; line-height: 1.35;
+    min-width: var(--lf-reserved-width, 0); min-height: var(--aim-floor);
+    padding: 2px 0; border: 0; border-radius: 4px; background: none; font: inherit;
+    text-align: left; cursor: pointer; white-space: nowrap; line-height: 1.35;
     font-variant-numeric: tabular-nums; color: var(--ink-2); }
+  .lf-banner > .lf-status-queues:hover { color: var(--ink); }
+  .lf-banner > .lf-status-queues:is(:focus-visible, .lf-focus-visible) {
+    outline: var(--focus-ring); outline-offset: 2px; --lf-focus-ring: status; }
   .lf-status-button:hover { color: var(--ink); }
   .lf-status-button:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring);
     outline-offset: 2px; --lf-focus-ring: status; }
@@ -528,7 +534,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      publishes: setOpenDrawer and the Threads toggle keep aria-expanded true on exactly
      the one surface standing, so the tint is that fact painted rather than a
      second class to keep in step. Scoped, because lf-auxiliary-toggle is worn only by the
-     banner's own controls — All leaves, Asks, Threads — and a rule for it at
+     banner's own controls — All leaves, Queue, Threads — and a rule for it at
      document level would widen the shared vocabulary by a name no widget wears. */
   .lf-btn.lf-auxiliary-toggle[aria-expanded="true"] {
     border-color: transparent; color: var(--accent); background: var(--chip);
@@ -717,40 +723,45 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      nothing. */
   .lf-others-line { color: var(--ink-2); margin-left: 17px; white-space: nowrap;
     overflow: hidden; text-overflow: ellipsis; }
-  /* A decision's row, against a leaf's above: a leaf's is a link out to another page and a
-     decision's is a press that moves this one, so it is a button and takes the button's own
-     reset. */
-  .lf-asks-row { display: block; width: 100%; text-align: left; padding: 8px 10px;
-    border: 0; border-radius: 6px; background: none; color: inherit; font: inherit;
+  /* The Queue panel (queue-panel.js; experimental, expected to change a lot). Each list
+     is headed by its name and count in the apparatus voice; Done's heading is its fold's
+     own door. A row, against a leaf's above, is a press that moves this page rather than
+     a link out of it, so it is a button and takes the button's own reset: the kind of
+     item in a column of its own, then the item's words over where it stands. */
+  .lf-queue-group + .lf-queue-group { margin-top: 8px; }
+  .lf-queue-heading { display: block; padding: 6px 10px 4px; border-radius: 6px;
+    color: var(--muted); font-size: var(--t-6); font-weight: 600;
+    text-transform: uppercase; letter-spacing: .05em; }
+  .lf-queue-done { margin: 8px 0 0; padding: 0; border: 0; border-radius: 0; }
+  .lf-queue-done > summary { display: list-item; cursor: pointer; }
+  .lf-queue-done > summary:hover { background: var(--chip); }
+  .lf-queue-empty { padding: 2px 10px 6px; color: var(--ink-2); }
+  .lf-queue-row { display: grid; grid-template-columns: 5.5em minmax(0, 1fr);
+    column-gap: 8px; width: 100%; text-align: left; padding: 7px 10px; border: 0;
+    border-radius: 6px; background: none; color: inherit; font: inherit;
     cursor: pointer; }
-  .lf-asks-row:hover { background: var(--chip); }
+  .lf-queue-row:hover { background: var(--chip); }
   /* Both rings this row can wear, inset together. A control packed into a list states
      its own inset (theme.css, --focus-ring), because the list clips to its padding box.
-     The second ring arrives from a rule written for a page element with room around
-     it: while the drawer is open the row mirrors the standing decision (markHere) wherever
-     the drawer lists that decision, so it wears the decision's own outset ring and lost a pixel of
-     it to each edge. */
-  .lf-asks-row:is(:focus-visible, .lf-focus-visible, [data-lf-ask]) {
-    outline: var(--focus-ring); --lf-focus-ring: asks-row; outline-offset: calc(-1 * var(--focus-ring-w)); }
-  /* What kind of thing is asking, in the apparatus voice, over the decision's own words in
-     the page's. Two lines, because they are two claims: the kind is the runtime's word
-     for the element and the words below it are the page's own. */
-  .lf-asks-kind { display: block; color: var(--muted); font-size: var(--t-6);
-    text-transform: uppercase; letter-spacing: .05em; }
-  /* Three lines at most, then ellipsized: a decision's opening words are a name here, and a
-     name that runs to eight lines stops being one — while a single line would cut most
-     questions off before they said which question they were. */
-  .lf-asks-says { display: -webkit-box; -webkit-box-orient: vertical;
-    -webkit-line-clamp: 3; overflow: hidden; }
-  .lf-asks-answer { display: none; margin-top: 3px; color: var(--ink-2);
-    font-size: var(--t-6); font-weight: 600; }
-  .lf-asks-row[data-lf-answer-state="answered"] .lf-asks-answer {
-    display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
-    overflow: hidden; }
-  .lf-asks-row[data-lf-answer-state="answered"] .lf-asks-kind {
-    color: var(--ok-ink); }
-  .lf-asks[data-lf-complete] { border-color: var(--ok);
-    background: var(--ok-tint); color: var(--ok-ink); }
+     The second ring is the standing Ask's (markHere), which the row naming that Ask
+     mirrors while the panel is open. Done's door is a stop in the same list. */
+  .lf-queue-row:is(:focus-visible, .lf-focus-visible, [data-lf-ask]),
+  .lf-queue-done > summary:is(:focus-visible, .lf-focus-visible) {
+    outline: var(--focus-ring); --lf-focus-ring: queue-row;
+    outline-offset: calc(-1 * var(--focus-ring-w)); }
+  /* Green marks a move the user owes, as it does on a thread; the agent's live work wears
+     the accent; what is done goes quiet. */
+  .lf-queue-kind { grid-row: span 2; align-self: start; justify-self: start;
+    padding: 0 5px; border-radius: 4px; background: var(--chip); color: var(--ink-2);
+    font-size: var(--t-6); line-height: 1.7; white-space: nowrap; }
+  [data-lf-queue="you"] .lf-queue-kind { background: var(--ok-tint); color: var(--ok-ink); }
+  .lf-queue-row[data-lf-live] .lf-queue-kind { color: var(--accent); }
+  /* Two lines at most, then ellipsized: the item's words are a name here. */
+  .lf-queue-title { display: -webkit-box; -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2; overflow: hidden; }
+  .lf-queue-where { color: var(--ink-2); font-size: var(--t-6); white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis; }
+  .lf-queue-done .lf-queue-row { color: var(--ink-2); }
   /* Version news remains a legible control at every width. When the row runs out of
      room the toolbar above scrolls; clipping the one control instead left a visible
      eighteen-pixel button containing none of its words. */
@@ -834,7 +845,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      and the passage it is about. A quote is the page's own words and a message is
      somebody's, so a user copying either is copying what was said rather than the
      layer talking about itself — which is what a head, a count and a control's label
-     are, and why the run of them a drag once swept up ("All leaves (6) · Asks 0/2 · v1")
+     are, and why the run of them a drag once swept up ("All leaves (6) · Queue · v1")
      is not in this list.
 
      Fields are not in it, and that is a measurement rather than a decision: a drag
@@ -1477,7 +1488,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     background: var(--veil); backdrop-filter: blur(6px); border-top: 1px solid var(--rule);
     overflow: hidden; white-space: nowrap; }
   /* A drawer stands under the band in both postures, its list ending above the band's
-     height. Where the Leaves drawer, or the Asks drawer on a narrow window, covers the page,
+     height. Where the Leaves drawer, or the Queue drawer on a narrow window, covers the page,
      the band stays over it and its scrim, the guide to the keys the drawer answers, rather
      than going under them with the page (auxiliary-surfaces.js). */
   .lf-shortcut-bar[data-lf-over-covering] { z-index: var(--lf-z-covering-band); }

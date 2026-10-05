@@ -578,9 +578,7 @@ def test_gallery_revision_preserves_every_open_quoted_thread(browser, serve):
         expect(thread.locator(".lf-quote")).to_contain_text(
             f"“{root['anchor']['quote']}” Changed"
         )
-        expect(thread.locator(".lf-quote")).to_have_attribute(
-            "aria-disabled", "false"
-        )
+        expect(thread.locator(".lf-quote")).to_have_attribute("aria-disabled", "false")
         expect(thread.locator(".lf-quote.detached")).to_have_count(0)
         expect(thread.locator(".lf-msg")).to_have_count(1)
     moves = [

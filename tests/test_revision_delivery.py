@@ -384,8 +384,11 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
     a package's pane before any script runs. An occurrence's own `data-width`,
     `data-bound` or `data-height` says it for that occurrence. An element naming page
     media carries the box that holds all of it, read from the images, so a frame stands
-    in their shape before they decode. Markup inside a template is inert, and
-    everything else in the source stays as written."""
+    in their shape before they decode. A widget declaring the structure its module will
+    draw (`x-prepaint`) carries it as its first child, marked as delivery's, so the
+    browser lays that structure out before the module runs, and one that first paints
+    as another widget will stand in it carries that widget's (`as`). Markup inside a
+    template is inert, and everything else in the source stays as written."""
 
     def png(width, height):
         return Resource(
@@ -399,6 +402,8 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
         "lf-chip": {"x-inline": True},
         "lf-feed": {"x-bound": "end"},
         "lf-plot": {"x-height": 400},
+        "lf-meter": {"x-prepaint": '<span class="lf-meter-face">0 left</span>'},
+        "lf-gauge": {"x-prepaint": {"as": "lf-meter"}},
     }
     source = (
         "<!doctype html><html><head><title>T</title></head><body><main>"
@@ -408,7 +413,10 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
         '<pre data-bound="start">log</pre>'
         '<lf-plot id="plot"></lf-plot><lf-plot id="tall" data-height="240"></lf-plot>'
         '<lf-pair id="pair" before="/media/a.png" after="/media/b.png"></lf-pair>'
-        "<template><lf-zone id=later label=Later><p>x</p></lf-zone></template>"
+        '<lf-meter id="meter" value="3"><p>3 left</p></lf-meter>'
+        '<lf-gauge id="gauge"></lf-gauge>'
+        "<template><lf-zone id=later label=Later><p>x</p></lf-zone>"
+        "<lf-meter id=inert></lf-meter></template>"
         "</main></body></html>"
     )
     delivered = compose_document(
@@ -444,7 +452,19 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
         "data-lf-media-height": "800",
     }
     assert marks[("lf-zone", "later")] == {}
-    unmarked = delivered
+    prepaint = (
+        '<lf-meter id="meter" value="3"><span data-lf-prepaint data-lf-gen="1" '
+        'class="lf-meter-face">0 left</span><p>3 left</p></lf-meter>'
+    )
+    assert prepaint in delivered
+    assert (
+        '<lf-gauge id="gauge"><span data-lf-prepaint data-lf-gen="1" '
+        'class="lf-meter-face">0 left</span></lf-gauge>'
+    ) in delivered
+    assert "<lf-meter id=inert></lf-meter>" in delivered
+    unmarked = delivered.replace(
+        '<span data-lf-prepaint data-lf-gen="1" class="lf-meter-face">0 left</span>', ""
+    )
     for mark in (
         ' data-lf-reading-role="pane"',
         ' data-lf-inline=""',

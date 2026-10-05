@@ -5,6 +5,26 @@
  * Layout with ordinary rules or writes its own; nothing reads a Layout back. The layer
  * merge appends this file after every package (layer.py, composed_sheets). */
 @layer lf-layouts {
+  /* The pane role's grammar (theme.css, where its look and the rest of its contract
+   * are): which row each child stands in, and a body held to the pane's width with no
+   * margin of its own. It is not a Layout a page pulls on, but it resets what a widget
+   * sets on the box it arranges as a Layout does, so it shares their tier. */
+  [data-lf-reading-role="pane"] {
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    grid-template-columns: minmax(0, 1fr);
+    min-width: 0;
+    --lf-block-frame: 1;
+  }
+  [data-lf-reading-role="pane"] > header {
+    grid-row: 1; margin: 0;
+  }
+  [data-lf-reading-role="pane"] > footer {
+    grid-row: 3; margin: 0;
+  }
+  [data-lf-reading-role="pane"] > :not(header, footer) {
+    grid-row: 2; grid-column: 1; min-width: 0; margin: 0;
+  }
   /* The column: prose at the reading measure, centred in the shell, and one option, a
    * breakout, which `data-width` on a block (or a widget's preferred x-space) asks for.
    * The breakout reads the room free beside the column from the lengths resolved here,
@@ -233,13 +253,12 @@
      * deep inside it sits, and `--lf-block-frame` is reset one level in (above), so no box
      * answers for its grandparent's frame.
      *
-     * Two boxes declare the frame for its first line's trim and still hold the page's own
-     * flow: `main`, and a page tab's panel, which is a section of the page shown one at a
-     * time. Each says so beside the frame (`--lf-page-flow`, registered in theme.css), and
-     * the room passes through it to what it holds, so a wide exhibit in a page tab grows
-     * out as it would on a page without tabs. The rule reads the declaration in this
-     * layer, since a hand-back written in a lower one loses to the rule it answers. The
-     * gate walks up no further than `main`.
+     * Only a box that draws withholds the room (`--lf-block-frame: 1`). A box whose edges
+     * trim but which draws nothing says `trim` instead: `main`, a page tab's panel, which
+     * is a section of the page shown one at a time, and a command's goal, whose float
+     * containment traps its children's margins. The room passes through each to what it
+     * holds, so a wide exhibit in a page tab grows out as it would on a page without
+     * tabs. The gate walks up no further than `main`.
      *
      * A transparent wrapper declares nothing: a section is the page's own flow, and an
      * exhibit breaking out through one is the point. What says so when a
@@ -247,7 +266,7 @@
      * wide element against the nearest ancestor that draws one. It could not see through a
      * scroll container until a diagram in a board card was drawn 332px across the next
      * column, and four widgets letting a diagram out were found the day it could. */
-    @container style(--lf-block-frame: 1) and (not style(--lf-page-flow: 1)) {
+    @container style(--lf-block-frame: 1) {
       * { --lf-room: 0px; }
     }
     /* When startup is incomplete, undrawn widgets show source in the column. */

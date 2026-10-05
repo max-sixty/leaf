@@ -1048,10 +1048,14 @@ async function presentPage() {
   repaint();
   app.overlay?.flushLayout();
   landFragment();
-  await landArrival();
+  // The geometry readers PRESENTATION replaces run in the turn the stamp above opens
+  // interaction, after the landing's synchronous part, rather than after an editor
+  // the landing waits for: awaited first, a margin map presented its authored spans.
+  const arrival = landArrival();
+  document.dispatchEvent(new Event(PRESENTATION));
+  await arrival;
   if (savedView && savedView.revision < runtime.currentRevision)
     notice(`Updated to ${runtime.currentLabel}`, { background: true });
-  document.dispatchEvent(new Event(PRESENTATION));
 }
 
 async function startPage() {

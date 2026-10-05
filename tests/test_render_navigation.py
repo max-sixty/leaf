@@ -1372,13 +1372,6 @@ def _accepted_gallery_proposal(browser, serve):
     return url, page
 
 
-@pytest.mark.xfail(
-    reason="Main ef89dfd3e intermittently keeps the gallery's accepted lf-old visible "
-    "with data-lf-retired; the unchanged journey still fails despite passing "
-    "controls and a full Linux CI XPASS",
-    raises=AssertionError,
-    strict=False,
-)
 def test_the_feature_gallery_hides_an_accepted_proposal_slot(browser, serve):
     """An accepted block proposal hides the slot retired by its decision."""
     _, page = _accepted_gallery_proposal(browser, serve)
@@ -4817,22 +4810,13 @@ def test_inline_thread_surface_has_room_without_focus_reflow(browser, serve):
     )
 
 
-LONG_PANEL_ARRIVAL_FAILURE = pytest.mark.xfail(
-    reason="Main ef89dfd3e: long panel arrival cuts a glyph at its top edge "
-    "despite room to align a complete paragraph and retain the reply; "
-    "full-main 5e5568c32 failure remains reproduced",
-    raises=AssertionError,
-    strict=False,
-)
-
-
 @pytest.mark.parametrize(
     "reply_paragraphs",
     [
         0,
         10,
-        pytest.param(18, marks=LONG_PANEL_ARRIVAL_FAILURE),
-        pytest.param(30, marks=LONG_PANEL_ARRIVAL_FAILURE),
+        18,
+        30,
     ],
     ids=["short", "near-fit", "long", "very-long"],
 )
@@ -4971,9 +4955,12 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
               const target = compose.getBoundingClientRect();
               const clear = parseFloat(getComputedStyle(list).scrollPaddingTop) || 0;
               const start = view.top + clear;
+              // A turn's head is a block boundary as well as its paragraphs: a long
+              // arrival starts the latest turn there.
               const blocks = [...thread.querySelectorAll(
-                ':scope > *, :scope > .lf-thread-content > *, .lf-msg .lf-msg-body > *, ' +
-                '.lf-msg .lf-msg-text > *'), compose]
+                ':scope > *, :scope > .lf-thread-content > *, ' +
+                '.lf-thread-transcript > :is(.lf-msg, .lf-thread-checkpoint), ' +
+                '.lf-msg .lf-msg-body > *, .lf-msg .lf-msg-text > *'), compose]
                 .map((block) => ({
                   name: block.className || block.tagName,
                   top: block.getBoundingClientRect().top,

@@ -13,10 +13,13 @@
  * its replacement's. The seat is looked up in the command's own authored document, so
  * a command quoted in a message does not take the page's seat.
  *
- * The outcome stands at one size whatever the log says, and the theme holds its room in
- * the seat from the first paint. Which goals are stopped and which workers live is the
- * log's and the clock's to say, so no first paint can size the two lists under it, and
- * they would push down whatever follows the seat, the plan itself at the command's head.
+ * The outcome stands at one size whatever the log says, and its first paint already
+ * lays it out in the seat: delivery writes in its structure (`x-prepaint`), which the
+ * paint that draws the outcome takes out (`seat`), and each outcome drawn is that same
+ * declaration filled in (`outcomePanel`). Which goals are stopped and which
+ * workers live is the log's and the clock's to say, so no first paint can size the two
+ * lists under it, and they would push down whatever follows the seat, the plan itself
+ * at the command's head.
  * So on screen they stand once the reader opens one through its count in the outcome
  * (paper, which nothing moves on, prints them whole), and from then on a reading that
  * changes their rows waits, the lists standing as they were, while that growth would
@@ -112,9 +115,14 @@ function home(plan) {
 
 // Put the drawn panels, in reading order, at the head of their home, and the band at
 // the head of the command only while it is that home. Nothing already in place is
-// moved, so a paint that changes nothing about the seat moves nothing.
+// moved, so a paint that changes nothing about the seat moves nothing. The outcome
+// delivery wrote in for the first paint (`x-prepaint`, theme.css) leaves in the same
+// step, from the seat and from the command's head, since the drawn outcome stands
+// where it stood.
 function seat(plan, at = home(plan)) {
   const own = band(plan);
+  for (const holder of [plan, at])
+    holder.querySelector(":scope > [data-lf-prepaint]")?.remove();
   keeps(at, "data-lf-open", opened.has(plan) ? "" : null);
   if (at !== own) own.remove();
   else if (plan.firstChild !== own) plan.prepend(own);
@@ -246,22 +254,31 @@ function chip(text, cls = "") {
   });
 }
 
-// A count the head offers as a view: the number is what the eye compares across tiles,
-// so it stands apart from its word, and the two still read as the one label they are.
-function countTile(count, word, name, open, cls = "") {
-  const node = viewButton(`${count} ${word}`, name, open, cls);
-  node.replaceChildren(chip(String(count), "lf-command-count"), " ", chip(word));
-  return node;
+// The outcome as its first paint laid it out: the lf-command-readings declaration's
+// `x-prepaint` is the one statement of its structure and words, and every outcome this
+// draws is a copy of it with the log's readings filled in, so the panel drawn and the
+// room the first paint held cannot differ.
+function outcomePanel(plan) {
+  const markup = document.createElement("template");
+  markup.innerHTML = declarationFor(band(plan), "x-prepaint");
+  const box = markup.content.firstElementChild;
+  box.dataset.lfGen = "1";
+  const title = box.querySelector(":scope > h2");
+  title.tabIndex = -1;
+  relabel(title, title.textContent, { says: true });
+  return box;
 }
 
-// The done fraction drawn as a length. The fraction under it says the number, so the
-// bar is hidden from assistive technology rather than said twice.
-function progressBar(done, total) {
-  const bar = document.createElement("span");
-  bar.className = "lf-command-progress";
-  bar.setAttribute("aria-hidden", "true");
-  bar.style.setProperty("--lf-done", total ? done / total : 0);
-  return bar;
+// A count the head offers as a view, standing where its tile does, named by its word:
+// the number is what the eye compares across tiles, so it stands apart from its word,
+// and the two still read as the one label they are.
+function countTile(tile, count, open, tint) {
+  const word = tile.lastElementChild.textContent;
+  const classes = [...tile.classList, tint].filter((cls) => cls && cls !== "lf-ui");
+  const node = viewButton(`${count} ${word}`, word, open, classes.join(" "));
+  tile.querySelector(".lf-command-count").textContent = String(count);
+  node.replaceChildren(...tile.childNodes);
+  tile.replaceWith(node);
 }
 
 function projectionFocus(plan) {
@@ -441,45 +458,29 @@ function renderHeader(snapshot) {
   ]);
   if (old && headerSignatures.get(plan) === signature) return false;
   headerSignatures.set(plan, signature);
-  const head = panel("lf-command-head", "Outcome");
-  const outcome = document.createElement("div");
-  outcome.className = "lf-command-outcome";
-  outcome.append(
-    Object.assign(document.createElement("strong"), {
-      textContent: plan.getAttribute("label") || "Work",
-    }),
-    progressBar(snapshot.done, snapshot.leaves.length),
-    Object.assign(document.createElement("span"), {
-      textContent: `${snapshot.done}/${snapshot.leaves.length} leaves · ${plan.getAttribute("phase") || "in progress"}`,
-    }),
+  const head = outcomePanel(plan);
+  const [name, bar, line] = head.querySelector(".lf-command-outcome").children;
+  name.textContent = plan.getAttribute("label") || "Work";
+  // The fraction under the bar says the number, so the declaration hides the bar from
+  // assistive technology rather than having it said twice.
+  bar.style.setProperty(
+    "--lf-done",
+    snapshot.leaves.length ? snapshot.done / snapshot.leaves.length : 0,
   );
-  const facts = document.createElement("div");
-  facts.className = "lf-command-facts";
+  line.textContent = `${snapshot.done}/${snapshot.leaves.length} leaves · ${plan.getAttribute("phase") || "in progress"}`;
   // Every count stands whatever it says, so the clock making a worker quiet tints a tile
-  // rather than adding one the row would have to find room for.
-  facts.append(
-    countTile(snapshot.running.length, "running", "running", () =>
-      openFleet(plan, "running"),
-    ),
-    countTile(snapshot.liveWorkers.length, "workers", "workers", () =>
-      openFleet(plan, "all"),
-    ),
-    countTile(
-      snapshot.quiet.length,
-      "quiet",
-      "quiet",
-      () => openFleet(plan, "quiet"),
-      snapshot.quiet.length ? "warn" : "",
-    ),
-    countTile(
-      snapshot.stopped.length,
-      "stopped",
-      "stopped",
-      () => openStopped(plan),
-      snapshot.stopped.length ? "danger" : "",
-    ),
-  );
-  head.append(outcome, facts);
+  // rather than adding one the row would have to find room for. Each tile is the view
+  // its word names, the name `data-lf-view`, the fleet's modes and `markNews` share.
+  const counts = {
+    running: [snapshot.running.length, () => openFleet(plan, "running")],
+    workers: [snapshot.liveWorkers.length, () => openFleet(plan, "all")],
+    quiet: [snapshot.quiet.length, () => openFleet(plan, "quiet"), "warn"],
+    stopped: [snapshot.stopped.length, () => openStopped(plan), "danger"],
+  };
+  for (const tile of head.querySelectorAll(".lf-command-tile")) {
+    const [count, open, tint] = counts[tile.lastElementChild.textContent];
+    countTile(tile, count, open, count ? tint : "");
+  }
   draw(plan, "lf-command-head", head);
   return true;
 }

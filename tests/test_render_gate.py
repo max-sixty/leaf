@@ -4711,14 +4711,6 @@ def test_the_render_gate_reads_a_scrolled_container_from_its_content(browser, se
     )
 
 
-@pytest.mark.xfail(
-    reason=(
-        "Native package scope proximity lets the board minimum outrank pane-body sizing"
-        " on main 2bd9; CI run 37057440971."
-    ),
-    raises=AssertionError,
-    strict=False,
-)
 def test_a_page_hands_its_note_strip_back_when_the_panel_takes_the_room(browser, serve):
     """The margin form is granted by the room beside the page's column, and the thread
     panel stands over the page rather than taking room from it, so the panel decides

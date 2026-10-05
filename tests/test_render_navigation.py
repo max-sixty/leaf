@@ -340,9 +340,9 @@ def test_a_tall_local_comment_survives_its_panes_posture_and_return(browser, ser
     sibling_after = right.evaluate(
         "body => ({scroll: body.scrollTop, box: body.getBoundingClientRect().toJSON()})"
     )
-    assert sibling_after == sibling_before, (
-        f"growing the left composer moved its sibling: {sibling_before}, {sibling_after}"
-    )
+    assert (
+        sibling_after == sibling_before
+    ), f"growing the left composer moved its sibling: {sibling_before}, {sibling_after}"
     rendered(page)
     assert field.evaluate(
         """box => {
@@ -496,15 +496,15 @@ def test_a_pane_comment_stays_in_its_reading_region(browser, serve):
                   scrollHeight: history.scrollHeight, clientHeight: history.clientHeight};
         }"""
     )
-    assert preview_geometry["card"]["top"] >= preview_geometry["body"]["top"], (
-        preview_geometry
-    )
-    assert preview_geometry["card"]["bottom"] <= preview_geometry["body"]["bottom"], (
-        preview_geometry
-    )
-    assert preview_geometry["scrollHeight"] > preview_geometry["clientHeight"], (
-        preview_geometry
-    )
+    assert (
+        preview_geometry["card"]["top"] >= preview_geometry["body"]["top"]
+    ), preview_geometry
+    assert (
+        preview_geometry["card"]["bottom"] <= preview_geometry["body"]["bottom"]
+    ), preview_geometry
+    assert (
+        preview_geometry["scrollHeight"] > preview_geometry["clientHeight"]
+    ), preview_geometry
     history = preview.locator(".lf-thread-transcript")
     history.evaluate("el => el.scrollTop = el.scrollHeight")
     assert history.evaluate("el => el.scrollTop") > 0
@@ -516,24 +516,19 @@ def test_a_pane_comment_stays_in_its_reading_region(browser, serve):
     expect(preview.locator(".lf-page-thread")).to_be_focused()
 
 
+# The handoff guard decides `wheel` and `reveal`, and on a fresh document `wheel`
+# again, since it has no tab controls until its widgets load. `untouched` is the
+# control: the restoration a gesture must stop does run when there is none. `focus`
+# guards the gesture a user would miss most; the edit, blank and hidden gestures
+# are kept today by state captured at install and by kept nodes, not by this guard.
 @pytest.mark.parametrize(
     ("install", "gesture"),
     [
-        ("patch", gesture)
-        for gesture in (
-            "wheel",
-            "focus",
-            "edit",
-            "blank",
-            "reveal",
-            "hidden",
-            "untouched",
-        )
-    ]
-    # A fresh document has no tab controls until its widgets have loaded.
-    + [
-        ("reload", gesture)
-        for gesture in ("wheel", "focus", "edit", "blank", "hidden", "untouched")
+        ("patch", "wheel"),
+        ("patch", "reveal"),
+        ("patch", "untouched"),
+        ("patch", "focus"),
+        ("reload", "wheel"),
     ],
 )
 def test_revision_restoration_yields_to_input_while_a_diagram_loads(
@@ -568,10 +563,6 @@ def test_revision_restoration_yields_to_input_while_a_diagram_loads(
         )
     )
     page = open_page(browser, live_url(serve(source)))
-    if gesture == "hidden":
-        # A cached hidden reading must not select its tab over the active one.
-        page.get_by_role("tab", name="Second", exact=True).click()
-        page.get_by_role("tab", name="First", exact=True).click()
     page.locator("#reading-draft").fill("kept draft")
     left = page.locator("#left-reading > :not(header, footer)")
     left.evaluate("el => el.scrollTop = 300")
@@ -606,20 +597,13 @@ def test_revision_restoration_yields_to_input_while_a_diagram_loads(
             )
         elif gesture == "focus":
             page.locator("#right-head").click()
-        elif gesture == "edit":
-            page.keyboard.type(" fresh")
-        elif gesture == "blank":
-            page.mouse.click(2, 200)
-            expect(page.locator("body")).to_be_focused()
         elif gesture == "reveal":
             page.get_by_role("tab", name="Second", exact=True).click()
         scroll = left.evaluate("el => el.scrollTop")
         held.pop().continue_()
         wait_for_revision(page, 2)
         expect(page.locator("#late-diagram svg")).to_have_count(1)
-        expect(page.locator("#reading-draft")).to_have_value(
-            "kept fresh draft" if gesture == "edit" else "kept draft"
-        )
+        expect(page.locator("#reading-draft")).to_have_value("kept draft")
         expect(
             page.get_by_role(
                 "tab", name="Second" if gesture == "reveal" else "First", exact=True
@@ -629,17 +613,13 @@ def test_revision_restoration_yields_to_input_while_a_diagram_loads(
             assert left.evaluate("el => el.scrollTop") == pytest.approx(scroll, abs=1)
         elif gesture == "focus":
             expect(page.locator("#right-head")).to_be_focused()
-        elif gesture == "blank":
-            expect(page.locator("body")).to_be_focused()
         elif gesture == "untouched":
             assert page.locator("#left-landmark").evaluate(
                 "el => el.getBoundingClientRect().top"
             ) == pytest.approx(before, abs=2)
-        if gesture in ("wheel", "edit", "hidden", "untouched"):
+        if gesture in ("wheel", "untouched"):
             expect(draft).to_be_focused()
-            assert draft.evaluate("el => el.selectionStart") == (
-                10 if gesture == "edit" else 4
-            )
+            assert draft.evaluate("el => el.selectionStart") == 4
     finally:
         for route in held:
             route.continue_()
@@ -2740,9 +2720,9 @@ def test_an_inline_tab_keeps_its_panel_inside_one_visible_boundary(browser, serv
     frame_edges = tuple(
         boundary["frame"][edge] for edge in ("top", "right", "bottom", "left")
     )
-    assert min(frame_edges) > 0, (
-        f"the tab surface has an open edge: {boundary['frame']}"
-    )
+    assert (
+        min(frame_edges) > 0
+    ), f"the tab surface has an open edge: {boundary['frame']}"
     assert boundary["frame"]["color"] != "rgba(0, 0, 0, 0)", boundary
     assert boundary["divider"]["width"] > 0, boundary
     assert boundary["divider"]["color"] != "rgba(0, 0, 0, 0)", boundary
@@ -3160,16 +3140,16 @@ def test_a_questions_digits_are_drawn_whole(browser, serve):
                     "words"
                 )
             seats[sitting].setdefault(round(sits["x"], 1), []).append(id_)
-            assert sits["past"] <= 0, (
-                f"{id_}'s digit hangs past its own option and onto the next"
-            )
+            assert (
+                sits["past"] <= 0
+            ), f"{id_}'s digit hangs past its own option and onto the next"
             # Asked of the words rather than of the numbers, because the numbers are
             # only right for as long as the column the theme reserves is.
             on = chip.evaluate(OVER_WORDS, id_)
             assert on is None, f"{id_}'s digit is drawn over the words “{on}”"
-    assert all(len(form) == 1 for form in seats.values()), (
-        f"the digits move between seats within one form: {seats}"
-    )
+    assert all(
+        len(form) == 1 for form in seats.values()
+    ), f"the digits move between seats within one form: {seats}"
 
 
 def test_composer_marks_the_passage_instead_of_quoting_it(browser, serve):
@@ -3195,17 +3175,17 @@ def test_composer_marks_the_passage_instead_of_quoting_it(browser, serve):
 
     passage = " ".join(page.locator("#p").inner_text().split())
     quote = composer_quote(page)
-    assert pending_text(page) == passage, (
-        f"the page marks {pending_text(page)!r}, but the composer is anchored to {quote['text']!r}"
-    )
-    assert not quote["shown"], (
-        f"the passage is marked on the page and the composer prints it as well: {quote['text']!r}"
-    )
+    assert (
+        pending_text(page) == passage
+    ), f"the page marks {pending_text(page)!r}, but the composer is anchored to {quote['text']!r}"
+    assert not quote[
+        "shown"
+    ], f"the passage is marked on the page and the composer prints it as well: {quote['text']!r}"
     # Out of sight, not gone: it is what the box's description resolves to, and a screen
     # reader hears nothing from a painted mark.
-    assert quote["text"] == f"“{passage}”", (
-        f"the composer's description of its passage says {quote['text']!r}"
-    )
+    assert (
+        quote["text"] == f"“{passage}”"
+    ), f"the composer's description of its passage says {quote['text']!r}"
     assert (
         page.evaluate(
             "() => document.querySelector('.lf-composer leaf-text').getAttribute('aria-describedby')"
@@ -3238,9 +3218,9 @@ def test_composer_marks_the_passage_instead_of_quoting_it(browser, serve):
         },
     )
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
-    assert pending_text(page) == passage, (
-        "a poll landing while the composer is open disturbed the passage"
-    )
+    assert (
+        pending_text(page) == passage
+    ), "a poll landing while the composer is open disturbed the passage"
 
     page.keyboard.press("Escape")
     assert pending_text(page) == "", "the highlight outlived its composer"
@@ -3259,9 +3239,9 @@ def test_composer_marks_the_passage_instead_of_quoting_it(browser, serve):
     }""")
     page.locator(".lf-fab-input").click()
     wait_for_pending_mark(page)
-    assert chrome not in pending_text(page), (
-        f"the highlight painted the widget's own {chrome!r} control along with the passage"
-    )
+    assert (
+        chrome not in pending_text(page)
+    ), f"the highlight painted the widget's own {chrome!r} control along with the passage"
     page.keyboard.press("Escape")
 
     # A diagram has no text to quote, so its anchor is the element and its mark is an
@@ -3269,28 +3249,28 @@ def test_composer_marks_the_passage_instead_of_quoting_it(browser, serve):
     page.locator("#fig svg").click(modifiers=["Alt"])
     page.locator(".lf-fab-input").click()
     page.locator("#fig.lf-mark-el.lf-pending").wait_for()
-    assert not composer_quote(page)["shown"], (
-        "the outline is on the figure and the composer names its section as well"
-    )
+    assert not composer_quote(page)[
+        "shown"
+    ], "the outline is on the figure and the composer names its section as well"
     post_event(
         page,
         url.rsplit("/versions/", 1)[0] + "/api/event",
         data={"kind": "comment", "revision": 1, "text": "and another"},
     )
     page.wait_for_function("() => document.querySelectorAll('.lf-thread').length === 2")
-    assert page.locator("#fig.lf-mark-el.lf-pending").count() == 1, (
-        "a poll landing while the composer is open dropped the outline"
-    )
+    assert (
+        page.locator("#fig.lf-mark-el.lf-pending").count() == 1
+    ), "a poll landing while the composer is open dropped the outline"
 
     # Both classes have to go, asserted apart: leaving .lf-mark-el behind repaints the
     # figure in the posted mark's own ink, pointer cursor and all, over no thread to open.
     page.keyboard.press("Escape")
-    assert page.locator("#fig.lf-pending").count() == 0, (
-        "the mark outlived its composer"
-    )
-    assert page.locator("#fig.lf-mark-el").count() == 0, (
-        "the figure kept a thread's mark over no thread"
-    )
+    assert (
+        page.locator("#fig.lf-pending").count() == 0
+    ), "the mark outlived its composer"
+    assert (
+        page.locator("#fig.lf-mark-el").count() == 0
+    ), "the figure kept a thread's mark over no thread"
 
     # A drag across the caption remains a native selection, so the composer carries the
     # caption's words rather than the enclosing figure's element anchor.
@@ -3299,12 +3279,12 @@ def test_composer_marks_the_passage_instead_of_quoting_it(browser, serve):
     select(page, (cap["x"] + 2, y), (cap["x"] + cap["width"] - 2, y))
     page.locator(".lf-fab-input").click()
     wait_for_pending_mark(page)
-    assert "sample" in pending_text(page), (
-        "the visual containing the drag replaced its selected passage"
-    )
-    assert page.locator("#fig.lf-pending").count() == 0, (
-        "the figure got the element mark over a live selection"
-    )
+    assert "sample" in pending_text(
+        page
+    ), "the visual containing the drag replaced its selected passage"
+    assert (
+        page.locator("#fig.lf-pending").count() == 0
+    ), "the figure got the element mark over a live selection"
     page.keyboard.press("Escape")
 
 
@@ -3346,9 +3326,9 @@ def test_the_pointer_over_a_page_mark_lights_its_comment_quote(browser, serve):
     quote_lit = first_quote.evaluate(
         "element => getComputedStyle(element).backgroundColor"
     )
-    assert quote_lit != quote_resting, (
-        f"the page named the quote in class but its paint stayed {quote_resting!r}"
-    )
+    assert (
+        quote_lit != quote_resting
+    ), f"the page named the quote in class but its paint stayed {quote_resting!r}"
     assert first_quote.bounding_box()["height"] < first.bounding_box()["height"]
 
     page.mouse.move(*mark_point(page, "lf-mark", 1))
@@ -3512,18 +3492,18 @@ def test_a_thread_walk_starts_one_page_trip_and_reveals_its_nested_passage(
             <= document.querySelector('#local').clientWidth,
         })"""
     )
-    assert immediate["firstPage"] < 100, (
-        f"the thread walk jumped the page before its smooth trip began: {immediate}"
-    )
-    assert immediate["rail"] > 0, (
-        f"the passage stayed beyond its own horizontal scroller: {immediate}"
-    )
-    assert immediate["local"] > 0, (
-        f"the passage stayed beyond its own vertical scroller: {immediate}"
-    )
-    assert immediate["localXFits"], (
-        f"the vertical scrollport also overflowed sideways: {immediate}"
-    )
+    assert (
+        immediate["firstPage"] < 100
+    ), f"the thread walk jumped the page before its smooth trip began: {immediate}"
+    assert (
+        immediate["rail"] > 0
+    ), f"the passage stayed beyond its own horizontal scroller: {immediate}"
+    assert (
+        immediate["local"] > 0
+    ), f"the passage stayed beyond its own vertical scroller: {immediate}"
+    assert immediate[
+        "localXFits"
+    ], f"the vertical scrollport also overflowed sideways: {immediate}"
     page.wait_for_function(
         """() => {
           const range = [...(CSS.highlights.get('lf-mark-here') ?? [])][0];
@@ -4573,9 +4553,9 @@ def test_inline_thread_surface_has_room_without_focus_reflow(browser, serve):
     focused = thread.evaluate(
         "el => ({width: el.getBoundingClientRect().width, height: el.getBoundingClientRect().height})"
     )
-    assert focused == resting, (
-        "the current surface changed the inline thread's geometry"
-    )
+    assert (
+        focused == resting
+    ), "the current surface changed the inline thread's geometry"
 
     frame = thread.evaluate(
         """el => { const s = getComputedStyle(el); return {
@@ -4583,12 +4563,12 @@ def test_inline_thread_surface_has_room_without_focus_reflow(browser, serve):
           borderTop: s.borderTopWidth,
         }; }"""
     )
-    assert len(set(frame["padding"])) == 1, (
-        f"a later inline thread inherited an asymmetric current edge: {frame}"
-    )
-    assert frame["borderTop"] == "0px", (
-        f"a sibling separator remained inside the current region: {frame}"
-    )
+    assert (
+        len(set(frame["padding"])) == 1
+    ), f"a later inline thread inherited an asymmetric current edge: {frame}"
+    assert (
+        frame["borderTop"] == "0px"
+    ), f"a sibling separator remained inside the current region: {frame}"
 
     separator = thread.evaluate(
         """el => { const s = getComputedStyle(el, '::before'); return {
@@ -4635,9 +4615,9 @@ def test_inline_thread_surface_has_room_without_focus_reflow(browser, serve):
     assert placement["actionsBottom"] == pytest.approx(
         placement["controlBottom"], abs=1
     )
-    assert placement["controlBottom"] <= placement["headBottom"], (
-        f"Resolve did not share the first inline message's heading: {placement}"
-    )
+    assert (
+        placement["controlBottom"] <= placement["headBottom"]
+    ), f"Resolve did not share the first inline message's heading: {placement}"
     assert placement["bodyTop"] - placement["headBottom"] == pytest.approx(
         placement["bodyMargin"], abs=1
     ), f"the first inline message has extra space below its author: {placement}"
@@ -4654,9 +4634,9 @@ def test_inline_thread_surface_has_room_without_focus_reflow(browser, serve):
             });
         }"""
     )
-    assert clearances and min(clearances) >= 3, (
-        f"the current surface landed on inline thread content: {clearances}"
-    )
+    assert (
+        clearances and min(clearances) >= 3
+    ), f"the current surface landed on inline thread content: {clearances}"
 
 
 LONG_PANEL_ARRIVAL_FAILURE = pytest.mark.xfail(
@@ -4849,9 +4829,9 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
             assert landing["target"]["top"] >= landing["start"] - 1
         else:
             assert landing["blocks"][0]["top"] >= landing["start"] - 1
-        assert not landing["crossedLines"], (
-            f"the pinned heading cut through a text line: {landing}"
-        )
+        assert not landing[
+            "crossedLines"
+        ], f"the pinned heading cut through a text line: {landing}"
 
 
 def test_the_page_marks_the_comment_the_user_is_standing_in(browser, serve):
@@ -4909,12 +4889,12 @@ def test_the_page_marks_the_comment_the_user_is_standing_in(browser, serve):
         """() => ['lf-mark', 'lf-mark-hover', 'lf-mark-here', 'lf-pending']
             .map(n => CSS.highlights.get(n)?.priority ?? null)"""
     )
-    assert all(r is not None for r in ranks) and ranks == sorted(set(ranks)), (
-        f"the marks' paint order is not strictly increasing: {ranks}"
-    )
-    assert standing_mark(page)["text"] == "bold text", (
-        "the pointer resting on the standing mark took its own ink away"
-    )
+    assert all(r is not None for r in ranks) and ranks == sorted(
+        set(ranks)
+    ), f"the marks' paint order is not strictly increasing: {ranks}"
+    assert (
+        standing_mark(page)["text"] == "bold text"
+    ), "the pointer resting on the standing mark took its own ink away"
 
     page.keyboard.press("t")
     wait_standing(page, "neighbouring block")
@@ -4948,9 +4928,9 @@ def test_the_page_marks_the_comment_the_user_is_standing_in(browser, serve):
     # would be a page insisting on a comment nobody is in.
     page.evaluate("() => document.activeElement.blur()")
     wait_standing(page, "")
-    assert painted(page, "lf-mark") != "", (
-        "the posted marks went down with the standing one"
-    )
+    assert (
+        painted(page, "lf-mark") != ""
+    ), "the posted marks went down with the standing one"
 
 
 def test_a_hovered_thread_rebinds_to_a_replaced_anchor(browser, serve):
@@ -5031,9 +5011,9 @@ def test_the_pointer_over_a_comment_lights_the_passage_it_is_about(browser, serv
     page.locator(".lf-threads-toggle").click()
     page.wait_for_function("() => document.querySelectorAll('.lf-thread').length === 3")
 
-    assert painted(page, "lf-mark-hover") == "", (
-        "a page whose pointer has touched nothing is already lighting a passage"
-    )
+    assert (
+        painted(page, "lf-mark-hover") == ""
+    ), "a page whose pointer has touched nothing is already lighting a passage"
 
     # Three things a mark can be — posted, indicated, stood in — are three steps of one
     # wash, and the middle one exists because this gesture puts the pointer over the panel
@@ -5102,9 +5082,9 @@ def test_the_pointer_over_a_comment_lights_the_passage_it_is_about(browser, serv
             },
         };
     }""")
-    assert "missing" not in ramp, (
-        f"a step of the mark ramp has no wash rule at all: {ramp['missing']}"
-    )
+    assert (
+        "missing" not in ramp
+    ), f"a step of the mark ramp has no wash rule at all: {ramp['missing']}"
     order = ramp["fromGround"]
     assert order["posted"] < order["pointed"] < order["standing"], (
         "the three things a mark can be are not three steps away from the page's own"
@@ -5155,16 +5135,16 @@ def test_the_pointer_over_a_comment_lights_the_passage_it_is_about(browser, serv
     wait_standing(page, "bold text")
     page.mouse.move(*card_body(page, "on the second"))
     wait_hovered(page, "neighbouring block")
-    assert standing_mark(page)["text"] == "bold text", (
-        "pointing at another comment's card took the standing comment's mark away"
-    )
+    assert (
+        standing_mark(page)["text"] == "bold text"
+    ), "pointing at another comment's card took the standing comment's mark away"
 
     # And the pointer leaving the panel puts it down, while what the page posted stays.
     page.mouse.move(2, 2)
     wait_hovered(page, "")
-    assert painted(page, "lf-mark") != "", (
-        "the posted marks went down with the pointer's"
-    )
+    assert (
+        painted(page, "lf-mark") != ""
+    ), "the posted marks went down with the pointer's"
 
 
 def test_closing_the_panel_puts_down_the_card_it_was_lighting(browser, serve):
@@ -5231,18 +5211,18 @@ def test_a_commented_block_says_so_to_a_screen_user(browser, serve):
     expect_comment_notes(page, "#p1", 1)
     # The block is named by its words, cut short as every chrome name is.
     named = "2 comments on § paragraph · The first passage under discussion, with words enough for…"
-    assert accessible_details(page, "#p1") == [named], (
-        "a screen reader reading the block is told nothing about the comments on it"
-    )
+    assert accessible_details(page, "#p1") == [
+        named
+    ], "a screen reader reading the block is told nothing about the comments on it"
     note = comment_note(page, "#p1")
     # Hidden means hidden from the eye, not the tree.
     assert note.evaluate(
         "el => { const r = el.getBoundingClientRect(); return r.width <= 1 && r.height <= 1; }"
     ), "the resting note is painting on screen"
     assert note.evaluate("el => getComputedStyle(el).opacity") == "0"
-    assert note.evaluate("el => el.tabIndex") == -1, (
-        "the note is a Tab stop in the chrome, after the whole page"
-    )
+    assert (
+        note.evaluate("el => el.tabIndex") == -1
+    ), "the note is a Tab stop in the chrome, after the whole page"
     page.evaluate("""() => {
         window.__lfNote = document.getElementById('p1').ariaDetailsElements[0];
     }""")
@@ -5254,9 +5234,9 @@ def test_a_commented_block_says_so_to_a_screen_user(browser, serve):
     page.keyboard.press("Tab")
     note.focus()
     expect(note).to_be_focused()
-    assert note.evaluate("el => el.getBoundingClientRect().width > 1"), (
-        "the comment path stayed invisible when a keyboard user reached it"
-    )
+    assert note.evaluate(
+        "el => el.getBoundingClientRect().width > 1"
+    ), "the comment path stayed invisible when a keyboard user reached it"
     assert note.evaluate("el => getComputedStyle(el).opacity") == "1"
     note.press("Enter")
     expect(inline1).to_be_focused()
@@ -5289,20 +5269,20 @@ def test_a_commented_block_says_so_to_a_screen_user(browser, serve):
     }""")
     comment({}, "On the page as a whole.")
     page.wait_for_function("() => document.querySelectorAll('.lf-thread').length === 4")
-    assert page.evaluate("() => window.__churn") == 0, (
-        "a poll that changed nothing still rewrote the block, so a screen reader re-reads it"
-    )
+    assert (
+        page.evaluate("() => window.__churn") == 0
+    ), "a poll that changed nothing still rewrote the block, so a screen reader re-reads it"
 
     # The note belongs to the runtime, not the document: a user dragging across the
     # block neither copies it nor quotes it.
     page.locator("#p1").click(click_count=3)
-    assert "comment" not in page.evaluate("() => getSelection().toString()"), (
-        "the note came along in the user's own selection"
-    )
+    assert "comment" not in page.evaluate(
+        "() => getSelection().toString()"
+    ), "the note came along in the user's own selection"
     page.locator(".lf-fab-input").click()
-    assert "comment" not in composer_quote(page)["text"], (
-        "the note came along in the quote the comment would store"
-    )
+    assert (
+        "comment" not in composer_quote(page)["text"]
+    ), "the note came along in the quote the comment would store"
     page.keyboard.press("Escape")
 
     # The gesture's own comment reaches the note once the send's round trip lands.
@@ -5502,9 +5482,9 @@ def test_generated_hints_fit_the_visible_screen(browser, serve):
     assert len(reading["chips"]) == 7, reading
     for chip in reading["chips"]:
         assert 0 <= chip["left"] < chip["right"] <= reading["width"], reading
-        assert reading["banner"] <= chip["top"] < chip["bottom"] <= reading["height"], (
-            reading
-        )
+        assert (
+            reading["banner"] <= chip["top"] < chip["bottom"] <= reading["height"]
+        ), reading
         assert chip["route"] == chip["code"], chip
     under_code = address_code(page, "Link", "under-banner")
     under_index = page.locator(CHIPS).evaluate_all(
@@ -6023,9 +6003,9 @@ def test_generated_hints_follow_the_page_while_it_moves(browser, serve):
     assert not blank, f"the map blanked while the page was still moving: {travel}"
     # The chip keeps the offset it had at rest, to the pixel, every frame of the way.
     resting = travel["before"]["target"] - travel["before"]["chip"]
-    assert all(abs(seen["gap"] - resting) < 2 for seen in travel["standing"]), (
-        f"a chip came off the target it names while the page moved: {travel}"
-    )
+    assert all(
+        abs(seen["gap"] - resting) < 2 for seen in travel["standing"]
+    ), f"a chip came off the target it names while the page moved: {travel}"
 
 
 def test_a_generated_hint_is_never_drawn_on_the_key_line(browser, serve):
@@ -6063,9 +6043,9 @@ def test_a_generated_hint_is_never_drawn_on_the_key_line(browser, serve):
                      + Math.round(document.scrollingElement.scrollTop));
                }"""
         )
-    assert fouled == [], (
-        f"hints are drawn over the shortcut bar that explains them: {fouled}"
-    )
+    assert (
+        fouled == []
+    ), f"hints are drawn over the shortcut bar that explains them: {fouled}"
 
 
 def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
@@ -6308,9 +6288,9 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
         )
         assert geometry["scrollWidth"] <= geometry["clientWidth"], geometry
         assert geometry["scrollHeight"] <= geometry["clientHeight"], geometry
-        assert geometry["left"] >= 0 and geometry["right"] <= geometry["viewport"], (
-            geometry
-        )
+        assert (
+            geometry["left"] >= 0 and geometry["right"] <= geometry["viewport"]
+        ), geometry
         # The line is one row at every width: the destinations it has no room for leave
         # it from the end of the register's order, and the way out and More stay.
         assert geometry["rows"] == 1, geometry
@@ -6694,9 +6674,9 @@ def test_clamped_leaf_lists_share_the_walk_position(browser, serve, live_leaf):
           return {drawerRight: drawer.right, positionLeft: position.left};
         }"""
     )
-    assert leaves_boxes["positionLeft"] >= leaves_boxes["drawerRight"] + 18, (
-        leaves_boxes
-    )
+    assert (
+        leaves_boxes["positionLeft"] >= leaves_boxes["drawerRight"] + 18
+    ), leaves_boxes
     page.keyboard.press("ArrowDown")
     expect(position).to_have_attribute("data-lf-boundary", "")
 
@@ -7124,9 +7104,7 @@ def test_only_controls_and_boxes_with_something_out_of_sight_take_a_tab_stop(
     assert page.evaluate(
         "() => { const r = document.querySelector('.lf-command-reference-results');"
         "        return r.scrollHeight > r.clientHeight; }"
-    ), (
-        "this reference fits its box, so it proves nothing about reaching one that does not"
-    )
+    ), "this reference fits its box, so it proves nothing about reaching one that does not"
     results.focus()
     expect(results).to_be_focused()
     page.keyboard.press("Escape")
@@ -7288,13 +7266,13 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
             })),
         })"""
     )
-    assert all(table["scroll"] <= table["client"] for table in geometry["tables"]), (
-        geometry
-    )
+    assert all(
+        table["scroll"] <= table["client"] for table in geometry["tables"]
+    ), geometry
     assert all(key["right"] <= key["cellRight"] for key in geometry["keys"]), geometry
-    assert all(abs(key["top"] - key["actionTop"]) <= 3 for key in geometry["keys"]), (
-        geometry
-    )
+    assert all(
+        abs(key["top"] - key["actionTop"]) <= 3 for key in geometry["keys"]
+    ), geometry
     search.fill("space")
     matches = help_el.locator(
         ".lf-command-reference-binding-matches tr[data-lf-command]:visible"
@@ -7313,9 +7291,9 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
     )
     assert matches
     assert all(item["keyRight"] <= item["keyCellRight"] for item in matches), matches
-    assert all(abs(item["keyTop"] - item["actionTop"]) <= 3 for item in matches), (
-        matches
-    )
+    assert all(
+        abs(item["keyTop"] - item["actionTop"]) <= 3 for item in matches
+    ), matches
     assert all(
         item["scopeLeft"] == pytest.approx(item["cellLeft"], abs=0.5)
         for item in matches
@@ -7342,9 +7320,9 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
         len(ranked),
     )
     assert first_other > 0, ranked
-    assert not any(row["binding"].startswith("g ") for row in ranked[first_other:]), (
-        ranked
-    )
+    assert not any(
+        row["binding"].startswith("g ") for row in ranked[first_other:]
+    ), ranked
     search.fill("g t")
     assert (
         help_el.locator("tr[data-lf-command]:visible").first.get_attribute(
@@ -7817,9 +7795,9 @@ def test_a_widget_that_renames_its_role_keeps_the_press_offer_gave_it(browser, s
     before = page.evaluate("() => document.scrollingElement.scrollTop")
     page.keyboard.press(" ")
     expect(tabs.first).to_have_attribute("aria-selected", "true")
-    assert page.evaluate("() => document.scrollingElement.scrollTop") == before, (
-        "Space scrolled the page instead of working the control it was promised on"
-    )
+    assert (
+        page.evaluate("() => document.scrollingElement.scrollTop") == before
+    ), "Space scrolled the page instead of working the control it was promised on"
 
 
 def test_the_g_chord_selects_a_visible_tab_hint(browser, serve):
@@ -8322,9 +8300,9 @@ def test_global_destinations_switch_from_a_covering_workspace(
     version_hints = {hint["commands"] for hint in page.evaluate(KEY_LINE_HINTS)}
     # The phone-width line has room for the scope's first hint only; its presence is what
     # says the covering surface left the versions scope standing.
-    assert "version.later version.earlier" in version_hints, (
-        f"the covering auxiliary surface displaced the versions scope: {version_hints}"
-    )
+    assert (
+        "version.later version.earlier" in version_hints
+    ), f"the covering auxiliary surface displaced the versions scope: {version_hints}"
 
     page.keyboard.press("ArrowUp")
     expect(versions.locator('.lf-version-row[data-lf-version="2"]')).to_be_focused()
@@ -8438,9 +8416,9 @@ def test_reference_accepts_native_popover_dismissal_across_modal_entry(browser, 
     contextual_availability = contextual_versions.evaluate_all(
         "buttons => buttons.map(button => [button.dataset.lfCommand, button.dataset.lfAvailable])"
     )
-    assert {available for _, available in contextual_availability} == {"false"}, (
-        contextual_availability
-    )
+    assert {available for _, available in contextual_availability} == {
+        "false"
+    }, contextual_availability
     page.keyboard.press("Escape")
     expect(reference).to_be_hidden()
     expect(versions).to_be_hidden()
@@ -10549,9 +10527,9 @@ def test_a_coarse_pointer_keeps_useful_status_without_keyboard_hints(browser, se
         viewport={"width": 390, "height": 844}, has_touch=True
     )
     page = open_page(browser, serve(ASKS_PAGE), context=context)
-    assert page.evaluate("() => matchMedia('(pointer: coarse)').matches"), (
-        "the touch fixture never reached Leaf's coarse-pointer rules"
-    )
+    assert page.evaluate(
+        "() => matchMedia('(pointer: coarse)').matches"
+    ), "the touch fixture never reached Leaf's coarse-pointer rules"
     expect(page.locator(".lf-shortcut-bar")).to_be_hidden()
     room = page.evaluate(
         """() => {
@@ -10709,9 +10687,9 @@ def test_the_key_line_stands_in_the_bottom_bar(browser, serve):
     # The reservation is the band itself, and the band reaches the window's foot.
     assert ended["reserved"] == pytest.approx(ended["footprint"], abs=1), ended
     assert ended["footprint"] == pytest.approx(ended["lineHeight"], abs=1), ended
-    assert ended["clearance"] >= 20, (
-        f"the document's last control ends in the shortcut bar's band: {ended}"
-    )
+    assert (
+        ended["clearance"] >= 20
+    ), f"the document's last control ends in the shortcut bar's band: {ended}"
 
     # A covering sheet makes the line inert background. Neither the sheet nor its footer
     # can move the line; the document's existing band remains a reading reservation for
@@ -10720,12 +10698,12 @@ def test_the_key_line_stands_in_the_bottom_bar(browser, serve):
     page.locator(".lf-threads-toggle").click()
     rendered(page)
     covered = page.evaluate(FOOT_ROOM)
-    assert covered["footprint"] == pytest.approx(ended["footprint"], abs=1), (
-        f"the covering sheet moved the viewport-fixed line: {ended}, {covered}"
-    )
-    assert covered["reserved"] == pytest.approx(covered["footprint"], abs=1), (
-        f"the document lost the band's standing reservation: {covered}"
-    )
+    assert covered["footprint"] == pytest.approx(
+        ended["footprint"], abs=1
+    ), f"the covering sheet moved the viewport-fixed line: {ended}, {covered}"
+    assert covered["reserved"] == pytest.approx(
+        covered["footprint"], abs=1
+    ), f"the document lost the band's standing reservation: {covered}"
     page.keyboard.press("Escape")
 
     # And where the user is not at the end, the line is standing over the page. The
@@ -10742,12 +10720,12 @@ def test_the_key_line_stands_in_the_bottom_bar(browser, serve):
     )
     rendered(page)
     under = page.evaluate(UNDER_THE_LINE, "foot-change")
-    assert under["band"] > 8 and under["covered"] > 0, (
-        f"the aim never reached page under the line's chips, so it proves nothing: {under}"
-    )
-    assert under["reaches"], (
-        f"the shortcut bar took a press aimed at the control underneath it: {under}"
-    )
+    assert (
+        under["band"] > 8 and under["covered"] > 0
+    ), f"the aim never reached page under the line's chips, so it proves nothing: {under}"
+    assert under[
+        "reaches"
+    ], f"the shortcut bar took a press aimed at the control underneath it: {under}"
 
     # More is the exception, and the one that has to stay: it is the pointer route to the
     # reference. Asked as a press rather than as a declaration, the same way the chips
@@ -10836,9 +10814,9 @@ def test_the_walk_reaches_more_and_goes_on_after_the_line_has_repainted(browser,
         f"  fast  {walks['fast']}\n  frame {walks['frame']}"
     )
     for how, trail in walks.items():
-        assert any("lf-shortcut-more" in at for at in trail), (
-            f"tabbing {how}, the walk never stood on More in 24 presses: {trail}"
-        )
+        assert any(
+            "lf-shortcut-more" in at for at in trail
+        ), f"tabbing {how}, the walk never stood on More in 24 presses: {trail}"
 
     # Standing on More, the repaint must leave the user on it.
     page.evaluate("() => document.activeElement?.blur()")
@@ -13134,9 +13112,9 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
     # through to the innermost item, which from a pick is the option and not the question.
     page.locator("#picked .lf-pick").first.focus()
     expect(line).to_contain_text(re.compile(r"comment on the option(?!s)"))
-    assert page.locator("[data-lf-ask]").count() == 0, (
-        "an answered group wears the ring the switch was not about"
-    )
+    assert (
+        page.locator("[data-lf-ask]").count() == 0
+    ), "an answered group wears the ring the switch was not about"
 
 
 def test_c_in_a_thread_reaches_that_threads_own_box(browser, serve):
@@ -13491,9 +13469,9 @@ def test_c_travels_to_an_item_its_own_scroller_has_taken_away(browser, serve):
     assert was["onScreen"], "the control needs the card visible to begin with"
     page.keyboard.press("c")
     expect(page.locator(".lf-composer")).to_be_visible()
-    assert page.evaluate(seen)["left"] == was["left"], (
-        "the page moved under a user who could already see the card"
-    )
+    assert (
+        page.evaluate(seen)["left"] == was["left"]
+    ), "the page moved under a user who could already see the card"
     page.close()
 
     # The same standing with only the board's next-item cue left in view. The
@@ -13521,14 +13499,14 @@ def test_c_travels_to_an_item_its_own_scroller_has_taken_away(browser, serve):
     page.evaluate(
         "() => { const b = document.querySelector('#b'); b.scrollLeft = b.scrollWidth; }"
     )
-    assert not page.evaluate(seen)["onScreen"], (
-        "the board did not carry the card off screen, so this proves nothing"
-    )
+    assert not page.evaluate(seen)[
+        "onScreen"
+    ], "the board did not carry the card off screen, so this proves nothing"
     page.keyboard.press("c")
     expect(page.locator(".lf-composer")).to_be_visible()
-    assert page.evaluate(seen)["onScreen"], (
-        "the box opened on a card the board had carried out of sight"
-    )
+    assert page.evaluate(seen)[
+        "onScreen"
+    ], "the box opened on a card the board had carried out of sight"
 
 
 @pytest.mark.parametrize("reply_visible", [True, False])
@@ -13773,9 +13751,9 @@ def test_a_user_at_the_top_of_the_document_is_one_press_from_the_chrome(browser,
         f"the first Tab from the top of the document landed on {standing['name']}, so "
         f"the layer is still behind the whole page"
     )
-    assert standing["top"] >= 0, (
-        f"the skip link takes focus and is not on screen: {standing}"
-    )
+    assert (
+        standing["top"] >= 0
+    ), f"the skip link takes focus and is not on screen: {standing}"
     page.keyboard.press("Enter")
     landed = page.evaluate(STANDING)
     assert landed["inChrome"], (

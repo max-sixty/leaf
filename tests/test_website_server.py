@@ -2889,7 +2889,9 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     told(page)
     rendered(page)
     thread = page.locator(f'.lf-threads > [data-id="{comment["id"]}"]')
-    metadata = thread.locator(".lf-thread-root-meta > .lf-msg-head")
+    metadata = thread.locator(
+        ".lf-thread-transcript > .lf-msg:first-child > .lf-msg-head"
+    )
     expect(metadata.locator(".lf-msg-sending")).to_have_count(1)
     news = thread.locator(".lf-thread-news")
     expect(news).to_be_visible()

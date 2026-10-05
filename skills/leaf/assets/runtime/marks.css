@@ -4,10 +4,9 @@
 
 /* A newly inserted message starts unconfirmed, so delivery paint is immediate.
    This sheet reaches every annotation surface, including inline threads inside
-   declared shadow roots. A header outside its message carries the same state without
-   dimming the thread controls beside it. Existing controls keep chrome.css's delayed
-   busy feedback. */
-.lf-msg[aria-busy="true"], .lf-msg-head[aria-busy="true"] {
+   declared shadow roots. Thread controls stay outside messages and keep
+   chrome.css's delayed busy feedback. */
+.lf-msg[aria-busy="true"] {
   animation: none;
   opacity: .5;
   cursor: progress;

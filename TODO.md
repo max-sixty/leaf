@@ -168,19 +168,7 @@ and its chrome coordinate.
   (`syncLayoutRegion`) and the render check's held-panes reading (`heldPanes`), which
   both look only at `main`, have to look at that block too. It waits for a page that
   needs it; a workspace page's own pane grid stays plain CSS.
-- **Settle what a box declares to the width rules before patching them again.** One
-  flag, `--lf-block-frame`, decides three things: a box's edge margins are trimmed,
-  wide blocks inside it stay inside it, and a table in it fills it. `main` and a page
-  tab's panel want only the trim and opt out of the rest with `--lf-page-flow` (#1723).
-  A task inside `lf-command` wants only the trim too and has no way to say so, so a wide
-  worktree in it stays at 604px where it would take 672px. Rules that undo another rule
-  have also lived in lower cascade layers, where they lose without a sign: moving the
-  width rules into `lf-layouts` (#1617) disabled the page tab's hand-back and the
-  diagram package's no-runtime rule, and the bug reached a user a day after CI had
-  caught and muted it. Decide what
-  a box states (that its edges trim, that it draws a frame, that it holds the page's own
-  flow) so each rule reads one declaration and no box has to undo a rule meant for
-  another.
+
 - **Show each floating surface across the content it can hold.** `leaf-dev stills`
   screenshots the same states on the base and the branch, so it reports a change but
   misses a surface that is wrong on both. Until PR 1440 a margin thread card took all

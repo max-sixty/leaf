@@ -365,14 +365,17 @@ Revisit these when their stated trigger becomes real; they are not an active que
 - **Explore independent jobs.** Work out their identity, observer, continuation
   owner, and outcomes across background commands, delegates, and external waits.
   See the [Thread plan](notes/threads.md#independent-jobs-delegation-and-continuation).
-- **Decide whether tasks form a tree.** A task links only to its thread, widget or
-  page; Pi's tasks own the subtasks they spawn and can wait on them. A task answering
-  a user's comment needs no parent, and a task handed to a dispatched session needs
-  one link back to its dispatcher, planned for step 7 of
-  [What needs you](notes/what-needs-you/page.html#task-hierarchy). A general tree
-  has to settle whether a parent ends when its children do, whose queue shows a
-  child, and whether a child can outlive its parent. Trigger: a case that needs more
-  than those two links.
+- **Model how work breaks into pieces.** A task links only to its thread, widget or
+  page. Most real work forms a fuzzy hierarchy: much of planning is breaking a goal into
+  pieces, and the breakdown changes as the work teaches what the goal needs, with
+  pieces split, merged, dropped or moved under another parent. Fixed trees, like Pi's
+  owned subtasks or a tracker's parent and child tickets, are too brittle for that.
+  Find a shape that holds a changing breakdown, and say what it means for the queues:
+  whether a parent ends when its children do, and whose queue shows a child. Two links
+  are already planned: none for a task answering the user's comment, and one back to
+  the dispatcher for work handed to another session (step 7 of
+  [What needs you](notes/what-needs-you/page.html#task-hierarchy)). Trigger: a page
+  whose work the user wants to see broken down.
 - **Tell the agent when to ask before ending a task.** The agent ends every task
   itself, and asks first, with an Ask or a thread question, when the result needs the
   user's sign-off

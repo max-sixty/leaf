@@ -111,6 +111,11 @@ TITLE_CONFIG = {
 # from overriding that auth. Thinking took Haiku's request from 1–2 s to 3–7 s, for
 # no better titles. Worktrunk's empty system prompt becomes `INSTRUCTIONS`, and its
 # plain-text answer the schema.
+#
+# The model answers in 1–2 s, and the rest of a request is `claude` starting and
+# exiting, which a busy machine stretches many times over. Without the nonessential
+# traffic Claude Code makes for an interactive session, the request took 8.4 s
+# rather than 15.8 s at a load average of 200, the median of four interleaved pairs.
 CLAUDE_CODE_COMMAND = (
     "-p",
     "--no-session-persistence",
@@ -119,6 +124,10 @@ CLAUDE_CODE_COMMAND = (
     "--safe-mode",
     "--setting-sources=user",
 )
+CLAUDE_CODE_ENVIRONMENT = {
+    "MAX_THINKING_TOKENS": "0",
+    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
+}
 
 Record = Callable[..., None]
 # How much of the passage and of the message a request carries: the first this many
@@ -172,7 +181,7 @@ def claude_code_title(request: str, page_dir: Path) -> dict:
             "--output-format",
             "json",
         ],
-        env=env | {"MAX_THINKING_TOKENS": "0"},
+        env=env | CLAUDE_CODE_ENVIRONMENT,
         input=request,
         capture_output=True,
         text=True,
@@ -192,6 +201,9 @@ def claude_code_title(request: str, page_dir: Path) -> dict:
     return {
         "title": answer["structured_output"]["title"].strip(),
         "durationMs": round((time.monotonic() - started) * 1000),
+        # The model's share of `durationMs`; the rest is `claude` starting and
+        # exiting, which a busy machine stretches and the model does not.
+        "apiDurationMs": answer["duration_api_ms"],
         "inputTokens": usage["input_tokens"],
         "outputTokens": usage["output_tokens"],
     }

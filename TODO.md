@@ -119,16 +119,6 @@ and its chrome coordinate.
   newcomer out of view rather than pushing down the card being read. The user sees
   it only in the count; give that arrival a visible route while preserving the
   current reading.
-- **Decide whether a thread card may cover the margin rail.** A card beside its
-  target starts right of the target's margin marker whenever the room past the marker
-  still holds the card's minimum width (`comment-placement.js`, where `options` reads
-  `margin`), so the marker stays visible. The card therefore opens well right of the
-  text and narrower than it could be; starting it beside the text would cover the
-  rail's markers for as long as it is open. Weigh that trade, then settle how Leaf
-  states which elements a floating surface may cover. Today each placement names the
-  boxes it keeps clear of (`clear`, `margin`) in its own code, so no element can declare
-  that it may be covered, or must never be.
-
 - **Give the phone banner one row.** Decided, not built
   ([plan](notes/chrome-and-covers.md)): one 53px row holding the status in words, cut
   short with an ellipsis, with a passing notice taking that slot for a few seconds;
@@ -233,7 +223,8 @@ that changes size after first paint, with its cause.
   the first state answer, after first paint. Serving that state inside the page does
   not work: modules run after first paint, and a page revision is immutable while the
   log keeps changing. Follow #1566's Command Hub pattern instead: draw a summary whose
-  size is known at first paint, open the rows from it, and hold later growth with
+  structure is fixed, declared as the widget's `x-prepaint` so the first paint lays it
+  out, open the rows from it, and hold later growth with
   `HeldReading` (`runtime/thread/held-news.js`) while it would be seen. Check first
   whether a text document, which the reader came to read, can stand behind a summary.
 - **Decide the contents' form before first paint.** `lf-toc` changes size because the

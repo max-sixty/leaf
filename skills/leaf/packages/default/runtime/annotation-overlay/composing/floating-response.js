@@ -30,7 +30,6 @@ import { under } from "/runtime/shadow.js";
 import { union } from "/runtime/rect.js";
 import { floatingPlacement, floatingUi } from "../floating.js";
 import {
-  cardMinimum,
   commentAttachment,
   commentBoundary,
   commentPlacement,
@@ -256,7 +255,6 @@ export function createFloatingResponsePlacement({
       clear: keepClear,
       extent: roomRect,
       boundary,
-      minimumWidth: cardMinimum(),
       scroller,
       coarse: coarsePointer.matches,
     });
@@ -276,7 +274,6 @@ export function createFloatingResponsePlacement({
           column: place.column,
           margin: place.margin,
           boundary,
-          minimumWidth: cardMinimum(),
           fit({ side: placed, width, scale }) {
             if (!stillCurrent()) return;
             setWidth(width, scale.x);

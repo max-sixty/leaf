@@ -32,7 +32,7 @@ from render_cases_layout import (
     ring_faults,
     rings_drawn,
     standing_ring,
-    toggle_asks,
+    toggle_queue,
     token_colour,
     with_one_ask,
 )
@@ -595,7 +595,7 @@ def test_a_surface_over_the_rail_hands_the_user_the_map(browser, serve):
     drawn, but at 1100 it stands over the rail, so the banner offers the Page Map in the
     markers' place; at 1920 the rail stands clear of it and the margin stays the way in.
     The Map is read as offered rather than as visible, since the toolbar may fold it behind
-    the More door at a width the banner is crowded at. The Asks drawer stands over the left
+    the More door at a width the banner is crowded at. The Queue panel stands over the left
     of the window, away from the rail, so it leaves the markers and the margin alone."""
     comment = {
         "kind": "comment",
@@ -640,7 +640,7 @@ def test_a_surface_over_the_rail_hands_the_user_the_map(browser, serve):
     margins_laid_out(page)
     assert not page.evaluate(offered), "closing the panel left the map offered"
 
-    toggle_asks(page)
+    toggle_queue(page)
     margins_laid_out(page)
     expect(marker).to_be_visible()
     assert not page.evaluate(offered), "the drawer on the left withdrew the rail"
@@ -2784,12 +2784,12 @@ def test_the_page_map_dialog_walks_its_rows_from_the_search(browser, serve):
 
 def test_the_chrome_names_an_ask_by_its_question(browser, serve):
     """An Ask is named by its heading, not its heading run into its options and their
-    chips: the Asks drawer row, and the Page Map group for it, whose one row says why the
+    chips: the Queue panel row, and the Page Map group for it, whose one row says why the
     Ask is there rather than naming it a second time."""
     page = open_page(browser, serve(ASK_PAGE))
     page.keyboard.press("g")
-    page.keyboard.press("Shift+a")
-    row = page.locator("button.lf-asks-row").first
+    page.keyboard.press("Shift+q")
+    row = page.locator("button.lf-queue-row").first
     expect(row).to_contain_text("Which jobs are worth starting?")
     expect(row).not_to_contain_text("Replace the")
     page.keyboard.press("Escape")
@@ -5259,7 +5259,7 @@ def test_a_thread_uses_a_free_margin_and_tracks_its_source(browser, serve):
 
 def test_a_thread_beside_its_words_takes_the_room_to_the_visible_edge(browser, serve):
     """Room right of a thread's words short of the card's measure narrows the card, not
-    its height.
+    its height, and the card spends none of that room keeping its pin clear.
 
     The width is the arrangement: this thread is on the gallery's right-hand title
     comparison, so the room right of it grows with half the viewport, and the case only says
@@ -5283,13 +5283,13 @@ def test_a_thread_beside_its_words_takes_the_room_to_the_visible_edge(browser, s
           const list = cardNode.querySelector('.lf-thread-transcript');
           const card = cardNode.getBoundingClientRect();
           const words = document.querySelector('#bg-thread-text').getBoundingClientRect();
-          // The pin on the words reaches past them, and the card clears it too.
           const pin = document.querySelector('[data-lf-margin-for="bg-thread-text"]')
             .getBoundingClientRect();
           const style = getComputedStyle(cardNode);
           return {placement: cardNode.dataset.lfThreadPlacement,
                   cardLeft: card.left, cardRight: card.right, cardWidth: card.width,
-                  wordsRight: Math.max(words.right, pin.right), viewport: innerWidth,
+                  wordsRight: words.right, pinLeft: pin.left, pinRight: pin.right,
+                  viewport: innerWidth,
                   preferred: parseFloat(style.getPropertyValue('--thread-card')),
                   minimum: parseFloat(style.getPropertyValue('--thread-card-min')),
                   clipped: list.scrollHeight - list.clientHeight};
@@ -5297,13 +5297,19 @@ def test_a_thread_beside_its_words_takes_the_room_to_the_visible_edge(browser, s
     )
     # The room between the words and the visible edge is what the card has to fit
     # into, and this case is the one where that room falls short of the preferred
-    # measure without falling short of the minimum.
+    # measure without falling short of the minimum. The pin on the words reaches past
+    # them, and the room past it falls short of the measure too.
     room = geometry["viewport"] - 8 - (geometry["wordsRight"] + 8)
     assert geometry["minimum"] <= room < geometry["preferred"], geometry
+    assert geometry["pinRight"] > geometry["wordsRight"], geometry
+    # Clearing the pin would cost the card width, so the card keeps no gap past it: it
+    # stands beside the words, over whatever of the pin reaches that far, and takes
+    # the whole room to the visible edge (comment-placement.js).
     assert geometry["placement"] == "right", geometry
     assert geometry["cardLeft"] == pytest.approx(geometry["wordsRight"] + 8, abs=0.5), (
         geometry
     )
+    assert geometry["cardLeft"] < geometry["pinRight"] + 8, geometry
     assert geometry["cardRight"] == pytest.approx(geometry["viewport"] - 8, abs=0.5), (
         geometry
     )
@@ -6609,11 +6615,11 @@ def test_a_thread_card_is_unseen_until_its_first_placement_lands(browser, serve)
         context.unroute_all(behavior="wait")
 
 
-@pytest.mark.parametrize("width", [1440, 1920])
+@pytest.mark.parametrize("width", [1440, 1920, 2400])
 def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(
     browser, serve, width
 ):
-    """The anchored thread is a complete thread clear of its source controls."""
+    """The anchored thread is a complete thread beside its source."""
     page = open_page(browser, serve(ASK_PAGE, events=[PARAGRAPH_ON_ASK]))
     resized(page, width, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds="comment"]')
@@ -6679,18 +6685,22 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(
                   viewport: innerWidth};
         }"""
     )
-    # Where the room past the cluster holds the card's minimum, the card stands there,
-    # clear of it; short of that, it stands beside the words instead, across the
-    # cluster (comment-placement.js). Either way it takes the room to the visible edge.
-    past = geometry["viewport"] - 8 - (geometry["controlsRight"] + 8) >= 320
-    assert past == (width == 1920), geometry
+    # Where the room past the cluster holds the card's whole measure, the card stands
+    # there, clear of it; short of that, clearing it would narrow the card, so the card
+    # stands beside the words instead, across the cluster (comment-placement.js).
+    past = geometry["viewport"] - 8 - (geometry["controlsRight"] + 8) >= 592
+    assert past == (width == 2400), geometry
     assert geometry["cardLeft"] == pytest.approx(
         (geometry["controlsRight"] if past else page.evaluate(WORDS_RIGHT)) + 8,
         abs=0.5,
     ), geometry
-    assert geometry["cardRight"] == pytest.approx(geometry["viewport"] - 8, abs=0.5), (
-        geometry
-    )
+    # Short of its measure, the card takes the room to the visible edge.
+    assert geometry["cardRight"] == pytest.approx(
+        geometry["viewport"] - 8
+        if geometry["viewport"] - 8 - geometry["cardLeft"] < 592
+        else geometry["cardLeft"] + 592,
+        abs=0.5,
+    ), geometry
     expect(thread.locator(".lf-page-thread")).to_be_focused()
     assert page.evaluate("() => window.__firstReplyHint") == "Reply c"
     expect(reply).to_have_attribute("placeholder", "Reply c")
@@ -8280,13 +8290,13 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     resized_shell(page, 1920, 900)
 
     page.keyboard.press("g")
-    page.keyboard.press("Shift+a")
+    page.keyboard.press("Shift+q")
     expect(preview).to_be_hidden()
-    expect(page.locator(".lf-asks-panel")).to_have_class(re.compile(r"\bopen\b"))
+    expect(page.locator(".lf-queue-panel")).to_have_class(re.compile(r"\bopen\b"))
     # Exchanging one auxiliary surface for another is lateral, so the drawer's Escape
     # lands on the page and the card it displaced is not put back up.
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-asks-panel")).not_to_have_class(re.compile(r"\bopen\b"))
+    expect(page.locator(".lf-queue-panel")).not_to_have_class(re.compile(r"\bopen\b"))
     expect(preview).to_be_hidden()
     assert page.evaluate("() => document.activeElement === document.body")
     marker.click()
@@ -8529,16 +8539,16 @@ def test_the_thread_card_survives_drawers_and_authored_sidebars(browser, serve):
     marker.click()
     expect(page.locator(".lf-margin-thread")).to_have_count(1)
 
-    banner_control(page, ".lf-asks").click()
-    expect(page.locator("body")).to_have_attribute("data-lf-auxiliary-surface", "asks")
+    banner_control(page, ".lf-queue").click()
+    expect(page.locator("body")).to_have_attribute("data-lf-auxiliary-surface", "queue")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     marker.click()
     expect(page.locator(".lf-margin-preview")).to_be_visible()
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
     marker.click()
-    banner_control(page, ".lf-asks").click()
+    banner_control(page, ".lf-queue").click()
     expect(page.locator("body")).not_to_have_attribute(
-        "data-lf-auxiliary-surface", "asks"
+        "data-lf-auxiliary-surface", "queue"
     )
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     marker.click()

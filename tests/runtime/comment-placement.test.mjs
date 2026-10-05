@@ -12,6 +12,10 @@ import {
   commentSide,
 } from "/runtime/annotation-overlay/comment-placement.js";
 
+// The card's widths as theme.css declares them, which the placement reads off the root.
+document.documentElement.style.setProperty("--thread-card-min", "320px");
+document.documentElement.style.setProperty("--thread-card", "592px");
+
 // A window boundary, keyed by its edges as commentBoundary keys one.
 const windowBoundary = (left, top, width, height) =>
   Object.assign(new DOMRect(left, top, width, height), {
@@ -89,7 +93,6 @@ test("a submitted frame survives supersession until it lands, then follows scrol
       clear,
       boundary,
       row: clear.top,
-      minimumWidth: 320,
       scroller: scroller(1000),
       coarse: false,
     };
@@ -115,7 +118,7 @@ test("a submitted frame survives supersession until it lands, then follows scrol
       middlewareData: {
         scaled: {
           scale: { x: 1, y: 1 },
-          column: scrolled.right - input.minimumWidth,
+          column: scrolled.right - 320,
           line: card.line(scrolled, scrolled.top),
         },
         held: { height: box.height },
@@ -142,7 +145,6 @@ test("a page scroll that moves a region's shown bounds keeps the side", () => {
   const input = {
     clear,
     row: clear.top,
-    minimumWidth: 320,
     scroller: scroller(1000),
     coarse: false,
   };
@@ -161,7 +163,6 @@ test("a growing card holds its top while read and its foot for the turn that joi
     clear,
     boundary,
     row: clear.top,
-    minimumWidth: 320,
     scroller: scroller(1000),
     coarse: false,
   };
@@ -227,4 +228,27 @@ test("a growing card holds its top while read and its foot for the turn that joi
   );
   assert.deepEqual(card.heldAt("top"), { top: -8 });
   assert.equal(card.heldHeight(), 200);
+});
+
+test("beside, a margin row is kept clear only where that leaves the card its whole measure", async () => {
+  const ui = await import("/vendor/floating-ui.esm.js");
+  // A paragraph ending at 600, and a margin row 40px wide out past it.
+  const clear = block(300, 300, 300, 500);
+  const reference = (rowRight) => {
+    const placement = commentPlacement();
+    placement.choose({ clear, boundary, scroller: scroller(1000), coarse: false });
+    return placement.options(ui, {
+      clear,
+      row: clear.top,
+      margin: { left: rowRight - 40, right: rowRight },
+      boundary,
+      fit() {},
+    }).reference;
+  };
+  // Past a row ending at 692, 592 remains to the boundary at 1292 after the gap: the
+  // card keeps the row in view at no cost to its width.
+  assert.equal(reference(692).right, 692);
+  // A row ending 1px further would take that pixel from the card, so the card stands
+  // over the row, beside the words.
+  assert.equal(reference(693).right, clear.right);
 });

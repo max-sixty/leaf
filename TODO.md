@@ -358,6 +358,14 @@ Revisit these when their stated trigger becomes real; they are not an active que
   has to settle whether a parent ends when its children do, whose queue shows a
   child, and whether a child can outlive its parent. Trigger: a case that needs more
   than those two links.
+- **Decide who ends a task.** Only the agent ends one today, with `leaf task end` or a
+  version stamped `--completes`, and the user has no step in it. The proposal in
+  [What needs you](notes/what-needs-you/page.html#task-done) splits by result: the
+  agent ends a task whose result it can check, such as a passing test, and puts one
+  only the user can judge, such as a rewrite, on the user's queue to review, where
+  reading accepts it and a reply reopens it. Still open: whether reading is enough to
+  accept, and how the agent tells the two kinds apart. Trigger: building step 6, or a
+  user finding a judged result ended without their review.
 - **Multiplayer:** let several users share a page, each recorded as themselves.
   Every browser event is `author: "user"` today, so the log cannot say who moved,
   commented or voted, and nothing records who has the page open. Claude Code

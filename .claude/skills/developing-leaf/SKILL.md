@@ -20,6 +20,11 @@ For a contract shared across modules or runtimes, read the sidecar beside the
 Python code that owns the boundary;
 `<root>/skills/leaf/scripts/AGENTS.md` lists them under "Protocol references".
 
+Before changing what a module does, read its header for the product decisions it
+records and the alternatives they rejected (`AGENTS.md`, "Where instructions live").
+A change that settles a decision writes it there in the same commit, and one that
+reverses a decision the user made asks them first.
+
 To check what the code does, call it: the checkout's environment installs `leaf`
 and `leaf_dev` editable, so `uv run python -c 'from leaf... import ...'` imports
 either without a `sys.path` edit. A tag's schema is in the registry of the package

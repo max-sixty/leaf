@@ -56,6 +56,16 @@
    would move the box under the press. Anything held in a seat is not drawn, so it stays
    unread until it shows.
 
+   Decisions. A panel card holds news behind its notice (#1694). That reverses the
+   choice #1525 recorded: the open card filled the list with its reply box at the foot
+   (#1480), so a reply landed in the room above the box and later cards waited below the
+   fold, and the notice was rejected because it hides the answer the user is waiting
+   for. The other alternative #1525 rejected lets a list that cannot scroll push its
+   contents down, which needs the shift watch to stop checking such lists. Arrival is
+   the routes that call `showHeld`, not a fact derived from focus events: that
+   derivation missed focus moving inside one shadow tree and took a dialog handing
+   focus back for an arrival (#1780 holds the attempt and its revert).
+
    `HeldReading` is the same rule for a widget's region whose rows only the log or the
    clock decides, such as a command's lists of stopped goals and live workers: a reading
    that would change its size waits, the region standing as it was, while its growth

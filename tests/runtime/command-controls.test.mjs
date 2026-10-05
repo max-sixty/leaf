@@ -320,7 +320,7 @@ test("each contribution publication validates its current activation capability"
 });
 
 test("context aliases project the selected source route's availability", async () => {
-  const { commandEntries, bindings, live } =
+  const { commandEntries, commandPresentations, bindings, live } =
     await import("../../skills/leaf/assets/runtime/keyboard/bindings.js");
   const { scopesAt } =
     await import("../../skills/leaf/assets/runtime/keyboard/scopes.js");
@@ -365,6 +365,12 @@ test("context aliases project the selected source route's availability", async (
     ["probe.alias-two"],
   );
   assert.deepEqual(commandEntries(contextual, ["1"]), []);
+  assert.deepEqual(
+    commandPresentations(contextual, bindings(contextual), {
+      includeUnavailable: true,
+    }).map(({ id }) => id),
+    ["probe.alias-one", "probe.alias-two"],
+  );
   first = true;
   paintKeys();
   reflectKeys();
@@ -374,6 +380,19 @@ test("context aliases project the selected source route's availability", async (
   );
   assert.deepEqual(commandEntries(contextual, ["2"]), []);
   owner.remove();
+});
+
+test("the command reference retains unavailable command identities", async () => {
+  const { commandPresentations } =
+    await import("../../skills/leaf/assets/runtime/keyboard/bindings.js");
+  const row = { id: "probe.leave", keys: ["Tab"], when: () => false, run: () => {} };
+  assert.deepEqual(commandPresentations(row), []);
+  assert.deepEqual(
+    commandPresentations(row, ["Tab"], { includeUnavailable: true }).map(
+      ({ id }) => id,
+    ),
+    ["probe.leave"],
+  );
 });
 
 test("page command scopes share native activation and hand removed controls back", async () => {

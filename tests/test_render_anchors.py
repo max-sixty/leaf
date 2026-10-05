@@ -6006,7 +6006,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     expect(thread.locator(".lf-msg").first).to_be_visible()
 
     with sending(page, "the inline reopening"):
-        thread.get_by_role("button", name="Reopen", exact=True).click()
+        thread.get_by_role("button", name="Reopen").click()
     expect(thread).to_have_attribute("open", "")
     expect(thread.locator(".lf-page-thread-summary")).to_be_hidden()
     expect(thread.locator("leaf-text")).to_be_visible()

@@ -428,9 +428,7 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
                 continue
             card = page.locator(f'.lf-thread[data-id="{thread["id"]}"]')
             expect(
-                card.get_by_role(
-                    "button", name="Reopen", exact=True, include_hidden=True
-                )
+                card.get_by_role("button", name="Reopen", include_hidden=True)
             ).to_have_count(1)
             anchor = thread["anchor"]
             if anchor and anchor["section"] not in open_targets:

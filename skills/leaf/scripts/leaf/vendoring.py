@@ -42,7 +42,7 @@ from .schema import (
 from .service import PageTransaction, claim_path
 from .state import EVENTS_FILE, json_bytes
 from .structure import SourceDocument
-from .tasks import open_tasks
+from .tasks import owed_tasks
 from .validation.compatibility import candidate_vocabulary_gaps
 from .validation.source import check_source
 from .work import widget_tasks_without_targets
@@ -280,7 +280,7 @@ def _refuse_untargeted_work(page_dir: Path, events: list[dict], incoming: dict) 
     )
     document = page.document
     untargeted = widget_tasks_without_targets(
-        document, page.projection, open_tasks(events), incoming
+        document, page.projection, owed_tasks(events), incoming
     )
     if untargeted:
         sys.exit(

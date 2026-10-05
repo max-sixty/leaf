@@ -8,8 +8,8 @@
    The panel decides no membership. Its two queues are the application's one reading,
    `queues.onYou` and `queues.onAgent` (`queues.js`, the browser's side of
    `agent_state.queues`), the same lists the `a` walk steps through and the banner
-   counts; what is done is `done`, selected beside them from the readings that already
-   exist: the answered Asks and the tasks a `task_end` ended. So a reply the user sends
+   counts; what is done is `done`, selected beside them from the tasks that ended, the
+   answered Asks among them. So a reply the user sends
    leaves "On you" and joins the agent's queue in the turn it is sent, as it leaves the
    banner's count.
 
@@ -44,6 +44,7 @@ import { clocked, shortAgo } from "./presence.js";
 import { elementById, inChrome } from "./passages.js";
 import { PRESENTATION } from "./presentation.js";
 import { standsAt } from "./queue-list.js";
+import { taskNoun } from "./queues.js";
 import { repaint } from "./repaint.js";
 import { keeps } from "./keeps.js";
 import {
@@ -64,9 +65,9 @@ import { threadSummary } from "./thread/model.js";
 import { workflowLabel } from "./thread/workflow.js";
 import { walkPositionLabel } from "./walk-position.js";
 
-// The kind of item, in the row's apparatus voice. An Ask says what kind of thing is
-// asking, in its widget's own word ("Deletion", "Options"), and "Ask" where its
-// element is not built.
+// What an item is called (`taskNoun`), in the row's apparatus voice. An Ask says what
+// kind of thing is asking, in its widget's own word ("Deletion", "Options"), and "Ask"
+// where its element is not built.
 const WORDS = Object.freeze({
   ask: "Ask",
   question: "Question",
@@ -139,7 +140,7 @@ export function createQueuePanel({ arriveAtItem, announce }) {
   function title(item, thread) {
     const own = elementById(item.subject.id);
     const topic = thread ? threadSummary(thread).topic : "";
-    if (item.kind === "task") return item.title;
+    if (item.title) return item.title;
     if (item.kind === "work" && item.detail) return item.detail;
     if (item.subject.kind === "widget") {
       const ask = own && askHolding(allAsks(), own);
@@ -155,7 +156,7 @@ export function createQueuePanel({ arriveAtItem, announce }) {
   // The rest of where: how long it has stood or how far a reply has got, after the
   // place; and before it, how a finished item ended, which is what a Done row is for.
   function when(item, thread) {
-    if (item.kind === "question")
+    if (taskNoun(item) === "question")
       return thread && shortAgo(threadSummary(thread).latest);
     if (item.kind === "answer") return workflowLabel(workflowOf(item.id));
     if (item.kind === "work") return shortAgo(workflowOf(item.id)?.ts);
@@ -164,18 +165,22 @@ export function createQueuePanel({ arriveAtItem, announce }) {
       return [item.running.text, shortAgo(item.running.ts)].filter(Boolean).join(" · ");
     return "";
   }
+  // An Ask its widget answered says the answer; a task ended in so many words says its
+  // outcome.
   function ended(item) {
-    if (item.kind === "task")
-      return [OUTCOMES[item.state] ?? item.state, shortAgo(item.ended)]
-        .filter(Boolean)
-        .join(" ");
-    const ask = allAsks().find((candidate) => candidate.id === item.id);
-    const answer = ask ? askAnswers([ask])[0] : "";
-    return answer ? `Answered ${answer}` : "Answered";
+    if (item.ask && item.ended === null) {
+      const ask = allAsks().find((candidate) => candidate.id === item.id);
+      const answer = ask ? askAnswers([ask])[0] : "";
+      return answer ? `Answered ${answer}` : "Answered";
+    }
+    return [OUTCOMES[item.state] ?? item.state, shortAgo(item.ended)]
+      .filter(Boolean)
+      .join(" ");
   }
   function row(item, list) {
     const thread = threadOf(item.thread);
-    const word = item.kind === "ask" ? askWord(item) : WORDS[item.kind];
+    const noun = taskNoun(item);
+    const word = noun === "ask" ? askWord(item) : WORDS[noun];
     const where = (
       list === "done"
         ? [ended(item), place(item, thread)]
@@ -188,18 +193,18 @@ export function createQueuePanel({ arriveAtItem, announce }) {
     // again. A reply the agent owes a move stands nowhere, so an Ask's own row is the one
     // row standing at it.
     const at =
-      item.kind === "ask" ||
+      noun === "ask" ||
       (item.kind === "recovery" &&
         item.subject.kind === "widget" &&
         item.thread === null)
         ? item.subject.id
         : null;
     return Object.freeze({
-      key: `${list}:${item.kind}:${item.id}`,
+      key: `${list}:${noun}:${item.id}`,
       item,
       list,
       at,
-      kind: item.kind,
+      kind: noun,
       word,
       title: words,
       where,

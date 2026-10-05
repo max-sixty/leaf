@@ -34,6 +34,7 @@ from interact_support import (
     _tasks_version,
     append_carried_log_record,
     append_command,
+    asks_on_you,
     before_choice,
     check,
     comment,
@@ -3696,7 +3697,7 @@ def test_user_state_survives_without_source_copying(page_dir):
     assert "record behind the log" not in result.output
     state = state_json(page_dir)
     assert state["state"][0]["detail"] == {"options": ["o-shim"]}
-    assert state["asks"] == []
+    assert asks_on_you(state) == []
 
     # Explicit incorporation is permitted but unnecessary for correctness.
     write(a=" chosen")
@@ -3836,12 +3837,12 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
     assert state["event_seq"] == events_model.read_events(page_dir)[-1]["seq"]
     # The one asking group: PAGE's own bare <lf-options> takes no `choose`. The ask
     # names the region the user is sent to and the group that answers it.
-    assert state["asks"] == [
+    assert asks_on_you(state) == [
         {
             "id": "g1-decision",
             "tag": "lf-ask",
-            "source": "g1",
-            "source_tag": "lf-options",
+            "widget": "g1",
+            "widget_tag": "lf-options",
             "thread": None,
         }
     ]
@@ -3860,7 +3861,7 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
         },
     )
     state = state_json(page_dir)
-    assert state["asks"] == []
+    assert asks_on_you(state) == []
     assert state["state"] == [
         {
             "widget": "g1",
@@ -4563,12 +4564,12 @@ def test_page_state_names_the_ask_region_but_keeps_state_on_its_request(page_dir
     publish(page_dir)
 
     state = state_json(page_dir)
-    assert state["asks"] == [
+    assert asks_on_you(state) == [
         {
             "id": "plan-decision",
             "tag": "lf-ask",
-            "source": "g1",
-            "source_tag": "lf-options",
+            "widget": "g1",
+            "widget_tag": "lf-options",
             "thread": None,
         },
     ]
@@ -4585,7 +4586,7 @@ def test_page_state_names_the_ask_region_but_keeps_state_on_its_request(page_dir
         },
     )
     state = state_json(page_dir)
-    assert state["asks"] == []
+    assert asks_on_you(state) == []
     assert state["state"][0]["widget"] == "g1"
 
 
@@ -4597,7 +4598,7 @@ def test_page_state_reads_an_authored_answer_with_no_log(page_dir):
         PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + opts)
     )
     publish(page_dir)
-    assert state_json(page_dir)["asks"] == []
+    assert asks_on_you(state_json(page_dir)) == []
 
 
 def test_page_state_keeps_thread_history_out_of_its_current_reading(page_dir):
@@ -4847,12 +4848,12 @@ def test_page_state_holds_a_thread_ask_open_until_its_verb(page_dir):
             "</lf-options></lf-ask>",
         },
     )
-    assert state_json(page_dir)["asks"] == [
+    assert asks_on_you(state_json(page_dir)) == [
         {
             "id": "gm-decision",
             "tag": "lf-ask",
-            "source": "gm",
-            "source_tag": "lf-options",
+            "widget": "gm",
+            "widget_tag": "lf-options",
             "thread": root["id"],
         },
     ]
@@ -4867,12 +4868,12 @@ def test_page_state_holds_a_thread_ask_open_until_its_verb(page_dir):
             "detail": {"options": ["m-cap"]},
         },
     )
-    assert state_json(page_dir)["asks"] == [
+    assert asks_on_you(state_json(page_dir)) == [
         {
             "id": "gm-decision",
             "tag": "lf-ask",
-            "source": "gm",
-            "source_tag": "lf-options",
+            "widget": "gm",
+            "widget_tag": "lf-options",
             "thread": root["id"],
         },
     ]
@@ -4887,7 +4888,7 @@ def test_page_state_holds_a_thread_ask_open_until_its_verb(page_dir):
             "detail": {},
         },
     )
-    assert state_json(page_dir)["asks"] == []
+    assert asks_on_you(state_json(page_dir)) == []
 
 
 def test_tasks_roll_up_explicit_requests_without_asking_themselves(page_dir):
@@ -4917,19 +4918,19 @@ def test_tasks_roll_up_explicit_requests_without_asking_themselves(page_dir):
     )
     publish(page_dir)
 
-    assert state_json(page_dir)["asks"] == [
+    assert asks_on_you(state_json(page_dir)) == [
         {
             "id": "future-decision",
             "tag": "lf-ask",
-            "source": "future-review",
-            "source_tag": "lf-options",
+            "widget": "future-review",
+            "widget_tag": "lf-options",
             "thread": None,
         },
         {
             "id": "decision-decision",
             "tag": "lf-ask",
-            "source": "decision-options",
-            "source_tag": "lf-options",
+            "widget": "decision-options",
+            "widget_tag": "lf-options",
             "thread": None,
         },
     ]
@@ -4947,7 +4948,7 @@ def test_page_state_carries_a_report_until_a_version_answers_it(page_dir):
         PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + tasks)
     )
     publish(page_dir)
-    assert state_json(page_dir)["asks"] == []
+    assert asks_on_you(state_json(page_dir)) == []
     rep = append_command(
         page_dir,
         {
@@ -4961,7 +4962,7 @@ def test_page_state_carries_a_report_until_a_version_answers_it(page_dir):
         },
     )
     state = state_json(page_dir)
-    assert state["asks"] == []
+    assert asks_on_you(state) == []
     assert state["updates"] == [
         {
             "id": rep["id"],
@@ -5017,7 +5018,7 @@ def test_page_state_carries_a_report_until_a_version_answers_it(page_dir):
             "disposition": "settled",
         }
     ]
-    assert state["asks"] == []
+    assert asks_on_you(state) == []
 
 
 def test_update_feed_orders_clock_ties_by_log_causality(page_dir, monkeypatch):
@@ -5070,7 +5071,7 @@ def test_page_state_before_first_stamp(page_dir):
     assert state["active"]["revision"] == 1
     assert state["active"]["version"] is None
     assert state["active"]["label"] == "Draft"
-    assert state["elements"] and state["asks"] == []
+    assert state["elements"] and asks_on_you(state) == []
     assert state["title"] == "t"
 
 
@@ -5130,12 +5131,12 @@ def test_a_quoted_ask_does_not_hide_a_real_request_in_the_same_goal(page_dir):
         PAGE.replace("</section>", markup + "</section>")
     )
     publish(page_dir)
-    assert state_json(page_dir)["asks"] == [
+    assert asks_on_you(state_json(page_dir)) == [
         {
             "id": "real-decision",
             "tag": "lf-ask",
-            "source": "real",
-            "source_tag": "lf-options",
+            "widget": "real",
+            "widget_tag": "lf-options",
             "thread": None,
         },
     ]
@@ -5159,12 +5160,12 @@ def test_page_state_and_browser_share_a_conditional_edit_decision(page_dir):
         PAGE.replace("</section>", command("active", True, "paste") + "</section>")
     )
     publish(page_dir)
-    assert state_json(page_dir)["asks"] == [
+    assert asks_on_you(state_json(page_dir)) == [
         {
             "id": "cargo",
             "tag": "lf-draft",
-            "source": "cargo",
-            "source_tag": "lf-draft",
+            "widget": "cargo",
+            "widget_tag": "lf-draft",
             "thread": None,
         },
     ]
@@ -5180,7 +5181,7 @@ def test_page_state_and_browser_share_a_conditional_edit_decision(page_dir):
             "detail": {"text": "ledger_id,amount\n7,42"},
         },
     )
-    assert state_json(page_dir)["asks"] == []
+    assert asks_on_you(state_json(page_dir)) == []
 
     (page_dir / "index.html").write_text(
         PAGE.replace(
@@ -5189,7 +5190,7 @@ def test_page_state_and_browser_share_a_conditional_edit_decision(page_dir):
         )
     )
     publish(page_dir, 2)
-    assert state_json(page_dir)["asks"] == []
+    assert asks_on_you(state_json(page_dir)) == []
 
 
 # The colour-vision maths the series palette is stepped against, written out here because

@@ -9,7 +9,7 @@ from leaf.leases import contract_writer
 from leaf.projection import folded_value, markup_value, page_reading
 from leaf.revisioning import planned_activation, publish_checked_event
 from leaf.service import PageTransaction
-from leaf.tasks import open_tasks
+from leaf.tasks import owed_tasks
 from leaf.validation.admission import read_text_arg
 from leaf.validation.source import check_source
 from leaf.work import widget_tasks_without_targets
@@ -46,7 +46,7 @@ def _completed_tasks(
     complete is refused, since the task would stand beside nothing."""
     if len(set(completes)) != len(completes):
         sys.exit("--completes names each widget at most once")
-    tasks = open_tasks(events)
+    tasks = owed_tasks(events)
     on_widgets = [task for task in tasks if task["subject"]["kind"] == "widget"]
     unearned = sorted(set(completes) - {task["subject"]["id"] for task in on_widgets})
     if unearned:

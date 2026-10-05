@@ -443,7 +443,11 @@ export function createAnnotationInventory({
     // with the line of the start running on it, or as an open task under its title.
     // A thread's task is its thread's attention (above); the page's is the banner's.
     for (const task of runtime.browser?.tasks ?? []) {
-      if (task.subject.kind !== "widget" || task.revision > runtime.currentRevision)
+      if (
+        task.owner !== "agent" ||
+        task.subject.kind !== "widget" ||
+        task.revision > runtime.currentRevision
+      )
         continue;
       if (activityAlreadyShown.has(`widget:${task.subject.id}`)) continue;
       const target = elementById(task.subject.id);

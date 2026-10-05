@@ -3,10 +3,11 @@
 
    What waits on the user is the application's one reading, `queues.onYou`
    (`runtime/queues.js`, the browser's selection of `agent_state.queues`): each open
-   Ask, each other thread whose attention is the user's, and each page widget move
-   handed back to them. The walk does not decide membership; it stops once at each
-   item, so a thread holding an open Ask is reached as that Ask. `t` still walks every
-   open thread (navigation.js).
+   task on the user, an Ask's or a thread question's among them, each thread holding a
+   move to send again, and each page widget move handed back to them. The walk does not
+   decide membership; it stops once at each place an item is arrived at, so a thread
+   holding an open Ask is reached as that Ask. `t` still walks every open thread
+   (navigation.js).
 
    Arrival belongs to the item's owner, so the walk adds no arrival of its own beside
    theirs: an Ask arrives through the Ask view's `arriveAtAsk`; a thread through the
@@ -49,11 +50,11 @@ import { beginWalk, listWalkPosition, walkPositionLabel } from "./walk-position.
 const QUALIFIER = "waiting on you";
 const NOUNS = Object.freeze({ ask: "Ask", thread: "Thread", widget: "Move" });
 
-// Where an item of either queue, or one that is done, is arrived at: an Ask by its own
-// id, anything else by the thread it stands in, or else the widget its move was made
-// on.
+// Where an item of either queue, or one that is done, is arrived at: an Ask's task by
+// the Ask's own id, anything else by the thread it stands in, or else the widget its
+// move was made on.
 const stopOf = (item) =>
-  item.kind === "ask"
+  item.ask
     ? { kind: "ask", id: item.id, thread: item.thread }
     : item.thread !== null
       ? { kind: "thread", id: item.thread, thread: item.thread }
@@ -72,8 +73,13 @@ export function createQueueWalk({
   function stops() {
     const placed = [];
     const loose = [];
+    const listed = new Set();
     for (const item of readApplication().effective.queues.onYou) {
       const stop = stopOf(item);
+      // Two items arrived at in one place, such as two tasks on one thread, are one
+      // stop.
+      if (listed.has(`${stop.kind}:${stop.id}`)) continue;
+      listed.add(`${stop.kind}:${stop.id}`);
       const at =
         stop.kind === "ask" && stop.thread === null
           ? elementById(stop.id)

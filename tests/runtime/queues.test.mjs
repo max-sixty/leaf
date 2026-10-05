@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { selectDone, selectQueues } from "../../skills/leaf/assets/runtime/queues.js";
+import {
+  selectDone,
+  selectQueues,
+  taskNoun,
+} from "../../skills/leaf/assets/runtime/queues.js";
 import { foldThreads } from "../../skills/leaf/assets/runtime/thread/model.js";
 import { servedReading, servedWorkflow } from "../served.mjs";
 
@@ -56,7 +60,7 @@ test("a reply the user is sending moves its thread to the agent's queue at once"
   ];
   const { onYou, onAgent } = selectQueues({ ...served, threads, workflows });
   assert.deepEqual(kinds(onYou), [
-    ["ask", "pick-ask"],
+    ["task", "pick-ask"],
     ["recovery", "e7"],
     ["recovery", "e9"],
   ]);
@@ -95,35 +99,63 @@ test("a pick the user is sending owes nothing yet and leaves its Ask open", () =
   assert.deepEqual(queues, selectQueues(served));
 });
 
-test("a thread holding an open Ask is on the user once, as that Ask", () => {
+test("an Ask whose widget's seat holds a thread with the agent is off the user's queue", () => {
+  // The task stays open, since the thread in the seat does not answer the Ask, but the
+  // user's next move is the agent's to wait for.
   const served = reading();
-  const asks = [...served.asks, { ...served.asks[0], id: "seated", thread: "e1" }];
-  assert.deepEqual(kinds(selectQueues({ ...served, asks }).onYou), [
-    ["ask", "pick-ask"],
-    ["ask", "seated"],
+  const tasks = served.tasks.map((task) =>
+    task.ask ? { ...task, ask: { ...task.ask, held_by_seat: true } } : task,
+  );
+  assert.deepEqual(kinds(selectQueues({ ...served, tasks }).onYou), [
+    ["task", "e2"],
     ["recovery", "e7"],
     ["recovery", "e9"],
   ]);
 });
 
-test("what is done is each answered Ask and each task the agent ended", () => {
+test("each item is called by how it ends", () => {
+  const { queues } = reading();
+  assert.deepEqual([...queues.on_you, ...queues.on_agent].map(taskNoun), [
+    "ask",
+    "question",
+    "recovery",
+    "recovery",
+    "answer",
+    "task",
+  ]);
+});
+
+test("what is done is each task that ended, an answered Ask's among them", () => {
   const served = servedReading("done");
   assert.deepEqual(selectDone(served), [
     {
-      kind: "ask",
+      kind: "task",
       id: "ship-ask",
+      owner: "user",
       subject: { kind: "widget", id: "ship-ask" },
       thread: null,
+      title: null,
+      state: "done",
+      ended: null,
+      detail: null,
+      ask: {
+        tag: "lf-ask",
+        widget: "ship",
+        widget_tag: "lf-options",
+        held_by_seat: false,
+      },
     },
     {
       kind: "task",
       id: "e4",
+      owner: "agent",
       subject: { kind: "thread", id: "e2" },
       thread: "e2",
       title: "Check the colours",
       state: "done",
       ended: "2026-09-19T12:00:00+00:00",
       detail: "Matched the theme",
+      ask: null,
     },
   ]);
 });

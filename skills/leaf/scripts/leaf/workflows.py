@@ -65,7 +65,7 @@ from .projection import (
     PageReading,
     recorded_state,
 )
-from .tasks import item_starts, open_tasks
+from .tasks import item_starts, owed_tasks
 
 
 def admission_workflows(readings) -> tuple[list[dict], dict]:
@@ -122,7 +122,7 @@ def obligation_reading(readings) -> dict:
         if item["stage"] == "working"
     ] + [
         (task["id"], task["subject"])
-        for task in open_tasks(events)
+        for task in owed_tasks(events)
         if task["subject"]["kind"] != "page"
     ]
     inputs = [
@@ -253,7 +253,7 @@ def canonical_workflows(
 
     starts = item_starts(events)
     widget_starts: dict[str, list[dict]] = {}
-    for task in open_tasks(events):
+    for task in owed_tasks(events):
         if task["running"] and task["subject"]["kind"] == "widget":
             widget_starts.setdefault(task["subject"]["id"], []).append(task["running"])
 

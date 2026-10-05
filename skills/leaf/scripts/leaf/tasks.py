@@ -1,11 +1,15 @@
-"""The agent's queue as the log holds it: the tasks it opens and the item it has in hand.
+"""Tasks, the one item on both queues, and the item the agent has in hand.
 
-An item on the agent's queue is either a user move it owes an answer, whose id is the
-move's event id (`workflows`), or a task it opened. Working always names one of them:
-`leaf task start` writes a `start` event naming the item with the line the banner
-shows, and the item is in hand, running, from then on.
+A task is something owed, and its `owner` says by whom: the agent or the user. How
+it ends follows from its owner and what it stands on, so no field records it.
 
-A task is work the agent owes on a thread, a page widget, or the page as a whole.
+The agent's tasks are in the log. An item on the agent's queue is either a user move
+it owes an answer, whose id is the move's event id (`workflows`), or a task it
+opened. Working always names one of them: `leaf task start` writes a `start` event
+naming the item with the line the banner shows, and the item is in hand, running,
+from then on.
+
+The agent's task is work it owes on a thread, a page widget, or the page as a whole.
 `leaf task open` writes a `task` event, and it stands until a `task_end` gives it one
 outcome, `done`, `failed` or `dropped`, with a detail saying where the result is or
 why there is none, or until a stamped version that names its widget with
@@ -19,6 +23,12 @@ the banner. Work no user move asked for, such as writing or revising the page on
 agent's own initiative, is a task the agent opens on the page or the widget it
 concerns; housekeeping, such as re-vendoring or restarting the server, owes the user
 nothing and is no item.
+
+The user's tasks are read from the document and the threads (`page_tasks`): each
+Ask in the markup is one, under the Ask's id, from the version that adds it, and
+ends `done` when its widget is answered (`asks`); each agent turn in a thread that
+asks the user (`asks.thread_awaits_user`) is one, under that turn's id, and ends at
+the user's answer there. The document starts state, so neither writes an event.
 
 A start lasts until its item ends: a task's end, or for a move the reply or stamped
 version that answers it (`workflows.canonical_workflows`), and it holds its item
@@ -35,8 +45,9 @@ which writes no `put_down`.
 
 The door admits a task on an open thread, on a live page widget that declares
 `x-work` or holds an unsettled move (`work.widget_seat_error`), or on the page; a
-start on an open task or a move the agent owes. Every reader takes tasks from
-`canonical_tasks` and starts from `item_starts`.
+start on an open task of the agent's or a move the agent owes. Every reader takes
+the log's tasks from `canonical_tasks`, every task on the page from `page_tasks`, and
+starts from `item_starts`.
 
 Not yet: a task whose session has ended reads open until another session ends it.
 
@@ -112,6 +123,7 @@ def canonical_tasks(events: list) -> list[dict]:
         if event["kind"] == "task":
             tasks[event["id"]] = {
                 "id": event["id"],
+                "owner": "agent",
                 "subject": event["subject"],
                 "title": event["title"],
                 "state": "open",
@@ -137,9 +149,111 @@ def canonical_tasks(events: list) -> list[dict]:
     return list(tasks.values())
 
 
-def open_tasks(events: list) -> list[dict]:
-    """The tasks nothing has ended."""
-    return [task for task in canonical_tasks(events) if task["state"] == "open"]
+def owed_tasks(events: list) -> list[dict]:
+    """The agent's tasks nothing has ended: the work it still owes."""
+    return [
+        task
+        for task in canonical_tasks(events)
+        if task["state"] == "open" and task["owner"] == "agent"
+    ]
+
+
+def _derived(
+    identity: str,
+    subject: dict,
+    thread: str | None,
+    state: str,
+    *,
+    ask: dict | None = None,
+    message: dict | None = None,
+) -> dict:
+    """A task on the user that the page's markup or a thread's question holds rather
+    than a `task` event, in the shape of the log's: it has no title of its own, and
+    nobody opened it."""
+    return {
+        "id": identity,
+        "owner": "user",
+        "subject": subject,
+        "thread": thread,
+        "title": None,
+        "state": state,
+        "seq": message["seq"] if message else None,
+        "ts": message["ts"] if message else None,
+        "agent": message.get("agent") if message else None,
+        "session": message.get("session") if message else None,
+        "revision": None,
+        "running": None,
+        "outcome": None,
+        "ask": ask,
+    }
+
+
+def ask_tasks(asks: dict) -> tuple[list[dict], list[dict]]:
+    """The user's tasks one Ask reading holds (`{all, user, unanswered}`,
+    `asks.page_ask_readings` or `asks.thread_ask_readings`), as the open ones and the
+    ended ones.
+
+    Each Ask is a task on the user under the Ask's own id, open while it is
+    unanswered and `done` once its widget answers it, with `ask` naming the widget
+    that answers and whether a thread in that widget's seat holds it with the agent
+    (`held_by_seat`), which takes it off the user's queue meanwhile. A document's Asks
+    are read with the document, so a page's are served with the version they stand
+    in (`served_state.document`), and the queues read those of the version shown."""
+    unanswered = {ask["id"] for ask in asks["unanswered"]}
+    on_user = {ask["id"] for ask in asks["user"]}
+    standing: list[dict] = []
+    ended: list[dict] = []
+    for ask in asks["all"]:
+        task = _derived(
+            ask["id"],
+            {"kind": "widget", "id": ask["id"]},
+            ask["thread"],
+            "open" if ask["id"] in unanswered else "done",
+            ask={
+                "tag": ask["tag"],
+                "widget": ask["source"],
+                "widget_tag": ask["source_tag"],
+                "held_by_seat": ask["id"] in unanswered and ask["id"] not in on_user,
+            },
+        )
+        (standing if task["state"] == "open" else ended).append(task)
+    return standing, ended
+
+
+def page_tasks(
+    log: list[dict], thread_asks: dict, threads: list[dict]
+) -> tuple[list[dict], list[dict]]:
+    """Every task the page holds beside the page version's own Asks
+    (`ask_tasks`), as the open ones and the ended ones, each with its `owner` and the
+    `thread` it stands in.
+
+    `log` is the log's tasks (`canonical_tasks`), each stamped with its thread, the
+    agent's open ones as the activity fold aged them. `thread_asks` is the frozen
+    threads' Ask reading, and `threads` the served threads, whose `user_prompt` names
+    the agent turn a thread's question stands on: a thread whose agent turn asks the
+    user in prose is a task on the user under that turn's id, open until the user
+    answers it in the thread."""
+    standing, ended = ask_tasks(thread_asks)
+    for thread in threads:
+        prompt = thread["user_prompt"]
+        if prompt is None:
+            continue
+        message = next(
+            message for message in thread["msgs"] if message["id"] == prompt["message"]
+        )
+        standing.append(
+            _derived(
+                prompt["message"],
+                {"kind": "thread", "id": thread["id"]},
+                thread["id"],
+                "open",
+                message=message,
+            )
+        )
+    for task in log:
+        task = {**task, "ask": None}
+        (standing if task["state"] == "open" else ended).append(task)
+    return standing, ended
 
 
 def task_error(
@@ -165,7 +279,7 @@ def task_error(
         return None
     if kind == "start":
         item = event["item"]
-        if item in owed or any(task["id"] == item for task in open_tasks(events)):
+        if item in owed or any(task["id"] == item for task in owed_tasks(events)):
             return None
         return (
             f"{item!r} is neither an open task nor a move you owe; start the id a "

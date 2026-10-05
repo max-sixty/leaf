@@ -9,6 +9,7 @@ from interact_support import (
     PAGE,
     append_carried_log_record,
     append_command,
+    asks_on_you,
     publish,
     stamp,
     state_json,
@@ -169,14 +170,15 @@ def test_the_door_refuses_a_task_off_the_page_and_an_outcome_twice(page_dir):
 
 
 def test_on_you_lists_open_asks_and_questions_left_in_prose(page_dir):
-    """An Ask is on the user, and so is a thread whose agent turn asks in prose
-    (`--awaits`); answering the prose question hands the thread to the agent."""
+    """An Ask is a task on the user, and so is an agent turn in a thread that asks in
+    prose (`--awaits`), under that turn's id; answering the prose question ends it
+    and hands the thread to the agent."""
     publish(page_dir)
     comment = append_carried_log_record(
         page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "text": "Which colour?"},
     )
-    written(
+    question = written(
         leaf(
             "thread",
             "reply",
@@ -189,9 +191,15 @@ def test_on_you_lists_open_asks_and_questions_left_in_prose(page_dir):
         )
     )
     state = state_json(page_dir)
-    asks = [("ask", ask["id"]) for ask in state["asks"]]
-    assert kinds(state["queues"]["on_you"]) == asks + [("question", comment["id"])]
+    asks = [("task", ask["id"]) for ask in asks_on_you(state)]
+    assert kinds(state["queues"]["on_you"]) == asks + [("task", question["id"])]
     assert state["queues"]["on_agent"] == []
+    [asked] = [task for task in state["tasks"] if task["id"] == question["id"]]
+    assert (asked["owner"], asked["subject"], asked["ask"]) == (
+        "user",
+        {"kind": "thread", "id": comment["id"]},
+        None,
+    )
 
     warm = append_carried_log_record(
         page_dir,
@@ -205,6 +213,7 @@ def test_on_you_lists_open_asks_and_questions_left_in_prose(page_dir):
     )
     state = state_json(page_dir)
     assert kinds(state["queues"]["on_you"]) == asks
+    assert question["id"] not in [task["id"] for task in state["tasks"]]
     assert [item["id"] for item in state["queues"]["on_agent"]] == [warm["id"]]
 
 
@@ -229,11 +238,11 @@ def test_a_thread_is_on_you_once_however_many_moves_it_holds_for_you(page_dir):
         },
     )
     state = state_json(page_dir)
-    asks = [("ask", ask["id"]) for ask in state["asks"]]
+    asks = [("task", ask["id"]) for ask in asks_on_you(state)]
     assert [item["next_actor"] for item in state["workflows"]] == ["user"]
     assert kinds(state["queues"]["on_you"]) == asks + [("recovery", comment["id"])]
 
-    written(
+    question = written(
         leaf(
             "thread",
             "reply",
@@ -246,7 +255,7 @@ def test_a_thread_is_on_you_once_however_many_moves_it_holds_for_you(page_dir):
     )
     state = state_json(page_dir)
     assert [item["next_actor"] for item in state["workflows"]] == ["user"]
-    assert kinds(state["queues"]["on_you"]) == asks + [("question", comment["id"])]
+    assert kinds(state["queues"]["on_you"]) == asks + [("task", question["id"])]
     assert state["queues"]["on_agent"] == []
 
 

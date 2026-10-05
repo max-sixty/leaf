@@ -75,7 +75,7 @@ def cmd_idle(page_dir: Path, detail: str) -> dict:
     or an acknowledgement advancing the cursor orders against them."""
     from .activity import blocking_obligations, unanswered
     from .served_state.page import full_state
-    from .tasks import open_tasks, put_down
+    from .tasks import owed_tasks, put_down
 
     with PageTransaction(page_dir) as page:
         events = page.events
@@ -105,7 +105,7 @@ def cmd_idle(page_dir: Path, detail: str) -> dict:
             )
         # A task is work the agent still owes, which closing the page would leave
         # standing on a page nobody holds.
-        if tasks := open_tasks(events):
+        if tasks := owed_tasks(events):
             named = "; ".join(f"{task['id']} ({task['title']})" for task in tasks)
             sys.exit(
                 f"{len(tasks)} open task{'s' if len(tasks) != 1 else ''}: {named}. "

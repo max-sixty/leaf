@@ -112,10 +112,10 @@ def _base_state(
         },
         "data_bindings": page_data_binding_inventory(page_dir, registry, events),
         "measurement_lag": [],
-        "asks": [],
         # What is on the user and what is on the agent, each item naming its
-        # subject (`queues` below); and the tasks the agent has
-        # open on the page (`tasks`).
+        # subject (`queues` below); and every task open on the page, on either
+        # side, each naming its `owner` (`tasks.page_tasks`): the agent's, and the
+        # user's, among them each open Ask and each question a thread leaves them.
         "queues": {"on_you": [], "on_agent": []},
         "tasks": [],
         # Current semantic facts only. A thread's history belongs to
@@ -182,7 +182,6 @@ def _apply_document_state(
         standing_entry(coordinate, event)
         for coordinate, (event, _) in projection.actions.items()
     ]
-    state["asks"] = document.asks["user"]
     state["measurement_lag"] = measurement_lag_entries(
         parser.lf_elements, registry, stored_data
     )
@@ -194,8 +193,8 @@ def _apply_thread_state(state: dict, thread: FrozenThreadReading) -> None:
     # answering one is answering the page. The projection above is of the published
     # version's elements alone, so a press on an AskUserQuestion resolved no
     # declaration and stood nowhere — a session picking the page up read the user's
-    # answer to its own question as an answer nobody had given, with `asks` reporting
-    # the same question answered.
+    # answer to its own question as an answer nobody had given, while the question's
+    # task read answered.
     #
     # `thread` is the one key that separates them, present on every entry so a
     # reader of this can take the two halves the same way, and the elements come along
@@ -227,10 +226,10 @@ def _apply_thread_state(state: dict, thread: FrozenThreadReading) -> None:
 
 def _widget_state(state: dict, page_dir: Path, widget: str, enclosing: dict) -> dict:
     """The page reading narrowed to one widget on the page and what it holds: its
-    element, the moves and reports standing on it or on anything inside it, the Asks
-    and workflows there, the updates aimed at them, and the tasks open on them. An
-    Ask names the choice that answers it, so narrowing to the Ask carries the pick
-    standing on that choice."""
+    element, the moves and reports standing on it or on anything inside it, the
+    workflows there, the updates aimed at them, and the tasks open on them, an Ask's
+    among them. An Ask's task names the widget that answers it, so narrowing to the
+    Ask carries the pick standing on that choice."""
 
     def inside(element: str | None) -> bool:
         return element is not None and widget in enclosing.get(element, ())
@@ -254,11 +253,6 @@ def _widget_state(state: dict, page_dir: Path, widget: str, enclosing: dict) -> 
             if reading["thread"] is None
             and (inside(reading["widget"]) or inside(reading["unit"]))
         ],
-        "asks": [
-            ask
-            for ask in state["asks"]
-            if ask["thread"] is None and (inside(ask["id"]) or inside(ask["source"]))
-        ],
         "updates": [
             update
             for update in state["updates"]
@@ -273,51 +267,71 @@ def _widget_state(state: dict, page_dir: Path, widget: str, enclosing: dict) -> 
         "tasks": [
             task
             for task in state["tasks"]
-            if task["subject"]["kind"] == "widget" and inside(task["subject"]["id"])
+            if task["thread"] is None
+            and (
+                (task["subject"]["kind"] == "widget" and inside(task["subject"]["id"]))
+                or (task["ask"] is not None and inside(task["ask"]["widget"]))
+            )
         ],
     }
 
 
-def queues(
-    asks: list[dict], threads: list[dict], workflows: list[dict], tasks: list[dict]
-) -> dict:
+def task_item(task: dict) -> dict:
+    """One open task as an item on the queue of its `owner`."""
+    return {
+        "kind": "task",
+        "id": task["id"],
+        "owner": task["owner"],
+        "subject": task["subject"],
+        "thread": task["thread"],
+        "title": task["title"],
+        "running": task["running"],
+        "agent": task["agent"],
+        "session": task["session"],
+        "ask": task["ask"],
+    }
+
+
+def queues(threads: list[dict], workflows: list[dict], tasks: list[dict]) -> dict:
     """What is on the user and what is on the agent, as two lists of items.
 
-    `on_you` holds each open Ask on the page or in a thread (`ask`); then each
-    other thread whose attention is the user's, once however many moves it holds
-    for them: for a question its agent turn leaves in prose (`question`), or for a
-    move whose response failed, to send again (`recovery`); then each page widget
-    move whose response failed (`recovery`). A thread holding an open Ask is that
-    Ask's item alone. `on_agent` holds each move the agent owes an answer
+    `on_you` holds each open task on the user (`task`, `owner: "user"`); then each
+    thread whose attention is the user's for a move whose response failed, to send
+    again (`recovery`), once however many such moves it holds; then each page widget
+    move whose response failed (`recovery`). A task on the user leaves their queue
+    while an Ask's widget seat holds a thread with the agent (`ask.held_by_seat`), and
+    a task on a thread while the thread waits on the agent, as it does the moment the
+    user answers there. `on_agent` holds each move the agent owes an answer
     (`answer`), each move it has in hand that owes nothing (`work`), and each open
-    task (`task`). Every item names its `subject` and the `thread` it
-    stands in, or null on the page. Each is selected from a reading the served
-    state already made: the Asks, each thread's `attention`, the workflows, and the
-    open tasks.
+    task of the agent's (`task`, `owner: "agent"`). Every item names its `subject`
+    and the `thread` it stands in, or null on the page. Each is selected from a
+    reading the served state already made: each thread's `attention`, the workflows,
+    and the open tasks (`tasks.page_tasks`).
 
-    The browser selects the same two lists from its own reading of these four
+    The browser selects the same two lists from its own reading of these three
     (`runtime/queues.js`), with the tab's unresolved sends already folded into the
-    threads' attention and the workflows, and a thread message the tab is still
-    sending counted on the agent; `served_records.py` holds a reading the two must
-    agree on.
+    threads' attention, the workflows and the tasks, and a thread message the tab is
+    still sending counted on the agent; `served_records.py` holds a reading the two
+    must agree on.
 
     Experimental, like tasks (`tasks.py`): the item kinds and fields are expected to
     change a lot."""
-    asked = {ask["thread"] for ask in asks}
+    attention = {thread["id"]: thread["attention"] for thread in threads}
+
+    def on_user(task: dict) -> bool:
+        if task["ask"] is not None:
+            return not task["ask"]["held_by_seat"]
+        if task["subject"]["kind"] == "thread":
+            held = attention.get(task["subject"]["id"])
+            return held is None or held["kind"] != "waiting"
+        return True
+
     on_you = [
-        {
-            "kind": "ask",
-            "id": ask["id"],
-            "subject": {"kind": "widget", "id": ask["id"]},
-            "thread": ask["thread"],
-        }
-        for ask in asks
+        task_item(task) for task in tasks if task["owner"] == "user" and on_user(task)
     ]
     on_you += [
         {
-            "kind": "question"
-            if thread["attention"]["reason"] == "ask"
-            else "recovery",
+            "kind": "recovery",
             "id": thread["id"],
             "subject": {"kind": "thread", "id": thread["id"]},
             "thread": thread["id"],
@@ -325,7 +339,7 @@ def queues(
         for thread in threads
         if thread["attention"] is not None
         and thread["attention"]["kind"] == "needs_user"
-        and thread["id"] not in asked
+        and thread["attention"]["reason"] == "recovery"
     ]
     on_agent = []
     for workflow in workflows:
@@ -349,19 +363,7 @@ def queues(
             )
         elif at_work(workflow):
             on_agent.append({"kind": "work", **item, "detail": workflow["detail"]})
-    on_agent += [
-        {
-            "kind": "task",
-            "id": task["id"],
-            "subject": task["subject"],
-            "thread": task["thread"],
-            "title": task["title"],
-            "running": task["running"],
-            "agent": task["agent"],
-            "session": task["session"],
-        }
-        for task in tasks
-    ]
+    on_agent += [task_item(task) for task in tasks if task["owner"] == "agent"]
     return {"on_you": on_you, "on_agent": on_agent}
 
 
@@ -380,10 +382,10 @@ def _write_page_state(
     decision gets missed. So this prints the active revision's elements, the projection of
     the user's standing state and the reports standing on the agent channel,
     authored measurements whose live source has run again
-    (`measurement_lag_entries`), the open Asks on the page and in threads (the
-    banner's own count), each comment thread's current state, attention, and the
-    agent messages in it the user has not read, the agent's open tasks, the two
-    queues they and the workflows add up to (`queues`), and presence beside what
+    (`measurement_lag_entries`), each comment thread's current state, attention, and
+    the agent messages in it the user has not read, every open task on either side,
+    an open Ask among the user's, the two queues they and the workflows add up to
+    (`queues`, the banner's own counts), and presence beside what
     answers for it. It is a
     selection from the reading /api/state serves (`read_served_page`), computed on
     demand from the log, revision, registry, and source store — no derived reading is
@@ -450,7 +452,6 @@ def _write_page_state(
         _apply_document_state(
             state, reading.documents[active["revision"]], stored_data, registry
         )
-        state["asks"] += browser["thread"]["asks"]["user"]
         state["updates"] = browser["views"][str(active["revision"])]["updates"]
         _apply_thread_state(state, reading.thread)
         served_threads = {
@@ -463,9 +464,12 @@ def _write_page_state(
                 item["message"] for item in served_threads[thread["id"]]["unread"]
             ]
             thread["attention"] = served_threads[thread["id"]]["attention"]
-        state["tasks"] = browser["tasks"]
+        # The active version's Ask tasks, then every other task on the page.
+        state["tasks"] = (
+            browser["views"][str(active["revision"])]["document"]["tasks"]
+            + browser["tasks"]
+        )
         state["queues"] = queues(
-            state["asks"],
             browser["thread"]["threads"],
             state["workflows"],
             state["tasks"],
@@ -505,7 +509,6 @@ def _write_page_state(
         standing = [
             reading for reading in state["state"] if reading["thread"] == thread_id
         ]
-        asks = [ask for ask in state["asks"] if ask["thread"] == thread_id]
         updates = [
             update
             for update in state["updates"]
@@ -598,7 +601,6 @@ def _write_page_state(
             "content": content,
             "elements": elements,
             "state": standing,
-            "asks": asks,
             "reactions": reactions,
             "updates": updates,
             "activity": {

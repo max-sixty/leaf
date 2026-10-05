@@ -205,27 +205,22 @@ ASK_PAGE = leaf_page(
 
 
 def _done(events: tuple[dict, ...]) -> dict:
-    """The two readings the browser selects what is done from, as it is handed them:
-    the whole Ask reading, and the ended tasks served beside the open ones."""
+    """The reading the browser selects what is done from, as it is handed it: the
+    ended tasks served beside the open ones, the version's Asks' first."""
     state = reading(ASK_PAGE, events)
-    asks = state["views"]["1"]["document"]["asks"]
     return {
-        "asks": {key: asks[key] for key in ("all", "unanswered")},
-        "tasks": state["ended_tasks"],
+        "tasks": state["views"]["1"]["document"]["ended_tasks"] + state["ended_tasks"]
     }
 
 
 def _queued(events: tuple[dict, ...]) -> dict:
-    """The four readings `agent_state.queues` selects from, as the browser is handed
+    """The three readings `agent_state.queues` selects from, as the browser is handed
     them, and the two queues Python selects from them."""
     state = reading(ASK_PAGE, events)
-    asks = state["views"]["1"]["document"]["asks"]["user"]
-    asks += state["thread"]["asks"]["user"]
     served = {
-        "asks": asks,
         "threads": state["thread"]["threads"],
         "workflows": state["workflows"],
-        "tasks": state["tasks"],
+        "tasks": state["views"]["1"]["document"]["tasks"] + state["tasks"],
     }
     return {**served, "queues": queues(**served)}
 

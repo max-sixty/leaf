@@ -183,15 +183,6 @@
       ]
     },
     "queues on both sides": {
-      "asks": [
-        {
-          "id": "pick-ask",
-          "tag": "lf-ask",
-          "source": "pick",
-          "source_tag": "lf-options",
-          "thread": null
-        }
-      ],
       "threads": [
         {
           "id": "e1",
@@ -557,7 +548,51 @@
       ],
       "tasks": [
         {
+          "id": "pick-ask",
+          "owner": "user",
+          "subject": {
+            "kind": "widget",
+            "id": "pick-ask"
+          },
+          "thread": null,
+          "title": null,
+          "state": "open",
+          "seq": null,
+          "ts": null,
+          "agent": null,
+          "session": null,
+          "revision": null,
+          "running": null,
+          "outcome": null,
+          "ask": {
+            "tag": "lf-ask",
+            "widget": "pick",
+            "widget_tag": "lf-options",
+            "held_by_seat": false
+          }
+        },
+        {
+          "id": "e2",
+          "owner": "user",
+          "subject": {
+            "kind": "thread",
+            "id": "e1"
+          },
+          "thread": "e1",
+          "title": null,
+          "state": "open",
+          "seq": 2,
+          "ts": "2026-09-19T12:00:00+00:00",
+          "agent": "Agent",
+          "session": null,
+          "revision": null,
+          "running": null,
+          "outcome": null,
+          "ask": null
+        },
+        {
           "id": "e6",
+          "owner": "agent",
           "subject": {
             "kind": "thread",
             "id": "e4"
@@ -581,28 +616,46 @@
             "condition": null
           },
           "outcome": null,
-          "thread": "e4"
+          "thread": "e4",
+          "ask": null
         }
       ],
       "queues": {
         "on_you": [
           {
-            "kind": "ask",
+            "kind": "task",
             "id": "pick-ask",
+            "owner": "user",
             "subject": {
               "kind": "widget",
               "id": "pick-ask"
             },
-            "thread": null
+            "thread": null,
+            "title": null,
+            "running": null,
+            "agent": null,
+            "session": null,
+            "ask": {
+              "tag": "lf-ask",
+              "widget": "pick",
+              "widget_tag": "lf-options",
+              "held_by_seat": false
+            }
           },
           {
-            "kind": "question",
-            "id": "e1",
+            "kind": "task",
+            "id": "e2",
+            "owner": "user",
             "subject": {
               "kind": "thread",
               "id": "e1"
             },
-            "thread": "e1"
+            "thread": "e1",
+            "title": null,
+            "running": null,
+            "agent": "Agent",
+            "session": null,
+            "ask": null
           },
           {
             "kind": "recovery",
@@ -642,6 +695,7 @@
           {
             "kind": "task",
             "id": "e6",
+            "owner": "agent",
             "subject": {
               "kind": "thread",
               "id": "e4"
@@ -660,42 +714,41 @@
               "condition": null
             },
             "agent": "Agent",
-            "session": "served-records"
+            "session": "served-records",
+            "ask": null
           }
         ]
       }
     },
     "done": {
-      "asks": {
-        "all": [
-          {
-            "id": "pick-ask",
-            "tag": "lf-ask",
-            "source": "pick",
-            "source_tag": "lf-options",
-            "thread": null
-          },
-          {
-            "id": "ship-ask",
-            "tag": "lf-ask",
-            "source": "ship",
-            "source_tag": "lf-options",
-            "thread": null
-          }
-        ],
-        "unanswered": [
-          {
-            "id": "pick-ask",
-            "tag": "lf-ask",
-            "source": "pick",
-            "source_tag": "lf-options",
-            "thread": null
-          }
-        ]
-      },
       "tasks": [
         {
+          "id": "ship-ask",
+          "owner": "user",
+          "subject": {
+            "kind": "widget",
+            "id": "ship-ask"
+          },
+          "thread": null,
+          "title": null,
+          "state": "done",
+          "seq": null,
+          "ts": null,
+          "agent": null,
+          "session": null,
+          "revision": null,
+          "running": null,
+          "outcome": null,
+          "ask": {
+            "tag": "lf-ask",
+            "widget": "ship",
+            "widget_tag": "lf-options",
+            "held_by_seat": false
+          }
+        },
+        {
           "id": "e4",
+          "owner": "agent",
           "subject": {
             "kind": "thread",
             "id": "e2"
@@ -716,7 +769,8 @@
             "agent": "Agent",
             "session": "served-records"
           },
-          "thread": "e2"
+          "thread": "e2",
+          "ask": null
         }
       ]
     }

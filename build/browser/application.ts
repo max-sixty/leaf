@@ -207,13 +207,16 @@ interface WireWorkflow {
   dropped: boolean;
 }
 
-/** One task, as `served_state.browser` serves it: `tasks` holds the open ones and
- * `ended_tasks` the ones a `task_end` ended, with its outcome. */
+/** One task, as `served_state.browser` serves it (`tasks.page_tasks`): `tasks` holds
+ * the open ones on either side and `ended_tasks` the ones that ended, with their
+ * outcome. A task on the user that an Ask or a thread's question holds has no title of
+ * its own. */
 interface WireTask {
   id: string;
+  owner: "agent" | "user";
   subject: { kind: "thread" | "widget"; id: string } | { kind: "page" };
   thread: string | null;
-  title: string;
+  title: string | null;
   state: "open" | "done" | "failed" | "dropped";
   ts: string;
   revision: number | null;
@@ -231,6 +234,14 @@ interface WireTask {
   agent: string | null;
   session: string | null;
   outcome: { ts: string; detail?: string | null } | null;
+  /** The Ask a task on the user stands for: the widget that answers it, and whether a
+   * thread in that widget's seat holds it with the agent meanwhile. */
+  ask: {
+    tag: string;
+    widget: string;
+    widget_tag: string;
+    held_by_seat: boolean;
+  } | null;
 }
 
 /** The public Ask record packages read. */
@@ -289,6 +300,9 @@ export interface AuthoritativeState {
         document: {
           projection: WireProjection;
           asks?: WireAsks;
+          /** The task each of the version's Asks is on the user, open and ended. */
+          tasks?: WireTask[];
+          ended_tasks?: WireTask[];
         };
         undo?: { event: Event }[];
         coverage: object[];
@@ -707,17 +721,23 @@ export function createSemanticApplication({
       asks,
       // What is on the user and what is on the agent, selected from the readings
       // above once this tab's sends are folded into them (`runtime/queues.js`).
+      // The shown version's Ask tasks come with its view, the page's other tasks
+      // beside them.
       queues: selectQueues({
-        asks: asks.user,
         threads,
         workflows,
-        tasks: ready ? (state?.browser.tasks ?? []) : [],
+        tasks: ready
+          ? [...(view?.document.tasks ?? []), ...(state?.browser.tasks ?? [])]
+          : [],
       }),
-      // What is finished, selected beside them from the same readings: the answered
-      // Asks and the ended tasks.
+      // What is finished, selected beside them from the ended tasks.
       done: selectDone({
-        asks,
-        tasks: ready ? (state?.browser.ended_tasks ?? []) : [],
+        tasks: ready
+          ? [
+              ...(view?.document.ended_tasks ?? []),
+              ...(state?.browser.ended_tasks ?? []),
+            ]
+          : [],
       }),
       // Inside the publication signature, so a read that changes only the view's
       // updates, publication time, or undo list still reaches its watchers.

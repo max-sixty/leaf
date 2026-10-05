@@ -180,6 +180,7 @@ in the banner, through the user resolving it and the end of your session. When t
 result lands, write its outcome with `leaf task end <page> <task> done "<where the
 result is>"`, or `failed` or `dropped` with the reason, beside the reply that links
 it. While you work on it, start it, so the banner and the thread show your line.
-Work on a move that finishes inside the turn needs no task. `leaf page state` lists your
-open `tasks`, and its `queues` say what is on the user (`on_you`) and on you
-(`on_agent`).
+Work on a move that finishes inside the turn needs no task. `leaf page state` lists the
+open `tasks` with their `owner`: yours, and the user's, which include each open Ask
+and each question a thread leaves them. Its `queues` say what is on the user
+(`on_you`) and on you (`on_agent`).

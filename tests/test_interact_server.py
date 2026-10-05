@@ -36,6 +36,7 @@ from interact_support import (
     TOKEN,
     append_carried_log_record,
     append_command,
+    asks_on_you,
     check,
     declare_data_input,
     declare_work,
@@ -5667,12 +5668,12 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
     open_state = CliRunner().invoke(cli_model.cli, ["page", "state", str(page_dir)])
     assert open_state.exit_code == 0, open_state.output
     open_reading = json.loads(open_state.output)
-    assert open_reading["asks"] == [
+    assert asks_on_you(open_reading) == [
         {
             "id": "orphan-decision",
             "tag": "lf-ask",
-            "source": "orphan-choice",
-            "source_tag": "lf-options",
+            "widget": "orphan-choice",
+            "widget_tag": "lf-options",
             "thread": "c-lost",
         }
     ]
@@ -5710,7 +5711,7 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
         "unread": [],
         "attention": None,
     }
-    assert closed_reading["asks"] == []
+    assert asks_on_you(closed_reading) == []
     assert [
         element["id"]
         for element in closed_reading["elements"]

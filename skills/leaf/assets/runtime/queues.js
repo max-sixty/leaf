@@ -2,19 +2,23 @@
    `agent_state.queues` from its own reading.
 
    The two lists are the same selection `leaf page state` prints, made from the same
-   four readings: the open Asks, each thread's `attention`, the workflows, and the open
-   tasks. Python derives each of those; the application publisher has already folded
-   this tab's unresolved sends into the threads' attention and the workflows, so a
-   reply the user just sent takes its thread off their queue in the turn it is sent,
-   and a refused one puts it back. Nothing here decides whose turn a thread is: a
-   thread is on the user exactly when its attention says so (`awaitsUser`).
+   three readings: each thread's `attention`, the workflows, and the open tasks, on
+   either side (`tasks.page_tasks`). Python derives each of those; the application
+   publisher has already folded this tab's unresolved sends into the threads' attention,
+   the workflows and the tasks, so a reply the user just sent takes its thread off their
+   queue in the turn it is sent, and a refused one puts it back. Nothing here decides
+   whose turn a thread is: a thread is on the user exactly when its attention says so
+   (`awaitsUser`).
 
-   `onYou` holds each open Ask (`ask`); then each other thread whose attention is the
-   user's, once, as a question left in prose (`question`) or a move to send again
-   (`recovery`); then each page widget move handed back to the user (`recovery`).
+   `onYou` holds each open task on the user (`task`, `owner: "user"`): each Ask, each
+   question a thread leaves them, and each task the agent put on them. An Ask leaves the
+   queue while a thread in its widget's seat holds it with the agent
+   (`ask.held_by_seat`), and a task on a thread while the thread waits on the agent.
+   Then come each thread whose attention is the user's to send a move again
+   (`recovery`), once, and each page widget move handed back to the user (`recovery`).
    `onAgent` holds each move the agent owes an answer (`answer`), each move it has in
-   hand that owes nothing (`work`), and each open task (`task`). An item has the
-   fields Python's has. `tests/served_records.py` folds a reading both
+   hand that owes nothing (`work`), and each open task of the agent's (`task`). An item
+   has the fields Python's has. `tests/served_records.py` folds a reading both
    selections must agree on.
 
    One item is the browser's alone: a message this tab is still sending, whose thread
@@ -27,10 +31,13 @@
    stands open.
 
    `selectDone` is a third list beside them, what is finished, which the Queue panel
-   folds at its foot (`queue-panel.js`): each answered Ask (`ask`), the Ask reading's
-   whole inventory less those still unanswered, and each task a `task_end` ended
-   (`task`), with its outcome. Python serves the ended tasks beside the open ones
+   folds at its foot (`queue-panel.js`): each task that has ended, an answered Ask's
+   among them, with its outcome. Python serves the ended tasks beside the open ones
    (`served_state.browser`), so nothing here folds the log again.
+
+   `taskNoun` is what an item is called, derived from how it ends rather than recorded:
+   an Ask where a widget answers it, a question where the user answers in its thread,
+   otherwise its kind.
 
    Experimental: the queues, the walk over them and the panel listing them are new, and
    their shape is expected to change a lot (notes/what-needs-you/). Change them freely.
@@ -38,18 +45,40 @@
 import { awaitsUser } from "./thread/model.js";
 import { atWork } from "./thread/workflow.js";
 
-export function selectQueues({ asks, threads, workflows, tasks }) {
-  const asked = new Set(asks.map((ask) => ask.thread));
-  const onYou = asks.map((ask) => ({
-    kind: "ask",
-    id: ask.id,
-    subject: { kind: "widget", id: ask.id },
-    thread: ask.thread,
-  }));
+export function taskNoun(item) {
+  if (item.kind !== "task") return item.kind;
+  if (item.ask) return "ask";
+  return item.owner === "user" && item.subject.kind === "thread" ? "question" : "task";
+}
+
+const taskItem = (task) => ({
+  kind: "task",
+  id: task.id,
+  owner: task.owner,
+  subject: task.subject,
+  thread: task.thread,
+  title: task.title,
+  running: task.running,
+  agent: task.agent,
+  session: task.session,
+  ask: task.ask,
+});
+
+export function selectQueues({ threads, workflows, tasks }) {
+  const attention = new Map(threads.map((thread) => [thread.id, thread.attention]));
+  const onUser = (task) => {
+    if (task.ask) return !task.ask.held_by_seat;
+    if (task.subject.kind === "thread")
+      return attention.get(task.subject.id)?.kind !== "waiting";
+    return true;
+  };
+  const onYou = tasks
+    .filter((task) => task.owner === "user" && onUser(task))
+    .map(taskItem);
   for (const thread of threads)
-    if (awaitsUser(thread) && !asked.has(thread.id))
+    if (awaitsUser(thread) && thread.attention.reason === "recovery")
       onYou.push({
-        kind: thread.attention.reason === "ask" ? "question" : "recovery",
+        kind: "recovery",
         id: thread.id,
         subject: { kind: "thread", id: thread.id },
         thread: thread.id,
@@ -82,40 +111,21 @@ export function selectQueues({ asks, threads, workflows, tasks }) {
     else if (atWork(workflow))
       onAgent.push({ kind: "work", ...item, detail: workflow.detail });
   }
-  for (const task of tasks)
-    onAgent.push({
-      kind: "task",
-      id: task.id,
-      subject: task.subject,
-      thread: task.thread,
-      title: task.title,
-      running: task.running,
-      agent: task.agent,
-      session: task.session,
-    });
+  onAgent.push(...tasks.filter((task) => task.owner === "agent").map(taskItem));
   return { onYou, onAgent };
 }
 
-export function selectDone({ asks, tasks }) {
-  const unanswered = new Set(asks.unanswered.map((ask) => ask.id));
-  return [
-    ...asks.all
-      .filter((ask) => !unanswered.has(ask.id))
-      .map((ask) => ({
-        kind: "ask",
-        id: ask.id,
-        subject: { kind: "widget", id: ask.id },
-        thread: ask.thread,
-      })),
-    ...tasks.map((task) => ({
-      kind: "task",
-      id: task.id,
-      subject: task.subject,
-      thread: task.thread,
-      title: task.title,
-      state: task.state,
-      ended: task.outcome?.ts ?? null,
-      detail: task.outcome?.detail ?? null,
-    })),
-  ];
+export function selectDone({ tasks }) {
+  return tasks.map((task) => ({
+    kind: "task",
+    id: task.id,
+    owner: task.owner,
+    subject: task.subject,
+    thread: task.thread,
+    title: task.title,
+    state: task.state,
+    ended: task.outcome?.ts ?? null,
+    detail: task.outcome?.detail ?? null,
+    ask: task.ask,
+  }));
 }

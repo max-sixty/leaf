@@ -758,6 +758,90 @@ def test_reading_inside_a_long_thread_keeps_its_title_and_reply_row_on_the_lists
         }"""
     )
     assert covered == 0
+    # Wheeled on until its trigger has left the list, the list closes rather than
+    # standing unseen, so the keys answer the thread being read.
+    away = message.evaluate(
+        """message => {
+          const list = message.closest('.lf-threads');
+          const port = list.getBoundingClientRect();
+          return {x: (port.left + port.right) / 2, y: (port.top + port.bottom) / 2,
+                  by: message.getBoundingClientRect().bottom - port.top + 40};
+        }"""
+    )
+    page.mouse.move(away["x"], away["y"])
+    page.mouse.wheel(0, away["by"])
+    expect(message.locator(":scope > .lf-react-strip")).not_to_contain_class(
+        "lf-react-open"
+    )
+    expect(page.locator(".lf-react-palette:popover-open")).to_have_count(0)
+
+
+def test_react_brings_a_long_threads_latest_reply_into_view_above_its_reply_row(
+    browser, serve
+):
+    """`e` answers the latest reply of the thread the user stands in, wherever the
+    list is scrolled. Its list hangs from the reply's trigger and closes once that
+    trigger leaves the list, so the reply comes into view to be answered, above the
+    pinned reply row rather than under it."""
+    url = serve(LONG_PAGE)
+    root = panel_comment(serve.page_dir, "A thread long enough to read inside.")
+    for index in range(40):
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "agent": "Codex",
+                "parent": root,
+                "text": f"Answer {index}. " * 12,
+            },
+        )
+    context = browser.new_context(
+        viewport={"width": 1200, "height": 900}, reduced_motion="reduce"
+    )
+    page = open_page(browser, url, context=context)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    card = page.locator(f'.lf-thread[data-id="{root}"]')
+    if card.get_attribute("open") is None:
+        card.locator(":scope > .lf-thread-summary").click()
+    expect(card).to_have_attribute("open", "")
+    summary = card.locator(":scope > .lf-thread-summary")
+    summary.focus()
+    expect(summary).to_be_focused()
+    strip = card.locator(".lf-react-strip.lf-open")
+    read = """strip => {
+      const list = strip.closest('.lf-threads');
+      const port = list.getBoundingClientRect();
+      const trigger = strip.querySelector('.lf-react-trigger').getBoundingClientRect();
+      const reply = list.querySelector(':scope > .lf-thread[open] > .lf-thread-reply');
+      const palette = strip.querySelector('.lf-react-palette');
+      const box = palette.getBoundingClientRect();
+      const hit = strip.getRootNode().elementFromPoint(
+        (box.left + box.right) / 2, (box.top + box.bottom) / 2);
+      return {
+        inList: trigger.bottom > port.top && trigger.top < port.bottom,
+        clear: reply.getBoundingClientRect().top - trigger.bottom,
+        open: palette.matches(':popover-open'),
+        shown: palette.contains(hit),
+      };
+    }"""
+    # Focusing the title lands the thread's end; read from near its start instead.
+    page.wait_for_function(
+        """card => new Promise((done) => {
+          const list = card.parentElement;
+          list.scrollTop = card.offsetTop + 300;
+          requestAnimationFrame(() => requestAnimationFrame(() =>
+            done(list.scrollTop === card.offsetTop + 300)));
+        })""",
+        arg=card.element_handle(),
+    )
+    assert not strip.evaluate(read)["inList"]
+    page.keyboard.press("e")
+    expect(strip).to_contain_class("lf-react-open")
+    after = strip.evaluate(read)
+    assert after["open"] and after["shown"], after
+    assert after["clear"] >= 0, after
 
 
 def test_tab_into_a_long_thread_lands_above_its_pinned_reply_row(browser, serve):

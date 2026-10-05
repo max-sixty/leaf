@@ -537,9 +537,10 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
    it from, the platform's return. Its trigger is its source, so a press on the trigger
    is not a press outside it, and its anchor, named here since a source sets none. Hung
    below the trigger, or above where the window has no room below, it follows the
-   message as the list scrolls and goes when the trigger leaves the list. Closed, it is the strip's own row
-   of standing reactions, in flow, so the popover's UA box is taken off; whether it is
-   open is read off the popover alone, so a light dismiss leaves no frame between. */
+   message as the list scrolls, and closes once the trigger is out of view
+   (reactions.js). Closed, it is the strip's own row of standing reactions, in flow,
+   so the popover's UA box is taken off; whether it is open is read off the popover
+   alone, so a light dismiss leaves no frame between. */
 .lf-react-strip > .lf-react-palette[popover] {
           position: static; inset: auto; margin: 0; padding: 0; border: 0;
           width: auto; height: auto; overflow: visible; color: inherit;

@@ -178,11 +178,10 @@ Serve it to the user with:
 uv run leaf-dev preview --source notes/undo-reach/playground.html --slot undo-reach --user
 ```
 
-Run it in the background, give the user the URL it prints, and run `bin/leaf wait`
-on `.tmp/previews/undo-reach-user` so their comments and the submit reach the
-session. A restart builds a fresh page and log; earlier page comments don't carry
-over. The previous preview and watcher were stopped when the machine ran low on
-memory, so the page is down until someone restarts it.
+Start the preview as a long-running command from the chat that will receive
+feedback, then open the keyed URL it prints. Follow `/developing-leaf`,
+“Preview a page”, for the harness's feedback route and handoff. A restart builds a
+fresh page and log; answer pending feedback before restarting.
 
 `bin/leaf page check --render` on the page passes on main's runtime as of
 e2fdf6ee2. It still advises against the `.sim-page` scroller; that scroller is the

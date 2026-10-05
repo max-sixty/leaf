@@ -30,6 +30,7 @@
 import { anchorLabel } from "./messages.js";
 import { awaitsAgent, awaitsUser } from "./model.js";
 import { retainUserIntent } from "../user-intent.js";
+import { bindQueuedWork } from "../queued-work.js";
 
 const choice = (kind, value, label, className = "") =>
   Object.freeze({ kind, value, label, className });
@@ -87,6 +88,8 @@ const messageWords = (message) => {
 const threadWords = (thread, place) =>
   [
     anchorLabel(thread.detached_from ?? thread.anchor, thread.root.about),
+    // The words the card names after a version rewrote them find the thread too.
+    thread.rewritten_from?.quote,
     place.section,
     thread.title,
     ...thread.msgs.map(messageWords),
@@ -363,11 +366,16 @@ export function createThreadNarrowing({ view, listRoot, readThreads, ready, repa
         // lease then, but reject any user choice made while it awaits presentation.
         const preparing = before?.();
         const prepared = intent;
+        const restore = bindQueuedWork(() => {
+          if (intent !== prepared) return false;
+          intent = retained;
+          view.setSearchWords(retained.words);
+          return renarrow();
+        });
         await preparing;
-        if (intent !== prepared) return false;
-        intent = retained;
-        view.setSearchWords(retained.words);
-        await renarrow();
+        const restoring = restore();
+        if (restoring === false) return false;
+        await restoring;
         return true;
       },
     };

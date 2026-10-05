@@ -29,6 +29,7 @@ import tinycss2
 from click.testing import CliRunner
 from conftest import LEAF_COMMAND
 from interact_support import (
+    COMPOSITE_TIMEOUT,
     PAGE,
     PAGE_PACKAGES,
     STATED_TIMEOUT,
@@ -60,7 +61,7 @@ from leaf import document_reading as document_reading_model
 from leaf import event_log as event_model
 from leaf import events as event_folds_model
 from leaf import files as files_model
-from leaf import host as host_model
+from leaf import harness as harness_model
 from leaf import hosting as hosting_model
 from leaf import http as http_model
 from leaf import interaction_log as interaction_model
@@ -118,7 +119,7 @@ def test_interaction_trace_records_browser_entries_and_every_request_outcome(
         fetch(
             f"{server}/api/interaction", data=json.dumps(payload).encode(), token=None
         )[0]
-        == 403
+        == 401
     )
     assert fetch(f"{server}/missing")[0] == 404
 
@@ -140,7 +141,7 @@ def test_interaction_trace_records_browser_entries_and_every_request_outcome(
     assert {(row["method"], row["path"], row["status"]) for row in server_rows} >= {
         ("POST", "/api/interaction", 204),
         ("POST", "/api/interaction", 400),
-        ("POST", "/api/interaction", 403),
+        ("POST", "/api/interaction", 401),
         ("GET", "/missing", 404),
     }
     assert all("?" not in row["path"] and row["durationMs"] >= 0 for row in server_rows)
@@ -351,8 +352,8 @@ def test_sample_allocations_share_no_parent_lock_and_keep_one_log_reading(
     original = samples_model.Samples.create
 
     def held_allocation(self, *args):
-        allocating.wait(timeout=5)
-        assert release.wait(5)
+        allocating.wait(timeout=STATED_TIMEOUT)
+        assert release.wait(STATED_TIMEOUT)
         return original(self, *args)
 
     monkeypatch.setattr(samples_model.Samples, "create", held_allocation)
@@ -366,7 +367,7 @@ def test_sample_allocations_share_no_parent_lock_and_keep_one_log_reading(
         try:
             # Both allocations reach the expensive stage while neither holds the
             # parent's lease. A parent update can commit before they finish.
-            allocating.wait(timeout=5)
+            allocating.wait(timeout=STATED_TIMEOUT)
             with service_model.PageTransaction(page_dir) as page:
                 page._append_record(
                     {
@@ -381,7 +382,7 @@ def test_sample_allocations_share_no_parent_lock_and_keep_one_log_reading(
             release.set()
         children = []
         for allocation in allocations:
-            status, raw = allocation.result(timeout=5)
+            status, raw = allocation.result(timeout=STATED_TIMEOUT)
             assert status == 200, raw
             children.append(server + json.loads(raw)["url"])
     assert children[0] != children[1]
@@ -462,7 +463,7 @@ def test_samples_seed_only_the_declared_threads_and_reset_by_recreation(
     assert event_model.read_events(page_dir) == before
     status, raw = fetch(f"{server}/api/samples", data=b'{"template":"missing"}')
     assert status == 400 and "unknown sample template" in json.loads(raw)["error"]
-    assert fetch(children[0] + "/api/state", token=None)[0] == 403
+    assert fetch(children[0] + "/api/state", token=None)[0] == 401
 
 
 def test_sample_template_lookup_stays_within_the_requesting_page(server, page_dir):
@@ -675,7 +676,7 @@ def test_authored_recordings_are_served_with_seekable_captured_bytes(
                 ) == (200, b"", "10")
                 conn.request("GET", route)
                 answer = conn.getresponse()
-                assert answer.status == 403
+                assert answer.status == 401
                 answer.read()
             finally:
                 conn.close()
@@ -780,7 +781,9 @@ def test_the_browser_media_door_refuses_untrusted_or_unbounded_bytes(server, pag
 
     _, state = fetch(f"{server}/api/state")
     layer = json.loads(state)["layer"]["generation"]
-    door = http.client.HTTPConnection(urllib.parse.urlsplit(server).netloc, timeout=2)
+    door = http.client.HTTPConnection(
+        urllib.parse.urlsplit(server).netloc, timeout=STATED_TIMEOUT
+    )
     try:
         door.putrequest("POST", f"/api/media?t={TOKEN}")
         door.putheader("Leaf-Layer", layer)
@@ -1341,7 +1344,9 @@ def test_server_round_trip(server, page_dir):
     # The handover address is the live page, not a pinned revision address.
     # It stays put while the browser adopts later versions, so the first response
     # must contain the version itself rather than redirecting the address away.
-    peer = http.client.HTTPConnection(urllib.parse.urlsplit(server).netloc, timeout=10)
+    peer = http.client.HTTPConnection(
+        urllib.parse.urlsplit(server).netloc, timeout=STATED_TIMEOUT
+    )
     peer.request("GET", f"/?t={TOKEN}")
     arrived = peer.getresponse()
     body = arrived.read()
@@ -1396,7 +1401,7 @@ def test_server_round_trip(server, page_dir):
     (page_dir / "vendor" / "escape.js").symlink_to(outside)
     for path in ["/vendor/../../outside.js", "/vendor/escape.js"]:
         peer = http.client.HTTPConnection(
-            urllib.parse.urlsplit(server).netloc, timeout=10
+            urllib.parse.urlsplit(server).netloc, timeout=STATED_TIMEOUT
         )
         peer.request("GET", f"{path}?t={TOKEN}")
         refused = peer.getresponse()
@@ -1479,6 +1484,8 @@ def test_server_round_trip(server, page_dir):
         "strokes": [[[-20, 74], [50, 10], [120, 74]]],
         "box": [640.5, 96],
         "says": "to reap every process … before exporting",
+        "viewport": [1280, 720],
+        "scheme": "dark",
     }
     status, _ = fetch(
         f"{server}/api/event",
@@ -1648,8 +1655,10 @@ def test_server_round_trip(server, page_dir):
             "anchor": {"section": "feeder-board"},
             "drawing": {**drawing, "strokes": [[[float("nan"), 0.2], [0.5, 0.2]]]},
         },
-        # The box is a size and the words are bounded: both come off the rendered page,
-        # so their shape is all the door can hold them to.
+        # The box and the window are sizes, the words are bounded and the scheme is one
+        # of two: all come off the rendered page, so their shape is all the door can
+        # hold them to. The window is always recorded, since the agent's picture of the
+        # drawing is laid out in it.
         *(
             {
                 "kind": "comment",
@@ -1665,7 +1674,22 @@ def test_server_round_trip(server, page_dir):
                 {"says": ""},
                 {"says": "x" * 501},
                 {"says": ["to reap"]},
+                {"viewport": [1280, 0]},
+                {"viewport": [1280]},
+                {"scheme": "sepia"},
             )
+        ),
+        *(
+            {
+                "kind": "comment",
+                "revision": 2,
+                "text": "x",
+                "anchor": {"section": "feeder-board"},
+                "drawing": {
+                    key: value for key, value in drawing.items() if key != missing
+                },
+            }
+            for missing in ("viewport", "scheme")
         ),
         # Design is the field's only subject: the retired ownership alias and a browser
         # inventing a second subject are both refused at the door.
@@ -1861,6 +1885,29 @@ def test_the_live_root_places_its_delivery_at_the_parsers_head_boundary(
         f'<link rel="stylesheet" href="{artifact_root}/theme.css" data-lf-runtime>'
         in body
     )
+
+
+def test_a_revision_s_resources_are_cached_and_its_document_is_not(server, page_dir):
+    """A revision's resources are named by its digest, so the browser keeps them for
+    every document that imports them, a gallery's live samples included. The document
+    and the page's state stay uncached: each read asks what the page is now, and so
+    does a path under the namespace that names nothing."""
+    publish(page_dir)
+    root = "/revisions/" + files_model.revision_path(page_dir, 1).stem
+
+    def cache_control(path):
+        try:
+            with urllib.request.urlopen(f"{server}{path}?t={TOKEN}") as response:
+                return response.status, response.headers["Cache-Control"]
+        except urllib.error.HTTPError as error:
+            return error.code, error.headers["Cache-Control"]
+
+    immutable = "private, max-age=31536000, immutable"
+    assert cache_control(f"{root}/leaf.js") == (200, immutable)
+    assert cache_control(f"{root}/theme.css") == (200, immutable)
+    assert cache_control("/") == (200, "no-store")
+    assert cache_control("/api/state") == (200, "no-store")
+    assert cache_control(f"{root}/no-such-module.js") == (404, "no-store")
 
 
 def test_server_takes_an_approval_only_where_the_version_asked_for_one(
@@ -3109,8 +3156,8 @@ def test_every_kind_of_user_move_is_named_in_eight_characters(server, page_dir):
     """An id is something the agent reads back and retypes. One user comment
     shows the agent its id five times over and is answered with `leaf thread reply --for
     <id>`, so an id is eight hex characters. No kind is carved out of that: an
-    id a host keys an operation on is unique within this page either way, so the
-    host pairs it with the page rather than being handed a wider id and left to
+    id a harness keys an operation on is unique within this page either way, so the
+    harness pairs it with the page rather than being handed a wider id and left to
     assume it is distinctive on its own."""
     version = page_dir / "index.html"
     version.write_text(
@@ -3236,7 +3283,9 @@ def test_the_page_reports_its_own_errors_to_the_watcher(server, page_dir, sessio
 
 def _news(server):
     """One finite, uncached freshness answer from the visible-page door."""
-    with urllib.request.urlopen(f"{server}/api/news?t={TOKEN}", timeout=5) as response:
+    with urllib.request.urlopen(
+        f"{server}/api/news?t={TOKEN}", timeout=STATED_TIMEOUT
+    ) as response:
         assert response.headers.get("Cache-Control") == "no-store"
         return response.read().decode()
 
@@ -3415,11 +3464,11 @@ def test_a_server_keeps_its_row_fresh_without_browser_visits(page_dir, spawn):
     session = cleanup_model.session_record("invisible")
     cleanup_model.write_session({**session, "turn_closed": cleanup_model.now_iso()})
     await_row(lambda row: row["activity"]["kind"] == "away")
-    # The host's dialog changes outside the page, with no lifecycle rewrite.
-    host_record = host_model.claude_code_sessions() / f"{agent.pid}.json"
-    host_record.parent.mkdir(parents=True, exist_ok=True)
+    # The harness's dialog changes outside the page, with no lifecycle rewrite.
+    harness_record = harness_model.claude_code_sessions() / f"{agent.pid}.json"
+    harness_record.parent.mkdir(parents=True, exist_ok=True)
     cleanup_model.write_json(
-        host_record,
+        harness_record,
         {
             "pid": agent.pid,
             "sessionId": "invisible",
@@ -3428,7 +3477,7 @@ def test_a_server_keeps_its_row_fresh_without_browser_visits(page_dir, spawn):
         },
     )
     await_row(lambda row: row["activity"]["observed_kind"] == "awaiting_user")
-    host_record.unlink()
+    harness_record.unlink()
     await_row(lambda row: row["activity"]["kind"] == "away")
     waiter = leases_model.take_lease(
         leases_model.waiter_lease_path(neighbor, "invisible")
@@ -3440,7 +3489,7 @@ def test_a_server_keeps_its_row_fresh_without_browser_visits(page_dir, spawn):
     await_row(lambda row: row["activity"]["kind"] == "away")
     agent.stdin.write(b"done\n")
     agent.stdin.flush()
-    agent.wait(timeout=10)
+    agent.wait(timeout=STATED_TIMEOUT)
     await_row(lambda row: row["activity"]["kind"] == "unheld")
     assert server_model.running_server(neighbor)
     hosting_model.cmd_stop(neighbor)
@@ -3544,9 +3593,12 @@ hosting.cmd_serve(Path(os.environ["PAGE"]), standing=True)
             target=lambda: (hosting_model.cmd_stop(page_dir), ended.set()), daemon=True
         )
         stopping.start()
-        assert ended.wait(10), "a transaction-blocked row read held server stop"
-    stopping.join(timeout=10)
-    assert child.wait(timeout=10) == 0
+        assert ended.wait(STATED_TIMEOUT), (
+            "a transaction-blocked row read held server stop"
+        )
+    stopping.join(timeout=STATED_TIMEOUT)
+    assert not stopping.is_alive(), "server stop never returned"
+    assert child.wait(timeout=STATED_TIMEOUT) == 0
     assert server_model.running_server(page_dir) is None
 
 
@@ -3600,12 +3652,12 @@ def test_server_shutdown_stops_an_idle_serving_loop(page_dir):
     try:
         thread.start()
         httpd.shutdown()
-        thread.join(timeout=5)
+        thread.join(timeout=STATED_TIMEOUT)
         assert not thread.is_alive()
     finally:
         if thread.is_alive():
             httpd.shutdown()
-            thread.join(timeout=5)
+            thread.join(timeout=STATED_TIMEOUT)
         httpd.server_close()
 
 
@@ -3730,19 +3782,23 @@ def test_temporary_server_close_is_bounded_by_an_idle_connection(page_dir):
     closer_started = False
     try:
         server.start()
-        client = http.client.HTTPConnection("127.0.0.1", server.port, timeout=5)
+        client = http.client.HTTPConnection(
+            "127.0.0.1", server.port, timeout=STATED_TIMEOUT
+        )
         client.request("GET", f"/api/state?t={TOKEN}")
         answered = client.getresponse()
         answered.read()
         assert answered.status == 200, "the server did not accept the connection"
         closer.start()
         closer_started = True
-        assert closed.wait(timeout=5), "an idle connection prevented server close"
+        assert closed.wait(timeout=STATED_TIMEOUT), (
+            "an idle connection prevented server close"
+        )
     finally:
         if client is not None:
             client.close()
         if closer_started:
-            closer.join(timeout=5)
+            closer.join(timeout=STATED_TIMEOUT)
         else:
             server.close()
     assert not closer.is_alive()
@@ -3766,7 +3822,7 @@ def test_temporary_server_answers_a_connection_opened_before_its_request(page_di
         # once bounded by, so a server still carrying one has closed this already.
         time.sleep(2)
         client.sendall(f"GET /?t={TOKEN} HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n".encode())
-        client.settimeout(5)
+        client.settimeout(STATED_TIMEOUT)
         answer = client.recv(15)
     finally:
         client.close()
@@ -3852,9 +3908,9 @@ def test_a_user_without_the_key_reads_and_writes_nothing(server, page_dir):
     log outranks the document and takes appends from anyone who can POST."""
     publish(page_dir)
 
-    assert fetch(f"{server}/versions/v1.html", token=None)[0] == 403
-    assert fetch(f"{server}/api/state", token=None)[0] == 403
-    assert fetch(f"{server}/", token=None)[0] == 403
+    assert fetch(f"{server}/versions/v1.html", token=None)[0] == 401
+    assert fetch(f"{server}/api/state", token=None)[0] == 401
+    assert fetch(f"{server}/", token=None)[0] == 401
     status, body = fetch(
         f"{server}/api/event",
         data=json.dumps(
@@ -3862,12 +3918,10 @@ def test_a_user_without_the_key_reads_and_writes_nothing(server, page_dir):
         ).encode(),
         token=None,
     )
-    assert status == 403
-    assert json.loads(body) == {
-        "ok": False,
-        "error": schema_model.NO_KEY,
-        "final": True,
-    }
+    # A refused key judges no event: it answers in the gate's own shape, without the
+    # `final` that would have the browser drop the gesture it is still holding for the
+    # moment the user opens the printed link.
+    assert (status, json.loads(body)) == (401, {"error": schema_model.NO_KEY})
 
     # The key gate precedes the body read. A peer that cannot open the page must not
     # get to choose how much a handler allocates or park it waiting for bytes that never
@@ -3877,7 +3931,7 @@ def test_a_user_without_the_key_reads_and_writes_nothing(server, page_dir):
     )
     with running_http_server(http11):
         peer = http.client.HTTPConnection(
-            f"127.0.0.1:{http11.server_address[1]}", timeout=2
+            f"127.0.0.1:{http11.server_address[1]}", timeout=STATED_TIMEOUT
         )
         try:
             peer.putrequest("POST", "/api/event")
@@ -3888,14 +3942,11 @@ def test_a_user_without_the_key_reads_and_writes_nothing(server, page_dir):
             refusal = json.loads(refused.read())
         finally:
             peer.close()
-    assert (refused.status, refusal) == (
-        403,
-        {"ok": False, "error": schema_model.NO_KEY, "final": True},
-    )
+    assert (refused.status, refusal) == (401, {"error": schema_model.NO_KEY})
     assert refused.version == 11
     assert refused.getheader("Connection") == "close"
     assert refused.will_close
-    assert fetch(f"{server}/versions/v1.html", token="not-the-key")[0] == 403
+    assert fetch(f"{server}/versions/v1.html", token="not-the-key")[0] == 401
 
     assert [
         e for e in event_model.read_events(page_dir) if e["kind"] == "comment"
@@ -3913,10 +3964,11 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
 
     The state-dependent refusals were written through `event_rejection` from the start
     and the gates in front of them were not, which is the split this asserts away: the
-    key, the read-only preview server, and each shape gate answer in the door's own
-    shape rather than in the shape of whichever branch decided them. The key gate runs
-    before the body read, so its refusal is safely attempt-less; every authenticated
-    refusal can and must name the attempt it read. A page's runtime is vendored at
+    read-only preview server and each shape gate answer in the door's own shape rather
+    than in the shape of whichever branch decided them, and each names the attempt it
+    read. The key gate is not among them: it reads no event and lasts only until the
+    printed link is opened (`test_a_user_without_the_key_reads_and_writes_nothing`). A
+    page's runtime is vendored at
     `page init` and the layer around it moves, so the shape gates are reachable by an
     older page's honest event, not only by a hand-written POST."""
     publish(page_dir)
@@ -3945,18 +3997,6 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
         ),
     )
     with running_http_server(preview):
-        status, body = fetch(
-            f"{server}/api/event", data=json.dumps(comment).encode(), token=None
-        )
-        answer = json.loads(body)
-        assert (status, answer.get("ok"), answer.get("final")) == (
-            403,
-            False,
-            True,
-        )
-        assert "attempt" not in answer
-        assert answer.get("error") == schema_model.NO_KEY
-
         refusals = [
             (
                 "the preview server",
@@ -4055,7 +4095,9 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
     # another generation is answered with the one to reload into, ahead of any verdict
     # on a body written in a vocabulary this server no longer speaks.
     _, served = fetch(f"{server}/api/state")
-    door = http.client.HTTPConnection(urllib.parse.urlsplit(server).netloc, timeout=10)
+    door = http.client.HTTPConnection(
+        urllib.parse.urlsplit(server).netloc, timeout=STATED_TIMEOUT
+    )
     try:
         door.putrequest("POST", f"/api/event?t={TOKEN}")
         door.putheader("Leaf-Layer", json.loads(served)["layer"]["generation"])
@@ -4081,7 +4123,7 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
     # It answers and closes while the sender is still writing, so the writes that land
     # on the closed connection are the refusal arriving early rather than a fault.
     host, _, port = urllib.parse.urlsplit(server).netloc.partition(":")
-    door = socket.create_connection((host, int(port)), timeout=30)
+    door = socket.create_connection((host, int(port)), timeout=STATED_TIMEOUT)
     spoken = b""
     try:
         door.sendall(
@@ -4095,7 +4137,7 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
             )
         )
         chunk = b"x" * (1024 * 1024)
-        door.settimeout(5)
+        door.settimeout(STATED_TIMEOUT)
         try:
             for _ in range(12):
                 if select.select([door], [], [], 0)[0]:
@@ -4273,6 +4315,11 @@ def test_frozen_history_and_comparisons_do_not_reopen_the_page(page_dir):
 
     assert service.page_state() == before
     assert service.page_browser_view(2, picked["seq"]) == comparison
+    # The page as it stood at the gesture, as `leaf page picture` serves one: the log
+    # and the versions stamped by then.
+    then = snapshot.through(picked["seq"]).context
+    assert then.events[-1]["id"] == picked["id"]
+    assert [version["version"] for version in then.versions] == [1]
 
 
 def test_comparison_revision_reads_stay_inside_the_page_transaction(
@@ -4426,7 +4473,7 @@ def test_the_key_arrives_in_the_query_and_stays_in_the_cookie(server, page_dir):
         fetch(f"{server}/api/state", token=None, headers={"Cookie": f"lf_key={TOKEN}"})[
             0
         ]
-        == 403
+        == 401
     )
 
     # No query this time: the runtime's own fetches never carry one.
@@ -4622,10 +4669,9 @@ def test_a_start_waits_for_uncommitted_preparation_before_reusing(page_dir, spaw
         pass_fds=(end.fileno(),),
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
-        start_new_session=True,
     )
     end.close()
-    caller.settimeout(30)
+    caller.settimeout(STATED_TIMEOUT)
     successor = []
     attempting = threading.Event()
 
@@ -4639,11 +4685,14 @@ def test_a_start_waits_for_uncommitted_preparation_before_reusing(page_dir, spaw
         assert files_model.read_json(page_dir / "service.json") is None
         assert not server_rows_model.row_path(page_dir).exists()
         starting.start()
-        assert attempting.wait(10)
+        assert attempting.wait(STATED_TIMEOUT), (
+            "the successor never attempted the held server lease"
+        )
         assert leases_model.lock_is_held(page_dir / "server.lock")
         caller.close()  # Abandon the private listener; the successor must bind its own.
-        assert child.wait(timeout=10) == 0
-        starting.join(timeout=30)
+        assert child.wait(timeout=STATED_TIMEOUT) == 0
+        starting.join(timeout=STATED_TIMEOUT)
+        assert not starting.is_alive(), "the successor's start never returned"
         assert len(successor) == 1
         assert fetch(successor[0].url)[0] == 200
         wait_for(
@@ -4655,7 +4704,7 @@ def test_a_start_waits_for_uncommitted_preparation_before_reusing(page_dir, spaw
         )
     finally:
         caller.close()
-        starting.join(timeout=30)
+        starting.join(timeout=STATED_TIMEOUT)
         hosting_model.cmd_stop(page_dir)
 
 
@@ -4694,10 +4743,9 @@ def test_private_revival_cannot_advertise_the_previous_serving_row(
         pass_fds=(end.fileno(),),
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
-        start_new_session=True,
     )
     end.close()
-    caller.settimeout(30)
+    caller.settimeout(STATED_TIMEOUT)
     try:
         with caller.makefile("rb") as announcements:
             assert json.loads(announcements.readline())["url"] == previous["url"]
@@ -4725,14 +4773,14 @@ def test_private_revival_cannot_advertise_the_previous_serving_row(
                 )
         if not accepted:
             caller.close()
-            assert child.wait(timeout=10) == 0
+            assert child.wait(timeout=STATED_TIMEOUT) == 0
             assert files_model.read_json(neighbor / "service.json") == desired
             assert server_rows_model.row_path(neighbor).read_bytes() == row_before
             assert presence_model.other_leaves(page_dir) == []
     finally:
         caller.close()
         hosting_model.cmd_stop(neighbor)
-        assert child.wait(timeout=10) == 0
+        assert child.wait(timeout=STATED_TIMEOUT) == 0
 
 
 def test_failed_row_preparation_preserves_the_previous_desired_service(
@@ -4779,10 +4827,9 @@ def test_a_stop_waits_for_private_preparation_before_disabling(page_dir, spawn):
         pass_fds=(end.fileno(),),
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
-        start_new_session=True,
     )
     end.close()
-    caller.settimeout(30)
+    caller.settimeout(STATED_TIMEOUT)
     stopped = []
     stopping = threading.Thread(
         target=lambda: stopped.append(hosting_model.cmd_stop(page_dir)),
@@ -4794,9 +4841,10 @@ def test_a_stop_waits_for_private_preparation_before_disabling(page_dir, spawn):
         assert files_model.read_json(page_dir / "service.json") is None
     finally:
         caller.close()
-    stopping.join(timeout=30)
+    stopping.join(timeout=STATED_TIMEOUT)
+    assert not stopping.is_alive(), "server stop never returned"
     assert stopped == [False]
-    assert child.wait(timeout=10) == 0
+    assert child.wait(timeout=STATED_TIMEOUT) == 0
     assert files_model.read_json(page_dir / "service.json") is None
 
 
@@ -4849,7 +4897,7 @@ def test_stop_does_not_wait_forever_on_a_server_started_after_its_transition(
             yield
         if threading.current_thread() is stopping and locked == page_dir:
             transitioned.set()
-            assert resume.wait(10)
+            assert resume.wait(STATED_TIMEOUT)
 
     monkeypatch.setattr(hosting_model, "page_locked", pause_after_transition)
     stopped = []
@@ -4861,7 +4909,7 @@ def test_stop_does_not_wait_forever_on_a_server_started_after_its_transition(
     )
     try:
         stopping.start()
-        assert transitioned.wait(10)
+        assert transitioned.wait(STATED_TIMEOUT), "the stop never made its transition"
         wait_for(
             lambda: not leases_model.lock_is_held(page_dir / "server.lock"),
             bool,
@@ -4870,13 +4918,14 @@ def test_stop_does_not_wait_forever_on_a_server_started_after_its_transition(
         if owned:
             with service_model.PageTransaction(page_dir) as transaction:
                 transaction.take_claim(
-                    host_model.session_harness()
+                    harness_model.session_harness()
                     if same_session
-                    else host_model.ClaudeCodeHarness("successor", "Claude")
+                    else harness_model.ClaudeCodeHarness("successor", "Claude")
                 )
         assert hosting_model.start_server(page_dir, standing=True)
         resume.set()
-        stopping.join(timeout=3)
+        stopping.join(timeout=STATED_TIMEOUT)
+        assert not stopping.is_alive(), "the stop never returned once resumed"
         assert stopped == [True]
         assert bool(server_model.running_server(page_dir)) == owned
     finally:
@@ -4885,7 +4934,7 @@ def test_stop_does_not_wait_forever_on_a_server_started_after_its_transition(
             page_dir / "service.json",
             {**files_model.read_json(page_dir / "service.json"), "enabled": False},
         )
-        stopping.join(timeout=10)
+        stopping.join(timeout=STATED_TIMEOUT)
 
 
 def test_an_upgrade_is_answered_by_the_key_gate_like_any_other_request(server):
@@ -4894,7 +4943,7 @@ def test_an_upgrade_is_answered_by_the_key_gate_like_any_other_request(server):
     gate, and the refusal beneath it would be a stack trace rather than a sentence."""
     netloc = urllib.parse.urlsplit(server).netloc
     host, _, port = netloc.partition(":")
-    speaker = socket.create_connection((host, int(port)), timeout=10)
+    speaker = socket.create_connection((host, int(port)), timeout=STATED_TIMEOUT)
     try:
         speaker.sendall(
             b"GET /api/state HTTP/1.1\r\nHost: %s\r\nUpgrade: websocket\r\n"
@@ -4908,7 +4957,7 @@ def test_an_upgrade_is_answered_by_the_key_gate_like_any_other_request(server):
         body = answered.read()
     finally:
         speaker.close()
-    assert answered.status == 403, (answered.status, body[:400])
+    assert answered.status == 401, (answered.status, body[:400])
     assert b"Traceback" not in body, body[:400]
     assert b"it carries the key" in body, body[:400]
 
@@ -5149,7 +5198,7 @@ def test_a_run_ends_only_the_servers_it_started(tmp_path, spawn):
         env=os.environ | {"XDG_STATE_HOME": str(home)},
         capture_output=True,
         text=True,
-        timeout=120,
+        timeout=COMPOSITE_TIMEOUT,
         check=False,
     )
     assert run.returncode == 0, run.stdout + run.stderr
@@ -5188,7 +5237,7 @@ def test_one_key_reads_every_page_this_machine_serves(page_dir, tmp_path):
             assert arrival.status == 200
         with pytest.raises(urllib.error.HTTPError) as unvisited:
             opener.open(f"{other}/api/state")
-        assert unvisited.value.code == 403
+        assert unvisited.value.code == 401
         with opener.open(f"{other}/api/state?t={key}") as onward:
             assert onward.status == 200
         for origin in (first, other):
@@ -5327,7 +5376,7 @@ def test_neighbours_follow_their_servers_and_ignore_deleted_pages(page_dir, tmp_
     lease.write(files_model.read_json(stopped / "service.json")["server_id"].encode())
     lease.flush()
     assert titles() == ["Scratch", "Starts later"]
-    lease.close()
+    leases_model.release_lease(lease)
     assert titles() == ["Scratch"]
 
     shutil.rmtree(stopped)
@@ -5496,7 +5545,9 @@ def test_stamp_keeps_its_checked_log_snapshot_until_the_note(monkeypatch, page_d
     }
     publisher = threading.Thread(target=run_stamp)
     publisher.start()
-    assert entered.wait(STATED_TIMEOUT)
+    assert entered.wait(STATED_TIMEOUT), (
+        "the publisher never reached its held source check"
+    )
     writer = threading.Thread(target=lambda: append_command(page_dir, action))
     monkeypatch.setattr(fcntl, "flock", observed_flock)
     try:

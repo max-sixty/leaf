@@ -36,6 +36,10 @@ start on an open task or a move the agent owes. Every reader takes tasks from
 `canonical_tasks` and starts from `item_starts`.
 
 Not yet: a task whose session has ended reads open until another session ends it.
+
+Experimental: tasks and the two queues are new, and their shape is expected to
+change a lot (notes/what-needs-you/). Change them freely; nothing outside this
+repository depends on them.
 """
 
 import sys
@@ -177,7 +181,7 @@ def cmd_open(page_dir: Path, subject: str, title: str) -> dict:
     it or a widget frozen in it, a page widget, or `page` for the page as a whole;
     the record."""
     from .event_contracts import append_admitted
-    from .host import message_identity
+    from .harness import message_identity
     from .leases import contract_writer
     from .revisioning import activate_source
     from .service import PageTransaction
@@ -221,7 +225,7 @@ def cmd_start(page_dir: Path, item: str, text: str) -> dict:
     Claude Code subagent runs as its parent's session, so workers leave starts to the
     session driving the page."""
     from .event_contracts import append_admitted
-    from .host import message_identity
+    from .harness import message_identity
     from .leases import contract_writer
     from .revisioning import activate_source
     from .service import PageTransaction
@@ -271,7 +275,7 @@ def cmd_end(page_dir: Path, task: str, outcome: str, detail: str | None) -> dict
     """End `task` with `outcome`, `detail` saying where the result is or why there
     is none; the record."""
     from .event_contracts import append_admitted
-    from .host import message_identity
+    from .harness import message_identity
     from .leases import contract_writer
     from .service import PageTransaction
 

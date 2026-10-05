@@ -15,6 +15,7 @@
     "title": null,
     "anchor": null,
     "detached_from": null,
+    "rewritten_from": null,
     "msgs": [
       {
         "id": "e1",
@@ -102,6 +103,7 @@
           "title": null,
           "anchor": null,
           "detached_from": null,
+          "rewritten_from": null,
           "msgs": [
             {
               "id": "e1",
@@ -207,6 +209,7 @@
           "title": null,
           "anchor": null,
           "detached_from": null,
+          "rewritten_from": null,
           "msgs": [
             {
               "id": "e1",
@@ -270,6 +273,7 @@
           "title": null,
           "anchor": null,
           "detached_from": null,
+          "rewritten_from": null,
           "msgs": [
             {
               "id": "e3",
@@ -311,6 +315,7 @@
           "title": null,
           "anchor": null,
           "detached_from": null,
+          "rewritten_from": null,
           "msgs": [
             {
               "id": "e4",
@@ -375,6 +380,7 @@
           "title": null,
           "anchor": null,
           "detached_from": null,
+          "rewritten_from": null,
           "msgs": [
             {
               "id": "e7",
@@ -658,6 +664,61 @@
           }
         ]
       }
+    },
+    "done": {
+      "asks": {
+        "all": [
+          {
+            "id": "pick-ask",
+            "tag": "lf-ask",
+            "source": "pick",
+            "source_tag": "lf-options",
+            "thread": null
+          },
+          {
+            "id": "ship-ask",
+            "tag": "lf-ask",
+            "source": "ship",
+            "source_tag": "lf-options",
+            "thread": null
+          }
+        ],
+        "unanswered": [
+          {
+            "id": "pick-ask",
+            "tag": "lf-ask",
+            "source": "pick",
+            "source_tag": "lf-options",
+            "thread": null
+          }
+        ]
+      },
+      "tasks": [
+        {
+          "id": "e4",
+          "subject": {
+            "kind": "thread",
+            "id": "e2"
+          },
+          "title": "Check the colours",
+          "state": "done",
+          "seq": 4,
+          "ts": "2026-09-19T12:00:00+00:00",
+          "agent": "Agent",
+          "session": "served-records",
+          "revision": 1,
+          "running": null,
+          "outcome": {
+            "id": "e5",
+            "seq": 5,
+            "ts": "2026-09-19T12:00:00+00:00",
+            "detail": "Matched the theme",
+            "agent": "Agent",
+            "session": "served-records"
+          },
+          "thread": "e2"
+        }
+      ]
     }
   }
 }

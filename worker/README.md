@@ -1,5 +1,7 @@
 # Leaf website worker
 
+## Delivery and container lifetime
+
 Cloudflare serves each product and example page's live shell and initial canonical
 projection from `.tmp/site-assets`, so every ordinary
 document navigation paints without waiting for a container. The HTML response issues a
@@ -50,6 +52,8 @@ persistence guarantee: Cloudflare can replace an active instance, and each site 
 deliberately gets a fresh one. Durable website sessions will require a durable
 page-directory store.
 
+## Product events
+
 Accepted browser events also write canonical metadata to the
 `leaf_website_events` Analytics Engine dataset. The data point omits event content,
 widget ids, IP addresses, and session cookies:
@@ -93,6 +97,8 @@ FROM leaf_website_events
 WHERE blob6 = '239383829012'
 ORDER BY timestamp
 ```
+
+## Credentials
 
 Leaf uses three Cloudflare tokens, one for each holder. None is stored in this
 repository, and each arrives as `CLOUDFLARE_API_TOKEN` wherever it is used. The
@@ -146,6 +152,8 @@ export CLOUDFLARE_API_TOKEN=$(~/.claude/skills/using-1password/scripts/op-read.s
 A bare `op` command signs in as the person instead and waits for an approval that an
 unattended session cannot give.
 
+## Hosted-agent diagnostics
+
 Hosted turns also emit structured timing records under `component=leaf-agent`.
 Every request record carries the page's public session reference and canonical event
 id; the container continues with that event id through App Server availability, task
@@ -175,7 +183,7 @@ from the user's. `turn_interrupted` and
 `turn_interrupt_failed` record the follower stopping a turn it can no longer watch, and
 `turn_abandoned_interrupt_started` and `turn_abandoned_interrupt_completed` the same for
 a turn found running on a resumed thread. `turn_failure_reported` says how many of that
-delivery's moves the host settled with a failure receipt and how many it could not; a
+delivery's moves the harness settled with a failure receipt and how many it could not; a
 turn that answered everything it was given writes no such record.
 `container_continuation_receipted` marks a start the Worker's dispatch is not holding
 — a move a follower found waiting when its turn ended — and says whether the
@@ -229,6 +237,8 @@ Historical Worker and Container logs are available in Workers Observability beca
 `wrangler.toml` enables it. Agents may inspect the complete Cloudflare envelope,
 including request metadata, through the Observability API. `wrangler tail` streams the
 same records live under the agent administration token.
+
+## Browser diagnostics
 
 Each public document emits one `component=leaf-startup` record from the inline
 bootstrap, including when the module graph fails. It identifies the route, release,
@@ -300,13 +310,15 @@ query builder.
 
 The local end-to-end verifier prints the same container records and leaves them at
 `.tmp/verify-site/run-*/website-agent-local.log` for a later agent to inspect. Each
-run builds its own site, binds an OS-assigned HTTP port, and gives each website host
+run builds its own site, binds an OS-assigned HTTP port, and gives each website harness
 a private App Server socket. It gives the child App
 Server a temporary plugin-free `CODEX_HOME` seeded with copies of the host login and
 website config, matching production without changing personal state. Its JSON result
 records `responseVisibleMs` from the first non-empty agent reply the open Threads panel
 actually displays; `repliedMs` is the independent durable-state observation and is not a
 substitute for that user-visible milestone.
+
+## Hosted-agent delivery
 
 When Leaf accepts a user message that its canonical activity projection says needs
 a response, the Worker returns the accepted state and starts the agent dispatch through
@@ -320,7 +332,7 @@ Leaf retains that immutable delivery locally and starts it directly after the cu
 turn completes. The website-specific App Server starts
 without the authoring plugin, so skill discovery cannot turn a small user response
 into a full authoring workflow. Its developer instructions are the shipped
-`skills/leaf/references/host-codex-app-server.md`, whole, followed by leaf.page's own
+`skills/leaf/references/harness-codex-app-server.md`, whole, followed by leaf.page's own
 additions in `HOSTED_INSTRUCTIONS`, so the hosted agent and a terminal App Server task
 read one delivery and reply contract. The App Server's `PATH` starts with the
 container's own `leaf` launcher, the name that contract uses. The hosted task can
@@ -392,6 +404,8 @@ the turn ended, and a start it cannot make is not the end of it — that move ta
 answered `started` on the turn already running, and the scan moves to the next. The
 first start that succeeds ends the chain, since its own follower ends here too.
 
+## Sandbox and rate limits
+
 The container pins the Codex version its App Server protocol was tested against and
 runs `gpt-5.6-luna` at low reasoning effort. The per-user Cloudflare Container is the
 tool sandbox: nested bubblewrap namespaces are unavailable in that environment, and
@@ -404,6 +418,8 @@ in each Cloudflare location and, under a separate key, twenty model calls per us
 container per minute. An over-limit turn receives a visible busy reply or a model-rate
 error without sending anything to OpenAI. There is no site-wide quota.
 
+## Local development
+
 Run the complete local site with Docker available:
 
 ```sh
@@ -411,6 +427,8 @@ cd worker
 npm ci
 npm run dev
 ```
+
+## Remote development
 
 The one standing remote development environment runs the same Worker, Container image,
 credential proxy, and browser benchmark at
@@ -442,6 +460,8 @@ runs the complete agent benchmark:
 ```sh
 npm run deploy:dev --prefix worker
 ```
+
+## Production deployment
 
 The deploy requires a Cloudflare Workers Paid account with Containers enabled, a
 `cloudflare-deploy` GitHub environment in `max-sixty/leaf` whose deployment branch

@@ -1,13 +1,18 @@
 # Testing leaf
 
-A test here is evidence about behavior a user depends on. Under root `AGENTS.md`'s
-**Stage**, the suite does not constrain new code: rewriting or deleting an overfit
-test is an ordinary part of a change, and the commit says which behavior moved.
+A test here is evidence about behavior a user depends on. The suite's quality varies:
+agents wrote most of it, and many tests assert the shape the code had when they were
+written rather than that behavior. Under root `AGENTS.md`'s **Stage**, the suite does
+not constrain new code: rewriting or deleting an overfit test is an ordinary part of a
+change, and the commit says which behavior moved.
 
 Prove each contract at the lowest boundary that preserves it, and keep a browser test
-only where it proves boundaries working together. When a high-level browser test is
-slow, or fails on timing or geometry outside its contract, repair its arrangement or
-move its contract to the lower boundary.
+only where it proves boundaries working together. Every run of the suite pays for each
+test's compute, so weigh that cost against how much the protected behavior matters
+before adding or keeping an expensive test: a long browser journey, a sweep across
+pages or widths, or a wide parametrization needs a contract important enough to pay
+for it. When a high-level browser test is slow, or fails on timing or geometry outside
+its contract, repair its arrangement or move its contract to the lower boundary.
 
 Each helper's docstring owns its contract, and code cites sections here by heading.
 
@@ -19,10 +24,23 @@ stays in `.tmp/`.
 
 Linux browser tests use `tests/fonts.conf` and `fonts-dejavu` for their native
 UI, serif and mono faces, including bold and italic styles. Install that package before `wt setup`; CI installs it
-explicitly. The PNG rendering profile binds the fontconfig and installed font bytes,
-and an actual Chromium font reading verifies those faces. Mac uses its native fonts.
+explicitly, and an actual Chromium font reading verifies those faces. Mac uses its
+native fonts, and the thread appearance gate compares its images on macOS only.
 
-## Run the narrowest useful surface
+## A failure is evidence about the test too
+
+Before fixing a failing test, name the user-facing behavior its failure caught. Where
+it caught none, because the change left what the user sees and does intact and the
+test broke only on the shape it read, consider simplifying the test to the behavior it
+protects, moving its contract to a lower boundary, or deleting it, rather than
+updating it to the new shape. A test that unrelated changes keep breaking (`git log
+-L` on it shows the history) is the strongest candidate.
+
+A failure that comes and goes on the same code is a defect. Find whether the product
+races, so a user could hit the same failure, or the test's arrangement does (**State
+races are arrangements, not probabilities**), and fix that cause.
+
+## Run what the change needs
 
 The host supplies `wt`, `uv`, `jq` 1.6 or newer, Node 22 or newer, and Docker for the
 complete website boundary only. `wt setup` installs Playwright's Chromium headless
@@ -31,9 +49,9 @@ Python.
 
 ```sh
 wt setup
-uv run pytest tests                  # everyday gate; no network after setup
-npm run test:runtime                 # the gate's other half: tests/runtime/, under Node
-uv run pytest tests/test_render_widgets.py -q -n0 -k board   # one case, kept local
+uv run pytest tests/test_render_widgets.py -q -n0 -k board   # the tests a change needs
+npm run test:runtime                 # tests/runtime/, under Node
+uv run pytest tests                  # broad selection; the landing gate runs it
 uv run pytest --lf --lfnf=none -x -n0
 uv run pytest --regtest-reset -n0 <node-id>
 ```
@@ -44,14 +62,20 @@ nightly tests, and an explicit file, node id, `-k`, `-m`, or `--lf` runs what it
 names. Both landing gates pass `--nightly-changed-since`, which adds the nightly tests
 whose own lines the change edits.
 
-A change lands only on a green landing gate. Every other nightly test is CI's to
-report: the `test` job in `ci.yaml` runs the complete suite once main moves, and
-`tend-ci-fix` answers what it fails. So before handing over a browser-facing change,
-run the everyday gate and the few browser tests that hold the behavior you changed,
-named by node id or `-k`. Don't run `--run-nightly`, `-m nightly`, or a whole browser
-file locally: each takes minutes to over an hour and slows every other session on the
-machine. To learn what main fails, read that job's run, and reproduce a failure it
-names by node id.
+Before handing over, run the tests that hold the behavior you changed, in any file
+and nightly ones included, named by node id or `-k`; find them by reading which tests
+exercise the code the change touches. Run `npm run test:runtime` too when the change
+reaches the runtime. A change lands only on a green landing gate, which runs the broad
+selection: a pull request's `test` job, or `wt merge`'s pre-merge. A failure there that
+your selection missed is the gate doing its job; fix it and push. Every other nightly
+test is CI's to report: the `test` job in `ci.yaml` runs the complete suite once main
+moves, and `tend-ci-fix` answers what it fails. That trade is the user's choice
+(2026-10-04): a pull request can land green and break a nightly test it never ran, and
+main can stay red while `tend-ci-fix` repairs it, so a red main is no reason to widen a
+change, its gate, or its test selection. Don't run the broad selection, `--run-nightly`, `-m nightly`, or
+a whole browser file locally outside a landing: each takes minutes to over an hour
+and slows every other session on the machine. To learn what main fails, read that
+job's run, and reproduce a failure it names by node id.
 
 CLI output and agent-facing text are regtest recordings in
 `tests/_regtest_outputs/`, normalized for temporary paths and generated identities but
@@ -249,7 +273,8 @@ missing when they expire.
 
 Synchronize on the operation's declared completion or an acknowledgement of the
 causal edge. A sleep does not prove another process acquired a lock, completed a
-scan, or attempted a blocked operation. Instrumentation must keep input ownership
+scan, or attempted a blocked operation; `interact_support.lock_contention` states
+that a taker found a lock held and is waiting on it. Instrumentation must keep input ownership
 and unjudged evidence until their declared completion; a time cap must not turn
 unfinished work into a successful reading or an unrelated effect.
 
@@ -273,7 +298,8 @@ boundary and observe its completed decision. A real-time integration test waits 
 the decision with a hang deadline that allows the grace period and scheduling room.
 
 A new wait fixes its deadline when it begins and names the missing evidence on
-timeout. Pure-Python state polls use `interact_support.wait_for`.
+timeout. Pure-Python state polls use `interact_support.wait_for`, and every
+Python-side wait takes its deadline from `STATED_TIMEOUT`, which the suite checks.
 
 ### A state the page passes through is not a state to poll for
 

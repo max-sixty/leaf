@@ -146,7 +146,7 @@ def test_delivery_uses_successful_turns_and_accepted_exact_thread_claims(tmp_pat
 
 
 def test_live_round_receipts_require_exact_admitted_user_inputs():
-    from leaf_dev.harness import inputs_received
+    from leaf_dev.arms import inputs_received
 
     events = [
         {"id": "first", "kind": "comment", "attempt": "round-1", "attention": True},

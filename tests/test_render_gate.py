@@ -25,6 +25,7 @@ from leaf import render_checks as render_checks_model
 from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf.render_checks import rendered, wait_until_ready
+from leaf.render_gate import readings as render_gate_readings
 from leaf.render_gate import scheme as render_gate_scheme
 from leaf.render_gate import version as render_gate_model
 from leaf.schema import ELEMENT_ID
@@ -117,6 +118,7 @@ from render_harness import (
     scroll_writes,
     state_changes,
     still_page,
+    stored_draft_text,
     take_browser_errors,
     write,
 )
@@ -273,10 +275,11 @@ def _pane_regions(columns: str, media: str) -> str:
 
 def test_a_screen_region_that_runs_past_its_room_gets_advice(browser, serve):
     """A workspace is a screen the reader moves through, so a region of it that has to
-    scroll is the exception, and the gate names each one at the desktop viewport, as
-    advice: the page still passes. Here the detail pane runs past its room and the
-    queue fits, so only the detail is named. Once the detail stacks two open Asks, it
-    is a queue read as one scroll, and the advice names the side-list queue instead."""
+    scroll is the exception, and the gate names each one with the swept widths it runs
+    past its room at, as advice: the page still passes. Here the detail pane runs past
+    its room and the queue fits, so only the detail is named. Once the detail stacks two
+    open Asks, it is a queue read as one scroll, and the advice names the side-list
+    queue instead."""
     source = leaf_page(
         "screen regions",
         """
@@ -296,9 +299,13 @@ def test_a_screen_region_that_runs_past_its_room_gets_advice(browser, serve):
     reading = render_gate_model.render_version(browser, serve(source, packages=()))
 
     assert reading.failures == []
-    assert [region["id"] for region in reading.overflowing] == ["detail"]
-    (advice,) = [line for line in reading.advice if "past the region" in line]
-    assert advice.startswith("at 1200x900 <lf-pane id=detail> runs "), advice
+    (advice,) = reading.advice
+    spans = re.match(
+        r"at (\d+)–1920px wide and 900px tall <lf-pane id=detail> runs past the region "
+        r"it scrolls in, \d+px at \1px: ",
+        advice,
+    )
+    assert spans and int(spans[1]) < 1200, advice
     assert "lf-tabs" not in advice, advice
 
     asks = "".join(
@@ -384,10 +391,13 @@ DRAWN_LABELS_PAGE = leaf_page(
 def test_a_drawing_fitted_until_its_labels_are_unreadable_gets_advice_and_still_passes(
     browser, serve
 ):
-    """Drawn size decides, and only the fit is advised about: the halved 28px labels
-    read fine, the 9px glyph at its natural size is a size the source chose, and words
-    the drawing never paints have no drawn size at all. The drawing whose 11px labels
-    came out at 5px is named once, with its smallest."""
+    """Drawn size decides, and only the fit is advised about: the 9px glyph at its
+    natural size is a size the source chose, and words the drawing never paints have
+    no drawn size at all. Each shrunk drawing is named once, with the swept widths it
+    spans and its smallest label at the narrowest of them: the drawing whose 11px
+    labels came out at 5px on the desktop at every width, and the one whose halved
+    28px labels read fine on the desktop only where a narrower window takes them
+    under 10px."""
     url = serve(DRAWN_LABELS_PAGE, packages=())
     page = open_page(browser, url)
     drawn = page.evaluate(
@@ -415,12 +425,97 @@ def test_a_drawing_fitted_until_its_labels_are_unreadable_gets_advice_and_still_
     reading = render_gate_model.render_version(browser, url)
 
     assert reading.failures == []
-    (advice,) = reading.advice
-    assert advice.startswith(
-        "at 1200px wide <svg> in <figure id=squeezed> draws 3 label(s) below 10px, "
-        "the smallest ("
-    ), advice
-    assert "from the 11px it was set at" in advice, advice
+    squeezed, large = reading.advice
+    assert squeezed.startswith(
+        "at 360–1920px wide <svg> in <figure id=squeezed> draws labels below 10px, "
+        "3 at 360px, the smallest ("
+    ), squeezed
+    assert "from the 11px it was set at" in squeezed, squeezed
+    spans = re.match(
+        r"at 360–(\d+)px wide <svg> in <figure id=large> draws labels below 10px, "
+        r"2 at 360px, the smallest \(.*\) at [\d.]+px from the 28px it was set at",
+        large,
+    )
+    assert spans and 540 <= int(spans[1]) < 1200, large
+
+
+def test_two_id_less_drawings_in_one_figure_are_advised_on_apart(browser, serve):
+    """Side by side in one figure, two id-less drawings share the name the advice gives
+    them, and each is still told its own smallest label: the one fitted from 1600 units
+    as well as the one fitted from 900."""
+    source = leaf_page(
+        "compared drawings",
+        """
+<h1>Before and after</h1>
+<figure id="compare">
+  <svg class="drawing" viewBox="0 0 900 120" role="img" aria-label="Before">
+    <text x="20" y="40">before</text>
+  </svg>
+  <svg class="drawing" viewBox="0 0 1600 120" role="img" aria-label="After">
+    <text x="20" y="40">canary</text>
+    <text x="560" y="40">region</text>
+    <text x="1100" y="40">global</text>
+  </svg>
+</figure>
+""",
+    )
+
+    reading = render_gate_model.render_version(browser, serve(source, packages=()))
+
+    assert reading.failures == []
+    assert len(reading.advice) == 2, reading.advice
+    named = "<svg> in <figure id=compare> draws labels below 10px, "
+    assert all(named in advice for advice in reading.advice), reading.advice
+    assert {re.search(r"\(('\w+')\)", advice)[1] for advice in reading.advice} == {
+        "'before'",
+        "'canary'",
+    }, reading.advice
+
+
+def test_swept_faults_are_reported_by_element_and_by_unbroken_run():
+    """The sweep names a fault per element and per unbroken run of widths, with its
+    reading at the run's narrowest. Here a spill clears between 1520px and 640px and
+    returns below; the run taking in the 540px viewport is that viewport's to report,
+    and the wide run is still the sweep's. Two drawings that share a name are told
+    apart by their place."""
+    widths = sorted({*render_gate_readings.SWEEP_WIDTHS, 540}, reverse=True)
+
+    def at(width):
+        spill = 1560 <= width <= 1600 or width <= 600
+        drawings = [
+            {"at": "<svg> in <figure id=f>", "place": place, "labels": n, "drawn": d}
+            | {"set": 11, "words": words}
+            for place, n, d, words in ((">0", 1, 8.8, "mild"), (">1", 3, 5, "worst"))
+            if width <= 800
+        ]
+        return {
+            "overflow": 0,
+            "misplaced": [
+                {
+                    "at": "<pre>",
+                    "place": "#x>0",
+                    "kind": "column",
+                    "text": f"<pre> spills at {width}px",
+                }
+            ]
+            if spill
+            else [],
+            "labels": {"threshold_px": 10, "drawings": drawings},
+        }
+
+    readings = [(width, at(width)) for width in widths]
+    fixed = [{"width": 1200}, {"width": 540}]
+
+    assert render_gate_readings.swept_overflow(readings, fixed) == [
+        "at 1560–1600px wide, <pre> spills at 1560px"
+    ]
+    advice = render_gate_readings.shrunk_label_advice(readings)
+    shown = r"at 360–800px wide <svg> in <figure id=f> draws labels below 10px, "
+    smallest = r"(\d) at 360px, the smallest \('(\w+)'\) at ([\d.]+)px from the 11px"
+    assert [re.match(shown + smallest, line).groups() for line in advice] == [
+        ("1", "mild", "8.8"),
+        ("3", "worst", "5"),
+    ], advice
 
 
 def test_user_view_checks_read_current_geometry_without_changing_the_page(
@@ -733,7 +828,7 @@ def test_a_refused_document_reports_the_status_beside_the_wait_that_stopped(
     assert failures[0].startswith(
         "[light] pre-upgrade proof failed: the document never reached an authored main"
     )
-    assert f"403 {refused}" in failures[0]
+    assert f"401 {refused}" in failures[0]
 
 
 def test_the_pre_upgrade_proof_holds_its_entry_route_past_the_load_event(
@@ -1399,8 +1494,8 @@ def test_a_user_arrives_at_what_they_left_rather_than_watching_it_arrive(
     # paints is the runtime's business and is not named here; that it paints at all is
     # this reading's, and a reading that reports nothing when something moved would
     # pass every assertion after it.
-    banner_control(page, ".lf-asks").click()
-    expect(page.locator(".lf-asks-panel")).to_be_visible()
+    banner_control(page, ".lf-queue").click()
+    expect(page.locator(".lf-queue-panel")).to_be_visible()
     gesture = moved()
     assert gesture, "a gesture moved nothing the browser reported, so no silence counts"
 
@@ -2033,8 +2128,6 @@ def test_the_state_wait_follows_a_source_rewritten_under_it(browser, serve):
     expect(page.locator("body")).not_to_have_attribute(
         "data-lf-reading", held["reading"]
     )
-    page._leaf_probe_timeout_ms = 1_000
-
     wait_until_ready(page, held)
 
 
@@ -2061,8 +2154,6 @@ def test_the_state_wait_follows_a_source_back_to_the_version_the_page_shows(
     for read in reads:
         read.continue_()
     page.unroute("**/api/state*")
-    page._leaf_probe_timeout_ms = 5_000
-
     wait_until_ready(page, held)
     expect(page.locator("#notes code")).to_have_text("First.\n")
 
@@ -3136,7 +3227,7 @@ SURFACES = {
     "go-to": (["g"], None),
     "thread card": (["t"], '.lf-threads-toggle:text-matches("Threads: [1-9]")'),
     "threads panel": (["g", "Shift+t"], None),
-    "asks drawer": (["g", "Shift+a"], ".lf-btn.lf-asks"),
+    "queue panel": (["g", "Shift+q"], ".lf-btn.lf-queue"),
     "leaves drawer": (["g", "Shift+l"], ".lf-btn.lf-others"),
     "page map": (["g", "Shift+m"], None),
     "versions menu": (["g", "Shift+v"], None),
@@ -4620,14 +4711,6 @@ def test_the_render_gate_reads_a_scrolled_container_from_its_content(browser, se
     )
 
 
-@pytest.mark.xfail(
-    reason=(
-        "Native package scope proximity lets the board minimum outrank pane-body sizing"
-        " on main 2bd9; CI run 37057440971."
-    ),
-    raises=AssertionError,
-    strict=False,
-)
 def test_a_page_hands_its_note_strip_back_when_the_panel_takes_the_room(browser, serve):
     """The margin form is granted by the room beside the page's column, and the thread
     panel stands over the page rather than taking room from it, so the panel decides
@@ -4791,17 +4874,27 @@ def test_dragging_an_edge_preserves_user_state(browser, serve, edge, pointer):
     page.locator("main p").first.click(modifiers=["Alt"])
     composer = page.locator(".lf-fab-input")
     write(composer, "half a comment")
+    page.keyboard.press("ArrowLeft")
+    page.keyboard.press("Shift+ArrowLeft")
+    editing = composer.evaluate("""async input => {
+        const {captureDraftEditing} = await __lfRuntimeImport('/runtime/drafts.js');
+        return captureDraftEditing(input);
+    }""")
     drag()
     expect(composer).to_be_visible()
     expect(composer).to_have_js_property("value", "half a comment")
+    composer.focus()
+    page.keyboard.press("Escape")
+    expect(composer).to_be_hidden()
 
     # An existing partial-word selection can come from native keyboard selection or
     # browser commands. Only a new selection gesture may expand it to a sentence.
-    page.locator("main p").nth(1).evaluate("""p => {
-        const text = p.firstChild;
-        getSelection().setBaseAndExtent(text, 3, text, 14);
-    }""")
+    paragraph = page.locator("main p").nth(1)
+    paragraph.evaluate(
+        "p => getSelection().setBaseAndExtent(p.firstChild, 3, p.firstChild, 14)"
+    )
     selected = page.evaluate("() => getSelection().toString()")
+    assert selected == paragraph.evaluate("p => p.firstChild.textContent.slice(3, 14)")
     drag()
     assert (
         page.evaluate("""async () => {
@@ -4810,6 +4903,22 @@ def test_dragging_an_edge_preserves_user_state(browser, serve, edge, pointer):
     }""")
         == selected
     )
+    rendered(page)
+    expect(composer).to_be_hidden()
+    assert (
+        json.loads(stored_draft_text(page, editing["context"]))["text"]
+        == "half a comment"
+    )
+    page.keyboard.press("g")
+    page.keyboard.press("i")
+    expect(composer).to_be_focused()
+    expect(composer).to_have_js_property("value", "half a comment")
+    resumed = composer.evaluate("""async input => {
+        const {captureDraftEditing} = await __lfRuntimeImport('/runtime/drafts.js');
+        return captureDraftEditing(input);
+    }""")
+    assert resumed["context"] == editing["context"]
+    assert resumed["selection"] == editing["selection"]
 
 
 @pytest.mark.parametrize("edge", EDGES, ids=EDGE_IDS)

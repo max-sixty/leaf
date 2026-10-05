@@ -1,10 +1,10 @@
-"""Product controls really render ordinary HTML; judges require actual evidence."""
+"""Product controls really render ordinary HTML; judges read real screenshots."""
 
 import json
+from pathlib import Path
 
 from leaf_dev import ROOT, arrangement_plain
-from leaf_dev.arrangement_eval import WIDTHS, capture_reads, first_prompt, valid_verdict
-from leaf_dev.harness import read_trace
+from leaf_dev.arrangement_eval import WIDTHS, first_prompt
 
 
 def test_html_control_uses_browser_without_leaf_payload(tmp_path):
@@ -27,65 +27,14 @@ def test_html_control_uses_browser_without_leaf_payload(tmp_path):
     assert any("overflows" in item["error"] for item in reading["findings"])
 
 
-def test_judge_requires_successful_capture_reads_and_complete_quality_verdict(tmp_path):
-    calls = [
-        {
-            "type": "tool_use",
-            "id": name,
-            "name": "Read",
-            "input": {"file_path": f"/captures/{name}.png"},
-        }
-        for name in ("read", "denied", "empty", "attempted")
-    ]
-    returns = [
-        {
-            "type": "tool_result",
-            "tool_use_id": "read",
-            "content": [{"type": "image", "data": "capture"}],
-        },
-        {
-            "type": "tool_result",
-            "tool_use_id": "denied",
-            "is_error": True,
-            "content": "denied",
-        },
-        {"type": "tool_result", "tool_use_id": "empty", "content": []},
-    ]
-    path = tmp_path / "stream.jsonl"
-    path.write_text(
-        "\n".join(
-            json.dumps(record)
-            for record in [
-                {"type": "assistant", "message": {"content": calls}},
-                {"type": "user", "message": {"content": returns}},
-                {"type": "result", "is_error": False},
-            ]
-        )
-    )
-    assert capture_reads(read_trace(path)) == {"read.png"}
-    verdict = {
-        "task_complete": True,
-        "readable": True,
-        "usable": True,
-        "preference": False,
-        "defects": [],
-        "reasons": ["The task is complete."],
-    }
-    assert valid_verdict(verdict, 1)
-    assert valid_verdict(verdict, 2)
-    verdict.pop("usable")
-    assert not valid_verdict(verdict, 2)
-    assert not valid_verdict({"winner": "leaf"}, 1)
-
-
 def test_comparison_snapshots_exclude_later_leaf_feedback(tmp_path, monkeypatch):
     """Script the external model; real admission and publication preserve user input."""
     from leaf_dev import arrangement_eval
-    from leaf_dev.harness import run_leaf
+    from leaf_dev.arms import run_leaf
 
     evidence = tmp_path / "evidence"
     evidence.mkdir()
-    run = arrangement_eval.Run("document", ROOT, evidence)
+    run = arrangement_eval.Run("document", ROOT, evidence, evidence / "shots")
     author_turns = 0
 
     def model(cwd, prompt, *args, out, err, **kwargs):
@@ -151,39 +100,22 @@ def test_comparison_snapshots_exclude_later_leaf_feedback(tmp_path, monkeypatch)
     ) == ["b"]
 
 
-def test_native_judges_keep_unknown_cost_distinct_from_observed_zero(
-    tmp_path, monkeypatch
-):
-    from leaf_dev import arrangement_eval, reader_eval
+def test_reader_calibration_shows_the_judge_its_page_at_every_width(tmp_path):
+    """No model runs: the seeded triage page renders, and the output lists every
+    capture under its width, which is all the count rubric reads."""
+    from leaf_dev import reader_eval
 
-    # Replace the external CC judge invocation with native result records. Both
-    # real review helpers parse the result and write their ordinary diagnostics.
-    verdict = {
-        "task_complete": True,
-        "readable": True,
-        "usable": True,
-        "preference": False,
-        "satisfies_request": True,
-        "count_consistent": True,
-        "defects": [],
-        "reasons": ["The request is satisfied."],
-    }
-    for index, cost in enumerate((None, 0, 0.125)):
-        record = {"type": "result", "is_error": False, "result": json.dumps(verdict)}
-        if cost is not None:
-            record["total_cost_usd"] = cost
-
-        def native_judge(*args, record=record, **kwargs):
-            return [record]
-
-        monkeypatch.setattr(arrangement_eval, "claude", native_judge)
-        monkeypatch.setattr(reader_eval, "claude", native_judge)
-        run = arrangement_eval.Run("document", ROOT, tmp_path, "cc", "html")
-        reviews = [
-            arrangement_eval.judge_output(run, 1, tmp_path / f"arrangement-{index}"),
-            reader_eval.review("Read this page", run, 1, tmp_path / f"reader-{index}"),
-        ]
-        for review in reviews:
-            assert review["completed"] and review["valid_verdict"]
-            assert review["cost_usd"] == cost
-            assert review["cost_known"] is (cost is not None)
+    response = reader_eval.execute_scenario(
+        "seeded", ROOT, tmp_path, shots=tmp_path / "shots"
+    )
+    assert response["metadata"]["checks"] == {"completed": True}
+    output = response["output"]
+    widths = [line for line in output.splitlines() if line.startswith("  On ")]
+    assert widths == [f"  On {label}, top to bottom:" for _, label in WIDTHS.values()]
+    listed = [
+        Path(line.strip())
+        for line in output.splitlines()
+        if line.strip().endswith(".png")
+    ]
+    assert listed and all(path.is_file() for path in listed)
+    assert 'value="8"' in (tmp_path / "source.html").read_text()

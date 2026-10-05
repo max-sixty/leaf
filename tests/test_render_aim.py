@@ -13,6 +13,7 @@ from interact_support import (
     append_carried_log_record,
     append_command,
     declare_idle,
+    wait_for,
 )
 from leaf import data as data_model
 from leaf import event_log as events_model
@@ -284,8 +285,11 @@ def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve
     expect(message).to_have_text("Carry this comment into its thread.")
 
 
-def test_an_aimed_comment_keeps_its_place_with_the_asks_drawer_open(browser, serve):
-    """The Asks drawer stands over the page without moving its coordinate plane.
+@pytest.mark.parametrize("width", [900, 1200])
+def test_an_aimed_comment_keeps_its_place_with_the_queue_panel_open(
+    browser, serve, width
+):
+    """The Queue panel stands over the page without moving its coordinate plane.
 
     A broad authored rule may position ordinary divs, and the drawer may arrive over a
     target without another pointer event. Neither may move the chrome's document origin or
@@ -299,15 +303,16 @@ def test_an_aimed_comment_keeps_its_place_with_the_asks_drawer_open(browser, ser
         "div { position: relative; }</style></head>",
     )
     page = open_page(browser, serve(source))
-    # 900 leaves the composer no side lane, so it takes the vertical route.
-    resized(page, 900, 900)
+    # 900 leaves the composer no side lane, so it takes the vertical route; at 1200 the
+    # root's margin once put it 40px left of its lane, over the item.
+    resized(page, width, 900)
 
     target = page.locator("#lq-keep")
     target.hover()
     page.keyboard.down("Alt")
     expect(page.locator(".lf-aim")).to_have_attribute("data-for", "lq-keep")
     # Open by script so the pointer remains parked on the target while the drawer arrives.
-    page.locator(".lf-asks").evaluate("node => node.click()")
+    page.locator(".lf-queue").evaluate("node => node.click()")
     edge_settled(page, EDGES[1])
     aligned = page.evaluate(
         """() => {
@@ -538,14 +543,14 @@ def test_a_text_comment_chooses_above_when_the_page_has_more_room_there(browser,
         expect(bar).to_be_visible()
         last_scroll = moved
     assert paragraph.evaluate("node => node.getBoundingClientRect().top < 48")
-    expect(bar).to_have_attribute("data-lf-plane", "window")
+    expect(bar).to_have_attribute("data-lf-plane", "page")
+    away = bar.bounding_box()
+    assert away["y"] + away["height"] < 0, away
     expect(field).to_be_focused()
 
 
-def test_a_comment_on_a_scrolled_away_paragraph_stays_open_in_the_window(
-    browser, serve
-):
-    """Scrolling its attachment away keeps the writer's field in the usable window,
+def test_a_comment_on_a_scrolled_away_paragraph_returns_with_resume(browser, serve):
+    """Scrolling its attachment away retains the writer's field for Resume writing,
     with the same words and focus. The page owns its scroll; the draft remains attached
     semantically to the original passage until the writer sends or dismisses it.
     """
@@ -596,8 +601,17 @@ def test_a_comment_on_a_scrolled_away_paragraph_stays_open_in_the_window(
     )
     scroll_settled(page)
 
-    assert _draft_in_view(page, "A short note.\nSecond line.\nThird line.")
-    assert page.locator(".lf-fab-bar").get_attribute("data-lf-plane") == "window"
+    assert not _draft_in_view(page, "A short note.\nSecond line.\nThird line.")
+    assert page.locator(".lf-fab-bar").get_attribute("data-lf-plane") == "page"
+    page.keyboard.press("Escape")
+    page.keyboard.press("g")
+    page.keyboard.press("i")
+    expect(field).to_be_focused()
+    wait_for(
+        lambda: _draft_in_view(page, "A short note.\nSecond line.\nThird line."),
+        bool,
+        failure="Resume did not reveal the retained draft",
+    )
 
 
 def test_a_growing_comment_is_independent_of_page_controls(browser, serve):
@@ -1700,12 +1714,12 @@ def test_a_covering_auxiliary_surface_holds_design_paint_beneath_it(browser, ser
     """
     page = open_page(browser, serve(ASKS_PAGE))
     resized(page, 700, 900)
-    banner_control(page, ".lf-asks").click()
+    banner_control(page, ".lf-queue").click()
     edge_settled(page, EDGES[1])
     page.keyboard.press("l")
     expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
     resized(page, 560, 900)
-    drawer = page.locator(".lf-asks-panel")
+    drawer = page.locator(".lf-queue-panel")
     expect(drawer).to_be_visible()
 
     target = page.locator("#lq-keep")
@@ -1723,7 +1737,7 @@ def test_a_covering_auxiliary_surface_holds_design_paint_beneath_it(browser, ser
     expect(page.locator(".lf-aim")).to_be_hidden()
     planes = page.evaluate(
         """() => ({
-          drawer: Number(getComputedStyle(document.querySelector('.lf-asks-panel')).zIndex),
+          drawer: Number(getComputedStyle(document.querySelector('.lf-queue-panel')).zIndex),
           legend: Number(getComputedStyle(
             document.querySelector('.lf-legend-box[data-for="lq-keep"]')).zIndex),
         })"""
@@ -3838,39 +3852,30 @@ def _open_attachment_draft(browser, url, target):
     return (page, words)
 
 
-def test_open_draft_remains_at_responsive_widths(browser, serve):
+def test_open_draft_retains_words_when_responsive_layout_hides_its_target(
+    browser, serve
+):
     url = serve(COMPOSER_ATTACHMENT_PAGE)
-    facts = []
     for target in ("#ordinary", "#bg-contents a"):
         page, words = _open_attachment_draft(browser, url, target)
+        field = page.locator(".lf-fab-input")
         assert _draft_in_view(page, words)
-        assert page.locator(".lf-fab-bar").get_attribute("data-lf-plane") == "page"
         for width in (480, 1200):
             resized(page, width, 900)
             rendered(page)
-            expected = (
-                "window" if target == "#bg-contents a" and width == 480 else "page"
-            )
-            assert (
-                page.locator(".lf-fab-bar").get_attribute("data-lf-plane") == expected
-            )
-            facts.append(
-                (
-                    target,
-                    width,
-                    _draft_in_view(page, words),
-                    page.locator(".lf-fab-input").evaluate("el => el.value"),
+            expect(field).to_have_js_property("value", words)
+            if target == "#bg-contents a" and width == 480:
+                # Authored CSS hides the sidebar at this width. The editor retains
+                # its native node and draft until the page gives the target room.
+                assert not _draft_in_view(page, words)
+            else:
+                expect(page.locator(".lf-fab-bar")).to_have_attribute(
+                    "data-lf-plane", "page"
                 )
-            )
-    assert all(
-        (
-            visible and focus == "A draft about " + target
-            for target, width, visible, focus in facts
-        )
-    ), facts
+                assert _draft_in_view(page, words)
 
 
-def test_open_draft_stays_visible_when_existing_subject_hides(browser, serve):
+def test_resume_reveals_an_open_draft_when_its_existing_subject_hides(browser, serve):
     url = serve(COMPOSER_ATTACHMENT_PAGE)
     cases = (
         (
@@ -3905,11 +3910,18 @@ def test_open_draft_stays_visible_when_existing_subject_hides(browser, serve):
         page, words = _open_attachment_draft(browser, url, target)
         page.evaluate(hide)
         rendered(page)
-        results.append((name, "hidden", _draft_in_view(page, words)))
-        assert page.locator(".lf-fab-bar").get_attribute("data-lf-plane") == "window"
-        page.evaluate(show)
-        rendered(page)
-        results.append((name, "returned", _draft_in_view(page, words)))
+        expect(page.locator(".lf-fab-input")).to_have_js_property("value", words)
+        page.keyboard.press("Escape")
+        page.keyboard.press("g")
+        page.keyboard.press("i")
+        expect(page.locator(".lf-fab-input")).to_be_focused()
+        results.append((name, "resumed", _draft_in_view(page, words)))
+        wait_for(
+            lambda page=page, words=words: _draft_in_view(page, words),
+            bool,
+            failure=f"Resume did not reveal {name}",
+        )
+        results[-1] = (name, "resumed", _draft_in_view(page, words))
         assert page.locator(".lf-fab-bar").get_attribute("data-lf-plane") == "page"
     assert all((result for name, phase, result in results)), results
 
@@ -3936,17 +3948,23 @@ def test_quote_attachment_can_hide_while_its_paragraph_remains(browser, serve):
     page.keyboard.type(words)
     rendered(page)
     judge_watches()
+    before = page.locator(".lf-fab-bar").bounding_box()
     page.evaluate("document.getElementById('quote-holder').scrollTop=200")
     rendered(page)
-    assert _draft_in_view(page, words)
-    assert page.locator(".lf-fab-bar").get_attribute("data-lf-plane") == "window"
+    field = page.locator(".lf-fab-input")
+    expect(field).to_have_js_property("value", words)
+    expect(field).to_be_focused()
+    after = page.locator(".lf-fab-bar").bounding_box()
+    moved = page.locator("#quote-holder").evaluate("node => node.scrollTop")
+    assert after["y"] - before["y"] == pytest.approx(-moved, abs=1)
+    assert page.locator(".lf-fab-bar").get_attribute("data-lf-plane") == "page"
     page.evaluate("document.getElementById('quote-holder').scrollTop=0")
     rendered(page)
     assert _draft_in_view(page, words)
     assert page.locator(".lf-fab-bar").get_attribute("data-lf-plane") == "page"
 
 
-def test_unanchored_draft_keeps_editing_and_deliberate_dismissal(browser, serve):
+def test_a_withheld_draft_restores_editing_and_deliberate_dismissal(browser, serve):
     page, words = _open_attachment_draft(
         browser, serve(COMPOSER_ATTACHMENT_PAGE), "#bg-contents a"
     )
@@ -3954,6 +3972,14 @@ def test_unanchored_draft_keeps_editing_and_deliberate_dismissal(browser, serve)
     saved = draft_key(page, context)
     resized(page, 480, 900)
     rendered(page)
+    expect(page.locator(".lf-fab-input")).to_have_js_property("value", words)
+    assert draft_key(page, context) == saved
+    resized(page, 1200, 900)
+    rendered(page)
+    page.keyboard.press("Escape")
+    page.keyboard.press("g")
+    page.keyboard.press("i")
+    expect(page.locator(".lf-fab-input")).to_be_focused()
     assert _draft_in_view(page, words)
     page.keyboard.type(" and more words")
     words += " and more words"

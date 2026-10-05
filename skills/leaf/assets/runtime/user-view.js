@@ -4,6 +4,7 @@
    An unallocated document has no view to report; normal observation resumes when
    its viewport has room. A document id is deliberately not stored: duplicated tabs
    must never share a lease. */
+import { darkPreference, shownScheme } from "./color-scheme.js";
 import { offlineInteractive, passiveSample, pageUrl, runtime } from "./context.js";
 import { seenRect, shownWindow } from "./geometry.js";
 import { sessionIsActive } from "./layer-client.js";
@@ -22,7 +23,6 @@ export function observeUserView() {
   const session = [...crypto.getRandomValues(new Uint8Array(16))]
     .map((byte) => byte.toString(16).padStart(2, "0"))
     .join("");
-  const dark = matchMedia("(prefers-color-scheme: dark)");
   let sequence = 0;
   let pending = null;
   let reading = null;
@@ -44,7 +44,6 @@ export function observeUserView() {
     )
       return null;
     const clips = new Map();
-    const schemes = getComputedStyle(document.documentElement).colorScheme.split(/\s+/);
     return {
       session,
       sequence: ++sequence,
@@ -60,10 +59,7 @@ export function observeUserView() {
         scale: visual.scale,
       },
       shown_window: rectangle(shownWindow()),
-      color_scheme:
-        schemes.includes("dark") && (dark.matches || !schemes.includes("light"))
-          ? "dark"
-          : "light",
+      color_scheme: shownScheme(),
       reduced_motion: reducedMotion(),
       pointer: coarsePointer.matches ? "coarse" : "fine",
       scroll: { x: window.scrollX, y: window.scrollY },
@@ -162,7 +158,7 @@ export function observeUserView() {
   window.visualViewport.addEventListener("resize", schedule);
   window.visualViewport.addEventListener("scroll", schedule);
   onMotionPreferenceChange(schedule);
-  for (const preference of [dark, coarsePointer])
+  for (const preference of [darkPreference, coarsePointer])
     preference.addEventListener("change", schedule);
   setInterval(() => {
     if (document.visibilityState !== "hidden") report({ inspect: true });

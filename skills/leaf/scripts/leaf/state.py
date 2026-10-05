@@ -1,13 +1,13 @@
 """Dependency-free machine storage and the session lifecycle authority.
 
 The standalone SessionEnd entry runs on system Python 3.9 without a managed
-Leaf environment. One atomic record owns host lifetime, generation, turn identity
+Leaf environment. One atomic record owns harness lifetime, generation, turn identity
 and dated opening/ending evidence. Claims reference its generation; an ending
 invalidates them without page discovery, page locks or claim rewrites.
 
 The session lock also serializes Codex delivery route reservation, making its
 revision a compare-and-swap token for observations. Lock order is page then
-session. Session transitions never acquire page locks or call an external host;
+session. Session transitions never acquire page locks or call an external harness;
 only short state publications and reservations run under the session lock.
 Storage replacement and cross-process locking are shared below the page model.
 """
@@ -45,9 +45,9 @@ TITLES_SUFFIX = "titles.log"
 
 
 def session_file(session_id: str, suffix: str) -> Path:
-    """One state-home file belonging to a single host session.
+    """One state-home file belonging to a single harness session.
 
-    A host's session id is not a filename, so the session is named by a digest of
+    A harness's session id is not a filename, so the session is named by a digest of
     it. Every file one session owns — its leases and their locks, and a
     Codex task's deliveries and adapter log — is that one name with a different
     suffix, in the state home's `sessions/`.
@@ -83,7 +83,10 @@ def flocked(path: Path):
     an initialized page, so it is opened, never created, and it outlives the lock.
 
     A purpose lock's file is created on first use and remains after release.
-    Closing its descriptor releases the lock. Every acquired descriptor is checked
+    The block's end unlocks it before closing, since a subprocess another thread
+    starts meanwhile holds a copy of the descriptor until its exec, and closing
+    alone would keep the next taker waiting on that child (`release_lease`).
+    Every acquired descriptor is checked
     against its path, since a shared-path replacement while a taker waits must
     never let it enter a transaction on an inode other takers can no longer find.
     This also covers a page replaced with a new event log."""
@@ -93,7 +96,10 @@ def flocked(path: Path):
         with open(path, mode) as f:
             fcntl.flock(f, fcntl.LOCK_EX)
             if still_named(f.fileno(), path):
-                yield f
+                try:
+                    yield f
+                finally:
+                    fcntl.flock(f, fcntl.LOCK_UN)
                 return
 
 
@@ -261,7 +267,7 @@ def renew_turn(record: dict) -> dict:
 def advance_turn(session_id: str, turn_id: str | None, *, running: bool) -> dict | None:
     """Publish a turn observation under the caller's session lock.
 
-    A closed provider identity never reopens. Unknown-id hosts reuse their open
+    A closed provider identity never reopens. Unknown-id harnesses reuse their open
     turn and mint a new identity after its ending. Callback callers validate the
     existing identity before calling this; prompts and guarded provider starts
     are the only boundaries that introduce a known replacement.
@@ -344,7 +350,7 @@ def start_session_turn(
 
 
 def prompt_turn(session_id: str, turn_id: str | None = None) -> dict | None:
-    """A synchronous prompt starts/resumes the host's generation before claims."""
+    """A synchronous prompt starts/resumes the harness's generation before claims."""
     with flocked(session_lock_path(session_id)):
         record = session_record(session_id)
         if record is not None and record["ended"] is not None:

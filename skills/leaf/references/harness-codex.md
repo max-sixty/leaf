@@ -4,7 +4,7 @@ This contract is for a Codex task that Leaf reaches through Codex's durable queu
 the desktop app, an IDE extension, or a terminal CLI started the ordinary way. A task
 whose environment sets `LEAF_CODEX_APP_SERVER`, as a `leaf codex launch` terminal
 does, or whose App Server endpoint the user gave you, is one Leaf reaches over Codex
-App Server instead, and follows `references/host-codex-app-server.md`. The desktop
+App Server instead, and follows `references/harness-codex-app-server.md`. The desktop
 app runs an App Server of its own, but Leaf cannot connect to it, so a desktop task
 follows this contract.
 
@@ -42,7 +42,7 @@ acknowledges queued delivery once Codex's queue accepts it, so do not run `leaf 
 `leaf wait --ack` while it holds the task. The same delivery id may return after an
 uncertain queue response, which is the retry `references/event-batches.md` describes.
 
-Answer every obligation with the operation its delivered `answering` clause names,
+Answer every obligation with the operation its delivered `handling` clause names,
 `leaf thread reply` for a plain reply. Your final message stays in the Codex
 chat and never reaches the page. Leaf does not observe the task's turns either, so
 the banner shows only the items you start and the status you declare.

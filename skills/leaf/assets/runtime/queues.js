@@ -24,7 +24,17 @@
    the place of the served answer, since the server owes a thread one answer, to its
    latest move. A widget move still sending is not: until
    the server reads it, it is not known to owe anything, and an Ask it answers still
-   stands open. */
+   stands open.
+
+   `selectDone` is a third list beside them, what is finished, which the Queue panel
+   folds at its foot (`queue-panel.js`): each answered Ask (`ask`), the Ask reading's
+   whole inventory less those still unanswered, and each task a `task_end` ended
+   (`task`), with its outcome. Python serves the ended tasks beside the open ones
+   (`served_state.browser`), so nothing here folds the log again.
+
+   Experimental: the queues, the walk over them and the panel listing them are new, and
+   their shape is expected to change a lot (notes/what-needs-you/). Change them freely.
+*/
 import { awaitsUser } from "./thread/model.js";
 import { atWork } from "./thread/workflow.js";
 
@@ -84,4 +94,28 @@ export function selectQueues({ asks, threads, workflows, tasks }) {
       session: task.session,
     });
   return { onYou, onAgent };
+}
+
+export function selectDone({ asks, tasks }) {
+  const unanswered = new Set(asks.unanswered.map((ask) => ask.id));
+  return [
+    ...asks.all
+      .filter((ask) => !unanswered.has(ask.id))
+      .map((ask) => ({
+        kind: "ask",
+        id: ask.id,
+        subject: { kind: "widget", id: ask.id },
+        thread: ask.thread,
+      })),
+    ...tasks.map((task) => ({
+      kind: "task",
+      id: task.id,
+      subject: task.subject,
+      thread: task.thread,
+      title: task.title,
+      state: task.state,
+      ended: task.outcome?.ts ?? null,
+      detail: task.outcome?.detail ?? null,
+    })),
+  ];
 }

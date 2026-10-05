@@ -23,9 +23,10 @@ A document is delivered once, by `compose_document`, whoever delivers it: the HT
 server and the static live shell, and a standalone export. A
 host states what it adds as a `Delivery` value, and the composer writes every document
 the same way. It also paints what each element's registry entry declares, and the size
-of the page media it names, for the stylesheet to read (`mark_declared`), so the first
-paint lays out what a script would otherwise only mark once the registry loads or an
-image once it decodes.
+of the page media it names, for the stylesheet to read, and writes in the structure a
+widget's module will draw (`x-prepaint`) (`mark_declared`), so the first paint lays out
+what a script would otherwise only mark once the registry loads, an image once it
+decodes, or a module once it runs.
 """
 
 import html
@@ -35,12 +36,12 @@ import re
 import struct
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
-from functools import lru_cache
 from urllib.parse import quote, unquote, urlsplit
 
 import turbohtml
 
 from .layer import CASCADE_LAYERS
+from .registry.contract import prepaint_markup
 from .revision_artifact import (
     Resource,
     RevisionArtifact,
@@ -131,14 +132,13 @@ def _rebase(reference: str, base: str, address: Address) -> str:
     return address(quote(path, safe="/") + suffix)
 
 
-@lru_cache(maxsize=32)
 def rebase_css(
     source: str, base: str, address: Address, *, declarations: bool = False
 ) -> str:
     """Re-address every URL a stylesheet at `base` loads, the rest byte-for-byte.
 
-    Held for the addresses a server answers again and again: parsing the theme costs
-    tens of milliseconds, and every document and stylesheet request would pay it.
+    Cheap for a sheet read before at any address: `rewrite_css` keeps each sheet's
+    parse by its text.
     """
     return rewrite_css(
         source,
@@ -302,18 +302,30 @@ def media_size(data: bytes) -> tuple[int, int] | None:
     return None
 
 
+# What marks an element delivery wrote for the first paint (`x-prepaint`): not the
+# author's, so the runtime's reading of the source leaves it out (`runtime/prepaint.js`,
+# `unmarked`; `runtime/version.js`) and passages skip it as generated words. The theme
+# holds its room and paints none of its placeholder words (theme.css).
+_PREPAINT_MARKS = ' data-lf-prepaint data-lf-gen="1"'
+
+
 def mark_declared(
     source: str, registry: Mapping, resources: Mapping[str, Resource]
 ) -> str:
     """Paint each element's declared marks (`DECLARED_MARKS`) onto its start tag, the
-    rest byte-for-byte, and the size of the page media it names.
+    rest byte-for-byte, the size of the page media it names, and its declared
+    `x-prepaint` as its first child.
 
     A mark painted by the runtime would land a registry fetch after the document first
     draws, so a workspace would draw its panes before knowing they are panes. An image
     has no size until it decodes, so an element naming page media in its attributes is
     painted with the box that holds any of them, the largest width and the largest
     height (`data-lf-media-width`, `data-lf-media-height`), for the stylesheet to lay
-    out a frame that the images arrive in. What a template holds is inert until a
+    out a frame that the images arrive in. A widget whose module draws its structure,
+    such as Command Hub's outcome and its count tiles, would otherwise stand in a room
+    the theme reserved by summing that structure's line heights and paddings, a sum
+    that cannot follow how its words wrap; with the structure written in, the browser
+    sizes it as it will size the drawing. What a template holds is inert until a
     module clones it, and a declarative shadow tree's content is its host's to style, so
     neither is marked.
     """
@@ -347,6 +359,14 @@ def mark_declared(
         if marks:
             start = index(location.start_tag.start_line, location.start_tag.start_col)
             edits.append((start + 1 + len(element.tag), _attributes(marks)))
+        if prepaint := prepaint_markup(registry, element.tag):
+            root = len(re.match(r"<[a-z][a-z0-9]*", prepaint)[0])
+            edits.append(
+                (
+                    index(location.start_tag.end_line, location.start_tag.end_col),
+                    prepaint[:root] + _PREPAINT_MARKS + prepaint[root:],
+                )
+            )
     for offset, text in sorted(edits, reverse=True):
         source = source[:offset] + text + source[offset:]
     return source
@@ -357,8 +377,7 @@ class DeliveryAddress:
     """Where an HTTP host serves each logical path of one revision's document.
 
     Media is the page's own and answers at the page root. Every other path is the
-    revision's and answers beneath `asset_root`, where its capture is served. A value,
-    so a stylesheet addressed for one revision is parsed once (`rebase_css`).
+    revision's and answers beneath `asset_root`, where its capture is served.
     """
 
     page_root: str

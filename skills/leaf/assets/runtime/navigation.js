@@ -22,8 +22,11 @@ import { readingBlock } from "./reading-place.js";
 import { scrollIntoReadingBand } from "./landing-scroll.js";
 import { THREAD } from "./thread/selectors.js";
 import { under } from "./shadow.js";
+import { retainUserIntent } from "./user-intent.js";
 import { announce } from "./notifications.js";
 import { focusThread } from "./thread/focus.js";
+import { showHeld } from "./thread/held-news.js";
+import { landWalkedThread } from "./thread/landing.js";
 import { beginWalk, listWalkPosition, walkPositionLabel } from "./walk-position.js";
 
 const walkableThreads = (panelIsOpen, { threadsBox, openThreads }) =>
@@ -78,19 +81,25 @@ function threadFrom(threads, place, dir, threadTarget) {
 // walk, which names the thread the user already stands on, moves no focus and gives the
 // list nothing to land: the press lands that thread itself. The page half travels either
 // way, and keeps the panel the walk is in: it moves the page only where moving it shows
-// the passage better beside the panel (anchor-travel.js, `arrive`). It settles once the
-// thread stands open.
-async function arriveAtThread(next, destinations, panelIsOpen, threadsBox) {
+// the passage better beside the panel (anchor-travel.js, `arrive`). The press takes the
+// user to the thread, so it shows what the thread held (held-news.js) before landing, as
+// `openPageThread` does on its own path.
+//
+// It answers whether the user arrived, once the thread stands open. `intent` is the
+// press's, retained before any wait the caller made: newer input cancels the arrival,
+// and the walk then says nothing about a thread the user is not at.
+async function arriveAtThread(next, destinations, panelIsOpen, threadsBox, intent) {
   const { openPageThread, scrollToThread } = destinations;
-  if (!panelIsOpen()) {
-    await openPageThread(next.dataset.id, { focus: "thread" });
-    return;
-  }
+  if (!panelIsOpen())
+    return Boolean(await openPageThread(next.dataset.id, { focus: "thread", intent }));
+  if (!intent()) return false;
+  showHeld(next.dataset.id);
   threadsBox.revealNavigation(next.dataset.id);
   const standing = next.contains(document.activeElement);
   focusThread(next, { preventScroll: true });
-  if (standing) next.scrollIntoView({ behavior: scrollBehavior(), block: "nearest" });
+  if (standing) landWalkedThread(next, threadsBox);
   scrollToThread(next.dataset.id, { keep: true });
+  return true;
 }
 
 // t/T walk open threads. A closed panel walks them in page order; once the panel is
@@ -98,19 +107,22 @@ async function arriveAtThread(next, destinations, panelIsOpen, threadsBox) {
 // clamped, not wrapped.
 function stepThread(dir, destinations, panelIsOpen, narrowing, list) {
   const { threadsBox } = list;
-  const { threadHere, threadTarget } = destinations;
+  const { threadHere, threadAtStanding, threadTarget } = destinations;
   const threads = walkableThreads(panelIsOpen, list);
   const current = currentThread(threads, threadHere);
+  const targetId = !current && threadAtStanding();
+  const atTarget = targetId && threads.find((thread) => thread.dataset.id === targetId);
   const next = current
     ? clampedRow(threads, current, dir)
-    : threadFrom(
+    : (atTarget ??
+      threadFrom(
         threads,
         !panelIsOpen() || narrowing.listedInPageOrder() ? walkOrigin() : null,
         dir,
         threadTarget,
-      );
+      ));
   if (!next) return;
-  void arriveAtThread(next, destinations, panelIsOpen, threadsBox);
+  void arriveAtThread(next, destinations, panelIsOpen, threadsBox, retainUserIntent());
   announce(
     beginWalk("thread", "Thread", () =>
       threadPosition(threadHere, panelIsOpen, narrowing, list),
@@ -121,8 +133,8 @@ function stepThread(dir, destinations, panelIsOpen, narrowing, list) {
 // Put the comment the user is standing on against one edge of its list. This is
 // placement inside the panel, not travel to the passage the comment is about, so it
 // moves only the thread scroller and keeps the card's focus. Native scroll placement
-// reads the list's declared scroll-padding, including its sticky heading and focus-ring
-// room, from the same authority the t/T walk uses.
+// reads the list's declared scroll-padding, its focus-ring room, from the same authority
+// the t/T walk uses.
 export function placeThreadEdge(thread, edge) {
   thread.scrollIntoView({ behavior: scrollBehavior(), block: edge });
 }
@@ -380,13 +392,13 @@ export function createNavigation({
   // for an Ask seated in a thread (asks/view.js, `materializeAsk`), since the queue
   // walk goes to what is on the user whatever the list shows.
   async function arriveAtThreadById(id) {
+    const intent = retainUserIntent();
     const card = () =>
       openThreads({ visibleOnly: false }).find((thread) => thread.dataset.id === id);
     if (panelIsOpen() && card()?.hidden) await narrowing.revealThread(id);
     const next = card();
     if (!next) return false;
-    await arriveAtThread(next, threadDestinations, panelIsOpen, threadsBox);
-    return true;
+    return arriveAtThread(next, threadDestinations, panelIsOpen, threadsBox, intent);
   }
 
   return {

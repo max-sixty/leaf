@@ -82,31 +82,60 @@ INPUT_WORK_WATCH_SOURCE = Path(__file__).with_name("input_work_watch.js")
 WATCH_PLATFORM_SOURCE = Path(__file__).with_name("watch_platform.js")
 
 
+def rendering_job_binding_source():
+    """Bind generic input scopes to the runtime's synchronous job lifecycle seam."""
+    return """Object.defineProperty(HTMLScriptElement.prototype, 'lfObserveQueuedWork', {
+      configurable: true,
+      set(observe) {
+        Object.defineProperty(this, 'lfObserveQueuedWork', {
+          value: observe, writable: true, enumerable: true, configurable: true,
+        });
+        const captured = new WeakMap(), entered = new WeakMap();
+        observe((phase, job) => {
+          if (phase === 'enqueue') captured.set(job, lfInputWork.captureScope());
+          else if (phase === 'run') entered.set(job, captured.get(job)());
+          else if (phase === 'finish') {
+            entered.get(job)();
+            entered.delete(job);
+            captured.delete(job);
+          } else if (phase === 'cancel') captured.delete(job);
+        });
+      },
+    });"""
+
+
 @cache
 def shift_watch_source():
-    """Install the sensor with the runtime's document-free control and clipping vocabulary."""
+    """Bind the sensor to the runtime's control, clipping, and scroll-space readings."""
     controls = subprocess.check_output(
         [
             "node",
+            "--import",
+            "./tests/runtime/dom.mjs",
             "--input-type=module",
             "--eval",
             (
                 'import { WORKS } from "./skills/leaf/assets/runtime/control-selectors.js";'
                 'import { clippingAxes } from "./skills/leaf/assets/runtime/rect.js";'
-                "process.stdout.write(JSON.stringify([WORKS,clippingAxes.toString()]));"
+                'import { scrollAxes } from "./skills/leaf/assets/runtime/geometry.js";'
+                'import { shadowHost, upFrom, renderedParent } from "./skills/leaf/assets/runtime/shadow.js";'
+                "process.stdout.write(JSON.stringify([WORKS,...[clippingAxes,shadowHost,upFrom,renderedParent,scrollAxes].map(fn=>fn.toString())]));"
             ),
         ],
         cwd=ROOT,
         text=True,
     )
-    interactive, clipping = json.loads(controls)
+    interactive, clipping, host, parent, rendered_parent, axes = json.loads(controls)
     return (
         WATCH_PLATFORM_SOURCE.read_text()
         + "\n"
         + "const nativePerformance = window.lfWatchPlatform.performance;\n"
         + "const nativeFrame = callback => window.lfWatchPlatform.frame(callback);\n"
         + "const nativeTask = (callback, ...args) => window.lfWatchPlatform.later(callback, ...args);\n"
-        + f"((interactive, clippingAxes) => {{\n{SHIFT_WATCH_SOURCE.read_text()}\n}})({json.dumps(interactive)}, {clipping});"
+        + f"((interactive, clippingAxes) => {{\n"
+        f"const shadowHost = {host};\nconst upFrom = {parent};\n"
+        f"const renderedParent = {rendered_parent};\nconst scrollAxes = {axes};\n"
+        f"{SHIFT_WATCH_SOURCE.read_text()}\n}})({json.dumps(interactive)}, {clipping});"
     )
 
 
@@ -705,7 +734,7 @@ def _until(page, fact, wanted):
     forever cannot keep a false fact alive."""
     traffic = _traffic(page)
     began = None
-    deadline = time.monotonic() + 30
+    deadline = time.monotonic() + render_checks_model.SERVED_TIMEOUT_MS / 1000
     while True:
         raw = traffic._raw()
         reading = traffic._parse(raw)
@@ -830,7 +859,7 @@ def sending(page, what):
 # that dispatches the route here — until the list has it.
 def holding(page, held, count, what):
     """Wait until `held` has collected `count` requests the route put there."""
-    deadline = time.monotonic() + 30
+    deadline = time.monotonic() + render_checks_model.SERVED_TIMEOUT_MS / 1000
     while len(held) < count:
         if time.monotonic() >= deadline:
             raise AssertionError(
@@ -1110,37 +1139,6 @@ def displayed(page):
     page.wait_for_function(FIRST_PAINT)
 
 
-HANDOVER_DEADLINE_MS = 90_000
-"""How long a complete page handover may take before the page counts as wedged.
-
-`navigate` carried a whole handover — the document, and then the wait for the
-stamps the page raises over it — on no stated end of its own, so it took
-Playwright's implicit 30s: a deadline on the work a page does rather than on a
-fact another process states, and no more room for all of it than
-`SERVED_TIMEOUT_MS` gives a single probe. The corpus is the heaviest page the
-suite carries it on: a cold handover of it reaches readiness in 16-18s on an
-idle four-core host, and in 19-24s once the nightly's second worker is driving a
-browser beside it. That is 80% of the old budget at the top of the range, and the
-nightly for 95a542a9 spent all of it on
-`test_composed_corpus_runs_authored_page_modules`.
-
-`restarting` takes the same constant, and its 30s was stated rather than
-implicit: a page whose server was replaced under it comes back up through this
-same handover. The harness's remaining unstated navigations — `opened_tab`'s
-`goto`, and the runtime install `wait_for_revision` waits for — keep the implicit
-default, as do the direct `wait_until_ready` calls in the test modules. Those are
-re-waits and primings on small fixtures, none of them has failed, and they are a
-change to make on their own terms rather than inside a CI repair.
-
-Sized like `STATED_TIMEOUT` in `interact_support.py` and generous for the same
-reason: it separates a page that never arrives from a machine that has not got
-there yet, so it is set where a merely slow handover still finishes and a wedged
-one still fails well inside the nightly step's own bound. Waiting longer weakens
-no claim, since the stamps say the same thing whenever they arrive and nothing
-here reads how quickly a page came up — the suite's startup readings are the
-phase profile `leaf-dev verify-site wrangler` takes."""
-
-
 def draft_key(page, ctx: str) -> str:
     """The `localStorage` key the page's own draft store keeps the draft at `ctx`
     under, page scope included (`whereDraft`, runtime/drafts.js)."""
@@ -1289,6 +1287,8 @@ def watched(page):
                 WORDS_WATCH_SOURCE,
             )
         )
+        + "\n"
+        + rendering_job_binding_source()
     )
     if _TEST is None or watches_shifts(_TEST):
         page.add_init_script(script=shift_watch_source())
@@ -1324,7 +1324,7 @@ def restarting(page):
     """
     mark = len(page.lf_errors)
     yield
-    wait_until_ready(page, timeout_ms=HANDOVER_DEADLINE_MS)
+    wait_until_ready(page)
     del page.lf_errors[mark:]
 
 
@@ -1369,6 +1369,23 @@ def consume_browser_errors(page, *expected):
     return errors
 
 
+def xfail_browser_problem(page, *expected, reason):
+    """Quarantine one verified main defect after the journey's assertions finish.
+
+    A fixed defect passes. Any other browser problem, including another report of
+    the named loss, fails. Keep the assertion after xfail so --runxfail exposes
+    the original failure rather than clearing it into a pass.
+    """
+    assert expected, "known browser problems cannot be empty"
+    page.evaluate("lfWordsJudged()")
+    errors = take_browser_errors(page)
+    if not errors:
+        return
+    assert errors == list(expected), errors
+    pytest.xfail(reason)
+    raise AssertionError(errors)
+
+
 # What navigate reports when a ResizeObserver loop notice comes back on the confirming
 # navigation, so a one-off notice is dropped and a recurring one fails the test.
 RECURRING_RESIZE_NOTICE = (
@@ -1389,13 +1406,15 @@ def navigate(page, url, *, wait_until="load", upgraded=True):
 
     def complete_navigation():
         start = len(errors)
-        page.goto(url, wait_until=wait_until, timeout=HANDOVER_DEADLINE_MS)
+        page.goto(
+            url, wait_until=wait_until, timeout=render_checks_model.HANDOVER_DEADLINE_MS
+        )
         if upgraded:
-            wait_until_ready(page, timeout_ms=HANDOVER_DEADLINE_MS)
+            wait_until_ready(page)
         else:
             page.wait_for_function(
                 "() => document.querySelector('.lf-banner') !== null",
-                timeout=HANDOVER_DEADLINE_MS,
+                timeout=render_checks_model.HANDOVER_DEADLINE_MS,
             )
         # Let the rendering turn that earned the readiness stamp finish. A loop
         # notice is delivered by that turn, rather than by the DOM write alone.
@@ -1505,6 +1524,37 @@ def expect_banner_control_offered(control, *, offered=True):
         expect(control).not_to_have_css("display", "none")
     else:
         expect(control).to_have_css("display", "none")
+
+
+# How many of the page's active Asks are answered, as "answered/total": the publisher's
+# own Ask reading, which the Queue panel's Done list and the `a` walk select from. Before
+# the page has admitted a state answer the reading is empty, which is no count at all.
+_ASKS_ANSWERED = """async () => {
+  const { readApplication } = await window.__lfRuntimeImport('/runtime/semantic-state.js');
+  window.__lfAsksAnswered = () => {
+    const application = readApplication();
+    if (application.phase !== 'ready') return null;
+    const { all, unanswered } = application.effective.asks;
+    return `${all.length - unanswered.length}/${all.length}`;
+  };
+}"""
+
+
+def expect_asks_answered(page, answered: str, *, timeout_ms: int = 15_000) -> None:
+    """Wait until the page's Ask reading holds `answered` ("answered/total").
+
+    The deadline bounds a hang; on expiry the failure names the reading the page held.
+    """
+    page.evaluate(_ASKS_ANSWERED)
+    try:
+        page.wait_for_function(
+            "(want) => window.__lfAsksAnswered() === want",
+            arg=answered,
+            timeout=timeout_ms,
+        )
+    except PlaywrightTimeout as error:
+        held = page.evaluate("() => window.__lfAsksAnswered()")
+        raise AssertionError(f"answered Asks read {held}, not {answered}") from error
 
 
 def open_page(
@@ -1696,19 +1746,13 @@ def readable(page):
 
     They are therefore installed where a page is made rather than asked for by each
     test, which is what `WatchedBrowser` is for. A page that already carries them is
-    left alone, since a second response listener would report every failure twice.
+    left alone, since a second console listener would report every problem twice.
     """
     if getattr(page, "lf_errors", None) is not None:
         return page
     page.lf_traffic = Traffic(page)
     arm_interception(page)
-    errors = watched(page)
-    # The console's own word for a bad response is "Failed to load resource", which
-    # names nothing; carry the status and URL so a failure says what went missing.
-    page.on(
-        "response",
-        lambda r: errors.append(f"{r.status} {r.url}") if r.status >= 400 else None,
-    )
+    watched(page)
     return page
 
 
@@ -2039,6 +2083,33 @@ def select(page, start, end, steps=8):
     """Drag and release a selection."""
     hold_selection(page, start, end, steps)
     page.mouse.up()
+
+
+def select_words(page, passage):
+    """Triple-click a passage's words, which is not the same point as its box.
+
+    Playwright aims at the element's centre, and a short paragraph in a wide column is
+    mostly empty there. The response bar the user already opened on a neighbouring
+    passage stands in that empty half — it is placed to keep its own target clear, not
+    the page — so a gesture aimed at the centre lands on the field instead of on the
+    words and never reaches the passage. The words are where a user aims, so the
+    click goes to the start of the first line the passage draws."""
+    locator = page.locator(passage)
+    locator.scroll_into_view_if_needed()
+    x, y = locator.evaluate(
+        """element => {
+          const range = element.ownerDocument.createRange();
+          range.selectNodeContents(element);
+          const [line] = range.getClientRects();
+          const box = element.getBoundingClientRect();
+          if (!line) return [box.width / 2, box.height / 2];
+          return [
+            line.left + Math.min(24, line.width / 2) - box.left,
+            line.top + line.height / 2 - box.top,
+          ];
+        }"""
+    )
+    locator.click(click_count=3, position={"x": x, "y": y})
 
 
 def write(box, text):

@@ -148,7 +148,7 @@ sequenceDiagram
   Agent-&gt;&gt;Leaf: authored files · commands
   Leaf-&gt;&gt;Browser: page + current state
   Browser-&gt;&gt;Leaf: comments · drags · picks
-  Leaf-&gt;&gt;Agent: the host's carrier brings the event batch
+  Leaf-&gt;&gt;Agent: the harness's carrier brings the event batch
 </pre>
             </lf-diagram>
           </section>
@@ -230,8 +230,8 @@ Leaf: /home/you/review has new input; Leaf's prompt hook puts it in your context
         "h2": "If you need clarification, ask in a thread on the picked option. To override the pick in a later version, mark the element `restated` and say why in the version note.",
         "h3": "It answers the page's Ask, so the page shows it as waiting on you until the markup records it. Name the work it selects or unblocks with `leaf task start &lt;page&gt; &lt;event-id&gt; \"&lt;the work, in a line&gt;\"` before starting it, then do it, write it in, and stamp a version.",
         "h4": "This event's thread has no title yet: name it by adding `--title \"&lt;a few words&gt;\"` to the reply that answers it, so the thread panel lists its subject rather than its opening words. If Leaf has named it from its opening message by then, that name stands.",
-        "h5": "When the event asks for work, name that work before any other, including reading the source it concerns: `leaf task start &lt;page&gt; &lt;event-id&gt; \"&lt;the work, in a line&gt;\"`. The move then reads Working, and the line stands beside the thread and in the banner until you answer. Do the work and put its result on the page, with whatever shows it (captures, a figure, the numbers), then answer with `leaf thread reply &lt;page&gt; --for &lt;event-id&gt;`: what changed, in a sentence or two, linking the section that shows it. When the event asks for no work, as a question may not, answer it with that reply at once. The page carries the work, and the thread only the conversation about it. `leaf thread reply` checks any saved page edit and makes it live before posting. If a revision removes what the thread is anchored on, move the thread in the reply that reports it with `--section &lt;id&gt;` (narrowed by `--quote` or `--part` if needed), or `--detach` it if its subject has left the page. Add `--awaits` only if your reply's prose asks the user something.",
-        "h6": "Your reply renders as Markdown, so show code or markup in a fenced block."
+        "h5": "When the event asks for work, name that work before any other, including reading the source it concerns: `leaf task start &lt;page&gt; &lt;event-id&gt; \"&lt;the work, in a line&gt;\"`. The move then reads Working, and the line stands beside the thread and in the banner until you answer. Do the work and put its result on the page, with whatever shows it (captures, a figure, the numbers), then answer with `leaf thread reply &lt;page&gt; --for &lt;event-id&gt; &lt; reply.md`: what changed, in a sentence or two, linking the section that shows it. When the event asks for no work, as a question may not, answer it with that reply at once. The page carries the work, and the thread only the conversation about it. `leaf thread reply` checks any saved page edit and makes it live before posting. If a revision removes what the thread is anchored on, move the thread in the reply that reports it with `--section &lt;id&gt;` (narrowed by `--quote` or `--part` if needed), or `--detach` it if its subject has left the page. Add `--awaits` only if your reply's prose asks the user something.",
+        "h6": "Your reply renders as Markdown in a narrow column: give each point its own short paragraph or list item, link a page section as `[its name](#section-id)`, and fence code or markup."
       },
       "events": [
         {
@@ -331,7 +331,7 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
           </section>
 
           <section id="delivery">
-            <h2>Each host delivers the same envelope</h2>
+            <h2>Each harness delivers the same envelope</h2>
             <p id="wait-trick">
               In Claude Code, a Leaf hook watches in the background from the end of each
               turn and wakes the agent when feedback arrives, and Leaf's prompt hook
@@ -340,7 +340,7 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
               queues it as the task's next message, or, where Leaf is a client of the
               task's Codex App Server, starts a turn with it. Every route carries a
               delivery of the same shape, which names the route and says who
-              acknowledges it. The host owns delivery, so an open page does not prove
+              acknowledges it. The harness owns delivery, so an open page does not prove
               that an agent received your comments.
             </p>
             <p id="receipt-work-response-lede">
@@ -541,7 +541,7 @@ flowchart TD
             </p>
             <lf-diagram
               id="updates-diagram"
-              parts="node:Sources node:Reply node:Awaits node:Stamp node:Report node:Status node:Pickup node:Turn node:Reads node:Banner node:Beside node:Thread node:Asks node:Versions node:Widget"
+              parts="node:Sources node:Reply node:Awaits node:Stamp node:Report node:Status node:Pickup node:Turn node:Reads node:Banner node:Beside node:Thread node:Queue node:Versions node:Widget"
             >
               <pre>
 flowchart LR
@@ -556,14 +556,14 @@ flowchart LR
   end
   subgraph Reads["Where you read it"]
     Thread["the thread"]
-    Asks["the Asks drawer"]
+    Queue["the Queue panel"]
     Versions["the page and its versions menu"]
     Widget["the widget"]
     Banner["the banner, tab icon and Leaves drawer"]
     Beside["the label beside your comment or widget"]
   end
   Reply --&gt; Thread
-  Awaits --&gt; Asks
+  Awaits --&gt; Queue
   Stamp --&gt; Versions
   Report --&gt; Widget
   Status --&gt; Banner
@@ -613,7 +613,7 @@ flowchart LR
               <li id="updates-written-awaits">
                 <strong><code>leaf thread reply … --awaits</code></strong> A question
                 for you. The thread reads <em>On you to answer</em>, and the question
-                joins the Asks drawer.
+                joins the Queue panel.
               </li>
               <li id="updates-written-comment">
                 <strong
@@ -659,7 +659,7 @@ flowchart LR
                 </tr>
                 <tr id="updates-observed-queued">
                   <td>Queued</td>
-                  <td>The agent's host queued it for the agent's next turn.</td>
+                  <td>The agent's harness queued it for the agent's next turn.</td>
                 </tr>
                 <tr id="updates-observed-picked">
                   <td>Picked up</td>
@@ -698,18 +698,18 @@ flowchart LR
                 <tr id="updates-observed-failed">
                   <td>Interrupted, Not answered</td>
                   <td>
-                    The host stopped the turn, or reported that it failed, before it
+                    The harness stopped the turn, or reported that it failed, before it
                     answered.
                   </td>
                 </tr>
               </tbody>
             </table>
-            <p id="updates-observed-hosts">
-              A label the agent's host does not report never appears. Queued comes from
-              Codex's own queue. Replying, Interrupted, and Codex's step readings need
-              Leaf connected to the task's Codex App Server, and Not answered needs a
-              host that records its failures, as the leaf.page website's does. Claude
-              Code tells Leaf when a turn ended and when it waits on a dialog.
+            <p id="updates-observed-harnesses">
+              A label the agent's harness does not report never appears. Queued comes
+              from Codex's own queue. Replying, Interrupted, and Codex's step readings
+              need Leaf connected to the task's Codex App Server, and Not answered needs
+              a harness that records its failures, as the leaf.page website's does.
+              Claude Code tells Leaf when a turn ended and when it waits on a dialog.
             </p>
           </section>
 
@@ -768,10 +768,10 @@ flowchart LR
                 <strong>The turn.</strong> Leaf's hooks and carriers stamp a turn as it
                 opens and closes. An open turn is believed while something in it renewed
                 it within a quarter of an hour: its opening, a status or start, or a
-                step the host reports. Claude Code also publishes each session's state,
-                which tells Leaf when a turn waits on a dialog such as a permission
-                prompt, and when a turn ended without a hook, so an interrupted turn
-                reads as ended the moment you press Escape.
+                step the harness reports. Claude Code also publishes each session's
+                state, which tells Leaf when a turn waits on a dialog such as a
+                permission prompt, and when a turn ended without a hook, so an
+                interrupted turn reads as ended the moment you press Escape.
               </li>
               <li id="updates-fact-watcher">
                 <strong>The watcher.</strong> Claude Code's watch hook, a
@@ -808,8 +808,8 @@ flowchart TD
             </lf-diagram>
             <p id="updates-believed">
               Work is believed when a start is still inside the rule above, when the
-              host reports a step for the running turn, or when a move that asks for an
-              answer was delivered into the running turn. Input has stalled when it
+              harness reports a step for the running turn, or when a move that asks for
+              an answer was delivered into the running turn. Input has stalled when it
               stayed Sent for two minutes, or when the turn that picked it up ended
               without answering it. Once a working reading is about a minute old, the
               banner shows its age, as in
@@ -833,7 +833,7 @@ flowchart TD
                 <tr id="updates-reading-steps">
                   <td>Codex thinking, Codex using a tool, Claude waiting for you</td>
                   <td>
-                    The host reported what the session is doing now. Waiting for you,
+                    The harness reported what the session is doing now. Waiting for you,
                     for input, or for approval means the agent waits on you in its own
                     window, and the page announces it.
                   </td>
@@ -924,7 +924,7 @@ flowchart TD
                 <tr id="updates-notice-failure">
                   <td>Response failed, Response interrupted</td>
                   <td>
-                    The agent's host reports that an answer to you failed or stopped.
+                    The agent's harness reports that an answer to you failed or stopped.
                   </td>
                 </tr>
                 <tr id="updates-notice-active">
@@ -2009,9 +2009,9 @@ flowchart TD
             <p id="chrome-what">
               Leaf adds its own controls around a page: a banner at the top of the
               window, a bottom bar of keyboard hints and status, markers for comments
-              and decisions, and panels for threads and Asks. None of them changes the
-              page's layout, so opening or closing one leaves the text wrapped as it was
-              and the reading position where it was.
+              and decisions, and panels for threads and the queue. None of them changes
+              the page's layout, so opening or closing one leaves the text wrapped as it
+              was and the reading position where it was.
             </p>
             <p id="chrome-bars">
               The banner and the bottom bar have fixed heights, and the page scrolls
@@ -2032,7 +2032,7 @@ flowchart TD
             <p id="chrome-surfaces-what">
               A thread card opens in the margin beside its marker. Where the margin is
               narrower than the card, the card overlaps the edge of the text. The
-              Threads panel and the Asks drawer open over the page's edges, one at a
+              Threads panel and the Queue panel open over the page's edges, one at a
               time.
             </p>
 
@@ -2142,7 +2142,7 @@ flowchart TD
               <figure id="chrome-surfaces">
                 <svg class="drawing" viewBox="0 0 240 160" role="img">
                   <title>
-                    The Asks drawer and the Threads panel open over the page's edges
+                    The Queue panel and the Threads panel open over the page's edges
                   </title>
                   <rect class="frame" x="1" y="1" width="238" height="158" rx="6" />
                   <rect class="frame-head" x="2" y="2" width="236" height="18" rx="5" />
@@ -2177,12 +2177,10 @@ flowchart TD
                     height="4"
                     rx="2"
                   />
-                  <g id="chrome-asks-drawer">
+                  <g id="chrome-queue-panel">
                     <rect class="over" x="6" y="24" width="72" height="112" rx="5" />
-                    <text class="strong" x="42" y="44" text-anchor="middle">Asks</text>
-                    <text class="strong" x="42" y="58" text-anchor="middle">
-                      drawer
-                    </text>
+                    <text class="strong" x="42" y="44" text-anchor="middle">Queue</text>
+                    <text class="strong" x="42" y="58" text-anchor="middle">panel</text>
                   </g>
                   <g id="chrome-threads-panel">
                     <rect class="over" x="152" y="24" width="82" height="112" rx="5" />
@@ -2195,7 +2193,7 @@ flowchart TD
                   </g>
                 </svg>
                 <figcaption id="cap-chrome-surfaces">
-                  <strong>Panels over the page</strong>The Asks drawer and the Threads
+                  <strong>Panels over the page</strong>The Queue panel and the Threads
                   panel open over the page's edges, one at a time. The page keeps its
                   width underneath.
                 </figcaption>

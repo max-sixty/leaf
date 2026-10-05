@@ -1,6 +1,6 @@
 /* lf-swipe-deck: a position-recorded classification queue with one activation path.
- * The Pass and Keep buttons own the semantic action. Arrow keys and pointer swipes call
- * those buttons, whose click handler first places one card optimistically and then sends
+ * The Pass and Keep command rows own native button and keyboard activation. Pointer
+ * swipes call those buttons. Their shared callback places one card optimistically and sends
  * the same absolute action the runtime replays after reload, sync, or undo. A card the
  * user classified can return to the queue. While its classification is still being
  * sent, Return withdraws that attempt, so a refused classification leaves nothing
@@ -46,6 +46,16 @@ const VERDICTS = {
 customElements.define(
   "lf-swipe-deck",
   class extends HTMLElement {
+    // What the Ask was answered with: how many cards the user kept and passed, each the
+    // cards the swipe state places in that verdict's piles.
+    static answerWords(state, deck) {
+      const count = (verdict) =>
+        [...deck.querySelectorAll(`:scope > lf-swipe-pile[verdict="${verdict}"]`)]
+          .map((pile) => state.swipe.value[pile.id]?.length ?? 0)
+          .reduce((sum, cards) => sum + cards, 0);
+      return `${count("keep")} kept · ${count("pass")} passed`;
+    }
+
     #pass = null;
     #keep = null;
     #progress = null;
@@ -134,44 +144,32 @@ customElements.define(
       for (const card of this.#piles().flatMap((pile) => this.#cards(pile)))
         this.#returnControl(card);
 
-      this.#pass.addEventListener("click", () => this.#swipe("pass", -1));
-      this.#keep.addEventListener("click", () => this.#swipe("keep", 1));
-      commands(
-        this,
-        "In a swipe deck",
-        [
-          {
-            id: "swipe.pass",
-            contextKeys: ["1"],
-            bindingBadge: null,
-            keys: ["ArrowLeft"],
-            control: this.#pass,
-            decision: true,
-            title: "Pass",
-            description: "Pass the active card",
-            when: () => this.#canSwipe(),
-            run: () => this.#pass.click(),
-          },
-          {
-            id: "swipe.keep",
-            contextKeys: ["2"],
-            bindingBadge: null,
-            keys: ["ArrowRight"],
-            control: this.#keep,
-            decision: true,
-            title: "Keep",
-            description: "Keep the active card",
-            when: () => this.#canSwipe(),
-            run: () => this.#keep.click(),
-          },
-        ],
+      commands(this, "In a swipe deck", [
         {
-          answer: () =>
-            `${this.#cards(this.#pile("keep")).length} kept · ${
-              this.#cards(this.#pile("pass")).length
-            } passed`,
+          id: "swipe.pass",
+          contextKeys: ["1"],
+          bindingBadge: null,
+          keys: ["ArrowLeft"],
+          control: this.#pass,
+          decision: true,
+          title: "Pass",
+          description: "Pass the active card",
+          when: () => this.#canSwipe(),
+          run: () => this.#swipe("pass", -1),
         },
-      );
+        {
+          id: "swipe.keep",
+          contextKeys: ["2"],
+          bindingBadge: null,
+          keys: ["ArrowRight"],
+          control: this.#keep,
+          decision: true,
+          title: "Keep",
+          description: "Keep the active card",
+          when: () => this.#canSwipe(),
+          run: () => this.#swipe("keep", 1),
+        },
+      ]);
 
       this.addEventListener("pointerdown", this.#pointerDown);
       this.addEventListener("pointermove", this.#pointerMove);
@@ -222,8 +220,6 @@ customElements.define(
       if (reading === this.#painted) return;
 
       const keysMoved = available !== this.#keysAvailable;
-      this.#pass.toggleAttribute("disabled", !available);
-      this.#keep.toggleAttribute("disabled", !available);
       keepsText(this.#progress, progress);
 
       for (const { pile, verdict, cards } of piles) {

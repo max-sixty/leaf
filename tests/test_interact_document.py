@@ -1126,6 +1126,8 @@ def test_thread_read_reads_frozen_construction(page_dir):
     drawing = {
         "format": "leaf-drawing/2",
         "strokes": [[[-20, 74], [50, 10], [120, 74]]],
+        "viewport": [1200, 900],
+        "scheme": "light",
     }
     drawn = append_carried_log_record(
         page_dir,
@@ -3137,7 +3139,9 @@ def test_stamp_and_report_choose_one_log_order(page_dir, monkeypatch):
     def held_append_record(page, event):
         if event.get("kind") == "note" and event.get("version") == 2:
             at_commit.set()
-            assert resume.wait(timeout=10), "the report did not enter the publish gap"
+            assert resume.wait(timeout=STATED_TIMEOUT), (
+                "the report did not enter the publish gap"
+            )
         return original_append_record(page, event)
 
     monkeypatch.setattr(
@@ -3145,7 +3149,9 @@ def test_stamp_and_report_choose_one_log_order(page_dir, monkeypatch):
     )
     with ThreadPoolExecutor(max_workers=2) as executor:
         publishing = executor.submit(publishing_model.cmd_stamp, page_dir, "absorb")
-        assert at_commit.wait(timeout=10), "publish never reached its note commit"
+        assert at_commit.wait(timeout=STATED_TIMEOUT), (
+            "publish never reached its note commit"
+        )
         serialized = leases_model.lock_is_held(page_dir / "events.jsonl")
         reporting = executor.submit(
             thread_model.cmd_report,
@@ -3160,12 +3166,12 @@ def test_stamp_and_report_choose_one_log_order(page_dir, monkeypatch):
         # lets the report finish first and exposes the inconsistent order.
         if serialized:
             resume.set()
-            publishing.result(timeout=10)
-            reporting.result(timeout=10)
+            publishing.result(timeout=STATED_TIMEOUT)
+            reporting.result(timeout=STATED_TIMEOUT)
         else:
-            reporting.result(timeout=10)
+            reporting.result(timeout=STATED_TIMEOUT)
             resume.set()
-            publishing.result(timeout=10)
+            publishing.result(timeout=STATED_TIMEOUT)
 
     events = events_model.read_events(page_dir)
     report = [event for event in events if event["kind"] == "report"][-1]
@@ -4691,7 +4697,7 @@ def test_a_reader_that_closes_the_pipe_ends_page_events_quietly(page_dir):
             shell=True,
             capture_output=True,
             text=True,
-            timeout=60,
+            timeout=STATED_TIMEOUT,
             check=True,
         )
         assert json.loads(piped.stdout)["seq"] == 1

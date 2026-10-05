@@ -9,10 +9,11 @@
    open thread (navigation.js).
 
    Arrival belongs to the item's owner, so the walk adds no arrival of its own beside
-   theirs: an Ask arrives through the Ask view's `arriveAtAsk`, the arrival a drawer row
-   makes; a thread through the t/T walk's own (navigation.js, `arriveAtThread`), so it
-   lands wherever that walk lands; a page widget move by travel's `arrive`, onto the
-   widget the move was made on.
+   theirs: an Ask arrives through the Ask view's `arriveAtAsk`; a thread through the
+   t/T walk's own (navigation.js, `arriveAtThread`), so it lands wherever that walk
+   lands; a page widget move by travel's `arrive`, onto the widget the move was made on.
+   A Queue panel row arrives through the same function (`arriveAtItem`), for an item on
+   either queue or one that is done.
 
    A walk starts from the user's place, in this order:
 
@@ -30,19 +31,33 @@
    thread's passage for an Ask seated in a thread; a thread's passage; the widget a move
    was made on. An item with no place on the page, a general thread or one whose passage
    is gone, comes after every placed one in the queue's own order, as the t/T walk
-   reaches such threads from its list's ends. The walk is clamped, not wrapped. */
+   reaches such threads from its list's ends. The walk is clamped, not wrapped.
+
+   Experimental: the queues and the walk over them are new, and their shape is
+   expected to change a lot (notes/what-needs-you/). Change them freely.
+*/
 import { pageCommand } from "./keyboard/register.js";
 import { paintKeys } from "./keyboard/scopes.js";
 import { askHolding, placeOf, walkOrigin } from "./standing-target.js";
 import { elementById, inChrome } from "./passages.js";
 import { hostIn, under } from "./shadow.js";
-import { openAsks } from "./asks/model.js";
+import { allAsks } from "./asks/model.js";
 import { readApplication, watchSemantic } from "./semantic-state.js";
 import { retainUserIntent } from "./user-intent.js";
 import { beginWalk, listWalkPosition, walkPositionLabel } from "./walk-position.js";
 
 const QUALIFIER = "waiting on you";
 const NOUNS = Object.freeze({ ask: "Ask", thread: "Thread", widget: "Move" });
+
+// Where an item of either queue, or one that is done, is arrived at: an Ask by its own
+// id, anything else by the thread it stands in, or else the widget its move was made
+// on.
+const stopOf = (item) =>
+  item.kind === "ask"
+    ? { kind: "ask", id: item.id, thread: item.thread }
+    : item.thread !== null
+      ? { kind: "thread", id: item.thread, thread: item.thread }
+      : { kind: "widget", id: item.subject.id, thread: null };
 
 export function createQueueWalk({
   arriveAtAsk,
@@ -54,18 +69,11 @@ export function createQueueWalk({
   readableDestination,
   announce,
 }) {
-  // One stop per item: an Ask by its own id, anything else by the thread it stands in,
-  // or else the widget its move was made on.
   function stops() {
     const placed = [];
     const loose = [];
     for (const item of readApplication().effective.queues.onYou) {
-      const stop =
-        item.kind === "ask"
-          ? { kind: "ask", id: item.id, thread: item.thread }
-          : item.thread !== null
-            ? { kind: "thread", id: item.thread, thread: item.thread }
-            : { kind: "widget", id: item.subject.id, thread: null };
+      const stop = stopOf(item);
       const at =
         stop.kind === "ask" && stop.thread === null
           ? elementById(stop.id)
@@ -160,9 +168,11 @@ export function createQueueWalk({
     );
   }
 
+  // An answered Ask is arrived at the same way, which is how the Queue panel's Done
+  // rows return the user to one to review or revise it.
   function arriveAt(stop) {
     if (stop.kind === "ask") {
-      const record = openAsks().find((ask) => ask.id === stop.id);
+      const record = allAsks().find((ask) => ask.id === stop.id);
       return record ? arriveAtAsk(record) : Promise.resolve(false);
     }
     if (stop.kind === "thread") return arriveAtThread(stop.id);
@@ -244,5 +254,9 @@ export function createQueueWalk({
     run: (binding) => walk(binding === "a" ? 1 : -1),
   });
 
-  return { mount };
+  // A Queue panel row arrives where the walk would (queue-panel.js), whichever list
+  // its item is on.
+  const arriveAtItem = (item) => arriveAt(stopOf(item));
+
+  return { mount, arriveAtItem };
 }

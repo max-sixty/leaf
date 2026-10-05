@@ -13,8 +13,8 @@ The user follows your work on the page:
 
 Leaf itself marks each user move **Sent**, **Queued**, and **Picked up**, including
 a move that owes you nothing, such as a moved card. A pick before the Done its Ask
-waits for is marked with that Done. Your host
-contract may add its own current step to the banner. Chat stays in the host and never
+waits for is marked with that Done. Your harness
+contract may add its own current step to the banner. Chat stays in the harness and never
 reaches the page.
 
 Readings in `leaf page state <page>` describe the user's side between their
@@ -97,7 +97,7 @@ User input comes before the work in hand, in this order:
    already. Until you start an item, the banner can say only that you are working
    on their update.
 2. Start each move that asks for work before starting the work. Each delivered
-   event's `answering` clauses say how, with the reply carrying the result once it
+   event's `handling` clauses say how, with the reply carrying the result once it
    lands. A move that asks for no work, such as a question, is answered by its
    reply at once.
 3. If the move interrupted other work, start that work's item again once the move's
@@ -138,13 +138,13 @@ version cannot drop that widget while the task stands.
 
 ## Long-running work
 
-New user input reaches you only between your own operations; your host contract
+New user input reaches you only between your own operations; your harness contract
 names exactly when. A long foreground operation, such as a test suite or a subagent
 you wait on, leaves the user's comment unanswered for its whole length.
 
 For work that will run longer than a few minutes, coordinate it rather than perform
 it. Hand the reading, editing, and testing to background subagents or background
-commands, and end your turn as the host contract says, so the watcher's next delivery
+commands, and end your turn as the harness contract says, so the watcher's next delivery
 reaches you while the work runs instead of waiting behind it. When a worker reports
 back, put its result on the page; the thread that asked for it then gets a reply
 saying what changed and linking to it.

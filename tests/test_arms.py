@@ -1,13 +1,13 @@
-"""Host evidence admits successful commands and retains actual delivery inputs."""
+"""Harness evidence admits successful commands and retains actual delivery inputs."""
 
 import json
 
 import pytest
+from leaf_dev.arms import accepted_starts, commands, completed, trace_result
 from leaf_dev.eval_codex import records_for
-from leaf_dev.harness import accepted_starts, commands, completed, trace_result
 
 
-def test_codex_command_and_turn_success_are_observed_host_results():
+def test_codex_command_and_turn_success_are_observed_harness_results():
     # App Server's observed commandExecution notifications, reduced to the fields
     # relevant to successful Leaf start admission. Unknown/nonzero exits must
     # never turn a printed start into an accepted one.
@@ -288,7 +288,7 @@ def test_codex_parent_evidence_isolated_from_delegated_threads_and_usage_snapsho
     }
 
 
-def test_codex_live_driver_observes_stdout_before_the_next_host_notification(
+def test_codex_live_driver_observes_stdout_before_the_next_harness_notification(
     observed_codex,
 ):
     """The real transport emits URL stdout before parent completion.
@@ -297,7 +297,7 @@ def test_codex_live_driver_observes_stdout_before_the_next_host_notification(
     the actual Task receiver, normalization and generator must give the driver a
     chance to post its move while the parent is still running.
     """
-    from leaf_dev.harness import URL, blocks
+    from leaf_dev.arms import URL, blocks
 
     child, task = observed_codex
     task._hear(
@@ -354,7 +354,7 @@ def test_codex_live_driver_observes_stdout_before_the_next_host_notification(
 
 
 def test_token_counts_distinguish_unknown_partial_and_observed_zero():
-    from leaf_dev.harness import token_counts
+    from leaf_dev.arms import token_counts
 
     known = {"input_tokens": 7, "output_tokens": 2}
     cached = {**known, "cache_creation_input_tokens": 3, "cache_read_input_tokens": 11}
@@ -379,7 +379,7 @@ def test_single_turn_timeout_retains_native_trace_without_fabricating_completion
 ):
     import subprocess
 
-    from leaf_dev import harness
+    from leaf_dev import arms
 
     partial = {
         "type": "assistant",
@@ -395,14 +395,12 @@ def test_single_turn_timeout_retains_native_trace_without_fabricating_completion
         kwargs["stderr"].write("a native diagnostic\n")
         raise subprocess.TimeoutExpired(kwargs["args"], kwargs["timeout"])
 
-    monkeypatch.setattr(
-        harness, "claude_child", lambda *a, **k: {"args": ["external-cc"]}
-    )
-    monkeypatch.setattr(harness.subprocess, "run", stalled_cli)
+    monkeypatch.setattr(arms, "claude_child", lambda *a, **k: {"args": ["external-cc"]})
+    monkeypatch.setattr(arms.subprocess, "run", stalled_cli)
     out, err = tmp_path / "stream.jsonl", tmp_path / "stderr.txt"
-    assert harness.run_agent(tmp_path, "work", out=out, err=err) == [partial]
-    assert seen == [harness.TURN_LIMIT]
+    assert arms.run_agent(tmp_path, "work", out=out, err=err) == [partial]
+    assert seen == [arms.TURN_LIMIT]
     assert out.read_text() == json.dumps(partial) + "\n"
     assert err.read_text() == "a native diagnostic\n"
     assert out.with_suffix(".timed-out").is_file()
-    assert not completed(harness.read_trace(out))
+    assert not completed(arms.read_trace(out))

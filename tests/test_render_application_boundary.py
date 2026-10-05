@@ -22,6 +22,7 @@ from render_cases_interaction import (
 from render_harness import (
     banner_control,
     consume_browser_errors,
+    expect_asks_answered,
     holding,
     leaf_page,
     open_page,
@@ -955,7 +956,7 @@ def test_admission_holds_approval_until_the_answer_is_in_the_log(
     expect(page.locator("#release-ship .lf-pick")).to_have_attribute(
         "aria-checked", "true"
     )
-    expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
+    expect_asks_answered(page, "0/1")
     expect(approval).to_be_disabled()
     expect(approval).to_have_attribute(
         "title", "Answer every Ask before approving this work"
@@ -974,7 +975,7 @@ def test_admission_holds_approval_until_the_answer_is_in_the_log(
     held[0].continue_()
     page.unroute("**/api/event")
     round_trip(page)
-    expect(page.locator(".lf-asks")).to_have_text("Asks 1/1")
+    expect_asks_answered(page, "1/1")
     expect(approval).to_be_enabled()
     expect(approval).to_have_attribute(
         "title", "Approve this work; the page stays open for follow-up"

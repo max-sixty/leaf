@@ -33,7 +33,7 @@ export const USER_VIEW_RESTORE_CASES = [
     ...userStore.where("lf-drawer-slot-width"),
     value: "260",
   },
-  ...["leaves", "asks"].map((drawer) => ({
+  ...["leaves", "queue"].map((drawer) => ({
     name: `the ${drawer} drawer standing`,
     ...userStore.where(AUXILIARY_SURFACE_KEY),
     value: drawer,

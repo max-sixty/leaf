@@ -30,7 +30,7 @@ from render_cases_interaction import (
     SEATED_ASK_WIDGETS,
     live_url,
 )
-from render_cases_layout import banner_control, toggle_asks, with_one_ask
+from render_cases_layout import banner_control, toggle_queue, with_one_ask
 from render_cases_navigation import (
     composer_quote,
 )
@@ -91,6 +91,42 @@ from render_harness import (
 )
 
 pytestmark = pytest.mark.nightly
+
+
+def test_sort_source_follows_the_initial_step_when_code_arrives_later(browser, serve):
+    """The film may paint its first step before the code's tokenizer returns."""
+    example = next(path for path in EXAMPLES if path.stem == "rust-sort")
+    context = browser.new_context(
+        reduced_motion="reduce", viewport={"width": 1440, "height": 900}
+    )
+    held = []
+    context.route("**/vendor/highlight.esm.js", lambda route: held.append(route))
+    page = open_page(
+        browser,
+        serve(example),
+        context=context,
+        upgraded=False,
+        wait_until="domcontentloaded",
+    )
+    expect(page.locator("#sort-film .sort-moment")).to_have_attribute(
+        "data-part", "moment:random:7:0"
+    )
+    expect(page.locator("#sort-source [data-lf-indicated]")).to_have_count(0)
+    assert held
+    for route in held:
+        route.continue_()
+    context.unroute_all(behavior="wait")
+    wait_until_ready(page)
+    source = page.locator("#sort-source")
+    indicated = source.locator("[data-lf-indicated]")
+    expect(indicated).to_have_count(1)
+    body = source.bounding_box()
+    line = indicated.bounding_box()
+    assert body["y"] + 40 <= line["y"]
+    assert line["y"] + line["height"] <= body["y"] + body["height"] - 40
+    expect(page.locator("#sort-film .sort-moment")).to_have_attribute(
+        "data-part", "moment:random:7:0"
+    )
 
 
 def test_sort_film_comment_restores_its_input_and_step(browser, serve):
@@ -393,7 +429,9 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
             card = page.locator(f'.lf-thread[data-id="{thread["id"]}"]')
             expect(
                 card.get_by_role(
-                    "button", name="Reopen", exact=True, include_hidden=True
+                    "button",
+                    name=re.compile(r"\bReopen(?: thread)?$"),
+                    include_hidden=True,
                 )
             ).to_have_count(1)
             anchor = thread["anchor"]
@@ -3064,7 +3102,7 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     takes, so the release-notes shot, the wide exhibit in the control, grows left only
     to stop short of it.
 
-    The Asks drawer stands over the left margin and moves nothing in it. A narrow viewport
+    The Queue panel stands over the left margin and moves nothing in it. A narrow viewport
     returns the aside to the flow, and print proves paper reserves no blank margin for a
     posture it cannot use.
 
@@ -3184,7 +3222,7 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
         "() => Number(getComputedStyle(document.querySelector('lf-toc a')).opacity) === 0"
     )
 
-    # The Asks drawer stands over the page's left margin and moves nothing in it: the fixed
+    # The Queue panel stands over the page's left margin and moves nothing in it: the fixed
     # ToC and the sidebar stay where the page put them, under the drawer while it stands.
     resized(page, 1700, 900)
     margin = """() => {
@@ -3193,10 +3231,10 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
           return {sidebarLeft: sidebar.left, tocLeft: toc.left};
         }"""
     before = page.evaluate(margin)
-    banner_control(page, ".lf-asks").click()
-    expect(page.locator(".lf-asks-panel")).to_be_visible()
+    banner_control(page, ".lf-queue").click()
+    expect(page.locator(".lf-queue-panel")).to_be_visible()
     page.wait_for_function(
-        """() => document.querySelector('.lf-asks-panel').getAnimations().length === 0"""
+        """() => document.querySelector('.lf-queue-panel').getAnimations().length === 0"""
     )
     assert page.evaluate(margin) == before
     geometry = page.evaluate(
@@ -3219,8 +3257,8 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     assert abs(geometry["tocBottom"] - (geometry["lineTop"] - 24)) <= 1, (
         f"the map's foot is not the band's top less its inset: {geometry}"
     )
-    banner_control(page, ".lf-asks").click()
-    expect(page.locator(".lf-asks-panel")).to_be_hidden()
+    banner_control(page, ".lf-queue").click()
+    expect(page.locator(".lf-queue-panel")).to_be_hidden()
 
     resized(page, 1400, 900)
 
@@ -3485,8 +3523,8 @@ def test_margin_residents_stand_where_the_room_beside_the_column_holds_them(
         else:
             assert at["note"]["float"] == "none", (width, at)
 
-    # The Asks drawer stands over the page and grants or withdraws no margin.
-    toggle_asks(page)
+    # The Queue panel stands over the page and grants or withdraws no margin.
+    toggle_queue(page)
     panelled = page.evaluate(reading)
     assert panelled["sidebars"] == at["sidebars"]
     assert panelled["taken"] == at["taken"]
@@ -3668,5 +3706,5 @@ def test_a_page_refuses_a_browser_that_never_had_the_link(browser, serve):
     page.goto(url.rsplit("?", 1)[0], wait_until="load")
 
     assert schema_model.NO_KEY in page.locator("body").inner_text()
-    # The refusal is the subject: a user without the key is answered 403.
-    consume_browser_errors(page, "403")
+    # The refusal is the subject: a user without the key is answered 401.
+    consume_browser_errors(page, "401")

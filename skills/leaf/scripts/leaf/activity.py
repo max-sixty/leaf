@@ -25,7 +25,7 @@ WORK_KINDS = {
 }
 # Steps that wait on the user in the agent's own window, which renew nothing until
 # the user answers there.
-# `awaiting_user` is a dialog whose kind, approval or question, the host does not
+# `awaiting_user` is a dialog whose kind, approval or question, the harness does not
 # say.
 AWAITING_KINDS = {"awaiting_approval", "awaiting_input", "awaiting_user"}
 
@@ -89,7 +89,7 @@ def _reply_evidence(reply: dict) -> dict:
 def _bind_reply(workflows: list[dict], reply: dict | None) -> None:
     """Bind provisional response progress only to the exact input it names.
 
-    A durable response outranks it: a host's failure reply has already answered
+    A durable response outranks it: a harness's failure reply has already answered
     the input, and the turn's leftover stream must not paint it as still replying."""
     if reply is None or not reply.get("responds"):
         return
@@ -281,17 +281,17 @@ def claimant_turn(
 
     The claim's stamps are the spine: the prompt hook or a carrier opens the turn,
     a prompt or delivery into an open turn renews its stamp, and the Stop hook or
-    a carrier closes it. Not every host runs a hook on interruption, so an open stamp is believed
+    a carrier closes it. Not every harness runs a hook on interruption, so an open stamp is believed
     only while something in that turn renewed it within the working grace: its
     last opening, the agent's newest declaration (`declared`: a status or a start
     written during it), or the claimant's streamed activity. Past that nothing says whether it runs, which reads as not
     running without calling it ended.
 
-    The host's own record (`Harness.live_turn`) adds the two things no hook
+    The harness's own record (`Harness.live_turn`) adds the two things no hook
     sees, each only when newer than what it contradicts: an `idle` newer than
     every renewal ends the open turn at that moment (an interrupt), and a
     `waiting` newer than the stamps is a dialog open now, a step shown whether or
-    not the stamps say a turn is open. Its `busy` is never read, since the host
+    not the stamps say a turn is open. Its `busy` is never read, since the harness
     keeps it across turn endings while background work runs. `awaiting` says the
     claimant's observer reports a wait on the user right now, which holds the
     turn open for as long as that observer lives."""
@@ -299,10 +299,10 @@ def claimant_turn(
     closed = _moment(present.get("turn_closed"))
     if present["session_alive"] is not True:
         return Turn(False, ended=closed)
-    host = present.get("live_turn") or {}
-    since = _moment(host.get("since"))
+    live = present.get("live_turn") or {}
+    since = _moment(live.get("since"))
     stamped = max((moment for moment in (opened, closed) if moment), default=None)
-    dialog = host.get("state") == "waiting" and since and since >= (stamped or since)
+    dialog = live.get("state") == "waiting" and since and since >= (stamped or since)
     step = {"step": "awaiting_user", "step_since": since} if dialog else {}
     if closed is not None or opened is None or present.get("claim_turn") is None:
         return Turn(False, ended=closed, **step)
@@ -312,7 +312,7 @@ def claimant_turn(
     if stream and stream.get("session") == present.get("claim_session"):
         renewals.append(_moment(stream.get("ts")))
     renewed = max(moment for moment in renewals if moment and moment >= opened)
-    if host.get("state") == "idle" and since and since >= renewed:
+    if live.get("state") == "idle" and since and since >= renewed:
         return Turn(False, ended=since)
     until = renewed + WORKING_GRACE
     return Turn(now < until, until=until)
@@ -473,8 +473,8 @@ def canonical_activity(
     status = present["status"]
     declared = declared_at(present, events)
     turn, stream_live = current_turn(present, declared, stream, now)
-    # What the host observed the agent doing now: a live stream step while its turn
-    # runs, or the host's own word that the turn waits on the user in its window.
+    # What the harness observed the agent doing now: a live stream step while its turn
+    # runs, or the harness's own word that the turn waits on the user in its window.
     observed = None
     if stream_live and turn.running:
         observed = stream
@@ -526,7 +526,7 @@ def canonical_activity(
     # grace that runs from it. Status age and the turn's ending can change ownership
     # even when the primary label remains Closed, so every such boundary counts;
     # consumers decide nothing locally and ask this fold for the next complete
-    # reading when it arrives. A live host's word moves without a deadline, and the
+    # reading when it arrives. A live harness's word moves without a deadline, and the
     # presence token carries it.
     lapses = [
         (_moment(status.get("ts")), WORKING_GRACE),
@@ -615,7 +615,7 @@ def canonical_activity(
     elif unheld:
         kind = "unheld"
     elif in_hand_now:
-        # What the work *is* comes from the agent, on every host: the line of the
+        # What the work *is* comes from the agent, on every harness: the line of the
         # newest item it has in hand. An observed step says a session is alive and
         # moving; it cannot say what the user is waiting for, and a step that replaced
         # the line would trade the one reading written for them for the one that
@@ -652,7 +652,7 @@ def canonical_activity(
         "dropped": dropped,
         "detail": detail,
         # The step behind a working reading, reported whether or not it is also the
-        # sentence, so a consumer can show both without asking which host this is. Only
+        # sentence, so a consumer can show both without asking which harness this is. Only
         # under `working`: a step standing beside "last checked in 30m ago" would argue
         # with the amber dot the rest of that reading wears.
         "observed": (

@@ -76,7 +76,7 @@ def test_comment_anchors_on_a_quote_and_posts_as_agent(page_dir, sessionless):
         and event["author"] == "agent"
         and event["revision"] == 1
     )
-    # A bare run has no host session behind it, so the event carries no voice
+    # A bare run has no harness session behind it, so the event carries no voice
     # fields — users' generic label covers it — rather than a stored
     # placeholder wearing a name.
     assert "agent" not in event and "session" not in event
@@ -692,6 +692,29 @@ def test_revising_quotes_reparents_every_open_thread_without_answering_it(page_d
         child_threads[identity]["anchor"] == {"section": "labels"}
         for identity in selected
     )
+
+    # The fold keeps the words each automatic move left, which the panel goes on
+    # naming, until a reply places the thread again, even on that same section.
+    folded = build_threads(events, {})
+    assert folded[roots["Alpha"]["id"]]["rewritten_from"] == roots["Alpha"]["anchor"]
+    assert folded[roots["Unchanged"]["id"]]["rewritten_from"] is None
+    placed = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "thread",
+            "reply",
+            str(page_dir),
+            roots["Alpha"]["id"],
+            "--section",
+            "labels",
+            "--text",
+            "This section now.",
+        ],
+    )
+    assert placed.exit_code == 0, placed.output
+    replaced = build_threads(events_model.read_events(page_dir), {})
+    assert replaced[roots["Alpha"]["id"]]["anchor"] == {"section": "labels"}
+    assert replaced[roots["Alpha"]["id"]]["rewritten_from"] is None
 
 
 def test_reply_replacement_precedes_automatic_fallback_for_other_threads(page_dir):

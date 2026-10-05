@@ -23,8 +23,8 @@ from pathlib import Path
 
 import click
 from leaf.delivery import freeze_delivery, pending_batches, receive_delivery
+from leaf.harness import session_harness
 from leaf.hook_carrier import hook_acknowledgement
-from leaf.host import session_harness
 from leaf.hosting import claim_and_start, cmd_stop
 from leaf.projection import folded_positions
 from leaf.publishing import cmd_stamp
@@ -43,6 +43,7 @@ from playwright.sync_api import Page
 from leaf_dev import LEAF_COMMAND
 from leaf_dev.browser import chrome, settle, tab
 from leaf_dev.leaf_assets import publish, stage
+from leaf_dev.recording import write_gif
 
 GIF_SIZE = (1120, 700)
 # The viewport used for the README's representative stills.
@@ -215,7 +216,7 @@ def select_text(page: Page, selector: str, text: str) -> None:
 
 
 class DemoWaiter:
-    """One background `leaf wait`, taking each delivery the way this host's agent
+    """One background `leaf wait`, taking each delivery the way this harness's agent
     does: it reads a complete delivery, explicitly acknowledges it, and
     rearms the wait. The demo itself stands in for the reader."""
 
@@ -408,21 +409,6 @@ def shoot_stills(browser, url: str, page_dir: Path, into: Path) -> None:
             )
 
 
-def write_gif(frames: list[Image.Image], durations: list[int], output: Path) -> None:
-    palette_frames = [
-        frame.quantize(colors=192, method=Image.Quantize.MEDIANCUT) for frame in frames
-    ]
-    palette_frames[0].save(
-        output,
-        save_all=True,
-        append_images=palette_frames[1:],
-        duration=durations,
-        loop=0,
-        optimize=True,
-        disposal=1,
-    )
-
-
 @click.command("record-demo")
 @click.option(
     "--output",
@@ -437,7 +423,7 @@ def record_demo(output: Path | None) -> None:
         page_dir = Path(scratch) / "page"
         # A state home of its own, so the host's open pages stay out of the banner's
         # `All leaves`. Set before any leaf command so each inherits it. The agent's
-        # name shows only under a host session, which the recording keeps.
+        # name shows only under a harness session, which the recording keeps.
         os.environ["XDG_STATE_HOME"] = f"{scratch}/state"
         os.environ["LEAF_AGENT"] = "Claude"
         with redirect_stdout(io.StringIO()):

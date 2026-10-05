@@ -97,6 +97,25 @@ from render_harness import (
 pytestmark = pytest.mark.nightly
 
 
+def open_selected_comment(page):
+    """Choose the Comment action offered for the completed selection."""
+    button = page.get_by_role("button", name="Comment on selection", exact=True)
+    expect(button).to_be_visible()
+    button.click()
+
+
+def selected_comment_marks_chosen_start(page, chosen):
+    """The explicit Comment gesture paints the range selected before focus moved."""
+    open_selected_comment(page)
+    rendered(page)
+    return chosen.evaluate(
+        """range => {
+          const painted = [...(CSS.highlights.get('lf-pending') ?? [])][0];
+          return painted?.compareBoundaryPoints(Range.START_TO_START, range) === 0;
+        }"""
+    )
+
+
 def _diff_page(*samples):
     """A complete authored page of `(id, escaped pre markup)` diff samples."""
     return leaf_page(
@@ -284,8 +303,8 @@ def test_a_block_leaving_the_viewport_keeps_its_focused_comment(browser, serve):
         document.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
     }""")
     field = page.locator(".lf-fab-input")
-    expect(field).to_be_visible()
     page.keyboard.press("c")
+    expect(field).to_be_visible()
     expect(field).to_be_focused()
     label = field.get_attribute("aria-label")
     assert label and label.startswith("Comment on “4 of 5 checks passing")
@@ -312,10 +331,10 @@ def test_a_block_leaving_the_viewport_keeps_its_focused_comment(browser, serve):
     expect(field).to_have_js_property("value", draft + " What must Finance decide?")
 
 
-def test_a_comment_box_stays_with_the_writer_when_its_passage_scrolls_away(
+def test_a_comment_box_follows_its_passage_and_resume_returns_the_writer(
     browser, serve
 ):
-    """A writer keeps the same focused box when its passage scrolls out of view."""
+    """Resume writing recovers the same native field and words with its passage."""
     source = next(source for source in EXAMPLES if source.stem == "triage-board")
     page = open_page(browser, serve(source))
     resized(page, 1280, 500)
@@ -332,8 +351,14 @@ def test_a_comment_box_stays_with_the_writer_when_its_passage_scrolls_away(
     )
     rendered(page)
     expect(field).to_be_focused()
-    expect(bar).to_have_attribute("data-lf-plane", "window")
+    expect(bar).to_have_attribute("data-lf-plane", "page")
+    away = bar.bounding_box()
+    assert away["y"] + away["height"] < 0, away
     page.keyboard.type("x")
+    page.keyboard.press("Escape")
+    page.keyboard.press("g")
+    page.keyboard.press("i")
+    expect(field).to_be_focused()
     page.wait_for_function(
         """() => {
           const bar = document.querySelector('.lf-fab-bar').getBoundingClientRect();
@@ -344,7 +369,7 @@ def test_a_comment_box_stays_with_the_writer_when_its_passage_scrolls_away(
     expect(bar).to_be_visible()
     expect(field).to_have_js_property("value", "x")
     assert page.locator("#triage-lede").evaluate(
-        "node => node.getBoundingClientRect().bottom < 0"
+        "node => { const r = node.getBoundingClientRect(); return r.bottom > 48 && r.top < innerHeight; }"
     )
 
 
@@ -475,6 +500,7 @@ def test_browser_and_file_captures_stop_at_the_same_widget_fences(
         )
         assert selected == quote
         page.dispatch_event("body", "mouseup")
+        open_selected_comment(page)
         # The field is one element for the page's whole life, so "it is on screen"
         # says only that some composer is open. This release states the passage the
         # field took, and the field describes itself by it, so a release the field
@@ -604,6 +630,7 @@ def test_quotes_cross_preserving_containers_and_remain_attached(browser, serve, 
         }"""
     )
     page.dispatch_event("body", "mouseup")
+    open_selected_comment(page)
     expect(page.locator("#lf-composer-quote")).to_have_text(f"“{quote}”")
     page.locator(".lf-fab-input").click()
     write(page.locator(".lf-composer leaf-text"), "Keep the question with its context.")
@@ -650,7 +677,7 @@ def test_monitoring_regions_share_one_collaboration_layer(browser, serve):
     expect(page.locator("#lp-check-finance")).to_be_in_viewport()
     # The panel stood over the region the comment is about, so the trip cleared it.
     panel_settled(page, open=False)
-    expect(page.locator(".lf-asks-row")).to_have_count(0)
+    expect(page.locator(".lf-queue-row")).to_have_count(0)
 
     assert _traffic(page).sends == sent
     assert events_model.read_events(serve.page_dir) == before
@@ -1071,6 +1098,7 @@ def test_a_drag_released_mid_word_hugs_words_and_sentences(browser, serve):
         getSelection().setBaseAndExtent(n, at, n, at + 5);
     }""")
     page.keyboard.press("Shift")
+    page.keyboard.press("c")
     assert captured() == "ragra"
     page.locator("#t").click()
 
@@ -1239,20 +1267,18 @@ def test_a_quote_finds_its_passage_whatever_its_whitespace(browser, serve):
     # Nor may a gap close up onto a compound the page writes as one word. "set up" and
     # "setup" are different words, and the page has both — the anchor has to land on the
     # one that was dragged, and it is stored, so landing wrong is permanent.
-    landed = page.evaluate("""async () => {
+    chosen = page.evaluate_handle("""() => {
         const p = document.querySelector('#compound');
         const at = p.firstChild.data.indexOf('set up');
         const r = document.createRange();
         r.setStart(p.firstChild, at); r.setEnd(p.firstChild, at + 6);
         const s = getSelection(); s.removeAllRanges(); s.addRange(r);
         document.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
-        await new Promise(x => setTimeout(x, 30));
-        const field = document.querySelector('.lf-fab-input');
-        await new Promise(x => setTimeout(x, 30));
-        const painted = [...(CSS.highlights.get('lf-pending') ?? [])][0];
-        return painted && painted.compareBoundaryPoints(Range.START_TO_START, r) === 0;
+        return r.cloneRange();
     }""")
-    assert landed, "'set up' anchored onto 'setup', an earlier and different word"
+    assert selected_comment_marks_chosen_start(page, chosen), (
+        "'set up' anchored onto 'setup', an earlier and different word"
+    )
 
 
 def test_the_captured_quote_is_prose_a_file_can_hold(browser, serve):
@@ -3154,7 +3180,7 @@ def test_a_repeated_passage_anchors_where_it_was_picked(browser, serve):
     the occurrence whose neighbours match wins. Driven through the real button, because
     the context is captured from the live selection and nowhere else."""
     page = open_page(browser, serve(TWICE_PAGE))
-    landed = page.evaluate("""async () => {
+    chosen = page.evaluate_handle("""() => {
         const paras = [...document.querySelectorAll('#repeat p')];
         const p = paras.at(-1);
         const phrase = 'The version stamp never lands.';
@@ -3164,16 +3190,11 @@ def test_a_repeated_passage_anchors_where_it_was_picked(browser, serve):
         want.setStart(p.firstChild, at); want.setEnd(p.firstChild, at + phrase.length);
         const sel = getSelection(); sel.removeAllRanges(); sel.addRange(want);
         document.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
-        await new Promise(r => setTimeout(r, 40));
-        const fab = document.querySelector('.lf-fab-input');
-        if (fab.style.display !== 'block') return 'no button';
-        await new Promise(r => setTimeout(r, 40));
-        const painted = [...(CSS.highlights.get('lf-pending') ?? [])][0];
-        if (!painted) return 'no mark';
-        return painted.compareBoundaryPoints(Range.START_TO_START, want) === 0;
+        return want.cloneRange();
     }""")
-    assert landed is True, (
-        f"the second copy was picked, the mark went elsewhere ({landed})"
+    assert chosen.evaluate("range => range instanceof Range"), chosen.json_value()
+    assert selected_comment_marks_chosen_start(page, chosen), (
+        "the second copy was picked, but the comment mark went elsewhere"
     )
 
 
@@ -3198,6 +3219,7 @@ def test_an_ambiguous_revised_passage_keeps_its_section_until_the_agent_moves_it
         return true;
     }""")
     assert landed is True, f"couldn't post the comment ({landed})"
+    open_selected_comment(page)
     fab = page.locator(".lf-fab-input")
     expect(fab).to_be_visible()
     fab.focus()
@@ -3280,6 +3302,7 @@ def test_a_removed_subject_keeps_its_thread_open_and_detached(browser, serve):
         selection.removeAllRanges(); selection.addRange(want);
         document.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
     }""")
+    open_selected_comment(page)
     expect(page.locator(".lf-fab-input")).to_be_visible()
     page.locator(".lf-fab-input").focus()
     write(page.locator(".lf-composer leaf-text"), "why is this section here?")
@@ -3335,7 +3358,7 @@ def test_a_passage_among_padded_emoji_confirms_its_neighbours(browser, serve):
     back to naming the first copy on that page for good, silently. No shipped example holds
     an astral character, so only a fixture can hold this."""
     page = open_page(browser, serve(ASTRAL_PAGE))
-    landed = page.evaluate("""async () => {
+    chosen = page.evaluate_handle("""() => {
         const skip = '.lf-ui, script, style';
         const w = document.createTreeWalker(document.getElementById('astral'),
             NodeFilter.SHOW_TEXT,
@@ -3353,16 +3376,11 @@ def test_a_passage_among_padded_emoji_confirms_its_neighbours(browser, serve):
         want.setStart(h.node, h.at); want.setEnd(h.node, h.at + phrase.length);
         const sel = getSelection(); sel.removeAllRanges(); sel.addRange(want);
         document.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
-        await new Promise(r => setTimeout(r, 60));
-        const fab = document.querySelector('.lf-fab-input');
-        if (fab.style.display !== 'block') return 'no button';
-        await new Promise(r => setTimeout(r, 60));
-        const painted = [...(CSS.highlights.get('lf-pending') ?? [])][0];
-        if (!painted) return 'no mark';
-        return painted.compareBoundaryPoints(Range.START_TO_START, want) === 0;
+        return want.cloneRange();
     }""")
-    assert landed is True, (
-        f"the emoji copy was picked, the mark went elsewhere ({landed})"
+    assert chosen.evaluate("range => range instanceof Range"), chosen.json_value()
+    assert selected_comment_marks_chosen_start(page, chosen), (
+        "the emoji copy was picked, but the comment mark went elsewhere"
     )
 
 
@@ -3382,7 +3400,7 @@ def test_a_repeated_passage_at_an_edge_anchors_where_it_was_picked(
     not an absent constraint: it says nothing followed the passage anywhere, which is true
     of exactly one occurrence. Refusing to read it that way left the same wrong mark."""
     page = open_page(browser, serve(html))
-    landed = page.evaluate("""async () => {
+    chosen = page.evaluate_handle("""() => {
         const p = document.querySelectorAll('#edge p')[1];
         // Through the full stop, so that with the section below removed the passage is the
         // last thing the document says and its stored suffix comes out empty.
@@ -3393,17 +3411,11 @@ def test_a_repeated_passage_at_an_edge_anchors_where_it_was_picked(
         want.setStart(p.firstChild, at); want.setEnd(p.firstChild, at + phrase.length);
         const sel = getSelection(); sel.removeAllRanges(); sel.addRange(want);
         document.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
-        await new Promise(r => setTimeout(r, 60));
-        const fab = document.querySelector('.lf-fab-input');
-        if (fab.style.display !== 'block') return 'no button';
-        await new Promise(r => setTimeout(r, 60));
-        const painted = [...(CSS.highlights.get('lf-pending') ?? [])][0];
-        if (!painted) return 'no mark';
-        if (painted.compareBoundaryPoints(Range.START_TO_START, want) === 0) return true;
-        return painted.startContainer.parentElement.textContent.slice(0, 40);
+        return want.cloneRange();
     }""")
-    assert landed is True, (
-        f"the closing copy was picked, the mark went elsewhere ({landed})"
+    assert chosen.evaluate("range => range instanceof Range"), chosen.json_value()
+    assert selected_comment_marks_chosen_start(page, chosen), (
+        "the closing copy was picked, but the comment mark went elsewhere"
     )
 
 
@@ -3577,8 +3589,7 @@ def test_one_neighbour_is_not_enough_to_identify_a_revised_comment(browser, serv
     The thread keeps its section until the agent chooses its replacement passage."""
     url = serve(THIN_V1)
     page = open_page(browser, live_url(url))
-    with sending(page, "the comment on the passage with one neighbour"):
-        posted = page.evaluate("""async () => {
+    selected = page.evaluate("""() => {
             const p = document.querySelectorAll('#thin p')[0];
             const phrase = 'The version stamp never lands';
             const at = p.firstChild.data.indexOf(phrase);
@@ -3587,18 +3598,13 @@ def test_one_neighbour_is_not_enough_to_identify_a_revised_comment(browser, serv
             want.setEnd(p.firstChild, at + phrase.length);
             const sel = getSelection(); sel.removeAllRanges(); sel.addRange(want);
             document.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
-            await new Promise(r => setTimeout(r, 40));
-            const fab = document.querySelector('.lf-fab-input');
-            if (fab.style.display !== 'block') return 'no button';
-            await new Promise(r => setTimeout(r, 40));
-            fab.focus();
-            const box = document.querySelector('.lf-composer leaf-text');
-            box.value = 'does this hold?';
-            box.dispatchEvent(new Event('input', {bubbles: true}));
-            document.querySelector('.lf-composer button.lf-compose-submit').click();
             return true;
         }""")
-        assert posted is True, f"couldn't post the comment ({posted})"
+    assert selected is True, f"couldn't select the passage ({selected})"
+    open_selected_comment(page)
+    write(page.locator(".lf-composer leaf-text"), "does this hold?")
+    with sending(page, "the comment on the passage with one neighbour"):
+        page.locator(".lf-composer button.lf-compose-submit").click()
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
 
     d = serve.page_dir
@@ -3610,6 +3616,42 @@ def test_one_neighbour_is_not_enough_to_identify_a_revised_comment(browser, serv
         event for event in events_model.read_events(d) if event["kind"] == "reanchor"
     ]
     assert transition["anchor"] == {"section": "thin"}
+
+
+QUEUES_V1 = leaf_page(
+    "Queues",
+    """
+<h1 id="t">Queues</h1>
+<section id="queues">
+<h2>Each side has a queue of open items, and what an item is stays open</h2>
+<p>An item is anything open that one side owes the other.</p>
+</section>
+""",
+)
+QUEUES_V2 = QUEUES_V1.replace(
+    "Each side has a queue of open items, and what an item is stays open",
+    "The two queues today",
+)
+
+
+def test_a_thread_whose_quote_was_rewritten_keeps_its_words(browser, serve):
+    """A version that rewrites the words a comment quoted leaves its thread on their
+    section. The card keeps naming the quoted words rather than the section's new
+    heading, marked as changed, and those words still find the thread."""
+    quote = "what an item is stays open"
+    url = serve(QUEUES_V1, anchored=[("queues", quote)])
+    page = open_page(browser, live_url(url))
+    stamp_page(serve.page_dir, QUEUES_V2, "plain headings")
+    wait_for_revision(page, 2)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+
+    head = page.locator(".lf-thread-panel .lf-thread .lf-quote")
+    expect(head.locator(".lf-quote-label")).to_have_text(f"“{quote}”")
+    expect(head.locator(".lf-anchor-status")).to_have_text("Changed")
+
+    page.get_by_role("searchbox", name="Find in threads").fill("item is stays")
+    expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_have_count(1)
 
 
 def test_a_revised_example_travels_between_its_own_versions(browser, serve):
@@ -5080,7 +5122,7 @@ def test_a_diff_anchors_to_the_side_it_was_read_on(browser, serve):
     page.wait_for_function(
         "() => document.querySelector('lf-diff.lf-rendered') !== null"
     )
-    landed = page.evaluate("""async () => {
+    chosen = page.evaluate_handle("""() => {
         const skip = '.lf-ui, script, style';
         // Rooted at the shadow root: lf-diff renders in one (x-shadow), so the lines
         // this drags across are in the composed tree and not under the host element.
@@ -5110,16 +5152,11 @@ def test_a_diff_anchors_to_the_side_it_was_read_on(browser, serve):
             return 'the phrase sat in one node — colour never split it, so this proves nothing';
         const sel = getSelection(); sel.removeAllRanges(); sel.addRange(want);
         document.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
-        await new Promise(r => setTimeout(r, 40));
-        const fab = document.querySelector('.lf-fab-input');
-        if (fab.style.display !== 'block') return 'no button';
-        await new Promise(r => setTimeout(r, 40));
-        const painted = [...(CSS.highlights.get('lf-pending') ?? [])][0];
-        if (!painted) return 'no mark';
-        return painted.compareBoundaryPoints(Range.START_TO_START, want) === 0;
+        return want.cloneRange();
     }""")
-    assert landed is True, (
-        f"the added line was picked, the mark went elsewhere ({landed})"
+    assert chosen.evaluate("range => range instanceof Range"), chosen.json_value()
+    assert selected_comment_marks_chosen_start(page, chosen), (
+        "the added line was picked, but the comment mark went elsewhere"
     )
 
 
@@ -5430,9 +5467,10 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
         "crossesTokens": True,
         "endsAtTokenStart": True,
     }, selected
+    open_selected_comment(page)
     expect(page.locator(".lf-fab-bar")).to_be_visible()
     expect(page.locator("#lf-composer-quote")).to_contain_text("“request.token.id”")
-    expect(page.locator(".lf-fab-input")).not_to_be_focused()
+    expect(page.locator(".lf-fab-input")).to_be_focused()
     write(page.locator(".lf-fab-input"), "Review this expression.")
     with sending(page, "the comment on the selected expression"):
         page.keyboard.press("ControlOrMeta+Enter")
@@ -5831,6 +5869,8 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     page.locator(".lf-threads-toggle").click()
     panel_settled(page, False)
 
+    expect(thread.locator(f'.lf-msg[data-event="{reply["id"]}"]')).to_be_visible()
+
     question = append_carried_log_record(
         serve.page_dir,
         {
@@ -5868,7 +5908,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     # The inline seat holds arrivals that would move the on-screen diff. Opening its
     # notice makes the replies visible before comparing their workflow lines with
     # the panel's copy.
-    news = thread.get_by_role("button", name="3 new replies")
+    news = thread.get_by_role("button", name="2 new replies")
     expect(news).to_be_visible()
     news.click()
     for view, message_attr in ((thread, "data-event"), (panel_thread, "data-mid")):

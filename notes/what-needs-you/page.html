@@ -227,15 +227,11 @@
                 <kbd>t</kbd> keeps walking every open thread.
               </li>
               <li>
-                <strong>Working is a task</strong> (built, not yet landed).
-                <code>leaf status working --on</code> folds into the task commands:
-                <code>leaf task start ID "line"</code> takes an item in hand, your move
-                by its event id or a task, for the turn;
-                <code>leaf task open</code> takes a thread, a widget or
-                <code>page</code>; claims move from the status file into the log, and
-                <code>leaf status</code> keeps only waiting and idle. A start left after
-                its turn still reads stalled; merging that with unobserved is step 7.
-                See
+                <strong>Working is a task</strong> (next; you agreed in the
+                status-as-tasks thread). <code>leaf status working --on</code> folds
+                into the task commands: Working names an item, your move or a task, and
+                lasts the turn; claims move from the status file into the log; stalled
+                and unobserved become one state. See
                 <a href="#status-tasks">Working on something means working on a task</a>
                 and <a href="#working-on">What the agent can be working on</a>.
               </li>
@@ -746,6 +742,28 @@ stateDiagram-v2
               sets. Leaf fills it from the item in hand when the agent is answering
               something quickly, and the agent can replace it, for example with one line
               covering five threads at once.
+            </p>
+          </section>
+
+          <section id="task-shape-questions">
+            <h2>Hierarchy, and who says a task is done</h2>
+            <p>
+              <strong>Hierarchy.</strong> Leaf's tasks have no parent today: a task
+              names its subject (a thread) and nothing else. Pi's do, because its tasks
+              form an ownership tree. Two Leaf cases would want one: a task that answers
+              your message, and a task handed to another session by the one that
+              dispatched it. Step 4 covers the first, since Working names your move and
+              a task opened for it can record that move. The second waits for step 7. A
+              general tree can wait until a case needs more than those two links.
+            </p>
+            <p>
+              <strong>Who says it's done.</strong> Both, by the kind of result. Where
+              the result can be checked mechanically (a TODO written, a test passing, a
+              file moved), the agent ends the task as done. Where it is a judgment (a
+              design, a rewrite, a choice of wording), the agent reports it done and the
+              task lands on your queue to review; reading it accepts it, and replying
+              reopens it. That is step 6, and the agent's instructions say which case is
+              which, the way they already say when to ask with an Ask.
             </p>
           </section>
 

@@ -55,6 +55,7 @@ from render_harness import (
     _until,
     active_digit_bindings,
     compare_with,
+    expect_asks_answered,
     expect_banner_control_offered,
     hold_selection,
     holding,
@@ -812,14 +813,6 @@ def test_ask_addresses_are_screen_only_apparatus(browser, serve):
     expect(badges.first).to_be_hidden()
 
 
-@pytest.mark.xfail(
-    reason=(
-        "Native package scope prevents joined-control suppression of the Ask ring"
-        " on main 2bd9; CI run 37057440971."
-    ),
-    raises=AssertionError,
-    strict=False,
-)
 def test_a_card_group_taking_a_pick_reads_as_one_control(browser, serve):
     """The offer is the group's, made once, rather than a word written on every member.
 
@@ -1453,14 +1446,6 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
         )
 
 
-@pytest.mark.xfail(
-    reason=(
-        "Native package scope prevents joined-control suppression of the Ask ring"
-        " on main 2bd9; CI run 37057440971."
-    ),
-    raises=AssertionError,
-    strict=False,
-)
 def test_one_band_says_where_the_user_is_standing(browser, serve):
     """The user's band is drawn once, on the exact option row being worked.
 
@@ -2127,8 +2112,7 @@ def test_what_a_widget_paints_it_says_to_a_user_listening(browser, serve):
 
 def test_a_multiple_page_ask_waits_for_done(browser, serve):
     page = open_page(browser, serve(ASK_PAGE))
-    asks = page.locator(".lf-asks")
-    expect(asks).to_have_text("Asks 0/3")
+    expect_asks_answered(page, "0/3")
     assert (
         page.locator("#jobs").evaluate(
             "el => el.querySelector('.lf-another').nextElementSibling.tagName"
@@ -2142,17 +2126,17 @@ def test_a_multiple_page_ask_waits_for_done(browser, serve):
     page.locator("#job-mounts").click()
     page.locator("#job-camera").click()
     round_trip(page)
-    expect(asks).to_have_text("Asks 0/3")
+    expect_asks_answered(page, "0/3")
     expect(page.locator("#jobs .lf-done")).to_have_attribute("aria-pressed", "false")
 
     page.locator("#jobs .lf-done").click()
     round_trip(page)
-    expect(asks).to_have_text("Asks 1/3")
+    expect_asks_answered(page, "1/3")
     expect(page.locator("#jobs .lf-done")).to_have_attribute("aria-pressed", "true")
 
     page.locator("#br-steel").click()
     round_trip(page)
-    expect(asks).to_have_text("Asks 2/3")
+    expect_asks_answered(page, "2/3")
     expect(page.locator("#bracket .lf-done")).to_have_count(0)
 
 
@@ -2162,11 +2146,11 @@ def test_an_authored_multiple_pick_still_waits_for_done(browser, serve):
     )
     page = open_page(browser, serve(authored_pick))
     expect(page.locator("#job-mounts")).to_have_attribute("chosen", "")
-    expect(page.locator(".lf-asks")).to_have_text("Asks 0/3")
+    expect_asks_answered(page, "0/3")
 
     page.locator("#jobs .lf-done").click()
     round_trip(page)
-    expect(page.locator(".lf-asks")).to_have_text("Asks 1/3")
+    expect_asks_answered(page, "1/3")
 
 
 def test_a_pick_states_the_whole_set(browser, serve):

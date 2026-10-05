@@ -175,12 +175,12 @@ class CodexChild:
     """
 
     def __init__(self, cwd, prompt, *args, stderr, limit, timed_out, dirs=(), env=None):
-        from leaf_dev.harness import codex_home, environment, now
+        from leaf_dev.arms import MODELS, codex_home, environment, now
 
         self.cwd, self.prompt = cwd, prompt
         self.stderr, self.timed_out = stderr, timed_out
         self.queue, self.closing = deque(), False
-        self.final, self.now = "", now
+        self.final, self.now, self.model = "", now, MODELS["codex"]
         self.usage = None
         self.usage_baseline = None
         self.started_at = time.monotonic()
@@ -188,7 +188,7 @@ class CodexChild:
         options = {}
         values = iter(args)
         for name in values:
-            if name not in {"--model", "--tools", "--plugin-dir", "--resume"}:
+            if name not in {"--tools", "--plugin-dir", "--resume"}:
                 raise ValueError(f"unsupported Codex eval option: {name}")
             options[name] = next(values)
         self.options = options
@@ -245,7 +245,7 @@ class CodexChild:
                         "input_tokens": self.usage["inputTokens"],
                         "output_tokens": self.usage["outputTokens"],
                     }
-            self.queue.append({**record, "host": "codex", "received_at": self.now()})
+            self.queue.append({**record, "harness": "codex", "received_at": self.now()})
 
     def __enter__(self):
         self.stderr.write_text("")
@@ -260,10 +260,8 @@ class CodexChild:
                 "sandbox": "read-only"
                 if self.options.get("--tools") == "Read"
                 else "danger-full-access",
-                "model": self.options.get("--model", "gpt-6.1-sol"),
+                "model": self.model,
             }
-            if not params["model"].startswith("gpt-"):
-                params["model"] = "gpt-6.1-sol"
             if session := self.options.get("--resume"):
                 params["threadId"] = session
             self.task.thread = self.task.request(

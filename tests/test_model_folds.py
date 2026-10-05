@@ -158,6 +158,117 @@ def test_folds_without_summary_prose_keep_corrected_originals():
     ]
 
 
+def test_ephemeral_updates_wait_for_an_answer_and_preserve_user_interjections():
+    """Only marked progress folds, including one-message runs split by the user."""
+    identity = {"author": "agent", "agent": "Codex", "session": "session-1"}
+    messages = (
+        {"kind": "comment", "text": "Check the schedule."},
+        {
+            "kind": "reply",
+            **identity,
+            "parent": "e1",
+            "text": "Checking mounts.",
+            "ephemeral": True,
+        },
+        {"kind": "reply", "parent": "e1", "text": "And the camera?"},
+        {
+            "kind": "reply",
+            **identity,
+            "parent": "e1",
+            "text": "Checking the camera.",
+            "ephemeral": True,
+        },
+    )
+    pending = model.threads(model.reading(HUB, messages))["e1"]
+    assert pending["summaries"] == []
+
+    answer = {"kind": "reply", **identity, "parent": "e1", "text": "Both fit."}
+    later_progress = {
+        "kind": "reply",
+        **identity,
+        "parent": "e1",
+        "text": "Checking the next week.",
+        "ephemeral": True,
+    }
+    completed = model.threads(model.reading(HUB, (*messages, answer, later_progress)))[
+        "e1"
+    ]
+    assert [
+        (fold["covers"], fold["label"], fold["text"], fold["trigger"])
+        for fold in completed["summaries"]
+    ] == [
+        (["e2"], "Previous updates", "", "e5"),
+        (["e4"], "Previous updates", "", "e5"),
+    ]
+    assert [message["text"] for message in completed["msgs"]] == [
+        "Check the schedule.",
+        "Checking mounts.",
+        "And the camera?",
+        "Checking the camera.",
+        "Both fit.",
+        "Checking the next week.",
+    ]
+
+
+def test_explicit_summaries_own_progress_overlap_and_progress_edits_keep_the_fold():
+    identity = {"author": "agent", "agent": "Codex", "session": "session-1"}
+    messages = (
+        {"kind": "comment", "text": "Check the schedule."},
+        {
+            "kind": "reply",
+            **identity,
+            "parent": "e1",
+            "text": "Checking mounts.",
+            "ephemeral": True,
+        },
+        {
+            "kind": "reply",
+            **identity,
+            "parent": "e1",
+            "text": "Checking the camera.",
+            "ephemeral": True,
+        },
+        {"kind": "reply", **identity, "parent": "e1", "text": "Both fit."},
+    )
+    corrected = model.threads(
+        model.reading(
+            HUB,
+            (
+                *messages,
+                {
+                    "kind": "edit",
+                    **identity,
+                    "message": "e2",
+                    "text": "Mounts checked.",
+                },
+            ),
+        )
+    )["e1"]
+    assert [fold["covers"] for fold in corrected["summaries"]] == [["e2", "e3"]]
+    assert corrected["msgs"][1]["text"] == "Mounts checked."
+
+    explicit = model.threads(
+        model.reading(
+            HUB,
+            (
+                *messages,
+                {
+                    "kind": "summary",
+                    **identity,
+                    "thread": "e1",
+                    "from": "e1",
+                    "through": "e2",
+                    "text": "The mounts were checked.",
+                },
+            ),
+        )
+    )["e1"]
+    assert [(fold["covers"], fold["text"]) for fold in explicit["summaries"]] == [
+        (["e1", "e2"], "The mounts were checked."),
+        (["e3"], ""),
+    ]
+
+
 def test_a_decision_on_any_message_settles_the_thread_it_belongs_to():
     """A user resolves the message in front of them, which is rarely the first.
 
@@ -234,7 +345,7 @@ def test_a_retraction_outlives_the_version_that_made_it():
 
 
 def test_every_served_agent_record_carries_the_name_it_is_shown_under():
-    """An agent command run outside a host session writes no `agent`, and the
+    """An agent command run outside a harness session writes no `agent`, and the
     reading names it `Agent` wherever it reaches the browser: a thread's messages,
     its root, the event that closed it, and the activity feed's rows. A named
     session keeps its own name, and a user's record carries none."""

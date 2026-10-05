@@ -31,7 +31,7 @@ every transport"). Once the complete envelope is in context, take its
 `acknowledge` route (`leaf delivery ack <id>`) before working or replying, so the
 user's moves read **Picked up**. Large input arrives as a `leaf delivery read <id>`
 pointer; read the whole envelope before acknowledging it. Hook completion cannot
-prove receipt: a host timeout discards its output. Input that arrives as a turn ends
+prove receipt: a harness timeout discards its output. Input that arrives as a turn ends
 comes through the Stop hook the same way.
 
 To pick up a page this session did not serve, run `leaf page claim <page>`; the

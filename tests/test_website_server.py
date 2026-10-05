@@ -44,6 +44,7 @@ from leaf.files import revision_path
 from leaf.hosting import LeafHTTPServer
 from leaf.http import page_delivery
 from leaf.machine import pid_alive
+from leaf.render_checks import rendered
 from leaf.revision_artifact import capture_artifact
 from leaf.revision_delivery import compose_document
 from leaf.served_state import page as served_page
@@ -74,27 +75,27 @@ def accept_in_turn(thread_id: str, turn: str = "app-server-turn") -> None:
 
 
 @pytest.fixture(autouse=True)
-def _no_host_outlives_its_test(monkeypatch):
-    """Close every website host a test made, as `_no_page_outlives_its_test` stops
+def _no_harness_outlives_its_test(monkeypatch):
+    """Close every website harness a test made, as `_no_page_outlives_its_test` stops
     every page server.
 
-    Closing stops the App Server a host started and releases the waiter lease it
-    holds over a Codex thread. The host is the subject here, built in each test
+    Closing stops the App Server a harness started and releases the waiter lease it
+    holds over a Codex thread. The harness is the subject here, built in each test
     body with the paths that test needs, so the sweep takes every construction
     rather than routing them through a fixture. `close` is idempotent, so a test
     whose subject is closing still closes where its assertion reads the result.
     """
     made = []
 
-    class Swept(website_server.WebsiteCodexHost):
+    class Swept(website_server.WebsiteCodexHarness):
         def __init__(self, *arguments, **named):
             super().__init__(*arguments, **named)
             made.append(self)
 
-    monkeypatch.setattr(website_server, "WebsiteCodexHost", Swept)
+    monkeypatch.setattr(website_server, "WebsiteCodexHarness", Swept)
     yield
-    for host in made:
-        host.close()
+    for harness in made:
+        harness.close()
 
 
 # The response headers as the message, not a plain dict: header names are
@@ -137,7 +138,7 @@ def write_manifest(site: Path, pages: dict[str, tuple[str, str]]) -> None:
 
 
 def hosted_follower(
-    host,
+    harness,
     page_dir,
     prepared,
     socket=None,
@@ -156,7 +157,7 @@ def hosted_follower(
     admitted = start_session_turn(thread_id, turn_id, session_record(thread_id))
     assert admitted is not None
     return website_server.HostedTurn(
-        host,
+        harness,
         page_dir,
         thread_id,
         prepared.payload["id"],
@@ -176,7 +177,7 @@ def hosted_follower(
     )
 
 
-def unfollowed_turn(host, page_dir, *, following=None, event_ids=("first-event",)):
+def unfollowed_turn(harness, page_dir, *, following=None, event_ids=("first-event",)):
     """A turn whose own following is stood in for, to reach what comes after it.
 
     What a turn's ending hands on is the subject below, not how it ended, so these
@@ -184,7 +185,7 @@ def unfollowed_turn(host, page_dir, *, following=None, event_ids=("first-event",
     and the default is a turn that ended without incident.
     """
     turn = website_server.HostedTurn(
-        host,
+        harness,
         page_dir,
         "hosted-thread",
         "delivery-1",
@@ -196,7 +197,7 @@ def unfollowed_turn(host, page_dir, *, following=None, event_ids=("first-event",
     return turn
 
 
-class FakeCodexHost:
+class FakeCodexHarness:
     def __init__(self):
         self.attached = []
 
@@ -213,7 +214,7 @@ class FakeCodexHost:
     def failure_receipt(
         self, page_dir: Path, event_id: str, failure: str
     ) -> dict | None:
-        return website_server.WebsiteCodexHost("codex").failure_receipt(
+        return website_server.WebsiteCodexHarness("codex").failure_receipt(
             page_dir, event_id, failure
         )
 
@@ -330,16 +331,16 @@ def test_agent_logs_keep_every_event_in_a_batched_turn_searchable(capsys):
 
 
 @pytest.mark.parametrize("status", ["active", "idle", "systemError", "notLoaded"])
-def test_the_website_host_delivers_into_the_existing_codex_thread(
+def test_the_website_harness_delivers_into_the_existing_codex_thread(
     page_dir, tmp_path, monkeypatch, status
 ):
-    host = website_server.WebsiteCodexHost(
+    harness = website_server.WebsiteCodexHarness(
         "codex",
         tmp_path / "app-server.sock",
         tmp_path / "app-server.log",
     )
     process = type("Process", (), {"pid": 41})()
-    monkeypatch.setattr(host, "_ensure_server", lambda: process)
+    monkeypatch.setattr(harness, "_ensure_server", lambda: process)
     monkeypatch.setattr(
         website_server,
         "page_claim",
@@ -370,11 +371,11 @@ def test_the_website_host_delivers_into_the_existing_codex_thread(
             )
         return {"thread": {"id": "hosted-thread", "status": {"type": status}}}
 
-    monkeypatch.setattr(host, "_request", request)
-    monkeypatch.setattr(host, "_hold_waiter", lambda *_: None)
+    monkeypatch.setattr(harness, "_request", request)
+    monkeypatch.setattr(harness, "_hold_waiter", lambda *_: None)
     started = []
     monkeypatch.setattr(
-        host,
+        harness,
         "_start_turn",
         lambda *args: started.append(args) or ("hosted-thread", "turn-2"),
     )
@@ -417,12 +418,12 @@ def test_the_website_host_delivers_into_the_existing_codex_thread(
     )
     interrupted = []
     monkeypatch.setattr(
-        host,
+        harness,
         "_end_unfollowed_turn",
         lambda socket, thread, pending, event: interrupted.append((thread, event)),
     )
 
-    thread_id = host.attach(page_dir, "user-event")
+    thread_id = harness.attach(page_dir, "user-event")
 
     assert thread_id == "hosted-thread"
     assert requests == [
@@ -458,18 +459,18 @@ def test_an_active_thread_has_its_unwatched_turn_stopped_before_the_next_starts(
     interrupt without a turn id and says the turn ended on the same subscription,
     which is what makes the thread the new delivery's.
     """
-    harness = website_server.website_harness("hosted-thread", os.getpid())
+    declared = website_server.website_harness("hosted-thread", os.getpid())
     append_event(
         page_dir,
         {"kind": "comment", "author": "user", "text": "first"},
     )
-    website_server.prepare_codex_delivery(page_dir, harness)
+    website_server.prepare_codex_delivery(page_dir, declared)
     accept_in_turn("hosted-thread", "active-turn")
     second = append_event(
         page_dir,
         {"kind": "comment", "author": "user", "text": "second"},
     )
-    host = website_server.WebsiteCodexHost("codex")
+    harness = website_server.WebsiteCodexHarness("codex")
     process = type("Process", (), {"pid": os.getpid()})()
     sent = []
 
@@ -499,10 +500,10 @@ def test_an_active_thread_has_its_unwatched_turn_stopped_before_the_next_starts(
         )
         return {"thread": {"id": "hosted-thread"}}
 
-    monkeypatch.setattr(host, "_request", request)
-    monkeypatch.setattr(host, "_send", send)
-    monkeypatch.setattr(host, "_hold_waiter", lambda *_: None)
-    assert host._resume_and_start(
+    monkeypatch.setattr(harness, "_request", request)
+    monkeypatch.setattr(harness, "_send", send)
+    monkeypatch.setattr(harness, "_hold_waiter", lambda *_: None)
+    assert harness._resume_and_start(
         page_dir,
         "hosted-thread",
         process,
@@ -526,7 +527,7 @@ def test_attach_accepts_its_named_event_after_an_older_reply_slice(
         page_dir,
         {"kind": "comment", "author": "user", "text": "second"},
     )
-    host = website_server.WebsiteCodexHost("codex")
+    harness = website_server.WebsiteCodexHarness("codex")
 
     class Process:
         pid = os.getpid()
@@ -555,11 +556,11 @@ def test_attach_accepts_its_named_event_after_an_older_reply_slice(
         accept("second-turn")
         return True
 
-    monkeypatch.setattr(host, "_ensure_server", lambda: process)
-    monkeypatch.setattr(host, "_start_thread", start_thread)
-    monkeypatch.setattr(host, "_resume_and_start", resume_and_start)
+    monkeypatch.setattr(harness, "_ensure_server", lambda: process)
+    monkeypatch.setattr(harness, "_start_thread", start_thread)
+    monkeypatch.setattr(harness, "_resume_and_start", resume_and_start)
 
-    assert host.attach(page_dir, second["id"]) == "hosted-thread"
+    assert harness.attach(page_dir, second["id"]) == "hosted-thread"
     assert deliveries == [[first["id"]], [second["id"]]]
     assert (
         website_server.pending_agent_inputs(page_dir)[second["id"]] == "hosted-thread"
@@ -575,7 +576,7 @@ def test_attach_rechecks_a_move_answered_while_the_provider_starts(
         page_dir,
         {"kind": "comment", "author": "user", "text": "edit the page"},
     )
-    host = website_server.WebsiteCodexHost("codex")
+    harness = website_server.WebsiteCodexHarness("codex")
     if existing_claim:
         with website_server.PageTransaction(page_dir) as page:
             page.take_claim(
@@ -586,18 +587,18 @@ def test_attach_rechecks_a_move_answered_while_the_provider_starts(
         website_server.write_failure_receipt(page_dir, comment["id"], "startup_failed")
         return SimpleNamespace(pid=os.getpid())
 
-    monkeypatch.setattr(host, "_ensure_server", ensure_server)
+    monkeypatch.setattr(harness, "_ensure_server", ensure_server)
     monkeypatch.setattr(
-        host,
+        harness,
         "_start_thread",
         lambda *_: pytest.fail("the answered move started a turn"),
     )
     monkeypatch.setattr(
-        host,
+        harness,
         "_resume_and_start",
         lambda *_: pytest.fail("the answered move resumed a turn"),
     )
-    assert host.attach(page_dir, comment["id"]) is None
+    assert harness.attach(page_dir, comment["id"]) is None
     assert website_server.pending_agent_inputs(page_dir) == {}
 
 
@@ -608,9 +609,9 @@ def test_attach_leaves_an_uncertain_delivery_to_its_reconciliation_follower(
         page_dir,
         {"kind": "comment", "author": "user", "text": "first"},
     )
-    host = website_server.WebsiteCodexHost("codex")
+    harness = website_server.WebsiteCodexHarness("codex")
     process = type("Process", (), {"pid": os.getpid()})()
-    monkeypatch.setattr(host, "_ensure_server", lambda: process)
+    monkeypatch.setattr(harness, "_ensure_server", lambda: process)
     dispatches = []
 
     def uncertain_start(target, running, event_id):
@@ -618,28 +619,28 @@ def test_attach_leaves_an_uncertain_delivery_to_its_reconciliation_follower(
             target, website_server.website_harness("hosted-thread", running.pid)
         )
         dispatches.append((event_id, prepared.payload["id"]))
-        host.following_threads.add("hosted-thread")
+        harness.following_threads.add("hosted-thread")
         return "hosted-thread"
 
-    monkeypatch.setattr(host, "_start_thread", uncertain_start)
+    monkeypatch.setattr(harness, "_start_thread", uncertain_start)
     monkeypatch.setattr(
-        host,
+        harness,
         "_resume_and_start",
         lambda *_: pytest.fail("the attach loop redispatched an uncertain delivery"),
     )
 
-    assert host.attach(page_dir, comment["id"]) == "hosted-thread"
-    assert host.attach(page_dir, comment["id"]) == "hosted-thread"
+    assert harness.attach(page_dir, comment["id"]) == "hosted-thread"
+    assert harness.attach(page_dir, comment["id"]) == "hosted-thread"
     assert len(dispatches) == 1
 
 
 def test_a_turn_follower_releases_its_seat_before_continuing(page_dir, monkeypatch):
-    host = website_server.WebsiteCodexHost("codex")
-    host.following_threads.add("hosted-thread")
+    harness = website_server.WebsiteCodexHarness("codex")
+    harness.following_threads.add("hosted-thread")
     rescans = []
 
     def next_event(target, *, excluding):
-        assert "hosted-thread" not in host.following_threads
+        assert "hosted-thread" not in harness.following_threads
         rescans.append((target, excluding))
         return "next-event"
 
@@ -647,12 +648,12 @@ def test_a_turn_follower_releases_its_seat_before_continuing(page_dir, monkeypat
     continued = []
 
     def attach(target, event_id):
-        assert "hosted-thread" not in host.following_threads
+        assert "hosted-thread" not in harness.following_threads
         continued.append((target, event_id))
         return "hosted-thread"
 
-    monkeypatch.setattr(host, "attach", attach)
-    host._run_follow_turn(unfollowed_turn(host, page_dir))
+    monkeypatch.setattr(harness, "attach", attach)
+    harness._run_follow_turn(unfollowed_turn(harness, page_dir))
 
     assert rescans == [(page_dir, ("first-event",))]
     assert continued == [(page_dir, "next-event")]
@@ -666,7 +667,7 @@ def test_continuation_reaches_the_next_move_when_the_named_one_settles(
         append_event(page_dir, {"kind": "comment", "author": "user", "text": text})
         for text in ("first", "second")
     ]
-    host = website_server.WebsiteCodexHost("codex")
+    harness = website_server.WebsiteCodexHarness("codex")
     scan = website_server.next_unaccepted_agent_event
 
     def settling_scan(target, *, excluding):
@@ -679,15 +680,15 @@ def test_continuation_reaches_the_next_move_when_the_named_one_settles(
 
     def start(target, process, event_id):
         starts.append(event_id)
-        host.following_threads.add("hosted-thread")
+        harness.following_threads.add("hosted-thread")
         return "hosted-thread"
 
     monkeypatch.setattr(website_server, "next_unaccepted_agent_event", settling_scan)
     monkeypatch.setattr(
-        host, "_ensure_server", lambda: SimpleNamespace(pid=os.getpid())
+        harness, "_ensure_server", lambda: SimpleNamespace(pid=os.getpid())
     )
-    monkeypatch.setattr(host, "_start_thread", start)
-    host._continue_page(page_dir, ())
+    monkeypatch.setattr(harness, "_start_thread", start)
+    harness._continue_page(page_dir, ())
 
     assert first["id"] not in website_server.pending_agent_inputs(page_dir)
     assert second["id"] in website_server.pending_agent_inputs(page_dir)
@@ -720,14 +721,14 @@ def test_a_continuation_that_cannot_start_receipts_the_move_it_was_for(
         page_dir,
         {"kind": "comment", "author": "user", "text": "edit the page"},
     )
-    host = website_server.WebsiteCodexHost("codex")
-    host.following_threads.add("hosted-thread")
+    harness = website_server.WebsiteCodexHarness("codex")
+    harness.following_threads.add("hosted-thread")
 
     def attach(target, event_id):
         raise error
 
-    monkeypatch.setattr(host, "attach", attach)
-    host._run_follow_turn(unfollowed_turn(host, page_dir))
+    monkeypatch.setattr(harness, "attach", attach)
+    harness._run_follow_turn(unfollowed_turn(harness, page_dir))
 
     [receipt] = [event for event in read_events(page_dir) if event["kind"] == "reply"]
     assert receipt["responds"] == comment["id"]
@@ -756,16 +757,16 @@ def test_a_move_queued_behind_one_that_could_not_start_is_reached_too(
         append_event(page_dir, {"kind": "comment", "author": "user", "text": text})
         for text in ("edit the page", "and the title")
     ]
-    host = website_server.WebsiteCodexHost("codex")
-    host.following_threads.add("hosted-thread")
+    harness = website_server.WebsiteCodexHarness("codex")
+    harness.following_threads.add("hosted-thread")
     attempted = []
 
     def attach(target, event_id):
         attempted.append(event_id)
         raise RuntimeError("Codex App Server did not start a turn: refused")
 
-    monkeypatch.setattr(host, "attach", attach)
-    host._run_follow_turn(unfollowed_turn(host, page_dir))
+    monkeypatch.setattr(harness, "attach", attach)
+    harness._run_follow_turn(unfollowed_turn(harness, page_dir))
 
     assert attempted == [comment["id"] for comment in comments]
     receipts = [event for event in read_events(page_dir) if event["kind"] == "reply"]
@@ -786,22 +787,22 @@ def test_a_follower_that_faults_still_hands_the_page_on(page_dir, monkeypatch):
         page_dir,
         {"kind": "comment", "author": "user", "text": "edit the page"},
     )
-    host = website_server.WebsiteCodexHost("codex")
-    host.following_threads.add("hosted-thread")
+    harness = website_server.WebsiteCodexHarness("codex")
+    harness.following_threads.add("hosted-thread")
 
     def fault():
         raise RuntimeError("closing the turn faulted")
 
     continued = []
     monkeypatch.setattr(
-        host, "attach", lambda target, event_id: continued.append(event_id)
+        harness, "attach", lambda target, event_id: continued.append(event_id)
     )
 
     with pytest.raises(RuntimeError, match="closing the turn faulted"):
-        host._run_follow_turn(unfollowed_turn(host, page_dir, following=fault))
+        harness._run_follow_turn(unfollowed_turn(harness, page_dir, following=fault))
 
     assert continued == [comment["id"]]
-    assert "hosted-thread" not in host.following_threads
+    assert "hosted-thread" not in harness.following_threads
 
 
 def test_an_ending_on_an_unopenable_page_still_answers_every_move(
@@ -824,16 +825,16 @@ def test_an_ending_on_an_unopenable_page_still_answers_every_move(
         "<!doctype html><html><body><main><section id='a'>hi</section></main>"
         "</body></html>"
     )
-    host = website_server.WebsiteCodexHost("codex")
-    host.following_threads.add("hosted-thread")
+    harness = website_server.WebsiteCodexHarness("codex")
+    harness.following_threads.add("hosted-thread")
     ending = ValueError("closing the turn faulted on the page it left")
 
     def fault():
         raise ending
 
     with pytest.raises(ValueError) as raised:
-        host._run_follow_turn(
-            unfollowed_turn(host, page_dir, following=fault, event_ids=())
+        harness._run_follow_turn(
+            unfollowed_turn(harness, page_dir, following=fault, event_ids=())
         )
 
     # The ending's own fault, not the hand-on's complaint about the same page.
@@ -861,14 +862,14 @@ def test_a_start_that_fails_on_its_connection_is_recorded_like_any_other(
         page_dir,
         {"kind": "comment", "author": "user", "text": "edit the page"},
     )
-    host = website_server.WebsiteCodexHost("codex")
+    harness = website_server.WebsiteCodexHarness("codex")
 
     def refuse():
         raise ConnectionClosedError(None, None)
 
-    monkeypatch.setattr(host, "_ensure_server", refuse)
+    monkeypatch.setattr(harness, "_ensure_server", refuse)
     with pytest.raises(ConnectionClosedError):
-        host.attach(page_dir, comment["id"])
+        harness.attach(page_dir, comment["id"])
 
     [record] = [
         json.loads(line)
@@ -892,7 +893,7 @@ def test_hosted_agent_receives_the_response_instructions_and_delivery(
     event = append_event(
         page_dir, {"kind": "comment", "author": "user", "text": "Use backfill first."}
     )
-    host = website_server.WebsiteCodexHost("codex")
+    harness = website_server.WebsiteCodexHarness("codex")
     outgoing = {}
 
     def request(method, params, before_close=None):
@@ -905,10 +906,10 @@ def test_hosted_agent_receives_the_response_instructions_and_delivery(
         outgoing[method] = params
         return {"turn": {"id": "initial-turn"}}
 
-    monkeypatch.setattr(host, "_request", request)
-    monkeypatch.setattr(host, "_send", send)
+    monkeypatch.setattr(harness, "_request", request)
+    monkeypatch.setattr(harness, "_send", send)
     assert (
-        host._start_thread(page_dir, SimpleNamespace(pid=os.getpid()), event["id"])
+        harness._start_thread(page_dir, SimpleNamespace(pid=os.getpid()), event["id"])
         == "hosted-thread"
     )
     payload = json.loads(outgoing["turn/start"]["toolOutput"]["output"])
@@ -942,7 +943,7 @@ def test_hosted_agent_receives_the_response_instructions_and_delivery(
 
 
 def test_the_website_task_is_a_scoped_leaf_codex_thread(page_dir, monkeypatch):
-    host = website_server.WebsiteCodexHost("codex")
+    harness = website_server.WebsiteCodexHarness("codex")
     requests = []
     sent = []
     prepared = []
@@ -954,13 +955,13 @@ def test_the_website_task_is_a_scoped_leaf_codex_thread(page_dir, monkeypatch):
             before_close("socket", result, [])
         return result
 
-    monkeypatch.setattr(host, "_request", request)
+    monkeypatch.setattr(harness, "_request", request)
 
     def send(socket, method, params, pending=None):
         sent.append((socket, method, params, pending))
         return {"turn": {"id": "initial-turn"}}
 
-    monkeypatch.setattr(host, "_send", send)
+    monkeypatch.setattr(harness, "_send", send)
     monkeypatch.setattr(
         website_server,
         "prepare_codex_delivery",
@@ -971,7 +972,7 @@ def test_the_website_task_is_a_scoped_leaf_codex_thread(page_dir, monkeypatch):
             )
         ),
     )
-    assert host._start_thread(
+    assert harness._start_thread(
         page_dir, type("Process", (), {"pid": 41})(), "user-event"
     ) == ("hosted-thread")
     assert requests == [
@@ -1160,7 +1161,7 @@ def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatc
     site_root = tmp_path / "site"
     site_root.mkdir()
     monkeypatch.setenv("LEAF_SITE_ROOT", str(site_root))
-    host = website_server.WebsiteCodexHost(
+    harness = website_server.WebsiteCodexHarness(
         "codex",
         tmp_path / "app-server.sock",
         tmp_path / "app-server.log",
@@ -1168,7 +1169,7 @@ def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatc
     launched = {}
 
     class Process:
-        """Running until it is told to stop, which is what the host does with it."""
+        """Running until it is told to stop, which is what the harness does with it."""
 
         def __init__(self):
             self.stopped = False
@@ -1184,12 +1185,12 @@ def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatc
 
     def popen(command, **options):
         launched.update(command=command, options=options)
-        host.socket_path.touch()
+        harness.socket_path.touch()
         return Process()
 
     monkeypatch.setattr(website_server.subprocess, "Popen", popen)
 
-    assert host._ensure_server() is not None
+    assert harness._ensure_server() is not None
     path = launched["options"]["env"]["PATH"].split(os.pathsep)
     assert shutil.which("leaf", path=path[0]) == website_server.LEAF_COMMAND
     assert "LEAF_REPLY" not in launched["options"]["env"]
@@ -1200,23 +1201,23 @@ def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatc
         "codex",
         "app-server",
         "--listen",
-        host.endpoint,
+        harness.endpoint,
     ]
     # Measured 2026-09-17: adding a "declare each step" instruction here made the turn
     # run a closing `resolve` and never reply, which `leaf-dev verify-site local` caught. The
     # hosted page's sentence comes from the steps App Server watches instead, which the
     # activity fold prefers over Leaf's own claim wording for exactly this reason. The
     # shared contract describes `leaf status`, so what the agent receives has to hand
-    # the status to the host.
+    # the status to the harness.
     instructions = " ".join(website_server.CODEX_INSTRUCTIONS.split())
-    assert "Leave the page's status to the host" in instructions
+    assert "Leave the page's status to the harness" in instructions
     assert "leaf page check" not in instructions
 
 
 def test_a_timed_out_app_server_is_stopped_before_startup_retries(
     tmp_path, monkeypatch
 ):
-    host = website_server.WebsiteCodexHost(
+    harness = website_server.WebsiteCodexHarness(
         "codex",
         tmp_path / "app-server.sock",
         tmp_path / "app-server.log",
@@ -1240,7 +1241,7 @@ def test_a_timed_out_app_server_is_stopped_before_startup_retries(
         process = Process()
         processes.append(process)
         if len(processes) == 2:
-            host.socket_path.touch()
+            harness.socket_path.touch()
         return process
 
     monkeypatch.setattr(website_server.subprocess, "Popen", popen)
@@ -1252,15 +1253,15 @@ def test_a_timed_out_app_server_is_stopped_before_startup_retries(
     )
 
     with pytest.raises(RuntimeError, match="did not become ready"):
-        host._ensure_server()
+        harness._ensure_server()
 
     assert processes[0].stopped
-    assert host.process is None
-    assert host._ensure_server() is processes[1]
+    assert harness.process is None
+    assert harness._ensure_server() is processes[1]
 
 
 def test_an_attach_waiting_on_failed_prewarm_retries_startup(page_dir, monkeypatch):
-    host = website_server.WebsiteCodexHost("codex")
+    harness = website_server.WebsiteCodexHarness("codex")
     prewarm_started = threading.Event()
     fail_prewarm = threading.Event()
     calls = []
@@ -1274,12 +1275,12 @@ def test_an_attach_waiting_on_failed_prewarm_retries_startup(page_dir, monkeypat
             raise RuntimeError("startup failed")
         return process
 
-    monkeypatch.setattr(host, "_ensure_server", ensure_server)
-    monkeypatch.setattr(host, "_warm_leaf_cli", lambda: None)
+    monkeypatch.setattr(harness, "_ensure_server", ensure_server)
+    monkeypatch.setattr(harness, "_warm_leaf_cli", lambda: None)
     monkeypatch.setattr(website_server, "page_claim", lambda page: None)
     delivered = []
     monkeypatch.setattr(
-        host,
+        harness,
         "_start_thread",
         lambda *args: delivered.append(True) or "hosted-thread",
     )
@@ -1289,24 +1290,26 @@ def test_an_attach_waiting_on_failed_prewarm_retries_startup(page_dir, monkeypat
         lambda *_: {"user-event": "hosted-thread" if delivered else None},
     )
 
-    prewarm = host.prewarm()
-    assert prewarm_started.wait(timeout=STATED_TIMEOUT)
+    prewarm = harness.prewarm()
+    assert prewarm_started.wait(timeout=STATED_TIMEOUT), "the prewarm never started"
     attached = []
     request = threading.Thread(
-        target=lambda: attached.append(host.attach(page_dir, "user-event"))
+        target=lambda: attached.append(harness.attach(page_dir, "user-event"))
     )
     request.start()
     assert calls == [None]
     fail_prewarm.set()
     prewarm.join(timeout=STATED_TIMEOUT)
+    assert not prewarm.is_alive(), "the failed prewarm never ended"
     request.join(timeout=STATED_TIMEOUT)
+    assert not request.is_alive(), "the attach never returned after the prewarm failed"
 
     assert attached == ["hosted-thread"]
     assert calls == [None, None]
 
 
 def test_duplicate_attaches_share_one_delivery_start(page_dir, monkeypatch):
-    host = website_server.WebsiteCodexHost("codex")
+    harness = website_server.WebsiteCodexHarness("codex")
     process = type("Process", (), {"pid": 41})()
     started = threading.Event()
     release = threading.Event()
@@ -1319,7 +1322,7 @@ def test_duplicate_attaches_share_one_delivery_start(page_dir, monkeypatch):
         "pending_agent_inputs",
         lambda *_: {"user-event": accepted[0] if accepted else None},
     )
-    monkeypatch.setattr(host, "_ensure_server", lambda: process)
+    monkeypatch.setattr(harness, "_ensure_server", lambda: process)
     monkeypatch.setattr(website_server, "page_claim", lambda page: None)
 
     def start_thread(*args):
@@ -1329,33 +1332,39 @@ def test_duplicate_attaches_share_one_delivery_start(page_dir, monkeypatch):
         accepted.append("hosted-thread")
         return "hosted-thread"
 
-    monkeypatch.setattr(host, "_start_thread", start_thread)
+    monkeypatch.setattr(harness, "_start_thread", start_thread)
     attached = []
     first = threading.Thread(
-        target=lambda: attached.append(host.attach(page_dir, "user-event"))
+        target=lambda: attached.append(harness.attach(page_dir, "user-event"))
     )
 
     def attach_second():
         second_called.set()
-        attached.append(host.attach(page_dir, "user-event"))
+        attached.append(harness.attach(page_dir, "user-event"))
 
     second = threading.Thread(target=attach_second)
     first.start()
-    assert started.wait(timeout=STATED_TIMEOUT)
+    assert started.wait(timeout=STATED_TIMEOUT), (
+        "the first attach never started its turn"
+    )
     second.start()
-    assert second_called.wait(timeout=STATED_TIMEOUT)
+    assert second_called.wait(timeout=STATED_TIMEOUT), (
+        "the second attach was never called"
+    )
     release.set()
     first.join(timeout=STATED_TIMEOUT)
+    assert not first.is_alive(), "the first attach never returned"
     second.join(timeout=STATED_TIMEOUT)
+    assert not second.is_alive(), "the second attach never returned"
 
     assert attached == ["hosted-thread", "hosted-thread"]
     assert start_calls == [None]
 
 
-def test_the_website_host_prewarms_app_server_and_leaf_cli_in_the_background(
+def test_the_website_harness_prewarms_app_server_and_leaf_cli_in_the_background(
     monkeypatch,
 ):
-    host = website_server.WebsiteCodexHost("codex")
+    harness = website_server.WebsiteCodexHarness("codex")
     app_started = threading.Event()
     leaf_started = threading.Event()
     leaf_finished = threading.Event()
@@ -1371,23 +1380,29 @@ def test_the_website_host_prewarms_app_server_and_leaf_cli_in_the_background(
         release_leaf.wait(timeout=STATED_TIMEOUT)
         leaf_finished.set()
 
-    monkeypatch.setattr(host, "_ensure_server", ensure_server)
-    monkeypatch.setattr(host, "_warm_leaf_cli", warm_leaf_cli)
+    monkeypatch.setattr(harness, "_ensure_server", ensure_server)
+    monkeypatch.setattr(harness, "_warm_leaf_cli", warm_leaf_cli)
 
-    thread = host.prewarm()
+    thread = harness.prewarm()
 
-    assert app_started.wait(timeout=STATED_TIMEOUT)
-    assert leaf_started.wait(timeout=STATED_TIMEOUT)
+    assert app_started.wait(timeout=STATED_TIMEOUT), (
+        "the prewarm never began starting the app server"
+    )
+    assert leaf_started.wait(timeout=STATED_TIMEOUT), (
+        "the prewarm never began warming the leaf CLI"
+    )
     assert thread.is_alive()
     release_app.set()
     thread.join(timeout=STATED_TIMEOUT)
     assert not thread.is_alive()
     release_leaf.set()
-    assert leaf_finished.wait(timeout=STATED_TIMEOUT)
+    assert leaf_finished.wait(timeout=STATED_TIMEOUT), (
+        "the leaf CLI warm-up never finished"
+    )
 
 
 def test_the_leaf_cli_prewarm_runs_the_installed_command(monkeypatch):
-    host = website_server.WebsiteCodexHost("codex")
+    harness = website_server.WebsiteCodexHarness("codex")
     calls = []
 
     monkeypatch.setattr(
@@ -1396,7 +1411,7 @@ def test_the_leaf_cli_prewarm_runs_the_installed_command(monkeypatch):
         lambda *args, **kwargs: calls.append((args, kwargs)),
     )
 
-    host._warm_leaf_cli()
+    harness._warm_leaf_cli()
 
     assert calls == [
         (
@@ -1412,9 +1427,9 @@ def test_the_leaf_cli_prewarm_runs_the_installed_command(monkeypatch):
     ]
 
 
-def test_closing_the_website_host_stops_its_app_server(tmp_path):
-    """The host adapter owns the process it starts, including during local runs."""
-    host = website_server.WebsiteCodexHost(
+def test_closing_the_website_harness_stops_its_app_server(tmp_path):
+    """The harness adapter owns the process it starts, including during local runs."""
+    harness = website_server.WebsiteCodexHarness(
         "codex", tmp_path / "app-server.sock", tmp_path / "app-server.log"
     )
 
@@ -1431,14 +1446,14 @@ def test_closing_the_website_host_stops_its_app_server(tmp_path):
             return 0
 
     process = Process()
-    host.process = process
-    host.socket_path.touch()
+    harness.process = process
+    harness.socket_path.touch()
 
-    host.close()
+    harness.close()
 
     assert process.stopped
-    assert host.process is None
-    assert not host.socket_path.exists()
+    assert harness.process is None
+    assert not harness.socket_path.exists()
 
 
 def test_the_adapter_takes_its_app_server_with_it_when_it_is_told_to_stop(
@@ -1486,7 +1501,7 @@ from pathlib import Path
 
 import leaf_website as module
 
-module._agent_host = module.WebsiteCodexHost(
+module._agent_harness = module.WebsiteCodexHarness(
     {str(codex)!r}, Path({str(socket_dir / "app-server.sock")!r}),
     Path({str(tmp_path / "app-server.log")!r}),
 )
@@ -1501,7 +1516,7 @@ module.main(["--port", "0"])
     deadline = time.monotonic() + STATED_TIMEOUT
     while not listening.is_file():
         if adapter.poll() is not None or time.monotonic() >= deadline:
-            adapter.kill()
+            adapter.terminate()
             pytest.fail(
                 "the adapter never started an App Server:\n"
                 f"{adapter.communicate()[1]}\n"
@@ -1522,13 +1537,13 @@ module.main(["--port", "0"])
     assert not (socket_dir / "app-server.sock").exists()
 
 
-def test_closing_a_host_that_started_no_server_preserves_the_shared_socket(tmp_path):
-    """A passive host does not own another host's process-global files."""
+def test_closing_a_harness_that_started_no_server_preserves_the_shared_socket(tmp_path):
+    """A passive harness does not own another harness's process-global files."""
     socket_path = tmp_path / "app-server.sock"
     socket_path.touch()
-    host = website_server.WebsiteCodexHost("codex", socket_path)
+    harness = website_server.WebsiteCodexHarness("codex", socket_path)
 
-    host.close()
+    harness.close()
 
     assert socket_path.exists()
 
@@ -1583,7 +1598,7 @@ def test_a_start_that_names_no_turn_gives_the_user_their_message_back(
         page_dir,
         {"kind": "comment", "author": "user", "text": "edit the page"},
     )
-    host = website_server.WebsiteCodexHost("codex")
+    harness = website_server.WebsiteCodexHarness("codex")
     competing_writer_rejected = []
 
     def refuse(*args, **kwargs):
@@ -1602,14 +1617,14 @@ def test_a_start_that_names_no_turn_gives_the_user_their_message_back(
         raise refusal
 
     interrupts = []
-    monkeypatch.setattr(host, "_send", refuse)
+    monkeypatch.setattr(harness, "_send", refuse)
     monkeypatch.setattr(
-        host,
+        harness,
         "_interrupt",
         lambda thread_id, turn_id, **fields: interrupts.append((thread_id, turn_id)),
     )
     with pytest.raises(RuntimeError, match="did not start a turn"):
-        host._start_turn(
+        harness._start_turn(
             "socket",
             page_dir,
             "hosted-thread",
@@ -1648,9 +1663,9 @@ def test_an_acknowledged_start_answers_a_user_with_no_turn_started_notification(
         page_dir,
         {"kind": "comment", "author": "user", "text": "edit the page"},
     )
-    host = website_server.WebsiteCodexHost("codex")
+    harness = website_server.WebsiteCodexHarness("codex")
     monkeypatch.setattr(
-        host, "_send", lambda *a, **k: {"turn": {"id": "app-server-turn"}}
+        harness, "_send", lambda *a, **k: {"turn": {"id": "app-server-turn"}}
     )
     answer = {
         "id": "answer",
@@ -1697,7 +1712,7 @@ def test_an_acknowledged_start_answers_a_user_with_no_turn_started_notification(
             self.closed = True
 
     socket = Socket()
-    follow = host._start_turn(
+    follow = harness._start_turn(
         socket,
         page_dir,
         "hosted-thread",
@@ -1706,7 +1721,7 @@ def test_an_acknowledged_start_answers_a_user_with_no_turn_started_notification(
     follow.follow()
     events = read_events(page_dir)
     activity = website_server.full_state(page_dir, events)["activity"]
-    host.close()
+    harness.close()
 
     [reply] = [event for event in events if event["kind"] == "reply"]
     assert (reply["responds"], reply["text"]) == (comment["id"], "Deployment verified.")
@@ -1756,14 +1771,14 @@ def test_a_turn_that_completes_without_an_answer_is_still_receipted(
         def close(self):
             self.closed = True
 
-    host = website_server.WebsiteCodexHost("codex")
+    harness = website_server.WebsiteCodexHarness("codex")
     interrupts = []
     monkeypatch.setattr(
-        host,
+        harness,
         "_interrupt",
         lambda *args, **kwargs: interrupts.append(args),
     )
-    hosted_follower(host, page_dir, prepared, Socket()).follow()
+    hosted_follower(harness, page_dir, prepared, Socket()).follow()
 
     events = read_events(page_dir)
     [reply] = [event for event in events if event["kind"] == "reply"]
@@ -1849,9 +1864,9 @@ def test_a_failed_turn_hands_every_kind_of_owed_move_back(
         def close(self):
             pass
 
-    host = website_server.WebsiteCodexHost("codex")
-    monkeypatch.setattr(host, "_interrupt", lambda *args, **kwargs: None)
-    hosted_follower(host, page_dir, prepared, Socket()).follow()
+    harness = website_server.WebsiteCodexHarness("codex")
+    monkeypatch.setattr(harness, "_interrupt", lambda *args, **kwargs: None)
+    hosted_follower(harness, page_dir, prepared, Socket()).follow()
 
     events = read_events(page_dir)
     state = website_server.full_state(page_dir, events)
@@ -1886,7 +1901,7 @@ def test_a_turn_that_will_not_stop_leaves_the_thread_rather_than_the_user(
     whichever container start meets it next.
     """
     append_event(page_dir, {"kind": "comment", "author": "user", "text": "hello"})
-    host = website_server.WebsiteCodexHost("codex")
+    harness = website_server.WebsiteCodexHarness("codex")
     monkeypatch.setattr(website_server, "TURN_ABORT_WAIT", 0.0)
     sent = []
 
@@ -1898,10 +1913,10 @@ def test_a_turn_that_will_not_stop_leaves_the_thread_rather_than_the_user(
         sent.append(method)
         return {}
 
-    monkeypatch.setattr(host, "_send", send)
+    monkeypatch.setattr(harness, "_send", send)
 
     with pytest.raises(RuntimeError, match="did not stop"):
-        host._end_unfollowed_turn(Socket(), "hosted-thread", [], "user-event")
+        harness._end_unfollowed_turn(Socket(), "hosted-thread", [], "user-event")
 
     assert sent == ["turn/interrupt"]
 
@@ -1915,7 +1930,7 @@ def test_an_interrupt_refused_by_an_idle_thread_is_recorded_not_raised(
     refuses when that turn has already finished. Raising there would replace the
     ending the follower is in the middle of accounting for with this one.
     """
-    host = website_server.WebsiteCodexHost("codex")
+    harness = website_server.WebsiteCodexHarness("codex")
 
     class Socket:
         closed = False
@@ -1929,14 +1944,14 @@ def test_an_interrupt_refused_by_an_idle_thread_is_recorded_not_raised(
         website_server, "app_server_handshake", lambda *args, **kwargs: None
     )
     monkeypatch.setattr(
-        host,
+        harness,
         "_send",
         lambda *args, **kwargs: (_ for _ in ()).throw(
             AppServerRequestRejected("no active turn to interrupt")
         ),
     )
 
-    host._interrupt("hosted-thread", "app-server-turn", eventId="user-event")
+    harness._interrupt("hosted-thread", "app-server-turn", eventId="user-event")
 
     [record] = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
     assert record["event"] == "turn_interrupt_failed"
@@ -1961,9 +1976,9 @@ def test_a_turn_whose_stream_drops_is_stopped_and_its_move_receipted(
         page_dir,
         {"kind": "comment", "author": "user", "text": "edit the page"},
     )
-    host = website_server.WebsiteCodexHost("codex")
+    harness = website_server.WebsiteCodexHarness("codex")
     monkeypatch.setattr(
-        host, "_send", lambda *a, **k: {"turn": {"id": "app-server-turn"}}
+        harness, "_send", lambda *a, **k: {"turn": {"id": "app-server-turn"}}
     )
 
     class LostSocket:
@@ -1973,7 +1988,7 @@ def test_a_turn_whose_stream_drops_is_stopped_and_its_move_receipted(
         def close(self):
             pass
 
-    follow = host._start_turn(
+    follow = harness._start_turn(
         LostSocket(),
         page_dir,
         "hosted-thread",
@@ -1981,11 +1996,11 @@ def test_a_turn_whose_stream_drops_is_stopped_and_its_move_receipted(
     )
     interrupts = []
     monkeypatch.setattr(
-        host,
+        harness,
         "_interrupt",
         lambda thread_id, turn_id, **fields: interrupts.append((thread_id, turn_id)),
     )
-    host._hold_waiter(page_dir, "hosted-thread")
+    harness._hold_waiter(page_dir, "hosted-thread")
     follow.follow()
     events = read_events(page_dir)
     activity = website_server.full_state(page_dir, events)["activity"]
@@ -1999,7 +2014,7 @@ def test_a_turn_whose_stream_drops_is_stopped_and_its_move_receipted(
     assert activity["obligations"] == []
 
 
-def test_a_host_failure_receipt_answers_a_gesture_on_its_thread(page_dir):
+def test_a_harness_failure_receipt_answers_a_gesture_on_its_thread(page_dir):
     """The Worker's last-resort receipt reaches a widget gesture too, twice over.
 
     `/_leaf/agent/fail` is what the Worker calls when it is rate limited or its
@@ -2039,7 +2054,7 @@ def test_a_host_failure_receipt_answers_a_gesture_on_its_thread(page_dir):
         },
     )
 
-    reply = website_server.WebsiteCodexHost("codex").failure_receipt(
+    reply = website_server.WebsiteCodexHarness("codex").failure_receipt(
         page_dir, chose["id"], "startup_failed"
     )
 
@@ -2047,7 +2062,7 @@ def test_a_host_failure_receipt_answers_a_gesture_on_its_thread(page_dir):
     assert (reply["parent"], reply["responds"]) == (asked["id"], chose["id"])
     assert reply["failure"] == "startup_failed"
 
-    repeated = website_server.WebsiteCodexHost("codex").failure_receipt(
+    repeated = website_server.WebsiteCodexHarness("codex").failure_receipt(
         page_dir, chose["id"], "startup_failed"
     )
     # The same event, which is what the door hands back (`accepted["id"]`); the log
@@ -2055,7 +2070,8 @@ def test_a_host_failure_receipt_answers_a_gesture_on_its_thread(page_dir):
     assert repeated is not None and repeated["id"] == reply["id"]
     assert repeated["parent"] == asked["id"]
     assert (
-        website_server.WebsiteCodexHost("codex").attach(page_dir, chose["id"]) is None
+        website_server.WebsiteCodexHarness("codex").attach(page_dir, chose["id"])
+        is None
     )
     assert [
         event["id"] for event in read_events(page_dir) if event["kind"] == "reply"
@@ -2123,9 +2139,9 @@ def test_an_unanswered_widget_gesture_is_receipted_on_its_thread(page_dir, monke
     )
     with website_server.PageTransaction(page_dir) as page:
         page.set_status("idle", "")
-    host = website_server.WebsiteCodexHost("codex")
+    harness = website_server.WebsiteCodexHarness("codex")
     monkeypatch.setattr(
-        host, "_send", lambda *a, **k: {"turn": {"id": "app-server-turn"}}
+        harness, "_send", lambda *a, **k: {"turn": {"id": "app-server-turn"}}
     )
 
     class LostSocket:
@@ -2135,7 +2151,7 @@ def test_an_unanswered_widget_gesture_is_receipted_on_its_thread(page_dir, monke
         def close(self):
             pass
 
-    follow = host._start_turn(
+    follow = harness._start_turn(
         LostSocket(),
         page_dir,
         "hosted-thread",
@@ -2144,9 +2160,9 @@ def test_an_unanswered_widget_gesture_is_receipted_on_its_thread(page_dir, monke
     assert follow.reply_target is not None
     assert follow.reply_target["reply_to"] != follow.reply_target["responds"]
 
-    monkeypatch.setattr(host, "_interrupt", lambda *args, **kwargs: None)
+    monkeypatch.setattr(harness, "_interrupt", lambda *args, **kwargs: None)
     follow.follow()
-    host.close()
+    harness.close()
 
     [receipt] = [event for event in read_events(page_dir) if event["kind"] == "reply"]
     assert (receipt["parent"], receipt["responds"]) == (asked["id"], chose["id"])
@@ -2231,8 +2247,8 @@ def test_notifications_before_start_response_reach_the_turn_follower(
     socket = Socket()
     monkeypatch.setattr(website_server, "app_server_connect", lambda endpoint: socket)
     take_stream_activity(monkeypatch, [], [])
-    host = website_server.WebsiteCodexHost("codex")
-    monkeypatch.setattr(host, "_hold_waiter", lambda *args: None)
+    harness = website_server.WebsiteCodexHarness("codex")
+    monkeypatch.setattr(harness, "_hold_waiter", lambda *args: None)
     monkeypatch.setattr(
         website_server, "prepare_codex_delivery", lambda *args: prepared
     )
@@ -2251,10 +2267,10 @@ def test_notifications_before_start_response_reach_the_turn_follower(
         finished.append(args)
         completed.set()
 
-    monkeypatch.setattr(host, "_finish_turn", finish)
+    monkeypatch.setattr(harness, "_finish_turn", finish)
 
     assert (
-        host._start_thread(
+        harness._start_thread(
             page_dir,
             type("Process", (), {"pid": os.getpid()})(),
             comment["id"],
@@ -2262,7 +2278,7 @@ def test_notifications_before_start_response_reach_the_turn_follower(
         == "hosted-thread"
     )
 
-    assert completed.wait(timeout=STATED_TIMEOUT)
+    assert completed.wait(timeout=STATED_TIMEOUT), "the hosted turn never completed"
     assert finished == [
         (
             page_dir,
@@ -2273,22 +2289,22 @@ def test_notifications_before_start_response_reach_the_turn_follower(
     assert socket.closed
 
 
-def test_the_website_host_keeps_its_claim_listening_through_the_agent_turn(
+def test_the_website_harness_keeps_its_claim_listening_through_the_agent_turn(
     page_dir, monkeypatch
 ):
     comment = append_event(
         page_dir,
         {"kind": "comment", "author": "user", "text": "edit the page"},
     )
-    host = website_server.WebsiteCodexHost("codex")
+    harness = website_server.WebsiteCodexHarness("codex")
     monkeypatch.setattr(
-        host,
+        harness,
         "_send",
         lambda *args: {"turn": {"id": "app-server-turn"}},
     )
 
     try:
-        follow = host._start_turn(
+        follow = harness._start_turn(
             "socket",
             page_dir,
             "hosted-thread",
@@ -2315,7 +2331,7 @@ def test_the_website_host_keeps_its_claim_listening_through_the_agent_turn(
         assert working["activity"]["observed_kind"] == "tool"
         assert working["activity"]["observed"] == "Editing index.html"
     finally:
-        host.close()
+        harness.close()
 
     assert (
         website_server.full_state(page_dir, read_events(page_dir))["listening"] is False
@@ -2452,12 +2468,14 @@ def test_the_starting_connection_projects_codex_activity(page_dir, monkeypatch, 
     take_stream_activity(monkeypatch, updates, clears)
     monkeypatch.setattr(leaf_codex, "AppServerReplyStream", ReplyStream)
 
-    host = website_server.WebsiteCodexHost("codex")
+    harness = website_server.WebsiteCodexHarness("codex")
     finished = []
     monkeypatch.setattr(
-        host, "_finish_turn", lambda *args, expected: finished.append(args)
+        harness, "_finish_turn", lambda *args, expected: finished.append(args)
     )
-    hosted_follower(host, page_dir, prepared, socket, turn_id="initial-turn").follow()
+    hosted_follower(
+        harness, page_dir, prepared, socket, turn_id="initial-turn"
+    ).follow()
 
     assert updates == [
         ("hosted-thread", "initial-turn", {"kind": "working"}),
@@ -2571,19 +2589,19 @@ def test_a_stream_that_goes_silent_ends_its_turn_like_a_dropped_one(
             self.closed = True
 
     silent = Socket()
-    host = website_server.WebsiteCodexHost("codex")
+    harness = website_server.WebsiteCodexHarness("codex")
     interrupts = []
     monkeypatch.setattr(
-        host,
+        harness,
         "_interrupt",
         lambda thread_id, turn_id, **fields: interrupts.append((thread_id, turn_id)),
     )
     # Without the lease this page is not listening, and a page that is not
     # listening reads `away` whatever its stream reading holds — which would pass
     # the activity assertion below on a follower that left one standing.
-    host._hold_waiter(page_dir, "hosted-thread")
+    harness._hold_waiter(page_dir, "hosted-thread")
 
-    hosted_follower(host, page_dir, prepared, silent).follow()
+    hosted_follower(harness, page_dir, prepared, silent).follow()
 
     events = read_events(page_dir)
     [reply] = [event for event in events if event["kind"] == "reply"]
@@ -2623,14 +2641,14 @@ def test_a_follower_fault_of_any_shape_still_releases_its_website_turn(
             self.closed = True
 
     socket = Socket()
-    host = website_server.WebsiteCodexHost("codex")
+    harness = website_server.WebsiteCodexHarness("codex")
     interrupts = []
     monkeypatch.setattr(
-        host,
+        harness,
         "_interrupt",
         lambda thread_id, turn_id, **fields: interrupts.append((thread_id, turn_id)),
     )
-    hosted_follower(host, page_dir, prepared, socket).follow()
+    hosted_follower(harness, page_dir, prepared, socket).follow()
 
     events = read_events(page_dir)
     [reply] = [event for event in events if event["kind"] == "reply"]
@@ -2699,8 +2717,8 @@ def test_an_empty_final_is_not_logged_as_visible_reply(page_dir, capsys):
             self.closed = True
 
     socket = Socket()
-    host = website_server.WebsiteCodexHost("codex")
-    hosted_follower(host, page_dir, prepared, socket).follow()
+    harness = website_server.WebsiteCodexHarness("codex")
+    hosted_follower(harness, page_dir, prepared, socket).follow()
 
     logs = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
     assert "turn_reply_first_text_published" not in {record["event"] for record in logs}
@@ -2717,7 +2735,7 @@ def test_a_native_final_message_never_becomes_a_leaf_reply(page_dir):
         website_server.website_harness("hosted-thread", os.getpid()),
     )
     accept_in_turn("hosted-thread")
-    website_server.WebsiteCodexHost("codex")._finish_turn(
+    website_server.WebsiteCodexHarness("codex")._finish_turn(
         page_dir,
         "hosted-thread",
         {"id": "app-server-turn", "status": "completed", "error": None},
@@ -2750,7 +2768,7 @@ def test_an_invalid_source_still_releases_a_finished_website_turn(page_dir):
     (page_dir / "index.html").write_text("<main>unfinished")
 
     with pytest.raises(ValueError):
-        website_server.WebsiteCodexHost("codex")._finish_turn(
+        website_server.WebsiteCodexHarness("codex")._finish_turn(
             page_dir,
             "hosted-thread",
             {"id": "app-server-turn", "status": "completed", "error": None},
@@ -2812,8 +2830,8 @@ def test_a_rejected_streamed_reply_still_releases_its_website_turn(page_dir):
 
     socket = Socket()
     with pytest.raises(ValueError, match="unclosed tags"):
-        host = website_server.WebsiteCodexHost("codex")
-        hosted_follower(host, page_dir, prepared, socket).follow()
+        harness = website_server.WebsiteCodexHarness("codex")
+        hosted_follower(harness, page_dir, prepared, socket).follow()
 
     claim = website_server.page_claim(page_dir)
     assert claim["turn_closed"] is not None
@@ -2861,17 +2879,29 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
         page_dir,
         website_server.website_harness("hosted-thread", os.getpid()),
     )
-    host = website_server.WebsiteCodexHost("codex")
-    turn = hosted_follower(host, page_dir, prepared)
+    harness = website_server.WebsiteCodexHarness("codex")
+    turn = hosted_follower(harness, page_dir, prepared)
     turn.begin()
+    # Present the accepted turn before resolving it: coalescing these server writes
+    # would never exercise a workflow receipt disappearing beside the news control.
+    told(page)
+    rendered(page)
+    thread = page.locator(f'.lf-threads > [data-id="{comment["id"]}"]')
+    metadata = thread.locator(".lf-thread-root-meta > .lf-msg-head")
+    expect(metadata.locator(".lf-msg-sending")).to_have_count(1)
+    news = thread.locator(".lf-thread-news")
+    expect(news).to_be_visible()
+    news_left = news.bounding_box()["x"]
     cmd_resolve(page_dir, comment["id"])
     told(page)
+    rendered(page)
     # The agent's resolution is news, so the card the user is looking at stays in
     # Open Threads, drawn resolved, rather than folding out from in front of them.
-    thread = page.locator(f'.lf-threads > [data-id="{comment["id"]}"]')
     expect(thread).to_have_count(1)
     expect(thread).to_have_attribute("data-resolved", "true")
     expect(thread).to_be_visible()
+    expect(metadata.locator(".lf-msg-sending")).to_have_count(0)
+    assert news.bounding_box()["x"] == news_left
     if read_elsewhere:
         write(box, "A separate thread")
         box.press("ControlOrMeta+Enter")
@@ -2884,6 +2914,7 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
         other_thread = page.locator(f'.lf-thread[data-id="{other["id"]}"]')
         expect(other_thread).to_have_attribute("open", "")
 
+    expect(news).to_have_text("1 new reply")
     turn.commit(
         {
             "id": "app-server-turn",
@@ -2900,6 +2931,9 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     )
 
     told(page)
+    rendered(page)
+    assert news.bounding_box()["x"] == news_left
+    expect(news).to_have_text("Reopened · 1 new reply")
     if read_elsewhere:
         expect(other_thread).to_have_attribute("open", "")
         expect(thread.locator(".lf-msg.agent")).to_be_hidden()
@@ -2973,8 +3007,8 @@ def test_a_reply_that_cannot_be_written_still_closes_its_website_turn(
         page_dir,
         website_server.website_harness("hosted-thread", os.getpid()),
     )
-    host = website_server.WebsiteCodexHost("codex")
-    turn = hosted_follower(host, page_dir, prepared)
+    harness = website_server.WebsiteCodexHarness("codex")
+    turn = hosted_follower(harness, page_dir, prepared)
     turn.begin()
 
     def unopenable(*_args):
@@ -3011,7 +3045,7 @@ def test_a_finished_website_turn_does_not_overwrite_an_agent_reply(page_dir):
         page.set_status("waiting", "Finishing")
     before = read_events(page_dir)
 
-    website_server.WebsiteCodexHost("codex")._finish_turn(
+    website_server.WebsiteCodexHarness("codex")._finish_turn(
         page_dir,
         "hosted-thread",
         {"id": "app-server-turn", "status": "completed", "error": None},
@@ -3022,7 +3056,7 @@ def test_a_finished_website_turn_does_not_overwrite_an_agent_reply(page_dir):
     assert website_server.PageTransaction(page_dir).status["state"] == "waiting"
 
 
-def test_a_host_receipt_does_not_answer_input_an_agent_turn_already_claimed(
+def test_a_harness_receipt_does_not_answer_input_an_agent_turn_already_claimed(
     page_dir,
 ):
     comment = append_event(
@@ -3040,14 +3074,14 @@ def test_a_host_receipt_does_not_answer_input_an_agent_turn_already_claimed(
     assert reply is None
 
 
-def test_a_host_receipt_survives_an_invalid_candidate_source(page_dir):
+def test_a_harness_receipt_survives_an_invalid_candidate_source(page_dir):
     comment = append_event(
         page_dir,
         {"kind": "comment", "author": "user", "text": "edit the page"},
     )
     (page_dir / "index.html").write_text("<main>unfinished")
 
-    reply = website_server.WebsiteCodexHost("codex").failure_receipt(
+    reply = website_server.WebsiteCodexHarness("codex").failure_receipt(
         page_dir, comment["id"], "startup_failed"
     )
 
@@ -3062,7 +3096,7 @@ def test_a_receipt_waits_for_external_turn_acceptance_to_be_recorded(
         page_dir,
         {"kind": "comment", "author": "user", "text": "edit the page"},
     )
-    host = website_server.WebsiteCodexHost("codex")
+    harness = website_server.WebsiteCodexHarness("codex")
     process = type("Process", (), {"pid": os.getpid()})()
     turn_started = threading.Event()
     record_acceptance = threading.Event()
@@ -3080,8 +3114,8 @@ def test_a_receipt_waits_for_external_turn_acceptance_to_be_recorded(
         def __exit__(self, *args):
             self.lock.release()
 
-    host.lock = ObservedLock()
-    monkeypatch.setattr(host, "_ensure_server", lambda: process)
+    harness.lock = ObservedLock()
+    monkeypatch.setattr(harness, "_ensure_server", lambda: process)
 
     def start_thread(page, process, event_id):
         website_server.prepare_codex_delivery(
@@ -3092,19 +3126,23 @@ def test_a_receipt_waits_for_external_turn_acceptance_to_be_recorded(
         accept_in_turn("hosted-thread")
         return "hosted-thread"
 
-    monkeypatch.setattr(host, "_start_thread", start_thread)
+    monkeypatch.setattr(harness, "_start_thread", start_thread)
 
     with ThreadPoolExecutor(max_workers=2) as pool:
-        attached = pool.submit(host.attach, page_dir, comment["id"])
-        assert turn_started.wait(timeout=STATED_TIMEOUT)
+        attached = pool.submit(harness.attach, page_dir, comment["id"])
+        assert turn_started.wait(timeout=STATED_TIMEOUT), (
+            "the attach never started its turn"
+        )
         settled = pool.submit(
-            host.failure_receipt,
+            harness.failure_receipt,
             page_dir,
             comment["id"],
             "startup_failed",
         )
 
-        assert receipt_waiting.wait(timeout=STATED_TIMEOUT)
+        assert receipt_waiting.wait(timeout=STATED_TIMEOUT), (
+            "the receipt never waited on the harness lock"
+        )
         record_acceptance.set()
         assert attached.result(timeout=STATED_TIMEOUT) == "hosted-thread"
         assert settled.result(timeout=STATED_TIMEOUT) is None
@@ -3130,7 +3168,7 @@ def test_an_old_website_completion_does_not_close_the_new_leaf_turn(page_dir):
     website_server.prepare_codex_delivery(page_dir, harness)
     accept_in_turn("hosted-thread", "new-app-turn")
 
-    website_server.WebsiteCodexHost("codex")._finish_turn(
+    website_server.WebsiteCodexHarness("codex")._finish_turn(
         page_dir,
         "hosted-thread",
         {"id": "old-app-turn", "status": "failed", "error": None},
@@ -3168,7 +3206,7 @@ def test_a_page_fault_is_recorded_where_an_operator_reads_it(
     shutil.copytree(page_dir, published)
     write_manifest(site, {"/examples/decision": ("examples/decision", "example")})
     httpd = LeafHTTPServer(
-        ("127.0.0.1", 0), website_server.site_endpoint(site, FakeCodexHost())
+        ("127.0.0.1", 0), website_server.site_endpoint(site, FakeCodexHarness())
     )
     origin = f"http://127.0.0.1:{httpd.server_address[1]}"
 
@@ -3223,7 +3261,7 @@ def test_a_child_page_fault_is_recorded_like_the_page_it_was_opened_from(
     shutil.copytree(page_dir, published)
     write_manifest(site, {"/examples/decision": ("examples/decision", "example")})
     httpd = LeafHTTPServer(
-        ("127.0.0.1", 0), website_server.site_endpoint(site, FakeCodexHost())
+        ("127.0.0.1", 0), website_server.site_endpoint(site, FakeCodexHarness())
     )
     origin = f"http://127.0.0.1:{httpd.server_address[1]}"
 
@@ -3277,7 +3315,7 @@ def test_website_samples_serve_private_pages_without_starting_an_agent(
     published.parent.mkdir(parents=True)
     shutil.copytree(page_dir, published)
     write_manifest(site, {"/examples/decision": ("examples/decision", "example")})
-    host = FakeCodexHost()
+    harness = FakeCodexHarness()
     manifest_path = site / website_server.SITE_MANIFEST
     manifest = json.loads(manifest_path.read_text())
     if published_revision:
@@ -3285,7 +3323,9 @@ def test_website_samples_serve_private_pages_without_starting_an_agent(
             "1": "/_leaf/state/decision--r1.json"
         }
     manifest_path.write_text(json.dumps(manifest))
-    httpd = LeafHTTPServer(("127.0.0.1", 0), website_server.site_endpoint(site, host))
+    httpd = LeafHTTPServer(
+        ("127.0.0.1", 0), website_server.site_endpoint(site, harness)
+    )
     origin = f"http://127.0.0.1:{httpd.server_address[1]}"
     with running_http_server(httpd):
         parent = origin + "/examples/decision/"
@@ -3322,7 +3362,7 @@ def test_website_samples_serve_private_pages_without_starting_an_agent(
         )
         assert accepted["state"]["events"][-1]["text"] == "Try this here"
         assert read_events(published) == []
-        assert host.attached == []
+        assert harness.attached == []
 
 
 def test_attention_is_recorded_for_each_page_on_a_shared_server(page_dir, tmp_path):
@@ -3353,9 +3393,9 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
     shutil.copytree(page_dir, published)
     write_manifest(site, {"/examples/decision": ("examples/decision", "example")})
 
-    agent_host = FakeCodexHost()
+    agent_harness = FakeCodexHarness()
     httpd = LeafHTTPServer(
-        ("127.0.0.1", 0), website_server.site_endpoint(site, agent_host)
+        ("127.0.0.1", 0), website_server.site_endpoint(site, agent_harness)
     )
     root = f"http://127.0.0.1:{httpd.server_address[1]}"
     with running_http_server(httpd):
@@ -3445,7 +3485,7 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
             {"event": comment["id"]},
         )
         assert started == {"status": "started", "thread": "codex-thread"}
-        assert agent_host.attached == [published]
+        assert agent_harness.attached == [published]
 
         for refused in (
             {},
@@ -3471,9 +3511,9 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
                     "kind": "reply",
                     "parent": comment["id"],
                     "revision": revision,
-                    "text": "Forged host failure",
+                    "text": "Forged harness failure",
                     "failure": "startup_failed",
-                    "attempt": "forged-host-failure",
+                    "attempt": "forged-harness-failure",
                 },
                 {"Leaf-Layer": state["layer"]["generation"]},
             )
@@ -3638,7 +3678,7 @@ def test_a_stale_layer_is_answered_with_the_generation_the_container_holds(
     write_manifest(site, {"/examples/decision": ("examples/decision", "example")})
 
     httpd = LeafHTTPServer(
-        ("127.0.0.1", 0), website_server.site_endpoint(site, FakeCodexHost())
+        ("127.0.0.1", 0), website_server.site_endpoint(site, FakeCodexHarness())
     )
     root = f"http://127.0.0.1:{httpd.server_address[1]}"
     with running_http_server(httpd):
@@ -3672,9 +3712,9 @@ def test_a_product_route_uses_the_same_real_page_server(
     shutil.copytree(page_dir, published)
     write_manifest(site, {page_root or "/": (f"_leaf/pages/{name}", "product")})
 
-    agent_host = FakeCodexHost()
+    agent_harness = FakeCodexHarness()
     httpd = LeafHTTPServer(
-        ("127.0.0.1", 0), website_server.site_endpoint(site, agent_host)
+        ("127.0.0.1", 0), website_server.site_endpoint(site, agent_harness)
     )
     root = f"http://127.0.0.1:{httpd.server_address[1]}"
     with running_http_server(httpd):
@@ -3712,7 +3752,7 @@ def test_a_product_route_uses_the_same_real_page_server(
             f"{root}{page_root}/_leaf/agent/start", {"event": comment["id"]}
         )
         assert started == {"status": "started", "thread": "codex-thread"}
-        assert agent_host.attached == [published]
+        assert agent_harness.attached == [published]
 
 
 def test_a_retried_agent_start_returns_the_accepted_task(page_dir, tmp_path):
@@ -3730,9 +3770,9 @@ def test_a_retried_agent_start_returns_the_accepted_task(page_dir, tmp_path):
         website_server.website_harness("already-started-thread", os.getpid()),
     )
     accept_in_turn("already-started-thread")
-    agent_host = FakeCodexHost()
+    agent_harness = FakeCodexHarness()
     httpd = LeafHTTPServer(
-        ("127.0.0.1", 0), website_server.site_endpoint(site, agent_host)
+        ("127.0.0.1", 0), website_server.site_endpoint(site, agent_harness)
     )
     root = f"http://127.0.0.1:{httpd.server_address[1]}"
     with running_http_server(httpd):
@@ -3742,7 +3782,7 @@ def test_a_retried_agent_start_returns_the_accepted_task(page_dir, tmp_path):
         )
 
         assert answer == {"status": "started", "thread": "already-started-thread"}
-        assert agent_host.attached == []
+        assert agent_harness.attached == []
 
 
 def test_an_agent_reply_is_dropped_when_a_newer_user_turn_overtakes_it(
@@ -3953,6 +3993,69 @@ def test_the_agent_response_clock_ignores_an_earlier_failure_receipt(browser):
     assert page.evaluate("window.__leafVerifier.visibleReplyAt('answer')") is not None
 
 
+def test_the_agent_response_clock_follows_a_stream_into_its_durable_reply(browser):
+    page = browser.new_page()
+    verify_site.observe_startup(page)
+    url = "https://site-verifier.test/completed-stream"
+    page.route(
+        url,
+        lambda route: route.fulfill(
+            content_type="text/html",
+            body="""<div class="lf-threads"><div class="lf-msg agent" data-mid="stream:turn">
+                      <span class="lf-msg-text">Answer in progress</span></div></div>""",
+        ),
+    )
+    page.goto(url)
+    page.evaluate("window.__leafVerifier.startVisibleReplyClock")
+    page.wait_for_function(
+        "window.__leafVerifier.visibleReplyRecorded", arg="stream:turn"
+    )
+
+    page.locator(".lf-msg").evaluate("""node => {
+      node.dataset.mid = 'answer';
+      node.querySelector('.lf-msg-text').textContent = 'Complete answer';
+    }""")
+    page.wait_for_function(
+        "window.__leafVerifier.visibleReplyRecorded", arg="answer", timeout=10_000
+    )
+    assert page.evaluate("window.__leafVerifier.visibleReplyAt('answer')") is not None
+
+
+def test_the_agent_verifier_opens_news_arriving_after_an_earlier_notice(
+    browser, monkeypatch
+):
+    page = browser.new_page()
+    verify_site.observe_startup(page)
+    url = "https://site-verifier.test/held-answer"
+    page.route(
+        url,
+        lambda route: route.fulfill(
+            content_type="text/html",
+            body="""<div class="lf-threads"><div class="lf-thread" data-id="comment">
+              <button class="lf-thread-news" onclick="this.remove(); setTimeout(() => {
+                const next = document.createElement('button');
+                next.className = 'lf-thread-news';
+                next.textContent = 'Final reply waiting';
+                next.onclick = () => {
+                  document.querySelector('.lf-msg').dataset.mid = 'answer';
+                  next.remove();
+                };
+                document.querySelector('.lf-thread').append(next);
+              }, 0)">Stream update waiting</button>
+              <div class="lf-msg agent" data-mid="stream:turn">
+                <span class="lf-msg-text">Complete answer</span></div>
+              </div></div>""",
+        ),
+    )
+    page.goto(url)
+    page.evaluate("window.__leafVerifier.startVisibleReplyClock")
+    monkeypatch.setattr(verify_site, "VISIBLE_REPLY_PATIENCE", 10_000)
+
+    assert verify_site.wait_for_visible_reply(page, "comment", "answer")
+    assert page.locator(".lf-thread-news").count() == 0
+    assert page.evaluate("window.__leafVerifier.visibleReplyAt('answer')") is not None
+
+
 def test_a_refused_answer_carries_what_the_server_said_about_it():
     """A status alone cannot separate one 500 from another, so the body travels with
     it, bounded so a page of HTML served by mistake does not become the run log."""
@@ -3994,7 +4097,7 @@ def test_the_deploy_gate_waits_on_the_page_rather_than_its_own_clock(page_dir):
     # Another page's comment is not this gate's turn, whatever this page is doing.
     assert not verify_site.still_answering(handling, "another-event")
 
-    website_server.WebsiteCodexHost("codex")._finish_turn(
+    website_server.WebsiteCodexHarness("codex")._finish_turn(
         page_dir,
         "hosted-thread",
         {"id": "app-server-turn", "status": "completed", "error": None},
@@ -4030,16 +4133,16 @@ def test_the_deploy_gate_stops_waiting_on_a_page_with_no_agent_on_the_comment():
 
 
 @pytest.mark.parametrize("failure", ["startup_failed", "rate_limited"])
-def test_the_deploy_gate_reads_a_durable_host_failure(page_dir, failure):
+def test_the_deploy_gate_reads_a_durable_harness_failure(page_dir, failure):
     from leaf.event_contracts import event_record_error
     from leaf.registry.storage import load_registry
 
-    host = website_server.WebsiteCodexHost("codex")
+    harness = website_server.WebsiteCodexHarness("codex")
     comment = append_event(
         page_dir,
         {"kind": "comment", "author": "user", "text": "edit the page"},
     )
-    reply = host.failure_receipt(page_dir, comment["id"], failure)
+    reply = harness.failure_receipt(page_dir, comment["id"], failure)
     state = website_server.full_state(page_dir, read_events(page_dir))
     replies = [event for event in state["events"] if event["kind"] == "reply"]
     assert [event["id"] for event in replies] == [reply["id"]]
@@ -4049,7 +4152,7 @@ def test_the_deploy_gate_reads_a_durable_host_failure(page_dir, failure):
     assert verify_site.startup_failed(replies) == (failure == "startup_failed")
     assert verify_site.deployment_answer(replies) is None
     assert not state["activity"]["obligations"]
-    assert host.attach(page_dir, comment["id"]) is None
+    assert harness.attach(page_dir, comment["id"]) is None
 
 
 class _Read:
@@ -4179,7 +4282,7 @@ class _FailedFirstTurn:
             {
                 "kind": "reply",
                 "parent": "comment-1",
-                "text": "The host could not start this task.",
+                "text": "The harness could not start this task.",
                 "failure": self.failure,
             },
         ]
@@ -4411,7 +4514,7 @@ def test_startup_shifts_are_attributed_diagnostics_not_failures(browser):
 def test_the_deploy_gate_stops_reading_a_turn_the_container_has_closed(
     failure,
 ):
-    """A host failure receipt is terminal, so the wait ends where it lands.
+    """A harness failure receipt is terminal, so the wait ends where it lands.
 
     Every other reading the wait takes is one a live turn can still be passing
     through, which is why they run to `TURN_PATIENCE`. This one is posted from where
@@ -4429,7 +4532,7 @@ def test_the_deploy_gate_stops_reading_a_turn_the_container_has_closed(
             {
                 "kind": "reply",
                 "parent": "comment-id",
-                "text": "A newly worded host failure.",
+                "text": "A newly worded harness failure.",
                 "failure": failure,
             }
         ],
@@ -4446,9 +4549,9 @@ def test_the_deploy_gate_stops_reading_a_turn_the_container_has_closed(
         1,
         "Deployment abcd1234 verified",
         None,
-        # Seconds rather than `TURN_LIMIT`: a wait that stopped reading this reply
-        # would come back on the next assertion instead of running the real budget.
-        time.monotonic() + 5,
+        # The suite's deadline rather than `TURN_LIMIT`: a wait that stopped
+        # reading this reply comes back on the next assertion within it.
+        time.monotonic() + STATED_TIMEOUT,
         profile,
     )
     # One read, though the page still names a turn on the comment: the wait ended on
@@ -5066,8 +5169,8 @@ def test_hosted_completion_cannot_borrow_a_reused_session_generation(page_dir):
     prepared = website_server.prepare_codex_delivery(
         page_dir, website_server.website_harness("hosted-thread", os.getpid())
     )
-    host = website_server.WebsiteCodexHost("codex")
-    old = hosted_follower(host, page_dir, prepared, turn_id="same-turn")
+    harness = website_server.WebsiteCodexHarness("codex")
+    old = hosted_follower(harness, page_dir, prepared, turn_id="same-turn")
     end_session("hosted-thread")
     prompt_turn("hosted-thread", "same-turn")
     with website_server.PageTransaction(page_dir) as page:
@@ -5095,8 +5198,10 @@ def test_hosted_start_retains_its_admitted_epoch_across_title_work(
     append_event(
         page_dir, {"kind": "comment", "author": "user", "text": "An old request"}
     )
-    host = website_server.WebsiteCodexHost("codex")
-    monkeypatch.setattr(host, "_send", lambda *args: {"turn": {"id": "started-turn"}})
+    harness = website_server.WebsiteCodexHarness("codex")
+    monkeypatch.setattr(
+        harness, "_send", lambda *args: {"turn": {"id": "started-turn"}}
+    )
     winner = {}
 
     def competing_title_work(*args):
@@ -5122,7 +5227,7 @@ def test_hosted_start_retains_its_admitted_epoch_across_title_work(
 
     monkeypatch.setattr(website_server, "name_untitled_threads", competing_title_work)
     try:
-        old = host._start_turn(
+        old = harness._start_turn(
             "socket", page_dir, "hosted-thread", SimpleNamespace(pid=os.getpid())
         )
         with pytest.raises(RuntimeError, match="no longer owns"):
@@ -5131,4 +5236,4 @@ def test_hosted_start_retains_its_admitted_epoch_across_title_work(
         assert session_record("hosted-thread") == winner["epoch"]
         assert website_server.PageTransaction(page_dir).status == winner["status"]
     finally:
-        host.close()
+        harness.close()

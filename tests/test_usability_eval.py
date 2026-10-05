@@ -220,7 +220,7 @@ def test_native_scenario_output_preserves_unavailable_usage(
 
     monkeypatch.setattr(usability_eval, "execute", observed_execution)
     response = usability_eval.execute_scenario(
-        "near-miss", ROOT, tmp_path, host="codex"
+        "near-miss", ROOT, tmp_path, harness="codex"
     )
     assert response.get("tokenUsage", {}) == expected
     if not expected:
@@ -237,7 +237,7 @@ def test_native_scenario_output_preserves_unavailable_usage(
 
 
 def test_mixed_round_requires_receipts_only_for_admitted_attention(tmp_path):
-    from leaf_dev.harness import inputs_received
+    from leaf_dev.arms import inputs_received
 
     run = Run("mixed", ROOT, tmp_path)
     run.state.mkdir()
@@ -319,14 +319,16 @@ def test_round_scoring_leaves_the_watch_with_leaf():
     ]
 
 
-@pytest.mark.parametrize("host", ["cc", "codex"])
-def test_live_injection_reads_the_claimants_turn_from_the_isolated_home(tmp_path, host):
+@pytest.mark.parametrize("harness", ["cc", "codex"])
+def test_live_injection_reads_the_claimants_turn_from_the_isolated_home(
+    tmp_path, harness
+):
     import os
     from types import SimpleNamespace
 
     from leaf_dev.usability_eval import arm_python, observed_active_turn
 
-    run = Run("mixed", ROOT, tmp_path, host)
+    run = Run("mixed", ROOT, tmp_path, harness)
     run.state.mkdir()
     page = tmp_path / "page"
     build_fixture(run, "mixed", page)
@@ -338,7 +340,7 @@ def test_live_injection_reads_the_claimants_turn_from_the_isolated_home(tmp_path
         """
 import os, sys
 from pathlib import Path
-from leaf.host import ClaudeCodeHarness
+from leaf.harness import ClaudeCodeHarness
 from leaf.service import PageTransaction
 from leaf.state import prompt_turn
 os.environ["CLAUDE_PID"] = sys.argv[2]
@@ -351,7 +353,7 @@ prompt_turn("injection-observer", "actual-parent-turn")
     )
     child = SimpleNamespace(task=SimpleNamespace(running={"actual-parent-turn"}))
     assert observed_active_turn(run, page, child) == "actual-parent-turn"
-    if host == "codex":
+    if harness == "codex":
         child.task.running.clear()
         assert observed_active_turn(run, page, child) is None
         child.task.running.add("actual-parent-turn")

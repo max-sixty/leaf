@@ -14,7 +14,7 @@ from .files import (
     file_stamp,
     read_json,
 )
-from .host import claim_harness
+from .harness import claim_harness
 from .leases import wait_is_live, waiter_lease_path
 from .machine import state_home
 from .page_memory import memo
@@ -68,7 +68,7 @@ def _page_stamp(page_dir: Path, claim: dict | None = None) -> tuple:
     )
     claim_stamp = file_stamp(claim_path(page_dir))
     if claim and claim.get("id"):
-        # A host wait lease is outside the page, and its lock state has no file
+        # A harness wait lease is outside the page, and its lock state has no file
         # stamp of its own. Its boolean is checked below on every cache refresh;
         # including the file here still invalidates a page when the lease is first
         # created or removed.
@@ -140,15 +140,15 @@ def other_leaves(page_dir: Path) -> list:
 
 
 def live_facts(page_dir: Path, claim: dict | None) -> dict:
-    """The presence facts no page file records, read from processes and the host
+    """The presence facts no page file records, read from processes and the harness
     at this moment: whether the claimant's wait lease is held, whether its
-    lifetime stands, and what its host says of its turn (`Harness.live_turn`).
+    lifetime stands, and what its harness says of its turn (`Harness.live_turn`).
     File stamps cannot say when these move, so every cache of a presence reading
     keys on them, and the freshness token carries them."""
     active = claim if claim_is_active(claim) else None
     return {
         "listening": wait_is_live(page_dir, active["id"] if active else None),
-        # None when nothing claimed the page — leaf run outside an agent host.
+        # None when nothing claimed the page — leaf run outside an agent harness.
         "session_alive": active is not None if claim else None,
         "live_turn": claim_harness(active).live_turn() if active else None,
     }
@@ -169,7 +169,7 @@ def presence_with_activity(
     claim-against-proof judgment reads these fields. The server's row publication
     carries only the compact presentation fields derived from these facts."""
     stored_status = read_status(page_dir)
-    # The declaration's own fields; the host's stream stays server-side.
+    # The declaration's own fields; the harness's stream stays server-side.
     status = {
         key: value
         for key, value in stored_status.items()

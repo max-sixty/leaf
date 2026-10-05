@@ -56,14 +56,14 @@ from leaf.server import running_server
 from leaf.service import page_claim
 
 from leaf_dev import ROOT
-from leaf_dev.codex_task import STEP_LIMIT, Task, install_plugin
-from leaf_dev.harness import (
+from leaf_dev.arms import (
     PageClient,
     codex_home,
     environment,
     extract_payload,
     run_leaf,
 )
+from leaf_dev.codex_task import STEP_LIMIT, Task, install_plugin
 from leaf_dev.preview import preview_lease
 from leaf_dev.review_scenario import REQUEST, prepare
 
@@ -346,7 +346,7 @@ def journey(
                 str(ROOT),
                 "python",
                 "-c",
-                "from leaf.host import session_harness; session_harness().ensure_delivery()",
+                "from leaf.harness import session_harness; session_harness().ensure_delivery()",
             ]
         )
         task.say(

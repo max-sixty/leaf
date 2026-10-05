@@ -3,7 +3,7 @@
     uv run leaf-dev bench-latency [BASE_REF]
 
 BASE_REF defaults to the merge base with `main`; each arm is the plugin payload at its
-commit (`leaf_dev.harness.build_pair`), so commit what you want measured. Each arm
+commit (`leaf_dev.arms.build_pair`), so commit what you want measured. Each arm
 builds and serves the triage board and the corpus from this checkout's examples, and
 both arms' tabs stay open in one headless Chrome, taking turns within each run. Each
 run reloads the page, opens the Threads panel, and times five transitions
@@ -38,8 +38,7 @@ from playwright.sync_api import Browser, Page
 from playwright.sync_api import Error as PlaywrightError
 
 from leaf_dev import ROOT
-from leaf_dev.browser import DESKTOP, chrome
-from leaf_dev.harness import (
+from leaf_dev.arms import (
     build_pair,
     build_source,
     environment,
@@ -48,6 +47,7 @@ from leaf_dev.harness import (
     run_leaf,
     serving,
 )
+from leaf_dev.browser import DESKTOP, chrome
 
 OUT = ROOT / ".tmp" / "bench-latency"
 RUNS = 5

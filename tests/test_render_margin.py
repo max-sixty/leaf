@@ -5282,6 +5282,49 @@ def test_a_thread_uses_a_free_margin_and_tracks_its_source(browser, serve):
     assert gone["card"] == pytest.approx(gone["controls"], abs=0.5), gone
 
 
+def test_a_thread_beside_its_words_takes_the_room_to_the_visible_edge(browser, serve):
+    """The gallery's middle-width rail clears its pin and holds the whole card."""
+    page = open_page(browser, serve(FEATURE_GALLERY))
+    page.emulate_media(reduced_motion="reduce")
+    # Keep the title comparison centred so this width exercises the middle rail.
+    page.evaluate("document.getElementById('bg-compare-note').remove()")
+    resized(page, 1600, 900)
+    page.evaluate("location.hash = 'bg-margin-controls'")
+    page.evaluate(RELEASE_FOCUS)
+    _open_gallery_thread(page, "bg-thread-text", "2be2443f0bb6cc49fc86b52f340e6073")
+    geometry = page.evaluate(
+        """() => {
+          const cardNode = document.querySelector('.lf-margin-preview');
+          const list = cardNode.querySelector('.lf-thread-transcript');
+          const card = cardNode.getBoundingClientRect();
+          const words = document.querySelector('#bg-thread-text').getBoundingClientRect();
+          const pin = document.querySelector('[data-lf-margin-for="bg-thread-text"]')
+            .getBoundingClientRect();
+          const style = getComputedStyle(cardNode);
+          return {placement: cardNode.dataset.lfThreadPlacement,
+                  cardLeft: card.left, cardRight: card.right, cardWidth: card.width,
+                  wordsRight: words.right, pinRight: pin.right, viewport: innerWidth,
+                  minimum: parseFloat(style.getPropertyValue('--thread-card-min')),
+                  preferred: parseFloat(style.getPropertyValue('--thread-card')),
+                  clipped: list.scrollHeight - list.clientHeight};
+        }"""
+    )
+    room_past_pin = geometry["viewport"] - 8 - (geometry["pinRight"] + 8)
+    assert geometry["wordsRight"] < geometry["pinRight"], geometry
+    assert geometry["minimum"] <= room_past_pin < geometry["preferred"], geometry
+    assert geometry["placement"] == "right", geometry
+    assert geometry["cardLeft"] == pytest.approx(geometry["pinRight"] + 8, abs=0.5), (
+        geometry
+    )
+    assert geometry["cardRight"] == pytest.approx(geometry["viewport"] - 8, abs=0.5), (
+        geometry
+    )
+    assert geometry["minimum"] <= geometry["cardWidth"] < geometry["preferred"], (
+        geometry
+    )
+    assert geometry["clipped"] <= 0, geometry
+
+
 def test_a_thread_in_a_short_rail_stands_on_the_side_with_room(browser, serve):
     """A rail short of the card's minimum puts the card on the side of its words that
     holds it, here the left, as it would the comment box (comment-placement.js), at its

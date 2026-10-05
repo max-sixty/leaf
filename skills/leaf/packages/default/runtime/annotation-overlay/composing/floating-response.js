@@ -3,8 +3,8 @@
    Composition owns its durable target and native editor. This owner chooses its initial
    side, measure and CSS attachment. While editing, the browser carries that attachment
    through every ancestor scroll; generic repaint and scroll publications do not solve
-   another position. Target or field resize, viewport resize and declared layout
-   changes invalidate the attachment. Replacing its target or native seat retires it. The compact response strip retains ordinary
+   another position. Target or field resize, viewport resize, horizontal target motion,
+   and declared layout changes invalidate the attachment. Replacing its target or native seat retires it. The compact response strip retains ordinary
    collision placement and scroll observation.
 
    An editing field follows its passage out of view. The existing Resume writing route
@@ -98,7 +98,10 @@ export function createFloatingResponsePlacement({
     );
   };
 
-  // The editing observer reports size changes only: CSS anchors own scroll following.
+  // The editing observer reports size and horizontal target movement: CSS anchors
+  // own scroll following, while a target moved without resizing must let the shared
+  // placement rule choose its side again. Movement observation also hears scroll,
+  // so only a change in horizontal position asks for another solve.
   // A compact strip still observes scroll and layout shifts. Explicit publication may
   // replace a target or editor seat; composition stops this owner for that handoff.
   // Native-seat readiness belongs to composition; stopping this presenter retires
@@ -135,16 +138,37 @@ export function createFloatingResponsePlacement({
     };
     if (!observationModes) {
       observationModes = {
-        editing: (reference, floating, update) =>
-          autoUpdate(
+        editing: (reference, floating, update) => {
+          const invalidate = () => {
+            nativeAttachment = false;
+            update();
+          };
+          const stopSize = autoUpdate(reference, floating, invalidate, {
+            ancestorScroll: !fabPosition.nativeAvailable(),
+            layoutShift: false,
+          });
+          let x = reference.getBoundingClientRect().left;
+          const stopMotion = autoUpdate(
             reference,
             floating,
             () => {
-              nativeAttachment = false;
-              update();
+              const next = reference.getBoundingClientRect().left;
+              if (next === x) return;
+              x = next;
+              invalidate();
             },
-            { ancestorScroll: !fabPosition.nativeAvailable(), layoutShift: false },
-          ),
+            {
+              ancestorScroll: false,
+              ancestorResize: false,
+              elementResize: false,
+              layoutShift: true,
+            },
+          );
+          return () => {
+            stopMotion();
+            stopSize();
+          };
+        },
         compact: autoUpdate,
       };
     }

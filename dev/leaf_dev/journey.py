@@ -20,7 +20,10 @@ admitted the comment, titled its thread, activated the published revision and
 admitted the reply; `sinceAdmissionMs` reads those from the comment's admission, so
 every target is timed on one clock, the page server's. The browser alone sees the
 POST's answer and the reply showing in Threads; `sinceSendMs` reads those from the
-first send. The JSON on stdout carries both, with the code version the journey ran.
+first send. Where the journey runs the agent itself, `cc` or `codex`, its stream
+also splits the turn between those two moments into delivery, model and tool phases
+(`turn`), so a slow reply shows where it went. The JSON on stdout carries all of it,
+with the code version the journey ran.
 
 A `startup_failed` receipt gets one more ask; any other failure receipt fails on
 the first (`worker/README.md` owns that contract).
@@ -94,7 +97,8 @@ HARNESSES = ("cc", "codex")
 
 class Session(NamedTuple):
     """One user's open page, with what reaching its state takes: `headers` go with
-    each state read, and `after_post` runs once a comment is admitted."""
+    each state read, and `after_post` runs once a comment is admitted. `stream` is
+    the answering agent's stream where the journey runs that agent itself."""
 
     context: BrowserContext
     page: Page
@@ -104,6 +108,7 @@ class Session(NamedTuple):
     state: dict
     headers: dict[str, str]
     after_post: Callable[[dict], None] | None
+    stream: Path | None = None
 
 
 def still_answering(state: dict, event_id: str) -> bool:
@@ -196,6 +201,60 @@ def recorded_steps(events: list[dict], comment: dict, published: dict) -> dict:
             ("replied", replied),
         )
     }
+
+
+def turn_phases(records: list[dict], admitted: str, replied: str) -> list[dict]:
+    """The agent's turn from the comment's admission to its reply, as consecutive
+    phases in milliseconds from the admission: `delivery` until the turn starts (its
+    `init`, or the user record carrying the delivery), then alternating `model`
+    (from the last tool result to the next tool call) and `tool` (from that call
+    until every call it started has returned), each tool phase naming its calls.
+    Times are when the journey received each stream record."""
+    start, end = instant(admitted), instant(replied)
+    timed = [
+        (instant(record["received_at"]), record)
+        for record in records
+        if start <= instant(record["received_at"]) <= end
+    ]
+    phases: list[dict] = []
+
+    def close(phase: str, since: float, until: float, **detail) -> None:
+        phases.append(
+            {
+                "phase": phase,
+                "startMs": round((since - start) * 1000),
+                "ms": round((until - since) * 1000),
+                **detail,
+            }
+        )
+
+    began = next(
+        at
+        for at, record in timed
+        if record["type"] == "user" or record.get("subtype") == "init"
+    )
+    close("delivery", start, began)
+    phase, since, pending, calls = "model", began, set(), []
+    for at, record in timed:
+        if at <= began or record["type"] not in ("assistant", "user"):
+            continue
+        for part in record["message"]["content"]:
+            if part["type"] == "tool_use":
+                if phase == "model":
+                    close("model", since, at)
+                    phase, since, calls = "tool", at, []
+                pending.add(part["id"])
+                calls.append(part["input"].get("command", part["name"])[:200])
+            elif part["type"] == "tool_result" and part["tool_use_id"] in pending:
+                pending.remove(part["tool_use_id"])
+                if not pending:
+                    close("tool", since, at, calls=calls)
+                    phase, since = "model", at
+    if phase == "tool":
+        close("tool", since, end, calls=calls)
+    else:
+        close("model", since, end)
+    return phases
 
 
 def agent_profile(profile: AgentProfile, steps: dict) -> dict:
@@ -486,7 +545,14 @@ def run_journey(session: Session, version: str) -> dict:
         profile.visible_reply_s = (
             visible_reply_at - profile.visible_reply_started_ms
         ) / 1000
-    print(json.dumps(agent_profile(profile, steps), indent=2), file=sys.stderr)
+    comment = agent_profile(profile, steps)
+    if session.stream is not None:
+        comment["turn"] = turn_phases(
+            [json.loads(line) for line in session.stream.read_text().splitlines()],
+            answered_comment["ts"],
+            answer["ts"],
+        )
+    print(json.dumps(comment, indent=2), file=sys.stderr)
     if not reply_visible or visible_reply_at is None:
         debug = page.evaluate("window.__leafVerifier.visibleReplyDebug")
         raise RuntimeError(
@@ -539,7 +605,7 @@ def run_journey(session: Session, version: str) -> dict:
     return {
         "version": version,
         "page": startup_profile(initial_startup),
-        "comment": agent_profile(profile, steps),
+        "comment": comment,
         "change": {
             "heading": heading,
             "revision": published["revision"],
@@ -634,7 +700,8 @@ def harness_session(browser, harness: str) -> Iterator[tuple[Session, str]]:
                     f"{run / 'stream.jsonl'}",
                 )
                 time.sleep(1)
-            yield local_session(browser, found["url"]), version
+            session = local_session(browser, found["url"])
+            yield session._replace(stream=run / "stream.jsonl"), version
         finally:
             child.close()
             # A turn in progress ends on its own once stdin closes; the context's

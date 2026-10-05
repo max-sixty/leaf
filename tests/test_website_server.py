@@ -4591,6 +4591,62 @@ def test_a_title_written_after_the_reply_is_still_timed():
     }
 
 
+def test_an_agent_turn_splits_into_delivery_model_and_tool_phases():
+    """A harness journey splits the turn it ran into the phases a reader adds up:
+    the wait for the turn to start, each model call, and each tool phase with its
+    calls, which end only when every call started together has returned."""
+
+    def at(seconds: float) -> str:
+        return f"2026-10-04T12:00:{seconds:06.3f}-07:00"
+
+    def call(seconds: float, *uses: tuple[str, str]) -> dict:
+        content = [
+            {"type": "tool_use", "id": id, "name": "Bash", "input": {"command": cmd}}
+            for id, cmd in uses
+        ]
+        return {"type": "assistant", "message": {"content": content}, "received_at": at(seconds)}
+
+    def result(seconds: float, id: str) -> dict:
+        content = [{"type": "tool_result", "tool_use_id": id}]
+        return {"type": "user", "message": {"content": content}, "received_at": at(seconds)}
+
+    comment, _, reply = TURN_LOG
+    stream = [
+        {"type": "system", "subtype": "hook_response", "received_at": at(0.2)},
+        {"type": "system", "subtype": "init", "received_at": at(0.5)},
+        {
+            "type": "assistant",
+            "message": {"content": [{"type": "thinking", "thinking": ""}]},
+            "received_at": at(2.0),
+        },
+        call(4.0, ("ack", "leaf delivery ack d1"), ("read", "cat threads.md")),
+        result(4.1, "read"),
+        result(5.0, "ack"),
+        call(7.0, ("edit", "leaf page check .")),
+        result(8.0, "edit"),
+        call(12.0, ("reply", "leaf thread reply . --for test-comment")),
+    ]
+    assert journey.turn_phases(stream, comment["ts"], reply["ts"]) == [
+        {"phase": "delivery", "startMs": 0, "ms": 500},
+        {"phase": "model", "startMs": 500, "ms": 3500},
+        {
+            "phase": "tool",
+            "startMs": 4000,
+            "ms": 1000,
+            "calls": ["leaf delivery ack d1", "cat threads.md"],
+        },
+        {"phase": "model", "startMs": 5000, "ms": 2000},
+        {"phase": "tool", "startMs": 7000, "ms": 1000, "calls": ["leaf page check ."]},
+        {"phase": "model", "startMs": 8000, "ms": 4000},
+        {
+            "phase": "tool",
+            "startMs": 12000,
+            "ms": 500,
+            "calls": ["leaf thread reply . --for test-comment"],
+        },
+    ]
+
+
 class _PresentationWait:
     def __init__(self, waits: list[int]):
         self.waits = waits

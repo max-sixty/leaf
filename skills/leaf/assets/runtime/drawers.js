@@ -233,7 +233,7 @@ export function createDrawers({
           drawer.openedBy = door;
           setOpenDrawer(drawerIsOpen(key) ? null : key);
         };
-        door.setAttribute("aria-expanded", "false");
+        keeps(door, "aria-expanded", "false");
       }
       drawer.close.onclick = () => setOpenDrawer(null);
     }

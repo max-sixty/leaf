@@ -4164,7 +4164,7 @@ STATUS_COUNTS = """() => {
     ...document.querySelectorAll('.lf-banner-actions > :not([hidden])')];
   const approval = document.querySelector('.lf-banner-actions > .lf-signoff');
   return {shown: counts.clientWidth, needed: counts.scrollWidth,
-          left: box.left, top: box.top,
+          left: box.left, top: box.top, inert: counts.inert,
           statusLeft: document.querySelector('.lf-status-button').getBoundingClientRect().left,
           statusBottom: document.querySelector('.lf-banner-status').getBoundingClientRect().bottom,
           inBanner: box.left >= banner.left && box.right <= banner.right
@@ -4239,6 +4239,8 @@ def test_the_status_press_grows_into_free_room_and_moves_nothing(
     assert counts["approval"], counts
     assert counts["approval"]["shown"] >= counts["approval"]["needed"], counts
     assert counts["drawn"] == counts_drawn, counts
+    # The counts are a press; one the banner does not draw takes no Tab stop.
+    assert counts["inert"] != counts_drawn, counts
     if counts_drawn:
         assert counts["shown"] >= counts["needed"] > 0, counts
         assert counts["inBanner"] and not counts["overlaps"], counts
@@ -4261,7 +4263,7 @@ def test_the_counts_lead_a_phone_s_second_row_where_the_run_leaves_room(browser,
     expect(page.locator(".lf-status-queues")).to_have_text("3 on you")
     page_at_rest(page)
     resting = page.evaluate(STATUS_COUNTS)
-    assert resting["drawn"] and resting["inBanner"], resting
+    assert resting["drawn"] and resting["inBanner"] and not resting["inert"], resting
     assert resting["shown"] >= resting["needed"] > 0, resting
     assert not resting["overlaps"], resting
     assert resting["left"] == pytest.approx(resting["statusLeft"], abs=1), resting
@@ -4274,7 +4276,7 @@ def test_the_counts_lead_a_phone_s_second_row_where_the_run_leaves_room(browser,
     ).to_be_visible()
     page_at_rest(page)
     searching = page.evaluate(STATUS_COUNTS)
-    assert not searching["drawn"], searching
+    assert not searching["drawn"] and searching["inert"], searching
     clipped = page.evaluate(BANNER_ROWS)["clipped"]
     assert not clipped, f"the search steps were cut off: {clipped}"
 
@@ -4282,8 +4284,9 @@ def test_the_counts_lead_a_phone_s_second_row_where_the_run_leaves_room(browser,
     expect(page.locator(".lf-banner-actions > .lf-btn", has_text="Next")).to_be_hidden()
     page_at_rest(page)
     back = page.evaluate(STATUS_COUNTS)
-    assert (back["drawn"], back["left"], back["top"]) == (
+    assert (back["drawn"], back["inert"], back["left"], back["top"]) == (
         True,
+        False,
         resting["left"],
         resting["top"],
     ), (resting, back)

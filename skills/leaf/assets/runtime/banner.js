@@ -16,6 +16,7 @@ import { latestChip, versionBtn } from "./version-picker.js";
 import { othersBtn, queueBtn } from "./drawers.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { repaint } from "./repaint.js";
+import { sizeObserver } from "./rendering.js";
 import { announce, notice } from "./notifications.js";
 import { watchProjection } from "./projection-watch.js";
 import { createBannerApprovalFace } from "./banner-approval.js";
@@ -713,6 +714,18 @@ export function mountBanner({ approveVersion, paintApproval }) {
   watchSemantic(() => lastStatus && presentStatus(lastStatus));
   for (const control of [queueBtn, othersBtn]) showNews(control, false);
   banner.append(bannerStatus, bannerStatus.queues, bannerActions);
+  // On two rows the counts stand on the second line only where the run leaves them
+  // room whole, else on a third the banner does not draw (chrome.css). A press there is
+  // a stop nobody can see, so undrawn counts are inert; the Queue control in More and
+  // the status's disclosure still reach what they say.
+  const counts = bannerStatus.queues;
+  const seatCounts = sizeObserver(() => {
+    const drawn =
+      counts.getBoundingClientRect().bottom <=
+      banner.getBoundingClientRect().bottom + 0.5;
+    keeps(counts, "inert", drawn ? null : "");
+  });
+  for (const box of [banner, bannerActions, counts]) seatCounts.observe(box);
   reserveBannerControls();
   approveBtn.onclick = async () => {
     if (approving) return;

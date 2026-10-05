@@ -45,7 +45,6 @@ class BannerStatusView extends HTMLElement {
     this.#queues.type = "button";
     this.#queues.title = "Show or hide the Queue panel";
     this.#queues.setAttribute("aria-controls", "lf-queue");
-    this.#queues.setAttribute("aria-expanded", "false");
     this.#detail.id = "lf-status-detail";
     this.#detail.tabIndex = -1;
     this.#detail.setAttribute("popover", "auto");

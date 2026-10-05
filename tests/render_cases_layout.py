@@ -845,18 +845,19 @@ def displaced(before, boxes, news=False):
 
     `news` reads the rule for a change nobody gestured (`skills/leaf/assets/AGENTS.md`,
     "Stability"): a box whose own words changed may grow or shrink into free room, so its
-    width is its own, but its place is not, and no other box may move or resize. A box
-    that grew by pushing its neighbours still fails, as they do."""
+    width is its own, but its place is not, and no other box may move or resize. The
+    free room may lie on either side: a box packed against the run to its right, as the
+    banner's queue counts are, grows leftward into the status's room, and the edge that
+    holds still is its place. A box that grew by pushing its neighbours still fails, as
+    they do."""
 
     def moved(was, now):
         if now is None:
             return False
-        grew = news and was[4] != now[4]
-        return any(
-            a != b
-            for i, (a, b) in enumerate(zip(was[:4], now[:4]))
-            if not (grew and i == 2)
-        )
+        if news and was[4] != now[4]:
+            held = was[0] == now[0] or was[0] + was[2] == now[0] + now[2]
+            return not held or was[1] != now[1] or was[3] != now[3]
+        return any(a != b for a, b in zip(was[:4], now[:4]))
 
     return [
         f"{name} moved by "

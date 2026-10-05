@@ -574,7 +574,9 @@ def test_an_unclaimed_preview_keeps_its_gestures_out_of_the_stop_hook(
         page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "text": "probe"},
     )
-    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": session})
+    hooks_model.cmd_hook(
+        "claude-code", {"hook_event_name": "Stop", "session_id": session}
+    )
     assert capsys.readouterr().out == ""
 
 

@@ -742,7 +742,9 @@ def test_reading_inside_a_long_thread_keeps_its_title_and_reply_row_on_the_lists
     message = card.locator(".lf-msg.agent").first
     message.hover()
     message.locator(".lf-react-trigger").click()
-    expect(message.locator(":scope > .lf-react-strip")).to_contain_class("lf-react-open")
+    expect(message.locator(":scope > .lf-react-strip")).to_contain_class(
+        "lf-react-open"
+    )
     covered = message.evaluate(
         """async message => {
           const list = message.closest('.lf-threads');

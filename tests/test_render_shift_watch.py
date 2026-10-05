@@ -1507,7 +1507,15 @@ def test_typing_root_scroll_keeps_a_fixed_field_but_not_its_local_carry(browser,
 
 @pytest.mark.parametrize(
     "fault",
-    ["", "portal_x", "portal_y", "anchor_x", "anchor_y", "declared_unused", "rule_unused"],
+    [
+        "",
+        "portal_x",
+        "portal_y",
+        "anchor_x",
+        "anchor_y",
+        "declared_unused",
+        "rule_unused",
+    ],
 )
 @pytest.mark.parametrize("transform", ["none", "scale(.8)", "scale(.8) rotate(10deg)"])
 @pytest.mark.parametrize("declared", ["inline", "scoped_rule"])
@@ -1574,9 +1582,12 @@ def test_native_anchor_scroll_retains_local_motion_proof(
     judge_watches()
     errors = take_browser_errors(page)
     if fault:
-        assert any(
-            f"typing in {name} moved {name}" in error for error in errors
-        ), (fault, before, after, errors)
+        assert any(f"typing in {name} moved {name}" in error for error in errors), (
+            fault,
+            before,
+            after,
+            errors,
+        )
     else:
         assert errors == [], (before, after, errors)
 

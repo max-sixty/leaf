@@ -740,6 +740,26 @@ def test_reading_inside_a_long_thread_keeps_its_title_and_reply_row_on_the_lists
     assert edges["reply"] <= edges["bottom"], edges
     assert edges["atTop"] and edges["atBottom"], edges
     assert edges["through"] == [], edges
+    # An overlay a row raises while open scrolls up under the title with its words.
+    message = card.locator(".lf-msg.agent").first
+    message.hover()
+    message.locator(".lf-react-trigger").click()
+    expect(message.locator(":scope > .lf-react-strip")).to_contain_class("lf-react-open")
+    covered = message.evaluate(
+        """async message => {
+          const list = message.closest('.lf-threads');
+          const title = list.querySelector(':scope > .lf-thread[open] > .lf-thread-summary');
+          list.scrollTop += message.getBoundingClientRect().top
+            - title.getBoundingClientRect().top - 12;
+          for (let i = 0; i < 2; i++) await new Promise(requestAnimationFrame);
+          const box = title.getBoundingClientRect();
+          const xs = [];
+          for (let x = box.left + 2; x < box.right; x += 4) xs.push(x);
+          return xs.filter((x) => !title.contains(
+            document.elementFromPoint(x, box.top + box.height / 2))).length;
+        }"""
+    )
+    assert covered == 0
 
 
 def test_incoming_reply_follows_a_visible_composer_below_earlier_words(browser, serve):

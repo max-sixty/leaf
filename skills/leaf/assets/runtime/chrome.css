@@ -948,14 +948,15 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      stands over takes `--lf-top` past it, so the runtime's reading of what is on screen
      leaves the band under it out (geometry.js, `headerInset`), and a landing on
      anything under it arrives below it through `scroll-margin-top`; the list's scroll
-     padding adds the ring room. It paints over the rows that pass beneath it, so it
-     stands above the layers a row keeps at rest, such as an icon raised over its
-     button's disc or a reaction trigger (up to 2, shadow.css), and below the overlays
-     a row raises while one is open or held, an open reaction list (4) or a held
-     word (5), which stand over whatever they open across. */
+     padding adds the ring room. It paints over everything that passes beneath it, so
+     it stands above every layer a row raises inside the list: an icon over its
+     button's disc, a reaction trigger, a message lifted while its reaction list is
+     open, a held word's label (1 to 5, shadow.css). An overlay scrolled up to the
+     title goes under it with the words it belongs to. The rows stay unisolated, so
+     what a row raises still stands over the rows after it. */
   .lf-threads > .lf-thread-compact { --lf-top-outer: var(--lf-top); }
   .lf-threads > .lf-thread-compact > .lf-thread-summary {
-    position: sticky; top: var(--lf-top); z-index: 3; }
+    position: sticky; top: var(--lf-top); z-index: 6; }
   .lf-threads > .lf-thread-compact > :not(.lf-thread-summary) {
     --lf-top: calc(var(--lf-top-outer) + var(--lf-thread-title-h)); }
   :is(.lf-threads > .lf-thread-compact > :not(.lf-thread-summary),

@@ -183,7 +183,10 @@ or an eval case's capture, is published to `max-sixty/leaf-assets` at the path
 its reader looks for it and pinned by `leaf-assets.json`
 (`dev/leaf_dev/leaf_assets.py`). Publishing there belongs to the change that
 needs the images and takes no separate approval: it appends a commit and moves
-only this checkout's pin, so no other branch reads a different image. Evidence, such as screenshots, probe
+only this checkout's pin, so no other branch reads a different image. The new
+pin also carries whatever other branches published since the old one, so a
+conflict in `leaf-assets.json` resolves by publishing again from the merged
+tree. Evidence, such as screenshots, probe
 captures, recordings and raw run output, stays in `.tmp/` and reaches the user
 on a Leaf page; a note keeps the finding and the command that reproduces it,
 not the capture. The suite refuses a binary file, and pre-commit refuses a new

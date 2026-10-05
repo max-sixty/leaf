@@ -2450,22 +2450,23 @@ def test_banner_status_is_compact_with_accessible_details(browser, serve, other_
         expect(explanation).to_be_hidden()
     resized(page, 1280, 900)
 
-    # Above the floor the sentence and fixed primary controls consume the row exactly.
+    # Above the floor the sentence, the queue counts and the fixed primary controls
+    # consume the row exactly.
     room = page.evaluate(
         """() => {
-          const status = document.querySelector('.lf-banner-status');
-          const actions = document.querySelector('.lf-banner-actions');
           const banner = document.querySelector('.lf-banner');
           const style = getComputedStyle(banner);
           const inner = banner.clientWidth
             - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
-          return {inner, status: status.getBoundingClientRect().width,
-                  actions: actions.getBoundingClientRect().width,
+          const items = [...banner.children].filter((node) => node.checkVisibility());
+          return {inner, names: items.map((node) => node.className),
+                  widths: items.map((node) => node.getBoundingClientRect().width),
                   gap: parseFloat(style.columnGap)};
         }"""
     )
-    assert room["status"] + room["actions"] + room["gap"] == pytest.approx(
-        room["inner"], abs=1
+    assert "lf-status-queues" in room["names"], room
+    assert sum(room["widths"]) + room["gap"] * (len(room["widths"]) - 1) == (
+        pytest.approx(room["inner"], abs=1)
     ), f"the banner left room standing between its status and its controls: {room}"
 
     # The fixed primary run keeps complete words and secondary actions remain in More.
@@ -3151,9 +3152,13 @@ def assert_banner_as_stated(read, wrapped):
 @pytest.mark.parametrize(
     ("width", "touch", "signoff", "wrapped"),
     [
-        # A landscape phone holds the status beside Threads, and beside Approval too.
-        (740, True, False, False),
-        (740, True, True, False),
+        # A tablet's window holds the status and the queue counts beside Threads, and
+        # beside Approval too.
+        (820, True, False, False),
+        (820, True, True, False),
+        # Below that, a landscape phone gives the run, led by the counts, a row of its
+        # own, so the sentence keeps a row of its own too.
+        (740, True, False, True),
         # Capability arrival cannot change this window's row allocation.
         (600, False, False, True),
         (600, False, True, True),
@@ -4145,13 +4150,32 @@ STATUS_PRESS = """() => {
 }"""
 
 
+STATUS_COUNTS = """() => {
+  const counts = document.querySelector('.lf-status-queues');
+  const box = counts.getBoundingClientRect();
+  const banner = document.querySelector('.lf-banner').getBoundingClientRect();
+  const meets = (other) => box.left < other.right - 0.5 && other.left < box.right - 0.5
+    && box.top < other.bottom - 0.5 && other.top < box.bottom - 0.5;
+  const others = [document.querySelector('.lf-banner-status'),
+    ...document.querySelectorAll('.lf-banner-actions > :not([hidden])')];
+  return {shown: counts.clientWidth, needed: counts.scrollWidth,
+          inBanner: box.left >= banner.left && box.right <= banner.right
+            && box.top >= banner.top && box.bottom <= banner.bottom,
+          overlaps: others.filter((n) => meets(n.getBoundingClientRect()))
+            .map((n) => n.className)};
+}"""
+
+
 @pytest.mark.parametrize("width", [1280, 390])
 def test_the_status_press_grows_into_free_room_and_moves_nothing(browser, serve, width):
     """The status press is as wide as its words: its ring and its hit box are the
     sentence's, not the empty banner's. As the sentence the agent declares grows, the
     press grows rightward into the room the controls leave, and nothing else on the banner
-    moves; once that room runs out its words truncate rather than push More. At 390 the
-    status has a row of its own, so the room is that row."""
+    moves; once that room runs out its words truncate rather than push More. The queue
+    counts stand beside the status, whole and still throughout. At 390 the status has a
+    row of its own and the counts lead the run's row, so the sentence's room is that
+    whole row: an ordinary sentence of the agent's shows whole there, where the counts
+    sharing its row had cut it to a word."""
     html = SUGGESTION_PAGE.replace(
         "<title>suggestions</title>",
         '<title>suggestions</title>\n<meta name="lf-review" content="sign-off">',
@@ -4175,14 +4199,16 @@ def test_the_status_press_grows_into_free_room_and_moves_nothing(browser, serve,
     assert short["right"] < short["roomRight"] - 60, (
         f"a short status press still spans the banner's free room: {short}"
     )
-    page.evaluate(DEFINE_BOXES)
-    beside = page.evaluate(BANNER_WATCH, f":is({NEIGHBOUR}):not(.lf-status-button)")
-    assert any("lf-banner-more" in name for name in beside["names"]), beside["names"]
-
-    # The page's suggestions wait on the user, so the queue count stands at the
-    # status's trailing edge in its reserved box and takes that share of the room.
+    # The page's suggestions wait on the user, so the counts stand beside the status.
     expect(page.locator(".lf-status-queues")).to_have_text("3 on you")
-    longer = say("testing")
+    page.evaluate(DEFINE_BOXES)
+    beside = page.evaluate(
+        BANNER_WATCH, f":is({NEIGHBOUR}, .lf-status-queues):not(.lf-status-button)"
+    )
+    assert any("lf-banner-more" in name for name in beside["names"]), beside["names"]
+    assert any("lf-status-queues" in name for name in beside["names"]), beside["names"]
+
+    longer = say("running the browser suite")
     assert longer["shown"] >= longer["needed"], longer
     assert (longer["left"], longer["top"]) == (short["left"], short["top"])
     assert longer["right"] > short["right"], (short, longer)
@@ -4194,13 +4220,11 @@ def test_the_status_press_grows_into_free_room_and_moves_nothing(browser, serve,
         f"a sentence longer than the room was shown whole: {endless}"
     )
     assert endless["right"] <= endless["roomRight"] + 0.5, endless
-    # The sentence gives up its room first: the count stays whole beside it.
-    counts = page.locator(".lf-status-queues").evaluate(
-        "node => ({shown: node.clientWidth, needed: node.scrollWidth,"
-        " right: node.getBoundingClientRect().right})"
-    )
+    # The sentence gives up its room, never the counts: they stay whole, inside the
+    # banner, and clear of the status's room and every control.
+    counts = page.evaluate(STATUS_COUNTS)
     assert counts["shown"] >= counts["needed"] > 0, counts
-    assert counts["right"] <= endless["roomRight"] + 0.5, (counts, endless)
+    assert counts["inBanner"] and not counts["overlaps"], counts
     assert (endless["left"], endless["top"]) == (short["left"], short["top"])
     moved = displaced(beside, page.evaluate("() => window.__lfBoxes()"))
     assert not moved, "a status past its room pushed the banner:\n  " + "\n  ".join(

@@ -198,6 +198,12 @@ def owed_tasks(events: list) -> list[dict]:
     ]
 
 
+def log_tasks_open(events: list) -> list[dict]:
+    """The log's tasks nothing has ended, on either side: what a version or a layer
+    must leave a target for (`work.tasks_without_targets`)."""
+    return [task for task in canonical_tasks(events) if task["state"] == "open"]
+
+
 # How a task ends, the one reading of it every reader takes (`ends` on each task):
 # the agent's at its `task_end` or a version's `--completes`, an Ask's when its widget
 # answers it, a question's at the user's reply or a settling reaction, and any other

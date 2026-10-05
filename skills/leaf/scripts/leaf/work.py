@@ -1,5 +1,5 @@
-"""The subjects the agent's work stands on: what an id names, which widgets seat a
-task, and which widget tasks a version would leave without a target."""
+"""The subjects tasks stand on: what an id names, which widgets seat the agent's
+task, and which tasks a version would leave without a target."""
 
 from pathlib import Path
 
@@ -47,15 +47,17 @@ def widget_seat_error(page: PageReading, widget: str, moves: list[dict]) -> str 
     return None
 
 
-def widget_tasks_without_targets(
+def tasks_without_targets(
     document,
     projection: StateProjection,
     tasks: list[dict],
     registry: dict,
     ignored=(),
 ) -> list[str]:
-    """The widgets of open `tasks` that `document` would leave with no live target
-    for their margin entry, apart from `ignored`."""
+    """The ids of the widgets and elements open `tasks` stand on that `document` would
+    leave with no live target, apart from `ignored`: a task on either side whose
+    subject names an id stands beside that id, so a version without it would leave the
+    task beside nothing."""
     ignored = set(ignored)
     passages = page_passages(
         document,
@@ -66,18 +68,22 @@ def widget_tasks_without_targets(
     missing = set()
     for task in tasks:
         subject = task["subject"]
-        if subject["kind"] != "widget" or subject["id"] in ignored:
+        if subject["kind"] not in ("widget", "element") or subject["id"] in ignored:
             continue
-        widget = subject["id"]
-        rec = document.by_id.get(widget)
+        target = subject["id"]
+        if subject["kind"] == "element":
+            if target not in document.ids:
+                missing.add(target)
+            continue
+        rec = document.by_id.get(target)
         if not (
             rec
             and rec["tag"] in registry
-            and widget not in passages.retired
-            and widget not in passages.gone
+            and target not in passages.retired
+            and target not in passages.gone
             and not quoted_in(rec, registry)
         ):
-            missing.add(widget)
+            missing.add(target)
     return sorted(missing)
 
 

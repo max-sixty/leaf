@@ -738,3 +738,25 @@ def test_a_task_an_earlier_leaf_wrote_without_an_owner_is_absent(page_dir):
     assert state["queues"]["on_agent"] == []
     served = full_state(page_dir, events_model.read_events(page_dir))
     assert served["browser"]["tasks"] == []
+
+
+def test_a_version_keeps_the_target_of_every_open_task_on_an_id(page_dir):
+    """A version that drops a section with a task on it, the agent's or the user's, is
+    refused, as one dropping a widget with the agent's task on it is; ending each task
+    lets it through."""
+    (page_dir / "index.html").write_text(WORK_PAGE)
+    publish(page_dir)
+    mine = written(leaf("task", "open", page_dir, "plan", "Rewrite the plan"))
+    theirs = written(
+        leaf("task", "open", page_dir, "plan", "Is the plan enough?", "--on", "user")
+    )
+    assert mine["subject"] == theirs["subject"] == {"kind": "element", "id": "plan"}
+    (page_dir / "index.html").write_text(
+        WORK_PAGE.replace('<section id="plan">', '<section id="scheme">')
+    )
+    for task in (theirs, mine):
+        dropped = stamp(page_dir, "Plan renamed")
+        assert dropped.exit_code != 0
+        assert "would remove the target of the open task on 'plan'" in dropped.output
+        written(leaf("task", "end", page_dir, task["id"], "dropped", "Renamed"))
+    assert stamp(page_dir, "Plan renamed").exit_code == 0

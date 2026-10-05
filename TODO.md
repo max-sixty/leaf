@@ -1,5 +1,20 @@
 # TODO
 
+## Biggest current challenges
+
+- **Simplify the harness, host, and CLI workflow.** Make feedback delivery and
+  agent wake-up reliable, including Codex's message back into the session and
+  Claude Code's potentially overcomplicated state machine.
+- **Make tasks and work in progress clear.** Find a robust state model that
+  users can understand: what is running, waiting, blocked, or complete, and
+  whose next move it is.
+- **Keep authored pages flexible.** Find the useful middle ground between
+  unrestricted HTML and brittle templates, especially for workspaces.
+- **Make page-level Threads easy to create and use.** Give users a clear way
+  to start, find, and continue conversations about the whole page.
+- **Build coherent UI without repeated patches.** Improve the layout and
+  interaction mechanisms so each new case does not require another fix.
+
 Priority runs from **Now** to **Next** to **Etc**. Themes group related work within
 each priority; bullets are outcomes, not implementation plans. Linked notes hold the
 evidence and detailed briefs. Numbered items keep the ids shared with `notes/`.
@@ -153,19 +168,7 @@ and its chrome coordinate.
   (`syncLayoutRegion`) and the render check's held-panes reading (`heldPanes`), which
   both look only at `main`, have to look at that block too. It waits for a page that
   needs it; a workspace page's own pane grid stays plain CSS.
-- **Settle what a box declares to the width rules before patching them again.** One
-  flag, `--lf-block-frame`, decides three things: a box's edge margins are trimmed,
-  wide blocks inside it stay inside it, and a table in it fills it. `main` and a page
-  tab's panel want only the trim and opt out of the rest with `--lf-page-flow` (#1723).
-  A task inside `lf-command` wants only the trim too and has no way to say so, so a wide
-  worktree in it stays at 604px where it would take 672px. Rules that undo another rule
-  have also lived in lower cascade layers, where they lose without a sign: moving the
-  width rules into `lf-layouts` (#1617) disabled the page tab's hand-back and the
-  diagram package's no-runtime rule, and the bug reached a user a day after CI had
-  caught and muted it. Decide what
-  a box states (that its edges trim, that it draws a frame, that it holds the page's own
-  flow) so each rule reads one declaration and no box has to undo a rule meant for
-  another.
+
 - **Show each floating surface across the content it can hold.** `leaf-dev stills`
   screenshots the same states on the base and the branch, so it reports a change but
   misses a surface that is wrong on both. Until PR 1440 a margin thread card took all
@@ -207,23 +210,6 @@ and its chrome coordinate.
 - **Layout values that wait for a task:** a selection-and-detail component whose phone
   form shows one side at a time; canvas regions, whose reading position is
   two-dimensional; slides as a presentation of `lf-tabs`.
-- **Place the comment composer correctly on a page that sets a margin on `html`.**
-  With `html { margin-left: 40px }` the floating composer lands 40px left of its lane
-  and overlaps the element it comments on, on any page wide enough to place it
-  beside its target. The reference rect handed to Floating UI (`composing/surface.js`,
-  `placeFab`) and the fixed bar disagree by the root's margin.
-  `test_an_aimed_comment_keeps_its_place_with_the_asks_drawer_open` reproduces it at
-  1200px with the drawer closed and runs at 900px, where the composer goes above or
-  below, until this is fixed.
-- **Land a sent comment's thread where its comment box stood.** A comment typed beside
-  an option near the top of the window (the box standing just under the banner) came
-  back as a margin card level with the option, about 330px lower, so the words the
-  user just wrote jump across the page on send. The send's carry transition
-  (`composing/surface.js`, the card placement in `margin-projection.js`) animates the
-  jump rather than avoiding it. The card and the box choose their places by different
-  rules: the box from the target and the room at the moment it opened, the card from the
-  margin's own layout. Either the card opens where the box stood, or the box opens where
-  the card will stand.
 - **Unconfirmed: scrolling a live sample sometimes sticks.** A user reported it
   while a sample still scrolled inside a fixed-height frame, with no reproduction.
   The frame now takes its page's height, so nothing scrolls inside it; check that the
@@ -247,7 +233,8 @@ that changes size after first paint, with its cause.
   the first state answer, after first paint. Serving that state inside the page does
   not work: modules run after first paint, and a page revision is immutable while the
   log keeps changing. Follow #1566's Command Hub pattern instead: draw a summary whose
-  size is known at first paint, open the rows from it, and hold later growth with
+  structure is fixed, declared as the widget's `x-prepaint` so the first paint lays it
+  out, open the rows from it, and hold later growth with
   `HeldReading` (`runtime/thread/held-news.js`) while it would be seen. Check first
   whether a text document, which the reader came to read, can stand behind a summary.
 - **Decide the contents' form before first paint.** `lf-toc` changes size because the
@@ -348,6 +335,18 @@ height and where a switch lands wait on the workspace decision under Layout.
   explains who owes the next move. Keep explicit agent status available when the
   Ask alone does not explain the wait.
 
+### Development velocity
+
+- **Check what handing over on chosen tests costs.** Since 2026-10-04 a handover runs
+  the tests the agent picks for its change, and the broad selection runs only at
+  landing (`tests/AGENTS.md`, "Run what the change needs"). Before that, 25 of the
+  200 pull-request `ci` runs that finished between 2026-10-02 22:00 and 2026-10-04
+  ~19:00 UTC failed on tests. Compare the pull requests' test-failure rate since the
+  change with that baseline, and weigh it against the local test time saved: the
+  broad selection is about 3,700 s of test time on a CI runner. If the rate rose,
+  look at which escapes a cheap fixed set of tests would have caught, and choose
+  that set by measured catches per second rather than by kind.
+
 ## Etc
 
 Revisit these when their stated trigger becomes real; they are not an active queue.
@@ -367,6 +366,14 @@ Revisit these when their stated trigger becomes real; they are not an active que
   Artifacts store a viewer id on each row and resolve names, faces and presence
   from the host. Settle user identity and how it reaches the append door before
   building a feed or presence on it.
+- **Show which pane has focus, and move between panes by key.** A terminal marks
+  its active pane and one key moves to the next. In a workspace today the arrow keys
+  walk a side list, `a` reaches the next open Ask, and a pane body that scrolls is a
+  Tab stop, but nothing marks the active pane and no key moves from one pane to the
+  next. Pane focus belongs to the panes and the keyboard layer, not the Layout, so it
+  works the same wherever panes stand. Draw it as a playground before building it.
+  Trigger: a user loses track of the active pane, or tabs through a pane to reach the
+  next one.
 - **#23 — Workspace persistence:** use repeated real tasks to decide whether
   users return and how much customization Leaf should own.
 - **Visual review beside Leaf:** coordinate a real browser target through the harness

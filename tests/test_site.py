@@ -1946,44 +1946,8 @@ def test_a_contained_page_retries_a_failed_first_state_read(serve, browser):
     assert len(errors) == 2
 
 
-def test_a_failed_gallery_frame_does_not_block_other_demos(serve, browser):
-    """A contained page that never presents fails without blocking its neighbors."""
-    url = serve(FEATURE_GALLERY)
-    context = browser.new_context(reduced_motion="reduce")
-    page = context.new_page()
-
-    def stop_inner_leaf(route):
-        if route.request.frame.name == "interaction-send-comment":
-            route.abort()
-        else:
-            route.continue_()
-
-    page.route("**/leaf.js", stop_inner_leaf)
-    navigate(page, f"{url}#bg-interactions")
-    gallery = page.locator("#bg-interactions")
-    status = gallery.locator("[data-interaction-status]")
-    toggle = gallery.locator("[data-interaction-toggle]")
-    expect(status).to_have_text("Ready — motion will start only when you press Play")
-    expect(toggle).to_be_enabled()
-
-    gallery.get_by_role("tab", name="Send a comment").click()
-    expect(status).to_have_text("Could not play", timeout=5_000)
-    expect(toggle).to_be_disabled()
-
-    gallery.get_by_role("tab", name="Move a card").click()
-    expect(status).to_have_text("Ready — motion will start only when you press Play")
-    toggle.click()
-    expect(status).to_have_text("Complete", timeout=10_000)
-    expect(toggle).to_have_text("Replay")
-    expect(toggle).to_be_enabled()
-    errors = consume_browser_errors(
-        page, "entry module did not load", "net::ERR_FAILED"
-    )
-    assert any("entry module did not load" in error for error in errors), errors
-
-
 def test_gallery_reports_sample_document_without_leaf(serve, browser):
-    """A response without Leaf startup scripts cannot leave a gallery demo loading."""
+    """A failed contained page is reported without blocking the other demos."""
     url = serve(FEATURE_GALLERY)
     context = browser.new_context(reduced_motion="reduce")
     page = context.new_page()
@@ -2005,6 +1969,15 @@ def test_gallery_reports_sample_document_without_leaf(serve, browser):
     expect(gallery.locator("[data-interaction-status]")).to_have_text(
         "Could not play", timeout=5_000
     )
+    expect(gallery.locator("[data-interaction-toggle]")).to_be_disabled()
+    gallery.get_by_role("tab", name="Move a card").click()
+    status = gallery.locator("[data-interaction-status]")
+    toggle = gallery.locator("[data-interaction-toggle]")
+    expect(status).to_have_text("Ready — motion will start only when you press Play")
+    toggle.click()
+    expect(status).to_have_text("Complete", timeout=10_000)
+    expect(toggle).to_have_text("Replay")
+    expect(toggle).to_be_enabled()
     consume_browser_errors(page, "503", "Leaf sample document did not start")
 
 

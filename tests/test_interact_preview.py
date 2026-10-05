@@ -22,7 +22,7 @@ from urllib.parse import urlsplit
 
 import pytest
 from conftest import LEAF_COMMAND
-from interact_support import ROOT, fetch, stamp, wait_for
+from interact_support import ROOT, STATED_TIMEOUT, fetch, stamp, wait_for
 from leaf import codex_adapter, leases, server, service, session
 from leaf_dev import preview
 
@@ -371,7 +371,6 @@ finally:
             ready.exists,
             bool,
             failure="the user preview never handed over its URL",
-            timeout=60,
         )
         url, _ = json.loads(ready.read_text())
         claim = service.page_claim(page_dir)
@@ -407,7 +406,7 @@ finally:
         assert 'operation="delivery read"' in arguments[-1]
     finally:
         done.touch()
-        output, errors = task.communicate(timeout=15)
+        output, errors = task.communicate(timeout=STATED_TIMEOUT)
     assert task.returncode == 0, f"{output}{errors}"
     wait_for(
         lambda: codex_adapter.adapter_is_live("preview-thread"),

@@ -252,7 +252,9 @@ function captureCommandReferenceCatalog() {
             baseTitle,
             baseDescription,
             familySteps: [...sequence, ...completeRowSteps(referenceRow)],
-            presentations: commandPresentations(row, declared).map(({ id, route }) => ({
+            presentations: commandPresentations(row, declared, {
+              includeUnavailable: true,
+            }).map(({ id, route }) => ({
               id,
               route:
                 route && route.binding == null

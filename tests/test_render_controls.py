@@ -1786,7 +1786,7 @@ CONTROL_ARCHETYPES = (
     },
     {
         "name": "command-view",
-        "target": '#stable-command .lf-command-facts > [data-lf-view="running"]',
+        "target": '#stable-command .lf-command-tile[data-lf-view="running"]',
     },
     {
         # The diff's own header: a filter, a count, the soft-wrap switch, and the

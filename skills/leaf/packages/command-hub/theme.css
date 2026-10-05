@@ -84,7 +84,7 @@
 /* A goal row packs its chips from the left and breaks their words by the room the
    command has, which a command inside a worker's disclosure or beside an open drawer
    has less of than the window says. */
-:scope:is(lf-command) { container: lf-command lf-command-seat / inline-size; }
+:scope:is(lf-command) { container: lf-command / inline-size; }
 :scope:is(lf-task) { display: block; position: relative; padding-left: 26px; margin: 8px 0; }
 :scope:is(lf-task)::before { content: ""; position: absolute; left: 6px; top: 5px;
                   width: 10px; height: 10px; border-radius: 50%;
@@ -131,45 +131,26 @@
   font-family: var(--sans); font-variant-numeric: tabular-nums; }
 /* The seat stacks its panels the way a rail's own grid stacks its cells: the gap is the
  * grid's, so a panel the command drew and one the page authored stand the same distance
- * apart. The outcome is the one panel the first paint can size: its rows are set by
- * line heights rather than by what the log says, so a seat holds its room until the
- * command fills it, the one the page places and, at the head of a command with no
- * `readings`, the one the command draws there (lf-command.js, `band`). The lists under
- * it stand on screen once the reader opens one through its count (`data-lf-open`). The
- * room is the
- * sum of the outcome's rules below, which `leaf package check --render`'s
- * keeps-first-box reads against the panel drawn, plus a second row of tiles in a narrow
- * seat (`--lf-command-tile-wrap`, set where the tiles wrap). Without a runtime nothing
- * fills a seat, so it holds no room. */
-:scope:is(lf-command-readings) { display: grid; align-content: start; gap: var(--sp-4);
-  container: lf-command-seat / inline-size; }
-:scope:is(lf-command), :scope:is(lf-command-readings) {
-  --lf-command-tile-size: calc(
-    2px + 2 * var(--sp-2)                          /* a tile's frame */
-    + var(--t-2) * 1.1 + 2px + var(--t-6) * 1.2);  /* its count and word */
-  --lf-command-outcome-size: calc(
-    2px + 14px + 16px                              /* section.panel's border, padding */
-    + var(--t-6) * 1.3 + 10px                      /* its title */
-    + var(--t-3) * 1.25 + 6px + var(--t-6) * 1.3 + 2 * var(--sp-2) /* .lf-command-outcome */
-    + var(--sp-3) + var(--lf-command-tile-size)); } /* .lf-command-facts, one row */
+ * apart. The outcome is the one panel the first paint can size, since its rows are its
+ * structure rather than what the log says. Delivery writes that structure in where the
+ * command will draw its outcome (registry.json, `x-prepaint`): into each seat the page
+ * places, and at the head of a command with no `readings`, where the command draws a seat
+ * of its own (lf-command.js, `band`), standing as that seat will. The browser sizes it as
+ * it will size the panel drawn, and the command takes it out as it draws (`seat`). The
+ * lists under the outcome stand on screen once the reader opens one through its count
+ * (`data-lf-open`). */
+:scope:is(lf-command-readings) { display: grid; align-content: start; gap: var(--sp-4); }
 :scope:is(lf-command-readings) > section.panel { margin: 0; }
-:scope:is(lf-command) > lf-command-readings { margin-bottom: var(--sp-4); }
+:scope:is(lf-command) > :is(lf-command-readings, [data-lf-prepaint]) {
+  margin: 0 0 var(--sp-4); }
+:scope:is(lf-command)[readings] > [data-lf-prepaint] { display: none; }
 @media screen {
-  @scope (html[data-lf-interactive] :scope) {
-    :scope:is(lf-command-readings):not(:has(> .lf-command-head))::before{
-      content: ""; display: block;
-      block-size: calc(var(--lf-command-outcome-size) + var(--lf-command-tile-wrap, 0px)); }
-  }
-  @scope (html[data-lf-interactive] :scope) {
-    :scope:is(lf-command):not([readings], :has(> lf-command-readings))::before{
-      content: ""; display: block; margin-bottom: var(--sp-4);
-      block-size: calc(var(--lf-command-outcome-size) + var(--lf-command-tile-wrap, 0px)); }
-  }
   :scope:is(lf-command-readings):not([data-lf-open]) > :is(.lf-stopped-view, .lf-fleet-view) {
     display: none; }
 }
-/* The name and the fraction each hold one line, which is the room the seat holds for
- * them, and a name too long for it ends in an ellipsis rather than taking a second. */
+/* The name and the fraction each hold one line, and a name too long for it ends in an
+ * ellipsis rather than taking a second, so the outcome stands at one size whatever the
+ * label and the log say. */
 .lf-command-outcome { display: grid; gap: var(--sp-2); }
 .lf-command-outcome > :is(strong, span:last-child) { overflow: hidden;
   white-space: nowrap; text-overflow: ellipsis; }
@@ -182,35 +163,32 @@
     var(--chip) 0); }
 /* Each count is a tile: the number is what the eye compares, set large and in tabular
  * figures; the word under it names the view the tile opens. Only a count that needs
- * attention wears a tint. The four tiles share the panel's width in one row. In a seat
- * narrower than 380px, a quarter of the panel is too narrow for the longest word,
- * "stopped" (about 45px on macOS, more in a wider face), so the tiles stand in two rows
- * of two. A width query chooses the rows rather than the tiles' content, because the
- * seat reserves room for them before first paint; a row that wrapped by its content
- * would stand taller than that room and move what follows. */
-.lf-command-facts { display: grid; gap: var(--sp-2); margin-top: var(--sp-3);
-  grid-template-columns: repeat(4, minmax(0, 1fr)); }
-@container lf-command-seat (width < 380px) {
-  .lf-command-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  :scope:is(lf-command, lf-command-readings)::before {
-    --lf-command-tile-wrap: calc(var(--sp-2) + var(--lf-command-tile-size)); }
-}
-.lf-command-facts > [role="button"] { display: grid; align-content: start; gap: 2px;
+ * attention wears a tint. The four tiles share the panel's width in one row where it
+ * has room for their words, and stand in two rows of two where it does not: they go in
+ * pairs, and a pair wraps whole once the two no longer fit side by side, at the width
+ * the words themselves take in the face the page is set in ("stopped" is about 45px on
+ * macOS, more in a wider face). The first paint lays out the same tiles (`x-prepaint`),
+ * so it chooses the same rows. */
+.lf-command-facts { display: flex; flex-wrap: wrap; gap: var(--sp-2);
+  margin-top: var(--sp-3); }
+.lf-command-pair { flex: 1 1 0; display: grid; grid-template-columns: 1fr 1fr;
+  gap: var(--sp-2); }
+.lf-command-tile { display: grid; align-content: start; gap: 2px;
   box-sizing: border-box; padding: var(--sp-2) var(--sp-2) var(--sp-2) var(--sp-3);
   border: 1px solid var(--rule); border-radius: var(--r); background: var(--paper);
   color: var(--ink-2); font: var(--t-6)/1.2 var(--sans); text-align: left;
   cursor: pointer; --lf-block-frame: 1; }
 .lf-command-count { color: var(--ink); font: 600 var(--t-2)/1.1 var(--sans);
   font-variant-numeric: tabular-nums; }
-.lf-command-facts > .warn { border-color: color-mix(in srgb, var(--warn) 45%, var(--rule));
+.lf-command-tile.warn { border-color: color-mix(in srgb, var(--warn) 45%, var(--rule));
   background: var(--warn-tint); color: var(--warn-ink); }
-.lf-command-facts > .danger { border-color: color-mix(in srgb, var(--danger) 40%, var(--rule));
+.lf-command-tile.danger { border-color: color-mix(in srgb, var(--danger) 40%, var(--rule));
   background: var(--danger-tint); color: var(--danger-ink); }
-.lf-command-facts > :is(.warn, .danger) > .lf-command-count { color: inherit; }
+.lf-command-tile:is(.warn, .danger) > .lf-command-count { color: inherit; }
 /* A count whose list holds rows not yet drawn (lf-command.js, `markNews`): a mark in the
  * tile's corner, so the tile keeps its size. */
-.lf-command-facts > [data-lf-news] { position: relative; }
-.lf-command-facts > [data-lf-news]::after { content: ""; position: absolute;
+.lf-command-tile[data-lf-news] { position: relative; }
+.lf-command-tile[data-lf-news]::after { content: ""; position: absolute;
   inset-block-start: var(--sp-2); inset-inline-end: var(--sp-2);
   inline-size: 7px; block-size: 7px; border-radius: 50%; background: var(--accent); }
 
@@ -241,14 +219,16 @@
    it a cell of its own, and a goal ending "Last worktree: <a>atlas/dedupe-attempt</a>."
    stood on three rows with its full stop alone on the last. The generated chips lead
    the goal (lf-command.js) and float to its right, level with the title, which wraps
-   short of them. Containing the float makes the goal a frame its children's margins
-   stop at, so it says so and the theme trims them there.
+   short of them. Containing the float makes the goal a box its children's margins
+   stop at, so it says so and the theme trims them there. It draws nothing, so it says
+   `trim` rather than `1`, and a wide worktree in it takes the room as one outside it
+   does; a nested task draws its rail and says `1` (above).
 
    These rules read the authored tree, a task and a worker inside a command, rather than
    anything the upgrade writes, so the first paint lays each goal out as it will stand
    (assets/AGENTS.md, "Stability"). A package adding its own goal or worker widget to
    `$command.widgets` lays that widget out in its own theme. */
-:scope:is(lf-command) lf-task { display: flow-root; --lf-block-frame: 1; }
+:scope:is(lf-command) lf-task { display: flow-root; --lf-block-frame: trim; }
 :scope:is(lf-command) lf-task > strong { display: block; }
 :scope:is(lf-command) lf-task > .lf-task-meta { float: right;
   display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end;

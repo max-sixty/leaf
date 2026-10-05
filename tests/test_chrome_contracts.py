@@ -1133,11 +1133,10 @@ def test_a_conversation_keeps_its_face_and_sends_from_margin_and_panel(
               return {
                 messages: [...thread.querySelectorAll('.lf-msg')].map(message => ({
                   body: styles(message.querySelector('.lf-msg-body'), type),
-                  author: styles(message === thread.querySelector('.lf-msg')
-                    ? thread.querySelector('.lf-thread-root-meta b')
-                    : message.querySelector('.lf-msg-head b'), type),
+                  author: styles(message.querySelector(':scope > .lf-msg-head b')
+                    ?? thread.querySelector('.lf-thread-root-meta b'), type),
                 })),
-                metadata: styles(thread.querySelector('.lf-thread-root-meta .lf-msg-meta'), type),
+                metadata: styles(thread.querySelector('.lf-msg-meta'), type),
                 field: styles(field, [...type, 'padding-top', 'padding-right', 'padding-bottom',
                   'padding-left', 'min-height']),
                 surround: styles(thread.querySelector('.lf-thread-reply .lf-compose-field'),
@@ -1598,7 +1597,9 @@ def test_page_thread_dismiss_and_resolve_share_the_metadata_row(
     dismiss = preview.get_by_role("button", name="Dismiss thread view")
     expect(resolve).to_be_visible()
     expect(dismiss).to_be_visible()
-    assert dismiss.evaluate("button => button.closest('.lf-thread-root-meta') !== null")
+    assert dismiss.evaluate(
+        "button => button.closest('.lf-margin-thread-controls') !== null"
+    )
     centers = preview.evaluate(
         """preview => ['.lf-resolve', '.lf-margin-preview-close'].map(selector => {
           const rect = preview.querySelector(selector).getBoundingClientRect();
@@ -1610,24 +1611,22 @@ def test_page_thread_dismiss_and_resolve_share_the_metadata_row(
     if thread_count == 2:
         row = preview.evaluate(
             """preview => {
-              const meta = preview.querySelector('.lf-thread-root-meta');
-              const middle = selector => {
-                const box = meta.querySelector(selector).getBoundingClientRect();
-                return box.y + box.height / 2;
-              };
+              const actions = preview.querySelector('.lf-margin-thread-controls');
+              const head = preview.querySelector('.lf-thread-transcript .lf-msg-head');
+              const box = selector => preview.querySelector(selector)
+                .getBoundingClientRect();
+              const middle = selector => box(selector).y + box(selector).height / 2;
               return {
                 nav: middle('.lf-margin-preview-nav'),
-                author: middle('.lf-msg-head > b'),
+                author: middle('.lf-thread-transcript .lf-msg-head > b'),
                 actions: middle('.lf-thread-meta-actions'),
-                authorRight: meta.querySelector('.lf-msg-head')
-                  .getBoundingClientRect().right,
-                navLeft: meta.querySelector('.lf-margin-preview-nav')
-                  .getBoundingClientRect().left,
-                navRight: meta.querySelector('.lf-margin-preview-nav')
-                  .getBoundingClientRect().right,
-                resolveLeft: meta.querySelector('.lf-resolve')
-                  .getBoundingClientRect().left,
-                overflow: meta.scrollWidth - meta.clientWidth,
+                authorRight: head.getBoundingClientRect().right
+                  - parseFloat(getComputedStyle(head).paddingInlineEnd),
+                navLeft: box('.lf-margin-preview-nav').left,
+                navRight: box('.lf-margin-preview-nav').right,
+                resolveLeft: box('.lf-resolve').left,
+                overflow: actions.scrollWidth - actions.clientWidth
+                  + head.scrollWidth - head.clientWidth,
               };
             }"""
         )

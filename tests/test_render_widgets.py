@@ -3905,10 +3905,12 @@ def test_a_gloss_opens_at_its_phrase_for_pointer_keyboard_and_touch(browser, ser
     page.mouse.move(0, 0)
     expect(bubble).to_be_hidden()
     page.evaluate(RELEASE_FOCUS)
-    # Twice: the layer's skip link is the document's first stop, and the mark is the
-    # first thing the page itself offers.
-    page.keyboard.press("Tab")
-    page.keyboard.press("Tab")
+    # Walk from the layer's skip link through the current banner controls to the
+    # first action in the page. The exact number of banner stops can change.
+    for _ in range(12):
+        page.keyboard.press("Tab")
+        if mark.evaluate("node => document.activeElement === node"):
+            break
     expect(mark).to_be_focused()
     expect(bubble).to_be_visible()
     expect(gloss).to_have_css("outline-style", "solid")

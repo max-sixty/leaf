@@ -99,9 +99,11 @@ dense-prose fallback. No replacement policy was implemented or demonstrated.
 
 ## Concrete follow-up proposals, 2026-10-04; revised 2026-10-05
 
-Unimplemented proposals against Leaf `486180b51888d8dd46584f6c84e3d2a96f2035cb`;
-IDs match the live report. Existing persistence, free HTML, general composing,
-constrained panels and CSS-anchor following remain the baseline.
+Proposals first checked against Leaf `486180b51888d8dd46584f6c84e3d2a96f2035cb`,
+then rechecked against `532be8f718f6a2f3bdf1391f936a4778fcf5735f` on October 5.
+IDs match the live report. Existing task starts, the Queue panel's Done list,
+persistence, free HTML, general composing, constrained panels and CSS-anchor
+following are the baseline, not proposed additions.
 
 - **#1 — Quiet Codex feedback.** Keep the desktop queue's compact XML pointer
   while that route needs it. The useful improvement is delivery without an
@@ -119,28 +121,32 @@ constrained panels and CSS-anchor following remain the baseline.
   the module, default-on for interactive Claude 2.1.287+ on Unix-like hosts with
   `/bin/sh`; `PLANNOTATOR_CLAUDE_MOD=0` opts out.
   Local 2.1.289 meets the version gate, but the module was not operated here.
-- **#3 — Continue the same task with a new attempt.** Leaf already preserves
-  the obligation when a session ends. Record the next execution and session as
-  an attempt of the existing task, without adding a Pause button or a separate
-  paused task state. For example, an agent changes the CSV importer, its session
-  ends before tests, and another agent continues and verifies that same task.
-  Concurrent continuations need one winner; a late superseded attempt must not
-  silently close the continued work. [tasks.py](../skills/leaf/scripts/leaf/tasks.py)
-  currently records the opening session and terminal outcome.
-- **#4 — Keep finished task results easy to find.** Link an open task's name
-  in the activity banner to its existing thread. When it ends, preserve the
-  logged Done/Failed/Dropped outcome and detail there. The live task projection
-  currently includes only open tasks. Completion must remain findable after the
-  active count drops, including on a resolved thread. This displays an existing
-  result record; it creates no independent evidence of completion.
+- **#3 — Prevent superseded executions from closing continued work.** Leaf
+  already preserves the task when a session ends, and `task start` records a
+  later execution's session on the same task, plus its turn when it holds the
+  page claim. Reuse those starts rather
+  than adding a Pause state or a second attempt record. The missing guard is at
+  completion: [tasks.py](../skills/leaf/scripts/leaf/tasks.py) admits an end from
+  an older session after a newer start. A direct fold/admission probe confirmed
+  this case. Test competing continuations and prevent an obsolete execution's
+  delayed result from silently closing the continued work.
+- **#4 — Make finished task results easy to read.** The Queue panel already
+  lists ended tasks under Done with their outcome. Their detail is in the row's
+  native tooltip; show it as visible text or a disclosure usable by a finger.
+  Test whether readers find the result after the active count drops. Retain
+  navigation to an existing thread where one belongs to the task, including
+  resolved threads. Page and widget tasks may have no thread, so Queue remains
+  their result route. This displays the logged outcome rather than creating
+  independent evidence of completion.
 - **#5 — Stable neighbor retention.** Reuse `state.page_key` for neighbor rows
   and focus instead of URL; retain fresh-server checks and URL destinations.
   A present row changing endpoint must retain identity and activate the new URL.
 - **#6 — Canonical task selectors and list/board experiment.** Workbench's
   heading-driven board and [Sfora's map](https://www.sfora.ai/features/boards)
-  were operated, without persistence proof. Expose tasks through the existing
-  package publication API; prove both views consume one task outcome without
-  agent-maintained duplicate status markup. Preserve arbitrary authored HTML.
+  were operated, without persistence proof. Leaf's Queue already consumes
+  canonical task readings; expose those through the existing package publication
+  API. Prove list and board consume one task outcome without agent-maintained
+  duplicate status markup. Preserve arbitrary authored HTML.
 - **#7 — Page threads visibility, usability hypothesis.** Leaf already has
   Location → Page beneath View. Promote that predicate to a visible count/toggle
   and distinguish Start a page thread from Reply. Compare context-blind recovery

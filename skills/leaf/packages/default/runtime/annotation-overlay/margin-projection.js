@@ -56,10 +56,12 @@
    The panel declares its own target association.
 
    Placing the card changes its geometry and nothing inside it. The user's place in
-   its transcript is the messages' own scroll, held through reflow. The metadata and
-   reply row stand outside that scroll. A landing, send, or
-   step moves it; a new or growing agent turn follows while the reader is at the tail.
-   Other state reads leave the transcript where the user put it.
+   its transcript is the messages' own scroll, held through reflow. The actions and
+   reply row stand outside that scroll, and each message's head sticks at its top
+   while that message is read there. A card opened on a thread shows its latest
+   message (`showLatestTurn`). A landing, send, or step moves it; a new or growing
+   agent turn follows while the reader is at the tail. Other state reads leave the
+   transcript where the user put it.
 
    Each frozen cluster model names controls by contribution and entry identity. The Lit view
    retains their native nodes, so a state refresh cannot cancel a held pointer or move focus.
@@ -181,6 +183,7 @@ import { placeKeeper } from "/runtime/user-place.js";
 import { under } from "/runtime/shadow.js";
 import { retainUserIntent } from "/runtime/user-intent.js";
 import { threadFocusDestination } from "/runtime/thread/focus.js";
+import { showLatestTurn } from "/runtime/thread/reply-landing.js";
 import { strongestWorkflow } from "/runtime/thread/workflow.js";
 
 // A margin card's reply box.
@@ -537,6 +540,9 @@ export function createMarginProjection({
   const previewSide = commentPlacement();
   let previewHold = null;
   let previewAway = false;
+  // A card opened on another thread lands its transcript on the latest message, again on
+  // each fit until its first placement stands, since fitting sets the transcript's room.
+  let previewArriving = false;
   function answerThreadPreviewPosition(positioned) {
     previewPositionResult?.resolve(positioned);
     previewPositionResult = null;
@@ -609,7 +615,8 @@ export function createMarginProjection({
     ].some((box) => box && box.scrollHeight > box.clientHeight + 0.5);
     if (!(worn >= 0) || cap < height - 0.5 || (overflow && cap > height + 0.5))
       preview.style.setProperty("--lf-thread-max-height", `${cap}px`);
-    if (reading?.end) scrollToEnd(previewTranscript);
+    if (reading?.latest) showLatestTurn(previewTranscript);
+    else if (reading?.end) scrollToEnd(previewTranscript);
     return preview.getBoundingClientRect().height;
   }
   // The selected transcript's unconstrained extent changes with turns, not editor
@@ -766,6 +773,7 @@ export function createMarginProjection({
             // an intermediate cap must not turn an earlier offset into end-following.
             reading ??= previewTranscript && {
               end: !fresh && atScrollEnd(previewTranscript),
+              latest: previewArriving,
             };
             const room = Math.min(cardMeasure(), width);
             preview.style.setProperty(
@@ -810,6 +818,7 @@ export function createMarginProjection({
       })
       .then((position) => {
         if (!position || !stillCurrent()) return;
+        previewArriving = false;
         if (previewMessageViewport) {
           const body = previewList.querySelector(".lf-msg > .lf-msg-body");
           if (body && body !== previewMessageViewport.body) {
@@ -1727,7 +1736,8 @@ export function createMarginProjection({
     const threadItems = entry.items.filter((item) => item.kind === "comment");
     const wanted = requestedItem ?? previewThreadItem ?? focusedItem;
     const selected = threadItems.find((item) => item.id === wanted) ?? threadItems[0];
-    // Another thread starts at its top; an update to this one holds the reader's place.
+    // Another thread opens on its latest message; an update to this one holds the
+    // reader's place.
     const arriving = previewThreadItem !== (selected?.id ?? null);
     // Another thread is another card, which chooses its own spot.
     if (arriving) {
@@ -1791,7 +1801,8 @@ export function createMarginProjection({
     if (!arriving && previewPlace) previewPlace.around(present);
     else {
       present();
-      if (previewTranscript) previewTranscript.scrollTop = 0;
+      previewArriving = Boolean(previewTranscript);
+      if (previewArriving) showLatestTurn(previewTranscript);
     }
     previewLatest = latest && { thread: selected.id, id: latest.id, text: latest.text };
     if (follow) scrollToEnd(previewTranscript);
@@ -1971,6 +1982,7 @@ export function createMarginProjection({
     previewEntry = null;
     previewThreadItem = null;
     previewLatest = null;
+    previewArriving = false;
     previewMarginEntry = null;
     previewFocusPending = null;
     answerThreadPreviewPosition(false);

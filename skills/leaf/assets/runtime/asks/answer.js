@@ -1,5 +1,5 @@
-/* What an Ask was answered with, for every surface that names its answer: the Asks
-   drawer's rows and a queue's rows (lf-tabs).
+/* What an Ask was answered with, for every surface that names its answer: the Queue
+   panel's Done rows and a queue's rows (lf-tabs).
 
    Which Asks the page holds and whether each is answered are the admitted inventory's
    (`allAsks`, `unansweredAsks`), so both move when the state a gesture's POST returns

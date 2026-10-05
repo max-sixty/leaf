@@ -10,15 +10,15 @@ import { handBack, letGo } from "./focus.js";
 import { keys } from "./keyboard/scopes.js";
 import { pageRung } from "./keyboard/register.js";
 import { pagePresented } from "./presentation.js";
-import { allAsks } from "./asks/model.js";
+import { readApplication } from "./semantic-state.js";
 import { rowWalk } from "./walk-position.js";
 import { createLiveLeavesList } from "./live-leaves-list.js";
 import { bannerControlDoor, dismissBannerControls } from "./banner-toolbar.js";
-import { createAskDrawerList } from "./asks/drawer-list.js";
+import { createQueueList, shownItems, walkStops } from "./queue-list.js";
 import { keeps } from "./keeps.js";
 // The left side holds one drawer at a time, selected by the shared auxiliary-surface owner.
 // Both stand over the page and take no room from it. The leaves drawer covers the document
-// because its rows leave the page. The asks drawer leaves the page live beside it, because
+// because its rows leave the page. The Queue drawer leaves the page live beside it, because
 // its rows travel within the page and the user must keep the target reachable; where that
 // would leave less than a usable page it covers the page instead, by the rule the thread
 // panel follows on the other side (auxiliary-surfaces.js, `standsBeside`). Both entry controls
@@ -41,8 +41,8 @@ import { keeps } from "./keeps.js";
 // word of the page's — the status dot's 9px, its 8px gap, and the 20px and 8px the row
 // and the drawer take for padding — and what is left holds a title that ellipsizes rather
 // than wrapping, so under this the drawer is furniture showing the first syllable of every
-// name on it. The Asks drawer's rows clamp to three lines instead and would go on reading
-// further down, which is why the floor is the leaves drawer's to set.
+// name on it. The Queue drawer's rows clamp their titles to two lines instead and would go
+// on reading further down, which is why the floor is the leaves drawer's to set.
 const DRAWER_SLOT_W = 300;
 const DRAWER_SLOT_MIN = 220;
 // Where the standing width is written, and where the cascade reads it. theme.css and
@@ -52,11 +52,10 @@ const DRAWER_SLOT_MIN = 220;
 export const DRAWER_SLOT_PROP = "--lf-drawer-slot-width";
 
 // The rows' own box, one per drawer. Collected privately as they are made, because what
-// the layout reserves at the foot of one it reserves at the foot of every one — and a
-// second place to remember that is exactly where the Asks drawer was left out of it: its
-// walk parked the last row 47px under the shortcut bar, on the one drawer nothing had ever
-// walked to the end of. Callers state the clearance; this owner decides which lists it
-// reaches and how each one spends it.
+// the layout reserves at the foot of one it reserves at the foot of every one, and a
+// drawer left out of a second list of them parks its last row under the shortcut bar.
+// Callers state the clearance; this owner decides which lists it reaches and how each
+// one spends it.
 function drawerFurniture(panel, name, list = el("div", "lf-drawer-list")) {
   const head = el("div", "lf-drawer-head");
   const title = el("span", "lf-auxiliary-title", name);
@@ -73,9 +72,9 @@ function drawerFurniture(panel, name, list = el("div", "lf-drawer-list")) {
   return { list, close };
 }
 
-// Every active Ask and the route back through its current answer. The banner says
-// completed/total (sayAsks); a/A walks only what is waiting on the user (queue-walk.js).
-export const asksBtn = el("button", "lf-btn lf-asks", "");
+// What waits on the user and on the agent, and what is done (queue-panel.js; EXPERIMENTAL).
+// The banner's status counts the two queues; this control opens the panel listing them.
+export const queueBtn = el("button", "lf-btn lf-queue", "Queue");
 // The machine's live leaves and what each is doing: a left panel of rows, each a
 // link opening that page in its own tab, saying what that page's agent last declared
 // in the shape of the banner's activity — `others` on /api/state carries it for every
@@ -99,15 +98,14 @@ const leavesFurniture = drawerFurniture(
   createLiveLeavesList(othersBtn),
 );
 export const liveLeavesList = leavesFurniture.list;
-// A drawer of the page's active asks, on the same edge: open and answered rows in the
-// order the page asks them. The list is declaration-driven, so a widget joins without
-// a row here knowing what kind of thing it is standing for.
-export const asksPanel = el("nav", "lf-ui lf-drawer-panel lf-asks-panel");
-asksPanel.id = "lf-asks";
-asksPanel.setAttribute("aria-label", "Asks from this page");
-asksPanel.tabIndex = -1;
-const asksFurniture = drawerFurniture(asksPanel, "Asks", createAskDrawerList());
-export const asksList = asksFurniture.list;
+// The Queue panel, on the same edge: what waits on the user, what waits on the agent,
+// and what is done, each row a route to its item on this page (queue-panel.js).
+export const queuePanel = el("nav", "lf-ui lf-drawer-panel lf-queue-panel");
+queuePanel.id = "lf-queue";
+queuePanel.setAttribute("aria-label", "Queue");
+queuePanel.tabIndex = -1;
+const queueFurniture = drawerFurniture(queuePanel, "Queue", createQueueList());
+export const queueList = queueFurniture.list;
 
 // Furniture is local to this edge; selection belongs to the auxiliary-surface owner.
 const drawers = new Map();
@@ -115,18 +113,26 @@ export const currentDrawer = () =>
   drawers.has(currentAuxiliarySurface()) ? currentAuxiliarySurface() : null;
 export const drawerIsOpen = (key) => currentDrawer() === key;
 // Each drawer's one offer: something to show, or the drawer already standing so its button
-// can still close it. An Asks drawer of none is the same.
-export const asksOffered = () =>
-  pagePresented() && (allAsks().length > 0 || drawerIsOpen("asks"));
-export const askRows = () => [...asksPanel.querySelectorAll("button.lf-asks-row")];
+// can still close it. A Queue with nothing on either side and nothing done is the same.
+export function queueOffered() {
+  if (!pagePresented()) return false;
+  const { queues, done } = readApplication().effective;
+  return (
+    queues.onYou.length + queues.onAgent.length + done.length > 0 ||
+    drawerIsOpen("queue")
+  );
+}
+// The stops a walk down the Queue lands on: its items, and Done's door between them.
+export const queueRows = () => walkStops(queueList);
 
 export function createDrawers({
+  doors = {},
   landEdge,
   auxiliarySurfaces,
   closePreview,
   leavesOffered,
   presentLeaves,
-  syncAsks,
+  presentQueue,
 }) {
   const drawersEdge = drawnEdge({
     side: "left",
@@ -135,21 +141,32 @@ export function createDrawers({
     min: DRAWER_SLOT_MIN,
     prop: DRAWER_SLOT_PROP,
     key: "lf-drawer-slot-width",
-    when: () => leavesOffered() || asksOffered(),
+    when: () => leavesOffered() || queueOffered(),
     land: landEdge,
   });
 
   function setOpenDrawer(key, options) {
     if (key || currentDrawer()) auxiliarySurfaces.select(key, options);
   }
+  // A drawer's control is its door, and a drawer may have more than one: the Queue
+  // panel's is also the banner's queue counts. Every door says whether the drawer
+  // stands, and closing hands focus back to the door the user opened it from, where that
+  // door is still on screen, else to the control (through More where it is folded).
   function registerDrawer(key, panel, btn, close, paint) {
+    const entrances = [btn, ...(doors[key] ?? [])];
+    const returnDoor = () => {
+      const opened = drawers.get(key)?.openedBy;
+      return opened && opened !== btn && opened.checkVisibility()
+        ? opened
+        : bannerControlDoor(btn);
+    };
     auxiliarySurfaces.registerAuxiliarySurface({
       key,
       surface: panel,
       scroller: () => panel.querySelector(".lf-drawer-list"),
-      // Asks needs the document beside it because its rows lead to controls there.
+      // The Queue needs the document beside it because its rows lead to places there.
       // Leaves covers it: its rows leave the page.
-      beside: key === "asks",
+      beside: key === "queue",
       // Every drawer list ends above the bottom bar, which stands over the drawer in
       // both postures.
       underBand: true,
@@ -159,7 +176,7 @@ export function createDrawers({
       show({ phase }) {
         dismissBannerControls();
         closePreview?.();
-        keeps(btn, "aria-expanded", "true");
+        for (const door of entrances) keeps(door, "aria-expanded", "true");
         // Filled before it is shown, so the drawer is its own list from the first frame of
         // the slide rather than a blank card that populates a moment later. The way down
         // is the mirror of it, below: emptied once it is hidden, never before, or the
@@ -169,11 +186,13 @@ export function createDrawers({
         if (phase === "gesture") slide(panel, "left", "in");
       },
       hide({ returnFocus }) {
-        keeps(btn, "aria-expanded", "false");
+        for (const door of entrances) keeps(door, "aria-expanded", "false");
         if (!panel.classList.contains("open")) return;
         // Before the slide, which makes the drawer inert and would drop focus to body.
         if (returnFocus && panel.contains(document.activeElement))
-          handBack(bannerControlDoor(btn));
+          handBack(returnDoor());
+        // The door a press opened it from is that opening's, not the next one's.
+        drawers.get(key).openedBy = null;
         // Slid out before hidden, and hidden only if still closed on arrival — a
         // reopen mid-slide leaves the panel standing rather than racing the finish.
         const out = slide(panel, "left", "out");
@@ -186,7 +205,7 @@ export function createDrawers({
         else hide();
       },
     });
-    drawers.set(key, { panel, btn, close });
+    drawers.set(key, { panel, btn, close, entrances, openedBy: null });
   }
   // The painters are thunks: each drawer's owner imports this module back, so neither
   // painter is a binding this module can read as it evaluates.
@@ -197,27 +216,38 @@ export function createDrawers({
     leavesFurniture.close,
     presentLeaves,
   );
-  registerDrawer("asks", asksPanel, asksBtn, asksFurniture.close, syncAsks);
+  registerDrawer("queue", queuePanel, queueBtn, queueFurniture.close, presentQueue);
   const drawerNames = Object.freeze([...drawers.keys()]);
 
-  // The Asks drawer's own walk, the same one as the leaves drawer's: the arrows, Home and End
+  // The Queue's own walk, the same one as the leaves drawer's: the arrows, Home and End
   // are the page's scroll everywhere else and the drawer's here, and Enter is the
   // platform's, a row being a button — so the scope names what walking does and leaves
   // the press to the button.
   function mountDrawers() {
     drawersEdge.handle(othersPanel, () => othersBtn);
-    drawersEdge.handle(asksPanel, () => asksBtn);
-    for (const [key, { btn, close }] of drawers) {
-      btn.classList.add("lf-auxiliary-toggle");
-      btn.onclick = () => setOpenDrawer(drawerIsOpen(key) ? null : key);
-      close.onclick = () => setOpenDrawer(null);
-      btn.setAttribute("aria-expanded", "false");
+    drawersEdge.handle(queuePanel, () => queueBtn);
+    for (const [key, drawer] of drawers) {
+      drawer.btn.classList.add("lf-auxiliary-toggle");
+      for (const door of drawer.entrances) {
+        door.onclick = () => {
+          drawer.openedBy = door;
+          setOpenDrawer(drawerIsOpen(key) ? null : key);
+        };
+        keeps(door, "aria-expanded", "false");
+      }
+      drawer.close.onclick = () => setOpenDrawer(null);
     }
     keys(
-      asksPanel,
-      "In the Asks drawer",
-      rowWalk({ id: "ask.drawer", noun: "Ask", plural: "asks", rows: askRows }),
-      () => askRows().length > 0,
+      queuePanel,
+      "In the Queue",
+      rowWalk({
+        id: "queue.panel",
+        noun: "Item",
+        plural: "items",
+        rows: queueRows,
+        items: () => shownItems(queueList),
+      }),
+      () => queueRows().length > 0,
     );
   }
   // A standing drawer is one layer of the page the user put on by pressing its button, so

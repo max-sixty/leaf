@@ -234,6 +234,9 @@ interface WireTask {
   agent: string | null;
   session: string | null;
   outcome: { id?: string; ts: string | null; detail?: string | null } | null;
+  /** How the task ends (`tasks.py`): the agent's own, an Ask's widget, a question's
+   * reply, or the user's Done. */
+  ends: "agent" | "widget" | "reply" | "done";
   /** The Ask a task on the user stands for: the widget that answers it, and whether a
    * thread in that widget's seat holds it with the agent meanwhile. */
   ask: {

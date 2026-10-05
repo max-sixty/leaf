@@ -1043,8 +1043,9 @@ def task_start(dir: str, item: str, text: str) -> None:
 def task_end(dir: str, task_id: str, outcome: str, detail: str | None) -> None:
     """End TASK with OUTCOME. DETAIL says where the result is, such as the
     version or reply holding it, or why there is none. TASK may be one on the user:
-    one you opened `--on user`, an open Ask by its id, which ending retires, or a
-    question you left in a thread, by the id of the reply that asks it."""
+    one you opened `--on user`, or a question you left in a thread, by the id of the
+    reply that asks it. An Ask's task ends only when its widget answers it; retire an
+    Ask in a version."""
     from leaf.tasks import cmd_end
 
     _print_records(cmd_end(resolve_dir(dir), task_id, outcome, detail))

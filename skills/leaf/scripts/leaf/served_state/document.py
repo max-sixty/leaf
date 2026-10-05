@@ -4,13 +4,13 @@ from ..document_reading import DocumentReading, read_document
 from ..events import UndoReading, action_retracted
 from ..projection import PageReading, StateProjection
 from ..registry.kernel import bookkeeping_kinds
-from ..tasks import ask_tasks, task_ends
+from ..tasks import ask_tasks
 from .wire import browser_projection
 
 
 def browser_document(page: PageReading, threads: dict) -> tuple[dict, DocumentReading]:
     document = read_document(page, threads)
-    tasks, ended_tasks = ask_tasks(document.asks, task_ends(page.events))
+    tasks, ended_tasks = ask_tasks(document.asks)
     return (
         {
             "revision": page.revision,

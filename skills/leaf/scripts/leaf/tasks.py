@@ -33,8 +33,8 @@ writes an event, and `page_tasks` reads them. The third is a `task` event the ag
 writes with `--on user` on a widget, an element or the page, never a thread, where
 the question is the task. Nothing else answers it, so it ends at the user's Done,
 their own `task_end`, which `undo` takes back. The agent can end any task on the
-user: ending an Ask's retires the Ask, and a question's settles it, since both
-readings take an ended one off the user (`task_ends`).
+user but an Ask's, which the markup holds and a version retires: ending a question's
+settles it, since the prompt reading takes an ended one off the user (`task_ends`).
 
 A start lasts until its item ends: a task's end, or for a move the reply or stamped
 version that answers it (`workflows.canonical_workflows`), and it holds its item
@@ -139,8 +139,6 @@ def canonical_tasks(events: list) -> list[dict]:
 
     for event in events:
         if event["kind"] == "task":
-            # A task an earlier Leaf wrote names no owner; it is absent here, as
-            # AGENTS.md "Stage" has a record missing a field this version reads.
             if "owner" not in event:
                 continue
             tasks[event["id"]] = {
@@ -200,11 +198,31 @@ def owed_tasks(events: list) -> list[dict]:
     ]
 
 
+# How a task ends, the one reading of it every reader takes (`ends` on each task):
+# the agent's at its `task_end` or a version's `--completes`, an Ask's when its widget
+# answers it, a question's at the user's reply or a settling reaction, and any other
+# task on the user at their Done.
+ENDS_BY_AGENT = "agent"
+ENDS_BY_WIDGET = "widget"
+ENDS_BY_REPLY = "reply"
+ENDS_BY_DONE = "done"
+
+
+def _log_task(task: dict) -> dict:
+    """One of the log's tasks as `page_tasks` serves it, with how it ends."""
+    return {
+        **task,
+        "ends": ENDS_BY_AGENT if task["owner"] == "agent" else ENDS_BY_DONE,
+        "ask": None,
+    }
+
+
 def _derived(
     identity: str,
     subject: dict,
     thread: str | None,
     state: str,
+    ends: str,
     *,
     ended: dict | None = None,
     ask: dict | None = None,
@@ -230,23 +248,24 @@ def _derived(
         "outcome": {key: value for key, value in ended.items() if key != "state"}
         if ended
         else None,
+        "ends": ends,
         "ask": ask,
     }
 
 
-def ask_tasks(asks: dict, ends: dict[str, dict]) -> tuple[list[dict], list[dict]]:
+def ask_tasks(asks: dict) -> tuple[list[dict], list[dict]]:
     """The user's tasks one Ask reading holds (`{all, user, unanswered}`,
     `asks.page_ask_readings` or `asks.thread_ask_readings`), as the open ones and the
-    ended ones, given every `task_end` by the task it names (`task_ends`).
+    ended ones.
 
     Each Ask is a task on the user under the Ask's own id, open while it is
     unanswered and `done` once its widget answers it, with `ask` naming the widget
     that answers and whether a thread in that widget's seat holds it with the agent
-    (`held_by_seat`), which takes it off the user's queue meanwhile. The agent may
-    end or drop one with `leaf task end`, which retires the Ask: the Ask readings take
-    an ended one off the user (`asks`). A document's Asks are read with the document,
-    so a page's are served with the version they stand in (`served_state.document`),
-    and the queues read those of the version shown."""
+    (`held_by_seat`), which takes it off the user's queue meanwhile. The markup holds
+    it, so nothing else ends it: a version that removes the Ask, or marks it
+    `restated`, retires it. A document's Asks are read with the document, so a page's
+    are served with the version they stand in (`served_state.document`), and the
+    queues read those of the version shown."""
     unanswered = {ask["id"] for ask in asks["unanswered"]}
     on_user = {ask["id"] for ask in asks["user"]}
     standing: list[dict] = []
@@ -257,7 +276,7 @@ def ask_tasks(asks: dict, ends: dict[str, dict]) -> tuple[list[dict], list[dict]
             {"kind": "widget", "id": ask["id"]},
             ask["thread"],
             "open" if ask["id"] in unanswered else "done",
-            ended=ends.get(ask["id"]),
+            ENDS_BY_WIDGET,
             ask={
                 "tag": ask["tag"],
                 "widget": ask["source"],
@@ -273,8 +292,8 @@ def page_tasks(
     log: list[dict], thread_asks: dict, threads: list[dict], ends: dict[str, dict]
 ) -> tuple[list[dict], list[dict]]:
     """Every task the page holds beside the page version's own Asks
-    (`ask_tasks`), as the open ones and the ended ones, each with its `owner` and the
-    `thread` it stands in.
+    (`ask_tasks`), as the open ones and the ended ones, each with its `owner`, how it
+    `ends`, and the `thread` it stands in.
 
     `log` is the log's tasks (`canonical_tasks`), each stamped with its thread, the
     agent's open ones as the activity fold aged them. `thread_asks` is the frozen
@@ -283,8 +302,8 @@ def page_tasks(
     user in prose is a task on the user under that turn's id, open until the user
     answers it in the thread, settles it with a reaction, or the agent ends it with a
     `task_end` in `ends`."""
-    standing, ended = ask_tasks(thread_asks, ends)
-    held = {task["id"] for task in log} | {task["id"] for task in ended}
+    standing, ended = ask_tasks(thread_asks)
+    held = {task["id"] for task in log}
     for thread in threads:
         for message in thread["msgs"]:
             prompt = thread["user_prompt"]
@@ -299,12 +318,13 @@ def page_tasks(
                 {"kind": "thread", "id": thread["id"]},
                 thread["id"],
                 state,
+                ENDS_BY_REPLY,
                 ended=ends.get(message["id"]),
                 message=message,
             )
             (standing if task["state"] == "open" else ended).append(task)
     for task in log:
-        task = {**task, "ask": None}
+        task = _log_task(task)
         (standing if task["state"] == "open" else ended).append(task)
     return standing, ended
 
@@ -316,21 +336,24 @@ def task_error(
     *,
     seat_error,
     element_error,
+    user_widget_error,
     owed: set[str],
-    asked: dict[str, str],
+    tasks,
 ) -> str | None:
     """Why the append door refuses a task event, or None.
 
     The agent's task stands on an open thread of `threads` (`events.build_threads`),
     on a widget `seat_error` admits, on an element `element_error` admits, or on the
-    page. A task it puts on the user stands on any widget or element `element_error`
-    admits, or on the page, and not on a thread, where a question asked with
+    page. A task it puts on the user stands on an element `element_error` admits, a
+    widget `user_widget_error` admits, which is no Ask, since an Ask already is a task
+    on the user, or the page, and not on a thread, where a question asked with
     `--awaits` is the task on the user. A start names an open task of the agent's or a
-    move in `owed`, the inputs of the moves on the agent. An outcome ends a task still
-    open: one in the log, or one of `asked`, the user's open tasks an Ask (`ask`) or a
-    thread's question (`question`) holds. The agent may end any task; the user only a
-    task in the log that is on them, since an Ask ends when its widget answers it and
-    a question at their reply or a settling reaction."""
+    move in `owed`, the inputs of the moves on the agent.
+
+    An outcome ends a task still open, one of `tasks()`, every task on the page
+    (`page_tasks`), read only for an outcome. Who may end it is how it `ends`: the
+    agent its own and any on the user but an Ask's, which the markup holds; the user
+    only one their Done ends."""
     kind = event["kind"]
     if kind == "task":
         subject = event["subject"]
@@ -338,7 +361,7 @@ def task_error(
             return (
                 seat_error(subject["id"])
                 if event["owner"] == "agent"
-                else element_error(subject["id"])
+                else user_widget_error(subject["id"])
             )
         if subject["kind"] == "element":
             return element_error(subject["id"])
@@ -366,31 +389,26 @@ def task_error(
     if kind != "task_end":
         return None
     identity = event["task"]
-    task = next(
-        (task for task in canonical_tasks(events) if task["id"] == identity), None
-    )
-    if task is None and identity in asked:
-        task = {"state": "open", "owner": "user", "held": asked[identity]}
+    task = next((task for task in tasks() if task["id"] == identity), None)
     if task is None:
         if ended := task_ends(events).get(identity):
             return f"task {identity!r} has already ended ({ended['state']})"
         return f"unknown task {identity!r}"
+    if task["ends"] == ENDS_BY_WIDGET:
+        return (
+            f"task {identity!r} is an Ask's, which ends when its widget answers it; "
+            "to retire the Ask, leave it out of a stamped version, or mark it "
+            "`restated` there"
+        )
     if task["state"] != "open":
         return f"task {identity!r} has already ended ({task['state']})"
-    if event["author"] == "user":
-        if task["owner"] != "user":
-            return (
-                f"task {identity!r} is the agent's; the user ends only a task on them"
-            )
-        if task.get("held") == "ask":
-            return (
-                f"task {identity!r} is an Ask's, which ends when its widget answers it"
-            )
-        if task.get("held") == "question":
-            return (
-                f"task {identity!r} is a question in its thread, which the user's "
-                "reply or a settling reaction answers"
-            )
+    if event["author"] == "user" and task["ends"] != ENDS_BY_DONE:
+        return (
+            f"task {identity!r} is the agent's; the user ends only a task on them"
+            if task["ends"] == ENDS_BY_AGENT
+            else f"task {identity!r} is a question in its thread, which the user's "
+            "reply or a settling reaction answers"
+        )
     return None
 
 

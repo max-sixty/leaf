@@ -62,6 +62,7 @@ test("a reply the user is sending moves its thread to the agent's queue at once"
   const { onYou, onAgent } = selectQueues({ ...served, threads, workflows });
   assert.deepEqual(kinds(onYou), [
     ["task", "pick-ask"],
+    ["task", "e12"],
     ["recovery", "e7"],
     ["recovery", "e9"],
   ]);
@@ -109,6 +110,7 @@ test("an Ask whose widget's seat holds a thread with the agent is off the user's
   );
   assert.deepEqual(kinds(selectQueues({ ...served, tasks }).onYou), [
     ["task", "e2"],
+    ["task", "e12"],
     ["recovery", "e7"],
     ["recovery", "e9"],
   ]);
@@ -119,6 +121,7 @@ test("each item is called by how it ends", () => {
   assert.deepEqual([...queues.on_you, ...queues.on_agent].map(taskNoun), [
     "ask",
     "question",
+    "task",
     "recovery",
     "recovery",
     "answer",
@@ -139,6 +142,7 @@ test("what is done is each task that ended, an answered Ask's among them", () =>
       state: "done",
       ended: null,
       detail: null,
+      ends: "widget",
       ask: {
         tag: "lf-ask",
         widget: "ship",
@@ -156,24 +160,21 @@ test("what is done is each task that ended, an answered Ask's among them", () =>
       state: "done",
       ended: "2026-09-19T12:00:00+00:00",
       detail: "Matched the theme",
+      ends: "agent",
       ask: null,
     },
   ]);
 });
 
-test("Done ends only a task the agent put on the user about an element or the page", () => {
+test("Done ends only a task the agent put on the user, as its `ends` says", () => {
+  // An Ask, a question, the task on the user, then the agent's own task.
   const { queues } = reading();
-  const [ask, question] = queues.on_you;
-  const section = {
-    ...question,
-    subject: { kind: "element", id: "notes" },
-    thread: null,
-  };
-  const page = { ...section, subject: { kind: "page" } };
-  assert.deepEqual([ask, question, section, page].map(endsByDone), [
+  const [ask, question, task] = queues.on_you;
+  const agents = queues.on_agent.at(-1);
+  assert.deepEqual([ask, question, task, agents].map(endsByDone), [
     false,
     false,
     true,
-    true,
+    false,
   ]);
 });

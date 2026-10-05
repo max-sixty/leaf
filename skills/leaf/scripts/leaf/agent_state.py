@@ -288,6 +288,7 @@ def task_item(task: dict) -> dict:
         "running": task["running"],
         "agent": task["agent"],
         "session": task["session"],
+        "ends": task["ends"],
         "ask": task["ask"],
     }
 
@@ -298,12 +299,12 @@ def queues(threads: list[dict], workflows: list[dict], tasks: list[dict]) -> dic
     `on_you` holds each open task on the user (`task`, `owner: "user"`); then each
     thread whose attention is the user's for a move whose response failed, to send
     again (`recovery`), once however many such moves it holds; then each page widget
-    move whose response failed (`recovery`). A task on the user leaves their queue
-    while an Ask's widget seat holds a thread with the agent (`ask.held_by_seat`), and
-    a task on a thread while the thread waits on the agent, as it does the moment the
-    user answers there. `on_agent` holds each move the agent owes an answer
-    (`answer`), each move it has in hand that owes nothing (`work`), and each open
-    task of the agent's (`task`, `owner: "agent"`). Every item names its `subject`
+    move whose response failed (`recovery`). How a task `ends` says when it leaves the
+    user's queue early: an Ask's while its widget seat holds a thread with the agent
+    (`ask.held_by_seat`), and a question's while its thread waits on the agent, as it
+    does the moment the user answers there. `on_agent` holds each move the agent owes
+    an answer (`answer`), each move it has in hand that owes nothing (`work`), and each
+    open task of the agent's (`task`, `owner: "agent"`). Every item names its `subject`
     and the `thread` it stands in, or null on the page. Each is selected from a
     reading the served state already made: each thread's `attention`, the workflows,
     and the open tasks (`tasks.page_tasks`).
@@ -319,9 +320,9 @@ def queues(threads: list[dict], workflows: list[dict], tasks: list[dict]) -> dic
     attention = {thread["id"]: thread["attention"] for thread in threads}
 
     def on_user(task: dict) -> bool:
-        if task["ask"] is not None:
+        if task["ends"] == "widget":
             return not task["ask"]["held_by_seat"]
-        if task["subject"]["kind"] == "thread":
+        if task["ends"] == "reply":
             held = attention.get(task["subject"]["id"])
             return held is None or held["kind"] != "waiting"
         return True

@@ -81,8 +81,8 @@ def build() -> dict:
                 )
             ),
             # Something of every kind on each side: an open Ask, a question left in
-            # prose, a reply that failed and a page move whose pickup failed are on the
-            # user; a comment owed a reply and a task the agent has in hand are on
+            # prose, a task the agent put on them, a reply that failed and a page move
+            # whose pickup failed are on the user; a comment owed a reply and a task the agent has in hand are on
             # the agent.
             "queues on both sides": _queued(
                 (
@@ -149,6 +149,15 @@ def build() -> dict:
                         "turn": "turn-1",
                         "item": "e6",
                         "text": "Redrawing the chart",
+                    },
+                    {
+                        "kind": "task",
+                        "author": "agent",
+                        "agent": "Agent",
+                        "session": "served-records",
+                        "owner": "user",
+                        "subject": {"kind": "page"},
+                        "title": "Try the build on a phone",
                     },
                 ),
             ),

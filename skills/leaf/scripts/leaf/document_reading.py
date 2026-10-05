@@ -13,7 +13,6 @@ from .events import retractions, seats_with_agent
 from .passages import Passages
 from .projection import PageReading, StateProjection, retirement_outcomes
 from .structure import SourceDocument
-from .tasks import task_ends
 
 
 class DocumentReading(NamedTuple):
@@ -50,7 +49,6 @@ def read_document(page: PageReading, threads: dict) -> DocumentReading:
         registry,
         dropped,
         seats_with_agent(threads),
-        ended=set(task_ends(events)),
         settled_away=set(passages.gone),
     )
     return DocumentReading(

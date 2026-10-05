@@ -65,7 +65,14 @@ from .projection import (
     PageReading,
     recorded_state,
 )
-from .tasks import canonical_tasks, item_starts, owed_tasks, task_ends
+from .tasks import (
+    ask_tasks,
+    canonical_tasks,
+    item_starts,
+    owed_tasks,
+    page_tasks,
+    task_ends,
+)
 
 
 def admission_workflows(readings) -> tuple[list[dict], dict]:
@@ -80,6 +87,58 @@ def admission_workflows(readings) -> tuple[list[dict], dict]:
         threads, readings.thread, page=page, events=readings.events
     )
     return workflows, threads
+
+
+def _thread_questions(readings, threads: dict) -> tuple[dict, dict[str, dict]]:
+    """The frozen threads' Ask reading, and each open thread's question prompt
+    (`asks.thread_awaits_user`) by thread id, over the log as it stands."""
+    events = readings.events
+    thread_asks = thread_ask_readings(
+        events,
+        readings.registry,
+        {identity for identity, held in threads.items() if held["resolved"]},
+        reading=readings.thread,
+    )
+    open_ask_threads = {ask["thread"] for ask in thread_asks["user"]}
+    ended = set(task_ends(events))
+    prompts = {}
+    for identity, held in threads.items():
+        _awaiting, prompt = thread_awaits_user(
+            identity,
+            held,
+            readings.registry,
+            thread_asks["awaiting"],
+            readings.thread.structure,
+            open_ask_threads,
+            ended,
+        )
+        if prompt is not None:
+            prompts[identity] = prompt
+    return thread_asks, prompts
+
+
+def admission_tasks(readings) -> list[dict]:
+    """Every task on the page, open and ended, as `page_tasks` and `ask_tasks` read
+    them for the newest revision: what admission reads to say who may end one."""
+    page = (
+        readings.page(readings.view.revisions[-1]) if readings.view.revisions else None
+    )
+    events = readings.events
+    threads = build_threads(events, page.within if page is not None else {})
+    thread_asks, prompts = _thread_questions(readings, threads)
+    standing, ended = page_tasks(
+        [{**task, "thread": None} for task in canonical_tasks(events)],
+        thread_asks,
+        [
+            {"id": identity, "msgs": held["msgs"], "user_prompt": prompts.get(identity)}
+            for identity, held in threads.items()
+        ],
+        task_ends(events),
+    )
+    page_standing, page_ended = (
+        ask_tasks(read_document(page, threads).asks) if page is not None else ([], [])
+    )
+    return page_standing + page_ended + standing + ended
 
 
 def obligation_reading(readings) -> dict:
@@ -98,27 +157,7 @@ def obligation_reading(readings) -> dict:
     thread = readings.thread
     events = readings.events
     workflows, threads = admission_workflows(readings)
-    thread_asks = thread_ask_readings(
-        events,
-        readings.registry,
-        {identity for identity, held in threads.items() if held["resolved"]},
-        reading=thread,
-    )
-    open_ask_threads = {ask["thread"] for ask in thread_asks["user"]}
-    ended = set(task_ends(events))
-    prompts = {}
-    for identity, held in threads.items():
-        _awaiting, prompt = thread_awaits_user(
-            identity,
-            held,
-            readings.registry,
-            thread_asks["awaiting"],
-            thread.structure,
-            open_ask_threads,
-            ended,
-        )
-        if prompt is not None:
-            prompts[identity] = prompt["message"]
+    thread_asks, prompts = _thread_questions(readings, threads)
     in_hand = [
         (item["id"], item["subject"])
         for item in workflows
@@ -143,8 +182,10 @@ def obligation_reading(readings) -> dict:
             if page is not None
             else [],
             "thread": [ask["id"] for ask in thread_asks["unanswered"]],
-            "prompts": prompts,
-            # The tasks the agent put on the user, which their Done or a reply ends.
+            "prompts": {
+                identity: prompt["message"] for identity, prompt in prompts.items()
+            },
+            # The tasks the agent put on the user, which their Done ends.
             "tasks": [
                 task["id"]
                 for task in canonical_tasks(events)

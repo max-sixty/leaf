@@ -564,6 +564,7 @@
           "revision": null,
           "running": null,
           "outcome": null,
+          "ends": "widget",
           "ask": {
             "tag": "lf-ask",
             "widget": "pick",
@@ -588,6 +589,7 @@
           "revision": null,
           "running": null,
           "outcome": null,
+          "ends": "reply",
           "ask": null
         },
         {
@@ -617,6 +619,26 @@
           },
           "outcome": null,
           "thread": "e4",
+          "ends": "agent",
+          "ask": null
+        },
+        {
+          "id": "e12",
+          "owner": "user",
+          "subject": {
+            "kind": "page"
+          },
+          "title": "Try the build on a phone",
+          "state": "open",
+          "seq": 12,
+          "ts": "2026-09-19T12:00:00+00:00",
+          "agent": "Agent",
+          "session": "served-records",
+          "revision": 1,
+          "running": null,
+          "outcome": null,
+          "thread": null,
+          "ends": "done",
           "ask": null
         }
       ],
@@ -635,6 +657,7 @@
             "running": null,
             "agent": null,
             "session": null,
+            "ends": "widget",
             "ask": {
               "tag": "lf-ask",
               "widget": "pick",
@@ -655,6 +678,22 @@
             "running": null,
             "agent": "Agent",
             "session": null,
+            "ends": "reply",
+            "ask": null
+          },
+          {
+            "kind": "task",
+            "id": "e12",
+            "owner": "user",
+            "subject": {
+              "kind": "page"
+            },
+            "thread": null,
+            "title": "Try the build on a phone",
+            "running": null,
+            "agent": "Agent",
+            "session": "served-records",
+            "ends": "done",
             "ask": null
           },
           {
@@ -715,6 +754,7 @@
             },
             "agent": "Agent",
             "session": "served-records",
+            "ends": "agent",
             "ask": null
           }
         ]
@@ -739,6 +779,7 @@
           "revision": null,
           "running": null,
           "outcome": null,
+          "ends": "widget",
           "ask": {
             "tag": "lf-ask",
             "widget": "ship",
@@ -771,6 +812,7 @@
             "session": "served-records"
           },
           "thread": "e2",
+          "ends": "agent",
           "ask": null
         }
       ]

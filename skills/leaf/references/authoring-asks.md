@@ -34,8 +34,9 @@ instead of authoring every possible branch.
 Each Ask is a task on the user, under the Ask's id, from the version that adds it
 until its widget answers it; `leaf page state` lists it among the open `tasks`. An Ask
 that stops mattering before the user answers it, because they answered elsewhere or
-the question moved on, is yours to retire: `leaf task end <page> <ask-id> dropped
-"<why>"`, or a version without it. Something you need from the user that no widget
+the question moved on, is yours to retire in a version: leave it out, or mark it
+`restated` as `authoring-revisions.md` says. Nothing else ends its task, since the
+markup holds it. Something you need from the user that no widget
 answers is a task you put on them rather than an Ask (`conversation-loop.md`, "Tasks
 on the user").
 

@@ -639,9 +639,13 @@ def test_the_user_ends_only_their_own_task_and_not_an_asks(page_dir):
     assert state_json(page_dir)["tasks"][-1]["id"] == mine["id"]
 
 
-def test_the_agent_ends_an_asks_task_and_a_questions(page_dir):
-    """The agent may end any task: dropping an Ask's task retires the Ask, and ending
-    a question's takes its thread off the user, each listed as ended."""
+def test_an_asks_task_ends_only_at_its_answer_and_a_questions_at_the_agents_end(
+    page_dir,
+):
+    """The markup holds an Ask's task, so only its widget's answer ends it: the agent
+    may not end it, before or after the answer, and is told to retire the Ask in a
+    version. A question's task the agent may end, which takes the thread off the
+    user."""
     asking(page_dir)
     [ask] = asks_on_you(state_json(page_dir))
     comment = append_carried_log_record(
@@ -660,27 +664,60 @@ def test_the_agent_ends_an_asks_task_and_a_questions(page_dir):
             "--awaits",
         )
     )
-    written(leaf("task", "end", page_dir, ask["id"], "dropped", "Decided in chat"))
+    refused = leaf("task", "end", page_dir, ask["id"], "dropped", "Decided in chat")
+    assert refused.exit_code != 0
+    assert "is an Ask's, which ends when its widget answers it" in refused.output
+    assert "leave it out of a stamped version, or mark it `restated`" in refused.output
+    assert asks_on_you(state_json(page_dir)) == [ask]
+
     written(leaf("task", "end", page_dir, question["id"], "done", "Asked in chat"))
     state = state_json(page_dir)
-    assert state["queues"]["on_you"] == []
-    assert state["tasks"] == []
+    assert [item["id"] for item in state["queues"]["on_you"]] == [ask["id"]]
     assert state["threads"][0]["attention"] is None
     served = full_state(page_dir, events_model.read_events(page_dir))
-    ended = {item["id"]: item for item in served["browser"]["ended_tasks"]}
-    ended.update(
+    [ended] = served["browser"]["ended_tasks"]
+    assert (ended["id"], ended["state"], ended["ends"]) == (
+        question["id"],
+        "done",
+        "reply",
+    )
+
+    append_command(
+        page_dir,
         {
-            item["id"]: item
-            for item in served["browser"]["views"]["1"]["document"]["ended_tasks"]
-        }
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "choice",
+            "action": "choose",
+            "detail": {"options": ["flag-first"]},
+        },
     )
-    assert (ended[ask["id"]]["state"], ended[ask["id"]]["ask"]["widget"]) == (
-        "dropped",
-        ask["widget"],
+    answered = leaf("task", "end", page_dir, ask["id"], "done")
+    assert answered.exit_code != 0
+    assert "is an Ask's, which ends when its widget answers it" in answered.output
+
+
+def test_a_task_on_the_user_about_an_asks_widget_is_that_ask(page_dir):
+    """An Ask already is a task on the user, so a second one about its widget, or the
+    frame around it, is refused; a widget that asks nothing takes one, ended at
+    Done."""
+    asking(page_dir)
+    for widget in ("choice", "plan-choice-decision"):
+        refused = leaf("task", "open", page_dir, widget, "Pick one", "--on", "user")
+        assert refused.exit_code != 0
+        assert "already is a task on the user, under 'plan-choice-decision'" in (
+            refused.output
+        )
+    task = written(
+        leaf("task", "open", page_dir, "flow", "Check the flow", "--on", "user")
     )
-    assert ended[question["id"]]["state"] == "done"
-    again = leaf("task", "end", page_dir, ask["id"], "done")
-    assert "has already ended" in again.output
+    assert task["subject"] == {"kind": "widget", "id": "flow"}
+    [item] = [
+        item for item in state_json(page_dir)["tasks"] if item["id"] == task["id"]
+    ]
+    assert item["ends"] == "done"
+    assert done(page_dir, task["id"])[0] == 200
 
 
 def test_a_task_an_earlier_leaf_wrote_without_an_owner_is_absent(page_dir):

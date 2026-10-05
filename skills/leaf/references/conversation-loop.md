@@ -195,4 +195,5 @@ phone, put a task on them: `leaf task open <page> <id> "<what you need>" --on us
 where `<id>` names the widget or section it concerns, or `page`. A thread takes no
 such task: ask there with `--awaits`. It waits on their queue until they press its
 Done, which reaches you like any move. When one no longer needs them, end it yourself
-with `leaf task end`: ending an Ask's task retires the Ask.
+with `leaf task end`, as you can a question by its reply's id. An Ask's task ends
+only at its answer; retire an Ask in a version (`authoring-asks.md`).

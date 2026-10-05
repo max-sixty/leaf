@@ -175,10 +175,10 @@ export function createQueuePanel({ arriveAtItem, endTask, announce }) {
       return [item.running.text, shortAgo(item.running.ts)].filter(Boolean).join(" · ");
     return "";
   }
-  // An Ask its widget answered says the answer; a task ended in so many words says its
-  // outcome.
+  // An Ask, which only its widget's answer ends, says the answer; any other task says
+  // its outcome.
   function ended(item) {
-    if (item.ask && item.ended === null) {
+    if (item.ends === "widget") {
       const ask = allAsks().find((candidate) => candidate.id === item.id);
       const answer = ask ? askAnswers([ask])[0] : "";
       return answer ? `Answered ${answer}` : "Answered";

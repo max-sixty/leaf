@@ -69,7 +69,7 @@ const nounOf = (item, stop) =>
 // whole at the page's head, or else the element it stands on, as a move is arrived at
 // on the widget it was made on.
 const stopOf = (item) =>
-  item.ask
+  item.ends === "widget"
     ? { kind: "ask", id: item.id, thread: item.thread }
     : item.thread !== null
       ? { kind: "thread", id: item.thread, thread: item.thread }

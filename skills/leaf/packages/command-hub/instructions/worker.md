@@ -6,7 +6,7 @@ LEAF_AGENT="$WORKER" "$LEAF" page report "$PAGE" "$ROW" state state=working doin
 LEAF_AGENT="$WORKER" "$LEAF" page report "$PAGE" "$TASK" status status=active
 ```
 
-If a report fails, return its exact error through the host task and run no other
+If a report fails, return its exact error through the harness task and run no other
 Leaf command. Report the row whenever the activity changes and often enough that
 silence means something: the page calls out a working row that goes quiet for the
 working grace, about a quarter of an hour. Both `state` and

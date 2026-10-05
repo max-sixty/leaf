@@ -847,6 +847,73 @@ def test_a_resize_cannot_own_a_passive_shift_painted_before_dispatch(browser):
     consume_browser_errors(page, "textarea#field moved without input by (0, 40)px")
 
 
+# A context script, so it registers ahead of the page's health sensors and a held
+# `resize` reaches no listener until it is dispatched again. Playwright does not promise
+# that order, so the script records whether the shift watch was already installed.
+HOLD_RESIZE = """window.resizeHoldFirst = window.lfShiftsJudged === undefined;
+addEventListener("resize", (event) => {
+  if (!window.resizesHeld || !event.isTrusted) return;
+  event.stopImmediatePropagation();
+  resizesHeld.push(event.type);
+});"""
+
+
+def test_a_resize_owns_its_layout_before_its_event_dispatches(browser):
+    """Chrome lays out a resized viewport before it dispatches `resize`, and on a busy
+    machine a layout-shift record can reach the observer in between, its fresh pose
+    already at the new size. The size is the input; the event is late news of it.
+    Holding both the event and the health frames puts the record in that gap: the
+    column's reflow gives Chrome a record, and the button it does not name is carried."""
+    context = browser.new_context(viewport={"width": 900, "height": 600})
+    context.add_init_script(HOLD_RESIZE)
+    page = context.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            '<!doctype html><body style="margin:0">'
+            '<p style="width:60%;margin:auto">A column the width follows.</p>'
+            '<button style="display:block;width:120px;margin-left:auto">Right</button>'
+        )
+    )
+    paint(page)
+    assert page.evaluate("resizeHoldFirst")
+    page.evaluate("""() => {
+      const original = lfWatchPlatform.frame;
+      const frames = [];
+      window.paintNative = () => new Promise(done => original(() => original(done)));
+      lfWatchPlatform.frame = callback => frames.push(callback);
+      window.resizesHeld = [];
+      window.recorded = 0;
+      new PerformanceObserver(list => { recorded += list.getEntries().length; })
+        .observe({type: "layout-shift"});
+      window.release = () => {
+        lfWatchPlatform.frame = original;
+        frames.splice(0).forEach(callback => original(callback));
+        const events = resizesHeld.splice(0);
+        window.resizesHeld = null;
+        events.forEach(type => dispatchEvent(new Event(type)));
+      };
+    }""")
+    # The health frame already requested runs before the resize, so none runs between
+    # the resized layout and its record.
+    page.evaluate("paintNative()")
+    try:
+        page.set_viewport_size({"width": 500, "height": 600})
+        page.evaluate("paintNative()")
+        # The resized layout's record has reached every observer, the watch's first,
+        # while its event waits.
+        page.wait_for_function("recorded > 0", polling=100)
+        assert page.evaluate("resizesHeld.length") == 1
+    finally:
+        page.evaluate("release()")
+    judge_watches()
+    assert take_browser_errors(page) == []
+    # A passive move after the resize still fails.
+    page.evaluate("document.querySelector('button').style.marginTop = '40px'")
+    judge_watches()
+    consume_browser_errors(page, "moved without input by (0, 40)px")
+
+
 # News three frames after a press, as a reply lands just after a click: the page adopts
 # a server reading. A stand-in for the runtime never settles its rendering, so the
 # press's rendering is still open when the news lands. What moves the line is the
@@ -1121,7 +1188,7 @@ def test_message_age_may_shift_metadata_but_leaves_the_thread_in_place(
     boxes = "nodes => nodes.map(node => node.getBoundingClientRect().toJSON())"
     before = protected.evaluate_all(boxes)
     assert before
-    owner = surface_root.locator(".lf-thread-root-meta").first
+    owner = header.locator("xpath=..")
     owner_before = owner.bounding_box()
     receipt.evaluate(
         """receipt => {

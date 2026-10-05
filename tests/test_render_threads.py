@@ -4346,10 +4346,10 @@ def test_an_agent_reply_says_when_the_user_owes_an_answer(browser, serve):
     expect(page.locator(".lf-thread:not([hidden])")).to_have_count(0)
 
 
-def test_a_host_failure_receipt_does_not_read_as_an_answer(browser, serve):
+def test_a_harness_failure_receipt_does_not_read_as_an_answer(browser, serve):
     """A reply saying no answer is coming is marked as one, in both faces of the head.
 
-    Nothing else in the message says it: a host receipt is a reply event, written
+    Nothing else in the message says it: a harness receipt is a reply event, written
     under the thread's own agent name, in the same bubble as a real answer, and its
     prose is the only other difference. So a user skimming a thread reads an
     apology from the agent rather than a notice that their message went nowhere, and
@@ -7857,6 +7857,78 @@ def test_walking_the_list_lands_each_thread_on_its_latest_message(browser, serve
     )
 
 
+# Who wrote the words just under the card's top row, and whose name that row shows.
+CARD_TOP_AUTHORS = """transcript => {
+  const box = transcript.getBoundingClientRect();
+  const x = box.left + 30;
+  const row = transcript.querySelector('.lf-msg-head').getBoundingClientRect();
+  const at = y => document.elementFromPoint(x, y)?.closest('.lf-msg');
+  const named = document.elementFromPoint(x, box.top + row.height / 2)
+    ?.closest('.lf-msg-head')?.closest('.lf-msg');
+  const under = at(box.top + row.height + 6);
+  const messages = [...transcript.querySelectorAll('.lf-msg')];
+  return {named: messages.indexOf(named), under: messages.indexOf(under),
+          scrolled: transcript.scrollTop > 0};
+}"""
+
+
+def test_the_thread_card_opens_on_its_latest_message_under_its_own_name(browser, serve):
+    """A card opened on a long thread shows its latest message, as a walk to it in the
+    Threads list does, and its top row names whoever wrote the words under it. The
+    card pinned the root's name beside its actions, so it opened at the top to keep
+    that name true, leaving the newest turn out of view."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(
+        serve.page_dir, "Opening turn. " + LANDING_WORDS, {"section": "how-store"}
+    )
+    for turn in range(1, 12):
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": "agent" if turn % 2 else "user",
+                "parent": root,
+                "text": f"Turn {turn}. " + LANDING_WORDS,
+            },
+        )
+    page = open_page(browser, url)
+    resized(page, 1200, 900)
+    page.locator('[data-lf-margin-for="how-store"] .lf-margin-marker').click()
+    selector = (
+        f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]'
+        " > .lf-thread-transcript"
+    )
+    transcript = page.locator(selector)
+    expect(transcript).to_be_visible()
+    rendered(page)
+    scroll_settled(page, selector)
+    assert transcript.evaluate("box => box.scrollHeight > box.clientHeight")
+    latest = transcript.locator(".lf-msg").last.bounding_box()
+    shown = transcript.bounding_box()
+    assert latest["y"] + latest["height"] <= shown["y"] + shown["height"] + 1
+    landed = transcript.evaluate(CARD_TOP_AUTHORS)
+    # Just under the row may fall between two messages; the row names a later one.
+    assert landed["scrolled"] and landed["named"] > 0, landed
+    assert landed["under"] in (landed["named"], -1), landed
+    # Reading back up, the row names each message whose words stand under it.
+    for index in (3, 2, 1, 0):
+        transcript.evaluate(
+            """(box, index) => {
+              const message = box.querySelectorAll('.lf-msg')[index];
+              const offset = message.getBoundingClientRect().top
+                - box.getBoundingClientRect().top;
+              // The message's middle stands just under the row.
+              box.scrollTop += index
+                ? offset + message.offsetHeight / 2 - 30
+                : -box.scrollTop;
+            }""",
+            index,
+        )
+        rendered(page)
+        reading = transcript.evaluate(CARD_TOP_AUTHORS)
+        assert reading["named"] == reading["under"] == index, reading
+
+
 SEAT_FILLER = "".join(
     f"<p>Filler paragraph {n}, long enough to occupy a line of reading.</p>"
     for n in range(40)
@@ -8465,11 +8537,6 @@ def test_an_agent_turn_arriving_holds_still_the_page_box_being_typed_in(
 
 
 @pytest.mark.parametrize("kind", ["task", "verdict"])
-@pytest.mark.xfail(
-    reason="Main: resolving an inline thread moves the page 689px when focus returns to the card",
-    raises=AssertionError,
-    strict=False,
-)
 def test_resolving_a_long_page_thread_by_its_button_leaves_the_page_still(
     browser, serve, kind
 ):

@@ -9,7 +9,7 @@
    those values.
    The owner alone renders its native card root and all generated descendants; a
    failed candidate is restored by presenting its committed descriptor again. */
-import { nextRender } from "../rendering.js";
+import { nextRender, sizeObserver } from "../rendering.js";
 import { holdFocus } from "../focus.js";
 import { TEXT_FIELD } from "../control-selectors.js";
 import { html, render, repeat, nothing } from "../../vendor/browser-runtime.js";
@@ -225,6 +225,15 @@ function readBoundary(kind) {
 }
 
 let nextViewId = 0;
+// The margin card's controls stand over its transcript, so each message's head keeps
+// their width clear and its words end before them.
+const marginControlsSizes = sizeObserver((entries) => {
+  for (const { target, borderBoxSize } of entries)
+    target.parentElement?.style.setProperty(
+      "--lf-margin-controls-width",
+      `${borderBoxSize[0].inlineSize}px`,
+    );
+});
 
 export class ThreadView {
   #commands;
@@ -242,6 +251,7 @@ export class ThreadView {
   #expandedSummaries = new Set();
   #navigation = null;
   #marginControls = null;
+  #marginControlsRow = null;
   #viewId = ++nextViewId;
   // What a thread in the page's flow holds back says so in its control row (held-news.js).
   #news = newsNotice();
@@ -420,6 +430,10 @@ export class ThreadView {
       });
       headerActions = this.#metadataActions;
     }
+    // The root's metadata row carries the thread's actions, except in the margin card,
+    // whose controls stand over its own scrolling transcript, where each message keeps
+    // its head.
+    const hoists = Boolean(headerActions) && !marginControls;
     const describedRanges = summaryRanges(model.messages, model.summaries);
     const summaries = new Set(model.summaries.map(({ id }) => id));
     for (const id of this.#expandedSummaries)
@@ -449,7 +463,7 @@ export class ThreadView {
           (view = new MessageView(this.#messageCommands)),
         );
       view.present(message, {
-        externalHeader: index === 0 && Boolean(headerActions),
+        externalHeader: index === 0 && hoists,
         arrived: Boolean(prior),
       });
       return { key: message.key, node: view.node, header: view.header };
@@ -472,7 +486,7 @@ export class ThreadView {
         nodes,
       };
     });
-    const hoistedRoot = headerActions ? messages[0]?.key : null;
+    const hoistedRoot = hoists ? messages[0]?.key : null;
     const markerFor = (key) =>
       readBoundary(key === hoistedRoot ? null : boundaries.get(key));
     const transcript = repeat(
@@ -510,11 +524,13 @@ export class ThreadView {
       }
       ${readBoundary(hoistedRoot ? boundaries.get(hoistedRoot) : null)}
       ${
-        headerActions && messages[0]
+        hoists && messages[0]
           ? html`<div class="lf-thread-root-meta" data-lf-reflow="text">
               ${messages[0].header}${news} ${headerActions}
             </div>`
-          : nothing
+          : headerActions
+            ? this.#marginControlsRowOf(html`${news}${headerActions}`)
+            : nothing
       }
       <div class="lf-thread-transcript">${transcript}</div>
     `;
@@ -574,6 +590,16 @@ export class ThreadView {
           this.#commands.landInThread(this.node.querySelector(SAY_BOX) ?? this.node)),
     );
     return this.node;
+  }
+
+  #marginControlsRowOf(content) {
+    if (!this.#marginControlsRow) {
+      this.#marginControlsRow = document.createElement("div");
+      this.#marginControlsRow.className = "lf-margin-thread-controls";
+      marginControlsSizes.observe(this.#marginControlsRow);
+    }
+    render(content, this.#marginControlsRow);
+    return this.#marginControlsRow;
   }
 
   #summaryRange(range, markerFor) {
@@ -850,6 +876,7 @@ export class ThreadView {
   }
 
   dispose() {
+    if (this.#marginControlsRow) marginControlsSizes.unobserve(this.#marginControlsRow);
     this.#heldNews?.dispose();
     this.#continuity?.release();
     this.retire();

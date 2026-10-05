@@ -241,14 +241,16 @@
    it a cell of its own, and a goal ending "Last worktree: <a>atlas/dedupe-attempt</a>."
    stood on three rows with its full stop alone on the last. The generated chips lead
    the goal (lf-command.js) and float to its right, level with the title, which wraps
-   short of them. Containing the float makes the goal a frame its children's margins
-   stop at, so it says so and the theme trims them there.
+   short of them. Containing the float makes the goal a box its children's margins
+   stop at, so it says so and the theme trims them there. It draws nothing, so it says
+   `trim` rather than `1`, and a wide worktree in it takes the room as one outside it
+   does; a nested task draws its rail and says `1` (above).
 
    These rules read the authored tree, a task and a worker inside a command, rather than
    anything the upgrade writes, so the first paint lays each goal out as it will stand
    (assets/AGENTS.md, "Stability"). A package adding its own goal or worker widget to
    `$command.widgets` lays that widget out in its own theme. */
-:scope:is(lf-command) lf-task { display: flow-root; --lf-block-frame: 1; }
+:scope:is(lf-command) lf-task { display: flow-root; --lf-block-frame: trim; }
 :scope:is(lf-command) lf-task > strong { display: block; }
 :scope:is(lf-command) lf-task > .lf-task-meta { float: right;
   display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end;

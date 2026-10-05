@@ -33,9 +33,9 @@
  * The stylesheet uses declarations as open selectors too. A box that draws a frame
  * declares `--lf-block-frame: 1` in the rule that draws it. Style queries use that custom
  * property to trim child margins and to bound wide content. A project box then receives
- * the same behavior without joining a tag list. A frame that holds the page's own flow,
- * `main` or a page tab's panel, also declares `--lf-page-flow: 1`, so it passes wide
- * room on to its contents rather than withholding it.
+ * the same behavior without joining a tag list. A box whose edges trim but which draws
+ * nothing, such as `main` or a page tab's panel, declares `--lf-block-frame: trim`, so
+ * it passes wide room on to its contents rather than withholding it.
  *
  * Where the fact belongs to the registry rather than to the rule that draws the box,
  * delivery paints it into the served document (revision_delivery.py, `mark_declared`;
@@ -83,11 +83,12 @@
    outer page's. Packages arrange content inside the allocation. Size the widget's box
    with `contain: inline-size` where its contents would otherwise make the box wider.
 
-   Every box that frames authored block flow declares `--lf-block-frame: 1` where the frame is
-   drawn. The declaration may belong to a nested-state selector or a generated internal
-   box rather than the tag's base rule. Widgets with `x-content: markup` or `members` can
-   admit authored flow; data-only, empty, and inline widgets do not automatically owe a
-   frame declaration.
+   Every box that frames authored block flow declares `--lf-block-frame` where the frame is
+   drawn: `1` for a box that draws one, `trim` for one that only keeps its children's
+   margins in (it pads or contains them but paints no edge). The declaration may belong
+   to a nested-state selector or a generated internal box rather than the tag's base rule.
+   Widgets with `x-content: markup` or `members` can admit authored flow; data-only,
+   empty, and inline widgets do not automatically owe a frame declaration.
 
    The shared style query trims the outer margins of the first and last non-generated
    children inside a frame. It ignores `GENERATED` because a positioned pick mark or
@@ -528,7 +529,12 @@ html:not([data-lf-live]) { --lf-banner-h: 0px; --lf-bottom-bar-h: 0px; }
  * hold is the closed list the norms forbid: a layer's stylesheet can only name that
  * layer's own, so a project's card is outside it and the failure is a silent 13px rather
  * than an error. A box says so itself instead, in the same declaration where it draws the
- * frame, and the trim finds it through a style query. `--lf-block-frame` inherits, so the reset
+ * frame, and the trim finds it through a style query. Every box that draws a frame traps
+ * its children's margins, and some boxes trap them without drawing anything (`main`'s
+ * padding, a page tab's panel, a goal's float containment), so the declaration has one
+ * value for each: `1` draws a frame, and `trim` only trims. The trim reads both; what
+ * else a frame does (withholding the page's room, layouts.css; filling it with a table,
+ * below) reads `1`. `--lf-block-frame` inherits, so the reset
  * inside holds the claim to the box's own children; a nested frame outranks the reset
  * by being a selector rather than `*`.
  *
@@ -574,7 +580,7 @@ html:not([data-lf-live]) { --lf-banner-h: 0px; --lf-bottom-bar-h: 0px; }
   inherits: false;
   initial-value: 0;
 }
-@container style(--lf-block-frame: 1) {
+@container style(--lf-block-frame: 1) or style(--lf-block-frame: trim) {
   :nth-child(1 of :not(.lf-ui, [data-lf-gen])) {
     margin-block-start: 0;
     --lf-frame-start: 1;
@@ -786,8 +792,7 @@ body {
  * either side. */
 main {
   position: relative;
-  --lf-block-frame: 1;
-  --lf-page-flow: 1;
+  --lf-block-frame: trim;
   container-name: lf-content-frame;
   padding-block: 72px 96px;
   --lf-free-l: 0px;
@@ -801,11 +806,6 @@ main {
  * grew out of it. Outside the page, where nothing states them, neither side holds a
  * widget back. */
 @property --lf-width { syntax: "<length>"; inherits: true; initial-value: 0px; }
-/* A box that frames its blocks for the trim and holds the page's own flow: `main`, and a
- * page tab's panel. It passes the page's room to what it holds rather than withholding it
- * (layouts.css), and a table in it keeps to its content rather than filling it (below).
- * Not inherited, so a box inside one answers only for itself. */
-@property --lf-page-flow { syntax: "<integer>"; inherits: false; initial-value: 0; }
 /* Where a box sticking here stops: the sticky headers standing over the top of its
  * scroller, stacked. On the root it starts at the banner's height (above); a box the
  * theme makes scroll that can hold a header starts it again from its own top (a bounded
@@ -973,8 +973,8 @@ table { display: block; overflow-x: auto; container-type: inline-size; --lf-top:
    frame's inner edge is a line the eye measures the rules against, so a table that
    kept to its content there read as cut short: live-progress's Checks rules stopped
    158px before the panel's edge. In the column the same shortfall is only the measure,
-   and the rule above keeps it, so a frame that holds the page's own flow (`main`, a page
-   tab's panel; `--lf-page-flow`) draws nothing to fill and leaves the table to its content.
+   and the rule above keeps it, so a box that only trims (`--lf-block-frame: trim`: `main`,
+   a page tab's panel) draws nothing to fill and leaves the table to its content.
 
    The grid is an anonymous box inside the block that scrolls, which no rule can size,
    and a table box doesn't stretch as a flex or grid item. What it does do is grow to
@@ -985,7 +985,7 @@ table { display: block; overflow-x: auto; container-type: inline-size; --lf-top:
    Registered so the claim stays on the table and a table nested deeper in it asks its
    own holder. */
 @property --lf-fills-frame { syntax: "<integer>"; inherits: false; initial-value: 0; }
-@container style(--lf-block-frame: 1) and (not style(--lf-page-flow: 1)) {
+@container style(--lf-block-frame: 1) {
   table { --lf-fills-frame: 1; }
 }
 @container style(--lf-fills-frame: 1) {
@@ -1614,28 +1614,14 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
  * only its own widgets (layer.py, `widget_confinement`), and these reach every
  * package's.
  *
- * The grammar (the rows, and which child stands in which) carries the role's own weight,
- * so it holds over what a widget declares for itself, such as a board's block margin
- * when the board is a pane's body. The look (frame, paper, padding, the header's voice)
- * is a default inside :where(), so a package that draws its generated pane another way,
- * the visual review framing its evidence with the review's own border, does so with one
- * class rather than by outranking the attribute. */
-[data-lf-reading-role="pane"] {
-  display: grid;
-  grid-template-rows: auto 1fr auto;
-  grid-template-columns: minmax(0, 1fr);
-  min-width: 0;
-  --lf-block-frame: 1;
-}
-[data-lf-reading-role="pane"] > header {
-  grid-row: 1; margin: 0;
-}
-[data-lf-reading-role="pane"] > footer {
-  grid-row: 3; margin: 0;
-}
-[data-lf-reading-role="pane"] > :not(header, footer) {
-  grid-row: 2; grid-column: 1; min-width: 0; margin: 0;
-}
+ * The grammar (the rows, and which child stands in which) holds over what a widget
+ * declares for itself, such as a board's block margin and minimum width when the board
+ * is a pane's body, so it stands in the Layouts tier above every package (layouts.css)
+ * rather than here: a widget's root rule (`:scope:is(lf-board)`) ties a selector here
+ * on specificity and wins on scope proximity. The look (frame, paper, padding, the
+ * header's voice) is a default inside :where(), so a package that draws its generated
+ * pane another way, the visual review framing its evidence with the review's own
+ * border, does so with one class rather than by outranking the attribute. */
 /* A pane's body is a keyboard stop of its own where it scrolls with nothing in it to
  * Tab to (reach.js), and the layer's ring stands outside the box it names. A held pane
  * stands flush with the scrollport of the workspace body holding it, so that ring lost

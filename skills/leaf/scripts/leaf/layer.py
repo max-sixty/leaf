@@ -403,7 +403,7 @@ def payload_provenance(*, include_path: bool = False) -> dict:
     """Describe the Leaf payload that is running this command, when its source can.
 
     Beside the commit, one of two dates says how old the payload is: `committed`,
-    the commit's committer date, where Git can read it; or `installed`, when a host
+    the commit's committer date, where Git can read it; or `installed`, when a harness
     copied the payload into its plugin cache without `.git`. Both are ISO 8601 with
     an offset.
     """
@@ -422,7 +422,7 @@ def payload_provenance(*, include_path: bool = False) -> dict:
         and re.fullmatch(r"[0-9a-f]{7,40}", PLUGIN_ROOT.name)
     ):
         # The copy stamps every file with the time it was made, and Leaf never
-        # rewrites its own modules. A host copies only the marketplace's newest
+        # rewrites its own modules. A harness copies only the marketplace's newest
         # commit, one update sweep after it lands, so this dates the commit to
         # within that sweep; the commit date itself left with `.git`.
         installed = datetime.fromtimestamp(Path(__file__).stat().st_mtime, UTC)

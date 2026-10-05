@@ -3,7 +3,8 @@ import { TEXT_BOX } from "../control-selectors.js";
 import { runtime } from "../context.js";
 import { dragHeld } from "../widget-elements.js";
 import { focused } from "../keyboard/scopes.js";
-import { replyCompositionHasDraft, hasReplyComposition } from "../thread/replies.js";
+import { replyCompositionHasDraft, hasReplyDraft } from "../thread/replies.js";
+import { pageSelection } from "./capture.js";
 import { draftOf } from "./input.js";
 import { composerOpen } from "./selection.js";
 
@@ -25,8 +26,9 @@ export function createEngagement({
       Boolean(pageComposerDrawing()) ||
       targetPickerOpen() ||
       Boolean(fabAnchorAt()) ||
+      Boolean(pageSelection()) ||
       unaccountedGesture() ||
-      hasReplyComposition() ||
+      hasReplyDraft() ||
       replyDraft === true ||
       (active?.matches(TEXT_BOX) &&
         (draftOf(active) !== "" ||

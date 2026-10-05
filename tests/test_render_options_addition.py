@@ -20,6 +20,7 @@ from render_harness import (
     EXAMPLES,
     consume_browser_errors,
     example_media,
+    expect_asks_answered,
     holding,
     open_page,
     round_trip,
@@ -279,9 +280,11 @@ def test_an_option_mark_keeps_addition_and_clarification_as_separate_routes(
     expect(page.locator("#storage-options > .lf-another leaf-text")).not_to_be_focused()
     expect(page.locator("#storage-options > lf-option[chosen]")).to_have_count(0)
 
-    # The existing thread's card stands beside the option, so c enters its reply
-    # instead of adding an answer or opening another comment box.
+    # Working the Ask keeps its decisions clear. Opening its existing discussion
+    # explicitly makes c enter the reply instead of adding an answer or opening
+    # another comment box.
     reply = page.locator(".lf-margin-preview .lf-page-thread leaf-text")
+    page.get_by_role("button", name=re.compile(r"Thread, On you to answer")).click()
     expect(page.locator(".lf-margin-preview")).to_be_visible()
     page.keyboard.press("c")
     expect(reply).to_be_focused()
@@ -322,7 +325,7 @@ def test_another_option_becomes_a_real_option_without_starting_a_thread(browser,
     expect(added.locator(".lf-compose-submit")).to_have_attribute(
         "aria-disabled", "true"
     )
-    expect(page.locator(".lf-asks")).to_have_text("Asks 0/3")
+    expect_asks_answered(page, "0/3")
 
     new_option = page.locator("#jobs > lf-option[data-lf-added]")
     assert new_option.count() == 1, (

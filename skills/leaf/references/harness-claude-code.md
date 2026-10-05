@@ -39,7 +39,7 @@ Stop hook watches it from the end of the turn.
 
 If a turn ends without answering a delivered move, the next prompt hook carries
 that obligation back into context and renews its **Picked up** receipt for the new
-turn without a status write. The banner reports overall page activity separately.
+turn without a start. The banner reports overall page activity separately.
 
 When nothing was watching, as after a turn you interrupted or once a background
 job has been idle for an hour, new input reaches you as a message from Leaf naming

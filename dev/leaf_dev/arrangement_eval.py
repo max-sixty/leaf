@@ -5,11 +5,11 @@ contains only its selected condition; the HTML child sees no Leaf payload,
 instructions or runtime. CC and Codex authors use the shared harness interface.
 
 The sample's output is what a judge needs: the user's request and each version's
-screenshots by width. `rubrics` are the Promptfoo `agent-rubric` assertions a judge
-grades from it, opening the screenshots with its Read tool; the fixed checks cover
-execution and the render gate. Leaf also seeds a choice after the common
-comparison, asks a fresh reader for its current state, and checks that a separate
-resumed revision preserves that choice.
+screenshots by width, written to `shots`, the one directory its judge may read.
+`rubrics` are the Promptfoo `agent-rubric` assertions the judge grades from it by
+opening the screenshots; the fixed checks cover execution and the render gate.
+Leaf also seeds a choice after the common comparison, asks a fresh reader for its
+current state, and checks that a separate resumed revision preserves that choice.
 """
 
 import json
@@ -72,6 +72,7 @@ class Run:
     subject: str
     payload: Path
     directory: Path
+    shots: Path
     harness: str = "cc"
     condition: str = "leaf"
 
@@ -397,8 +398,7 @@ def capture_phase(
     run: Run, phase: int, page: Path | None = None
 ) -> dict[str, list[str]]:
     """Screenshot one version at each width, top to bottom, keyed by width."""
-    shots = run.directory / "shots"
-    shots.mkdir(exist_ok=True)
+    run.shots.mkdir(parents=True, exist_ok=True)
     captures = {name: [] for name in WIDTHS}
     page = page or run.page(phase)
     if page is None:
@@ -425,7 +425,7 @@ def capture_phase(
                     else:
                         rendered(view)
                         settle(view)
-                    path = shots / f"p{phase}-{name}-{index}.png"
+                    path = run.shots / f"p{phase}-{name}-{index}.png"
                     view.screenshot(path=path)
                     captures[name].append(str(path))
     return captures
@@ -458,9 +458,9 @@ def brief(subject: str, captures: dict[int, dict[str, list[str]]]) -> str:
 
 
 JUDGING = (
-    "Read every screenshot the output lists for version {phase} with the Read tool "
-    "before judging. Each width's screenshots run top to bottom with overlap. Fixed "
-    "viewer controls are outside the page's content, and a region with its own "
+    "Open every screenshot the output lists for version {phase} before judging. "
+    "Each width's screenshots run top to bottom with overlap. Fixed viewer "
+    "controls are outside the page's content, and a region with its own "
     "scroll shows only its first screen. Judge only what a user sees; don't infer "
     "interaction behavior from an unoperated screenshot. "
 )
@@ -521,12 +521,12 @@ def expected_checks(case: str, *, condition="leaf") -> list[str]:
 
 
 def execute_scenario(
-    case: str, payload: Path, work: Path, *, harness="cc", condition="leaf"
+    case: str, payload: Path, work: Path, *, shots: Path, harness="cc", condition="leaf"
 ) -> dict:
     """Execute only the selected condition; Promptfoo owns the condition matrix."""
     work.mkdir(parents=True, exist_ok=True)
     checks = dict.fromkeys(expected_checks(case, condition=condition), False)
-    run = Run(case, payload, work, harness, condition)
+    run = Run(case, payload, work, shots, harness, condition)
     diagnostics = {
         "subject": case,
         "harness": harness,

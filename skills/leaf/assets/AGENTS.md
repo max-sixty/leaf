@@ -14,10 +14,33 @@ desktop viewport.
 
 ### Space and scrolling
 
-The page owns its arrangement: a shipped Layout class (`@layer lf-layouts` in the
-theme) or its own CSS. Leaf owns what pages and widgets coordinate through: the
+The page owns its arrangement: a shipped Layout class (`layouts.css`, `@layer
+lf-layouts`) or its own CSS. Leaf owns what pages and widgets coordinate through: the
 bands, the reading measure as typography, and each widget's contract to fill the box
 it is given, declare the minimum it needs, and never let its content size its holder.
+
+Three things shape a page, and none of them reads another:
+
+- A **Layout** (`layouts.css`) says where boxes stand and how large they are. It sets
+  no type or widget form, and takes the room between boxes from the theme's spacing
+  tokens (`--sp-*`), so a style that tightens spacing tightens a Layout's gaps with it.
+- A **style** (the kernel's `theme.css`) sets type, spacing and form as tokens under a
+  class any block can take, such as `density-working`, whatever Layout holds it.
+- **Widgets and chrome** read their own box (its width, whether its height is definite)
+  and the theme's tokens. They never name a Layout or style class, so a widget behaves
+  the same in a shipped Layout as on a page whose own CSS gives it the same box.
+
+Where one has to answer another, the owner sets a token saying what the box is, or
+which style it stands under, and the reader keys on that token with a style query:
+`--lf-full-height` (the body has a definite height to fill), `--lf-wide-page` (the page
+spans the window, so the theme sets its title a size up), `--lf-resident` (what stands
+in the column's margin), and `--lf-density` (the working setting, for what a width alone
+cannot decide). A width needs no token, since a size query on the reader's own container
+answers it. Before adding a token, ask whether a hand-written page giving the same box
+would want the same answer; if not, the token names the Layout rather than the box. Only
+the page itself, and the checks that advise its author, name Layout classes;
+`test_layout_style_and_widgets_never_read_each_other` holds every sheet and module to
+this.
 
 Auxiliary runtime controls overlay the page's existing geometry. Adding a control
 preserves content position, wrapping, and block size, including when its CSS loads
@@ -49,11 +72,13 @@ which markers stand and where, which is what the overlay exists to avoid. Where 
 covers something the user needs, the answers are `o` (or More's Hide annotations
 under a finger) and a better placement (`TODO.md`), never room made for it.
 
-The auxiliary surfaces (Asks drawer, thread panel, Leaves drawer) stand over the page and
-never change its geometry; the Asks drawer and panel leave the page live beside
+The auxiliary surfaces (Queue panel, thread panel, Leaves drawer) stand over the page and
+never change its geometry; the Queue panel and thread panel leave the page live beside
 them, and cover it where they would leave less than a usable page
 (`--lf-auxiliary-beside`, read by `standsBeside`). Which box scrolls is the
 stylesheet's, a Layout's or the page's, which the runtime reads rather than decides.
+The Queue panel is experimental and expected to change a lot: it replaced the Asks
+drawer to try one place for both queues (`runtime/queue-panel.js`).
 
 Ordinary content grows in flow. A bounded inspection object may scroll inside the
 document and chain into it at its edges; isolate scrolling only at a bounded task
@@ -88,15 +113,17 @@ box follows its last message; a long panel thread pins the
 box at its scroller's foot. News that would move a reply in flow waits behind the
 thread's existing notice; a pinned reply lets the transcript grow above it.
 Where news would move what the reader is reading, it waits behind a control of fixed size:
-in a seat in the page's flow, an agent's reply, the reopening it brings, and a
-thread the agent starts wait behind a notice in a row the seat already draws, and a
-thread that would open a seat of its own, as on a diff line with no thread, waits in
-the margin behind its marker (`thread/held-news.js`). It shows once a gesture of theirs
-takes them to it: opening the notice or the thread, walking to the thread or one of its
-Asks, or replying there. In the Threads panel, a card
-news takes out of the view, as another actor resolving its thread under Open does,
-stays where it stands, drawn as the news left it in the shape it stood in, until its
-going would move nothing the user sees or they change the view
+in a seat in the page's flow or an open panel card, whatever the thread would draw
+differently (an agent's reply, a reaction from another tab, the thread resolved or
+reopened elsewhere) waits behind a notice in a row the thread already draws, as does a
+thread the agent starts in the seat, and a thread that would open a seat of its own, as
+on a diff line with no thread, waits in the margin behind its marker
+(`thread/held-news.js`). It shows once a gesture of theirs takes them to it: opening
+the notice or the thread, walking to the thread or one of its Asks, or acting there. In
+the Threads panel, a card news takes out of the view, as another actor resolving its
+thread under Open does, stays where it stands, holding the news behind that notice
+and, once shown, in the shape it stood in, until its going would move nothing the
+user sees or they change the view
 (`thread/thread-list-view.js`, `keeping`). A region whose rows only the
 log or the clock decides, so no first paint can size it, shows none of them until the
 reader opens them through a control of fixed size the widget already draws, as a
@@ -115,7 +142,9 @@ or typing carrying its field (`tests/shift_watch.js`).
 A widget paints its final box before it upgrades. The theme gives each widget, under
 `html[data-lf-interactive]`, the size its module will draw it at, so first paint
 already has the page's geometry and upgrade adds behavior without moving what follows,
-in a served page and an export alike. The
+in a served page and an export alike. Where the module draws a fixed structure, delivery
+writes that structure in for the first paint (`x-prepaint`), so the browser sizes it,
+wrapping included, rather than the theme summing its parts. The
 widget quality check `keeps-first-box` measures each widget's box at first paint and
 once the page presents (`leaf package check PACKAGE --render`,
 `scripts/leaf/render_gate/widget_quality.py`); the suite runs it over every bundled
@@ -155,7 +184,7 @@ words and caret remain with its native node (`standFab`, `runtime/composing/surf
 words and caret to the replacement. The suite's browser fixture fails any test
 whose page loses typed words without a key or press (`tests/words_watch.js`), and
 every corpus page is scrolled to both ends and back with each typed box open
-(`test_words_in_a_box_survive_scrolling_away_and_back`).
+(`typed_box_findings` in `tests/test_render_gate.py`).
 
 ### Visual grammar
 
@@ -217,7 +246,7 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | --- | --- |
 | Composition and semantic publication | `application.js`, `semantic-state.js`, `context.js` |
 | Delivery, accepted state, and wakeups | `delivery.js`, `state-application.js`, `state-feed.js`, `layer-client.js`, `traffic.js` |
-| State models and projection | `projection/`, `thread/model.js`, `thread/workflow.js`, `thread/state.js`, `pending/`, `asks/model.js` |
+| State models and projection | `projection/`, `thread/model.js`, `thread/workflow.js`, `thread/state.js`, `pending/`, `asks/model.js`, `queues.js` |
 | Widget capture and lifecycle | `document-identity.js`, `widget-descriptors.js`, `widget-controller.js`, `widget-loader.js`, `widget-upgrade.js` |
 | Vocabulary and public helpers | `registry.js`, `widget-api.js`, `widget-elements.js` |
 | External data | `data.js`, `projection/data.js`, `projection/authored.js` |
@@ -226,7 +255,7 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Chrome and available room | `chrome.js`, `chrome-layout.js`, `auxiliary-surfaces.js`, `drawn-edge.js` |
 | Reading regions and scrolling | `reading-regions.js`, `reading-place.js`, `bounds.js`, `scrolling.js`, `reach.js`, `user-place.js` |
 | Keyboard | `keyboard/AGENTS.md` |
-| Focus and navigation | `focus.js`, `standing-target.js`, `navigation.js`, `history.js`, `user-intent.js`, `walk-position.js` |
+| Focus and navigation | `focus.js`, `standing-target.js`, `navigation.js`, `queue-walk.js`, `history.js`, `user-intent.js`, `walk-position.js` |
 | Asks | `asks/` |
 | Comment capture | `composing/`, `drafts.js`, `media.js` |
 | Threads | `thread/`, `thread-panel.js` |
@@ -236,7 +265,7 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Passages and target identity | `passages.js`, `text-alignment.js`, `anchor-coordinate.js`, `target-references.js`, `resolved-target.js`, `anchor-resolution.js` |
 | Anchor placement, decoration and travel | `anchor-placement.js`, `anchor-note-view.js`, `anchor-controls.js`, `anchor-travel.js`, `target-paint.js`, `target-paint-geometry.js`, `visual-parts.js`, `indication.js` |
 | Banner and approvals | `banner*.js` |
-| Drawers and neighboring pages | `drawers.js`, `live-leaves*.js` |
+| Drawers and neighboring pages | `drawers.js`, `queue-panel.js`, `queue-list.js`, `live-leaves*.js` |
 | Activity and updates | `presence.js`, `updates.js` |
 | Notices and announcements | `semantic-news.js`, `notifications.js`, `keyboard/shortcut-bar.js` |
 | Reactions and design review | `reactions.js`, `design.js`, `design-readings.js` |
@@ -267,8 +296,8 @@ quoted comment judder. One place has one writer: two owners that each set it in 
 rewrite it every time either paints. A paint that more than one step of a script asks
 for waits for the script to end (`rendering.js`, `afterScript`), rather than painting
 the step between. The browser fixture fails a write that changes
-nothing in any test (`tests/write_watch.js`), and
-`test_a_scroll_writes_only_what_it_changes` fails a place a scroll writes on every step.
+nothing in any test (`tests/write_watch.js`), and `test_page_fixture_renders`
+fails a place a scroll writes on every step (`scroll_findings`).
 
 What a page says follows from where it stands now, not from how it got there. The one
 history its arrangement keeps is the order its margin rows came in, since a row that
@@ -278,9 +307,8 @@ and closed again leaves the page as the last time did, holding no more nodes or
 listeners; a page resized says at each width what it said there before. So whatever
 sets a state also clears it, when the width or the gesture that called for it ends,
 and "none" has one spelling, the attribute's absence, which `keeps` writes for a null
-value. The corpus holds each rule: `test_a_page_at_rest_does_nothing`,
-`test_a_closed_surface_leaves_the_page_as_it_found_it` and
-`test_a_resized_page_comes_back_as_it_was`.
+value. The corpus holds each rule, in
+`test_a_still_page_comes_back_from_every_journey_as_it_was`.
 
 Stylesheets apply in layers. `theme.css` holds page tokens, element styles,
 idioms, and CSS-only widgets, and each package theme follows it; shared shadow
@@ -321,11 +349,14 @@ selects from:
 | version shown | the revision the delivery prelude names; a newer revision with the same executable identity patches in place, a different one navigates to a fresh document |
 | accepted history, and the reading applied | the server event log and its `/api/state` answer, adopted whole by the publisher |
 | unresolved browser work | the publisher's one ordered ledger |
-| thread, workflow, attention, Asks, activity, unread | the server's folds; the browser adds only its own unresolved sends and the versions it is marking read |
+| thread, workflow, attention, Asks, tasks, activity, unread | the server's folds; the browser adds only its own unresolved sends and the versions it is marking read |
+| what is waiting on the user and on the agent | `queues.js`'s selection from those readings, the browser's side of `agent_state.queues` |
 | what the DOM represents | controller presentation tickets and projection commits |
 | when a document-wide renderer paints | the publication that opened the epoch, in the order `runtime/semantic-state.js` declares |
 | where each thread's passage lands | `anchor-placement.js`'s resolution of its anchor in this version |
 | the row inside a target a comment stands by | `pointed-place.js`: the line a pointing gesture landed on, held by the composer until sent, then under the thread's key with the words that find it again; where it stands now is `anchor-placement.js`'s placement record (`point`, `pointRow`), written in its read, the only writer, which takes in what a send hands over; presentation only, and only the pointed threads' row, card and travel follow it |
+| the side and line a comment's box and its thread card stand by, whether they stand past its margin row, and which edge a growing one holds | the default package's `comment-placement.js` (`commentSide`, `options`, `holding`), from the card's declared widths, for both surfaces; each surface's own module measures its content and reports its gestures, and decides neither |
+| whether a margin row stands in the rail or as a pin, its seat, and the order rows are seated in | `margin-layout.js`, through `margin-placement.js`'s folds (`rowPosture`, `seatRows`, `packRows`, `arrivals`) |
 | geometry readings: what a scroller shows, what a surface hides, what sticky headers stand over, how much of the window the page shows | `geometry.js` (`visibleBand`, `declareOccluder`, `headerInset`, `shownWindow`, `seenRect`), so being on screen has one answer |
 
 Do not add a second cache, pending map, widget-specific replay list, or DOM

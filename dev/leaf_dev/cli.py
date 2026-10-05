@@ -14,6 +14,7 @@ COMMANDS = {
     "bugback": "bugback",
     "corpus": "corpus",
     "fetch-assets": "leaf_assets",
+    "journey": "journey",
     "flake": "flake",
     "eval": "eval",
     "keydocs": "keydocs",

@@ -155,6 +155,10 @@ let restoring = false;
 // its selected child. That whole synchronous handoff remains continuity: consumers
 // which reveal a destination on focus must not turn it into a fresh navigation.
 export const restoringFocus = () => restoring;
+// A layer handing focus back to its opener as it closes, as an auto popover does, is the
+// layer's own return rather than the user going anywhere: a hold still waiting on a
+// change keeps its place.
+export const returningFocus = (close) => land(close);
 // A chrome placement moving a box the user may be standing in: the focus it takes off
 // and hands straight back inside `move` is the layer's own, not the user going anywhere.
 // Stated here rather than beside the one placer, because what has to know is every

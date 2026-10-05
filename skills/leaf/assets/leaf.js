@@ -93,6 +93,8 @@ import { createThreadNarrowing } from "./runtime/thread/narrowing.js";
 import { createThreadPanelElements } from "./runtime/thread/panel-elements.js";
 import { createPageMapDialog } from "./runtime/page-map-dialog.js";
 import { createAskView } from "./runtime/asks/view.js";
+import { createQueueWalk } from "./runtime/queue-walk.js";
+import { createQueuePanel } from "./runtime/queue-panel.js";
 import { ASK_CONTROL } from "./runtime/asks/view-elements.js";
 import {
   commandHintLayer,
@@ -103,9 +105,9 @@ import { createChromeLayout } from "./runtime/chrome-layout.js";
 import { createThreadPanelController } from "./runtime/thread-panel.js";
 import {
   createDrawers,
-  asksPanel,
   currentDrawer,
   othersPanel,
+  queuePanel,
 } from "./runtime/drawers.js";
 import { createAuxiliarySurfaces } from "./runtime/auxiliary-surfaces.js";
 import { restoreUserView } from "./runtime/restore-state.js";
@@ -118,6 +120,7 @@ import {
   loadIcon,
   mountBanner,
   paintApproval,
+  queueCounts,
   renderStatus,
   setThreadCounts,
   stateSignoff,
@@ -166,7 +169,6 @@ import { paintCoreControls } from "./runtime/keyboard/control-keys.js";
 import { paintTouchControls } from "./runtime/keyboard/touch-controls.js";
 import { commandReferenceDialog } from "./runtime/keyboard/command-reference.js";
 import {
-  bottomChromeBoxes,
   collapseShortcutBar,
   mountShortcutBar,
   renderShortcutBar,
@@ -197,7 +199,7 @@ import {
   releaseFocus,
   tabStops,
 } from "./runtime/focus.js";
-import { announce, liveEl, notice, noticeVisible } from "./runtime/notifications.js";
+import { announce, liveEl, notice } from "./runtime/notifications.js";
 import { mediaViewer } from "./runtime/media.js";
 import { offer } from "./runtime/widget-elements.js";
 import { retainUserIntent } from "./runtime/user-intent.js";
@@ -547,6 +549,20 @@ asks = createAskView({
   announce,
   repaint,
 });
+const queueWalk = createQueueWalk({
+  arriveAtAsk: asks.arriveAtAsk,
+  arriveAtThread: navigation.arriveAtThread,
+  threadHere: () => app.threadDestinations.threadHere(),
+  threadTarget: (id) => app.threadDestinations.threadTarget(id),
+  prepareTrip: anchorTravel.prepareTrip,
+  arrive: anchorTravel.arrive,
+  readableDestination: anchorTravel.readableDestination,
+  announce,
+});
+const queue = createQueuePanel({
+  arriveAtItem: queueWalk.arriveAtItem,
+  announce,
+});
 
 const commandHints = createCommandHints({
   presentedControl: (control) => app.overlay?.presentedControl(control) ?? control,
@@ -696,7 +712,6 @@ drawing = createDrawingController({
 
 layout = createChromeLayout({
   panelIsOpen,
-  noticeIsVisible: noticeVisible,
   elements: {
     panel,
     closeBtn,
@@ -706,7 +721,6 @@ layout = createChromeLayout({
     bottomStatusEl,
   },
   scheduleThreadPreviewPosition: app.overlay?.scheduleThreadPreviewPosition,
-  bottomChromeBoxes,
   restateDrawerEdge: () => drawers.drawersEdge.state(),
   syncAuxiliarySurfaces: auxiliarySurfaces.sync,
   syncReactLayout: reactions.syncReactLayout,
@@ -748,12 +762,13 @@ if (window.frameElement?.hasAttribute("data-lf-contained")) {
   };
 }
 drawers = createDrawers({
+  doors: { queue: [queueCounts] },
   landEdge: layout.landEdge,
   auxiliarySurfaces,
   closePreview: app.overlay?.closePreview,
   leavesOffered,
   presentLeaves,
-  syncAsks: asks.syncAsks,
+  presentQueue: queue.present,
 });
 const writingResume = createWritingResume({
   arriveEditor: anchorTravel.arriveEditor,
@@ -833,7 +848,7 @@ if (!offlineInteractive) {
     overflowMenu,
     versionMenu,
     othersPanel,
-    asksPanel,
+    queuePanel,
     panel,
     legendRoot,
     goToHintLayer,
@@ -879,6 +894,8 @@ if (!offlineInteractive) {
   pageGeometry.mount();
   pageMapDialog.mount(chromeRoot);
   asks.mount();
+  queueWalk.mount();
+  queue.mount();
   commandHints.mount();
   app.mountAnnotations();
   app.overlay?.mount();

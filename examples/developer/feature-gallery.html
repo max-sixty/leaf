@@ -323,7 +323,6 @@
 
       const localNote = document.querySelector("#bg-shortcut-note");
       const focusNote = document.querySelector("#bg-shortcut-focus-note");
-      focusNote.addEventListener("click", () => localNote.focus());
       commands(document.querySelector("#bg-local-shortcuts"), "In the note sample", [
         {
           id: "note.focus",
@@ -332,7 +331,7 @@
           bindingBadge: null,
           title: "Write note",
           description: "Focus the sample note",
-          run: () => focusNote.click(),
+          run: () => localNote.focus(),
         },
       ]);
 
@@ -436,18 +435,23 @@
               An <code>lf-ask</code> is one complete Ask: its heading names the
               question, and one nested widget owns the answer. This sample uses
               <code>lf-options</code>, which records a choice Leaf can replay as page
-              state. The banner shows completed/total. Press <kbd>a</kbd> for the next
-              Ask waiting on you; open <strong>Asks</strong>, or press <kbd>g</kbd> then
-              <kbd>Shift+A</kbd>, to review every active Ask and its current answer.
-              Within a view, <kbd>a</kbd> scrolls to the question. When it opens another
-              view, the question appears immediately and its tab name briefly
-              highlights. <kbd>Shift+A</kbd> walks back. Reduced motion removes the
-              glide and highlight. When <kbd>a</kbd> reaches a commented Ask, its
-              discussion stays closed while you read and choose, including when Tab
-              enters its controls. Press <kbd>c</kbd> to reply in that existing
-              discussion, <kbd>t</kbd> to read it, or its Thread marker to open it under
-              a finger. Returning to an Ask you have answered also keeps its controls
-              clear.
+              state. Press <kbd>a</kbd> for the next thing waiting on you, in page
+              order: an open Ask, a thread whose question is yours to answer, such as
+              the gallery thread that asks about a pasted image, or a move whose reply
+              failed and needs sending again. After its status, the banner counts what
+              waits on you and what waits on the agent. Press those counts, open
+              <strong>Queue</strong> in More, or press <kbd>g</kbd> then
+              <kbd>Shift+Q</kbd>, to see both lists in one panel, with answered Asks and
+              finished tasks folded under Done; Enter on a row goes where
+              <kbd>a</kbd> would. The Queue panel is experimental. Within a view,
+              <kbd>a</kbd> scrolls to the question. When it opens another view, the
+              question appears immediately and its tab name briefly highlights.
+              <kbd>Shift+A</kbd> walks back. Reduced motion removes the glide and
+              highlight. When <kbd>a</kbd> reaches a commented Ask, its discussion stays
+              closed while you read and choose, including when Tab enters its controls.
+              Press <kbd>c</kbd> to reply in that existing discussion, <kbd>t</kbd> to
+              read it, or its Thread marker to open it under a finger. Returning to an
+              Ask you have answered also keeps its controls clear.
             </p>
             <lf-ask id="bg-choice-ask">
               <h3>Which map should the sample team carry?</h3>
@@ -1025,8 +1029,8 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               <p id="bg-resolved-text">
                 <strong>A resolved thread.</strong> The room has a projector. Its
                 earlier question is resolved. Open Threads in the banner, select
-                “Resolved”, and try “Reopen” to bring its Thread control back to the
-                page.
+                “Resolved”, open the thread, and press its underlined “Resolved” to
+                bring its Thread control back to the page.
               </p>
             </section>
             <section id="bg-thread-state-summary">
@@ -1559,9 +1563,12 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 file's own numbers with an elided row where it skips; Tree shows file
                 structure. Use “Copy code” on the right of either block below, or
                 <kbd>Tab</kbd> to it and press <kbd>Enter</kbd>. The clipboard keeps the
-                code's whitespace and leaves out line numbers and Notes.
+                code's whitespace and leaves out line numbers and Notes. Bash separates
+                commands, arguments, and flags with the same syntax colors as a diff.
               </p>
-              <pre id="bg-plain-code"><code>leaf page check ./proposal
+              <pre
+                id="bg-plain-code"
+              ><code class="language-bash">leaf page check ./proposal --render
 leaf page stamp ./proposal --text "Ready for review"</code></pre>
               <lf-code id="bg-code" language="python" lines="40-43,58-59" hi="41-42">
                 <pre>
@@ -2215,8 +2222,8 @@ switch --readers checkout-api,orders-api</code></pre>
               <lf-column id="bg-work-ready" label="Ready">
                 <lf-card id="bg-work"
                   ><strong>Check the sample route</strong>
-                  A live work claim puts a Working indicator here because this card has
-                  no other margin control to carry its workflow state.
+                  An open task on this card puts a Working indicator here because the
+                  card has no other margin control to carry it.
                 </lf-card>
               </lf-column>
               <lf-column id="bg-work-tried" label="Tried"></lf-column>

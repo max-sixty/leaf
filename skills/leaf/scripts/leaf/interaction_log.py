@@ -11,21 +11,16 @@ decide which fields to redact or omit for those users.
 """
 
 import os
-from datetime import datetime
 from pathlib import Path
 
 from .event_log import jsonl_line
 from .schema import INTERACTIONS_FILE
-from .state import require_cross_process_locking
+from .state import now_iso, require_cross_process_locking
 
 try:
     import fcntl
 except ImportError:  # pragma: no cover - unsupported non-POSIX platform
     fcntl = None
-
-
-def now_iso() -> str:
-    return datetime.now().astimezone().isoformat(timespec="milliseconds")
 
 
 def append_interactions(page_dir: Path, records: list[dict]) -> None:
@@ -41,8 +36,11 @@ def append_interactions(page_dir: Path, records: list[dict]) -> None:
     )
     with os.fdopen(fd, "wb") as stream:
         fcntl.flock(stream.fileno(), fcntl.LOCK_EX)
-        stream.write(data)
-        stream.flush()
+        try:
+            stream.write(data)
+            stream.flush()
+        finally:
+            fcntl.flock(stream.fileno(), fcntl.LOCK_UN)
 
 
 def client_records(session: str, page: str, entries: list[dict]) -> list[dict]:

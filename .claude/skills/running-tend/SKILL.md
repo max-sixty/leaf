@@ -51,8 +51,18 @@ profiles from CI.
 
 Nearly every test drives a real browser, so a traceback can name a symptom
 several boundaries after its cause. Before updating a test to its new expectation,
-apply `tests/AGENTS.md`, **A failure is evidence about the test too**. Two
-test-owned failures recur:
+apply `tests/AGENTS.md`, **A failure is evidence about the test too**.
+
+Read the failing test's record in main's earlier complete runs before choosing a
+fix: each `ci` run uploads its junit results
+(`gh run download <run> -p 'pytest-results-*'`). A test that failed with the same
+message, then passed on code that didn't fix it, then failed again, is
+non-deterministic, so fix the cause rather than the symptom this run shows.
+Different messages across runs call for checking the intervening changes and the
+behavior each failure caught; simplify when unrelated changes repeatedly break
+the test without changing that behavior.
+
+Two test-owned failures recur:
 
 - **A read or press before the page said it was ready**, which a re-run hides.
   State the ordering (`tests/AGENTS.md`, **State races are arrangements, not
@@ -68,7 +78,13 @@ test-owned failures recur:
 
 Every failure in the run is the session's, including those earlier runs also hit;
 a tracking issue records a failure but doesn't fix it. Open one pull request per
-cause that no open pull request already covers.
+cause that no open pull request already covers. For each durable failure, look
+for the pull request that introduced it, first among those merged since the last
+run where the failing check passed and then earlier, since a failure that comes
+and goes can pass after its cause landed. Establish the cause from the failing
+diagnostic and the pull request's diff. Where a pull request introduced it, fix
+the failure in terms of what that change set out to do and link it from the fix's
+description.
 
 ## A red `ci` on main is live
 

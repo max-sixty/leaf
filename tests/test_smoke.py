@@ -10,7 +10,13 @@ from leaf.render_gate import version as render_gate_model
 from model_folds import leaf_page
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, panel_comment
-from render_harness import holding, open_page, resized, scroll_settled
+from render_harness import (
+    expect_asks_answered,
+    holding,
+    open_page,
+    resized,
+    scroll_settled,
+)
 
 ROOT = Path(__file__).parent.parent
 
@@ -24,7 +30,7 @@ def test_ship_review_asks_are_directly_answerable(browser, serve):
     example = ROOT / "examples" / "ship-review.html"
     page = open_page(browser, serve(example))
 
-    expect(page.locator(".lf-asks")).to_have_text("Asks 1/2")
+    expect_asks_answered(page, "1/2")
     expect(page.locator("#off-workaround-review .lf-pick")).to_have_count(2)
     expect(page.locator("#off-workaround-review .lf-pick").first).to_be_visible()
     expect(page.locator("#off-workaround-approve .lf-pick")).to_have_attribute(
@@ -76,7 +82,8 @@ def test_a_sent_margin_reply_shows_its_words_while_delivery_is_pending(
     page.locator('[data-lf-margin-for="how-store"] .lf-margin-marker').click()
     card = page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]')
     rendered(page)
-    assert card.locator(".lf-thread-transcript").evaluate("list => list.scrollTop") == 0
+    # The card opens on its latest message.
+    expect(card.locator(".lf-msg").last).to_be_in_viewport()
     page.keyboard.press("c")
     reply = card.locator("leaf-text")
     expect(reply).to_be_focused()

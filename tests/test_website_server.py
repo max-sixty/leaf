@@ -4564,6 +4564,33 @@ def test_the_deploy_gate_stops_reading_a_turn_the_container_has_closed(
     assert journey.turn_failed(turn.replies)
 
 
+def test_a_title_written_after_the_reply_is_still_timed():
+    """The page server titles a thread beside the agent's turn, so the title can land
+    after the reply that ended the turn's wait; the journey reads on for it rather
+    than reporting the title as never written."""
+    comment, title, reply = TURN_LOG
+    answered = {"active": {"revision": 2}, "events": [comment, reply]}
+    context = _StateReads([{**answered, "events": [comment, reply, title]}])
+    session = journey.Session(
+        context,
+        None,
+        [],
+        "https://leaf.page/examples/triage-board/",
+        "https://leaf.page/examples/triage-board/api/state",
+        answered,
+        {},
+        None,
+    )
+    events = journey.await_title(session, comment["id"], answered)["events"]
+    published = {"activated_at": "2026-10-04T19:00:12+00:00"}
+    assert journey.recorded_steps(events, comment, published)["titled"] == 2.25
+    assert journey.recorded_steps(answered["events"], comment, published) == {
+        "titled": None,
+        "published": 12.0,
+        "replied": 12.5,
+    }
+
+
 class _PresentationWait:
     def __init__(self, waits: list[int]):
         self.waits = waits
@@ -4996,12 +5023,15 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
             profile,
         ),
     )
-    # One sample sets `agent_session`'s rollout deadline; two surround the revision
-    # wait this case measures.
+    # One sample sets `agent_session`'s rollout deadline; in the journey, one bounds
+    # the wait for the title the log already holds and two surround the revision wait
+    # this case measures.
     with monkeypatch.context() as timing:
         timing.setattr(verify_site, "time", SimpleNamespace(monotonic=lambda: 0.0))
         timing.setattr(
-            journey, "time", SimpleNamespace(monotonic=iter([40.0, 42.5]).__next__)
+            journey,
+            "time",
+            SimpleNamespace(monotonic=iter([39.0, 40.0, 42.5]).__next__),
         )
         benchmark = journey.run_journey(
             *journey.website_session(

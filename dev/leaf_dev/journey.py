@@ -84,6 +84,9 @@ TURN_PRESENTATION = 120_000
 # How long Threads gets to draw a reply the container has admitted; the runtime's own
 # quiet-stream bound (`SILENCE_MS` in `runtime/state-feed.js`) is the same 30 s.
 VISIBLE_REPLY_PATIENCE = 30_000
+# How long the page server gets to title the thread after the turn ends: its title
+# request's own limit (`TIMEOUT` in `thread_titles.py`).
+TITLE_PATIENCE = 60
 # How long a local harness gets to serve the page and start watching it.
 SETUP_LIMIT = 600
 HARNESSES = ("cc", "codex")
@@ -368,6 +371,21 @@ def await_turn(
     return TurnReading(current, published, replies, answer)
 
 
+def titled(events: list[dict], thread: str) -> bool:
+    return any(e["kind"] == "thread_title" and e["thread"] == thread for e in events)
+
+
+def await_title(session: Session, thread: str, state: dict) -> dict:
+    """Read the page until it titles `thread` or `TITLE_PATIENCE` passes; return the
+    last reading. The page server names a thread beside the agent's turn rather than
+    within it, so the title can land after the reply that ended the turn."""
+    deadline = time.monotonic() + TITLE_PATIENCE
+    while not titled(state["events"], thread) and time.monotonic() < deadline:
+        time.sleep(1)
+        state = read_state(session)
+    return state
+
+
 def ask_until_answered(session: Session, heading: str) -> AgentAsks:
     """Ask for `heading` until the agent answers or stops answering.
 
@@ -458,7 +476,8 @@ def run_journey(session: Session, version: str) -> dict:
     answered_comment = next(
         event for event in turn.state["events"] if event["id"] == answer["parent"]
     )
-    steps = recorded_steps(turn.state["events"], answered_comment, published)
+    events = await_title(session, answer["parent"], turn.state)["events"]
+    steps = recorded_steps(events, answered_comment, published)
     reply_visible = wait_for_visible_reply(page, answer["parent"], answer["id"])
     visible_reply_at = page.evaluate(
         "id => window.__leafVerifier.visibleReplyAt(id)", answer["id"]

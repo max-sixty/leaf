@@ -776,7 +776,8 @@ resolve:
     kind: resolve
   told:
     - text: >-
-        The user closed the thread. You owe nothing on it.
+        The user closed the thread. You owe no reply in it; a task you opened on
+        it still stands until you end it.
 
 unresolve:
   event:

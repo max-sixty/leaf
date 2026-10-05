@@ -14834,6 +14834,7 @@ def test_a_move_the_turn_started_lets_that_turn_end(claimed, capsys):
     thread_model.cmd_reply(
         claimed, follow["id"], "All three are up.", None, for_event=follow["id"]
     )
+    end_work(claimed)
     assert _idle(claimed).exit_code == 0
     lease.close()
 

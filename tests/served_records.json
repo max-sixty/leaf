@@ -355,7 +355,7 @@
             "task": {
               "id": "e6",
               "title": "Rebuild the chart",
-              "running": "Redrawing the chart"
+              "line": "Redrawing the chart"
             }
           }
         },
@@ -565,6 +565,7 @@
           "revision": 1,
           "running": {
             "id": "e11",
+            "item": "e6",
             "text": "Redrawing the chart",
             "seq": 11,
             "ts": "2026-09-19T12:00:00+00:00",
@@ -643,6 +644,7 @@
             "title": "Rebuild the chart",
             "running": {
               "id": "e11",
+              "item": "e6",
               "text": "Redrawing the chart",
               "seq": 11,
               "ts": "2026-09-19T12:00:00+00:00",

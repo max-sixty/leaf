@@ -6380,9 +6380,9 @@ def test_a_covering_sheet_cannot_move_the_background_shortcut_bar(browser, serve
     The covering panel and shortcut bar can occupy the same viewport pixels, but they are
     not peers: modality puts the panel above the scrim and makes the bar inert background.
     Treating their rectangles as a collision made every newline in the panel's composer
-    lift the unrelated bar by one line. The live walk status stays above that panel and
-    still reserves the list it can cover. Over a live page, the live bar yields the
-    panel's actual width."""
+    lift the unrelated bar by one line. A thread walk shows no position over that panel
+    and takes no room from its list. Over a live page, the live bar yields the panel's
+    actual width."""
     context = browser.new_context(
         viewport={"width": 400, "height": 900}, reduced_motion="reduce"
     )
@@ -6405,11 +6405,9 @@ def test_a_covering_sheet_cannot_move_the_background_shortcut_bar(browser, serve
             const standing = document.activeElement?.closest(".lf-thread");
             return {shortcut_bar: rect(document.querySelector(".lf-shortcut-bar")),
                     foot: rect(document.querySelector(".lf-thread-panel-foot")),
-                    status: rect(document.querySelector(".lf-bottom-status")),
                     standingTitle: standing ? rect(document.activeElement) : null,
                     lineInert: document.querySelector(".lf-shortcut-bar").inert,
                     viewportHeight: innerHeight,
-                    listInlinePad: list.style.getPropertyValue("--lf-threads-foot"),
                     listPad: parseFloat(style.paddingBottom),
                     listScrollPad: parseFloat(style.scrollPaddingBottom)};
         }""")
@@ -6438,22 +6436,17 @@ def test_a_covering_sheet_cannot_move_the_background_shortcut_bar(browser, serve
     )
     assert multiline["listPad"] < 20 and multiline["listScrollPad"] < 20, multiline
 
-    # A thread walk introduces foreground status above the panel. Reach the last thread
-    # through the real keyboard route and prove its title lands clear of that status band.
-    # The open card itself fills the list, its free room reaching under the status.
+    # A thread walk over the panel puts no position over its list. Reach the last
+    # thread through the real keyboard route: the list keeps its whole height.
     field.evaluate("field => field.blur()")
     page.locator(".lf-threads").focus()
     for _ in range(6):
         page.keyboard.press("t")
         rendered(page)
-    expect(page.locator(".lf-bottom-status")).to_contain_text("Thread 6 of 6")
+    expect(page.locator(".lf-bottom-status")).to_be_hidden()
     walked = boxes()
-    assert walked["listPad"] >= 20 and walked["listScrollPad"] >= 20, walked
-    assert walked["listInlinePad"], walked
+    assert walked["listPad"] < 20 and walked["listScrollPad"] < 20, walked
     assert walked["standingTitle"], walked
-    assert walked["standingTitle"]["bottom"] <= walked["status"]["top"], (
-        f"the last walked thread landed under its live status: {walked}"
-    )
 
     # Over a live page, the bar is live page chrome and stops at the panel's edge.
     resized(page, 1200, 900)

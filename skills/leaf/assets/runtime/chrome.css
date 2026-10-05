@@ -918,9 +918,9 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      room it needs, and it is the layer's own number (theme.css) rather than one
      worked out from the controls this list happens to hold. The list pads its content
      by the same room, so its content box is the band it lands in, which an open card
-     fills (below). A bottom surface standing over the list, the live status over a
-     covering panel, deepens its foot by the room it covers (`--lf-threads-foot`,
-     chrome-layout.js).
+     fills (below). Nothing standing over the list takes room from it: over a covering
+     panel the bottom status shows only transient feedback, which clears the reply
+     instead (chrome-layout.js).
 
      That padding is inside the scrollport, so the list's words scroll through it, and
      a sticky offset is measured from the content box inside it. A row pinned to an
@@ -934,9 +934,8 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   .lf-threads-frame { flex: 1; min-height: 0; display: grid; container-type: size; }
   .lf-threads-frame::after, .lf-threads { grid-area: 1 / 1; min-height: 0; }
   .lf-threads { overflow-y: auto; overscroll-behavior: contain; z-index: 0;
-    --lf-list-foot: var(--lf-threads-foot, var(--focus-ring-room));
-    padding: var(--focus-ring-room) var(--lf-list-inset) var(--lf-list-foot); --lf-block-frame: 1;
-    scroll-padding: var(--focus-ring-room) 0 var(--lf-list-foot);
+    padding: var(--focus-ring-room) var(--lf-list-inset); --lf-block-frame: 1;
+    scroll-padding: var(--focus-ring-room) 0;
     --lf-top: calc(-1 * var(--focus-ring-room)); }
   /* The list holds focus itself only while it shows no thread (thread-list-view.js):
      an empty list, or the last one folding away as it resolves. That folding card is
@@ -1090,7 +1089,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      row pinned. Its editor grows in flow until it reaches that edge, then grows upward
      while Send stays there. The band from the row down to the scrollport's edge, that
      offset and the list's foot, is the row's own ground: it paints its surface on down
-     so nothing scrolls by beneath it and a walk status stands on it.
+     so nothing scrolls by beneath it.
      That ground is paint, not room, on the card's own surface; the card clips it to
      itself, so it shows only where the card runs on past the row.
      ReplyContinuity retains a live body's extent when a turn is removed, and
@@ -1099,7 +1098,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     position: sticky; bottom: var(--focus-ring-room); }
   .lf-thread-compact > .lf-thread-reply::after { content: ""; position: absolute;
     inset-inline: 0; inset-block-start: 100%;
-    block-size: calc(var(--focus-ring-room) + var(--lf-list-foot));
+    block-size: calc(2 * var(--focus-ring-room));
     background: var(--lf-thread-surface); }
   .lf-thread-compact[open]:not([hidden]):has(> .lf-thread-reply) { display: flex;
     flex-direction: column; box-sizing: border-box; overflow-y: clip;
@@ -1600,9 +1599,14 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   }
   /* A covering thread panel stands over the bar's right end, and its foot over the
      status's seat; notices are live feedback, so the status rises clear of that foot,
-     whose height syncLayout states. */
+     whose height syncLayout states. A walk's position stays off it: standing there it
+     took a strip from the bottom of the thread the user was reading, to say what the
+     open card and its pinned title already show. */
   :scope > .lf-thread-panel[aria-modal="true"] ~ .lf-bottom-status {
     bottom: calc(var(--lf-panel-foot-h, 0px) + 14px + var(--lf-safe-bottom)); translate: none; }
+  :scope > .lf-thread-panel[aria-modal="true"]
+    ~ .lf-bottom-status:not(:has(> .lf-go-to-status:not([hidden]), > .lf-notice.show)) {
+    display: none; }
   .lf-shortcut-bar .lf-shortcut { display: inline-flex; gap: 5px; align-items: baseline; }
   /* A row off the line keeps its width, out of flow and unseen, so the trim reads every
      row where it stands rather than showing one to see whether it wraps

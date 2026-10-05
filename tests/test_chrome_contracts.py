@@ -642,18 +642,19 @@ def test_typing_grows_a_panel_reply_in_flow_or_above_its_pinned_foot(
 @pytest.mark.parametrize(
     ("viewport", "walking"),
     [((1200, 900), False), ((390, 740), False), ((390, 740), True)],
-    ids=["wide", "narrow", "narrow-walk-status"],
+    ids=["wide", "narrow", "narrow-walking"],
 )
 def test_reading_inside_a_long_thread_keeps_its_title_and_reply_row_on_the_lists_edges(
     browser, serve, viewport, walking
 ):
     """Scrolled into the middle of an open thread, its title stands on the list's top
     edge and its reply row on the bottom edge, and nothing of the transcript shows
-    beyond either. The list pads both ends for focus rings, and over a covering panel
-    a walk status deepens the foot; a row pinned inside that padding left a strip of
-    the thread's words visible below Reply, while the title scrolled away with the
-    words. Hit tests read what the user sees at each edge, so a row standing short of
-    it shows as the wrong element there."""
+    beyond either. The list pads both ends for focus rings; a row pinned inside that
+    padding left a strip of the thread's words visible below Reply, while the title
+    scrolled away with the words. Walking threads over a covering panel takes no room
+    from the list: the walk's position once stood under Reply on a strip reserved for
+    it. Hit tests read what the user sees at each edge, so a row standing short of it
+    shows as the wrong element there."""
     url = serve(LONG_PAGE)
     root = panel_comment(serve.page_dir, "A thread long enough to read inside.")
     for index in range(14):
@@ -685,11 +686,7 @@ def test_reading_inside_a_long_thread_keeps_its_title_and_reply_row_on_the_lists
         page.keyboard.press("t")
         page.keyboard.press("Shift+t")
         expect(card.locator(":scope > .lf-thread-summary")).to_be_focused()
-        expect(page.locator(".lf-bottom-status")).to_contain_text("Thread")
-        page.wait_for_function(
-            "() => document.querySelector('.lf-threads').style"
-            ".getPropertyValue('--lf-threads-foot')"
-        )
+        expect(page.locator(".lf-bottom-status")).to_be_hidden()
     edges = card.evaluate(
         """async card => {
           const list = card.parentElement;
@@ -732,10 +729,9 @@ def test_reading_inside_a_long_thread_keeps_its_title_and_reply_row_on_the_lists
     )
     assert edges["inside"], edges
     assert edges["title"] == pytest.approx(edges["top"], abs=0.5), edges
-    # Under a walk status the row's controls stand above the room it reserves, and the
-    # row's own ground reaches the edge below them.
-    assert (edges["reply"] < edges["bottom"] - 20) is walking, edges
-    assert edges["reply"] <= edges["bottom"], edges
+    # The row stands a ring's room above the list's foot, and its own ground reaches
+    # the edge below it.
+    assert edges["bottom"] - 20 < edges["reply"] <= edges["bottom"], edges
     assert edges["atTop"] and edges["atBottom"], edges
     assert edges["through"] == [], edges
     # An overlay a row raises while open scrolls up under the title with its words.

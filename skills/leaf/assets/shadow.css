@@ -858,6 +858,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   line-height: 0;
   opacity: 0;
 }
+.lf-code-copy.lf-code-copy-away { display: none; }
 pre:hover + .lf-code-copy,
 .lf-code-copy-hover,
 .lf-code-copy-focused,

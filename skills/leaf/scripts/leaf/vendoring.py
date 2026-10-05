@@ -239,10 +239,15 @@ def _refuse_data_contract_drift(
     # validating it with today's rules would prevent `page init` from replacing the
     # exact older layer it exists to migrate. Binding discovery only reads x-data.
     if current := read_json(page_dir / "registry.json"):
-        documents = page_data_document_readings(page_dir, events, current)
-        standing_bindings, standing_errors = merge_data_document_readings(
-            working_data_document_readings(page_dir, current, events, history=documents)
+        # Both layers interpret the same inventory, including an edit whose first
+        # revision has not yet activated.
+        documents = working_data_document_readings(
+            page_dir,
+            current,
+            events,
+            history=page_data_document_readings(page_dir, events, current),
         )
+        standing_bindings, standing_errors = merge_data_document_readings(documents)
         incoming_bindings, incoming_errors = merge_data_document_readings(
             documents, incoming
         )
@@ -260,7 +265,7 @@ def _refuse_data_contract_drift(
         contract_changes = data_contract_transition_errors(documents, incoming)
         if binding_errors or binding_changes or contract_changes:
             sys.exit(
-                "this page's immutable documents do not keep one meaning for each "
+                "this page's documents do not keep one meaning for each "
                 "data source:\n"
                 + "\n".join(
                     f"  - {error}"

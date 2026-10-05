@@ -9,7 +9,7 @@
    Enter on a document code block moves keyboard focus to its copy control. */
 import { offer } from "./widget-elements.js";
 import { watchArrivals } from "./arrivals.js";
-import { anchorName } from "./anchor-names.js";
+import { anchorName, anchorView, refreshAnchorView } from "./anchor-names.js";
 import { focusDestination } from "./focus.js";
 import { chromeRoot } from "./chrome.js";
 
@@ -29,8 +29,15 @@ export function copyCodeBlock(pre, source) {
     pre.addEventListener("pointerdown", (event) => {
       if (event.pointerType === "touch" && copy.isConnected) focusDestination(pre);
     });
+    // Focus can reveal and scroll a source before the observer's next task. Its
+    // keyboard route must see the control in that same gesture, widgets included.
+    pre.addEventListener("focusin", () => refreshAnchorView(copy));
+    pre.addEventListener("pointerenter", () => refreshAnchorView(copy));
     controls.set(pre, copy);
   }
+  const place = () =>
+    copy.classList.toggle("lf-code-copy-away", !anchorView(copy, pre, place));
+  place();
   const name = anchorName(pre);
   if (copy.style.positionAnchor !== name) copy.style.positionAnchor = name;
   return copy;
@@ -85,6 +92,7 @@ export function watchCodeBlocks() {
             )
               return;
             event.preventDefault();
+            refreshAnchorView(copy);
             const button = copy.shadowRoot?.querySelector("button");
             if (button) focusDestination(button);
           },
@@ -116,7 +124,8 @@ export function watchCodeBlocks() {
       wired.get(pre)?.abort();
       wired.delete(pre);
       const copy = controls.get(pre);
-      copy?.classList.remove("lf-code-copy-hover", "lf-code-copy-focused");
+      if (copy?.matches(".lf-code-copy-hover, .lf-code-copy-focused"))
+        copy.classList.remove("lf-code-copy-hover", "lf-code-copy-focused");
       copy?.remove();
       const route = routes.get(pre);
       if (route?.tab && pre.getAttribute("tabindex") === "0")

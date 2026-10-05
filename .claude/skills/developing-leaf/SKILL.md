@@ -77,6 +77,17 @@ interactions. Start their fictional histories with `data-sample-events`, sharing
 one parent-local JSON fixture when the candidates need the same conversation
 (`skills/leaf/references/page-authoring.md`, "Live samples").
 
+## Choose what the user reviews
+
+Show the change or unresolved choice that needs the user's judgment, with the
+comparison and tradeoff needed to assess it. Name the feedback sought. When
+nothing needs their judgment, hand over the verified result.
+
+Verify behavior expected to stay unchanged against the baseline yourself and
+report what you checked and found. An unchanged sample can explain a changed
+contract; make it optional to operate and keep regression verification with the
+agent. Present visible and interaction changes using the proof below.
+
 ## Prove and hand off a visible change
 
 Review at a representative desktop viewport (`skills/leaf/assets/AGENTS.md`,

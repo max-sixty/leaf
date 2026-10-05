@@ -51,8 +51,10 @@ pytest_plugins = (
 # was 146, copying them all made a complete nightly run 2,272 pages and 393,473
 # directory entries, which is the number a filesystem event watcher charges for
 # — hard links share the bytes but not the entry. So the layer is written once
-# per shape and lent, and only what a test actually changed is put back.
-LENT_LINKED_DIRS = frozenset({"runtime", "vendor"})
+# per shape and lent, and only what a test actually changed is put back. A
+# stamped revision's bundle is immutable too, so a shape's revisions are linked
+# like its layer.
+LENT_LINKED_DIRS = frozenset({"runtime", "vendor", "revisions"})
 
 
 class PagePool:

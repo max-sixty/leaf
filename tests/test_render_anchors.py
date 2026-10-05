@@ -1267,20 +1267,18 @@ def test_a_quote_finds_its_passage_whatever_its_whitespace(browser, serve):
     # Nor may a gap close up onto a compound the page writes as one word. "set up" and
     # "setup" are different words, and the page has both — the anchor has to land on the
     # one that was dragged, and it is stored, so landing wrong is permanent.
-    landed = page.evaluate("""async () => {
+    chosen = page.evaluate_handle("""() => {
         const p = document.querySelector('#compound');
         const at = p.firstChild.data.indexOf('set up');
         const r = document.createRange();
         r.setStart(p.firstChild, at); r.setEnd(p.firstChild, at + 6);
         const s = getSelection(); s.removeAllRanges(); s.addRange(r);
         document.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
-        await new Promise(x => setTimeout(x, 30));
-        const field = document.querySelector('.lf-fab-input');
-        await new Promise(x => setTimeout(x, 30));
-        const painted = [...(CSS.highlights.get('lf-pending') ?? [])][0];
-        return painted && painted.compareBoundaryPoints(Range.START_TO_START, r) === 0;
+        return r.cloneRange();
     }""")
-    assert landed, "'set up' anchored onto 'setup', an earlier and different word"
+    assert selected_comment_marks_chosen_start(page, chosen), (
+        "'set up' anchored onto 'setup', an earlier and different word"
+    )
 
 
 def test_the_captured_quote_is_prose_a_file_can_hold(browser, serve):

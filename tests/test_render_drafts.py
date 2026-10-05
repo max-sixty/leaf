@@ -363,7 +363,9 @@ diff --git a/reading.py b/reading.py
     field.click()
 
     expect(field).to_be_focused()
-    assert page.locator(".lf-threads").evaluate("list => list.scrollTop") == before_click
+    assert (
+        page.locator(".lf-threads").evaluate("list => list.scrollTop") == before_click
+    )
 
 
 @pytest.mark.watch_shifts

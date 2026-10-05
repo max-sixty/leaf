@@ -230,7 +230,7 @@ test("a growing card holds its top while read and its foot for the turn that joi
   assert.equal(card.heldHeight(), 200);
 });
 
-test("beside, a margin row is kept clear only where that leaves the card its whole measure", async () => {
+test("beside, a margin row stays usable where the card keeps its minimum width", async () => {
   const ui = await import("/vendor/floating-ui.esm.js");
   // A paragraph ending at 600, and a margin row 40px wide out past it.
   const clear = block(300, 300, 300, 500);
@@ -245,10 +245,10 @@ test("beside, a margin row is kept clear only where that leaves the card its who
       fit() {},
     }).reference;
   };
-  // Past a row ending at 692, 592 remains to the boundary at 1292 after the gap: the
-  // card keeps the row in view at no cost to its width.
-  assert.equal(reference(692).right, 692);
-  // A row ending 1px further would take that pixel from the card, so the card stands
-  // over the row, beside the words.
-  assert.equal(reference(693).right, clear.right);
+  // The card may narrow from its preferred measure to keep the row usable.
+  assert.equal(reference(693).right, 693);
+  // Past a row ending at 964, 320 remains to the boundary at 1292 after the gap.
+  assert.equal(reference(964).right, 964);
+  // One pixel less than its minimum sends the card over the row.
+  assert.equal(reference(965).right, clear.right);
 });

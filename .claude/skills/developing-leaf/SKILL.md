@@ -131,7 +131,12 @@ to `STATES` rather than driving them by hand.
 
 For every difference a still can show, the handoff carries one sentence and
 matched before/after screenshots, embedded in the reply or as one `lf-shot`; a
-live preview may accompany the pair but does not replace it. For an
+live preview may accompany the pair but does not replace it. Several captured
+states often show the same difference. Check them all, show the difference once,
+in the state where it reads most clearly, and say in a line which other states
+repeat it, since the user reads every pair and a repeat tells them nothing new. A
+dark-scheme or phone pair belongs only where the change looks different there, as
+a change to a colour or theme token does in the dark scheme. For an
 interaction-only change, serve both versions ("Compare checkout versions" below),
 keep both previews live, and hand off the labeled URL pair with the action that
 reveals the difference. Exercise the same journey in both at the same fragment,

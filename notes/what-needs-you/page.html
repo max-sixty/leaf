@@ -180,8 +180,8 @@
             <h2>Steps 1 to 4 and the Queue panel are on main</h2>
             <p id="direction">
               The code for queues and tasks is marked experimental, so later agents
-              change it freely. Steps 5 and 7 haven't started, and step 6 isn't needed
-              for now.
+              change it freely. Step 5 is next, step 7 hasn't started, and step 6 isn't
+              needed for now.
             </p>
             <table id="plan-step-list" data-width="wide">
               <thead>
@@ -255,12 +255,12 @@
                   </td>
                 </tr>
                 <tr>
-                  <th scope="row">5. Asks and tasks read as one item</th>
+                  <th scope="row">5. Asks become tasks</th>
                   <td>
-                    Every item gets the same fields, and the <code>question</code> and
-                    <code>answer</code> kinds go.
+                    Task is the primitive on both queues, and an Ask is a task on you
+                    that a widget answers (<a href="#asks-as-tasks">Asks as tasks</a>).
                   </td>
-                  <td>Not started</td>
+                  <td>Next: choosing a shape</td>
                 </tr>
                 <tr>
                   <th scope="row">6. Either side adds to the other's queue</th>
@@ -310,7 +310,7 @@
                   last way a task can quietly stall, and step 4's starts already record
                   which session holds what. A few days.</lf-option
                 >
-                <lf-option id="after-four-shape"
+                <lf-option id="after-four-shape" chosen
                   ><strong>One item shape</strong> Step 5. Asks and tasks get the same
                   fields, and the <code>question</code> and <code>answer</code> kinds
                   go. It's plumbing you wouldn't see, and it's easier done as part of
@@ -340,6 +340,179 @@
                 purpose until we've used the queues.
               </li>
             </ul>
+          </section>
+        </lf-tab>
+
+        <lf-tab id="tab-asks" label="Asks as tasks">
+          <section id="asks-as-tasks">
+            <h2>Task is the primitive, and an Ask is one way to answer a task</h2>
+            <p>
+              Your direction: a task is what sits on a queue, on either side. An Ask
+              stops being a primitive of its own and becomes a task on you that a widget
+              answers. It can carry as much context as it needs, but the queue, the
+              <kbd>a</kbd> key, the banner and the panel see only tasks. The three
+              shapes below differ in where a task on you comes from and how it ends.
+            </p>
+            <p id="asks-today">
+              <strong>Today</strong>, an Ask comes from the page's markup: a widget
+              whose registry entry declares <code>x-awaits</code> says when its state
+              counts as answered, and an <code>lf-ask</code> frames it with a heading
+              and evidence. A question in a thread comes from a reply with
+              <code>--awaits</code>. A task comes from the log, through
+              <code>leaf task open</code>, and only the agent holds one. The queues read
+              all three, under the kinds <code>ask</code>, <code>question</code> and
+              <code>task</code>.
+            </p>
+            <p id="asks-example">
+              Each shape is shown on the same three items from a release-checklist page:
+            </p>
+            <ul>
+              <li>
+                <strong>A pick:</strong> "Ship on Tuesday or Thursday?", with two
+                options.
+              </li>
+              <li>
+                <strong>An open request:</strong> "Read § Rollback and say whether it's
+                enough", with no widget to press.
+              </li>
+              <li>
+                <strong>The agent's own work:</strong> "Rebuild the download chart".
+              </li>
+            </ul>
+
+            <section id="asks-shape-read">
+              <h3>A. Asks read as tasks</h3>
+              <p>
+                Nothing about authoring changes. Leaf reads every open Ask and every
+                thread question as a task on you, beside the agent's tasks, in one
+                <code>tasks</code> reading with an <code>owner</code>.
+              </p>
+              <ul>
+                <li>
+                  <strong>The pick:</strong> an <code>lf-ask</code> around the options,
+                  as today. Its widget reaching its answered state ends the task done; a
+                  version that removes it ends it dropped.
+                </li>
+                <li>
+                  <strong>The open request:</strong> a thread on § Rollback whose reply
+                  asks with <code>--awaits</code>. Your reply ends it.
+                </li>
+                <li>
+                  <strong>The agent's work:</strong> <code>leaf task open</code>, as
+                  today.
+                </li>
+              </ul>
+              <p>
+                <strong>What changes:</strong> the queues, the banner, the panel and
+                <code>page state</code> read one <code>tasks</code> list, and the
+                <code>ask</code>, <code>question</code> and <code>answer</code> kinds
+                go. <code>x-awaits</code> keeps its job.
+              </p>
+              <p>
+                <strong>Cost:</strong> a task on you can only come from a widget or a
+                thread question. The task is a reading rather than a record, so it has
+                no id of its own and nothing to link a later task to.
+              </p>
+            </section>
+
+            <section id="asks-shape-record">
+              <h3>B. One task record, with how it ends</h3>
+              <p>
+                A task names its owner, you or the agent, and how it ends. An Ask is a
+                task on you that ends when its widget is answered. The agent can put a
+                task on you on any subject, with or without a widget.
+              </p>
+              <ul>
+                <li>
+                  <strong>The pick:</strong> an <code>lf-ask</code> around the options.
+                  Stamping the version opens it as a task on you, ended by the widget's
+                  answered state.
+                </li>
+                <li>
+                  <strong>The open request:</strong>
+                  <code
+                    >leaf task open PAGE rollback "Is the rollback plan enough?" --on
+                    user</code
+                  >. It ends at your reply in its thread, or at a <em>Done</em> press on
+                  the task.
+                </li>
+                <li>
+                  <strong>The agent's work:</strong> <code>leaf task open</code>, owned
+                  by the agent, as today.
+                </li>
+              </ul>
+              <p>
+                <strong>What changes:</strong> the <code>task</code> event gains
+                <code>owner</code> and an ending, either a widget, a reply or an
+                explicit end. Asks and thread questions become tasks with an id in the
+                log. <code>x-awaits</code> becomes the way a widget declares that it can
+                end a task. A task on you with no widget gets a Done control.
+              </p>
+              <p>
+                <strong>Cost:</strong> a version that adds an <code>lf-ask</code> now
+                writes a task event, so markup and log must agree on which widget it is.
+                That is the same rule a widget task already follows. The Done control is
+                new.
+              </p>
+            </section>
+
+            <section id="asks-shape-element">
+              <h3>C. A task element in the page</h3>
+              <p>
+                <code>lf-task</code> replaces <code>lf-ask</code>. It is a framed region
+                with a heading, any content, and optionally an answering widget. The
+                agent's tasks also show in the page as task cards where the work is,
+                drawn from the log.
+              </p>
+              <ul>
+                <li>
+                  <strong>The pick:</strong> <code>&lt;lf-task for="user"&gt;</code>
+                  around the options.
+                </li>
+                <li>
+                  <strong>The open request:</strong>
+                  <code>&lt;lf-task for="user"&gt;</code> in § Rollback, with the
+                  question and a Done control.
+                </li>
+                <li>
+                  <strong>The agent's work:</strong> a card in the chart's section
+                  reading "Rebuild the download chart · Working · 3m", and its outcome
+                  once it ends.
+                </li>
+              </ul>
+              <p>
+                <strong>What changes:</strong> B's record, plus the element and the
+                cards. <code>lf-ask</code> is renamed everywhere: the registry, the
+                references, the examples and the corpus.
+              </p>
+              <p>
+                <strong>Cost:</strong> the largest change. The page also shows log state
+                in its body, not only in the chrome, which every layout has to make room
+                for.
+              </p>
+            </section>
+
+            <lf-ask id="asks-shape">
+              <h3 id="asks-shape-heading">Which shape should Asks take as tasks?</h3>
+              <lf-options id="asks-shape-pick" choose>
+                <lf-option id="asks-shape-pick-read"
+                  ><strong>A. Asks read as tasks</strong> One reading, no new record.
+                  Quick, but a task on you still needs a widget or a thread
+                  question.</lf-option
+                >
+                <lf-option id="asks-shape-pick-record"
+                  ><strong>B. One task record, with how it ends</strong> Recommended: it
+                  is the generic version you described. Any subject can be a task on
+                  you, an Ask is the case a widget ends, and every item gets an id that
+                  later work can link to. A's reading is its first step.</lf-option
+                >
+                <lf-option id="asks-shape-pick-element"
+                  ><strong>C. A task element in the page</strong> B, plus an
+                  <code>lf-task</code> element and task cards for the agent's work in
+                  the page body.</lf-option
+                >
+              </lf-options>
+            </lf-ask>
           </section>
         </lf-tab>
 

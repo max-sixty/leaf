@@ -2008,7 +2008,6 @@ def test_board_fits_beside_contents_spine_at_mid_width(browser, serve):
         assert root_overflow(page) == 0, (width, at)
         if width == 816:
             assert at["scrollWidth"] > at["clientWidth"], at
-    page.close()
 
 
 def test_a_widget_that_declares_width_takes_the_room_and_the_column_stays_put(

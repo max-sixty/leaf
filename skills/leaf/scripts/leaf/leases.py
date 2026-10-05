@@ -2,8 +2,8 @@
 
 Lease files are stable coordination points, created on first use and retained
 after release. Only the descriptor's exclusive kernel lock proves a holder is
-live; file existence says nothing. Closing the descriptor or process exit releases
-the lease, including a crash. Neither holders nor session cleanup remove these
+live; file existence says nothing. `release_lease` or process exit releases the
+lease, including a crash. Neither holders nor session cleanup remove these
 files. A taker verifies the acquired inode still has its name, since another
 process may have removed or replaced the shared path while it was opening it.
 """
@@ -116,7 +116,15 @@ def take_lease(path: Path, *, prepare: Callable[[BinaryIO], None] | None = None)
 
 
 def release_lease(lease) -> None:
-    """Release the descriptor's kernel lock, retaining its coordination file."""
+    """Release the descriptor's kernel lock, retaining its coordination file.
+
+    The lock belongs to the open file, which every copy of the descriptor shares,
+    and closing one copy leaves it held while another stands. A process that holds
+    a lease and starts subprocesses lends its descriptors to each child from fork
+    until exec closes them, so closing alone could leave a released lease held for
+    as long as a child on a busy machine waits to run. Unlocking releases the open
+    file itself, whichever copies remain."""
+    fcntl.flock(lease, fcntl.LOCK_UN)
     lease.close()
 
 
@@ -156,6 +164,7 @@ def page_locked(page_dir: Path):
     try:
         yield
     finally:
+        fcntl.flock(held, fcntl.LOCK_UN)
         os.close(held)
 
 

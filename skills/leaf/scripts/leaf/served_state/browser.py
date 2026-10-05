@@ -10,7 +10,7 @@ from ..gesture_words import GestureWords, RevisionReader
 from ..history import history, wants_history
 from ..passages import SourceReading
 from ..projection import FrozenThreadReading, canonical_updates, page_reading
-from ..tasks import open_tasks
+from ..tasks import canonical_tasks
 from ..workflows import canonical_workflows
 from .context import PageRead
 from .document import browser_document, browser_undo_candidates
@@ -264,10 +264,14 @@ def browser_state(
         (live_stream or {}).get("reply_bindings"),
     )
     workflows = served_workflows(activity.pop("workflows"), thread_reading)
-    tasks = [
+    # Every task, stamped with its thread: the open ones hold their threads and stand
+    # on the agent's queue; the ended ones are what the browser's Queue panel lists as
+    # done (`runtime/queues.js`, `selectDone`).
+    every_task = [
         {**task, "thread": thread_reading.subject_thread(task["subject"])}
-        for task in open_tasks(events)
+        for task in canonical_tasks(events)
     ]
+    tasks = [task for task in every_task if task["state"] == "open"]
     _apply_thread_attention(thread["threads"], thread["asks"], workflows, tasks)
     if wants_history(readings[revision] for revision in view_revisions):
         words = GestureWords(events, active_registry, revisions or readings.__getitem__)
@@ -290,6 +294,7 @@ def browser_state(
         "activity": activity,
         "workflows": workflows,
         "tasks": tasks,
+        "ended_tasks": [task for task in every_task if task["state"] != "open"],
         "receipts": [event for event in events if event.get("attempt")],
         "version_notes": {
             str(event["version"]): event["text"]

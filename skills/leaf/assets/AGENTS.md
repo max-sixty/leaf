@@ -72,11 +72,13 @@ which markers stand and where, which is what the overlay exists to avoid. Where 
 covers something the user needs, the answers are `o` (or More's Hide annotations
 under a finger) and a better placement (`TODO.md`), never room made for it.
 
-The auxiliary surfaces (Asks drawer, thread panel, Leaves drawer) stand over the page and
-never change its geometry; the Asks drawer and panel leave the page live beside
+The auxiliary surfaces (Queue panel, thread panel, Leaves drawer) stand over the page and
+never change its geometry; the Queue panel and thread panel leave the page live beside
 them, and cover it where they would leave less than a usable page
 (`--lf-auxiliary-beside`, read by `standsBeside`). Which box scrolls is the
 stylesheet's, a Layout's or the page's, which the runtime reads rather than decides.
+The Queue panel is experimental and expected to change a lot: it replaced the Asks
+drawer to try one place for both queues (`runtime/queue-panel.js`).
 
 Ordinary content grows in flow. A bounded inspection object may scroll inside the
 document and chain into it at its edges; isolate scrolling only at a bounded task
@@ -242,7 +244,7 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | --- | --- |
 | Composition and semantic publication | `application.js`, `semantic-state.js`, `context.js` |
 | Delivery, accepted state, and wakeups | `delivery.js`, `state-application.js`, `state-feed.js`, `layer-client.js`, `traffic.js` |
-| State models and projection | `projection/`, `thread/model.js`, `thread/workflow.js`, `thread/state.js`, `pending/`, `asks/model.js` |
+| State models and projection | `projection/`, `thread/model.js`, `thread/workflow.js`, `thread/state.js`, `pending/`, `asks/model.js`, `queues.js` |
 | Widget capture and lifecycle | `document-identity.js`, `widget-descriptors.js`, `widget-controller.js`, `widget-loader.js`, `widget-upgrade.js` |
 | Vocabulary and public helpers | `registry.js`, `widget-api.js`, `widget-elements.js` |
 | External data | `data.js`, `projection/data.js`, `projection/authored.js` |
@@ -251,7 +253,7 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Chrome and available room | `chrome.js`, `chrome-layout.js`, `auxiliary-surfaces.js`, `drawn-edge.js` |
 | Reading regions and scrolling | `reading-regions.js`, `reading-place.js`, `bounds.js`, `scrolling.js`, `reach.js`, `user-place.js` |
 | Keyboard | `keyboard/AGENTS.md` |
-| Focus and navigation | `focus.js`, `standing-target.js`, `navigation.js`, `history.js`, `user-intent.js`, `walk-position.js` |
+| Focus and navigation | `focus.js`, `standing-target.js`, `navigation.js`, `queue-walk.js`, `history.js`, `user-intent.js`, `walk-position.js` |
 | Asks | `asks/` |
 | Comment capture | `composing/`, `drafts.js`, `media.js` |
 | Threads | `thread/`, `thread-panel.js` |
@@ -261,7 +263,7 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Passages and target identity | `passages.js`, `text-alignment.js`, `anchor-coordinate.js`, `target-references.js`, `resolved-target.js`, `anchor-resolution.js` |
 | Anchor placement, decoration and travel | `anchor-placement.js`, `anchor-note-view.js`, `anchor-controls.js`, `anchor-travel.js`, `target-paint.js`, `target-paint-geometry.js`, `visual-parts.js`, `indication.js` |
 | Banner and approvals | `banner*.js` |
-| Drawers and neighboring pages | `drawers.js`, `live-leaves*.js` |
+| Drawers and neighboring pages | `drawers.js`, `queue-panel.js`, `queue-list.js`, `live-leaves*.js` |
 | Activity and updates | `presence.js`, `updates.js` |
 | Notices and announcements | `semantic-news.js`, `notifications.js`, `keyboard/shortcut-bar.js` |
 | Reactions and design review | `reactions.js`, `design.js`, `design-readings.js` |
@@ -346,12 +348,13 @@ selects from:
 | version shown | the revision the delivery prelude names; a newer revision with the same executable identity patches in place, a different one navigates to a fresh document |
 | accepted history, and the reading applied | the server event log and its `/api/state` answer, adopted whole by the publisher |
 | unresolved browser work | the publisher's one ordered ledger |
-| thread, workflow, attention, Asks, activity, unread | the server's folds; the browser adds only its own unresolved sends and the versions it is marking read |
+| thread, workflow, attention, Asks, tasks, activity, unread | the server's folds; the browser adds only its own unresolved sends and the versions it is marking read |
+| what is waiting on the user and on the agent | `queues.js`'s selection from those readings, the browser's side of `agent_state.queues` |
 | what the DOM represents | controller presentation tickets and projection commits |
 | when a document-wide renderer paints | the publication that opened the epoch, in the order `runtime/semantic-state.js` declares |
 | where each thread's passage lands | `anchor-placement.js`'s resolution of its anchor in this version |
 | the row inside a target a comment stands by | `pointed-place.js`: the line a pointing gesture landed on, held by the composer until sent, then under the thread's key with the words that find it again; where it stands now is `anchor-placement.js`'s placement record (`point`, `pointRow`), written in its read, the only writer, which takes in what a send hands over; presentation only, and only the pointed threads' row, card and travel follow it |
-| the side and line a comment's box and its thread card stand by, and which edge a growing one holds | the default package's `comment-placement.js` (`commentSide`, `holding`), for both surfaces; each surface's own module measures its content and reports its gestures, and decides neither |
+| the side and line a comment's box and its thread card stand by, whether they stand past its margin row, and which edge a growing one holds | the default package's `comment-placement.js` (`commentSide`, `options`, `holding`), from the card's declared widths, for both surfaces; each surface's own module measures its content and reports its gestures, and decides neither |
 | whether a margin row stands in the rail or as a pin, its seat, and the order rows are seated in | `margin-layout.js`, through `margin-placement.js`'s folds (`rowPosture`, `seatRows`, `packRows`, `arrivals`) |
 | geometry readings: what a scroller shows, what a surface hides, what sticky headers stand over, how much of the window the page shows | `geometry.js` (`visibleBand`, `declareOccluder`, `headerInset`, `shownWindow`, `seenRect`), so being on screen has one answer |
 

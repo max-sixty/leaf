@@ -10,7 +10,7 @@ from pathlib import Path
 from threading import Event, Thread
 
 import leaf_website
-from interact_support import wait_for
+from interact_support import STATED_TIMEOUT, wait_for
 from leaf_dev import ROOT, verify_site
 
 
@@ -54,7 +54,7 @@ def test_a_delayed_prewarm_cannot_revive_a_closed_website_harness():
     scheduled = Event()
 
     def delayed():
-        assert scheduled.wait(10)
+        assert scheduled.wait(STATED_TIMEOUT)
         harness._prewarm()
 
     worker = Thread(target=delayed)
@@ -63,7 +63,7 @@ def test_a_delayed_prewarm_cannot_revive_a_closed_website_harness():
         harness.close()
     finally:
         scheduled.set()
-        worker.join(timeout=10)
+        worker.join(timeout=STATED_TIMEOUT)
     assert not worker.is_alive()
     assert harness.process is None
     assert not harness.socket_path.parent.exists()
@@ -116,14 +116,14 @@ def test_local_worker_wrapper_announces_independent_bound_ports(tmp_path, spawn)
                 assert process.poll() is None, log.read_text()
                 return verify_site.announced_origin(log, "local_worker_ready")
 
-            origins.append(wait_for(announced, bool, failure=log.read_text, timeout=60))
+            origins.append(wait_for(announced, bool, failure=log.read_text))
         assert origins[0] != origins[1]
         for origin, expected in zip(origins, (b"first", b"second"), strict=True):
             with urllib.request.urlopen(origin + "/") as response:
                 assert response.read() == expected
         processes[0].terminate()
-        processes[0].wait(timeout=30)
+        processes[0].wait(timeout=STATED_TIMEOUT)
         with urllib.request.urlopen(origins[1] + "/") as response:
             assert response.read() == b"second"
         processes[1].terminate()
-        processes[1].wait(timeout=30)
+        processes[1].wait(timeout=STATED_TIMEOUT)

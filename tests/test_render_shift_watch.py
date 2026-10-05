@@ -1552,6 +1552,12 @@ def test_native_anchor_scroll_retains_local_motion_proof(browser, fault, transfo
 <p id="evidence" style="position:absolute;left:10px;top:400px">Independent painted source</p>
 <script>field.addEventListener('beforeinput',()=>{{scroller.scrollLeft+=20;scroller.scrollTop+=20;evidence.style.left='30px';{change}}})</script></body>""")
     )
+    # Chrome moves the field after its anchor's scroll a frame late. The watch
+    # credits that catch-up to the scroll only from a pose taken before the scroll.
+    # A scroll that lands before the watch's first frame leaves it none, and Chrome
+    # reports the catch-up as a layout shift of the field. The watch's frame callback
+    # runs ahead of any the page registers, so a painted frame here gives it that pose.
+    paint(page)
     page.evaluate("scroller.scrollLeft=20;scroller.scrollTop=20")
     paint(page)
     before = page.locator("#field").bounding_box()

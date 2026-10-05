@@ -236,9 +236,11 @@ Health sensors use `watch_platform.js` for native paint scheduling and its match
 performance clock. A controlled page clock advances product callbacks; Chrome's
 layout-shift records still carry native timestamps. Do not mix those clocks when
 associating input, sampled geometry, and painted movement. `input_work_watch.js`
-retains the trusted input behind timers, animation frames, microtasks, and explicit
-Promise callbacks the page schedules, so delayed Send work keeps its cause and an
-unrelated timer does not acquire one by running nearby. Native `await` continuations
+retains the trusted input behind timers, animation frames, microtasks, explicit
+Promise callbacks, and reactive element updates (Lit's `requestUpdate` and
+`scheduleUpdate`) the page schedules, so delayed Send work and a Web Awesome field
+redrawn for a key keep their cause and an unrelated timer does not acquire one by
+running nearby. Native `await` continuations
 do not expose their input context to JavaScript instrumentation. A native sensor
 fixture captures its DOM commit callback with `lfInputWork.capture` during the
 trusted handler and invokes that callback after `await`; the capture states the
@@ -284,7 +286,8 @@ missing when they expire.
 
 Synchronize on the operation's declared completion or an acknowledgement of the
 causal edge. A sleep does not prove another process acquired a lock, completed a
-scan, or attempted a blocked operation. Instrumentation must keep input ownership
+scan, or attempted a blocked operation; `interact_support.lock_contention` states
+that a taker found a lock held and is waiting on it. Instrumentation must keep input ownership
 and unjudged evidence until their declared completion; a time cap must not turn
 unfinished work into a successful reading or an unrelated effect.
 
@@ -308,7 +311,8 @@ boundary and observe its completed decision. A real-time integration test waits 
 the decision with a hang deadline that allows the grace period and scheduling room.
 
 A new wait fixes its deadline when it begins and names the missing evidence on
-timeout. Pure-Python state polls use `interact_support.wait_for`.
+timeout. Pure-Python state polls use `interact_support.wait_for`, and every
+Python-side wait takes its deadline from `STATED_TIMEOUT`, which the suite checks.
 
 ### A state the page passes through is not a state to poll for
 

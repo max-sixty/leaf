@@ -48,7 +48,7 @@ from .files import (
     version_num,
     version_revisions,
 )
-from .interaction_log import append_interactions, client_records, now_iso
+from .interaction_log import append_interactions, client_records
 from .layer import foreign_runtime
 from .locations import path_is_within
 from .media import MAX_MEDIA_UPLOAD_BYTES, MediaUploadError, store_uploaded_media
@@ -85,7 +85,7 @@ from .served_state import reading as served_reading
 from .served_state.service import PageStateService
 from .server import preview_metadata
 from .service import PageTransaction
-from .state import write_json
+from .state import now_iso, write_json
 from .structure import FRAME_ANCESTORS_CSP
 from .user_views import FRESH_FOR_S, observe_user_view, read_user_views
 

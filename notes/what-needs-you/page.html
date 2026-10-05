@@ -180,7 +180,8 @@
             <h2>Steps 1 to 4 and the Queue panel are on main</h2>
             <p id="direction">
               The code for queues and tasks is marked experimental, so later agents
-              change it freely. Steps 5 to 7 haven't started.
+              change it freely. Steps 5 and 7 haven't started, and step 6 isn't needed
+              for now.
             </p>
             <table id="plan-step-list" data-width="wide">
               <thead>
@@ -264,13 +265,11 @@
                 <tr>
                   <th scope="row">6. Either side adds to the other's queue</th>
                   <td>
-                    You can put a task on the agent from a thread. The agent's side
-                    needs nothing new: when it wants your sign-off before ending a task,
-                    it asks with an Ask or a question (<a href="#task-done"
-                      >who ends a task</a
-                    >).
+                    The agent controls the tasks: you ask for work in prose and it opens
+                    the task, and it asks for your sign-off with an Ask or a question
+                    (<a href="#task-done">who ends a task</a>).
                   </td>
-                  <td>Not started</td>
+                  <td>Not needed for now</td>
                 </tr>
                 <tr>
                   <th scope="row">7. Items outlive their session</th>
@@ -298,8 +297,8 @@
             <lf-ask id="after-four">
               <h3 id="after-four-heading">What after step 4?</h3>
               <p>
-                With step 4 on main, three steps of the plan remain. Each can start now,
-                and none waits on another.
+                With step 4 on main, two steps of the plan remain, and either can start
+                now.
               </p>
               <lf-options id="after-four-pick" choose>
                 <lf-option id="after-four-orphans"
@@ -311,17 +310,11 @@
                   last way a task can quietly stall, and step 4's starts already record
                   which session holds what. A few days.</lf-option
                 >
-                <lf-option id="after-four-review"
-                  ><strong>Either side adds to the other's queue</strong> Step 6. You
-                  can put a task on the agent from a thread, so work you hand over is
-                  tracked like work it takes on itself. The agent's sign-off questions
-                  already go through Asks and thread questions.</lf-option
-                >
                 <lf-option id="after-four-shape"
                   ><strong>One item shape</strong> Step 5. Asks and tasks get the same
                   fields, and the <code>question</code> and <code>answer</code> kinds
-                  go. It's plumbing you wouldn't see, and it's easier done as part of 6
-                  or 7, when one of them needs it.</lf-option
+                  go. It's plumbing you wouldn't see, and it's easier done as part of
+                  step 7, when that needs it.</lf-option
                 >
                 <lf-option id="after-four-use"
                   ><strong>Use it first</strong> Run with steps 3 and 4 and the panel
@@ -378,8 +371,8 @@
                   <th scope="row">you</th>
                   <td>Nothing yet</td>
                   <td>
-                    Every message you send and every press it owes an answer to; later,
-                    a task you put on it from a thread
+                    Every message you send and every press it owes an answer to. The
+                    agent turns a request into a task itself
                   </td>
                 </tr>
               </tbody>

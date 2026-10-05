@@ -241,12 +241,15 @@ def _refuse_data_contract_drift(
     if current := read_json(page_dir / "registry.json"):
         # Both layers interpret the same inventory, including an edit whose first
         # revision has not yet activated.
-        documents = working_data_document_readings(
-            page_dir,
-            current,
-            events,
-            history=page_data_document_readings(page_dir, events, current),
-        )
+        history = page_data_document_readings(page_dir, events, current)
+        try:
+            documents = working_data_document_readings(
+                page_dir, current, events, history=history
+            )
+        except UnicodeDecodeError:
+            # An unreadable edit cannot activate or introduce a binding. Its source
+            # error belongs to page check; the active history still constrains the layer.
+            documents = history
         standing_bindings, standing_errors = merge_data_document_readings(documents)
         incoming_bindings, incoming_errors = merge_data_document_readings(
             documents, incoming

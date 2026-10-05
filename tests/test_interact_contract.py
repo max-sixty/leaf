@@ -60,6 +60,7 @@ from interact_support import (
     lock_contention,
     publish,
     published,
+    read_page_data,
     stamp,
     stamp_activation,
     styled,
@@ -2190,6 +2191,49 @@ def test_revendoring_keeps_a_new_binding_before_its_first_revision(page_dir):
         )["sources"]["report"]["value"]
         == "New report."
     )
+
+
+@pytest.mark.parametrize("contract_retained", [True, False])
+def test_revendoring_an_unreadable_edit_still_checks_historical_bindings(
+    page_dir, contract_retained
+):
+    """An unreadable draft cannot activate or introduce a binding. A runtime
+    refresh still preserves the active history and refuses a lost historical contract.
+    Source validation keeps reporting the draft's encoding error.
+    """
+    source = page_dir / "index.html"
+    if contract_retained:
+        source.write_text(
+            source.read_text().replace(
+                "</main>",
+                '<lf-text-document id="report" source="report"></lf-text-document></main>',
+            )
+        )
+        activated = revisioning_model.activate_source(page_dir)
+        assert activated.error is None and activated.created
+        data_model.cmd_data_set(page_dir, "report", "Retained report.")
+    else:
+        declare_data_input(page_dir, "builds", {"type": "array"}, contract="builds")
+        data_model.cmd_data_set(page_dir, "builds", [])
+    revisions = files_model.list_revisions(page_dir)
+    source.write_bytes(b"\xff")
+
+    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
+
+    if contract_retained:
+        assert result.exit_code == 0, result.output
+        assert data_model.read_contracts(page_dir)["report"] == "text-document"
+        assert (
+            read_page_data(page_dir)["sources"]["report"]["value"] == "Retained report."
+        )
+    else:
+        assert result.exit_code != 0
+        assert "source 'builds' loses its contract 'builds'" in result.output
+    assert files_model.list_revisions(page_dir) == revisions
+    assert source.read_bytes() == b"\xff"
+    checked = check(page_dir)
+    assert checked.exit_code != 0
+    assert "not UTF-8" in checked.output
 
 
 def _page_owned_deferred_source(page_dir):

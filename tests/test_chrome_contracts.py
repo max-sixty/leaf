@@ -691,9 +691,11 @@ def test_reading_inside_a_long_thread_keeps_its_title_and_reply_row_on_the_lists
             ".getPropertyValue('--lf-threads-foot')"
         )
     edges = card.evaluate(
-        """card => {
+        """async card => {
           const list = card.parentElement;
           list.scrollTop = card.offsetTop + (card.offsetHeight - list.clientHeight) / 2;
+          // The row's ground follows whether it is stuck, which a frame settles.
+          for (let i = 0; i < 2; i++) await new Promise(requestAnimationFrame);
           const port = list.getBoundingClientRect();
           const top = port.top + list.clientTop;
           const bottom = top + list.clientHeight;
@@ -704,7 +706,7 @@ def test_reading_inside_a_long_thread_keeps_its_title_and_reply_row_on_the_lists
           const foot = reply.getBoundingClientRect().bottom;
           const below = [];
           for (let y = foot + 0.5; y < bottom; y += 2) below.push(y);
-          return {
+          const reading = {
             top, bottom,
             title: title.getBoundingClientRect().top,
             reply: foot,
@@ -713,6 +715,21 @@ def test_reading_inside_a_long_thread_keeps_its_title_and_reply_row_on_the_lists
             inside: card.getBoundingClientRect().top < top
               && card.getBoundingClientRect().bottom > bottom,
           };
+          // Every row passes under the title: nothing it holds at rest, such as a
+          // reaction trigger raised over its message, paints through it.
+          const through = new Set();
+          const start = list.scrollTop;
+          for (let y = card.offsetTop; y < card.offsetTop + card.offsetHeight; y += 6) {
+            list.scrollTop = y;
+            await new Promise(requestAnimationFrame);
+            const box = title.getBoundingClientRect();
+            for (let x = box.left + 2; x < box.right; x += 4) {
+              const hit = document.elementFromPoint(x, box.top + box.height / 2);
+              if (!title.contains(hit)) through.add(hit?.className?.baseVal ?? hit?.className);
+            }
+          }
+          list.scrollTop = start;
+          return {...reading, through: [...through]};
         }"""
     )
     assert edges["inside"], edges
@@ -722,6 +739,7 @@ def test_reading_inside_a_long_thread_keeps_its_title_and_reply_row_on_the_lists
     assert (edges["reply"] < edges["bottom"] - 20) is walking, edges
     assert edges["reply"] <= edges["bottom"], edges
     assert edges["atTop"] and edges["atBottom"], edges
+    assert edges["through"] == [], edges
 
 
 def test_incoming_reply_follows_a_visible_composer_below_earlier_words(browser, serve):

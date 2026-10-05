@@ -948,15 +948,16 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      stands over takes `--lf-top` past it, so the runtime's reading of what is on screen
      leaves the band under it out (geometry.js, `headerInset`), and a landing on
      anything under it arrives below it through `scroll-margin-top`; the list's scroll
-     padding adds the ring room. It paints over the rows that pass beneath it. Each row
-     is its own stacking context, so whatever a row layers inside itself, an icon
-     raised over its button's disc or a code block's copy button, stays under the
-     title rather than rising through it. */
+     padding adds the ring room. It paints over the rows that pass beneath it, so it
+     stands above the layers a row keeps at rest, such as an icon raised over its
+     button's disc or a reaction trigger (up to 2, shadow.css), and below the overlays
+     a row raises while one is open or held, an open reaction list (4) or a held
+     word (5), which stand over whatever they open across. */
   .lf-threads > .lf-thread-compact { --lf-top-outer: var(--lf-top); }
   .lf-threads > .lf-thread-compact > .lf-thread-summary {
-    position: sticky; top: var(--lf-top); z-index: 1; }
+    position: sticky; top: var(--lf-top); z-index: 3; }
   .lf-threads > .lf-thread-compact > :not(.lf-thread-summary) {
-    --lf-top: calc(var(--lf-top-outer) + var(--lf-thread-title-h)); isolation: isolate; }
+    --lf-top: calc(var(--lf-top-outer) + var(--lf-thread-title-h)); }
   :is(.lf-threads > .lf-thread-compact > :not(.lf-thread-summary),
       .lf-threads > .lf-thread-compact > :not(.lf-thread-summary) *) {
     scroll-margin-top: var(--lf-thread-title-h); }
@@ -1037,16 +1038,18 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      while Send stays there. The band from the row down to the scrollport's edge, that
      offset and the list's foot, is the row's own ground: it paints its surface on down
      so nothing scrolls by beneath it and a walk status stands on it.
-     That ground is paint, not room. The card clips it to itself, so it shows only
-     where the card runs on past the row, which is while the row is pinned.
+     That ground is paint, not room, and only while the row is stuck there; the card
+     clips it to itself. An unpinned row ends its card as it always has.
      ReplyContinuity retains a live body's extent when a turn is removed, and
      HeldNews holds arrivals where growing the transcript would move the reply. */
   .lf-thread-compact > .lf-thread-reply { margin: 0; padding: 12px var(--lf-thread-inset);
-    position: sticky; bottom: var(--focus-ring-room); }
-  .lf-thread-compact > .lf-thread-reply::after { content: ""; position: absolute;
-    inset-inline: 0; inset-block-start: 100%;
-    block-size: calc(var(--focus-ring-room) + var(--lf-list-foot));
-    background: var(--lf-thread-surface); }
+    position: sticky; bottom: var(--focus-ring-room); container-type: scroll-state; }
+  @container scroll-state(stuck: bottom) {
+    .lf-thread-compact > .lf-thread-reply::after { content: ""; position: absolute;
+      inset-inline: 0; inset-block-start: 100%;
+      block-size: calc(var(--focus-ring-room) + var(--lf-list-foot));
+      background: var(--lf-thread-surface); }
+  }
   .lf-thread-compact[open]:not([hidden]):has(> .lf-thread-reply) { display: flex;
     flex-direction: column; box-sizing: border-box; overflow-y: clip;
     padding-block-end: calc(var(--focus-ring-room) - var(--lf-thread-border) - 1px); }

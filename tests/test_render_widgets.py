@@ -113,7 +113,6 @@ from render_harness import (
     undo,
     wait_for_revision,
     write,
-    xfail_browser_problem,
 )
 
 DRAG_HELD = (
@@ -994,6 +993,53 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     rendered(page)
     top = page.evaluate("document.getElementById('queue').getBoundingClientRect().top")
     assert 0 <= top < 200, top
+
+
+def test_a_queue_row_names_an_answer_whose_widget_module_arrives_last(browser, serve):
+    """An Ask answered before the page loads is named once the page presents, however
+    late the answering widget's module arrives: startup imports every module the
+    document names before the first reading brings the Ask inventory."""
+    url = serve(
+        leaf_page(
+            "a late queue",
+            """<lf-tabs id="queue" list="side">
+<lf-tab id="t-a" label="Ticket a">
+  <lf-ask id="ask-a"><h3 id="q-a">What happens to a?</h3>
+    <lf-options id="o-a" choose>
+      <lf-option id="o-a-fix"><strong>Fix</strong> Ship the patch.</lf-option>
+      <lf-option id="o-a-close"><strong>Close</strong> Explain and close.</lf-option>
+    </lf-options>
+  </lf-ask>
+</lf-tab>
+<lf-tab id="t-b" label="Ticket b"><p id="p-b">Nothing to decide.</p></lf-tab>
+</lf-tabs>""",
+            layout="workspace",
+        )
+    )
+    page = open_page(browser, live_url(url))
+    posted = post_event(
+        page,
+        url.rsplit("/versions/", 1)[0] + "/api/event",
+        data={
+            "kind": "action",
+            "revision": 1,
+            "widget": "o-a",
+            "action": "choose",
+            "detail": {"options": ["o-a-fix"]},
+        },
+    )
+    assert posted.ok, posted.text()
+    held = []
+    page.route("**/widgets/lf-options.js", lambda route: held.append(route))
+    page.reload(wait_until="commit")
+    holding(page, held, 1, "the options module")
+    answer = page.locator("#queue .lf-tab-btn").first.locator(".lf-tab-answer")
+    expect(answer).to_be_attached()
+    held[0].continue_()
+    page.unroute("**/widgets/lf-options.js")
+    wait_until_ready(page)
+    expect(answer).to_be_visible()
+    expect(answer).to_have_text("Fix")
 
 
 def test_root_tab_targets_remain_global(browser, serve):
@@ -4380,8 +4426,12 @@ def test_a_phone_board_gives_its_column_room_and_keeps_the_next_one_discoverable
     expect(page.locator("#sq-col-0 > #sq-card-0")).to_have_count(1)
 
 
+@pytest.mark.parametrize(
+    "typed_color, close_editor",
+    [("#8b4a5f", "escape"), ("#8B4A5F", "escape"), ("#8b4a5f", "outside-press")],
+)
 def test_a_playground_keeps_one_typed_working_state_until_the_user_chooses(
-    browser, serve
+    browser, serve, typed_color, close_editor
 ):
     page = open_page(browser, serve(PLAYGROUND_PAGE))
     playground = page.locator("#card-playground")
@@ -4410,10 +4460,12 @@ def test_a_playground_keeps_one_typed_working_state_until_the_user_chooses(
     picker = playground.locator("wa-color-picker")
     picker.get_by_role("button", name="Accent", exact=True).click()
     color_field = picker.get_by_role("textbox")
-    color_field.fill("#8b4a5f")
-    color_field_place = color_field.evaluate("field => window.lfPlace(field)")
+    color_field.fill(typed_color)
     color_field.press("Enter")
-    color_field.press("Escape")
+    if close_editor == "escape":
+        color_field.press("Escape")
+    else:
+        page.locator('lf-playground-control[name="title"] input').click()
     page.locator('lf-playground-control[name="title"] input').fill("Ridge note; alert")
 
     assert len(events_model.read_events(serve.page_dir)) == before
@@ -4468,18 +4520,6 @@ def test_a_playground_keeps_one_typed_working_state_until_the_user_chooses(
     undo(page)
     expect(page.locator("#card-instruction")).to_contain_text("12px radius")
     assert playground.evaluate("root => root.values")["compact"] is False
-    # The same native-close loss was present on pre-1711 main (35d91df, Linux run
-    # 37183384374), before this branch's changes.
-    xfail_browser_problem(
-        page,
-        f'typed words left the screen without a key or press: "#8b4a5f" in '
-        f"{color_field_place}",
-        reason=(
-            "WebAwesome hides the native color field after Escape's popup animation, "
-            "outside the words watch's trusted-input lifetime; reproduced on pre-1711 "
-            "main at 35d91df (Linux run 37183384374)."
-        ),
-    )
 
 
 def test_notification_playground_sets_regions_side_by_side_while_its_workspace_is_full_height(
@@ -9704,6 +9744,87 @@ def test_the_asks_control_opens_active_asks_and_answers(browser, serve):
     assert page.evaluate(ASK_ROW_SAYS) == [], "a closed drawer keeps its rows"
 
 
+def test_an_answered_asks_words_are_its_widgets_semantic_state(browser, serve):
+    """Each family names its answer from the state it was answered with.
+
+    A draft says its standing words, a playground the instruction it sent rather than
+    whatever its controls show now, and an option the user added is named by the
+    rendered words its `add` carried. A `multiple` group answered by Done with no pick
+    of the user's names its authored choice."""
+    url = serve(
+        leaf_page(
+            "answer words",
+            """
+<h1 id="h">Answers</h1>
+<lf-ask id="note-ask"><h2>Is this release note right?</h2>
+<lf-draft id="note" needed><pre>
+Adds --dry-run to every mutating command.
+</pre></lf-draft></lf-ask>
+<lf-ask id="cache-ask"><h2>Which cache?</h2>
+<lf-options id="cache" choose>
+  <lf-option id="cache-none"><strong>No cache</strong> Read through.</lf-option>
+</lf-options></lf-ask>
+<lf-ask id="tags-ask"><h2>Which tags?</h2>
+<lf-options id="tags" choose multiple>
+  <lf-option id="tag-alpha" chosen><strong>Alpha</strong></lf-option>
+  <lf-option id="tag-beta"><strong>Beta</strong></lf-option>
+</lf-options></lf-ask>
+<lf-ask id="tone-ask"><h2>Which notification?</h2>
+<lf-playground id="tone">
+  <lf-playground-control name="format" label="Format" kind="choice" value="banner">
+    <lf-playground-choice value="banner" label="Banner"></lf-playground-choice>
+    <lf-playground-choice value="strip" label="Strip"></lf-playground-choice>
+  </lf-playground-control>
+  <lf-playground-preview><p id="tone-preview">The notification.</p></lf-playground-preview>
+  <lf-playground-output>Build the <lf-playground-value for="format"></lf-playground-value>
+  notification.</lf-playground-output>
+</lf-playground></lf-ask>
+""",
+        )
+    )
+    page = open_page(browser, url)
+    door = url.rsplit("/versions/", 1)[0] + "/api/event"
+    for widget, action, detail in [
+        ("note", "edit", {"text": "Adds --dry-run to every command."}),
+        ("cache", "add", {"option": "cache-redis", "text": "**Redis** in front"}),
+        ("cache", "choose", {"options": ["cache-redis"]}),
+        ("tags", "answer", {}),
+        (
+            "tone",
+            "choose",
+            {"values": {"format": "strip"}, "instruction": "Build the strip one."},
+        ),
+    ]:
+        posted = post_event(
+            page,
+            door,
+            data={
+                "kind": "action",
+                "revision": 1,
+                "widget": widget,
+                "action": action,
+                "detail": detail,
+            },
+        )
+        assert posted.ok, posted.text()
+    banner_control(page, ".lf-asks").click()
+    expect(page.locator(".lf-asks")).to_have_text("Asks 4/4")
+    output = page.locator("#tone lf-playground-output")
+    expect(output).to_contain_text("strip")
+    page.locator("#tone").get_by_role("radio", name="Banner").click()
+    expect(output).to_contain_text("banner")
+    answers = {
+        "note-ask": "Adds --dry-run to every command.",
+        "cache-ask": "Redis in front",
+        "tags-ask": "Alpha",
+        "tone-ask": "Build the strip one.",
+    }
+    for at, words in answers.items():
+        expect(
+            page.locator(f'.lf-asks-row[data-lf-at="{at}"] .lf-asks-answer')
+        ).to_have_text(words)
+
+
 def test_ask_rows_keep_identity_and_publisher_order_when_the_live_dom_moves(
     browser, serve
 ):
@@ -10034,30 +10155,6 @@ def test_completed_ask_progress_persists_and_its_row_can_revise_by_keyboard(
     expect(page.locator("#storage-evict")).to_have_attribute("chosen", "")
     expect(progress).to_have_text("Asks 1/1")
     expect(row.locator(".lf-asks-answer")).to_have_text("Drop the oldest documents")
-
-
-def test_an_ask_rejects_two_answer_users_even_when_their_words_match(browser, serve):
-    page = open_page(browser, serve(ASKS_PAGE))
-    banner_control(page, ".lf-asks").click()
-    expect(page.locator("button.lf-asks-row")).to_have_count(len(ALL_ASKS_IN_ORDER))
-    page.evaluate(
-        """async () => {
-          const {readApplicationPresentation} = await window.__lfRuntimeImport(
-            '/runtime/semantic-state.js');
-          window.__lfReadAskPresentation = readApplicationPresentation;
-          const {commands} = await window.__lfRuntimeImport('/runtime/widget-api.js');
-          const options = document.getElementById('honored');
-          const extra = document.createElement('span');
-          options.append(extra);
-          commands(extra, 'Duplicate answer', [], {answer: () => 'Two-tier gates'});
-          document.dispatchEvent(new Event('lf-presentation'));
-        }"""
-    )
-    page.wait_for_function("__lfReadAskPresentation().pending.length === 0")
-    expect(page.locator("button.lf-asks-row")).to_have_count(len(ALL_ASKS_IN_ORDER))
-    assert take_browser_errors(page) == [
-        "leaf: Presentation failed: Ask honored-decision has more than one answer reader"
-    ]
 
 
 def test_an_answered_boxless_ask_reopens_on_its_visible_revision_control(

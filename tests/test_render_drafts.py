@@ -89,6 +89,72 @@ from test_render_application_boundary import THREAD_MIRROR, THREAD_MIRROR_DECLAR
 from test_render_threads import hold_visible_thread_presentation
 
 
+@pytest.mark.parametrize(
+    ("unique", "tall"),
+    [(True, False), (False, False), (False, True)],
+    ids=["unique", "repeated", "tall-repeated"],
+)
+def test_a_visible_editor_is_the_reading_place_until_the_reader_scrolls_away(
+    browser, serve, unique, tall
+):
+    """A pane carries live editing across posture changes without pulling back old focus."""
+
+    def context(prefix):
+        return "".join(
+            f"<p>{prefix} paragraph {number if unique else ''} stays where the reader left it.</p>"
+            for number in range(35)
+        )
+
+    before = context("Reading")
+    after = context("Following" if unique else "Reading")
+    field_height = ' style="height:1000px"' if tall else ""
+    source = leaf_page(
+        "Editing in a reading region",
+        f'<lf-pane id="editor-pane" label="Working text"><div>{before}'
+        f'<textarea aria-label="Working draft"{field_height}></textarea>'
+        f"{after}</div></lf-pane>",
+        layout="workspace",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1366, 768)
+    field = page.get_by_role("textbox", name="Working draft")
+    field.click()
+    page.keyboard.type("The reader is working here")
+    rendered(page)
+
+    def in_view():
+        return field.evaluate(
+            """async (node, tall) => {
+          const {seenRect, shownBox} = await window.__lfRuntimeImport('/runtime/geometry.js');
+          const seen = seenRect(node, new Map()), rect = shownBox(node);
+          return Boolean(seen && (tall
+            ? seen.bottom - seen.top > 10
+            : seen.top <= rect.top + 1 && seen.bottom >= rect.bottom - 1));
+        }""",
+            tall,
+        )
+
+    assert in_view()
+    resized(page, 390, 760)
+    rendered(page)
+    expect(field).to_be_focused()
+    expect(field).to_have_value("The reader is working here")
+    assert in_view(), "the new page scroller lost the live editing place"
+
+    # Focus alone is not a reading place: scrolling elsewhere deliberately leaves
+    # the same editor focused, and the next posture must retain that new reading.
+    page.mouse.wheel(0, -10000)
+    page.wait_for_function("document.scrollingElement.scrollTop === 0")
+    scroll_settled(page)
+    rendered(page)
+    expect(field).to_be_focused()
+    assert not in_view()
+    resized(page, 1366, 768)
+    rendered(page)
+    expect(field).to_be_focused()
+    assert not in_view(), "a stale focused editor displaced the reader's new place"
+
+
 @pytest.mark.parametrize("bounded", [False, True])
 def test_typing_in_a_visible_inline_reply_keeps_the_reading_position(
     browser, serve, bounded

@@ -318,9 +318,9 @@ export function misplacedBoxes() {
   // rather than of a list of tags, because the fault is visual and so is the property
   // — a widget that stands outside a frame, a tint or a fill reads as a broken page,
   // and one that grows through a transparent wrapper (a section, a tab's panel) reads
-  // as the exhibit it is. A box that draws one says so where it draws it (--lf-block-frame,
-  // theme.css) and the theme reads that declaration to withhold the room; this is what
-  // says so when a box that draws hasn't made it. (Nothing to do with x-paints, which is
+  // as the exhibit it is. A box that draws one says so where it draws it
+  // (--lf-block-frame: 1, theme.css) and the theme reads that declaration to withhold
+  // the room; this is what says so when a box that draws hasn't made it. (Nothing to do with x-paints, which is
   // about words rather than boxes: an attribute rendered as paint instead of text, and
   // spoken for whoever is listening.)
   const draws = (el) => {

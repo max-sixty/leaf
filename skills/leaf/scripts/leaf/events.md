@@ -24,11 +24,11 @@ page and is not a global identifier. The kinds:
 | `pickup` | page | the delivery carrier; a harness failure receipt | `events`, `phase` (`queued`, `opened`, or `failed`), `session`, `turn`; `failure` with `failed` | the named attention-bearing inputs reached the durable Codex queue or entered an exact agent turn, or the harness gave up on them with no answer coming; includes page errors and reports; idempotent per event, phase, session, and turn; never a work claim |
 | `note` | agent | `leaf page stamp` | `version`, `revision`, changelog `text`, `restated`, `settles` (`report` ids it answered, and `task` ids its `--completes` ends) | one public version mapped to an immutable revision, naming the decisions it took back, the reports it answered and the widget tasks it completed |
 | `error` | page | the runtime | | the page reported a failure in front of the user; heard like a report, never counted against the user |
-| `task` | agent | `leaf task open` | `subject`: `{kind: thread, id}` (an open thread), `{kind: widget, id}` (a live page widget that declares `x-work` or holds an unsettled move), or `{kind: page}`; `title`; server-stamped `revision` on a widget task | the agent takes on work it owes there; it stands through replies, resolutions, versions and session ends (`tasks.py`) |
-| `task_end` | agent | `leaf task end` | `task`, an open task; `outcome` (`done`, `failed`, or `dropped`); optional `detail` | ends one open task, as a note that `settles` it does |
+| `task` | agent | `leaf task open` | `owner` (`agent`, or `user` with `--on user`); `subject`: `{kind: thread, id}` (an open thread), `{kind: widget, id}` (a live page widget, which for the agent's own task declares `x-work` or holds an unsettled move), `{kind: element, id}` (any other element of the page), or `{kind: page}`; `title`; server-stamped `revision` on a widget task | the agent takes on work it owes there, or puts a task on the user; the agent's stands through replies, resolutions, versions and session ends, and the user's until their Done or their next message in its thread (`tasks.py`) |
+| `task_end` | agent or user | `leaf task end`, `POST /api/event` from a task's Done | `task`, an open task: one in the log, an open Ask's by the Ask's id, or a thread question's by the asking reply's id; `outcome` (`done`, `failed`, or `dropped`; the user's is `done`); optional `detail` from the agent | ends one open task, as a note that `settles` it does; the agent may end any task, the user only one on them that no widget answers, and ending an Ask's task retires the Ask |
 | `start` | agent | `leaf task start` | `item`, a user move the agent owes (its event id) or an open task; the banner's `text`; `turn`, the claimant turn that wrote it, when the poster holds the page | takes the item in hand: a move reads Working and a task runs, until the move is answered, the task ends, or a `put_down` follows; the newest start on an item replaces the one before |
 | `put_down` | agent | `leaf status waiting` and `leaf status idle`, when a start stands | | ends every start before it: the moves they named go back to their delivery stage and the tasks stay open with nothing running (`tasks.item_starts`) |
-| `undo` | user | `POST /api/event` | `undoes` | withdraws one gesture of the user's own (`UNDOABLE_KINDS`: resolve, unresolve, action, done) |
+| `undo` | user | `POST /api/event` | `undoes` | withdraws one gesture of the user's own (`UNDOABLE_KINDS`: resolve, unresolve, action, done, task_end) |
 
 An `anchor` names a passage by `section` and `quote`, with `prefix` and `suffix`
 where neighbouring text tells two identical passages apart; a selection on
@@ -77,8 +77,8 @@ parent publication coordinate along with the log sequence.
 
 ## Undo
 
-The user may withdraw a resolve, unresolve, action, or approval. A reaction
-may also be withdrawn while unanswered and on an unresolved thread. Spoken
+The user may withdraw a resolve, unresolve, action, approval, or Done on a task. A
+reaction may also be withdrawn while unanswered and on an unresolved thread. Spoken
 messages cannot be withdrawn. An undo cannot itself be undone.
 
 The page's undo key takes back the user's newest gesture or nothing: a newer
@@ -114,8 +114,9 @@ through `schema.agent_name`, which gives such an event the name `Agent`. Every
 agent-authored thread message, closing event, margin update, and activity row the
 browser receives carries that name as `agent`, and the browser shows it as served.
 
-Admission stamps `attention`: whether the input changes the agent's pending
-Asks and textual prompts, pending answers, the work it has in hand (a started move,
+Admission stamps `attention`: whether the input changes the tasks on the user (their
+Asks, textual prompts and the tasks the agent put on them, so their Done is heard),
+pending answers, the work it has in hand (a started move,
 or an open task on a thread or widget) and its standing inputs, or sign-off
 approval. `workflows.obligation_reading` compares those canonical readings before
 and after the gesture under the active revision's vocabulary. The decision survives

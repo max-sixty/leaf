@@ -12,7 +12,8 @@
    Arrival belongs to the item's owner, so the walk adds no arrival of its own beside
    theirs: an Ask arrives through the Ask view's `arriveAtAsk`; a thread through the
    t/T walk's own (navigation.js, `arriveAtThread`), so it lands wherever that walk
-   lands; a page widget move by travel's `arrive`, onto the widget the move was made on.
+   lands; a page widget move, or a task on an element or the page, by travel's `arrive`,
+   onto the widget the move was made on, the element, or the page's head.
    A Queue panel row arrives through the same function (`arriveAtItem`), for an item on
    either queue or one that is done.
 
@@ -26,39 +27,63 @@
    thread walk alike. There is no remembered destination underneath those readings, and
    the chrome is a binding badge, not a page position, so its controls do not become the
    walk's origin. The user stands on an item when they stand in its Ask, in its thread
-   (`threadHere`), or in its widget, and the press steps off it.
+   (`threadHere`), or in its widget or element, and the press steps off it. Standing on
+   a task Done ends, `x` is that Done, a step on the banner's row under a finger
+   (`endTask`): the user's `task_end`, which leaves the queue in the turn it is pressed.
 
    Page order is each item's place in the document: an Ask's own element, or its
    thread's passage for an Ask seated in a thread; a thread's passage; the widget a move
-   was made on. An item with no place on the page, a general thread or one whose passage
-   is gone, comes after every placed one in the queue's own order, as the t/T walk
-   reaches such threads from its list's ends. The walk is clamped, not wrapped.
+   was made on or the element a task is on; the page's head for a task on the whole
+   page. An item with no place on the page, a general thread or one whose passage is
+   gone, comes after every placed one in the queue's own order, as the t/T walk reaches
+   such threads from its list's ends. The walk is clamped, not wrapped.
 
    Experimental: the queues and the walk over them are new, and their shape is
    expected to change a lot (notes/what-needs-you/). Change them freely.
 */
-import { pageCommand } from "./keyboard/register.js";
+import { pageCommand, pageScope } from "./keyboard/register.js";
 import { paintKeys } from "./keyboard/scopes.js";
 import { askHolding, placeOf, walkOrigin } from "./standing-target.js";
 import { elementById, inChrome } from "./passages.js";
 import { hostIn, under } from "./shadow.js";
 import { allAsks } from "./asks/model.js";
+import { endsByDone, taskNoun } from "./queues.js";
 import { readApplication, watchSemantic } from "./semantic-state.js";
 import { retainUserIntent } from "./user-intent.js";
 import { beginWalk, listWalkPosition, walkPositionLabel } from "./walk-position.js";
 
 const QUALIFIER = "waiting on you";
-const NOUNS = Object.freeze({ ask: "Ask", thread: "Thread", widget: "Move" });
+const NOUNS = Object.freeze({
+  ask: "Ask",
+  thread: "Thread",
+  widget: "Move",
+  page: "Task",
+});
+// What a stop is called: by where it is arrived at, but a task on an element is a Task
+// rather than the Move a widget's stop otherwise is.
+const nounOf = (item, stop) =>
+  stop.kind === "widget" && taskNoun(item) === "task" ? "Task" : NOUNS[stop.kind];
 
 // Where an item of either queue, or one that is done, is arrived at: an Ask's task by
-// the Ask's own id, anything else by the thread it stands in, or else the widget its
-// move was made on.
+// the Ask's own id, anything else by the thread it stands in, a task on the page as a
+// whole at the page's head, or else the element it stands on, as a move is arrived at
+// on the widget it was made on.
 const stopOf = (item) =>
   item.ask
     ? { kind: "ask", id: item.id, thread: item.thread }
     : item.thread !== null
       ? { kind: "thread", id: item.thread, thread: item.thread }
-      : { kind: "widget", id: item.subject.id, thread: null };
+      : item.subject.kind === "page"
+        ? { kind: "page", id: "page", thread: null }
+        : { kind: "widget", id: item.subject.id, thread: null };
+const sameStop = (a, b) => a.kind === b.kind && a.id === b.id;
+
+// The page's head, where a task on the page as a whole is arrived at: its first
+// top-level heading, or its first element.
+const pageHead = () =>
+  [...document.querySelectorAll("h1")].find((heading) => !inChrome(heading)) ??
+  document.querySelector("main") ??
+  document.body.firstElementChild;
 
 export function createQueueWalk({
   arriveAtAsk,
@@ -69,7 +94,16 @@ export function createQueueWalk({
   arrive,
   readableDestination,
   announce,
+  post,
 }) {
+  // The element a stop stands at on the page, if it has one.
+  const stopElement = (stop) =>
+    stop.kind === "page"
+      ? pageHead()
+      : stop.thread !== null
+        ? threadTarget(stop.thread)
+        : elementById(stop.id);
+
   function stops() {
     const placed = [];
     const loose = [];
@@ -80,14 +114,14 @@ export function createQueueWalk({
       // stop.
       if (listed.has(`${stop.kind}:${stop.id}`)) continue;
       listed.add(`${stop.kind}:${stop.id}`);
-      const at =
-        stop.kind === "ask" && stop.thread === null
-          ? elementById(stop.id)
-          : stop.thread !== null
-            ? threadTarget(stop.thread)
-            : elementById(stop.id);
+      const at = stopElement(stop);
       const place = at && !inChrome(at) ? hostIn(at, document) : null;
-      (place ? placed : loose).push({ ...stop, key: `${stop.kind}:${stop.id}`, place });
+      (place ? placed : loose).push({
+        ...stop,
+        key: `${stop.kind}:${stop.id}`,
+        noun: nounOf(item, stop),
+        place,
+      });
     }
     placed.sort((a, b) =>
       a.place === b.place
@@ -100,7 +134,7 @@ export function createQueueWalk({
   }
 
   // The item the user stands on, if any: the thread holding them, the Ask holding their
-  // place, or the widget that does. Standing in a thread that holds an open Ask is not
+  // place, or the element that does. Standing in a thread that holds an open Ask is not
   // standing on that Ask, as it never was for the Ask walk this replaces.
   function standingStop(list) {
     const held = threadHere();
@@ -120,9 +154,9 @@ export function createQueueWalk({
     if (ask) return ask;
     return (
       list.find((stop) => {
-        if (stop.kind !== "widget") return false;
-        const widget = elementById(stop.id);
-        return widget && (widget === here || under(here, widget));
+        if (stop.kind !== "widget" && stop.kind !== "page") return false;
+        const at = stopElement(stop);
+        return at && (at === here || under(here, at));
       }) ?? null
     );
   }
@@ -151,17 +185,17 @@ export function createQueueWalk({
     return dir > 0 ? (reach[0] ?? list.at(-1)) : (reach.at(-1) ?? list[0]);
   }
 
-  // A page widget move handed back to the user has no owner that arrives at it, so travel
-  // puts the user on the widget itself.
-  function arriveAtWidget(id) {
-    const intent = retainUserIntent({ available: () => Boolean(elementById(id)) });
-    const where = elementById(id);
+  // A page widget move handed back to the user, or a task on an element or the page, has
+  // no owner that arrives at it, so travel puts the user on the element itself.
+  function arriveAtElement(find) {
+    const intent = retainUserIntent({ available: () => Boolean(find()) });
+    const where = find();
     if (!where) return Promise.resolve(false);
-    const departure = prepareTrip({ landing: () => elementById(id), intent });
+    const departure = prepareTrip({ landing: find, intent });
     departure.plan(where);
     return arrive(
       () => {
-        const at = elementById(id);
+        const at = find();
         return (
           at && {
             where: at,
@@ -182,7 +216,7 @@ export function createQueueWalk({
       return record ? arriveAtAsk(record) : Promise.resolve(false);
     }
     if (stop.kind === "thread") return arriveAtThread(stop.id);
-    return arriveAtWidget(stop.id);
+    return arriveAtElement(() => stopElement(stop));
   }
 
   // Where the walk stands in the whole queue, and the kind of item it stands on: the
@@ -191,7 +225,7 @@ export function createQueueWalk({
     const list = stops();
     const here = standingStop(list);
     const at = listWalkPosition(list, here, { identity: (stop) => stop.key });
-    return at && { ...at, qualifier: `${QUALIFIER} · ${NOUNS[here.kind]}` };
+    return at && { ...at, qualifier: `${QUALIFIER} · ${here.noun}` };
   }
 
   function walk(dir) {
@@ -209,7 +243,7 @@ export function createQueueWalk({
             null,
             list.indexOf(next) + 1,
             list.length,
-            `${QUALIFIER} · ${NOUNS[next.kind]}`,
+            `${QUALIFIER} · ${next.noun}`,
           ),
       );
     });
@@ -217,15 +251,40 @@ export function createQueueWalk({
     return ready;
   }
 
+  // The task the user stands on that their Done ends, if any: one on the thread, element
+  // or page the user stands at.
+  function standingTask() {
+    const stop = standingStop(stops());
+    return stop
+      ? (readApplication().effective.queues.onYou.find(
+          (item) => endsByDone(item) && sameStop(stopOf(item), stop),
+        ) ?? null)
+      : null;
+  }
+
+  // The user's Done on a task on them: their `task_end`, through the one append door.
+  // The task leaves their queue in the turn they press it (`application.ts`).
+  function endTask(id) {
+    void post({ kind: "task_end", task: id, outcome: "done" });
+    announce("Done");
+  }
+
   const offered = () => readApplication().effective.queues.onYou.length > 0;
+  const doneable = () =>
+    readApplication()
+      .effective.queues.onYou.filter(endsByDone)
+      .map((item) => item.id)
+      .join(" ");
   let wasOffered = false;
+  let wasDoneable = "";
   let stopWatching = null;
-  // The a/A row stands on the queue, so the surfaces reading it are repainted where it
-  // empties or fills.
+  // The a/A row stands on the queue, and Done on the tasks it holds, so the surfaces
+  // reading them are repainted where the queue empties or fills or those tasks change.
   function mount() {
     stopWatching ??= watchSemantic(() => {
-      if (offered() === wasOffered) return;
+      if (offered() === wasOffered && doneable() === wasDoneable) return;
       wasOffered = offered();
+      wasDoneable = doneable();
       paintKeys();
     });
   }
@@ -239,17 +298,17 @@ export function createQueueWalk({
         id: "queue.next",
         binding: "a",
         title: "Next waiting on you",
-        description: "Next Ask, thread or move to resend waiting on you",
+        description: "Next Ask, thread, task or move to resend waiting on you",
       },
       {
         id: "queue.previous",
         binding: "Shift+a",
         title: "Previous waiting on you",
-        description: "Previous Ask, thread or move to resend waiting on you",
+        description: "Previous Ask, thread, task or move to resend waiting on you",
       },
     ],
     title: "Waiting on you",
-    description: "Next / previous Ask, thread or move to resend waiting on you",
+    description: "Next / previous Ask, thread, task or move to resend waiting on you",
     line: "on you",
     when: offered,
     repeat: true,
@@ -260,9 +319,30 @@ export function createQueueWalk({
     run: (binding) => walk(binding === "a" ? 1 : -1),
   });
 
+  // Where `a` lands on a task the user ends with Done, Done is a key, and a step on the
+  // banner's row under a finger. Its row in the Queue panel carries the same Done.
+  pageScope("task", {
+    title: "On a task waiting on you",
+    at: () => Boolean(standingTask()),
+    rows: [
+      {
+        id: "queue.task.done",
+        keys: ["x"],
+        title: "done",
+        description: "Mark the task waiting on you done",
+        touch: "Done",
+        when: () => Boolean(standingTask()),
+        run: () => {
+          const task = standingTask();
+          if (task) endTask(task.id);
+        },
+      },
+    ],
+  });
+
   // A Queue panel row arrives where the walk would (queue-panel.js), whichever list
   // its item is on.
   const arriveAtItem = (item) => arriveAt(stopOf(item));
 
-  return { mount, arriveAtItem };
+  return { mount, arriveAtItem, endTask };
 }

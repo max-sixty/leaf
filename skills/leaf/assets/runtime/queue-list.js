@@ -9,7 +9,11 @@
    standing at an element, an Ask's or a widget's the user must act on, names it in
    `data-lf-at`, so the row stands at that element (`declareSide`, queue-panel.js) and
    mirrors the ring of the Ask the user stands in (asks/view.js, `markHere`). The fold's
-   open state is the disclosure's own, a browser fact the reading never holds. */
+   open state is the disclosure's own, a browser fact the reading never holds.
+
+   A row whose task the user ends with Done carries a Done button beside it, which Tab
+   reaches from the row and a finger taps, and `x` on the row presses it. Pressing it
+   puts focus on its row first, so focus follows the list as the row leaves for Done. */
 import { html, nothing, repeat } from "../vendor/browser-runtime.js";
 import { PRESS } from "./keyboard/bindings.js";
 import { keys } from "./keyboard/scopes.js";
@@ -17,7 +21,9 @@ import { RetainedFace, RowFocus } from "./retained-face.js";
 
 const QUEUE_AT = "data-lf-at";
 const QUEUE_ROW = "data-lf-row";
+const QUEUE_DONE = "data-lf-done";
 const ROW = `button[${QUEUE_ROW}]`;
+const DONE = `button[${QUEUE_DONE}]`;
 const TAG = "lf-queue-list";
 
 const EMPTY_MODEL = Object.freeze({
@@ -30,33 +36,49 @@ const rowKeys = (model) =>
     ({ key }) => key,
   );
 
-const rowTemplate = (row, activate) =>
-  html`<button
-    type="button"
-    class="lf-queue-row"
-    data-lf-row=${row.key}
-    data-lf-at=${row.at ?? nothing}
-    data-lf-kind=${row.kind}
-    data-lf-live=${row.live ? "" : nothing}
-    title=${row.account}
-    @click=${activate}
-  >
-    <span class="lf-queue-kind">${row.word}</span>
-    <span class="lf-queue-title">${row.title}</span>
-    <span class="lf-queue-where">${row.where}</span>
-  </button>`;
+const rowTemplate = (row, activate, finish) =>
+  html`<div class="lf-queue-item">
+    <button
+      type="button"
+      class="lf-queue-row"
+      data-lf-row=${row.key}
+      data-lf-at=${row.at ?? nothing}
+      data-lf-kind=${row.kind}
+      data-lf-live=${row.live ? "" : nothing}
+      title=${row.account}
+      @click=${activate}
+    >
+      <span class="lf-queue-kind">${row.word}</span>
+      <span class="lf-queue-title">${row.title}</span>
+      <span class="lf-queue-where">${row.where}</span>
+    </button>
+    ${
+      row.done
+        ? html`<button
+            type="button"
+            class="lf-btn lf-queue-finish"
+            data-lf-done=${row.key}
+            aria-label=${`Done: ${row.title}`}
+            @click=${finish}
+          >
+            Done
+          </button>`
+        : nothing
+    }
+  </div>`;
 
-const rowsTemplate = (rows, activate) =>
+const rowsTemplate = (rows, activate, finish) =>
   html`<div class="lf-queue-rows">
     ${repeat(
       rows,
       ({ key }) => key,
-      (row) => rowTemplate(row, activate),
+      (row) => rowTemplate(row, activate, finish),
     )}
   </div>`;
 
 class QueueList extends RetainedFace {
   #activate = null;
+  #finish = null;
   #fallback = null;
   #focus = new RowFocus(this, {
     rows: `button[${QUEUE_ROW}]`,
@@ -69,8 +91,9 @@ class QueueList extends RetainedFace {
     super(EMPTY_MODEL);
   }
 
-  configure({ activate, fallback }) {
+  configure({ activate, finish, fallback }) {
     this.#activate = activate;
+    this.#finish = finish;
     this.#fallback = fallback;
   }
 
@@ -90,12 +113,42 @@ class QueueList extends RetainedFace {
     this.#focus.hold(this.model, this.committed);
   }
 
+  // Whether the row keyed `key` ends its task at Done in the reading drawn now.
+  #ends(key) {
+    return this.model.queues.some(({ rows }) =>
+      rows.some((row) => row.key === key && row.done),
+    );
+  }
+
+  // Done on the row keyed `key`, from its button or its key, standing on the row first.
+  #end(key) {
+    this.querySelector(`${ROW}[${QUEUE_ROW}="${CSS.escape(key)}"]`)?.focus({
+      preventScroll: true,
+    });
+    this.#finish?.(key);
+  }
+
   updated() {
-    for (const row of this.querySelectorAll(`button[${QUEUE_ROW}]`)) {
+    for (const row of this.querySelectorAll(ROW)) {
       if (this.#wired.has(row)) continue;
       this.#wired.add(row);
       keys(row, "In the Queue", [
         { id: "queue.row.open", keys: PRESS, title: "go to this item" },
+        {
+          id: "queue.row.done",
+          keys: ["x"],
+          title: "done",
+          description: "Mark this task waiting on you done",
+          when: () => this.#ends(row.getAttribute(QUEUE_ROW)),
+          run: () => this.#end(row.getAttribute(QUEUE_ROW)),
+        },
+      ]);
+    }
+    for (const done of this.querySelectorAll(DONE)) {
+      if (this.#wired.has(done)) continue;
+      this.#wired.add(done);
+      keys(done, "On a task's Done", [
+        { id: "queue.done.press", keys: PRESS, title: "mark it done" },
       ]);
     }
     this.#focus.restore(this.#fallback);
@@ -104,6 +157,11 @@ class QueueList extends RetainedFace {
   #activateRow = (event) => {
     const key = event.currentTarget.getAttribute(QUEUE_ROW);
     if (key) this.#activate?.(key);
+  };
+
+  #finishRow = (event) => {
+    const key = event.currentTarget.getAttribute(QUEUE_DONE);
+    if (key) this.#end(key);
   };
 
   render() {
@@ -115,7 +173,7 @@ class QueueList extends RetainedFace {
           <div class="lf-queue-heading" role="heading" aria-level="3">${label}</div>
           ${
             rows.length
-              ? rowsTemplate(rows, this.#activateRow)
+              ? rowsTemplate(rows, this.#activateRow, this.#finishRow)
               : html`<div class="lf-queue-empty">${empty}</div>`
           }
         </div>`,
@@ -124,7 +182,7 @@ class QueueList extends RetainedFace {
       done.rows.length
         ? html`<details class="lf-queue-group lf-queue-done" data-lf-queue="done">
             <summary class="lf-queue-heading">${done.label}</summary>
-            ${rowsTemplate(done.rows, this.#activateRow)}
+            ${rowsTemplate(done.rows, this.#activateRow, this.#finishRow)}
           </details>`
         : nothing
     }`;

@@ -978,33 +978,44 @@ def thread_resolve(dir: str, thread: str) -> None:
     _print_records(cmd_resolve(resolve_dir(dir), thread))
 
 
-@cli.group(short_help="Open, start, or end the agent's work on the page.")
+@cli.group(short_help="Open, start, or end tasks on the page, yours or the user's.")
 def task() -> None:
-    """Show the work you owe on the page and the item you have in hand.
+    """Show the work you owe on the page, the item you have in hand, and what you
+    put on the user.
 
     An item on your queue is a user move you owe an answer, named by the move's
     event id, or a task you opened. `leaf task start` takes one in hand for this
     turn, with the line the banner shows. A task stays on your queue through
     replies, resolutions, versions and the end of the session that opened it;
-    `leaf task end`, or a stamp that `--completes` its widget, ends it. Every write
-    prints the record it appended, one JSON line, as `page events` prints it.
+    `leaf task end`, or a stamp that `--completes` its widget, ends it. A task you
+    open `--on user` is on the user's queue instead, until they answer it or press
+    its Done, or you end it. Every write prints the record it appended, one JSON
+    line, as `page events` prints it.
     """
 
 
-@task.command(
-    "open", short_help="Take on work no move asked for, or that outlasts the turn."
-)
+@task.command("open", short_help="Take on work, or put a task on the user.")
 @click.argument("dir", metavar="PAGE")
 @click.argument("subject", metavar="SUBJECT")
 @click.argument("title", metavar="TITLE")
-def task_open(dir: str, subject: str, title: str) -> None:
+@click.option(
+    "--on",
+    "owner",
+    type=click.Choice(["agent", "user"]),
+    default="agent",
+    show_default=True,
+    help="Whose queue the task is on: yours, or the user's.",
+)
+def task_open(dir: str, subject: str, title: str, owner: str) -> None:
     """Open a task titled TITLE on SUBJECT: an open thread, by any message in it or a
-    widget its messages carry; a page widget that declares x-work or holds an
-    unsettled move; or `page` for the page as a whole. Its id is the printed
-    record's `id`."""
+    widget its messages carry; a page widget, which for your own task must declare
+    x-work or hold an unsettled move; any other element of the page by its id, such
+    as a section; or `page` for the page as a whole. With `--on user` the task is on
+    the user: it ends at their reply in its thread, or at their Done, and you can end
+    it too. Its id is the printed record's `id`."""
     from leaf.tasks import cmd_open
 
-    _print_records(cmd_open(resolve_dir(dir), subject, title))
+    _print_records(cmd_open(resolve_dir(dir), subject, title, owner))
 
 
 @task.command(
@@ -1031,7 +1042,9 @@ def task_start(dir: str, item: str, text: str) -> None:
 @click.argument("detail", metavar="[DETAIL]", required=False)
 def task_end(dir: str, task_id: str, outcome: str, detail: str | None) -> None:
     """End TASK with OUTCOME. DETAIL says where the result is, such as the
-    version or reply holding it, or why there is none."""
+    version or reply holding it, or why there is none. TASK may be one on the user:
+    one you opened `--on user`, an open Ask by its id, which ending retires, or a
+    question you left in a thread, by the id of the reply that asks it."""
     from leaf.tasks import cmd_end
 
     _print_records(cmd_end(resolve_dir(dir), task_id, outcome, detail))

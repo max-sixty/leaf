@@ -109,6 +109,7 @@ def build() -> dict:
                     {
                         "kind": "task",
                         "author": "agent",
+                        "owner": "agent",
                         "agent": "Agent",
                         "session": "served-records",
                         "subject": {"kind": "thread", "id": "e4"},
@@ -165,6 +166,7 @@ def build() -> dict:
                     {
                         "kind": "task",
                         "author": "agent",
+                        "owner": "agent",
                         "agent": "Agent",
                         "session": "served-records",
                         "subject": {"kind": "thread", "id": "e2"},
@@ -173,6 +175,7 @@ def build() -> dict:
                     {
                         "kind": "task",
                         "author": "agent",
+                        "owner": "agent",
                         "agent": "Agent",
                         "session": "served-records",
                         "subject": {"kind": "thread", "id": "e2"},

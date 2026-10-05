@@ -547,7 +547,7 @@ flowchart TD
 flowchart LR
   subgraph Sources["Who writes it"]
     Reply["agent: leaf thread reply · leaf thread open"]
-    Awaits["agent: leaf thread reply --awaits"]
+    Awaits["agent: leaf thread reply --awaits · leaf task open --on user"]
     Stamp["agent: leaf page stamp"]
     Report["agent: leaf page report"]
     Status["agent: leaf task start · leaf status"]
@@ -612,8 +612,17 @@ flowchart LR
               </li>
               <li id="updates-written-awaits">
                 <strong><code>leaf thread reply … --awaits</code></strong> A question
-                for you. The thread reads <em>On you to answer</em>, and the question
-                joins the Queue panel.
+                for you, which is a task on you until you answer it. The thread reads
+                <em>On you to answer</em>, and the question joins your side of the Queue
+                panel.
+              </li>
+              <li id="updates-written-on-you">
+                <strong><code>leaf task open … --on user</code></strong> Something the
+                agent needs you to do that no question or widget answers, such as trying
+                a build, as a task on your side of the Queue panel, where
+                <code>a</code> reaches it. Its <em>Done</em>, on its row or
+                <kbd>x</kbd> where <code>a</code> lands, ends it and tells the agent; on
+                a thread, so does your reply.
               </li>
               <li id="updates-written-comment">
                 <strong

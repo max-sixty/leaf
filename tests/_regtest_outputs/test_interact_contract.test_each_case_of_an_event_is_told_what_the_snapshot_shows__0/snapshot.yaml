@@ -837,6 +837,17 @@ done:
         while you do what the approval unblocks, and show that work on the page
         as a task (`leaf task open <page> page "<the work>"`, then `leaf task start`).
 
+Done on a task on the user:
+  event:
+    kind: task_end
+  told:
+    - text: >-
+        The user pressed Done on a task you put on them: `task` names the task you
+        opened with `--on user`, or the reply of yours that asked them a question.
+        It ends that task and owes no reply of its own. Carry on with whatever the
+        task was waiting for, reading the page where you need to see what they did;
+        if you still need something from them, ask again.
+
 undo:
   event:
     kind: undo

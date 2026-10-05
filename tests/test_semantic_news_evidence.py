@@ -129,4 +129,5 @@ def test_structural_ask_owns_attention_without_a_duplicate_plain_prompt():
         {},
         None,
         {"thread"},
+        set(),
     ) == (True, None)

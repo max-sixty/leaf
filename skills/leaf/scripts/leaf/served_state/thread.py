@@ -13,6 +13,7 @@ from ..events import (
 from ..projection import FrozenThreadReading, frozen_thread_reading
 from ..read_state import unread_content
 from ..schema import agent_name
+from ..tasks import task_ends
 from .wire import browser_projection
 
 
@@ -56,6 +57,7 @@ def browser_thread(
         events, threads, reading.thread_by_name, reading.thread_by_widget
     )
     open_ask_threads = {ask["thread"] for ask in asks["user"]}
+    ended = set(task_ends(events))
     summaries_for = active_summaries(events, threads)
     rendered_threads = []
     for thread_id, thread in threads.items():
@@ -66,6 +68,7 @@ def browser_thread(
             awaiting,
             reading.structure,
             open_ask_threads,
+            ended,
         )
         protected = set()
         turns = conversation_turns(thread)

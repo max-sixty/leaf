@@ -1207,11 +1207,13 @@ def test_ask_binding_badges_follow_the_feature_gallery_s_visible_margin_entries(
         ),
         context=context,
     )
-    # Twice: the gallery's core surfaces open on a decision, which is the page's first
-    # ask and carries no binding of its own, and the suggestions this case is about
-    # begin after it.
+    # Three times: the gallery's core surfaces open on a decision, which is the page's
+    # first ask and carries no binding of its own, then a task on the user beside it,
+    # and the suggestions this case is about begin after them.
     page.keyboard.press("a")
     expect(page.locator("#bg-choice-ask")).to_be_focused()
+    page.keyboard.press("a")
+    expect(page.locator("#bg-task-on-you")).to_be_focused()
     page.keyboard.press("a")
     expect(page.locator("#bg-replace")).to_be_focused()
     expect(

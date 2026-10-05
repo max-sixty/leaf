@@ -185,9 +185,9 @@
                   The region begins with one direct heading, then carries any context
                   and evidence the user needs before the control; the nested widget
                   still owns the answer and its fold. The banner, Queue panel,
-                  <code>a</code>/<code>A</code> queue walk, standing ring, and
-                  <code>page state</code> name the region while replay names the nested
-                  widget. An arrival targets the region's opening; the widget's
+                  <code>a</code>/<code>A</code> queue walk, standing ring, and the Ask's
+                  task in <code>page state</code> name the region while replay names the
+                  nested widget. An arrival targets the region's opening; the widget's
                   answering controls remain available through Tab.
                   <code>page check</code> requires the leading heading and one
                   non-quoted nested Ask source so the two identities cannot be
@@ -200,7 +200,11 @@
             <h3><code>x-awaits</code></h3>
             <div class="reference-copy">
               <p>
-                What x-awaits declares: a tag originates a standing Ask for the user.
+                What x-awaits declares: a tag originates a standing Ask for the user,
+                which is a task on the user under the Ask's id (its x-ask-surface
+                region's, where one frames it) from the version that adds it until its
+                widget answers it, or the agent ends it with <code>leaf task end</code>,
+                which retires the Ask.
               </p>
               <details class="reference-more">
                 <summary aria-label="Full x-awaits contract">Full contract</summary>
@@ -215,7 +219,7 @@
                   names a tag and a new widget joins by declaring. Quoted material
                   decides nothing — an exhibited Ask is a mention (x-exhibit). A widget
                   that also declares x-thread-seat puts a box under its own Ask, and a
-                  thread standing in that box takes the Ask off the user's list for as
+                  thread standing in that box takes the Ask off the user's queue for as
                   long as it waits on the agent — whoever opened it. That is not an
                   answer: the widget's state is untouched, so a version still has to
                   record what the words settled. An ordinary reply or resolve hands the
@@ -812,7 +816,7 @@
                   Threads keeps the complete interactive view. Thread markup and quoted
                   material take no second view. Where the widget also originates a local
                   x-awaits Ask, the seat is where the user deals with it in words: the
-                  Ask leaves their list while that thread waits on the agent, rather
+                  Ask leaves their queue while that thread waits on the agent, rather
                   than being counted a second time under a box they have already used.
                   It is not an answer — the widget's own state is untouched, so its
                   controls still work and the Ask still reads as unanswered. A

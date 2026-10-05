@@ -766,6 +766,7 @@
             "seq": 5,
             "ts": "2026-09-19T12:00:00+00:00",
             "detail": "Matched the theme",
+            "author": "agent",
             "agent": "Agent",
             "session": "served-records"
           },

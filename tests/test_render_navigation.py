@@ -3113,7 +3113,9 @@ def test_the_queue_panel_lists_both_queues_and_what_is_done(browser, serve):
         "user", kind="comment", text="Tighten this.", anchor={"section": "notes"}
     )
     subject = {"kind": "thread", "id": owed["id"]}
-    said("agent", kind="task", subject=subject, title="Rebuild the notes")
+    said(
+        "agent", kind="task", owner="agent", subject=subject, title="Rebuild the notes"
+    )
     retitle = said("user", kind="comment", text="Retitle it.", anchor={"section": "h"})
     said(
         "agent",
@@ -3125,6 +3127,7 @@ def test_the_queue_panel_lists_both_queues_and_what_is_done(browser, serve):
     ended = said(
         "agent",
         kind="task",
+        owner="agent",
         subject={"kind": "thread", "id": retitle["id"]},
         title="Retitle the release",
     )
@@ -3209,6 +3212,131 @@ def test_the_queue_panel_lists_both_queues_and_what_is_done(browser, serve):
     expect(
         page.locator(f'.lf-page-thread[data-thread="{retitle["id"]}"]')
     ).to_be_focused()
+
+
+def test_a_task_on_you_ends_at_its_done_where_a_lands_and_in_the_panel(browser, serve):
+    """A task the agent put on the user ends at their Done. Where `a` lands on it, `x`
+    is Done; its Queue panel row carries a Done button. Either leaves the user's queue
+    in the turn it is pressed, and writes the user's `task_end`; the Ask beside them
+    has no Done, since its widget answers it."""
+    url = serve(QUEUE_PAGE)
+    d = serve.page_dir
+
+    def put_on_user(subject, title):
+        return append_carried_log_record(
+            d,
+            {
+                "kind": "task",
+                "author": "agent",
+                "agent": "Agent",
+                "session": "queue-done",
+                "owner": "user",
+                "subject": subject,
+                "title": title,
+            },
+        )
+
+    notes = put_on_user({"kind": "element", "id": "notes"}, "Check the notes")
+    whole = put_on_user({"kind": "page"}, "Read it through")
+    page = open_page(browser, url)
+    resized(page, 1280, 900)
+    counts = page.locator(".lf-status-queues")
+    expect(counts).to_have_text("3 on you")
+
+    position = page.locator(".lf-walk-position")
+    # The page as a whole is arrived at its head, which comes first.
+    page.locator("#cadence").click()
+    page.keyboard.press("Shift+a")
+    expect(position).to_have_text("1 of 3 waiting on you · Task")
+    expect(page.locator("#h")).to_be_focused()
+    page.keyboard.press("a")
+    expect(position).to_have_text("2 of 3 waiting on you · Ask")
+    assert "x\ndone" not in shortcut_bar_text(page)
+    page.keyboard.press("a")
+    expect(position).to_have_text("3 of 3 waiting on you · Task")
+    expect(page.locator("#notes")).to_be_focused()
+    assert "x\ndone" in shortcut_bar_text(page)
+
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    page.keyboard.press("x")
+    holding(page, held, 1, "the Done")
+    expect(counts).to_have_text("2 on you")
+    page.unroute("**/api/event")
+    for route in held:
+        route.continue_()
+    round_trip(page)
+    expect(counts).to_have_text("2 on you")
+    end = events_model.read_events(d)[-1]
+    assert (end["kind"], end["author"], end["task"], end["outcome"]) == (
+        "task_end",
+        "user",
+        notes["id"],
+        "done",
+    )
+    # Done is a gesture like any other: `z` puts the task back on the user.
+    page.keyboard.press("z")
+    expect(counts).to_have_text("3 on you")
+    round_trip(page)
+    assert events_model.read_events(d)[-1]["undoes"] == end["id"]
+    expect(counts).to_have_text("3 on you")
+    with sending(page, "the Done again"):
+        page.keyboard.press("x")
+    expect(counts).to_have_text("2 on you")
+
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+q")
+    panel = page.locator(".lf-queue-panel")
+    expect(panel).to_be_visible()
+    you = panel.locator("[data-lf-queue='you']")
+    expect(you.locator(".lf-queue-row")).to_have_count(2)
+    expect(you.locator(".lf-queue-finish")).to_have_count(1)
+    row = you.locator(".lf-queue-row", has_text="Read it through")
+    expect(row).to_contain_text("Whole page")
+    row.focus()
+    page.keyboard.press("Tab")
+    expect(you.locator(".lf-queue-finish")).to_be_focused()
+    with sending(page, "the panel's Done"):
+        page.keyboard.press("Enter")
+    expect(you.locator(".lf-queue-row")).to_have_count(1)
+    expect(counts).to_have_text("1 on you")
+    expect(page.locator(".lf-queue-done > summary")).to_have_text("Done · 2")
+    assert events_model.read_events(d)[-1]["task"] == whole["id"]
+
+
+def test_a_finger_ends_a_task_on_you_from_the_banner_row(browser, serve):
+    """Under a finger, `x` is a step on the banner's row while the user stands on a
+    task Done ends, as a Queue panel row's tap leaves them."""
+    url = serve(QUEUE_PAGE)
+    task = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "task",
+            "author": "agent",
+            "agent": "Agent",
+            "session": "queue-done",
+            "owner": "user",
+            "subject": {"kind": "element", "id": "notes"},
+            "title": "Check the notes",
+        },
+    )
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
+    )
+    page = open_page(browser, url, context=context)
+    row = page.locator(".lf-banner-actions")
+    done = row.get_by_role("button", name="Done", exact=True)
+    expect(done).to_have_count(0)
+    page.locator(".lf-status-queues").tap()
+    panel = page.locator(".lf-queue-panel")
+    panel.locator(".lf-queue-row", has_text="Check the notes").tap()
+    expect(page.locator("#notes")).to_be_focused()
+    expect(done).to_be_visible()
+    with sending(page, "the Done step"):
+        done.tap()
+    expect(page.locator(".lf-status-queues")).to_have_text("1 on you")
+    assert events_model.read_events(serve.page_dir)[-1]["task"] == task["id"]
+    expect(done).to_have_count(0)
 
 
 def test_an_a_step_newer_focus_cancels_at_a_thread_claims_no_arrival(browser, serve):
@@ -7955,13 +8083,13 @@ def test_registered_shortcuts_are_exposed_to_assistive_technology(browser, serve
     expect(
         page.locator(
             ".lf-command-reference tr",
-            has_text="Next Ask, thread or move to resend waiting on you",
+            has_text="Next Ask, thread, task or move to resend waiting on you",
         ).locator("kbd")
     ).to_have_text("a")
     expect(
         page.locator(
             ".lf-command-reference tr",
-            has_text="Previous Ask, thread or move to resend waiting on you",
+            has_text="Previous Ask, thread, task or move to resend waiting on you",
         ).locator("kbd")
     ).to_have_text("A")
     page.keyboard.press("Escape")
@@ -12822,7 +12950,7 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     expect(help_el).not_to_contain_text("Next open thread")
     expect(help_el).not_to_contain_text("Previous open thread")
     expect(help_el).not_to_contain_text("In a thread")
-    expect(help_el).not_to_contain_text("thread or move to resend waiting on you")
+    expect(help_el).not_to_contain_text("thread, task or move to resend waiting on you")
     # A first version has a menu and a way out, but no neighbouring version to walk.
     expect(help_el).to_contain_text("The versions, and what each one changed")
     expect(help_el).to_contain_text("Close the versions menu")
@@ -12861,7 +12989,7 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
         )
     ).to_have_attribute("aria-label", "g then Shift+t")
     expect(help_el).not_to_contain_text("link on screen")
-    expect(help_el).not_to_contain_text("thread or move to resend waiting on you")
+    expect(help_el).not_to_contain_text("thread, task or move to resend waiting on you")
     expect(help_el).to_contain_text("Next open thread")
     expect(help_el).to_contain_text("Previous open thread")
     expect(

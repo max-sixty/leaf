@@ -18,7 +18,9 @@
    Enter on a row arrives exactly as `a` does (`queue-walk.js`, `arriveAtItem`), so the
    panel and the walk cannot disagree about where an item is. An Ask's row, and the row
    of a page widget move the user must send again, stands at that element
-   (`declareSide`), so a walk or a comment from a focused row starts there.
+   (`declareSide`), so a walk or a comment from a focused row starts there. A row whose
+   task the user ends with Done carries that Done (`queue-list.js`), the walk's own
+   (`queue-walk.js`, `endTask`).
 
    The banner's queue counts open it, as do the Queue control in More (a finger's
    route) and `g Shift+Q`.
@@ -44,7 +46,7 @@ import { clocked, shortAgo } from "./presence.js";
 import { elementById, inChrome } from "./passages.js";
 import { PRESENTATION } from "./presentation.js";
 import { standsAt } from "./queue-list.js";
-import { taskNoun } from "./queues.js";
+import { endsByDone, taskNoun } from "./queues.js";
 import { repaint } from "./repaint.js";
 import { keeps } from "./keeps.js";
 import {
@@ -102,7 +104,7 @@ function sectionWords(element) {
   return words ? `§ ${words}` : "";
 }
 
-export function createQueuePanel({ arriveAtItem, announce }) {
+export function createQueuePanel({ arriveAtItem, endTask, announce }) {
   const reading = () => readApplication().effective;
   const threadOf = (id) =>
     id === null
@@ -124,6 +126,14 @@ export function createQueuePanel({ arriveAtItem, announce }) {
   // the element the thread is about where that names itself, as a section does by its
   // heading. A thread about no element is about the whole page.
   function place(item, thread) {
+    if (item.subject.kind === "page") return "Whole page";
+    // A task on an element that names itself, as a section does by its heading, is
+    // there.
+    const itself =
+      !thread && taskNoun(item) === "task"
+        ? addressableName(elementById(item.subject.id))
+        : "";
+    if (itself) return `§ ${itself}`;
     if (!thread) {
       // A widget answering an Ask is where that Ask is.
       const own = elementById(item.subject.id);
@@ -209,6 +219,9 @@ export function createQueuePanel({ arriveAtItem, announce }) {
       title: words,
       where,
       live: item.kind === "work" || Boolean(item.running),
+      // A task on the user that no widget answers ends at their Done, which its row
+      // carries.
+      done: list === "you" && endsByDone(item),
       account: [word, words, where, list === "done" ? item.detail : ""]
         .filter(Boolean)
         .join(" · "),
@@ -335,7 +348,12 @@ export function createQueuePanel({ arriveAtItem, announce }) {
     });
     void ready.catch(() => {});
   }
-  queueList.configure({ activate: goTo, fallback: queuePanel });
+  // A Done on a row: the walk's own Done on that task (queue-walk.js, `endTask`).
+  function finish(key) {
+    const entry = rows.get(key);
+    if (entry?.done) endTask(entry.item.id);
+  }
+  queueList.configure({ activate: goTo, finish, fallback: queuePanel });
 
   // A row stands at the element it names rather than in the panel.
   declareSide((node) => {

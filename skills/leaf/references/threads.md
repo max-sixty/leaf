@@ -129,8 +129,9 @@ user can reopen a resolved thread, and it comes back pointing at a coordinate no
 revision declares any more, while a detached thread reads as **No longer in this
 version** and a later reply may still move it to a replacement.
 
-An ordinary reply answers the thread without adding it to the outstanding Ask
-list. Add `--awaits` when the reply's prose asks the user to answer:
+An ordinary reply answers the thread without putting anything on the user's queue.
+Add `--awaits` when the reply's prose asks the user to answer; the reply is then a
+task on them, under the reply's id, until they answer in the thread:
 
 ```bash
 leaf thread reply <page> --awaits --text "Which store should own it?"
@@ -162,8 +163,8 @@ disclosure appears in the panel and contextual thread surfaces. A completing rep
 held behind a new-reply notice keeps its progress visible until the reply is shown;
 originals already being read or focused stay expanded.
 
-A widget whose registry entry declares a local `x-awaits` already joins the
-page's Ask list and keeps its thread "On you" while that Ask stands. Leaf refuses
+A widget whose registry entry declares a local `x-awaits` is already an Ask, a task
+on the user, and keeps its thread "On you" while that Ask stands. Leaf refuses
 `--awaits` beside such markup; the widget's state is the one reading.
 
 Correct one of this session's sent messages without adding another turn:

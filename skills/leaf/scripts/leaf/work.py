@@ -81,6 +81,16 @@ def widget_tasks_without_targets(
     return sorted(missing)
 
 
+def page_element(page_dir: Path, name: str) -> dict | None:
+    """`{"kind": "element", "id"}` where `name` is the id of an element of the newest
+    revision that names no thread or widget, such as a section, which a task may stand
+    on; else None."""
+    revision = latest_revision(page_dir)
+    if revision is None or name not in read_revision(page_dir, revision).document.ids:
+        return None
+    return {"kind": "element", "id": name}
+
+
 def page_subject(page_dir: Path, events: list, name: str) -> dict | None:
     """What `name` names (`thread_context.id_subject`), against the page the user is
     looking at: the newest revision's widgets, and the widgets its threads' messages

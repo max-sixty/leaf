@@ -11,7 +11,9 @@
    (`awaitsUser`).
 
    `onYou` holds each open task on the user (`task`, `owner: "user"`): each Ask, each
-   question a thread leaves them, and each task the agent put on them. An Ask leaves the
+   question a thread leaves them, and each task the agent put on them. A task the user
+   is ending with Done, still unanswered by the server, has already left the open
+   tasks (`application.ts`). An Ask leaves the
    queue while a thread in its widget's seat holds it with the agent
    (`ask.held_by_seat`), and a task on a thread while the thread waits on the agent.
    Then come each thread whose attention is the user's to send a move again
@@ -37,13 +39,19 @@
 
    `taskNoun` is what an item is called, derived from how it ends rather than recorded:
    an Ask where a widget answers it, a question where the user answers in its thread,
-   otherwise its kind.
+   otherwise its kind. `endsByDone` is whether the user ends it with Done, which every
+   task on them does that no widget answers (`queue-walk.js`, `endTask`).
 
    Experimental: the queues, the walk over them and the panel listing them are new, and
    their shape is expected to change a lot (notes/what-needs-you/). Change them freely.
 */
 import { awaitsUser } from "./thread/model.js";
 import { atWork } from "./thread/workflow.js";
+
+// Whether the user ends this item with Done: a task on them that no widget answers.
+// An Ask's task ends when its widget answers it.
+export const endsByDone = (item) =>
+  item.kind === "task" && item.owner === "user" && !item.ask;
 
 export function taskNoun(item) {
   if (item.kind !== "task") return item.kind;

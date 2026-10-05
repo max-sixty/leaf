@@ -36,6 +36,7 @@ const words = {
   unresolve: "Resolved the thread again",
   action: "Took back your last change",
   done: "Took back your approval",
+  task_end: "Put the task back on you",
 };
 
 export function createProjectionCommands({ post, stateApplying, unaccountedGesture }) {

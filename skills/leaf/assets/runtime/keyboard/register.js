@@ -56,6 +56,8 @@ const STACK = [
   // Among inner scopes the order is moot, since the modes and the Page Map stand it down
   // themselves.
   "standing",
+  // A task on the user that the walk stands on, whose Done this scope carries.
+  "task",
   "versions",
   "composer",
   "text entry",

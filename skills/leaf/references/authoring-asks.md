@@ -26,10 +26,18 @@ measure with `data-width="wide"` (`page-authoring.md`, "Bounds and widths").
 Write related, independently answerable Asks in page order. A widget can carry its
 own question and context, or an `lf-ask` can frame them around it. They remain visible
 as one complete page. The user can press `a` to reach the next thing waiting on them
-(an open Ask, a thread whose question is theirs, or a move whose reply failed and
-needs sending again) and use an Ask's displayed `1`–`9` actions. If a later Ask depends on an earlier answer, publish it in
-the next turn instead of authoring
-every possible branch.
+(an open Ask, a thread whose question is theirs, a task you put on them, or a move
+whose reply failed and needs sending again) and use an Ask's displayed `1`–`9`
+actions. If a later Ask depends on an earlier answer, publish it in the next turn
+instead of authoring every possible branch.
+
+Each Ask is a task on the user, under the Ask's id, from the version that adds it
+until its widget answers it; `leaf page state` lists it among the open `tasks`. An Ask
+that stops mattering before the user answers it, because they answered elsewhere or
+the question moved on, is yours to retire: `leaf task end <page> <ask-id> dropped
+"<why>"`, or a version without it. Something you need from the user that no widget
+answers is a task you put on them rather than an Ask (`conversation-loop.md`, "Tasks
+on the user").
 
 For independent proposals, make progress visible as each one is decided: give
 each proposal its own `lf-ask` with explicit accept and reject choices. Either

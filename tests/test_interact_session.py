@@ -957,7 +957,16 @@ def test_thread_attention_names_the_workflow_the_thread_waits_on():
             threads,
             {"user": []},
             browser_served_model.served_workflows(workflows, frozen),
-            [{"id": "t1", "title": "Rebuild", "thread": "root", "running": None}],
+            [
+                {
+                    "id": "t1",
+                    "owner": "agent",
+                    "subject": {"kind": "thread", "id": "root"},
+                    "title": "Rebuild",
+                    "thread": "root",
+                    "running": None,
+                }
+            ],
         )
         assert threads[0]["attention"] == {
             "kind": "waiting",
@@ -970,7 +979,16 @@ def test_thread_attention_names_the_workflow_the_thread_waits_on():
         threads,
         {"user": []},
         [],
-        [{"id": "t1", "title": "Rebuild", "thread": "root", "running": None}],
+        [
+            {
+                "id": "t1",
+                "owner": "agent",
+                "subject": {"kind": "thread", "id": "root"},
+                "title": "Rebuild",
+                "thread": "root",
+                "running": None,
+            }
+        ],
     )
     assert threads[0]["attention"] == {
         "kind": "waiting",
@@ -1931,7 +1949,7 @@ def test_a_start_is_one_log_record_read_at_the_banner_and_the_move(
     append_carried_log_record(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "why?"}
     )
-    assert "neither an open task nor a move you owe" in (
+    assert "neither an open task of yours nor a move you owe" in (
         _start(page_dir, "nope", "reading the traces").output
     )
     assert _start(page_dir, "c1", "").exit_code != 0
@@ -2544,6 +2562,7 @@ def test_a_harness_step_waiting_on_the_user_outlasts_the_working_grace():
         {
             "kind": "task",
             "id": "t1",
+            "owner": "agent",
             "seq": 1,
             "ts": old,
             "subject": {"kind": "page"},

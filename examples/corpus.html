@@ -6491,13 +6491,13 @@ observe --cohort staff</code></pre>
               <code>lf-options</code>, which records a choice Leaf can replay as page
               state. Press <kbd>a</kbd> for the next thing waiting on you, in page
               order: an open Ask, a thread whose question is yours to answer, such as
-              the gallery thread that asks about a pasted image, or a move whose reply
-              failed and needs sending again. After its status, the banner counts what
-              waits on you and what waits on the agent. Press those counts, open
-              <strong>Queue</strong> in More, or press <kbd>g</kbd> then
-              <kbd>Shift+Q</kbd>, to see both lists in one panel, with answered Asks and
-              finished tasks folded under Done; Enter on a row goes where
-              <kbd>a</kbd> would. The Queue panel is experimental. Within a view,
+              the gallery thread that asks about a pasted image, a task the agent put on
+              you, or a move whose reply failed and needs sending again. After its
+              status, the banner counts what waits on you and what waits on the agent.
+              Press those counts, open <strong>Queue</strong> in More, or press
+              <kbd>g</kbd> then <kbd>Shift+Q</kbd>, to see both lists in one panel, with
+              answered Asks and finished tasks folded under Done; Enter on a row goes
+              where <kbd>a</kbd> would. The Queue panel is experimental. Within a view,
               <kbd>a</kbd> scrolls to the question. When it opens another view, the
               question appears immediately and its tab name briefly highlights.
               <kbd>Shift+A</kbd> walks back. Reduced motion removes the glide and
@@ -6514,6 +6514,19 @@ observe --cohort staff</code></pre>
                 <lf-option id="bg-choice-trail">Trail map</lf-option>
               </lf-options>
             </lf-ask>
+            <section id="bg-task-on-you">
+              <h3>A task on you</h3>
+              <p>
+                The agent put a task on you about this section with
+                <code>leaf task open … --on user</code>: check that the trail map marks
+                the shelter. Nothing here answers it, so it ends at your Done. It waits
+                under On you in the Queue panel, where its row has a Done button, and
+                <kbd>a</kbd> reaches it after the Ask above. Where <kbd>a</kbd> lands on
+                it, press <kbd>x</kbd>, or under a finger the banner's
+                <strong>Done</strong>. Done moves it under the panel's Done fold and
+                tells the agent.
+              </p>
+            </section>
             <section id="bg-widget-shortcut-hints">
               <h3>Inline hints outside an Ask</h3>
               <p>

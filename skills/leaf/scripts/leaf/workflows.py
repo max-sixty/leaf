@@ -65,7 +65,7 @@ from .projection import (
     PageReading,
     recorded_state,
 )
-from .tasks import item_starts, owed_tasks
+from .tasks import canonical_tasks, item_starts, owed_tasks, task_ends
 
 
 def admission_workflows(readings) -> tuple[list[dict], dict]:
@@ -83,7 +83,8 @@ def admission_workflows(readings) -> tuple[list[dict], dict]:
 
 
 def obligation_reading(readings) -> dict:
-    """The outstanding Asks, answers and work in hand a gesture can change.
+    """The outstanding Asks and other tasks on the user, answers and work in hand a
+    gesture can change.
 
     Delivery progress, receipt-only moves and presentation are absent. Work in hand,
     a move the agent started or a task it opened on a thread or widget, also holds the
@@ -104,6 +105,7 @@ def obligation_reading(readings) -> dict:
         reading=thread,
     )
     open_ask_threads = {ask["thread"] for ask in thread_asks["user"]}
+    ended = set(task_ends(events))
     prompts = {}
     for identity, held in threads.items():
         _awaiting, prompt = thread_awaits_user(
@@ -113,6 +115,7 @@ def obligation_reading(readings) -> dict:
             thread_asks["awaiting"],
             thread.structure,
             open_ask_threads,
+            ended,
         )
         if prompt is not None:
             prompts[identity] = prompt["message"]
@@ -141,6 +144,12 @@ def obligation_reading(readings) -> dict:
             else [],
             "thread": [ask["id"] for ask in thread_asks["unanswered"]],
             "prompts": prompts,
+            # The tasks the agent put on the user, which their Done or a reply ends.
+            "tasks": [
+                task["id"]
+                for task in canonical_tasks(events)
+                if task["owner"] == "user" and task["state"] == "open"
+            ],
         },
         "answers": [item["answer"] for item in workflows if item["answer"] is not None],
         "work": [

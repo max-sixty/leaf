@@ -1414,6 +1414,7 @@ def declare_work(page_dir, line, *, item=None, ts=None, **voice):
                 {
                     "kind": "task",
                     "author": "agent",
+                    "owner": "agent",
                     "subject": {"kind": "page"},
                     "title": "Work on the page",
                     **({"ts": ts} if ts else {}),

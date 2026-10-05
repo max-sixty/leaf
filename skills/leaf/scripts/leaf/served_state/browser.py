@@ -10,7 +10,7 @@ from ..gesture_words import GestureWords, RevisionReader
 from ..history import history, wants_history
 from ..passages import SourceReading
 from ..projection import FrozenThreadReading, canonical_updates, page_reading
-from ..tasks import canonical_tasks, page_tasks
+from ..tasks import canonical_tasks, page_tasks, task_ends
 from ..workflows import canonical_workflows
 from .context import PageRead
 from .document import browser_document, browser_undo_candidates
@@ -102,13 +102,19 @@ def _apply_thread_attention(
     """Attach the shared attention aggregate, with user Asks taking precedence.
 
     This is the browser's one reading of whose turn a thread is: `needs_user` for
-    an open Ask or a question the agent's latest turn leaves (`user_prompt`), or a
-    response the user must recover; `waiting` while a workflow holds the thread with
-    the agent, which covers every input `events.unanswered_turns` holds, or while a
-    task the agent opened on it stands (`tasks`); else None. `workflows` are `served_workflows`, so the first
-    that qualifies is the one the thread waits on, and a workflow speaks before a
-    task. `tasks` are the open tasks, each stamped with its `thread`."""
-    user_threads = {ask["thread"] for ask in asks["user"]}
+    an open Ask, a question the agent's latest turn leaves (`user_prompt`) or a task
+    the agent put on the user about the thread, or a response the user must recover;
+    `waiting` while a workflow holds the thread with the agent, which covers every
+    input `events.unanswered_turns` holds, or while a task the agent opened on it
+    stands; else None. `workflows` are `served_workflows`, so the first that
+    qualifies is the one the thread waits on, and a workflow speaks before a task.
+    `tasks` are the open tasks on either side, each stamped with its `thread`."""
+    user_threads = {ask["thread"] for ask in asks["user"]} | {
+        task["subject"]["id"]
+        for task in tasks
+        if task["owner"] == "user" and task["subject"]["kind"] == "thread"
+    }
+    tasks = [task for task in tasks if task["owner"] == "agent"]
     by_thread: dict[str, list[dict]] = {}
     for workflow in workflows:
         if workflow["thread"] is not None:
@@ -278,12 +284,14 @@ def browser_state(
         }
         for task in canonical_tasks(events)
     ]
-    tasks, ended_tasks = page_tasks(log, thread["asks"], thread["threads"])
+    tasks, ended_tasks = page_tasks(
+        log, thread["asks"], thread["threads"], task_ends(events)
+    )
     _apply_thread_attention(
         thread["threads"],
         thread["asks"],
         workflows,
-        [task for task in tasks if task["owner"] == "agent"],
+        tasks,
     )
     if wants_history(readings[revision] for revision in view_revisions):
         words = GestureWords(events, active_registry, revisions or readings.__getitem__)

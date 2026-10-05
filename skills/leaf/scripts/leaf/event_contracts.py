@@ -616,9 +616,9 @@ def admission_error(
 
 
 def _task_error(view, event: dict, events: list, readings) -> str | None:
-    """A task stands on an open thread, a widget that seats work, or the page; an
-    outcome ends a task still open; a start names an open task or a move the agent
-    owes (`tasks.task_error`)."""
+    """A task stands on an open thread, a widget that seats work or an element, or the
+    page; an outcome ends a task still open, the user's only their own; a start names
+    an open task or a move the agent owes (`tasks.task_error`)."""
     if event["kind"] not in {"task", "task_end", "start"}:
         return None
     workflows = admission_workflows(readings)[0] if event["kind"] != "task_end" else []
@@ -633,8 +633,33 @@ def _task_error(view, event: dict, events: list, readings) -> str | None:
             return f"{widget!r} is not a widget on this page"
         return widget_seat_error(readings.page(view.revisions[-1]), widget, workflows)
 
+    def element_error(element: str) -> str | None:
+        if (
+            not view.revisions
+            or element not in readings.page(view.revisions[-1]).document.ids
+        ):
+            return f"{element!r} is not an element on this page"
+        return None
+
+    # The user's open tasks the document and the threads hold rather than the log:
+    # each Ask's, and each question's, which only a `task_end` can name.
+    asked = {}
+    if event["kind"] == "task_end":
+        reading = obligation_reading(readings)["asks"]
+        asked = {
+            **{identity: False for identity in reading["prompts"].values()},
+            **{identity: True for identity in reading["page"] + reading["thread"]},
+        }
     owed = {item["input"] for item in workflows if item["next_actor"] == "agent"}
-    return task_error(event, events, threads, seat_error, owed)
+    return task_error(
+        event,
+        events,
+        threads,
+        seat_error=seat_error,
+        element_error=element_error,
+        owed=owed,
+        asked=asked,
+    )
 
 
 def _publication_error(view, event: dict) -> str | None:

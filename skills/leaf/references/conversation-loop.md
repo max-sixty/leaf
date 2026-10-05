@@ -184,3 +184,15 @@ Work on a move that finishes inside the turn needs no task. `leaf page state` li
 open `tasks` with their `owner`: yours, and the user's, which include each open Ask
 and each question a thread leaves them. Its `queues` say what is on the user
 (`on_you`) and on you (`on_agent`).
+
+## Tasks on the user
+
+A task can also be on the user. An Ask is one, under the Ask's id, until its widget
+answers it, and a reply with `--awaits` is one, under the reply's id, until they
+answer in the thread. When you need the user to do something neither answers, such as
+trying a build or reading a section and saying whether it holds up, put a task on
+them: `leaf task open <page> <id> "<what you need>" --on user`, where `<id>` names the
+thread, widget or section it concerns, or `page`. It waits on their queue until they
+press its Done, or reply in its thread, and their Done reaches you like any move. When
+one no longer needs them, end it yourself with `leaf task end`: ending an Ask's task
+retires the Ask.

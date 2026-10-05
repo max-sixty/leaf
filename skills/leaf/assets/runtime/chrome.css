@@ -741,6 +741,11 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     border-radius: 6px; background: none; color: inherit; font: inherit;
     cursor: pointer; }
   .lf-queue-row:hover { background: var(--chip); }
+  /* A task the user ends with Done carries its Done beside the row, at the row's top so
+     it stands level with the kind; the row gives up the width it takes. */
+  .lf-queue-item { display: flex; align-items: flex-start; gap: 4px; }
+  .lf-queue-item > .lf-queue-row { flex: 1 1 auto; min-width: 0; }
+  .lf-queue-finish { flex: none; margin: 4px 6px 0 0; }
   /* Both rings this row can wear, inset together. A control packed into a list states
      its own inset (theme.css, --focus-ring), because the list clips to its padding box.
      The second ring is the standing Ask's (markHere), which the row naming that Ask

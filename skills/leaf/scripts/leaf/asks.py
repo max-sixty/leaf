@@ -11,6 +11,7 @@ from leaf.projection import (
 )
 from leaf.read_state import content_version
 from leaf.schema import MESSAGE_KINDS
+from leaf.tasks import task_ends
 
 
 def local_ask_entry(entry: dict) -> bool:
@@ -25,8 +26,13 @@ def thread_awaits_user(
     awaiting: dict[str, bool],
     structure,
     open_ask_threads: set[str],
+    ended: set[str],
 ) -> tuple[bool, dict | None]:
-    """The unanswered widget Ask or textual prompt this thread holds for the user."""
+    """The unanswered widget Ask or textual prompt this thread holds for the user.
+
+    A prompt is a task on the user under its message's id (`tasks.page_tasks`), so a
+    `task_end` naming that message, among `ended`, settles it as a settling reaction
+    does."""
     if thread["resolved"]:
         return False, None
     if thread_id in open_ask_threads:
@@ -49,7 +55,7 @@ def thread_awaits_user(
         structural = (
             any(awaiting.get(identity, False) for identity in asks) if asks else None
         )
-        settled = any(
+        settled = message["id"] in ended or any(
             is_reaction(reaction)
             and reaction["author"] == "user"
             and reaction.get("parent") == message["id"]
@@ -324,12 +330,14 @@ class _AskReducer:
         dropped: set,
         *,
         thread: bool,
+        ended,
     ):
         self.projection = projection
         self.byid = byid
         self.spk = spk
         self.registry = registry
         self.thread = thread
+        self.ended = ended
         elements = source.lf_elements if hasattr(source, "lf_elements") else source
         self.records = [record for record in elements if self._is_declared(record)]
         self.positioned_holders = projected_action_holders(projection, byid, registry)
@@ -382,7 +390,24 @@ class _AskReducer:
         )
 
     def _awaits(self, record, with_agent) -> bool:
-        return self.local[id(record)] and not self._answered(record, with_agent)
+        """Whether this source still asks: its own condition holds, nothing answers
+        it, and no `task_end` ended the Ask's task (`tasks.task_ends`), which retires
+        it however its widget stands."""
+        return (
+            self.local[id(record)]
+            and not self._answered(record, with_agent)
+            and self._surface(record)["attrs"].get("id") not in self.ended
+        )
+
+    def _surface(self, record):
+        """The reading and arrival region the user is sent to for this source: the
+        nearest `x-ask-surface` holder enclosing it, or the source itself."""
+        holder = self._holder(record)
+        while holder:
+            if (self.registry.get(holder["tag"]) or {}).get("x-ask-surface"):
+                return holder
+            holder = self._holder(holder)
+        return record
 
     def _surfaces(self, records):
         """Each visible ask as `(surface, source)`.
@@ -395,13 +420,7 @@ class _AskReducer:
         pairs = []
         seen = set()
         for record in records:
-            surface = record
-            holder = self._holder(record)
-            while holder:
-                if (self.registry.get(holder["tag"]) or {}).get("x-ask-surface"):
-                    surface = holder
-                    break
-                holder = self._holder(holder)
+            surface = self._surface(record)
             if id(surface) not in seen:
                 seen.add(id(surface))
                 pairs.append((surface, record))
@@ -491,6 +510,7 @@ def page_ask_readings(
     dropped: set,
     with_agent: set[str],
     *,
+    ended: set[str],
     settled_away: set[str] | None = None,
 ) -> dict:
     """Every ask reading of one document, folded over one shared setup.
@@ -508,6 +528,10 @@ def page_ask_readings(
     thread does not answer a question the widget still holds no state for, and
     refusing the pick over the user's own remark would refuse them the answer they
     were asked for.
+
+    `ended` is the task ids a `task_end` names (`tasks.task_ends`): an Ask is a task
+    on the user under its own id, and once the agent ends it the Ask asks nothing,
+    in either list, while the inventory keeps it as an ended task.
     """
     reducer = _AskReducer(
         source,
@@ -517,6 +541,7 @@ def page_ask_readings(
         registry,
         dropped,
         thread=False,
+        ended=ended,
     )
     return {
         "all": reducer.inventory(settled_away or set()),
@@ -576,6 +601,7 @@ def thread_ask_readings(
         registry,
         set(),
         thread=True,
+        ended=set(task_ends(events)),
     )
     asks = reducer.result(set())
 

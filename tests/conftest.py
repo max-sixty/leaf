@@ -14,11 +14,9 @@ from typing import NamedTuple
 import psutil
 import pytest
 from leaf import codex_adapter as codex_adapter_model
-from leaf import files as files_model
 from leaf import harness as harness_model
 from leaf import leases as leases_model
 from leaf import machine as machine_model
-from leaf import state as cleanup_model
 from leaf.render_gate import browser as browser_model
 from leaf_dev import LEAF_COMMAND
 from leaf_dev.browser import LINUX_FONTCONFIG, require_linux_fonts
@@ -219,10 +217,6 @@ def initialized_page(_page_pool):
     def lend(name, destination, initialize):
         page = _page_pool.lend(name, Path(destination), initialize)
         lent.append((name, page))
-        status_path = page / "status.json"
-        status = files_model.read_json(status_path)
-        status["ts"] = cleanup_model.now_iso()
-        cleanup_model.write_json(status_path, status)
         return page
 
     yield lend

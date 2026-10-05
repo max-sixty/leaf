@@ -80,7 +80,6 @@ test("a follow-up sent in a thread the agent owes takes the place of its answer"
   ];
   const { onAgent } = selectQueues({ ...served, workflows });
   assert.deepEqual(kinds(onAgent), [
-    ["work", "claim:claim-1"],
     ["answer", "pending:a3"],
     ["task", "e6"],
   ]);

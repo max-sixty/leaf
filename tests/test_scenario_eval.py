@@ -49,11 +49,8 @@ def test_delivery_requires_every_comment_and_a_completed_reply_turn():
 
 
 def test_delivery_uses_successful_turns_and_accepted_exact_thread_claims(tmp_path):
-    # Native CC stream and Leaf status JSON shapes, recorded at the scorer boundary.
-    status = {
-        "state": "working",
-        "work": [{"subject": {"kind": "thread", "id": "comment"}}],
-    }
+    # Native CC stream and Leaf start record shapes, recorded at the scorer boundary.
+    status = {"kind": "start", "item": "comment", "text": "editing"}
     records = [
         {
             "type": "eval_post",
@@ -75,9 +72,7 @@ def test_delivery_uses_successful_turns_and_accepted_exact_thread_claims(tmp_pat
                         "type": "tool_use",
                         "id": "claim",
                         "name": "Bash",
-                        "input": {
-                            "command": "leaf status page working editing --on comment"
-                        },
+                        "input": {"command": "leaf task start page comment editing"},
                     }
                 ]
             },
@@ -132,8 +127,8 @@ def test_delivery_uses_successful_turns_and_accepted_exact_thread_claims(tmp_pat
     returned["is_error"] = True
     assert not checks()["claimed-1"]
     returned["is_error"] = False
-    for work in [[], [{"subject": {"kind": "thread", "id": "unrelated"}}]]:
-        returned["content"] = json.dumps({**status, "work": work})
+    for other in [{"kind": "task"}, {"item": "unrelated"}]:
+        returned["content"] = json.dumps({**status, **other})
         assert not checks()["claimed-1"]
 
     returned["content"] = json.dumps(status)

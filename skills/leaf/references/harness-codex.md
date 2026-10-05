@@ -45,7 +45,7 @@ uncertain queue response, which is the retry `references/event-batches.md` descr
 Answer every obligation with the operation its delivered `handling` clause names,
 `leaf thread reply` for a plain reply. Your final message stays in the Codex
 chat and never reaches the page. Leaf does not observe the task's turns either, so
-the banner shows only the status you declare.
+the banner shows only the items you start and the status you declare.
 
 The tool hook and adapter share one delivery record, so input read during work is
 not queued again. Without a running trusted tool hook, delivery uses the queue.

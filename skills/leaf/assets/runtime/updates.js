@@ -7,16 +7,13 @@
    `updateSequence(target)` is the one reading of news about an item. Its target is
    either a widget element or an explicit `{kind, id}` pair; a bare id is not an identity
    and is rejected because a thread and a widget may spell theirs alike. With no target
-   it returns the whole ordered feed. Reports from the append-only log and ephemeral
-   thread work claims from status storage share a common envelope: `id`, typed `target`,
-   `source`, `action`, structured `detail`, declared human-readable `text`, `ts`,
-   attribution, and `disposition`. Report envelopes also retain their version and
-   sequence; a claim carries `log_floor`, the log sequence it followed, and `turn`, the
-   claimant's turn that wrote it.
+   it returns the whole ordered feed. Each is a worker's report from the append-only
+   log, in one envelope: `id`, typed `target`, `source`, `action`, structured `detail`,
+   declared human-readable `text`, `ts`, attribution, `disposition`, and the report's
+   version and sequence. The work the agent has in hand is no update: it is the
+   served workflows' Working stage and the open tasks' `running` start.
 
-   The source discriminator is semantic, not an implementation leak. A report stands
-   until a stamped revision's note absorbs or overrules it; a claim stands until the
-   thread receives an agent reply after that sequence or is resolved. The closed
+   A report stands until a stamped revision's note absorbs or overrules it. The closed
    disposition is `effective` when an update contributes to current state on its semantic
    coordinate, `standing` when it still needs source-specific settlement but is presently
    outranked, and `settled` when that authority answers it. An older unabsorbed report
@@ -28,9 +25,7 @@
    An agent-written x-state verb may name one required non-empty string detail field
    with `update`.
    That is the envelope's `text`; consumers never infer prose from a field, verb, or
-   widget name. Claims use their required detail as `detail.text` and `text`. The state
-   boundary performs this normalization once, before downstream code sees private status
-   storage.
+   widget name. The state boundary performs this normalization once.
 
    `updateSequence` filters the server-normalized update feed. `watchUpdates` and
    `watchHistory` are `watchProjection` (`projection-watch.js`) with their own reading,
@@ -56,7 +51,7 @@
    worker update is not timeless; its authored assertion is as old as its revision.
 
    createProjectionUpdates binds semantic subscriptions to one presentation owner's
-   commit proof. Raw update, claim, and history readings do not depend on that proof and
+   commit proof. Raw update and history readings do not depend on that proof and
    remain direct exports. */
 import { watchProjection } from "./projection-watch.js";
 import { currentProjection } from "./projection/state.js";

@@ -996,7 +996,7 @@ def test_each_agent_session_posts_as_its_own_voice(page_dir, monkeypatch):
     assert "- **Crawler**: crawl running" in transcript.output
 
 
-def test_ephemeral_reply_keeps_the_exact_input_and_work_claim_owed(claimed):
+def test_ephemeral_reply_keeps_the_exact_input_and_its_start_owed(claimed):
     published(claimed)
     root = append_command(
         claimed,
@@ -1007,9 +1007,7 @@ def test_ephemeral_reply_keeps_the_exact_input_and_work_claim_owed(claimed):
             "text": "Check the schedule.",
         },
     )
-    run_leaf(
-        "status", str(claimed), "working", "Checking the schedule", "--on", root["id"]
-    )
+    run_leaf("task", "start", str(claimed), root["id"], "Checking the schedule")
     before = page_state(claimed)["workflows"]
     assert len(before) == 1 and before[0]["stage"] == "working"
 

@@ -3681,7 +3681,7 @@ How this text reaches the agent, by example
 @DELIVERY@
 
 5. The agent confirms the complete delivery, then follows `handling`: it names
-   any work the comment asks for with `leaf status`, does it,
+   any work the comment asks for with `leaf task start`, does it,
    and replies in the thread with `leaf thread reply`.
 
 What this file records
@@ -3862,7 +3862,7 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
     # delivery Claude Code's prompt hook takes.
     (page_dir / "index.html").write_text(WALKTHROUGH_PAGE)
     publish(page_dir)
-    session_model.cmd_status(page_dir, "waiting", "")
+    session_model.cmd_waiting(page_dir, "")
     posted = {
         "kind": "comment",
         "revision": 1,
@@ -4060,7 +4060,7 @@ def test_each_carrier_hands_the_agent_what_the_snapshot_shows(
     assert status == 200, answer
     logged = events_model.read_events(page_dir)[-1]
 
-    session_model.cmd_status(page_dir, "waiting", "")
+    session_model.cmd_waiting(page_dir, "")
     capsys.readouterr()
     # A bare shell's wait, the printing kind, which claims nothing.
     session = harness_model.session_harness().session

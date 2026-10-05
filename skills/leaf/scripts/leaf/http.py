@@ -350,9 +350,9 @@ class PageEndpoint:
     def page_state(self, view_revision: int | None = None) -> dict:
         """The current reading used by GET and accepted POST responses.
 
-        A claim's ``log_floor`` is meaningful only beside the same log snapshot it
-        followed. Every response therefore keeps the page transaction through both
-        files.
+        The status a reading dates its activity by is meaningful only beside the log
+        snapshot it was read with. Every response therefore keeps the page
+        transaction through both files.
 
         The reading is taken after the activation this response performs and
         before any file the state is built from is read, and that order is the whole

@@ -22,7 +22,7 @@ from urllib.parse import urlsplit
 
 import pytest
 from conftest import LEAF_COMMAND
-from interact_support import ROOT, STATED_TIMEOUT, fetch, stamp, wait_for
+from interact_support import ROOT, STATED_TIMEOUT, declare_idle, fetch, stamp, wait_for
 from leaf import codex_adapter, leases, server, service, session
 from leaf_dev import preview
 
@@ -264,7 +264,7 @@ def test_serving_connects_codex_feedback_before_handing_over_its_url(
     """
     stamp(page_dir)
     if initially_idle:
-        session.cmd_status(page_dir, "idle", "")
+        declare_idle(page_dir)
     queued = Path(codex_queue["PREVIEW_QUEUE_RECORD"])
     ready = tmp_path / "ready.json"
     done = tmp_path / "done"
@@ -381,7 +381,7 @@ finally:
         assert codex_adapter.adapter_is_live("preview-thread")
         if initially_idle:
             assert service.read_status(page_dir)["state"] == "idle"
-            session.cmd_status(page_dir, "waiting", "Review this page")
+            session.cmd_waiting(page_dir, "Review this page")
         endpoint = urlsplit(url)._replace(path="/api/event").geturl()
         status, body = fetch(
             endpoint,
@@ -429,9 +429,10 @@ def test_serving_preserves_a_direct_codex_wait(
 import json, subprocess, sys, time
 from pathlib import Path
 from leaf.leases import wait_is_live, adapter_is_live
-from leaf.session import cmd_status
+from leaf.service import PageTransaction
+from leaf.session import cmd_waiting
 page = Path(sys.argv[1])
-cmd_status(page, "waiting", "Review this page")
+cmd_waiting(page, "Review this page")
 watch = subprocess.Popen([sys.executable, "-m", "leaf", "wait", str(page)],
                          stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 try:
@@ -454,7 +455,8 @@ try:
     reason = json.loads(stopped.stdout)["reason"]
     assert "leaf wait" in reason and "no delivery adapter" not in reason
 finally:
-    cmd_status(page, "idle", "")
+    with PageTransaction(page) as held:
+        held.set_status("idle", "")
     output, errors = watch.communicate(timeout=30)
     assert watch.returncode == 2, (output, errors)
 """

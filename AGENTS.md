@@ -160,9 +160,8 @@ its area: goals, invariants that span modules, who owns what, and the gates to
 run. A contract one module owns goes in that module's header, a helper's in its
 docstring, and how a rule was found in the commit message. A product decision a
 module embodies is part of its contract: its header names the alternatives the
-decision rejected and why, so the next change reads them before reversing one, and
-a change that reverses one rewrites that record and says so in its commit. A
-workflow for one kind of task goes in `/developing-leaf`.
+decision rejected and why, and a change that reverses one rewrites that record and
+says so in its commit. A workflow for one kind of task goes in `/developing-leaf`.
 
 ### The install runs this tree
 

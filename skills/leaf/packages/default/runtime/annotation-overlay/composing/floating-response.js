@@ -148,17 +148,22 @@ export function createFloatingResponsePlacement({
             layoutShift: false,
           });
           let x = reference.getBoundingClientRect().left;
-          const stopMotion = autoUpdate(reference, floating, () => {
-            const next = reference.getBoundingClientRect().left;
-            if (next === x) return;
-            x = next;
-            invalidate();
-          }, {
-            ancestorScroll: false,
-            ancestorResize: false,
-            elementResize: false,
-            layoutShift: true,
-          });
+          const stopMotion = autoUpdate(
+            reference,
+            floating,
+            () => {
+              const next = reference.getBoundingClientRect().left;
+              if (next === x) return;
+              x = next;
+              invalidate();
+            },
+            {
+              ancestorScroll: false,
+              ancestorResize: false,
+              elementResize: false,
+              layoutShift: true,
+            },
+          );
           return () => {
             stopMotion();
             stopSize();

@@ -112,56 +112,72 @@
       `^(?:${anchor}|calc\\((?:${anchor}\\s*[+-]\\s*-?[\\d.]+px|-?[\\d.]+px\\s*\\+\\s*${anchor}|${anchor})\\))$`,
     ).test(value);
   };
-  // What decides a positioned box's inset on an axis, as the declarations that can win
-  // it: an important inline one alone, else the important rules of its own tree that
-  // match it now, else its inline style, else every matching rule. Within a tier the
-  // cascade weighs specificity, layers and order, which no API reports, so the inset
-  // counts as anchored only where every candidate there is a direct anchor inset: rules
-  // that disagree are ambiguous, like a name that is. A page states a native anchor's
-  // insets in its stylesheet as often as a placer writes them inline. Read only for a
-  // box naming an anchor, since every frame samples it.
+  // What decides a positioned box's inset on an axis. An inline inset is a placer's,
+  // and stands as it always has. Otherwise the candidates are the rules of the box's
+  // own tree that match it now and state the inset: the important ones where any are,
+  // else all of them. Within a tier the cascade weighs specificity, layers and order,
+  // which no API reports, so the inset counts as anchored only where every candidate
+  // is a direct anchor inset: rules that disagree are ambiguous, like a name that is.
+  // Read only for a box naming an anchor, since every frame samples it, from each
+  // sheet's rules that state an inset at all, gathered once per sheet.
+  const INSETS = ["top", "right", "bottom", "left"];
+  const insetRules = new WeakMap();
+  const rulesStatingInsets = (sheet) => {
+    const length = sheet.cssRules.length;
+    const known = insetRules.get(sheet);
+    if (known?.length === length) return known.rules;
+    const rules = [];
+    const visit = (list, conditions) => {
+      for (const rule of list) {
+        if (rule instanceof CSSStyleRule) {
+          if (INSETS.some((side) => rule.style.getPropertyValue(side)))
+            rules.push({ rule, conditions });
+        } else if (rule.cssRules)
+          visit(
+            rule.cssRules,
+            rule instanceof CSSMediaRule || rule instanceof CSSSupportsRule
+              ? [...conditions, rule]
+              : conditions,
+          );
+      }
+    };
+    visit(sheet.cssRules, []);
+    insetRules.set(sheet, { length, rules });
+    return rules;
+  };
+  const holds = (condition) =>
+    condition instanceof CSSMediaRule
+      ? matchMedia(condition.conditionText).matches
+      : CSS.supports(condition.conditionText);
   const declaredRules = (node, property) => {
     const root = node.getRootNode();
     const found = { important: [], normal: [] };
-    const visit = (rules) => {
-      for (const rule of rules) {
-        if (rule instanceof CSSMediaRule && !matchMedia(rule.conditionText).matches)
-          continue;
-        if (rule instanceof CSSSupportsRule && !CSS.supports(rule.conditionText))
-          continue;
-        if (rule instanceof CSSStyleRule) {
-          let matches = false;
-          try {
-            matches = node.matches(rule.selectorText);
-          } catch {
-            // A selector `matches` cannot take, such as a pseudo-element's.
-          }
-          const value = matches && rule.style.getPropertyValue(property);
-          if (value)
-            found[
-              rule.style.getPropertyPriority(property) ? "important" : "normal"
-            ].push(value);
-        } else if (rule.cssRules) visit(rule.cssRules);
-      }
-    };
     for (const sheet of [
       ...(root.styleSheets ?? []),
       ...(root.adoptedStyleSheets ?? []),
     ])
-      visit(sheet.cssRules);
+      for (const { rule, conditions } of rulesStatingInsets(sheet)) {
+        const value = rule.style.getPropertyValue(property);
+        if (!value || !conditions.every(holds)) continue;
+        let matches = false;
+        try {
+          matches = node.matches(rule.selectorText);
+        } catch {
+          // A selector `matches` cannot take, such as a pseudo-element's.
+        }
+        if (matches)
+          found[rule.style.getPropertyPriority(property) ? "important" : "normal"].push(
+            value,
+          );
+      }
     return found;
   };
   const anchoredInset = (node, style, property, axis) => {
     const inline = node.style.getPropertyValue(property);
-    let candidates = inline ? [inline] : [];
-    if (
-      !node.style.getPropertyPriority(property) &&
-      style.positionAnchor.startsWith("--")
-    ) {
-      const rules = declaredRules(node, property);
-      if (rules.important.length) candidates = rules.important;
-      else if (!inline) candidates = rules.normal;
-    }
+    if (inline) return anchorInset(inline, axis);
+    if (!style.positionAnchor.startsWith("--")) return false;
+    const rules = declaredRules(node, property);
+    const candidates = rules.important.length ? rules.important : rules.normal;
     return (
       candidates.length > 0 && candidates.every((value) => anchorInset(value, axis))
     );

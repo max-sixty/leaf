@@ -3339,6 +3339,45 @@ def test_a_finger_ends_a_task_on_you_from_the_banner_row(browser, serve):
     expect(done).to_have_count(0)
 
 
+def test_a_keyboard_reaches_the_banners_done_step_under_a_finger(browser, serve):
+    """A tablet with a keyboard has the banner's Done step and Tab both. Tab onto the
+    step takes focus into Leaf's chrome, where the user stands on nothing, and the step
+    stays for the task `a` landed on; Enter on it ends that task."""
+    url = serve(NESTED_TASKS_PAGE)
+    task = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "task",
+            "author": "agent",
+            "agent": "Agent",
+            "session": "queue-done",
+            "owner": "user",
+            "subject": {"kind": "element", "id": "plan"},
+            "title": "Check the plan",
+        },
+    )
+    context = browser.new_context(
+        viewport={"width": 1024, "height": 768}, has_touch=True, is_mobile=True
+    )
+    page = open_page(browser, url, context=context)
+    done = page.locator(".lf-banner-actions").get_by_role(
+        "button", name="Done", exact=True
+    )
+    page.keyboard.press("a")
+    expect(page.locator("#plan")).to_be_focused()
+    expect(done).to_be_visible()
+    for _ in range(12):
+        page.keyboard.press("Shift+Tab")
+        expect(done).to_be_visible()
+        if done.evaluate("el => el === document.activeElement"):
+            break
+    expect(done).to_be_focused()
+    with sending(page, "the Done step from the keyboard"):
+        page.keyboard.press("Enter")
+    assert events_model.read_events(serve.page_dir)[-1]["task"] == task["id"]
+    expect(done).to_have_count(0)
+
+
 NESTED_TASKS_PAGE = leaf_page(
     "Nested tasks",
     '<section id="plan"><h2>Plan</h2>'

@@ -42,10 +42,11 @@
    expected to change a lot (notes/what-needs-you/). Change them freely.
 */
 import { pageCommand, pageScope } from "./keyboard/register.js";
-import { paintKeys } from "./keyboard/scopes.js";
+import { documentFocused, paintKeys } from "./keyboard/scopes.js";
+import { coarsePointer } from "./pointer.js";
 import { askHolding, placeOf, walkOrigin } from "./standing-target.js";
 import { elementById, inChrome } from "./passages.js";
-import { hostIn, under } from "./shadow.js";
+import { hostIn, inUi, under } from "./shadow.js";
 import { allAsks } from "./asks/model.js";
 import { endsByDone, taskNoun } from "./queues.js";
 import { readApplication, watchSemantic } from "./semantic-state.js";
@@ -255,15 +256,37 @@ export function createQueueWalk({
     return ready;
   }
 
-  // The task the user stands on that their Done ends, if any: one on the thread, element
-  // or page the user stands at.
-  function standingTask() {
-    const stop = standingStop(stops());
-    return stop
+  // The task Done ends where the user stands on `stop`.
+  const doneAt = (stop) =>
+    stop
       ? (readApplication().effective.queues.onYou.find(
           (item) => endsByDone(item) && sameStop(stopOf(item), stop),
         ) ?? null)
       : null;
+
+  // The task Done ends now. Under a finger with a keyboard beside it, as on a tablet,
+  // Tab onto the banner's Done step takes focus through Leaf's own controls and the
+  // page's body, where the user stands on no item, so while focus is there and no
+  // caret or selection stands on the page the step keeps the task it was shown for,
+  // if it is still on the user; anywhere else, the task the user stands on.
+  let shownFor = null;
+  function doneTask() {
+    const stop = standingStop(stops());
+    const focus = documentFocused();
+    if (
+      stop ||
+      !coarsePointer.matches ||
+      (focus && focus !== document.body && !inUi(focus) && !inChrome(focus)) ||
+      placeOf(getSelection()?.focusNode)
+    ) {
+      shownFor = doneAt(stop);
+      return shownFor;
+    }
+    shownFor =
+      readApplication().effective.queues.onYou.find(
+        (item) => item.id === shownFor?.id && endsByDone(item),
+      ) ?? null;
+    return shownFor;
   }
 
   // The user's Done on a task on them: their `task_end`, through the one append door.
@@ -327,7 +350,7 @@ export function createQueueWalk({
   // banner's row under a finger. Its row in the Queue panel carries the same Done.
   pageScope("task", {
     title: "On a task waiting on you",
-    at: () => Boolean(standingTask()),
+    at: () => Boolean(doneTask()),
     rows: [
       {
         id: "queue.task.done",
@@ -335,9 +358,9 @@ export function createQueueWalk({
         title: "done",
         description: "Mark the task waiting on you done",
         touch: "Done",
-        when: () => Boolean(standingTask()),
+        when: () => Boolean(doneTask()),
         run: () => {
-          const task = standingTask();
+          const task = doneTask();
           if (task) endTask(task.id);
         },
       },

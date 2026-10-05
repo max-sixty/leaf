@@ -72,6 +72,28 @@ const holdsOwnStop = (el) => el.querySelector(TAB_STOP) !== null;
 // A box focus.js has lent a `-1` for an arrival goes back to that `-1`, which focus.js
 // takes back on the blur.
 const mayScroll = new Map();
+// A control beside a scroller can require its stop even when its contents fit.
+// Keep that request with the owner of the stop so a later layout pass cannot
+// take it back as though it were a stop this pass had lent for overflow.
+const claimedStops = new WeakSet();
+export function claimReachStop(el) {
+  if (claimedStops.has(el)) return;
+  const authored = mayScroll.has(el) ? mayScroll.get(el) : el.getAttribute("tabindex");
+  if (authored !== null) return;
+  claimedStops.add(el);
+  keeps(el, "tabindex", 0);
+}
+
+export function releaseReachStop(el) {
+  if (!claimedStops.has(el)) return;
+  claimedStops.delete(el);
+  if (el.getAttribute("tabindex") !== "0") return;
+  keeps(
+    el,
+    "tabindex",
+    mayScroll.has(el) && overflows(el) && !holdsOwnStop(el) ? 0 : null,
+  );
+}
 // The same measurement spent on the eye. Scrolling is the layer's honest degrade for a
 // box whose content is wider than the room it was given — a diagram at the size it was
 // drawn, a board's columns, a line of code — and on a platform that draws overlay
@@ -318,6 +340,7 @@ function paintReach() {
     ([a], [b]) => levels.get(b) - levels.get(a),
   )) {
     if (unpainted(el)) continue;
+    if (claimedStops.has(el)) continue;
     if (overflows(el) && !holdsOwnStop(el)) keeps(el, "tabindex", 0);
     else if (el.getAttribute("tabindex") === "0")
       keeps(el, "tabindex", wearsLentStop(el) ? -1 : authored);

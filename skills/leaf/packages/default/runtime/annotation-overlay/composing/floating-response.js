@@ -98,9 +98,10 @@ export function createFloatingResponsePlacement({
     );
   };
 
-  // The editing observer reports target size and layout shifts: CSS anchors own
-  // scroll following, while a target that moves across the available room must
-  // let the shared placement rule choose its side again.
+  // The editing observer reports size and authored target style changes: CSS anchors
+  // own scroll following, while a target transformed without resizing must let
+  // the shared placement rule choose its side again. Layout-shift observation
+  // also hears scroll, which would re-place the native attachment on wheel frames.
   // A compact strip still observes scroll and layout shifts. Explicit publication may
   // replace a target or editor seat; composition stops this owner for that handoff.
   // Native-seat readiness belongs to composition; stopping this presenter retires
@@ -137,16 +138,43 @@ export function createFloatingResponsePlacement({
     };
     if (!observationModes) {
       observationModes = {
-        editing: (reference, floating, update) =>
-          autoUpdate(
-            reference,
-            floating,
-            () => {
-              nativeAttachment = false;
-              update();
-            },
-            { ancestorScroll: !fabPosition.nativeAvailable(), layoutShift: true },
-          ),
+        editing: (reference, floating, update) => {
+          const invalidate = () => {
+            nativeAttachment = false;
+            update();
+          };
+          const stopSize = autoUpdate(reference, floating, invalidate, {
+            ancestorScroll: !fabPosition.nativeAvailable(),
+            layoutShift: false,
+          });
+          const style = document.createElement("span").style;
+          const authoredStyle = (css) => {
+            style.cssText = css ?? "";
+            style.removeProperty("anchor-name");
+            return style.cssText;
+          };
+          const changed = new MutationObserver((records) => {
+            // The native attachment writes anchor-name on its own target. That
+            // change does not move the target and must not start another solve.
+            if (
+              records.some(
+                (record) =>
+                  authoredStyle(record.oldValue) !==
+                  authoredStyle(record.target.getAttribute("style")),
+              )
+            )
+              invalidate();
+          });
+          changed.observe(reference.contextElement, {
+            attributes: true,
+            attributeOldValue: true,
+            attributeFilter: ["style"],
+          });
+          return () => {
+            changed.disconnect();
+            stopSize();
+          };
+        },
         compact: autoUpdate,
       };
     }

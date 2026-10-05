@@ -2197,7 +2197,8 @@ def test_a_card_moved_on_a_board_in_a_reply_reports_delivery_on_that_reply(
     """A board the agent sent in a reply takes a moved card as a page board does: the
     reply carrying the board reports the saved move, and the thread stays nobody's
     turn, since the move answers no Ask and wakes nobody. The agent's next turn in
-    the thread takes the move in, and the receipt leaves."""
+    the thread takes the move in, and the receipt leaves with it: while that turn waits
+    behind the card's notice, the card draws its messages as it drew them."""
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Lay the work out.", {"section": "how-cap"})
     board = append_carried_log_record(
@@ -2249,6 +2250,11 @@ def test_a_card_moved_on_a_board_in_a_reply_reports_delivery_on_that_reply(
         },
     )
     told(page)
+    card = page.locator(f'.lf-thread[data-id="{root}"]')
+    news = card.get_by_role("button", name="1 new reply", exact=True)
+    if news.count():
+        expect(receipt).to_have_text("Sent")
+        news.click()
     expect(receipt).to_have_count(0)
     expect(page.locator("#fb-done > #fb-cache")).to_be_visible()
 

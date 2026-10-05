@@ -105,9 +105,12 @@ export function threadReading(
     attempt: thread.root.attempt ?? null,
     surface,
     visible,
-    // Why the panel keeps a card its view no longer admits ("news" or "draft",
-    // thread-list-view.js, `keeping`). News that changed it waits behind its notice
-    // (held-news.js), and a reply being written keeps its box (`replyIsEditing`).
+    // A card the panel keeps though its view no longer admits it, and why ("news" or
+    // "draft", thread-list-view.js, `keeping`). While the news that changed it would
+    // move what the user sees it waits behind the card's notice (held-news.js); once
+    // shown, the card keeps the shape it stood in until it goes, so showing it moves
+    // nothing: the room of its reply box, on which an open card's room rests, and the
+    // control row above its first message, where Reopen wears Resolve's face.
     kept,
     grow,
     folding: false,
@@ -137,7 +140,7 @@ export function threadReading(
       word,
       label,
       pending: settling,
-      icon: !resolved,
+      icon: !resolved || Boolean(kept),
     }),
     reply: replyAvailable(thread),
     summaries: Object.freeze(thread.summaries),
@@ -249,6 +252,7 @@ export class ThreadView {
   #lastMessage = null;
   #continuity = null;
   #heldNews = null;
+  #replyReservation = null;
   #received = null;
 
   constructor(surface, commands) {
@@ -394,6 +398,14 @@ export class ThreadView {
     this.#model = model;
     const reply = model.reply || replyIsEditing(model.key);
     this.#replyShown = reply;
+    // News holds the native card's room independently of its editing session.
+    if (reply || !model.kept) this.#replyReservation = null;
+    else if (!this.#replyReservation && this.#reply?.node.isConnected) {
+      const slot = offer("div", "lf-thread-reply");
+      slot.style.height = `${this.#reply.node.getBoundingClientRect().height}px`;
+      this.#replyReservation = slot;
+    }
+    const replySlot = reply || Boolean(this.#replyReservation);
     if (model.news) this.#news.set(model.news);
     const news = model.news ? this.#news.node : nothing;
     const panel = model.surface === "panel";
@@ -421,7 +433,7 @@ export class ThreadView {
     const settlement = model.settlement ? this.#settlement(model) : null;
     const marginControls = model.surface === "margin" ? this.#marginControls : null;
     let headerActions = null;
-    if (!model.resolved || reply || model.folding || marginControls) {
+    if (!model.resolved || replySlot || model.folding || marginControls) {
       const actions = marginControls
         ? [marginControls.nav, settlement, marginControls.close].filter(Boolean)
         : [settlement].filter(Boolean);
@@ -557,10 +569,10 @@ export class ThreadView {
             : nothing
         }
         ${panel ? html`<div class="lf-thread-content">${body}</div>` : body}
-        ${reply ? (this.#continuity?.gap ?? nothing) : nothing}
-        ${reply ? this.#reply.node : nothing}
+        ${replySlot ? (this.#continuity?.gap ?? nothing) : nothing}
+        ${reply ? this.#reply.node : (this.#replyReservation ?? nothing)}
         ${
-          model.resolved && !reply && !model.folding && !marginControls
+          model.resolved && !replySlot && !model.folding && !marginControls
             ? html`<div
                 class=${panel ? "lf-thread-actions" : "lf-page-thread-resolved lf-ui"}
               >

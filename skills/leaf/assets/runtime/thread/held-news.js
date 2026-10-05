@@ -127,12 +127,12 @@ const symmetric = (a, b) => [...a, ...b].filter((name) => !a.has(name) || !b.has
 
 // What of `now` the seat would draw differently from `was`, the thread as it drew it:
 // each message that is new or whose words changed, each reaction put on a reply or taken
-// off it, and the thread's settlement. `messages` is `now`'s messages with each one the
-// news changes drawn as `was` drew it and the new ones left out; `changed` the keys of
-// the ones drawn as they were, every one where the settlement changes, which moves the
-// thread's controls into or out of its head row, draws or folds its reaction strips and
-// ends its messages' work. A message the log took back is no news: it goes. Null where
-// nothing differs.
+// off it, and the thread's settlement. `messages` is what a held thread draws: each of
+// `now`'s messages as `was` drew it, so nothing in one, its header's status included,
+// moves the notice beside it, and the new ones left out; `changed` the keys of the ones
+// the news changes, every one where the settlement changes, which moves the thread's
+// controls into or out of its head row and draws or folds its reaction strips. A
+// message the log took back is no news: it goes. Null where nothing differs.
 function difference(was, now) {
   const drawn = new Map(was.messages.map((message) => [message.key, message]));
   const settled =
@@ -143,28 +143,26 @@ function difference(was, now) {
         : "Reopened";
   const news = { settled, replies: 0, reactions: 0, appended: false };
   const changed = new Set();
-  const messages = now.messages.flatMap((message) => {
+  for (const message of now.messages) {
     const prior = drawn.get(message.key);
     if (!prior) {
       news.replies += 1;
       news.appended = true;
-      return [];
-    }
-    if (JSON.stringify(prior.body) !== JSON.stringify(message.body)) {
+    } else if (JSON.stringify(prior.body) !== JSON.stringify(message.body)) {
       news.replies += 1;
       changed.add(message.key);
-      return [prior];
+    } else if (settled) changed.add(message.key);
+    else if (message.reactions && prior.reactions) {
+      const turned = symmetric(tokens(prior.reactions), tokens(message.reactions));
+      news.reactions += turned.length;
+      if (turned.length) changed.add(message.key);
     }
-    const turned =
-      !settled && message.reactions && prior.reactions
-        ? symmetric(tokens(prior.reactions), tokens(message.reactions)).length
-        : 0;
-    news.reactions += turned;
-    if (!settled && !turned) return [message];
-    changed.add(message.key);
-    return [prior];
-  });
-  return settled || news.replies || news.reactions ? { news, messages, changed } : null;
+  }
+  if (!settled && !news.replies && !news.reactions) return null;
+  const messages = now.messages.flatMap(({ key }) =>
+    drawn.has(key) ? [drawn.get(key)] : [],
+  );
+  return { news, messages, changed };
 }
 
 // What a thread's settlement draws, which a held settlement draws as it was.

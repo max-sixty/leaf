@@ -21,8 +21,9 @@
 
    The list also decides when a card leaves it (`keeping`), and news takes no card
    out from in front of the user: a card another actor resolves under Open stays where
-   it stands, its card holding the resolution behind its notice (held-news.js), until
-   its going would move nothing the user sees. */
+   it stands, its card holding the resolution behind its notice (held-news.js) and,
+   once shown, drawn resolved in the shape it stood in, until its going would move
+   nothing the user sees. */
 import { html, repeat } from "../../vendor/browser-runtime.js";
 import { focused } from "../keyboard/scopes.js";
 import { holdFocus, restoringFocus } from "../focus.js";
@@ -111,10 +112,11 @@ class ThreadListView extends RetainedFace {
   // user's own gesture on the thread (`gesturedOn`) takes the card in the turn it is
   // drawn, or, while its reply holds words, once the words go ("draft"), so settlement
   // never puts a draft away; a settlement folds it out (willUpdate). Anything else is
-  // news ("news"), and its card stays, holding the news (held-news.js), while its going
-  // would move something the user sees: while any of it shows, since every card after
-  // it would rise, and, as the card the list shows open, while the panel shows, since
-  // another card would open in its place. Out of sight it stays only for its words,
+  // news ("news"), and its card stays, holding the news (held-news.js) or drawn as the
+  // news left it in the shape it stood in, while its going would move something the
+  // user sees: while any of it shows, since every card after it would rise, and, as
+  // the card the list shows open, while the panel shows, since another card would open
+  // in its place. Out of sight it stays only for its words,
   // with the cause that first excluded it still carried. Its leaving the window asks
   // for the render that lets it go (`#watchKept`), as does its closing when the user
   // opens another card.

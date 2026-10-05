@@ -119,8 +119,9 @@ on a diff line with no thread, waits in the margin behind its marker
 (`thread/held-news.js`). It shows once a gesture of theirs takes them to it: opening
 the notice or the thread, walking to the thread or one of its Asks, or acting there. In
 the Threads panel, a card news takes out of the view, as another actor resolving its
-thread under Open does, stays where it stands, drawn as it was behind that notice,
-until its going would move nothing the user sees or they change the view
+thread under Open does, stays where it stands, holding the news behind that notice
+and, once shown, in the shape it stood in, until its going would move nothing the
+user sees or they change the view
 (`thread/thread-list-view.js`, `keeping`). A region whose rows only the
 log or the clock decides, so no first paint can size it, shows none of them until the
 reader opens them through a control of fixed size the widget already draws, as a

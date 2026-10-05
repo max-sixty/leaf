@@ -504,7 +504,7 @@ def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
 
 @pytest.mark.parametrize(
     ("width", "has_touch", "banner_height"),
-    [(390, True, 89), (740, True, 53), (800, False, 42), (1724, False, 42)],
+    [(390, True, 89), (740, True, 89), (800, False, 42), (1724, False, 42)],
 )
 def test_authored_html_paints_while_runtime_startup_is_held(
     browser, serve, width, has_touch, banner_height

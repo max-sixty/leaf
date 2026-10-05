@@ -16,7 +16,7 @@ including edits and retired content. Quote exact visible authored words inside
 one widget part. The command refuses ambiguous, retired, replaced, or
 cross-boundary text instead of creating a detached comment. The thread's id is its
 opening comment's `id`, in the record `leaf thread open` prints. `leaf page state
-<page> <id>`, `leaf thread reply`, `edit` and `resolve`, and `leaf status --on` all
+<page> <id>`, `leaf thread reply`, `edit` and `resolve`, and `leaf task open` all
 take the id of any message in the thread.
 
 Title a thread with `--title` on the command that first handles it: the `open` that
@@ -149,7 +149,7 @@ Use `--ephemeral` for an interim update that is useful while work is underway:
 leaf thread reply <page> --for <event-id> --ephemeral --text "Checking the keyboard route."
 ```
 
-This posts progress without answering the input or ending its work claim. You can
+This posts progress without answering the input or ending its start. You can
 also name the thread to post progress there. The updates stay visible until the
 next non-ephemeral agent reply in that thread, then fold under “Previous updates”
 without summary prose. The original messages remain available to expand and edit.

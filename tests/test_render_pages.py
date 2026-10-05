@@ -30,7 +30,7 @@ from render_cases_interaction import (
     SEATED_ASK_WIDGETS,
     live_url,
 )
-from render_cases_layout import banner_control, toggle_asks, with_one_ask
+from render_cases_layout import banner_control, toggle_queue, with_one_ask
 from render_cases_navigation import (
     composer_quote,
 )
@@ -100,7 +100,7 @@ def test_sort_source_follows_the_initial_step_when_code_arrives_later(browser, s
         reduced_motion="reduce", viewport={"width": 1440, "height": 900}
     )
     held = []
-    context.route("**/vendor/highlight.esm.js", lambda route: held.append(route))
+    context.route("**/vendor/syntax.esm.js", lambda route: held.append(route))
     page = open_page(
         browser,
         serve(example),
@@ -429,7 +429,9 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
             card = page.locator(f'.lf-thread[data-id="{thread["id"]}"]')
             expect(
                 card.get_by_role(
-                    "button", name="Reopen", exact=True, include_hidden=True
+                    "button",
+                    name=re.compile(r"\bReopen(?: thread)?$"),
+                    include_hidden=True,
                 )
             ).to_have_count(1)
             anchor = thread["anchor"]
@@ -1087,7 +1089,14 @@ def test_a_failed_resolution_restores_a_focused_inline_reply(browser, serve):
     assert reply.evaluate(
         "node => [node.selectionStart, node.selectionEnd, node.selectionDirection]"
     ) == [5, 16, "backward"]
+    # The remote resolution waits behind the thread's notice while the focused
+    # draft is in view. The user can reveal it without losing their reply.
+    notice = thread.locator(".lf-thread-news")
+    expect(notice).to_have_text("Resolved")
+    expect(thread).to_have_attribute("data-resolved", "false")
+    notice.click()
     expect(thread.get_by_role("button", name="Reopen")).to_be_visible()
+    expect(reply).to_have_js_property("value", "keep this inline reply")
 
 
 def test_failed_resolve_candidate_restores_focused_reply(browser, serve):
@@ -1146,11 +1155,17 @@ def test_failed_resolve_candidate_restores_focused_reply(browser, serve):
     page.unroute("**/api/state*")
     nudge(page_dir)
     expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
-    # The resolved card stays where the user is writing in it.
-    expect(page.locator(".lf-thread")).to_have_attribute("data-resolved", "true")
+    # The card keeps the user's editing place and holds the remote resolution
+    # behind a notice until they choose to show it.
+    thread = page.locator(".lf-thread")
+    expect(thread.locator(".lf-thread-news")).to_have_text("Resolved")
+    expect(thread).to_have_attribute("data-resolved", "false")
     expect(page.locator(".lf-thread leaf-text")).to_have_js_property(
         "value", "keep this unfinished reply"
     )
+    thread.locator(".lf-thread-news").click()
+    expect(thread).to_have_attribute("data-resolved", "true")
+    expect(thread.get_by_role("button", name="Reopen")).to_be_visible()
 
 
 def test_a_failed_state_keeps_focus_in_the_open_versions_menu(browser, serve):
@@ -3100,7 +3115,7 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     takes, so the release-notes shot, the wide exhibit in the control, grows left only
     to stop short of it.
 
-    The Asks drawer stands over the left margin and moves nothing in it. A narrow viewport
+    The Queue panel stands over the left margin and moves nothing in it. A narrow viewport
     returns the aside to the flow, and print proves paper reserves no blank margin for a
     posture it cannot use.
 
@@ -3220,7 +3235,7 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
         "() => Number(getComputedStyle(document.querySelector('lf-toc a')).opacity) === 0"
     )
 
-    # The Asks drawer stands over the page's left margin and moves nothing in it: the fixed
+    # The Queue panel stands over the page's left margin and moves nothing in it: the fixed
     # ToC and the sidebar stay where the page put them, under the drawer while it stands.
     resized(page, 1700, 900)
     margin = """() => {
@@ -3229,10 +3244,10 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
           return {sidebarLeft: sidebar.left, tocLeft: toc.left};
         }"""
     before = page.evaluate(margin)
-    banner_control(page, ".lf-asks").click()
-    expect(page.locator(".lf-asks-panel")).to_be_visible()
+    banner_control(page, ".lf-queue").click()
+    expect(page.locator(".lf-queue-panel")).to_be_visible()
     page.wait_for_function(
-        """() => document.querySelector('.lf-asks-panel').getAnimations().length === 0"""
+        """() => document.querySelector('.lf-queue-panel').getAnimations().length === 0"""
     )
     assert page.evaluate(margin) == before
     geometry = page.evaluate(
@@ -3255,8 +3270,8 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     assert abs(geometry["tocBottom"] - (geometry["lineTop"] - 24)) <= 1, (
         f"the map's foot is not the band's top less its inset: {geometry}"
     )
-    banner_control(page, ".lf-asks").click()
-    expect(page.locator(".lf-asks-panel")).to_be_hidden()
+    banner_control(page, ".lf-queue").click()
+    expect(page.locator(".lf-queue-panel")).to_be_hidden()
 
     resized(page, 1400, 900)
 
@@ -3521,8 +3536,8 @@ def test_margin_residents_stand_where_the_room_beside_the_column_holds_them(
         else:
             assert at["note"]["float"] == "none", (width, at)
 
-    # The Asks drawer stands over the page and grants or withdraws no margin.
-    toggle_asks(page)
+    # The Queue panel stands over the page and grants or withdraws no margin.
+    toggle_queue(page)
     panelled = page.evaluate(reading)
     assert panelled["sidebars"] == at["sidebars"]
     assert panelled["taken"] == at["taken"]

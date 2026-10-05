@@ -122,16 +122,6 @@ and its chrome coordinate.
   newcomer out of view rather than pushing down the card being read. The user sees
   it only in the count; give that arrival a visible route while preserving the
   current reading.
-- **Decide whether a thread card may cover the margin rail.** A card beside its
-  target starts right of the target's margin marker whenever the room past the marker
-  still holds the card's minimum width (`comment-placement.js`, where `options` reads
-  `margin`), so the marker stays visible. The card therefore opens well right of the
-  text and narrower than it could be; starting it beside the text would cover the
-  rail's markers for as long as it is open. Weigh that trade, then settle how Leaf
-  states which elements a floating surface may cover. Today each placement names the
-  boxes it keeps clear of (`clear`, `margin`) in its own code, so no element can declare
-  that it may be covered, or must never be.
-
 - **Give the phone banner one row.** Decided, not built
   ([plan](notes/chrome-and-covers.md)): one 53px row holding the status in words, cut
   short with an ellipsis, with a passing notice taking that slot for a few seconds;
@@ -171,19 +161,7 @@ and its chrome coordinate.
   (`syncLayoutRegion`) and the render check's held-panes reading (`heldPanes`), which
   both look only at `main`, have to look at that block too. It waits for a page that
   needs it; a workspace page's own pane grid stays plain CSS.
-- **Settle what a box declares to the width rules before patching them again.** One
-  flag, `--lf-block-frame`, decides three things: a box's edge margins are trimmed,
-  wide blocks inside it stay inside it, and a table in it fills it. `main` and a page
-  tab's panel want only the trim and opt out of the rest with `--lf-page-flow` (#1723).
-  A task inside `lf-command` wants only the trim too and has no way to say so, so a wide
-  worktree in it stays at 604px where it would take 672px. Rules that undo another rule
-  have also lived in lower cascade layers, where they lose without a sign: moving the
-  width rules into `lf-layouts` (#1617) disabled the page tab's hand-back and the
-  diagram package's no-runtime rule, and the bug reached a user a day after CI had
-  caught and muted it. Decide what
-  a box states (that its edges trim, that it draws a frame, that it holds the page's own
-  flow) so each rule reads one declaration and no box has to undo a rule meant for
-  another.
+
 - **Show each floating surface across the content it can hold.** `leaf-dev stills`
   screenshots the same states on the base and the branch, so it reports a change but
   misses a surface that is wrong on both. Until PR 1440 a margin thread card took all
@@ -225,23 +203,6 @@ and its chrome coordinate.
 - **Layout values that wait for a task:** a selection-and-detail component whose phone
   form shows one side at a time; canvas regions, whose reading position is
   two-dimensional; slides as a presentation of `lf-tabs`.
-- **Place the comment composer correctly on a page that sets a margin on `html`.**
-  With `html { margin-left: 40px }` the floating composer lands 40px left of its lane
-  and overlaps the element it comments on, on any page wide enough to place it
-  beside its target. The reference rect handed to Floating UI (`composing/surface.js`,
-  `placeFab`) and the fixed bar disagree by the root's margin.
-  `test_an_aimed_comment_keeps_its_place_with_the_asks_drawer_open` reproduces it at
-  1200px with the drawer closed and runs at 900px, where the composer goes above or
-  below, until this is fixed.
-- **Land a sent comment's thread where its comment box stood.** A comment typed beside
-  an option near the top of the window (the box standing just under the banner) came
-  back as a margin card level with the option, about 330px lower, so the words the
-  user just wrote jump across the page on send. The send's carry transition
-  (`composing/surface.js`, the card placement in `margin-projection.js`) animates the
-  jump rather than avoiding it. The card and the box choose their places by different
-  rules: the box from the target and the room at the moment it opened, the card from the
-  margin's own layout. Either the card opens where the box stood, or the box opens where
-  the card will stand.
 - **Unconfirmed: scrolling a live sample sometimes sticks.** A user reported it
   while a sample still scrolled inside a fixed-height frame, with no reproduction.
   The frame now takes its page's height, so nothing scrolls inside it; check that the
@@ -265,7 +226,8 @@ that changes size after first paint, with its cause.
   the first state answer, after first paint. Serving that state inside the page does
   not work: modules run after first paint, and a page revision is immutable while the
   log keeps changing. Follow #1566's Command Hub pattern instead: draw a summary whose
-  size is known at first paint, open the rows from it, and hold later growth with
+  structure is fixed, declared as the widget's `x-prepaint` so the first paint lays it
+  out, open the rows from it, and hold later growth with
   `HeldReading` (`runtime/thread/held-news.js`) while it would be seen. Check first
   whether a text document, which the reader came to read, can stand behind a summary.
 - **Decide the contents' form before first paint.** `lf-toc` changes size because the
@@ -377,6 +339,16 @@ height and where a switch lands wait on the workspace decision under Layout.
   broad selection is about 3,700 s of test time on a CI runner. If the rate rose,
   look at which escapes a cheap fixed set of tests would have caught, and choose
   that set by measured catches per second rather than by kind.
+- **Guard thread appearance on CI again.** The thread snapshot gate compares images
+  on macOS only (`dev/leaf_dev/thread_snapshots.py`), so a pull request's Linux CI
+  checks the delivery journey but not how it looks. Fonts and antialiasing differ by
+  OS, so Mac and Linux images never match. A Linux image could only be made on CI's
+  own runner, which meant pushing, downloading the run's images and accepting them
+  by hand. Find an approach where whoever changes the appearance can render the
+  compared images themselves. Candidates: render Linux baselines locally in the
+  same container CI runs, the approach Playwright recommends (an arm64 image on a
+  Mac matches CI only on an arm64 runner); or a hosted visual-review service that
+  renders both sides itself.
 
 ## Etc
 
@@ -384,6 +356,11 @@ Revisit these when their stated trigger becomes real; they are not an active que
 
 ### Product and harness ideas
 
+- **Revisit where an abandoned comment's words come back.** A page comment closed
+  with Escape keeps its words, and the next box `c` opens, such as a thread card's
+  reply, offers them, since Leaf can't know exactly where the user last typed. That
+  is deliberate; a better approach may tie the words to where they were written.
+  Trigger: a user is surprised to find their words in an unrelated box.
 - **Revisit a pin's icons if they read unclearly.** A pin shows the rail's outline
   icon in white on its fill, at 26px. A filled icon reads more clearly at that size,
   and needs no second copy — the same SVG with its fill set — but only an icon whose

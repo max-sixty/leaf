@@ -155,7 +155,7 @@ so a phase does not depend on discovering a chain of references.
 
 ### First handoff
 
-- `references/conversation-loop.md`: before a page handoff, a working status, or
+- `references/conversation-loop.md`: before a page handoff, starting work on the page, or
   work long enough to delegate.
 - `references/harness-claude-code.md`: before the first handoff in Claude Code or
   recovery of its direct wait loop.

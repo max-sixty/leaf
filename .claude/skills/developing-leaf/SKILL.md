@@ -77,6 +77,17 @@ interactions. Start their fictional histories with `data-sample-events`, sharing
 one parent-local JSON fixture when the candidates need the same conversation
 (`skills/leaf/references/page-authoring.md`, "Live samples").
 
+## Choose what the user reviews
+
+Show the change or unresolved choice that needs the user's judgment, with the
+comparison and tradeoff needed to assess it. Name the feedback sought. When
+nothing needs their judgment, hand over the verified result.
+
+Verify behavior expected to stay unchanged against the baseline yourself and
+report what you checked and found. An unchanged sample can explain a changed
+contract; make it optional to operate and keep regression verification with the
+agent. Present visible and interaction changes using the proof below.
+
 ## Prove and hand off a visible change
 
 Review at a representative desktop viewport (`skills/leaf/assets/AGENTS.md`,
@@ -170,12 +181,18 @@ idle a preview to quiet the loop; `idle` closes the page in the browser.
    Annotation mode sends visual comments with the next chat message; Leaf's text
    selection and comment affordance send an anchored thread directly.
 
-## Test the hosted website agent
+## Run the agent journey
 
-`uv run --project <root> leaf-dev verify-site local` builds the site, starts the
-website adapter against the host's Codex login, asks for one heading edit, and
-verifies the publication, reply, and changed page in Chrome. It bypasses the
-Cloudflare Worker, container limits, and credential proxy, and needs no Docker.
+`uv run --project <root> leaf-dev journey TARGET` runs one user's journey in
+Chrome: on the triage board, it tells the agent through Threads that a release
+passed its checks and asks it to record that, leaving how to the agent, then checks
+a reply shows and a reload presents a revision naming the release. It prints how long each step took, the agent's steps on the page
+server's clock, so the same journey benchmarks every harness. TARGET is `cc` or
+`codex` for an isolated session of that harness running this working tree's
+plugin, `local` for the website's adapter against the host's Codex login (no
+Worker, container limits, credential proxy or Docker), `wrangler` for the built
+site through the local Worker, or a website origin. A run on this machine spends
+the harness's login.
 
 Use CI for Linux-specific evidence and the complete Worker/container boundary:
 pull requests run the site build, dry-run deploy, and `verify-site wrangler`, and
@@ -186,10 +203,10 @@ delivery through it and `OPENAI_API_KEY` is exported, run:
 ```bash
 npm ci --prefix <root>/worker
 npm run build --prefix <root>/worker
-uv run --project <root> leaf-dev verify-site wrangler --agent
+uv run --project <root> leaf-dev journey wrangler
 ```
 
-The `publish-site` workflow's run against the deployed release is the only
+The `publish-site` workflow's journey against the deployed release is the only
 production reading.
 
 ## Test a terminal Codex task
@@ -295,16 +312,16 @@ When a change adds or removes a worked example or changes its first viewport,
 run `wt refresh-previews` from the repository root on macOS once the examples
 are ready, and again after integrating `main` or any later fix that changes a
 first viewport. It pushes the stills to `max-sixty/leaf-assets` and moves the pin
-in `leaf-assets.json` and the README's image URLs; that push is part of the
-authorized change. `uv run leaf-dev record-demo` does the same for the README's
+in `leaf-assets.json` and the README's image URLs. `uv run leaf-dev record-demo` does the same for the README's
 recording and stills and the site's card. Run `wt setup` first in a new checkout;
 if Worktrunk asks to approve the project commands, ask the user to run
 `wt config approvals add`.
 
 ## Land a change
 
-Thread appearance changes run `tests/test_render_thread_snapshots.py` through the
-ordinary gate. Review the failure's captured images before accepting an intentional
+Thread appearance changes run `tests/test_render_thread_snapshots.py`, which compares
+images on macOS only, so run it on a Mac before landing; a pull request's Linux CI runs
+its journey without comparing. Review the failure's captured images before accepting an intentional
 change; `dev/leaf_dev/thread_snapshots.py` owns the pinned-image capture and acceptance workflow.
 
 A red gate is the branch's to fix. A pull request's `test` job and the local

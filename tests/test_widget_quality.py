@@ -221,6 +221,67 @@ def test_a_tab_set_first_paints_the_panel_it_opens_on(browser, serve):
         page.unroute_all(behavior="wait")
 
 
+DIFF_EXAMPLE = json.loads(
+    (SKILL_ROOT / "packages" / "diff" / "registry.json").read_text()
+)["lf-diff"]["x-example"]
+
+# Each case's markup and the window width it is read at. A draft indented as the HTML
+# around it is, its closing tag on a line of its own, with words that wrap in a phone's
+# column. The diff package's worked example, whose stated height is its drawing's at
+# the report's desktop width, read in a phone's window, where it also opens the column;
+# and at a desktop width closing a panel, whose frame trims the host's own margin.
+FIRST_BOXES = {
+    "draft-in-a-phone-column": (
+        """
+<lf-draft id="note">
+  <pre>
+    Adds --dry-run to every mutating command, so a script can see what would change.
+  </pre>
+</lf-draft>
+""",
+        320,
+    ),
+    "diff-in-a-phone-column": (DIFF_EXAMPLE, 320),
+    "diff-closing-a-panel": (
+        f'<section class="panel" id="ends"><p>The patch.</p>{DIFF_EXAMPLE}</section>',
+        1200,
+    ),
+}
+
+
+@pytest.mark.parametrize("case", FIRST_BOXES)
+def test_a_widget_first_paints_the_box_it_presents(browser, serve, case):
+    """A draft's authored words stand where its drawn body will, the source's
+    indentation and closing line dropped and the words wrapped as the body wraps them.
+    A diff's toolbar keeps one row in a phone's column, so the height its author stated
+    at a desktop width holds there, and its drawing hands no margin out past the frame
+    trim at either edge. What follows each stays where it first painted."""
+    markup, width = FIRST_BOXES[case]
+    url = serve(
+        leaf_page(
+            "First boxes",
+            markup + '\n<lf-draft id="after"><pre>After.</pre></lf-draft>',
+        )
+    )
+    page = browser.new_page(viewport={"width": width, "height": 900})
+    boot = []
+    page.route("**/leaf.js", lambda route: boot.append(route))
+    try:
+        with page.expect_request("**/leaf.js"):
+            page.goto(url, wait_until="commit")
+        displayed(page)
+        assert boot, "the positive control did not hold the boot module"
+        first = page.evaluate(SHOWN)["boxes"]
+        page.unroute("**/leaf.js")
+        boot.pop().continue_()
+        wait_until_ready(page)
+        assert first == page.evaluate(SHOWN)["boxes"]
+    finally:
+        for route in boot:
+            route.continue_()
+        page.unroute_all(behavior="wait")
+
+
 def test_an_export_first_paints_its_widgets_at_their_presented_boxes(
     browser, serve, tmp_path
 ):

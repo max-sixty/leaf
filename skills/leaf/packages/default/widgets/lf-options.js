@@ -108,6 +108,7 @@ import {
   keeps,
   commands,
   landInThread,
+  markdownWords,
   offer,
   quoted,
   reachedForWords,
@@ -203,17 +204,13 @@ class OptionControl extends LitElement {
 
 class DoneControl extends LitElement {
   static properties = {
-    activate: { attribute: false },
     answered: { attribute: false },
-    available: { attribute: false },
     busy: { attribute: false },
   };
 
   constructor() {
     super();
-    this.activate = null;
     this.answered = false;
-    this.available = false;
     this.busy = false;
   }
 
@@ -241,9 +238,6 @@ class DoneControl extends LitElement {
       data-lf-offer="button"
       aria-label="Done: my picks here are complete"
       aria-pressed=${String(this.answered)}
-      aria-disabled=${String(!this.available)}
-      tabindex=${this.available ? 0 : -1}
-      @click=${this.activate}
     >
       <span
         class="lf-key-badge lf-ui"
@@ -266,6 +260,25 @@ customElements.define(
       reading: { attribute: false },
     };
 
+    // What the Ask was answered with: the picked options' names, the group's own in its
+    // order and then the user's in the order they added them. An option the user added
+    // is named by the words its `add` carries, and an authored one by its markup.
+    static answerWords(state, group) {
+      const picked = new Set(state.choose.detail.options);
+      const added = Object.entries(state.add?.units ?? {});
+      const authored = [...group.querySelectorAll(":scope > lf-option")].filter(
+        (option) => picked.has(option.id) && !added.some(([id]) => id === option.id),
+      );
+      return (
+        [
+          ...authored.map((option) => label(option) || option.id),
+          ...added
+            .filter(([id]) => picked.has(id))
+            .map(([, { detail }]) => markdownWords(detail.text)),
+        ].join(", ") || "No options selected"
+      );
+    }
+
     #addition = null;
     #answering = null;
     #choosable = false;
@@ -275,7 +288,6 @@ customElements.define(
     #done = null;
     #keysDirty = false;
     #settled = null;
-    #stateKey = null;
     #stop = null;
     #wired = false;
 
@@ -432,7 +444,6 @@ customElements.define(
     // the pressed control's own line holds still.
     #doneRow() {
       this.#done = offer(DONE_TAG, "lf-options-done");
-      this.#done.activate = () => void this.#answer();
       this.append(this.#done);
     }
 
@@ -468,7 +479,6 @@ customElements.define(
 
     #syncDone() {
       if (!this.#done) return;
-      this.#done.available = this.#available("answer");
       this.#done.answered = Boolean(this.reading?.state.answer?.action);
       this.#done.busy = Boolean(this.#answering);
     }
@@ -574,19 +584,15 @@ customElements.define(
         answerRows.push({
           id: "option.done",
           contextKeys: this.#contextKeys("done"),
-          control: this.#done.control,
+          control: () => this.#done.control,
           decision: true,
-          bindingBadge: this.#done.bindingBadge,
+          bindingBadge: () => this.#done.bindingBadge,
           title: "Done",
           description: "Finish choosing options",
           when: () => this.#available("answer"),
-          run: () => this.#done.control.click(),
+          run: () => void this.#answer(),
         });
-      commands(this, SECTION, answerRows, {
-        answer: () =>
-          [...this.#picked()].map((option) => label(option) || option.id).join(", ") ||
-          "No options selected",
-      });
+      commands(this, SECTION, answerRows);
     }
 
     // The block this option is about. A pointer, not a voice: its text is the id it
@@ -660,15 +666,6 @@ customElements.define(
     #present = (reading) => {
       this.reading = reading;
       this.#refreshAvailability();
-      const state = reading.state;
-      const stateKey = JSON.stringify([
-        state.choose?.detail ?? null,
-        state.answer?.value ?? null,
-      ]);
-      if ((state.choose || state.answer) && stateKey !== this.#stateKey) {
-        this.#stateKey = stateKey;
-        document.dispatchEvent(new CustomEvent("lf-answered"));
-      }
     };
 
     renderState(state) {

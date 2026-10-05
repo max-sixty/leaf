@@ -222,6 +222,8 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
     effect replaces a closing answer without itself closing a thread. ``anchor`` is
     the thread's current page location, and ``detached_from`` retains the last real
     anchor only when an explicit null replacement leaves the thread detached.
+    ``rewritten_from`` retains the anchor a ``reanchor`` moved off, whose quoted words a
+    version rewrote, until a reply chooses the thread's place again.
     A new spoken reply resumes the thread; reactions and failure receipts
     leave its closure standing. A later resolution closes it again.
 
@@ -262,6 +264,7 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
                 "title": None,
                 "anchor": message.get("anchor"),
                 "detached_from": None,
+                "rewritten_from": None,
                 "msgs": [message],
                 "resolved": None,
             }
@@ -281,6 +284,7 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
             continue
         if e["kind"] == "reanchor":
             if thread := threads.get(e["thread"]):
+                thread["rewritten_from"] = thread["anchor"]
                 thread["anchor"] = e["anchor"]
                 thread["detached_from"] = None
             continue
@@ -310,6 +314,7 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
                     "title": None,
                     "anchor": e.get("anchor"),
                     "detached_from": None,
+                    "rewritten_from": None,
                     "msgs": [],
                     "resolved": None,
                 }
@@ -324,6 +329,7 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
                     thread["anchor"] if e["anchor"] is None else None
                 )
                 thread["anchor"] = e["anchor"]
+                thread["rewritten_from"] = None
             thread_for[e["id"]] = thread
         # A resolve names a message rather than opening one, so a thread the log
         # lost whole — no reply of its own survived either — leaves it nothing to close.

@@ -12,8 +12,11 @@ from click.testing import CliRunner
 from interact_support import (
     append_carried_log_record,
     append_command,
+    declare_work,
+    end_work,
     record_claim,
     wait_for,
+    working,
 )
 from leaf import cli as cli_model
 from leaf import data as data_model
@@ -26,7 +29,7 @@ from leaf import service as service_model
 from leaf import session as session_model
 from leaf import state as cleanup_model
 from leaf import user_views as user_views_model
-from leaf.leases import take_lease, waiter_lease_path
+from leaf.leases import release_lease, take_lease, waiter_lease_path
 from leaf.render_checks import rendered, wait_until_ready
 from leaf.schema import ELEMENT_ID
 from leaf.served_state.reading import page_reading, source_readings
@@ -84,6 +87,7 @@ from render_harness import (
     consume_browser_errors,
     displayed,
     draft_control,
+    expect_asks_answered,
     expect_banner_control_offered,
     holding,
     leaf_page,
@@ -500,7 +504,7 @@ def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
 
 @pytest.mark.parametrize(
     ("width", "has_touch", "banner_height"),
-    [(390, True, 89), (740, True, 53), (800, False, 42), (1724, False, 42)],
+    [(390, True, 89), (740, True, 89), (800, False, 42), (1724, False, 42)],
 )
 def test_authored_html_paints_while_runtime_startup_is_held(
     browser, serve, width, has_touch, banner_height
@@ -791,7 +795,7 @@ RESTORED_PROSE = "".join(
 @pytest.mark.parametrize(
     ("saved", "wide", "window"),
     [
-        ({"lf-auxiliary-surface": "asks", "lf-drawer-slot-width": "280"}, False, 1600),
+        ({"lf-auxiliary-surface": "queue", "lf-drawer-slot-width": "280"}, False, 1600),
         (
             {"lf-auxiliary-surface": "threads", "lf-thread-panel-width": "500"},
             True,
@@ -799,10 +803,10 @@ RESTORED_PROSE = "".join(
         ),
         # Where it would leave less than a usable page it covers the page instead.
         ({"lf-auxiliary-surface": "threads"}, True, 700),
-        # The Asks drawer by the same rule: 300 of a 600px window leaves 300.
-        ({"lf-auxiliary-surface": "asks"}, False, 600),
+        # The Queue panel by the same rule: 300 of a 600px window leaves 300.
+        ({"lf-auxiliary-surface": "queue"}, False, 600),
     ],
-    ids=["asks", "threads-wide-page", "covering", "asks-covering"],
+    ids=["queue", "threads-wide-page", "covering", "queue-covering"],
 )
 @pytest.mark.parametrize("contained", [False, True])
 def test_a_restored_auxiliary_surface_leaves_the_page_where_it_painted(
@@ -870,7 +874,7 @@ def test_a_restored_auxiliary_surface_leaves_the_page_where_it_painted(
             "data-lf-auxiliary-surface", surface
         )
         expect(page.locator("html[data-lf-covering-surface]")).to_have_count(
-            1 if window < {"asks": 620, "threads": 740}[surface] else 0
+            1 if window < {"queue": 620, "threads": 740}[surface] else 0
         )
         presented = geometry()
         assert presented == pytest.approx(initial, abs=1), (
@@ -1591,7 +1595,7 @@ def test_a_current_auxiliary_choice_replaces_a_persisted_drawer_during_replay(
     priming = context.new_page()
     priming.goto(url, wait_until="load")
     wait_until_ready(priming)
-    priming.evaluate("localStorage.setItem('lf-auxiliary-surface', 'asks')")
+    priming.evaluate("localStorage.setItem('lf-auxiliary-surface', 'queue')")
     priming.close()
 
     held = []
@@ -1602,28 +1606,27 @@ def test_a_current_auxiliary_choice_replaces_a_persisted_drawer_during_replay(
     page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
     assert held, "the positive control did not hold the first state response"
     body = page.locator("body")
-    expect(body).to_have_attribute("data-lf-auxiliary-surface", "asks")
-    expect_banner_control_offered(page.locator(".lf-asks"), offered=False)
-    expect(page.locator(".lf-asks-panel")).to_be_hidden()
+    expect(body).to_have_attribute("data-lf-auxiliary-surface", "queue")
+    expect_banner_control_offered(page.locator(".lf-queue"), offered=False)
+    expect(page.locator(".lf-queue-panel")).to_be_hidden()
     expect_banner_control_offered(page.locator(".lf-answer-all"), offered=False)
 
     comments = page.locator(".lf-threads-toggle")
     expect(comments).to_be_enabled()
     comments.click()
-    expect(body).not_to_have_attribute("data-lf-auxiliary-surface", "asks")
+    expect(body).not_to_have_attribute("data-lf-auxiliary-surface", "queue")
     expect(page.locator(".lf-general leaf-text")).to_be_editable()
 
     held.pop(0).continue_()
     wait_until_ready(page)
     expect(page.locator("#sug")).to_have_attribute("data-lf-state", "accept")
-    decisions = page.locator(".lf-asks")
+    decisions = page.locator(".lf-queue")
     expect_banner_control_offered(decisions)
-    expect(decisions).to_have_text("Asks 1/1")
-    expect(decisions).to_have_attribute("data-lf-complete", "")
+    expect_asks_answered(page, "1/1")
     expect(decisions).to_have_attribute("aria-expanded", "false")
-    expect(page.locator(".lf-asks-panel")).to_be_hidden()
+    expect(page.locator(".lf-queue-panel")).to_be_hidden()
     expect(page.locator(".lf-thread-panel")).to_be_visible()
-    expect(page.locator("button.lf-asks-row")).to_have_count(0)
+    expect(page.locator("button.lf-queue-row")).to_have_count(0)
     expect_banner_control_offered(page.locator(".lf-answer-all"), offered=False)
 
 
@@ -2124,8 +2127,9 @@ def test_the_thread_follows_the_decision_that_still_stands(browser, serve):
     # replayed onto it, so what the press restores is the accept, not a blank slate.
     undo(page)
     expect(page.locator("#sug-fix")).to_have_attribute("data-lf-state", "accept")
-    # The undo is no gesture on the thread, so its card stays where it stands, closed.
-    expect(reopened).to_have_attribute("data-resolved", "true")
+    # The undo is no gesture on the thread, so its card stays where it stands, holding
+    # the resolution behind its notice.
+    expect(reopened.get_by_role("button", name="Resolved", exact=True)).to_be_visible()
     expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
     # What the log holds is the three gestures and not one word about the thread:
     # it was reopened and closed again by that log being read.
@@ -2749,7 +2753,7 @@ def test_a_presence_read_crossing_freshness_returns_to_the_current_lease(
             route.fulfill(response=response)
 
         page.route("**/api/state*", crossing)
-        lease.close()
+        release_lease(lease)
         page.wait_for_function(
             "root => root.state.listening === false", arg=runtime, timeout=6000
         )
@@ -2759,7 +2763,7 @@ def test_a_presence_read_crossing_freshness_returns_to_the_current_lease(
 
 
 def test_status_changes_coalesce_behind_one_state_read(browser, serve):
-    """Rapid status.json writes do not build a queue of state requests.
+    """Rapid starts do not build a queue of state requests.
 
     Freshness looks may announce several new readings while the container is still
     answering one. They collapse into one trailing read, which takes the newest state.
@@ -2769,10 +2773,7 @@ def test_status_changes_coalesce_behind_one_state_read(browser, serve):
     text = page.locator(".lf-status-detail")
 
     def declare(detail):
-        cleanup_model.write_json(
-            d / "status.json",
-            {"state": "working", "detail": detail, "ts": cleanup_model.now_iso()},
-        )
+        declare_work(d, detail)
 
     # Every ask is held; the test answers each admitted read by hand.
     held = []
@@ -3183,19 +3184,17 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         claimed=True,
         stream=None,
     ):
-        """`quiet_for` ages the claim; `turn_ended` says how long ago the Stop hook
-        watched the turn behind it end. Separate seconds, because the case the second
-        exists for is a claim that is not old at all."""
+        """`quiet_for` ages the declaration; `turn_ended` says how long ago the Stop
+        hook watched the turn behind it end. Separate seconds, because the case the
+        second exists for is a start that is not old at all. `working` is a start on
+        the page's own task, in the claimant's voice, with a `waiting` status of the
+        same age beside it; anything else ends that task and writes the status."""
         ts = datetime.now().astimezone() - timedelta(seconds=quiet_for)
+        end_work(d)
         status = {
-            "state": state,
-            "detail": detail,
+            "state": "waiting" if state == "working" else state,
+            "detail": "" if state == "working" else detail,
             "ts": ts.isoformat(timespec="seconds"),
-            "after": (
-                events_model.read_events(d)[-1]["seq"]
-                if events_model.read_events(d)
-                else 0
-            ),
         }
         if stream is not None:
             # What a transport watched for itself, written the way an App Server
@@ -3205,7 +3204,11 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
                     "session": "s",
                     "turn": "turn-live",
                     "ts": ts.isoformat(timespec="seconds"),
-                    "after": status["after"],
+                    "after": (
+                        events_model.read_events(d)[-1]["seq"]
+                        if events_model.read_events(d)
+                        else 0
+                    ),
                 }
                 | stream
             }
@@ -3224,25 +3227,34 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         else:
             service_model.claim_path(d).unlink(missing_ok=True)
         cleanup_model.write_json(d / "status.json", status)
+        if state == "working":
+            declare_work(
+                d,
+                detail,
+                ts=ts.isoformat(timespec="seconds"),
+                **({"session": "s"} if claimed else {}),
+            )
         told(page)
 
     declare("working", "revising the plan")
-    expect(summary).to_have_text("Claude working — revising the plan · 1 waiting")
+    expect(summary).to_have_text("Claude working — revising the plan")
+    # The row's account of the agent's side is the queue count, not the delivery
+    # count the disclosure keeps.
+    expect(page.locator(".lf-status-queues")).to_have_text("2 on Claude")
     expect(text).to_have_text(
         re.compile(
-            r"^Claude is working — revising the plan \(.+\)\. 1 update waiting\.$"
+            r"^Claude is working — revising the plan \(.+\)\. 1 update waiting\."
+            r" Waiting on Claude: 1 reply, 1 task \(Work on the page\)\.$"
         )
     )
     expect(dot).to_have_class(re.compile(r"\bworking\b"))
     # A claim still believed but minutes old is dated on the row itself, so a long step
     # and a quiet agent read differently without opening the disclosure.
     declare("working", "revising the plan", quiet_for=5 * 60)
-    expect(summary).to_have_text(
-        "Claude working · 5m ago — revising the plan · 1 waiting"
-    )
+    expect(summary).to_have_text("Claude working · 5m ago — revising the plan")
     expect(dot).to_have_class(re.compile(r"\bworking\b"))
     declare("working", "revising the plan")
-    expect(summary).to_have_text("Claude working — revising the plan · 1 waiting")
+    expect(summary).to_have_text("Claude working — revising the plan")
 
     [first_comment] = [
         event for event in events_model.read_events(d) if event["kind"] == "comment"
@@ -3252,7 +3264,8 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     told(page)
     expect(text).to_have_text(
         re.compile(
-            r"^Claude is working — revising the plan \(.+\)\. " r"1 update queued\.$"
+            r"^Claude is working — revising the plan \(.+\)\. "
+            r"1 update queued\. Waiting on Claude: 1 reply, 1 task \(Work on the page\)\.$"
         )
     )
     expect(dot).to_have_class(re.compile(r"\bworking\b"))
@@ -3294,12 +3307,12 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         expect(text).to_have_text(
             re.compile(
                 r"^Claude is working — revising the plan \(.+\)\. "
-                r"1 update waiting\.$"
+                r"1 update waiting\. Waiting on Claude: 1 reply, 1 task \(Work on the page\)\.$"
             )
         )
         expect(dot).to_have_class(re.compile(r"\bworking\b"))
 
-        expect(summary).to_have_text("Claude working — revising the plan · 1 waiting")
+        expect(summary).to_have_text("Claude working — revising the plan")
 
         # A transport that can watch the session's own steps reports one, and the agent
         # says what the work is. The row keeps the sentence written for the user; the
@@ -3309,13 +3322,11 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
             "revising the plan",
             stream={"kind": "tool", "detail": "Running the tests"},
         )
-        expect(summary).to_have_text(
-            "Claude using a tool — revising the plan · 1 waiting"
-        )
+        expect(summary).to_have_text("Claude using a tool — revising the plan")
         expect(text).to_have_text(
             re.compile(
                 r"^Claude is using a tool — revising the plan \(.+\) · "
-                r"Running the tests\. 1 update waiting\.$"
+                r"Running the tests\. 1 update waiting\. Waiting on Claude: 1 reply, 1 task \(Work on the page\)\.$"
             )
         )
         expect(dot).to_have_class(re.compile(r"\bworking\b"))
@@ -3327,9 +3338,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
             ({"kind": "replying"}, "replying"),
         ]:
             declare("working", "revising the plan", stream=stream)
-            expect(summary).to_have_text(
-                f"Claude {words} — revising the plan · 1 waiting"
-            )
+            expect(summary).to_have_text(f"Claude {words} — revising the plan")
 
         # A claim of work that has gone quiet is still a claim of work, and a live
         # watcher does not turn it into one. This read "Claude awaits — select text to
@@ -3341,15 +3350,11 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         declare("working", "revising the plan", quiet_for=20 * 60)
         expect(text).to_have_text(
             "Claude last checked in 20m ago: revising the plan. 1 update is saved."
+            " Waiting on Claude: 1 reply, 1 task (Work on the page)."
         )
         expect(dot).to_have_class(re.compile(r"\baway\b"))
 
         expect(summary).to_have_text("Claude last checked in 20m ago")
-
-        # And with no detail it is the bare silence, which is the same sentence with
-        # nothing to say after the colon rather than a second wording for it.
-        declare("working", quiet_for=20 * 60)
-        expect(text).to_have_text("Claude last checked in 20m ago. 1 update is saved.")
 
         # The same silence reached by evidence rather than by the clock. A claim is
         # written by a model's turn, and a turn ends without running anything — so
@@ -3361,7 +3366,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         declare("working", "revising the plan", quiet_for=6 * 60, turn_ended=5 * 60)
         expect(text).to_have_text(
             "Claude left this when its turn ended 5m ago: revising the plan."
-            " 1 update is saved."
+            " 1 update is saved. Waiting on Claude: 1 reply, 1 task (Work on the page)."
         )
         expect(dot).to_have_class(re.compile(r"\baway\b"))
 
@@ -3374,7 +3379,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         declare("working", "revising the plan", quiet_for=5 * 60, turn_ended=5 * 60)
         expect(text).to_have_text(
             "Claude left this when its turn ended 5m ago: revising the plan."
-            " 1 update is saved."
+            " 1 update is saved. Waiting on Claude: 1 reply, 1 task (Work on the page)."
         )
 
         # A turn that has only just ended still holds it. An agent that ends its turn
@@ -3398,19 +3403,22 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         declare("waiting", "pick a storage engine")
         expect(text).to_have_text(
             "Claude is listening — pick a storage engine. 1 update waiting."
+            " Waiting on Claude: 1 reply."
         )
         expect(page.locator(".lf-status-button")).to_have_attribute(
-            "title", "Claude is listening — pick a storage engine. 1 update waiting."
+            "title",
+            "Claude is listening — pick a storage engine. 1 update waiting."
+            " Waiting on Claude: 1 reply.",
         )
 
     # No watcher, but Claude checked in moments ago, so it is between turns.
     declare("waiting")
     expect(text).to_have_text(
         "Claude isn't watching right now. 1 update is saved."
-        " It picks them up next turn."
+        " It picks them up next turn. Waiting on Claude: 1 reply."
     )
 
-    expect(summary).to_have_text("Claude away · 1 saved")
+    expect(summary).to_have_text("Claude away")
 
     # With nobody listening and the turn over, an update that has only just arrived
     # still reads away: the session's next turn takes it, and a harness Leaf can
@@ -3418,7 +3426,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     declare("working", "running the migration", quiet_for=6 * 60, turn_ended=5 * 60)
     expect(text).to_have_text(
         "Claude isn't watching right now. 1 update is saved."
-        " It picks them up next turn."
+        " It picks them up next turn. Waiting on Claude: 1 reply, 1 task (Work on the page)."
     )
     expect(dot).to_have_class(re.compile(r"\baway\b"))
 
@@ -3439,8 +3447,9 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     expect(text).to_have_text(
         "Claude left this when its turn ended 5m ago. 2 updates are saved."
         " Nothing is answering them, so nudge it in the terminal."
+        " Waiting on Claude: 2 replies, 1 task (Work on the page)."
     )
-    expect(summary).to_have_text("Nudge Claude in terminal · 2 saved")
+    expect(summary).to_have_text("Nudge Claude in terminal")
     expect(dot).to_have_class(re.compile(r"\baway\b"))
 
     # Claude's own status gets a far longer rope: the same silence is just a long turn.
@@ -3451,8 +3460,10 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     # A dead session needs no timeout at all — the owning pid is simply gone, so the
     # claim it left has nothing behind it however lately it was written.
     declare("working", "running the migration", session_pid=dead_pid)
-    expect(text).to_have_text(UNHELD)
-    expect(summary).to_have_text("No session · 2 saved")
+    expect(text).to_have_text(
+        UNHELD + " Waiting on Claude: 2 replies, 1 task (Work on the page)."
+    )
+    expect(summary).to_have_text("No session")
     # Grey, not the amber a session falling behind wears: nobody is on the line, which
     # is a page's reading arrangement rather than something for the user to chase.
     expect(dot).to_have_class(re.compile(r"^lf-dot\s*$"))
@@ -3465,13 +3476,15 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     # Once that claim goes quiet there is nothing left holding the page, and an hour of
     # silence on a page that stands for weeks is not a fault to report.
     declare("working", "running the migration", quiet_for=60 * 60, claimed=False)
-    expect(text).to_have_text(UNHELD)
+    expect(text).to_have_text(
+        UNHELD + " Waiting on Agent: 2 replies, 1 task (Work on the page)."
+    )
 
     declare("working", "revising the plan", agent="Codex")
     expect(text).to_have_text(re.compile(r"^Codex is working — revising the plan"))
 
     declare("idle")
-    expect(text).to_have_text("Leaf closed")
+    expect(text).to_have_text("Leaf closed. Waiting on Claude: 2 replies.")
 
 
 def test_the_page_dates_a_claim_by_the_clock_that_wrote_it(browser, serve):
@@ -3492,15 +3505,12 @@ def test_the_page_dates_a_claim_by_the_clock_that_wrote_it(browser, serve):
 
     def claim(detail):
         record_claim(d, id="s")
-        cleanup_model.write_json(
-            d / "status.json",
-            {"state": "working", "detail": detail, "ts": cleanup_model.now_iso()},
-        )
+        declare_work(d, detail)
         told(page)
 
     claim("running the migration")
     expect(text).to_have_text(
-        re.compile(r"^Claude is working — running the migration \(just now\)$")
+        re.compile(r"^Claude is working — running the migration \(just now\)\.")
     )
 
     # An hour fast. A fixed time rather than an installed clock, so the page's own
@@ -3510,7 +3520,7 @@ def test_the_page_dates_a_claim_by_the_clock_that_wrote_it(browser, serve):
     # clock moved: an unchanged sentence would pass on the render before it.
     claim("waiting on the shard")
     expect(text).to_have_text(
-        re.compile(r"^Claude is working — waiting on the shard \(just now\)$")
+        re.compile(r"^Claude is working — waiting on the shard \(just now\)\.")
     )
     expect(dot).to_have_class(re.compile(r"\bworking\b"))
 
@@ -3519,7 +3529,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     browser, serve, tmp_path, dead_pid
 ):
     """The banner says what the agent is doing; an exact message workflow says
-    which user question it is doing it about. A status claim updates both readings.
+    which user question it is doing it about. A start updates both readings.
 
     A user with three questions open and no replies under any of them cannot tell a
     question being worked from a question nobody has looked at, and the page holds the
@@ -3549,22 +3559,15 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     expect(held_workflow).to_have_text("Sent")
     held_workflow.evaluate("node => { node.dataset.identityProbe = 'kept' }")
 
-    # The old page-wide declaration is deliberately stale: delivery into this exact
-    # turn, rather than a fresh status command, must be what changes the shared
-    # activity reading.
+    # The old page-wide start is deliberately stale: delivery into this exact turn,
+    # rather than a fresh start, must be what changes the shared activity reading.
     record_claim(d, id="s", pid=os.getpid(), agent="Claude")
-    old_status = files_model.read_json(d / "status.json")
-    cleanup_model.write_json(
-        d / "status.json",
-        {
-            **old_status,
-            "state": "working",
-            "detail": "the earlier task",
-            "ts": (datetime.now().astimezone() - timedelta(minutes=20)).isoformat(
-                timespec="seconds"
-            ),
-            "after": 0,
-        },
+    declare_work(
+        d,
+        "the earlier task",
+        ts=(datetime.now().astimezone() - timedelta(minutes=20)).isoformat(
+            timespec="seconds"
+        ),
     )
     # Durable delivery into the open turn advances the exact same row in place and
     # does not disturb another user move.
@@ -3583,12 +3586,15 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     expect(other_workflow).to_have_text("Sent")
     expect(page.locator(".lf-status-detail")).to_have_text(
         "Claude is working on your update, and hasn't said what it is doing yet"
-        " (just now). 1 update waiting."
+        " (just now). 1 update waiting. Waiting on Claude: 2 replies, 1 task"
+        " (Work on the page)."
     )
     expect(page.locator(".lf-others-self .lf-others-line")).to_have_text(
         "Working · 1 update waiting"
     )
 
+    # The agent finishes the earlier task and waits on the user.
+    end_work(d)
     latent_waiting = CliRunner().invoke(
         cli_model.cli, ["status", str(d), "waiting", "review the answer"]
     )
@@ -3597,7 +3603,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     expect(held_workflow).to_have_text("Picked up")
     expect(page.locator(".lf-status-detail")).to_have_text(
         "Claude is working on your update, and hasn't said what it is doing yet"
-        " (just now). 1 update waiting."
+        " (just now). 1 update waiting. Waiting on Claude: 2 replies."
     )
 
     with service_model.PageTransaction(d) as transaction:
@@ -3613,17 +3619,19 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     expect(page.locator(".lf-status-detail")).to_have_text(
         "Claude last checked in just now. 2 updates are saved. "
         "Nothing is answering them, so nudge it in the terminal."
+        " Waiting on Claude: 2 replies."
     )
     with service_model.PageTransaction(d) as transaction:
         transaction.open_turn("s")
 
-    def status(*args):
-        assert (
-            CliRunner().invoke(cli_model.cli, ["status", str(d), *args]).exit_code == 0
+    def start(item, line):
+        started = CliRunner().invoke(
+            cli_model.cli, ["task", "start", str(d), item, line]
         )
+        assert started.exit_code == 0, started.output
         told(page)
 
-    status("working", "reading the reconnect traces", "--on", held)
+    start(held, "reading the reconnect traces")
     expect(held_thread).not_to_have_attribute(
         "data-lf-agent-workflow", re.compile(".+")
     )
@@ -3662,8 +3670,9 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     # the message, so it stands in the thread's corner and the row ends here.
     expect(held_thread.locator(":scope > .lf-msg-sending")).to_have_count(0)
     assert held_workflow.evaluate(
-        "node => node.parentElement.matches('.lf-msg-meta') "
-        "&& node.previousElementSibling.matches('time')"
+        "node => { const slot = node.closest('.lf-msg-workflow') ?? node; "
+        "return slot.parentElement.matches('.lf-msg-meta') "
+        "&& slot.previousElementSibling.matches('time'); }"
     )
 
     # New words do not detach the claim from the comment that started the work.
@@ -3687,9 +3696,10 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     expect(held_thread.locator(":scope > .lf-msg-sending")).to_have_count(0)
     assert held_thread.evaluate("node => getComputedStyle(node).boxShadow") == "none"
 
-    # A later claim about the page as a whole is not an answer to the thread, so the
-    # line stands: the two seats are one claim, and only one of them has been rewritten.
-    status("working", "drafting v2")
+    # A later start on the page's own task is not an answer to the thread, so the
+    # thread's line stands while the banner takes the newer one.
+    working(d, "drafting v2")
+    told(page)
     expect(page.locator(".lf-status-detail")).to_have_text(
         re.compile(r"^Claude is working — drafting v2")
     )
@@ -3721,9 +3731,10 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     )
     assert held_thread.evaluate("node => getComputedStyle(node).boxShadow") == "none"
 
-    # Once the answer has settled the input, renewed work is thread activity
-    # in the compact card. It does not invent an unasked message workflow.
-    status("working", "re-running it against the rolling deploy", "--on", held)
+    # Once the answer has settled the input, renewed work is a task on the thread,
+    # shown in the compact card. It does not invent an unasked message workflow.
+    working(d, "re-running it against the rolling deploy", subject=held)
+    told(page)
     expect(held_workflow).to_have_count(0)
     expect(header_status).to_have_text("Working")
     # No message carries this work, so the open card's summary still says it.
@@ -3732,16 +3743,18 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     expect(workflows).to_have_count(1)
 
     # A thread the user has closed asks nothing: its card, closed from another tab,
-    # stays where it stands and says it is resolved.
+    # stays where it stands, holding the resolution behind its notice, and its title
+    # no longer says the agent is working on it.
     append_carried_log_record(d, {"kind": "resolve", "author": "user", "parent": held})
     told(page)
     expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
-    expect(held_thread.locator(".lf-thread-status")).to_have_text("Resolved")
+    expect(held_thread.locator(".lf-thread-news")).to_have_text("Resolved")
+    expect(held_thread.locator(".lf-thread-status")).to_have_count(0)
     expect(workflows).to_have_count(1)
 
-    # Reopening restores a claim that no reply answered. The local line still goes
-    # with the page claim it is part of: once nothing holds the page, it cannot keep
-    # claiming work under a banner that says the opposite.
+    # Reopening restores the task, which no reply ends. Its start goes with the page
+    # claim it is part of: once nothing holds the page, the task is open but nothing
+    # runs on it under a banner that says nobody is there.
     append_carried_log_record(
         d, {"kind": "unresolve", "author": "user", "parent": held}
     )
@@ -3753,7 +3766,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     expect(page.locator(".lf-status-detail")).to_have_text(
         re.compile(r"^No session holds this page\.")
     )
-    expect(held_thread.locator(".lf-thread-status")).to_have_count(0)
+    expect(held_thread.locator(".lf-thread-status")).to_have_text("Task open")
     expect(workflows).to_have_count(1)
 
 
@@ -3773,6 +3786,7 @@ def test_feature_gallery_workflow_and_banner_share_agent_activity(browser, serve
         },
     )
     record_claim(page_dir, id="gallery", pid=os.getpid(), agent="Claude")
+    declare_work(page_dir, "Writing the page")
     with service_model.PageTransaction(page_dir) as transaction:
         delivery_model.record_pickup(transaction, [comment])
     told(page)
@@ -3782,16 +3796,22 @@ def test_feature_gallery_workflow_and_banner_share_agent_activity(browser, serve
         f'.lf-thread[data-id="{comment["id"]}"] > .lf-thread-content > .lf-thread-root-meta .lf-msg-sending'
     )
     expect(workflow).to_have_text("Picked up")
+    # The gallery's own queues end the disclosure, after the activity it shares.
     expect(page.locator(".lf-status-detail")).to_have_text(
-        "Claude is working — Writing the page (just now)"
+        re.compile(
+            r"^Claude is working — Writing the page \(just now\)\. Waiting on you"
+        )
     )
 
-    session_model.cmd_status(page_dir, "waiting", "review the gallery")
+    end_work(page_dir)
+    session_model.cmd_waiting(page_dir, "review the gallery")
     told(page)
     expect(workflow).to_have_text("Picked up")
     expect(page.locator(".lf-status-detail")).to_have_text(
-        "Claude is working on your update, and hasn't said what it is doing yet"
-        " (just now)"
+        re.compile(
+            r"^Claude is working on your update, and hasn't said what it is doing yet"
+            r" \(just now\)\. Waiting on you"
+        )
     )
 
 
@@ -3818,11 +3838,13 @@ def test_ended_pickup_preserves_the_declared_invitation_in_banner_and_leaves(
         assert result.exit_code == 0, result.output
         told(page)
 
+        # The picked-up comment still owes its reply, which the row counts.
         expect(page.locator(".lf-status-text")).to_have_text(
             "Claude awaits — pick a storage engine"
         )
+        expect(page.locator(".lf-status-queues")).to_have_text("1 on Claude")
         expect(page.locator(".lf-status-detail")).to_have_text(
-            "Claude awaits — pick a storage engine"
+            "Claude awaits — pick a storage engine. Waiting on Claude: 1 reply."
         )
         expect(page.locator(".lf-others-self .lf-others-line")).to_have_text(
             "Awaits — pick a storage engine"
@@ -3885,8 +3907,9 @@ def test_a_message_workflow_changes_phase_in_place_and_then_stands_still(
     expect(workflow).to_be_visible()
     expect(workflow).to_have_text("Sent")
     assert workflow.evaluate(
-        "node => node.parentElement.matches('.lf-msg-meta') "
-        "&& node.previousElementSibling.matches('time')"
+        "node => { const slot = node.closest('.lf-msg-workflow') ?? node; "
+        "return slot.parentElement.matches('.lf-msg-meta') "
+        "&& slot.previousElementSibling.matches('time'); }"
     )
     expect(workflow.locator("time")).to_have_count(0)
     expect(thread.locator(":scope > .lf-msg-sending")).to_have_count(0)
@@ -3908,12 +3931,11 @@ def test_a_message_workflow_changes_phase_in_place_and_then_stands_still(
     active = CliRunner().invoke(
         cli_model.cli,
         [
-            "status",
+            "task",
+            "start",
             str(d),
-            "working",
-            "comparing the replacement against every narrow thread surface",
-            "--on",
             comment["id"],
+            "comparing the replacement against every narrow thread surface",
         ],
     )
     assert active.exit_code == 0, active.output
@@ -3944,8 +3966,9 @@ def test_an_exact_workflow_reports_stale_work_beside_a_live_page_claim(
     browser, serve, tmp_path
 ):
     """A stale exact-input workflow says so beside its message even while a fresh
-    page-wide claim keeps the banner working. Renewing the claim restores Working;
-    a closed turn matters only when it belongs to the claiming session."""
+    start on the page's own task keeps the banner working. Starting the move again
+    restores Working; a closed turn matters only when it belongs to the session that
+    started it."""
     page = open_page(browser, serve(LONG_PAGE, anchored=[("p1", "Paragraph 1.")]))
     d = serve.page_dir
     held = next(e for e in events_model.read_events(d) if e["kind"] == "comment")["id"]
@@ -3958,33 +3981,18 @@ def test_an_exact_workflow_reports_stale_work_beside_a_live_page_claim(
     held_thread = page.locator(f'.lf-thread[data-id="{held}"]')
 
     def claim(claim_ts, session="s"):
-        """A page claim made now, carrying local work last renewed whenever."""
-        cleanup_model.write_json(
-            d / "status.json",
-            {
-                "state": "working",
-                "detail": "rerunning the failing shard",
-                "ts": cleanup_model.now_iso(),
-                "after": events_model.read_events(d)[-1]["seq"],
-                "work": [
-                    {
-                        "id": "trace-check",
-                        "subject": {"kind": "thread", "id": held},
-                        "event": held,
-                        "detail": "reading the reconnect traces",
-                        "ts": claim_ts,
-                        "after": next(
-                            e["seq"]
-                            for e in events_model.read_events(d)
-                            if e["id"] == held
-                        ),
-                        "agent": "Claude",
-                        "session": session,
-                        "turn": "turn-1",
-                    }
-                ],
-            },
+        """A start on the comment last renewed whenever, beside a start on the page's
+        own task made now."""
+        declare_work(
+            d,
+            "reading the reconnect traces",
+            item=held,
+            ts=claim_ts,
+            agent="Claude",
+            session=session,
+            turn="turn-1",
         )
+        declare_work(d, "rerunning the failing shard")
         told(page)
 
     claim(cleanup_model.now_iso())
@@ -4132,8 +4140,10 @@ def test_the_tab_wears_what_the_banner_says(browser, serve, tmp_path, dead_pid):
         )
         told(page)
 
-    # `page init` leaves a fresh working claim, so the tab arrives already saying so.
+    declare_work(d, "Writing the page")
+    told(page)
     working = tone("working", "working")
+    end_work(d)
     declare("waiting")
     with live_watcher(d, page):
         awaits = tone("listening", "awaits")
@@ -4420,9 +4430,7 @@ customElements.define('lf-feed', class extends HTMLElement {
 @pytest.mark.parametrize(
     "failure",
     [
-        "begin",
         "outletFor",
-        "end",
         "unregister",
         "end-unregister",
         "disconnect",
@@ -4446,9 +4454,13 @@ def test_a_failed_thread_surface_continues_the_keyboard_opened_reply(browser, se
 def _exercise_failed_thread_surface(browser, serve, failure, *, activation):
     """An adapter failure cannot keep stale local views or stop the next widget.
 
-    Two previously seated threads expose partial claims when outletFor fails on
-    the second one. The healthy surface stands later in registration order, so
-    its updated reply proves reconciliation continued beyond the broken adapter.
+    Each case is one way a surface stops holding its threads: its callback throws
+    (outletFor, after partial claims on the first datum), it unregisters outside or
+    inside its callback, it leaves the page, its outlet moves out of it or off the
+    page, it places nothing, or its datum goes while the callback awaits. Its threads
+    fall back to the core surface with the unsent draft, and its picker lets go of the
+    keyboard. The healthy surface stands later in registration order, so its updated
+    reply proves reconciliation continued beyond the broken adapter.
     """
     entry = {
         "description": "A project-supplied thread surface.",
@@ -4476,19 +4488,18 @@ customElements.define('lf-test-surface', class extends HTMLElement {
       return row;
     });
     this.surface = consumeThreads(this, async (collection, surfaces) => {
-      this.check('begin');
       for (const thread of collection.threads) {
         const target = surfaces.target(thread.key);
         if (!target) continue;
         const {anchor, placement} = target;
-        if (anchor.datum === 'second') this.check('outletFor');
+        if (anchor.datum === 'second' && this.failure === 'outletFor')
+          throw new Error('surface fixture: outletFor');
         if (this.failure !== 'hidden') surfaces.place(thread.key, placement.datumElement.outlet);
       }
         if (this.failure === 'end-unregister') {
           this.failure = null;
           this.surface.unregister();
         }
-        this.check('end');
         for (const row of this.children) {
           if (this.failure === 'moved') document.querySelector('main').append(row.outlet);
           if (this.failure === 'detached') row.outlet.remove();
@@ -4502,11 +4513,8 @@ customElements.define('lf-test-surface', class extends HTMLElement {
         }
     });
   }
-  check(phase) {
-    if (this.failure === phase) throw new Error(`surface fixture: ${phase}`);
-  }
   fail(phase) {
-    this.failure = ['unregister', 'disconnect'].includes(phase) ? 'end' : phase;
+    this.failure = phase;
     if (phase === 'unregister') this.surface.unregister();
     else if (phase === 'disconnect') {
       this.remove();
@@ -4584,7 +4592,7 @@ customElements.define('lf-test-surface', class extends HTMLElement {
     else:
         trigger.focus()
         page.keyboard.press("Enter")
-    expect(strip.locator(".lf-react:visible")).to_have_count(6)
+    expect(strip).to_have_class(re.compile(r"\blf-react-open\b"))
     assert page.evaluate(editing, roots[0]) == (activation == "keyboard")
     assert stored_draft_text(page, f"reply:{roots[0]}") == "Keep this unsent reply."
 
@@ -4652,25 +4660,21 @@ customElements.define('lf-test-surface', class extends HTMLElement {
     page.keyboard.press("Escape")  # and out of the panel that holds it
     expect(page.locator(".lf-thread-panel")).not_to_have_class(re.compile(r"\bopen\b"))
     # A retired thread lands on the surface the user's own gesture reaches. With the
-    # widget still on the page its passages keep a page-local destination, so the margin's
-    # thread margin entry on each datum and each passage's comment count open the fallback
-    # card and Threads stays shut; a disconnected widget leaves no such destination and
-    # the panel answers.
+    # widget still on the page its passages keep a page-local destination, so each datum
+    # gets a margin entry and its comment note opens the fallback card with Threads
+    # shut; a disconnected widget leaves no such destination and the panel answers.
     if failure in {"disconnect", "target-removed"}:
         expect(markers).to_have_count(0)
         page.locator(".lf-threads-toggle").click()
         fallback = page.locator(f'.lf-thread[data-id="{roots[0]}"]')
     else:
         expect(markers).to_have_count(2)
-        markers.first.click()
-        expect(page.locator(".lf-margin-preview")).to_be_visible()
-        expect(page.locator(".lf-thread-panel")).not_to_have_class(
-            re.compile(r"\bopen\b")
-        )
-        page.keyboard.press("Escape")
         comment_note(page, "#broken").press("Enter")
         fallback = page.locator(
             f'.lf-margin-preview .lf-page-thread[data-thread="{roots[0]}"]'
+        )
+        expect(page.locator(".lf-thread-panel")).not_to_have_class(
+            re.compile(r"\bopen\b")
         )
     expect(fallback).to_be_visible()
     expect(fallback).to_contain_text("Discuss broken")
@@ -4701,19 +4705,12 @@ customElements.define('lf-test-surface', class extends HTMLElement {
             "value", "Keep this unsent reply."
         )
         expect(markers).to_have_count(0)
-    if failure not in {
-        "detached",
-        "hidden",
-        "end-unregister",
-        "unregister",
-        "disconnect",
-        "target-removed",
-    }:
-        expected_phase = "end" if failure in {"unregister", "disconnect"} else failure
+    # Only a throw and an outlet outside its owner are faults the page reports.
+    if failure in {"outletFor", "moved"}:
         expected = (
             "returned an outlet outside its presentation owner"
             if failure == "moved"
-            else f"surface fixture: {expected_phase}"
+            else "surface fixture: outletFor"
         )
         consume_browser_errors(page, expected)
 

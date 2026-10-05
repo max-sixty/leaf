@@ -45,6 +45,7 @@ from leaf_dev.page_fixtures import prepare_page, read_fixture
 # needs that file to read the lock. The package itself stays out: the launcher never
 # installs the dev group. A ref from before the package has no such file.
 PAYLOAD = (
+    ".claude/skills/developing-leaf",
     ".agents/plugins",
     ".claude-plugin",
     ".codex-plugin",
@@ -58,9 +59,13 @@ PAYLOAD = (
 )
 
 # The models evals run, pinned so runs on different days compare: each harness's
-# agents, with Claude Code's also judging screenshots, and the judge behind
-# `llm-rubric` assertions.
-MODELS = {"cc": "claude-opus-5-5", "codex": "gpt-6.1-sol", "judge": "claude-sonnet-5-5"}
+# agents, the judge behind `llm-rubric` assertions, and the screenshot judge.
+MODELS = {
+    "cc": "claude-opus-5-5",
+    "codex": "gpt-6.1-sol",
+    "judge": "claude-sonnet-5-5",
+    "screenshots": "gpt-6.1-sol",
+}
 
 
 def run_directory(parent: Path) -> Path:
@@ -578,21 +583,19 @@ def token_counts(trace: list[dict]) -> dict[str, int | None]:
     }
 
 
-def accepted_thread_claims(trace: list[dict], thread: str) -> dict[str, int]:
-    """Bash call ids whose successful status result declares work on THREAD.
+def accepted_starts(trace: list[dict], item: str) -> dict[str, int]:
+    """Bash call ids whose successful `leaf task start` result takes ITEM in hand.
 
-    Status writes one JSON line. Compound Bash output may contain other lines;
-    only its canonical `work` subjects count, never an attempted command or a
-    page-wide declaration. Values are the result's trace index.
+    A start prints the record it appended as one JSON line. Compound Bash output may
+    contain other lines; only a `start` record naming ITEM counts, never an attempted
+    command. Values are the result's trace index.
     """
     calls = {
         block["id"]
         for block in blocks(trace)
         if block.get("type") == "tool_use"
         and block["name"] == "Bash"
-        and re.search(
-            r"\bstatus\b[^|;&]*\bworking\b", block["input"].get("command", "")
-        )
+        and re.search(r"\btask\s+start\b", block["input"].get("command", ""))
     }
     accepted = {}
     for index, record in enumerate(trace):
@@ -613,16 +616,13 @@ def accepted_thread_claims(trace: list[dict], thread: str) -> dict[str, int]:
             )
             for line in text.splitlines():
                 try:
-                    status = json.loads(line)
+                    written = json.loads(line)
                 except json.JSONDecodeError:
                     continue
                 if (
-                    isinstance(status, dict)
-                    and status.get("state") == "working"
-                    and any(
-                        work["subject"] == {"kind": "thread", "id": thread}
-                        for work in status.get("work", [])
-                    )
+                    isinstance(written, dict)
+                    and written.get("kind") == "start"
+                    and written.get("item") == item
                 ):
                     accepted[block["tool_use_id"]] = index
     return accepted

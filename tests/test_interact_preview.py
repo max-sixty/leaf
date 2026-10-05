@@ -22,7 +22,7 @@ from urllib.parse import urlsplit
 
 import pytest
 from conftest import LEAF_COMMAND
-from interact_support import ROOT, STATED_TIMEOUT, fetch, stamp, wait_for
+from interact_support import ROOT, STATED_TIMEOUT, declare_idle, fetch, stamp, wait_for
 from leaf import codex_adapter, leases, server, service, session
 from leaf_dev import preview
 
@@ -264,7 +264,7 @@ def test_serving_connects_codex_feedback_before_handing_over_its_url(
     """
     stamp(page_dir)
     if initially_idle:
-        session.cmd_status(page_dir, "idle", "")
+        declare_idle(page_dir)
     queued = Path(codex_queue["PREVIEW_QUEUE_RECORD"])
     ready = tmp_path / "ready.json"
     done = tmp_path / "done"
@@ -351,7 +351,7 @@ finally:
         text=True,
     )
     if delivery_available is not True:
-        output, errors = task.communicate(timeout=60)
+        output, errors = task.communicate(timeout=STATED_TIMEOUT)
         assert task.returncode != 0, f"{output}{errors}"
         expected = (
             "cannot find the `codex` executable"
@@ -381,7 +381,7 @@ finally:
         assert codex_adapter.adapter_is_live("preview-thread")
         if initially_idle:
             assert service.read_status(page_dir)["state"] == "idle"
-            session.cmd_status(page_dir, "waiting", "Review this page")
+            session.cmd_waiting(page_dir, "Review this page")
         endpoint = urlsplit(url)._replace(path="/api/event").geturl()
         status, body = fetch(
             endpoint,
@@ -429,9 +429,10 @@ def test_serving_preserves_a_direct_codex_wait(
 import json, subprocess, sys, time
 from pathlib import Path
 from leaf.leases import wait_is_live, adapter_is_live
-from leaf.session import cmd_status
+from leaf.service import PageTransaction
+from leaf.session import cmd_waiting
 page = Path(sys.argv[1])
-cmd_status(page, "waiting", "Review this page")
+cmd_waiting(page, "Review this page")
 watch = subprocess.Popen([sys.executable, "-m", "leaf", "wait", str(page)],
                          stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 try:
@@ -447,14 +448,15 @@ try:
         assert json.loads(served.stdout)["url"]
         assert watch.poll() is None
         assert not adapter_is_live("codex-thread")
-    stopped = subprocess.run([sys.executable, "-m", "leaf", "hook"],
+    stopped = subprocess.run([sys.executable, "-m", "leaf", "hook", "--harness", "codex"],
                              input=json.dumps({"hook_event_name": "Stop", "session_id": "codex-thread"}),
                              capture_output=True, text=True)
     assert stopped.returncode == 0, stopped.stderr
     reason = json.loads(stopped.stdout)["reason"]
     assert "leaf wait" in reason and "no delivery adapter" not in reason
 finally:
-    cmd_status(page, "idle", "")
+    with PageTransaction(page) as held:
+        held.set_status("idle", "")
     output, errors = watch.communicate(timeout=30)
     assert watch.returncode == 2, (output, errors)
 """
@@ -467,7 +469,7 @@ finally:
         stderr=subprocess.PIPE,
         text=True,
     )
-    output, errors = task.communicate(timeout=60)
+    output, errors = task.communicate(timeout=STATED_TIMEOUT)
     assert task.returncode == 0, f"{output}{errors}"
 
 
@@ -484,6 +486,8 @@ def test_an_abandoned_handoff_does_not_disable_the_server_it_reuses(
             "server",
             "_serve",
             str(page),
+            "--harness",
+            json.dumps({"name": "codex", "session": "codex-thread", "agent": "Codex"}),
             "--handshake",
             str(child.fileno()),
         ],
@@ -494,13 +498,13 @@ def test_an_abandoned_handoff_does_not_disable_the_server_it_reuses(
         text=True,
     )
     child.close()
-    caller.settimeout(30)
+    caller.settimeout(STATED_TIMEOUT)
     try:
         with caller.makefile("rb") as announced:
             assert json.loads(announced.readline())["url"] == before["url"]
     finally:
         caller.close()
-    output, errors = task.communicate(timeout=60)
+    output, errors = task.communicate(timeout=STATED_TIMEOUT)
     assert task.returncode == 0, f"{output}{errors}"
     assert server.running_server(page) == before
 
@@ -539,7 +543,7 @@ try:
         assert json.loads(result.stdout)["url"]
         identities.append(lease.stat().st_ino)
     stopped = subprocess.run(
-        [sys.executable, "-m", "leaf", "hook"],
+        [sys.executable, "-m", "leaf", "hook", "--harness", "codex"],
         input=json.dumps({"hook_event_name": "Stop", "session_id": "codex-thread"}),
         capture_output=True, text=True,
     )
@@ -576,7 +580,6 @@ finally:
             ready.exists,
             bool,
             failure="the shared delivery handoff did not finish",
-            timeout=60,
         )
         assert len(set(json.loads(ready.read_text()))) == 1
         assert leases.wait_is_live(first, "codex-thread")
@@ -584,7 +587,7 @@ finally:
         assert codex_adapter.adapter_is_live("codex-thread")
     finally:
         done.touch()
-        output, errors = task.communicate(timeout=15)
+        output, errors = task.communicate(timeout=STATED_TIMEOUT)
     assert task.returncode == 0, f"{output}{errors}"
 
 
@@ -619,7 +622,7 @@ def test_failed_delivery_preserves_the_existing_preview(
                 with claim_and_start(page_dir):
                     pass
             else:
-                cmd_serve(page_dir, acquire=True)
+                cmd_serve(page_dir, harness=session_harness(), acquire=True)
         assert page_claim(page_dir) == claim
         assert not original.ended
         assert json.loads((page_dir / "service.json").read_text()) == published
@@ -785,7 +788,11 @@ def test_service_publication_failure_keeps_previous_preview_claim(
     try:
         with pytest.raises(PermissionError, match="service cannot be published"):
             hosting.cmd_serve(
-                page_dir, acquire=True, prepared_claim=intent, handshake=Accepted()
+                page_dir,
+                harness=session_harness(),
+                acquire=True,
+                prepared_claim=intent,
+                handshake=Accepted(),
             )
         assert page_claim(page_dir) == previous
         assert not original.ended

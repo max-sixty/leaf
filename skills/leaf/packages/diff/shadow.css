@@ -67,11 +67,22 @@
                                      width: calc(var(--lf-diff-actions) + 14px);
                                      height: calc(var(--lf-diff-action-top)
                                                   + var(--lf-diff-action-h) - 12px); }
+/* The drawing's spacing runs between its parts and never past its edges: the toolbar
+   has no margin above it and a file none below it (.lf-diff-file). The host states how
+   far the diff stands off, and an edge margin in here collapses out through the host
+   past the frame trim, which zeroes the host's own margin at a frame's start or end but
+   cannot reach into this tree, so a diff opening a column or closing a panel moved what
+   followed it 8px at upgrade.
+   The filter gives up width before the bar wraps, down to the room its placeholder
+   needs, so the bar of an ordinary diff keeps one row down to a phone's full-width
+   column and the height its author states (x-height) holds there as at a desktop's. A
+   review's bar, with a press and a longer count, wraps sooner, and wherever a bar
+   wraps the stated height is the estimate x-height says it is. */
 .lf-diff-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px;
-                 margin: 8px 0; padding: 8px 10px; border: 1px solid var(--code-border);
+                 margin: 0 0 8px; padding: 8px 10px; border: 1px solid var(--code-border);
                  border-radius: var(--r); background: var(--code-chrome);
                  color: var(--code-muted); font: var(--t-6) var(--sans); }
-.lf-diff-search-label { flex: 1 1 220px; }
+.lf-diff-search-label { flex: 1 1 6rem; min-width: 0; }
 .lf-diff-search { flex: 1 1 auto; width: 100%; }
 .lf-diff-progress { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .lf-diff-wrap-label { display: inline-flex; align-items: center; gap: 6px; flex: none;
@@ -118,7 +129,7 @@
    pinned summary: that one lifts the header over the rows that pass under it, and
    lifted alone it covered the press too, on every file, so a click on "Mark reviewed"
    opened and closed the file instead. */
-.lf-diff-file { position: relative; display: flow-root; margin: 8px 0;
+.lf-diff-file { position: relative; display: flow-root; margin: 8px 0 0;
                 --lf-diff-press: 110px;
                 /* How tall the bar of presses on the file's name line stands, and how far
                    down the name it starts. Both are said here because the pull below is
@@ -151,6 +162,10 @@
                         width: fit-content; height: var(--lf-diff-action-h);
                         margin: var(--lf-diff-action-top) 11px 0 auto;
                         font-family: var(--sans); }
+/* A file with no press, an inline patch outside review, has no bar to pull its row
+   over, so the bar takes no room either: held open, it stood as a blank band between
+   the toolbar and the file's name. */
+.lf-diff-file-actions:empty { display: none; }
 .lf-diff-review { display: block; box-sizing: border-box;
                   width: var(--lf-diff-press); height: var(--lf-diff-action-h);
                   padding: 2px 8px; font-family: inherit; font-size: var(--t-6); }
@@ -244,6 +259,9 @@
                 font-size: var(--t-6); font-variant-numeric: tabular-nums;
                 white-space: nowrap; }
 :scope:host(.lf-rendered) {
+  /* The token theme uses the page's light-dark() palette. Pierre's single-theme
+     default pins the host to its nominal scheme; inherit the page's choice. */
+  color-scheme: inherit;
   --diffs-font-family: var(--mono);
   --diffs-font-size: var(--code-size);
   --diffs-line-height: var(--code-line);
@@ -326,23 +344,6 @@
    see them, which is why it is the user's own switch rather than the default.
    The switch changes Pierre's rendered overflow mode. The code box gives up its
    permanent scrollbar with the wrapped rows, since they leave it nothing to scroll. */
-/* Pierre owns the line and inline-diff paint. Leaf supplies brighter semantic fills
-   through its variables above, and keeps its syntax roles readable on the denser one. */
-[data-diff-span] [data-lf-syn="cm"] { color: color-mix(in srgb, var(--syn-comment) 50%, var(--ink)); }
-[data-diff-span] [data-lf-syn="kw"] { color: color-mix(in srgb, var(--syn-keyword) 50%, var(--ink)); }
-[data-diff-span] [data-lf-syn="st"] { color: color-mix(in srgb, var(--syn-string) 50%, var(--ink)); }
-[data-diff-span] [data-lf-syn="nu"] { color: color-mix(in srgb, var(--syn-number) 50%, var(--ink)); }
-[data-diff-span] [data-lf-syn="fn"] { color: color-mix(in srgb, var(--syn-name) 50%, var(--ink)); }
-[data-diff-span] [data-lf-syn="ty"] { color: color-mix(in srgb, var(--syn-type) 50%, var(--ink)); }
-/* Syntax colour is the same statement the document makes, and the tokens are in here
-   rather than out there, so the rules come too. The custom properties they read inherit
-   through the boundary, which is why only the selectors need repeating. */
-[data-lf-syn="cm"] { color: var(--syn-comment); font-style: italic; }
-[data-lf-syn="kw"] { color: var(--syn-keyword); }
-[data-lf-syn="st"] { color: var(--syn-string); }
-[data-lf-syn="nu"] { color: var(--syn-number); }
-[data-lf-syn="fn"] { color: var(--syn-name); }
-[data-lf-syn="ty"] { color: var(--syn-type); }
 @media print {
   .lf-diff-tools, .lf-diff-comment,
   .lf-diff-review:not([data-lf-said]) { display: none !important; }

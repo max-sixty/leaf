@@ -91,8 +91,8 @@ export function createAnchorTravel({
   // journey, whether it goes to threads or Asks: it replaces the journey's entry, which
   // already holds where the journey began. Once the user has moved off that landing, the
   // next trip pushes again. A journey is not a walk (the glossary's ordered movement
-  // among one kind of destination): steps of a thread walk and of an Ask walk, or a
-  // press on a margin marker, can all be trips of one journey. The landing is a lookup
+  // among one category of destination): steps of the thread walk and of the queue
+  // walk, or a press on a margin marker, can all be trips of one journey. The landing is a lookup
   // rather than a node because the thread pass repaints marks, and the entry
   // carries a token for this document's journey because only this load holds the
   // lookup.

@@ -12,13 +12,12 @@ import pytest
 from axe_playwright_python.sync_playwright import Axe
 from browser_sources import browser_function
 from click.testing import CliRunner
-from interact_support import record_claim
+from interact_support import declare_work, record_claim
 from leaf import cli as cli_model
 from leaf import hosting as hosting_model
 from leaf import leases as leases_model
 from leaf import machine as machine_model
 from leaf import render_checks as render_checks_model
-from leaf import state as cleanup_model
 from leaf.registry import storage as registry_storage
 from leaf.render_checks import rendered
 from leaf.render_gate import scheme as render_gate_model
@@ -557,8 +556,8 @@ EDGES = [
         name="drawers",
         html=lambda: ASKS_PAGE,
         comments=0,
-        stand=lambda page: banner_control(page, ".lf-asks").click(),
-        region=".lf-asks-panel",
+        stand=lambda page: banner_control(page, ".lf-queue").click(),
+        region=".lf-queue-panel",
         side="left",
         store="lf-drawer-slot-width",
         wide=300,
@@ -568,7 +567,7 @@ EDGES = [
 EDGE_IDS = [edge.name for edge in EDGES]
 
 
-# One Ask, so a page offers the Asks drawer.
+# One Ask, so a page offers the Queue panel.
 ONE_ASK = (
     '<lf-ask id="go-decision"><h2>Ship it?</h2>'
     '<lf-options id="go" choose>'
@@ -586,10 +585,10 @@ def with_one_ask(html):
     return html.replace("</main>", ONE_ASK + "</main>")
 
 
-def toggle_asks(page, open=True):
-    """Open or close the Asks drawer from its banner control and wait for it to stand."""
-    banner_control(page, ".lf-asks").click()
-    drawer = expect(page.locator(".lf-asks-panel"))
+def toggle_queue(page, open=True):
+    """Open or close the Queue panel from its banner control and wait for it to stand."""
+    banner_control(page, ".lf-queue").click()
+    drawer = expect(page.locator(".lf-queue-panel"))
     opened = re.compile(r"\bopen\b")
     if open:
         drawer.to_have_class(opened)
@@ -659,15 +658,15 @@ def draw_edge(page, edge, by):
     page.mouse.up()
 
 
-# Enough code for the roles to differ from each other and from the block: a comment, a
+# Enough code for the colors to differ from each other and from the block: a comment, a
 # keyword, a string, a name, a number.
 CODE_BLOCK = """<pre id="snippet"><code class="language-python"># the ceiling doubles per approval
 def ceiling(limit, approvals):
     return "over" if approvals > 12 else limit
 </code></pre>"""
 
-# A role that reads on the block and not on the tint one of its lines wears. The clean
-# line comes first on purpose: a gate that stopped at a role's first span would take that
+# A color that reads on the block and not on the tint one of its lines wears. The clean
+# line comes first on purpose: a gate that stopped at a color's first span would take that
 # line's reading, which clears the threshold, and never reach the one two lines down, and
 # a walkthrough's hi band is the surface where a code line is most often set on something
 # other than --pre-bg.
@@ -677,8 +676,8 @@ second = "on the band"
 </pre></lf-code>"""
 
 # The same reading, in a shadow tree. lf-diff renders the page's words into one, so its
-# spans are in no document.querySelectorAll. The fault page changes only its number role,
-# so that role's finding and the population assertion prove the probe crossed the root.
+# spans are in no document.querySelectorAll. The fault page changes only its number color,
+# so that color's finding and the population assertion prove the probe crossed the root.
 # The token is what goes back rather than a rule: a custom property inherits through the
 # boundary where a selector does not, which is both why this reaches the spans and why a
 # project's own palette reaches them too, gate or no gate.
@@ -694,24 +693,30 @@ diff --git a/gateway/limits.py b/gateway/limits.py
 </pre></lf-diff>"""
 SHADOWED_DIFF = SHADOWED_DIFF_BODY.format(id="shadowed") + "\n</main>"
 
-# These bugs go back as CSS, which is the shape the regressions take for real: the
-# attribute lands either way, and it is the stylesheet answering it that stops working.
-# Each uses a different role, so one public-gate reading still attributes the faults
-# independently. The media query keeps fixed fault colours out of the dark control half.
+# Palette overrides cross native theme spans and shadow boundaries. A comment using
+# the surrounding ink is a valid theme choice; faint keywords, tinted strings and a
+# dark diff's numbers still need contrast findings. The later function name has the
+# same native style and background as its earlier readable control but inherits faint
+# ink. The media query keeps fixed fault colors out of the dark control half.
 CODE_FAULT_PAGE = LONG_PAGE.replace(
     "</head>",
     """<style>
 #shadowed { --syn-number: #1c1b18; }
 @media (prefers-color-scheme: light) {
-  #snippet [data-lf-syn="cm"] { color: inherit; }
-  #snippet [data-lf-syn="kw"] { color: #8b8577; }
+  #snippet { --syn-comment: var(--code-ink); }
+  #snippet { --syn-keyword: #8b8577; }
+  #snippet-faint-name { --syn-name: #8b8577; }
   #tinted { --hi-tint: #6f6a60; }
 }
 </style>
 </head>""",
 ).replace(
     "</main>",
-    CODE_BLOCK + TINTED_CODE + SHADOWED_DIFF_BODY.format(id="shadowed") + "\n</main>",
+    CODE_BLOCK
+    + CODE_BLOCK.replace('id="snippet"', 'id="snippet-faint-name"')
+    + TINTED_CODE
+    + SHADOWED_DIFF_BODY.format(id="shadowed")
+    + "\n</main>",
 )
 
 # The shipped dark comment ink must clear the add-line tint behind it. A large real patch
@@ -845,18 +850,19 @@ def displaced(before, boxes, news=False):
 
     `news` reads the rule for a change nobody gestured (`skills/leaf/assets/AGENTS.md`,
     "Stability"): a box whose own words changed may grow or shrink into free room, so its
-    width is its own, but its place is not, and no other box may move or resize. A box
-    that grew by pushing its neighbours still fails, as they do."""
+    width is its own, but its place is not, and no other box may move or resize. The
+    free room may lie on either side: a box packed against the run to its right, as the
+    banner's queue counts are, grows leftward into the status's room, and the edge that
+    holds still is its place. A box that grew by pushing its neighbours still fails, as
+    they do."""
 
     def moved(was, now):
         if now is None:
             return False
-        grew = news and was[4] != now[4]
-        return any(
-            a != b
-            for i, (a, b) in enumerate(zip(was[:4], now[:4]))
-            if not (grew and i == 2)
-        )
+        if news and was[4] != now[4]:
+            held = was[0] == now[0] or was[0] + was[2] == now[0] + now[2]
+            return not held or was[1] != now[1] or was[3] != now[3]
+        return any(a != b for a, b in zip(was[:4], now[:4]))
 
     return [
         f"{name} moved by "
@@ -1238,14 +1244,7 @@ def live_leaf(tmp_path, monkeypatch):
             LONG_PAGE.replace("<title>long</title>", f"<title>{title}</title>"),
             "t",
         )
-        cleanup_model.write_json(
-            d / "status.json",
-            {
-                "state": "working",
-                "detail": "running the suite",
-                "ts": cleanup_model.now_iso(),
-            },
-        )
+        declare_work(d, "running the suite")
         # A live leaf has a session behind it, and what the drawer's hover says about a
         # page is the work that session is doing it for — so the fixture's pages come
         # out of somewhere nameable rather than out of nowhere.
@@ -1259,7 +1258,7 @@ def live_leaf(tmp_path, monkeypatch):
         )
         # Use the durable server's maintenance loop: the row remains canonical
         # even while no browser has visited this neighboring page.
-        url = hosting_model.start_server(d, standing=True).url
+        url = hosting_model.start_server(d, standing=True, harness=None).url
         served.append(d)
         return url.split("?")[0].rstrip("/"), d
 

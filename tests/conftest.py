@@ -1,5 +1,6 @@
 """Shared fixtures, and the address the suite starts a leaf process at."""
 
+import contextlib
 import inspect
 import os
 import re
@@ -10,16 +11,15 @@ import sys
 from pathlib import Path
 from typing import NamedTuple
 
+import psutil
 import pytest
 from leaf import codex_adapter as codex_adapter_model
-from leaf import files as files_model
 from leaf import harness as harness_model
 from leaf import leases as leases_model
 from leaf import machine as machine_model
-from leaf import state as cleanup_model
 from leaf.render_gate import browser as browser_model
 from leaf_dev import LEAF_COMMAND
-from leaf_dev.browser import LINUX_FONTCONFIG, linux_font_fingerprint
+from leaf_dev.browser import LINUX_FONTCONFIG, require_linux_fonts
 from playwright.sync_api import sync_playwright
 
 __all__ = ["LEAF_COMMAND"]
@@ -49,8 +49,10 @@ pytest_plugins = (
 # was 146, copying them all made a complete nightly run 2,272 pages and 393,473
 # directory entries, which is the number a filesystem event watcher charges for
 # — hard links share the bytes but not the entry. So the layer is written once
-# per shape and lent, and only what a test actually changed is put back.
-LENT_LINKED_DIRS = frozenset({"runtime", "vendor"})
+# per shape and lent, and only what a test actually changed is put back. A
+# stamped revision's bundle is immutable too, so a shape's revisions are linked
+# like its layer.
+LENT_LINKED_DIRS = frozenset({"runtime", "vendor", "revisions"})
 
 
 class PagePool:
@@ -215,10 +217,6 @@ def initialized_page(_page_pool):
     def lend(name, destination, initialize):
         page = _page_pool.lend(name, Path(destination), initialize)
         lent.append((name, page))
-        status_path = page / "status.json"
-        status = files_model.read_json(status_path)
-        status["ts"] = cleanup_model.now_iso()
-        cleanup_model.write_json(status_path, status)
         return page
 
     yield lend
@@ -397,36 +395,47 @@ def codex_env():
 
 
 def _retire(process: subprocess.Popen) -> None:
-    """End one started process, and anything still in the group it leads.
+    """End one started process and everything still in the group it leads.
 
-    A child given a session of its own leads a group, and what it spawns joins
-    that group: `leaf-dev preview` re-executes into `uv run`, which holds the
-    watcher as a child, so the handle the test keeps names the launcher rather
-    than the process doing the work. Ending the handle alone leaves the watcher
-    running — past the test, past the run, still serving its page and still
-    watching the checkout every later test reads. A child that shares the run's
-    own group is ended through its handle, because signalling that group would
-    signal the worker running the test.
+    The handle a test keeps often names a launcher rather than the process doing
+    the work: `leaf-dev preview` re-executes into `uv run`, which holds the
+    watcher as a child, and `under_codex`'s fake host holds the shell that runs
+    the command. Ending the handle alone leaves those running past the test and
+    the run, serving pages or watching the checkout. Closing the stdin a test
+    piped ends what waits on it, as a held `under_codex` shell does, even where
+    the test already ended the leader itself.
     """
-    if process.poll() is None:
-        # Read the group only while the process is running and unreaped, so the
-        # pid cannot have become someone else's by the time it is signalled.
-        if os.getpgid(process.pid) == process.pid:
+    # Imported here: `interact_support` imports this module, and is loaded as the
+    # plugin `pytest_plugins` names so that its assertions are rewritten.
+    from interact_support import STATED_TIMEOUT
+
+    if process.stdin:
+        with contextlib.suppress(BrokenPipeError):
+            process.stdin.close()
+    # The group outlives a leader that exits before its children. A pid is not
+    # reused while a group bears it, so a reaped leader whose pid nothing holds
+    # still names this group, and one whose pid a process holds again names a
+    # group that has already ended. A group left with only zombies, as when the
+    # leader exits during the signal, is one macOS refuses to signal.
+    if process.poll() is None or not psutil.pid_exists(process.pid):
+        with contextlib.suppress(ProcessLookupError, PermissionError):
             os.killpg(process.pid, signal.SIGTERM)
-        else:
-            process.terminate()
-    process.wait(timeout=5)
+    process.wait(timeout=STATED_TIMEOUT)
 
 
 @pytest.fixture
 def spawn():
-    """A process the test starts, ended when the test ends — the ones it expects
-    to have exited already included, since a run that fails before its own
-    assertion is exactly the one that would leave a process behind."""
+    """A process the test starts, ended with everything it started when the test
+    ends — the ones it expects to have exited already included, since a run that
+    fails before its own assertion is exactly the one that would leave a process
+    behind. Each leads a session of its own, so `_retire` can end it and the
+    descendants still in its group without signalling the worker running the test.
+    A descendant that starts a session of its own, as a detached server does, is
+    left to the fixture that owns it."""
     started = []
 
     def start(*args, **kwargs) -> subprocess.Popen:
-        process = subprocess.Popen(*args, **kwargs)
+        process = subprocess.Popen(*args, start_new_session=True, **kwargs)
         started.append(process)
         return process
 
@@ -439,8 +448,10 @@ def spawn():
 def dead_pid(spawn):
     """A pid that is certainly not running, for a record whose writer — a
     session, a server — has gone."""
+    from interact_support import STATED_TIMEOUT
+
     spent = spawn([sys.executable, "-c", ""])
-    spent.wait(timeout=5)
+    spent.wait(timeout=STATED_TIMEOUT)
     return spent.pid
 
 
@@ -567,7 +578,7 @@ def headless_shell():
     session's `browser` fixture already holds one open, so which tests had run
     first would decide whether the fixture worked."""
     if sys.platform == "linux":
-        linux_font_fingerprint()
+        require_linux_fonts()
         os.environ["FONTCONFIG_FILE"] = str(LINUX_FONTCONFIG)
     read = subprocess.run(
         [

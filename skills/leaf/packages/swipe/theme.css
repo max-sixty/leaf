@@ -197,12 +197,15 @@
  * Main's #387 added `margin-inline: 0` to the reset this replaces, so that a quoted queue
  * did not keep the stack's centring. That reset is gone rather than dropped: the centring
  * is `margin-inline: auto` inside the guard above, which a quoted deck never enters, so
- * there is no longer a margin to take back. */
-:where([data-lf-exhibit]) lf-swipe-deck
-  lf-swipe-pile[verdict="unseen"]
-> lf-swipe-card {
-  margin-bottom: var(--sp-2);
-  transform: none;
+ * there is no longer a margin to take back.
+ *
+ * The exhibit stands outside the deck, which is this package's scope root, so it is
+ * named in a nested scope: a bare selector reaches only the root's descendants. */
+@scope ([data-lf-exhibit] :scope:is(lf-swipe-deck)) {
+  lf-swipe-pile[verdict="unseen"] > lf-swipe-card {
+    margin-bottom: var(--sp-2);
+    transform: none;
+  }
 }
 
 :scope:is(lf-swipe-card).lf-swipe-dragging {

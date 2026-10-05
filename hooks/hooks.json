@@ -1,39 +1,16 @@
 {
   "hooks": {
-    "PostToolUse": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "[ -n \"$CLAUDECODE\" ] || { \"$CLAUDE_PLUGIN_ROOT/bin/leaf\" hook 2>/dev/null || true; }",
-            "async": true,
-            "timeout": 20
-          }
-        ]
-      }
-    ],
-    "Interrupt": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "[ -n \"$CLAUDECODE\" ] || { \"$CLAUDE_PLUGIN_ROOT/bin/leaf\" hook 2>/dev/null || true; }",
-            "timeout": 3
-          }
-        ]
-      }
-    ],
     "Stop": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "\"$CLAUDE_PLUGIN_ROOT/bin/leaf\" hook 2>/dev/null || true",
+            "command": "\"$CLAUDE_PLUGIN_ROOT/bin/leaf\" hook --harness claude-code 2>/dev/null || true",
             "timeout": 20
           },
           {
             "type": "command",
-            "command": "[ -z \"$CLAUDECODE\" ] || exec python3 \"$CLAUDE_PLUGIN_ROOT/hooks/scripts/loop-guard.py\" --watch",
+            "command": "exec python3 \"$CLAUDE_PLUGIN_ROOT/hooks/scripts/loop-guard.py\" hook --harness claude-code --watch",
             "asyncRewake": true,
             "rewakeMessage": "Leaf:",
             "timeout": 604800
@@ -46,7 +23,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"$CLAUDE_PLUGIN_ROOT/bin/leaf\" hook 2>/dev/null || true",
+            "command": "\"$CLAUDE_PLUGIN_ROOT/bin/leaf\" hook --harness claude-code 2>/dev/null || true",
             "timeout": 20
           }
         ]

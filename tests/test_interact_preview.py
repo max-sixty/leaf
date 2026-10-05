@@ -351,7 +351,7 @@ finally:
         text=True,
     )
     if delivery_available is not True:
-        output, errors = task.communicate(timeout=60)
+        output, errors = task.communicate(timeout=STATED_TIMEOUT)
         assert task.returncode != 0, f"{output}{errors}"
         expected = (
             "cannot find the `codex` executable"
@@ -467,7 +467,7 @@ finally:
         stderr=subprocess.PIPE,
         text=True,
     )
-    output, errors = task.communicate(timeout=60)
+    output, errors = task.communicate(timeout=STATED_TIMEOUT)
     assert task.returncode == 0, f"{output}{errors}"
 
 
@@ -494,13 +494,13 @@ def test_an_abandoned_handoff_does_not_disable_the_server_it_reuses(
         text=True,
     )
     child.close()
-    caller.settimeout(30)
+    caller.settimeout(STATED_TIMEOUT)
     try:
         with caller.makefile("rb") as announced:
             assert json.loads(announced.readline())["url"] == before["url"]
     finally:
         caller.close()
-    output, errors = task.communicate(timeout=60)
+    output, errors = task.communicate(timeout=STATED_TIMEOUT)
     assert task.returncode == 0, f"{output}{errors}"
     assert server.running_server(page) == before
 
@@ -576,7 +576,6 @@ finally:
             ready.exists,
             bool,
             failure="the shared delivery handoff did not finish",
-            timeout=60,
         )
         assert len(set(json.loads(ready.read_text()))) == 1
         assert leases.wait_is_live(first, "codex-thread")
@@ -584,7 +583,7 @@ finally:
         assert codex_adapter.adapter_is_live("codex-thread")
     finally:
         done.touch()
-        output, errors = task.communicate(timeout=15)
+        output, errors = task.communicate(timeout=STATED_TIMEOUT)
     assert task.returncode == 0, f"{output}{errors}"
 
 

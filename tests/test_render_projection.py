@@ -1363,6 +1363,7 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
             .map(frame => frame.getBoundingClientRect());
           return {widget: node.getBoundingClientRect(), title: box('.lf-vr-case-title'),
                   decision: box('.lf-vr-dispositions'), evidence: box('.lf-vr-shot-host'),
+                  capture: box('.lf-vr-shot-host lf-shot'),
                   support: box('.lf-vr-support'), frames};
         }"""
     )
@@ -1373,6 +1374,9 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     # (the sp-4 it pads its own top by comes out of the stage at a 768px laptop).
     assert geometry["evidence"]["height"] >= 340, geometry
     assert geometry["evidence"]["bottom"] <= 768, geometry
+    # The capture opens at the stage's top edge, inside its border: the stage sets the
+    # box of the lf-shot it holds over that widget's own block margin.
+    assert geometry["capture"]["top"] - geometry["evidence"]["top"] <= 1.5, geometry
     assert widget.get_attribute("data-compare-layout") == "side", geometry
     assert geometry["frames"][1]["left"] >= geometry["frames"][0]["right"]
     case_image_width = widget.locator(
@@ -6461,10 +6465,11 @@ def test_the_render_gate_reads_a_page_that_has_finished_arriving(
         def _get(self):
             state_read = self.path.startswith("/api/state")
             page_read = state_read and self.headers.get("Referer")
-            # Bounded, and far inside the gate's own deadline for a served document: a
+            # Bounded, and inside the gate's own deadline for a served document: a
             # runtime that stopped reading state at startup is named by the assertion
             # below rather than by a gate whose server appeared to stop answering.
-            if state_read and not page_read and not arrived.wait(10):
+            held_for = render_checks_model.SERVED_TIMEOUT_MS / 2000
+            if state_read and not page_read and not arrived.wait(held_for):
                 expired.append(self.path)
             answer = super()._get()
             if page_read and not landed:

@@ -270,7 +270,8 @@ missing when they expire.
 
 Synchronize on the operation's declared completion or an acknowledgement of the
 causal edge. A sleep does not prove another process acquired a lock, completed a
-scan, or attempted a blocked operation. Instrumentation must keep input ownership
+scan, or attempted a blocked operation; `interact_support.lock_contention` states
+that a taker found a lock held and is waiting on it. Instrumentation must keep input ownership
 and unjudged evidence until their declared completion; a time cap must not turn
 unfinished work into a successful reading or an unrelated effect.
 
@@ -294,7 +295,8 @@ boundary and observe its completed decision. A real-time integration test waits 
 the decision with a hang deadline that allows the grace period and scheduling room.
 
 A new wait fixes its deadline when it begins and names the missing evidence on
-timeout. Pure-Python state polls use `interact_support.wait_for`.
+timeout. Pure-Python state polls use `interact_support.wait_for`, and every
+Python-side wait takes its deadline from `STATED_TIMEOUT`, which the suite checks.
 
 ### A state the page passes through is not a state to poll for
 

@@ -28,6 +28,7 @@ from click.testing import CliRunner
 from conftest import CLAUDE_IDENTITY, HOOKED_SESSIONS, LEAF_COMMAND
 from interact_support import (
     COMMAND_SUBJECTS,
+    COMPOSITE_TIMEOUT,
     HELD_LEASES,
     PAGE,
     PAGE_PACKAGES,
@@ -1423,7 +1424,7 @@ def app_server():
     yield serve
     for server, worker in reversed(serving):
         server.shutdown()
-        worker.join(timeout=5)
+        worker.join(timeout=STATED_TIMEOUT)
 
 
 def titling_app_server(app_server, answer: str) -> tuple[str, list[dict]]:
@@ -1682,7 +1683,7 @@ def test_a_title_request_that_outlives_its_session_leaves_no_log(claimed):
     answered = threading.Event()
 
     def generate(request: str, page_dir: Path) -> dict:
-        answered.wait(timeout=10)
+        answered.wait(timeout=STATED_TIMEOUT)
         return {"title": "Intro"}
 
     thread_titles.name_opened_thread(generate, claimed, comment["id"], "s1")
@@ -1690,7 +1691,7 @@ def test_a_title_request_that_outlives_its_session_leaves_no_log(claimed):
     answered.set()
     for worker in threading.enumerate():
         if worker.name == "leaf-thread-title":
-            worker.join(timeout=10)
+            worker.join(timeout=STATED_TIMEOUT)
 
     assert not leases_model.titles_log("s1").exists()
     kinds = [e["kind"] for e in events_model.read_events(claimed)]
@@ -1758,12 +1759,17 @@ def test_both_harnesses_are_asked_for_a_title_in_the_same_words(
 
 @pytest.fixture
 def codex_app_server(app_server):
-    """A WebSocket App Server that emits two turns when the test advances it."""
+    """A WebSocket App Server that emits two turns when the test advances it.
+
+    After the second turn it reads whatever else the observer sends until the
+    observer closes the connection, so `observer_replies` is complete once `closed`
+    is set: an answer to the approval request, which only Codex's own client may
+    give, would be among them."""
     received = []
     observer_replies = []
     first_turn = threading.Event()
     second_turn = threading.Event()
-    finish = threading.Event()
+    closed = threading.Event()
 
     def handle(socket):
         initialize = json.loads(socket.recv())
@@ -1786,7 +1792,7 @@ def codex_app_server(app_server):
                 }
             )
         )
-        first_turn.wait(timeout=5)
+        first_turn.wait(timeout=STATED_TIMEOUT)
         socket.send(
             json.dumps(
                 {
@@ -1827,10 +1833,6 @@ def codex_app_server(app_server):
                 }
             )
         )
-        try:
-            observer_replies.append(json.loads(socket.recv(timeout=0.1)))
-        except TimeoutError:
-            pass
         socket.send(
             json.dumps(
                 {
@@ -1842,7 +1844,7 @@ def codex_app_server(app_server):
                 }
             )
         )
-        second_turn.wait(timeout=5)
+        second_turn.wait(timeout=STATED_TIMEOUT)
         socket.send(
             json.dumps(
                 {
@@ -1865,7 +1867,11 @@ def codex_app_server(app_server):
                 }
             )
         )
-        finish.wait(timeout=5)
+        try:
+            for message in socket:
+                observer_replies.append(json.loads(message))
+        finally:
+            closed.set()
 
     yield (
         app_server(handle),
@@ -1873,13 +1879,12 @@ def codex_app_server(app_server):
         observer_replies,
         first_turn,
         second_turn,
-        finish,
+        closed,
     )
     # Released here rather than left to the server's own stop, which would otherwise
-    # wait out the handler's five seconds on every test that used this.
+    # wait out the handler's deadline on every test that used this.
     first_turn.set()
     second_turn.set()
-    finish.set()
 
 
 def codex_records(session_id: str) -> list[tuple[Path, dict]]:
@@ -3621,7 +3626,7 @@ def test_a_new_codex_carrier_observes_ordinary_turns_without_a_prior_hook(
                 }
             )
         )
-        if not begin.wait(timeout=30):
+        if not begin.wait(timeout=STATED_TIMEOUT):
             return
         socket.send(
             json.dumps(
@@ -3651,7 +3656,7 @@ def test_a_new_codex_carrier_observes_ordinary_turns_without_a_prior_hook(
                 }
             )
         )
-        if not finish.wait(timeout=30):
+        if not finish.wait(timeout=STATED_TIMEOUT):
             return
         socket.send(
             json.dumps(
@@ -3720,7 +3725,7 @@ def test_a_new_codex_carrier_observes_ordinary_turns_without_a_prior_hook(
         begin.set()
         finish.set()
         release_held(started)
-        out, err = started.communicate(timeout=60)
+        out, err = started.communicate(timeout=STATED_TIMEOUT)
         assert started.returncode == 0, f"{announcement}{out}{err}"
         with service_model.PageTransaction(page_dir) as page:
             page.release_claim()
@@ -3734,7 +3739,7 @@ def test_a_new_codex_carrier_observes_ordinary_turns_without_a_prior_hook(
 def test_app_server_client_stays_subscribed_between_ordinary_codex_turns(
     codex_app_server, monkeypatch, request
 ):
-    endpoint, received, observer_replies, first_turn, second_turn, _finish = (
+    endpoint, received, observer_replies, first_turn, second_turn, closed = (
         codex_app_server
     )
     updates = []
@@ -3749,7 +3754,6 @@ def test_app_server_client_stays_subscribed_between_ordinary_codex_turns(
         lambda: len(clears),
         lambda count: count == 2,
         failure="the first Codex turn did not clear its stream activity",
-        timeout=5,
     )
 
     second_turn.set()
@@ -3757,9 +3761,13 @@ def test_app_server_client_stays_subscribed_between_ordinary_codex_turns(
         lambda: len(clears),
         lambda count: count == 3,
         failure="the second Codex turn did not clear its stream activity",
-        timeout=5,
     )
     observer.stop()
+    wait_for(
+        closed.is_set,
+        bool,
+        failure="the App Server never saw the observer close its connection",
+    )
 
     assert [message["method"] for message in received] == [
         "initialize",
@@ -3813,7 +3821,7 @@ def test_app_server_observer_connects_over_a_private_unix_socket(
                 }
             )
         )
-        release.wait(timeout=5)
+        release.wait(timeout=STATED_TIMEOUT)
 
     endpoint = app_server(handle, socket_path)
     updates = []
@@ -3872,7 +3880,7 @@ def test_app_server_observer_restores_the_resumed_turns_waiting_kind(
                 }
             )
         )
-        release.wait(timeout=5)
+        release.wait(timeout=STATED_TIMEOUT)
 
     updates = []
     clears = []
@@ -4028,7 +4036,7 @@ def test_a_task_connection_streams_and_commits_its_delivery_reply(
                 }
             )
         )
-        release.wait(timeout=5)
+        release.wait(timeout=STATED_TIMEOUT)
         answer = {
             "id": "answer",
             "type": "agentMessage",
@@ -4072,13 +4080,12 @@ def test_a_task_connection_streams_and_commits_its_delivery_reply(
         lambda: page_state(page_dir)["browser"]["thread"]["threads"][0]["msgs"][-1],
         lambda message: message["text"] == "Streaming",
         failure="the streamed reply did not reach the page",
-        timeout=5,
     )
     assert (streamed["pending"], streamed["parent"]) == (True, comment["id"])
     assert "stream_state" not in streamed
 
     release.set()
-    assert completed.wait(timeout=5)
+    assert completed.wait(timeout=STATED_TIMEOUT), "the delivered turn never completed"
     replies, _ = wait_for(
         lambda: (
             [
@@ -4090,7 +4097,6 @@ def test_a_task_connection_streams_and_commits_its_delivery_reply(
         ),
         lambda reading: bool(reading[0]) and "reply" not in reading[1],
         failure="the streamed reply was not committed after completion",
-        timeout=5,
     )
 
     assert [
@@ -7959,7 +7965,7 @@ delivery.receive_delivery(os.environ["DELIVERY"])
         )
         assert receiving.stdout.readline().strip() == "locking"
         record_claim(page_dir, id="successor", pid=os.getpid())
-    out, err = receiving.communicate(timeout=10)
+    out, err = receiving.communicate(timeout=STATED_TIMEOUT)
     assert receiving.returncode == 1, out + err
     assert "delivery no longer owns its page" in err
     assert files_model.read_json(page_dir / "cursor.json") is None
@@ -8030,7 +8036,7 @@ def test_ack_rearms_the_wait_after_releasing_the_cursor_transaction(
     append_carried_log_record(
         page_dir, {"kind": "comment", "id": "c2", "author": "user", "text": "two"}
     )
-    out, err = acknowledging.communicate(timeout=10)
+    out, err = acknowledging.communicate(timeout=STATED_TIMEOUT)
 
     # 0 is the re-armed wait's own code for a batch on stdout, so one exit tells
     # an agent which of the two happened rather than sending it to the streams.
@@ -8159,7 +8165,7 @@ def test_ack_rearm_keeps_the_other_pages_when_its_batch_page_transfers(
     os.write(writer, status)
     os.close(writer)
 
-    out, err = acknowledging.communicate(timeout=10)
+    out, err = acknowledging.communicate(timeout=STATED_TIMEOUT)
     assert acknowledging.returncode == 0, f"{out}{err}"
     _, header, [event] = printed(out)
     assert header["page"] == str(other)
@@ -8208,7 +8214,7 @@ def test_ack_rearm_reports_when_its_only_page_transfers_after_selection(
     os.write(writer, status)
     os.close(writer)
 
-    out, err = acknowledging.communicate(timeout=10)
+    out, err = acknowledging.communicate(timeout=STATED_TIMEOUT)
     assert (acknowledging.returncode, out) == (2, ""), err
     assert f"stopped watching {page_dir}: this session no longer owns it" in err
     assert "the leaf ended" not in err
@@ -8500,14 +8506,13 @@ def test_page_init_restarts_a_served_page_under_the_sessions_wait(
         lambda: waiter.poll() is None and leases_model.wait_is_live(page_dir, session),
         bool,
         failure="the wait did not start watching the page",
-        timeout=30,
     )
 
     revendored = subprocess.run(
         [*LEAF_COMMAND, "page", "init", str(page_dir)],
         capture_output=True,
         text=True,
-        timeout=60,
+        timeout=STATED_TIMEOUT,
         check=False,
     )
     assert revendored.returncode == 0, revendored.stderr
@@ -8529,7 +8534,7 @@ def test_page_init_restarts_a_served_page_under_the_sessions_wait(
             "text": "still there?",
         },
     )
-    assert waiter.wait(timeout=30) == 0, waited.read_text()
+    assert waiter.wait(timeout=STATED_TIMEOUT) == 0, waited.read_text()
     _, batch, [event] = woken(waited.read_text())
     assert batch["page"] == str(page_dir)
     assert event["text"] == "still there?"
@@ -8646,7 +8651,9 @@ def test_a_watch_wakes_on_what_its_pass_read_moving(page_dir):
     try:
         mark = watch.mark()
         list(watch.tick())
-        assert watch.await_news(mark, timeout=STATED_TIMEOUT)
+        assert watch.await_news(mark, timeout=STATED_TIMEOUT), (
+            "the watch never woke on the page its mark had not read"
+        )
 
         mark = watch.mark()
         list(watch.tick())
@@ -8660,7 +8667,9 @@ def test_a_watch_wakes_on_what_its_pass_read_moving(page_dir):
             (page_dir, {"kind": "comment", "author": "user", "text": "hi"}),
         )
         appending.start()
-        assert watch.await_news(mark, timeout=STATED_TIMEOUT)
+        assert watch.await_news(mark, timeout=STATED_TIMEOUT), (
+            "the watch never woke on the append"
+        )
         appending.join()
         assert events_model.read_events(page_dir)[-1]["text"] == "hi"
     finally:
@@ -8684,7 +8693,7 @@ def test_a_delayed_revival_cannot_cross_an_explicit_stop(page_dir, monkeypatch):
 
     def delayed_start(*args, **kwargs):
         entered.set()
-        assert release.wait(5)
+        assert release.wait(STATED_TIMEOUT)
         return real_start(*args, **kwargs)
 
     monkeypatch.setattr(hosting_model, "start_server", delayed_start)
@@ -8702,10 +8711,11 @@ def test_a_delayed_revival_cannot_cross_an_explicit_stop(page_dir, monkeypatch):
 
     reviving = threading.Thread(target=tick)
     reviving.start()
-    assert entered.wait(5), "the watcher did not decide to revive"
+    assert entered.wait(STATED_TIMEOUT), "the watcher did not decide to revive"
     assert hosting_model.cmd_stop(page_dir) is False
     release.set()
-    reviving.join(timeout=10)
+    reviving.join(timeout=STATED_TIMEOUT)
+    assert not reviving.is_alive(), "the revival never finished its tick"
 
     assert not reviving.is_alive()
     assert errors == []
@@ -8845,7 +8855,7 @@ def test_wait_revival_cannot_take_a_page_back_after_claim_transfer(
     os.close(writer)
     session_model.cmd_status(page, "idle", "the page is done")
 
-    first_out, first_err = first.communicate(timeout=60)
+    first_out, first_err = first.communicate(timeout=STATED_TIMEOUT)
     assert (first.returncode, first_out) == (2, ""), first_err
     assert "no longer owns it" in first_err
     assert "the leaf ended" not in first_err
@@ -8902,7 +8912,7 @@ def test_session_end_cannot_be_overtaken_by_wait_revival(claimed, spawn):
     )
     os.close(writer)
 
-    out, err = waiter.communicate(timeout=60)
+    out, err = waiter.communicate(timeout=STATED_TIMEOUT)
     assert waiter.returncode == 2, f"{out}{err}"
     assert "this session no longer owns it" in err
     assert service_model.page_claim(page)["released"] is not None
@@ -9085,6 +9095,7 @@ def test_the_stop_hook_watch_wakes_the_session_only_for_input(
     assert outcome == []
     cleanup_model.close_session_turn("s1")
     watch.join(timeout=STATED_TIMEOUT)
+    assert not watch.is_alive(), "the watch never woke when the turn closed"
     [woke] = outcome
     assert woke.startswith(f"{claimed} has new input")
     assert not leases_model.wait_is_live(claimed, "s1")
@@ -9099,6 +9110,7 @@ def test_the_stop_hook_watch_wakes_the_session_only_for_input(
         claimed, {"kind": "comment", "author": "user", "text": "after"}
     )
     watch.join(timeout=STATED_TIMEOUT)
+    assert not watch.is_alive(), "the watch never woke on the comment"
     [woke] = outcome
     assert woke.startswith(f"{claimed} has new input")
 
@@ -9167,6 +9179,7 @@ def test_a_watch_at_an_interrupted_ending_wakes_only_for_later_input(
         claimed, {"kind": "comment", "author": "user", "text": "after"}
     )
     watch.join(timeout=STATED_TIMEOUT)
+    assert not watch.is_alive(), "the watch never woke on the comment"
     [woke] = outcome
     assert woke.startswith(f"{claimed} has new input")
 
@@ -9308,7 +9321,7 @@ def test_a_bare_shell_receipt_rearms_every_page_in_its_delivery(
     later = append_carried_log_record(
         other, {"kind": "comment", "author": "user", "text": "next"}
     )
-    out, err = watching.communicate(timeout=10)
+    out, err = watching.communicate(timeout=STATED_TIMEOUT)
     assert watching.returncode == 0, out + err
     _, batch, [event] = printed(out)
     assert batch["page"] == str(other)
@@ -9379,8 +9392,8 @@ def test_a_harness_claim_supersedes_a_bare_shell_wait(page_dir, sessionless, spa
         page_dir,
         {"kind": "comment", "id": "once", "author": "user", "text": "hi"},
     )
-    bare_out, bare_err = bare.communicate(timeout=10)
-    harness_out, harness_err = harness.communicate(timeout=10)
+    bare_out, bare_err = bare.communicate(timeout=STATED_TIMEOUT)
+    harness_out, harness_err = harness.communicate(timeout=STATED_TIMEOUT)
 
     assert (bare.returncode, bare_out) == (2, ""), bare_err
     assert "no longer owns it" in bare_err
@@ -10346,7 +10359,7 @@ def test_codex_serializes_later_input_behind_the_offered_delivery(
 
     def queue_delivery(_codex, _session, _prompt):
         queue_started.set()
-        assert release_queue.wait(timeout=5)
+        assert release_queue.wait(timeout=STATED_TIMEOUT)
 
     monkeypatch.setattr(codex_adapter_model, "queue_delivery", queue_delivery)
     offering = threading.Thread(
@@ -10355,7 +10368,9 @@ def test_codex_serializes_later_input_behind_the_offered_delivery(
         )
     )
     offering.start()
-    assert queue_started.wait(timeout=5)
+    assert queue_started.wait(timeout=STATED_TIMEOUT), (
+        "the offer never reached the Codex queue"
+    )
     assert files_model.read_json(first_path)["state"] == "offering"
 
     # A parallel step hook leaves the in-flight queue offer to its owner and
@@ -10370,7 +10385,7 @@ def test_codex_serializes_later_input_behind_the_offered_delivery(
         page, {"kind": "comment", "id": "second", "author": "user", "text": "two"}
     )
     release_queue.set()
-    offering.join(timeout=5)
+    offering.join(timeout=STATED_TIMEOUT)
     assert not offering.is_alive()
     first_delivery = files_model.read_json(
         first_path.parent / "history" / first_path.name
@@ -10566,7 +10581,7 @@ def test_codex_restart_finishes_an_accepted_batch_without_queueing_again(
         text=True,
     )
     release_codex_command(page, started, finished)
-    out, err = started.communicate(timeout=60)
+    out, err = started.communicate(timeout=STATED_TIMEOUT)
     assert started.returncode == 0, f"{out}{err}"
 
     try:
@@ -10650,7 +10665,7 @@ def test_a_later_codex_start_names_the_running_transport(
             "started": False,
         }
         release_held(started)
-        out, err = started.communicate(timeout=60)
+        out, err = started.communicate(timeout=STATED_TIMEOUT)
         assert started.returncode == 0, f"{out}{err}"
     finally:
         session_model.cmd_status(page, "idle", "")
@@ -10718,7 +10733,7 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
     assert service_model.page_claim(page)["generation"] == claim["generation"]
     assert after_release["generation"] == before_release["generation"]
     assert after_release["turn"] == before_release["turn"]
-    out, err = started.communicate(timeout=60)
+    out, err = started.communicate(timeout=STATED_TIMEOUT)
     out = announcement + out
     assert started.returncode == 0, f"{out}{err}"
     assert json.loads(out)["task"] == "codex-thread"
@@ -11016,7 +11031,7 @@ start_server(live)
     )
     announcement = codex_start_announcement(started)
     release_codex_command(live, started, finished)
-    out, err = started.communicate(timeout=60)
+    out, err = started.communicate(timeout=STATED_TIMEOUT)
     out = announcement + out
     assert started.returncode == 0, f"{out}{err}"
 
@@ -11097,13 +11112,13 @@ def test_a_codex_adapter_whose_start_was_never_committed_exits(
         stderr=subprocess.DEVNULL,
     )
     end.close()
-    caller.settimeout(30)
+    caller.settimeout(STATED_TIMEOUT)
     try:
         assert json.loads(caller.makefile("rb").readline()) == {}
         assert codex_adapter_model.adapter_is_live("codex-thread")
     finally:
         caller.close()
-    assert adapter.wait(timeout=30) == 1
+    assert adapter.wait(timeout=STATED_TIMEOUT) == 1
     assert not codex_adapter_model.adapter_is_live("codex-thread")
     with service_model.PageTransaction(page) as transaction:
         transaction.release_claim()
@@ -11157,7 +11172,7 @@ def test_codex_adapter_exits_when_delivery_retries_outlive_its_claim(
             lambda live: not live,
             failure="the Codex adapter outlived its page claim",
         )
-        assert adapter.wait(timeout=5) == 0
+        assert adapter.wait(timeout=STATED_TIMEOUT) == 0
         assert codex_records("codex-thread")[0][1]["state"] == "offering"
         assert files_model.read_json(page / "cursor.json") is None
         calls = [json.loads(line) for line in log.read_text().splitlines()]
@@ -11204,7 +11219,7 @@ def test_codex_adapter_keeps_transferred_input_unreceived(
 
     successor = record_claim(page, id="successor", harness="codex", agent="Codex")
     queue_wait.with_name(f"{queue_wait.name}.release").write_text("", encoding="utf-8")
-    assert adapter.wait(timeout=10) == 0
+    assert adapter.wait(timeout=STATED_TIMEOUT) == 0
 
     assert files_model.read_json(page / "cursor.json") is None
     assert page_state(page)["pending"] == 1
@@ -11250,7 +11265,7 @@ def test_a_queued_codex_delivery_leaves_the_turn_ended_stamp_standing(
     )
     announcement = codex_start_announcement(started)
     release_codex_command(page, started, finished)
-    out, err = started.communicate(timeout=60)
+    out, err = started.communicate(timeout=STATED_TIMEOUT)
     out = announcement + out
     assert started.returncode == 0, f"{out}{err}"
     try:
@@ -11422,7 +11437,7 @@ print(json.dumps(codex_adapter.cmd_codex_start(Path(sys.argv[1]), sys.argv[2])),
 
         announcement = codex_start_announcement(starter)
         release_codex_command(second, starter, finished)
-        out, err = starter.communicate(timeout=60)
+        out, err = starter.communicate(timeout=STATED_TIMEOUT)
         out = announcement + out
         assert starter.returncode == 0, f"{out}{err}"
         wait_for(
@@ -11436,14 +11451,14 @@ print(json.dumps(codex_adapter.cmd_codex_start(Path(sys.argv[1]), sys.argv[2])),
     finally:
         if starter is not None and starter.poll() is None:
             starter.terminate()
-            starter.wait(timeout=5)
+            starter.wait(timeout=STATED_TIMEOUT)
         session_model.cmd_status(second, "idle", "")
         for page in (first, second):
             with service_model.PageTransaction(page) as transaction:
                 transaction.release_claim()
         subprocess.run([*LEAF_COMMAND, "server", "stop", second], check=True)
 
-    out, err = adapter.communicate(timeout=60)
+    out, err = adapter.communicate(timeout=STATED_TIMEOUT)
     assert adapter.returncode == 0, f"{out}{err}"
 
 
@@ -11474,7 +11489,7 @@ def test_failed_codex_delivery_start_restores_the_previous_page_claim(
         stderr=subprocess.PIPE,
         text=True,
     )
-    out, err = failed.communicate(timeout=60)
+    out, err = failed.communicate(timeout=STATED_TIMEOUT)
 
     assert failed.returncode != 0, out
     assert "queue unsupported" in err
@@ -11521,7 +11536,7 @@ def test_a_codex_claim_records_the_session_not_the_shell_it_ran_through(
     subprocess.run([*LEAF_COMMAND, "page", "init", page], env=env, check=True)
     append_carried_log_record(page, {"kind": "comment", "author": "user", "text": "hi"})
     session = under_codex(shlex.join([*LEAF_COMMAND, "wait", str(page)]), env)
-    assert session.wait(timeout=60) == 0
+    assert session.wait(timeout=STATED_TIMEOUT) == 0
     assert service_model.page_claim(page)["pid"] == session.pid
 
 
@@ -11649,14 +11664,16 @@ def test_a_fresh_init_does_not_delete_a_concurrently_created_pages_claim(
 
     def held_composed_sheets(sources):
         reached_layer.set()
-        assert resume.wait(timeout=10), "the concurrent init never released its peer"
+        assert resume.wait(timeout=STATED_TIMEOUT), (
+            "the concurrent init never released its peer"
+        )
         return original_composed_sheets(sources)
 
     monkeypatch.setattr(layer_model, "composed_sheets", held_composed_sheets)
     executor = ThreadPoolExecutor(max_workers=1)
     first = executor.submit(vendoring_model.cmd_init, page)
     try:
-        assert reached_layer.wait(timeout=10), (
+        assert reached_layer.wait(timeout=STATED_TIMEOUT), (
             "the first init never reached its held read"
         )
         requested = tmp_path / "second-init-requested"
@@ -11689,8 +11706,8 @@ cli_model.cli()
             failure="the overlapping init never attempted the held page lease",
         )
         resume.set()
-        first.result(timeout=10)
-        second_out, second_err = second.communicate(timeout=10)
+        first.result(timeout=STATED_TIMEOUT)
+        second_out, second_err = second.communicate(timeout=STATED_TIMEOUT)
         assert second.returncode == 0, f"{second_out}{second_err}"
         idled = subprocess.run(
             [*LEAF_COMMAND, "status", page, "idle"],
@@ -11708,7 +11725,7 @@ cli_model.cli()
             },
             capture_output=True,
             text=True,
-            timeout=10,
+            timeout=STATED_TIMEOUT,
             check=False,
         )
         assert picked_up.returncode == 2, picked_up.stderr
@@ -11730,7 +11747,7 @@ def test_the_codex_environment_defaults_the_name_but_a_worker_keeps_its_own(
     subprocess.run([*LEAF_COMMAND, "page", "init", page], env=env, check=True)
     append_carried_log_record(page, {"kind": "comment", "author": "user", "text": "hi"})
     waited = under_codex(shlex.join([*LEAF_COMMAND, "wait", str(page)]), env)
-    assert waited.wait(timeout=60) == 0
+    assert waited.wait(timeout=STATED_TIMEOUT) == 0
     session = service_model.page_claim(page)
     assert session["id"] == "thread-9"
     assert session["agent"] == "Indexer" and session["harness"] == "codex"
@@ -11751,7 +11768,7 @@ def test_hook_remedies_follow_the_harness_not_the_display_name(
         shlex.join([*LEAF_COMMAND, "wait", str(page)]), env, finished=finished
     )
     release_codex_command(page, waited, finished)
-    assert waited.wait(timeout=60) == 0
+    assert waited.wait(timeout=STATED_TIMEOUT) == 0
     session_model.cmd_status(page, "waiting", "")
 
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "w1"})
@@ -11870,7 +11887,7 @@ def test_a_codex_watcher_task_takes_the_parent_watch_obligation(
     assert "Keep this turn active" in reason and "poll the existing" in reason
 
     append_carried_log_record(page, {"kind": "comment", "author": "user", "text": "hi"})
-    out, err = watcher.communicate(timeout=60)
+    out, err = watcher.communicate(timeout=STATED_TIMEOUT)
     assert watcher.returncode == 0, f"{out}{err}"
     _, header, [event] = printed(out)
     assert header["page"] == str(page)
@@ -11916,13 +11933,13 @@ def test_a_superseded_waiter_cannot_deliver_the_new_owners_batch(
         failure="the replacement watcher never claimed the page and entered leaf wait",
     )
 
-    first_out, first_err = first.communicate(timeout=60)
+    first_out, first_err = first.communicate(timeout=STATED_TIMEOUT)
     assert (first.returncode, first_out) == (2, ""), first_err
     assert second.poll() is None
     assert page_state(page)["listening"]
 
     append_carried_log_record(page, {"kind": "comment", "author": "user", "text": "hi"})
-    second_out, second_err = second.communicate(timeout=60)
+    second_out, second_err = second.communicate(timeout=STATED_TIMEOUT)
 
     assert second.returncode == 0, f"{second_out}{second_err}"
     _, header, [event] = printed(second_out)
@@ -11978,7 +11995,7 @@ sys.exit(session.cmd_wait(Path(sys.argv[1])))
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     service_model.claim_page(page)
     append_carried_log_record(page, {"kind": "comment", "author": "user", "text": "hi"})
-    first_out, first_err = first.communicate(input="continue\n", timeout=60)
+    first_out, first_err = first.communicate(input="continue\n", timeout=STATED_TIMEOUT)
     assert (first.returncode, first_out) == (2, ""), first_err
     session = service_model.page_claim(page)
     assert session["id"] == "replacement"
@@ -12030,7 +12047,7 @@ def test_wait_lease_is_exact_and_excludes_another_wait(
         [*LEAF_COMMAND, "wait", str(page_dir)],
         capture_output=True,
         text=True,
-        timeout=10,
+        timeout=STATED_TIMEOUT,
         env=os.environ,
         check=False,
     )
@@ -12039,7 +12056,7 @@ def test_wait_lease_is_exact_and_excludes_another_wait(
 
     # SIGTERM unwinds the wait's application cleanup and releases its kernel lease.
     first.terminate()
-    first.communicate(timeout=10)
+    first.communicate(timeout=STATED_TIMEOUT)
     assert lease_path.exists()
     assert not leases_model.lock_is_held(lease_path)
 
@@ -12076,19 +12093,23 @@ def test_a_stable_lock_serializes_waiting_takers_and_retains_its_file(
         attempting.set()
         with cleanup_model.flocked(path):
             entered.set()
-            assert release.wait(10)
+            assert release.wait(STATED_TIMEOUT)
 
     taker = threading.Thread(target=take)
     with cleanup_model.flocked(path):
         identity = path.stat()
         taker.start()
-        assert attempting.wait(10)
+        assert attempting.wait(STATED_TIMEOUT), (
+            "the taker never attempted the held lock"
+        )
         assert not entered.is_set()
-    assert entered.wait(10)
+    assert entered.wait(STATED_TIMEOUT), (
+        "the taker never entered the lock once it was free"
+    )
     assert leases_model.lock_is_held(path)
     assert leases_model.take_lease(path) is None
     release.set()
-    taker.join(10)
+    taker.join(STATED_TIMEOUT)
     assert not taker.is_alive()
     assert os.path.samestat(identity, path.stat())
     assert not leases_model.lock_is_held(path)
@@ -12144,7 +12165,7 @@ def test_a_crashed_lease_holder_releases_the_stable_file_for_a_successor(
     assert leases_model.lock_is_held(path)
     assert leases_model.take_lease(path) is None
     holder.terminate()
-    holder.communicate(timeout=10)
+    holder.communicate(timeout=STATED_TIMEOUT)
     assert not leases_model.lock_is_held(path)
     assert os.path.samestat(identity, path.stat())
     lease = leases_model.take_lease(path)
@@ -13535,7 +13556,7 @@ def test_the_app_s_shared_codex_is_not_taken_for_one_session_s_lifetime(
             stderr=subprocess.PIPE,
             text=True,
         )
-        out, err = started.communicate(timeout=60)
+        out, err = started.communicate(timeout=STATED_TIMEOUT)
         assert started.returncode == 0, f"{out}{err}"
         claim = service_model.page_claim(page)
         subprocess.run(
@@ -13682,7 +13703,7 @@ def test_the_registered_watch_hook_wakes_only_under_claude_code(claimed, tmp_pat
             env=base | ({"CLAUDECODE": "1"} if claude_code else {}),
             capture_output=True,
             text=True,
-            timeout=60,
+            timeout=STATED_TIMEOUT,
             check=False,
         )
 
@@ -13722,7 +13743,7 @@ def test_the_registered_hook_answers_out_of_interact_or_says_nothing(claimed, tm
             env=(env or os.environ) | {"CLAUDE_PLUGIN_ROOT": str(PLUGIN_ROOT)},
             capture_output=True,
             text=True,
-            timeout=120,
+            timeout=COMPOSITE_TIMEOUT,
             check=False,
         )
 
@@ -13808,7 +13829,7 @@ def test_the_registered_hook_leaves_library_execution_to_uv(event, watch, tmp_pa
         },
         capture_output=True,
         text=True,
-        timeout=5,
+        timeout=STATED_TIMEOUT,
         check=False,
     )
     assert (done.returncode, done.stdout, done.stderr) == (0, "", "")
@@ -13896,7 +13917,7 @@ def test_the_registered_session_end_releases_shared_claims_without_an_environmen
         },
         capture_output=True,
         text=True,
-        timeout=3,
+        timeout=STATED_TIMEOUT,
         check=False,
     )
     assert (done.returncode, done.stdout, done.stderr) == (0, "", "")
@@ -13919,7 +13940,7 @@ def test_the_registered_session_end_releases_shared_claims_without_an_environmen
         },
         capture_output=True,
         text=True,
-        timeout=3,
+        timeout=STATED_TIMEOUT,
         check=False,
     )
     assert (done.returncode, done.stdout, done.stderr) == (0, "", "")
@@ -13934,7 +13955,7 @@ def test_the_registered_session_end_releases_shared_claims_without_an_environmen
         ),
         capture_output=True,
         text=True,
-        timeout=3,
+        timeout=STATED_TIMEOUT,
         check=False,
     )
     assert (done.returncode, done.stdout, done.stderr) == (0, "", "")
@@ -13982,7 +14003,7 @@ print(json.dumps(imported))
         [sys.executable, "-c", probe],
         capture_output=True,
         text=True,
-        timeout=60,
+        timeout=STATED_TIMEOUT,
         check=True,
     )
     heavy = (
@@ -14236,7 +14257,7 @@ cli_model.cli()
         MARKER=marker,
     )
 
-    deadline = time.monotonic() + 10
+    deadline = time.monotonic() + STATED_TIMEOUT
     while not marker.exists() and time.monotonic() < deadline:
         time.sleep(0.05)
     if not marker.exists():
@@ -14267,7 +14288,7 @@ cli_model.cli()
     fcntl.flock(events, fcntl.LOCK_UN)
     events.close()
 
-    out, err = process.communicate(timeout=60)
+    out, err = process.communicate(timeout=STATED_TIMEOUT)
     assert process.returncode == 1, f"{out}{err}"
     assert "1 update nobody has picked up" in err
     assert files_model.read_json(page_dir / "status.json")["state"] == "waiting"
@@ -14281,7 +14302,6 @@ def test_session_end_releases_the_page_and_its_session_server_retires(claimed):
         lambda: server_model.running_server(claimed),
         lambda running: not running,
         failure="the unclaimed session server stayed up after session end",
-        timeout=5,
     )
     assert files_model.read_json(claimed / "status.json")["state"] == "waiting"
     assert files_model.read_json(claimed / "service.json")["enabled"] is True
@@ -14319,7 +14339,6 @@ def test_a_background_jobs_server_lives_as_long_as_the_job(
         lambda: server_model.running_server(page_dir),
         lambda running: not running,
         failure="the background-job server stayed up after its job was deleted",
-        timeout=5,
     )
     assert service_model.owned_pages("bg-job") == []
     assert presence_model.presence(page_dir, [])["session_alive"] is False
@@ -14353,9 +14372,9 @@ def test_a_server_exits_when_its_session_is_hard_killed(
     owner = session_process()
     server = managed_server(page_dir, "abandoned", owner.pid)
     owner.terminate()
-    owner.wait(timeout=5)
+    owner.wait(timeout=STATED_TIMEOUT)
 
-    server.wait(timeout=5)
+    server.wait(timeout=STATED_TIMEOUT)
     assert server.returncode == 0, server.stderr.read()
     assert files_model.read_json(page_dir / "service.json")["enabled"] is True
     assert not leases_model.lock_is_held(page_dir / "server.lock")
@@ -14368,12 +14387,12 @@ def test_a_live_session_can_take_over_an_existing_server(
     server = managed_server(page_dir, "first", first.pid)
     record_claim(page_dir, id="second", pid=second.pid, agent="Codex")
     first.terminate()
-    first.wait(timeout=5)
+    first.wait(timeout=STATED_TIMEOUT)
     assert server.poll() is None
 
     second.terminate()
-    second.wait(timeout=5)
-    server.wait(timeout=5)
+    second.wait(timeout=STATED_TIMEOUT)
+    server.wait(timeout=STATED_TIMEOUT)
     assert server.returncode == 0, server.stderr.read()
     assert files_model.read_json(page_dir / "service.json")["enabled"] is True
 
@@ -14499,7 +14518,7 @@ def test_init_restarts_a_served_page_onto_the_replacement_contract(
     assert b":root { --accent: red; }" in (page_dir / "theme.css").read_bytes()
     # The old server went down with the restart, and this checkout's came up in its
     # place at the same URL, under the lifetime and claim it had.
-    old_server.wait(timeout=5)
+    old_server.wait(timeout=STATED_TIMEOUT)
     assert server_model.running_server(page_dir)["url"] == url
     assert files_model.read_json(page_dir / "service.json")["lifetime"] == lifetime
     assert service_model.page_claim(page_dir) == prior_owner
@@ -14550,12 +14569,11 @@ def test_server_stop_reports_a_server_that_exits_as_soon_as_it_is_disabled(
                 lambda: leases_model.lock_is_held(page_dir / "server.lock"),
                 lambda held: not held,
                 failure="server did not release its lease after stop",
-                timeout=5,
             )
 
     monkeypatch.setattr(hosting_model, "write_json", write_and_wait_for_exit)
     assert hosting_model.cmd_stop(page_dir) is True
-    server.wait(timeout=5)
+    server.wait(timeout=STATED_TIMEOUT)
 
 
 def test_session_end_cannot_release_a_page_claimed_by_its_successor(page_dir):
@@ -14594,13 +14612,13 @@ def test_server_stop_waits_for_the_live_server_to_release_its_lease(
             lambda: files_model.read_json(page_dir / "service.json")["enabled"],
             lambda enabled: not enabled,
             failure="server stop never disabled the service",
-            timeout=5,
         )
         returned_while_paused = not stopping.is_alive()
     finally:
         os.kill(server.pid, signal.SIGCONT)
-    stopping.join(timeout=5)
-    server.wait(timeout=5)
+    stopping.join(timeout=STATED_TIMEOUT)
+    assert not stopping.is_alive(), "server stop never returned once the server resumed"
+    server.wait(timeout=STATED_TIMEOUT)
 
     assert not returned_while_paused, "server stop returned before lock release"
     assert not stopping.is_alive(), "server stop did not cross the release barrier"
@@ -14626,9 +14644,9 @@ def test_server_stop_closes_accepted_keep_alive_connections(page_dir, standing_s
     )
 
     assert hosting_model.cmd_stop(page_dir) is True
-    server.wait(timeout=5)
+    server.wait(timeout=STATED_TIMEOUT)
 
-    accepted.settimeout(1)
+    accepted.settimeout(STATED_TIMEOUT)
     try:
         accepted.sendall(b"\r\n")
         remainder = accepted.recv(1)
@@ -14645,7 +14663,7 @@ def test_a_sessionless_server_ignores_a_stale_claim_and_requires_explicit_stop(
     assert not reaper_retires(page_dir, monkeypatch)
     assert server.poll() is None, "a manual server inherited the stale session claim"
     assert hosting_model.cmd_stop(page_dir) is True
-    server.wait(timeout=5)
+    server.wait(timeout=STATED_TIMEOUT)
 
 
 def test_server_run_standing_declines_the_claim_a_harness_session_offers(
@@ -14697,7 +14715,7 @@ def test_server_run_temporary_uses_the_browser_harness_boundary(page_dir, spawn)
     assert service_model.page_claim(page_dir) is None
 
     process.send_signal(signal.SIGINT)
-    _, error = process.communicate(timeout=5)
+    _, error = process.communicate(timeout=STATED_TIMEOUT)
     assert process.returncode == 1, error
     assert error.endswith("Aborted!\n")
 
@@ -14749,7 +14767,7 @@ def test_a_standing_server_outlives_a_session_that_picks_the_page_up(
     assert page_dir not in service_model.owned_pages("later")
     # Explicit stop crosses that server's release barrier before returning.
     assert hosting_model.cmd_stop(page_dir) is True
-    server.wait(timeout=5)
+    server.wait(timeout=STATED_TIMEOUT)
 
 
 def test_state_reports_whether_the_owning_session_still_exists(claimed, dead_pid):
@@ -15734,13 +15752,11 @@ def test_one_subscription_recovers_delivery_without_a_second_start(
         lambda: codex_model.delivery_record_state("codex-thread", payload["id"]),
         lambda state: state == "accepted",
         failure="reconnected transcript did not accept the delivery",
-        timeout=5,
     )
     wait_for(
         lambda: len(connections) == 2 and connection.connected.is_set(),
         bool,
         failure="subscription did not finish its transcript reconciliation",
-        timeout=5,
     )
     replies = wait_for(
         lambda: [
@@ -15750,7 +15766,6 @@ def test_one_subscription_recovers_delivery_without_a_second_start(
         ],
         lambda replies: len(replies) == (1 if reply_kind == "thread" else 0),
         failure="reconnected transcript did not settle its reply",
-        timeout=5,
     )
     assert [reply["text"] for reply in replies] == (
         ["Recovered answer"] if reply_kind == "thread" else []
@@ -16312,7 +16327,7 @@ def test_connection_stop_waits_for_its_receiver_and_rejects_queued_commands():
 
     connection.thread = threading.Thread(target=receiver)
     connection.thread.start()
-    assert entered.wait(2)
+    assert entered.wait(STATED_TIMEOUT), "the receiver thread never started"
     from concurrent.futures import Future
 
     result = Future()
@@ -16324,11 +16339,13 @@ def test_connection_stop_waits_for_its_receiver_and_rejects_queued_commands():
 
     stopper = threading.Thread(target=stop)
     stopper.start()
-    assert connection.stop_event.wait(2)
+    assert connection.stop_event.wait(STATED_TIMEOUT), (
+        "stop never signalled its receiver"
+    )
     assert not stopped.is_set()
     assert not result.done()
     release.set()
-    stopper.join(timeout=5)
+    stopper.join(timeout=STATED_TIMEOUT)
     assert stopped.is_set()
     assert not connection.thread.is_alive()
     with pytest.raises(RuntimeError, match="stopped"):
@@ -16568,7 +16585,11 @@ def test_session_lifecycle_is_shared_without_rewriting_page_claims(
 
 
 def test_cold_session_end_does_not_wait_for_a_page_transaction(claimed):
-    """A held page lock cannot consume the harness's three-second SessionEnd deadline."""
+    """A held page lock cannot consume the harness's three-second SessionEnd deadline.
+
+    The transaction stays held for the whole run, so a SessionEnd that waited on it
+    would never return: the suite's hang bound tells the two apart without timing
+    the hook on a busy machine."""
     with service_model.PageTransaction(claimed):
         done = subprocess.run(
             [
@@ -16579,7 +16600,7 @@ def test_cold_session_end_does_not_wait_for_a_page_transaction(claimed):
             input=json.dumps({"hook_event_name": "SessionEnd", "session_id": "s1"}),
             text=True,
             capture_output=True,
-            timeout=3,
+            timeout=STATED_TIMEOUT,
             check=False,
         )
         assert (done.returncode, done.stdout, done.stderr) == (0, "", "")
@@ -16645,13 +16666,15 @@ def test_hook_snapshot_serializes_receipt_and_reply(claimed, monkeypatch):
         writer = threading.Thread(target=settle, daemon=True)
         writers.append(writer)
         writer.start()
-        assert lock_proved.wait(timeout=5)
+        assert lock_proved.wait(timeout=STATED_TIMEOUT), (
+            "the settlement writer never tried the held lock"
+        )
         return projected(page_dir, events)
 
     monkeypatch.setattr(hook_carrier_model, "full_state", read_while_settlement_waits)
     plans = hook_carrier_model.read_plans("s1")
     for writer in writers:
-        writer.join(timeout=5)
+        writer.join(timeout=STATED_TIMEOUT)
         assert not writer.is_alive()
     assert not errors
     assert not plans[0].owed
@@ -16843,7 +16866,9 @@ def test_reader_ack_commits_pickup_and_cursor_before_session_end(
 
     def pickup_while_end_attempts(*args, **kwargs):
         thread.start()
-        assert attempting.wait(STATED_TIMEOUT)
+        assert attempting.wait(STATED_TIMEOUT), (
+            "the session end never attempted its lock"
+        )
         # Observe the actual lock ownership, rather than relying on scheduling
         # an end call to happen before this short receipt transaction completes.
         with (
@@ -16858,6 +16883,7 @@ def test_reader_ack_commits_pickup_and_cursor_before_session_end(
     monkeypatch.setattr(delivery_model, "record_pickup", pickup_while_end_attempts)
     accepted = CliRunner().invoke(cli_model.cli, ["delivery", "ack", envelope["id"]])
     thread.join(STATED_TIMEOUT)
+    assert not thread.is_alive(), "the session end never finished"
     assert accepted.exit_code == 0, accepted.output
     assert ended.is_set()
     assert events_model.read_cursor(claimed) == event["seq"]

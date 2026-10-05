@@ -2071,10 +2071,12 @@ def test_a_keyboard_reaction_returns_focus_to_the_visual_target(browser, serve):
     )
 
 
-def test_a_selection_change_replaces_and_clears_a_visual_target(browser, serve):
+def test_a_selection_change_offers_a_visual_target_without_replacing_an_open_composer(
+    browser, serve
+):
     """Selection changes can come from touch handles and browser commands without a
-    mouseup or keyup in the page. The new passage replaces the visual target, and
-    clearing that passage dismisses the shared action surface.
+    mouseup or keyup in the page. They offer the new passage without silently moving
+    an open composer; an explicit Comment press moves it to that passage.
 
     The user takes the page back while the composer's focus handoff is still in
     flight, which is the state the press leaves behind: opening Comment marks the
@@ -2082,8 +2084,7 @@ def test_a_selection_change_replaces_and_clears_a_visual_target(browser, serve):
     keeps that gap open for the whole of the selection rather than leaving its width to
     the machine — measured here, the handoff lands about eight milliseconds after the
     press returns, which is the same span the driver spends making the next call. The
-    passage is the bar's whether or not the handoff has landed, and it was the ordering
-    below that CI lost on.
+    passage is offered whether or not the handoff has landed.
     """
     page = open_page(browser, serve(PART_DIAGRAM_PAGE))
     control = page.get_by_role("button", name="Respond to Start request")
@@ -2103,14 +2104,20 @@ def test_a_selection_change_replaces_and_clears_a_visual_target(browser, serve):
             }"""
         )
     bar = page.locator(".lf-fab-bar")
-    expect(bar).to_have_attribute("aria-label", re.compile("Request path"))
+    expect(page.get_by_role("button", name="Comment on selection")).to_be_visible()
+    expect(bar).to_have_attribute("aria-label", re.compile("Start request"))
     expect(bar).to_be_visible()
-    expect(start).not_to_have_class(re.compile(r"\blf-pending\b"))
 
     page.evaluate(
         "() => { document.activeElement.blur(); getSelection().removeAllRanges(); }"
     )
-    expect(bar).to_be_hidden()
+    expect(page.get_by_role("button", name="Comment on selection")).to_be_hidden()
+    expect(bar).to_be_visible()
+
+    page.locator("h1").select_text()
+    page.get_by_role("button", name="Comment on selection").click()
+    expect(bar).to_have_attribute("aria-label", re.compile("Request path"))
+    expect(start).not_to_have_class(re.compile(r"\blf-pending\b"))
 
 
 def test_a_thread_at_rest_shows_only_the_marks_that_stand_in_it(browser, serve):
@@ -2580,11 +2587,11 @@ def test_an_ok_on_the_agents_latest_reply_takes_the_thread_out_of_waiting(
 
 
 def test_a_remote_resolve_disarms_the_open_reply_list_it_takes_away(browser, serve):
-    """A remote resolve takes away the strip whose list is open without a pointer or
-    focus gesture in this tab: the thread's card stays where it stands, drawn resolved,
-    and a resolved thread's messages wear no strip. The detached list stops owning
-    digits, so a later key cannot react to a message that no longer offers it, and the
-    user stays on the thread they were in."""
+    """A remote resolve waits behind the open card's notice, so the strip whose list is
+    open stays. A digit there means what the strip drew, and a resolved thread offers
+    no reaction, so it sends nothing; as the user's gesture in the thread it shows the
+    resolution, whose messages wear no strip. The detached list stops owning digits,
+    and the user stays on the thread they were in."""
     url = serve(PANEL_PAGE)
     root, reply = _thread(serve.page_dir)
     page = open_page(browser, url)
@@ -2598,10 +2605,14 @@ def test_a_remote_resolve_disarms_the_open_reply_list_it_takes_away(browser, ser
 
     thread_model.cmd_resolve(serve.page_dir, root)
     told(page)
+    expect(card.get_by_role("button", name="Resolved", exact=True)).to_be_visible()
+    expect(card).to_have_attribute("data-resolved", "false")
+    expect(strip).to_have_class(re.compile("lf-react-open"))
+    count = len(events_model.read_events(serve.page_dir))
+    page.keyboard.press("1")
     expect(card).to_have_attribute("data-resolved", "true")
     expect(page.locator(".lf-react-open")).to_have_count(0)
     expect(card.locator(":scope > .lf-thread-summary")).to_be_focused()
-    count = len(events_model.read_events(serve.page_dir))
     page.keyboard.press("1")
     page.wait_for_timeout(100)
     assert len(events_model.read_events(serve.page_dir)) == count

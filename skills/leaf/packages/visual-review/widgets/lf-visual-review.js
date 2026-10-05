@@ -186,7 +186,6 @@ customElements.define(
       this.#queueHost.setAttribute("aria-label", "Visual review cases");
       const previous = offer("button", "lf-btn lf-vr-previous", "Previous");
       previous.type = "button";
-      previous.addEventListener("click", () => this.#step(-1));
       this.#queue = offer("wa-select", "lf-vr-case-select");
       this.#queue.name = "visual-case";
       this.#queue.size = "s";
@@ -195,7 +194,6 @@ customElements.define(
       this.#queue.addEventListener("change", () => this.#select(this.#queue.value));
       const next = offer("button", "lf-btn lf-vr-next", "Next");
       next.type = "button";
-      next.addEventListener("click", () => this.#step(1));
       this.#queueHost.append(previous, this.#queue, next);
       const queue = make("header", "lf-vr-queue");
       queue.append(this.#queueHost);
@@ -508,6 +506,7 @@ customElements.define(
       this.#commands = commands(this, "In a visual review", [
         {
           id: "visual.next-case",
+          control: () => this.#queueHost.querySelector(".lf-vr-next"),
           keys: ["ArrowDown"],
           title: "next case",
           when: () => this.#caseEntries.size > 1,
@@ -515,6 +514,7 @@ customElements.define(
         },
         {
           id: "visual.previous-case",
+          control: () => this.#queueHost.querySelector(".lf-vr-previous"),
           keys: ["ArrowUp"],
           title: "previous case",
           when: () => this.#caseEntries.size > 1,
@@ -931,8 +931,7 @@ customElements.define(
     #paintNavigation() {
       const count = this.#caseEntries.size;
       this.#queue.toggleAttribute("disabled", count === 0);
-      for (const button of this.#queueHost.querySelectorAll("button"))
-        button.toggleAttribute("disabled", count < 2);
+      paintKeys();
     }
 
     async #review(id, disposition) {

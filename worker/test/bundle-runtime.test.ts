@@ -87,25 +87,29 @@ describe("published runtime bundle", () => {
 
   it("collapses the production runtime's static modules", async () => {
     const directory = await mkdtemp(join(tmpdir(), "leaf-runtime-"));
-    temporary.push(directory);
-    // The production layer is the kernel composed with its bundled packages.
-    const runtime = join(directory, "layer");
-    execFileSync(
-      fileURLToPath(new URL("../../bin/leaf", import.meta.url)),
-      ["page", "init", runtime],
-      { env: { ...process.env, XDG_STATE_HOME: join(directory, "state") } },
-    );
+    try {
+      // The production layer is the kernel composed with its bundled packages.
+      const runtime = join(directory, "layer");
+      execFileSync(
+        fileURLToPath(new URL("../../bin/leaf", import.meta.url)),
+        ["page", "init", runtime],
+        { env: { ...process.env, XDG_STATE_HOME: join(directory, "state") } },
+      );
 
-    const output = join(directory, "bundled");
-    await bundleLayer(runtime, "/published/layer", output);
-    const bundled = await readFile(join(output, "leaf.js"), "utf8");
-    expect(await readFile(join(output, "runtime", "media.js"), "utf8")).toBeTruthy();
-    expect(
-      await readFile(join(output, "runtime", "layer-client.js"), "utf8"),
-    ).toBeTruthy();
-    expect(bundled).not.toMatch(/from"\.\/runtime\/(?!bundle-)/);
-    expect(
-      await readFile(join(output, "widgets", "lf-suggestion.js"), "utf8"),
-    ).not.toContain("/runtime/widget-api.js");
-  });
+      const output = join(directory, "bundled");
+      await bundleLayer(runtime, "/published/layer", output);
+      const bundled = await readFile(join(output, "leaf.js"), "utf8");
+      expect(await readFile(join(output, "runtime", "media.js"), "utf8")).toBeTruthy();
+      expect(
+        await readFile(join(output, "runtime", "layer-client.js"), "utf8"),
+      ).toBeTruthy();
+      expect(bundled).not.toMatch(/from"\.\/runtime\/(?!bundle-)/);
+      expect(
+        await readFile(join(output, "widgets", "lf-suggestion.js"), "utf8"),
+      ).not.toContain("/runtime/widget-api.js");
+    } finally {
+      // Keep the build inputs until the operation finishes, even if the test times out.
+      await rm(directory, { recursive: true });
+    }
+  }, 60_000);
 });

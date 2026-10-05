@@ -487,6 +487,7 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     user.keyboard.press("i")
     expect(field).to_be_focused()
     expect(field).to_have_js_property("value", "Restore Back to releases")
+    scroll_settled(user)
     assert_keyboard_focus(user, field)
 
     resized(user, 1366, 768)

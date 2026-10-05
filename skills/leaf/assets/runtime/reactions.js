@@ -37,6 +37,8 @@
    mount installs the mode teardown listeners after composition. */
 
 import { nextRender } from "./rendering.js";
+import { whenOffScreen } from "./geometry.js";
+import { scrollIntoReadingBand } from "./landing-scroll.js";
 import { registerContribution } from "./contributions.js";
 import { runtime } from "./context.js";
 import { registry } from "./registry.js";
@@ -52,7 +54,7 @@ import {
 } from "./anchor-resolution.js";
 import { announce, notice } from "./notifications.js";
 import { claimsEsc, focused, saying } from "./keyboard/scopes.js";
-import { handBack } from "./focus.js";
+import { handBack, returningFocus } from "./focus.js";
 import { repaint } from "./repaint.js";
 
 import {
@@ -308,6 +310,11 @@ export function createReactionController({
   let marginUnfolded = false;
   let reactFrom = null;
   let reactSurface = null;
+  // An open reply list closes once its trigger is out of view. The list is in the
+  // top layer, and its anchor only stops painting it there, so without this the user
+  // would read on through another thread while Tab, arrows and digits still answered
+  // the reply scrolled away.
+  let reactDeparture = null;
   const latestAgentStrip = (held) => held.querySelector(".lf-react-strip.lf-open");
   const pickerFor = (surface) => surfaces.get(surface);
 
@@ -394,7 +401,11 @@ export function createReactionController({
   function closeSurface(surface) {
     if (surface === marginSurface) return;
     surface?.classList.remove("lf-react-open");
-    pickerFor(surface)?.trigger.setAttribute("aria-expanded", "false");
+    reactDeparture?.();
+    reactDeparture = null;
+    const picker = pickerFor(surface);
+    if (picker) returningFocus(() => picker.palette.hidePopover());
+    picker?.trigger.setAttribute("aria-expanded", "false");
   }
 
   // A page picker lives in the target's shared margin entry options and therefore owns its
@@ -418,9 +429,10 @@ export function createReactionController({
     }
     if (on === reactArmed && (surface === reactSurface || !surface)) return;
     if (on && claimsEsc(focused())) return;
-    // Closing hides the palette synchronously. Capture its focused control first: once
-    // CSS makes it invisible, the browser reports body and loses the fact needed to
-    // return to the compact response that opened it.
+    // Closing hides the palette synchronously. Capture its focused control first: a
+    // reply's list hands focus back to its opener as it closes, and the margin's goes
+    // with its contribution, after which the browser reports where focus went rather
+    // than the choice the user stood on, the fact the return below reads.
     const closingActive = on ? null : focused();
     closeSurface(reactSurface);
     if (on) {
@@ -464,6 +476,15 @@ export function createReactionController({
       if (reactSurface !== marginSurface) {
         reactSurface.classList.add("lf-react-open");
         const picker = pickerFor(reactSurface);
+        // `e` opens the latest reply of the thread the user stands in, which may be
+        // scrolled out of the list: it comes into view to be answered, since a list
+        // hung from a trigger out of view would neither show nor stay open.
+        scrollIntoReadingBand(picker.trigger, picker.trigger, "nearest", "instant");
+        picker.palette.showPopover({ source: picker.trigger });
+        const opened = reactSurface;
+        reactDeparture = whenOffScreen([picker.trigger], () => {
+          if (reactSurface === opened) setReact(false);
+        });
         picker.trigger.setAttribute("aria-expanded", "true");
         if (surface && reactFrom === picker.trigger)
           picker.palette.querySelector(".lf-react")?.focus({ preventScroll: true });
@@ -498,15 +519,20 @@ export function createReactionController({
         // Hiding a focused choice may leave focus on that now-hidden node or drop it to
         // body before the browser paints. The user may choose another control during
         // that frame; only those two states mean the palette still owes its return.
-        if (destination !== document.body)
-          nextRender(() => {
+        if (destination !== document.body) {
+          const returnFocus = () => {
             if (
               destination.isConnected &&
               destination.checkVisibility?.() &&
               (focused() === active || focused() === document.body)
             )
               destination.focus({ preventScroll: true });
-          });
+          };
+          // A reaction press may release held news and repaint this thread before
+          // the next frame. Put focus on its trigger now so that repaint carries it.
+          returnFocus();
+          nextRender(returnFocus);
+        }
       }
     }
     repaint();

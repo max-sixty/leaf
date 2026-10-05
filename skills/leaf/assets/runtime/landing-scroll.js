@@ -6,7 +6,9 @@
  * through enclosing regions even when the item's full extent is taller than them.
  * The moves change only scrollTop, so a
  * shadow boundary or smooth motion never takes away sideways reading position.
- * CSS scroll-padding and the destination's scroll-margin clear pinned headers.
+ * CSS scroll-padding and the destination's scroll-margin clear pinned headers, and a
+ * nearest landing takes its bottom margin too, which clears a pinned foot such as a long
+ * thread's reply row.
  */
 import { landingBand, shownBox, scrollAxes } from "./geometry.js";
 import { scrollersOf } from "./reading-regions.js";
@@ -21,10 +23,10 @@ const nearestBy = ({ top, bottom }, band) =>
         ? Math.min(bottom - band.bottom, top - band.top)
         : 0;
 
-const scrollMargin = (where) =>
+const scrollMargin = (where, side = "Top") =>
   where instanceof Range
     ? 0
-    : Number.parseFloat(getComputedStyle(where).scrollMarginTop) || 0;
+    : Number.parseFloat(getComputedStyle(where)[`scrollMargin${side}`]) || 0;
 
 function placementBy(where, block, box) {
   const rect = where instanceof Range ? where.getBoundingClientRect() : shownBox(where);
@@ -39,7 +41,13 @@ function placementBy(where, block, box) {
         : Math.max((room - rect.height) / 2, margin);
   const movement =
     block === "nearest" && !(where instanceof Range)
-      ? nearestBy({ top: rect.top - margin, bottom: rect.bottom }, band)
+      ? nearestBy(
+          {
+            top: rect.top - margin,
+            bottom: rect.bottom + scrollMargin(where, "Bottom"),
+          },
+          band,
+        )
       : rect.top - band.top - place;
   return movement;
 }

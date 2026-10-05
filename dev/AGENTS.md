@@ -101,11 +101,18 @@ in `leaf-assets.json` and the README's image URLs that name it.
   chooses available HTTP and inspector ports.
 - `leaf-dev verify-site` verifies a release at an origin, or with `wrangler` the
   site `leaf-dev site` built, through the local Worker and container, and prints the
-  startup profile; CI runs `wrangler` on pull requests. With `--agent`, or `local`
-  for the Python adapter alone, it runs the hosted-agent journey and emits one JSON
-  sample. Each local run has private listener ports, temporary site, container build
-  context and state, and retained logs under `.tmp/verify-site/run-*/`. `worker/README.md` owns hosted-agent
+  startup profile; CI runs `wrangler` on pull requests. Each local run has private
+  listener ports, temporary site, container build context and state, and retained
+  logs under `.tmp/verify-site/run-*/`. `worker/README.md` owns hosted-agent
   diagnostics and the failure contract.
+- `leaf-dev journey TARGET` runs one user's journey, a request through Threads to
+  record that a release passed its checks, answered with a revision and a reply, on
+  any harness: `cc` or `codex`
+  on this working tree, `local` for the website's adapter, `wrangler`, or a website
+  origin. It prints one JSON sample: the title, published revision and reply timed
+  on the page server's clock from the comment's admission, and what only the browser
+  sees from the send; on `cc` or `codex`, also the agent's turn split into delivery,
+  model and tool phases. `publish-site` runs it against each release.
 - `worker/deploy-dev.sh` (`npm run deploy:dev --prefix worker`) deploys the checkout
   to the standing `leaf-website-dev` environment and verifies it. Production deploys
   only through `.github/workflows/publish-site.yaml`.

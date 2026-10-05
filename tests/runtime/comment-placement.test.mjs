@@ -16,7 +16,13 @@ import {
 document.documentElement.style.setProperty("--thread-card-min", "320px");
 document.documentElement.style.setProperty("--thread-card", "592px");
 
-const boundary = new DOMRect(8, 50, 1284, 797);
+// A window boundary, keyed by its edges as commentBoundary keys one.
+const windowBoundary = (left, top, width, height) =>
+  Object.assign(new DOMRect(left, top, width, height), {
+    inRegion: null,
+    key: [left, top, left + width, top + height],
+  });
+const boundary = windowBoundary(8, 50, 1284, 797);
 // A paragraph `width` wide from x = `left`, from y = `top` to `bottom`.
 const block = (left, width, top, bottom) => new DOMRect(left, top, width, bottom - top);
 // A page scrolled `scrollTop` into a document `height` tall, in an 850px scrollport.
@@ -123,11 +129,32 @@ test("a submitted frame survives supersession until it lands, then follows scrol
     const reflowed = block(300, 700, 200, 400);
     assert.equal(card.choose({ ...input, clear: reflowed }).fresh, true);
     card.adopt({ box, placement: editor.capture() });
-    const resized = new DOMRect(8, 50, 1084, 797);
+    const resized = windowBoundary(8, 50, 1084, 797);
     const afterResize = card.choose({ ...input, boundary: resized });
     assert.equal(afterResize.fresh, true);
     assert.equal(afterResize.hold, undefined);
   }
+});
+
+test("a page scroll that moves a region's shown bounds keeps the side", () => {
+  // A region boundary is keyed by the region's whole size, so a scroll of the page that
+  // moves and clips its shown bounds chooses no side afresh, while a resize does.
+  const region = (top, height, size = [0, 0, 900, 600]) =>
+    Object.assign(new DOMRect(100, top, 900, height), { inRegion: {}, key: size });
+  const clear = block(120, 860, 300, 500);
+  const input = {
+    clear,
+    row: clear.top,
+    scroller: scroller(1000),
+    coarse: false,
+  };
+  const card = commentPlacement();
+  assert.equal(card.choose({ ...input, boundary: region(58, 597) }).fresh, true);
+  assert.equal(card.choose({ ...input, boundary: region(50, 560) }).fresh, false);
+  assert.equal(
+    card.choose({ ...input, boundary: region(50, 560, [0, 0, 900, 500]) }).fresh,
+    true,
+  );
 });
 
 test("a growing card holds its top while read and its foot for the turn that joins a draft", () => {
@@ -203,7 +230,7 @@ test("a growing card holds its top while read and its foot for the turn that joi
   assert.equal(card.heldHeight(), 200);
 });
 
-test("beside, a margin row is kept clear only where that leaves the card its whole measure", async () => {
+test("beside, a margin row stays usable where the card keeps its minimum width", async () => {
   const ui = await import("/vendor/floating-ui.esm.js");
   // A paragraph ending at 600, and a margin row 40px wide out past it.
   const clear = block(300, 300, 300, 500);
@@ -218,10 +245,10 @@ test("beside, a margin row is kept clear only where that leaves the card its who
       fit() {},
     }).reference;
   };
-  // Past a row ending at 692, 592 remains to the boundary at 1292 after the gap: the
-  // card keeps the row in view at no cost to its width.
-  assert.equal(reference(692).right, 692);
-  // A row ending 1px further would take that pixel from the card, so the card stands
-  // over the row, beside the words.
-  assert.equal(reference(693).right, clear.right);
+  // The card may narrow from its preferred measure to keep the row usable.
+  assert.equal(reference(693).right, 693);
+  // Past a row ending at 964, 320 remains to the boundary at 1292 after the gap.
+  assert.equal(reference(964).right, 964);
+  // One pixel less than its minimum sends the card over the row.
+  assert.equal(reference(965).right, clear.right);
 });

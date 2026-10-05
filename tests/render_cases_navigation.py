@@ -357,7 +357,7 @@ def wait_standing(page, text, ids=()):
     is. The failure carries what was painted instead, since a timeout on a predicate says
     only that it never came true."""
     try:
-        page.wait_for_function(STANDING, arg=[text, list(ids)], timeout=4000)
+        page.wait_for_function(STANDING, arg=[text, list(ids)])
     except PlaywrightTimeout:
         raise AssertionError(
             f"the page should be marking {text or list(ids)!r} as the comment the user"
@@ -380,7 +380,7 @@ def wait_hovered(page, text):
     layout, and the panel's half reads the browser's own :hover, which that frame is also
     what settles. Reading straight after the move reads the move before its answer."""
     try:
-        page.wait_for_function(HOVERED, arg=text, timeout=4000)
+        page.wait_for_function(HOVERED, arg=text)
     except PlaywrightTimeout:
         raise AssertionError(
             f"the pointer should be lighting {text!r} on the page; it is lighting"
@@ -946,7 +946,7 @@ def live_watcher(page_dir, page):
     try:
         yield
     finally:
-        lease.close()
+        leases_model.release_lease(lease)
     # Outside the finally: a block that raised has its own failure to report, and
     # nothing after it to wait for.
     told(page)

@@ -2,17 +2,19 @@
 
 Images and viewport geometry live in max-sixty/leaf-assets, pinned by the existing
 leaf-assets.json. Tests compare current Leaf directly against that immutable set;
-no historical runtime, source patch or baseline build is involved. Each rendering
-profile names the OS, architecture and locked Chromium version. Linux also binds
-the shared native fontconfig and installed DejaVu font bytes. Missing profiles
-fail: browser upgrades require deliberately reviewed captures, including the Linux
-CI profile. Existing fetch-assets warms the same cache as every other asset reader.
+no historical runtime, source patch or baseline build is involved. Appearance is
+compared on macOS only: fonts and antialiasing differ by OS, and a Linux image could
+be made only on CI's own runner (TODO.md, "Development velocity"). Elsewhere the
+journey and its delivery assertions still run and keep their images as evidence.
+A profile names the macOS version, architecture and locked Chromium version, and a
+missing profile fails: browser upgrades require deliberately reviewed captures.
+Existing fetch-assets warms the same cache as every other asset reader.
 
     uv run pytest -n0 tests/test_render_thread_snapshots.py
     uv run leaf-dev thread-snapshots capture
     uv run leaf-dev thread-snapshots accept .tmp/thread-snapshots/captures/<run>
 
-Capture runs the same journey and hard delivery assertions, writing all 42 PNG images and
+Capture runs the same journey and hard delivery assertions, writing all 48 PNG images and
 geometry readings to a new evidence folder. Review its actual images and observations,
 then accept publishes that profile through leaf_assets.stage / publish and updates
 the ordinary asset pin. Acceptance never occurs in normal tests. CI retains failed
@@ -25,7 +27,7 @@ First insertion has an immediate words/busy/opacity observer before stabilized
 screenshots. Refusal's exact feedback and native visibility are observed at mutation;
 its real expiry precedes the restored-draft capture. Transient notice styling is
 outside the pixel oracle and retains its ordinary rendered lifecycle tests. Capture
-hides only editor carets, preserving draft words, focus and selection. Seven bounded
+hides only editor carets, preserving draft words, focus and selection. Eight bounded
 cases cover general, panel, margin, inline diff, dark and narrow appearances;
 they do not claim all thread states. Existing news/storage tests remain separate.
 """
@@ -49,7 +51,6 @@ from playwright.sync_api import Page
 from pytest_image_snapshot import ImageMismatchError
 
 from leaf_dev import ROOT, leaf_assets
-from leaf_dev.browser import linux_font_fingerprint
 from leaf_dev.thread_journey import STAGES
 
 
@@ -73,22 +74,29 @@ CASES = (
         source="tests/fixtures/pages/thread-journey-inline.html",
         motion="reduce",
     ),
+    Case(
+        "inline-dark",
+        "inline",
+        source="tests/fixtures/pages/thread-journey-inline.html",
+        scheme="dark",
+        motion="reduce",
+    ),
     Case("margin-dark", "margin", scheme="dark", motion="reduce"),
     Case("panel-dark", "panel", scheme="dark", motion="reduce"),
     Case("panel-narrow", "panel", viewport=(390, 740)),
 )
 
 
+# The one platform whose appearance is reviewed and compared.
+COMPARED = sys.platform == "darwin"
+
+
 def render_profile(browser_version: str) -> str:
     """The rendering environment whose images this run can compare meaningfully."""
-    system = platform.system().lower()
-    version = (
-        platform.mac_ver()[0]
-        if system == "darwin"
-        else platform.freedesktop_os_release()["VERSION_ID"]
+    return (
+        f"darwin-{platform.mac_ver()[0]}-{platform.machine()}"
+        f"-chromium-{browser_version}"
     )
-    fonts = f"-fonts-{linux_font_fingerprint()}" if system == "linux" else ""
-    return f"{system}-{version}-{platform.machine()}-chromium-{browser_version}{fonts}"
 
 
 @contextmanager
@@ -182,6 +190,9 @@ class SnapshotRun:
             )
         actual = self.output / f"{stage}.actual.png"
         actual.write_bytes(png)
+        self.observations[stage] = reading
+        if not COMPARED:
+            return
         baseline = self.store / self.profile / f"{self.case.name}-{stage}.png"
         geometry = baseline.with_suffix(".json")
         if self.updating:
@@ -198,7 +209,11 @@ class SnapshotRun:
         expected.parent.mkdir(parents=True, exist_ok=True)
         if not self.updating and baseline.is_file():
             shutil.copyfile(baseline, expected)
-        self.observations[stage] = reading
+        # A profile without this case's images still runs the whole journey, so a
+        # new case's first run leaves every stage's actual image for review.
+        if not self.updating and not baseline.is_file():
+            self.failures.append(f"{stage}: missing approved image: {baseline}")
+            return
         try:
             # Pixelmatch ignores antialias edges and small perceptual color changes.
             # Every remaining mismatch fails; there is no whole-image allowance.
@@ -234,6 +249,8 @@ def thread_snapshots():
 @thread_snapshots.command("capture")
 def capture():
     """Run all delivery assertions and capture current appearance for review."""
+    if not COMPARED:
+        raise click.ClickException("thread appearance is captured on macOS only")
     directory = ROOT / ".tmp/thread-snapshots/captures" / uuid.uuid4().hex
     directory.mkdir(parents=True)
     result = subprocess.run(

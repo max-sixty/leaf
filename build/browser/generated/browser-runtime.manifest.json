@@ -23,7 +23,7 @@
   },
   "outputRoot": "skills/leaf/assets/vendor",
   "lockfile": "package-lock.json",
-  "lockfileSha256": "888f07e6256dbeb40cfb9e8f8ad442f78352f29ee123cce7f0a813e53a3b345e",
+  "lockfileSha256": "5cc058420ee32fc5e60bca5998f45b9f7a8f3826f1a63292a246450fc2866807",
   "commands": {
     "install": "npm ci",
     "build": "npm run build:browser",
@@ -47,13 +47,11 @@
     "@shikijs/core": "4.5.0",
     "@shikijs/engine-javascript": "4.5.0",
     "@shikijs/langs": "4.5.0",
-    "@shikijs/themes": "4.5.0",
     "acorn": "8.18.0",
     "agentic-mermaid": "0.4.1",
     "diff": "9.0.0",
     "esbuild": "0.28.2",
     "happy-dom": "20.14.5",
-    "highlight.js": "11.12.0",
     "lit": "3.3.3",
     "lit-html": "3.3.0",
     "marked": "18.0.14",
@@ -76,6 +74,7 @@
     "createSemanticApplication",
     "describeFailure",
     "html",
+    "noChange",
     "nothing",
     "render",
     "repeat"
@@ -163,12 +162,12 @@
   "pageModules": "Browser-ready authored page modules are captured with their revision; they are not contributor-build inputs.",
   "outputs": {
     "skills/leaf/assets/vendor/browser-runtime.js": {
-      "bytes": 28871,
-      "sha256": "9cbb3889c017ab24fb51f76dd8293159ad04325592494c728dca1024809de9e0"
+      "bytes": 29432,
+      "sha256": "6df941839cc4449186e243c1574d9ae183b5bdb9ff6fc43c3d12c456d1100644"
     },
     "build/browser/generated/browser-runtime.js.map": {
-      "bytes": 189083,
-      "sha256": "e453365d611f8e0fff0f2dda290915aefb62b0943342dfe6a9b5989b3eb14750"
+      "bytes": 192494,
+      "sha256": "858c039d3378cbd5a36d3f0b651df275cd660ca07aff0f0d80367703fb4299cb"
     },
     "skills/leaf/assets/vendor/lit.js": {
       "bytes": 32081,

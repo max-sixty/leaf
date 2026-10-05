@@ -12,6 +12,7 @@ import { watchArrivals } from "./arrivals.js";
 import { anchorName } from "./anchor-names.js";
 import { focusDestination } from "./focus.js";
 import { chromeRoot } from "./chrome.js";
+import { claimReachStop, releaseReachStop } from "./reach.js";
 
 const controls = new WeakMap();
 const wired = new WeakMap();
@@ -51,11 +52,8 @@ export function watchCodeBlocks() {
       if (copy.parentNode !== chromeRoot) chromeRoot.append(copy);
       copy.tabIndex = -1;
       let route = routes.get(pre);
-      if (!route) routes.set(pre, (route = { tab: false, keys: false }));
-      if (!pre.hasAttribute("tabindex")) {
-        pre.tabIndex = 0;
-        route.tab = true;
-      }
+      if (!route) routes.set(pre, (route = { keys: false }));
+      claimReachStop(pre);
       if (!pre.hasAttribute("aria-keyshortcuts")) {
         pre.setAttribute("aria-keyshortcuts", "Enter");
         route.keys = true;
@@ -119,8 +117,7 @@ export function watchCodeBlocks() {
       copy?.classList.remove("lf-code-copy-hover", "lf-code-copy-focused");
       copy?.remove();
       const route = routes.get(pre);
-      if (route?.tab && pre.getAttribute("tabindex") === "0")
-        pre.removeAttribute("tabindex");
+      releaseReachStop(pre);
       if (route?.keys && pre.getAttribute("aria-keyshortcuts") === "Enter")
         pre.removeAttribute("aria-keyshortcuts");
       routes.delete(pre);

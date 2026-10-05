@@ -791,16 +791,17 @@ export function createResponseSurface({
     });
   }
   let primaryPointerPressed = false;
-  // Whether the page's own words stood selected when the shortcut bar was last painted for
-  // this press. The bar waits for the release; the Escape rung cannot, because from the
-  // first glyph a drag takes, Escape clears the selection rather than letting go of the
-  // control the user is standing on, and until now nothing repainted the line inside a
-  // press — the word only became true when the frame the press itself scheduled happened
-  // to land after the drag had moved, and stayed a lie for a whole heartbeat when it
-  // landed before. Only the crossing is painted: a drag growing a selection that already
-  // stands says the same word, and repainting the chrome on every move of a drag would
-  // put a whole shared repaint inside every frame of one.
+  // Whether the page's own words stood selected when the shortcut bar was last painted.
+  // Escape owns the selection from its first glyph. Paint only that crossing, including
+  // a selection begun in a label whose pointer press is not a page-word gesture; growing
+  // a selection that already stands needs no repaint on each drag frame.
   let selectionStood = false;
+  const reflectSelectionStanding = () => {
+    const stands = Boolean(pageSelection());
+    if (stands === selectionStood) return;
+    selectionStood = stands;
+    repaint();
+  };
   // The page's own words this press began with, against the ones it ends holding: what
   // tells a gesture that took words from a press that merely landed in some (the click
   // door below). Read beside `selectionStood`, ahead of the browser's own collapse, for
@@ -993,11 +994,7 @@ export function createResponseSurface({
         rememberPointerSelection();
         if (coarsePointer.matches && pointerSelecting && !selectionGestureClaimed)
           rememberSelection();
-        const stands = Boolean(pageSelection());
-        if (stands !== selectionStood) {
-          selectionStood = stands;
-          repaint();
-        }
+        reflectSelectionStanding();
         return;
       }
       // Focus and action handoffs own the captured target while the browser collapses
@@ -1012,6 +1009,7 @@ export function createResponseSurface({
       if (coarsePointer.matches && selection && !automatic)
         rememberSelection(selection);
       observeSelection();
+      reflectSelectionStanding();
     });
     document.addEventListener("mouseup", (ev) => {
       if (drawModeActive()) return;

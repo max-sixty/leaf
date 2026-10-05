@@ -1,0 +1,127 @@
+# Derived from the review handoff in Codex task 01a107e5-0798-7792-8b20-0d0939bfec76:
+# a tested refactor handed the user an unchanged sample to check. This fixture
+# supplies completed baseline/candidate checks.
+# The comment replay failed 2/2 on base and passed 2/2 with the review section;
+# a comparison pinned to HEAD confirmed the difference. Both sibling contexts
+# passed on both arms and guard documentation and visible-change handoffs.
+description: review-shows-the-change
+metadata:
+  purpose: 'Maintainer review: agent verifies preservation; user inspects the change or decides an open question.'
+  tags: [review, maintainer]
+vars:
+  prompt: |
+    You are finishing a Leaf implementation review for Max. Read the repository's
+    developing-leaf skill at `../../.claude/skills/developing-leaf/SKILL.md`
+    relative to the leaf skill's base directory.
+
+    Max approved proposal #12: one command owns a native button's activation and
+    availability. The implementation is tested and awaits review. Before, each
+    caller declared a click listener, routed keyboard commands through a synthetic
+    click, and separately painted disabled state. After, one command declaration
+    calls the semantic action for clicks and keys and supplies availability.
+    The caller loses 43 net lines; the shared runtime grows. The same pointer,
+    keyboard, touch, and disabled-state journeys pass on main and candidate.
+    No interaction change is intended:
+    Pass, Keep, arrows, and the 1/2 shortcuts already work on main.
+
+    The report already has a matched baseline/candidate code example showing
+    those contracts and a result record with the verification above. Its practice
+    section currently reads:
+
+    <p id="command-practice-instructions"><strong>Try the shared command path.</strong>
+    In this practice queue, Pass discards a fictional follow-up and Keep retains
+    it. Tap a button, or focus the deck and press an arrow. At the child Ask,
+    1 means Pass and 2 means Keep. Reset restores the two cards; practice moves
+    stay inside the sample.</p>
+    <lf-sample id="command-practice" label="command-owned swipe controls">
+      <template id="command-practice-page" data-sample>…working practice queue…</template>
+    </lf-sample>
+
+    The report has been handed over. Max comments on the practice instructions:
+    "does this change from main at all?"
+
+    Update the practice paragraph to clarify the comparison, then answer the
+    comment. The page directory is unavailable here; reply with the replacement
+    paragraph HTML and the thread reply, omitting the unchanged sample internals.
+assert:
+  - type: javascript
+    metric: reads-maintainer-skill
+    value: file://reference-read.cjs
+    config:
+      path: \.claude/skills/developing-leaf/SKILL\.md
+  - type: llm-rubric
+    metric: useful-review
+    value: |
+      Pass if the review points Max at the changed command declaration/caller
+      contract and treats preserving existing interactions as agent verification.
+      Fail if it asks Max to try, check, compare, or confirm unchanged interactions
+      as review work, even if it also calls them a regression check or mentions
+      green tests. Judge the practice paragraph as well as the thread reply.
+      An optional illustrative sample may remain when the actual review request
+      is the changed contract. Do not demand specific wording.
+variants:
+  documentation:
+    metadata:
+      purpose: 'Review changed instructions while the agent verifies equivalent runtime behavior.'
+    vars:
+      prompt: |
+        You are finishing a Leaf maintainer review for Max. Read the repository's
+        developing-leaf skill at `../../.claude/skills/developing-leaf/SKILL.md`
+        relative to the leaf skill's base directory.
+
+        This change replaces a widget authoring example's three separate handlers
+        with one command declaration. Runtime code and rendered controls are
+        unchanged. Both examples have been executed against the same fixture;
+        they produce the same actions and availability. The before/after source
+        examples are available in the report. A practice sample below them lets
+        the user click the unchanged controls. The draft says "Try both versions
+        and confirm the controls still work."
+
+        Finish the review section and accompanying handoff. The page directory
+        is unavailable here; reply with the replacement HTML and handoff text.
+    assert:
+      - type: javascript
+        metric: reads-maintainer-skill
+        value: file://reference-read.cjs
+        config:
+          path: \.claude/skills/developing-leaf/SKILL\.md
+      - type: llm-rubric
+        metric: useful-review
+        value: |
+          Pass if Max is directed to review the changed authoring example and the
+          equivalence check is reported as agent verification. Fail if Max is
+          asked to confirm, compare, or try the unchanged runtime as review work.
+  visible-change:
+    metadata:
+      purpose: 'Visible changes still receive before/after evidence and a running preview.'
+    vars:
+      prompt: |
+        You are finishing a Leaf maintainer review for Max. Read the repository's
+        developing-leaf skill at `../../.claude/skills/developing-leaf/SKILL.md`
+        relative to the leaf skill's base directory.
+
+        The command reference now draws shortcut badges beside their labels
+        rather than at the far right. This visible change was implemented as
+        requested. Matched before/after captures are registered at
+        /media/badges-before.png and /media/badges-after.png, and the candidate
+        preview is running at https://preview.example.test/#command-reference.
+        Keyboard routes and native-button activation have passed the same
+        journeys on main and candidate. The report draft has only a practice
+        sample and says "Try opening the reference and pressing its shortcuts."
+
+        Finish the review section and accompanying handoff. The page directory
+        is unavailable here; reply with the replacement HTML and handoff text.
+    assert:
+      - type: javascript
+        metric: reads-maintainer-skill
+        value: file://reference-read.cjs
+        config:
+          path: \.claude/skills/developing-leaf/SKILL\.md
+      - type: llm-rubric
+        metric: useful-review
+        value: |
+          Pass if the reply shows the matched before/after captures, describes
+          changed badge placement, and provides the running preview for review
+          of that visible change. Preserved shortcut/activation behavior is agent
+          verification. Fail if it omits the visual evidence or asks Max to
+          revalidate the unchanged shortcut/activation journeys.

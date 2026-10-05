@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { selectQueues } from "../../skills/leaf/assets/runtime/queues.js";
+import { selectDone, selectQueues } from "../../skills/leaf/assets/runtime/queues.js";
 import { foldThreads } from "../../skills/leaf/assets/runtime/thread/model.js";
 import { servedReading, servedWorkflow } from "../served.mjs";
 
@@ -80,7 +80,6 @@ test("a follow-up sent in a thread the agent owes takes the place of its answer"
   ];
   const { onAgent } = selectQueues({ ...served, workflows });
   assert.deepEqual(kinds(onAgent), [
-    ["work", "claim:claim-1"],
     ["answer", "pending:a3"],
     ["task", "e6"],
   ]);
@@ -104,5 +103,27 @@ test("a thread holding an open Ask is on the user once, as that Ask", () => {
     ["ask", "seated"],
     ["recovery", "e7"],
     ["recovery", "e9"],
+  ]);
+});
+
+test("what is done is each answered Ask and each task the agent ended", () => {
+  const served = servedReading("done");
+  assert.deepEqual(selectDone(served), [
+    {
+      kind: "ask",
+      id: "ship-ask",
+      subject: { kind: "widget", id: "ship-ask" },
+      thread: null,
+    },
+    {
+      kind: "task",
+      id: "e4",
+      subject: { kind: "thread", id: "e2" },
+      thread: "e2",
+      title: "Check the colours",
+      state: "done",
+      ended: "2026-09-19T12:00:00+00:00",
+      detail: "Matched the theme",
+    },
   ]);
 });

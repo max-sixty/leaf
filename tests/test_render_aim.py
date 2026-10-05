@@ -12,12 +12,12 @@ from interact_support import (
     SHIPPED_PACKAGES,
     append_carried_log_record,
     append_command,
+    declare_idle,
     wait_for,
 )
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import service as service_model
-from leaf import session as session_model
 from leaf.render_checks import rendered, wait_until_ready
 from leaf.served_state import context as served_context
 from leaf.validation import compatibility as validation_model
@@ -84,6 +84,7 @@ from render_harness import (
     resized,
     round_trip,
     scroll_settled,
+    scroll_writes,
     select,
     sending,
     stamp_page,
@@ -286,10 +287,10 @@ def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve
 
 
 @pytest.mark.parametrize("width", [900, 1200])
-def test_an_aimed_comment_keeps_its_place_with_the_asks_drawer_open(
+def test_an_aimed_comment_keeps_its_place_with_the_queue_panel_open(
     browser, serve, width
 ):
-    """The Asks drawer stands over the page without moving its coordinate plane.
+    """The Queue panel stands over the page without moving its coordinate plane.
 
     A broad authored rule may position ordinary divs, and the drawer may arrive over a
     target without another pointer event. Neither may move the chrome's document origin or
@@ -312,7 +313,7 @@ def test_an_aimed_comment_keeps_its_place_with_the_asks_drawer_open(
     page.keyboard.down("Alt")
     expect(page.locator(".lf-aim")).to_have_attribute("data-for", "lq-keep")
     # Open by script so the pointer remains parked on the target while the drawer arrives.
-    page.locator(".lf-asks").evaluate("node => node.click()")
+    page.locator(".lf-queue").evaluate("node => node.click()")
     edge_settled(page, EDGES[1])
     aligned = page.evaluate(
         """() => {
@@ -1558,8 +1559,9 @@ def test_a_draft_below_its_passage_keeps_its_lane_whatever_it_holds(browser, ser
     assert abs(restored["x"] - empty["x"]) <= 1, (empty, restored)
 
 
+@pytest.mark.parametrize("move", ["inline", "class", "ancestor"])
 def test_a_side_comment_rechooses_its_rail_after_horizontal_target_motion(
-    browser, serve
+    browser, serve, move
 ):
     """Reference geometry, not content size, invalidates the chosen margin rail."""
     page = open_page(browser, serve(LONG_PAGE))
@@ -1572,7 +1574,17 @@ def test_a_side_comment_rechooses_its_rail_after_horizontal_target_motion(
     bar = page.locator(".lf-fab-bar")
     expect(bar).to_have_attribute("data-lf-placement", "right-start")
 
-    target.evaluate("node => { node.style.transform = 'translateX(600px)' }")
+    if move == "inline":
+        target.evaluate("node => { node.style.transform = 'translateX(600px)' }")
+    elif move == "class":
+        page.add_style_tag(
+            content=".shifted-comment-target { transform: translateX(600px) }"
+        )
+        target.evaluate("node => node.classList.add('shifted-comment-target')")
+    else:
+        target.evaluate(
+            "node => { node.parentElement.style.transform = 'translateX(600px)' }"
+        )
     expect(bar).to_have_attribute("data-lf-placement", "left-start")
     target_after = target.bounding_box()
     after = bar.bounding_box()
@@ -1583,6 +1595,11 @@ def test_a_side_comment_rechooses_its_rail_after_horizontal_target_motion(
     expect(field).to_have_js_property(
         "value", "Keep this comment connected when its paragraph moves."
     )
+    assert not [
+        write
+        for write in scroll_writes(page, (5, 5, -5, 5))
+        if "lf-fab" in write["target"]
+    ]
 
 
 def test_a_comment_rechooses_its_side_after_vertical_target_motion(browser, serve):
@@ -1714,12 +1731,12 @@ def test_a_covering_auxiliary_surface_holds_design_paint_beneath_it(browser, ser
     """
     page = open_page(browser, serve(ASKS_PAGE))
     resized(page, 700, 900)
-    banner_control(page, ".lf-asks").click()
+    banner_control(page, ".lf-queue").click()
     edge_settled(page, EDGES[1])
     page.keyboard.press("l")
     expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
     resized(page, 560, 900)
-    drawer = page.locator(".lf-asks-panel")
+    drawer = page.locator(".lf-queue-panel")
     expect(drawer).to_be_visible()
 
     target = page.locator("#lq-keep")
@@ -1737,7 +1754,7 @@ def test_a_covering_auxiliary_surface_holds_design_paint_beneath_it(browser, ser
     expect(page.locator(".lf-aim")).to_be_hidden()
     planes = page.evaluate(
         """() => ({
-          drawer: Number(getComputedStyle(document.querySelector('.lf-asks-panel')).zIndex),
+          drawer: Number(getComputedStyle(document.querySelector('.lf-queue-panel')).zIndex),
           legend: Number(getComputedStyle(
             document.querySelector('.lf-legend-box[data-for="lq-keep"]')).zIndex),
         })"""
@@ -1769,7 +1786,7 @@ def test_a_margin_label_covers_the_target_trace(browser, serve, monkeypatch):
     advanced = (sent_at + timedelta(minutes=3)).isoformat()
     for clock_owner in (served_context, events_model, service_model):
         monkeypatch.setattr(clock_owner, "now_iso", lambda: advanced)
-    session_model.cmd_status(page_dir, "idle", "")
+    declare_idle(page_dir)
     told(page)
 
     marker = page.locator('[data-lf-margin-for="jobs"] > .lf-margin-marker')

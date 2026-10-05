@@ -6,8 +6,8 @@ starts has `sys.executable` in hand and needs no launcher or environment manager
 
 Harnesses call `leaf hook --harness NAME` on every turn, including sessions holding no
 page. That invocation, and the same with `--watch` after it, enter the dependency-light
-hook owner before importing Click or registering other commands. Help and every other invocation use the CLI, whose
-`prog_name` stays `leaf` for both entry forms.
+hook owner before importing Click or registering other commands. Help and every other
+invocation use the CLI, whose `prog_name` stays `leaf` for both entry forms.
 `leaf session-end` delegates to the same cleanup owner in a managed interpreter.
 """
 

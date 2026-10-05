@@ -8479,7 +8479,13 @@ def test_a_stop_during_a_restart_keeps_the_service_stopped(
     assert "restart" not in service
     if stopped == "never":
         assert service["enabled"]
-        assert starts == [{"standing": True, "revive": True}]
+        assert starts == [
+            {
+                "standing": True,
+                "revive": True,
+                "harness": harness_model.session_harness(),
+            }
+        ]
     else:
         assert not service["enabled"]
         assert starts == []
@@ -11028,12 +11034,13 @@ def test_an_offline_sibling_does_not_stop_browser_comments_reaching_codex(
     prepare = """\
 import sys
 from pathlib import Path
+from leaf.harness import session_harness
 from leaf.hosting import start_server
 from leaf.service import claim_page
 live, offline = map(Path, sys.argv[1:])
 claim_page(offline)
 claim_page(live)
-start_server(live)
+start_server(live, harness=session_harness())
 """
     started = under_codex(
         shlex.join([sys.executable, "-c", prepare, str(live), str(offline)])
@@ -11619,8 +11626,9 @@ def test_the_nearest_harness_runs_a_command_that_inherits_another(under_codex):
     assert nearer.returncode == 0, nearer.stderr
     assert nearer.stdout.split() == ["ClaudeCodeHarness", f"pytest-{os.getpid()}"]
     detached = (
-        "from leaf.harness import detached_environment as d; "
-        "print(sorted(set(d()) & {'CODEX_THREAD_ID', 'CLAUDE_CODE_SESSION_ID'}))"
+        "from leaf.harness import detached_environment as d, session_harness; "
+        "print(sorted(set(d(session_harness())) & "
+        "{'CODEX_THREAD_ID', 'CLAUDE_CODE_SESSION_ID'}))"
     )
     ran = under_codex(
         shlex.join([sys.executable, "-c", detached]),
@@ -14411,7 +14419,9 @@ cli_model.cli()
 
 
 def test_session_end_releases_the_page_and_its_session_server_retires(claimed):
-    assert hosting_model.start_server(claimed)  # a real detached server to clean up
+    assert hosting_model.start_server(
+        claimed, harness=harness_model.session_harness()
+    )  # a real detached server to clean up
     session_model.cmd_status(claimed, "waiting", "")
     hooks_model.cmd_hook(
         "claude-code", {"hook_event_name": "SessionEnd", "session_id": "s1"}
@@ -14444,7 +14454,7 @@ def test_a_background_jobs_server_lives_as_long_as_the_job(
     monkeypatch.setenv("CLAUDE_PID", str(dead_pid))
     monkeypatch.setenv("CLAUDE_JOB_DIR", str(job))
     assert service_model.claim_page(page_dir)
-    assert hosting_model.start_server(page_dir)
+    assert hosting_model.start_server(page_dir, harness=harness_model.session_harness())
     assert files_model.read_json(page_dir / "service.json")["lifetime"] == "session"
     assert not reaper_retires(page_dir, monkeypatch)
     assert server_model.running_server(page_dir)
@@ -14873,7 +14883,7 @@ def test_a_standing_server_outlives_a_session_that_picks_the_page_up(
 
     # A `server run` of its own finds this one up and reports the lifetime the
     # running server has, not the one this claiming launch would have given it.
-    hosting_model.cmd_serve(page_dir)
+    hosting_model.cmd_serve(page_dir, harness=harness_model.session_harness())
     served = capsys.readouterr()
     assert json.loads(served.out) == {"url": launched["url"]}
     assert "server   standing" in served.err

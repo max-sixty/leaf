@@ -275,12 +275,17 @@ class PreviewService:
         first is kept. A refused start is retried on later watcher polls; the same
         refusal is printed once while it stands."""
         from leaf.detached import StartRefused
+        from leaf.harness import claim_harness
         from leaf.hosting import start_server
 
         if time.monotonic() < self.revive_at:
             return
         try:
-            start_server(self.page, revive=True)
+            start_server(
+                self.page,
+                revive=True,
+                harness=claim_harness(self.claim) if self.claim else None,
+            )
         except StartRefused as error:
             refusal = str(error)
             if refusal != self.revive_refusal:

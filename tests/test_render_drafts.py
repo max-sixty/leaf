@@ -4035,12 +4035,9 @@ def test_replaced_reply_compositions_keep_their_carets_and_leave_commands(
     told(page)
     expect(after).to_be_focused()
     # One margin card remains the current selection. The other native session keeps
-    # its caret until the user selects its next route; a hidden mirror is not that route.
+    # its words and caret until the user selects its next route.
     page.evaluate("() => window.lfWordsJudged()")
-    consume_browser_errors(
-        page,
-        'typed words left the screen without a key or press: "My unfinished first answer."',
-    )
+    assert take_browser_errors(page) == []
     for root, word in zip(roots, words):
         box = page.locator(f'.lf-thread[data-id="{root}"] leaf-text')
         expect(box).to_have_js_property("value", word)

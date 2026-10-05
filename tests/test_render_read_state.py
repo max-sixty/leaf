@@ -6,7 +6,7 @@ import threading
 import time
 
 import pytest
-from interact_support import STATED_TIMEOUT, append_carried_log_record
+from interact_support import STATED_TIMEOUT, append_carried_log_record, wait_for
 from leaf import data as data_model
 from leaf import event_endpoint as endpoint_model
 from leaf import event_log as events_model
@@ -569,12 +569,11 @@ def test_visible_message_waits_for_whole_document_presentation(browser, serve):
 
     page.evaluate("window.__releaseReadPresentation()")
     told(page)
-    for _ in range(100):
-        if _read_events(serve.page_dir):
-            break
-        page.wait_for_timeout(20)
-    else:
-        raise AssertionError("presented answer was not acknowledged")
+    wait_for(
+        lambda: _read_events(serve.page_dir),
+        bool,
+        failure="presented answer was not acknowledged",
+    )
     assert _read_events(serve.page_dir)[-1]["messages"] == [
         {"message": reply["id"], "version": reply["id"]}
     ]

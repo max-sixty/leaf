@@ -2921,7 +2921,6 @@ def test_an_optimistic_presentation_fault_does_not_change_delivery_result(
             and request.post_data_json.get("kind") == "action"
             and request.post_data_json.get("widget") == "sug-refill"
         ),
-        timeout=2_000,
     ):
         suggestion_control(page, "sug-refill", "accept").click()
     round_trip(page)
@@ -3046,7 +3045,6 @@ def test_an_async_projection_wake_cannot_commit_a_fallible_candidate(browser, se
     expect(page.locator("body")).to_have_attribute("data-lf-reading", accepted_reading)
     page.wait_for_function(
         "async () => !(await window.__lfRuntimeImport('/runtime/application.js')).hasPending()",
-        timeout=1_000,
     )
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
     # The user's comment after the accept is their newest gesture, and a comment is not

@@ -593,8 +593,10 @@ def test_gallery_revision_preserves_every_open_quoted_thread(browser, serve):
     for root in roots:
         thread = page.locator(f'.lf-thread[data-id="{root["id"]}"]')
         expect(thread).to_be_visible()
-        expect(thread.locator(".lf-quote")).to_contain_text("§ paragraph")
-        expect(thread.locator(".lf-quote")).to_contain_text("The revised plan")
+        expect(thread.locator(".lf-quote")).to_contain_text(
+            f"“{root['anchor']['quote']}” Changed"
+        )
+        expect(thread.locator(".lf-quote")).to_have_attribute("aria-disabled", "false")
         expect(thread.locator(".lf-quote.detached")).to_have_count(0)
         expect(thread.locator(".lf-msg")).to_have_count(1)
     moves = [

@@ -768,7 +768,9 @@ def test_a_wheel_return_attaches_the_comment_box_in_the_first_visible_frame(
             )
         select(page, (box["x"] + 2, box["y"] + 10), (box["x"] + 150, box["y"] + 10))
         page.locator(".lf-fab-input").click()
-    page.locator(".lf-fab-input").type("Keep these words while the page leaves. " * 6)
+    # Short enough to fit the room shown beside the passage: typing never scrolls a
+    # region to make more, so a longer draft would slide over the passage instead.
+    page.locator(".lf-fab-input").type("Keep these words while the page leaves. " * 2)
     rendered(page)
     before_target = target.bounding_box()
     content_box = before_target

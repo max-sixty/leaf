@@ -33,9 +33,9 @@ export function ensureSyntaxLanguage(lang) {
 
 // Code as [{text, style}] — a flat run in source order, carrying Shiki's
 // themed CSS declarations directly. CSS variables inherit the page's palette.
-// A list rather than markup because the two
-// callers build different DOM from it: a plain <pre> emits one span per token, lf-code
-// interleaves the line spans it numbers. A declared language is validated by page check
+// A list rather than markup because callers build different DOM from it: plain code
+// emits one span per token, while lf-code interleaves the line spans it numbers.
+// A declared language is validated by page check
 // against the registry's $languages.names.
 export async function syntax(source, lang) {
   const shared = await ensureSyntaxLanguage(lang);
@@ -54,7 +54,7 @@ export async function syntax(source, lang) {
 }
 
 // Tokens as nodes: one span per style, and the bare text where none applies, so nothing
-// lands in the DOM that says nothing. Both callers build from here — a <pre> replacing its
+// lands in the DOM that says nothing. Callers build from here — plain code replacing its
 // own children, lf-code appending into the line it is numbering — because a second place
 // writing the same span is a second place to forget the attribute.
 export const synNodes = (tokens) =>

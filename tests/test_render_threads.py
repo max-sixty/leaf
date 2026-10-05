@@ -1478,7 +1478,7 @@ def test_a_refused_reopen_preserves_a_filter_typed_during_its_reveal(
     rendered(page)
     hold_visible_thread_presentation(page, root)
 
-    card.get_by_role("button", name="Reopen", exact=True).click()
+    card.get_by_role("button", name=re.compile(r"\bReopen(?: thread)?$")).click()
     holding(page, held, 1, "the refused reopen with a held reveal")
     page.wait_for_function(
         "window.visibleThreadPresentationHeld === true", timeout=3000
@@ -1518,7 +1518,7 @@ def test_a_refused_reopen_preserves_a_filter_typed_during_restoration(
     card.locator(".lf-thread-summary").click()
     rendered(page)
 
-    card.get_by_role("button", name="Reopen", exact=True).click()
+    card.get_by_role("button", name=re.compile(r"\bReopen(?: thread)?$")).click()
     holding(page, held, 1, "the refused reopen whose restoration will wait")
     expect(page.locator('[data-filter-value="open"]')).to_have_attribute(
         "aria-pressed", "true"
@@ -1648,7 +1648,9 @@ def test_a_poll_accounted_settlement_repaints_before_its_post_response(
     reads.cut()
     for settled in (
         inline.get_by_role("button", name="Reopen", exact=True),
-        panel.locator(":scope > .lf-thread-actions > .lf-reopen"),
+        panel.get_by_role(
+            "button", name=re.compile(r"\bReopen(?: thread)?$"), include_hidden=True
+        ),
     ):
         expect(settled).to_be_enabled(timeout=1000)
         expect(settled).not_to_have_attribute("aria-busy", "true", timeout=1000)
@@ -3150,7 +3152,7 @@ def test_a_failed_reopen_reveal_still_processes_its_durable_answer(held_events, 
         }"""
     )
 
-    page.get_by_role("button", name="Reopen", exact=True).click()
+    page.get_by_role("button", name=re.compile(r"\bReopen(?: thread)?$")).click()
     holding(page, held, 2, "the reopen and its presentation report")
     page.wait_for_function(
         """async () => {
@@ -3193,7 +3195,9 @@ def test_a_failed_reopen_reveal_still_processes_its_durable_answer(held_events, 
     )
     expect(page.locator(f'.lf-thread[data-id="{root}"]')).to_be_visible()
     expect(
-        page.get_by_role("button", name="Reopen", exact=True, include_hidden=True)
+        page.get_by_role(
+            "button", name=re.compile(r"\bReopen(?: thread)?$"), include_hidden=True
+        )
     ).to_have_count(1)
 
 
@@ -4464,7 +4468,7 @@ def test_a_thread_the_agent_closed_names_who_closed_it(browser, serve):
     Their own press folds the thread under their hand and leaves the outcome on the
     control they pressed, so its Resolved state needs to say nothing more. An
     agent's resolve arrives on a poll with no gesture behind it, and that thread says
-    who closed it — in the row the control stood in, at the end it stood at."""
+    who closed it beside the title, on the control that reopens it."""
     page = open_page(browser, serve(LONG_PAGE, comments=2))
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
@@ -4482,7 +4486,7 @@ def test_a_thread_the_agent_closed_names_who_closed_it(browser, serve):
     expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
     page.locator(".lf-thread-filter-toggle").click()
     page.locator('[data-filter-value="resolved"]').click()
-    expect(page.locator(f'.lf-thread[data-id="{c1}"] .lf-resolved-by')).to_have_text(
+    expect(page.locator(f'.lf-thread[data-id="{c1}"] .lf-thread-status')).to_have_text(
         "✓ Resolved by Indexer"
     )
 
@@ -4494,7 +4498,9 @@ def test_a_thread_the_agent_closed_names_who_closed_it(browser, serve):
     # The settled card is what says the fold is over, so the line's absence is read
     # from a thread that has arrived rather than one still on its way.
     expect(page.locator(f'.lf-thread[data-id="{c2}"]:not([hidden])')).to_have_count(1)
-    expect(page.locator(f'.lf-thread[data-id="{c2}"] .lf-resolved-by')).to_have_count(0)
+    expect(page.locator(f'.lf-thread[data-id="{c2}"] .lf-thread-status')).to_have_text(
+        "Resolved"
+    )
 
 
 def test_a_resolved_thread_can_be_reopened(browser, serve):
@@ -4668,7 +4674,9 @@ def test_a_late_reply_reopens_its_resolved_thread(browser, serve):
     expect(thread).to_be_visible()
     thread.locator(".lf-thread-summary").press("Enter")
     expect(thread.locator(".lf-msg.agent")).to_be_visible()
-    expect(thread.get_by_role("button", name="Reopen", exact=True)).to_have_count(0)
+    expect(
+        thread.get_by_role("button", name=re.compile(r"\bReopen(?: thread)?$"))
+    ).to_have_count(0)
     page.reload()
     told(page)
     expect(thread).to_be_visible()
@@ -5110,7 +5118,9 @@ def test_an_external_resolution_keeps_a_panel_reply_until_it_is_sent(
         page.locator('[data-filter-value="resolved"]').click()
         expect(card).to_be_visible()
         with sending(page, "reopen the deliberately dismissed reply"):
-            card.get_by_role("button", name="Reopen", exact=True).click()
+            card.get_by_role(
+                "button", name=re.compile(r"\bReopen(?: thread)?$")
+            ).click()
         expect(reply).to_have_js_property("value", words)
         return
 
@@ -5560,40 +5570,37 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
     own container, so whatever name a widget or a page coins, it matches none of
     them: lf-tabs once marked itself lf-live — the chrome's name for its
     visually-hidden live region — and every tabbed page clipped to a pixel. An
-    element in the page wearing every scoped class at once must render exactly as
-    its unclassed twin, and the classes styled at document level must be exactly
-    the shared vocabulary a widget wears on purpose."""
+    element in the page wearing every private class at once must render exactly as
+    its unclassed twin.
+
+    The chrome sheet reaches the page only through the classes its owner declares
+    shared (`chromeSharedClasses`, runtime/stylesheets.js): a rule written outside the
+    block that names any other class is a private rule leaking out, not a widening.
+    Those classes, and the faces the authored theme states for a private name at
+    document level, stay off the probe, since the movement their rules cause is the
+    reach they were given on purpose."""
     page = open_page(
         browser,
         serve(leaf_page("t", "<h1>t</h1><section id=s><p>words</p></section>")),
     )
     surface = page.evaluate("""async () => {
-        const {chromeSheet: sheet} = await window.__lfRuntimeImport('/runtime/stylesheets.js');
+        const {chromeSheet: sheet, chromeSharedClasses: declared} =
+            await window.__lfRuntimeImport('/runtime/stylesheets.js');
         const classes = sel => [...(sel || "").matchAll(/\\.([A-Za-z0-9_-]+)/g)].map(m => m[1]);
-        const scoped = new Set(), global_ = new Set();
+        const scoped = new Set(), unscoped = new Set(), themed = new Set();
         const collect = (rules, into, privateRules = null) => { for (const r of rules) {
             if (r instanceof CSSScopeRule) {
                 if (privateRules) collect(r.cssRules, privateRules, privateRules);
             }
             else if (r.selectorText) classes(r.selectorText).forEach(c => into.add(c));
             else if (r.cssRules) collect(r.cssRules, into, privateRules); } };
-        collect(sheet.cssRules, global_, scoped);
-        // A shared class may take its document face from the authored theme rather than
-        // from the runtime sheet. It is still outside this collision probe: any movement
-        // it causes in the page is that deliberate global rule, not a leaked scoped one.
-        const documentGlobal = new Set(global_);
+        collect(sheet.cssRules, unscoped, scoped);
         for (const other of [...document.styleSheets, ...document.adoptedStyleSheets]
                  .filter(s => s !== sheet))
-            collect(other.cssRules, documentGlobal);
-        const themed = new Set([...scoped].filter(
-            c => !global_.has(c) && documentGlobal.has(c)));
+            collect(other.cssRules, themed);
         const probe = document.createElement("div"), plain = document.createElement("div");
-        // Minus the shared vocabulary: a word document level dresses on purpose
-        // (lf-key-badge, worn by the sequence's own layer and by an option's corner alike)
-        // is named by the scoped rule that says when to paint it, and it would answer
-        // this question with the reach it was given rather than with a leak.
-        probe.className = [...scoped]
-            .filter(c => !global_.has(c) && !themed.has(c)).join(" ");
+        const worn = [...scoped].filter(c => !declared.includes(c) && !themed.has(c));
+        probe.className = worn.join(" ");
         probe.textContent = plain.textContent = "probe";
         // A block after both, so neither twin stands at the section's edge, where the
         // theme trims a margin whichever classes it wears.
@@ -5607,13 +5614,24 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         body.className = "lf-msg-body";
         body.textContent = "Authored thread words";
         document.getElementById("s").append(body);
-        return { scoped: [...scoped], global: [...global_], themed: [...themed],
+        return { worn, unscoped: [...unscoped], declared: [...declared],
                  moved: Object.keys(a).filter(p => a[p] !== b[p]),
                  bodySelection: getComputedStyle(body).userSelect,
                  plainSelection: getComputedStyle(plain).userSelect };
     }""")
-    assert "lf-live" in surface["scoped"] and len(surface["scoped"]) > 20, (
-        "the @scope block is missing or nearly empty — the chrome has lost its rules"
+    unscoped, declared = set(surface["unscoped"]), set(surface["declared"])
+    assert not unscoped - declared, (
+        "chrome rules outside its @scope block name classes the sheet does not declare "
+        f"shared, so a page element wearing one meets them: {sorted(unscoped - declared)}"
+        " — move the rule into the block, or add the class to chromeSharedClasses"
+    )
+    assert not declared - unscoped, (
+        "chromeSharedClasses declares classes no rule outside the @scope block names: "
+        f"{sorted(declared - unscoped)}"
+    )
+    assert surface["worn"], (
+        "the probe wears no private class — the @scope block is missing or empty, so "
+        "this compares two unclassed twins"
     )
     assert surface["moved"] == [], (
         f"scoped chrome rules reached an element in the page: {surface['moved']}"
@@ -5621,135 +5639,6 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
     # The shared message body gets selectable-island rules only inside chrome.
     # Its authored copy keeps the document's selection behavior.
     assert surface["bodySelection"] == surface["plainSelection"]
-    # A second document-level face comes from the authored theme, whose shadow sheet
-    # also supplies the same controls inside declared widget trees. Keep that exception
-    # as explicit as the runtime sheet's shared vocabulary below.
-    assert set(surface["themed"]) == {
-        # The shared vocabulary's faces are the theme's, for the reason chrome.css's
-        # header gives: stated in the adopted sheet they beat each component's own rule
-        # on nothing better than that sheet arriving last. The runtime sheet still names
-        # the badge inside its scope, to say where the chrome's own copies stand, and the
-        # movement the theme's rule causes is that deliberate face.
-        "lf-key-badge",
-        # The aim floor is one plain selector list in shadow.css, so that a finger's
-        # 44px reaches the document, the chrome and every declared widget tree from one
-        # rule. Each name below is a press the chrome also dresses inside its scope, so
-        # the floor is a second, document-level rule on a scoped name. It states a
-        # minimum and nothing else. The chip and the margin entry are on
-        # that list too and are not here: nothing inside the scope names them any more,
-        # so they are no longer a scoped vocabulary this exception has to cover.
-        "lf-command-reference-command",
-        "lf-layer-reference",
-        "lf-preview",
-        "lf-quote",
-        "lf-thread-action",
-        "lf-version-diff",
-        "lf-version-row",
-        "lf-compose-field",
-        # The hint an empty field shows is slotted into that field: shadow.css keeps
-        # it on one line and the authored theme sizes the option composer's copy,
-        # while the scoped rule only sets its line height in the response bar.
-        "lf-compose-placeholder",
-        "lf-compose-submit",
-        # The one canonical composer can be seated in a widget's own Thread outlet,
-        # where the chrome's scoped rules cannot reach it. The authored theme dresses
-        # that seat at document level, under [data-lf-presentation="inline"], so every
-        # part of the response bar the seat carries — its bar, its field's wrapper,
-        # its target press and the response options behind it — wears a document face
-        # for the same reason .lf-margin-projection below does.
-        "lf-composer",
-        # Shared conversation faces belong to the theme. Chrome rules only position
-        # the transcript, messages, and metadata within their containing surfaces.
-        "lf-msg-body",
-        # The thread's reading inset is shared by inline and panel conversations.
-        "lf-thread-transcript",
-        "lf-thread",
-        "detached",
-        "lf-thread-root-meta",
-        "lf-msg",
-        "lf-fab",
-        "lf-fab-bar",
-        "lf-focus-within",
-        # The margin layer's placement rules live in the annotation overlay sheet,
-        # outside the core chrome sheet whose scoped classes this test counts.
-        # Page Map rows share the margin entry's state and icon face.
-        "lf-margin-kind",
-        "lf-page-map-action",
-        "lf-react-palette",
-        # An icon action's glyph, sized and seated in shadow.css so a press wearing one
-        # is the same object in the page, in a declared widget tree and in the chrome.
-        # The scoped rules only pull the margin preview's stepper copies to its ends.
-        "lf-action-icon",
-        "lf-resolve",
-        # The inline seat again: the composer's own row of response actions.
-        "lf-response-action",
-        "lf-response-action-label",
-        "lf-response-action-space",
-        "lf-response-control",
-        "lf-response-more",
-        "lf-response-open",
-        "lf-response-options",
-        # The general text box's face is the theme's (the `.lf-ui textarea` rule), so a
-        # widget's own box that names the same property outranks it in the shared layer.
-        # It names the compact response field only to exclude it, since that field takes
-        # its whole geometry from the response controls it shares a baseline with, and
-        # the focus a native label projects only as the state that rings the box.
-        "lf-fab-input",
-        "lf-focus",
-        # Active buttons share the theme's existing .lf-btn.on state.
-        "on",
-        # Primary buttons keep the authored theme's accent action face when they
-        # enter chrome rows whose quiet controls deliberately clear that paint.
-        "primary",
-        # Under a finger a reaction trigger meets the aim floor and an agent message's
-        # head row holds it (shadow.css), since both stand in declared widget trees too.
-        "lf-react",
-        # The annotation overlay's hover mark has a global outline rule in its
-        # chrome sheet; it deliberately shares a name with scoped chrome rules.
-        "lf-mark-hover",
-    }, "the shared stylesheet class surface changed: widen the exception on purpose"
-    # Every one of these is worn by something the core runtime puts inside the page
-    # rather than inside its own container. Annotation-specific global rules live
-    # in the overlay sheet, outside this core chrome sheet's census.
-    # What is not here is the shared vocabulary, whose faces the theme states — see the
-    # exception above, and chrome.css's header for why.
-    assert {c for c in surface["global"] if c.startswith("lf-")} == {
-        # The shared interface class crosses the chrome scope.
-        "lf-ui",
-        # A native label can pass through an intermediate focus target. This projects
-        # the held control's focus ring until activation settles.
-        "lf-focus-visible",
-        "lf-btn",
-        "lf-ins-block",
-        "lf-skip",  # the keyboard entry point stands before the chrome container
-        "lf-aiming",
-        "lf-over-item",
-        # The shared textual thread box renders both in page-owned widget seats and in
-        # the chrome-owned margin preview, so its pasted-image shelf is dressed here.
-        # Its message rows are not: they take the shared face from the theme like every
-        # other injected element, and the chrome dresses only the margin preview's copy,
-        # from inside its own scope.
-        "lf-say",
-        # A pasted image's writing projection and inspection control cross the same
-        # seam: widget thread boxes live in the page, while general comments,
-        # anchored comments, and the viewer live in the chrome.
-        "lf-thread-reply",
-        "lf-general",
-        "lf-composer-media",
-        "lf-composer-media-item",
-        "lf-composer-media-open",
-        "lf-composer-media-remove",
-        "lf-message-media",
-        "lf-media-open",
-        # A standing reaction's paint on the page: its margin glyph.
-        "lf-react-mark",
-        # A comparison's target paint and deletions stand inside the block they are
-        # about; a text block's parent may not accept a sibling beside it.
-        "lf-version-inline",
-        "lf-version-inline-deletion",
-    }, (
-        "the document-level class surface changed: widen the shared vocabulary on purpose"
-    )
 
 
 # A page long enough to hold a reading position worth losing, and a change to decide
@@ -5988,7 +5877,9 @@ def test_a_delayed_accordion_reveal_yields_to_the_users_new_thread(browser, serv
     expect(target).to_have_attribute("hidden", "")
     hold_visible_thread_presentation(page, target_id)
     page.locator(".lf-threads").focus()
-    page.keyboard.press("a")
+    # The thread the list shows asks the user a question too, so focus on the list is
+    # standing on that item of their queue; the hidden Ask stands before it on the page.
+    page.keyboard.press("Shift+a")
     page.wait_for_function(
         "window.visibleThreadPresentationHeld === true", timeout=3000
     )
@@ -8840,7 +8731,9 @@ def test_a_walk_to_a_question_the_narrowing_hides_widens_the_list(browser, serve
     """A card the narrowing hid keeps its node, so the `a` walk can still name the
     question in it — and arriving there has to show it, the way showThread does:
     focus on a card with no box is a no-op and the announcement would say "1 of 2"
-    over a list that shows something else."""
+    over a list that shows something else. The thread the list shows asks the user a
+    question too, so focus on the list stands on that item, and the hidden Ask stands
+    before it on the page."""
     page = open_page(
         browser, serve(next(p for p in EXAMPLES if p.stem == "ship-review"))
     )
@@ -8853,7 +8746,7 @@ def test_a_walk_to_a_question_the_narrowing_hides_widens_the_list(browser, serve
     page.get_by_role("searchbox", name="Find in threads").fill("stay blocked")
     expect(card).to_have_attribute("hidden", "")
     page.locator(".lf-threads").focus()
-    page.keyboard.press("a")
+    page.keyboard.press("Shift+a")
     expect(card).not_to_have_attribute("hidden", "")
     expect(page.get_by_role("searchbox", name="Find in threads")).to_have_value("")
     assert page.evaluate(

@@ -409,6 +409,10 @@ def _retire(process: subprocess.Popen) -> None:
     piped ends what waits on it, as a held `under_codex` shell does, even where
     the test already ended the leader itself.
     """
+    # Imported here: `interact_support` imports this module, and is loaded as the
+    # plugin `pytest_plugins` names so that its assertions are rewritten.
+    from interact_support import STATED_TIMEOUT
+
     if process.stdin:
         with contextlib.suppress(BrokenPipeError):
             process.stdin.close()
@@ -420,7 +424,7 @@ def _retire(process: subprocess.Popen) -> None:
     if process.poll() is None or not psutil.pid_exists(process.pid):
         with contextlib.suppress(ProcessLookupError, PermissionError):
             os.killpg(process.pid, signal.SIGTERM)
-    process.wait(timeout=5)
+    process.wait(timeout=STATED_TIMEOUT)
 
 
 @pytest.fixture
@@ -448,8 +452,10 @@ def spawn():
 def dead_pid(spawn):
     """A pid that is certainly not running, for a record whose writer — a
     session, a server — has gone."""
+    from interact_support import STATED_TIMEOUT
+
     spent = spawn([sys.executable, "-c", ""])
-    spent.wait(timeout=5)
+    spent.wait(timeout=STATED_TIMEOUT)
     return spent.pid
 
 

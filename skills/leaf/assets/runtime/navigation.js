@@ -22,6 +22,7 @@ import { readingBlock } from "./reading-place.js";
 import { scrollIntoReadingBand } from "./landing-scroll.js";
 import { THREAD } from "./thread/selectors.js";
 import { under } from "./shadow.js";
+import { retainUserIntent } from "./user-intent.js";
 import { announce } from "./notifications.js";
 import { focusThread } from "./thread/focus.js";
 import { showHeld } from "./thread/held-news.js";
@@ -50,9 +51,8 @@ const threadPosition = (threadHere, panelIsOpen, narrowing, list) => {
 };
 
 // From a place on the page at no thread, a walk in the page's order measures document
-// position against each thread's target, as the Ask walk does (asks/view.js,
-// `askStep`): a target holding the place is where the user already is, so the press
-// steps off it. A general or detached thread has no target, and is reached from the
+// position against each thread's target: a target holding the place is where the user
+// already is, so the press steps off it. A general or detached thread has no target, and is reached from the
 // list's ends, as every thread is in the panel's Recent order.
 function threadFrom(threads, place, dir, threadTarget) {
   const placed = threads
@@ -70,15 +70,44 @@ function threadFrom(threads, place, dir, threadTarget) {
     : (reach.at(-1)?.thread ?? threads[0]);
 }
 
-// t/T walk open threads. A closed panel walks them in page order, at each thread's
-// inline destination: a declared widget outlet first, then the thread margin entry's card. A
-// thread with no page destination is indexed only by Threads, so that destination opens the panel.
-// Once the panel is open, the walk stays in its list, in whichever order the list shows.
-// Both paths are clamped, not wrapped.
+// Arrive at one open thread a walk chose, `next` its list card: the one arrival both
+// the t/T walk and the queue walk (queue-walk.js) make. With the panel shut it opens the
+// thread at its inline destination: a declared widget outlet first, then the thread
+// margin entry's card; a thread with no page destination is indexed only by Threads, so
+// that destination opens the panel.
+//
+// With the panel open, both halves of the press go where they were pointed. The list
+// lands the thread off the focus it is about to take, so a press at either end of the
+// walk, which names the thread the user already stands on, moves no focus and gives the
+// list nothing to land: the press lands that thread itself. The page half travels either
+// way, and keeps the panel the walk is in: it moves the page only where moving it shows
+// the passage better beside the panel (anchor-travel.js, `arrive`). The press takes the
+// user to the thread, so it shows what the thread held (held-news.js) before landing, as
+// `openPageThread` does on its own path.
+//
+// It answers whether the user arrived, once the thread stands open. `intent` is the
+// press's, retained before any wait the caller made: newer input cancels the arrival,
+// and the walk then says nothing about a thread the user is not at.
+async function arriveAtThread(next, destinations, panelIsOpen, threadsBox, intent) {
+  const { openPageThread, scrollToThread } = destinations;
+  if (!panelIsOpen())
+    return Boolean(await openPageThread(next.dataset.id, { focus: "thread", intent }));
+  if (!intent()) return false;
+  showHeld(next.dataset.id);
+  threadsBox.revealNavigation(next.dataset.id);
+  const standing = next.contains(document.activeElement);
+  focusThread(next, { preventScroll: true });
+  if (standing) landWalkedThread(next, threadsBox);
+  scrollToThread(next.dataset.id, { keep: true });
+  return true;
+}
+
+// t/T walk open threads. A closed panel walks them in page order; once the panel is
+// open, the walk stays in its list, in whichever order the list shows. Both paths are
+// clamped, not wrapped.
 function stepThread(dir, destinations, panelIsOpen, narrowing, list) {
   const { threadsBox } = list;
-  const { openPageThread, scrollToThread, threadHere, threadAtStanding, threadTarget } =
-    destinations;
+  const { threadHere, threadAtStanding, threadTarget } = destinations;
   const threads = walkableThreads(panelIsOpen, list);
   const current = currentThread(threads, threadHere);
   const targetId = !current && threadAtStanding();
@@ -93,28 +122,7 @@ function stepThread(dir, destinations, panelIsOpen, narrowing, list) {
         threadTarget,
       ));
   if (!next) return;
-  if (!panelIsOpen()) {
-    void openPageThread(next.dataset.id, { focus: "thread" });
-    announce(
-      beginWalk("thread", "Thread", () =>
-        threadPosition(threadHere, panelIsOpen, narrowing, list),
-      ) ?? walkPositionLabel("Thread", threads.indexOf(next) + 1, threads.length),
-    );
-    return;
-  }
-  // Both halves of the press go where they were pointed. The list lands the thread off
-  // the focus it is about to take, so a press at either end of the walk, which names the
-  // thread the user already stands on, moves no focus and gives the list nothing to
-  // land: the press lands that thread itself. The page half travels either way, and
-  // keeps the panel the walk is in: it moves the page only where moving it shows the
-  // passage better beside the panel (anchor-travel.js, `arrive`). The press takes the
-  // user to the thread, so it shows what the thread held (held-news.js) before landing.
-  showHeld(next.dataset.id);
-  threadsBox.revealNavigation(next.dataset.id);
-  const standing = next.contains(document.activeElement);
-  focusThread(next, { preventScroll: true });
-  if (standing) landWalkedThread(next, threadsBox);
-  scrollToThread(next.dataset.id, { keep: true });
+  void arriveAtThread(next, destinations, panelIsOpen, threadsBox, retainUserIntent());
   announce(
     beginWalk("thread", "Thread", () =>
       threadPosition(threadHere, panelIsOpen, narrowing, list),
@@ -379,8 +387,23 @@ export function createNavigation({
     run: (binding) => move(binding === "j" ? 60 : -60, "pixel"),
   });
 
+  // The queue walk's way onto one thread it names by id: the t/T walk's own arrival, at
+  // the thread's list card. A narrowing that hides the card is cleared first, as it is
+  // for an Ask seated in a thread (asks/view.js, `materializeAsk`), since the queue
+  // walk goes to what is on the user whatever the list shows.
+  async function arriveAtThreadById(id) {
+    const intent = retainUserIntent();
+    const card = () =>
+      openThreads({ visibleOnly: false }).find((thread) => thread.dataset.id === id);
+    if (panelIsOpen() && card()?.hidden) await narrowing.revealThread(id);
+    const next = card();
+    if (!next) return false;
+    return arriveAtThread(next, threadDestinations, panelIsOpen, threadsBox, intent);
+  }
+
   return {
     alignTop,
+    arriveAtThread: arriveAtThreadById,
     seenScroller: () => seenScroller(coveringAuxiliaryScroller),
     stepReading: move,
     stepThread: walkThreads,

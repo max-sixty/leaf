@@ -7,6 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from threading import Event
 
+from interact_support import STATED_TIMEOUT
 from leaf import data as data_model
 
 REGISTRY = {"$data": {"contracts": {"integer": {"schema": {"type": "integer"}}}}}
@@ -60,7 +61,9 @@ def test_cache_eviction_during_a_validation_keeps_its_result(monkeypatch):
             super().__setitem__(key, value)
             if key[0] == "first":
                 inserted.set()
-                assert evicted.wait(10), "second validation did not evict the cache"
+                assert evicted.wait(STATED_TIMEOUT), (
+                    "second validation did not evict the cache"
+                )
 
     cache = OrderedCache(
         {(str(i), "declaration", "revision"): None for i in range(1023)}
@@ -71,7 +74,9 @@ def test_cache_eviction_during_a_validation_keeps_its_result(monkeypatch):
             data_model._value_error, "first", "integer", 1, "first-revision", REGISTRY
         )
         try:
-            assert inserted.wait(10), "first validation did not cache its result"
+            assert inserted.wait(STATED_TIMEOUT), (
+                "first validation did not cache its result"
+            )
             assert (
                 data_model._value_error(
                     "other", "integer", 2, "other-revision", REGISTRY
@@ -80,4 +85,4 @@ def test_cache_eviction_during_a_validation_keeps_its_result(monkeypatch):
             )
         finally:
             evicted.set()
-        assert first.result(timeout=10) is None
+        assert first.result(timeout=STATED_TIMEOUT) is None

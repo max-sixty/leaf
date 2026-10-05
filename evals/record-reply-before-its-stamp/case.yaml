@@ -1,0 +1,55 @@
+# From `leaf-dev journey codex` (2026-10): on a stamped page, Codex read "Operate",
+# step 3, as owed before each reply and ran the render check, a review and a stamp
+# before answering a heading edit (reply 65-125 s); Claude Code ran only `page check`
+# (~8 s). The change scopes a record's render check, reading and stamp to checkpoints
+# the user names. Base at bff833ee2 rendered and stamped before the reply on both
+# harnesses (0 of 3 each); the change replied after `page check` and stamped at
+# sign-off (3 of 3 each).
+description: record-reply-before-its-stamp
+metadata:
+  purpose: 'Checks and checkpoints: a revision answering a message on a stamped record is checked
+    with `leaf page check` alone before the reply; the render check, reading and stamp wait for
+    the user''s sign-off.'
+  tags:
+  - wait-loop
+  - checkpoints
+vars:
+  prompt: |
+    You own a live Leaf page at ~/.local/state/leaf/pages/triage, a triage board of
+    open incidents that the on-call team will keep using after this conversation. You
+    stamped it as version 2 when you handed it over.
+
+    A delivery just brought one user comment, id 7c41d0e2, opening thread 3fa1c2d9 on
+    the board's heading: "Call this 'Incidents this week' instead." Its answering
+    clause calls for `leaf thread reply --for 7c41d0e2`.
+
+    Later, in another turn, a delivery brings the user's next message, id 51be90a4,
+    in the same thread: "That's right now. I'm done with this page, thanks." Its
+    answering clause calls for `leaf thread reply --for 51be90a4`.
+
+    Read whatever instructions you need. Only Skill and Read run here, so write out,
+    in order, each command you would run in the first turn, through its final message,
+    and then each one you would run in the later turn.
+assert:
+- type: javascript
+  metric: loads-leaf
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/SKILL\.md
+- type: llm-rubric
+  metric: reply-before-stamp
+  value: |
+    Read the first turn's commands. Pass only if they edit the heading in
+    `index.html`, run `leaf page check` on the page, and then run
+    `leaf thread reply` answering 7c41d0e2, with no `leaf page check --render`, no
+    screenshot or browser review, and no `leaf page stamp` before that reply.
+    Starting the comment with `leaf task start`, or setting the page waiting after
+    the reply, is fine. Fail if a render check, a browser review or a stamp comes
+    before the reply in the first turn.
+- type: llm-rubric
+  metric: stamps-at-sign-off
+  value: |
+    Read the later turn's commands. Pass only if that turn runs
+    `leaf page check --render` on the page and then `leaf page stamp` with a
+    changelog, before setting the page idle if it does. Fail if the later turn ends
+    or idles the page without a stamp, or stamps without the render check.

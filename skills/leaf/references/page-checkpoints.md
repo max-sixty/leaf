@@ -2,8 +2,10 @@
 
 ## Stamp checkpoints
 
-When the page reaches a checkpoint worth naming, stamp the exact current source
-with a brief changelog:
+When the page reaches a checkpoint the user would name, such as sign-off or the
+end of the conversation, rather than each answered message, stamp the exact
+current source with a brief changelog, after the review the main skill's
+"Operate", step 3, asks of a record:
 
 ```bash
 leaf page stamp <page> --text "<what changed>"

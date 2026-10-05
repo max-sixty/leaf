@@ -1159,16 +1159,18 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
 /* The board's minimum is every column at its floor and the gaps between them. A layout
  * that respects a widget's minimum, as a flex item's or a grid track's automatic minimum
  * does, gives the board that much or wraps it onto a row of its own; held to less, the
- * board scrolls its columns inside itself. The nearest size container caps it: the
- * shell, or a framed box holding the board (a pane's body, a card), and a sample,
- * which cannot be one, through `--lf-box-cap`. So a phone or a box narrower
+ * board scrolls its columns inside itself. The page's room caps the floor even
+ * where a margin resident takes some of the shell; a framed box holding the board
+ * (a pane's body, a card), and a sample, which cannot be one, cap it again through
+ * `--lf-box-cap`. So a phone or a box narrower
  * than the minimum scrolls the board rather than the page. Screen only: a sheet has no room
  * beside the column to give, so on paper the board is the column's width. */
 :scope:is(lf-board) { --lf-board-columns: 1; }
 @media screen {
   :scope:is(lf-board) { min-inline-size: min(calc(var(--lf-board-columns)
                * var(--lf-reading-column-floor) + (var(--lf-board-columns) - 1) * var(--sp-2)),
-               calc(100cqi - 2 * var(--col-pad)), var(--lf-box-cap, 100vw)); }
+               var(--lf-page-room, calc(100cqi - 2 * var(--col-pad))),
+               var(--lf-box-cap, 100vw)); }
 }
 :scope:is(lf-board):has(> lf-column:nth-of-type(2)) { --lf-board-columns: 2; }
 :scope:is(lf-board):has(> lf-column:nth-of-type(3)) { --lf-board-columns: 3; }

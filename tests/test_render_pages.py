@@ -1970,6 +1970,47 @@ lf-roomy > section { min-height: 300px; border: 1px solid currentColor; }
     assert root_overflow(page) == 0, at
 
 
+def test_board_fits_beside_contents_spine_at_mid_width(browser, serve):
+    source = leaf_page(
+        "Board beside contents",
+        """
+<aside class="sidebar"><lf-toc id="contents"></lf-toc></aside>
+<h1>Board beside contents</h1>
+<section id="s1"><h2>Board</h2><p>Some text.</p>
+<lf-board id="board">
+  <lf-column id="a" label="First"><lf-card id="card">Card text.</lf-card></lf-column>
+  <lf-column id="b" label="Second"></lf-column>
+  <lf-column id="c" label="Third"></lf-column>
+  <lf-column id="d" label="Fourth"></lf-column>
+</lf-board></section>
+<section id="s2"><h2>After</h2><p>More text.</p></section>
+""",
+    )
+    page = open_page(browser, serve(source))
+    for width in (816, 880, 1120):
+        resized(page, width, 900)
+        margins_laid_out(page)
+        at = page.evaluate("""() => {
+          const boardNode = document.querySelector('lf-board');
+          const board = boardNode.getBoundingClientRect();
+          const main = document.querySelector('main');
+          const probe = document.createElement('i');
+          probe.style.cssText = 'position:fixed;visibility:hidden;width:var(--lf-taken-l, 0px)';
+          main.append(probe);
+          const taken = probe.getBoundingClientRect().width;
+          probe.remove();
+          return {left: board.left, right: board.right, taken,
+                  scrollWidth: boardNode.scrollWidth, clientWidth: boardNode.clientWidth,
+                  viewport: document.documentElement.clientWidth};
+        }""")
+        assert at["left"] >= at["taken"] + 24 - 1, (width, at)
+        assert at["right"] <= at["viewport"] - 24 + 1, (width, at)
+        assert root_overflow(page) == 0, (width, at)
+        if width == 816:
+            assert at["scrollWidth"] > at["clientWidth"], at
+    page.close()
+
+
 def test_a_widget_that_declares_width_takes_the_room_and_the_column_stays_put(
     browser, serve
 ):

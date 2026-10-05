@@ -55,7 +55,11 @@
       - var(--lf-taken-l, 0px)));
     --lf-free-r: max(0px, calc(var(--lf-beside) - var(--lf-shift) - var(--col-pad)
       - var(--lf-taken-r, 0px)));
-    --lf-room: max(0px, calc(100cqi - 2 * var(--col-pad)));
+    /* One page capacity for breakouts and widget floors. A resident may take
+     * different amounts on the two sides, so derive it from the same free-room
+     * readings that place the breakout rather than from the shell alone. */
+    --lf-page-room: calc(var(--lf-width) + var(--lf-free-l) + var(--lf-free-r));
+    --lf-room: var(--lf-page-room);
   }
   @media screen {
     main.layout-column { position: relative; inset-inline-start: var(--lf-shift); }

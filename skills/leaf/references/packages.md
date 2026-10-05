@@ -190,9 +190,10 @@ regions"), and `--lf-density: working` under the `density-working` style.
 
 A rule that draws a box's inset — padding, border, or tinted field — declares
 `--lf-block-frame: 1` in the same rule. The shared layout uses that declaration to trim child
-margins and bound wide content. A box that is a section of the page's own flow rather than a
-box on it, as a page tab's panel is, also declares `--lf-page-flow: 1`, so wide content in
-it takes the page's room and a table in it keeps to its content. The trim follows the frame's edge down through each
+margins, bound wide content, and stretch a table to the frame. A box whose edges keep its
+children's margins in but which draws nothing, as a page tab's panel or a box that contains
+floats does, declares `--lf-block-frame: trim` instead, so its edges trim while wide content
+in it takes the page's room and a table in it keeps to its content. The trim follows the frame's edge down through each
 first or last child, so a wrapper between the frame and the margin it trims declares
 nothing. A box that lays its children
 out side by side (a flex row, a grid) declares `--lf-holds-edge: 1`, so the trim stops at
@@ -342,6 +343,8 @@ shape: `"answered": {"edit": {}}` answers a draft once an edit stands, and
 `"answered": {"choose": {"when": {"multiple": [false]}}, "answer": {"when":
 {"multiple": [true]}}}` answers a single-choice group by its pick and a `multiple` group
 by its Done press.
+The words that name an answer are the module's `static answerWords(state, element)`
+([module-authoring.md, "Declared widget state"](module-authoring.md#declared-widget-state)).
 
 The module reads and writes through `widgetController(owner)`, described in
 [module-authoring.md, "The widget controller"](module-authoring.md#the-widget-controller): `subscribe` delivers the authored baseline with the fold applied, and
@@ -572,7 +575,12 @@ and a blank image stands in for any media an example names. The checks:
   first paint. Upgrade should add behavior and move nothing, so size the widget in
   the package theme, under `html[data-lf-interactive]`, which Leaf sets before first
   paint wherever its runtime will run, in a served page or an export, as its module
-  will draw it. Where the markup cannot say how tall the drawing will
+  will draw it. Where the module draws a structure of its own whose shape the log does
+  not change, such as a row of count tiles, declare that structure as `x-prepaint`
+  rather than summing its line heights in the theme: delivery writes it into each
+  occurrence for the first paint, the browser sizes and wraps it as it will the
+  drawing, and the module removes it (`:scope > [data-lf-prepaint]`) in the same step
+  that draws its replacement. Where the markup cannot say how tall the drawing will
   be, declare `x-height`, add the class `lf-rendered` once the drawing is in, and
   draw at the stated height where the drawing can take any; `page check --render`
   advises a page's author the height to state for one that cannot. Where the widget

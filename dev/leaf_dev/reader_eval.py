@@ -25,8 +25,10 @@ me move cards. The release cut is Thursday, two days away."""
 # The open count each scenario's header claims.
 CASES = {"seeded": 8, "clean": 7}
 COUNT = (
-    "Read every screenshot the output lists with the Read tool. Pass only if the "
-    "page's displayed total of open defects equals the number of defect cards it shows."
+    "Open every screenshot the output lists. A region with its own scroll shows "
+    "only its first screen, so count the cards at a width that shows the whole "
+    "board. Pass only if the page's displayed total of open defects equals the "
+    "number of defect cards on the board."
 )
 
 
@@ -60,6 +62,7 @@ def execute_scenario(
     payload: Path,
     work: Path,
     *,
+    shots: Path,
     harness: str = "cc",
     condition: str = "leaf",
 ) -> dict:
@@ -68,7 +71,7 @@ def execute_scenario(
     source = work / "source.html"
     source.write_text(fixture(CASES[case]))
     (work / "work-dir").write_text(str(work))
-    run = Run("dashboard", payload, work)
+    run = Run("dashboard", payload, work, shots)
     build_source(payload, run.state, source, work / "page")
     captures = capture_phase(run, 1, work / "page")
     return {

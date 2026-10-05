@@ -37,9 +37,11 @@ def state_home_path() -> Path:
 
 
 # A session's files that end with it: hook capability and turn observations,
-# and its page servers' log of the thread titles they asked for.
+# whether it has claimed a page, and its page servers' log of the thread titles
+# they asked for.
 HOOKS_SUFFIX = "hooks"
 STEP_HOOK_SUFFIX = "step-hook"
+CLAIMED_SUFFIX = "claimed"
 SESSION_SUFFIX = "lifecycle"
 TITLES_SUFFIX = "titles.log"
 
@@ -398,12 +400,32 @@ def end_session(session_id: str) -> None:
         record = session_record(session_id) or new_session(session_id, {})
         ended = now_iso()
         write_session({**record, "ended": ended, "turn_closed": ended})
-        for suffix in (HOOKS_SUFFIX, STEP_HOOK_SUFFIX, TITLES_SUFFIX):
+        for suffix in (HOOKS_SUFFIX, STEP_HOOK_SUFFIX, CLAIMED_SUFFIX, TITLES_SUFFIX):
             session_file(session_id, suffix).unlink(missing_ok=True)
+
+
+def hook_needed(payload: dict) -> bool:
+    """Whether a Codex hook has anything to do for its payload. Every hook but
+    the tool hook does. The tool hook offers input between steps, which only a
+    session that has claimed a page this generation can have; the mark
+    (`service.PageTransaction.publishing_claim`) stands until SessionEnd, a
+    superset of the sessions holding one now.
+
+    Codex runs the hook synchronously after every tool call of every task the
+    plugin is installed in, and most hold no page, so `bin/leaf` asks this
+    before starting uv and importing the package: about 50 ms of CPU a call in
+    place of about 75 (measured on macOS)."""
+    return (
+        payload.get("hook_event_name") != "PostToolUse"
+        or session_file(payload.get("session_id") or "", CLAIMED_SUFFIX).exists()
+    )
 
 
 def main() -> None:
     payload = json.load(sys.stdin)
+    if sys.argv[1:] == ["hook-gate"]:
+        # 3 alone says "nothing to do": a failure here must not skip the hook.
+        sys.exit(0 if hook_needed(payload) else 3)
     if payload.get("hook_event_name") == "SessionEnd":
         end_session(payload.get("session_id") or "")
 

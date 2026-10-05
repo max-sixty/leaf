@@ -12,7 +12,7 @@ readings on a claimed page, and the durable records a delivery passes through.
 A delivery record under the state home is the handoff between Leaf capturing a
 user's moves and a carrier taking them. One record is offered once, accepted once,
 and receipted per page batch, whichever transport carried it — an App Server turn or
-the `codex queue` command, or an async tool hook — so preparing, accepting, opening
+the `codex queue` command, or the tool hook — so preparing, accepting, opening
 and abandoning one live here rather than beside either carrier. The immutable
 payload itself belongs to `delivery`; what this module keeps is which task holds it and how far it has got.
 
@@ -1514,7 +1514,7 @@ def append_batch(
 
 
 def offer_hook_delivery(session_id: str, turn_id: str) -> str | None:
-    """Offer one plain-reply pointer through an async tool hook, without receipt.
+    """Offer one plain-reply pointer through the tool hook, without receipt.
 
     The agent's actual `delivery read` proves this pointer entered a turn. If the
     hook output arrives after the turn ends, the adapter queues the same frozen

@@ -6676,14 +6676,11 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(browser,
     assert page.evaluate("() => window.__cardOpenings") == []
 
 
-@pytest.mark.parametrize("width", [1920, 2400])
-def test_a_margin_card_clears_its_row_only_where_that_costs_no_width(
-    browser, serve, width
-):
-    """Where the room past the margin row holds the card's whole measure, the card
-    stands there, clear of the row; short of that, clearing it would narrow the card,
-    so the card stands beside the words instead, over the row (comment-placement.js).
-    Either way, short of its measure it takes the room to the visible edge."""
+@pytest.mark.parametrize("width", [1440, 1920, 2400])
+def test_a_margin_card_clears_its_row_where_its_minimum_fits(browser, serve, width):
+    """Where the room past the margin row holds the card's minimum, the card
+    stands clear of the row. Otherwise it stands beside the words, over the row.
+    Short of its preferred measure it takes the room to the visible edge."""
     page = open_page(browser, serve(ASK_PAGE, events=[PARAGRAPH_ON_ASK]))
     resized(page, width, 900)
     page.locator('.lf-margin-marker[data-lf-kinds="comment"]').click()
@@ -6694,13 +6691,19 @@ def test_a_margin_card_clears_its_row_only_where_that_costs_no_width(
         """() => {
           const controls = document.querySelector('[data-lf-kinds="comment"]')
             .closest('[data-lf-margin-for]').getBoundingClientRect();
-          const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
-          return {controlsRight: controls.right, cardLeft: card.left,
-                  cardRight: card.right, viewport: innerWidth};
+          const card = document.querySelector('.lf-margin-preview');
+          const box = card.getBoundingClientRect();
+          return {controlsRight: controls.right, cardLeft: box.left,
+                  cardRight: box.right, viewport: innerWidth,
+                  minimum: parseFloat(getComputedStyle(card)
+                    .getPropertyValue('--thread-card-min'))};
         }"""
     )
-    past = geometry["viewport"] - 8 - (geometry["controlsRight"] + 8) >= 592
-    assert past == (width == 2400), geometry
+    past = (
+        geometry["viewport"] - 8 - (geometry["controlsRight"] + 8)
+        >= geometry["minimum"]
+    )
+    assert past == (width != 1440), geometry
     assert geometry["cardLeft"] == pytest.approx(
         (geometry["controlsRight"] if past else page.evaluate(WORDS_RIGHT)) + 8,
         abs=0.5,

@@ -38,11 +38,11 @@
    clipping `clear` does not.
 
    Beside, the surface's top stands level with `row`, and past its margin row where that
-   reaches past `clear` and the room beyond it holds the card's preferred measure
-   (`--thread-card`), so the row its thread has or will have stays in view where that
-   costs the card none of its width. Where it would cost width, the surface stands over
-   the row: the card carries its own close and step controls, and the row shows again
-   once it closes. Neither choice reads the surface's own width or height, so the box
+   reaches past `clear` and the room beyond it holds the card's minimum measure
+   (`--thread-card-min`), so the row its thread has or will have stays usable. Where
+   it cannot hold the minimum, the surface stands over the row: the card carries its
+   own close and step controls, and the row shows again once it closes. Neither
+   choice reads the surface's own width or height, so the box
    and the card make the same one. Under or over, its inline start follows `column`,
    independently of the block it keeps clear, and it keeps that start as it widens.
 
@@ -432,13 +432,13 @@ export function commentPlacement() {
       clear ??= new DOMRect(boundary.left, boundary.top, minimumWidth, 0);
       seen ||=
         !unanchored && clear.bottom > boundary.top && clear.top < boundary.bottom;
-      // Beside on the right, the margin row is kept clear too where the room past it
-      // holds the card's whole measure; where it does not, the surface stands over it.
+      // Beside on the right, keep the margin row usable when the room past it
+      // holds the card's minimum; otherwise the surface stands over it.
       const past =
         side === "right" &&
         margin &&
         margin.right > clear.right + 0.5 &&
-        boundary.right - margin.right - COMMENT_GAP >= cardMeasure()
+        boundary.right - margin.right - COMMENT_GAP >= minimumWidth
           ? margin.right
           : null;
       const box =

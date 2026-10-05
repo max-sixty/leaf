@@ -257,7 +257,7 @@ export class ThreadView {
     // thread holds shows with it (held-news.js).
     this.#messageCommands = {
       ...commands,
-      reaction: { ...commands.reaction, pressed: () => this.#model?.news?.open() },
+      reaction: { ...commands.reaction, pressed: () => this.#showNews() },
     };
     this.node = document.createElement(
       surface === "outlet" || surface === "panel" ? "details" : "div",
@@ -339,8 +339,10 @@ export class ThreadView {
   }
 
   // What the thread draws after its messages that its settlement swaps: the reply box
-  // while it stands open, the row holding Reopen once resolved.
+  // while it stands open, the row holding Reopen once resolved; none while the thread
+  // is folded, where neither shows.
   get settlementRow() {
+    if (this.node.localName === "details" && !this.node.open) return null;
     return this.node.querySelector(
       ":scope > .lf-thread-reply, :scope > .lf-thread-actions, :scope > .lf-page-thread-resolved",
     );
@@ -581,13 +583,11 @@ export class ThreadView {
     this.#continuity?.after(bodyPlace);
     this.#wireKeys();
     // A summary gathering the message the user stands on moves it; a page thread whose
-    // render took their place puts them in its reply, or on the thread itself, and a
-    // panel card on its title, as a held settlement shown by a press on Resolve does.
+    // render took their place puts them in its reply, or on the thread itself.
     restoreFocus?.(
-      panel
-        ? threadFocusStop(this.node)
-        : () =>
-            this.#commands.landInThread(this.node.querySelector(SAY_BOX) ?? this.node),
+      !panel &&
+        (() =>
+          this.#commands.landInThread(this.node.querySelector(SAY_BOX) ?? this.node)),
     );
     return this.node;
   }
@@ -695,13 +695,23 @@ export class ThreadView {
     return button;
   }
 
+  // What the thread holds, shown by a press on one of its controls. Where showing it
+  // takes the pressed control away, as a held settlement does Resolve, the press leaves
+  // the user on the thread's title.
+  #showNews() {
+    if (!this.#model?.news) return;
+    const restoreFocus = holdFocus(this.node);
+    this.#model.news.open();
+    restoreFocus?.(threadFocusStop(this.node));
+  }
+
   // A press means what its control drew, and shows what the thread holds; where the
   // thread already stands as the press means, as one resolved elsewhere whose news
   // waits, it sends nothing (actions.js, `settle`).
   #settle = () => {
     const model = this.#model;
     if (model.folding) return;
-    model.news?.open();
+    this.#showNews();
     if (!model.resolved) dismissReply(model.key);
     void settleThread({
       parent: () => this.#model.root,

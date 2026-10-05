@@ -3618,6 +3618,42 @@ def test_one_neighbour_is_not_enough_to_identify_a_revised_comment(browser, serv
     assert transition["anchor"] == {"section": "thin"}
 
 
+QUEUES_V1 = leaf_page(
+    "Queues",
+    """
+<h1 id="t">Queues</h1>
+<section id="queues">
+<h2>Each side has a queue of open items, and what an item is stays open</h2>
+<p>An item is anything open that one side owes the other.</p>
+</section>
+""",
+)
+QUEUES_V2 = QUEUES_V1.replace(
+    "Each side has a queue of open items, and what an item is stays open",
+    "The two queues today",
+)
+
+
+def test_a_thread_whose_quote_was_rewritten_keeps_its_words(browser, serve):
+    """A version that rewrites the words a comment quoted leaves its thread on their
+    section. The card keeps naming the quoted words rather than the section's new
+    heading, marked as changed, and those words still find the thread."""
+    quote = "what an item is stays open"
+    url = serve(QUEUES_V1, anchored=[("queues", quote)])
+    page = open_page(browser, live_url(url))
+    stamp_page(serve.page_dir, QUEUES_V2, "plain headings")
+    wait_for_revision(page, 2)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+
+    head = page.locator(".lf-thread-panel .lf-thread .lf-quote")
+    expect(head.locator(".lf-quote-label")).to_have_text(f"“{quote}”")
+    expect(head.locator(".lf-anchor-status")).to_have_text("Changed")
+
+    page.get_by_role("searchbox", name="Find in threads").fill("item is stays")
+    expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_have_count(1)
+
+
 def test_a_revised_example_travels_between_its_own_versions(browser, serve):
     """The corpus's own reading of version travel, on the one example that was revised.
 
@@ -5837,6 +5873,8 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     page.locator(".lf-threads-toggle").click()
     panel_settled(page, False)
 
+    expect(thread.locator(f'.lf-msg[data-event="{reply["id"]}"]')).to_be_visible()
+
     question = append_carried_log_record(
         serve.page_dir,
         {
@@ -5875,7 +5913,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     # The inline seat holds arrivals that would move the on-screen diff. Opening its
     # notice makes the replies visible before comparing their workflow lines with
     # the panel's copy.
-    news = thread.get_by_role("button", name="3 new replies")
+    news = thread.get_by_role("button", name="2 new replies")
     expect(news).to_be_visible()
     news.click()
     for view, message_attr in ((thread, "data-event"), (panel_thread, "data-mid")):

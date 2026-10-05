@@ -1030,11 +1030,10 @@ def test_a_conversation_keeps_its_face_and_sends_from_margin_and_panel(
               return {
                 messages: [...thread.querySelectorAll('.lf-msg')].map(message => ({
                   body: styles(message.querySelector('.lf-msg-body'), type),
-                  author: styles(message === thread.querySelector('.lf-msg')
-                    ? thread.querySelector('.lf-thread-root-meta b')
-                    : message.querySelector('.lf-msg-head b'), type),
+                  author: styles(message.querySelector(':scope > .lf-msg-head b')
+                    ?? thread.querySelector('.lf-thread-root-meta b'), type),
                 })),
-                metadata: styles(thread.querySelector('.lf-thread-root-meta .lf-msg-meta'), type),
+                metadata: styles(thread.querySelector('.lf-msg-meta'), type),
                 field: styles(field, [...type, 'padding-top', 'padding-right', 'padding-bottom',
                   'padding-left', 'min-height']),
                 surround: styles(thread.querySelector('.lf-thread-reply .lf-compose-field'),
@@ -1326,6 +1325,112 @@ def test_news_that_answers_a_thread_waiting_on_you_leaves_its_card_in_place(
     assert card.locator(".lf-thread-summary").bounding_box() == stood
 
 
+@pytest.mark.parametrize("touch", [False, True])
+@pytest.mark.parametrize("agent", ["Codex", "Maximilian Roos Research Assistant"])
+def test_resolved_thread_has_one_surface_and_reopens_from_its_title(
+    browser, serve, touch, agent
+):
+    """A resolved card keeps its ground and a reachable action beside its age.
+
+    Pressing that action reopens the conversation without folding its disclosure;
+    the button's accessible name names the action while its visible face says the state.
+    """
+    context = browser.new_context(
+        viewport={"width": 390 if touch else 800, "height": 900},
+        has_touch=touch,
+        is_mobile=touch,
+        reduced_motion="reduce",
+    )
+    url = serve(
+        leaf_page(
+            "Resolved thread",
+            '<h1>Resolved thread</h1><p id="subject">A shared surface.</p>',
+        )
+    )
+    root = panel_comment(
+        serve.page_dir, "Keep this discussion together.", {"section": "subject"}
+    )
+    for event in (
+        {
+            "kind": "reply",
+            "parent": root,
+            "text": "The answer has several paragraphs.\n\nIts margins are part of the card.",
+        },
+        {"kind": "thread_title", "thread": root, "title": "A shared surface"},
+        {"kind": "resolve", "parent": root},
+    ):
+        append_carried_log_record(
+            serve.page_dir, {"author": "agent", "agent": agent, **event}
+        )
+    other = panel_comment(serve.page_dir, "Another resolved discussion.")
+    append_carried_log_record(
+        serve.page_dir, {"kind": "resolve", "author": "user", "parent": other}
+    )
+    page = open_page(browser, url, context=context)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    page.locator(".lf-thread-filter-toggle").click()
+    page.locator('[data-filter-kind="status"][data-filter-value="resolved"]').click()
+    thread = page.locator(f'.lf-threads > .lf-thread[data-id="{root}"]')
+    summary = thread.locator(".lf-thread-summary")
+    reopen = thread.get_by_role("button", name="Reopen", include_hidden=True)
+    page.locator(f'.lf-thread[data-id="{other}"] > .lf-thread-summary').click()
+    rendered(page)
+    expect(thread).not_to_have_attribute("open", "")
+    expect(reopen).to_be_hidden()
+    assert reopen.evaluate("button => button.parentElement.tagName") == "DETAILS"
+    summary.click()
+    summary.focus()
+    rendered(page)
+    image = Image.open(io.BytesIO(thread.screenshot())).convert("RGB")
+    start = int(summary.bounding_box()["height"]) + 4
+    # The clear strip inside the border crosses message margins and the card's foot.
+    # Separate child backgrounds leave panel-colored bands along this strip.
+    assert len({image.getpixel((3, y)) for y in range(start, image.height - 2)}) == 1
+    expect(reopen).to_have_text(f"✓ Resolved by {agent}")
+    expect(reopen).to_have_attribute(
+        "aria-label", f"✓ Resolved by {agent} · Reopen thread"
+    )
+    expect(reopen).to_have_attribute("title", f"✓ Resolved by {agent} · Reopen thread")
+    assert reopen.evaluate("""button => {
+        const r = button.getBoundingClientRect();
+        return [r.top + 1, r.bottom - 1].every(y =>
+            button.contains(document.elementFromPoint(r.x + r.width / 2, y)));
+    }"""), "The whole Reopen target must take the press, including its top and bottom."
+    assert reopen.bounding_box()["height"] >= float(
+        page.locator("body")
+        .evaluate('node => getComputedStyle(node).getPropertyValue("--aim-floor")')
+        .strip()
+        .removesuffix("px")
+    )
+    boxes = thread.evaluate("""node => ['.lf-thread-header-action', '.lf-thread-recency'].map(sel => {
+        const range = document.createRange(); range.selectNodeContents(node.querySelector(sel));
+        const r = range.getBoundingClientRect(); return {top:r.top, bottom:r.bottom};
+    })""")
+    assert boxes[0] == boxes[1]
+    if touch:
+        reopen.tap()
+    else:
+        summary.focus()
+        page.keyboard.press("Tab")
+        expect(reopen).to_be_focused()
+        page.keyboard.press("Enter")
+    told(page)
+    expect(thread).to_have_attribute("data-resolved", "false")
+    expect(thread).to_have_attribute("open", "")
+    expect(thread.locator(".lf-thread-reply leaf-text")).to_be_visible()
+    assert (
+        len(
+            [
+                event
+                for event in events_model.read_events(serve.page_dir)
+                if event["kind"] == "unresolve" and event["parent"] == root
+            ]
+        )
+        == 1
+    )
+
+
 @pytest.mark.parametrize("width", [320, 800])
 @pytest.mark.parametrize("scheme", ["light", "dark"])
 def test_a_thread_keeps_submit_in_its_field_and_resolve_with_its_metadata(
@@ -1495,7 +1600,9 @@ def test_page_thread_dismiss_and_resolve_share_the_metadata_row(
     dismiss = preview.get_by_role("button", name="Dismiss thread view")
     expect(resolve).to_be_visible()
     expect(dismiss).to_be_visible()
-    assert dismiss.evaluate("button => button.closest('.lf-thread-root-meta') !== null")
+    assert dismiss.evaluate(
+        "button => button.closest('.lf-margin-thread-controls') !== null"
+    )
     centers = preview.evaluate(
         """preview => ['.lf-resolve', '.lf-margin-preview-close'].map(selector => {
           const rect = preview.querySelector(selector).getBoundingClientRect();
@@ -1507,24 +1614,22 @@ def test_page_thread_dismiss_and_resolve_share_the_metadata_row(
     if thread_count == 2:
         row = preview.evaluate(
             """preview => {
-              const meta = preview.querySelector('.lf-thread-root-meta');
-              const middle = selector => {
-                const box = meta.querySelector(selector).getBoundingClientRect();
-                return box.y + box.height / 2;
-              };
+              const actions = preview.querySelector('.lf-margin-thread-controls');
+              const head = preview.querySelector('.lf-thread-transcript .lf-msg-head');
+              const box = selector => preview.querySelector(selector)
+                .getBoundingClientRect();
+              const middle = selector => box(selector).y + box(selector).height / 2;
               return {
                 nav: middle('.lf-margin-preview-nav'),
-                author: middle('.lf-msg-head > b'),
+                author: middle('.lf-thread-transcript .lf-msg-head > b'),
                 actions: middle('.lf-thread-meta-actions'),
-                authorRight: meta.querySelector('.lf-msg-head')
-                  .getBoundingClientRect().right,
-                navLeft: meta.querySelector('.lf-margin-preview-nav')
-                  .getBoundingClientRect().left,
-                navRight: meta.querySelector('.lf-margin-preview-nav')
-                  .getBoundingClientRect().right,
-                resolveLeft: meta.querySelector('.lf-resolve')
-                  .getBoundingClientRect().left,
-                overflow: meta.scrollWidth - meta.clientWidth,
+                authorRight: head.getBoundingClientRect().right
+                  - parseFloat(getComputedStyle(head).paddingInlineEnd),
+                navLeft: box('.lf-margin-preview-nav').left,
+                navRight: box('.lf-margin-preview-nav').right,
+                resolveLeft: box('.lf-resolve').left,
+                overflow: actions.scrollWidth - actions.clientWidth
+                  + head.scrollWidth - head.clientWidth,
               };
             }"""
         )

@@ -25,8 +25,9 @@ measure with `data-width="wide"` (`page-authoring.md`, "Bounds and widths").
 
 Write related, independently answerable Asks in page order. A widget can carry its
 own question and context, or an `lf-ask` can frame them around it. They remain visible
-as one complete page. The user can press `a` to reach the next open Ask and use its
-displayed `1`–`9` actions. If a later Ask depends on an earlier answer, publish it in
+as one complete page. The user can press `a` to reach the next thing waiting on them
+(an open Ask, a thread whose question is theirs, or a move whose reply failed and
+needs sending again) and use an Ask's displayed `1`–`9` actions. If a later Ask depends on an earlier answer, publish it in
 the next turn instead of authoring
 every possible branch.
 

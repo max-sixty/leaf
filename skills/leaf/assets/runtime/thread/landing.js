@@ -33,7 +33,7 @@
    supplies the caller-owned return target through `landInThread`. A send from a
    thread's box leaves it the same way, onto the thread, except in the margin card,
    whose thread stands for the element it is about (`landSent`). */
-import { landingBand, seenRect, shownBox } from "../geometry.js";
+import { landingBand, seenRect, shownBox, shownWindow } from "../geometry.js";
 import { documentFocused, focused } from "../keyboard/scopes.js";
 import { focusDestination, restoringFocus, takesLetters, whenLeft } from "../focus.js";
 import { scrollBehavior } from "../motion.js";
@@ -59,7 +59,12 @@ import {
   threadReplyInput,
   threadFocusDestination,
 } from "./focus.js";
-import { fitsWhole, landingTarget, scrollThreadIntoView } from "./reply-landing.js";
+import {
+  fitsWhole,
+  landingTarget,
+  latestTurn,
+  scrollThreadIntoView,
+} from "./reply-landing.js";
 
 export { SAY_BOX } from "./selectors.js";
 export { scrollThreadIntoView } from "./reply-landing.js";
@@ -81,14 +86,8 @@ const threadLandingStart = (held, target, threadsBox) => {
   const room = band.bottom - band.top;
   const targetBox = shownBox(target);
   const last = target === held ? targetBox.bottom : targetBox.top;
-  const latest =
-    target === held
-      ? [
-          ...held.querySelectorAll(
-            ".lf-thread-transcript > :is(.lf-msg, .lf-thread-checkpoint)",
-          ),
-        ].at(-1)
-      : null;
+  const transcript = held.querySelector(".lf-thread-transcript");
+  const latest = target === held && transcript ? latestTurn(transcript) : null;
   const candidates = [
     ...held.querySelectorAll(
       ":scope > *, :scope > .lf-thread-content > *, " +
@@ -225,14 +224,13 @@ const cardThread = () => {
   const thread = focusedThreadTarget();
   return thread?.localName === "details" && !thread.open ? null : thread;
 };
+// Settlement belongs to the thread, wherever its view places that control.
 const resolutionControl = (thread) =>
-  thread?.querySelector(
-    ":scope .lf-thread-meta-actions > .lf-resolve, " +
-      ":scope .lf-thread-meta-actions > .lf-reopen, " +
-      ":scope .lf-thread-root-meta > .lf-reopen, " +
-      ":scope > .lf-thread-actions > .lf-reopen, " +
-      ":scope > .lf-page-thread-resolved .lf-reopen",
-  ) ?? null;
+  thread
+    ? ([...thread.querySelectorAll(".lf-resolve, .lf-reopen")].find(
+        (control) => control.closest(THREAD) === thread,
+      ) ?? null)
+    : null;
 
 function prepareLanding({ held = null, box, route = null }) {
   if (
@@ -552,17 +550,21 @@ export function createThreadLanding({
     box.lfRevealReply?.();
     // Entering a reply is a focus move, not a trip to its thread or passage.
     // Reveal only the writing area; an already visible box leaves every scroller
-    // where the reader put it, including the transcript inside a margin card.
+    // where the reader put it, including the transcript inside a margin card. A box
+    // longer than the window along an axis can never show whole there, so partly in
+    // view it is already as shown as it can be: a thread standing in for the control
+    // its render took away jumped to its head, 700px past where the user had pressed.
     bringBackSurfaceOf(box);
     box.focus({ preventScroll: true });
     const shown = shownBox(box);
     const visible = seenRect(box, new Map());
+    const room = shownWindow();
     if (
       !visible ||
-      visible.top > shown.top ||
-      visible.bottom < shown.bottom ||
-      visible.left > shown.left ||
-      visible.right < shown.right
+      (shown.height <= room.height &&
+        (visible.top > shown.top || visible.bottom < shown.bottom)) ||
+      (shown.width <= room.width &&
+        (visible.left > shown.left || visible.right < shown.right))
     )
       box.scrollIntoView({
         block: "nearest",

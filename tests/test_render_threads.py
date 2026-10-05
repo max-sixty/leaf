@@ -1478,7 +1478,7 @@ def test_a_refused_reopen_preserves_a_filter_typed_during_its_reveal(
     rendered(page)
     hold_visible_thread_presentation(page, root)
 
-    card.get_by_role("button", name="Reopen", exact=True).click()
+    card.get_by_role("button", name=re.compile(r"\bReopen(?: thread)?$")).click()
     holding(page, held, 1, "the refused reopen with a held reveal")
     page.wait_for_function(
         "window.visibleThreadPresentationHeld === true", timeout=3000
@@ -1518,7 +1518,7 @@ def test_a_refused_reopen_preserves_a_filter_typed_during_restoration(
     card.locator(".lf-thread-summary").click()
     rendered(page)
 
-    card.get_by_role("button", name="Reopen", exact=True).click()
+    card.get_by_role("button", name=re.compile(r"\bReopen(?: thread)?$")).click()
     holding(page, held, 1, "the refused reopen whose restoration will wait")
     expect(page.locator('[data-filter-value="open"]')).to_have_attribute(
         "aria-pressed", "true"
@@ -1648,7 +1648,9 @@ def test_a_poll_accounted_settlement_repaints_before_its_post_response(
     reads.cut()
     for settled in (
         inline.get_by_role("button", name="Reopen", exact=True),
-        panel.locator(":scope > .lf-thread-actions > .lf-reopen"),
+        panel.get_by_role(
+            "button", name=re.compile(r"\bReopen(?: thread)?$"), include_hidden=True
+        ),
     ):
         expect(settled).to_be_enabled(timeout=1000)
         expect(settled).not_to_have_attribute("aria-busy", "true", timeout=1000)
@@ -3150,7 +3152,7 @@ def test_a_failed_reopen_reveal_still_processes_its_durable_answer(held_events, 
         }"""
     )
 
-    page.get_by_role("button", name="Reopen", exact=True).click()
+    page.get_by_role("button", name=re.compile(r"\bReopen(?: thread)?$")).click()
     holding(page, held, 2, "the reopen and its presentation report")
     page.wait_for_function(
         """async () => {
@@ -3193,7 +3195,9 @@ def test_a_failed_reopen_reveal_still_processes_its_durable_answer(held_events, 
     )
     expect(page.locator(f'.lf-thread[data-id="{root}"]')).to_be_visible()
     expect(
-        page.get_by_role("button", name="Reopen", exact=True, include_hidden=True)
+        page.get_by_role(
+            "button", name=re.compile(r"\bReopen(?: thread)?$"), include_hidden=True
+        )
     ).to_have_count(1)
 
 
@@ -4464,7 +4468,7 @@ def test_a_thread_the_agent_closed_names_who_closed_it(browser, serve):
     Their own press folds the thread under their hand and leaves the outcome on the
     control they pressed, so its Resolved state needs to say nothing more. An
     agent's resolve arrives on a poll with no gesture behind it, and that thread says
-    who closed it — in the row the control stood in, at the end it stood at."""
+    who closed it beside the title, on the control that reopens it."""
     page = open_page(browser, serve(LONG_PAGE, comments=2))
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
@@ -4482,7 +4486,7 @@ def test_a_thread_the_agent_closed_names_who_closed_it(browser, serve):
     expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
     page.locator(".lf-thread-filter-toggle").click()
     page.locator('[data-filter-value="resolved"]').click()
-    expect(page.locator(f'.lf-thread[data-id="{c1}"] .lf-resolved-by')).to_have_text(
+    expect(page.locator(f'.lf-thread[data-id="{c1}"] .lf-thread-status')).to_have_text(
         "✓ Resolved by Indexer"
     )
 
@@ -4494,7 +4498,9 @@ def test_a_thread_the_agent_closed_names_who_closed_it(browser, serve):
     # The settled card is what says the fold is over, so the line's absence is read
     # from a thread that has arrived rather than one still on its way.
     expect(page.locator(f'.lf-thread[data-id="{c2}"]:not([hidden])')).to_have_count(1)
-    expect(page.locator(f'.lf-thread[data-id="{c2}"] .lf-resolved-by')).to_have_count(0)
+    expect(page.locator(f'.lf-thread[data-id="{c2}"] .lf-thread-status')).to_have_text(
+        "Resolved"
+    )
 
 
 def test_a_resolved_thread_can_be_reopened(browser, serve):
@@ -4694,7 +4700,9 @@ def test_a_late_reply_reopens_its_resolved_thread(browser, serve):
     expect(thread).to_be_visible()
     thread.locator(".lf-thread-summary").press("Enter")
     expect(thread.locator(".lf-msg.agent")).to_be_visible()
-    expect(thread.get_by_role("button", name="Reopen", exact=True)).to_have_count(0)
+    expect(
+        thread.get_by_role("button", name=re.compile(r"\bReopen(?: thread)?$"))
+    ).to_have_count(0)
     page.reload()
     told(page)
     expect(thread).to_be_visible()
@@ -5136,7 +5144,9 @@ def test_an_external_resolution_keeps_a_panel_reply_until_it_is_sent(
         page.locator('[data-filter-value="resolved"]').click()
         expect(card).to_be_visible()
         with sending(page, "reopen the deliberately dismissed reply"):
-            card.get_by_role("button", name="Reopen", exact=True).click()
+            card.get_by_role(
+                "button", name=re.compile(r"\bReopen(?: thread)?$")
+            ).click()
         expect(reply).to_have_js_property("value", words)
         return
 
@@ -6014,7 +6024,9 @@ def test_a_delayed_accordion_reveal_yields_to_the_users_new_thread(browser, serv
     expect(target).to_have_attribute("hidden", "")
     hold_visible_thread_presentation(page, target_id)
     page.locator(".lf-threads").focus()
-    page.keyboard.press("a")
+    # The thread the list shows asks the user a question too, so focus on the list is
+    # standing on that item of their queue; the hidden Ask stands before it on the page.
+    page.keyboard.press("Shift+a")
     page.wait_for_function(
         "window.visibleThreadPresentationHeld === true", timeout=3000
     )
@@ -7883,6 +7895,78 @@ def test_walking_the_list_lands_each_thread_on_its_latest_message(browser, serve
     )
 
 
+# Who wrote the words just under the card's top row, and whose name that row shows.
+CARD_TOP_AUTHORS = """transcript => {
+  const box = transcript.getBoundingClientRect();
+  const x = box.left + 30;
+  const row = transcript.querySelector('.lf-msg-head').getBoundingClientRect();
+  const at = y => document.elementFromPoint(x, y)?.closest('.lf-msg');
+  const named = document.elementFromPoint(x, box.top + row.height / 2)
+    ?.closest('.lf-msg-head')?.closest('.lf-msg');
+  const under = at(box.top + row.height + 6);
+  const messages = [...transcript.querySelectorAll('.lf-msg')];
+  return {named: messages.indexOf(named), under: messages.indexOf(under),
+          scrolled: transcript.scrollTop > 0};
+}"""
+
+
+def test_the_thread_card_opens_on_its_latest_message_under_its_own_name(browser, serve):
+    """A card opened on a long thread shows its latest message, as a walk to it in the
+    Threads list does, and its top row names whoever wrote the words under it. The
+    card pinned the root's name beside its actions, so it opened at the top to keep
+    that name true, leaving the newest turn out of view."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(
+        serve.page_dir, "Opening turn. " + LANDING_WORDS, {"section": "how-store"}
+    )
+    for turn in range(1, 12):
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": "agent" if turn % 2 else "user",
+                "parent": root,
+                "text": f"Turn {turn}. " + LANDING_WORDS,
+            },
+        )
+    page = open_page(browser, url)
+    resized(page, 1200, 900)
+    page.locator('[data-lf-margin-for="how-store"] .lf-margin-marker').click()
+    selector = (
+        f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]'
+        " > .lf-thread-transcript"
+    )
+    transcript = page.locator(selector)
+    expect(transcript).to_be_visible()
+    rendered(page)
+    scroll_settled(page, selector)
+    assert transcript.evaluate("box => box.scrollHeight > box.clientHeight")
+    latest = transcript.locator(".lf-msg").last.bounding_box()
+    shown = transcript.bounding_box()
+    assert latest["y"] + latest["height"] <= shown["y"] + shown["height"] + 1
+    landed = transcript.evaluate(CARD_TOP_AUTHORS)
+    # Just under the row may fall between two messages; the row names a later one.
+    assert landed["scrolled"] and landed["named"] > 0, landed
+    assert landed["under"] in (landed["named"], -1), landed
+    # Reading back up, the row names each message whose words stand under it.
+    for index in (3, 2, 1, 0):
+        transcript.evaluate(
+            """(box, index) => {
+              const message = box.querySelectorAll('.lf-msg')[index];
+              const offset = message.getBoundingClientRect().top
+                - box.getBoundingClientRect().top;
+              // The message's middle stands just under the row.
+              box.scrollTop += index
+                ? offset + message.offsetHeight / 2 - 30
+                : -box.scrollTop;
+            }""",
+            index,
+        )
+        rendered(page)
+        reading = transcript.evaluate(CARD_TOP_AUTHORS)
+        assert reading["named"] == reading["under"] == index, reading
+
+
 SEAT_FILLER = "".join(
     f"<p>Filler paragraph {n}, long enough to occupy a line of reading.</p>"
     for n in range(40)
@@ -8491,11 +8575,6 @@ def test_an_agent_turn_arriving_holds_still_the_page_box_being_typed_in(
 
 
 @pytest.mark.parametrize("kind", ["task", "verdict"])
-@pytest.mark.xfail(
-    reason="Main: resolving an inline thread moves the page 689px when focus returns to the card",
-    raises=AssertionError,
-    strict=False,
-)
 def test_resolving_a_long_page_thread_by_its_button_leaves_the_page_still(
     browser, serve, kind
 ):
@@ -8799,7 +8878,9 @@ def test_a_walk_to_a_question_the_narrowing_hides_widens_the_list(browser, serve
     """A card the narrowing hid keeps its node, so the `a` walk can still name the
     question in it — and arriving there has to show it, the way showThread does:
     focus on a card with no box is a no-op and the announcement would say "1 of 2"
-    over a list that shows something else."""
+    over a list that shows something else. The thread the list shows asks the user a
+    question too, so focus on the list stands on that item, and the hidden Ask stands
+    before it on the page."""
     page = open_page(
         browser, serve(next(p for p in EXAMPLES if p.stem == "ship-review"))
     )
@@ -8812,7 +8893,7 @@ def test_a_walk_to_a_question_the_narrowing_hides_widens_the_list(browser, serve
     page.get_by_role("searchbox", name="Find in threads").fill("stay blocked")
     expect(card).to_have_attribute("hidden", "")
     page.locator(".lf-threads").focus()
-    page.keyboard.press("a")
+    page.keyboard.press("Shift+a")
     expect(card).not_to_have_attribute("hidden", "")
     expect(page.get_by_role("searchbox", name="Find in threads")).to_have_value("")
     assert page.evaluate(

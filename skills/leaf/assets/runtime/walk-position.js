@@ -18,9 +18,11 @@ const BOUNDARY_MS = 900;
 let walking = null; // {key, noun, read, target, boundary}; never a list snapshot
 let boundaryTimer = 0;
 
+// "Thread 2 of 5", or, for a walk over several kinds that names its list in the
+// qualifier, "2 of 5 waiting on you · Thread" with the kind given there instead.
 export function walkPositionLabel(noun, position, total, qualifier = "") {
-  if (!noun) throw new Error("leaf: a walk position needs a noun");
-  return `${noun} ${position} of ${total}${qualifier ? ` ${qualifier}` : ""}`;
+  if (!noun && !qualifier) throw new Error("leaf: a walk position needs a noun");
+  return [noun, `${position} of ${total}`, qualifier].filter(Boolean).join(" ");
 }
 
 // The common reading for a DOM or model list. `identity` is the owner's stable key;
@@ -67,7 +69,7 @@ export function walkPosition() {
 // `landed(row)` runs after a press that moved focus to another row. `scroll: false`
 // holds the page still for a list read off what is in view, such as the Page Map's
 // visible markers, where scrolling to the landed row would change the list the walk
-// is over. Tabs and spatial grids own cyclic policies; the page's Ask walk steps by
+// is over. Tabs and spatial grids own cyclic policies; the page's queue walk steps by
 // document position.
 const STEPS = Object.freeze(["previous", "next", "first", "last"]);
 const capital = (word) => word[0].toUpperCase() + word.slice(1);

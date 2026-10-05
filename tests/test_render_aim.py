@@ -285,7 +285,10 @@ def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve
     expect(message).to_have_text("Carry this comment into its thread.")
 
 
-def test_an_aimed_comment_keeps_its_place_with_the_asks_drawer_open(browser, serve):
+@pytest.mark.parametrize("width", [900, 1200])
+def test_an_aimed_comment_keeps_its_place_with_the_asks_drawer_open(
+    browser, serve, width
+):
     """The Asks drawer stands over the page without moving its coordinate plane.
 
     A broad authored rule may position ordinary divs, and the drawer may arrive over a
@@ -300,8 +303,9 @@ def test_an_aimed_comment_keeps_its_place_with_the_asks_drawer_open(browser, ser
         "div { position: relative; }</style></head>",
     )
     page = open_page(browser, serve(source))
-    # 900 leaves the composer no side lane, so it takes the vertical route.
-    resized(page, 900, 900)
+    # 900 leaves the composer no side lane, so it takes the vertical route; at 1200 the
+    # root's margin once put it 40px left of its lane, over the item.
+    resized(page, width, 900)
 
     target = page.locator("#lq-keep")
     target.hover()

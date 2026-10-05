@@ -93,6 +93,7 @@ import { createThreadNarrowing } from "./runtime/thread/narrowing.js";
 import { createThreadPanelElements } from "./runtime/thread/panel-elements.js";
 import { createPageMapDialog } from "./runtime/page-map-dialog.js";
 import { createAskView } from "./runtime/asks/view.js";
+import { createQueueWalk } from "./runtime/queue-walk.js";
 import { ASK_CONTROL } from "./runtime/asks/view-elements.js";
 import {
   commandHintLayer,
@@ -547,6 +548,16 @@ asks = createAskView({
   announce,
   repaint,
 });
+const queueWalk = createQueueWalk({
+  arriveAtAsk: asks.arriveAtAsk,
+  arriveAtThread: navigation.arriveAtThread,
+  threadHere: () => app.threadDestinations.threadHere(),
+  threadTarget: (id) => app.threadDestinations.threadTarget(id),
+  prepareTrip: anchorTravel.prepareTrip,
+  arrive: anchorTravel.arrive,
+  readableDestination: anchorTravel.readableDestination,
+  announce,
+});
 
 const commandHints = createCommandHints({
   presentedControl: (control) => app.overlay?.presentedControl(control) ?? control,
@@ -879,6 +890,7 @@ if (!offlineInteractive) {
   pageGeometry.mount();
   pageMapDialog.mount(chromeRoot);
   asks.mount();
+  queueWalk.mount();
   commandHints.mount();
   app.mountAnnotations();
   app.overlay?.mount();
@@ -1036,10 +1048,14 @@ async function presentPage() {
   repaint();
   app.overlay?.flushLayout();
   landFragment();
-  await landArrival();
+  // The geometry readers PRESENTATION replaces run in the turn the stamp above opens
+  // interaction, after the landing's synchronous part, rather than after an editor
+  // the landing waits for: awaited first, a margin map presented its authored spans.
+  const arrival = landArrival();
+  document.dispatchEvent(new Event(PRESENTATION));
+  await arrival;
   if (savedView && savedView.revision < runtime.currentRevision)
     notice(`Updated to ${runtime.currentLabel}`, { background: true });
-  document.dispatchEvent(new Event(PRESENTATION));
 }
 
 async function startPage() {

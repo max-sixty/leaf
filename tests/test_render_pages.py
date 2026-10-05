@@ -2010,6 +2010,36 @@ def test_board_fits_beside_contents_spine_at_mid_width(browser, serve):
             assert at["scrollWidth"] > at["clientWidth"], at
 
 
+def test_board_scrolls_inside_a_narrow_frame_on_a_wide_column_page(browser, serve):
+    source = leaf_page(
+        "Board in a frame",
+        """
+<h1>Board in a frame</h1>
+<div id="frame"><lf-board id="board">
+  <lf-column id="a" label="A"></lf-column>
+  <lf-column id="b" label="B"></lf-column>
+  <lf-column id="c" label="C"></lf-column>
+  <lf-column id="d" label="D"></lf-column>
+</lf-board></div>
+""",
+        head="""<style>
+#frame { width: 400px; border: 1px solid; container-type: inline-size;
+         --lf-block-frame: 1; }
+</style>""",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1120, 900)
+    at = page.evaluate("""() => {
+      const board = document.querySelector('#board');
+      const frame = document.querySelector('#frame');
+      return {boardRight: board.getBoundingClientRect().right,
+              frameRight: frame.getBoundingClientRect().right,
+              scrollWidth: board.scrollWidth, clientWidth: board.clientWidth};
+    }""")
+    assert at["boardRight"] <= at["frameRight"] + 1, at
+    assert at["scrollWidth"] > at["clientWidth"], at
+
+
 def test_a_widget_that_declares_width_takes_the_room_and_the_column_stays_put(
     browser, serve
 ):

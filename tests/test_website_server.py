@@ -4603,11 +4603,19 @@ def test_an_agent_turn_splits_into_delivery_model_and_tool_phases():
             {"type": "tool_use", "id": id, "name": "Bash", "input": {"command": cmd}}
             for id, cmd in uses
         ]
-        return {"type": "assistant", "message": {"content": content}, "received_at": at(seconds)}
+        return {
+            "type": "assistant",
+            "message": {"content": content},
+            "received_at": at(seconds),
+        }
 
     def result(seconds: float, id: str) -> dict:
         content = [{"type": "tool_result", "tool_use_id": id}]
-        return {"type": "user", "message": {"content": content}, "received_at": at(seconds)}
+        return {
+            "type": "user",
+            "message": {"content": content},
+            "received_at": at(seconds),
+        }
 
     comment, _, reply = TURN_LOG
     stream = [

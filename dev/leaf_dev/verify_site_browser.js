@@ -38,11 +38,14 @@
   function recordWorkVisible() {
     const found = workVisible();
     let changed = false;
-    for (const thread of document.querySelectorAll(".lf-threads > .lf-thread[data-id]")) {
+    for (const thread of document.querySelectorAll(
+      ".lf-threads > .lf-thread[data-id]",
+    )) {
       const id = thread.dataset.id;
       if (found[id]) continue;
       const working = [...thread.querySelectorAll(".lf-msg-sending")].some(
-        (receipt) => atWork.has(receipt.textContent.trim()) && receipt.checkVisibility(),
+        (receipt) =>
+          atWork.has(receipt.textContent.trim()) && receipt.checkVisibility(),
       );
       const answering = [...thread.querySelectorAll(".lf-msg.agent")].some(
         (message) =>

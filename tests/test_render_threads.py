@@ -7275,7 +7275,7 @@ def test_a_cancelled_panel_press_does_not_suppress_the_next_focus_landing(
         "el => el.focus({preventScroll: true})"
     )
     rendered(page)
-    assert page.evaluate(COVERED_TOP) is not None, (
+    assert page.evaluate(UNDER_EDGE)["covered"] >= 20, (
         "an unrelated pointer cancellation released the active panel gesture"
     )
 
@@ -7293,9 +7293,9 @@ def test_a_cancelled_panel_press_does_not_suppress_the_next_focus_landing(
         "el => el.focus({preventScroll: true})"
     )
     rendered(page)
-    assert page.evaluate(COVERED_TOP) is None, (
+    assert page.evaluate(UNDER_EDGE)["covered"] <= 0, (
         "the cancelled press suppressed the next focus landing and left the card "
-        f"past the list's top edge: {page.evaluate(COVERED_TOP)}"
+        f"{page.evaluate(UNDER_EDGE)['covered']}px past the list's top edge"
     )
 
 

@@ -20,8 +20,8 @@
    - a thread's own news (its new turns, a reaction put on a reply or taken off it, and
      its resolving or reopening, which draws or folds its reply box and reaction strips)
      in the thread's control row: the head row beside Resolve while it is drawn open,
-     the foot row in Reopen's place while it is drawn resolved, and a folded outlet's
-     summary;
+     Reopen's place while it is drawn resolved (a page thread's foot row, a panel
+     card's title), and a folded outlet's summary;
    - a new thread in the control row of the thread it would follow, or, where the seat
      draws no thread, in place of its first-message row, at that row's height, unless the
      user stands in that box, which `holdBox` (reply-landing.js) keeps still instead;
@@ -59,6 +59,14 @@
    pressing into its reply box, shows nothing: the news is not its result, and drawing it
    would move the box under the press. Anything held in a seat is not drawn, so it stays
    unread until it shows.
+
+   Decisions. A panel card holds news behind its notice, like every other surface (#1694;
+   the user's decision, 2026-10-04). Rejected: filling the list (#1480), which makes the
+   open card as tall as the panel and leaves later cards below the fold; and letting a
+   list that cannot scroll push its contents down, which needs the shift watch to stop
+   checking such lists. Arrival is the routes that call `showHeld`, not a fact derived
+   from focus events: that missed focus moving inside one shadow tree and took a dialog
+   handing focus back for an arrival (#1780).
 
    `HeldReading` is the same rule for a widget's region whose rows only the log or the
    clock decides, such as a command's lists of stopped goals and live workers: a reading
@@ -128,8 +136,9 @@ const symmetric = (a, b) => [...a, ...b].filter((name) => !a.has(name) || !b.has
 // What of `now` the seat would draw differently from `was`, the thread as it drew it:
 // each message that is new or whose words changed, each reaction put on a reply or taken
 // off it, and the thread's settlement. `messages` is what a held thread draws: each of
-// `now`'s messages as `was` drew it, so nothing in one, its header's status included,
-// moves the notice beside it, and the new ones left out; `changed` the keys of the ones
+// `now`'s messages with the words and reactions `was` drew, the new ones left out. Its
+// delivery status draws as it stands, since its row reserves the room each status
+// takes (messages.js) and moves nothing beside it; `changed` the keys of the ones
 // the news changes, every one where the settlement changes, which moves the thread's
 // controls into or out of its head row and draws or folds its reaction strips. A
 // message the log took back is no news: it goes. Null where nothing differs.
@@ -159,9 +168,12 @@ function difference(was, now) {
     }
   }
   if (!settled && !news.replies && !news.reactions) return null;
-  const messages = now.messages.flatMap(({ key }) =>
-    drawn.has(key) ? [drawn.get(key)] : [],
-  );
+  const messages = now.messages.flatMap((message) => {
+    const prior = drawn.get(message.key);
+    if (!prior) return [];
+    const { body, edited, reactions } = prior;
+    return [{ ...message, body, edited, reactions }];
+  });
   return { news, messages, changed };
 }
 
@@ -220,7 +232,7 @@ const newsLabel = ({ settled, replies, reactions, threads }) =>
 export function newsNotice() {
   const node = offer("button", "lf-outline-chip lf-thread-news");
   let open = () => null;
-  node.onclick = () => {
+  const show = () => {
     const standing = focused() === node;
     const landing = open();
     if (standing && landing) focusThread(landing, { preventScroll: true });
@@ -231,7 +243,8 @@ export function newsNotice() {
       keys: PRESS,
       description: "Show what is waiting",
       title: "show it",
-      run: () => node.click(),
+      control: node,
+      run: show,
     },
   ]);
   return {

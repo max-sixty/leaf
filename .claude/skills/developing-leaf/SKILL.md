@@ -77,6 +77,17 @@ interactions. Start their fictional histories with `data-sample-events`, sharing
 one parent-local JSON fixture when the candidates need the same conversation
 (`skills/leaf/references/page-authoring.md`, "Live samples").
 
+## Choose what the user reviews
+
+Show the change or unresolved choice that needs the user's judgment, with the
+comparison and tradeoff needed to assess it. Name the feedback sought. When
+nothing needs their judgment, hand over the verified result.
+
+Verify behavior expected to stay unchanged against the baseline yourself and
+report what you checked and found. An unchanged sample can explain a changed
+contract; make it optional to operate and keep regression verification with the
+agent. Present visible and interaction changes using the proof below.
+
 ## Prove and hand off a visible change
 
 Review at a representative desktop viewport (`skills/leaf/assets/AGENTS.md`,
@@ -295,16 +306,16 @@ When a change adds or removes a worked example or changes its first viewport,
 run `wt refresh-previews` from the repository root on macOS once the examples
 are ready, and again after integrating `main` or any later fix that changes a
 first viewport. It pushes the stills to `max-sixty/leaf-assets` and moves the pin
-in `leaf-assets.json` and the README's image URLs; that push is part of the
-authorized change. `uv run leaf-dev record-demo` does the same for the README's
+in `leaf-assets.json` and the README's image URLs. `uv run leaf-dev record-demo` does the same for the README's
 recording and stills and the site's card. Run `wt setup` first in a new checkout;
 if Worktrunk asks to approve the project commands, ask the user to run
 `wt config approvals add`.
 
 ## Land a change
 
-Thread appearance changes run `tests/test_render_thread_snapshots.py` through the
-ordinary gate. Review the failure's captured images before accepting an intentional
+Thread appearance changes run `tests/test_render_thread_snapshots.py`, which compares
+images on macOS only, so run it on a Mac before landing; a pull request's Linux CI runs
+its journey without comparing. Review the failure's captured images before accepting an intentional
 change; `dev/leaf_dev/thread_snapshots.py` owns the pinned-image capture and acceptance workflow.
 
 A red gate is the branch's to fix. A pull request's `test` job and the local

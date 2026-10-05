@@ -44,6 +44,7 @@ from leaf.files import revision_path
 from leaf.hosting import LeafHTTPServer
 from leaf.http import page_delivery
 from leaf.machine import pid_alive
+from leaf.render_checks import rendered
 from leaf.revision_artifact import capture_artifact
 from leaf.revision_delivery import compose_document
 from leaf.served_state import page as served_page
@@ -2881,15 +2882,27 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     harness = website_server.WebsiteCodexHarness("codex")
     turn = hosted_follower(harness, page_dir, prepared)
     turn.begin()
+    # Present the accepted turn before resolving it: coalescing these server writes
+    # would never exercise a workflow receipt disappearing beside the news control.
+    told(page)
+    rendered(page)
+    thread = page.locator(f'.lf-threads > [data-id="{comment["id"]}"]')
+    metadata = thread.locator(".lf-thread-root-meta > .lf-msg-head")
+    expect(metadata.locator(".lf-msg-sending")).to_have_count(1)
+    news = thread.locator(".lf-thread-news")
+    expect(news).to_be_visible()
+    news_left = news.bounding_box()["x"]
     cmd_resolve(page_dir, comment["id"])
     told(page)
+    rendered(page)
     # The agent's resolution is news, so the card the user is looking at stays in
     # Open Threads, holding it behind its notice, rather than folding out from in
     # front of them.
-    thread = page.locator(f'.lf-threads > [data-id="{comment["id"]}"]')
     expect(thread).to_have_count(1)
-    expect(thread.locator(".lf-thread-news")).to_contain_text("Resolved")
+    expect(news).to_have_text("Resolved · 1 new reply")
     expect(thread).to_be_visible()
+    expect(metadata.locator(".lf-msg-sending")).to_have_count(0)
+    assert news.bounding_box()["x"] == news_left
     if read_elsewhere:
         write(box, "A separate thread")
         box.press("ControlOrMeta+Enter")
@@ -2918,15 +2931,20 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     )
 
     told(page)
+    rendered(page)
     if read_elsewhere:
+        # The thread folded when the user's new one opened, and a folded card holds
+        # nothing, since its title row draws at one size.
         expect(other_thread).to_have_attribute("open", "")
+        expect(news).to_have_count(0)
         expect(thread.locator(".lf-msg.agent")).to_be_hidden()
         assert set(current_responses(page_dir, read_events(page_dir))) == {other["id"]}
     else:
         # The short thread's reopened answer would move its writing box, so the
-        # reader explicitly opens the news before the visibility clock can see it.
-        news = thread.locator(".lf-thread-news")
-        expect(news).to_be_visible()
+        # reader explicitly opens the news before the visibility clock can see it. The
+        # card stands as drawn, open, so the reopening is no news.
+        expect(news).to_have_text("1 new reply")
+        assert news.bounding_box()["x"] == news_left
         expect(
             thread.locator(".lf-msg.agent").filter(has_text="deployment verified")
         ).to_have_count(0)

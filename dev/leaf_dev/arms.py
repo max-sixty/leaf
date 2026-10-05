@@ -45,6 +45,7 @@ from leaf_dev.page_fixtures import prepare_page, read_fixture
 # needs that file to read the lock. The package itself stays out: the launcher never
 # installs the dev group. A ref from before the package has no such file.
 PAYLOAD = (
+    ".claude/skills/developing-leaf",
     ".agents/plugins",
     ".claude-plugin",
     ".codex-plugin",

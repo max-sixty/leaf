@@ -8614,23 +8614,28 @@ def test_a_thread_resolved_while_its_reply_is_written_keeps_the_user_on_it(
     if finish == "reload":
         page.reload()
         wait_until_ready(page)
-        page.locator('.lf-margin-marker[data-lf-kinds="comment"]').click()
-        expect(box).to_be_visible()
-        expect(box).to_have_js_property("value", "Half a thought")
-        expect(thread).to_have_attribute("data-resolved", "true")
+        page.locator(".lf-threads-toggle").click()
+        panel_settled(page)
+        page.locator(".lf-thread-filter-toggle").click()
+        page.locator('[data-filter-value="resolved"]').click()
+        card = page.locator(f'.lf-thread[data-id="{root}"]')
+        expect(card).to_have_attribute("data-resolved", "true")
+        with sending(page, "reopen the thread with the saved reply"):
+            card.get_by_role("button", name="Reopen thread").click()
+        round_trip(page)
+        expect(card.locator(":scope > .lf-thread-reply leaf-text")).to_have_js_property(
+            "value", "Half a thought"
+        )
         return
     if finish == "clear":
         page.keyboard.press("ControlOrMeta+a")
         page.keyboard.press("Backspace")
         rendered(page)
-        expect(thread.locator(":scope > .lf-thread-reply leaf-text")).to_have_count(0)
-        if kind == "margin":
-            expect(page.locator(".lf-margin-preview")).to_be_hidden()
-            expect(
-                page.locator('.lf-margin-marker[data-lf-kinds="comment"]')
-            ).to_have_count(0)
-        else:
-            expect(thread).not_to_have_attribute("open", "")
+        expect(box).to_be_visible()
+        expect(box).to_be_focused()
+        expect(box).to_have_js_property("value", "")
+        assert box.evaluate("box => [box.selectionStart, box.selectionEnd]") == [0, 0]
+        expect(thread).to_have_attribute("data-resolved", "true")
         return
     page.keyboard.type(" tr")
     expect(box).to_have_js_property("value", "Half tr a thought")

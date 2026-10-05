@@ -8672,15 +8672,17 @@ def test_reference_accepts_native_popover_dismissal_across_modal_entry(browser, 
     expect(reference).to_be_visible()
     expect(versions).to_be_hidden()
     contextual_versions = reference.locator(
-        '.lf-command-reference-command[data-lf-command^="version.open-v"]'
+        '[data-lf-command^="version.open-v"]'
     )
     assert contextual_versions.count() > 0
-    contextual_availability = contextual_versions.evaluate_all(
-        "buttons => buttons.map(button => [button.dataset.lfCommand, button.dataset.lfAvailable])"
-    )
-    assert {available for _, available in contextual_availability} == {"false"}, (
-        contextual_availability
-    )
+    # Number keys delegate to native version rows. Once the modal dismisses the
+    # menu, the reference still names those routes but offers no action for them.
+    expect(contextual_versions.first).to_contain_text("open v")
+    expect(
+        reference.locator(
+            '.lf-command-reference-command[data-lf-command^="version.open-v"]'
+        )
+    ).to_have_count(0)
     page.keyboard.press("Escape")
     expect(reference).to_be_hidden()
     expect(versions).to_be_hidden()

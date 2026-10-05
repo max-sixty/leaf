@@ -252,7 +252,9 @@ function captureCommandReferenceCatalog() {
             baseTitle,
             baseDescription,
             familySteps: [...sequence, ...completeRowSteps(referenceRow)],
-            presentations: commandPresentations(row, declared).map(({ id, route }) => ({
+            presentations: commandPresentations(row, declared, {
+              includeUnavailable: true,
+            }).map(({ id, route }) => ({
               id,
               route:
                 route && route.binding == null
@@ -895,8 +897,6 @@ export function activateSelectedCommand() {
   return true;
 }
 
-commandReferenceClose.onclick = () => closeCommandReference();
-
 export const commandReferenceOpen = () => commandReferenceIsOpen;
 // The opening command supplies the action chosen from this particular reference. The
 // rendered catalog retains only ids and sends one back through that injected authority.
@@ -972,7 +972,7 @@ pageScope("command reference", {
           : "close command reference",
       control: () => commandReferenceClose,
       runFromCommandReference: false,
-      run: () => commandReferenceClose.click(),
+      run: () => closeCommandReference(),
     },
   ],
 });

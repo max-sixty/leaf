@@ -20,7 +20,6 @@ import json
 import os
 import re
 import shutil
-import time
 import urllib.request
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -52,7 +51,9 @@ from render_cases_layout import banner_control
 from render_harness import (
     consume_browser_errors,
     displayed,
+    expect_asks_answered,
     expect_banner_control_offered,
+    holding,
     navigate,
     open_page,
     root_overflow,
@@ -716,7 +717,7 @@ def test_a_replaced_ephemeral_server_reloads_the_active_tab(served_example, brow
         )
 
     page.route("**/api/news", replacement)
-    with page.expect_navigation(wait_until="load", timeout=10_000):
+    with page.expect_navigation(wait_until="load", timeout=HANDOVER_DEADLINE_MS):
         pass
     page.unroute("**/api/news", replacement)
     assert replaced == [reading]
@@ -773,6 +774,9 @@ def test_a_document_on_a_dead_release_asks_for_one_replacement(served_example, b
     _, url = served_example("triage-board")
     page = browser.new_page()
     documents = []
+    # The probe rounds the replacement document makes. Each one that answers 404 is a
+    # round that would ask for another document if recovery looped.
+    rounds = []
 
     def answer(route):
         request = route.request
@@ -780,6 +784,8 @@ def test_a_document_on_a_dead_release_asks_for_one_replacement(served_example, b
             documents.append(request.url)
             route.continue_()
         else:
+            if len(documents) > 1 and "/registry.json" in request.url:
+                rounds.append(request.url)
             route.fulfill(status=404, content_type="text/plain", body="")
 
     # The entry module and the probe are the release's own two addresses: one says the
@@ -791,9 +797,7 @@ def test_a_document_on_a_dead_release_asks_for_one_replacement(served_example, b
     page.goto(url, wait_until="load")
     banner = page.get_by_text("Leaf couldn't start. Waiting for the server to update.")
     expect(banner).to_be_visible()
-    # The probe answers every second, so this window holds several rounds of the loop
-    # this test is about.
-    page.wait_for_timeout(4000)
+    holding(page, rounds, 3, "three probe rounds from the replacement document")
     assert len(documents) == 2, documents
     assert "_leaf-recovered" in documents[1], documents
     # The mark is the runtime's own and does not stay in front of the user.
@@ -872,19 +876,22 @@ def test_a_probe_in_flight_leaves_a_page_that_started_alone(served_example, brow
     def hold_the_first_round(route):
         if held:
             route.continue_()
-            return
-        held.append(route.request.url)
-        # Answered well past that attribute, as a release that has rolled past — the
-        # answer that would otherwise replace the document.
-        time.sleep(2)
-        route.fulfill(status=404, content_type="text/plain", body="")
+        else:
+            held.append(route)
 
     page.route("**/registry.json", hold_the_first_round)
     page.goto(url, wait_until="domcontentloaded")
+    holding(page, held, 1, "the supervisor's first probe round")
     expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
-    page.wait_for_timeout(4000)
+    # Answered once the page has presented, as a release that has rolled past: the
+    # answer that would otherwise replace the document.
+    held[0].fulfill(status=404, content_type="text/plain", body="")
+    answered = held[0].request.response()
+    assert answered and answered.status == 404, "the held round's answer never landed"
+    # The round acts on its answer as it lands, so a replacement would be a navigation
+    # starting now. Nothing states that the round declined one; this is the absence.
+    page.wait_for_timeout(2000)
 
-    assert held, "the supervisor never asked the probe"
     assert len(documents) == 1, documents
     expect(
         page.get_by_text("Leaf couldn't start. Waiting for the server to update.")
@@ -930,7 +937,7 @@ def test_session_activation_reaches_other_tabs(served_example, browser):
             }""",
             servers[0],
         )
-        follower.wait_for_function("() => window.__leafActivated === 1", timeout=5_000)
+        follower.wait_for_function("() => window.__leafActivated === 1")
     finally:
         for page in (leader, follower):
             page.unroute_all(behavior="ignoreErrors")
@@ -991,7 +998,7 @@ def test_freshness_checks_share_session_identity_without_rebroadcasting(
     )
     page.wait_for_function("window.__sessionBroadcasts.length===2")
     for _ in range(4):
-        with page.expect_response("**/api/news", timeout=5000):
+        with page.expect_response("**/api/news"):
             pass
     assert len(looks) >= 4
     assert page.evaluate("window.__activations") == 1
@@ -1386,7 +1393,7 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
     toggle.click()
     assert page.evaluate("window.pauseProbe.playState") == "running"
     page.evaluate("window.pauseProbe.cancel()")
-    expect(status).to_have_text("Complete", timeout=10_000)
+    expect(status).to_have_text("Complete", timeout=HANDOVER_DEADLINE_MS)
     expect(toggle).to_have_text("Replay")
     expect(toggle).to_be_enabled()
     expect(loop).not_to_be_checked()
@@ -1426,11 +1433,15 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
     loop.check()
     expect(status).to_have_text("Playing")
     expect(accept).not_to_have_attribute("data-lf-state", "accept")
-    expect(accept).to_have_attribute("data-lf-state", "accept", timeout=10_000)
-    expect(accept).not_to_have_attribute("data-lf-state", "accept", timeout=10_000)
+    expect(accept).to_have_attribute(
+        "data-lf-state", "accept", timeout=HANDOVER_DEADLINE_MS
+    )
+    expect(accept).not_to_have_attribute(
+        "data-lf-state", "accept", timeout=HANDOVER_DEADLINE_MS
+    )
     expect(status).to_have_text("Playing")
     loop.uncheck()
-    expect(status).to_have_text("Complete", timeout=10_000)
+    expect(status).to_have_text("Complete", timeout=HANDOVER_DEADLINE_MS)
 
     displayed_width = accept_frame_element.evaluate(
         "frame => frame.getBoundingClientRect().width"
@@ -1452,7 +1463,7 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
 
     move_tab = gallery.get_by_role("tab", name="Move a card")
     move_tab.click()
-    expect(status).to_have_text("Complete", timeout=10_000)
+    expect(status).to_have_text("Complete", timeout=HANDOVER_DEADLINE_MS)
     assert card.evaluate("card => card.parentElement.id") == "bg-motion-tried"
     assert move_tab.evaluate("tab => document.activeElement === tab")
     assert read_events(page_dir) == before
@@ -1461,7 +1472,7 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
     expect(status).to_have_text("Playing")
     assert card.evaluate("card => card.parentElement.id") == "bg-motion-ready"
     assert card.evaluate("card => card.getAnimations().length") == 0
-    expect(status).to_have_text("Complete", timeout=10_000)
+    expect(status).to_have_text("Complete", timeout=HANDOVER_DEADLINE_MS)
     assert card.evaluate("card => card.parentElement.id") == "bg-motion-tried"
     assert read_events(page_dir) == before
 
@@ -1470,7 +1481,7 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
     comment_frame = gallery.locator(
         "#bg-interaction-comment [data-interaction-frame]"
     ).content_frame
-    expect(status).to_have_text("Complete", timeout=10_000)
+    expect(status).to_have_text("Complete", timeout=HANDOVER_DEADLINE_MS)
     expect(comment_frame.locator("#lf-margin-preview")).to_be_visible()
     expect(comment_frame.locator("#lf-margin-preview")).to_contain_text(
         GALLERY_THREAD_TEXT
@@ -1497,7 +1508,7 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
         "data-lf-auxiliary-surface", "threads"
     )
     toggle.click()
-    expect(status).to_have_text("Complete", timeout=15_000)
+    expect(status).to_have_text("Complete", timeout=HANDOVER_DEADLINE_MS)
     expect(threads_frame.locator("body")).not_to_have_attribute(
         "data-lf-auxiliary-surface", "threads"
     )
@@ -1581,7 +1592,7 @@ def test_a_contained_replay_leaves_the_page_around_it_standing(serve, browser):
     expect(threads_frame.locator(".lf-thread-panel")).to_be_visible()
     assert threads_tab.evaluate("tab => document.activeElement === tab")
     status = gallery.locator("[data-interaction-status]")
-    expect(status).to_have_text("Complete", timeout=20_000)
+    expect(status).to_have_text("Complete", timeout=HANDOVER_DEADLINE_MS)
     assert threads_tab.evaluate("tab => document.activeElement === tab")
 
     # A tab holds focus on its own, so standing there survives anything short of
@@ -1607,7 +1618,7 @@ def test_a_contained_replay_leaves_the_page_around_it_standing(serve, browser):
     assert page.evaluate("() => document.activeElement?.id") == (
         "bg-interactions-title"
     )
-    expect(status).to_have_text("Complete", timeout=20_000)
+    expect(status).to_have_text("Complete", timeout=HANDOVER_DEADLINE_MS)
     assert page.evaluate("() => document.activeElement?.id") == (
         "bg-interactions-title"
     )
@@ -1631,7 +1642,7 @@ def test_reduced_motion_leaves_gallery_play_explicit(serve, browser):
     page.wait_for_timeout(900)
     assert accept.get_attribute("data-lf-state") is None
     gallery.locator("[data-interaction-toggle]").click()
-    expect(status).to_have_text("Complete", timeout=10_000)
+    expect(status).to_have_text("Complete", timeout=HANDOVER_DEADLINE_MS)
     expect(accept).to_have_attribute("data-lf-state", "accept")
 
 
@@ -1687,7 +1698,8 @@ def test_interaction_gallery_contains_page_chrome(serve, browser):
     toggle = gallery.locator("[data-interaction-toggle]")
     status = gallery.locator("[data-interaction-status]")
     expect(status).to_have_text(
-        "Ready — motion will start only when you press Play", timeout=15_000
+        "Ready — motion will start only when you press Play",
+        timeout=HANDOVER_DEADLINE_MS,
     )
 
     page.locator("#bg-gallery-tabs").get_by_role(
@@ -1720,7 +1732,7 @@ def test_interaction_gallery_contains_page_chrome(serve, browser):
         "Try replying here; the agenda is fictional.",
     )
     toggle.click()
-    expect(status).to_have_text("Complete", timeout=10_000)
+    expect(status).to_have_text("Complete", timeout=HANDOVER_DEADLINE_MS)
     expect(page.locator("#lf-margin-preview")).to_contain_text(GALLERY_THREAD_TEXT)
     expect(comment_frame.locator("#lf-margin-preview")).to_contain_text(
         GALLERY_THREAD_TEXT
@@ -1742,7 +1754,7 @@ def test_interaction_gallery_contains_page_chrome(serve, browser):
     expect(page.locator("body")).to_have_attribute(
         "data-lf-auxiliary-surface", "threads"
     )
-    expect(status).to_have_text("Complete", timeout=15_000)
+    expect(status).to_have_text("Complete", timeout=HANDOVER_DEADLINE_MS)
     expect(threads_frame.locator("body")).not_to_have_attribute(
         "data-lf-auxiliary-surface", "threads"
     )
@@ -1764,11 +1776,12 @@ def test_interaction_gallery_contains_page_chrome(serve, browser):
     gallery = page.locator("#bg-interactions")
     status = gallery.locator("[data-interaction-status]")
     expect(status).to_have_text(
-        "Ready — motion will start only when you press Play", timeout=15_000
+        "Ready — motion will start only when you press Play",
+        timeout=HANDOVER_DEADLINE_MS,
     )
     gallery.locator("[data-interaction-toggle]").evaluate("toggle => toggle.click()")
     expect(gallery.locator("[data-interaction-status]")).to_have_text(
-        "Complete", timeout=15_000
+        "Complete", timeout=HANDOVER_DEADLINE_MS
     )
 
 
@@ -1814,7 +1827,8 @@ def test_interaction_gallery_waits_for_a_restored_frame_tab(serve, browser):
     wait_until_ready(page)
     page.unroute("**/api/state*", hold_restored_state)
     expect(gallery.locator("[data-interaction-status]")).to_have_text(
-        "Ready — motion will start only when you press Play", timeout=15_000
+        "Ready — motion will start only when you press Play",
+        timeout=HANDOVER_DEADLINE_MS,
     )
     expect(toggle).to_be_enabled()
     expect(
@@ -1856,7 +1870,7 @@ def test_interaction_gallery_waits_for_slow_contained_page_state(serve, browser)
         page.wait_for_load_state("load")
         wait_until_ready(page)
         expect(gallery.locator("iframe[data-interaction-ready]")).to_have_count(
-            4, timeout=20_000
+            4, timeout=HANDOVER_DEADLINE_MS
         )
         assert gallery.locator("iframe[data-interaction-ready]").evaluate_all(
             """frames => frames.every(frame =>
@@ -1926,7 +1940,7 @@ def test_a_contained_page_retries_a_failed_first_state_read(serve, browser):
     navigate(page, f"{url}#bg-interactions")
     gallery = page.locator("#bg-interactions")
     expect(gallery.locator("iframe[data-interaction-ready]")).to_have_count(
-        4, timeout=20_000
+        4, timeout=HANDOVER_DEADLINE_MS
     )
     page.wait_for_timeout(2_200)
     target = gallery.locator('[name="interaction-accept"]')
@@ -1966,16 +1980,14 @@ def test_gallery_reports_sample_document_without_leaf(serve, browser):
     page.goto(f"{url}#bg-interactions", wait_until="domcontentloaded")
     gallery = page.locator("#bg-interactions")
     gallery.get_by_role("tab", name="Send a comment").click()
-    expect(gallery.locator("[data-interaction-status]")).to_have_text(
-        "Could not play", timeout=5_000
-    )
+    expect(gallery.locator("[data-interaction-status]")).to_have_text("Could not play")
     expect(gallery.locator("[data-interaction-toggle]")).to_be_disabled()
     gallery.get_by_role("tab", name="Move a card").click()
     status = gallery.locator("[data-interaction-status]")
     toggle = gallery.locator("[data-interaction-toggle]")
     expect(status).to_have_text("Ready — motion will start only when you press Play")
     toggle.click()
-    expect(status).to_have_text("Complete", timeout=10_000)
+    expect(status).to_have_text("Complete", timeout=HANDOVER_DEADLINE_MS)
     expect(toggle).to_have_text("Replay")
     expect(toggle).to_be_enabled()
     consume_browser_errors(page, "503", "Leaf sample document did not start")
@@ -1999,7 +2011,7 @@ def test_every_published_page_stands_as_a_live_page(served_example, browser):
         if source == FEATURE_GALLERY:
             expect(
                 page.locator("#bg-interactions iframe[data-interaction-ready]")
-            ).to_have_count(4, timeout=15_000)
+            ).to_have_count(4, timeout=HANDOVER_DEADLINE_MS)
 
 
 def test_an_example_paints_while_every_stage_of_site_startup_is_held(
@@ -2100,7 +2112,7 @@ def test_a_published_example_has_no_agent_claim(served_example, browser):
         "agent": "The agent",
         "install_url": "/#install",
     }
-    assert state["claims"] == []
+    assert state["browser"]["tasks"] == []
     assert state["session_alive"] is None
     assert not state["listening"]
     assert not (page_dir / "service.json").exists()
@@ -2226,8 +2238,8 @@ def test_the_published_page_counts_every_declared_ask(served_example, browser):
     """The inventory includes request Decisions beside state Asks."""
     _, url = served_example("command-hub")
     page = open_page(browser, url)
-    decisions = page.locator(".lf-asks")
-    expect(decisions).to_have_text("Asks 0/5")
+    decisions = page.locator(".lf-queue")
+    expect_asks_answered(page, "0/5")
     expect_banner_control_offered(decisions)
 
 
@@ -2235,18 +2247,18 @@ def test_a_published_decision_survives_reload(served_example, browser):
     """A published example uses Leaf's durable log rather than browser-only state."""
     _, url = served_example("heat-loss")
     page = open_page(browser, url)
-    decisions = page.locator(".lf-asks")
-    expect(decisions).to_have_text("Asks 0/1")
+    decisions = page.locator(".lf-queue")
+    expect_asks_answered(page, "0/1")
     expect_banner_control_offered(decisions)
     chosen = "() => [...document.querySelectorAll('lf-option[chosen]')].map(o => o.id)"
     with sending(page, "the published option pick"):
         page.locator("#heat-opt-floor .lf-pick").click()
     expect(page.locator("#heat-first")).to_have_attribute("data-lf-user-override", "1")
     assert "heat-opt-floor" in page.evaluate(chosen)
-    expect(decisions).to_have_text("Asks 1/1")
+    expect_asks_answered(page, "1/1")
     page.reload(wait_until="load")
     wait_until_ready(page)
-    expect(decisions).to_have_text("Asks 1/1")
+    expect_asks_answered(page, "1/1")
     assert "heat-opt-floor" in page.evaluate(chosen)
 
 

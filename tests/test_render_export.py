@@ -38,7 +38,7 @@ from leaf import media as media_model
 from leaf import server as server_model
 from leaf import service as service_model
 from leaf import state as cleanup_model
-from leaf.render_checks import wait_until_ready
+from leaf.render_checks import HANDOVER_DEADLINE_MS, wait_until_ready
 from leaf.schema import ELEMENT_ID
 from leaf.structure import UTF8_BOM
 from leaf_dev import preview as preview_model
@@ -467,7 +467,7 @@ def test_a_preview_records_real_gestures_outside_the_task(
         )
         expect(
             driven.get_by_role("heading", name="A preview follows source edits")
-        ).to_be_visible(timeout=30000)
+        ).to_be_visible(timeout=HANDOVER_DEADLINE_MS)
     expect(driven.locator("#opt-shim")).to_have_attribute("chosen", "")
     assert (page_dir / "events.jsonl").read_bytes().startswith(feedback)
     assert (page_dir / "events.jsonl").stat().st_ino == inode
@@ -574,7 +574,9 @@ def test_an_unclaimed_preview_keeps_its_gestures_out_of_the_stop_hook(
         page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "text": "probe"},
     )
-    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": session})
+    hooks_model.cmd_hook(
+        "claude-code", {"hook_event_name": "Stop", "session_id": session}
+    )
     assert capsys.readouterr().out == ""
 
 
@@ -727,7 +729,7 @@ def test_preview_watches_runtime_and_source_without_losing_user_state(
         with theme.open("a", encoding="utf-8") as stream:
             stream.write("\nh1 { color: rgb(17, 83, 129); }\n")
         expect(page.locator("h1")).to_have_css(
-            "color", "rgb(17, 83, 129)", timeout=30000
+            "color", "rgb(17, 83, 129)", timeout=HANDOVER_DEADLINE_MS
         )
     assert (
         json.loads((directory / "registry.json").read_text())["$layer"]["generation"]
@@ -742,7 +744,7 @@ def test_preview_watches_runtime_and_source_without_losing_user_state(
     revised = original.replace("Rollout", "A watched source revision", 1)
     source.write_text(revised, encoding="utf-8")
     expect(page.get_by_role("heading", name="A watched source revision")).to_be_visible(
-        timeout=30000
+        timeout=HANDOVER_DEADLINE_MS
     )
     expect(page.locator("#opt-shim")).to_have_attribute("chosen", "")
     assert (directory / "events.jsonl").read_bytes().startswith(feedback)
@@ -764,7 +766,7 @@ def test_preview_watches_runtime_and_source_without_losing_user_state(
         encoding="utf-8",
     )
     expect(page.get_by_role("heading", name="Recovered watched source")).to_be_visible(
-        timeout=30000
+        timeout=HANDOVER_DEADLINE_MS
     )
     expect(page.locator("#opt-shim")).to_have_attribute("chosen", "")
     assert (directory / "events.jsonl").read_bytes().startswith(feedback)
@@ -876,7 +878,7 @@ def test_a_failed_preview_bootstrap_hears_the_replacement_server(
             runtime / "skills" / "leaf" / "packages" / "default" / "registry.json"
         ).write_text("{", encoding="utf-8")
         expect(page.locator("body")).to_have_attribute(
-            "data-lf-presented", "1", timeout=30000
+            "data-lf-presented", "1", timeout=HANDOVER_DEADLINE_MS
         )
         expect(status).not_to_be_visible()
     if resource == "widgets/lf-options.js":
@@ -928,7 +930,7 @@ def test_a_failed_bootstrap_hears_a_static_registry_generation(
         )
         expect(status).to_be_visible()
         expect(page.locator("body")).to_have_attribute(
-            "data-lf-presented", "1", timeout=10000
+            "data-lf-presented", "1", timeout=HANDOVER_DEADLINE_MS
         )
     assert len(probes) >= 2
     assert len(documents) == 2
@@ -1423,7 +1425,7 @@ def test_interactive_export_with_an_ask_reaches_application_presentation(
         "content", "width=device-width, initial-scale=1, viewport-fit=cover"
     )
     expect(page.locator("body")).to_have_attribute(
-        "data-lf-presented", "1", timeout=10000
+        "data-lf-presented", "1", timeout=HANDOVER_DEADLINE_MS
     )
     expect(page.locator(".lf-chrome")).to_have_count(0)
 
@@ -1446,7 +1448,7 @@ def test_an_interactive_export_paints_a_widget_owned_text_box(browser, serve, tm
     page = browser.new_page()
     page.goto(interactive.as_uri(), wait_until="load")
     expect(page.locator("body")).to_have_attribute(
-        "data-lf-presented", "1", timeout=10000
+        "data-lf-presented", "1", timeout=HANDOVER_DEADLINE_MS
     )
     form = page.locator("#jobs > .lf-another")
     field = form.locator("leaf-text")
@@ -2099,14 +2101,7 @@ def test_inline_threads_keep_their_words_without_live_controls_in_print(
     if not resolved:
         result = CliRunner().invoke(
             cli_model.cli,
-            [
-                "status",
-                str(serve.page_dir),
-                "working",
-                "checking the shard",
-                "--on",
-                root["id"],
-            ],
+            ["task", "start", str(serve.page_dir), root["id"], "checking the shard"],
         )
         assert result.exit_code == 0, result.output
     if resolved:

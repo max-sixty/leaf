@@ -23,7 +23,7 @@
 // may be one an agent sent, since a widget in a message is scrolled by the panel's own
 // list and by nothing else. Threads and drawers are alternate auxiliary surfaces, so only
 // one stands at a time, over the page and taking no width from it. Leaves always covers
-// the page. Threads and the Asks drawer cover it only where they would leave less than a
+// the page. Threads and the Queue drawer cover it only where they would leave less than a
 // usable page beside them, one rule for both (`standsBeside`, auxiliary-surfaces.js;
 // `--lf-auxiliary-beside`, theme.css); elsewhere the page beside them stays live.
 // Auxiliary modality is a shared inert boundary outside this geometry owner; the

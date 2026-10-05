@@ -22,10 +22,12 @@ page and is not a global identifier. The kinds:
 | `action` | user | `POST /api/event` from a widget | `widget`, `action`, `detail`; server-stamped `meaning` | the user edited the document through the widget |
 | `report` | agent or worker | `leaf page report` | as `action`, validated by an `x-state` verb declaring `writer: "agent"` | provisional state that stands until a stamped revision answers it |
 | `pickup` | page | the delivery carrier; a harness failure receipt | `events`, `phase` (`queued`, `opened`, or `failed`), `session`, `turn`; `failure` with `failed` | the named attention-bearing inputs reached the durable Codex queue or entered an exact agent turn, or the harness gave up on them with no answer coming; includes page errors and reports; idempotent per event, phase, session, and turn; never a work claim |
-| `note` | agent | `leaf page stamp` | `version`, `revision`, changelog `text`, `restated`, `settles` | one public version mapped to an immutable revision, naming the decisions it took back and the reports or work it answered |
+| `note` | agent | `leaf page stamp` | `version`, `revision`, changelog `text`, `restated`, `settles` (`report` ids it answered, and `task` ids its `--completes` ends) | one public version mapped to an immutable revision, naming the decisions it took back, the reports it answered and the widget tasks it completed |
 | `error` | page | the runtime | | the page reported a failure in front of the user; heard like a report, never counted against the user |
-| `task` | agent | `leaf task open` | `subject` (`{kind: thread, id}`, an open thread), `title` | the agent takes on work it owes that thread; it stands through replies, resolutions, versions and session ends (`tasks.py`) |
-| `task_end` | agent | `leaf task end` | `task`, an open task; `outcome` (`done`, `failed`, or `dropped`); optional `detail` | ends one open task; nothing else does |
+| `task` | agent | `leaf task open` | `subject`: `{kind: thread, id}` (an open thread), `{kind: widget, id}` (a live page widget that declares `x-work` or holds an unsettled move), or `{kind: page}`; `title`; server-stamped `revision` on a widget task | the agent takes on work it owes there; it stands through replies, resolutions, versions and session ends (`tasks.py`) |
+| `task_end` | agent | `leaf task end` | `task`, an open task; `outcome` (`done`, `failed`, or `dropped`); optional `detail` | ends one open task, as a note that `settles` it does |
+| `start` | agent | `leaf task start` | `item`, a user move the agent owes (its event id) or an open task; the banner's `text`; `turn`, the claimant turn that wrote it, when the poster holds the page | takes the item in hand: a move reads Working and a task runs, until the move is answered, the task ends, or a `put_down` follows; the newest start on an item replaces the one before |
+| `put_down` | agent | `leaf status waiting` and `leaf status idle`, when a start stands | | ends every start before it: the moves they named go back to their delivery stage and the tasks stay open with nothing running (`tasks.item_starts`) |
 | `undo` | user | `POST /api/event` | `undoes` | withdraws one gesture of the user's own (`UNDOABLE_KINDS`: resolve, unresolve, action, done) |
 
 An `anchor` names a passage by `section` and `quote`, with `prefix` and `suffix`
@@ -113,19 +115,18 @@ agent-authored thread message, closing event, margin update, and activity row th
 browser receives carries that name as `agent`, and the browser shows it as served.
 
 Admission stamps `attention`: whether the input changes the agent's pending
-Asks and textual prompts, pending answers, effective subject claims and their
-standing inputs, or sign-off approval.
-`workflows.obligation_reading` compares those canonical readings before and after
-the gesture under the active revision's vocabulary, while the append transaction
-still holds the current claims. The
-decision survives later replies, versions and status writes: a cancellation
-already delivered to the carrier stays input even after the work it withdrew ends.
+Asks and textual prompts, pending answers, the work it has in hand (a started move,
+or an open task on a thread or widget) and its standing inputs, or sign-off
+approval. `workflows.obligation_reading` compares those canonical readings before
+and after the gesture under the active revision's vocabulary. The decision survives
+later replies, versions and task endings: a cancellation already delivered to the
+carrier stays input even after the work it withdrew ends.
 Reports and errors always carry attention; agent messages do not. `leaf wait`,
 delivery selection, pickup, the unpicked-input Stop guard and the idle gate read
 that one field through `service.requires_agent_attention`. The pending transport
-count includes only user input among those events. Read marks, unclaimed edits
-that answer no Ask, and closing or reopening an answered thread without claimed
-work stay quiet. Either side can open a thread and either side can close one.
+count includes only user input among those events. Read marks, edits that answer
+no Ask and touch no work in hand, and closing or reopening an answered thread with
+none stay quiet. Either side can open a thread and either side can close one.
 A note's purpose is discharged by being read, and only the user knows that
 happened, so the user ordinarily closes a thread; `leaf thread resolve` is the agent's
 door onto closing, and a thread the agent closed is named as such in the panel

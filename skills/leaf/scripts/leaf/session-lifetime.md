@@ -1,8 +1,8 @@
-# Session lifetime, pickup, and work claims
+# Session lifetime, pickup, and work in hand
 
-`status.json` is a declaration, not current agent state. The current state is
-`activity`, one server projection over that declaration and the page's stronger
-evidence: claim and turn identity, watcher lifetime, exact pickup transitions,
+`status.json` and the log's `start` events are declarations, not current agent
+state. The current state is `activity`, one server projection over those
+declarations and the page's stronger evidence: claim and turn identity, watcher lifetime, exact pickup transitions,
 and unsettled user moves. `/api/state` and agent-facing page state carry this
 same projection. A neighboring-page entry carries the serving page's own compact
 canonical publication (`server_rows.py`), read alongside its server lease. Browser code
@@ -11,13 +11,14 @@ second fold.
 
 | Fact | Where | Writer | Stops being believed |
 | --- | --- | --- | --- |
-| work declaration: state, detail, event floor, source message, typed `work` seats, each naming the claimant turn that wrote it, or none for another session's | `status.json` | `leaf status`, from a turn of the session driving the page | a short grace after the turn that wrote it closes; about a quarter of an hour with no renewal; at once when the claimant's lifetime has ended |
+| page declaration: `waiting` or `idle`, detail | `status.json` | `leaf status`, which first writes a `put_down` to the log when a start stands | stands until the next declaration, and its age dates the page's other readings |
+| the item in hand: a move's event id or an open task's id, the line, and the claimant turn that wrote it, or none for another session's | a `start` event in `events.jsonl` (`tasks.py`) | `leaf task start`, from a turn of the session driving the page | the item ending: a move's answer, or a task's end; a later `put_down` event, which `leaf status waiting` and `idle` write; and as a belief, a short grace after the turn that wrote it closes, about a quarter of an hour with no renewal, or at once when the claimant's lifetime has ended |
 | live App Server activity: session, turn, typed kind, detail, event floor | optional `stream` in `status.json` | the App Server connection that starts an embedded turn, or the detached adapter's task connection | turn completion, connection or observer exit, loss of the wait lease, or the working grace without another event |
 | live App Server reply: one displayed draft plus delivery attempt bindings by response address | optional `stream.reply` and `stream.reply_bindings` in `status.json` | an App Server connection bound to a delivery's plain reply | the displayed draft remains on failure or disconnect and is retired by a logged event naming its delivery attempt or its response address; each binding names the claim turn it belongs to (the delivery's turn once its reply opens, the turn standing at reservation before then), clears after durable commit or terminal failure, and survives a lost connection; it stands only while that is still the claim's turn and the turn is open (`activity.reply_binding_stands`), and a turn's answer committed after its binding lapsed yields to a reply another writer already gave |
 | turn identity, when it last opened or took a prompt, and open or closed state | the session lifecycle record | a prompt, a direct delivery, or a carrier following a provider turn opens `turn` and stamps `turn_opened`, or renews that stamp on a turn still open; the id is the harness's where it names one (Codex's hooks and App Server name the same turn) and one Leaf mints otherwise; the Stop hook stamps `turn_closed` on whatever turn is open, and a carrier on the turn it follows | the next opening of another id; the next closing stamps it, and a closed id never reopens |
 | the harness's own word on the claimant's session: `idle`, `waiting` on a dialog, or `busy`, dated by its last change | the harness's record, read at each state read (`Harness.live_turn`): for Claude Code, the `status` of the session's newest registry record whose process runs | the harness | read live, so it moves with the harness; absent where the harness publishes nothing, as for a background job whose worker has retired |
 | the turn ending this page nudged its session after | `messaged_ending` in the page's claim record: the turn id and its close stamp, or for an interrupted turn its last opening | browser-event admission, once the harness's nudge lands | a later ending, a close under a new id or an interrupt after a new prompt renewed the same one, differs |
-| wait lease | `waiter.lock`, or `sessions/<session>.wait` for a harness session | the live `leaf wait` process, or Claude Code's background Stop hook watching between turns (`leaf hook --watch`), holding an exclusive kernel lock on a stable file; file existence does not prove liveness | descriptor close or process exit, including a crash |
+| wait lease | `waiter.lock`, or `sessions/<session>.wait` for a harness session | the live `leaf wait` process, or Claude Code's background Stop hook watching between turns (`leaf hook --harness claude-code --watch`), holding an exclusive kernel lock on a stable file; file existence does not prove liveness | descriptor close or process exit, including a crash |
 | the harness runs Leaf's hooks for this session | `sessions/<session>.hooks` | every Leaf hook the harness runs for the session | removed by its SessionEnd hook |
 | acknowledgement cursor | `cursor.json` | whichever carrier confirms the complete delivery reached its durable consumer: the reader of a complete Claude Code hook delivery via `leaf delivery ack`, `leaf wait --ack` after a printed one, or the Codex adapter | when its seq is past the log's end, or a fresh log replaces the one it named; monotonic within one log |
 | pickup transition | a `pickup` event in `events.jsonl` | an unobserved carrier records `queued` when Codex accepts a batch; whichever carrier puts the batch into a turn records `opened` with session and turn identity: a direct `leaf wait --ack` confirmation, the reader confirming a complete Claude Code hook delivery, the prompt hook re-presenting an acknowledged unanswered move, or an App Server turn start | never; each event/phase/session/turn transition is idempotent |
@@ -32,8 +33,8 @@ Page activity describes ownership, carrier availability, and current work. Its
 rule in the fold that asks whether the claimant's turn is running reads one answer,
 `activity.claimant_turn`, which dates each piece of evidence and lets the newest
 decide. The session's turn stamps are believed open only while the opening, a status
-written during the turn, or the claimant's streamed activity renewed them within the
-working grace. The harness's record adds the two things no hook sees, each only when
+or start written during the turn, or the claimant's streamed activity renewed them
+within the working grace. The harness's record adds the two things no hook sees, each only when
 newer than what it contradicts: an `idle` newer than every renewal ends the open
 turn (an interrupt), and a `waiting` newer than the stamps is a dialog open now,
 observed as `awaiting_user` since the record does not say whether it asks for
@@ -46,17 +47,16 @@ hooks carry input, while its turn runs. Fresh declared or observed work makes th
 page working independently of how far newer input has progressed; a harness-observed
 wait on the user in its own window (an approval, a question) is observed work that
 stands for as long as its observer does. Delivery opened into the claimant's running
-turn also proves generic activity before its first work declaration; the receipt
-itself remains Picked up. `counts.overdue` counts the owed moves that stalled with
+turn also proves generic activity before its first start; the receipt itself remains
+Picked up. The banner's line is the newest start's, among the items still in hand. `counts.overdue` counts the owed moves that stalled with
 the agent to act, still Sent past the pickup grace or left by a turn that ended or
 was interrupted before answering; over an `away` page they are when the banner asks
 the user to nudge the session. The banner consumes this same reading and presents
 delivery counts separately; the Leaves drawer consumes each serving page's own
 canonical publication.
 
-`workflows` is the shared projection for exact user inputs and proactive subject
-work. Each entry names its `input` event when it has one, its `thread` or `widget`
-`subject`, its strongest proven `stage` (`sent`, `queued`, `picked_up`, `working`,
+`workflows` is the shared projection for exact user inputs. Each entry names its
+`input` event, its `thread` or `widget` `subject`, its strongest proven `stage` (`sent`, `queued`, `picked_up`, `working`,
 `replying`, or the retained terminal `answered` outcome), and any separately proven
 `condition`. The served list also names the `thread` each workflow stands in (null for
 a page widget) and whether it `holds_thread` the agent's turn, and lists the strongest
@@ -65,7 +65,7 @@ several shows the first, and the browser places only its own unresolved sends
 against that order. A Sent input that remains
 unpicked after the short grace has a stale delivery condition. A pickup whose
 exact turn was seen to end, by its close or by the harness's record, has an ended
-condition without claiming interruption. A Working claim quiet beyond its lease,
+condition without claiming interruption. A Working start quiet beyond its lease,
 or a pickup belonging to a different or older turn or to one nothing has renewed
 within the working grace, has a stale work condition while retaining its durable
 stage.
@@ -96,12 +96,12 @@ refuses over one set of them, `activity.blocking_obligations`: the acknowledged
 moves nothing else is set to answer. A move still `queued` is answered by the
 later turn that opens it, and a `turn` answer the open turn has finished is
 committed by the claimant's carrier while that carrier is live. The Stop hook holds
-the claimant's turn over those the turn has not claimed as work, which
-`activity.turn_obligations` selects. A standing claim over the move, one naming it,
-on its widget, or on the thread that holds it, that the open turn wrote since the
-move's pickup is the agent's answer for now, and the turn may end over it while
-background workers carry the work. The claim does not carry into the next turn, which
-answers the move or claims it again. A widget move
+the claimant's turn over those the turn has not started, which
+`activity.turn_obligations` selects. A start the open turn wrote since the move's
+pickup, on the move or on any input its thread's one reply answers, is the agent's
+answer for now, and the turn may end over it while background workers carry the
+work. The start does not carry into the next turn, which answers the move or starts
+it again. A widget move
 that answers no Ask, such as a draft edit or a moved card, owes nothing: its workflow
 reports delivery until its document takes it in — for a page action, until the markup
 records the move or a later version supersedes it; for a move in frozen thread markup,
@@ -140,17 +140,12 @@ making newer input erase overall page work. A page-wide observation alone never
 refines a message workflow. Thinking and tool activity stay page-wide until a harness
 provides an explicit input or subject binding; the current harness contract does not.
 
-A work declaration has to be renewed, and `leaf status` renews it. `--on` names the thread
-or widget the work is about, and is how a delivered move reads **Working**. A thread
-claim also records an input the thread holds, a message or a move on a widget in one
-of its messages: the one a standing claim there already names while the thread still
-holds it, and the newest otherwise. So one check-in keeps **Working** beside the input
-that prompted the work even when the user adds another comment, while renewing it
-after the user supersedes a move puts Working on the move that replaced it.
-Nothing in a session touches `status.json` while its turn is over, and its workers
-leave the page to it, so a declaration over work that outlasts the turn stands
-unrenewed until a later turn writes it again. What holds such work across turns is
-a task in the log (`tasks.py`), which no turn or session ending lapses.
+A start has to be renewed, and starting the item again renews it. It names one item:
+a move, by its event id, which then reads **Working**, or a task, which then runs with
+the start's line. Nothing in a session starts an item while its turn is over, and its
+workers leave the page to it, so a start over work that outlasts the turn stands
+unrenewed until a later turn starts the item again. What holds such work across turns
+is the task itself (`tasks.py`), which no turn or session ending lapses.
 
 The turn id and `turn_closed` stamp a declaration is judged against are the
 session's rather than the page's: prompts and endings publish one atomic session
@@ -173,7 +168,7 @@ PostToolUse and Interrupt, and called at the same points of a run by Leaf's Pi
 extension (`hooks/pi.ts`), keeps a turn from ending while it leaves one of this session's pages unwatched
 (a page whose carrier is a process of its own; Claude Code's watch is its next
 Stop hook)
-or a delivered move unanswered and unclaimed, stamps that turn's ending and the
+or a delivered move unanswered and unstarted, stamps that turn's ending and the
 next one's opening, surfaces unacknowledged user events at the next prompt, and
 releases the session's page claims when it exits. The Stop hook keeps a turn
 going through the harness's continuation channel (`Harness.hook_context`): the
@@ -184,10 +179,14 @@ Input that owes nothing, such as a resolve, a report or a page error, waits for 
 watcher and rides along when the turn goes on anyway. A repeated Stop
 (`stop_hook_active`) has named its debts once and lets the turn end; only newly
 arrived owed input continues it again.
-A second Stop registration, gated on `$CLAUDECODE`, runs `hook --watch`, which
-Claude Code keeps in the background (`asyncRewake`) as the session's watch between
-turns (`session.watch_between_turns`): its exit 2 wakes the session with its
-stderr, and every other ending is silent.
+Each harness has its own registrations, which pass its name (`hook --harness
+<name>`); the hook takes the session from its payload and infers neither from its
+environment (`harness.hook_harness`). A server the hook's watch revives is handed
+that harness too (`harness.harness_argument`).
+A second Claude Code Stop registration runs the watch (`--watch`), which Claude Code
+keeps in the background (`asyncRewake`) as the session's watch between turns
+(`session.watch_between_turns`): its exit 2 wakes the session with its stderr, and
+every other ending is silent.
 Its unanswered-work guard reads `activity.turn_obligations` over the page's
 activity, selected from the same `workflows` projection the browser reads; it does not reconstruct threads
 itself. The hook planner reads each page once under its transaction, including
@@ -217,7 +216,8 @@ current publication with an open matching turn under page→session locks; clean
 uses the matching publication after closure. A resumed new generation replaces
 an older live fold instead of borrowing it.
 Codex's synchronous prompt hook records the provider turn even before a
-page is claimed. Its asynchronous PostToolUse hook identifies an unknown session-scoped turn
+page is claimed. Once the session has claimed a page (`state.hook_needed`), its
+synchronous PostToolUse hook identifies an unknown session-scoped turn
 once, or renews only the already observed running provider turn and offers one immutable pointer between steps. The observation's
 revision advances on a prompt, ending, or tool step: the queue rechecks it under
 the same delivery lock before reserving its route, so even a renewed step within
@@ -489,7 +489,7 @@ the page goes idle or changes hands.
 
 The detached Codex adapter follows active session/page ownership, including when
 all owned pages declare idle. Idle pages deliver no input and direct waits end;
-a later working or waiting declaration resumes the existing route. The adapter
+a later start or waiting declaration resumes the existing route. The adapter
 waits for page news while idle and retires once ownership ends through release,
 transfer, expiry or SessionEnd. Serving a closed page therefore does not lose
 its delivery route before the agent's next declaration.

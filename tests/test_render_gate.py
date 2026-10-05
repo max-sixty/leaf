@@ -1497,8 +1497,8 @@ def test_a_user_arrives_at_what_they_left_rather_than_watching_it_arrive(
     # paints is the runtime's business and is not named here; that it paints at all is
     # this reading's, and a reading that reports nothing when something moved would
     # pass every assertion after it.
-    banner_control(page, ".lf-asks").click()
-    expect(page.locator(".lf-asks-panel")).to_be_visible()
+    banner_control(page, ".lf-queue").click()
+    expect(page.locator(".lf-queue-panel")).to_be_visible()
     gesture = moved()
     assert gesture, "a gesture moved nothing the browser reported, so no silence counts"
 
@@ -3229,7 +3229,7 @@ SURFACES = {
     "go-to": (["g"], None),
     "thread card": (["t"], '.lf-threads-toggle:text-matches("Threads: [1-9]")'),
     "threads panel": (["g", "Shift+t"], None),
-    "asks drawer": (["g", "Shift+a"], ".lf-btn.lf-asks"),
+    "queue panel": (["g", "Shift+q"], ".lf-btn.lf-queue"),
     "leaves drawer": (["g", "Shift+l"], ".lf-btn.lf-others"),
     "page map": (["g", "Shift+m"], None),
     "versions menu": (["g", "Shift+v"], None),

@@ -12,13 +12,12 @@ import pytest
 from axe_playwright_python.sync_playwright import Axe
 from browser_sources import browser_function
 from click.testing import CliRunner
-from interact_support import record_claim
+from interact_support import declare_work, record_claim
 from leaf import cli as cli_model
 from leaf import hosting as hosting_model
 from leaf import leases as leases_model
 from leaf import machine as machine_model
 from leaf import render_checks as render_checks_model
-from leaf import state as cleanup_model
 from leaf.registry import storage as registry_storage
 from leaf.render_checks import rendered
 from leaf.render_gate import scheme as render_gate_model
@@ -557,8 +556,8 @@ EDGES = [
         name="drawers",
         html=lambda: ASKS_PAGE,
         comments=0,
-        stand=lambda page: banner_control(page, ".lf-asks").click(),
-        region=".lf-asks-panel",
+        stand=lambda page: banner_control(page, ".lf-queue").click(),
+        region=".lf-queue-panel",
         side="left",
         store="lf-drawer-slot-width",
         wide=300,
@@ -568,7 +567,7 @@ EDGES = [
 EDGE_IDS = [edge.name for edge in EDGES]
 
 
-# One Ask, so a page offers the Asks drawer.
+# One Ask, so a page offers the Queue panel.
 ONE_ASK = (
     '<lf-ask id="go-decision"><h2>Ship it?</h2>'
     '<lf-options id="go" choose>'
@@ -586,10 +585,10 @@ def with_one_ask(html):
     return html.replace("</main>", ONE_ASK + "</main>")
 
 
-def toggle_asks(page, open=True):
-    """Open or close the Asks drawer from its banner control and wait for it to stand."""
-    banner_control(page, ".lf-asks").click()
-    drawer = expect(page.locator(".lf-asks-panel"))
+def toggle_queue(page, open=True):
+    """Open or close the Queue panel from its banner control and wait for it to stand."""
+    banner_control(page, ".lf-queue").click()
+    drawer = expect(page.locator(".lf-queue-panel"))
     opened = re.compile(r"\bopen\b")
     if open:
         drawer.to_have_class(opened)
@@ -845,18 +844,19 @@ def displaced(before, boxes, news=False):
 
     `news` reads the rule for a change nobody gestured (`skills/leaf/assets/AGENTS.md`,
     "Stability"): a box whose own words changed may grow or shrink into free room, so its
-    width is its own, but its place is not, and no other box may move or resize. A box
-    that grew by pushing its neighbours still fails, as they do."""
+    width is its own, but its place is not, and no other box may move or resize. The
+    free room may lie on either side: a box packed against the run to its right, as the
+    banner's queue counts are, grows leftward into the status's room, and the edge that
+    holds still is its place. A box that grew by pushing its neighbours still fails, as
+    they do."""
 
     def moved(was, now):
         if now is None:
             return False
-        grew = news and was[4] != now[4]
-        return any(
-            a != b
-            for i, (a, b) in enumerate(zip(was[:4], now[:4]))
-            if not (grew and i == 2)
-        )
+        if news and was[4] != now[4]:
+            held = was[0] == now[0] or was[0] + was[2] == now[0] + now[2]
+            return not held or was[1] != now[1] or was[3] != now[3]
+        return any(a != b for a, b in zip(was[:4], now[:4]))
 
     return [
         f"{name} moved by "
@@ -1238,14 +1238,7 @@ def live_leaf(tmp_path, monkeypatch):
             LONG_PAGE.replace("<title>long</title>", f"<title>{title}</title>"),
             "t",
         )
-        cleanup_model.write_json(
-            d / "status.json",
-            {
-                "state": "working",
-                "detail": "running the suite",
-                "ts": cleanup_model.now_iso(),
-            },
-        )
+        declare_work(d, "running the suite")
         # A live leaf has a session behind it, and what the drawer's hover says about a
         # page is the work that session is doing it for — so the fixture's pages come
         # out of somewhere nameable rather than out of nowhere.
@@ -1259,7 +1252,7 @@ def live_leaf(tmp_path, monkeypatch):
         )
         # Use the durable server's maintenance loop: the row remains canonical
         # even while no browser has visited this neighboring page.
-        url = hosting_model.start_server(d, standing=True).url
+        url = hosting_model.start_server(d, standing=True, harness=None).url
         served.append(d)
         return url.split("?")[0].rstrip("/"), d
 

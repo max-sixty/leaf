@@ -270,6 +270,24 @@ def capture():
 @click.argument("run_id")
 def fetch(run_id: str):
     """Assemble a CI run's captures for review, as capture does on this machine."""
+    tested = subprocess.run(
+        ["gh", "run", "view", run_id, "--json", "headSha", "--jq", ".headSha"],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    head = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    if tested != head:
+        raise click.ClickException(
+            f"run {run_id} tested {tested[:12]}, not this checkout's HEAD {head[:12]}"
+        )
     with tempfile.TemporaryDirectory(prefix="leaf-thread-ci-") as raw:
         subprocess.run(
             [
@@ -290,20 +308,28 @@ def fetch(run_id: str):
 
 
 def assemble(evidence: Path, captures: Path) -> Path:
-    """Lay out one run's complete evidence as a capture folder under `captures`."""
+    """Lay out the latest attempt whose every case passed its delivery assertions as
+    a capture folder under `captures`. Each attempt of a CI run uploads its own
+    artifact, named with the attempt last (`pytest-results-test-<run>-<attempt>`)."""
     runs = {}
-    for marker in evidence.glob(f"**/thread-snapshots/runs/*/*/{COMPLETE}"):
+    for marker in evidence.glob(f"*/thread-snapshots/runs/*/*/{COMPLETE}"):
         runs.setdefault(marker.parent.parent, {})[marker.parent.name] = marker
-    complete = [
-        cases for cases in runs.values() if set(cases) == {case.name for case in CASES}
-    ]
-    if len(complete) != 1:
+    complete = {
+        run: cases
+        for run, cases in runs.items()
+        if set(cases) == {case.name for case in CASES}
+    }
+    if not complete:
         raise click.ClickException(
-            f"expected one run whose every case passed its delivery assertions in "
-            f"{evidence}, found {len(complete)}"
+            f"no attempt in {evidence} passed every case's delivery assertions"
         )
-    (cases,) = complete
-    (profile,) = {marker.read_text() for marker in cases.values()}
+    cases = complete[
+        max(complete, key=lambda run: int(run.parents[2].name.rsplit("-", 1)[1]))
+    ]
+    profiles = {marker.read_text() for marker in cases.values()}
+    if len(profiles) != 1:
+        raise click.ClickException(f"one attempt rendered several profiles: {profiles}")
+    (profile,) = profiles
     directory = captures / uuid.uuid4().hex / profile
     directory.mkdir(parents=True)
     for case, marker in cases.items():

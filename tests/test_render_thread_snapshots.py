@@ -257,9 +257,15 @@ def test_a_ci_run_assembles_into_the_capture_its_cases_completed(
     from leaf_dev.thread_snapshots import COMPLETE, assemble, capture_files
 
     profile = next(path.name for path in thread_expected_store.iterdir())
-    run = tmp_path / "artifact/.tmp/thread-snapshots/runs/gw-uid"
+
+    def attempt(number):
+        return (
+            tmp_path
+            / f"evidence/pytest-results-test-7-{number}/thread-snapshots/runs/uid"
+        )
+
     for case in CASES:
-        evidence = run / case.name
+        evidence = attempt(2) / case.name
         evidence.mkdir(parents=True)
         readings = {}
         for stage in STAGES:
@@ -272,10 +278,16 @@ def test_a_ci_run_assembles_into_the_capture_its_cases_completed(
             }
         (evidence / "observations.json").write_text(json.dumps(readings))
         (evidence / COMPLETE).write_text(profile)
-    directory = assemble(tmp_path / "artifact", tmp_path / "captures")
+    # A re-run's later attempt is the one that stands, and a run of the same
+    # attempt-1 cases does not make the choice ambiguous.
+    shutil.copytree(attempt(2), attempt(1))
+    for png in attempt(1).glob("*/*.png"):
+        png.write_bytes(b"an earlier attempt")
+    directory = assemble(tmp_path / "evidence", tmp_path / "captures")
     assert capture_files(directory, profile) == capture_files(
         thread_expected_store, profile
     )
-    (run / CASES[0].name / COMPLETE).unlink()
-    with pytest.raises(click.ClickException, match="found 0"):
-        assemble(tmp_path / "artifact", tmp_path / "captures")
+    for number in (1, 2):
+        (attempt(number) / CASES[0].name / COMPLETE).unlink()
+    with pytest.raises(click.ClickException, match="no attempt"):
+        assemble(tmp_path / "evidence", tmp_path / "captures")

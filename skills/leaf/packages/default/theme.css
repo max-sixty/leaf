@@ -2381,7 +2381,8 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
 :scope:is(lf-chart).lf-rendered, :scope:is(lf-tree).lf-rendered, :scope:is(lf-code).lf-rendered {
              font: inherit; color: inherit; overflow: visible; }
 /* The authored body, before its module replaces it. Nothing here says white-space: the
-   body is a <pre>, which is the whole reason it is one. Everything here undoes the rule
+   body is a <pre>, which is the whole reason it is one (a draft, whose module draws
+   wrapped prose, says its own below). Everything here undoes the rule
    near the top that dresses a <pre> as evidence the page is showing — a box, a rule, a
    mono face, an inset. This <pre> is not that: it is the widget's own content, about to
    be rendered or edited, inside an element that has already said how it looks and how
@@ -2569,6 +2570,13 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
 :scope:is(lf-draft) { display: block; border: 1px dashed var(--border-2); border-radius: 6px;
            padding: 10px 14px; margin: 12px 0; background: var(--card); }
 .lf-draft-body, .lf-draft-edit.lf-ui { white-space: pre-wrap; }
+/* The authored <pre> stands where the drawn body will, so it wraps as that body does
+   and drops what the module's decoder drops (`decodeBodyRecord`, projection/authored.js):
+   the indentation the HTML around it gave every line, and the line of spaces before an
+   indented closing tag. pre-line keeps the draft's line breaks and drops both, so the first
+   paint has the drawn body's lines; it reads otherwise only where the draft's own lines
+   are indented relative to one another or hold runs of spaces. */
+:scope:is(lf-draft) > pre { white-space: pre-line; }
 .lf-draft-pencil { opacity: 1; }
 /* The one control whose face is deliberately the document's: the box shows the page's
    words in the page's serif, or the word under the press reflows out from under the

@@ -20,7 +20,6 @@ from leaf.schema import ELEMENT_ID
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_interaction import (
-    PANEL_PAGE,
     SEATED_ASK_LAYER,
     SEATED_ASK_WIDGETS,
     SUGGESTION_PAGE,
@@ -2450,22 +2449,23 @@ def test_banner_status_is_compact_with_accessible_details(browser, serve, other_
         expect(explanation).to_be_hidden()
     resized(page, 1280, 900)
 
-    # Above the floor the sentence and fixed primary controls consume the row exactly.
+    # Above the floor the sentence, the queue counts and the fixed primary controls
+    # consume the row exactly.
     room = page.evaluate(
         """() => {
-          const status = document.querySelector('.lf-banner-status');
-          const actions = document.querySelector('.lf-banner-actions');
           const banner = document.querySelector('.lf-banner');
           const style = getComputedStyle(banner);
           const inner = banner.clientWidth
             - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
-          return {inner, status: status.getBoundingClientRect().width,
-                  actions: actions.getBoundingClientRect().width,
+          const items = [...banner.children].filter((node) => node.checkVisibility());
+          return {inner, names: items.map((node) => node.className),
+                  widths: items.map((node) => node.getBoundingClientRect().width),
                   gap: parseFloat(style.columnGap)};
         }"""
     )
-    assert room["status"] + room["actions"] + room["gap"] == pytest.approx(
-        room["inner"], abs=1
+    assert "lf-status-queues" in room["names"], room
+    assert sum(room["widths"]) + room["gap"] * (len(room["widths"]) - 1) == (
+        pytest.approx(room["inner"], abs=1)
     ), f"the banner left room standing between its status and its controls: {room}"
 
     # The fixed primary run keeps complete words and secondary actions remain in More.
@@ -3151,9 +3151,13 @@ def assert_banner_as_stated(read, wrapped):
 @pytest.mark.parametrize(
     ("width", "touch", "signoff", "wrapped"),
     [
-        # A landscape phone holds the status beside Threads, and beside Approval too.
-        (740, True, False, False),
-        (740, True, True, False),
+        # A tablet's window holds the status and the queue counts beside Threads, and
+        # beside Approval too.
+        (820, True, False, False),
+        (820, True, True, False),
+        # Below that, a landscape phone gives the run, led by the counts, a row of its
+        # own, so the sentence keeps a row of its own too.
+        (740, True, False, True),
         # Capability arrival cannot change this window's row allocation.
         (600, False, False, True),
         (600, False, True, True),
@@ -4145,13 +4149,44 @@ STATUS_PRESS = """() => {
 }"""
 
 
-@pytest.mark.parametrize("width", [1280, 390])
-def test_the_status_press_grows_into_free_room_and_moves_nothing(browser, serve, width):
+STATUS_COUNTS = """() => {
+  const counts = document.querySelector('.lf-status-queues');
+  const box = counts.getBoundingClientRect();
+  const bar = document.querySelector('.lf-banner');
+  const banner = bar.getBoundingClientRect();
+  // Where the banner's rows end: its rule below them draws no row.
+  const rowsEnd = banner.bottom - parseFloat(getComputedStyle(bar).borderBottomWidth);
+  const meets = (other) => box.left < other.right - 0.5 && other.left < box.right - 0.5
+    && box.top < other.bottom - 0.5 && other.top < box.bottom - 0.5;
+  const others = [document.querySelector('.lf-banner-status'),
+    ...document.querySelectorAll('.lf-banner-actions > :not([hidden])')];
+  const approval = document.querySelector('.lf-banner-actions > .lf-signoff');
+  return {shown: counts.clientWidth, needed: counts.scrollWidth,
+          left: box.left, top: box.top,
+          statusLeft: document.querySelector('.lf-status-button').getBoundingClientRect().left,
+          statusBottom: document.querySelector('.lf-banner-status').getBoundingClientRect().bottom,
+          inBanner: box.left >= banner.left && box.right <= banner.right
+            && box.top >= banner.top && box.bottom <= banner.bottom,
+          drawn: box.top < rowsEnd - 0.5 && box.bottom > banner.top + 0.5,
+          approval: approval?.checkVisibility()
+            ? {shown: approval.clientWidth, needed: approval.scrollWidth} : null,
+          overlaps: others.filter((n) => meets(n.getBoundingClientRect()))
+            .map((n) => n.className)};
+}"""
+
+
+@pytest.mark.parametrize(("width", "counts_drawn"), [(1280, True), (390, False)])
+def test_the_status_press_grows_into_free_room_and_moves_nothing(
+    browser, serve, width, counts_drawn
+):
     """The status press is as wide as its words: its ring and its hit box are the
     sentence's, not the empty banner's. As the sentence the agent declares grows, the
     press grows rightward into the room the controls leave, and nothing else on the banner
-    moves; once that room runs out its words truncate rather than push More. At 390 the
-    status has a row of its own, so the room is that row."""
+    moves; once that room runs out its words truncate rather than push More. Approval and
+    the queue counts stay whole throughout. At 390 the status has a row of its own, so
+    the sentence's room is that whole row: an ordinary sentence of the agent's shows
+    whole there, where the counts sharing its row had cut it to a word. Approval fills
+    the run's row there, so the counts give way rather than truncate it."""
     html = SUGGESTION_PAGE.replace(
         "<title>suggestions</title>",
         '<title>suggestions</title>\n<meta name="lf-review" content="sign-off">',
@@ -4175,8 +4210,12 @@ def test_the_status_press_grows_into_free_room_and_moves_nothing(browser, serve,
     assert short["right"] < short["roomRight"] - 60, (
         f"a short status press still spans the banner's free room: {short}"
     )
+    # The page's suggestions wait on the user, so the counts stand beside the status.
+    expect(page.locator(".lf-status-queues")).to_have_text("3 on you")
     page.evaluate(DEFINE_BOXES)
-    beside = page.evaluate(BANNER_WATCH, f":is({NEIGHBOUR}):not(.lf-status-button)")
+    beside = page.evaluate(
+        BANNER_WATCH, f":is({NEIGHBOUR}, .lf-status-queues):not(.lf-status-button)"
+    )
     assert any("lf-banner-more" in name for name in beside["names"]), beside["names"]
 
     longer = say("running the browser suite")
@@ -4191,11 +4230,61 @@ def test_the_status_press_grows_into_free_room_and_moves_nothing(browser, serve,
         f"a sentence longer than the room was shown whole: {endless}"
     )
     assert endless["right"] <= endless["roomRight"] + 0.5, endless
+    # The sentence gives up its room, and the counts never cut Approval: where they
+    # are drawn they stand whole, inside the banner, clear of the status and every
+    # control, and otherwise the banner leaves them out whole.
+    counts = page.evaluate(STATUS_COUNTS)
+    assert counts["approval"], counts
+    assert counts["approval"]["shown"] >= counts["approval"]["needed"], counts
+    assert counts["drawn"] == counts_drawn, counts
+    if counts_drawn:
+        assert counts["shown"] >= counts["needed"] > 0, counts
+        assert counts["inBanner"] and not counts["overlaps"], counts
     assert (endless["left"], endless["top"]) == (short["left"], short["top"])
     moved = displaced(beside, page.evaluate("() => window.__lfBoxes()"))
     assert not moved, "a status past its room pushed the banner:\n  " + "\n  ".join(
         moved
     )
+
+
+def test_the_counts_lead_a_phone_s_second_row_where_the_run_leaves_room(browser, serve):
+    """On a phone the status sentence has the first row, and the queue counts lead the
+    second, under the sentence's start, where the run leaves them room whole. A finger's
+    search steps fill that row, so the counts give way to them rather than cut a step,
+    and come back where they stood once the search closes."""
+    context = browser.new_context(
+        viewport={"width": 390, "height": 800}, has_touch=True, is_mobile=True
+    )
+    page = open_page(browser, serve(SUGGESTION_PAGE), context=context)
+    expect(page.locator(".lf-status-queues")).to_have_text("3 on you")
+    page_at_rest(page)
+    resting = page.evaluate(STATUS_COUNTS)
+    assert resting["drawn"] and resting["inBanner"], resting
+    assert resting["shown"] >= resting["needed"] > 0, resting
+    assert not resting["overlaps"], resting
+    assert resting["left"] == pytest.approx(resting["statusLeft"], abs=1), resting
+    assert resting["top"] >= resting["statusBottom"] - 0.5, resting
+
+    page.keyboard.press("/")
+    page.keyboard.type("feeder")
+    expect(
+        page.locator(".lf-banner-actions > .lf-btn", has_text="Next")
+    ).to_be_visible()
+    page_at_rest(page)
+    searching = page.evaluate(STATUS_COUNTS)
+    assert not searching["drawn"], searching
+    clipped = page.evaluate(BANNER_ROWS)["clipped"]
+    assert not clipped, f"the search steps were cut off: {clipped}"
+
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-banner-actions > .lf-btn", has_text="Next")).to_be_hidden()
+    page_at_rest(page)
+    back = page.evaluate(STATUS_COUNTS)
+    assert (back["drawn"], back["left"], back["top"]) == (
+        True,
+        resting["left"],
+        resting["top"],
+    ), (resting, back)
 
 
 def test_a_recorded_move_is_acknowledged_in_the_status_and_nowhere_else(browser, serve):
@@ -6426,6 +6515,18 @@ def test_a_covering_composer_keeps_its_controls_inside_the_safe_area(browser, se
     )
 
 
+# A page holding a paragraph and one control, for the readings below that plant the
+# shape they are about rather than finding it in the product: which of the layer's
+# controls draws an inset ring, or names no z-index, moves with the product and is not
+# what these readings are held to.
+RING_PROBE_PAGE = leaf_page(
+    "ring",
+    "<h1>Ring</h1><p>Words.</p>"
+    '<div id="ring-holder"><button id="ring-control" type="button">Control</button></div>'
+    "<p>After.</p>",
+)
+
+
 def test_the_ring_reading_names_every_way_a_box_can_draw_nothing_past_its_edge(
     browser, serve
 ):
@@ -6594,9 +6695,7 @@ def test_the_ring_reading_sees_and_measures_a_ring_cast_as_a_shadow(browser, ser
     own foot, where the band is the only part of it that can be outside the window, with
     the same box and the same place as the control once the band is taken off.
     """
-    example = next(e for e in EXAMPLES if e.stem == "release-notes")
-    url = serve(example, comments=2, seed_log=False)
-    page = open_page(browser, url)
+    page = open_page(browser, serve(RING_PROBE_PAGE))
 
     # On the window's foot, so the only thing that can be outside the window is the band.
     # Placed from `innerHeight` rather than from `100vh`, which is the viewport a
@@ -6822,45 +6921,35 @@ def test_the_ring_reading_sees_a_neighbour_lifted_out_of_the_flow_it_was_ranked_
     ranks behind the control puts what stays in its flow behind the control too. A
     positioned neighbour does not stay: it leaves its holder's place in the flow to paint
     in the positioned layer of the nearest ancestor stacking context, which is the layer a
-    control like the thread card's own buttons is in — `position: relative; z-index: auto`.
-    So a static holder's rank says nothing about it, and taken for an answer it drops a
+    control with `position: relative; z-index: auto` is in (a thread card's buttons). So
+    a static holder's rank says nothing about it, and taken for an answer it drops a
     cover the page paints.
 
     The plant is that shape: a fixed band over the ring's top run, held by a static box
     beside the control. The band comes back topmost where the ring is sampled, and the
-    reading has to say so.
+    reading has to say so. The clean reading first, because a reading that reports at
+    every control would pass the planted one without seeing it.
     """
-    example = next(e for e in EXAMPLES if e.stem == "release-notes")
-    url = serve(example, comments=2)
-    page = open_page(browser, url)
-    page.locator(".lf-threads-toggle").click()
-    page.locator(".lf-thread-summary").first.click()
-    panel_settled(page)
-    page.locator("body").click()
-    page.locator(".lf-threads .lf-btn").first.focus()
-    page.keyboard.press("Tab")
-    page.keyboard.press("Shift+Tab")
+    page = open_page(browser, serve(RING_PROBE_PAGE))
+    page.evaluate(
+        """() => {
+          const control = document.getElementById('ring-control');
+          control.style.cssText = `position: relative; z-index: auto;
+            outline: var(--focus-ring); outline-offset: 2px;`;
+          control.focus();
+        }"""
+    )
     standing = standing_ring(page)
     assert standing and standing["covers"] == [], (
         f"the control is reported covered before anything is put over it: {standing}"
-    )
-    assert page.evaluate(
-        """() => {
-          const cs = getComputedStyle(document.activeElement);
-          return cs.position !== 'static' && cs.zIndex === 'auto';
-        }"""
-    ), (
-        "the control names a z-index of its own, so it stands clear of the layer this "
-        "plants into and the band below could not reach its ring"
     )
 
     page.evaluate(
         """() => {
           const b = document.activeElement.getBoundingClientRect();
           // A static box, so the flow is what its own rank answers for, pulled back over
-          // the panel it is appended to rather than adding height to it.
+          // the control it is appended beside rather than adding height under it.
           const holder = document.createElement('div');
-          holder.className = 'lf-under-plant';
           holder.style.cssText = 'margin-top: -100vh; height: 100vh;';
           const band = document.createElement('div');
           // Over the ring's top run and clear of the control's own box, and positioned,
@@ -6869,7 +6958,7 @@ def test_the_ring_reading_sees_a_neighbour_lifted_out_of_the_flow_it_was_ranked_
             left: ${b.left - 8}px; top: ${b.top - 5}px;
             width: ${b.width + 16}px; height: 4px;`;
           holder.append(band);
-          document.activeElement.closest('.lf-thread-panel').append(holder);
+          document.getElementById('ring-holder').append(holder);
         }"""
     )
     covers = standing_ring(page)["covers"]
@@ -6877,8 +6966,6 @@ def test_the_ring_reading_sees_a_neighbour_lifted_out_of_the_flow_it_was_ranked_
         f"a band standing over the ring read as {covers}, so a neighbour that left the "
         "flow its holder was ranked in goes unreported"
     )
-
-    page.evaluate("() => document.querySelector('.lf-under-plant').remove()")
 
 
 def test_a_user_who_asked_for_no_motion_gets_a_ring_that_does_not_arrive(
@@ -6951,42 +7038,38 @@ def test_the_ring_reading_sees_a_neighbour_paint_over_a_ring_drawn_inside_its_bo
     rather than past it, so every covered inset ring answered that the control was under
     the same thing and the reading returned what it returns when nothing is wrong.
 
-    So: a thread title, which draws its ring inside itself, under a band exactly as
-    deep as that ring. The control case first, because a reading that reports over any inset
-    control would pass the planted one without seeing it.
+    So: a control drawing the layer's ring inside itself, as a thread title does, under a
+    band exactly as deep as that ring. The control case first, because a reading that
+    reports over any inset control would pass the planted one without seeing it.
     """
-    url = serve(PANEL_PAGE)
-    panel_comment(serve.page_dir, "About the lede.", {"section": "lede"})
-    panel_comment(serve.page_dir, "About the store.", {"section": "how-store"})
-    page = open_page(browser, url)
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    title = page.locator(".lf-threads > .lf-thread > .lf-thread-summary").first
-    title.focus()
-    page.keyboard.press("Tab")
-    page.keyboard.press("Shift+Tab")
-    rendered(page)
-
+    page = open_page(browser, serve(RING_PROBE_PAGE))
+    # The layer's band, widened past two pixels: a step in of one pixel from the middle of
+    # a 2px band lands on its inner edge, which hit testing may or may not count as the
+    # band, so only a wider ring makes a step that stops inside it a step that fails.
     inset = page.evaluate(
         """() => {
-      const s = getComputedStyle(document.activeElement);
+      const control = document.getElementById('ring-control');
+      control.style.cssText = `--focus-ring-w: 4px;
+        outline: var(--focus-ring-w) solid var(--accent);
+        outline-offset: calc(-1 * var(--focus-ring-w)); padding: 12px 24px;`;
+      control.focus();
+      const s = getComputedStyle(control);
       return [parseFloat(s.outlineWidth), parseFloat(s.outlineOffset)];
     }"""
     )
-    assert inset[1] <= -inset[0], (
-        f"the title's ring is {inset[0]}px at offset {inset[1]}px, which is not drawn "
+    assert inset[0] > 0 and inset[1] <= -inset[0], (
+        f"the control's ring is {inset[0]}px at offset {inset[1]}px, which is not drawn "
         "inside its box, so this holds nothing about a reading of one that is"
     )
 
-    # A band of the panel's own paper over the card's top run, and nothing else of it.
-    # Fixed and outside the card, because the reading passes over an ancestor or a
+    # A band of the page's own paper over the control's top run, and nothing else of it.
+    # Fixed and outside the control, because the reading passes over an ancestor or a
     # descendant of the control by design — a widget painting its own edge is not a
     # neighbour.
     plant = """(depth) => {
       document.querySelector('.lf-ring-plant')?.remove();
       if (!depth) return null;
-      const control = document.activeElement;
-      const r = control.getBoundingClientRect();
+      const r = document.activeElement.getBoundingClientRect();
       const over = document.documentElement.appendChild(
         document.createElement('div'));
       over.className = 'lf-ring-plant';
@@ -7001,21 +7084,22 @@ def test_the_ring_reading_sees_a_neighbour_paint_over_a_ring_drawn_inside_its_bo
 
     page.evaluate(plant, 0)
     assert standing_ring(page)["covers"] == [], (
-        "the title is reported covered with nothing over it, so the planted case below "
-        "would only be repeating whatever this reading always says"
+        "the control is reported covered with nothing over it, so the planted case "
+        "below would only be repeating whatever this reading always says"
     )
 
     laid = page.evaluate(plant, inset[0])
     covers = standing_ring(page)["covers"]
     assert any("top edge" in c for c in covers), (
-        f"a {laid}px band over the whole of the title's {inset[0]}px inset ring, "
-        f"with the rest of the title in full view, and the reading said {covers}"
+        f"a {laid}px band over the whole of the control's {inset[0]}px inset ring, "
+        f"with the rest of the control in full view, and the reading said {covers}"
     )
 
 
-# One causal sample for every named ring the layer draws. Each case names its surface,
-# the real keys that open it, and the element whose focus state paints the ring. A null
-# selector means the opening keys themselves leave the required non-focusable carrier lit.
+# A causal sample in each surface the keyboard reaches. Each case names its surface, the
+# real keys that open it, the element whose focus state paints the ring, and the ring it
+# paints. A null selector means the opening keys themselves leave the required
+# non-focusable carrier lit.
 RING_CASES = (
     (
         "the page",
@@ -7289,6 +7373,12 @@ RING_SCOPE_WIDTH = {
 RING_FOCUS_START = RELEASE_FOCUS
 RING_NEW_STOP = browser_function("focus_rings.js", "newStop", using="control_name.js")
 SEEN_STOP = browser_function("focus_rings.js", "seenStop", using="control_name.js")
+# Both readings of a Tab's landing in one round trip: whether the stop is new, and for a
+# new one, what it shows of where the keyboard is.
+WALKED_STOP = f"""() => {{
+  const stop = ({RING_NEW_STOP})();
+  return [stop, stop === "new" ? ({SEEN_STOP})() : null];
+}}"""
 
 
 def test_the_stop_reading_names_a_control_with_nothing_drawn_on_it(browser, serve):
@@ -7367,7 +7457,7 @@ def test_every_base_corpus_tab_stop_has_a_visible_focus_indicator(browser, serve
         empty = 0
         for _ in range(400):
             page.keyboard.press("Tab")
-            stop = page.evaluate(RING_NEW_STOP)
+            stop, lost = page.evaluate(WALKED_STOP)
             if stop == "seen":
                 break
             if stop == "empty":
@@ -7375,7 +7465,7 @@ def test_every_base_corpus_tab_stop_has_a_visible_focus_indicator(browser, serve
                 assert empty <= 2, f"Tab never entered {example.stem}"
                 continue
             empty = 0
-            if lost := page.evaluate(SEEN_STOP):
+            if lost:
                 failures.append(f"{example.stem}: {lost}")
         else:
             raise AssertionError(f"Tab order never came round in {example.stem}")
@@ -7398,16 +7488,18 @@ def test_the_focus_sweep_distinguishes_stops_inside_a_live_frame(browser):
     assert page.evaluate(RING_NEW_STOP) == "new"
 
 
-def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
+def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
     browser, serve, live_leaf
 ):
-    """Every declared ring has a causal sample whose whole band is visible.
+    """Where the keyboard stands in each surface a key opens, the user sees its ring
+    whole: not cut by a box that clips it, and not under a neighbour.
 
-    `RING_NAMES` derives the population from the composed stylesheets. `RING_CASES`
-    names one rendered sample for each member, including surfaces that must first be
-    opened. Comparing the two sides catches both an unexercised declaration and painted
-    ring with no declaration. A second version and neighbouring leaf provide the two
-    runtime states authored examples cannot carry themselves.
+    `RING_CASES` walks the layer's surfaces by their real keys and stands on a sample in
+    each; every ring drawn there is measured, not only the sample's. Which rings get a
+    sample is the cases' choice rather than a census of the layer's rules, so a new ring
+    needs no sample of its own; what every ring rule must do is name the ring it draws.
+    A second version and a neighbouring leaf provide the two runtime states authored
+    examples cannot carry themselves.
     """
 
     def open_containing_thread(target):
@@ -7425,9 +7517,9 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
     live_leaf("other", "The other leaf")
     # No ring moves under the default motion setting, so a settled sample reads the
     # value its rule declares. The reduced-motion case has a focused test above.
-    rings, lit, faults, seen_faults = {}, set(), [], set()
+    faults, seen_faults = [], set()
     unseen = set()
-    unnamed = set()
+    unnamed, unnamed_rules = set(), set()
     opened = set()
     stops = 0
     assert not (missing := set(RING_EXAMPLES) - set(RING_EXAMPLE_FILES)), (
@@ -7450,8 +7542,9 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
             url = url.replace(f"/v{current_version}.html", f"/v{next_version}.html")
         page = open_page(browser, url)
         if name == "wt-merge":
-            # Its pane body earns a keyboard stop only while it has content to scroll.
-            resized(page, 1200, 700)
+            # Its pane body earns a keyboard stop only while it has content to scroll,
+            # which at the workspace's working density it has under 600px of window.
+            resized(page, 1200, 600)
         if name == "release-notes":
             # Ordinary element marks need a focusable sample for their conditional ring.
             page.locator("main p").first.evaluate(
@@ -7621,15 +7714,9 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                     "nodes => nodes.forEach(node => "
                     "node.removeAttribute('data-lf-ring-sample'))"
                 )
-                found = set()
-                for ring in drawn:
-                    if not ring["here"]:
-                        continue
-                    if ring["ring"]:
-                        if ring["ring"] in expected and ring["sample"]:
-                            found.add(ring["ring"])
-                    else:
-                        unnamed.add(ring["who"])
+                lit = [ring for ring in drawn if ring["here"]]
+                unnamed.update(ring["who"] for ring in lit if not ring["ring"])
+                found = expected & {ring["ring"] for ring in lit if ring["sample"]}
                 # One standing defect is one finding, not one per stop: a ring worn by
                 # something the sample is not moving — a decision's mark, a thread's element
                 # mark — is read again at every stop it survives.
@@ -7642,7 +7729,6 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                     f"{selector or scope} {where} did not exhibit "
                     + ", ".join(sorted(expected - found))
                 )
-                lit.update(found)
             if posture:
                 for _ in range(3):
                     page.keyboard.press("Escape")
@@ -7652,11 +7738,12 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                 page.get_by_role("tab", name="Triage", exact=True).click()
                 page_at_rest(page)
 
-        for declared in page.evaluate(RING_NAMES):
-            seen = rings.setdefault(declared["name"], [])
-            for said in declared["said"]:
-                if said not in seen:
-                    seen.append(said)
+        unnamed_rules.update(
+            said
+            for declared in page.evaluate(RING_NAMES)
+            if not declared["name"]
+            for said in declared["said"]
+        )
         page.close()
 
     assert not unseen, (
@@ -7675,43 +7762,18 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
     assert not faults, "\n  ".join(
         [f"{len(faults)} faults over {stops} samples:"] + faults
     )
-    # A ring nobody named, said from either side. The scan reaches a rule the corpus
-    # never paints and cannot tell a ring drawn some other way from no ring at all; the
-    # sweep is the reverse of both. Neither half is the whole claim, and a name is worth
-    # nothing to the floor below until both agree it stands for one drawn ring.
-    unnamed_rules = rings.pop("", [])
+    # Every ring is named by the rule that draws it, said from both sides: the scan reads
+    # a rule no sample paints, and the sweep reads a ring drawn without the layer's token.
+    # The samples above, and every reading that credits a ring an ancestor wears, rest on
+    # the name.
     assert not unnamed_rules, (
-        f"{len(unnamed_rules)} rules draw the focus ring and name none of them, so the "
-        "floor below divides by a population short of them and says nothing about "
-        "it — declare --lf-focus-ring in the rule that draws the ring:\n  "
+        f"{len(unnamed_rules)} rules draw the focus ring and name none of them — "
+        "declare --lf-focus-ring in the rule that draws the ring:\n  "
         + "\n  ".join(sorted(unnamed_rules))
     )
     assert not unnamed, (
         "the corpus paints a focus ring on boxes no rule named, so no reading can say "
         "which rule drew it: " + ", ".join(sorted(unnamed))
-    )
-    # Both halves of the division, before it is taken. An empty population makes every
-    # line below vacuous and silent about it, and a name painted that the scan never
-    # declared is the scan's own blind spot showing: it reads the `outline` shorthand for
-    # the layer's token, so a rule that draws the ring some other way and still names it
-    # paints a credit for a name no population holds.
-    assert rings, (
-        "the layer declares no rings, so this floor divided by nothing and the samples "
-        "above is evidence about no rule at all"
-    )
-    assert not lit - set(rings), (
-        "the corpus painted rings the layer's own reading does not declare: "
-        + ", ".join(sorted(lit - set(rings)))
-    )
-    unlit = [
-        f"{name} ({', '.join(said)})"
-        for name, said in sorted(rings.items())
-        if name not in lit
-    ]
-    assert not unlit, (
-        f"{len(unlit)} of the layer's {len(rings)} rings are painted nowhere the "
-        f"corpus samples exhibit, so nothing above is evidence about them:\n  "
-        + "\n  ".join(unlit)
     )
 
 

@@ -159,7 +159,8 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  * The ring is the fallback rather than the rule: every control with a ring of its own
  * outranks this, and what is left is the controls that were wearing the platform's
  * outline or, where a widget had restyled them, nothing at all. Named like every other
- * ring the layer draws, so the corpus floor can credit it (--lf-focus-ring, theme.css).
+ * ring the layer draws, so the suite's ring samples can credit it (--lf-focus-ring,
+ * theme.css).
  *
  * Every rule here is written to be outranked. The value guard sits in :where() so it
  * costs nothing, which leaves each rule at the weight of the thing it is answering — the

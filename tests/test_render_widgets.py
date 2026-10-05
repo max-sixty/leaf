@@ -113,7 +113,6 @@ from render_harness import (
     undo,
     wait_for_revision,
     write,
-    xfail_browser_problem,
 )
 
 DRAG_HELD = (
@@ -4427,8 +4426,12 @@ def test_a_phone_board_gives_its_column_room_and_keeps_the_next_one_discoverable
     expect(page.locator("#sq-col-0 > #sq-card-0")).to_have_count(1)
 
 
+@pytest.mark.parametrize(
+    "typed_color, close_editor",
+    [("#8b4a5f", "escape"), ("#8B4A5F", "escape"), ("#8b4a5f", "outside-press")],
+)
 def test_a_playground_keeps_one_typed_working_state_until_the_user_chooses(
-    browser, serve
+    browser, serve, typed_color, close_editor
 ):
     page = open_page(browser, serve(PLAYGROUND_PAGE))
     playground = page.locator("#card-playground")
@@ -4457,10 +4460,12 @@ def test_a_playground_keeps_one_typed_working_state_until_the_user_chooses(
     picker = playground.locator("wa-color-picker")
     picker.get_by_role("button", name="Accent", exact=True).click()
     color_field = picker.get_by_role("textbox")
-    color_field.fill("#8b4a5f")
-    color_field_place = color_field.evaluate("field => window.lfPlace(field)")
+    color_field.fill(typed_color)
     color_field.press("Enter")
-    color_field.press("Escape")
+    if close_editor == "escape":
+        color_field.press("Escape")
+    else:
+        page.locator('lf-playground-control[name="title"] input').click()
     page.locator('lf-playground-control[name="title"] input').fill("Ridge note; alert")
 
     assert len(events_model.read_events(serve.page_dir)) == before
@@ -4515,18 +4520,6 @@ def test_a_playground_keeps_one_typed_working_state_until_the_user_chooses(
     undo(page)
     expect(page.locator("#card-instruction")).to_contain_text("12px radius")
     assert playground.evaluate("root => root.values")["compact"] is False
-    # The same native-close loss was present on pre-1711 main (35d91df, Linux run
-    # 37183384374), before this branch's changes.
-    xfail_browser_problem(
-        page,
-        f'typed words left the screen without a key or press: "#8b4a5f" in '
-        f"{color_field_place}",
-        reason=(
-            "WebAwesome hides the native color field after Escape's popup animation, "
-            "outside the words watch's trusted-input lifetime; reproduced on pre-1711 "
-            "main at 35d91df (Linux run 37183384374)."
-        ),
-    )
 
 
 def test_notification_playground_sets_regions_side_by_side_while_its_workspace_is_full_height(
@@ -4606,6 +4599,14 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_i
     assert playground.locator(".lf-playground-instruction-title").evaluate(
         voice
     ) == playground.locator(".lf-playground-presets-title").evaluate(voice)
+    # The presets band heading the controls is ruled off from them, over the generic
+    # region header's unruled box.
+    assert playground.locator(".lf-playground-presets").evaluate(
+        """node => {
+          const style = getComputedStyle(node);
+          return [style.borderBottomStyle, style.paddingBottom];
+        }"""
+    ) == ["solid", "14px"]
     first_control = playground.locator("lf-playground-control").first
     control_box = first_control.bounding_box()
     controls_box = controls.bounding_box()
@@ -7126,6 +7127,26 @@ def test_a_quoted_swipe_deck_is_a_static_labeled_exhibit(browser, serve):
     assert passed and kept and passed["y"] + passed["height"] <= kept["y"]
 
 
+def test_a_quoted_swipe_queue_spaces_its_flat_cards(browser, serve):
+    """A quoted queue is flat rather than a stack, so its cards stand in flow, a gap
+    apart rather than touching."""
+    source = SWIPE_PAGE.replace(
+        '<lf-ask id="session-triage-decision">',
+        '<lf-sample id="swipe-example" label="session triage">',
+    ).replace("</lf-ask>", "</lf-sample>")
+    page = open_page(browser, serve(source))
+    boxes = [page.locator(f"#swipe-{card}").bounding_box() for card in ("a", "b", "c")]
+    gaps = [
+        lower["y"] - (upper["y"] + upper["height"]) for upper, lower in pairwise(boxes)
+    ]
+    gap = page.evaluate(
+        "() => parseFloat(getComputedStyle(document.documentElement)"
+        ".getPropertyValue('--sp-2'))"
+    )
+    assert gap > 0
+    assert gaps == pytest.approx([gap, gap], abs=0.5)
+
+
 def test_an_empty_quoted_swipe_queue_says_it_is_empty(browser, serve):
     page = open_page(browser, serve(EMPTY_QUOTED_SWIPE_PAGE))
     labels = page.locator("#completed-swipe .lf-swipe-pile-label")
@@ -8229,9 +8250,11 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
     # The overlay and the shortcut bar offer it because there is something to reach.
     page.keyboard.press("?")
     page.keyboard.press("?")
-    expect(page.locator(".lf-command-reference")).to_contain_text("waiting on you for")
+    expect(page.locator(".lf-command-reference")).to_contain_text(
+        "thread or move to resend waiting on you"
+    )
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-shortcut-bar")).to_contain_text("asks")
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("on you")
 
     # Leaving the ask takes the place off the count the way it takes the ring off the
     # page: a click into the prose is the user standing nowhere in the list.
@@ -10450,6 +10473,7 @@ def test_the_ring_is_one_box_around_the_whole_change(browser, serve):
     # true by a few dozen pixels, which made it a fact about how tall the blocks above the
     # change happened to be. Giving the question above it a label set one more line and
     # the precondition stopped holding, with nothing wrong anywhere.
+    scroll_settled(page)
     was = page.evaluate("() => document.scrollingElement.scrollTop")
     assert was > 0, "the user must have somewhere to have come from"
 

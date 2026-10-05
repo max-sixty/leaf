@@ -874,7 +874,6 @@ def test_a_wheel_return_attaches_the_comment_box_in_the_first_visible_frame(
         trace_finished,
         bool,
         failure="Chrome never completed the compositor screenshot trace",
-        timeout=10,
     )
     frames = [event for event in events if event["name"] == "Screenshot"]
     readings = []

@@ -79,14 +79,22 @@ def chrome():
 
 @contextmanager
 def tab(
-    browser: Browser, viewport=DESKTOP, scheme="light", touch=False, *, motion="reduce"
+    browser: Browser,
+    viewport=DESKTOP,
+    scheme="light",
+    touch=False,
+    *,
+    motion="reduce",
+    scale=1,
 ):
     """A fresh blank tab at `viewport` and in `scheme`, with reduced motion so a still
     never catches a transition midway (pass motion="no-preference" for a journey),
     and under a finger (a coarse pointer, a mobile
-    viewport) when `touch`. A caller listens on it before it `load`s."""
+    viewport) when `touch`, drawing `scale` device pixels to a CSS pixel. A caller
+    listens on it before it `load`s."""
     context = browser.new_context(
         viewport={"width": viewport[0], "height": viewport[1]},
+        device_scale_factor=scale,
         color_scheme=scheme,
         reduced_motion=motion,
         has_touch=touch,

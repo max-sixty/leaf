@@ -460,8 +460,10 @@ STATES = (
 
 
 def capture(browser, address: str, state: State, path: Path) -> None:
-    """Bring a fresh tab to `state` and screenshot its viewport to `path`."""
-    with tab(browser, state.viewport, state.scheme, state.touch) as page:
+    """Bring a fresh tab to `state` and screenshot its viewport to `path`, at the
+    density of the displays its pairs are read on, so a crop shows text and hairlines
+    as the reader's screen draws them."""
+    with tab(browser, state.viewport, state.scheme, state.touch, scale=2) as page:
         load(page, address)
         state.drive(page)
         settle(page)

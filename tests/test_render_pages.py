@@ -429,7 +429,9 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
             card = page.locator(f'.lf-thread[data-id="{thread["id"]}"]')
             expect(
                 card.get_by_role(
-                    "button", name="Reopen", exact=True, include_hidden=True
+                    "button",
+                    name=re.compile(r"\bReopen(?: thread)?$"),
+                    include_hidden=True,
                 )
             ).to_have_count(1)
             anchor = thread["anchor"]

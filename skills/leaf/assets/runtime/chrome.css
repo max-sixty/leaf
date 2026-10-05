@@ -949,14 +949,17 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     border-block-end-color: transparent; margin-bottom: 0; }
   /* The summary is the thread's title and focus stop in both disclosure states. */
   .lf-thread-compact { --lf-thread-pad: 0px; margin: 0; padding: 0;
-    --lf-thread-surface: var(--paper); background: transparent; border-radius: 0; }
-  .lf-thread-compact > :is(.lf-thread-summary, .lf-thread-content, .lf-thread-reply, .lf-thread-actions) {
+    --lf-thread-surface: var(--paper); background: var(--lf-thread-surface); border-radius: 0;
+    anchor-scope: --lf-thread-settlement; }
+  /* The card paints its whole surface, including margins and retained reply space.
+     Sticky rows also paint over the conversation that scrolls beneath them. */
+  .lf-thread-compact > :is(.lf-thread-summary, .lf-thread-reply) {
     background: var(--lf-thread-surface); }
   .lf-thread-compact[open]:has(> .lf-thread-reply) > .lf-thread-content {
     display: flex; flex-direction: column; }
   .lf-thread-summary { display: grid; flex: none;
     grid-template-columns: minmax(0, 1fr) minmax(0, max-content) auto;
-    align-items: center; column-gap: 8px; width: 100%; min-height: max(32px, var(--aim-floor)); border: 0;
+    align-items: baseline; align-content: center; column-gap: 8px; width: 100%; min-height: max(32px, var(--aim-floor)); border: 0;
     padding: 4px var(--lf-thread-inset); background: var(--lf-thread-surface); color: var(--ink);
     text-align: left; font: 500 13px/18px var(--sans); cursor: pointer; }
   .lf-thread-summary:hover { background: var(--chip); }
@@ -970,7 +973,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     color: var(--muted); }
   /* Status shares the title row. Its width may change the title's ellipsis,
      but never the header height or the conversation below it. */
-  .lf-thread-meta { grid-column: 2; grid-row: 1; display: flex; align-items: center;
+  .lf-thread-meta { grid-column: 2; grid-row: 1; display: flex; align-items: baseline;
     gap: 8px; min-width: 0; max-width: 150px; overflow: hidden;
     font: 400 11px/14px var(--sans); }
   .lf-thread-draft { color: var(--muted); font-size: 10px; white-space: nowrap; }
@@ -981,9 +984,23 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   .lf-thread-status[data-lf-turn="user"] { color: var(--turn-ink); }
   /* Open, the card shows what these digest: a message's stage, the draft, the unread. */
   details[open] > .lf-thread-summary .lf-thread-meta > [data-lf-folded] { display: none; }
-  .lf-thread-trailing { grid-column: 3; grid-row: 1; display: flex; align-items: center;
-    justify-content: flex-end; gap: 4px; color: var(--muted); white-space: nowrap; }
-  .lf-thread-recency { font-size: 10px; }
+  .lf-thread-trailing { grid-column: 3; grid-row: 1; display: flex; align-items: baseline;
+    justify-content: flex-end; gap: 4px; color: var(--muted); white-space: nowrap;
+    font: 400 11px/14px var(--sans); }
+  /* A summary is itself a button. Its separate settlement control belongs to the
+     expanded body, anchored beside the disclosure at the status's reserved box. */
+  .lf-thread-status[data-lf-settlement] { anchor-name: --lf-thread-settlement; padding-inline: 4px; }
+  .lf-thread-compact[open] > .lf-thread-summary .lf-thread-status[data-lf-settlement] { visibility: hidden; }
+  /* The reserved label is hidden while its separate button paints at that anchor. */
+  .lf-thread-header-action {
+    position: absolute; position-anchor: --lf-thread-settlement; position-visibility: always; z-index: 3;
+    inset-inline-start: anchor(left); inset-block-start: anchor(center);
+    translate: 0 -50%; width: anchor-size(width); box-sizing: border-box;
+    font: 400 11px/14px var(--sans); padding: 0 4px; margin: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    text-decoration: underline; text-decoration-style: dotted; text-underline-offset: 3px; }
+  .lf-thread-header-action:hover { text-decoration-style: solid; }
+  .lf-thread-compact:not([open]) > .lf-thread-header-action { display: none; }
   /* The container supplies navigation and an inset; shadow.css owns the conversation. */
   .lf-thread-compact > .lf-thread-content > .lf-thread-head { margin: 12px var(--lf-thread-inset); }
   .lf-thread-compact > .lf-thread-content > .lf-thread-root-meta { margin: 12px var(--lf-thread-inset) 0; }
@@ -1118,7 +1135,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      halfway. */
   .lf-thread-action:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring);
     --lf-focus-ring: thread-action; outline-offset: 2px; }
-  .lf-resolved-by { color: var(--muted); }
   .lf-general { padding: 12px var(--lf-panel-inset); border-top: 1px solid var(--rule); }
   .lf-system { color: var(--ok); margin: 8px 0; }
   /* The two floats that point at the page, the response bar and the thread card, are

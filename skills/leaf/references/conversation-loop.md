@@ -193,6 +193,6 @@ answer in the thread. When you need the user to do something neither answers, su
 trying a build or reading a section and saying whether it holds up, put a task on
 them: `leaf task open <page> <id> "<what you need>" --on user`, where `<id>` names the
 thread, widget or section it concerns, or `page`. It waits on their queue until they
-press its Done, or reply in its thread, and their Done reaches you like any move. When
-one no longer needs them, end it yourself with `leaf task end`: ending an Ask's task
-retires the Ask.
+press its Done, or, on a thread, reply there, and their Done reaches you like any move.
+When one no longer needs them, end it yourself with `leaf task end`: ending an Ask's
+task retires the Ask.

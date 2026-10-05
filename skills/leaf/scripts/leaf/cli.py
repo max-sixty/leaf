@@ -1011,8 +1011,8 @@ def task_open(dir: str, subject: str, title: str, owner: str) -> None:
     widget its messages carry; a page widget, which for your own task must declare
     x-work or hold an unsettled move; any other element of the page by its id, such
     as a section; or `page` for the page as a whole. With `--on user` the task is on
-    the user: it ends at their reply in its thread, or at their Done, and you can end
-    it too. Its id is the printed record's `id`."""
+    the user: it ends at their Done, or on a thread at their reply there, and you can
+    end it too. Its id is the printed record's `id`."""
     from leaf.tasks import cmd_open
 
     _print_records(cmd_open(resolve_dir(dir), subject, title, owner))

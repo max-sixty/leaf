@@ -119,12 +119,7 @@ class Samples:
             )
             write_json(
                 child / "status.json",
-                {
-                    "state": "waiting",
-                    "detail": "",
-                    "ts": now_iso(),
-                    "after": 0,
-                },
+                {"state": "waiting", "detail": "", "ts": now_iso()},
             )
             activation = activate_source(child)
             if activation.error:

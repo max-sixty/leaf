@@ -16,7 +16,6 @@ import { ago } from "./presence.js";
 import { runtime } from "./context.js";
 import { elementById, inChrome } from "./passages.js";
 import { addressableLabel, addressableWord } from "./anchor-resolution.js";
-import { updateSequence } from "./updates.js";
 import { threadList } from "./thread/state.js";
 import { threadKey } from "./thread/model.js";
 import { projectionOrigins } from "./projection/model.js";
@@ -28,7 +27,6 @@ import { anchorLabel } from "./thread/messages.js";
 import { outlineSubjectFor, pageOutline } from "./thread/placement.js";
 import {
   atWork,
-  isLiveWorkflow,
   isPageWidgetWorkflow,
   isWorkflowProgress,
   strongestWorkflow,
@@ -270,13 +268,11 @@ export function createAnnotationInventory({
     for (const receipt of visibleWidgetWorkflows()) {
       receiptByCoordinate.set(JSON.stringify(receipt.coordinate), receipt);
     }
-    const representedThreads = new Set();
     for (const thread of threadList()) {
       if (!threadHasDiscussion(thread) || !thread.anchor || claimed(thread.id))
         continue;
       const id = thread.id;
       const target = placedAt(id)?.place;
-      if (target?.isConnected && !inChrome(target)) representedThreads.add(id);
       const attention = threadAttention(thread);
       const onUser = attention?.kind === "needs_user";
       const unread = thread.unread.length;
@@ -348,11 +344,6 @@ export function createAnnotationInventory({
     }
 
     const projection = currentProjection();
-    const claimActivity = new Map(
-      workflows()
-        .filter(isLiveWorkflow)
-        .map((item) => [`${item.subject.kind}:${item.subject.id}`, item]),
-    );
     const activityAlreadyShown = new Set();
     const acknowledged = new Set();
     for (const [coordinate, entry] of projection.desired) {
@@ -448,36 +439,31 @@ export function createAnnotationInventory({
       });
     });
 
-    if (runtime.activity?.held)
-      for (const update of updateSequence()) {
-        if (update.source !== "claim" || update.disposition !== "effective") continue;
-        if (update.revision > runtime.currentRevision) continue;
-        if (update.target.kind === "thread" && representedThreads.has(update.target.id))
-          continue;
-        if (activityAlreadyShown.has(`${update.target.kind}:${update.target.id}`))
-          continue;
-        const target =
-          update.target.kind === "thread"
-            ? placedAt(update.target.id)?.place
-            : elementById(update.target.id);
-        const age = ago(update.ts);
-        const account = [update.agent, update.text || humanized(update.action)]
+    // A task the agent opened on a page widget stands beside that widget, as Working
+    // with the line of the start running on it, or as an open task under its title.
+    // A thread's task is its thread's attention (above); the page's is the banner's.
+    for (const task of runtime.browser?.tasks ?? []) {
+      if (task.subject.kind !== "widget" || task.revision > runtime.currentRevision)
+        continue;
+      if (activityAlreadyShown.has(`widget:${task.subject.id}`)) continue;
+      const target = elementById(task.subject.id);
+      const running = task.running && !task.running.condition ? task.running : null;
+      const label = running ? "Working" : "Task open";
+      const account = [task.agent, running?.text ?? task.title]
+        .filter(Boolean)
+        .join(" · ");
+      const age = running && ago(running.ts);
+      add(groups, target, {
+        kind: "activity",
+        id: `task:${task.id}`,
+        text: labelWords(account),
+        workflowFace: Object.freeze({ ...KINDS.activity, label }),
+        context: [age && `Checked in ${age}`, running && task.title]
           .filter(Boolean)
-          .join(" · ");
-        add(groups, target, {
-          kind: "activity",
-          id: `activity:${update.id}`,
-          text: labelWords(account),
-          workflowFace: KINDS.activity,
-          workflowReceipt: claimActivity.get(
-            `${update.target.kind}:${update.target.id}`,
-          ),
-          context: [age && `Checked in ${age}`, update.text]
-            .filter(Boolean)
-            .join(" · "),
-          activate: () => revealTarget(target, account, scrollToElement),
-        });
-      }
+          .join(" · "),
+        activate: () => revealTarget(target, account, scrollToElement),
+      });
+    }
 
     for (const offered of contributionEntries()) {
       const target =

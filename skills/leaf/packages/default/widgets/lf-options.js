@@ -204,17 +204,13 @@ class OptionControl extends LitElement {
 
 class DoneControl extends LitElement {
   static properties = {
-    activate: { attribute: false },
     answered: { attribute: false },
-    available: { attribute: false },
     busy: { attribute: false },
   };
 
   constructor() {
     super();
-    this.activate = null;
     this.answered = false;
-    this.available = false;
     this.busy = false;
   }
 
@@ -242,9 +238,6 @@ class DoneControl extends LitElement {
       data-lf-offer="button"
       aria-label="Done: my picks here are complete"
       aria-pressed=${String(this.answered)}
-      aria-disabled=${String(!this.available)}
-      tabindex=${this.available ? 0 : -1}
-      @click=${this.activate}
     >
       <span
         class="lf-key-badge lf-ui"
@@ -451,7 +444,6 @@ customElements.define(
     // the pressed control's own line holds still.
     #doneRow() {
       this.#done = offer(DONE_TAG, "lf-options-done");
-      this.#done.activate = () => void this.#answer();
       this.append(this.#done);
     }
 
@@ -487,7 +479,6 @@ customElements.define(
 
     #syncDone() {
       if (!this.#done) return;
-      this.#done.available = this.#available("answer");
       this.#done.answered = Boolean(this.reading?.state.answer?.action);
       this.#done.busy = Boolean(this.#answering);
     }
@@ -593,13 +584,13 @@ customElements.define(
         answerRows.push({
           id: "option.done",
           contextKeys: this.#contextKeys("done"),
-          control: this.#done.control,
+          control: () => this.#done.control,
           decision: true,
-          bindingBadge: this.#done.bindingBadge,
+          bindingBadge: () => this.#done.bindingBadge,
           title: "Done",
           description: "Finish choosing options",
           when: () => this.#available("answer"),
-          run: () => this.#done.control.click(),
+          run: () => void this.#answer(),
         });
       commands(this, SECTION, answerRows);
     }

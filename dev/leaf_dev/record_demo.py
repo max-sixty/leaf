@@ -33,7 +33,8 @@ from leaf.render_gate.scheme import rendered_revision, served
 from leaf.served_state.context import read_page
 from leaf.served_state.page import read_served_page
 from leaf.service import PageTransaction
-from leaf.session import cmd_status
+from leaf.session import cmd_waiting
+from leaf.tasks import cmd_start
 from leaf.thread import cmd_reply
 from leaf.vendoring import cmd_init
 from PIL import Image
@@ -285,8 +286,9 @@ def record(
     shot(1600)
 
     select_text(page, "#p2", "Backfill history")
-    # The selection raises the response bar with its field open and focused, so the
-    # demo types into it and sends with Mod+Enter.
+    # The selected words offer the response action. Open it before typing, then
+    # send from the focused field with Mod+Enter.
+    page.get_by_role("button", name="Comment on selection").click()
     field = page.locator(".lf-fab-input")
     field.focus()
     page.keyboard.insert_text("Can the backfill stay online?")
@@ -306,7 +308,7 @@ def record(
     comment_id = next(
         event["id"] for event in waiter.receive() if event["kind"] == "comment"
     )
-    cmd_status(page_dir, "working", "answering the backfill question", on=comment_id)
+    cmd_start(page_dir, comment_id, "answering the backfill question")
     page.wait_for_function(
         "() => document.querySelector('.lf-status-detail').textContent.includes('answering')"
     )
@@ -322,7 +324,7 @@ def record(
     )
     (page_dir / "index.html").write_text(demo_page(2), encoding="utf-8")
     cmd_stamp(page_dir, "Backfill stays online; rehearsal progress is now 3 of 4")
-    cmd_status(page_dir, "waiting", "")
+    cmd_waiting(page_dir, "")
     page.wait_for_function(
         "() => document.querySelector('meta[name=lf-revision][data-lf-runtime]')"
         "?.content === '2'"
@@ -379,7 +381,7 @@ def shoot_stills(browser, url: str, page_dir: Path, into: Path) -> None:
         demo_page(2, folded_board(page_dir)), encoding="utf-8"
     )
     cmd_stamp(page_dir, "On-call staffing moved into During, as the board now reads")
-    cmd_status(page_dir, "waiting", "")
+    cmd_waiting(page_dir, "")
 
     for name, size, scheme in STILLS:
         with tab(browser, size, scheme) as page:
@@ -429,7 +431,7 @@ def record_demo(output: Path | None) -> None:
             cmd_init(page_dir)
         (page_dir / "index.html").write_text(demo_page(1), encoding="utf-8")
         cmd_stamp(page_dir, "Migration rehearsal started; 2 of 4 checks complete")
-        cmd_status(page_dir, "waiting", "")
+        cmd_waiting(page_dir, "")
         with claim_and_start(page_dir) as started:
             pass
         url = started.url

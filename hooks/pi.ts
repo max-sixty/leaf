@@ -6,8 +6,8 @@
  * Highly experimental: a trial of Leaf on Pi. The site and most references
  * still name only Claude Code and Codex.
  *
- * It calls `bin/leaf hook` with Claude Code's hook payload at the same points
- * of a run and puts what the hook returns in the run's context:
+ * It calls `bin/leaf hook --harness pi` with Claude Code's hook payload at the
+ * same points of a run and puts what the hook returns in the run's context:
  *
  * - a user's prompt (`before_agent_start`) is the prompt hook;
  * - a run about to settle (`agent_before_settle`) is the Stop hook, whose
@@ -18,8 +18,8 @@
  *   SessionEnd. `/reload` keeps the session, so it only stops the watch, which
  *   the reloaded extension starts again.
  *
- * As a session starts and as each run settles, it starts the watch (`bin/leaf
- * hook --watch`), which prints a line and exits once one of the session's
+ * As a session starts and as each run settles, it starts the watch (the same
+ * call with `--watch`), which prints a line and exits once one of the session's
  * pages has input. It then calls the prompt hook and sends what it returns,
  * which starts a run when none is going (and runs no prompt events of its
  * own), or steers the running one. A watch started as an interrupted run
@@ -47,11 +47,9 @@ const CUSTOM_TYPE = "leaf";
 type Payload = { hook_event_name: string; session_id: string; stop_hook_active?: boolean };
 
 /** Run the launcher with `payload` on stdin, and resolve its stdout, or "" on
- * any failure. `PI_SESSION_ID` is set for it as Pi sets it for the shell tool,
- * since the extension's own environment has none. */
+ * any failure. */
 function run(args: string[], payload: Payload, timeout?: number): { child: ChildProcess; done: Promise<string> } {
 	const child = spawn(LEAF, args, {
-		env: { ...process.env, PI_SESSION_ID: payload.session_id },
 		stdio: ["pipe", "pipe", "ignore"],
 		timeout,
 	});
@@ -68,7 +66,7 @@ function run(args: string[], payload: Payload, timeout?: number): { child: Child
 
 /** The context a hook's output puts in the turn (`Harness.hook_context`). */
 async function hook(payload: Payload): Promise<string | undefined> {
-	const out = (await run(["hook"], payload, HOOK_TIMEOUT_MS).done).trim();
+	const out = (await run(["hook", "--harness", "pi"], payload, HOOK_TIMEOUT_MS).done).trim();
 	if (!out) return undefined;
 	try {
 		return JSON.parse(out).hookSpecificOutput?.additionalContext || undefined;
@@ -111,7 +109,7 @@ export default function leaf(pi: ExtensionAPI) {
 		await stopWatch();
 		// A shutdown, or another start, may have come while the old one exited.
 		if (disposed || watch) return;
-		const started = run(["hook", "--watch"], {
+		const started = run(["hook", "--harness", "pi", "--watch"], {
 			hook_event_name: interrupted ? "Interrupt" : "Stop",
 			session_id: session,
 		});

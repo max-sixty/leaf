@@ -73,9 +73,8 @@ def test_short_inline_code_selection_offers_comment(browser, serve):
 
     for term in ("x", "id"):
         page.get_by_text(term, exact=True).select_text()
-        bar = page.locator(".lf-fab-bar")
-        expect(bar).to_be_visible()
-        expect(bar).to_have_attribute("aria-label", f"Respond to “{term}”")
+        expect(page.get_by_role("button", name="Comment on selection")).to_be_visible()
+        assert page.evaluate("() => getSelection().toString()") == term
         expect(page.locator(".lf-fab-input")).not_to_be_focused()
 
     page.keyboard.press("c")
@@ -542,7 +541,7 @@ def test_a_passage_still_offers_suggest_when_the_layer_has_no_reactions(browser,
     prose = page.locator("#prose")
     prose.select_text()
     field = page.locator(".lf-fab-input")
-    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    expect(page.get_by_role("button", name="Comment on selection")).to_be_visible()
     expect(field).not_to_be_focused()
     page.keyboard.press("c")
     expect(field).to_be_focused()

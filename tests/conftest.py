@@ -408,6 +408,10 @@ def _retire(process: subprocess.Popen) -> None:
     own group is ended through its handle, because signalling that group would
     signal the worker running the test.
     """
+    # Imported here: `interact_support` imports this module, and is loaded as the
+    # plugin `pytest_plugins` names so that its assertions are rewritten.
+    from interact_support import STATED_TIMEOUT
+
     if process.poll() is None:
         # Read the group only while the process is running and unreaped, so the
         # pid cannot have become someone else's by the time it is signalled.
@@ -415,7 +419,7 @@ def _retire(process: subprocess.Popen) -> None:
             os.killpg(process.pid, signal.SIGTERM)
         else:
             process.terminate()
-    process.wait(timeout=5)
+    process.wait(timeout=STATED_TIMEOUT)
 
 
 @pytest.fixture
@@ -439,8 +443,10 @@ def spawn():
 def dead_pid(spawn):
     """A pid that is certainly not running, for a record whose writer — a
     session, a server — has gone."""
+    from interact_support import STATED_TIMEOUT
+
     spent = spawn([sys.executable, "-c", ""])
-    spent.wait(timeout=5)
+    spent.wait(timeout=STATED_TIMEOUT)
     return spent.pid
 
 

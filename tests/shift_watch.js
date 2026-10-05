@@ -10,9 +10,10 @@
 // parent. Controls and declared regions keep their actual boxes. Runtime-declared
 // bounded reflow retains its historical ownership, stationary-boundary and clipping
 // proof. Layout coordinates remove scrolling; sticky descendants retain their
-// mechanical scroller's ownership. Portals with one unique same-tree anchor and
-// a direct native anchor inset retain that scroller too; nested CSS expressions
-// and ambiguous names receive no inferred ownership.
+// mechanical scroller's ownership. Portals with one unique anchor, in their tree or
+// inside the `anchor-scope` that limits its name, and a direct native anchor inset,
+// inline or in their tree's own rules, retain that scroller too; nested CSS
+// expressions, ambiguous names and rules that disagree receive no inferred ownership.
 //
 // Each trusted gesture owns its counted rendering until declared completion.
 // Native effects it began retain only their sampled displacement within their
@@ -110,6 +111,103 @@
     return new RegExp(
       `^(?:${anchor}|calc\\((?:${anchor}\\s*[+-]\\s*-?[\\d.]+px|-?[\\d.]+px\\s*\\+\\s*${anchor}|${anchor})\\))$`,
     ).test(value);
+  };
+  // What decides a positioned box's inset on an axis, as the declarations that can win
+  // it: an important inline one alone, else the important rules of the box's own tree
+  // that match it now, else its inline style, else every matching rule. Within a tier
+  // the cascade weighs specificity, layers and order, which no API reports, so the
+  // inset counts as anchored only where every candidate there is a direct anchor
+  // inset: rules that disagree are ambiguous, like a name that is. Rules are read only
+  // for a box naming an anchor, since every frame samples it, and only those that
+  // state an inset at all, gathered once per sheet.
+  const INSETS = ["top", "right", "bottom", "left"];
+  const insetRules = new WeakMap();
+  const rulesStatingInsets = (sheet) => {
+    const length = sheet.cssRules.length;
+    const known = insetRules.get(sheet);
+    if (known?.length === length) return known.rules;
+    const rules = [];
+    const visit = (list, conditions) => {
+      for (const rule of list) {
+        if (rule instanceof CSSStyleRule) {
+          if (INSETS.some((side) => rule.style.getPropertyValue(side)))
+            rules.push({ rule, conditions });
+        } else if (rule.cssRules)
+          visit(
+            rule.cssRules,
+            rule instanceof CSSMediaRule || rule instanceof CSSSupportsRule
+              ? [...conditions, rule]
+              : conditions,
+          );
+      }
+    };
+    visit(sheet.cssRules, []);
+    insetRules.set(sheet, { length, rules });
+    return rules;
+  };
+  const holds = (condition) =>
+    condition instanceof CSSMediaRule
+      ? matchMedia(condition.conditionText).matches
+      : CSS.supports(condition.conditionText);
+  // An inline inset loses only to an important rule, so a box with one reads those
+  // alone: the comment box's placer writes its insets on every frame it moves.
+  const declaredRules = (node, property, importantOnly) => {
+    const root = node.getRootNode();
+    const found = { important: [], normal: [] };
+    for (const sheet of [
+      ...(root.styleSheets ?? []),
+      ...(root.adoptedStyleSheets ?? []),
+    ])
+      for (const { rule, conditions } of rulesStatingInsets(sheet)) {
+        const value = rule.style.getPropertyValue(property);
+        if (!value || (importantOnly && !rule.style.getPropertyPriority(property)))
+          continue;
+        if (!conditions.every(holds)) continue;
+        let matches = false;
+        try {
+          matches = node.matches(rule.selectorText);
+        } catch {
+          // A selector `matches` cannot take, such as a pseudo-element's.
+        }
+        if (matches)
+          found[rule.style.getPropertyPriority(property) ? "important" : "normal"].push(
+            value,
+          );
+      }
+    return found;
+  };
+  const anchoredInset = (node, style, property, axis) => {
+    const inline = node.style.getPropertyValue(property);
+    if (inline && node.style.getPropertyPriority(property))
+      return anchorInset(inline, axis);
+    if (!style.positionAnchor.startsWith("--"))
+      return inline ? anchorInset(inline, axis) : false;
+    const rules = declaredRules(node, property, Boolean(inline));
+    const candidates = rules.important.length
+      ? rules.important
+      : inline
+        ? [inline]
+        : rules.normal;
+    return (
+      candidates.length > 0 && candidates.every((value) => anchorInset(value, axis))
+    );
+  };
+  // The box a positioned box's `position-anchor` names. A name an `anchor-scope`
+  // limits resolves inside the scoping box, so a name declared once per repeated
+  // component still names one anchor for each; elsewhere it must be unique in its tree.
+  const anchorOf = (node, style, anchors) => {
+    const name = style.positionAnchor;
+    if (!name.startsWith("--")) return null;
+    const names = (value) => value.split(",").map((part) => part.trim());
+    for (let at = up(node); at instanceof Element; at = up(at)) {
+      const scope = getComputedStyle(at).anchorScope;
+      if (scope !== "all" && !names(scope).includes(name)) continue;
+      const found = [at, ...at.querySelectorAll("*")].filter((el) =>
+        names(getComputedStyle(el).anchorName).includes(name),
+      );
+      return found.length === 1 ? found[0] : null;
+    }
+    return anchors.get(node.getRootNode())?.get(name) ?? null;
   };
   const boxes = (nodes) =>
     new Map([...nodes].map((node) => [node, node.getBoundingClientRect()]));
@@ -387,21 +485,15 @@
           : null;
       const paint = {
         parent: up(node),
-        anchor: range
-          ? null
-          : (anchors.get(node.getRootNode())?.get(style.positionAnchor) ?? null),
+        anchor: range ? null : anchorOf(node, style, anchors),
         anchorX:
           !range &&
           ["fixed", "absolute"].includes(style.position) &&
-          [node.style.left, node.style.right].some((value) =>
-            anchorInset(value, "left"),
-          ),
+          ["left", "right"].some((side) => anchoredInset(node, style, side, "left")),
         anchorY:
           !range &&
           ["fixed", "absolute"].includes(style.position) &&
-          [node.style.top, node.style.bottom].some((value) =>
-            anchorInset(value, "top"),
-          ),
+          ["top", "bottom"].some((side) => anchoredInset(node, style, side, "top")),
         insetX: range ? null : `${node.style.left}|${node.style.right}`,
         insetY: range ? null : `${node.style.top}|${node.style.bottom}`,
         position: range ? "static" : style.position,

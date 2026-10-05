@@ -42,8 +42,8 @@ races are arrangements, not probabilities**), and fix that cause.
 
 ## Run what the change needs
 
-The host supplies `wt`, `uv`, `jq` 1.6 or newer, Node 22 or newer, and Docker for the
-complete website boundary only. `wt setup` installs Playwright's Chromium headless
+The host supplies `wt`, `uv`, `jq` 1.6 or newer, and Node 22 or newer.
+`wt setup` installs Playwright's Chromium headless
 shell, WebKit, and Chrome, the example assets, and the npm trees; `uv run` syncs
 Python.
 
@@ -85,6 +85,10 @@ diff.
 
 GitHub Actions on Ubuntu 24.04 is the Linux authority. Use the candidate's and base
 SHA's workflow runs for Linux-specific evidence; a local container is not that runner.
+The pull request's `test` job also owns the site build, Worker dry-run deploy, and
+`verify-site wrangler` delivery checks. Reserve local Docker runs for reproducing
+concrete Worker/container failures. Wrangler's dry-run deploy builds the
+container image too, so it belongs to that same boundary.
 
 Subprocess tests invoke leaf through `LEAF_COMMAND`, and `bin/leaf` only where the
 launcher itself is the subject.

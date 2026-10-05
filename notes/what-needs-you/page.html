@@ -177,7 +177,7 @@
       <lf-tabs id="page-tabs">
         <lf-tab id="tab-now" label="Where we are">
           <section id="status">
-            <h2>Steps 1 to 3 and the Queue panel are on main; step 4 is landing</h2>
+            <h2>Steps 1 to 4 and the Queue panel are on main</h2>
             <p id="direction">
               The code for queues and tasks is marked experimental, so later agents
               change it freely. Steps 5 to 7 haven't started.
@@ -247,7 +247,11 @@
                     your move or a task, with an event in the log.
                     <code>leaf status working --on</code> goes.
                   </td>
-                  <td>Landing now</td>
+                  <td>
+                    On main (<a href="https://github.com/max-sixty/leaf/pull/1808"
+                      >#1808</a
+                    >)
+                  </td>
                 </tr>
                 <tr>
                   <th scope="row">5. Asks and tasks read as one item</th>
@@ -291,8 +295,8 @@
             <lf-ask id="after-four">
               <h3 id="after-four-heading">What after step 4?</h3>
               <p>
-                Once step 4 is on main, three steps of the plan remain. Each can start
-                then. None waits on another, though step 6 rests on
+                With step 4 on main, three steps of the plan remain. Each can start now.
+                None waits on another, though step 6 rests on
                 <a href="#task-done">who ends a task</a>, which you've marked to think
                 about first.
               </p>
@@ -562,7 +566,10 @@ stateDiagram-v2
               that wrote it. If the turn ends with the item still running, the item
               reads stalled; a later start takes it in hand again.
               <code>status waiting</code> and <code>status idle</code> put down every
-              earlier start, leaving tasks open with nothing running on them.
+              earlier start, leaving tasks open with nothing running on them. The
+              put-down is a <code>put_down</code> event in the log, so every reader,
+              including the check that decides whether your next move wakes the agent,
+              agrees on what is in hand.
             </p>
           </section>
 

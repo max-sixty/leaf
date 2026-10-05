@@ -1881,6 +1881,23 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
     expect(touch.locator("#numbered > .lf-code-copy")).to_have_css("opacity", "1")
 
 
+def test_code_copy_releases_only_its_own_scroll_stop(browser, serve):
+    source = "wide-source-" * 30
+    markup = f'<pre id="source"><code>{source}</code></pre>'
+    page = open_page(
+        browser,
+        live_url(serve(leaf_page("Code stop", markup))),
+    )
+    pre = page.locator("#source")
+    control = page.locator(".lf-chrome > .lf-code-copy")
+    expect(control).to_have_count(1)
+    assert pre.evaluate("el => el.scrollWidth > el.clientWidth")
+    pre.evaluate("(el, text) => el.replaceChildren(text)", source)
+    expect(control).to_have_count(0)
+    assert pre.evaluate("el => el.scrollWidth > el.clientWidth")
+    expect(pre).to_have_attribute("tabindex", "0")
+
+
 def test_a_block_rewritten_while_it_is_colored_keeps_its_new_text(browser, serve):
     """A second dressing pass that reaches a block whose tokens are still on their way
     leaves it to the pass in flight, so that pass colors the text the block holds when

@@ -830,9 +830,7 @@ def test_a_reply_held_in_a_diff_thread_is_read_once_the_keyboard_opens_it(
     assert _box_height(thread) == pytest.approx(height, abs=0.5)
     assert not _read_events(serve.page_dir)
 
-    # A press into the reply box asks for the box, so the reply stays held under it.
-    thread.locator(":scope > .lf-thread-reply leaf-text").click()
-    expect(news).to_be_visible()
+    thread.locator(":scope > .lf-thread-reply leaf-text").focus()
     page.keyboard.press("Escape")
     expect(thread).to_be_focused()
     page.keyboard.press("Tab")

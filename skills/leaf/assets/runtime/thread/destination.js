@@ -13,6 +13,10 @@
    availability even after Tab supersedes positioning; it never takes focus, and the
    original intent alone permits scrolling or another reveal gesture.
 
+   An arrival first shows what any seat holds of the thread (`showHeld`, held-news.js).
+   `carried` restores a reply whose surface stopped drawing it; no gesture asked for
+   that conversation, so this continuation leaves its held news in place.
+
    Held identity is the focused Thread across shadow roots. An unheld preview or
    panel conversation may accompany its page target. Canonical page targets always
    come from anchor placement, independently of whichever view draws a Thread. */
@@ -23,6 +27,7 @@ import { focused } from "../keyboard/scopes.js";
 import { replyAvailable } from "./replies.js";
 import { allThreads } from "./state.js";
 import { heldThread } from "./focus.js";
+import { showHeld } from "./held-news.js";
 import { revealHeld, surfaceFocusTarget } from "./surfaces.js";
 import { reveal } from "../widget-elements.js";
 
@@ -67,10 +72,12 @@ export function createThreadDestinations({
       flash = true,
       intent = retainUserIntent(),
       transition = null,
+      carried = false,
     } = {},
   ) {
     if (!intent()) return null;
     const mayPresent = () => (focus === false ? intent.available() : intent());
+    if (!carried) showHeld(id);
     if (!panelIsOpen() && focus !== "message") {
       const localFocus = focus ?? "reply";
       const openSurface = async () => {
@@ -135,7 +142,7 @@ export function createThreadDestinations({
       }
       if (surfaceFocusTarget(id, { focus: localFocus })) return openSurface();
     }
-    return showThread(id, { focus: focus ?? "reply", flash, intent });
+    return showThread(id, { focus: focus ?? "reply", flash, intent, carried });
   }
   return {
     openPageThread,

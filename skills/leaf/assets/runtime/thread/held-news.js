@@ -42,21 +42,19 @@
 
    - pressing its notice, or its margin marker where a widget holds it out of the flow;
    - opening the thread: a folded outlet, or a panel card the list opens;
-   - arriving at it: focus landing in the thread from outside it, whatever route took it
-     there (a t/T walk, an Ask, a marker, Tab, a press on a card's title), whether or not
-     the thread already stood open (`standing`, below);
+   - arriving at it: a t/T walk, going to one of its Asks, or any other route that takes
+     them to the thread (`showHeld`), whether or not it already stood open. Putting
+     back a reply box a surface stopped drawing is no arrival, since no gesture asked
+     for it (destination.js, `carried`);
    - adding a turn of their own there: a reply in the thread, a reaction on one of its
      messages, or a thread they start in the seat, which answers what came before it and
      so follows it.
 
    Held news also shows once none of the seat shows in the window, where its growth moves
-   nothing anyone sees. Two moves show nothing. A press into the thread, such as into
-   its reply box, asks for what it lands on, and drawing the news would move that under
-   the press. Focus the runtime hands across, as when it puts back a reply box a surface
-   stopped drawing, returns the user to the thread they stood in, which is no arrival.
-   Where the destination itself is held, as a message or an Ask in a held turn, the
-   route shows it first (`showHeld`), since nothing undrawn can take focus. Anything held
-   in a seat is not drawn, so it stays unread until it shows.
+   nothing anyone sees. A gesture that asks for something else in the thread, such as
+   pressing into its reply box, shows nothing: the news is not its result, and drawing it
+   would move the box under the press. Anything held in a seat is not drawn, so it stays
+   unread until it shows.
 
    `HeldReading` is the same rule for a widget's region whose rows only the log or the
    clock decides, such as a command's lists of stopped goals and live workers: a reading
@@ -70,7 +68,6 @@ import { keepsText, layoutPx } from "../keeps.js";
 import { keys, focused } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
 import { focusThread } from "./focus.js";
-import { placingChrome, restoringFocus } from "../focus.js";
 import { threadNames, turns } from "./model.js";
 import { allThreads } from "./state.js";
 import { THREAD } from "./selectors.js";
@@ -78,33 +75,19 @@ import { closestAcross } from "../passages.js";
 import { readApplication } from "../semantic-state.js";
 import { replyPinned } from "./reply-landing.js";
 
-/** The user's gestures this page's ledger still holds, the log not having answered them:
- *  `turn(turn)` says whether a turn is one, as it is in the turn they send it, or, for a
- *  reaction, the undo taking it back; `on(thread)` whether one touches a thread: a
- *  settlement, reply or reaction on one of its messages, a move on a widget one of them
- *  holds, or the refusal that takes one back. Their words from another tab, or a turn a
- *  seat first draws after the log answered it, as a package mirror whose render waited
- *  on work of its own does, arrive like the agent's. */
-export function ownGestures() {
-  const { unresolved, document } = readApplication();
-  const events = unresolved.map(({ event }) => event);
-  const attempts = new Set(events.map(({ attempt }) => attempt));
+// Whether a turn is the user's gesture: one this page's ledger still holds the attempt
+// of, as it does in the turn they send it, or, for a reaction, the undo taking it back.
+// Their words from another tab, or a turn a seat first draws after the log answered it,
+// as a package mirror whose render waited on work of its own does, arrive like the
+// agent's.
+function ownTurn() {
+  const events = readApplication().unresolved.map(({ event }) => event);
+  const ledger = new Set(events.map(({ attempt }) => attempt));
   const undone = new Set(
     events.filter(({ kind }) => kind === "undo").map(({ undoes }) => undoes),
   );
-  return {
-    turn: ({ author, attempt, id }) =>
-      author === "user" && (attempts.has(attempt) || undone.has(id)),
-    on(thread) {
-      const messages = new Set(thread.msgs.map(({ id }) => id));
-      return events.some(
-        (event) =>
-          messages.has(event.parent) ||
-          (event.widget &&
-            messages.has(document.descriptors.get(event.widget)?.document.message)),
-      );
-    },
-  };
+  return ({ author, attempt, id }) =>
+    author === "user" && (ledger.has(attempt) || undone.has(id));
 }
 
 // What a message draws that news can change: its words, and the reactions standing on
@@ -229,45 +212,14 @@ export function seatNotice() {
 const holders = new Set();
 
 /** Shows what every seat holds of the thread `id` names, a message's id naming its
- *  thread. Each seat draws what it released before this returns. Returns whether any
- *  seat held anything of it. */
+ *  thread: the arrival a navigation makes at it. Each seat draws what it released
+ *  before this returns. Returns whether any seat held anything of it. */
 export function showHeld(id) {
   const thread = threadNames(allThreads()).get(id)?.id ?? id;
   let shown = false;
   for (const held of holders) shown = held.show(thread) || shown;
   return shown;
 }
-
-// The thread the user stands in, which tells an arrival from a stay: focus landing in a
-// thread other than this one arrives there, by whatever route took it. Focus the
-// runtime puts back or a chrome placement hands across (`restoringFocus`,
-// `placingChrome`) moves the standing without arriving. A press into a thread stands
-// the user where it lands, so the focus it gives arrives nowhere, except a press on a
-// card's title, which asks for the thread. The release is synchronous, ahead of any
-// listener that lands the thread, so the landing measures what the thread now shows.
-let standing = null;
-const threadAt = (node) => {
-  const thread = closestAcross(node, THREAD);
-  return thread?.dataset.id ?? thread?.dataset.thread ?? null;
-};
-addEventListener(
-  "pointerdown",
-  (event) => {
-    const target = event.composedPath()[0];
-    standing = closestAcross(target, ".lf-thread-summary") ? null : threadAt(target);
-  },
-  { capture: true, passive: true },
-);
-addEventListener(
-  "focusin",
-  (event) => {
-    const id = threadAt(event.composedPath()[0]);
-    if (id === standing) return;
-    standing = id;
-    if (id && !restoringFocus() && !placingChrome()) showHeld(id);
-  },
-  true,
-);
 
 export class HeldNews {
   #seat;
@@ -326,7 +278,7 @@ export class HeldNews {
   }
 
   #take(prior, reading, row) {
-    const own = ownGestures().turn;
+    const own = ownTurn();
     const arrived = reading.threads.filter(({ key }) => !this.#known.has(key));
     // A thread the user starts is their gesture, and the threads before it show with it.
     if (arrived.some(({ messages }) => messages[0] && own(messages[0])))
@@ -633,7 +585,7 @@ export class HeldArrivals {
   }
 
   #take(threads, drawn) {
-    const own = ownGestures().turn;
+    const own = ownTurn();
     const keys = new Set(threads.map(({ thread }) => thread.key));
     this.#release(({ key }) => !keys.has(key));
     // Settling a thread or reopening it is the user's gesture in it, as a turn is. A

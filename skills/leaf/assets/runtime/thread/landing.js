@@ -448,13 +448,6 @@ async function showThreadNow(id, focus, flash, revealThread, threadsBox, mayArri
     )
     ?.classList.toggle("grow", false);
   threadsBox.revealNavigation(threadNames(allThreads()).get(id)?.id ?? id);
-  // A message the thread holds back has no node to land on until it shows. Arriving at
-  // the thread shows it anyway (held-news.js); a message destination needs it first.
-  if (
-    focus === "message" &&
-    !threadsBox.querySelector(`.lf-msg[data-mid="${CSS.escape(id)}"]`)
-  )
-    showHeld(id);
   const destination = revealDestination();
   if (!destination) return null;
   let node = destination.node;
@@ -598,6 +591,7 @@ export function createThreadLanding({
     {
       focus = "reply",
       flash = true,
+      carried = false,
       intent = retainUserIntent({
         source: focused(),
         available: () => threadsBox.isConnected,
@@ -606,6 +600,7 @@ export function createThreadLanding({
     } = {},
   ) => {
     if (!intent.handoff(() => setPanel(true))) return Promise.resolve(null);
+    if (!carried) showHeld(id);
     const ready = showThreadNow(id, focus, flash, revealThread, threadsBox, intent);
     // Pointer and keyboard routes deliberately discard this ticket. The thread
     // coordinator reports its one failure; the landing result keeps that rejection out

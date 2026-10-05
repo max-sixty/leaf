@@ -1,6 +1,6 @@
 /* lf-swipe-deck: a position-recorded classification queue with one activation path.
- * The Pass and Keep buttons own the semantic action. Arrow keys and pointer swipes call
- * those buttons, whose click handler first places one card optimistically and then sends
+ * The Pass and Keep command rows own native button and keyboard activation. Pointer
+ * swipes call those buttons. Their shared callback places one card optimistically and sends
  * the same absolute action the runtime replays after reload, sync, or undo. A card the
  * user classified can return to the queue. While its classification is still being
  * sent, Return withdraws that attempt, so a refused classification leaves nothing
@@ -134,8 +134,6 @@ customElements.define(
       for (const card of this.#piles().flatMap((pile) => this.#cards(pile)))
         this.#returnControl(card);
 
-      this.#pass.addEventListener("click", () => this.#swipe("pass", -1));
-      this.#keep.addEventListener("click", () => this.#swipe("keep", 1));
       commands(
         this,
         "In a swipe deck",
@@ -150,7 +148,7 @@ customElements.define(
             title: "Pass",
             description: "Pass the active card",
             when: () => this.#canSwipe(),
-            run: () => this.#pass.click(),
+            run: () => this.#swipe("pass", -1),
           },
           {
             id: "swipe.keep",
@@ -162,7 +160,7 @@ customElements.define(
             title: "Keep",
             description: "Keep the active card",
             when: () => this.#canSwipe(),
-            run: () => this.#keep.click(),
+            run: () => this.#swipe("keep", 1),
           },
         ],
         {
@@ -222,8 +220,6 @@ customElements.define(
       if (reading === this.#painted) return;
 
       const keysMoved = available !== this.#keysAvailable;
-      this.#pass.toggleAttribute("disabled", !available);
-      this.#keep.toggleAttribute("disabled", !available);
       keepsText(this.#progress, progress);
 
       for (const { pile, verdict, cards } of piles) {

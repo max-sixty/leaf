@@ -163,7 +163,7 @@ const newsLabel = ({ reopened, replies, reactions, threads }) =>
 export function newsNotice() {
   const node = offer("button", "lf-outline-chip lf-thread-news");
   let open = () => null;
-  node.onclick = () => {
+  const show = () => {
     const standing = focused() === node;
     const landing = open();
     if (standing && landing) focusThread(landing, { preventScroll: true });
@@ -174,7 +174,8 @@ export function newsNotice() {
       keys: PRESS,
       description: "Show what is waiting",
       title: "show it",
-      run: () => node.click(),
+      control: node,
+      run: show,
     },
   ]);
   return {

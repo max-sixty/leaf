@@ -210,7 +210,6 @@ customElements.define(
         this.getAttribute("submit-label") ?? "Submit changes",
       );
       this.#revert.addEventListener("click", () => this.#revertDraft());
-      this.#submit.addEventListener("click", () => void this.#submitChanges());
       actions.append(this.#revert, this.#submit);
 
       this.#editor.append(toolbar, this.#candidateList, targets, changes, actions);
@@ -319,7 +318,7 @@ customElements.define(
             decision: true,
             title: () => this.#submit.textContent,
             when: () => this.#canSubmit(),
-            run: () => this.#submit.click(),
+            run: () => void this.#submitChanges(),
           },
           {
             id: "targeting.focused-element",
@@ -807,7 +806,6 @@ customElements.define(
 
     #paintAvailability() {
       if (!this.#submit) return;
-      this.#submit.toggleAttribute("disabled", !this.#canSubmit());
       this.#revert.toggleAttribute("disabled", !this.#dirty);
       paintKeys();
     }

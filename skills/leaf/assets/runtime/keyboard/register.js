@@ -25,7 +25,13 @@ import {
   lineOf,
   word,
 } from "./bindings.js";
-import { focused } from "./scopes.js";
+import { focused, paintKeys, watchCommandScopes } from "./scopes.js";
+// Native activation reads declarations without assembling or validating the keyboard
+// during feature construction. Both element and page commands share one control owner.
+watchCommandScopes(() => [
+  ...[...scopes.values()].flat(),
+  { rows: [...commands.values()] },
+]);
 import { under } from "../shadow.js";
 
 export const ELEMENTS = Symbol("the scopes of the focused element");
@@ -137,12 +143,14 @@ export function pageScope(name, declaration) {
   scopes.set(name, declarations);
   resolved = null;
   validated = false;
+  paintKeys();
   return () => {
     const remaining = scopes.get(name)?.filter((item) => item !== declaration) ?? [];
     if (remaining.length) scopes.set(name, remaining);
     else scopes.delete(name);
     resolved = null;
     validated = false;
+    paintKeys();
   };
 }
 
@@ -155,6 +163,7 @@ export function pageCommand(row) {
   commands.set(row.id, row);
   resolved = null;
   validated = false;
+  paintKeys();
   return row;
 }
 

@@ -895,8 +895,6 @@ export function activateSelectedCommand() {
   return true;
 }
 
-commandReferenceClose.onclick = () => closeCommandReference();
-
 export const commandReferenceOpen = () => commandReferenceIsOpen;
 // The opening command supplies the action chosen from this particular reference. The
 // rendered catalog retains only ids and sends one back through that injected authority.
@@ -972,7 +970,7 @@ pageScope("command reference", {
           : "close command reference",
       control: () => commandReferenceClose,
       runFromCommandReference: false,
-      run: () => commandReferenceClose.click(),
+      run: () => closeCommandReference(),
     },
   ],
 });

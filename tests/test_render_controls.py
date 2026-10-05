@@ -128,6 +128,7 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
   connectedCallback() {
     this.count = 0;
     this.allowed = true;
+    this.disabled = false;
     this.result = offer('output', '', '0');
     const editor = offer('input');
     editor.setAttribute('aria-label', 'Practice note');
@@ -135,7 +136,7 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
     this.append(this.control, editor, this.result);
     const disable = offer('button', '', 'Toggle disabled');
     disable.onclick = () => {
-      this.control.disabled = !this.control.disabled;
+      this.disabled = !this.disabled;
       paintKeys();
     };
     const ariaDisable = offer('button', '', 'Toggle ARIA disabled');
@@ -154,20 +155,19 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
       paintKeys();
     };
     const quiet = offer('button', '', 'Quiet action');
-    quiet.onclick = () => keepsText(quiet, 'Quiet action applied');
     this.append(disable, ariaDisable, guard, replace, quiet);
     const scope = commandScope('In the command probe', [
       {
         id: 'probe.apply', keys: ['x'], contextKeys: ['1'],
         control: () => this.control, bindingBadge: () => this.badge,
         title: 'Apply the operation', line: 'apply',
-        when: () => this.allowed,
-        run: () => this.control.click(),
+        when: () => this.allowed && !this.disabled,
+        run: () => keepsText(this.result, String(++this.count)),
       },
       {
         id: 'probe.quiet', keys: ['q'], control: quiet,
         title: 'Activate without an inline hint', line: 'quiet action',
-        run: () => quiet.click(),
+        run: () => keepsText(quiet, 'Quiet action applied'),
       },
     ]);
     commands(this, scope);
@@ -183,7 +183,6 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
     this.badge = offer('kbd', 'lf-key-badge');
     this.badge.setAttribute('aria-hidden', 'true');
     this.control.prepend(this.badge);
-    this.control.onclick = () => { keepsText(this.result, String(++this.count)); };
   }
 });
 """
@@ -316,6 +315,24 @@ def test_widget_owned_inline_hints_follow_reachable_commands(browser, serve, hin
     rendered(page)
     expect(result).to_have_text("4")
 
+    # Native pointer, Enter and Space use the command's callback once each. The
+    # owner's private availability also disables a real pointer press, then restores
+    # the same retained button without adding another activation listener.
+    action.click()
+    expect(result).to_have_text("5")
+    page.keyboard.press("Enter")
+    expect(result).to_have_text("6")
+    page.keyboard.press("Space")
+    expect(result).to_have_text("7")
+    widget.get_by_role("button", name="Toggle availability").click()
+    expect(action).to_be_disabled()
+    box = action.bounding_box()
+    page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    expect(result).to_have_text("7")
+    widget.get_by_role("button", name="Toggle availability").click()
+    action.click()
+    expect(result).to_have_text("8")
+
 
 @pytest.mark.parametrize("annotation_mode", ["overlay", "page"])
 def test_widget_context_keys_work_without_an_ask(browser, serve, annotation_mode):
@@ -384,15 +401,13 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
     for (const badge of [firstHint, secondHint]) badge.setAttribute('aria-hidden', 'true');
     first.prepend(firstHint);
     second.prepend(secondHint);
-    DISABLE_FIRST
+    const firstUnavailable = DISABLE_FIRST
     const apply = (binding) => keepsText(result, binding === '1' ? 'First applied' : 'Second applied');
-    first.onclick = () => apply('1');
-    second.onclick = () => apply('2');
     this.append(first, second, result);
     commands(this, 'In parameterized actions', [{
       id: 'probe.apply', keys: ['1', '2'], title: 'Apply an action', line: 'apply',
       routes: [
-        {id: 'probe.first', binding: '1', control: first,
+        {id: 'probe.first', binding: '1', control: first, when: () => !firstUnavailable,
          bindingBadge: firstHint, title: 'Apply the first action'},
         {id: 'probe.second', binding: '2', control: second,
          bindingBadge: secondHint, title: 'Apply the second action'},
@@ -420,9 +435,9 @@ def test_disabled_command_route_keeps_its_key_and_enabled_sibling(
     """
     module = KEYBOARD_ROUTE_MODULE.replace(
         "DISABLE_FIRST",
-        "first.disabled = true;"
+        "true;"
         if disabled == "native"
-        else "first.setAttribute('aria-disabled', 'true');",
+        else "false; first.setAttribute('aria-disabled', 'true');",
     )
     page = open_page(
         browser,
@@ -489,8 +504,6 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
     for (let index = 1; index <= 12; index++) {
       const control = offer('button', '', `Action ${index}`);
       const apply = () => keepsText(result, `Action ${index} applied`);
-      control.onclick = index === 11
-        ? () => keepsText(result, 'Action 11 clicked') : apply;
       this.append(control);
       rows.push({id: `probe.action-${index}`, title: `Action ${index}`, decision: true,
         contextKeys: index <= 9 ? [String(index)] : index === 10 ? ['F10'] : [],
@@ -548,7 +561,7 @@ def test_context_commands_keep_widget_assigned_aliases_and_source_lifetime(
     page.keyboard.press("F12")
     expect(result).to_have_text("Action 12 applied")
     page.get_by_role("button", name="Action 11", exact=True).click()
-    expect(result).to_have_text("Action 11 clicked")
+    expect(result).to_have_text("Action 11 applied")
     page.keyboard.press("?")
     page.keyboard.press("?")
     unbound = page.locator(
@@ -882,7 +895,6 @@ customElements.define('lf-verdict', class extends HTMLElement {
     inheritedHint.setAttribute('aria-hidden', 'true');
     const result = offer('output', '', '0');
     let count = 0;
-    control.onclick = () => keepsText(result, String(++count));
     this.append(control, inheritedHint, result);
     commands(this, 'In the inspection', [{
       id: 'probe.inspect', keys: ['x'], title: 'Inspect the proposal', line: 'inspect',

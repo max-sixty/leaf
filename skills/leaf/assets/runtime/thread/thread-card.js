@@ -631,7 +631,6 @@ export class ThreadView {
         `lf-btn ${reopen ? "lf-reopen" : "lf-resolve"} ${state.icon ? "lf-icon-action" : "lf-thread-action"}`,
       );
       button.type = "button";
-      button.onclick = this.#settle;
       this.#settlements.set(face, button);
       const word = reopen ? "Reopen" : "Resolve";
       keys(button, `On a thread's ${word} button`, [
@@ -640,12 +639,12 @@ export class ThreadView {
           keys: PRESS,
           description: `${word} it`,
           title: word.toLowerCase(),
-          when: () => !this.#model.settlement?.pending,
-          run: () => button.click(),
+          control: button,
+          when: () => !this.#model.settlement?.pending && !this.#model.folding,
+          run: this.#settle,
         },
       ]);
     }
-    keeps(button, "aria-disabled", state.pending || model.folding);
     keeps(button, "aria-busy", state.pending && !model.folding);
     if (state.icon) {
       const label = model.folding ? "Resolved" : state.label;

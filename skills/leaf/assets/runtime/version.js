@@ -333,15 +333,8 @@ export function createVersionController({
     description: "Open a numbered version",
     title: "open version",
     when: () => versionsToWalk() && numberedVersionRoutes().length > 0,
-    // The focused menu and its standing picker share this route. The first gives g V a
-    // visible compact hint; the second preserves the key across a browser hand-back that
-    // leaves the menu open with focus at its door. Close first, as the numbered key is the
-    // keyboard form of pressing that row; this matters when it names the version already
-    // being read and travel itself is a no-op.
-    run: (binding) => {
-      closeVersionMenu();
-      goVersion(+binding);
-    },
+    // The focused menu and its standing picker delegate each numbered key to the
+    // native row. Its view closes the menu and activates that exact entry once.
   };
   // The menu's own scope. The walk is the menu's rather than the page's, because ArrowUp and
   // ArrowDown anywhere else are the page's own scroll; ⏎ is the browser's, a row being a
@@ -503,7 +496,6 @@ export function createVersionController({
     // The same predicate the menu's Escape stands on, so the key cannot open a layer the
     // way out is not live over. The walk being empty is the menu's business, not this key's.
     when: versionsOffered,
-    run: () => versionBtn.click(),
   };
 
   let versionsWalkable = false;

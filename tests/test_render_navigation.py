@@ -12255,17 +12255,9 @@ def test_typing_in_a_selected_comment_wins_over_page_shortcuts(browser, serve):
     page.keyboard.press("?")
     page.keyboard.press("?")
     reference = page.locator(".lf-command-reference")
-    close = page.locator(".lf-command-reference-close")
     expect(reference).to_be_visible()
-    close.evaluate(
-        """control => control.addEventListener('click', () => {
-          control.dataset.shortcutClicks =
-            String(Number(control.dataset.shortcutClicks || 0) + 1);
-        })"""
-    )
     page.keyboard.press("Escape")
     expect(reference).to_be_hidden()
-    expect(close).to_have_attribute("data-shortcut-clicks", "1")
 
 
 def test_submit_shortcuts_activate_the_controls_that_promise_the_action(browser, serve):
@@ -12288,22 +12280,14 @@ def test_submit_shortcuts_activate_the_controls_that_promise_the_action(browser,
     expect(field).not_to_be_focused()
     page.keyboard.press("c")
     expect(field).to_be_focused()
-    send = composer.locator(".lf-compose-field .lf-compose-submit")
-    send.evaluate(
-        """control => control.addEventListener('click', () => {
-          document.body.dataset.composerShortcutClicks =
-            String(Number(document.body.dataset.composerShortcutClicks || 0) + 1);
-        })"""
-    )
     write(field, "Send through the compact control.")
     page.keyboard.press("Shift+Enter")
-    assert page.locator("body").get_attribute("data-composer-shortcut-clicks") is None
     expect(field).to_have_js_property("value", "Send through the compact control.\n")
     expect(field).to_have_attribute(
         "aria-keyshortcuts", "Enter Meta+Enter Control+Enter"
     )
-    page.keyboard.press("Enter")
-    expect(page.locator("body")).to_have_attribute("data-composer-shortcut-clicks", "1")
+    with sending(page, "the composer shortcut"):
+        page.keyboard.press("Enter")
     expect(composer).to_be_hidden()
     # The send left the user on the element the new thread's card is about, and letting
     # go of it takes the card down.
@@ -13982,3 +13966,111 @@ def test_a_page_element_named_host_leaves_the_keyboard_climb_at_the_document(
     panel_settled(page)
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
+
+
+def test_a_command_button_owns_activation_and_the_native_form_default(browser, serve):
+    """A command's pointer/native-key press and shortcut perform one semantic result."""
+    page = open_page(browser, serve(NOTED_PAGE))
+    page.evaluate(
+        """async () => {
+          const {commands, paintKeys} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const form = document.createElement('form');
+          const button = document.createElement('button');
+          button.id = 'command-form-button';
+          button.textContent = 'Apply command';
+          form.append(button);
+          document.querySelector('main').prepend(form);
+          window.commandForm = {runs: 0, submits: 0, available: true,
+            invalidate: paintKeys};
+          form.addEventListener('submit', event => {
+            event.preventDefault();
+            window.commandForm.submits++;
+          });
+          commands(form, 'In the command form', [{
+            id: 'test.apply-form', keys: ['x'], title: 'Apply command', control: button,
+            when: () => window.commandForm.available,
+            run: () => window.commandForm.runs++,
+          }]);
+        }"""
+    )
+    button = page.locator("#command-form-button")
+    rendered(page)
+    expect(button).not_to_have_attribute("aria-keyshortcuts")
+    page.keyboard.press("x")
+    assert page.evaluate("() => commandForm.runs") == 0
+    button.click()
+    page.keyboard.press("Enter")
+    page.keyboard.press("Space")
+    page.keyboard.press("x")
+    assert page.evaluate("() => [commandForm.runs, commandForm.submits]") == [4, 0]
+    expect(button).to_have_attribute("aria-keyshortcuts", "x")
+    page.evaluate("() => {commandForm.available = false; commandForm.invalidate();}")
+    expect(button).to_be_disabled()
+    page.keyboard.press("x")
+    assert page.evaluate("() => [commandForm.runs, commandForm.submits]") == [4, 0]
+    page.evaluate("() => {commandForm.available = true; commandForm.invalidate();}")
+    expect(button).to_be_enabled()
+    button.click()
+    assert page.evaluate("() => [commandForm.runs, commandForm.submits]") == [5, 0]
+    # The platform exempts the first legend in a disabled fieldset. Command-owned
+    # disabled output must follow that constraint without trapping its previous paint.
+    page.evaluate(
+        """() => {
+          const fieldset = document.createElement('fieldset');
+          fieldset.disabled = true;
+          const legend = document.createElement('legend');
+          fieldset.append(legend, document.querySelector('#command-form-button'));
+          document.querySelector('form').append(fieldset);
+          commandForm.legend = legend;
+          commandForm.invalidate();
+        }"""
+    )
+    expect(button).to_be_disabled()
+    page.evaluate(
+        """() => {
+          commandForm.legend.append(document.querySelector('#command-form-button'));
+          commandForm.invalidate();
+        }"""
+    )
+    expect(button).to_be_enabled()
+    button.click()
+    assert page.evaluate("() => [commandForm.runs, commandForm.submits]") == [6, 0]
+    page.evaluate(
+        """async () => {
+          const {commands} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          document.querySelector('fieldset').disabled = false;
+          const one = document.querySelector('#command-form-button');
+          const two = document.createElement('button');
+          two.id = 'command-form-second';
+          two.textContent = 'Second route';
+          one.form.append(two);
+          commandForm.routes = [];
+          commands(one.form, 'Routed form', [{
+            id: 'test.form-routes', keys: ['1', '2'], title: 'Apply route', control: one,
+            routes: [{id: 'test.form-one', title: 'First', binding: '1'},
+              {id: 'test.form-two', title: 'Second', binding: '2', control: two}],
+            run: binding => commandForm.routes.push(binding),
+          }]);
+          one.setAttribute('aria-disabled', 'true');
+          commandForm.invalidate();
+        }"""
+    )
+    second = page.locator("#command-form-second")
+    expect(button).to_be_disabled()
+    second.click()
+    page.keyboard.press("1")
+    page.keyboard.press("2")
+    assert page.evaluate("() => commandForm.routes") == ["2", "2"]
+    # A stale enabled native seat still consumes the command's form default when
+    # genuine ARIA availability refuses its activation.
+    page.evaluate(
+        """() => {
+          const one = document.querySelector('#command-form-button');
+          one.disabled = false;
+          one.click();
+        }"""
+    )
+    assert page.evaluate("() => [commandForm.routes, commandForm.submits]") == [
+        ["2", "2"],
+        0,
+    ]

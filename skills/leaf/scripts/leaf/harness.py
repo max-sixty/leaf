@@ -815,11 +815,7 @@ def message_claude_code_session(session_id: str, text: str) -> bool:
                 peer.settimeout(1)
                 peer.connect(address)
                 peer.sendall("".join(json.dumps(f) + "\n" for f in frames).encode())
-        except (OSError, ValueError, KeyError, TypeError, StopIteration) as _error:
-            if os.environ.get("LF_NUDGE_TRACE"):
-                print("SOCKET-FAIL", record, repr(_error), file=sys.stderr, flush=True)
+        except (OSError, ValueError, KeyError, TypeError, StopIteration):
             continue
         return True
-    if os.environ.get("LF_NUDGE_TRACE"):
-        print("NO-RECORDS", session_id, _registry_listing, file=sys.stderr, flush=True)
     return False

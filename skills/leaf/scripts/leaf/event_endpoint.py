@@ -178,27 +178,6 @@ def nudge_unwatched(page: PageTransaction) -> None:
     present, turn = claimant_reading(page_dir, page.events)
     stamp = claim.get("turn_closed") or claim.get("turn_opened")
     mark = f"{claim['turn']}@{stamp}"
-    import os as _os
-    import sys as _sys
-
-    if _os.environ.get("LF_NUDGE_TRACE"):
-        print(
-            "NUDGE",
-            {
-                "turn": turn,
-                "takes": takes_input(present, turn),
-                "mark": mark,
-                "messaged": claim.get("messaged_ending"),
-                "listening": present["listening"],
-                "alive": present["session_alive"],
-                "live": present["live_turn"],
-                "opened": present["turn_opened"],
-                "closed": present["turn_closed"],
-                "status": present["status"],
-            },
-            file=_sys.stderr,
-            flush=True,
-        )
     if (
         turn.ended is not None
         and not takes_input(present, turn)

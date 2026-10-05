@@ -592,7 +592,6 @@
   const waiting = [];
   const tick = (time) => {
     const at = read(time);
-    (window.__lfTrace ??= []).push(['tick', time, at, document.getElementById('field')?.getBoundingClientRect().left, document.getElementById('field')?.getBoundingClientRect().top, document.getElementById('target')?.getBoundingClientRect().left, document.getElementById('scroller')?.scrollLeft, open ? [open.start, open.through, open.typing?.until ?? null] : null]);
     if (open) {
       // Effects begun before news retain their exact property evidence below.
       // A persistent attachment or a still-running time effect does not keep the
@@ -632,7 +631,6 @@
       const holding = [];
       for (let at = field; at instanceof Element; at = up(at)) holding.push(at);
       const start = nativePerformance.now();
-      (window.__lfTrace ??= []).push(['beforeinput', start]);
       const at = read(start, false);
       begin(start, {
         field,
@@ -1027,7 +1025,6 @@
             (fromPaint.visible || toPaint.visible) &&
             !permittedReflow({ node, previousRect, currentRect }, around)
           )
-            (window.__lfTrace ??= []).push(['pending', name(node), around[before].at, around[after].at, previousRect.left, previousRect.top, currentRect.left, currentRect.top, scroll.left, scroll.top, poseAt(node, around[before].at), retainedFrom]),
             pendingMotion.push({
               node,
               fragment: i,
@@ -1145,7 +1142,6 @@
   const observedPaint = new WeakMap();
   const judge = (entries) => {
     for (const entry of entries) {
-      (window.__lfTrace ??= []).push(['judge', entry.startTime, entry.sources.map((s) => name(s.node)), pendingMotion.length]);
       const at = entry.startTime;
       // The frame that painted the shift, and the next, whose start reads what it
       // painted. Readings older than are kept are gone (-1).
@@ -1169,7 +1165,6 @@
     }
   };
   const observer = new PerformanceObserver((list) => {
-    (window.__lfTrace ??= []).push(['callback', nativePerformance.now(), list.getEntries().map((e) => [e.startTime, e.sources.map((x) => name(x.node))]), innerWidth, innerHeight]);
     resized();
     const entries = list.getEntries();
     for (const entry of entries) {
@@ -1188,7 +1183,6 @@
       // endpoint. Retain the native entry for the ordinary frame ledger instead.
       if (renderings.some(({ start }) => start > entry.startTime)) continue;
       const at = read(nativePerformance.now(), false);
-      (window.__lfTrace ??= []).push(['observed', entry.startTime, at, document.getElementById('field')?.getBoundingClientRect().left]);
       observedPaint.set(entry, {
         at,
         nodes: everything(),
@@ -1204,7 +1198,6 @@
   // can outlive any number of paint checkpoints. Unadmitted movement before this
   // checkpoint was not painted as a layout shift (e.g. a transform-only move).
   const retire = (through) => {
-    (window.__lfTrace ??= []).push(['retire', through, pendingMotion.length, waiting.length]);
     for (let i = pendingMotion.length - 1; i >= 0; i--)
       if (
         pendingMotion[i].after <= through &&
@@ -1234,7 +1227,6 @@
     // input pose its readers still need. All coordinate histories keep the same
     // earliest required reading.
     retainedFrom = Math.min(needed, frames[0]?.at ?? -Infinity);
-    (window.__lfTrace ??= []).push(['retained', retainedFrom, frames.length]);
     for (let i = renderings.length - 1; i >= 0; i--) {
       const rendering = renderings[i];
       if (

@@ -1552,18 +1552,8 @@ def test_native_anchor_scroll_retains_local_motion_proof(browser, fault, transfo
 <p id="evidence" style="position:absolute;left:10px;top:400px">Independent painted source</p>
 <script>field.addEventListener('beforeinput',()=>{{scroller.scrollLeft+=20;scroller.scrollTop+=20;evidence.style.left='30px';{change}}})</script></body>""")
     )
-    import os as _os
-    _mode = _os.environ.get("LF_SETUP", "")
-    if _mode == "one":
-        page.evaluate("""() => new Promise((done) => {
-            scroller.scrollLeft=20;scroller.scrollTop=20;
-            requestAnimationFrame(() => setTimeout(done));
-        })""")
-    elif _mode == "none":
-        page.evaluate("scroller.scrollLeft=20;scroller.scrollTop=20")
-    else:
-        page.evaluate("scroller.scrollLeft=20;scroller.scrollTop=20")
-        paint(page)
+    page.evaluate("scroller.scrollLeft=20;scroller.scrollTop=20")
+    paint(page)
     before = page.locator("#field").bounding_box()
     page.locator("#field").fill("a")
     page.screenshot()
@@ -1572,13 +1562,7 @@ def test_native_anchor_scroll_retains_local_motion_proof(browser, fault, transfo
     assert page.evaluate("[scroller.scrollLeft,scroller.scrollTop]") == [40, 40]
     assert before != after
     judge_watches()
-    import json as _json
-    _trace = "\n".join(_json.dumps(row) for row in page.evaluate("window.__lfTrace"))
-    if _os.environ.get("LF_TRACE"):
-        print(_trace)
     errors = take_browser_errors(page)
-    if errors and not fault:
-        print("TRACE-BEGIN\n" + _trace + "\nTRACE-END")
     if fault:
         assert any(
             "typing in textarea#field moved textarea#field" in error for error in errors

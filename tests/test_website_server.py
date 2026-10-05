@@ -3595,14 +3595,14 @@ def test_a_turn_that_never_answered_is_reported_before_the_threads_panel():
     with pytest.raises(RuntimeError) as stopped:
         journey.check_turn_answered(
             "https://leaf.page/examples/triage-board/",
-            "Deployment 446b8fe9 verified",
+            "446b8fe9",
             stalled,
             1,
             1,
         )
     assert str(stopped.value) == (
-        "https://leaf.page/examples/triage-board/ agent did not publish "
-        "‘Deployment 446b8fe9 verified’; it reached revision 1 from 1 "
+        "https://leaf.page/examples/triage-board/ agent did not publish a revision "
+        "naming ‘446b8fe9’; it reached revision 1 from 1 "
         "with the page reading answering and did not reply; source validation: no error"
     )
 
@@ -3618,7 +3618,7 @@ def test_a_turn_that_never_answered_is_reported_before_the_threads_panel():
     )
     journey.check_turn_answered(
         "https://leaf.page/examples/triage-board/",
-        "Deployment 446b8fe9 verified",
+        "446b8fe9",
         answered,
         1,
         1,
@@ -3653,14 +3653,14 @@ def test_a_missing_publication_reports_the_real_source_validation_reading(
     with pytest.raises(RuntimeError) as stopped:
         journey.check_turn_answered(
             "https://leaf.page/examples/triage-board/",
-            "Deployment 446b8fe9 verified",
+            "446b8fe9",
             journey.TurnReading(state, None, [reply], reply),
             1,
             revision,
         )
     assert str(stopped.value) == (
-        "https://leaf.page/examples/triage-board/ agent did not publish "
-        f"‘Deployment 446b8fe9 verified’; it reached revision {revision} from {revision} "
+        "https://leaf.page/examples/triage-board/ agent did not publish a revision "
+        f"naming ‘446b8fe9’; it reached revision {revision} from {revision} "
         f"with the page reading {state['activity']['kind']}; it replied: deployment verified"
         f"; source validation: {state['source_error'] or 'no error'}"
     )
@@ -4203,9 +4203,9 @@ class _StateReads:
 class _FailedFirstTurn:
     """A deployed page whose first startup fails and whose second ask succeeds."""
 
-    def __init__(self, heading: str, failure: str = "startup_failed"):
+    def __init__(self, recorded: str, failure: str = "startup_failed"):
         self.failure = failure
-        self.heading = heading
+        self.recorded = recorded
         self.request = self
         self.keyboard = self
         self.comments: list[dict] = []
@@ -4272,7 +4272,7 @@ class _FailedFirstTurn:
     def get(self, url: str, **kwargs) -> _Read:
         if url.endswith("/api/state"):
             return _Read(self.state())
-        return _Read({}, f"<h1>{self.heading}</h1>")
+        return _Read({}, f"<h1>{self.recorded}</h1>")
 
     def state(self) -> dict:
         events = [
@@ -4303,8 +4303,7 @@ class _FailedFirstTurn:
 @pytest.mark.parametrize("failure", ["startup_failed", "rate_limited"])
 def test_the_deploy_gate_retries_only_startup_failures(failure):
     """A startup retry gets a fresh attempt; a rate limit ends the pass immediately."""
-    heading = "Deployment abcd1234 verified"
-    context = _FailedFirstTurn(heading, failure)
+    context = _FailedFirstTurn("Deployment abcd1234 verified", failure)
     session = journey.Session(
         context,
         context,
@@ -4315,7 +4314,7 @@ def test_the_deploy_gate_retries_only_startup_failures(failure):
         {"Leaf-Layer": "layer", "Leaf-Release": "release"},
         None,
     )
-    asked = journey.ask_until_answered(session, heading)
+    asked = journey.ask_until_answered(session, "abcd1234")
     if failure == "rate_limited":
         assert asked.asks == 1
         assert asked.turn.answer is None
@@ -4552,7 +4551,7 @@ def test_the_deploy_gate_stops_reading_a_turn_the_container_has_closed(
         session,
         comment,
         1,
-        "Deployment abcd1234 verified",
+        "abcd1234",
         None,
         # The suite's deadline rather than `TURN_LIMIT`: a wait that stopped
         # reading this reply comes back on the next assertion within it.
@@ -4594,6 +4593,70 @@ def test_a_title_written_after_the_reply_is_still_timed():
     }
 
 
+def test_an_agent_turn_splits_into_delivery_model_and_tool_phases():
+    """A harness journey splits the turn it ran into the phases a reader adds up:
+    the wait for the turn to start, each model call, and each tool phase with its
+    calls, which end only when every call started together has returned."""
+
+    def at(seconds: float) -> str:
+        return f"2026-10-04T12:00:{seconds:06.3f}-07:00"
+
+    def call(seconds: float, *uses: tuple[str, str]) -> dict:
+        content = [
+            {"type": "tool_use", "id": id, "name": "Bash", "input": {"command": cmd}}
+            for id, cmd in uses
+        ]
+        return {
+            "type": "assistant",
+            "message": {"content": content},
+            "received_at": at(seconds),
+        }
+
+    def result(seconds: float, id: str) -> dict:
+        content = [{"type": "tool_result", "tool_use_id": id}]
+        return {
+            "type": "user",
+            "message": {"content": content},
+            "received_at": at(seconds),
+        }
+
+    comment, _, reply = TURN_LOG
+    stream = [
+        {"type": "system", "subtype": "hook_response", "received_at": at(0.2)},
+        {"type": "system", "subtype": "init", "received_at": at(0.5)},
+        {
+            "type": "assistant",
+            "message": {"content": [{"type": "thinking", "thinking": ""}]},
+            "received_at": at(2.0),
+        },
+        call(4.0, ("ack", "leaf delivery ack d1"), ("read", "cat threads.md")),
+        result(4.1, "read"),
+        result(5.0, "ack"),
+        call(7.0, ("edit", "leaf page check .")),
+        result(8.0, "edit"),
+        call(12.0, ("reply", "leaf thread reply . --for test-comment")),
+    ]
+    assert journey.turn_phases(stream, comment["ts"], reply["ts"]) == [
+        {"phase": "delivery", "startMs": 0, "ms": 500},
+        {"phase": "model", "startMs": 500, "ms": 3500},
+        {
+            "phase": "tool",
+            "startMs": 4000,
+            "ms": 1000,
+            "calls": ["leaf delivery ack d1", "cat threads.md"],
+        },
+        {"phase": "model", "startMs": 5000, "ms": 2000},
+        {"phase": "tool", "startMs": 7000, "ms": 1000, "calls": ["leaf page check ."]},
+        {"phase": "model", "startMs": 8000, "ms": 4000},
+        {
+            "phase": "tool",
+            "startMs": 12000,
+            "ms": 500,
+            "calls": ["leaf thread reply . --for test-comment"],
+        },
+    ]
+
+
 class _PresentationWait:
     def __init__(self, waits: list[int]):
         self.waits = waits
@@ -4610,7 +4673,7 @@ class _Click:
         self.clicks.append("threads")
 
 
-class _Heading:
+class _Text:
     def __init__(self, text: str):
         self.text = text
 
@@ -4623,7 +4686,7 @@ class _DeployedPage:
 
     def __init__(
         self,
-        heading: str,
+        recorded: str,
         revision: int,
         presented_at: float,
         reload_ok: bool = True,
@@ -4631,7 +4694,7 @@ class _DeployedPage:
         follows_revision: bool = False,
         initial_presented_at: float | None = None,
     ):
-        self.heading = heading
+        self.recorded = recorded
         self.revision = revision
         self.presented_at = presented_at
         self.reload_ok = reload_ok
@@ -4679,8 +4742,8 @@ class _DeployedPage:
         raise verify_site.PlaywrightTimeout("revision did not arrive")
 
     def locator(self, selector: str):
-        if selector == "h1":
-            return _Heading(self.heading)
+        if selector == "main":
+            return _Text(self.recorded)
         if selector == ".lf-threads-toggle":
             return _Click(self.clicks)
         assert selector == "body[data-lf-presented]"
@@ -4693,6 +4756,8 @@ class _DeployedPage:
             return 100.0
         if script == "id => window.__leafVerifier.visibleReplyAt(id)":
             return 12_600.0
+        if script == "thread => window.__leafVerifier.workVisibleAt(thread)":
+            return 4_100.0
         if script == "window.__leafStartup.reading":
             presented_at = (
                 self.presented_at
@@ -4976,9 +5041,9 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
     presentation no longer implies the read has answered.
     """
     release = "4ef93dd9" + "0" * 56
-    heading = f"Deployment {release[:8]} verified"
+    recorded = f"Deployment {release[:8]} verified"
     page = _DeployedPage(
-        heading,
+        recorded,
         revision=1,
         presented_at=28444.0,
         follows_revision=True,
@@ -5086,7 +5151,11 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
                 "published": 12000.0,
                 "replied": 12500.0,
             },
-            "sinceSendMs": {"acknowledged": [250.0], "responseVisible": 12500.0},
+            "sinceSendMs": {
+                "acknowledged": [250.0],
+                "workVisible": 4000.0,
+                "responseVisible": 12500.0,
+            },
             "activity": [
                 {"atMs": 250.0, "kind": "queued", "detail": ""},
                 {
@@ -5098,7 +5167,7 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
             ],
         },
         "change": {
-            "heading": heading,
+            "marker": release[:8],
             "revision": 2,
             "reply": "deployment verified",
         },
@@ -5125,7 +5194,7 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
     # A reload the container never answered is its own reading, taken before the wait.
     # Left unchecked it arrives as a presentation timeout, which is the message this
     # branch is here to stop conflating with a slow read.
-    refused = _DeployedPage(heading, revision=2, presented_at=28444.0, reload_ok=False)
+    refused = _DeployedPage(recorded, revision=2, presented_at=28444.0, reload_ok=False)
     with pytest.raises(RuntimeError, match="did not reload after its agent turn"):
         journey.run_journey(
             *journey.website_session(
@@ -5151,7 +5220,7 @@ def test_a_reload_that_presented_offline_reports_the_banner_it_presented_under(
     answer it never got leaves the offline banner standing over the authored document.
     """
     release = "5b6be522" + "0" * 56
-    heading = f"Deployment {release[:8]} verified"
+    recorded = f"Deployment {release[:8]} verified"
     published = {
         "revision": 2,
         "url": "revisions/2.html",
@@ -5186,7 +5255,7 @@ def test_a_reload_that_presented_offline_reports_the_banner_it_presented_under(
     )
 
     offline = _DeployedPage(
-        heading,
+        recorded,
         revision=1,
         presented_at=11_000.0,
         banner="Server offline — reconnecting",
@@ -5211,7 +5280,7 @@ def test_a_reload_that_presented_offline_reports_the_banner_it_presented_under(
     # than an empty banner — a presented page always has one — so the two causes are
     # separated by what the message quotes rather than by whether it quotes anything.
     told = _DeployedPage(
-        heading,
+        recorded,
         revision=1,
         presented_at=1_400.0,
         banner="Claude is handling 1 update",

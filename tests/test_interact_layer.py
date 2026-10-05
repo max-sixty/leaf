@@ -17,7 +17,7 @@ import tinycss2
 import tomllib
 import yaml
 from click.testing import CliRunner
-from conftest import LEAF_COMMAND, PagePool
+from conftest import LEAF_COMMAND, PagePool, _retire
 from interact_support import (
     COMPOSITE_TIMEOUT,
     PAGE,
@@ -2290,6 +2290,33 @@ def test_a_python_side_wait_takes_the_suites_deadline():
         "these waits fix their own deadline; bound them with STATED_TIMEOUT "
         f"(interact_support.py): {literals}"
     )
+
+
+@pytest.mark.parametrize("launcher_ends", ["wait", "exit"])
+def test_a_spawned_process_ends_with_what_it_started(spawn, launcher_ends):
+    """`spawn`'s teardown ends a child's descendants as well as the child, since a
+    handle often names a launcher, as `under_codex`'s fake host does the shell
+    that runs its command. That holds whether the launcher is still running or
+    has already exited and left its child behind."""
+    launcher = spawn(
+        ["/bin/sh", "-c", f"sleep 600 & echo $!; {launcher_ends}"],
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    descendant = int(launcher.stdout.readline())
+    if launcher_ends == "exit":
+        launcher.wait(timeout=STATED_TIMEOUT)
+
+    _retire(launcher)
+
+    def running():
+        try:
+            os.kill(descendant, 0)
+        except ProcessLookupError:
+            return False
+        return True
+
+    wait_for(running, lambda alive: not alive, failure="the launcher's child survived")
 
 
 def test_page_packages_are_explicit_and_survive_reinitialization(tmp_path, monkeypatch):

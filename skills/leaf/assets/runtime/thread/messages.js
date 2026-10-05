@@ -27,7 +27,12 @@ import {
 } from "../projection/authored.js";
 import { stageWidgetDescriptors } from "../widget-descriptors.js";
 import { strongestWorkflow, workflowLabel, workflowTitle } from "./workflow.js";
-import { markDeclared, renderQuiet, renderSaid } from "../presentation.js";
+import {
+  markDeclared,
+  renderQuiet,
+  renderSaid,
+  writePrepaint,
+} from "../presentation.js";
 import { highlightBlocks } from "../syntax.js";
 import { ago } from "../presence.js";
 import { elementById, pageQueryAll } from "../passages.js";
@@ -104,11 +109,13 @@ export function prepareAuthoredMessage(message, thread) {
     });
     const authored = stageAuthoredStates(template.content, new Map());
     rememberPassageParts(template.content, ["event", message.id]);
+    const text = template.content.textContent;
+    writePrepaint(template.content);
     const nodes = Object.freeze([...template.content.childNodes]);
     authoredMessages.set(key, {
       message: message.id,
       body: {
-        text: template.content.textContent,
+        text,
         document: { thread, message: message.id },
       },
       authored,

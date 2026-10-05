@@ -9724,7 +9724,7 @@ def test_a_spent_press_and_a_static_badge_say_so_before_the_press(browser, serve
         return {cursor: cs.cursor, opacity: cs.opacity,
                 background: cs.backgroundColor, radius: cs.borderTopLeftRadius,
                 size: cs.fontSize, offer: el.dataset.lfOffer ?? null}; }"""
-    chip = page.locator('.lf-command-facts > [role="button"]').first
+    chip = page.locator(".lf-command-tile").first
     badge = page.locator(".lf-task-progress").first
     worn, still = chip.evaluate(face), badge.evaluate(face)
     assert worn["offer"] == "button" and still["offer"] is None

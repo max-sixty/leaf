@@ -94,7 +94,6 @@ def start_preview(spawn, command: list[str], log: Path, **kwargs):
             cwd=ROOT,
             stdout=output,
             stderr=subprocess.STDOUT,
-            start_new_session=True,
             text=True,
             **kwargs,
         )
@@ -139,7 +138,6 @@ def test_interrupting_a_live_preview_exits_without_a_traceback(preview_slot, spa
         cwd=ROOT,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
-        start_new_session=True,
         text=True,
     )
 
@@ -265,7 +263,6 @@ def test_terminating_a_preview_while_its_service_starts_leaves_none(
             cwd=ROOT,
             stdout=output,
             stderr=subprocess.STDOUT,
-            start_new_session=True,
         )
 
     def serving_child():
@@ -666,7 +663,6 @@ def test_a_user_preview_restarts_under_its_original_codex_claim(
             "PYTHONHOME": sys.base_prefix,
             "LEAF_PREVIEWS_ROOT": str(directory.parent),
         },
-        start_new_session=True,
     )
     wait_for(
         lambda: log.read_text() if log.exists() else "",
@@ -1087,7 +1083,6 @@ def test_a_user_preview_update_keeps_the_sessions_wait_watching(
             [*LEAF_COMMAND, "wait"],
             stdout=output,
             stderr=subprocess.STDOUT,
-            start_new_session=True,
             text=True,
         )
     session = os.environ["CLAUDE_CODE_SESSION_ID"]

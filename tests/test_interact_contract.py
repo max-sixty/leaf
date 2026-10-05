@@ -2006,6 +2006,37 @@ def test_a_widget_data_input_is_one_complete_contract(page_dir, change, message)
         registry_validation.validate_registry(registry, "test registry")
 
 
+@pytest.mark.parametrize(
+    ("prepaint", "upgrade", "message"),
+    [
+        ("<span>0 running</span>", False, "requires x-upgrade: true"),
+        ("<span>0</span><span>1</span>", True, "must be one element"),
+        ("<td>0</td>", True, "must be one element"),
+        ("<div>", True, "must be one element"),
+        ("<div><span>0</div>", True, "must be one element"),
+        ('<div><span id="count">0</span></div>', True, "no id"),
+        ("<div><lf-chip>0</lf-chip></div>", True, "may not hold <lf-chip>"),
+        ({"as": "lf-nothing"}, True, "declares no x-prepaint markup"),
+    ],
+)
+def test_a_prepaint_is_one_plain_element_only_a_module_takes_out(
+    page_dir, prepaint, upgrade, message
+):
+    """Delivery copies an x-prepaint into every occurrence for the first paint, and the
+    widget's module takes it out, so it must be markup that stays one element where it
+    is written and that nothing but that module acts on."""
+    registry = json.loads((page_dir / "registry.json").read_text())
+    tag = next(
+        tag
+        for tag, entry in registry.items()
+        if not tag.startswith("$") and entry.get("x-upgrade")
+    )
+    registry[tag].update({"x-prepaint": prepaint, "x-upgrade": upgrade})
+
+    with pytest.raises(registry_contract.RegistryError, match=message):
+        registry_validation.validate_registry(registry, "test registry")
+
+
 def test_a_data_source_attribute_can_carry_ordinary_schema_metadata(page_dir):
     """x-data requires the canonical string contract, not one byte-for-byte schema;
     packages remain free to document or further constrain the attribute."""

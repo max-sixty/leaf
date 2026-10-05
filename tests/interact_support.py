@@ -705,7 +705,7 @@ def bind_task_lifetime_to_worker(page):
         cleanup_model.write_session({**record, "lifetime": {"pid": os.getpid()}})
 
 
-def release_codex_command(page, release):
+def release_codex_command(page, host, finished):
     """Complete a held command before its synthetic Codex harness can exit.
 
     The command must finish its claim transaction while its ancestor is alive.
@@ -713,12 +713,18 @@ def release_codex_command(page, release):
     delivery, before the fixture releases the one-command harness.
     """
     wait_for(
-        Path(f"{release}.ready").exists,
+        finished.exists,
         bool,
         failure="the held Codex command did not finish",
     )
     bind_task_lifetime_to_worker(page)
-    release.touch()
+    release_held(host)
+
+
+def release_held(host):
+    """Let an `under_codex` harness held with `finished` exit, by giving its
+    shell the line it waits for. The pipe stays open for `communicate`."""
+    os.write(host.stdin.fileno(), b"\n")
 
 
 def live_versions(d):
@@ -1474,7 +1480,7 @@ def under_codex(spawn, codex_program):
     )
 
     def start(
-        command, env, *, app_server=False, hold_until=None, **kwargs
+        command, env, *, app_server=False, finished=None, **kwargs
     ) -> subprocess.Popen:
         # `app-server` is the whole difference between the app's shared harness and
         # one session's own process — same program, same ancestry, one word in
@@ -1482,16 +1488,20 @@ def under_codex(spawn, codex_program):
         # last word either way, which is what keeps that the only difference.
         hosting = ["app-server"] if app_server else []
         shell_command = f"{command}; exit"
-        if hold_until is not None:
-            # Mark command completion while keeping the fake harness alive. A
-            # test can then hand its lifetime to the worker before release;
-            # unlike a real task, this harness would otherwise die with its command.
+        if finished is not None:
+            # Create `finished` once the command has, and keep the fake harness
+            # alive until a line or the end of its stdin. A test can then hand
+            # its lifetime to the worker before release (`release_held`); unlike
+            # a real task, this harness would otherwise die with its command. The
+            # worker holds the pipe's other end, so the harness also ends when the
+            # worker does, however it ends.
             shell_command = (
                 f"{command}; result=$?; "
-                f"touch {shlex.quote(f'{hold_until}.ready')}; "
-                f"while [ ! -e {shlex.quote(str(hold_until))} ]; do sleep 0.01; done; "
+                f"touch {shlex.quote(str(finished))}; "
+                "read -r released; "
                 "exit $result"
             )
+            kwargs["stdin"] = subprocess.PIPE
         return spawn(
             [str(codex_program), "-c", runner, *hosting, shell_command],
             env={**env, "PYTHONHOME": sys.base_prefix},
@@ -1531,16 +1541,16 @@ claim_page(page)
 started = start_server(page)
 print(json.dumps({"url": started.url}))
 """
-    release_start = tmp_path / "release-page-host"
+    finished = tmp_path / "page-host-finished"
     started = under_codex(
         shlex.join([sys.executable, "-c", program, str(page)]),
         env,
-        hold_until=release_start,
+        finished=finished,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
     )
-    release_codex_command(page, release_start)
+    release_codex_command(page, started, finished)
     out, err = started.communicate(timeout=STATED_TIMEOUT)
     assert started.returncode == 0, f"{out}{err}"
     assert json.loads(out)["url"].startswith("http://127.0.0.1:")

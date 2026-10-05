@@ -18,8 +18,10 @@
    that conversation, so this continuation leaves its held news in place.
 
    Held identity is the focused Thread across shadow roots. An unheld preview or
-   panel conversation may accompany its page target. Canonical page targets always
-   come from anchor placement, independently of whichever view draws a Thread. */
+   panel conversation may accompany its page target; when focus returns to the body,
+   a visible accompanying preview remains the current conversation. Canonical page
+   targets always come from anchor placement, independently of whichever view draws a
+   Thread. */
 import { focusDestination } from "../focus.js";
 import { scrollBehavior } from "../motion.js";
 import { retainUserIntent } from "../user-intent.js";
@@ -50,6 +52,9 @@ export function createThreadDestinations({
     const ids = active ? threadIdsAt(active) : [];
     const shown = threadHere();
     const shownId = shown?.dataset.thread ?? shown?.dataset.id;
+    // Returning to the page can leave a margin card open with focus on the body.
+    // Its visible conversation remains the destination of Comment in that state.
+    if ((!active || active === document.body) && shownId) return shownId;
     return ids.includes(shownId) ? shownId : (ids[0] ?? null);
   };
   const replyThreadAtStanding = () => {

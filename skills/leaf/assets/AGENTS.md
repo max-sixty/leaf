@@ -130,7 +130,13 @@ cut off, since a scroller shows no edge until it is scrolled.
 A change the user requested may reflow the
 content it replaces, shown as motion the eye can follow. A hover, focus, or
 keyboard reveal never changes the space given to its ancestors or siblings. Typing
-may grow its field at the edge its layout grows, but never carries the field. The
+may grow its field at the edge its layout grows, but never carries the field. A box
+that floats over the page, as the comment box and the thread card do, grows inside the
+window as the user types, toward whichever edge still has room, and never scrolls the
+page to make room for its growth (`comment-placement.js`), though one a scroll carried away still comes back for
+the words typed into it (`off-flow.js`). Only a field in flow, which cannot move apart
+from the page, keeps its controls in view as a browser keeps a caret in view
+(`reply-landing.js`). The
 suite's browser fixture watches ordinary tests and nightly tests marked `watch_shifts`
 for a protected box moving on screen without input, news landing just after a press included,
 or typing carrying its field (`tests/shift_watch.js`).

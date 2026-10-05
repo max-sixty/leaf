@@ -359,15 +359,15 @@ def test_an_aimed_comment_keeps_its_place_with_the_asks_drawer_open(
 @pytest.mark.parametrize(
     "width,panel_open", [(1440, False), (1440, True), (390, False)]
 )
-def test_a_growing_text_comment_keeps_its_passage_clear_without_changing_sides(
+def test_a_growing_text_comment_keeps_its_side_and_the_page_still(
     browser, serve, width, panel_open
 ):
-    """A passage and its growing editor remain visible together.
+    """A growing editor keeps its side and stays in the window, and the page stays put.
 
-    Without a horizontal rail, the compact field first uses a side with visible room.
-    It keeps that side while growing and moves the reading region only
-    enough to reveal itself. Its trailing actions stay with the last line, and its
-    corners keep the first and last line readable after the capsule becomes an editor.
+    Without a horizontal rail, the compact field first uses a side with visible room,
+    clear of its passage. It keeps that side while growing, inside the window, and never
+    scrolls the page. Its trailing actions stay with the last line, and its corners keep
+    the first and last line readable after the capsule becomes an editor.
     """
     page = open_page(
         browser,
@@ -433,11 +433,10 @@ def test_a_growing_text_comment_keeps_its_passage_clear_without_changing_sides(
     )
     write(field, content)
     expect(field).to_have_js_property("value", content)
+    rendered(page)
     expanded = field.bounding_box()
     assert page.locator(".lf-fab-bar").get_attribute("data-lf-placement") == placement
-    assert page.evaluate(clear), (
-        "the growing composer covers the passage it comments on"
-    )
+    assert page.evaluate("scrollY") == before_scroll
     assert expanded["width"] > compact["width"]
     assert expanded["height"] > compact["height"] * 5
     assert expanded["x"] >= 0 and expanded["x"] + expanded["width"] <= width
@@ -450,17 +449,6 @@ def test_a_growing_text_comment_keeps_its_passage_clear_without_changing_sides(
             expanded["x"] + expanded["width"]
             < page.locator(".lf-thread-panel").bounding_box()["x"]
         )
-    if placement == "bottom-start":
-        assert page.evaluate("scrollY") > before_scroll
-        revealed_scroll = page.evaluate("scrollY")
-        page.mouse.move(8, 450)
-        page.mouse.wheel(0, -200)
-        page.wait_for_function("before => scrollY < before", arg=revealed_scroll)
-        scroll_settled(page)
-        assert page.evaluate("scrollY") < revealed_scroll
-        expect(page.locator(".lf-fab-bar")).to_have_attribute(
-            "data-lf-placement", placement
-        )
     page.mouse.move(8, 450)
     page.mouse.wheel(0, 300)
     page.wait_for_function("() => scrollY >= 300")
@@ -471,7 +459,9 @@ def test_a_growing_text_comment_keeps_its_passage_clear_without_changing_sides(
 
 
 def test_a_text_comment_chooses_above_when_the_page_has_more_room_there(browser, serve):
-    """The stable vertical choice reads both the visible band and scroll travel."""
+    """The stable vertical choice reads both the visible band and scroll travel. Growing
+    past the room shown above, the box slides over its passage rather than scrolling the
+    page, and a scroll then carries it with the passage."""
     passage = (
         "A passage near the end of its page has more reachable room above it. "
         + "Its full block must keep the same room while the viewport clips it. " * 5
@@ -519,15 +509,10 @@ def test_a_text_comment_chooses_above_when_the_page_has_more_room_there(browser,
     )
     rendered(page)
     expect(bar).to_have_attribute("data-lf-placement", "top-start")
-    assert page.evaluate("scrollY") < before_scroll
-    boxes = page.evaluate(
-        """() => {
-          const passage = document.getElementById('passage').getBoundingClientRect();
-          const bar = document.querySelector('.lf-fab-bar').getBoundingClientRect();
-          return {passageTop: passage.top, barBottom: bar.bottom};
-        }"""
-    )
-    assert boxes["barBottom"] <= boxes["passageTop"], boxes
+    assert page.evaluate("scrollY") == before_scroll
+    offset = """() => document.querySelector('.lf-fab-bar').getBoundingClientRect().top
+      - document.getElementById('passage').getBoundingClientRect().top"""
+    grown = page.evaluate(offset)
     last_scroll = page.evaluate("scrollY")
     maximum_scroll = page.evaluate(
         "document.scrollingElement.scrollHeight - innerHeight"
@@ -544,8 +529,7 @@ def test_a_text_comment_chooses_above_when_the_page_has_more_room_there(browser,
         last_scroll = moved
     assert paragraph.evaluate("node => node.getBoundingClientRect().top < 48")
     expect(bar).to_have_attribute("data-lf-plane", "page")
-    away = bar.bounding_box()
-    assert away["y"] + away["height"] < 0, away
+    assert page.evaluate(offset) == pytest.approx(grown, abs=1)
     expect(field).to_be_focused()
 
 
@@ -856,6 +840,59 @@ def test_a_side_comment_at_the_window_s_foot_rises_only_as_far_as_it_must(
     rendered(page)
     assert field.evaluate("node => node.scrollHeight > node.clientHeight")
     assert page.evaluate(SIDE_COMMENT)["bottom"] <= foot + 0.5
+
+
+@pytest.mark.parametrize("placement, at", [("bottom-start", 0.15), ("top-start", 0.5)])
+def test_typing_moves_the_comment_box_and_leaves_the_page_still(
+    browser, serve, placement, at
+):
+    """A box under or over its passage that outgrows the room on its side moves inside
+    the window, across the passage if it must, and the page stays where the user put it.
+    The user reported the page scrolling under their keys as the box grew (the box then
+    asked the page to make room for each new line)."""
+    words = "The reviewer weighs each claim against the evidence offered so far. " * 3
+    paragraphs = "".join(f'<p id="p{n}">{words}</p>' for n in range(30))
+    page = open_page(browser, serve(leaf_page("Typing room", paragraphs)))
+    resized(page, 900, 700)
+    passage = page.locator("#p12")
+    passage.evaluate(
+        f"""node => scrollBy({{
+          top: node.getBoundingClientRect().top - innerHeight * {at},
+          behavior: 'instant'
+        }})"""
+    )
+    rendered(page)
+    passage.click(modifiers=["Alt"], position={"x": 40, "y": 10})
+    field = open_compact_comment(page)
+    bar = page.locator(".lf-fab-bar")
+    assert bar.get_attribute("data-lf-placement") == placement
+    window = page.evaluate(
+        """async () => {
+          const {top, bottom} = (await window.__lfRuntimeImport('/runtime/geometry.js'))
+            .shownWindow({gap: 8});
+          return {top, bottom, scroll: scrollY};
+        }"""
+    )
+    start = bar.bounding_box()
+    lines = [f"Line {n} of a comment that keeps growing" for n in range(22)]
+    for line in lines:
+        page.keyboard.type(line)
+        page.keyboard.press("Shift+Enter")
+        rendered(page)
+        box = bar.bounding_box()
+        assert page.evaluate("scrollY") == window["scroll"], (line, box)
+        assert box["y"] >= window["top"] - 0.5, (line, box, window)
+        assert box["y"] + box["height"] <= window["bottom"] + 0.5, (line, box, window)
+    expect(field).to_have_js_property("value", "\n".join(lines) + "\n")
+    assert bar.get_attribute("data-lf-placement") == placement
+    grown = bar.bounding_box()
+    # Grown past the room its side showed, so it moved rather than the page.
+    room = (
+        window["bottom"] - start["y"]
+        if placement == "bottom-start"
+        else start["y"] + start["height"] - window["top"]
+    )
+    assert grown["height"] > room, (start, grown, window)
 
 
 def test_a_comment_near_the_bottom_grows_up_before_it_scrolls(browser, serve):

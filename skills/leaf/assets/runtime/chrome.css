@@ -1128,7 +1128,10 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     --lf-comment-body-gap: 4px;
     --lf-comment-foot-gap: var(--sp-3);
     --lf-comment-frame-top: calc(1px + var(--lf-comment-inset) + var(--lf-comment-head) + var(--lf-comment-body-gap));
-    --lf-comment-frame-bottom: calc(var(--lf-comment-foot-gap) + var(--lf-compose-h) + var(--lf-comment-inset) + 1px);
+    /* The card's reply row at rest, which the editor's frame reserves beneath the words,
+       so a box that fills the window becomes a card of the same height. */
+    --lf-comment-reply-row: calc(var(--lf-comment-foot-gap) + var(--lf-compose-h) + 2px);
+    --lf-comment-frame-bottom: calc(var(--lf-comment-reply-row) + var(--lf-comment-inset) + 1px);
   }
   :is(.lf-fab-bar, .lf-margin-preview, .lf-response-control) { --lf-response-height: 32px; }
   /* The editor and its sent message share text metrics. The borderless message uses

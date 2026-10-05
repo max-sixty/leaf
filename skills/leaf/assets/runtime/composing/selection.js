@@ -92,7 +92,7 @@ const fabSuggest = responseAction(el("button", "lf-ui lf-fab-suggest"), {
 fabOptions.append(fabSuggest);
 fabBar.append(fab, fabMore, fabOptions);
 
-export const composer = el("div", "lf-ui lf-composer");
+const composer = el("div", "lf-ui lf-composer");
 composer.id = "lf-composer";
 // Only ever shown detached — anchor paint, its one writer, keeps it out of sight while
 // the page is marking the passage. lf-ui on the element itself, not just on the composer

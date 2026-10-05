@@ -48,9 +48,11 @@
    or with `clear` under or over, once a scroll carries that away. A surface whose
    `clear` has not stood in the boundary since its side was chosen, as after a resize
    that left what it is about out of the window, stays in the window until it has.
-   Under or over, a surface taller than the room shown there first has the reading
-   region scroll to make it (`makeRoom`), as far as it can, so it stands clear of what
-   it is about rather than sliding across it.
+   Growing never scrolls the page. A surface that outgrows the room on its side slides
+   inside the boundary, over its passage or element if it must, and once it fills the
+   boundary scrolls its own content. Only a card opening under or over its target
+   scrolls the reading region, as far as it can, to make the room it needs (`makeRoom`),
+   so it opens clear of that target.
 
    A surface may hold one edge at an offset of its own choosing (`hold`), in client
    pixels from its line: `row` beside, and under or over the edge of `clear` it stands
@@ -164,7 +166,7 @@ function roomTravel(side, scroller) {
 
 // The room on `side` of `extent` the page can make: what shows there plus the scroll
 // travel `scroller` has left that way, never more than the boundary holds.
-export function reachableRoom(side, extent, boundary, scroller) {
+function reachableRoom(side, extent, boundary, scroller) {
   const shown =
     side === "top"
       ? extent.top - boundary.top - COMMENT_GAP

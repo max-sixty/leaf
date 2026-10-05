@@ -224,7 +224,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-margin-thread .lf-thread-reply { contain: inline-size;
     display: grid; grid-template-rows: auto minmax(0, max-content);
     box-sizing: border-box;
-    min-height: calc(var(--lf-compose-h) + var(--lf-comment-foot-gap) + 2px);
+    min-height: var(--lf-comment-reply-row);
     align-items: stretch; margin: 0;
     padding-block: var(--lf-comment-foot-gap) 0;
     background: inherit; }

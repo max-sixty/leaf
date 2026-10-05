@@ -282,8 +282,8 @@ def ask_for_the_heading(
     """Send one ask through the user's real composer; return its admitted comment."""
     page, url = session.page, session.url
     text = (
-        f"Change the main heading to ‘{heading}’. Leave everything else unchanged, "
-        "publish the revision, and reply with ‘deployment verified’."
+        f"Change the main heading to ‘{heading}’ and reply ‘deployment verified’. "
+        "Leave everything else unchanged."
     )
     box = page.locator(".lf-general leaf-text")
     box.focus()

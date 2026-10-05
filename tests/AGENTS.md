@@ -71,9 +71,11 @@ your selection missed is the gate doing its job; fix it and push. Every other ni
 test is CI's to report: the `test` job in `ci.yaml` runs the complete suite once main
 moves, and `tend-ci-fix` answers what it fails. That trade is deliberate: a pull
 request can land green and break a nightly test it never ran, and main's complete
-suite can stay red while `tend-ci-fix` repairs it. Keeping main green is not a goal
-for now (maintainer decision, 2026-10-04), so a red main is not by itself a reason to
-widen a change, its gate, or its test selection. Don't run the broad selection, `--run-nightly`, `-m nightly`, or
+suite can stay red while `tend-ci-fix` repairs it. Both halves are the user's decision
+(2026-10-04): keeping main green is not a goal for now, and a pull request's gate stays
+as it is rather than also running the nightly tests that cover each module a change
+touches. So a red main is not by itself a reason to widen a change, its gate, or its
+test selection. Don't run the broad selection, `--run-nightly`, `-m nightly`, or
 a whole browser file locally outside a landing: each takes minutes to over an hour
 and slows every other session on the machine. To learn what main fails, read that
 job's run, and reproduce a failure it names by node id.

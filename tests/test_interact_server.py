@@ -347,8 +347,8 @@ def test_sample_allocations_share_no_parent_lock_and_keep_one_log_reading(
     original = samples_model.Samples.create
 
     def held_allocation(self, *args):
-        allocating.wait(timeout=5)
-        assert release.wait(5)
+        allocating.wait(timeout=STATED_TIMEOUT)
+        assert release.wait(STATED_TIMEOUT)
         return original(self, *args)
 
     monkeypatch.setattr(samples_model.Samples, "create", held_allocation)
@@ -362,7 +362,7 @@ def test_sample_allocations_share_no_parent_lock_and_keep_one_log_reading(
         try:
             # Both allocations reach the expensive stage while neither holds the
             # parent's lease. A parent update can commit before they finish.
-            allocating.wait(timeout=5)
+            allocating.wait(timeout=STATED_TIMEOUT)
             with service_model.PageTransaction(page_dir) as page:
                 page._append_record(
                     {
@@ -377,7 +377,7 @@ def test_sample_allocations_share_no_parent_lock_and_keep_one_log_reading(
             release.set()
         children = []
         for allocation in allocations:
-            status, raw = allocation.result(timeout=5)
+            status, raw = allocation.result(timeout=STATED_TIMEOUT)
             assert status == 200, raw
             children.append(server + json.loads(raw)["url"])
     assert children[0] != children[1]
@@ -4290,6 +4290,11 @@ def test_frozen_history_and_comparisons_do_not_reopen_the_page(page_dir):
 
     assert service.page_state() == before
     assert service.page_browser_view(2, picked["seq"]) == comparison
+    # The page as it stood at the gesture, as `leaf page picture` serves one: the log
+    # and the versions stamped by then.
+    then = snapshot.through(picked["seq"]).context
+    assert then.events[-1]["id"] == picked["id"]
+    assert [version["version"] for version in then.versions] == [1]
 
 
 def test_comparison_revision_reads_stay_inside_the_page_transaction(
@@ -4866,7 +4871,7 @@ def test_stop_does_not_wait_forever_on_a_server_started_after_its_transition(
             yield
         if threading.current_thread() is stopping and locked == page_dir:
             transitioned.set()
-            assert resume.wait(10)
+            assert resume.wait(STATED_TIMEOUT)
 
     monkeypatch.setattr(hosting_model, "page_locked", pause_after_transition)
     stopped = []
@@ -4878,7 +4883,7 @@ def test_stop_does_not_wait_forever_on_a_server_started_after_its_transition(
     )
     try:
         stopping.start()
-        assert transitioned.wait(10)
+        assert transitioned.wait(STATED_TIMEOUT), "the stop never made its transition"
         wait_for(
             lambda: not leases_model.lock_is_held(page_dir / "server.lock"),
             bool,
@@ -4893,7 +4898,8 @@ def test_stop_does_not_wait_forever_on_a_server_started_after_its_transition(
                 )
         assert hosting_model.start_server(page_dir, standing=True)
         resume.set()
-        stopping.join(timeout=3)
+        stopping.join(timeout=STATED_TIMEOUT)
+        assert not stopping.is_alive(), "the stop never returned once resumed"
         assert stopped == [True]
         assert bool(server_model.running_server(page_dir)) == owned
     finally:
@@ -4902,7 +4908,7 @@ def test_stop_does_not_wait_forever_on_a_server_started_after_its_transition(
             page_dir / "service.json",
             {**files_model.read_json(page_dir / "service.json"), "enabled": False},
         )
-        stopping.join(timeout=10)
+        stopping.join(timeout=STATED_TIMEOUT)
 
 
 def test_an_upgrade_is_answered_by_the_key_gate_like_any_other_request(server):

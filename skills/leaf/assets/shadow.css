@@ -299,7 +299,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-thread-transcript > .lf-msg:first-child { margin-top: 0; }
 .lf-msg.agent { position: relative; }
 .lf-msg-head { display: flex; align-items: baseline; gap: var(--sp-2);
-          font-size: var(--t-6); }
+          font-size: var(--t-6); --lf-msg-name-size: 13px; }
 .lf-thread-root-meta { display: flex; align-items: center; gap: var(--sp-2);
           min-height: max(28px, var(--aim-floor));
           padding-inline: var(--lf-thread-text-inset) 0;
@@ -311,7 +311,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-thread-root-meta .lf-msg-meta { flex: 1; overflow: hidden; }
 .lf-thread-root-meta .lf-msg-sending { min-width: 0; overflow: hidden;
           text-overflow: ellipsis; }
-.lf-msg-head b { font-size: 13px; font-weight: 600; color: var(--ink); }
+.lf-msg-head b { font-size: var(--lf-msg-name-size); font-weight: 600; color: var(--ink); }
 .lf-thread-meta-actions { display: inline-flex; flex: none; align-items: center;
           gap: 4px; margin-inline-start: auto; }
 /* What a seat holds while it would move the page under the reader (thread/held-news.js).

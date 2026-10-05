@@ -2852,12 +2852,12 @@ def test_a_rejected_streamed_reply_still_releases_its_website_turn(page_dir):
 
 
 @pytest.mark.parametrize(
-    ("read_elsewhere", "reopen"),
-    [(False, "click"), (False, "r"), (False, "Enter"), (True, None)],
-    ids=["click", "card-r", "card-enter", "elsewhere"],
+    ("read_elsewhere", "reveal"),
+    [(False, "click"), (False, "arrive"), (True, None)],
+    ids=["click", "arrive", "elsewhere"],
 )
 def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
-    browser, serve, read_elsewhere, reopen
+    browser, serve, read_elsewhere, reveal
 ):
     """A resolve during a turn cannot hide its completed answer from Open Threads.
 
@@ -2898,9 +2898,10 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     told(page)
     rendered(page)
     # The agent's resolution is news, so the card the user is looking at stays in
-    # Open Threads, drawn resolved, rather than folding out from in front of them.
+    # Open Threads, holding it behind its notice, rather than folding out from in
+    # front of them.
     expect(thread).to_have_count(1)
-    expect(thread).to_have_attribute("data-resolved", "true")
+    expect(news).to_have_text("Resolved · 1 new reply")
     expect(thread).to_be_visible()
     expect(metadata.locator(".lf-msg-sending")).to_have_count(0)
     assert news.bounding_box()["x"] == news_left
@@ -2916,7 +2917,6 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
         other_thread = page.locator(f'.lf-thread[data-id="{other["id"]}"]')
         expect(other_thread).to_have_attribute("open", "")
 
-    expect(news).to_have_text("1 new reply")
     turn.commit(
         {
             "id": "app-server-turn",
@@ -2934,17 +2934,19 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
 
     told(page)
     rendered(page)
-    assert news.bounding_box()["x"] == news_left
-    expect(news).to_have_text("Reopened · 1 new reply")
     if read_elsewhere:
+        # The thread folded when the user's new one opened, and a folded card holds
+        # nothing, since its title row draws at one size.
         expect(other_thread).to_have_attribute("open", "")
+        expect(news).to_have_count(0)
         expect(thread.locator(".lf-msg.agent")).to_be_hidden()
         assert set(current_responses(page_dir, read_events(page_dir))) == {other["id"]}
     else:
         # The short thread's reopened answer would move its writing box, so the
-        # reader explicitly opens the news before the visibility clock can see it.
-        news = thread.locator(".lf-thread-news")
-        expect(news).to_be_visible()
+        # reader explicitly opens the news before the visibility clock can see it. The
+        # card stands as drawn, open, so the reopening is no news.
+        expect(news).to_have_text("1 new reply")
+        assert news.bounding_box()["x"] == news_left
         expect(
             thread.locator(".lf-msg.agent").filter(has_text="deployment verified")
         ).to_have_count(0)
@@ -2953,14 +2955,14 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
             for event in read_events(page_dir)
             if event["kind"] == "reply" and event["parent"] == comment["id"]
         )
-        if reopen == "click":
+        if reveal == "click":
             assert journey.wait_for_visible_reply(page, comment["id"], answer_id)
         else:
+            # Choosing the thread's title is an arrival, which shows what it holds.
             title = thread.locator(":scope > .lf-thread-summary")
-            title.focus()
+            title.click()
             expect(title).to_be_focused()
             expect(thread).to_have_attribute("open", "")
-            page.keyboard.press(reopen)
         expect(news).to_have_count(0)
         page.wait_for_function(
             "window.__leafVerifier.visibleReplyRecorded", arg=answer_id

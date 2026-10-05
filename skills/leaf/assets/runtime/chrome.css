@@ -1184,7 +1184,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   .lf-thread-panel-foot { display: flex; flex-direction: column; flex: none; }
   /* Every composer gives its field the row; its submit action lives inside that field. */
   .lf-general { display: flex; gap: 6px; align-items: flex-end; }
-  .lf-thread-actions { display: flex; justify-content: space-between; margin-top: 8px; }
   .lf-thread-action { border: none; background: none; color: var(--muted); cursor: pointer; }
   .lf-thread-action:hover { color: var(--ok); }
   /* Reopen stands in the same row as Resolve and answers the same question from the

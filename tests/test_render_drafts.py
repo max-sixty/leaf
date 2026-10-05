@@ -3582,6 +3582,9 @@ def test_reply_admission_finishes_or_restores_its_native_session(
     )
     told(page)
     rendered(page)
+    if surface == "panel":
+        # The open card holds the resolution behind its notice until the user asks.
+        card.get_by_role("button", name="Resolved", exact=True).click()
     expect(field).to_be_hidden()
     assert stored_draft_text(page, "reply:" + root) == next_words
 
@@ -3642,10 +3645,17 @@ def test_reply_editing_and_saved_words_have_separate_resolution_lifetimes(
         assert field.evaluate("box => [box.selectionStart, box.selectionEnd]") == [5, 5]
         page.keyboard.press("Escape")
         expect(field).not_to_be_visible()
+    elif resolution == "inactive-agent" and surface == "panel":
+        # The open card holds the resolution behind its notice, words and all, until
+        # the user presses it.
+        expect(field).to_be_visible()
+        expect(field).to_have_js_property("value", words)
+        thread.get_by_role("button", name="Resolved", exact=True).click()
+        expect(field).not_to_be_visible()
     else:
         expect(thread.locator("leaf-text")).not_to_be_visible()
     assert stored_draft_text(page, f"reply:{root['id']}") == words
-    if resolution == "inactive-agent":
+    if resolution == "inactive-agent" and surface == "margin":
         # An unresolved thread still draws its inactive reply box after Escape.
         # Agent settlement then closes it, as this lifecycle deliberately requires.
         # The generic words sensor cannot infer that ending the editing session made
@@ -3738,6 +3748,11 @@ def test_a_resolved_reply_composition_stays_open_until_deliberately_dismissed(
         rendered(page)
         expect(thread.locator("leaf-text")).to_be_visible()
         page.locator("#p3").click(position={"x": 10, "y": 10})
+        if surface == "panel":
+            # The open card holds the resolution behind its notice, so it still draws
+            # an open thread's reply box until the user asks to see the resolution.
+            expect(thread.locator("leaf-text")).to_be_visible()
+            thread.get_by_role("button", name="Resolved", exact=True).click()
         expect(thread.locator("leaf-text")).not_to_be_visible()
         if surface == "margin":
             expect(page.locator('[data-lf-margin-for="p3"]')).to_have_count(0)

@@ -18,27 +18,36 @@ const text = (value) => String(value ?? "").trim();
 // A registration publishes its data once per update. Both projections use those
 // same records; only this registry resolves their live activation capability.
 const contributionSources = new WeakMap();
+let publishing = 0;
 export const contributionSource = (model) => contributionSources.get(model);
 function publishReading(offered) {
-  const declared = offered.read();
-  const normalized = normalizeReading(declared, offered.key, offered.reading);
-  if (
-    !offered.activate &&
-    normalized.entries.some(
-      (entry) => entry.behavior !== "status" && !contributionOwnsCommand(entry),
+  // A command's availability may look up its retained control while its
+  // contribution is being normalized. That lookup must not settle an older
+  // update and reenter the annotation renderer with this reading half-built.
+  publishing++;
+  try {
+    const declared = offered.read();
+    const normalized = normalizeReading(declared, offered.key, offered.reading);
+    if (
+      !offered.activate &&
+      normalized.entries.some(
+        (entry) => entry.behavior !== "status" && !contributionOwnsCommand(entry),
+      )
     )
-  )
-    throw new TypeError("An unscoped contribution action needs an activate function");
-  offered.readingActions = new Map(
-    (declared.readings ?? []).map(({ id, activate }) => [id, activate]),
-  );
-  offered.reading = normalized;
-  const { readings, ...reading } = offered.reading;
-  offered.model = Object.freeze({
-    key: offered.key,
-    reading: Object.freeze({ ...reading, hasReadings: readings.length > 0 }),
-  });
-  contributionSources.set(offered.model, offered);
+      throw new TypeError("An unscoped contribution action needs an activate function");
+    offered.readingActions = new Map(
+      (declared.readings ?? []).map(({ id, activate }) => [id, activate]),
+    );
+    offered.reading = normalized;
+    const { readings, ...reading } = offered.reading;
+    offered.model = Object.freeze({
+      key: offered.key,
+      reading: Object.freeze({ ...reading, hasReadings: readings.length > 0 }),
+    });
+    contributionSources.set(offered.model, offered);
+  } finally {
+    publishing--;
+  }
 }
 
 const contributions = new Set();
@@ -49,7 +58,7 @@ const changed = () => {
   afterScript(settle);
 };
 function settle({ immediate = false } = {}) {
-  if (!owed) return;
+  if (!owed || publishing) return;
   owed = false;
   for (const listener of listeners) listener({ immediate });
 }

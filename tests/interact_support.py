@@ -51,7 +51,6 @@ from leaf import schema as schema_model
 from leaf import server as server_model
 from leaf import server_rows as server_rows_model
 from leaf import service as service_model
-from leaf import session as session_model
 from leaf import state as cleanup_model
 from leaf import structure as structure_model
 from leaf import thread_context as thread_context_model
@@ -269,7 +268,7 @@ two concurrent `page init`s took up to 25s and three `leaf codex start`
 commands 20s. `SERVED_TIMEOUT_MS` is the browser side's counterpart.
 
 Every Python-side wait in the suite takes its deadline from here, so a slow machine
-is answered in one place (`test_a_python_side_wait_takes_the_suites_deadline`). A
+is answered in one place (`test_a_wait_takes_the_suites_deadline`). A
 wait whose length is its subject, such as a product's own timeout passed in to be
 exercised, names that value where it is defined instead."""
 
@@ -1330,10 +1329,10 @@ def neighbour_page(directory, title=None, dead=False, published=True, port=59999
     initialized = CliRunner().invoke(cli_model.cli, ["page", "init", str(directory)])
     assert initialized.exit_code == 0, initialized.output
     write_revision(directory, 1, html.encode())
-    # What `page init` writes: a page always has a status record.
+    # A neighbour the agent has finished with.
     cleanup_model.write_json(
         directory / "status.json",
-        {"state": "idle", "detail": "", "ts": None, "after": 0},
+        {"state": "idle", "detail": "", "ts": None},
     )
     if published:
         append_carried_log_record(
@@ -1369,6 +1368,138 @@ def _status(page_dir, *args):
     return CliRunner().invoke(cli_model.cli, ["status", str(page_dir), *args])
 
 
+def declare_idle(page_dir):
+    """Write the page's `idle` declaration directly, past `leaf status idle`'s refusal
+    over unanswered moves, for a test whose subject is what an idle page does."""
+    with service_model.PageTransaction(page_dir) as page:
+        return page.set_status("idle", "")
+
+
+def declare_work(page_dir, line, *, item=None, ts=None, **voice):
+    """Seed the agent's work in hand as the log holds it, for a test of how a page
+    reads it: a `start` on `item`, or on the page's own task, which this opens when
+    the page has none, dated `ts` (now by default) and spoken in `voice` (`agent`,
+    `session`, `turn`). Raw, so a test can date it in the past; `working` is the
+    command an agent runs."""
+    from leaf.tasks import open_tasks
+
+    if item is None:
+        item = (
+            next(
+                (
+                    task["id"]
+                    for task in open_tasks(events_model.read_events(page_dir))
+                    if task["subject"] == {"kind": "page"}
+                ),
+                None,
+            )
+            or append_carried_log_record(
+                page_dir,
+                {
+                    "kind": "task",
+                    "author": "agent",
+                    "subject": {"kind": "page"},
+                    "title": "Work on the page",
+                    **({"ts": ts} if ts else {}),
+                },
+            )["id"]
+        )
+    return append_carried_log_record(
+        page_dir,
+        {
+            "kind": "start",
+            "author": "agent",
+            "item": item,
+            "text": line,
+            **({"ts": ts} if ts else {}),
+            **voice,
+        },
+    )
+
+
+def end_work(page_dir):
+    """End every open task on the page as a whole, `declare_work`'s and `working`'s,
+    so nothing the agent opened for itself is in hand any more."""
+    from leaf.tasks import open_tasks
+
+    for task in open_tasks(events_model.read_events(page_dir)):
+        if task["subject"] == {"kind": "page"}:
+            append_carried_log_record(
+                page_dir,
+                {
+                    "kind": "task_end",
+                    "author": "agent",
+                    "task": task["id"],
+                    "outcome": "done",
+                },
+            )
+
+
+def end_work_on(page_dir, subject):
+    """End the open tasks on the thread or widget `subject` names, done."""
+    from leaf.tasks import open_tasks
+    from leaf.work import page_subject
+
+    named = page_subject(page_dir, events_model.read_events(page_dir), subject)
+    for task in open_tasks(events_model.read_events(page_dir)):
+        if task["subject"] == named:
+            ended = CliRunner().invoke(
+                cli_model.cli, ["task", "end", str(page_dir), task["id"], "done"]
+            )
+            assert ended.exit_code == 0, ended.output
+
+
+def newest_move(page_dir, widget):
+    """The id of the user's newest move on `widget`, the item a start on it names."""
+    return next(
+        event["id"]
+        for event in reversed(events_model.read_events(page_dir))
+        if event["kind"] == "action"
+        and event["author"] == "user"
+        and event["widget"] == widget
+    )
+
+
+def _start(page_dir, item, line):
+    """`leaf task start`: take a move or task in hand with the banner's line."""
+    return CliRunner().invoke(
+        cli_model.cli, ["task", "start", str(page_dir), str(item), line]
+    )
+
+
+def working(page_dir, line, subject="page"):
+    """Show work no move asked for: open a task on `subject` (the page, unless a
+    thread or widget is named) and start it with `line`, as an agent does. Reuses the
+    page's open task on that subject, so a test can say what it does next. Returns the
+    start's record."""
+    from leaf import event_log as log_model
+    from leaf.tasks import open_tasks
+    from leaf.work import page_subject
+
+    named = (
+        {"kind": "page"}
+        if subject == "page"
+        else page_subject(page_dir, log_model.read_events(page_dir), subject)
+    )
+    task = next(
+        (
+            task
+            for task in open_tasks(log_model.read_events(page_dir))
+            if task["subject"] == named
+        ),
+        None,
+    )
+    if task is None:
+        opened = CliRunner().invoke(
+            cli_model.cli, ["task", "open", str(page_dir), subject, line[:80]]
+        )
+        assert opened.exit_code == 0, opened.output
+        task = json.loads(opened.output.splitlines()[-1])
+    started = _start(page_dir, task["id"], line)
+    assert started.exit_code == 0, started.output
+    return json.loads(started.output.splitlines()[-1])
+
+
 @pytest.fixture
 def comment_once_served():
     """Post a user comment as soon as a server answers for the page, so a wait
@@ -1393,7 +1524,7 @@ def comment_once_served():
                     )
                     return
                 if time.monotonic() > deadline:
-                    session_model.cmd_status(page_dir, "idle", "no server came up")
+                    declare_idle(page_dir)
                     return
 
         thread = threading.Thread(target=post, daemon=True)

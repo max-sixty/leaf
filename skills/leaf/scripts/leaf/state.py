@@ -117,7 +117,7 @@ def still_named(held: int, path: Path) -> bool:
 
 
 def now_iso() -> str:
-    return datetime.now().astimezone().isoformat(timespec="seconds")
+    return datetime.now().astimezone().isoformat(timespec="milliseconds")
 
 
 def fsync_parents(paths) -> None:

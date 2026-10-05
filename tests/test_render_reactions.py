@@ -2071,10 +2071,12 @@ def test_a_keyboard_reaction_returns_focus_to_the_visual_target(browser, serve):
     )
 
 
-def test_a_selection_change_replaces_and_clears_a_visual_target(browser, serve):
+def test_a_selection_change_offers_a_visual_target_without_replacing_an_open_composer(
+    browser, serve
+):
     """Selection changes can come from touch handles and browser commands without a
-    mouseup or keyup in the page. The new passage replaces the visual target, and
-    clearing that passage dismisses the shared action surface.
+    mouseup or keyup in the page. They offer the new passage without silently moving
+    an open composer; an explicit Comment press moves it to that passage.
 
     The user takes the page back while the composer's focus handoff is still in
     flight, which is the state the press leaves behind: opening Comment marks the
@@ -2082,8 +2084,7 @@ def test_a_selection_change_replaces_and_clears_a_visual_target(browser, serve):
     keeps that gap open for the whole of the selection rather than leaving its width to
     the machine — measured here, the handoff lands about eight milliseconds after the
     press returns, which is the same span the driver spends making the next call. The
-    passage is the bar's whether or not the handoff has landed, and it was the ordering
-    below that CI lost on.
+    passage is offered whether or not the handoff has landed.
     """
     page = open_page(browser, serve(PART_DIAGRAM_PAGE))
     control = page.get_by_role("button", name="Respond to Start request")
@@ -2103,14 +2104,20 @@ def test_a_selection_change_replaces_and_clears_a_visual_target(browser, serve):
             }"""
         )
     bar = page.locator(".lf-fab-bar")
-    expect(bar).to_have_attribute("aria-label", re.compile("Request path"))
+    expect(page.get_by_role("button", name="Comment on selection")).to_be_visible()
+    expect(bar).to_have_attribute("aria-label", re.compile("Start request"))
     expect(bar).to_be_visible()
-    expect(start).not_to_have_class(re.compile(r"\blf-pending\b"))
 
     page.evaluate(
         "() => { document.activeElement.blur(); getSelection().removeAllRanges(); }"
     )
-    expect(bar).to_be_hidden()
+    expect(page.get_by_role("button", name="Comment on selection")).to_be_hidden()
+    expect(bar).to_be_visible()
+
+    page.locator("h1").select_text()
+    page.get_by_role("button", name="Comment on selection").click()
+    expect(bar).to_have_attribute("aria-label", re.compile("Request path"))
+    expect(start).not_to_have_class(re.compile(r"\blf-pending\b"))
 
 
 def test_a_thread_at_rest_shows_only_the_marks_that_stand_in_it(browser, serve):

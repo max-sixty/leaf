@@ -9,13 +9,17 @@ from time import monotonic
 import pytest
 from axe_playwright_python.sync_playwright import Axe
 from click.testing import CliRunner
-from interact_support import append_carried_log_record, record_claim
+from interact_support import (
+    append_carried_log_record,
+    declare_idle,
+    newest_move,
+    record_claim,
+)
 from leaf import cli as cli_model
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import render_checks as render_checks_model
 from leaf import service as service_model
-from leaf import session as session_model
 from leaf.render_checks import rendered
 from leaf.served_state import context as served_context
 from playwright.sync_api import expect
@@ -1861,12 +1865,11 @@ def test_the_feature_gallery_carries_a_margin_entry_through_its_whole_lifecycle(
     claimed = CliRunner().invoke(
         cli_model.cli,
         [
-            "status",
+            "task",
+            "start",
             str(serve.page_dir),
-            "working",
+            newest_move(serve.page_dir, "bg-margin-control-workflow"),
             "applying the selected route",
-            "--on",
-            "bg-margin-control-workflow",
         ],
     )
     assert claimed.exit_code == 0, claimed.output
@@ -1888,7 +1891,6 @@ def test_the_feature_gallery_carries_a_margin_entry_through_its_whole_lifecycle(
         serve.page_dir,
         FEATURE_GALLERY.read_text(encoding="utf-8"),
         "Apply the selected route",
-        completes=("bg-margin-control-workflow",),
     )
     wait_for_revision(page, stamped["revision"])
     expect(workflow.locator("[data-lf-agent-workflow]")).to_have_count(0)
@@ -3892,12 +3894,11 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     claimed = CliRunner().invoke(
         cli_model.cli,
         [
-            "status",
+            "task",
+            "start",
             str(serve.page_dir),
-            "working",
-            detail,
-            "--on",
             roots[0]["id"],
+            detail,
         ],
     )
     assert claimed.exit_code == 0, claimed.output
@@ -4183,12 +4184,11 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(
     claimed = CliRunner().invoke(
         cli_model.cli,
         [
-            "status",
+            "task",
+            "start",
             str(serve.page_dir),
-            "working",
-            "Checking the user comment.",
-            "--on",
             roots[0]["id"],
+            "Checking the user comment.",
         ],
     )
     assert claimed.exit_code == 0, claimed.output
@@ -4245,15 +4245,15 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(
 
 
 def test_unit_claim_arrivals_share_one_window_with_the_open_page_map(browser, serve):
-    """Two moved cards share a widget claim, but each receipt arrives only once.
+    """Two moved cards started together each arrive only once.
 
     The visible Page Map joins those same arrivals; reopening it later or repainting
     the two units cannot restart either pulse.
     """
     page = open_page(browser, live_url(serve(BOARD_PAGE)))
     resized(page, 1440, 900)
-    # A receipt-only move owes no agent work. First reorder a card and claim the
-    # board, so the two later moves change work already in hand and are delivered.
+    # A receipt-only move owes no agent work. First reorder a card and open a task on
+    # the board, so the two later moves change work already in hand and are delivered.
     page.locator("#card-heater .lf-grip").focus()
     page.keyboard.press("Enter")
     page.keyboard.press("ArrowDown")
@@ -4262,14 +4262,7 @@ def test_unit_claim_arrivals_share_one_window_with_the_open_page_map(browser, se
     record_claim(serve.page_dir)
     claimed = CliRunner().invoke(
         cli_model.cli,
-        [
-            "status",
-            str(serve.page_dir),
-            "working",
-            "Checking the board",
-            "--on",
-            "sprint",
-        ],
+        ["task", "open", str(serve.page_dir), "sprint", "Check the board"],
     )
     assert claimed.exit_code == 0, claimed.output
     told(page)
@@ -4288,8 +4281,8 @@ def test_unit_claim_arrivals_share_one_window_with_the_open_page_map(browser, se
     ]
     assert len(moves) == 2
     assert all(event["attention"] for event in moves)
-    # Observe pickup separately from the work claim that made these moves input.
-    session_model.cmd_status(serve.page_dir, "idle", "")
+    # Observe pickup separately from the task that made these moves input.
+    declare_idle(serve.page_dir)
     record_claim(serve.page_dir)
     with service_model.PageTransaction(serve.page_dir) as transaction:
         delivery_model.record_pickup(transaction, moves)
@@ -4315,18 +4308,18 @@ def test_unit_claim_arrivals_share_one_window_with_the_open_page_map(browser, se
         if (event.animationName.endsWith('agent-work-arrival')) window.unitArrivalEnds++;
       });
     }""")
-    claim = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "status",
-            str(serve.page_dir),
-            "working",
-            "Checking both moved cards",
-            "--on",
-            "sprint",
-        ],
-    )
-    assert claim.exit_code == 0, claim.output
+    for move in moves:
+        claim = CliRunner().invoke(
+            cli_model.cli,
+            [
+                "task",
+                "start",
+                str(serve.page_dir),
+                move["id"],
+                "Checking both moved cards",
+            ],
+        )
+        assert claim.exit_code == 0, claim.output
     told(page)
     expect(dialog.locator('[data-lf-agent-workflow="working"]')).to_have_count(2)
     page.wait_for_function("() => window.unitArrivalEnds === 4")
@@ -4598,7 +4591,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
 
     for clock_owner in (served_context, events_model, service_model):
         monkeypatch.setattr(clock_owner, "now_iso", advanced_now)
-    session_model.cmd_status(page_dir, "idle", "")
+    declare_idle(page_dir)
     told(page)
     expect(marker).to_have_attribute("aria-label", re.compile(r"^Waiting for pickup,"))
     assert_status("Waiting for pickup", "3m ago")
@@ -4655,14 +4648,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
 
     claimed = CliRunner().invoke(
         cli_model.cli,
-        [
-            "status",
-            str(page_dir),
-            "working",
-            "checking the mounts",
-            "--on",
-            "jobs",
-        ],
+        ["task", "start", str(page_dir), logged_action["id"], "checking the mounts"],
     )
     assert claimed.exit_code == 0, claimed.output
     told(page)
@@ -4685,9 +4671,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     honored = single.replace(
         '<lf-option id="job-mounts"', '<lf-option id="job-mounts" chosen'
     )
-    stamped = stamp_page(
-        page_dir, honored, "Honor the mounts choice", completes=("jobs",)
-    )
+    stamped = stamp_page(page_dir, honored, "Honor the mounts choice")
     wait_for_revision(page, stamped["revision"])
     expect(page.locator('[data-lf-margin-for="jobs"]')).to_have_count(0)
     expect(page.locator("#job-mounts[chosen]")).to_have_count(1)
@@ -6206,18 +6190,16 @@ def test_agent_status_leaves_the_margin_transcript_where_the_user_scrolled_it(
     )
 
     def statuses():
-        for status in (
-            ["working", "Reading your feedback", "--on", "a" * 32],
-            ["waiting"],
+        for name, command in (
+            ("working", ["task", "start", str(serve.page_dir), "c" * 32, "Reading"]),
+            ("waiting", ["status", str(serve.page_dir), "waiting"]),
         ):
-            result = CliRunner().invoke(
-                cli_model.cli, ["status", str(serve.page_dir), *status]
-            )
+            result = CliRunner().invoke(cli_model.cli, command)
             assert result.exit_code == 0, result.output
             told(page)
             page.evaluate(settled)
             ticked(page)
-            yield status[0], transcript.evaluate(place)
+            yield name, transcript.evaluate(place)
 
     partway = transcript.evaluate(place)
     assert 0 < partway[0] < partway[1] - 20, partway
@@ -6676,14 +6658,11 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(browser,
     assert page.evaluate("() => window.__cardOpenings") == []
 
 
-@pytest.mark.parametrize("width", [1920, 2400])
-def test_a_margin_card_clears_its_row_only_where_that_costs_no_width(
-    browser, serve, width
-):
-    """Where the room past the margin row holds the card's whole measure, the card
-    stands there, clear of the row; short of that, clearing it would narrow the card,
-    so the card stands beside the words instead, over the row (comment-placement.js).
-    Either way, short of its measure it takes the room to the visible edge."""
+@pytest.mark.parametrize("width", [1440, 1920, 2400])
+def test_a_margin_card_clears_its_row_where_its_minimum_fits(browser, serve, width):
+    """Where the room past the margin row holds the card's minimum, the card
+    stands clear of the row. Otherwise it stands beside the words, over the row.
+    Short of its preferred measure it takes the room to the visible edge."""
     page = open_page(browser, serve(ASK_PAGE, events=[PARAGRAPH_ON_ASK]))
     resized(page, width, 900)
     page.locator('.lf-margin-marker[data-lf-kinds="comment"]').click()
@@ -6694,13 +6673,19 @@ def test_a_margin_card_clears_its_row_only_where_that_costs_no_width(
         """() => {
           const controls = document.querySelector('[data-lf-kinds="comment"]')
             .closest('[data-lf-margin-for]').getBoundingClientRect();
-          const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
-          return {controlsRight: controls.right, cardLeft: card.left,
-                  cardRight: card.right, viewport: innerWidth};
+          const card = document.querySelector('.lf-margin-preview');
+          const box = card.getBoundingClientRect();
+          return {controlsRight: controls.right, cardLeft: box.left,
+                  cardRight: box.right, viewport: innerWidth,
+                  minimum: parseFloat(getComputedStyle(card)
+                    .getPropertyValue('--thread-card-min'))};
         }"""
     )
-    past = geometry["viewport"] - 8 - (geometry["controlsRight"] + 8) >= 592
-    assert past == (width == 2400), geometry
+    past = (
+        geometry["viewport"] - 8 - (geometry["controlsRight"] + 8)
+        >= geometry["minimum"]
+    )
+    assert past == (width != 1440), geometry
     assert geometry["cardLeft"] == pytest.approx(
         (geometry["controlsRight"] if past else page.evaluate(WORDS_RIGHT)) + 8,
         abs=0.5,

@@ -253,8 +253,10 @@ customElements.define(
       this.#stopReading ??= this.#controller.subscribe((reading) => {
         if (!interactive) return;
         this.#renderHistory(reading);
-        this.#paintAvailability();
+        // Recovery chooses the first action face: an unsent editor opens with Save
+        // and Cancel, without briefly publishing the resting pencil.
         this.#recoverEdit(reading);
+        this.#paintAvailability();
         if (this.#editor && !this.#resumeProjection && reading.actions.edit.available)
           this.#resumeProjection = this.#controller.defer();
       });

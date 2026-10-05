@@ -114,7 +114,7 @@ def start_pi(page_dir, monkeypatch, spawn, sessionless):
         monkeypatch.setenv("LEAF_PI_PID", str(driven.pid))
         service_model.claim_page(page_dir)
         serving(page_dir, 1)
-        session_model.cmd_status(page_dir, "waiting", "")
+        session_model.cmd_waiting(page_dir, "")
         driven.emit("session_start", idle=True, reason="startup")
         return driven
 

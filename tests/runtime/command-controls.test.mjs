@@ -136,6 +136,63 @@ test("a contribution invokes its declared command and derives refusal from it", 
   target.remove();
 });
 
+test("a control lookup during contribution normalization waits for the complete reading", async () => {
+  const { registerContribution, watchContributions } =
+    await import("../../skills/leaf/assets/runtime/contributions.js");
+  const { contributionEntry } =
+    await import("../../skills/leaf/assets/runtime/contribution-controls.js");
+  const target = document.createElement("section");
+  document.body.append(target);
+  let registration;
+  let reading = false;
+  let state = "idle";
+  const seen = [];
+  const scope = commandScope("Reading transaction", [
+    {
+      id: "probe.reading",
+      title: "Apply",
+      control: () => registration?.control("apply"),
+      run: () => {},
+    },
+  ]);
+  const stop = watchContributions(({ immediate }) => {
+    seen.push({ reading, state: registration.entry("apply").state, immediate });
+  });
+  try {
+    registration = registerContribution({
+      key: "reading-transaction-probe",
+      target,
+      read: () => {
+        reading = true;
+        try {
+          return {
+            state,
+            entries: [
+              contributionEntry({
+                key: "apply",
+                icon: "check",
+                label: "Apply",
+                state,
+                scope,
+                activation: "probe.reading",
+              }),
+            ],
+          };
+        } finally {
+          reading = false;
+        }
+      },
+    });
+    state = "engaged";
+    registration.update({ immediate: true });
+    assert.deepEqual(seen, [{ reading: false, state: "engaged", immediate: true }]);
+  } finally {
+    stop();
+    registration?.unregister();
+    target.remove();
+  }
+});
+
 test("a shared button selects its live state and context-only routes retain their argument", () => {
   const owner = document.createElement("section");
   const button = document.createElement("button");
@@ -320,7 +377,7 @@ test("each contribution publication validates its current activation capability"
 });
 
 test("context aliases project the selected source route's availability", async () => {
-  const { commandEntries, bindings, live } =
+  const { commandEntries, commandPresentations, bindings, live } =
     await import("../../skills/leaf/assets/runtime/keyboard/bindings.js");
   const { scopesAt } =
     await import("../../skills/leaf/assets/runtime/keyboard/scopes.js");
@@ -365,6 +422,12 @@ test("context aliases project the selected source route's availability", async (
     ["probe.alias-two"],
   );
   assert.deepEqual(commandEntries(contextual, ["1"]), []);
+  assert.deepEqual(
+    commandPresentations(contextual, bindings(contextual), {
+      includeUnavailable: true,
+    }).map(({ id }) => id),
+    ["probe.alias-one", "probe.alias-two"],
+  );
   first = true;
   paintKeys();
   reflectKeys();
@@ -374,6 +437,19 @@ test("context aliases project the selected source route's availability", async (
   );
   assert.deepEqual(commandEntries(contextual, ["2"]), []);
   owner.remove();
+});
+
+test("the command reference retains unavailable command identities", async () => {
+  const { commandPresentations } =
+    await import("../../skills/leaf/assets/runtime/keyboard/bindings.js");
+  const row = { id: "probe.leave", keys: ["Tab"], when: () => false, run: () => {} };
+  assert.deepEqual(commandPresentations(row), []);
+  assert.deepEqual(
+    commandPresentations(row, ["Tab"], { includeUnavailable: true }).map(
+      ({ id }) => id,
+    ),
+    ["probe.leave"],
+  );
 });
 
 test("page command scopes share native activation and hand removed controls back", async () => {

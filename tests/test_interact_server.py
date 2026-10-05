@@ -38,6 +38,8 @@ from interact_support import (
     append_command,
     check,
     declare_data_input,
+    declare_work,
+    end_work,
     fetch,
     live_versions,
     neighbour_page,
@@ -79,6 +81,7 @@ from leaf import schema as schema_model
 from leaf import server as server_model
 from leaf import server_rows as server_rows_model
 from leaf import service as service_model
+from leaf import session as session_model
 from leaf import state as cleanup_model
 from leaf import structure as structure_model
 from leaf import thread_context as thread_context_model
@@ -235,6 +238,7 @@ def test_a_staged_write_moves_neither_the_page_nor_its_presence_reading(page_dir
 
 
 def test_interaction_trace_does_not_keep_an_unattended_page_active(page_dir):
+    session_model.cmd_waiting(page_dir, "")
     old = time.time() - schema_model.ACTIVITY_GRACE_SECS - 60
     for entry in page_dir.iterdir():
         os.utime(entry, (old, old))
@@ -3333,7 +3337,7 @@ def test_unchanged_presence_observation_is_shared_and_file_changes_refresh_it(
 
     cleanup_model.write_json(
         page_dir / "status.json",
-        {"state": "working", "detail": "measuring", "ts": "now"},
+        {"state": "waiting", "detail": "measuring", "ts": "now"},
     )
     refreshed = presence_model.presence_reading(page_dir)
     assert refreshed == first
@@ -3351,8 +3355,9 @@ def test_neighbors_read_only_compact_canonical_output(page_dir, monkeypatch):
     record_claim(neighbor, id="neighbor", cwd="/work/neighbor")
     cleanup_model.write_json(
         neighbor / "status.json",
-        {"state": "working", "detail": "measuring", "ts": cleanup_model.now_iso()},
+        {"state": "waiting", "detail": "", "ts": cleanup_model.now_iso()},
     )
+    declare_work(neighbor, "measuring", ts=cleanup_model.now_iso())
     append_carried_log_record(
         neighbor, {"kind": "comment", "author": "user", "text": "why?"}
     )
@@ -3419,8 +3424,9 @@ def test_a_server_keeps_its_row_fresh_without_browser_visits(page_dir, spawn):
     record_claim(neighbor, id="invisible", pid=agent.pid, cwd="/work/invisible")
     cleanup_model.write_json(
         neighbor / "status.json",
-        {"state": "working", "detail": "measuring", "ts": cleanup_model.now_iso()},
+        {"state": "waiting", "detail": "", "ts": cleanup_model.now_iso()},
     )
+    declare_work(neighbor, "measuring", ts=cleanup_model.now_iso())
     hosting_model.start_server(neighbor, standing=True, harness=None)
 
     def rows():
@@ -3450,6 +3456,7 @@ def test_a_server_keeps_its_row_fresh_without_browser_visits(page_dir, spawn):
             and row["activity"]["counts"]["pending"] == 1
         )
     )
+    end_work(neighbor)
     cleanup_model.write_json(
         neighbor / "status.json",
         {"state": "waiting", "detail": "pick one", "ts": cleanup_model.now_iso()},
@@ -3503,8 +3510,9 @@ def test_a_row_ages_at_the_canonical_deadline_and_recovers_after_cache_loss(
     record_claim(page_dir, turn_opened=stamp)
     cleanup_model.write_json(
         page_dir / "status.json",
-        {"state": "working", "detail": "measuring", "ts": stamp},
+        {"state": "waiting", "detail": "", "ts": stamp},
     )
+    declare_work(page_dir, "measuring", ts=stamp)
     waiter = leases_model.take_lease(leases_model.waiter_lease_path(page_dir, "s1"))
     publisher = server_rows_model.RowPublisher(page_dir, "clock-server")
     monkeypatch.setattr(
@@ -3574,7 +3582,7 @@ hosting.cmd_serve(Path(os.environ["PAGE"]), standing=True, harness=None)
     with service_model.PageTransaction(page_dir):
         cleanup_model.write_json(
             page_dir / "status.json",
-            {"state": "working", "detail": "blocked", "ts": cleanup_model.now_iso()},
+            {"state": "waiting", "detail": "blocked", "ts": cleanup_model.now_iso()},
         )
         wait_for(
             entered.is_file,
@@ -3621,8 +3629,9 @@ def test_a_failed_row_producer_retires_and_revives_with_its_service(page_dir):
     assert files_model.read_json(neighbor / "service.json")["enabled"]
     cleanup_model.write_json(
         neighbor / "status.json",
-        {"state": "working", "detail": "repaired", "ts": cleanup_model.now_iso()},
+        {"state": "waiting", "detail": "", "ts": cleanup_model.now_iso()},
     )
+    declare_work(neighbor, "repaired", ts=cleanup_model.now_iso())
     hosting_model.start_server(neighbor, standing=True, revive=True, harness=None)
     renewed = server_model.running_server(neighbor)["server_id"]
     assert renewed != original
@@ -5253,12 +5262,12 @@ def test_a_claimed_page_without_a_declaration_serves_its_state(page_dir, server)
     user."""
     publish(page_dir)
     service_model.claim_page(page_dir)
-    (page_dir / schema_model.STATUS_FILE).unlink()
+    (page_dir / schema_model.STATUS_FILE).unlink(missing_ok=True)
 
     status, raw = fetch(f"{server}/api/state")
 
     assert status == 200, raw
-    assert json.loads(raw)["status"] == {"state": "waiting", "detail": "", "after": 0}
+    assert json.loads(raw)["status"] == {"state": "waiting", "detail": ""}
 
 
 def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
@@ -5271,8 +5280,9 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
     live_url = neighbour_page(pages / "live", title="The other page")
     cleanup_model.write_json(
         pages / "live" / "status.json",
-        {"state": "working", "detail": "measuring", "ts": "2026-01-01T00:00:00-08:00"},
+        {"state": "waiting", "detail": "", "ts": "2026-01-01T00:00:00-08:00"},
     )
+    declare_work(pages / "live", "measuring", ts="2026-01-01T00:00:00-08:00")
     record_claim(
         pages / "live",
         id="s9",
@@ -5291,14 +5301,14 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
     corrupt_url = neighbour_page(pages / "corrupt", title="A corrupted page")
     (pages / "corrupt" / "events.jsonl").write_text('{"kind": "note", "author"')
     # Presence belongs to the same isolation boundary as the log and version. A
-    # malformed private claim on another page must not make this page's poll fail:
-    # it is absent from that page's reading, which lists the page with no claims.
+    # status record carrying a field no version reads, as an older leaf's work list,
+    # must not make this page's poll fail: the field is ignored.
     malformed = pages / "malformed-status"
     neighbour_page(malformed, title="Malformed status")
     cleanup_model.write_json(
         malformed / "status.json",
         {
-            "state": "working",
+            "state": "waiting",
             "detail": "unknown",
             "ts": cleanup_model.now_iso(),
             "work": [{}],
@@ -5332,10 +5342,7 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
     assert rows["The other page"]["url"] == live_url
     assert rows["The other page"]["session_cwd"] == "/work/api"
     assert rows["The other page"]["activity"]["kind"] == "away"
-    assert (
-        rows["Malformed status"]["activity"]["kind"],
-        rows["Malformed status"]["activity"]["detail"],
-    ) == ("working", "unknown")
+    assert rows["Malformed status"]["activity"]["kind"] == "away"
     assert all("obligations" not in row["activity"] for row in rows.values())
 
 
@@ -5425,75 +5432,6 @@ def test_the_live_document_keeps_its_revision_and_version_in_one_transaction(
     assert '<meta name="lf-revision" data-lf-runtime content="2">' in document
     assert '<meta name="lf-version" data-lf-runtime content="2">' in document
     assert "<title>New title</title>" in document
-
-
-def test_state_reads_claims_and_their_log_floor_in_one_transaction(
-    page_dir, server, monkeypatch
-):
-    """A poll cannot combine an old event window with a claim written after it.
-
-    Status writes hold the log lease because a claim records the exact log floor it
-    followed. The state reader takes the same lease across both reads, so every claim
-    in a response names a floor that response's events actually contain."""
-    append_carried_log_record(
-        page_dir,
-        {"kind": "comment", "id": "c1", "author": "user", "text": "why?"},
-    )
-    entered = threading.Event()
-    release = threading.Event()
-    original = served_page.read_served_page
-
-    def held_state(*args, **kwargs):
-        entered.set()
-        assert release.wait(STATED_TIMEOUT)
-        return original(*args, **kwargs)
-
-    monkeypatch.setattr(served_page, "read_served_page", held_state)
-    response = []
-
-    def read_state():
-        response.append(json.loads(fetch(f"{server}/api/state")[1]))
-
-    reader = threading.Thread(target=read_state)
-    reader.start()
-    assert entered.wait(STATED_TIMEOUT), (
-        "the state read never reached the held page read"
-    )
-
-    def resolve_then_claim():
-        writer_entered.set()
-        with service_model.PageTransaction(page_dir) as page:
-            page._append_record({"kind": "resolve", "author": "agent", "parent": "c1"})
-            page.set_status(
-                "working",
-                "checking",
-                work={
-                    "subject": {"kind": "thread", "id": "c1"},
-                    "after": page.events[-1]["seq"],
-                },
-            )
-
-    writer_entered = threading.Event()
-    writer = threading.Thread(target=resolve_then_claim)
-    writer.start()
-    assert writer_entered.wait(STATED_TIMEOUT), "the writer never began its transaction"
-    assert leases_model.lock_is_held(page_dir / "events.jsonl")
-    release.set()
-    reader.join(STATED_TIMEOUT)
-    writer.join(STATED_TIMEOUT)
-    assert not reader.is_alive() and not writer.is_alive()
-
-    events = response[0]["events"]
-    assert [(event["kind"], event["seq"]) for event in events] == [("comment", 1)]
-    assert response[0]["claims"] == []
-
-    after = json.loads(fetch(f"{server}/api/state")[1])
-    assert [(event["kind"], event["seq"]) for event in after["events"]] == [
-        ("comment", 1),
-        ("resolve", 2),
-    ]
-    assert len(after["claims"]) == 1
-    assert after["claims"][0]["log_floor"] == 2
 
 
 def test_a_bare_ipv6_address_is_bracketed_in_the_url():

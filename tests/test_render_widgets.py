@@ -6,13 +6,12 @@ from pathlib import Path
 
 import pytest
 import turbohtml
-from interact_support import append_carried_log_record, append_command
+from interact_support import _start, append_carried_log_record, append_command
 from leaf import data as data_model
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import render_checks as render_checks_model
 from leaf import service as service_model
-from leaf import session as session_model
 from leaf import thread as thread_model
 from leaf.render_checks import rendered, wait_until_ready
 from leaf.render_gate import version as render_gate_model
@@ -3906,10 +3905,12 @@ def test_a_gloss_opens_at_its_phrase_for_pointer_keyboard_and_touch(browser, ser
     page.mouse.move(0, 0)
     expect(bubble).to_be_hidden()
     page.evaluate(RELEASE_FOCUS)
-    # Twice: the layer's skip link is the document's first stop, and the mark is the
-    # first thing the page itself offers.
-    page.keyboard.press("Tab")
-    page.keyboard.press("Tab")
+    # Walk from the layer's skip link through the current banner controls to the
+    # first action in the page. The exact number of banner stops can change.
+    for _ in range(12):
+        page.keyboard.press("Tab")
+        if mark.evaluate("node => document.activeElement === node"):
+            break
     expect(mark).to_be_focused()
     expect(bubble).to_be_visible()
     expect(gloss).to_have_css("outline-style", "solid")
@@ -5179,12 +5180,10 @@ def test_notification_configuration_becomes_a_commentable_local_artifact(
         ),
     ):
         pass
-    session_model.cmd_status(
-        serve.page_dir,
-        "working",
-        "creating deployment-notification.html",
-        on="notification-playground",
+    started = _start(
+        serve.page_dir, logged_action["id"], "creating deployment-notification.html"
     )
+    assert started.exit_code == 0, started.output
     told(page)
     expect(
         page.locator('[data-lf-margin-for="notification-playground"] .lf-margin-marker')
@@ -5245,7 +5244,6 @@ body { font-family: system-ui, sans-serif; }
         serve.page_dir,
         result_source,
         "Created deployment-notification.html",
-        completes=("notification-playground",),
     )
     wait_for_revision(page, first_result["revision"])
 
@@ -5508,7 +5506,7 @@ def test_a_playground_preset_reset_copy_and_narrow_layout_share_the_same_state(
     copy.press("Enter")
     assert copy_width("Copied") == reserved_width
     assert "12px radius" in page.evaluate("navigator.clipboard.readText()")
-    expect(copy).to_have_accessible_name("Copy instruction", timeout=3000)
+    expect(copy).to_have_accessible_name("Copy instruction")
     page.evaluate(
         """() => {
           window.clipboardWrites = [];
@@ -5543,7 +5541,7 @@ def test_a_playground_preset_reset_copy_and_narrow_layout_share_the_same_state(
         }"""
     )
     assert copy_width("Copied") == reserved_width
-    expect(copy).to_have_accessible_name("Copy instruction", timeout=3000)
+    expect(copy).to_have_accessible_name("Copy instruction")
     page.evaluate(
         """() => {
           navigator.clipboard.writeText = () => { throw new Error('refused'); };
@@ -9573,8 +9571,8 @@ def test_an_agent_message_edit_updates_the_panel_and_its_inline_thread(browser, 
         },
     )
     told(page)
+    # Revealing the reply in either view settles the thread's shared unread state.
     panel_thread.get_by_role("button", name="1 new reply", exact=True).click()
-    inline_thread.get_by_role("button", name="1 new reply", exact=True).click()
 
     expect(inline.locator(".lf-msg-body")).to_contain_text("The north bracket fits.")
     expect(panel.locator(".lf-msg-text")).to_contain_text("The north bracket fits.")
@@ -11531,7 +11529,7 @@ def test_a_diff_row_fills_to_the_end_of_its_line_and_to_the_end_of_a_narrow_box(
     page.locator('lf-diff [data-lf-datum=\'["app/routes.py","new",201]\']').evaluate(
         _SELECT_IN_ROW, "new route"
     )
-    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    page.get_by_role("button", name="Comment on selection").click()
     write(
         page.locator(".lf-composer leaf-text"),
         "A remark of the ordinary length a reviewer writes, long enough that the line it "
@@ -11995,7 +11993,7 @@ def test_a_comment_on_a_wrapped_diff_line_names_the_line_an_unwrapped_one_names(
     flat = row.evaluate(_SELECT_IN_ROW, _DIFF_TAIL)
     assert flat["text"] == _DIFF_TAIL, flat
     assert flat["cut"], f"the words selected are inside the box already: {flat}"
-    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    page.get_by_role("button", name="Comment on selection").click()
     write(
         page.locator(".lf-composer leaf-text"), "Unwrapped, this line runs off the box."
     )
@@ -12008,7 +12006,7 @@ def test_a_comment_on_a_wrapped_diff_line_names_the_line_an_unwrapped_one_names(
     assert folded["height"] > flat["height"] and not folded["cut"], (
         f"the line did not wrap, so both anchors describe one geometry: {folded}"
     )
-    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    page.get_by_role("button", name="Comment on selection").click()
     write(
         page.locator(".lf-composer leaf-text"), "Wrapped, the same words are on screen."
     )

@@ -196,8 +196,13 @@ interface WireWorkflow {
     operation: "delivery" | "work" | "response";
   } | null;
   next_actor: "user" | "agent";
-  /** The standing work claims over the move, which the Stop hook reads. */
-  claimed_by: readonly { session: string; turn: string | null; log_floor: number }[];
+  /** The starts that take the move in hand, which the Stop hook reads. */
+  started_by: readonly {
+    item: string;
+    session: string | null;
+    turn: string | null;
+    seq: number;
+  }[];
   quiet: boolean;
   dropped: boolean;
 }
@@ -206,11 +211,23 @@ interface WireWorkflow {
  * `ended_tasks` the ones a `task_end` ended, with its outcome. */
 interface WireTask {
   id: string;
-  subject: { kind: "thread" | "widget"; id: string };
+  subject: { kind: "thread" | "widget"; id: string } | { kind: "page" };
   thread: string | null;
   title: string;
   state: "open" | "done" | "failed" | "dropped";
   ts: string;
+  revision: number | null;
+  /** The start running on the task, while one does. */
+  running: {
+    id: string;
+    text: string;
+    seq: number;
+    ts: string;
+    agent: string | null;
+    session: string | null;
+    turn: string | null;
+    condition: { kind: "stale"; operation: "work" } | null;
+  } | null;
   agent: string | null;
   session: string | null;
   outcome: { ts: string; detail?: string | null } | null;
@@ -661,7 +678,7 @@ export function createSemanticApplication({
         activity: [],
         condition: rejected ? { kind: "failed", operation: "delivery" } : null,
         next_actor: rejected ? "user" : "agent",
-        claimed_by: [],
+        started_by: [],
       };
     };
     const workflows = [

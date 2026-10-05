@@ -45,7 +45,7 @@ from urllib.parse import parse_qsl, urlencode, urlsplit
 import pytest
 from browser_sources import browser_function
 from click.testing import CliRunner
-from interact_support import append_carried_log_record, wait_for
+from interact_support import STATED_TIMEOUT, append_carried_log_record, wait_for
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import files as files_model
@@ -124,6 +124,7 @@ def shift_watch_source():
         ],
         cwd=ROOT,
         text=True,
+        timeout=STATED_TIMEOUT,
     )
     interactive, clipping, host, parent, rendered_parent, axes = json.loads(controls)
     return (
@@ -1155,7 +1156,12 @@ def displayed(page):
 
     Visibility checks can force layout before a render-blocking stylesheet arrives;
     first contentful paint excludes that unstyled reading."""
-    page.wait_for_function(FIRST_PAINT)
+    try:
+        page.wait_for_function(FIRST_PAINT)
+    except PlaywrightTimeout as error:
+        raise AssertionError(
+            f"{page.url} never reported a first contentful paint"
+        ) from error
 
 
 def draft_key(page, ctx: str) -> str:
@@ -1354,7 +1360,7 @@ def take_browser_errors(page):
     return errors
 
 
-def reported_browser_errors(page, *expected, timeout=10):
+def reported_browser_errors(page, *expected):
     """Wait for the complete report a fault draws, then consume it.
 
     One fault is reported by every boundary that carried it, and the later words can be
@@ -1370,7 +1376,7 @@ def reported_browser_errors(page, *expected, timeout=10):
     console messages to this process only while it is inside one."""
     assert expected, "expected browser problems cannot be empty"
     wanted = list(expected)
-    deadline = time.monotonic() + timeout
+    deadline = time.monotonic() + render_checks_model.SERVED_TIMEOUT_MS / 1000
     while page.lf_errors != wanted and time.monotonic() < deadline:
         page.wait_for_timeout(25)
     errors = take_browser_errors(page)
@@ -1559,7 +1565,7 @@ _ASKS_ANSWERED = """async () => {
 }"""
 
 
-def expect_asks_answered(page, answered: str, *, timeout_ms: int = 15_000) -> None:
+def expect_asks_answered(page, answered: str) -> None:
     """Wait until the page's Ask reading holds `answered` ("answered/total").
 
     The deadline bounds a hang; on expiry the failure names the reading the page held.
@@ -1569,7 +1575,7 @@ def expect_asks_answered(page, answered: str, *, timeout_ms: int = 15_000) -> No
         page.wait_for_function(
             "(want) => window.__lfAsksAnswered() === want",
             arg=answered,
-            timeout=timeout_ms,
+            timeout=render_checks_model.SERVED_TIMEOUT_MS,
         )
     except PlaywrightTimeout as error:
         held = page.evaluate("() => window.__lfAsksAnswered()")
@@ -1635,7 +1641,7 @@ def open_page(
     return page
 
 
-def opened_tab(page, destination, press, timeout=10_000):
+def opened_tab(page, destination, press):
     """Press once and return a controlled tab after Chromium opens `destination`.
 
     Playwright can permanently lose the Page for a target Chromium opened. The browser's
@@ -1667,7 +1673,7 @@ def opened_tab(page, destination, press, timeout=10_000):
 
     before = set(page_targets())
     opened = {}
-    deadline = time.monotonic() + timeout / 1000
+    deadline = time.monotonic() + render_checks_model.SERVED_TIMEOUT_MS / 1000
     try:
         try:
             press()
@@ -1713,7 +1719,9 @@ def opened_tab(page, destination, press, timeout=10_000):
                     f"Chromium did not close page target {target_id}"
                 )
             if opened:
-                close_deadline = time.monotonic() + timeout / 1000
+                close_deadline = (
+                    time.monotonic() + render_checks_model.SERVED_TIMEOUT_MS / 1000
+                )
                 while set(opened) & set(page_targets()):
                     if time.monotonic() >= close_deadline:
                         raise AssertionError(
@@ -1751,6 +1759,14 @@ def opened_tab(page, destination, press, timeout=10_000):
 # crossing that transition are lost just as silently.
 arm_interception = render_gate_model.arm_interception
 
+# A browser wait bounds a hang; it does not time the work it waits for (tests/AGENTS.md,
+# "Functional results do not depend on execution speed"). One that names no deadline
+# takes `SERVED_TIMEOUT_MS`, the bound on one probe or request: an `expect` assertion,
+# whose own default is five seconds, and every page action, wait and expectation on a
+# page `readable` prepares. A wait that spans a page handover names
+# `HANDOVER_DEADLINE_MS`.
+expect.set_options(timeout=render_checks_model.SERVED_TIMEOUT_MS)
+
 
 def readable(page):
     """Install what the suite reads off a page, before the page navigates.
@@ -1769,6 +1785,7 @@ def readable(page):
     """
     if getattr(page, "lf_errors", None) is not None:
         return page
+    page.set_default_timeout(render_checks_model.SERVED_TIMEOUT_MS)
     page.lf_traffic = Traffic(page)
     arm_interception(page)
     watched(page)

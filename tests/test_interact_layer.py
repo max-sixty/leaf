@@ -2206,43 +2206,44 @@ def test_the_resources_a_fixture_owns_are_taken_from_that_fixture():
     assert not bypassed, bypassed
 
 
-def test_a_python_side_wait_takes_the_suites_deadline():
+def test_a_wait_takes_the_suites_deadline():
     """A wait in the suite bounds a hang; it does not time the work it waits for.
 
     A literal deadline is sized to how long the work took where it was written, and
     a busy runner takes many times that, so a correct product fails the test there
     (tests/AGENTS.md, "Functional results do not depend on execution speed").
-    Every Python-side wait takes `STATED_TIMEOUT`, or a constant derived from it,
-    so the one bound is set in one place. A wait whose length is its subject names
-    that value where it is defined, which keeps it out of this check without a
-    list of exceptions here.
+    A Python-side wait takes `STATED_TIMEOUT`, or a constant derived from it. A
+    browser wait takes `SERVED_TIMEOUT_MS`, which `render_harness` makes the default
+    of every Playwright wait and `expect` that names none, or `HANDOVER_DEADLINE_MS`
+    where it spans a page handover. So each bound is set in one place. A wait whose
+    length is its subject names that value where it is defined, which keeps it out
+    of this check without a list of exceptions here.
 
-    The calls read are the blocking waits whose deadline is in seconds: the
-    standard library's threads, futures, processes, sockets and HTTP clients, and
-    the suite's own `wait_for`, plus a deadline a local loop computes from
-    `monotonic()`. A zero timeout asks without waiting and is left alone. Browser
-    waits, in milliseconds, are bounded by `SERVED_TIMEOUT_MS`.
+    Read are every `timeout` or `timeout_ms` a call passes or a helper defaults;
+    the deadline a thread, future, event or socket takes first, and a page's
+    default deadline; and a deadline a local loop computes from `monotonic()`. A
+    zero timeout asks without waiting and is left alone. A sleep
+    (`wait_for_timeout`) is a pause or an absence window, not a deadline.
     """
-    with_timeout = {
-        "call",
-        "check_output",
-        "communicate",
-        "create_connection",
-        "get",
-        "HTTPConnection",
+    deadline_names = {"timeout", "timeout_ms"}
+    deadline_first = {
         "join",
-        "recv",
         "result",
-        "run",
-        "urlopen",
+        "set_default_navigation_timeout",
+        "set_default_timeout",
+        "settimeout",
         "wait",
-        "wait_for",
     }
-    deadline_first = {"join", "result", "settimeout", "wait"}
-    # Sites in files another change holds, to move onto the suite's deadline once
-    # it lands. Each is a hang bound like the rest.
+    # Literal deadlines in files another change is rewriting, at most this many in
+    # each, to move onto the suite's deadlines once that change lands. Each is a hang
+    # bound like the rest.
     held_elsewhere = {
-        ("test_render_gate.py", "answer_ready.wait(10)"),
+        "test_render_anchors.py": 1,
+        "test_render_controls.py": 3,
+        "test_render_gate.py": 6,
+        "test_render_navigation.py": 9,
+        "test_render_startup.py": 8,
+        "test_render_threads.py": 8,
     }
 
     def literal(node) -> bool:
@@ -2259,7 +2260,14 @@ def test_a_python_side_wait_takes_the_suites_deadline():
             func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", None)
         )
 
-    literals = []
+    def defaults(arguments):
+        positional = arguments.posonlyargs + arguments.args
+        yield from zip(
+            positional[len(positional) - len(arguments.defaults) :], arguments.defaults
+        )
+        yield from zip(arguments.kwonlyargs, arguments.kw_defaults)
+
+    literals = {}
     for path in sorted((ROOT / "tests").rglob("*.py")):
         tree = ast.parse(path.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
@@ -2270,28 +2278,39 @@ def test_a_python_side_wait_takes_the_suites_deadline():
                     and literal(node.right)
                 )
             elif isinstance(node, ast.Call):
-                name = called(node.func)
-                computed = (
-                    name in with_timeout
-                    and any(
-                        keyword.arg == "timeout" and literal(keyword.value)
-                        for keyword in node.keywords
-                    )
+                computed = any(
+                    keyword.arg in deadline_names and literal(keyword.value)
+                    for keyword in node.keywords
                 ) or (
-                    name in deadline_first
+                    called(node.func) in deadline_first
                     and isinstance(node.func, ast.Attribute)
                     and bool(node.args)
                     and literal(node.args[0])
                 )
+            elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
+                computed = any(
+                    argument.arg in deadline_names
+                    and default is not None
+                    and literal(default)
+                    for argument, default in defaults(node.args)
+                )
             else:
                 continue
             if computed:
-                site = (path.name, ast.unparse(node))
-                if site not in held_elsewhere:
-                    literals.append(f"{path.relative_to(ROOT)}:{node.lineno} {site[1]}")
-    assert not literals, (
+                literals.setdefault(path.name, []).append(
+                    f"{path.relative_to(ROOT)}:{node.lineno} "
+                    + ast.unparse(node).split("\n", 1)[0]
+                )
+    fixed = [
+        site
+        for name, sites in literals.items()
+        if len(sites) > held_elsewhere.get(name, 0)
+        for site in sites
+    ]
+    assert not fixed, (
         "these waits fix their own deadline; bound them with STATED_TIMEOUT "
-        f"(interact_support.py): {literals}"
+        "(interact_support.py), or in a browser with SERVED_TIMEOUT_MS or "
+        f"HANDOVER_DEADLINE_MS (leaf.render_checks): {fixed}"
     )
 
 

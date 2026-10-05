@@ -269,7 +269,7 @@ two concurrent `page init`s took up to 25s and three `leaf codex start`
 commands 20s. `SERVED_TIMEOUT_MS` is the browser side's counterpart.
 
 Every Python-side wait in the suite takes its deadline from here, so a slow machine
-is answered in one place (`test_a_python_side_wait_takes_the_suites_deadline`). A
+is answered in one place (`test_a_wait_takes_the_suites_deadline`). A
 wait whose length is its subject, such as a product's own timeout passed in to be
 exercised, names that value where it is defined instead."""
 

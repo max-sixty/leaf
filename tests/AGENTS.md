@@ -317,7 +317,13 @@ the decision with a hang deadline that allows the grace period and scheduling ro
 
 A new wait fixes its deadline when it begins and names the missing evidence on
 timeout. Pure-Python state polls use `interact_support.wait_for`, and every
-Python-side wait takes its deadline from `STATED_TIMEOUT`, which the suite checks.
+Python-side wait takes its deadline from `STATED_TIMEOUT`. A browser wait takes
+`SERVED_TIMEOUT_MS`, which `render_harness` makes the default of every Playwright
+wait and `expect`, so it names no deadline unless it spans a page handover
+(`HANDOVER_DEADLINE_MS`). The suite checks both
+(`test_a_wait_takes_the_suites_deadline`). A call with no deadline of its own, such
+as `page.evaluate`, is bounded only by the per-test limit in `pyproject.toml`, which
+ends the worker with every thread's stack after half an hour.
 
 ### A state the page passes through is not a state to poll for
 

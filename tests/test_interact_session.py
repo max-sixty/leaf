@@ -8673,9 +8673,12 @@ def test_a_watch_wakes_on_what_its_pass_read_moving(page_dir):
             "the watch never woke on the page its mark had not read"
         )
 
+        # With nothing moved, the watch wakes on its timeout: that expiry is the
+        # subject, and how long it is changes nothing a slower machine could see.
+        quiet = 0.2
         mark = watch.mark()
         list(watch.tick())
-        assert not watch.await_news(mark, timeout=0.2)
+        assert not watch.await_news(mark, timeout=quiet)
 
         mark = watch.mark()
         list(watch.tick())

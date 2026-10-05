@@ -4591,7 +4591,9 @@ def test_a_revision_the_page_has_to_refuse_leaves_the_beat_beating(browser, serv
         holding(page, asked, REFUSALS + 1, "the asks the beats made for the revision")
         # The refusal reloads, and the page that comes back is on the layer it was told
         # about, holding the revision it could not be given in place.
-        expect(page).to_have_title("Beat second", timeout=15_000)
+        expect(page).to_have_title(
+            "Beat second", timeout=render_checks_model.HANDOVER_DEADLINE_MS
+        )
         wait_until_ready(page)
         problems = take_browser_errors(page)
         assert len(problems) >= 2 and all("failed to load" in p for p in problems), (
@@ -4609,7 +4611,9 @@ def test_a_revision_navigates_without_the_view_transition_api(browser, serve):
     page.evaluate("document.startViewTransition = undefined")
     (serve.page_dir / "index.html").write_text(executable_revision(LIVE_V2, "two"))
 
-    expect(page).to_have_title("Live second", timeout=10_000)
+    expect(page).to_have_title(
+        "Live second", timeout=render_checks_model.HANDOVER_DEADLINE_MS
+    )
     wait_until_ready(page)
 
 

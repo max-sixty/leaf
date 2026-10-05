@@ -4737,7 +4737,6 @@ def test_the_reading_keys_accumulate_and_reverse(browser, serve, down, up):
             page.wait_for_function(
                 "e => Math.abs(document.scrollingElement.scrollTop - e) < 1",
                 arg=expected,
-                timeout=5000,
             )
         except PlaywrightTimeout:
             pass
@@ -4976,7 +4975,6 @@ def test_the_reading_page_keys_follow_the_user_into_the_panel(browser, serve):
     page.wait_for_function(
         "e => Math.abs(document.scrollingElement.scrollTop - e) < 1",
         arg=step,
-        timeout=5000,
     )
     page_now, threads_now = offsets()
     assert page_now > page_was, (
@@ -5016,7 +5014,6 @@ def test_the_reading_page_keys_follow_the_user_into_the_panel(browser, serve):
         " return Math.abs(t.scrollTop - w[0]) < 1"
         " || Math.abs(document.scrollingElement.scrollTop - w[1]) >= 1; }",
         arg=[thread_step, page_was],
-        timeout=5000,
     )
     page_now, threads_now = offsets()
     assert threads_now > threads_was, (
@@ -5035,7 +5032,6 @@ def test_the_reading_page_keys_follow_the_user_into_the_panel(browser, serve):
     page.wait_for_function(
         "() => { const t = document.querySelector('.lf-threads');"
         " return document.scrollingElement.scrollTop < 1 || t.scrollTop < 1; }",
-        timeout=5000,
     )
     edge_page, edge_threads = offsets()
     assert edge_page == pytest.approx(0, abs=1), (

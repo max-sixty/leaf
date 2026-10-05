@@ -3,8 +3,8 @@
    Composition owns its durable target and native editor. This owner chooses its initial
    side, measure and CSS attachment. While editing, the browser carries that attachment
    through every ancestor scroll; generic repaint and scroll publications do not solve
-   another position. Target or field resize, viewport resize and declared layout
-   changes invalidate the attachment. Replacing its target or native seat retires it. The compact response strip retains ordinary
+   another position. Target or field resize, viewport resize, horizontal target motion,
+   and declared layout changes invalidate the attachment. Replacing its target or native seat retires it. The compact response strip retains ordinary
    collision placement and scroll observation.
 
    An editing field follows its passage out of view. The existing Resume writing route
@@ -98,10 +98,10 @@ export function createFloatingResponsePlacement({
     );
   };
 
-  // The editing observer reports size and authored target style changes: CSS anchors
-  // own scroll following, while a target transformed without resizing must let
-  // the shared placement rule choose its side again. Layout-shift observation
-  // also hears scroll, which would re-place the native attachment on wheel frames.
+  // The editing observer reports size and horizontal target movement: CSS anchors
+  // own scroll following, while a target moved without resizing must let the shared
+  // placement rule choose its side again. Movement observation also hears scroll,
+  // so only a change in horizontal position asks for another solve.
   // A compact strip still observes scroll and layout shifts. Explicit publication may
   // replace a target or editor seat; composition stops this owner for that handoff.
   // Native-seat readiness belongs to composition; stopping this presenter retires
@@ -147,31 +147,20 @@ export function createFloatingResponsePlacement({
             ancestorScroll: !fabPosition.nativeAvailable(),
             layoutShift: false,
           });
-          const style = document.createElement("span").style;
-          const authoredStyle = (css) => {
-            style.cssText = css ?? "";
-            style.removeProperty("anchor-name");
-            return style.cssText;
-          };
-          const changed = new MutationObserver((records) => {
-            // The native attachment writes anchor-name on its own target. That
-            // change does not move the target and must not start another solve.
-            if (
-              records.some(
-                (record) =>
-                  authoredStyle(record.oldValue) !==
-                  authoredStyle(record.target.getAttribute("style")),
-              )
-            )
-              invalidate();
-          });
-          changed.observe(reference.contextElement, {
-            attributes: true,
-            attributeOldValue: true,
-            attributeFilter: ["style"],
+          let x = reference.getBoundingClientRect().left;
+          const stopMotion = autoUpdate(reference, floating, () => {
+            const next = reference.getBoundingClientRect().left;
+            if (next === x) return;
+            x = next;
+            invalidate();
+          }, {
+            ancestorScroll: false,
+            ancestorResize: false,
+            elementResize: false,
+            layoutShift: true,
           });
           return () => {
-            changed.disconnect();
+            stopMotion();
             stopSize();
           };
         },

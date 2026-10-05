@@ -2587,16 +2587,21 @@ def test_a_settlement_from_elsewhere_moves_nothing_in_a_short_panel_thread(
     rendered(page)
     assert len(events_model.read_events(serve.page_dir)) == logged
 
-    news_lands({"kind": "unresolve", "author": "user", "parent": root})
     # The resolved card draws no row below its messages, so its notice stands in the
-    # title, in Reopen's place.
+    # title, in Reopen's place, and takes the user standing on Reopen with it. It is the
+    # thread's reopen control there, so `r` presses it.
+    reopen = thread.locator(":scope > .lf-reopen")
+    reopen.focus()
+    news_lands({"kind": "unresolve", "author": "user", "parent": root})
     notice = thread.locator(":scope > .lf-thread-news")
     expect(notice).to_have_text("Reopened")
     expect(notice).to_be_visible()
+    expect(notice).to_be_focused()
     expect(thread).to_have_attribute("data-resolved", "true")
-    notice.click()
+    page.keyboard.press("r")
     expect(thread).to_have_attribute("data-resolved", "false")
     expect(field).to_be_visible()
+    expect(thread.locator(":scope > .lf-thread-summary")).to_be_focused()
 
     append_carried_log_record(
         serve.page_dir, {"kind": "unresolve", "author": "user", "parent": folded}

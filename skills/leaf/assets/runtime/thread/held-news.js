@@ -80,7 +80,7 @@ import { keepsText, layoutPx } from "../keeps.js";
 import { keys, focused } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
 import { focusThread } from "./focus.js";
-import { threadKey, threadNames } from "./model.js";
+import { isReaction, threadKey, threadNames } from "./model.js";
 import { allThreads } from "./state.js";
 import { THREAD } from "./selectors.js";
 import { closestAcross } from "../passages.js";
@@ -135,13 +135,10 @@ const symmetric = (a, b) => [...a, ...b].filter((name) => !a.has(name) || !b.has
 
 // What of `now` the seat would draw differently from `was`, the thread as it drew it:
 // each message that is new or whose words changed, each reaction put on a reply or taken
-// off it, and the thread's settlement. `messages` is what a held thread draws: each of
-// `now`'s messages with the words and reactions `was` drew, the new ones left out. Its
-// delivery status draws as it stands, since its row reserves the room each status
-// takes (messages.js) and moves nothing beside it; `changed` the keys of the ones
-// the news changes, every one where the settlement changes, which moves the thread's
-// controls into or out of its head row and draws or folds its reaction strips. A
-// message the log took back is no news: it goes. Null where nothing differs.
+// off it, and the thread's settlement; `changed` the keys of the messages the news
+// changes, every one where the settlement changes, which moves the thread's controls
+// into or out of its head row and draws or folds its reaction strips. A message the log
+// took back is no news: it goes. Null where nothing differs.
 function difference(was, now) {
   const drawn = new Map(was.messages.map((message) => [message.key, message]));
   const settled =
@@ -168,22 +165,35 @@ function difference(was, now) {
     }
   }
   if (!settled && !news.replies && !news.reactions) return null;
-  const messages = now.messages.flatMap((message) => {
-    const prior = drawn.get(message.key);
-    if (!prior) return [];
-    const { body, edited, reactions } = prior;
-    return [{ ...message, body, edited, reactions }];
-  });
-  return { news, messages, changed };
+  return { news, changed };
 }
 
-// What a thread's settlement draws, which a held settlement draws as it was.
-const settledFace = ({ resolved, resolvedBy, settlement, reply }) => ({
-  resolved,
-  resolvedBy,
-  settlement,
-  reply,
-});
+// The thread `now` with what `was`, the thread as the seat drew it, did not show held
+// back: what the log says of it, as drawn. That is its settlement; its messages, the new
+// ones left out, a reaction taken off still standing, and each one's words as drawn,
+// which only an edit changes; and the progress folds a held reply completes. The rest
+// reads as it stands, such as a message's delivery, which changes its head row in place,
+// as in a thread that holds nothing. A held thread is read from this as from any other,
+// so everything the reading derives from it, such as whose turn it is, agrees with
+// what it draws.
+function withheld(was, now) {
+  const key = (message) => message.attempt ?? message.id;
+  const standing = new Map(now.msgs.map((message) => [key(message), message]));
+  const msgs = was.msgs.flatMap((prior) => {
+    const message = standing.get(key(prior));
+    if (message) return [{ ...message, text: prior.text, edited: prior.edited }];
+    return isReaction(prior) ? [prior] : [];
+  });
+  const shown = new Set(msgs.map(({ id }) => id));
+  return {
+    ...now,
+    resolved: was.resolved,
+    msgs,
+    summaries: now.summaries.filter(
+      (summary) => !summary.trigger || shown.has(summary.trigger),
+    ),
+  };
+}
 
 // Whether growth after `node` would move what the user sees: the node's foot stands
 // inside every box that scrolls it. A node not drawn has no foot to grow from.
@@ -222,15 +232,21 @@ const newsLabel = ({ settled, replies, reactions, threads }) =>
     .filter(Boolean)
     .join(" · ");
 
-/** The control that says what a row holds and shows it. `set(news, header)` gives it
- *  the reading's `news` ({label, reopened, open}); `open` returns the thread to land a
+/** The control that says what a row holds and shows it. `set(news)` gives it the
+ *  reading's `news` ({label, reopened, open}); `open` returns the thread to land a
  *  keyboard on, since the notice goes with what it held. A held reopening's notice stands
  *  where Reopen did, in Reopen's face, which sets its row's height, and is the thread's
  *  reopen control (`lf-reopen`), so the thread's Enter and `r` keep their meaning and
- *  press it to show the thread reopened. `header` places it in a resolved panel card's
- *  title, where Reopen stands in that title's action face. */
-export function newsNotice() {
-  const node = offer("button", "lf-outline-chip lf-thread-news");
+ *  press it to show the thread reopened. A `header` notice stands in a resolved panel
+ *  card's title, in the face Reopen wears there, as a node of its own, since the
+ *  notice in the card's rows may have stood elsewhere a moment before. */
+export function newsNotice(header = false) {
+  const node = offer(
+    "button",
+    header
+      ? "lf-btn lf-thread-action lf-thread-header-action lf-thread-news"
+      : "lf-outline-chip lf-thread-news",
+  );
   let open = () => null;
   const show = () => {
     const standing = focused() === node;
@@ -249,14 +265,14 @@ export function newsNotice() {
   ]);
   return {
     node,
-    set(news, header = false) {
+    set(news) {
       keepsText(node, news.label);
-      const action = header || news.reopened;
-      node.classList.toggle("lf-outline-chip", !action);
-      for (const face of ["lf-btn", "lf-thread-action"])
-        node.classList.toggle(face, action);
+      if (!header) {
+        node.classList.toggle("lf-outline-chip", !news.reopened);
+        for (const face of ["lf-btn", "lf-thread-action"])
+          node.classList.toggle(face, news.reopened);
+      }
       node.classList.toggle("lf-reopen", news.reopened);
-      node.classList.toggle("lf-thread-header-action", header);
       open = news.open;
     },
   };
@@ -377,11 +393,9 @@ export class HeldNews {
         this.#holds.add(thread.key);
         // What the news changes stands as drawn. A held reopening's notice stands
         // where Reopen did, since opening it is what reopening would show.
-        const { news, messages } = held;
+        const { news } = held;
         return {
-          ...thread,
-          messages,
-          ...(news.settled && settledFace(was)),
+          ...thread.reread(withheld(was.source, thread.source)),
           ...(news.settled === "Reopened" && { settlement: null }),
           news,
         };
@@ -390,12 +404,6 @@ export class HeldNews {
     const host = threads.at(-1);
     if (waiting && host) host.news = { ...host.news, threads: waiting };
     for (const thread of threads) {
-      // Progress folds belong to the completing reply. If that reply is held,
-      // the updates keep their existing presentation until it is shown too.
-      const shown = new Set(thread.messages.map(({ id }) => id));
-      thread.summaries = thread.summaries.filter(
-        (summary) => !summary.trigger || shown.has(summary.trigger),
-      );
       if (thread.news)
         thread.news = {
           label: newsLabel(thread.news),

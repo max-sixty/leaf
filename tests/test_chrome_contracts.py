@@ -1247,8 +1247,8 @@ def test_a_thread_news_resolves_stays_where_it_stands_until_the_user_moves_on(
     card away, and every card after it rose. The card stays where it stands, drawn as
     it was, with the resolution behind its notice, and the news taking the resolution
     back leaves nothing to hold; the browser fixture's shift watch fails anything that
-    moves. Its summary says Resolved within the same title row, without moving the card
-    below it. The news lands well after the user's last input, past the half second in
+    moves. Its title stops saying whose turn it is, since nobody's is, without moving
+    the card below it. The news lands well after the user's last input, past the half second in
     which Chrome credits a frame to that input.
 
     The card leaves the Open list once its going moves nothing the user sees. As the
@@ -1305,8 +1305,7 @@ def test_a_thread_news_resolves_stays_where_it_stands_until_the_user_moves_on(
         assert after.bounding_box() == below
     resolve = card.get_by_role("button", name="Resolve thread")
     assert resolve.bounding_box() == control
-    expect(status).to_have_text("Resolved")
-    expect(status).to_be_visible()
+    expect(status).to_have_count(0)
 
     threads = page.locator(".lf-threads")
     threads.hover()

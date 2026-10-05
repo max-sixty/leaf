@@ -264,12 +264,13 @@
                 <tr>
                   <th scope="row">6. Either side adds to the other's queue</th>
                   <td>
-                    A result only you can judge lands on you to review, and you can put
-                    a task on the agent from a thread.
+                    You can put a task on the agent from a thread. The agent's side
+                    needs nothing new: when it wants your sign-off before ending a task,
+                    it asks with an Ask or a question (<a href="#task-done"
+                      >who ends a task</a
+                    >).
                   </td>
-                  <td>
-                    Not started; needs <a href="#task-done">who ends a task</a> settled
-                  </td>
+                  <td>Not started</td>
                 </tr>
                 <tr>
                   <th scope="row">7. Items outlive their session</th>
@@ -295,10 +296,8 @@
             <lf-ask id="after-four">
               <h3 id="after-four-heading">What after step 4?</h3>
               <p>
-                With step 4 on main, three steps of the plan remain. Each can start now.
-                None waits on another, though step 6 rests on
-                <a href="#task-done">who ends a task</a>, which you've marked to think
-                about first.
+                With step 4 on main, three steps of the plan remain. Each can start now,
+                and none waits on another.
               </p>
               <lf-options id="after-four-pick" choose>
                 <lf-option id="after-four-orphans"
@@ -311,10 +310,10 @@
                   days.</lf-option
                 >
                 <lf-option id="after-four-review"
-                  ><strong>Either side adds to the other's queue</strong> Step 6. A
-                  result only you can judge lands on you to review, and you can put a
-                  task on the agent from a thread. It's the most visible change, but it
-                  needs the who-ends-a-task question settled first.</lf-option
+                  ><strong>Either side adds to the other's queue</strong> Step 6. You
+                  can put a task on the agent from a thread, so work you hand over is
+                  tracked like work it takes on itself. The agent's sign-off questions
+                  already go through Asks and thread questions.</lf-option
                 >
                 <lf-option id="after-four-shape"
                   ><strong>One item shape</strong> Step 5. Asks and tasks get the same
@@ -336,10 +335,6 @@
               <li>
                 <a href="#task-hierarchy">Can one task belong to another?</a> In
                 <code>TODO.md</code> to think about; step 7 needs one link of it.
-              </li>
-              <li>
-                <a href="#task-done">Who decides a task is done?</a> In
-                <code>TODO.md</code> to think about; step 6 rests on it.
               </li>
               <li>
                 <a href="#working-on-banner">The agent picks the banner line</a>. Agreed
@@ -372,7 +367,9 @@
               <tbody>
                 <tr>
                   <th scope="row">the agent</th>
-                  <td>An Ask; a question in a thread; later, a result to review</td>
+                  <td>
+                    An Ask; a question in a thread, including whether a result is done
+                  </td>
                   <td>A task it takes on</td>
                 </tr>
                 <tr>
@@ -475,21 +472,15 @@ leaf task end PAGE TASK done "Version 4"
               the banner names it. <code>leaf status idle</code> is refused while any
               task is open.
             </p>
-            <lf-diagram
-              id="task-states"
-              parts="node:Open node:Ended node:Review node:Unobserved"
-            >
+            <lf-diagram id="task-states" parts="node:Open node:Ended node:Unobserved">
               <pre>
 stateDiagram-v2
   state "Open, on the agent" as Open
   state "Done, failed or dropped" as Ended
-  state "To review, on you (step 6)" as Review
   state "Unobserved, on you (step 7)" as Unobserved
   [*] --&gt; Open: leaf task open
   Open --&gt; Open: a reply, Resolve, a version, the session ending
   Open --&gt; Ended: leaf task end
-  Ended --&gt; Review: if done
-  Review --&gt; Open: you reply to the result
   Open --&gt; Unobserved: its session ends
   Unobserved --&gt; Open: a session takes it over
     </pre>
@@ -741,8 +732,8 @@ stateDiagram-v2
             <h2>Hierarchy, and who says a task is done</h2>
             <p>
               Two questions about the shape of a task: whether one task can belong to
-              another, and who decides that a task is finished. Both are in
-              <code>TODO.md</code> to think about, and both shape steps 6 and 7.
+              another, which is in <code>TODO.md</code> to think about, and who decides
+              that a task is finished, which you've settled.
             </p>
 
             <section id="task-hierarchy">
@@ -794,39 +785,34 @@ stateDiagram-v2
             <section id="task-done">
               <h3>Who decides a task is done?</h3>
               <p>
-                <strong>Today, the agent alone.</strong> It ends a task with
-                <code>leaf task end</code> as done, failed or dropped, with a note
-                saying where the result is or why there is none. A version stamped with
-                <code>--completes</code> also ends the task on that widget as done. You
-                have no step in it.
+                <strong>Decided: the agent, always.</strong> It ends every task itself,
+                with <code>leaf task end</code> as done, failed or dropped and a note
+                saying where the result is, or with a version stamped
+                <code>--completes</code>.
               </p>
               <p>
-                <strong
-                  >Proposed: it depends on whether the result can be checked.</strong
-                >
+                <strong>When it needs your sign-off, it asks first.</strong> The agent
+                judges whether a result needs it. A passing test or a merged PR doesn't.
+                A design, a rewrite or a choice of wording might. It asks the way it
+                asks anything:
               </p>
               <ul>
                 <li>
-                  <strong>A result the agent can check</strong>, such as a TODO written,
-                  a test passing, a file moved or a PR merged. The agent ends the task
-                  as done and its note cites the evidence. Nothing goes on your queue,
-                  because there is nothing for you to judge.
+                  <strong>An Ask</strong> when there are options to pick, such as "Ship
+                  this layout, or try the other?"
                 </li>
                 <li>
-                  <strong>A result only you can judge</strong>, such as a design, a
-                  rewrite or a choice of wording. The agent finishes its part and the
-                  task moves onto your queue to review, for example "Rewrote § Pi
-                  comparison". <kbd>a</kbd> reaches it with everything else on you.
-                  Reading it and moving on accepts it, which ends the task. Replying
-                  sends it back to the agent's queue, with your reply as the next thing
-                  to answer.
+                  <strong>A question in the thread</strong> (a reply with
+                  <code>--awaits</code>) when the answer is open, such as "Does this
+                  read right to you?"
                 </li>
               </ul>
               <p>
-                Moving a task from the agent's queue to yours is step 6,
-                <em>Either side adds to the other's queue</em>. The agent decides which
-                case a task is, guided by its instructions, the same way it already
-                decides whether to ask you with an Ask or in a thread.
+                Either goes on your queue, so <kbd>a</kbd> reaches it. The task stays
+                open on the agent's queue while it waits, and the agent ends it once you
+                answer. So there is no separate "to review" item, and no rule about
+                whether reading something accepts it. What's left is the agent's
+                instructions, which should say when to ask before ending.
               </p>
             </section>
           </section>
@@ -879,9 +865,10 @@ stateDiagram-v2
             <p>
               The model is
               <a href="https://earendil.com/posts/pi-durable/">Pi Durable</a>'s: every
-              unit of work is a task with an owner and an outcome. Step 6 adds what
-              review and support tools add to it: whoever did the work reports it, and
-              the one who asked accepts it, with a reply to reopen. Winograd's
+              unit of work is a task with an owner and an outcome. Review and support
+              tools add an acceptance: whoever did the work reports it, and the one who
+              asked accepts it. Here the agent asks for that acceptance when it judges
+              the result needs it, before it ends the task. Winograd's
               <a href="https://www.lri.fr/~mbl/ENS/CSCW/2015/papers/Winograd-CSCW86.pdf"
                 >conversation for action</a
               >
@@ -937,14 +924,17 @@ stateDiagram-v2
                   </th>
                   <td>Nothing connected it to what you asked</td>
                   <td>
-                    The ending names where it is (built); step 6 puts it on your queue
-                    to review
+                    The ending names where it is (built), and the agent asks you there
+                    first when the result needs your judgment
                   </td>
                 </tr>
                 <tr>
                   <th scope="row">You send the result back</th>
                   <td>Each reply was a separate owed move</td>
-                  <td>Your reply reopens the same task, with its history (step 6)</td>
+                  <td>
+                    The task is still open while the agent waits on you, so your reply
+                    continues it
+                  </td>
                 </tr>
                 <tr>
                   <th scope="row">

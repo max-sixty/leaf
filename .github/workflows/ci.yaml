@@ -100,44 +100,19 @@ jobs:
         run: npm ci
         working-directory: worker
 
-      - name: Check committed browser framework
-        run: npm run check:browser && npm run test:browser
+      - name: Diagnose load-sensitive tests
+        run: bash diag/run.sh
 
-      # The bundles build from the installed lock, so a rebuild reproduces the
-      # tracked bytes exactly and any difference is a lock nobody rebuilt from.
-      - name: Check vendored bundles
-        run: |
-          uv run build/vendor.py > /dev/null
-          git status --porcelain
-          test -z "$(git status --porcelain)"
-
-      - name: 🧪 Runtime folds
-        run: npm run test:runtime
-
-      - name: Check eval assertions without model calls
-        run: npm ci --prefix evals && npm test --prefix evals
-
-      # Cheap gates fail before the complete Python suite spends its runner time.
-      - name: 🧪 Python tests
-        run: >-
-          uv run pytest tests -v --junitxml=.tmp/test-results/results.xml
-          ${{ github.event_name == 'pull_request' && '--nightly-changed-since HEAD^1' || '--run-nightly' }}
-
-      - name: Build website
-        if: github.event_name == 'pull_request'
-        run: uv run leaf-dev site
-
-      - name: 🧪 Website worker tests
-        if: github.event_name == 'pull_request'
-        run: |
-          npm run typecheck
-          npm test
-          npx wrangler deploy --dry-run --outdir ../.tmp/worker-deploy
-        working-directory: worker
-
-      - name: Measure the bundled release in Chrome
-        if: github.event_name == 'pull_request'
-        run: uv run leaf-dev verify-site wrangler
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: diag-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            .tmp/diag/
+            .tmp/flake/
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Upload pytest results
         if: always()

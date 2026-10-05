@@ -580,23 +580,39 @@ def test_a_task_on_the_user_stands_on_any_element_until_their_done(page_dir):
     assert done(page_dir, task["id"])[0] == 200
 
 
-def test_a_task_on_the_user_about_a_thread_is_theirs_until_they_reply(page_dir):
+def test_a_question_is_the_task_on_the_user_a_thread_takes(page_dir):
+    """In a thread, the task on the user is the question a reply with `--awaits` asks,
+    and it ends as a question does, at their reply: there is no Done on it, and no
+    second task put on them beside it."""
     publish(page_dir)
     comment = append_carried_log_record(
         page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "text": "Rollback?"},
     )
-    written(
-        leaf("thread", "reply", page_dir, "--for", comment["id"], "--text", "Read it.")
+    question = written(
+        leaf(
+            "thread",
+            "reply",
+            page_dir,
+            "--for",
+            comment["id"],
+            "--text",
+            "Is the rollback plan enough?",
+            "--awaits",
+        )
     )
-    task = written(
-        leaf("task", "open", page_dir, comment["id"], "Is it enough?", "--on", "user")
+    refused = leaf(
+        "task", "open", page_dir, comment["id"], "Is it enough?", "--on", "user"
     )
-    state = state_json(page_dir)
-    assert state["threads"][0]["attention"]["kind"] == "needs_user"
-    assert ("task", task["id"]) in kinds(state["queues"]["on_you"])
+    assert refused.exit_code != 0
+    assert "ask it there with `leaf thread reply --awaits`" in refused.output
 
-    reply = append_carried_log_record(
+    status, answer = done(page_dir, question["id"])
+    assert status == 400, answer
+    assert "which the user's reply or a settling reaction answers" in json.dumps(answer)
+    assert ("task", question["id"]) in kinds(state_json(page_dir)["queues"]["on_you"])
+
+    append_carried_log_record(
         page_dir,
         {
             "kind": "reply",
@@ -606,14 +622,7 @@ def test_a_task_on_the_user_about_a_thread_is_theirs_until_they_reply(page_dir):
             "text": "Yes.",
         },
     )
-    state = state_json(page_dir)
-    assert task["id"] not in [item["id"] for item in state["tasks"]]
-    assert [item["id"] for item in state["queues"]["on_agent"]] == [reply["id"]]
-    served = full_state(page_dir, events_model.read_events(page_dir))
-    [ended] = [
-        item for item in served["browser"]["ended_tasks"] if item["id"] == task["id"]
-    ]
-    assert (ended["state"], ended["outcome"]["id"]) == ("done", reply["id"])
+    assert question["id"] not in [item["id"] for item in state_json(page_dir)["tasks"]]
 
 
 def test_the_user_ends_only_their_own_task_and_not_an_asks(page_dir):

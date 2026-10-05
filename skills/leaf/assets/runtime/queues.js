@@ -39,8 +39,9 @@
 
    `taskNoun` is what an item is called, derived from how it ends rather than recorded:
    an Ask where a widget answers it, a question where the user answers in its thread,
-   otherwise its kind. `endsByDone` is whether the user ends it with Done, which every
-   task on them does that no widget answers (`queue-walk.js`, `endTask`).
+   otherwise its kind. `endsByDone` is whether the user ends it with Done, which a task
+   on them about an element or the page does, having no other way to end
+   (`queue-walk.js`, `endTask`).
 
    Experimental: the queues, the walk over them and the panel listing them are new, and
    their shape is expected to change a lot (notes/what-needs-you/). Change them freely.
@@ -48,10 +49,14 @@
 import { awaitsUser } from "./thread/model.js";
 import { atWork } from "./thread/workflow.js";
 
-// Whether the user ends this item with Done: a task on them that no widget answers.
-// An Ask's task ends when its widget answers it.
+// Whether the user ends this item with Done: a task on them about an element or the
+// page. An Ask's task ends when its widget answers it, and a question in a thread at
+// their reply or a settling reaction.
 export const endsByDone = (item) =>
-  item.kind === "task" && item.owner === "user" && !item.ask;
+  item.kind === "task" &&
+  item.owner === "user" &&
+  !item.ask &&
+  item.subject.kind !== "thread";
 
 export function taskNoun(item) {
   if (item.kind !== "task") return item.kind;

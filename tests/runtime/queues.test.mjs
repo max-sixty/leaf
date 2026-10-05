@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  endsByDone,
   selectDone,
   selectQueues,
   taskNoun,
@@ -157,5 +158,22 @@ test("what is done is each task that ended, an answered Ask's among them", () =>
       detail: "Matched the theme",
       ask: null,
     },
+  ]);
+});
+
+test("Done ends only a task the agent put on the user about an element or the page", () => {
+  const { queues } = reading();
+  const [ask, question] = queues.on_you;
+  const section = {
+    ...question,
+    subject: { kind: "element", id: "notes" },
+    thread: null,
+  };
+  const page = { ...section, subject: { kind: "page" } };
+  assert.deepEqual([ask, question, section, page].map(endsByDone), [
+    false,
+    false,
+    true,
+    true,
   ]);
 });

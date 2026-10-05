@@ -189,10 +189,10 @@ and each question a thread leaves them. Its `queues` say what is on the user
 
 A task can also be on the user. An Ask is one, under the Ask's id, until its widget
 answers it, and a reply with `--awaits` is one, under the reply's id, until they
-answer in the thread. When you need the user to do something neither answers, such as
-trying a build or reading a section and saying whether it holds up, put a task on
-them: `leaf task open <page> <id> "<what you need>" --on user`, where `<id>` names the
-thread, widget or section it concerns, or `page`. It waits on their queue until they
-press its Done, or, on a thread, reply there, and their Done reaches you like any move.
-When one no longer needs them, end it yourself with `leaf task end`: ending an Ask's
-task retires the Ask.
+answer in the thread or settle it with a reaction. When you need the user to do
+something neither answers, such as trying a build or following new steps on their
+phone, put a task on them: `leaf task open <page> <id> "<what you need>" --on user`,
+where `<id>` names the widget or section it concerns, or `page`. A thread takes no
+such task: ask there with `--awaits`. It waits on their queue until they press its
+Done, which reaches you like any move. When one no longer needs them, end it yourself
+with `leaf task end`: ending an Ask's task retires the Ask.

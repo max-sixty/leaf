@@ -647,8 +647,8 @@ def _task_error(view, event: dict, events: list, readings) -> str | None:
     if event["kind"] == "task_end":
         reading = obligation_reading(readings)["asks"]
         asked = {
-            **{identity: False for identity in reading["prompts"].values()},
-            **{identity: True for identity in reading["page"] + reading["thread"]},
+            **{identity: "question" for identity in reading["prompts"].values()},
+            **{identity: "ask" for identity in reading["page"] + reading["thread"]},
         }
     owed = {item["input"] for item in workflows if item["next_actor"] == "agent"}
     return task_error(

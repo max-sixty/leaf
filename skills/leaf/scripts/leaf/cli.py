@@ -988,9 +988,9 @@ def task() -> None:
     turn, with the line the banner shows. A task stays on your queue through
     replies, resolutions, versions and the end of the session that opened it;
     `leaf task end`, or a stamp that `--completes` its widget, ends it. A task you
-    open `--on user` is on the user's queue instead, until they answer it or press
-    its Done, or you end it. Every write prints the record it appended, one JSON
-    line, as `page events` prints it.
+    open `--on user` is on the user's queue instead, until they press its Done or you
+    end it. Every write prints the record it appended, one JSON line, as `page events`
+    prints it.
     """
 
 
@@ -1011,8 +1011,8 @@ def task_open(dir: str, subject: str, title: str, owner: str) -> None:
     widget its messages carry; a page widget, which for your own task must declare
     x-work or hold an unsettled move; any other element of the page by its id, such
     as a section; or `page` for the page as a whole. With `--on user` the task is on
-    the user: it ends at their Done, or on a thread at their reply there, and you can
-    end it too. Its id is the printed record's `id`."""
+    the user, on anything but a thread, where a reply with `--awaits` asks them: it
+    ends at their Done, and you can end it too. Its id is the printed record's `id`."""
     from leaf.tasks import cmd_open
 
     _print_records(cmd_open(resolve_dir(dir), subject, title, owner))

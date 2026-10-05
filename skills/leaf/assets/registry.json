@@ -250,7 +250,7 @@
       ],
       "task_end": [
         {
-          "text": "The user pressed Done on a task you put on them: `task` names the task you opened with `--on user`, or the reply of yours that asked them a question. It ends that task and owes no reply of its own. Carry on with whatever the task was waiting for, reading the page where you need to see what they did; if you still need something from them, ask again."
+          "text": "The user pressed Done on a task you put on them: `task` names the task you opened with `--on user`. It ends that task and owes no reply of its own. Carry on with whatever the task was waiting for, reading the page where you need to see what they did; if you still need something from them, ask again."
         }
       ],
       "done": [

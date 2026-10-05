@@ -27,12 +27,13 @@ server, owes the user nothing and is no item.
 The user's tasks come from three places, and their owner and subject say how each
 ends. Each Ask in the markup is one, under the Ask's id, from the version that adds
 it, ended `done` when its widget is answered (`asks`); each agent turn in a thread
-that asks the user (`asks.thread_awaits_user`) is one, under that turn's id, ended at
-the user's answer there; the document starts state, so neither writes an event, and
-`page_tasks` reads them. The third is a `task` event the agent writes with `--on
-user`: on a thread it ends at the user's next message there, and anywhere else at the
-user's Done, their own `task_end`, which `undo` takes back. The agent can end any task
-on the user: ending an Ask's retires the Ask, and a question's settles it, since both
+that asks the user (`asks.thread_awaits_user`) is one, under that turn's id, ended by
+the user's reply there or a settling reaction; the document starts state, so neither
+writes an event, and `page_tasks` reads them. The third is a `task` event the agent
+writes with `--on user` on a widget, an element or the page, never a thread, where
+the question is the task. Nothing else answers it, so it ends at the user's Done,
+their own `task_end`, which `undo` takes back. The agent can end any task on the
+user: ending an Ask's retires the Ask, and a question's settles it, since both
 readings take an ended one off the user (`task_ends`).
 
 A start lasts until its item ends: a task's end, or for a move the reply or stamped
@@ -50,11 +51,12 @@ which writes no `put_down`.
 
 The door admits the agent's task on an open thread, on a live page widget that
 declares `x-work` or holds an unsettled move (`work.widget_seat_error`), on any
-element of the page, or on the page, and a task on the user on any of those, a widget
-needing no seat; a start on an open task of the agent's or a move the agent owes; and
-an end of an open task, the user's only of one on them that no widget answers
-(`task_error`). Every reader takes the log's tasks from `canonical_tasks`, every task
-on the page from `page_tasks` and `ask_tasks`, and starts from `item_starts`.
+element of the page, or on the page, and a task on the user on any of those but a
+thread, a widget needing no seat; a start on an open task of the agent's or a move
+the agent owes; and an end of an open task, the user's only of one the agent opened
+on them (`task_error`). Every reader takes the log's tasks from `canonical_tasks`,
+every task on the page from `page_tasks` and `ask_tasks`, and starts from
+`item_starts`.
 
 Not yet: a task whose session has ended reads open until another session ends it.
 
@@ -67,8 +69,6 @@ import sys
 from pathlib import Path
 
 from .events import note_settlements, taken_back
-from .schema import MESSAGE_KINDS
-from .thread_context import thread_names
 
 OUTCOMES = ("done", "failed", "dropped")
 
@@ -125,25 +125,11 @@ def _outcome(event: dict, detail: str | None) -> dict:
     }
 
 
-def _answers_in_thread(event: dict) -> bool:
-    """Whether `event` is the user saying something in a thread: a comment or reply
-    with words, which a reaction is not."""
-    return (
-        event["kind"] in MESSAGE_KINDS
-        and event["author"] == "user"
-        and "token" not in event
-    )
-
-
 def canonical_tasks(events: list) -> list[dict]:
     """Every task the log holds, oldest first, with its current state and the start
     running on it while it is open. An ending naming no task the log holds is skipped,
-    as other folds skip a lost line.
-
-    A task the agent put on the user about a thread also ends `done` at the user's
-    next message in that thread, which answers it as a reply answers a question."""
+    as other folds skip a lost line."""
     tasks: dict[str, dict] = {}
-    names = thread_names(events)
     withdrawn = taken_back(events)
 
     def end(task: dict, state: str, event: dict, detail: str | None) -> None:
@@ -177,14 +163,6 @@ def canonical_tasks(events: list) -> list[dict]:
                 task = tasks.get(identity)
                 if task is not None and task["state"] == "open":
                     end(task, "done", event, f"v{event['version']}")
-        elif _answers_in_thread(event):
-            for task in tasks.values():
-                if (
-                    task["state"] == "open"
-                    and task["owner"] == "user"
-                    and task["subject"] == {"kind": "thread", "id": names[event["id"]]}
-                ):
-                    end(task, "done", event, None)
     standing = item_starts(events)
     for task in tasks.values():
         if task["state"] == "open" and task["id"] in standing:
@@ -298,8 +276,8 @@ def page_tasks(
     threads' Ask reading, and `threads` the served threads, whose `user_prompt` names
     the agent turn a thread's question stands on: a thread whose agent turn asks the
     user in prose is a task on the user under that turn's id, open until the user
-    answers it in the thread or a `task_end` in `ends` ends it, the user's Done or the
-    agent's."""
+    answers it in the thread, settles it with a reaction, or the agent ends it with a
+    `task_end` in `ends`."""
     standing, ended = ask_tasks(thread_asks, ends)
     held = {task["id"] for task in log} | {task["id"] for task in ended}
     for thread in threads:
@@ -334,18 +312,20 @@ def task_error(
     seat_error,
     element_error,
     owed: set[str],
-    asked: dict[str, bool],
+    asked: dict[str, str],
 ) -> str | None:
     """Why the append door refuses a task event, or None.
 
     The agent's task stands on an open thread of `threads` (`events.build_threads`),
     on a widget `seat_error` admits, on an element `element_error` admits, or on the
-    page; a task it puts on the user stands on any widget `element_error` admits rather
-    than a seat for work. A start names an open task of the agent's or a move in
-    `owed`, the inputs of the moves on the agent. An outcome ends a task still open:
-    one in the log, or one of `asked`, the user's open tasks that an Ask (`True`) or a
-    thread's question (`False`) holds. The agent may end any task; the user only one
-    on them, and not an Ask's, which ends when its widget answers it."""
+    page. A task it puts on the user stands on any widget or element `element_error`
+    admits, or on the page, and not on a thread, where a question asked with
+    `--awaits` is the task on the user. A start names an open task of the agent's or a
+    move in `owed`, the inputs of the moves on the agent. An outcome ends a task still
+    open: one in the log, or one of `asked`, the user's open tasks an Ask (`ask`) or a
+    thread's question (`question`) holds. The agent may end any task; the user only a
+    task in the log that is on them, since an Ask ends when its widget answers it and
+    a question at their reply or a settling reaction."""
     kind = event["kind"]
     if kind == "task":
         subject = event["subject"]
@@ -359,6 +339,11 @@ def task_error(
             return element_error(subject["id"])
         if subject["kind"] == "page":
             return None
+        if event["owner"] == "user":
+            return (
+                f"{subject['id']!r} is a thread, where a task on the user is a "
+                "question: ask it there with `leaf thread reply --awaits`"
+            )
         thread = threads.get(subject["id"])
         if thread is None:
             return f"{subject['id']!r} is not a thread on this page"
@@ -380,7 +365,7 @@ def task_error(
         (task for task in canonical_tasks(events) if task["id"] == identity), None
     )
     if task is None and identity in asked:
-        task = {"state": "open", "owner": "user", "ask": asked[identity]}
+        task = {"state": "open", "owner": "user", "held": asked[identity]}
     if task is None:
         if ended := task_ends(events).get(identity):
             return f"task {identity!r} has already ended ({ended['state']})"
@@ -392,17 +377,23 @@ def task_error(
             return (
                 f"task {identity!r} is the agent's; the user ends only a task on them"
             )
-        if task.get("ask"):
+        if task.get("held") == "ask":
             return (
                 f"task {identity!r} is an Ask's, which ends when its widget answers it"
+            )
+        if task.get("held") == "question":
+            return (
+                f"task {identity!r} is a question in its thread, which the user's "
+                "reply or a settling reaction answers"
             )
     return None
 
 
 def cmd_open(page_dir: Path, subject: str, title: str, owner: str) -> dict:
     """Open a task titled `title`, owed by `owner`, on what `subject` names: a thread,
-    by any message in it or a widget frozen in it, a page widget, any other element of
-    the page by its id, or `page` for the page as a whole; the record."""
+    by any message in it or a widget frozen in it (the agent's own task only), a page
+    widget, any other element of the page by its id, or `page` for the page as a
+    whole; the record."""
     from .event_contracts import append_admitted
     from .harness import message_identity
     from .leases import contract_writer

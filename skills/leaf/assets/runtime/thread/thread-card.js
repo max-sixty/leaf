@@ -9,7 +9,7 @@
    those values.
    The owner alone renders its native card root and all generated descendants; a
    failed candidate is restored by presenting its committed descriptor again. */
-import { nextRender } from "../rendering.js";
+import { nextRender, sizeObserver } from "../rendering.js";
 import { holdFocus } from "../focus.js";
 import { TEXT_FIELD } from "../control-selectors.js";
 import { html, render, repeat, nothing } from "../../vendor/browser-runtime.js";
@@ -38,7 +38,13 @@ import { ReplyContinuity } from "./reply-continuity.js";
 
 function quoteReading(thread, anchors) {
   const placement = anchors.placedAt(thread.id);
-  const label = anchorLabel(thread.detached_from ?? thread.anchor, thread.root.about);
+  // A version that rewrote the quoted words left the thread on their section
+  // (`rewritten_from`, events.md); the head still names those words, marked as changed.
+  const rewritten = thread.rewritten_from;
+  const label = anchorLabel(
+    rewritten ?? thread.detached_from ?? thread.anchor,
+    thread.root.about,
+  );
   if (!label) return null;
   const anchored = Boolean(thread.anchor) || Boolean(thread.detached_from);
   const found = !thread.detached_from && Boolean(placement);
@@ -48,12 +54,15 @@ function quoteReading(thread, anchors) {
     anchored,
     found,
     outdated,
+    changed: Boolean(rewritten),
     title: !anchored
       ? null
       : found
         ? outdated
           ? "This comment refers to an earlier data revision"
-          : "Jump to this passage"
+          : rewritten
+            ? "These words have changed since; jump to their section"
+            : "Jump to this passage"
         : thread.detached_from
           ? "This passage is no longer in the version you're viewing"
           : "This passage can't be identified in the version you're viewing",
@@ -143,12 +152,14 @@ export function threadReading(
   });
 }
 
-function navigationSummary(navigation, model) {
+function navigationSummary(navigation, model, settlement) {
   if (!navigation) return nothing;
   const pendingTitle = model.titlePending;
   const title = model.summary.topic;
   const latest = model.summary.latest;
-  const status = model.resolved ? "Resolved" : model.attention?.label || "";
+  const status = model.resolved
+    ? (settlement && model.resolvedBy) || "Resolved"
+    : model.attention?.label || "";
   const draft = Boolean(loadDraft("reply:" + model.key));
   // While a title is on its way, the title slot says so in words drawn apart from any
   // title; the theme keeps the placeholder muted while naming is under way.
@@ -174,6 +185,7 @@ function navigationSummary(navigation, model) {
         status
           ? html`<span
               class="lf-thread-status"
+              data-lf-settlement=${settlement ? "" : nothing}
               data-lf-turn=${model.attention?.kind === "needs_user" ? "user" : nothing}
               data-lf-folded=${model.statusFolded ? "" : nothing}
               title=${
@@ -225,6 +237,15 @@ function readBoundary(kind) {
 }
 
 let nextViewId = 0;
+// The margin card's controls stand over its transcript, so each message's head keeps
+// their width clear and its words end before them.
+const marginControlsSizes = sizeObserver((entries) => {
+  for (const { target, borderBoxSize } of entries)
+    target.parentElement?.style.setProperty(
+      "--lf-margin-controls-width",
+      `${borderBoxSize[0].inlineSize}px`,
+    );
+});
 
 export class ThreadView {
   #commands;
@@ -242,6 +263,7 @@ export class ThreadView {
   #expandedSummaries = new Set();
   #navigation = null;
   #marginControls = null;
+  #marginControlsRow = null;
   #viewId = ++nextViewId;
   // What a thread in the page's flow holds back says so in its control row (held-news.js).
   #news = newsNotice();
@@ -402,13 +424,16 @@ export class ThreadView {
     }
     const wanted = new Set(model.messages.map((message) => message.key));
     for (const [key, view] of this.#messages) if (!wanted.has(key)) view.retire();
-    const settlement = model.settlement ? this.#settlement(model) : null;
+    const headerSettlement = panel && model.resolved && !replySlot && !model.folding;
+    const settlement = model.settlement
+      ? this.#settlement(model, headerSettlement)
+      : null;
     const marginControls = model.surface === "margin" ? this.#marginControls : null;
     let headerActions = null;
     if (!model.resolved || replySlot || model.folding || marginControls) {
       const actions = marginControls
         ? [marginControls.nav, settlement, marginControls.close].filter(Boolean)
-        : [settlement].filter(Boolean);
+        : [headerSettlement ? null : settlement].filter(Boolean);
       for (const child of [...this.#metadataActions.children])
         if (!actions.includes(child)) child.remove();
       actions.forEach((control, index) => {
@@ -420,6 +445,10 @@ export class ThreadView {
       });
       headerActions = this.#metadataActions;
     }
+    // The root's metadata row carries the thread's actions, except in the margin card,
+    // whose controls stand over its own scrolling transcript, where each message keeps
+    // its head.
+    const hoists = Boolean(headerActions) && !marginControls;
     const describedRanges = summaryRanges(model.messages, model.summaries);
     const summaries = new Set(model.summaries.map(({ id }) => id));
     for (const id of this.#expandedSummaries)
@@ -449,7 +478,7 @@ export class ThreadView {
           (view = new MessageView(this.#messageCommands)),
         );
       view.present(message, {
-        externalHeader: index === 0 && Boolean(headerActions),
+        externalHeader: index === 0 && hoists,
         arrived: Boolean(prior),
       });
       return { key: message.key, node: view.node, header: view.header };
@@ -472,7 +501,7 @@ export class ThreadView {
         nodes,
       };
     });
-    const hoistedRoot = headerActions ? messages[0]?.key : null;
+    const hoistedRoot = hoists ? messages[0]?.key : null;
     const markerFor = (key) =>
       readBoundary(key === hoistedRoot ? null : boundaries.get(key));
     const transcript = repeat(
@@ -502,7 +531,9 @@ export class ThreadView {
                 ${
                   model.quote.outdated
                     ? html`<span class="lf-anchor-status">Earlier data</span>`
-                    : nothing
+                    : model.quote.changed
+                      ? html`<span class="lf-anchor-status">Changed</span>`
+                      : nothing
                 }
               </blockquote>
             </header>`
@@ -510,17 +541,20 @@ export class ThreadView {
       }
       ${readBoundary(hoistedRoot ? boundaries.get(hoistedRoot) : null)}
       ${
-        headerActions && messages[0]
+        hoists && messages[0]
           ? html`<div class="lf-thread-root-meta" data-lf-reflow="text">
               ${messages[0].header}${news} ${headerActions}
             </div>`
-          : nothing
+          : headerActions
+            ? this.#marginControlsRowOf(html`${news}${headerActions}`)
+            : nothing
       }
       <div class="lf-thread-transcript">${transcript}</div>
     `;
     render(
       html`
-        ${navigationSummary(navigation, model)}
+        ${navigationSummary(navigation, model, headerSettlement ? settlement : null)}
+        ${headerSettlement ? settlement : nothing}
         ${
           model.surface === "outlet"
             ? html`<summary
@@ -544,20 +578,22 @@ export class ThreadView {
         ${replySlot ? (this.#continuity?.gap ?? nothing) : nothing}
         ${reply ? this.#reply.node : (this.#replyReservation ?? nothing)}
         ${
-          model.resolved && !replySlot && !model.folding && !marginControls
+          model.resolved &&
+          !replySlot &&
+          !model.folding &&
+          !marginControls &&
+          (!panel || model.news)
             ? html`<div
                 class=${panel ? "lf-thread-actions" : "lf-page-thread-resolved lf-ui"}
               >
                 <span
                   >${
-                    model.resolvedBy
-                      ? html`<span class=${panel ? "lf-resolved-by" : nothing}
-                          >${model.resolvedBy}</span
-                        >`
+                    !panel && model.resolvedBy
+                      ? html`<span>${model.resolvedBy}</span>`
                       : nothing
                   }</span
                 >
-                ${news}${settlement}
+                ${news}${panel ? nothing : settlement}
               </div>`
             : nothing
         }
@@ -574,6 +610,16 @@ export class ThreadView {
           this.#commands.landInThread(this.node.querySelector(SAY_BOX) ?? this.node)),
     );
     return this.node;
+  }
+
+  #marginControlsRowOf(content) {
+    if (!this.#marginControlsRow) {
+      this.#marginControlsRow = document.createElement("div");
+      this.#marginControlsRow.className = "lf-margin-thread-controls";
+      marginControlsSizes.observe(this.#marginControlsRow);
+    }
+    render(content, this.#marginControlsRow);
+    return this.#marginControlsRow;
   }
 
   #summaryRange(range, markerFor) {
@@ -641,17 +687,17 @@ export class ThreadView {
       ?.focus({ preventScroll: true });
   }
 
-  // Resolve is a check; Reopen is a word, or, where it stands in Resolve's place, the
-  // check drawn done, at Resolve's size.
-  #settlement(model) {
+  // The panel's resolved title keeps its state label as the reopening action.
+  // Other surfaces use Reopen or the completed check in Resolve's place.
+  #settlement(model, header = false) {
     const state = model.settlement;
     const reopen = state.kind === "unresolve";
-    const face = `${state.kind}${state.icon ? " icon" : ""}`;
+    const face = `${state.kind}${state.icon ? " icon" : ""}${header ? " header" : ""}`;
     let button = this.#settlements.get(face);
     if (!button) {
       button = offer(
         "button",
-        `lf-btn ${reopen ? "lf-reopen" : "lf-resolve"} ${state.icon ? "lf-icon-action" : "lf-thread-action"}`,
+        `lf-btn ${reopen ? "lf-reopen" : "lf-resolve"} ${header ? "lf-thread-header-action lf-thread-action" : state.icon ? "lf-icon-action" : "lf-thread-action"}`,
       );
       button.type = "button";
       button.onclick = this.#settle;
@@ -670,12 +716,22 @@ export class ThreadView {
     }
     keeps(button, "aria-disabled", state.pending || model.folding);
     keeps(button, "aria-busy", state.pending && !model.folding);
-    if (state.icon) {
+    if (header) {
+      keeps(button, "aria-label", `${model.resolvedBy || "Resolved"} · Reopen thread`);
+      keeps(button, "title", `${model.resolvedBy || "Resolved"} · Reopen thread`);
+    } else if (state.icon) {
       const label = model.folding ? "Resolved" : state.label;
       keeps(button, "aria-label", label);
       keeps(button, "title", label);
     }
-    render(state.icon ? iconTemplate("check", "lf-action-icon") : state.label, button);
+    render(
+      header
+        ? model.resolvedBy || "Resolved"
+        : state.icon
+          ? iconTemplate("check", "lf-action-icon")
+          : state.label,
+      button,
+    );
     return button;
   }
 
@@ -850,6 +906,7 @@ export class ThreadView {
   }
 
   dispose() {
+    if (this.#marginControlsRow) marginControlsSizes.unobserve(this.#marginControlsRow);
     this.#heldNews?.dispose();
     this.#continuity?.release();
     this.retire();

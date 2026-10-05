@@ -58,9 +58,13 @@ PAYLOAD = (
 )
 
 # The models evals run, pinned so runs on different days compare: each harness's
-# agents, with Claude Code's also judging screenshots, and the judge behind
-# `llm-rubric` assertions.
-MODELS = {"cc": "claude-opus-5-5", "codex": "gpt-6.1-sol", "judge": "claude-sonnet-5-5"}
+# agents, the judge behind `llm-rubric` assertions, and the screenshot judge.
+MODELS = {
+    "cc": "claude-opus-5-5",
+    "codex": "gpt-6.1-sol",
+    "judge": "claude-sonnet-5-5",
+    "screenshots": "gpt-6.1-sol",
+}
 
 
 def run_directory(parent: Path) -> Path:

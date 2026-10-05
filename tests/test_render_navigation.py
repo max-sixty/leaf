@@ -1372,13 +1372,6 @@ def _accepted_gallery_proposal(browser, serve):
     return url, page
 
 
-@pytest.mark.xfail(
-    reason="Main ef89dfd3e intermittently keeps the gallery's accepted lf-old visible "
-    "with data-lf-retired; the unchanged journey still fails despite passing "
-    "controls and a full Linux CI XPASS",
-    raises=AssertionError,
-    strict=False,
-)
 def test_the_feature_gallery_hides_an_accepted_proposal_slot(browser, serve):
     """An accepted block proposal hides the slot retired by its decision."""
     _, page = _accepted_gallery_proposal(browser, serve)
@@ -2777,7 +2770,7 @@ def test_keys_answer_a_question_from_its_marks(browser, serve):
 
     page.keyboard.press("a")
     position = page.locator(".lf-walk-position")
-    expect(position).to_have_text("Ask 1 of 4 open")
+    expect(position).to_have_text("1 of 4 waiting on you · Ask")
     expect(position).to_have_attribute("aria-hidden", "true")
     expect(position.locator("xpath=parent::*")).to_have_class(
         re.compile("lf-bottom-status")
@@ -2808,7 +2801,7 @@ def test_keys_answer_a_question_from_its_marks(browser, serve):
     ).to_have_text(["1", "2"])
     page.keyboard.press("Tab")
     expect(marks.first).to_be_focused()
-    expect(position).to_have_text("Ask 1 of 4 open")
+    expect(position).to_have_text("1 of 4 waiting on you · Ask")
     expect(
         page.locator(
             "#live-question > lf-option > .lf-key-badge[data-lf-binding-badge]"
@@ -2867,7 +2860,7 @@ def test_the_ask_walk_position_shares_the_shortcut_line(browser, serve):
     expect(page.locator(".lf-banner-menu > .lf-asks")).to_have_count(1)
 
     page.keyboard.press("a")
-    expect(position).to_have_text("Ask 1 of 4 open")
+    expect(position).to_have_text("1 of 4 waiting on you · Ask")
     expect(position).to_be_visible()
     resized(page, 1200, 780)
     expect(position).to_be_visible()
@@ -2926,12 +2919,12 @@ def test_the_ask_walk_position_shares_the_shortcut_line(browser, serve):
 
     for index in range(2, 5):
         page.keyboard.press("a")
-        expect(position).to_have_text(f"Ask {index} of 4 open")
+        expect(position).to_have_text(f"{index} of 4 waiting on you · Ask")
     expect(position).not_to_have_attribute("data-lf-boundary", "")
     status = page.locator(".lf-bottom-status")
     ordinary = status.evaluate("node => getComputedStyle(node).color")
     page.keyboard.press("a")
-    expect(position).to_have_text("Ask 4 of 4 open")
+    expect(position).to_have_text("4 of 4 waiting on you · Ask")
     expect(position).to_have_attribute("data-lf-boundary", "")
     assert (
         status.evaluate("node => node.getBoundingClientRect().left")
@@ -2954,7 +2947,7 @@ def test_a_failed_ask_reveal_does_not_register_an_arrival(browser, serve):
     page = open_page(browser, serve(ASKS_PAGE))
     position = page.locator(".lf-walk-position")
     page.keyboard.press("a")
-    expect(position).to_have_text("Ask 1 of 4 open")
+    expect(position).to_have_text("1 of 4 waiting on you · Ask")
     page.evaluate(
         """async () => {
           const {attachApplicationPresentation} = await window.__lfRuntimeImport(
@@ -2978,7 +2971,7 @@ def test_a_failed_ask_reveal_does_not_register_an_arrival(browser, serve):
         page.evaluate("() => { rejectAskReveal(new Error('ask reveal probe')); }")
         page.wait_for_function("window.askRevealRejected === true", timeout=3000)
         shortcut_bar_text(page)
-        assert position.text_content() == "Ask 1 of 4 open"
+        assert position.text_content() == "1 of 4 waiting on you · Ask"
         assert position.get_attribute("data-lf-boundary") is None
         expect(page.locator("#live-question-decision")).to_be_focused()
         assert take_browser_errors(page) == [
@@ -2995,7 +2988,7 @@ def test_a_delayed_ask_reveal_yields_to_programmatic_user_focus(browser, serve):
     position = page.locator(".lf-walk-position")
     page.keyboard.press("a")
     expect(page.locator("#live-question-decision")).to_be_focused()
-    expect(position).to_have_text("Ask 1 of 4 open")
+    expect(position).to_have_text("1 of 4 waiting on you · Ask")
     page.evaluate(
         """() => {
           const held = new Promise(resolve => { window.releaseAskReveal = resolve; });
@@ -3018,8 +3011,182 @@ def test_a_delayed_ask_reveal_yields_to_programmatic_user_focus(browser, serve):
     rendered(page)
 
     expect(page.locator(".lf-threads-toggle")).to_be_focused()
-    assert position.text_content() == "Ask 1 of 4 open"
+    assert position.text_content() == "1 of 4 waiting on you · Ask"
     assert position.get_attribute("data-lf-boundary") is None
+
+
+QUEUE_PAGE = leaf_page(
+    "What waits on you",
+    '<h1 id="h">Release</h1><p id="cadence">We publish a build every week.</p>'
+    '<lf-ask id="channel-ask"><h2>Which channel first?</h2>'
+    '<lf-options id="channel" choose><lf-option id="beta">Beta first</lf-option>'
+    '<lf-option id="both">Both at once</lf-option></lf-options></lf-ask>'
+    '<p id="notes">Release notes come from merged titles.</p>',
+)
+
+
+def test_a_walks_what_waits_on_you_and_the_banner_counts_both_queues(browser, serve):
+    """`a` stops, in page order, at a thread whose question waits on the user as well
+    as at an open Ask, and passes a thread waiting on the agent; `t` still walks both
+    threads. The banner counts what waits on each side, and a reply the user sends
+    moves its thread from their count to the agent's and off the walk."""
+    url = serve(QUEUE_PAGE)
+    d = serve.page_dir
+    asked = append_carried_log_record(
+        d,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Weekly?",
+            "anchor": {"section": "cadence"},
+        },
+    )
+    append_carried_log_record(
+        d,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Agent",
+            "parent": asked["id"],
+            "responds": asked["id"],
+            "revision": 1,
+            "text": "Weekly or daily?",
+            "awaits": True,
+        },
+    )
+    owed = append_carried_log_record(
+        d,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Tighten this.",
+            "anchor": {"section": "notes"},
+        },
+    )
+    page = open_page(browser, url)
+    status = page.locator(".lf-status-queues")
+    expect(status).to_have_text(re.compile(r"^2 on you · 1 on \S+$"))
+    expect(page.locator(".lf-status-button")).to_have_attribute(
+        "title", re.compile(r" Waiting on you: 1 Ask, 1 question\. .*: 1 reply\.$")
+    )
+
+    position = page.locator(".lf-walk-position")
+    thread = page.locator(f'.lf-page-thread[data-thread="{asked["id"]}"]')
+    page.keyboard.press("a")
+    expect(position).to_have_text("1 of 2 waiting on you · Thread")
+    expect(thread).to_be_focused()
+    page.keyboard.press("a")
+    expect(position).to_have_text("2 of 2 waiting on you · Ask")
+    expect(page.locator("#channel-ask")).to_be_focused()
+    page.keyboard.press("a")
+    expect(position).to_have_attribute("data-lf-boundary", "")
+    page.keyboard.press("Shift+a")
+    expect(position).to_have_text("1 of 2 waiting on you · Thread")
+    expect(thread).to_be_focused()
+
+    page.keyboard.press("Enter")
+    box = thread.locator("leaf-text")
+    write(box, "Weekly.")
+    # The reply moves from one count to the other in the turn it is sent, before the
+    # server has answered for it.
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    page.keyboard.press("ControlOrMeta+Enter")
+    holding(page, held, 1, "the reply")
+    expect(status).to_have_text(re.compile(r"^1 on you · 2 on \S+$"))
+    page.unroute("**/api/event")
+    for route in held:
+        route.continue_()
+    round_trip(page)
+    expect(status).to_have_text(re.compile(r"^1 on you · 2 on \S+$"))
+    page.locator("#h").click()
+    page.keyboard.press("a")
+    expect(position).to_have_text("1 of 1 waiting on you · Ask")
+    page.locator("#h").click()
+    page.keyboard.press("t")
+    expect(position).to_have_text("Thread 1 of 2")
+
+    # A follow-up in a thread the agent already owes is still one answer owed: the
+    # server owes a thread one answer, to its latest move, so the count holds while the
+    # follow-up is in flight and after.
+    page.keyboard.press("t")
+    expect(position).to_have_text("Thread 2 of 2")
+    notes = page.locator(f'.lf-page-thread[data-thread="{owed["id"]}"]')
+    expect(notes).to_be_focused()
+    page.keyboard.press("Enter")
+    write(notes.locator("leaf-text"), "And the second line.")
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    page.keyboard.press("ControlOrMeta+Enter")
+    holding(page, held, 1, "the follow-up")
+    expect(status).to_have_text(re.compile(r"^1 on you · 2 on \S+$"))
+    page.unroute("**/api/event")
+    for route in held:
+        route.continue_()
+    round_trip(page)
+    expect(status).to_have_text(re.compile(r"^1 on you · 2 on \S+$"))
+
+
+def test_an_a_step_newer_focus_cancels_at_a_thread_claims_no_arrival(browser, serve):
+    """`a` arriving at a thread with the panel shut opens it on the page, and the
+    opening can wait on the page. Focus the user moves meanwhile cancels the arrival:
+    focus stays where they put it and the walk says nothing about the thread."""
+    url = serve(QUEUE_PAGE)
+    asked = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Weekly?",
+            "anchor": {"section": "cadence"},
+        },
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Agent",
+            "parent": asked["id"],
+            "responds": asked["id"],
+            "revision": 1,
+            "text": "Weekly or daily?",
+            "awaits": True,
+        },
+    )
+    page = open_page(browser, url)
+    position = page.locator(".lf-walk-position")
+    page.evaluate(
+        """() => {
+          const held = new Promise(resolve => { window.releaseThreadReveal = resolve; });
+          held.then(() => { window.threadRevealSettled = true; });
+          document.body.addEventListener('lf-reveal', event => {
+            event.detail.present(held);
+            window.threadRevealStarted = true;
+          }, {once: true});
+        }"""
+    )
+
+    page.keyboard.press("a")
+    page.wait_for_function("window.threadRevealStarted === true", timeout=3000)
+    page.locator(".lf-threads-toggle").focus()
+    expect(page.locator(".lf-threads-toggle")).to_be_focused()
+    page.evaluate("releaseThreadReveal()")
+    page.wait_for_function("window.threadRevealSettled === true", timeout=3000)
+    rendered(page)
+
+    expect(page.locator(".lf-threads-toggle")).to_be_focused()
+    assert not position.text_content()
+    # The control: the same press left alone arrives and says where.
+    page.locator("#h").click()
+    page.keyboard.press("a")
+    expect(position).to_have_text("1 of 2 waiting on you · Thread")
+    expect(
+        page.locator(f'.lf-page-thread[data-thread="{asked["id"]}"]')
+    ).to_be_focused()
 
 
 def test_a_delayed_thread_reveal_reports_that_new_user_focus_cancelled_it(
@@ -4643,22 +4810,13 @@ def test_inline_thread_surface_has_room_without_focus_reflow(browser, serve):
     )
 
 
-LONG_PANEL_ARRIVAL_FAILURE = pytest.mark.xfail(
-    reason="Main ef89dfd3e: long panel arrival cuts a glyph at its top edge "
-    "despite room to align a complete paragraph and retain the reply; "
-    "full-main 5e5568c32 failure remains reproduced",
-    raises=AssertionError,
-    strict=False,
-)
-
-
 @pytest.mark.parametrize(
     "reply_paragraphs",
     [
         0,
         10,
-        pytest.param(18, marks=LONG_PANEL_ARRIVAL_FAILURE),
-        pytest.param(30, marks=LONG_PANEL_ARRIVAL_FAILURE),
+        18,
+        30,
     ],
     ids=["short", "near-fit", "long", "very-long"],
 )
@@ -4797,9 +4955,12 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
               const target = compose.getBoundingClientRect();
               const clear = parseFloat(getComputedStyle(list).scrollPaddingTop) || 0;
               const start = view.top + clear;
+              // A turn's head is a block boundary as well as its paragraphs: a long
+              // arrival starts the latest turn there.
               const blocks = [...thread.querySelectorAll(
-                ':scope > *, :scope > .lf-thread-content > *, .lf-msg .lf-msg-body > *, ' +
-                '.lf-msg .lf-msg-text > *'), compose]
+                ':scope > *, :scope > .lf-thread-content > *, ' +
+                '.lf-thread-transcript > :is(.lf-msg, .lf-thread-checkpoint), ' +
+                '.lf-msg .lf-msg-body > *, .lf-msg .lf-msg-text > *'), compose]
                 .map((block) => ({
                   name: block.className || block.tagName,
                   top: block.getBoundingClientRect().top,
@@ -7694,13 +7855,13 @@ def test_registered_shortcuts_are_exposed_to_assistive_technology(browser, serve
     expect(
         page.locator(
             ".lf-command-reference tr",
-            has_text="Next ask this page is waiting on you for",
+            has_text="Next Ask, thread or move to resend waiting on you",
         ).locator("kbd")
     ).to_have_text("a")
     expect(
         page.locator(
             ".lf-command-reference tr",
-            has_text="Previous ask this page is waiting on you for",
+            has_text="Previous Ask, thread or move to resend waiting on you",
         ).locator("kbd")
     ).to_have_text("A")
     page.keyboard.press("Escape")
@@ -10580,7 +10741,7 @@ def test_a_coarse_pointer_keeps_useful_status_without_keyboard_hints(browser, se
     line = page.locator(".lf-shortcut-bar")
     expect(line).to_be_hidden()
     position = page.locator(".lf-walk-position")
-    expect(position).to_have_text("Ask 1 of 4 open")
+    expect(position).to_have_text("1 of 4 waiting on you · Ask")
     expect(position).to_be_visible()
     active_room = page.evaluate(
         """() => {
@@ -12577,7 +12738,7 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     expect(help_el).not_to_contain_text("Next open thread")
     expect(help_el).not_to_contain_text("Previous open thread")
     expect(help_el).not_to_contain_text("In a thread")
-    expect(help_el).not_to_contain_text("waiting on you for")
+    expect(help_el).not_to_contain_text("thread or move to resend waiting on you")
     # A first version has a menu and a way out, but no neighbouring version to walk.
     expect(help_el).to_contain_text("The versions, and what each one changed")
     expect(help_el).to_contain_text("Close the versions menu")
@@ -12616,7 +12777,7 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
         )
     ).to_have_attribute("aria-label", "g then Shift+t")
     expect(help_el).not_to_contain_text("link on screen")
-    expect(help_el).not_to_contain_text("waiting on you for")
+    expect(help_el).not_to_contain_text("thread or move to resend waiting on you")
     expect(help_el).to_contain_text("Next open thread")
     expect(help_el).to_contain_text("Previous open thread")
     expect(

@@ -54,7 +54,14 @@ from leaf.structure import SourceDocument
 from leaf.thread import cmd_reply, cmd_resolve
 from leaf_dev import example_previews, journey, startup, verify_site
 from playwright.sync_api import expect
-from render_harness import LONG_PAGE, consume_browser_errors, open_page, told, write
+from render_harness import (
+    LONG_PAGE,
+    consume_browser_errors,
+    open_page,
+    panel_settled,
+    told,
+    write,
+)
 from websockets.exceptions import ConnectionClosedError
 
 ROOT = Path(__file__).parent.parent
@@ -2871,6 +2878,7 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     page.reload()
     told(page)
     page.locator(".lf-threads-toggle").click()
+    panel_settled(page, True)
     page.evaluate("window.__leafVerifier.startVisibleReplyClock")
     box = page.locator(".lf-general leaf-text")
     write(box, "edit the page")

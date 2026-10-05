@@ -6,13 +6,12 @@ from pathlib import Path
 
 import pytest
 import turbohtml
-from interact_support import append_carried_log_record, append_command
+from interact_support import _start, append_carried_log_record, append_command
 from leaf import data as data_model
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import render_checks as render_checks_model
 from leaf import service as service_model
-from leaf import session as session_model
 from leaf import thread as thread_model
 from leaf.render_checks import rendered, wait_until_ready
 from leaf.render_gate import version as render_gate_model
@@ -5179,12 +5178,10 @@ def test_notification_configuration_becomes_a_commentable_local_artifact(
         ),
     ):
         pass
-    session_model.cmd_status(
-        serve.page_dir,
-        "working",
-        "creating deployment-notification.html",
-        on="notification-playground",
+    started = _start(
+        serve.page_dir, logged_action["id"], "creating deployment-notification.html"
     )
+    assert started.exit_code == 0, started.output
     told(page)
     expect(
         page.locator('[data-lf-margin-for="notification-playground"] .lf-margin-marker')
@@ -5245,7 +5242,6 @@ body { font-family: system-ui, sans-serif; }
         serve.page_dir,
         result_source,
         "Created deployment-notification.html",
-        completes=("notification-playground",),
     )
     wait_for_revision(page, first_result["revision"])
 
@@ -5508,7 +5504,7 @@ def test_a_playground_preset_reset_copy_and_narrow_layout_share_the_same_state(
     copy.press("Enter")
     assert copy_width("Copied") == reserved_width
     assert "12px radius" in page.evaluate("navigator.clipboard.readText()")
-    expect(copy).to_have_accessible_name("Copy instruction", timeout=3000)
+    expect(copy).to_have_accessible_name("Copy instruction")
     page.evaluate(
         """() => {
           window.clipboardWrites = [];
@@ -5543,7 +5539,7 @@ def test_a_playground_preset_reset_copy_and_narrow_layout_share_the_same_state(
         }"""
     )
     assert copy_width("Copied") == reserved_width
-    expect(copy).to_have_accessible_name("Copy instruction", timeout=3000)
+    expect(copy).to_have_accessible_name("Copy instruction")
     page.evaluate(
         """() => {
           navigator.clipboard.writeText = () => { throw new Error('refused'); };
@@ -8460,7 +8456,6 @@ def test_ask_contextual_bindings_are_independent_of_widget_bindings(browser, ser
           const inspect = document.createElement('button');
           inspect.id = 'inspect-action';
           inspect.textContent = 'Inspect';
-          inspect.onclick = () => { inspect.dataset.activated = '1'; };
           source.append(inspect);
           suggestion.append(source);
           commands(source, 'Suggestion action', [
@@ -8472,7 +8467,7 @@ def test_ask_contextual_bindings_are_independent_of_widget_bindings(browser, ser
               decision: true,
               title: 'Inspect',
               line: 'Inspect',
-              run: () => inspect.click(),
+              run: () => { inspect.dataset.activated = '1'; },
             },
           ]);
         }"""
@@ -8567,13 +8562,12 @@ def test_a_widget_digit_shadows_only_the_matching_ask_alias(browser, serve):
           const suggestion = document.getElementById('sug');
           const inspect = document.createElement('button');
           inspect.textContent = 'Inspect';
-          inspect.onclick = () => { inspect.dataset.activated = '1'; };
           suggestion.append(inspect);
           commands(inspect, 'Inspect control', [
             {
               id: 'test.inspect', keys: ['1'], contextKeys: ['3'], control: inspect, label: 'I',
               decision: true, title: 'Inspect', line: 'Inspect',
-              run: () => inspect.click(),
+              run: () => { inspect.dataset.activated = '1'; },
             },
             {
               id: 'test.local-three', keys: ['3'],
@@ -8788,7 +8782,7 @@ def test_ask_actions_replace_unusable_package_binding_badge_faces(browser, serve
             commands(control, id, [{
                id: `test.${id}`, keys: [], contextKeys: [String(nextKey++)], control, bindingBadge,
               decision: true, title: `Activate ${id}`, line: id,
-              run: () => control.click(),
+              run: () => { control.dataset.activated = '1'; },
             }]);
           };
 

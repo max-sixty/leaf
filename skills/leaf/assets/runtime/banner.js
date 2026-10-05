@@ -256,7 +256,7 @@ const QUEUE_WORDS = Object.freeze({
   question: ["question", "questions"],
   recovery: ["move to send again", "moves to send again"],
   answer: ["reply", "replies"],
-  work: ["claim", "claims"],
+  work: ["move in hand", "moves in hand"],
   task: ["task", "tasks"],
 });
 function queueKinds(items) {

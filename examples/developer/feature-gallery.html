@@ -323,7 +323,6 @@
 
       const localNote = document.querySelector("#bg-shortcut-note");
       const focusNote = document.querySelector("#bg-shortcut-focus-note");
-      focusNote.addEventListener("click", () => localNote.focus());
       commands(document.querySelector("#bg-local-shortcuts"), "In the note sample", [
         {
           id: "note.focus",
@@ -332,7 +331,7 @@
           bindingBadge: null,
           title: "Write note",
           description: "Focus the sample note",
-          run: () => focusNote.click(),
+          run: () => localNote.focus(),
         },
       ]);
 
@@ -2220,8 +2219,8 @@ switch --readers checkout-api,orders-api</code></pre>
               <lf-column id="bg-work-ready" label="Ready">
                 <lf-card id="bg-work"
                   ><strong>Check the sample route</strong>
-                  A live work claim puts a Working indicator here because this card has
-                  no other margin control to carry its workflow state.
+                  An open task on this card puts a Working indicator here because the
+                  card has no other margin control to carry it.
                 </lf-card>
               </lf-column>
               <lf-column id="bg-work-tried" label="Tried"></lf-column>

@@ -886,7 +886,7 @@ def test_a_refused_stamp_does_not_publish_quote_fallbacks(page_dir):
     before = events_model.read_events(page_dir)
     (page_dir / "index.html").write_text(original.replace("Alpha", "Beta"))
     refused = stamp(page_dir, "Revised", completes=("unknown-widget",))
-    assert refused.exit_code == 1 and "no active widget work claim" in refused.output
+    assert refused.exit_code == 1 and "no open task on" in refused.output
     assert files_model.latest_revision(page_dir) == 1
     assert events_model.read_events(page_dir) == before
     accepted = stamp(page_dir, "Revised")

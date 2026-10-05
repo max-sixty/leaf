@@ -41,24 +41,24 @@ from .service import (
 from .state import flocked, session_lock_path, session_record
 
 
-def reclaim(obligations: list[dict]) -> str:
-    """What to do about owed moves a standing claim covers that this turn did not
-    write since their pickup, which hold the turn until it answers them or claims
-    them again (`activity.turn_obligations`): named only for such moves, so a move
-    nobody is at work on is never offered a claim in place of its answer."""
-    subjects = list(
+def restart(obligations: list[dict]) -> str:
+    """What to do about owed moves a start covers that this turn did not write since
+    their pickup, which hold the turn until it answers them or starts them again
+    (`activity.turn_obligations`): named only for such moves, so a move nobody is at
+    work on is never offered a start in place of its answer."""
+    moves = list(
         dict.fromkeys(
-            obligation["subject"]["id"]
+            start["item"]
             for obligation in obligations
-            if obligation["claimed_by"]
+            for start in obligation["started_by"]
         )
     )
-    if not subjects:
+    if not moves:
         return ""
     return (
-        f"; the work claim on {', '.join(subjects)} is older than its pickup: "
-        "answer once that work is done, or while it still runs claim it again with "
-        '`leaf status <page> working "<what is still running>" --on <id>`'
+        f"; your start on {', '.join(moves)} is older than its pickup: answer once "
+        "that work is done, or while it still runs start it again with "
+        '`leaf task start <page> <id> "<what is still running>"`'
     )
 
 
@@ -165,7 +165,7 @@ def remedies(
         if plan.owed:
             reasons.append(
                 (
-                    f"{plan.page}: {unanswered(plan.owed, 'acknowledged')}{reclaim(plan.owed)}.",
+                    f"{plan.page}: {unanswered(plan.owed, 'acknowledged')}{restart(plan.owed)}.",
                     ANSWER_ASK_INSTRUCTION,
                 )
             )
@@ -292,11 +292,15 @@ def compose(batches: list[dict], attention: list[str]) -> str:
 
 
 def carry_turn(
-    event: str | None, sid: str, payload: dict, expected: dict | None | object = ...
+    harness: type[Harness],
+    event: str | None,
+    sid: str,
+    payload: dict,
+    expected: dict | None | object = ...,
 ) -> bool | None:
-    """Answer a prompt, Stop, or other page-reading hook for a session holding a
-    page: open or close its turn, hand over its pending input, and name what its
-    pages are owed."""
+    """Answer a prompt, Stop, or other page-reading hook `harness` ran for a
+    session holding a page: open or close its turn, hand over its pending input,
+    and name what its pages are owed, in the output that harness reads."""
     expected = session_record(sid) if expected is ... else expected
     plans = read_plans(sid)
     if session_record(sid) != expected or any(
@@ -344,6 +348,6 @@ def carry_turn(
         if session_record(sid) != expected:
             return
         print(
-            json.dumps(type(plans[0].harness).hook_context(event, message)),
+            json.dumps(harness.hook_context(event, message)),
             flush=True,
         )

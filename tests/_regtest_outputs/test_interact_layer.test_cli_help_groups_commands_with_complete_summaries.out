@@ -15,8 +15,8 @@ Commands:
   package   Create, check, install, and run packages.
   page      Create, check, stamp, and read pages.
   server    Start, run, or stop the local server.
-  status    Set the agent's banner state.
-  task      Open or end a task the agent has taken on.
+  status    Say the page waits on its user, or is done.
+  task      Open, start, or end the agent's work on the page.
   thread    Open, answer, edit, summarize, or resolve a thread.
   wait      Confirm a delivery, if given, then wait for the next batch.
 

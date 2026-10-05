@@ -118,3 +118,11 @@ markers = [
   "nightly: a pull request can land without it; `--run-nightly` runs it",
   "watch_shifts: a surveyed nightly test also rejects unsolicited layout shifts and typing that carries its field",
 ]
+# A test still running after half an hour is hung, not slow: the slowest takes under
+# three minutes on CI, so even ten times slower it finishes. The worker prints every
+# thread's stack, which names the call that blocked, and exits; xdist reports the test
+# as crashed and starts a fresh worker for the rest. Without this, a call with no
+# deadline of its own (`page.evaluate`, a new page, a lock) holds the run until the CI
+# job's six-hour limit.
+faulthandler_timeout = 1800
+faulthandler_exit_on_timeout = true

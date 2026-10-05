@@ -14,8 +14,10 @@ from interact_support import (
     add_test_widget,
     append_carried_log_record,
     append_command,
+    declare_work,
     running_http_server,
     trial_family,
+    working,
 )
 from leaf import cli as cli_model
 from leaf import data as data_model
@@ -24,8 +26,6 @@ from leaf import files as files_model
 from leaf import hosting as hosting_model
 from leaf import http as http_model
 from leaf import render_checks as render_checks_model
-from leaf import service as service_model
-from leaf import session as session_model
 from leaf import state as cleanup_model
 from leaf import structure as structure_model
 from leaf.render_checks import one_frame, rendered, wait_until_ready
@@ -2035,15 +2035,7 @@ def test_live_news_keeps_the_reading_draft_and_resting_target(browser, serve, wi
             "(node, p) => node.contains(document.elementFromPoint(p.x, p.y))", point
         ), "arriving news took the resting pointer off Resolve"
 
-    with service_model.PageTransaction(serve.page_dir) as transaction:
-        transaction.set_status(
-            "working",
-            "Checking the order of these jobs",
-            work={
-                "subject": {"kind": "thread", "id": root["id"]},
-                "after": root["seq"],
-            },
-        )
+    declare_work(serve.page_dir, "Checking the order of these jobs", item=root["id"])
     told(page)
     expect(page.locator(".lf-status-detail")).to_contain_text("Checking the order")
     rendered(page)
@@ -4413,9 +4405,7 @@ def test_an_old_document_state_request_cannot_update_the_new_revision(browser, s
 
     page.route("**/api/state*", hold_the_first_read)
     try:
-        session_model.cmd_status(
-            serve.page_dir, "working", "exercising the held state request"
-        )
+        working(serve.page_dir, "exercising the held state request")
         holding(page, held, 1, "the read from revision 1")
 
         # The chip's own read remains independent of the background read held above. It
@@ -4591,7 +4581,9 @@ def test_a_revision_the_page_has_to_refuse_leaves_the_beat_beating(browser, serv
         holding(page, asked, REFUSALS + 1, "the asks the beats made for the revision")
         # The refusal reloads, and the page that comes back is on the layer it was told
         # about, holding the revision it could not be given in place.
-        expect(page).to_have_title("Beat second", timeout=15_000)
+        expect(page).to_have_title(
+            "Beat second", timeout=render_checks_model.HANDOVER_DEADLINE_MS
+        )
         wait_until_ready(page)
         problems = take_browser_errors(page)
         assert len(problems) >= 2 and all("failed to load" in p for p in problems), (
@@ -4609,7 +4601,9 @@ def test_a_revision_navigates_without_the_view_transition_api(browser, serve):
     page.evaluate("document.startViewTransition = undefined")
     (serve.page_dir / "index.html").write_text(executable_revision(LIVE_V2, "two"))
 
-    expect(page).to_have_title("Live second", timeout=10_000)
+    expect(page).to_have_title(
+        "Live second", timeout=render_checks_model.HANDOVER_DEADLINE_MS
+    )
     wait_until_ready(page)
 
 
@@ -5276,10 +5270,9 @@ def test_a_rosters_row_says_when_the_log_last_heard_from_that_worker(browser, se
     expect(wren.locator(".lf-cold")).to_have_text("quiet")
 
 
-def test_claims_and_reports_share_one_canonical_update_feed(
-    browser, serve, monkeypatch
-):
-    """Claims and reports keep distinct lifecycles behind one typed reading."""
+def test_the_update_feed_reads_reports_by_typed_target(browser, serve):
+    """Worker reports reach widgets through one typed reading. The work the agent has
+    in hand is no update: it is the workflows' Working stage and the tasks' starts."""
     page = open_page(browser, live_url(serve(ROSTER_PAGE)))
     d = serve.page_dir
     # Event ids and authored element ids belong to different identity spaces. Give
@@ -5311,44 +5304,18 @@ def test_claims_and_reports_share_one_canonical_update_feed(
         ],
     )
     assert report.exit_code == 0, report.output
-    report_event = events_model.read_events(d)[-1]
-    claim_floor = report_event["seq"]
-    # Force the same timestamp: causality, rather than wall-clock tie-breaking, must
-    # order the two source records.
-    with monkeypatch.context() as patch:
-        patch.setattr(service_model, "now_iso", lambda: report_event["ts"])
-        with service_model.PageTransaction(d) as transaction:
-            transaction.set_status(
-                "working",
-                "checking the user's question",
-                work={
-                    "subject": {"kind": "thread", "id": thread["id"]},
-                    "after": claim_floor,
-                },
-            )
+    started = CliRunner().invoke(
+        cli_model.cli,
+        ["task", "start", str(d), thread["id"], "checking the user's question"],
+    )
+    assert started.exit_code == 0, started.output
     told(page)
 
     updates = page.evaluate(
         "async () => (await window.__lfRuntimeImport('/runtime/widget-api.js')).updateSequence()"
     )
     by_source = {update["source"]: update for update in updates}
-    assert set(by_source) == {"claim", "report"}
-    assert [update["source"] for update in updates] == ["report", "claim"]
-    assert by_source["claim"]["ts"] == by_source["report"]["ts"]
-    assert by_source["claim"] == {
-        "id": by_source["claim"]["id"],
-        "target": {"kind": "thread", "id": thread["id"]},
-        "source": "claim",
-        "action": "working",
-        "detail": {"text": "checking the user's question"},
-        "text": "checking the user's question",
-        "ts": by_source["claim"]["ts"],
-        "log_floor": claim_floor,
-        "agent": "Claude",
-        "session": by_source["claim"]["session"],
-        "turn": by_source["claim"]["turn"],
-        "disposition": "effective",
-    }
+    assert set(by_source) == {"report"}
     assert by_source["report"] == {
         "id": by_source["report"]["id"],
         "target": {"kind": "widget", "id": "ag-wren"},
@@ -5363,8 +5330,7 @@ def test_claims_and_reports_share_one_canonical_update_feed(
         "session": by_source["report"]["session"],
         "disposition": "effective",
     }
-    assert by_source["claim"]["session"]
-    assert by_source["report"]["session"] == by_source["claim"]["session"]
+    assert by_source["report"]["session"]
     targeted = page.evaluate(
         """async () => {
             const feed = await window.__lfRuntimeImport('/runtime/widget-api.js');
@@ -5379,12 +5345,11 @@ def test_claims_and_reports_share_one_canonical_update_feed(
         }"""
     )
     assert [update["source"] for update in targeted["widget"]] == ["report"]
-    assert [update["source"] for update in targeted["thread"]] == ["claim"]
+    assert targeted["thread"] == []
     assert targeted["bare"].startswith("TypeError: update target must be")
     expect(page.locator("#ag-wren .lf-doing")).to_have_text("checking the mount prices")
 
-    # Each source ends at its own authority: a reply settles thread work, while a
-    # version note settles the report.
+    # A version note settles the report.
     append_carried_log_record(
         d,
         {
@@ -5403,7 +5368,6 @@ def test_claims_and_reports_share_one_canonical_update_feed(
         "async () => (await window.__lfRuntimeImport('/runtime/widget-api.js')).updateSequence()"
     )
     by_source = {update["source"]: update for update in updates}
-    assert by_source["claim"]["disposition"] == "settled"
     assert by_source["report"]["disposition"] == "settled"
     expect(page.locator("#ag-wren .lf-doing")).to_have_count(0)
 

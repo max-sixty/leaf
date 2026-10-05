@@ -63,7 +63,7 @@ retry key `attempt`, then adds these delivery readings:
   under, the same object `leaf page state` lists for the move's workflow. The
   event's `handling` clauses say how to write it. Until the answer is written,
   `leaf status idle` refuses, and the Stop hook holds the turn open unless that turn
-  claimed the move's work (`references/conversation-loop.md`, "Long-running work").
+  started the move (`references/conversation-loop.md`, "Long-running work").
   Re-read current state before writing because later evidence may already have
   settled the requirement. A `reply` or `turn` answer carries both `to`, the thread
   address to write under, and `for`, the exact event whose answer the write must
@@ -115,8 +115,8 @@ full log without acking it.
 Receipt and work have separate evidence. Confirming a direct delivery records its
 moves as **Picked up** in the current turn. Other harnesses record that opening when
 they observe the delivery entering a turn. Leaf derives overall page activity from
-that evidence. Naming the move's thread or widget with `leaf status … --on`
-([conversation handoff](conversation-loop.md#status-and-handoff)) strengthens its
+that evidence. Starting the move with `leaf task start <page> <event-id>`
+([conversation handoff](conversation-loop.md#when-to-write)) strengthens its
 receipt to **Working** while it remains outstanding. That neither acknowledges the
 delivery nor answers the move.
 
@@ -152,9 +152,9 @@ names.
 ## After the batch
 
 Acknowledgement is transport receipt, not semantic settlement. Write every
-still-current `answer` with the operation its kind names, naming the work each one
-starts with a `working` status as its `handling` clauses say
-(`references/conversation-loop.md`, "When to write"), then re-enter the harness's wait
-loop: `waiting` after every obligation has been answered and the user owns the next
-move, `working` while you continue.
+still-current `answer` with the operation its kind names, starting each move whose
+work you take on as its `handling` clauses say (`references/conversation-loop.md`,
+"When to write"), then re-enter the harness's wait loop: `leaf status … waiting` after
+every obligation has been answered and the user owns the next move, and a started
+item while you continue.
 `page state` lists every standing reaction under `reactions`.

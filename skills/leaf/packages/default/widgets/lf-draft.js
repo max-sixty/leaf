@@ -312,11 +312,6 @@ customElements.define(
         key: `draft:${this.id}`,
         target: () => this,
         read: () => this.#readMargin(),
-        activate: (activation) => {
-          if (activation === "edit" && this.#available()) return this.#open();
-          if (activation === "commit") return this.#commit();
-          if (activation === "cancel") return this.#close(true);
-        },
       });
     }
 
@@ -332,8 +327,8 @@ customElements.define(
           decision: true,
           title: "Edit…",
           description: "Edit the text in place",
-          when: () => !this.#editor,
-          run: () => this.#margin?.activate("edit"),
+          when: () => !this.#editor && !this.#sending && this.#available(),
+          run: () => this.#open(),
         },
         {
           id: "draft.save",
@@ -346,8 +341,8 @@ customElements.define(
           decision: true,
           title: () => (this.#failed ? "Retry" : "Save"),
           description: () => (this.#failed ? "Retry saving the edit" : "Save the edit"),
-          when: () => Boolean(this.#editor),
-          run: () => this.#margin?.activate(this.#saveKey()),
+          when: () => Boolean(this.#editor) && this.#available(),
+          run: () => this.#commit(),
         },
         {
           id: "draft.cancel",
@@ -360,7 +355,7 @@ customElements.define(
           title: "Cancel",
           description: "Cancel the edit",
           when: () => Boolean(this.#editor),
-          run: () => this.#margin?.activate("cancel"),
+          run: () => this.#close(true),
         },
         {
           id: "draft.close",
@@ -385,7 +380,6 @@ customElements.define(
     }
 
     #entries() {
-      const available = this.#available();
       if (!this.#editor)
         return [
           contributionEntry({
@@ -396,8 +390,7 @@ customElements.define(
             behavior: "disclosure",
             rank: "primary",
             state: this.#sending ? "busy" : "idle",
-            disabled: this.#sending || !available,
-            activation: "edit",
+            activation: "draft.edit",
             className: "lf-draft-pencil",
             scope: this.#commandScope,
           }),
@@ -410,8 +403,7 @@ customElements.define(
           tone: "positive",
           rank: "complete",
           state: this.#failed ? "failed" : "engaged",
-          disabled: !available,
-          activation: "commit",
+          activation: "draft.save",
           scope: this.#commandScope,
         }),
         contributionEntry({
@@ -420,7 +412,7 @@ customElements.define(
           label: "Cancel",
           rank: "escape",
           state: this.#failed ? "failed" : "engaged",
-          activation: "cancel",
+          activation: "draft.cancel",
           scope: this.#commandScope,
         }),
       ];

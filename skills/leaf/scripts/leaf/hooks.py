@@ -6,8 +6,9 @@ without these hooks still gets the envelope printed, rather than waking to an
 empty turn. SessionEnd invalidates the session generation without reading pages.
 
 Codex's synchronous prompt hook records the provider turn even before the session
-claims a page. Its async tool hook can identify an unknown session turn once, offer a pointer
-between steps, and leave receipt to the agent's actual delivery read.
+claims a page. Once the session has claimed one (`state.hook_needed`), its tool
+hook can identify an unknown session turn once, offer a pointer between steps, and
+leave receipt to the agent's actual delivery read.
 The payload names the session and turn: hook subprocesses need not have the tool
 process's environment. Stop or Interrupt closes that observed turn, including a
 turn not yet claimed by any page; a newer prompt protects its own epoch.
@@ -15,7 +16,10 @@ turn not yet claimed by any page; a newer prompt protects its own epoch.
 Hooks with no owned page avoid page reading. Page-owning prompt and Stop hooks
 reach `hook_carrier`; Codex's tool hook reaches the delivery records in `codex`;
 and a second Claude Code Stop hook watches between turns (`cmd_watch`). The
-application entry routes `leaf hook` here before loading the CLI."""
+application entry routes `leaf hook` here before loading the CLI.
+
+Each harness's registrations name it (`--harness`) and its payload names the
+session; `harness.hook_harness` says why neither comes from the environment."""
 
 from .leases import mark_hooks, mark_step_hook
 from .service import owned_pages
@@ -30,7 +34,8 @@ from .state import (
 )
 
 
-def cmd_hook(payload: dict) -> None:
+def cmd_hook(harness: str, payload: dict) -> None:
+    """Answer one hook of `harness`, the name its registration passes."""
     event, sid = payload.get("hook_event_name"), payload.get("session_id") or ""
     if sid:
         # Evidence that this harness runs Leaf's hooks for the session, which is what
@@ -68,7 +73,7 @@ def cmd_hook(payload: dict) -> None:
         close_session_turn(sid, turn_id, expected=expected)
         return
     if event == "PostToolUse":
-        # This registration is gated on Codex in hooks.json. Its output can
+        # Only Codex registers this hook (`hooks/codex.json`). Its output can
         # enter an active turn, but it cannot wake an idle one.
         if not turn_id:
             return
@@ -99,38 +104,39 @@ def cmd_hook(payload: dict) -> None:
             close_session_turn(sid, turn_id, expected=expected)
         return
     # Prompt and Stop debt and delivery reading belongs to their carrier.
+    from .harness import HOOK_HARNESSES
     from .hook_carrier import carry_turn
 
-    ended = carry_turn(event, sid, payload, expected)
+    ended = carry_turn(HOOK_HARNESSES[harness], event, sid, payload, expected)
     if ended:
         close_session_turn(sid, turn_id, expected=expected)
 
 
-def cmd_watch(payload: dict) -> str | None:
-    """The Stop hook a harness runs in the background as a turn ends, watching the
+def cmd_watch(harness: str, payload: dict) -> str | None:
+    """The Stop hook `harness` runs in the background as a turn ends, watching the
     session's pages until input, and what it wakes the session with, or None
     where it ends without waking it (`session.watch_between_turns`).
 
-    It watches only where this process is the session the hook names and its
-    harness watches between turns, and only while the session holds a page. A
-    watch started with an Interrupt payload, as Pi's extension starts one when an
-    Escape settles a run, is a watch at an interrupted ending."""
+    It watches only while the session holds a page, and only where its harness
+    watches between turns. A watch started with an Interrupt payload, as Pi's
+    extension starts one when an Escape settles a run, is a watch at an
+    interrupted ending."""
     sid = payload.get("session_id") or ""
     if not owned_pages(sid):
         return None
-    from .harness import session_harness
+    from .harness import hook_harness
 
-    harness = session_harness()
-    if harness is None or harness.session != sid or not harness.watches_between_turns():
+    watching = hook_harness(harness, sid)
+    if not watching.watches_between_turns():
         return None
     from .session import watch_between_turns
 
     return watch_between_turns(
-        harness, interrupted=payload.get("hook_event_name") == "Interrupt"
+        watching, interrupted=payload.get("hook_event_name") == "Interrupt"
     )
 
 
-def main(*, watch: bool = False) -> None:
+def main(harness: str, *, watch: bool = False) -> None:
     """Read one harness payload and dispatch it, without importing the CLI.
 
     Both the application entry and the Click command enter here.
@@ -147,7 +153,7 @@ def main(*, watch: bool = False) -> None:
         from .leases import release_on_termination
 
         release_on_termination()
-        if woke := cmd_watch(payload):
+        if woke := cmd_watch(harness, payload):
             print(woke, flush=True)
         return
-    cmd_hook(payload)
+    cmd_hook(harness, payload)

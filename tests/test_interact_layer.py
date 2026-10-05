@@ -368,7 +368,9 @@ def test_workflow_shell_continuations_use_literal_blocks():
 
 
 def test_hidden_hook_remains_callable():
-    result = CliRunner().invoke(cli_model.cli, ["hook"], input="{}")
+    result = CliRunner().invoke(
+        cli_model.cli, ["hook", "--harness", "codex"], input="{}"
+    )
 
     assert result.exit_code == 0
     assert result.output == ""
@@ -533,8 +535,8 @@ def test_init_help_names_the_source_revision_and_version_layout():
 @pytest.mark.parametrize(
     "args",
     [
-        ["hook"],
-        ["hook", "--watch"],
+        ["hook", "--harness", "codex"],
+        ["hook", "--harness", "claude-code", "--watch"],
         ["page", "check", "page", "--render"],
         ["thread", "reply", "page", "--for", "c1", "--text", "export"],
     ],
@@ -673,6 +675,7 @@ def test_claude_and_codex_load_the_same_plugin_payload():
         "pyproject.toml",
         "uv.lock",
         "hooks/hooks.json",
+        "hooks/codex.json",
         "hooks/scripts/loop-guard.py",
         "skills/leaf/SKILL.md",
         "skills/leaf/references/authoring-asks.md",
@@ -2306,6 +2309,43 @@ def test_a_spawned_process_ends_with_what_it_started(spawn, launcher_ends):
     wait_for(running, lambda alive: not alive, failure="the launcher's child survived")
 
 
+def test_no_test_ends_a_process_with_sigkill():
+    """SIGKILL gives a process no chance to end what it started, so a test ends one
+    by closing the pipe it reads or with SIGTERM (tests/AGENTS.md, "A process the
+    suite starts ends with the run"). The source is read for it, since no fixture
+    sees which signal a test sends: `Popen.kill()`, `signal.SIGKILL`, signal 9
+    passed to `kill`, `killpg` or `send_signal`, and a shell `kill` given signal 9
+    or KILL in a command a test runs."""
+    shell_kill = re.compile(r"\bkill\s+-(?:9|KILL|SIGKILL)\b")
+    killed = []
+    for path in sorted((ROOT / "tests").glob("*.py")):
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            if (
+                (isinstance(node, ast.Attribute) and node.attr == "SIGKILL")
+                or (
+                    isinstance(node, ast.Call)
+                    and isinstance(node.func, ast.Attribute)
+                    and node.func.attr == "kill"
+                    and not node.args
+                )
+                or (
+                    isinstance(node, ast.Call)
+                    and isinstance(node.func, ast.Attribute)
+                    and node.func.attr in {"kill", "killpg", "send_signal"}
+                    and node.args
+                    and isinstance(node.args[-1], ast.Constant)
+                    and node.args[-1].value == 9
+                )
+                or (
+                    isinstance(node, ast.Constant)
+                    and isinstance(node.value, str)
+                    and shell_kill.search(node.value)
+                )
+            ):
+                killed.append(f"{path.name}:{node.lineno} {ast.unparse(node)[:80]}")
+    assert not killed, killed
+
+
 def test_page_packages_are_explicit_and_survive_reinitialization(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     home = tmp_path / "home"
@@ -2777,7 +2817,9 @@ def test_hooks_do_not_mint_the_successful_init_marker_for_a_deleted_page(page_di
     shutil.rmtree(page_dir)
     page_dir.mkdir()
 
-    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "stale-session"})
+    hooks_model.cmd_hook(
+        "claude-code", {"hook_event_name": "Stop", "session_id": "stale-session"}
+    )
 
     assert list(page_dir.iterdir()) == []
 

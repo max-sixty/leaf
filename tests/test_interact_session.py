@@ -1677,7 +1677,9 @@ def test_a_comment_on_a_claude_code_page_is_named_as_it_arrives(
     logged = json.loads(line)
     assert logged["event"] == "thread_title_generated"
     assert logged["apiDurationMs"] == 900
-    hooks_model.cmd_hook({"hook_event_name": "SessionEnd", "session_id": "s1"})
+    hooks_model.cmd_hook(
+        "claude-code", {"hook_event_name": "SessionEnd", "session_id": "s1"}
+    )
     assert not log.exists()
 
 
@@ -1695,7 +1697,9 @@ def test_a_title_request_that_outlives_its_session_leaves_no_log(claimed):
         return {"title": "Intro"}
 
     thread_titles.name_opened_thread(generate, claimed, comment["id"], "s1")
-    hooks_model.cmd_hook({"hook_event_name": "SessionEnd", "session_id": "s1"})
+    hooks_model.cmd_hook(
+        "claude-code", {"hook_event_name": "SessionEnd", "session_id": "s1"}
+    )
     answered.set()
     for worker in threading.enumerate():
         if worker.name == "leaf-thread-title":
@@ -2396,7 +2400,9 @@ def test_claude_codes_own_record_adds_what_no_hook_sees(claimed, capsys, dead_pi
     comment = append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "Tighten the lede."}
     )
-    hooks_model.cmd_hook({"hook_event_name": "UserPromptSubmit", "session_id": "s1"})
+    hooks_model.cmd_hook(
+        "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
+    )
     context = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
         "additionalContext"
     ]
@@ -2437,7 +2443,9 @@ def test_claude_codes_own_record_adds_what_no_hook_sees(claimed, capsys, dead_pi
     # The next prompt renews the turn the interrupt left open, and the move it
     # holds is handled in it again.
     harness_says("busy")
-    hooks_model.cmd_hook({"hook_event_name": "UserPromptSubmit", "session_id": "s1"})
+    hooks_model.cmd_hook(
+        "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
+    )
     capsys.readouterr()
     assert _activity_at(claimed)["counts"]["handling"] == 1
 
@@ -2475,11 +2483,12 @@ def test_away_asks_for_a_nudge_only_once_input_is_overdue(claimed, capsys):
         # repeated one lets it end.
         for repeated in (False, True):
             hooks_model.cmd_hook(
+                "claude-code",
                 {
                     "hook_event_name": "Stop",
                     "session_id": "s1",
                     "stop_hook_active": repeated,
-                }
+                },
             )
         capsys.readouterr()
 
@@ -2499,7 +2508,9 @@ def test_away_asks_for_a_nudge_only_once_input_is_overdue(claimed, capsys):
     # Picked up by the next turn. A long, silent step past the working grace
     # leaves nothing to say the turn ended, so it asks for no nudge; the turn
     # ending without answering does.
-    hooks_model.cmd_hook({"hook_event_name": "UserPromptSubmit", "session_id": "s1"})
+    hooks_model.cmd_hook(
+        "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
+    )
     capsys.readouterr()
     consume_pending_input("s1")
     assert _activity_at(claimed)["counts"]["overdue"] == 0
@@ -4844,11 +4855,12 @@ def test_the_prompt_hook_and_the_observer_open_one_codex_turn(page_dir, capsys):
     cleanup_model.close_session_turn("codex-thread")
 
     hooks_model.cmd_hook(
+        "codex",
         {
             "hook_event_name": "UserPromptSubmit",
             "session_id": "codex-thread",
             "turn_id": "codex-turn",
-        }
+        },
     )
     capsys.readouterr()
     _observer()._read(
@@ -6806,7 +6818,7 @@ def test_settling_a_frozen_widget_move_does_not_revive_its_superseded_move(
     assert selecting["activity"]["obligations"] == []
     assert selecting["workflows"] == []
     assert service_model.unacknowledged(events_model.read_events(page_dir), 0) == []
-    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
     assert capsys.readouterr().out == ""
 
     answered = append_command(
@@ -6825,7 +6837,7 @@ def test_settling_a_frozen_widget_move_does_not_revive_its_superseded_move(
     assert completed["activity"]["obligations"] == [answered["id"]]
     cleanup_model.prompt_turn("s1")
     receive_through(page_dir, last_deliverable_seq(page_dir))
-    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
     blocked = json.loads(capsys.readouterr().out)
     assert "decision" not in blocked
     assert "1 acknowledged user move with no answer" in continued(blocked)
@@ -8330,7 +8342,13 @@ def test_a_stop_during_a_restart_keeps_the_service_stopped(
     assert "restart" not in service
     if stopped == "never":
         assert service["enabled"]
-        assert starts == [{"standing": True, "revive": True}]
+        assert starts == [
+            {
+                "standing": True,
+                "revive": True,
+                "harness": harness_model.session_harness(),
+            }
+        ]
     else:
         assert not service["enabled"]
         assert starts == []
@@ -8759,7 +8777,9 @@ def test_session_end_cannot_be_overtaken_by_wait_revival(claimed, spawn):
 
     writer = fifo_writer(status_path, "the waiter never reached its held status read")
 
-    hooks_model.cmd_hook({"hook_event_name": "SessionEnd", "session_id": "s1"})
+    hooks_model.cmd_hook(
+        "claude-code", {"hook_event_name": "SessionEnd", "session_id": "s1"}
+    )
     assert files_model.read_json(page / "service.json")["enabled"] is True
     assert server_model.running_server(page) is None
 
@@ -8911,14 +8931,14 @@ def test_the_stop_hook_watch_wakes_the_session_only_for_input(
     # Another watch holds the session's lease, or the hook names another session:
     # nothing to watch, and nothing wakes.
     lease = leases_model.take_lease(leases_model.waiter_lease_path(None, "s1"))
-    assert hooks_model.cmd_watch(stop) is None
+    assert hooks_model.cmd_watch("claude-code", stop) is None
     leases_model.release_lease(lease)
-    assert hooks_model.cmd_watch({**stop, "session_id": "s2"}) is None
+    assert hooks_model.cmd_watch("claude-code", {**stop, "session_id": "s2"}) is None
     # Under plain `--print` Claude Code would wait on the hook, holding the turn.
     launched = harness_model.process_argv
     argv = ["claude", "-p", "hello"]
     monkeypatch.setattr(harness_model, "process_argv", lambda pid: argv)
-    assert hooks_model.cmd_watch(stop) is None
+    assert hooks_model.cmd_watch("claude-code", stop) is None
     argv = ["claude", "-p", "--input-format", "stream-json"]
     assert harness_model.session_harness().watches_between_turns()
     monkeypatch.setattr(harness_model, "process_argv", launched)
@@ -8935,7 +8955,7 @@ def test_the_stop_hook_watch_wakes_the_session_only_for_input(
     def watching(outcome: list) -> threading.Thread:
         initialized.clear()
         watch = threading.Thread(
-            target=lambda: outcome.append(hooks_model.cmd_watch(stop))
+            target=lambda: outcome.append(hooks_model.cmd_watch("claude-code", stop))
         )
         watch.start()
         # The lease is acquired before the initial log snapshot. A comment sent
@@ -8991,7 +9011,7 @@ def test_the_stop_hook_watch_wakes_the_session_only_for_input(
         lambda harness, page: nudged.append(page) or True,
     )
     monkeypatch.setenv("CLAUDE_PID", str(dead_pid))
-    assert hooks_model.cmd_watch(stop) is None
+    assert hooks_model.cmd_watch("claude-code", stop) is None
     assert not leases_model.wait_is_live(claimed, "s1")
     assert nudged == [claimed.resolve()]
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
@@ -9000,7 +9020,7 @@ def test_the_stop_hook_watch_wakes_the_session_only_for_input(
     cleanup_model.prompt_turn("s1")
     receive_through(claimed, last_deliverable_seq(claimed))
     declare_idle(claimed)
-    assert hooks_model.cmd_watch(stop) is None
+    assert hooks_model.cmd_watch("claude-code", stop) is None
 
 
 def test_a_watch_at_an_interrupted_ending_wakes_only_for_later_input(
@@ -9031,7 +9051,9 @@ def test_a_watch_at_an_interrupted_ending_wakes_only_for_later_input(
     outcome = []
     watch = threading.Thread(
         target=lambda: outcome.append(
-            hooks_model.cmd_watch({"hook_event_name": "Interrupt", "session_id": "s1"})
+            hooks_model.cmd_watch(
+                "claude-code", {"hook_event_name": "Interrupt", "session_id": "s1"}
+            )
         )
     )
     watch.start()
@@ -9048,7 +9070,9 @@ def test_a_watch_at_an_interrupted_ending_wakes_only_for_later_input(
 
     waiting.clear()
     stop = {"hook_event_name": "Stop", "session_id": "s1"}
-    assert hooks_model.cmd_watch(stop).startswith(f"{claimed} has new input")
+    assert hooks_model.cmd_watch("claude-code", stop).startswith(
+        f"{claimed} has new input"
+    )
     assert not waiting.is_set()
 
 
@@ -9852,11 +9876,12 @@ def test_codex_tool_hook_delivers_into_the_running_turn_once(
     cleanup_model.prompt_turn("codex-thread", "user-turn")
     cleanup_model.open_session_turn("codex-thread", "user-turn")
     hooks_model.cmd_hook(
+        "codex",
         {
             "hook_event_name": "PostToolUse",
             "session_id": "codex-thread",
             "turn_id": "user-turn",
-        }
+        },
     )
     assert not capsys.readouterr().out
     comment = append_carried_log_record(
@@ -9869,11 +9894,12 @@ def test_codex_tool_hook_delivers_into_the_running_turn_once(
     )
     assert not codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
     hooks_model.cmd_hook(
+        "codex",
         {
             "hook_event_name": "PostToolUse",
             "session_id": "codex-thread",
             "turn_id": "user-turn",
-        }
+        },
     )
     context = json.loads(capsys.readouterr().out)["hookSpecificOutput"]
     assert context["hookEventName"] == "PostToolUse"
@@ -9892,11 +9918,12 @@ def test_codex_tool_hook_delivers_into_the_running_turn_once(
     assert codex_records("codex-thread")[0][1]["state"] == "offering"
     monkeypatch.setenv("CODEX_THREAD_ID", "codex-thread")
     hooks_model.cmd_hook(
+        "codex",
         {
             "hook_event_name": "PostToolUse",
             "session_id": "codex-thread",
             "turn_id": "user-turn",
-        }
+        },
     )
     assert not capsys.readouterr().out
     assert len(codex_records("codex-thread")) == 1
@@ -9925,18 +9952,20 @@ def test_a_page_claimed_mid_turn_keeps_its_first_comment_for_the_tool_hook(
 ):
     """Capture before the first page-bound tool hook still delivers in this turn."""
     hooks_model.cmd_hook(
+        "codex",
         {
             "hook_event_name": "UserPromptSubmit",
             "session_id": "codex-thread",
             "turn_id": "user-turn",
-        }
+        },
     )
     hooks_model.cmd_hook(
+        "codex",
         {
             "hook_event_name": "PostToolUse",
             "session_id": "codex-thread",
             "turn_id": "user-turn",
-        }
+        },
     )
     codex_loop(page_dir)
     comment = append_carried_log_record(
@@ -9955,11 +9984,12 @@ def test_a_page_claimed_mid_turn_keeps_its_first_comment_for_the_tool_hook(
     assert not codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
     assert not queued
     hooks_model.cmd_hook(
+        "codex",
         {
             "hook_event_name": "PostToolUse",
             "session_id": "codex-thread",
             "turn_id": "user-turn",
-        }
+        },
     )
     [(path, record)] = codex_records("codex-thread")
     assert json.loads(capsys.readouterr().out)["hookSpecificOutput"][
@@ -9986,11 +10016,12 @@ def test_a_codex_ending_closes_a_page_claimed_before_its_first_tool_hook(
 ):
     """No step-hook completion is needed to end a page acquired mid-turn."""
     hooks_model.cmd_hook(
+        "codex",
         {
             "hook_event_name": "UserPromptSubmit",
             "session_id": "codex-thread",
             "turn_id": "user-turn",
-        }
+        },
     )
     monkeypatch.setattr(
         harness_model.CodexHarness, "lifetime", lambda self: {"pid": os.getpid()}
@@ -10001,22 +10032,24 @@ def test_a_codex_ending_closes_a_page_claimed_before_its_first_tool_hook(
     # A preview owes no watcher, so Stop may end without a carrier lease.
     (page_dir / "preview.json").write_text("{}")
     hooks_model.cmd_hook(
+        "codex",
         {
             "hook_event_name": ending,
             "session_id": "codex-thread",
             "turn_id": "user-turn",
-        }
+        },
     )
     assert not capsys.readouterr().out
     assert service_model.page_claim(page_dir)["turn_closed"]
     assert service_model.page_claim(page_dir)["turn"] == "user-turn"
     assert not codex_state_model.hook_turn("codex-thread")["running"]
     hooks_model.cmd_hook(
+        "codex",
         {
             "hook_event_name": "PostToolUse",
             "session_id": "codex-thread",
             "turn_id": "user-turn",
-        }
+        },
     )
     assert not capsys.readouterr().out
     assert service_model.page_claim(page_dir)["turn_closed"]
@@ -10154,21 +10187,23 @@ def test_an_unread_codex_hook_pointer_falls_back_to_the_idle_queue(
     assert waiter
     try:
         hooks_model.cmd_hook(
+            "codex",
             {
                 "hook_event_name": ending,
                 "session_id": "codex-thread",
                 "turn_id": "user-turn",
-            }
+            },
         )
         assert not capsys.readouterr().out
         assert codex_state_model.step_delivery_turn("codex-thread") is None
         # A late tool hook cannot reopen the turn or duplicate the pointer.
         hooks_model.cmd_hook(
+            "codex",
             {
                 "hook_event_name": "PostToolUse",
                 "session_id": "codex-thread",
                 "turn_id": "user-turn",
-            }
+            },
         )
         assert not capsys.readouterr().out
         queued = []
@@ -10626,17 +10661,22 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
             ),
         )
 
-        hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "codex-thread"})
+        hooks_model.cmd_hook(
+            "codex", {"hook_event_name": "Stop", "session_id": "codex-thread"}
+        )
         assert capsys.readouterr().out == ""
 
         hooks_model.cmd_hook(
-            {"hook_event_name": "UserPromptSubmit", "session_id": "codex-thread"}
+            "codex",
+            {"hook_event_name": "UserPromptSubmit", "session_id": "codex-thread"},
         )
         assert capsys.readouterr().out == ""
         assert [
             item["stage"] for item in page_state(page)["activity"]["obligations"]
         ] == ["picked_up"]
-        hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "codex-thread"})
+        hooks_model.cmd_hook(
+            "codex", {"hook_event_name": "Stop", "session_id": "codex-thread"}
+        )
         reason = json.loads(capsys.readouterr().out)["reason"]
         assert "1 acknowledged user move with no answer" in reason
 
@@ -10802,7 +10842,7 @@ raise SystemExit(adapter.run_adapter(os.environ["CODEX_PATH"]))
             failure="resumed feedback did not reach the existing adapter",
         )
         hooks_model.cmd_hook(
-            {"hook_event_name": "SessionEnd", "session_id": "codex-thread"}
+            "codex", {"hook_event_name": "SessionEnd", "session_id": "codex-thread"}
         )
         wait_for(
             lambda: codex_adapter_model.adapter_is_live("codex-thread"),
@@ -10857,12 +10897,13 @@ def test_an_offline_sibling_does_not_stop_browser_comments_reaching_codex(
     prepare = """\
 import sys
 from pathlib import Path
+from leaf.harness import session_harness
 from leaf.hosting import start_server
 from leaf.service import claim_page
 live, offline = map(Path, sys.argv[1:])
 claim_page(offline)
 claim_page(live)
-start_server(live)
+start_server(live, harness=session_harness())
 """
     started = under_codex(
         shlex.join([sys.executable, "-c", prepare, str(live), str(offline)])
@@ -11448,8 +11489,9 @@ def test_the_nearest_harness_runs_a_command_that_inherits_another(under_codex):
     assert nearer.returncode == 0, nearer.stderr
     assert nearer.stdout.split() == ["ClaudeCodeHarness", f"pytest-{os.getpid()}"]
     detached = (
-        "from leaf.harness import detached_environment as d; "
-        "print(sorted(set(d()) & {'CODEX_THREAD_ID', 'CLAUDE_CODE_SESSION_ID'}))"
+        "from leaf.harness import detached_environment as d, session_harness; "
+        "print(sorted(set(d(session_harness())) & "
+        "{'CODEX_THREAD_ID', 'CLAUDE_CODE_SESSION_ID'}))"
     )
     ran = under_codex(
         shlex.join([sys.executable, "-c", detached]),
@@ -11634,7 +11676,7 @@ def test_hook_remedies_follow_the_harness_not_the_display_name(
     assert waited.wait(timeout=STATED_TIMEOUT) == 0
     session_model.cmd_waiting(page, "")
 
-    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "w1"})
+    hooks_model.cmd_hook("codex", {"hook_event_name": "Stop", "session_id": "w1"})
     reason = json.loads(capsys.readouterr().out)["reason"]
     assert "leaf codex start" in reason and str(page) in reason
     assert service_model.page_claim(page)["agent"] == "Indexer"
@@ -11653,7 +11695,9 @@ def test_stop_hook_keeps_codex_inside_the_exact_wait_session(
     # and poll the unified-exec session whose output can enter this context. The
     # lease cannot say whether that process is the initial wait or a rearmed ack,
     # so the remedy has to preserve both coordinates.
-    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "codex-thread"})
+    hooks_model.cmd_hook(
+        "codex", {"hook_event_name": "Stop", "session_id": "codex-thread"}
+    )
     reason = json.loads(capsys.readouterr().out)["reason"]
     assert "poll the existing" in reason and "write_stdin" in reason
     assert "`leaf wait` before the first batch" in reason
@@ -11663,23 +11707,28 @@ def test_stop_hook_keeps_codex_inside_the_exact_wait_session(
     # later turn. With that carrier alive, this turn may end normally.
     adapter = leases_model.take_lease(leases_model.adapter_lease_path("codex-thread"))
     assert adapter
-    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "codex-thread"})
+    hooks_model.cmd_hook(
+        "codex", {"hook_event_name": "Stop", "session_id": "codex-thread"}
+    )
     assert capsys.readouterr().out == ""
     adapter.close()
 
     # The existing one-shot escape still prevents a hook recursion.
     hooks_model.cmd_hook(
+        "codex",
         {
             "hook_event_name": "Stop",
             "session_id": "codex-thread",
             "stop_hook_active": True,
-        }
+        },
     )
     assert capsys.readouterr().out == ""
 
     # With no carrier, the ordinary remedy starts detached same-task delivery.
     leases_model.release_lease(lease)
-    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "codex-thread"})
+    hooks_model.cmd_hook(
+        "codex", {"hook_event_name": "Stop", "session_id": "codex-thread"}
+    )
     reason = json.loads(capsys.readouterr().out)["reason"]
     assert "leaf codex start" in reason and str(page) in reason
 
@@ -11689,7 +11738,9 @@ def test_stop_hook_keeps_codex_inside_the_exact_wait_session(
     append_carried_log_record(page, {"kind": "comment", "author": "user", "text": "hi"})
     lease = leases_model.take_lease(leases_model.waiter_lease_path(page, session["id"]))
     assert lease
-    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "codex-thread"})
+    hooks_model.cmd_hook(
+        "codex", {"hook_event_name": "Stop", "session_id": "codex-thread"}
+    )
     reason = json.loads(capsys.readouterr().out)["reason"]
     assert "`leaf wait` before the first batch" in reason
     assert "rearmed `leaf wait --ack` afterward" in reason
@@ -11713,7 +11764,9 @@ def test_stop_hook_keeps_codex_inside_the_exact_wait_session(
         for_event=events_model.read_events(page)[0]["id"],
     )
     declare_idle(page)
-    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "codex-thread"})
+    hooks_model.cmd_hook(
+        "codex", {"hook_event_name": "Stop", "session_id": "codex-thread"}
+    )
     assert capsys.readouterr().out == ""
 
 
@@ -11742,10 +11795,14 @@ def test_a_codex_watcher_task_takes_the_parent_watch_obligation(
         lambda reading: reading[0].get("id") == "leaf-watcher" and reading[1],
         failure="the watcher task never claimed the page and entered leaf wait",
     )
-    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "codex-thread"})
+    hooks_model.cmd_hook(
+        "codex", {"hook_event_name": "Stop", "session_id": "codex-thread"}
+    )
     assert capsys.readouterr().out == ""
 
-    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "leaf-watcher"})
+    hooks_model.cmd_hook(
+        "codex", {"hook_event_name": "Stop", "session_id": "leaf-watcher"}
+    )
     reason = json.loads(capsys.readouterr().out)["reason"]
     assert "Keep this turn active" in reason and "poll the existing" in reason
 
@@ -12185,7 +12242,7 @@ def test_the_stop_hook_records_the_ending_of_the_turn_behind_a_claim(claimed, ca
         leases_model.waiter_lease_path(claimed, session["id"])
     )
     assert lease
-    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
     assert capsys.readouterr().out == ""
     closed = service_model.page_claim(claimed)["turn_closed"]
     assert closed
@@ -12197,7 +12254,8 @@ def test_the_stop_hook_records_the_ending_of_the_turn_behind_a_claim(claimed, ca
     # Re-entry after a block stands the guard down before it would speak; the stamp is
     # the turn's own and is taken on that ending too.
     hooks_model.cmd_hook(
-        {"hook_event_name": "Stop", "session_id": "s1", "stop_hook_active": True}
+        "claude-code",
+        {"hook_event_name": "Stop", "session_id": "s1", "stop_hook_active": True},
     )
     assert capsys.readouterr().out == ""
     reentered_closed = service_model.page_claim(claimed)["turn_closed"]
@@ -12205,7 +12263,7 @@ def test_the_stop_hook_records_the_ending_of_the_turn_behind_a_claim(claimed, ca
 
     # Another session's turn ending says nothing about a page that is not one of its
     # own — the stamp names when this claim's turn ended or it means nothing.
-    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s2"})
+    hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s2"})
     assert service_model.page_claim(claimed)["turn_closed"] == reentered_closed
     leases_model.release_lease(lease)
 
@@ -12231,7 +12289,8 @@ def test_receiving_a_batch_observes_the_session_turn_on_every_owned_page(
     serving(sibling, 2)
     assert service_model.claim_page(sibling)
     hooks_model.cmd_hook(
-        {"hook_event_name": "Stop", "session_id": "s1", "stop_hook_active": True}
+        "claude-code",
+        {"hook_event_name": "Stop", "session_id": "s1", "stop_hook_active": True},
     )
     capsys.readouterr()
     assert service_model.page_claim(claimed)["turn_closed"]
@@ -12259,7 +12318,7 @@ def test_receiving_a_batch_observes_the_session_turn_on_every_owned_page(
         claimed, {"kind": "comment", "id": "c2", "author": "user", "text": "two"}
     )
     # The Stop hook delivers this one into the running turn itself.
-    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
     reason = continued(capsys.readouterr().out)
     [batch] = json.loads(reason.split("\n")[1])["batches"]
     assert [event["id"] for event in batch["events"]] == ["c2"]
@@ -12289,14 +12348,17 @@ def test_the_prompt_hook_opens_the_turn_on_every_page_the_session_holds(
     serving(sibling, 2)
     assert service_model.claim_page(sibling)
     hooks_model.cmd_hook(
-        {"hook_event_name": "Stop", "session_id": "s1", "stop_hook_active": True}
+        "claude-code",
+        {"hook_event_name": "Stop", "session_id": "s1", "stop_hook_active": True},
     )
     capsys.readouterr()
     assert service_model.page_claim(claimed)["turn_closed"]
     assert service_model.page_claim(sibling)["turn_closed"]
 
     status_before = files_model.read_json(claimed / "status.json")
-    hooks_model.cmd_hook({"hook_event_name": "UserPromptSubmit", "session_id": "s1"})
+    hooks_model.cmd_hook(
+        "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
+    )
     capsys.readouterr()
     assert service_model.page_claim(claimed)["turn_closed"] is None
     assert service_model.page_claim(sibling)["turn_closed"] is None
@@ -12305,12 +12367,15 @@ def test_the_prompt_hook_opens_the_turn_on_every_page_the_session_holds(
 
     # Another session's prompt says nothing about this one's pages.
     hooks_model.cmd_hook(
-        {"hook_event_name": "Stop", "session_id": "s1", "stop_hook_active": True}
+        "claude-code",
+        {"hook_event_name": "Stop", "session_id": "s1", "stop_hook_active": True},
     )
     capsys.readouterr()
     closed = service_model.page_claim(claimed)["turn_closed"]
     assert closed
-    hooks_model.cmd_hook({"hook_event_name": "UserPromptSubmit", "session_id": "s2"})
+    hooks_model.cmd_hook(
+        "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "s2"}
+    )
     capsys.readouterr()
     assert service_model.page_claim(claimed)["turn_closed"] == closed
     declare_idle(sibling)
@@ -12325,7 +12390,8 @@ def test_a_named_wait_claim_does_not_invent_turn_entry(claimed, capsys):
     """
     working(claimed, "answering the first comment")
     hooks_model.cmd_hook(
-        {"hook_event_name": "Stop", "session_id": "s1", "stop_hook_active": True}
+        "claude-code",
+        {"hook_event_name": "Stop", "session_id": "s1", "stop_hook_active": True},
     )
     capsys.readouterr()
     assert service_model.page_claim(claimed)["turn_closed"]
@@ -12349,7 +12415,8 @@ def test_a_named_wait_claim_does_not_invent_turn_entry(claimed, capsys):
     # The Stop hook carries the batch into the turn it holds open, asked again
     # for the same turn or not.
     hooks_model.cmd_hook(
-        {"hook_event_name": "Stop", "session_id": "s1", "stop_hook_active": True}
+        "claude-code",
+        {"hook_event_name": "Stop", "session_id": "s1", "stop_hook_active": True},
     )
     reason = continued(capsys.readouterr().out)
     [batch] = json.loads(reason.split("\n")[1])["batches"]
@@ -12360,7 +12427,8 @@ def test_a_named_wait_claim_does_not_invent_turn_entry(claimed, capsys):
     # A batch this session never took says nothing about its turn: the successor
     # that delivers it is the one whose turn opened.
     hooks_model.cmd_hook(
-        {"hook_event_name": "Stop", "session_id": "s1", "stop_hook_active": True}
+        "claude-code",
+        {"hook_event_name": "Stop", "session_id": "s1", "stop_hook_active": True},
     )
     capsys.readouterr()
     closed = service_model.page_claim(claimed)["turn_closed"]
@@ -12388,7 +12456,7 @@ def test_a_stop_that_hands_over_input_keeps_the_turn_open(claimed, capsys):
         claimed, {"kind": "comment", "author": "user", "text": "and this?"}
     )
 
-    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
     answer = json.loads(capsys.readouterr().out)
     assert "decision" not in answer
     envelope = json.loads(continued(answer).split("\n")[1])
@@ -12404,7 +12472,8 @@ def test_a_stop_that_hands_over_input_keeps_the_turn_open(claimed, capsys):
     assert (pickup["kind"], pickup["turn"]) == ("pickup", session["turn"])
 
     hooks_model.cmd_hook(
-        {"hook_event_name": "Stop", "session_id": "s1", "stop_hook_active": True}
+        "claude-code",
+        {"hook_event_name": "Stop", "session_id": "s1", "stop_hook_active": True},
     )
     assert capsys.readouterr().out == ""
     assert service_model.page_claim(claimed)["turn_closed"]
@@ -12421,7 +12490,7 @@ def test_a_repeated_stop_is_held_open_only_by_the_users_input(claimed, capsys):
     )
     repeated = {"hook_event_name": "Stop", "session_id": "s1", "stop_hook_active": True}
 
-    hooks_model.cmd_hook(repeated)
+    hooks_model.cmd_hook("claude-code", repeated)
     assert capsys.readouterr().out == ""
     assert files_model.read_json(claimed / "cursor.json") is None
     assert [
@@ -12433,7 +12502,7 @@ def test_a_repeated_stop_is_held_open_only_by_the_users_input(claimed, capsys):
         claimed, {"kind": "comment", "author": "user", "text": "is it broken?"}
     )
     cleanup_model.prompt_turn("s1")
-    hooks_model.cmd_hook(repeated)
+    hooks_model.cmd_hook("claude-code", repeated)
     answer = json.loads(capsys.readouterr().out)
     assert "decision" not in answer
     envelope = json.loads(continued(answer).split("\n")[1])
@@ -12474,7 +12543,7 @@ def test_a_page_that_changed_hands_before_receipt_keeps_its_input(
         return composed
 
     monkeypatch.setattr(hook_carrier_model, "compose", compose_then_transfer)
-    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
     answer = json.loads(capsys.readouterr().out)
     assert "decision" not in answer
     delivery = json.loads(continued(answer).split("\n")[1])
@@ -12520,7 +12589,7 @@ def test_input_too_large_for_the_turn_goes_as_a_pointer_the_model_confirms(
         },
     )
 
-    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
     answer = json.loads(capsys.readouterr().out)
     assert "decision" not in answer
     reason = continued(answer)
@@ -12569,7 +12638,7 @@ def test_a_wait_only_wakes_a_session_its_hooks_have_run_for(
     delivery_model.receive_delivery(payload["id"])
 
     hooks_model.cmd_hook(
-        {"hook_event_name": "UserPromptSubmit", "session_id": "unhooked"}
+        "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "unhooked"}
     )
     capsys.readouterr()
     assert leases_model.hooks_ran("unhooked")
@@ -12580,7 +12649,9 @@ def test_a_wait_only_wakes_a_session_its_hooks_have_run_for(
     _, _, shown = woken(capsys.readouterr().out, "unhooked")
     assert [event["id"] for event in shown] == [second["id"]]
 
-    hooks_model.cmd_hook({"hook_event_name": "SessionEnd", "session_id": "unhooked"})
+    hooks_model.cmd_hook(
+        "claude-code", {"hook_event_name": "SessionEnd", "session_id": "unhooked"}
+    )
     assert not leases_model.hooks_ran("unhooked")
 
 
@@ -12611,11 +12682,11 @@ def test_stop_hook_holds_a_turn_only_where_nothing_will_watch_its_page(claimed, 
     own, as a Codex task's adapter is, has to be running before the turn may end:
     without it the page keeps saying "Codex is working" over nobody."""
     session_model.cmd_waiting(claimed, "")
-    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
     assert capsys.readouterr().out == ""
 
     record_claim(claimed, harness="codex")
-    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    hooks_model.cmd_hook("codex", {"hook_event_name": "Stop", "session_id": "s1"})
     answer = json.loads(capsys.readouterr().out)
     assert answer["decision"] == "block"
     assert (
@@ -12625,20 +12696,21 @@ def test_stop_hook_holds_a_turn_only_where_nothing_will_watch_its_page(claimed, 
     # Blocking twice in a row is how a Stop hook loops, so a block already in
     # flight stands down.
     hooks_model.cmd_hook(
-        {"hook_event_name": "Stop", "session_id": "s1", "stop_hook_active": True}
+        "codex",
+        {"hook_event_name": "Stop", "session_id": "s1", "stop_hook_active": True},
     )
     assert capsys.readouterr().out == ""
 
     # A closed page ends the turn cleanly.
     declare_idle(claimed)
-    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    hooks_model.cmd_hook("codex", {"hook_event_name": "Stop", "session_id": "s1"})
     assert capsys.readouterr().out == ""
 
     # A page a second session has since picked up is that session's to watch, so
     # s1 is no longer held to it.
     session_model.cmd_waiting(claimed, "")
     record_claim(claimed, harness="codex", id="s2")
-    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    hooks_model.cmd_hook("codex", {"hook_event_name": "Stop", "session_id": "s1"})
     assert capsys.readouterr().out == ""
 
 
@@ -12663,7 +12735,7 @@ def test_pages_owing_the_same_thing_carry_one_copy_of_the_protocol(
         receive_through(page, last_deliverable_seq(page))
         session_model.cmd_waiting(page, "")
 
-    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
     reason = continued(capsys.readouterr().out)
 
     assert str(claimed) in reason and str(second) in reason
@@ -12704,7 +12776,7 @@ def test_a_preview_owes_no_watcher_but_still_carries_its_user(claimed, capsys):
     # its own Stop hook, and owes nothing here.
     session_model.cmd_waiting(claimed, "")
     record_claim(claimed, harness="codex")
-    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    hooks_model.cmd_hook("codex", {"hook_event_name": "Stop", "session_id": "s1"})
     assert "no delivery adapter" in json.loads(capsys.readouterr().out)["reason"]
 
     cleanup_model.write_json(
@@ -12717,14 +12789,14 @@ def test_a_preview_owes_no_watcher_but_still_carries_its_user(claimed, capsys):
             "started": "2026-09-01T10:00:00+00:00",
         },
     )
-    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    hooks_model.cmd_hook("codex", {"hook_event_name": "Stop", "session_id": "s1"})
     assert capsys.readouterr().out == ""
 
     # Presence is the whole reading. The serve path's user raises on a preview
     # file it cannot parse, and this guard fails open by saying nothing, so a
     # user here would take every page the session holds down without a word.
     (claimed / schema_model.PREVIEW_FILE).write_text("{not json", encoding="utf-8")
-    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    hooks_model.cmd_hook("codex", {"hook_event_name": "Stop", "session_id": "s1"})
     assert capsys.readouterr().out == ""
 
     record_claim(claimed)
@@ -12733,17 +12805,17 @@ def test_a_preview_owes_no_watcher_but_still_carries_its_user(claimed, capsys):
         claimed,
         {"kind": "comment", "author": "user", "revision": 1, "text": "is this right?"},
     )
-    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
     reason = continued(capsys.readouterr().out)
     [batch] = json.loads(reason.split("\n")[1])["batches"]
     assert batch["page"] == str(claimed)
     assert [event["text"] for event in batch["events"]] == ["is this right?"]
     assert "no watcher" not in reason
     # Handed over, the comment is owed an answer, and a later Stop holds for it.
-    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
     reason = continued(capsys.readouterr().out)
     consume_pending_input("s1")
-    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
     reason = continued(capsys.readouterr().out)
     assert f"{claimed}: 1 acknowledged user move with no answer" in reason
     assert "no watcher" not in reason
@@ -12827,7 +12899,7 @@ def test_the_turn_holds_again_when_a_version_takes_the_answer_back(
         ),
     )
 
-    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
     printed = capsys.readouterr().out
     if rewritten:
         answer = json.loads(printed)
@@ -12857,7 +12929,7 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
     )
     receive_through(claimed, last_deliverable_seq(claimed))
 
-    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
     answer = json.loads(capsys.readouterr().out)
     assert "decision" not in answer
     assert "1 acknowledged user move with no answer" in continued(answer)
@@ -12874,7 +12946,7 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
     # refuses a bound event.
     with service_model.PageTransaction(claimed) as page:
         page.bind_delivery_reply(session["id"], asked["id"], "a1")
-    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
     reason = continued(capsys.readouterr().out)
     assert f"your turn's final message for {asked['id']}" in reason
     assert "leaf thread reply <page>" not in reason
@@ -12890,7 +12962,7 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
         None,
         for_event=asked["id"],
     )
-    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
     assert capsys.readouterr().out == ""
 
     # The user's follow-up puts the decision back, and this is the case that picks
@@ -12913,12 +12985,12 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
     # The harness opens the follow-up turn; its Stop carries the new input, and a
     # later Stop holds for an answer to the last word.
     cleanup_model.prompt_turn("s1")
-    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
     reason = continued(capsys.readouterr().out)
     [batch] = json.loads(reason.split("\n")[1])["batches"]
     assert [event["id"] for event in batch["events"]] == [follow["id"]]
     consume_pending_input("s1")
-    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
     assert f"--for {follow['id']}" in continued(capsys.readouterr().out)
     thread_model.cmd_reply(
         claimed,
@@ -12927,7 +12999,7 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
         None,
         for_event=follow["id"],
     )
-    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
     assert capsys.readouterr().out == ""
 
     # Closing the thread is the other way to answer for one, for the cases where
@@ -12937,11 +13009,11 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
     )
     cleanup_model.prompt_turn("s1")
     receive_through(claimed, last_deliverable_seq(claimed))
-    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
     assert moot["id"] in continued(capsys.readouterr().out)
     thread_model.cmd_resolve(claimed, moot["id"])
     capsys.readouterr()  # cmd_resolve prints the event it wrote
-    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
     assert capsys.readouterr().out == ""
 
     # The agent's own decision holds nothing while the user has yet to answer it:
@@ -12952,7 +13024,7 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
         claimed,
         {"kind": "comment", "author": "agent", "text": "which storage engine?"},
     )
-    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
     assert capsys.readouterr().out == ""
     answered = append_carried_log_record(
         claimed,
@@ -12960,7 +13032,7 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
     )
     cleanup_model.prompt_turn("s1")
     receive_through(claimed, last_deliverable_seq(claimed))
-    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
     assert f"--for {answered['id']}" in continued(capsys.readouterr().out)
     thread_model.cmd_reply(
         claimed,
@@ -12969,7 +13041,7 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
         None,
         for_event=answered["id"],
     )
-    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
     assert capsys.readouterr().out == ""
     leases_model.release_lease(lease)
 
@@ -13001,7 +13073,7 @@ def test_the_guard_survives_a_page_vendored_before_the_layer_moved(claimed, caps
     with pytest.raises(registry_contract.RegistryError):
         registry_storage.load_registry(claimed)
 
-    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
     answer = json.loads(capsys.readouterr().out)
     assert "decision" not in answer
     assert asked["id"] in continued(answer)
@@ -13024,7 +13096,9 @@ def test_claude_codes_hook_input_is_confirmed_only_by_its_reader(claimed, capsys
         leases_model.waiter_lease_path(claimed, session["id"])
     )
     assert lease
-    hooks_model.cmd_hook({"hook_event_name": "UserPromptSubmit", "session_id": "s1"})
+    hooks_model.cmd_hook(
+        "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
+    )
     context = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
         "additionalContext"
     ]
@@ -13056,7 +13130,8 @@ def test_claude_codes_hook_input_is_confirmed_only_by_its_reader(claimed, capsys
         claimed, {"kind": "comment", "author": "user", "text": "one more"}
     )
     hooks_model.cmd_hook(
-        {"hook_event_name": "Stop", "session_id": "s1", "stop_hook_active": True}
+        "claude-code",
+        {"hook_event_name": "Stop", "session_id": "s1", "stop_hook_active": True},
     )
     blocked = json.loads(capsys.readouterr().out)
     assert "decision" not in blocked
@@ -13309,7 +13384,7 @@ def test_only_serving_or_watching_a_page_puts_the_session_under_the_guard(
     assert service_model.owned_pages("s7") == []
     # `page init` left the page "working", which is the state the guard blocks on —
     # but only for a page some session answers for, and none does.
-    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s7"})
+    hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s7"})
     assert capsys.readouterr().out == ""
 
     append_carried_log_record(
@@ -13319,7 +13394,7 @@ def test_only_serving_or_watching_a_page_puts_the_session_under_the_guard(
     assert service_model.owned_pages("s7") == [page_dir.resolve()]
 
     # The Stop hook carries the input the wait woke the session for into the turn.
-    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s7"})
+    hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s7"})
     reason = continued(capsys.readouterr().out)
     [batch] = json.loads(reason.split("\n")[1])["batches"]
     assert [event["text"] for event in batch["events"]] == ["hi"]
@@ -13382,7 +13457,9 @@ def test_a_claim_an_older_leaf_wrote_is_dropped_rather_than_read_or_raised_on(
         {key: value for key, value in claim.items() if key != "generation"},
     ):
         cleanup_model.write_json(service_model.claim_path(stale), unreadable)
-        hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s8"})
+        hooks_model.cmd_hook(
+            "claude-code", {"hook_event_name": "Stop", "session_id": "s8"}
+        )
         assert str(stale) not in capsys.readouterr().out
         assert service_model.page_claim(stale) is None
 
@@ -13518,37 +13595,79 @@ def test_a_claim_is_active_while_the_lifetime_it_names_holds(
     assert service_model.owned_pages("other-guarded") == [other.resolve()]
 
 
-def _registered_hook_command(event):
+# Each harness's own registrations of Leaf's hooks (`harness.hook_harness`); Pi's
+# are its extension's calls (`test_interact_pi.py`).
+REGISTRATIONS = {"claude-code": "hooks.json", "codex": "codex.json"}
+
+
+def _registrations(harness):
+    path = PLUGIN_ROOT / "hooks" / REGISTRATIONS[harness]
+    return json.loads(path.read_text())["hooks"]
+
+
+def _registered_hook_command(harness, event):
     """The synchronous command the installed harness runs for this event."""
-    registrations = json.loads((PLUGIN_ROOT / "hooks/hooks.json").read_text())["hooks"][
-        event
-    ]
     [hook] = [
         hook
-        for registration in registrations
+        for registration in _registrations(harness)[event]
         for hook in registration["hooks"]
         if not hook.get("asyncRewake")
     ]
     return hook["command"]
 
 
-def test_the_registered_watch_hook_wakes_only_under_claude_code(claimed, tmp_path):
-    """The background Stop registration runs the watch only under Claude Code,
-    and its exit 2 with stderr is the whole wake.
-
-    Codex runs the same `hooks.json` and ignores `asyncRewake`, so it would wait
-    on the hook: the command itself gates on `$CLAUDECODE`. Driven the way a harness
-    drives it, through a shell with the payload on stdin, because the wiring (the
-    gate, the guard script, uv, the exit status it passes through) is the
-    subject."""
-    stop = json.loads((PLUGIN_ROOT / "hooks" / "hooks.json").read_text())["hooks"][
-        "Stop"
-    ]
+def _registered_watch_arguments():
+    """What Claude Code's background Stop registration passes its supervisor."""
     [hook] = [
-        hook for entry in stop for hook in entry["hooks"] if hook.get("asyncRewake")
+        hook
+        for registration in _registrations("claude-code")["Stop"]
+        for hook in registration["hooks"]
+        if hook.get("asyncRewake")
     ]
-    base = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
-    base["CLAUDE_PLUGIN_ROOT"] = str(PLUGIN_ROOT)
+    words = shlex.split(hook["command"])
+    return words[words.index("hook") :]
+
+
+def test_each_harness_registration_names_its_harness():
+    """A hook learns which harness ran it from its registration, never from an
+    environment that a harness launched from another's shell inherits. So every
+    `leaf hook` a harness's file registers passes that harness's name, the
+    manifest of each harness names only its own file, and only Claude Code's
+    holds the background watch: Codex ignores `asyncRewake` and would wait on
+    it."""
+    assert set(REGISTRATIONS) | {"pi"} == set(harness_model.HOOK_HARNESSES)
+    codex_manifest = json.loads((PLUGIN_ROOT / ".codex-plugin/plugin.json").read_text())
+    assert codex_manifest["hooks"] == "./hooks/codex.json"
+    for harness in REGISTRATIONS:
+        hooks = [
+            hook
+            for registrations in _registrations(harness).values()
+            for registration in registrations
+            for hook in registration["hooks"]
+        ]
+        named = [
+            words[words.index("--harness") + 1]
+            for words in map(shlex.split, (hook["command"] for hook in hooks))
+            if "hook" in words
+        ]
+        assert named and set(named) == {harness}
+        assert any(hook.get("asyncRewake") for hook in hooks) == (
+            harness == "claude-code"
+        )
+
+
+def test_the_registered_watch_hook_wakes_the_session(claimed, tmp_path):
+    """Claude Code's background Stop registration runs the watch, and its exit 2
+    with stderr is the whole wake. Driven the way Claude Code drives it, through a
+    shell with the payload on stdin, because the wiring (the guard script, uv, the
+    exit status it passes through) is the subject."""
+    [hook] = [
+        hook
+        for entry in _registrations("claude-code")["Stop"]
+        for hook in entry["hooks"]
+        if hook.get("asyncRewake")
+    ]
+    env = os.environ | {"CLAUDE_PLUGIN_ROOT": str(PLUGIN_ROOT)}
     leases_model.mark_hooks("s1")  # its harness runs Leaf's hooks
     serving(claimed, 1)
     session_model.cmd_waiting(claimed, "")
@@ -13557,20 +13676,18 @@ def test_the_registered_watch_hook_wakes_only_under_claude_code(claimed, tmp_pat
         claimed, {"kind": "comment", "author": "user", "text": "hi"}
     )
 
-    def run(claude_code):
+    def run():
         return subprocess.run(
             ["sh", "-c", hook["command"]],
             input=json.dumps({"hook_event_name": "Stop", "session_id": "s1"}),
-            env=base | ({"CLAUDECODE": "1"} if claude_code else {}),
+            env=env,
             capture_output=True,
             text=True,
             timeout=STATED_TIMEOUT,
             check=False,
         )
 
-    outside = run(claude_code=False)
-    assert (outside.returncode, outside.stdout, outside.stderr) == (0, "", "")
-    woke = run(claude_code=True)
+    woke = run()
     assert (woke.returncode, woke.stdout) == (2, ""), woke.stderr
     assert woke.stderr.startswith(f"{claimed} has new input")
 
@@ -13585,8 +13702,8 @@ def test_the_registered_watch_hook_wakes_only_under_claude_code(claimed, tmp_pat
     )
     (broken / "bin").mkdir()
     shutil.copy(PLUGIN_ROOT / "bin/leaf", broken / "bin/leaf")
-    base["CLAUDE_PLUGIN_ROOT"] = str(broken)
-    failed = run(claude_code=True)
+    env["CLAUDE_PLUGIN_ROOT"] = str(broken)
+    failed = run()
     assert (failed.returncode, failed.stdout, failed.stderr) == (0, "", "")
 
 
@@ -13599,7 +13716,7 @@ def test_the_registered_hook_answers_out_of_interact_or_says_nothing(claimed, tm
 
     def run(payload, env=None):
         return subprocess.run(
-            ["/bin/sh", "-c", _registered_hook_command("Stop")],
+            ["/bin/sh", "-c", _registered_hook_command("claude-code", "Stop")],
             input=payload,
             env=(env or os.environ) | {"CLAUDE_PLUGIN_ROOT": str(PLUGIN_ROOT)},
             capture_output=True,
@@ -13635,16 +13752,20 @@ def test_the_registered_hook_answers_out_of_interact_or_says_nothing(claimed, tm
 
 
 @pytest.mark.parametrize(
-    "event,watch",
+    "harness,event,watch",
     [
-        ("Stop", False),
-        ("Stop", True),
-        ("UserPromptSubmit", False),
-        ("PostToolUse", False),
-        ("Interrupt", False),
+        ("claude-code", "Stop", False),
+        ("claude-code", "Stop", True),
+        ("claude-code", "UserPromptSubmit", False),
+        ("codex", "Stop", False),
+        ("codex", "UserPromptSubmit", False),
+        ("codex", "PostToolUse", False),
+        ("codex", "Interrupt", False),
     ],
 )
-def test_the_registered_hook_leaves_library_execution_to_uv(event, watch, tmp_path):
+def test_the_registered_hook_leaves_library_execution_to_uv(
+    harness, event, watch, tmp_path
+):
     """Turn hooks need no system Python; the shell launcher owns uv.
 
     This plugin copy has no library, and system python3 refuses to run. A recording
@@ -13674,16 +13795,16 @@ def test_the_registered_hook_leaves_library_execution_to_uv(event, watch, tmp_pa
     payload = json.dumps({"hook_event_name": event, "session_id": "hook-harness"})
     done = subprocess.run(
         (
-            [sys.executable, "-S", str(guard), "--watch"]
+            [sys.executable, "-S", str(guard), *_registered_watch_arguments()]
             if watch
-            else ["/bin/sh", "-c", _registered_hook_command(event)]
+            else ["/bin/sh", "-c", _registered_hook_command(harness, event)]
         ),
         input=payload,
         env=os.environ
         | {
             "PATH": f"{tools}:/usr/bin:/bin",
-            "CLAUDECODE": "",
             "CLAUDE_PLUGIN_ROOT": str(project),
+            "PLUGIN_ROOT": str(project),
             "PYTHON_CALLED": str(python_called),
             "UV_CALLED": str(called),
             "UV_INPUT": str(received),
@@ -13704,10 +13825,82 @@ def test_the_registered_hook_leaves_library_execution_to_uv(event, watch, tmp_pa
         "-m",
         "leaf",
         "hook",
+        "--harness",
+        harness,
         *(["--watch"] if watch else []),
     ]
     assert received.read_text() == payload
     assert not python_called.exists()
+
+
+def test_codex_tool_hook_starts_leaf_only_for_a_session_that_claimed_a_page(
+    page_dir, tmp_path
+):
+    """Codex runs its tool hook after every tool call of every task, and most hold
+    no page, so the launcher asks the environment's interpreter first and starts
+    uv only for a session that has claimed one. Every other Codex hook runs whole,
+    and so does the tool hook wherever the question cannot be asked: a failure
+    there must not drop it."""
+    project = tmp_path / "plugin"
+    launcher = project / "bin/leaf"
+    launcher.parent.mkdir(parents=True)
+    launcher.write_bytes((PLUGIN_ROOT / "bin/leaf").read_bytes())
+    launcher.chmod(0o755)
+    program = project / "skills/leaf/scripts/leaf/state.py"
+    program.parent.mkdir(parents=True)
+    program.write_bytes(
+        (PLUGIN_ROOT / "skills/leaf/scripts/leaf/state.py").read_bytes()
+    )
+    interpreter = project / ".venv/bin/python"
+    interpreter.parent.mkdir(parents=True)
+    interpreter.symlink_to(sys.executable)
+    tools = tmp_path / "tools"
+    tools.mkdir()
+    called = tmp_path / "uv-called"
+    uv = tools / "uv"
+    uv.write_text('#!/bin/sh\n/bin/cat > "$UV_CALLED"\n')
+    uv.chmod(0o755)
+
+    def run(event, session):
+        called.unlink(missing_ok=True)
+        payload = json.dumps({"hook_event_name": event, "session_id": session})
+        done = subprocess.run(
+            ["/bin/sh", "-c", _registered_hook_command("codex", event)],
+            input=payload,
+            env=os.environ
+            | {
+                "PLUGIN_ROOT": str(project),
+                "PATH": f"{tools}:/usr/bin:/bin",
+                "UV_CALLED": str(called),
+            },
+            capture_output=True,
+            text=True,
+            timeout=STATED_TIMEOUT,
+            check=False,
+        )
+        assert (done.returncode, done.stdout, done.stderr) == (0, "", "")
+        return json.loads(called.read_text()) if called.exists() else None
+
+    session = harness_model.session_harness().session
+    assert run("PostToolUse", session) is None
+    assert run("Stop", session) == {"hook_event_name": "Stop", "session_id": session}
+
+    # Claiming a page marks the session for the rest of its generation.
+    assert service_model.claim_page(page_dir)
+    assert run("PostToolUse", session) == {
+        "hook_event_name": "PostToolUse",
+        "session_id": session,
+    }
+    assert run("PostToolUse", "another-session") is None
+
+    # An interpreter that cannot answer leaves the hook to run whole.
+    interpreter.unlink()
+    interpreter.write_text("#!/bin/sh\nexit 1\n")
+    interpreter.chmod(0o755)
+    assert run("PostToolUse", "another-session") == {
+        "hook_event_name": "PostToolUse",
+        "session_id": "another-session",
+    }
 
 
 def test_the_registered_session_end_releases_shared_claims_without_an_environment(
@@ -13766,7 +13959,7 @@ def test_the_registered_session_end_releases_shared_claims_without_an_environmen
     foreign_claim = service_model.page_claim(foreign)
 
     done = subprocess.run(
-        ["/bin/sh", "-c", _registered_hook_command("SessionEnd")],
+        ["/bin/sh", "-c", _registered_hook_command("claude-code", "SessionEnd")],
         input=json.dumps(
             {"hook_event_name": "SessionEnd", "session_id": "ended-session"}
         ),
@@ -13791,7 +13984,7 @@ def test_the_registered_session_end_releases_shared_claims_without_an_environmen
 
     # An empty shutdown needs neither a page nor a managed environment either.
     done = subprocess.run(
-        ["/bin/sh", "-c", _registered_hook_command("SessionEnd")],
+        ["/bin/sh", "-c", _registered_hook_command("claude-code", "SessionEnd")],
         input=json.dumps({"hook_event_name": "SessionEnd", "session_id": "empty"}),
         env=os.environ
         | {
@@ -13835,15 +14028,16 @@ def test_a_hook_in_a_session_holding_no_page_imports_no_page_reading_or_server(
     probe = """\
 import io, json, runpy, sys
 imported = [sorted(sys.modules)]
+HOOK = ["hook", "--harness", "codex"]
 cases = (
-    ("UserPromptSubmit", ["hook"], None),
-    ("Stop", ["hook"], None),
-    ("Stop", ["hook", "--watch"], None),
-    ("UserPromptSubmit", ["hook"], "provider-turn"),
-    ("PostToolUse", ["hook"], "provider-turn"),
-    ("Stop", ["hook"], "provider-turn"),
-    ("UserPromptSubmit", ["hook"], "interrupted-turn"),
-    ("Interrupt", ["hook"], "interrupted-turn"),
+    ("UserPromptSubmit", HOOK, None),
+    ("Stop", HOOK, None),
+    ("Stop", ["hook", "--harness", "claude-code", "--watch"], None),
+    ("UserPromptSubmit", HOOK, "provider-turn"),
+    ("PostToolUse", HOOK, "provider-turn"),
+    ("Stop", HOOK, "provider-turn"),
+    ("UserPromptSubmit", HOOK, "interrupted-turn"),
+    ("Interrupt", HOOK, "interrupted-turn"),
 )
 for event, args, turn_id in cases:
     sys.argv = ["leaf", *args]
@@ -14003,7 +14197,7 @@ def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
         CliRunner().invoke(cli_model.cli, ["status", str(claimed), "idle"]).exit_code
         == 0
     )
-    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
     assert capsys.readouterr().out == ""
 
     # A worker's report holds idle the same way: idling over one would freeze its
@@ -14067,12 +14261,12 @@ def test_idle_and_the_stop_hook_hold_the_agent_to_the_same_moves(claimed, capsys
         return None if result.exit_code == 0 else result.output
 
     pickup("queued")
-    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
     assert "acknowledged" not in capsys.readouterr().out
     assert idle() is None
 
     pickup("opened")
-    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
     assert "1 acknowledged user move with no answer" in capsys.readouterr().out
     assert "1 acknowledged user move with no answer" in idle()
 
@@ -14156,9 +14350,13 @@ cli_model.cli()
 
 
 def test_session_end_releases_the_page_and_its_session_server_retires(claimed):
-    assert hosting_model.start_server(claimed)  # a real detached server to clean up
+    assert hosting_model.start_server(
+        claimed, harness=harness_model.session_harness()
+    )  # a real detached server to clean up
     session_model.cmd_waiting(claimed, "")
-    hooks_model.cmd_hook({"hook_event_name": "SessionEnd", "session_id": "s1"})
+    hooks_model.cmd_hook(
+        "claude-code", {"hook_event_name": "SessionEnd", "session_id": "s1"}
+    )
     wait_for(
         lambda: server_model.running_server(claimed),
         lambda running: not running,
@@ -14187,7 +14385,7 @@ def test_a_background_jobs_server_lives_as_long_as_the_job(
     monkeypatch.setenv("CLAUDE_PID", str(dead_pid))
     monkeypatch.setenv("CLAUDE_JOB_DIR", str(job))
     assert service_model.claim_page(page_dir)
-    assert hosting_model.start_server(page_dir)
+    assert hosting_model.start_server(page_dir, harness=harness_model.session_harness())
     assert files_model.read_json(page_dir / "service.json")["lifetime"] == "session"
     assert not reaper_retires(page_dir, monkeypatch)
     assert server_model.running_server(page_dir)
@@ -14442,7 +14640,9 @@ def test_session_end_cannot_release_a_page_claimed_by_its_successor(page_dir):
     record_claim(page_dir, id="predecessor")
     record_claim(page_dir, id="successor")
     session_model.cmd_waiting(page_dir, "successor is reviewing")
-    hooks_model.cmd_hook({"hook_event_name": "SessionEnd", "session_id": "predecessor"})
+    hooks_model.cmd_hook(
+        "claude-code", {"hook_event_name": "SessionEnd", "session_id": "predecessor"}
+    )
     assert service_model.page_claim(page_dir)["id"] == "successor"
     assert service_model.claim_is_active(service_model.page_claim(page_dir))
     assert files_model.read_json(page_dir / "service.json")["enabled"] is True
@@ -14614,12 +14814,14 @@ def test_a_standing_server_outlives_a_session_that_picks_the_page_up(
 
     # A `server run` of its own finds this one up and reports the lifetime the
     # running server has, not the one this claiming launch would have given it.
-    hosting_model.cmd_serve(page_dir)
+    hosting_model.cmd_serve(page_dir, harness=harness_model.session_harness())
     served = capsys.readouterr()
     assert json.loads(served.out) == {"url": launched["url"]}
     assert "server   standing" in served.err
 
-    hooks_model.cmd_hook({"hook_event_name": "SessionEnd", "session_id": "later"})
+    hooks_model.cmd_hook(
+        "claude-code", {"hook_event_name": "SessionEnd", "session_id": "later"}
+    )
 
     # The synchronous hook left the standing service enabled and live.
     assert server_model.running_server(page_dir) == launched
@@ -14652,14 +14854,17 @@ def test_a_prompt_reopens_the_acknowledged_move_it_carries_into_the_new_turn(
         claimed, {"kind": "comment", "author": "user", "text": "still working on it?"}
     )
     receive_through(claimed, last_deliverable_seq(claimed))
-    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
     continued(capsys.readouterr().out)
     hooks_model.cmd_hook(
-        {"hook_event_name": "Stop", "session_id": "s1", "stop_hook_active": True}
+        "claude-code",
+        {"hook_event_name": "Stop", "session_id": "s1", "stop_hook_active": True},
     )
     assert service_model.page_claim(claimed)["turn_closed"]
 
-    hooks_model.cmd_hook({"hook_event_name": "UserPromptSubmit", "session_id": "s1"})
+    hooks_model.cmd_hook(
+        "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
+    )
     prompt = json.loads(capsys.readouterr().out)
     assert asked["id"] in prompt["hookSpecificOutput"]["additionalContext"]
     claim = service_model.page_claim(claimed)
@@ -14747,7 +14952,7 @@ def test_a_reaction_holds_no_turn_as_an_unanswered_ask(claimed, capsys):
     )
     receive_through(claimed, last_deliverable_seq(claimed))
 
-    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
     assert capsys.readouterr().out == ""
 
     # Words under the answer are the user's last word, and hold the turn as ever.
@@ -14757,7 +14962,7 @@ def test_a_reaction_holds_no_turn_as_an_unanswered_ask(claimed, capsys):
     )
     cleanup_model.prompt_turn("s1")
     receive_through(claimed, last_deliverable_seq(claimed))
-    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
     continued(capsys.readouterr().out)
 
 
@@ -14796,7 +15001,9 @@ def test_agent_sees_the_complete_interaction_recovery(claimed, capsys, snapshot)
     observations = {}
 
     def hook(name):
-        hooks_model.cmd_hook({"hook_event_name": name, "session_id": "s1"})
+        hooks_model.cmd_hook(
+            "claude-code", {"hook_event_name": name, "session_id": "s1"}
+        )
         output = capsys.readouterr().out
         return json.loads(output) if output else None
 
@@ -14818,7 +15025,7 @@ def test_agent_sees_the_complete_interaction_recovery(claimed, capsys, snapshot)
     observations["idle before pickup"] = idle()
     serving(page, 1)
     observations["the watch wakes the session"] = hooks_model.cmd_watch(
-        {"hook_event_name": "Stop", "session_id": "s1"}
+        "claude-code", {"hook_event_name": "Stop", "session_id": "s1"}
     )
     # The context is an instruction line, the delivery on the next, then what the
     # turn owes; shown apart so the delivery reads as data.
@@ -14884,7 +15091,9 @@ def test_agent_sees_codex_watcher_recovery(codex_claimed_page, capsys, snapshot)
     observations = {}
 
     def hook():
-        hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "codex-thread"})
+        hooks_model.cmd_hook(
+            "codex", {"hook_event_name": "Stop", "session_id": "codex-thread"}
+        )
         output = capsys.readouterr().out
         return json.loads(output) if output else None
 
@@ -15065,7 +15274,7 @@ def _watched(page_dir):
 
 
 def _stop(capsys):
-    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
     output = capsys.readouterr().out
     return continued(output) if output else None
 
@@ -15099,7 +15308,9 @@ def test_a_move_the_turn_started_lets_that_turn_end(claimed, capsys):
 
     # A worker's result wakes the next turn, whose prompt and Stop name the start
     # an earlier turn wrote, and offer starting it again only because it had one.
-    hooks_model.cmd_hook({"hook_event_name": "UserPromptSubmit", "session_id": "s1"})
+    hooks_model.cmd_hook(
+        "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
+    )
     prompt = json.loads(capsys.readouterr().out)["hookSpecificOutput"]
     assert (
         f"your start on {asked['id']} is older than its pickup"
@@ -15111,7 +15322,9 @@ def test_a_move_the_turn_started_lets_that_turn_end(claimed, capsys):
 
     assert _start(claimed, asked["id"], "the second sketch").exit_code == 0
     # A task notification reaching the turn mid-way says nothing about it either.
-    hooks_model.cmd_hook({"hook_event_name": "UserPromptSubmit", "session_id": "s1"})
+    hooks_model.cmd_hook(
+        "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
+    )
     assert capsys.readouterr().out == ""
     assert _stop(capsys) is None
 
@@ -15123,7 +15336,9 @@ def test_a_move_the_turn_started_lets_that_turn_end(claimed, capsys):
         claimed,
         {"kind": "reply", "author": "user", "parent": asked["id"], "text": "and C?"},
     )
-    hooks_model.cmd_hook({"hook_event_name": "UserPromptSubmit", "session_id": "s1"})
+    hooks_model.cmd_hook(
+        "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
+    )
     capsys.readouterr()
     consume_pending_input("s1")
     reason = _stop(capsys)
@@ -15188,7 +15403,9 @@ def test_each_owed_move_in_a_thread_takes_a_start_of_its_own(claimed, capsys):
         thread_model.cmd_reply(
             claimed, move["id"], "East it is.", None, for_event=move["id"]
         )
-    hooks_model.cmd_hook({"hook_event_name": "UserPromptSubmit", "session_id": "s1"})
+    hooks_model.cmd_hook(
+        "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
+    )
     capsys.readouterr()
     again = append_carried_log_record(
         claimed,
@@ -15226,7 +15443,9 @@ def test_a_stop_keeps_the_turn_going_only_for_owed_input(claimed, capsys):
         )
     ] == [resolve["id"]]
 
-    hooks_model.cmd_hook({"hook_event_name": "UserPromptSubmit", "session_id": "s1"})
+    hooks_model.cmd_hook(
+        "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
+    )
     context = json.loads(capsys.readouterr().out)["hookSpecificOutput"]
     assert resolve["id"] in context["additionalContext"]
     leases_model.release_lease(lease)
@@ -16399,11 +16618,12 @@ def test_session_lifecycle_is_shared_without_rewriting_page_claims(
 ):
     """Prompts precede claims; a shared ending and a resumed ID never revive old ownership."""
     hooks_model.cmd_hook(
+        "codex",
         {
             "hook_event_name": "UserPromptSubmit",
             "session_id": "s1",
             "turn_id": "provider-turn",
-        }
+        },
     )
     capsys.readouterr()
     sibling = tmp_path / "sibling"
@@ -16416,7 +16636,12 @@ def test_session_lifecycle_is_shared_without_rewriting_page_claims(
         "provider-turn"
     }
     hooks_model.cmd_hook(
-        {"hook_event_name": "Interrupt", "session_id": "s1", "turn_id": "provider-turn"}
+        "codex",
+        {
+            "hook_event_name": "Interrupt",
+            "session_id": "s1",
+            "turn_id": "provider-turn",
+        },
     )
     assert all(service_model.page_claim(page)["turn_closed"] for page in before)
     assert {
@@ -16427,11 +16652,12 @@ def test_session_lifecycle_is_shared_without_rewriting_page_claims(
         service_model.claim_is_active(service_model.page_claim(page)) for page in before
     )
     hooks_model.cmd_hook(
+        "codex",
         {
             "hook_event_name": "UserPromptSubmit",
             "session_id": "s1",
             "turn_id": "resumed-turn",
-        }
+        },
     )
     service_model.claim_page(sibling)
     assert service_model.claim_is_active(service_model.page_claim(sibling))
@@ -16466,10 +16692,12 @@ def test_cold_session_end_does_not_wait_for_a_page_transaction(claimed):
 
 def test_a_stale_stop_cannot_plan_or_continue_a_newer_turn(claimed, capsys):
     hooks_model.cmd_hook(
-        {"hook_event_name": "UserPromptSubmit", "session_id": "s1", "turn_id": "old"}
+        "codex",
+        {"hook_event_name": "UserPromptSubmit", "session_id": "s1", "turn_id": "old"},
     )
     hooks_model.cmd_hook(
-        {"hook_event_name": "UserPromptSubmit", "session_id": "s1", "turn_id": "new"}
+        "codex",
+        {"hook_event_name": "UserPromptSubmit", "session_id": "s1", "turn_id": "new"},
     )
     capsys.readouterr()
     events_model.append_event(
@@ -16477,7 +16705,7 @@ def test_a_stale_stop_cannot_plan_or_continue_a_newer_turn(claimed, capsys):
     )
     before = events_model.read_events(claimed)
     hooks_model.cmd_hook(
-        {"hook_event_name": "Stop", "session_id": "s1", "turn_id": "old"}
+        "codex", {"hook_event_name": "Stop", "session_id": "s1", "turn_id": "old"}
     )
     assert capsys.readouterr().out == ""
     assert events_model.read_events(claimed) == before
@@ -16575,11 +16803,12 @@ def test_newer_prompt_supersedes_hook_policy_before_effects(
 
     monkeypatch.setattr(hook_carrier_model, "stop_continues", supersede)
     hooks_model.cmd_hook(
+        "codex",
         {
             "hook_event_name": "Stop",
             "session_id": "s1",
             **({"turn_id": turn} if turn else {}),
-        }
+        },
     )
     assert capsys.readouterr().out == ""
     assert cleanup_model.session_record("s1") == newer[0]
@@ -16650,7 +16879,9 @@ def test_hook_publication_never_receipts_input_before_its_reader(
 
     monkeypatch.setattr(hook_carrier_model, "compose", compose_with_locked_receipt_page)
     try:
-        hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+        hooks_model.cmd_hook(
+            "claude-code", {"hook_event_name": "Stop", "session_id": "s1"}
+        )
         context = continued(json.loads(capsys.readouterr().out))
         envelope = json.loads(context.split("\n")[1])
         assert len(envelope["batches"]) == 2
@@ -16660,7 +16891,9 @@ def test_hook_publication_never_receipts_input_before_its_reader(
     # Discard the first output just as the harness does on timeout. A later prompt
     # publishes the same input; only its reader's exact ack advances cursors.
     monkeypatch.setattr(hook_carrier_model, "compose", compose)
-    hooks_model.cmd_hook({"hook_event_name": "UserPromptSubmit", "session_id": "s1"})
+    hooks_model.cmd_hook(
+        "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
+    )
     retry = json.loads(
         json.loads(capsys.readouterr().out)["hookSpecificOutput"][
             "additionalContext"
@@ -16684,7 +16917,7 @@ def test_reader_ack_refuses_a_closed_turn_without_reopening_it(
     event = append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "Please answer"}
     )
-    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
     envelope = json.loads(continued(capsys.readouterr().out).split("\n")[1])
     cleanup_model.close_session_turn("s1", turn_id)
     closed = cleanup_model.session_record("s1")
@@ -16708,7 +16941,7 @@ def test_reader_ack_commits_pickup_and_cursor_before_session_end(
     event = append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "Please answer"}
     )
-    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
     envelope = json.loads(continued(capsys.readouterr().out).split("\n")[1])
     attempting = threading.Event()
     ended = threading.Event()
@@ -16758,7 +16991,9 @@ def test_no_page_stop_cannot_close_a_prompt_that_arrives_during_discovery(monkey
         return []
 
     monkeypatch.setattr(hooks_model, "owned_pages", pages)
-    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "never-claimed"})
+    hooks_model.cmd_hook(
+        "claude-code", {"hook_event_name": "Stop", "session_id": "never-claimed"}
+    )
     assert cleanup_model.session_record("never-claimed") == newer[0]
 
 
@@ -16790,11 +17025,12 @@ def test_closed_provider_prompt_never_reopens_its_identity(claimed, capsys):
     cleanup_model.close_session_turn("s1", "completed")
     ended = cleanup_model.session_record("s1")
     hooks_model.cmd_hook(
+        "codex",
         {
             "hook_event_name": "UserPromptSubmit",
             "session_id": "s1",
             "turn_id": "completed",
-        }
+        },
     )
     assert cleanup_model.session_record("s1") == ended
     assert capsys.readouterr().out == ""

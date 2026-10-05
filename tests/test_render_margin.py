@@ -6597,131 +6597,27 @@ def test_a_thread_card_is_unseen_until_its_first_placement_lands(browser, serve)
         context.unroute_all(behavior="wait")
 
 
-@pytest.mark.parametrize("width", [1440, 1920, 2400])
-def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(
-    browser, serve, width
-):
-    """The anchored thread is a complete thread beside its source."""
+def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(browser, serve):
+    """The anchored thread is a complete thread in its margin card: its marker opens
+    the card on the thread, `c` writes in its reply box, and Send answers the thread
+    with Threads left shut. With Threads open, the marker answers in the panel instead.
+
+    Where the card stands belongs to the placement tests beside this one; how a send
+    is delivered belongs to the `margin` case of `test_render_thread_snapshots.py`."""
     page = open_page(browser, serve(ASK_PAGE, events=[PARAGRAPH_ON_ASK]))
-    resized(page, width, 900)
+    resized(page, 1440, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds="comment"]')
-    expect(marker.locator(".lf-margin-entry-icon")).to_have_attribute(
-        "data-lf-icon", "comment"
-    )
-    first_frame = marker.evaluate(
-        """async marker => {
-          const card = document.querySelector('.lf-margin-preview');
-          const firstFocus = event => {
-            if (!event.target.matches('.lf-margin-preview .lf-page-thread'))
-              return;
-            document.removeEventListener('focusin', firstFocus);
-            // The frame the focus paints: the runtime's focus listener ran first and
-            // asked for this frame's standing paint before this one asks to read it.
-            requestAnimationFrame(() => {
-              window.__firstReplyHint = card.querySelector('leaf-text')?.placeholder;
-            });
-          };
-          document.addEventListener('focusin', firstFocus);
-          const painted = new Promise(resolve => requestAnimationFrame(() => {
-            const box = card.getBoundingClientRect();
-            resolve({open: !card.hidden,
-                     thread: Boolean(card.querySelector('.lf-margin-thread')),
-                     opacity: getComputedStyle(card).opacity,
-                     left: box.left,
-                     top: box.top,
-                     placed: card.hasAttribute('data-lf-thread-placement')});
-          }));
-          marker.focus();
-          marker.click();
-          return painted;
-        }"""
-    )
     preview = page.locator(".lf-margin-preview")
     thread = page.locator(".lf-margin-thread")
     reply = thread.locator("leaf-text")
 
-    # The first frame shows the card where it stands, or nothing: never unplaced.
-    assert first_frame["open"] and first_frame["thread"], first_frame
-    assert first_frame["opacity"] == "0" or first_frame["placed"], first_frame
-    expect(preview).to_have_attribute("data-lf-thread-placement", re.compile(r".+"))
-    rendered(page)
-    placed = preview.evaluate(
-        """card => ({left: card.getBoundingClientRect().left,
-                      top: card.getBoundingClientRect().top})"""
-    )
-    if first_frame["opacity"] != "0":
-        assert placed == pytest.approx(
-            {"left": first_frame["left"], "top": first_frame["top"]}, abs=0.5
-        ), (first_frame, placed)
-    expect(thread.locator(".lf-msg-body")).to_have_text(PARAGRAPH_ON_ASK["text"])
-    expect(preview.get_by_role("button", name=re.compile(r"Threads?"))).to_have_count(0)
-    expect(thread.locator(".lf-page-thread-open")).to_have_count(0)
-    geometry = page.evaluate(
-        """() => {
-          const main = document.querySelector('main').getBoundingClientRect();
-          const controls = document.querySelector('[data-lf-kinds="comment"]')
-            .closest('[data-lf-margin-for]').getBoundingClientRect();
-          const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
-          return {controlsLeft: controls.left, controlsRight: controls.right,
-                  cardLeft: card.left, cardRight: card.right, cardWidth: card.width,
-                  viewport: innerWidth};
-        }"""
-    )
-    # Where the room past the cluster holds the card's whole measure, the card stands
-    # there, clear of it; short of that, clearing it would narrow the card, so the card
-    # stands beside the words instead, across the cluster (comment-placement.js).
-    past = geometry["viewport"] - 8 - (geometry["controlsRight"] + 8) >= 592
-    assert past == (width == 2400), geometry
-    assert geometry["cardLeft"] == pytest.approx(
-        (geometry["controlsRight"] if past else page.evaluate(WORDS_RIGHT)) + 8,
-        abs=0.5,
-    ), geometry
-    # Short of its measure, the card takes the room to the visible edge.
-    assert geometry["cardRight"] == pytest.approx(
-        geometry["viewport"] - 8
-        if geometry["viewport"] - 8 - geometry["cardLeft"] < 592
-        else geometry["cardLeft"] + 592,
-        abs=0.5,
-    ), geometry
-    expect(thread.locator(".lf-page-thread")).to_be_focused()
-    assert page.evaluate("() => window.__firstReplyHint") == "Reply c"
-    expect(reply).to_have_attribute("placeholder", "Reply c")
-    expect(marker).to_have_attribute("data-lf-target-selected", "")
-    expect(marker).to_have_css("border-top-color", token_colour(page, "--accent"))
-    expect(reply.locator(".lf-compose-placeholder > .lf-key-badge")).to_be_visible()
-    reply.click()
-    expect(reply).to_be_focused()
-    page.keyboard.press("Escape")
-    expect(thread.locator(".lf-page-thread")).to_be_focused()
-    expect(reply).to_have_attribute("placeholder", "Reply c")
-    hint = thread.locator(".lf-compose-placeholder")
-    expect(hint).to_be_visible()
-    expect(hint.locator("span")).to_have_text("Reply ")
-    expect(hint.locator("kbd")).to_have_text("c")
-    assert hint.locator("span").evaluate(
-        "label => getComputedStyle(label).fontFamily"
-    ) == reply.evaluate("box => getComputedStyle(box).fontFamily")
-    assert hint.locator("kbd").evaluate(
-        "key => getComputedStyle(key).fontFamily"
-    ) == page.evaluate(
-        "() => getComputedStyle(document.body).getPropertyValue('--mono').trim()"
-    )
-    page.keyboard.press("c")
-    expect(reply).to_be_focused()
-    write(reply, "x")
-    write(reply, "")
-    page.keyboard.press("Escape")
-    preview.locator(".lf-margin-preview-close").click()
     marker.click()
     expect(thread.locator(".lf-page-thread")).to_be_focused()
-    expect(reply).to_be_visible()
-    expect(reply).to_have_attribute("placeholder", "Reply c")
+    expect(thread.locator(".lf-msg-body")).to_have_text(PARAGRAPH_ON_ASK["text"])
+    expect(preview.get_by_role("button", name=re.compile(r"Threads?"))).to_have_count(0)
     page.keyboard.press("c")
     expect(reply).to_be_focused()
     write(reply, "Yes. One visit can cover both jobs.")
-    ticked(page)
-    expect(reply).to_have_js_property("value", "Yes. One visit can cover both jobs.")
-    expect(reply).to_be_focused()
     with sending(page, "the reply"):
         thread.get_by_role("button", name="Send").click()
 
@@ -6730,8 +6626,6 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(
     )
     expect(page.locator(".lf-thread-panel")).not_to_have_class(re.compile(r"\bopen\b"))
     expect(preview).to_be_visible()
-    expect(marker).to_have_attribute("aria-controls", "lf-margin-preview")
-    expect(marker).to_have_attribute("aria-expanded", "true")
     root_id = thread.locator(".lf-page-thread").get_attribute("data-thread")
     replies = [
         event
@@ -6741,14 +6635,10 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(
     assert [event["text"] for event in replies] == [
         "Yes. One visit can cover both jobs."
     ]
+
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     expect(preview).to_be_hidden()
-    expect(page.locator(".lf-thread-panel")).to_have_class(re.compile(r"\bopen\b"))
-    expect(
-        page.locator(f'.lf-thread[data-id="{root_id}"] > .lf-thread-summary')
-    ).to_be_focused()
-
     preview.evaluate(
         """card => {
           window.__cardOpenings = [];
@@ -6766,6 +6656,43 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(
     expect(preview).to_be_hidden()
     expect(page.locator(f'.lf-thread[data-id="{root_id}"] leaf-text')).to_be_focused()
     assert page.evaluate("() => window.__cardOpenings") == []
+
+
+@pytest.mark.parametrize("width", [1920, 2400])
+def test_a_margin_card_clears_its_row_only_where_that_costs_no_width(
+    browser, serve, width
+):
+    """Where the room past the margin row holds the card's whole measure, the card
+    stands there, clear of the row; short of that, clearing it would narrow the card,
+    so the card stands beside the words instead, over the row (comment-placement.js).
+    Either way, short of its measure it takes the room to the visible edge."""
+    page = open_page(browser, serve(ASK_PAGE, events=[PARAGRAPH_ON_ASK]))
+    resized(page, width, 900)
+    page.locator('.lf-margin-marker[data-lf-kinds="comment"]').click()
+    preview = page.locator(".lf-margin-preview")
+    expect(preview).to_have_attribute("data-lf-thread-placement", re.compile(r".+"))
+    rendered(page)
+    geometry = page.evaluate(
+        """() => {
+          const controls = document.querySelector('[data-lf-kinds="comment"]')
+            .closest('[data-lf-margin-for]').getBoundingClientRect();
+          const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
+          return {controlsRight: controls.right, cardLeft: card.left,
+                  cardRight: card.right, viewport: innerWidth};
+        }"""
+    )
+    past = geometry["viewport"] - 8 - (geometry["controlsRight"] + 8) >= 592
+    assert past == (width == 2400), geometry
+    assert geometry["cardLeft"] == pytest.approx(
+        (geometry["controlsRight"] if past else page.evaluate(WORDS_RIGHT)) + 8,
+        abs=0.5,
+    ), geometry
+    assert geometry["cardRight"] == pytest.approx(
+        geometry["viewport"] - 8
+        if geometry["viewport"] - 8 - geometry["cardLeft"] < 592
+        else geometry["cardLeft"] + 592,
+        abs=0.5,
+    ), geometry
 
 
 def test_a_thread_margin_entry_opens_inline_when_the_panel_is_closed(browser, serve):

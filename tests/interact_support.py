@@ -1666,11 +1666,12 @@ def codex_claimed_page(tmp_path, under_codex, codex_env):
     program = """
 import json, sys
 from pathlib import Path
+from leaf.harness import session_harness
 from leaf.hosting import start_server
 from leaf.service import claim_page
 page = Path(sys.argv[1])
 claim_page(page)
-started = start_server(page)
+started = start_server(page, harness=session_harness())
 print(json.dumps({"url": started.url}))
 """
     finished = tmp_path / "page-host-finished"

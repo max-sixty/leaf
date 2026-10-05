@@ -2848,9 +2848,9 @@ def test_server_startup_refuses_a_platform_without_cross_process_locking(
     monkeypatch.setattr(cleanup_model, "fcntl", None)
     monkeypatch.setattr(leases_model, "fcntl", None)
     with pytest.raises(RuntimeError, match="cross-process file locking"):
-        hosting_model.cmd_serve(page_dir, standing=True)
+        hosting_model.cmd_serve(page_dir, standing=True, harness=None)
     with pytest.raises(RuntimeError, match="cross-process file locking"):
-        hosting_model.start_server(page_dir, standing=True)
+        hosting_model.start_server(page_dir, standing=True, harness=None)
     with pytest.raises(RuntimeError, match="cross-process file locking"):
         leases_model.lock_is_held(page_dir / "server.lock")
     assert not (page_dir / "server.lock").exists()
@@ -3427,7 +3427,7 @@ def test_a_server_keeps_its_row_fresh_without_browser_visits(page_dir, spawn):
         {"state": "waiting", "detail": "", "ts": cleanup_model.now_iso()},
     )
     declare_work(neighbor, "measuring", ts=cleanup_model.now_iso())
-    hosting_model.start_server(neighbor, standing=True)
+    hosting_model.start_server(neighbor, standing=True, harness=None)
 
     def rows():
         return presence_model.other_leaves(page_dir)
@@ -3571,7 +3571,7 @@ class AnnouncedTransaction(service.PageTransaction):
         return super().__enter__()
 
 service.PageTransaction = AnnouncedTransaction
-hosting.cmd_serve(Path(os.environ["PAGE"]), standing=True)
+hosting.cmd_serve(Path(os.environ["PAGE"]), standing=True, harness=None)
 """,
         ENTERED=entered,
     )
@@ -3610,7 +3610,7 @@ def test_a_failed_row_producer_retires_and_revives_with_its_service(page_dir):
     """
     neighbor = machine_model.state_home() / "pages" / "broken-row"
     neighbour_page(neighbor, title="Repairable", dead=True, port=0)
-    hosting_model.start_server(neighbor, standing=True)
+    hosting_model.start_server(neighbor, standing=True, harness=None)
     wait_for(
         lambda: server_rows_model.read_row(
             neighbor, server_model.running_server(neighbor)
@@ -3632,7 +3632,7 @@ def test_a_failed_row_producer_retires_and_revives_with_its_service(page_dir):
         {"state": "waiting", "detail": "", "ts": cleanup_model.now_iso()},
     )
     declare_work(neighbor, "repaired", ts=cleanup_model.now_iso())
-    hosting_model.start_server(neighbor, standing=True, revive=True)
+    hosting_model.start_server(neighbor, standing=True, revive=True, harness=None)
     renewed = server_model.running_server(neighbor)["server_id"]
     assert renewed != original
     [row] = wait_for(
@@ -4663,6 +4663,8 @@ def test_a_start_waits_for_uncommitted_preparation_before_reusing(page_dir, spaw
             "_serve",
             str(page_dir),
             "--standing",
+            "--harness",
+            "null",
             "--handshake",
             str(end.fileno()),
         ],
@@ -4677,7 +4679,9 @@ def test_a_start_waits_for_uncommitted_preparation_before_reusing(page_dir, spaw
 
     def start():
         attempting.set()
-        successor.append(hosting_model.start_server(page_dir, standing=True))
+        successor.append(
+            hosting_model.start_server(page_dir, standing=True, harness=None)
+        )
 
     starting = threading.Thread(target=start, daemon=True)
     try:
@@ -4716,7 +4720,7 @@ def test_private_revival_cannot_advertise_the_previous_serving_row(
     neighbor = machine_model.state_home() / "pages" / "private-revival"
     neighbour_page(neighbor, title="Private revival", dead=True, port=0)
     record_claim(neighbor, id="private-revival")
-    hosting_model.start_server(neighbor, standing=True)
+    hosting_model.start_server(neighbor, standing=True, harness=None)
     previous = server_model.running_server(neighbor)
     wait_for(
         lambda: server_rows_model.read_row(neighbor, previous),
@@ -4737,6 +4741,8 @@ def test_private_revival_cannot_advertise_the_previous_serving_row(
             str(neighbor),
             "--standing",
             "--revive",
+            "--harness",
+            "null",
             "--handshake",
             str(end.fileno()),
         ],
@@ -4787,7 +4793,7 @@ def test_failed_row_preparation_preserves_the_previous_desired_service(
     page_dir, monkeypatch
 ):
     """A producer constructor failure publishes neither service nor acquisition."""
-    hosting_model.start_server(page_dir, standing=True)
+    hosting_model.start_server(page_dir, standing=True, harness=None)
     previous = server_model.running_server(page_dir)
     wait_for(
         lambda: server_rows_model.read_row(page_dir, previous),
@@ -4805,7 +4811,7 @@ def test_failed_row_preparation_preserves_the_previous_desired_service(
 
     monkeypatch.setattr(server_rows_model, "RowPublisher", failed_constructor)
     with pytest.raises(RuntimeError, match="row producer cannot be prepared"):
-        hosting_model.cmd_serve(page_dir, standing=True, revive=True)
+        hosting_model.cmd_serve(page_dir, standing=True, revive=True, harness=None)
     assert files_model.read_json(page_dir / "service.json") == desired
     assert server_rows_model.row_path(page_dir).read_bytes() == row_before
     assert not leases_model.lock_is_held(page_dir / "server.lock")
@@ -4821,6 +4827,8 @@ def test_a_stop_waits_for_private_preparation_before_disabling(page_dir, spawn):
             "_serve",
             str(page_dir),
             "--standing",
+            "--harness",
+            "null",
             "--handshake",
             str(end.fileno()),
         ],
@@ -4885,7 +4893,7 @@ def test_stop_does_not_wait_forever_on_a_server_started_after_its_transition(
     """Explicit stops retire a later start; owner cleanup yields to a successor."""
     assert service_model.claim_page(page_dir)
     owner = service_model.page_claim(page_dir) if owned else None
-    assert hosting_model.start_server(page_dir, standing=True)
+    assert hosting_model.start_server(page_dir, standing=True, harness=None)
     transitioned = threading.Event()
     resume = threading.Event()
     original_page_locked = hosting_model.page_locked
@@ -4922,7 +4930,7 @@ def test_stop_does_not_wait_forever_on_a_server_started_after_its_transition(
                     if same_session
                     else harness_model.ClaudeCodeHarness("successor", "Claude")
                 )
-        assert hosting_model.start_server(page_dir, standing=True)
+        assert hosting_model.start_server(page_dir, standing=True, harness=None)
         resume.set()
         stopping.join(timeout=STATED_TIMEOUT)
         assert not stopping.is_alive(), "the stop never returned once resumed"
@@ -5093,6 +5101,7 @@ def test_start_server_forwards_its_flags_to_the_serving_child(page_dir, monkeypa
         host="page.example",
         standing=True,
         revive=True,
+        harness=None,
     )
 
     assert started.url == "http://127.0.0.1:41234/?t=test"
@@ -5105,6 +5114,8 @@ def test_start_server_forwards_its_flags_to_the_serving_child(page_dir, monkeypa
             "page.example",
             "--standing",
             "--revive",
+            "--harness",
+            "null",
         ]
     ]
 

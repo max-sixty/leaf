@@ -228,7 +228,7 @@ class Watch:
             try:
                 from .hosting import start_server
 
-                started = start_server(page_dir, revive=True)
+                started = start_server(page_dir, revive=True, harness=self.harness)
             except StartRefused as error:
                 print(error, file=sys.stderr)
                 started = None

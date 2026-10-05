@@ -448,7 +448,7 @@ try:
         assert json.loads(served.stdout)["url"]
         assert watch.poll() is None
         assert not adapter_is_live("codex-thread")
-    stopped = subprocess.run([sys.executable, "-m", "leaf", "hook"],
+    stopped = subprocess.run([sys.executable, "-m", "leaf", "hook", "--harness", "codex"],
                              input=json.dumps({"hook_event_name": "Stop", "session_id": "codex-thread"}),
                              capture_output=True, text=True)
     assert stopped.returncode == 0, stopped.stderr
@@ -486,6 +486,8 @@ def test_an_abandoned_handoff_does_not_disable_the_server_it_reuses(
             "server",
             "_serve",
             str(page),
+            "--harness",
+            json.dumps({"name": "codex", "session": "codex-thread", "agent": "Codex"}),
             "--handshake",
             str(child.fileno()),
         ],
@@ -541,7 +543,7 @@ try:
         assert json.loads(result.stdout)["url"]
         identities.append(lease.stat().st_ino)
     stopped = subprocess.run(
-        [sys.executable, "-m", "leaf", "hook"],
+        [sys.executable, "-m", "leaf", "hook", "--harness", "codex"],
         input=json.dumps({"hook_event_name": "Stop", "session_id": "codex-thread"}),
         capture_output=True, text=True,
     )
@@ -620,7 +622,7 @@ def test_failed_delivery_preserves_the_existing_preview(
                 with claim_and_start(page_dir):
                     pass
             else:
-                cmd_serve(page_dir, acquire=True)
+                cmd_serve(page_dir, harness=session_harness(), acquire=True)
         assert page_claim(page_dir) == claim
         assert not original.ended
         assert json.loads((page_dir / "service.json").read_text()) == published
@@ -786,7 +788,11 @@ def test_service_publication_failure_keeps_previous_preview_claim(
     try:
         with pytest.raises(PermissionError, match="service cannot be published"):
             hosting.cmd_serve(
-                page_dir, acquire=True, prepared_claim=intent, handshake=Accepted()
+                page_dir,
+                harness=session_harness(),
+                acquire=True,
+                prepared_claim=intent,
+                handshake=Accepted(),
             )
         assert page_claim(page_dir) == previous
         assert not original.ended

@@ -292,11 +292,15 @@ def compose(batches: list[dict], attention: list[str]) -> str:
 
 
 def carry_turn(
-    event: str | None, sid: str, payload: dict, expected: dict | None | object = ...
+    harness: type[Harness],
+    event: str | None,
+    sid: str,
+    payload: dict,
+    expected: dict | None | object = ...,
 ) -> bool | None:
-    """Answer a prompt, Stop, or other page-reading hook for a session holding a
-    page: open or close its turn, hand over its pending input, and name what its
-    pages are owed."""
+    """Answer a prompt, Stop, or other page-reading hook `harness` ran for a
+    session holding a page: open or close its turn, hand over its pending input,
+    and name what its pages are owed, in the output that harness reads."""
     expected = session_record(sid) if expected is ... else expected
     plans = read_plans(sid)
     if session_record(sid) != expected or any(
@@ -344,6 +348,6 @@ def carry_turn(
         if session_record(sid) != expected:
             return
         print(
-            json.dumps(type(plans[0].harness).hook_context(event, message)),
+            json.dumps(harness.hook_context(event, message)),
             flush=True,
         )

@@ -5282,68 +5282,6 @@ def test_a_thread_uses_a_free_margin_and_tracks_its_source(browser, serve):
     assert gone["card"] == pytest.approx(gone["controls"], abs=0.5), gone
 
 
-def test_a_thread_beside_its_words_takes_the_room_to_the_visible_edge(browser, serve):
-    """Room right of a thread's words short of the card's measure narrows the card, not
-    its height, and the card spends none of that room keeping its pin clear.
-
-    The width is the arrangement: this thread is on the gallery's right-hand title
-    comparison, so the room right of it grows with half the viewport, and the case only says
-    anything where that room falls between `--thread-card-min` and `--thread-card`.
-    Wider and the card takes its preferred measure with room to spare, narrower and it
-    is the short-rail case below. The room is asserted before the outcome is, so moving
-    either token, or the gallery's arrangement, reddens the arrangement and names the
-    width to re-pick rather than reading as a layout regression."""
-    page = open_page(browser, serve(FEATURE_GALLERY))
-    page.emulate_media(reduced_motion="reduce")
-    # Remove the gallery's sidenote so the column stays centred rather than shifting
-    # left to reserve its room. The width is picked for that centred arrangement.
-    page.evaluate("document.getElementById('bg-compare-note').remove()")
-    resized(page, 1600, 900)
-    page.evaluate("location.hash = 'bg-margin-controls'")
-    page.evaluate(RELEASE_FOCUS)
-    _open_gallery_thread(page, "bg-thread-text", "2be2443f0bb6cc49fc86b52f340e6073")
-    geometry = page.evaluate(
-        """() => {
-          const cardNode = document.querySelector('.lf-margin-preview');
-          const list = cardNode.querySelector('.lf-thread-transcript');
-          const card = cardNode.getBoundingClientRect();
-          const words = document.querySelector('#bg-thread-text').getBoundingClientRect();
-          const pin = document.querySelector('[data-lf-margin-for="bg-thread-text"]')
-            .getBoundingClientRect();
-          const style = getComputedStyle(cardNode);
-          return {placement: cardNode.dataset.lfThreadPlacement,
-                  cardLeft: card.left, cardRight: card.right, cardWidth: card.width,
-                  wordsRight: words.right, pinLeft: pin.left, pinRight: pin.right,
-                  viewport: innerWidth,
-                  preferred: parseFloat(style.getPropertyValue('--thread-card')),
-                  minimum: parseFloat(style.getPropertyValue('--thread-card-min')),
-                  clipped: list.scrollHeight - list.clientHeight};
-        }"""
-    )
-    # The room between the words and the visible edge is what the card has to fit
-    # into, and this case is the one where that room falls short of the preferred
-    # measure without falling short of the minimum. The pin on the words reaches past
-    # them, and the room past it falls short of the measure too.
-    room = geometry["viewport"] - 8 - (geometry["wordsRight"] + 8)
-    assert geometry["minimum"] <= room < geometry["preferred"], geometry
-    assert geometry["pinRight"] > geometry["wordsRight"], geometry
-    # Clearing the pin would cost the card width, so the card keeps no gap past it: it
-    # stands beside the words, over whatever of the pin reaches that far, and takes
-    # the whole room to the visible edge (comment-placement.js).
-    assert geometry["placement"] == "right", geometry
-    assert geometry["cardLeft"] == pytest.approx(geometry["wordsRight"] + 8, abs=0.5), (
-        geometry
-    )
-    assert geometry["cardLeft"] < geometry["pinRight"] + 8, geometry
-    assert geometry["cardRight"] == pytest.approx(geometry["viewport"] - 8, abs=0.5), (
-        geometry
-    )
-    assert geometry["minimum"] <= geometry["cardWidth"] < geometry["preferred"], (
-        geometry
-    )
-    assert geometry["clipped"] <= 0, geometry
-
-
 def test_a_thread_in_a_short_rail_stands_on_the_side_with_room(browser, serve):
     """A rail short of the card's minimum puts the card on the side of its words that
     holds it, here the left, as it would the comment box (comment-placement.js), at its

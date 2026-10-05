@@ -57,14 +57,12 @@ customElements.define(
     #rows = new WeakMap(); // grip → its declared rows, for the grab announcement
     #namesObserver = null;
     #sortables = new Set();
-    #stopActions = null;
     #stopMotion = null;
     #resumeProjection = null;
 
     connectedCallback() {
       if (!once(this)) {
         if (!quoted(this)) {
-          this.#stopActions ??= this.#controller.subscribe(this.#paintAvailability);
           for (const col of this.querySelectorAll(":scope > lf-column"))
             this.#sortable(col);
         }
@@ -96,7 +94,7 @@ customElements.define(
       });
       for (const col of this.querySelectorAll(":scope > lf-column"))
         this.#sortable(col);
-      this.#stopActions ??= this.#controller.subscribe(this.#paintAvailability);
+      this.#controller.subscribe(this.#paintAvailability);
       this.#observeMotion();
       this.#names();
       // Grip names come from where their cards sit, so column child-list mutations
@@ -186,8 +184,6 @@ customElements.define(
     // drop a live grab here or it holds the page's drag for good — freezing action
     // replay and version-follow.
     disconnectedCallback() {
-      this.#stopActions?.();
-      this.#stopActions = null;
       this.#namesObserver?.disconnect();
       this.#namesObserver = null;
       this.#stopMotion?.();

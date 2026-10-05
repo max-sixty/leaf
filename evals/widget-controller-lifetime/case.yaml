@@ -1,0 +1,34 @@
+# Guards the controller's owner lifetime independently of other widget resources.
+description: widget-controller-lifetime
+metadata:
+  purpose: A semantic widget observes its controller once and survives removal and reinsertion.
+  tags:
+  - packages
+  - lifecycle
+vars:
+  prompt: |
+    Write the lifecycle methods for a Leaf package widget that displays its declared
+    status and the availability of its status action. It can be removed temporarily
+    and the same element reinserted later. While removed it should do no rendering;
+    on return it should show the latest reading without duplicate callbacks.
+
+    Read the public references and use Leaf's supported semantic widget API. The
+    widget also registers a native window resize listener to measure its local
+    inspector; keep that listener active only while the element is connected.
+    Return the JavaScript lifecycle methods, assuming the rendering and measurement
+    methods already exist.
+assert:
+- type: javascript
+  metric: reads-module-authoring
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/references/module-authoring\.md
+- type: llm-rubric
+  metric: controller-owner-lifetime
+  value: |
+    Pass only if the widget obtains widgetController(this) and registers its
+    controller subscription once for the element, with no unsubscribe on disconnect
+    or resubscribe on reconnect. It must rely on the controller to pause detached
+    rendering and catch up on reinsertion. The native window resize listener must
+    still be registered on connection and removed on disconnection; fail if all
+    resources are treated as having the controller's lifetime.

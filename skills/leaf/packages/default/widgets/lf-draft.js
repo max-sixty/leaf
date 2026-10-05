@@ -155,7 +155,6 @@ customElements.define(
     #failed = false;
     #margin = null;
     #commandScope = null;
-    #stopReading = null;
     #stopDraft = null;
     #resumeProjection = null;
     #recovered = false;
@@ -164,7 +163,13 @@ customElements.define(
       if (!once(this)) {
         this.#offer();
         this.#paintAvailability();
-        this.#watchReading();
+        if (
+          !quoted(this) &&
+          this.#editor &&
+          !this.#resumeProjection &&
+          this.#controller.read().actions.edit.available
+        )
+          this.#resumeProjection = this.#controller.defer();
         this.#watchDraft();
         return;
       }
@@ -179,7 +184,7 @@ customElements.define(
       // no pencil, no press on the box, no edit keys in the command reference dialog. Quoting
       // gates the action channel, not presentation.
       if (quoted(this)) {
-        this.#watchReading();
+        this.#subscribeReading();
         return;
       }
 
@@ -194,7 +199,7 @@ customElements.define(
       // watcher's own callback would fan one shared refresh out through every draft for
       // a projection none of them changed.
       this.#refreshMargin();
-      this.#watchReading();
+      this.#subscribeReading();
 
       // The box is the door. A draft is the one block on the page whose whole purpose is
       // that the user rewrites it, so a press anywhere in it opens the editor with the
@@ -231,8 +236,6 @@ customElements.define(
     }
 
     disconnectedCallback() {
-      this.#stopReading?.();
-      this.#stopReading = null;
       this.#stopDraft?.();
       this.#stopDraft = null;
       this.#margin?.unregister();
@@ -241,16 +244,9 @@ customElements.define(
       this.#resumeProjection = null;
     }
 
-    #watchReading() {
+    #subscribeReading() {
       const interactive = !quoted(this);
-      if (
-        interactive &&
-        this.#editor &&
-        !this.#resumeProjection &&
-        this.#controller.read().actions.edit.available
-      )
-        this.#resumeProjection = this.#controller.defer();
-      this.#stopReading ??= this.#controller.subscribe((reading) => {
+      this.#controller.subscribe((reading) => {
         if (!interactive) return;
         this.#renderHistory(reading);
         // Recovery chooses the first action face: an unsent editor opens with Save

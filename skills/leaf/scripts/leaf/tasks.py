@@ -17,6 +17,10 @@ markup; the door refuses a resolved thread and anything else. The fold is the lo
 alone, so every reader takes it from `canonical_tasks`.
 
 Not yet: a task whose session has ended reads open until another session ends it.
+
+Experimental: tasks and the two queues are new, and their shape is expected to
+change a lot (notes/what-needs-you/). Change them freely; nothing outside this
+repository depends on them.
 """
 
 import sys
@@ -88,7 +92,7 @@ def cmd_open(page_dir: Path, subject: str, title: str) -> dict:
     """Open a task on the thread `subject` names, by any message in it or a widget
     frozen in it, in the posting session's voice; the record."""
     from .event_contracts import append_admitted
-    from .host import message_identity
+    from .harness import message_identity
     from .leases import contract_writer
     from .service import PageTransaction
     from .work import page_subject
@@ -117,7 +121,7 @@ def cmd_end(page_dir: Path, task: str, outcome: str, detail: str | None) -> dict
     """End `task` with `outcome`, `detail` saying where the result is or why there
     is none; the record."""
     from .event_contracts import append_admitted
-    from .host import message_identity
+    from .harness import message_identity
     from .leases import contract_writer
     from .service import PageTransaction
 

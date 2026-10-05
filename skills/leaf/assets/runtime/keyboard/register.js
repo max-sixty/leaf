@@ -98,7 +98,7 @@ const PAGE_COMMANDS = [
   "page.search.open",
   "page.search.repeat",
   "thread.walk",
-  "ask.walk",
+  "queue.walk",
   // Scrolling is available in the page and in a covering auxiliary surface, which reuses
   // the rows marked `covering` while the modal floor suspends the rest of page scope.
   "page.move",

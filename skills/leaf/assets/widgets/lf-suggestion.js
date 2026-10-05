@@ -120,6 +120,11 @@ function toRanges(segments, spans) {
 customElements.define(
   "lf-suggestion",
   class extends HTMLElement {
+    // What the Ask was answered with: the decision.
+    static answerWords(state) {
+      return outcomeOf(state) === "accept" ? "Accepted" : "Rejected";
+    }
+
     #deciding = null; // the decision in flight, so a second press joins it
     #staging = false; // the synchronous span before that promise exists
     #failed = null;
@@ -360,13 +365,6 @@ customElements.define(
           when: () => this.#offered().includes(key),
           run: () => this.#margin?.activate(key),
         })),
-        {
-          answer: () => {
-            const outcome = this.#outcome();
-            if (!outcome) return "";
-            return outcome === "accept" ? "Accepted" : "Rejected";
-          },
-        },
       );
       commands(this, this.#commandScope);
     }

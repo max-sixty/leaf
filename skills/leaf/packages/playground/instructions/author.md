@@ -17,11 +17,13 @@ body is the playground's Ask, where the stage grows to the window's height. Draw
 candidates directly on the stage without separate cards.
 
 The preview is the surface the user operates. An A/B comparison keeps both candidates
-mounted there with the same configuration and starting content. When the candidates
-render one custom input model, apply each drag, scroll, reorder, or edit once and draw
-both from that state; derive their measurements beside them. Live Leaf samples share
-the configuration and authored starting history, while practice gestures belong to
-each child's independent log. Reset brings a sample back to that starting history.
+mounted there with the same configuration and starting content. Candidates that stand
+side by side start their names, notes and drawings on shared lines across the row,
+however each wraps, so the user compares them straight across; each drawing keeps its
+own height. When the candidates render one custom input model, apply each drag,
+scroll, reorder, or edit once and draw both from that state; derive their measurements
+beside them. Live Leaf samples share the configuration and authored starting history,
+while practice gestures belong to each child's independent log. Reset brings a sample back to that starting history.
 
 Start from the real artifact. Wrap the existing component, document, or generated output
 instead of rebuilding its appearance in page-local markup. A companion package may carry
@@ -148,7 +150,7 @@ including after Reset, wears the playground's properties and attributes from its
 first paint. The outer root and stylesheet belong to the review page. A static
 sketch or snippet can stay directly in the preview.
 
-The output is the instruction the user copies and the host receives. Write a complete
+The output is the instruction the user copies and the harness receives. Write a complete
 task with an object, destination, and requested evidence. Use `lf-playground-value` only
 where a selected value makes that task more precise. The action still includes every
 control in `detail.values`, including controls the prose does not repeat.

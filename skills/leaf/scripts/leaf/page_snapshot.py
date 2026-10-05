@@ -3,7 +3,7 @@
 import copy
 import hashlib
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from .data import read_data
@@ -44,6 +44,11 @@ class PageSnapshot:
     others: tuple[dict, ...]
     reading: str
 
+    def through(self, sequence: int) -> "PageSnapshot":
+        """This snapshot served as the page stood once event `sequence` was appended
+        (`PageRead.through`)."""
+        return replace(self, context=self.context.through(sequence))
+
 
 def capture_page_snapshot(
     page_dir: Path,
@@ -51,24 +56,12 @@ def capture_page_snapshot(
     active: dict,
     *,
     artifact: RevisionArtifact | None = None,
-    through_seq: int | None = None,
 ) -> PageSnapshot:
-    """Freeze a candidate and every page authority it is projected against.
-
-    `through_seq` freezes the log as it stood once that event was appended, so the
-    page is served as it was then rather than with everything since."""
+    """Freeze a candidate and every page authority it is projected against."""
     if artifact is not None and artifact.html != document.data:
         raise ValueError("preview artifact does not contain the checked document")
     with PageTransaction(page_dir) as page:
-        events = tuple(
-            copy.deepcopy(
-                [
-                    event
-                    for event in page.events
-                    if through_seq is None or event["seq"] <= through_seq
-                ]
-            )
-        )
+        events = tuple(copy.deepcopy(page.events))
         snapshot_active = copy.deepcopy(active)
         versions = tuple(copy.deepcopy(version_descriptors(page_dir, list(events))))
         revisions = list_revisions(page_dir)

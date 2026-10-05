@@ -108,6 +108,7 @@ import {
   keeps,
   commands,
   landInThread,
+  markdownWords,
   offer,
   quoted,
   reachedForWords,
@@ -259,6 +260,25 @@ customElements.define(
       reading: { attribute: false },
     };
 
+    // What the Ask was answered with: the picked options' names, the group's own in its
+    // order and then the user's in the order they added them. An option the user added
+    // is named by the words its `add` carries, and an authored one by its markup.
+    static answerWords(state, group) {
+      const picked = new Set(state.choose.detail.options);
+      const added = Object.entries(state.add?.units ?? {});
+      const authored = [...group.querySelectorAll(":scope > lf-option")].filter(
+        (option) => picked.has(option.id) && !added.some(([id]) => id === option.id),
+      );
+      return (
+        [
+          ...authored.map((option) => label(option) || option.id),
+          ...added
+            .filter(([id]) => picked.has(id))
+            .map(([, { detail }]) => markdownWords(detail.text)),
+        ].join(", ") || "No options selected"
+      );
+    }
+
     #addition = null;
     #answering = null;
     #choosable = false;
@@ -268,7 +288,6 @@ customElements.define(
     #done = null;
     #keysDirty = false;
     #settled = null;
-    #stateKey = null;
     #stop = null;
     #wired = false;
 
@@ -573,11 +592,7 @@ customElements.define(
           when: () => this.#available("answer"),
           run: () => void this.#answer(),
         });
-      commands(this, SECTION, answerRows, {
-        answer: () =>
-          [...this.#picked()].map((option) => label(option) || option.id).join(", ") ||
-          "No options selected",
-      });
+      commands(this, SECTION, answerRows);
     }
 
     // The block this option is about. A pointer, not a voice: its text is the id it
@@ -651,15 +666,6 @@ customElements.define(
     #present = (reading) => {
       this.reading = reading;
       this.#refreshAvailability();
-      const state = reading.state;
-      const stateKey = JSON.stringify([
-        state.choose?.detail ?? null,
-        state.answer?.value ?? null,
-      ]);
-      if ((state.choose || state.answer) && stateKey !== this.#stateKey) {
-        this.#stateKey = stateKey;
-        document.dispatchEvent(new CustomEvent("lf-answered"));
-      }
     };
 
     renderState(state) {

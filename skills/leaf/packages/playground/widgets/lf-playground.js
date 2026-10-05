@@ -96,6 +96,11 @@ function jsonSnapshot(value, path = "configuration") {
 customElements.define(
   "lf-playground",
   class extends HTMLElement {
+    // What the Ask was answered with: the instruction the chosen configuration sent.
+    static answerWords(state) {
+      return state.choose.detail.instruction;
+    }
+
     #controller = widgetController(this);
     #controls = [];
     #controlByName = new Map();
@@ -641,30 +646,25 @@ customElements.define(
     }
 
     #commands() {
-      commands(
-        this,
-        "In a playground",
-        [
-          {
-            id: "playground.choose",
-            contextKeys: ["1"],
-            bindingBadge: null,
-            control: this.#submit,
-            decision: true,
-            title: () => this.#submit.textContent,
-            when: () => !this.#choosing && this.#available(),
-            run: () => this.#choose(),
-          },
-          {
-            id: "playground.reset",
-            keys: ["Alt+0"],
-            control: this.#reset,
-            title: "reset controls",
-            run: () => this.#apply(this.#defaults),
-          },
-        ],
-        { answer: () => this.#instruction() },
-      );
+      commands(this, "In a playground", [
+        {
+          id: "playground.choose",
+          contextKeys: ["1"],
+          bindingBadge: null,
+          control: this.#submit,
+          decision: true,
+          title: () => this.#submit.textContent,
+          when: () => !this.#choosing && this.#available(),
+          run: () => this.#choose(),
+        },
+        {
+          id: "playground.reset",
+          keys: ["Alt+0"],
+          control: this.#reset,
+          title: "reset controls",
+          run: () => this.#apply(this.#defaults),
+        },
+      ]);
     }
 
     #readInput(control) {

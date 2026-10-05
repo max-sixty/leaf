@@ -30,6 +30,7 @@ import urllib.request
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
+from time import perf_counter
 from typing import IO, NamedTuple
 from urllib.parse import urlencode, urljoin, urlsplit
 
@@ -39,8 +40,8 @@ from playwright.sync_api import APIResponse, BrowserContext, Page
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
 from leaf_dev import ROOT
+from leaf_dev.arms import codex_home, copy_working, environment, run_directory
 from leaf_dev.browser import chrome
-from leaf_dev.harness import codex_home, copy_working, environment, run_directory
 from leaf_dev.site import asset_site
 from leaf_dev.startup import observe_startup as record_startup
 from leaf_dev.startup import startup_reading
@@ -593,12 +594,12 @@ def startup_failed(replies: list[dict]) -> bool:
 
 
 def turn_failed(replies: list[dict]) -> bool:
-    """Whether the host closed the turn with one of its failure receipts."""
+    """Whether the harness closed the turn with one of its failure receipts."""
     return any("failure" in reply for reply in replies)
 
 
 def deployment_answer(replies: list[dict]) -> dict | None:
-    """Return a real agent reply rather than a host-generated failure receipt."""
+    """Return a real agent reply rather than a harness-generated failure receipt."""
     return next((reply for reply in replies if "failure" not in reply), None)
 
 
@@ -759,7 +760,7 @@ def await_turn(
         if published is not None and answer is not None:
             profile.mark("answered")
             break
-        # A host failure receipt closes the turn; otherwise either half of a success
+        # A harness failure receipt closes the turn; otherwise either half of a success
         # can arrive first, so one waits for the other.
         if turn_failed(replies):
             break
@@ -842,31 +843,36 @@ def ask_until_answered(
 
 
 def wait_for_visible_reply(page, parent: str, answer_id: str) -> bool:
-    """Open an answered thread's held news, then require its reply on screen."""
-    try:
-        page.wait_for_function(
-            """({parent, id}) => window.__leafVerifier.visibleReplyRecorded(id) ||
-              [...document.querySelectorAll('.lf-threads > .lf-thread')].some(
-                thread => thread.dataset.id === parent &&
-                  [...thread.querySelectorAll('.lf-thread-news')].some(
-                    notice => notice.checkVisibility()))""",
-            arg={"parent": parent, "id": answer_id},
-            timeout=VISIBLE_REPLY_PATIENCE,
-        )
-        if not page.evaluate(
-            "id => window.__leafVerifier.visibleReplyRecorded(id)", answer_id
-        ):
+    """Open held news until the admitted reply is seen within one bounded wait.
+
+    The browser may hold a stream update when the server has already admitted its
+    final answer. Opening that notice before the final reading arrives can leave a
+    second notice for the answer, so one click does not settle the observation.
+    """
+    deadline = perf_counter() + VISIBLE_REPLY_PATIENCE / 1000
+    while True:
+        remaining = max(1, round((deadline - perf_counter()) * 1000))
+        if perf_counter() >= deadline:
+            return False
+        try:
+            page.wait_for_function(
+                """({parent, id}) => window.__leafVerifier.visibleReplyRecorded(id) ||
+                  [...document.querySelectorAll('.lf-threads > .lf-thread')].some(
+                    thread => thread.dataset.id === parent &&
+                      [...thread.querySelectorAll('.lf-thread-news')].some(
+                        notice => notice.checkVisibility()))""",
+                arg={"parent": parent, "id": answer_id},
+                timeout=remaining,
+            )
+            if page.evaluate(
+                "id => window.__leafVerifier.visibleReplyRecorded(id)", answer_id
+            ):
+                return True
             page.locator(
                 f'.lf-threads > .lf-thread[data-id="{parent}"] .lf-thread-news'
-            ).click()
-            page.wait_for_function(
-                "id => window.__leafVerifier.visibleReplyRecorded(id)",
-                arg=answer_id,
-                timeout=VISIBLE_REPLY_PATIENCE,
-            )
-    except PlaywrightTimeout:
-        return False
-    return True
+            ).click(timeout=remaining)
+        except PlaywrightTimeout:
+            return False
 
 
 def verify_agent_turn(

@@ -312,10 +312,10 @@ def test_a_block_leaving_the_viewport_keeps_its_focused_comment(browser, serve):
     expect(field).to_have_js_property("value", draft + " What must Finance decide?")
 
 
-def test_a_comment_box_stays_with_the_writer_when_its_passage_scrolls_away(
+def test_a_comment_box_follows_its_passage_and_resume_returns_the_writer(
     browser, serve
 ):
-    """A writer keeps the same focused box when its passage scrolls out of view."""
+    """Resume writing recovers the same native field and words with its passage."""
     source = next(source for source in EXAMPLES if source.stem == "triage-board")
     page = open_page(browser, serve(source))
     resized(page, 1280, 500)
@@ -332,8 +332,14 @@ def test_a_comment_box_stays_with_the_writer_when_its_passage_scrolls_away(
     )
     rendered(page)
     expect(field).to_be_focused()
-    expect(bar).to_have_attribute("data-lf-plane", "window")
+    expect(bar).to_have_attribute("data-lf-plane", "page")
+    away = bar.bounding_box()
+    assert away["y"] + away["height"] < 0, away
     page.keyboard.type("x")
+    page.keyboard.press("Escape")
+    page.keyboard.press("g")
+    page.keyboard.press("i")
+    expect(field).to_be_focused()
     page.wait_for_function(
         """() => {
           const bar = document.querySelector('.lf-fab-bar').getBoundingClientRect();
@@ -344,7 +350,7 @@ def test_a_comment_box_stays_with_the_writer_when_its_passage_scrolls_away(
     expect(bar).to_be_visible()
     expect(field).to_have_js_property("value", "x")
     assert page.locator("#triage-lede").evaluate(
-        "node => node.getBoundingClientRect().bottom < 0"
+        "node => { const r = node.getBoundingClientRect(); return r.bottom > 48 && r.top < innerHeight; }"
     )
 
 
@@ -3610,6 +3616,42 @@ def test_one_neighbour_is_not_enough_to_identify_a_revised_comment(browser, serv
         event for event in events_model.read_events(d) if event["kind"] == "reanchor"
     ]
     assert transition["anchor"] == {"section": "thin"}
+
+
+QUEUES_V1 = leaf_page(
+    "Queues",
+    """
+<h1 id="t">Queues</h1>
+<section id="queues">
+<h2>Each side has a queue of open items, and what an item is stays open</h2>
+<p>An item is anything open that one side owes the other.</p>
+</section>
+""",
+)
+QUEUES_V2 = QUEUES_V1.replace(
+    "Each side has a queue of open items, and what an item is stays open",
+    "The two queues today",
+)
+
+
+def test_a_thread_whose_quote_was_rewritten_keeps_its_words(browser, serve):
+    """A version that rewrites the words a comment quoted leaves its thread on their
+    section. The card keeps naming the quoted words rather than the section's new
+    heading, marked as changed, and those words still find the thread."""
+    quote = "what an item is stays open"
+    url = serve(QUEUES_V1, anchored=[("queues", quote)])
+    page = open_page(browser, live_url(url))
+    stamp_page(serve.page_dir, QUEUES_V2, "plain headings")
+    wait_for_revision(page, 2)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+
+    head = page.locator(".lf-thread-panel .lf-thread .lf-quote")
+    expect(head.locator(".lf-quote-label")).to_have_text(f"“{quote}”")
+    expect(head.locator(".lf-anchor-status")).to_have_text("Changed")
+
+    page.get_by_role("searchbox", name="Find in threads").fill("item is stays")
+    expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_have_count(1)
 
 
 def test_a_revised_example_travels_between_its_own_versions(browser, serve):

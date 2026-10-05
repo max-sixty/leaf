@@ -9,7 +9,7 @@
    those values.
    The owner alone renders its native card root and all generated descendants; a
    failed candidate is restored by presenting its committed descriptor again. */
-import { nextRender } from "../rendering.js";
+import { nextRender, sizeObserver } from "../rendering.js";
 import { holdFocus } from "../focus.js";
 import { TEXT_FIELD } from "../control-selectors.js";
 import { html, render, repeat, nothing } from "../../vendor/browser-runtime.js";
@@ -20,7 +20,7 @@ import { offer, reachedForWords } from "../widget-elements.js";
 import { keeps, keepsHidden } from "../keeps.js";
 import { keys, focused } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
-import { wireReply, replyHasWords } from "./replies.js";
+import { wireReply, replyIsEditing, replyAvailable, dismissReply } from "./replies.js";
 import { settleThread } from "./folding.js";
 import { iconTemplate } from "../icons.js";
 import { loadDraft } from "../drafts.js";
@@ -38,7 +38,13 @@ import { ReplyContinuity } from "./reply-continuity.js";
 
 function quoteReading(thread, anchors) {
   const placement = anchors.placedAt(thread.id);
-  const label = anchorLabel(thread.detached_from ?? thread.anchor, thread.root.about);
+  // A version that rewrote the quoted words left the thread on their section
+  // (`rewritten_from`, events.md); the head still names those words, marked as changed.
+  const rewritten = thread.rewritten_from;
+  const label = anchorLabel(
+    rewritten ?? thread.detached_from ?? thread.anchor,
+    thread.root.about,
+  );
   if (!label) return null;
   const anchored = Boolean(thread.anchor) || Boolean(thread.detached_from);
   const found = !thread.detached_from && Boolean(placement);
@@ -48,12 +54,15 @@ function quoteReading(thread, anchors) {
     anchored,
     found,
     outdated,
+    changed: Boolean(rewritten),
     title: !anchored
       ? null
       : found
         ? outdated
           ? "This comment refers to an earlier data revision"
-          : "Jump to this passage"
+          : rewritten
+            ? "These words have changed since; jump to their section"
+            : "Jump to this passage"
         : thread.detached_from
           ? "This passage is no longer in the version you're viewing"
           : "This passage can't be identified in the version you're viewing",
@@ -137,7 +146,7 @@ export function threadReading(
       pending: settling,
       icon: !resolved || Boolean(kept),
     }),
-    reply: !resolved || Boolean(kept),
+    reply: replyAvailable(thread),
     summaries: Object.freeze(thread.summaries),
     messages: Object.freeze(messages),
   });
@@ -165,7 +174,11 @@ function navigationSummary(navigation, model) {
       >${pendingTitle ? "Generating title" : title}</span
     >
     <span class="lf-thread-meta">
-      ${draft ? html`<span class="lf-thread-draft" data-lf-folded>Draft</span>` : nothing}
+      ${
+        draft
+          ? html`<span class="lf-thread-draft" data-lf-folded>Draft</span>`
+          : nothing
+      }
       ${
         status
           ? html`<span
@@ -221,6 +234,15 @@ function readBoundary(kind) {
 }
 
 let nextViewId = 0;
+// The margin card's controls stand over its transcript, so each message's head keeps
+// their width clear and its words end before them.
+const marginControlsSizes = sizeObserver((entries) => {
+  for (const { target, borderBoxSize } of entries)
+    target.parentElement?.style.setProperty(
+      "--lf-margin-controls-width",
+      `${borderBoxSize[0].inlineSize}px`,
+    );
+});
 
 export class ThreadView {
   #commands;
@@ -229,6 +251,7 @@ export class ThreadView {
   #messages = new Map();
   #reply = null;
   #replyShown = false;
+  #replyReservation = null;
   #draftFrame = 0;
   #outletReplyShown = null;
   #keys = new WeakSet();
@@ -237,6 +260,7 @@ export class ThreadView {
   #expandedSummaries = new Set();
   #navigation = null;
   #marginControls = null;
+  #marginControlsRow = null;
   #viewId = ++nextViewId;
   // What a thread in the page's flow holds back says so in its control row (held-news.js).
   #news = newsNotice();
@@ -263,7 +287,13 @@ export class ThreadView {
       this.#heldNews = new HeldNews(
         this.node,
         () => this,
-        () => this.repaint(),
+        () => {
+          // Disclosure changes this card's mechanical reading of the complete received
+          // descriptor. Draw it in that operation; later geometry or server readings
+          // may supersede a global paint while its widget proof waits.
+          this.repaint();
+          commands.repaintThread();
+        },
       );
     // A panel card's disclosure is the thread list's to write, from its one choice.
     if (surface !== "panel") {
@@ -357,8 +387,16 @@ export class ThreadView {
       }
     }
     this.#model = model;
-    const reply = model.reply || replyHasWords(model.key);
+    const reply = model.reply || replyIsEditing(model.key);
     this.#replyShown = reply;
+    // News holds the native card's room independently of its editing session.
+    if (reply || !model.kept) this.#replyReservation = null;
+    else if (!this.#replyReservation && this.#reply?.node.isConnected) {
+      const slot = offer("div", "lf-thread-reply");
+      slot.style.height = `${this.#reply.node.getBoundingClientRect().height}px`;
+      this.#replyReservation = slot;
+    }
+    const replySlot = reply || Boolean(this.#replyReservation);
     if (model.news) this.#news.set(model.news);
     const news = model.news ? this.#news.node : nothing;
     const panel = model.surface === "panel";
@@ -386,7 +424,7 @@ export class ThreadView {
     const settlement = model.settlement ? this.#settlement(model) : null;
     const marginControls = model.surface === "margin" ? this.#marginControls : null;
     let headerActions = null;
-    if (!model.resolved || reply || model.folding || marginControls) {
+    if (!model.resolved || replySlot || model.folding || marginControls) {
       const actions = marginControls
         ? [marginControls.nav, settlement, marginControls.close].filter(Boolean)
         : [settlement].filter(Boolean);
@@ -401,6 +439,10 @@ export class ThreadView {
       });
       headerActions = this.#metadataActions;
     }
+    // The root's metadata row carries the thread's actions, except in the margin card,
+    // whose controls stand over its own scrolling transcript, where each message keeps
+    // its head.
+    const hoists = Boolean(headerActions) && !marginControls;
     const describedRanges = summaryRanges(model.messages, model.summaries);
     const summaries = new Set(model.summaries.map(({ id }) => id));
     for (const id of this.#expandedSummaries)
@@ -430,7 +472,7 @@ export class ThreadView {
           (view = new MessageView(this.#messageCommands)),
         );
       view.present(message, {
-        externalHeader: index === 0 && Boolean(headerActions),
+        externalHeader: index === 0 && hoists,
         arrived: Boolean(prior),
       });
       return { key: message.key, node: view.node, header: view.header };
@@ -453,7 +495,7 @@ export class ThreadView {
         nodes,
       };
     });
-    const hoistedRoot = headerActions ? messages[0]?.key : null;
+    const hoistedRoot = hoists ? messages[0]?.key : null;
     const markerFor = (key) =>
       readBoundary(key === hoistedRoot ? null : boundaries.get(key));
     const transcript = repeat(
@@ -473,7 +515,9 @@ export class ThreadView {
                 class=${`lf-quote${model.quote.anchored && !model.quote.found ? " detached" : ""}`}
                 role=${model.quote.anchored ? "button" : nothing}
                 tabindex=${model.quote.anchored ? "0" : nothing}
-                aria-disabled=${model.quote.anchored ? String(!model.quote.found) : nothing}
+                aria-disabled=${
+                  model.quote.anchored ? String(!model.quote.found) : nothing
+                }
                 title=${model.quote.title ?? nothing}
                 @click=${this.#returnToQuote}
               >
@@ -481,7 +525,9 @@ export class ThreadView {
                 ${
                   model.quote.outdated
                     ? html`<span class="lf-anchor-status">Earlier data</span>`
-                    : nothing
+                    : model.quote.changed
+                      ? html`<span class="lf-anchor-status">Changed</span>`
+                      : nothing
                 }
               </blockquote>
             </header>`
@@ -489,11 +535,13 @@ export class ThreadView {
       }
       ${readBoundary(hoistedRoot ? boundaries.get(hoistedRoot) : null)}
       ${
-        headerActions && messages[0]
+        hoists && messages[0]
           ? html`<div class="lf-thread-root-meta" data-lf-reflow="text">
               ${messages[0].header}${news} ${headerActions}
             </div>`
-          : nothing
+          : headerActions
+            ? this.#marginControlsRowOf(html`${news}${headerActions}`)
+            : nothing
       }
       <div class="lf-thread-transcript">${transcript}</div>
     `;
@@ -520,10 +568,10 @@ export class ThreadView {
             : nothing
         }
         ${panel ? html`<div class="lf-thread-content">${body}</div>` : body}
-        ${reply ? (this.#continuity?.gap ?? nothing) : nothing}
-        ${reply ? this.#reply.node : nothing}
+        ${replySlot ? (this.#continuity?.gap ?? nothing) : nothing}
+        ${reply ? this.#reply.node : (this.#replyReservation ?? nothing)}
         ${
-          model.resolved && !reply && !model.folding && !marginControls
+          model.resolved && !replySlot && !model.folding && !marginControls
             ? html`<div
                 class=${panel ? "lf-thread-actions" : "lf-page-thread-resolved lf-ui"}
               >
@@ -553,6 +601,16 @@ export class ThreadView {
           this.#commands.landInThread(this.node.querySelector(SAY_BOX) ?? this.node)),
     );
     return this.node;
+  }
+
+  #marginControlsRowOf(content) {
+    if (!this.#marginControlsRow) {
+      this.#marginControlsRow = document.createElement("div");
+      this.#marginControlsRow.className = "lf-margin-thread-controls";
+      marginControlsSizes.observe(this.#marginControlsRow);
+    }
+    render(content, this.#marginControlsRow);
+    return this.#marginControlsRow;
   }
 
   #summaryRange(range, markerFor) {
@@ -601,7 +659,9 @@ export class ThreadView {
           range.messages,
           (message) => message.key,
           (message) =>
-            html`${markerFor(message.key)}${range.nodes[range.messages.indexOf(message)]}`,
+            html`${markerFor(message.key)}${
+              range.nodes[range.messages.indexOf(message)]
+            }`,
         )}
       </div>
     </section>`;
@@ -658,6 +718,7 @@ export class ThreadView {
   #settle = () => {
     const model = this.#model;
     if (model.folding) return;
+    if (!model.resolved) dismissReply(model.key);
     void settleThread({
       parent: () => this.#model.root,
       key: model.key,
@@ -734,19 +795,19 @@ export class ThreadView {
     if (panel)
       input.lfRevealReply = () =>
         this.#commands.listRoot.revealNavigation(this.#model.id);
-    const lifetime = wireReply(model.key, input, send, {
-      ...this.#commands.reply,
-      onDraftLoaded: () => {
-        // Initial construction is already painting this reading; mirrored edits
-        // arrive later and must refresh the collapsed row's Draft indication.
+    const replyChanged = () => {
+      if (!this.#reply) return;
+      this.#draftFrame ||= nextRender(() => {
+        this.#draftFrame = 0;
         if (!this.#reply) return;
         if (panel) this.#navigation.draftChanged();
-        else if (this.#replyShown !== (this.#model.reply || replyHasWords(model.key)))
-          this.#draftFrame ||= nextRender(() => {
-            this.#draftFrame = 0;
-            if (this.#reply) this.repaint();
-          });
-      },
+        else if (this.#model.resolved) this.repaint();
+        if (this.#model.resolved) this.#commands.reply.changed();
+      });
+    };
+    const lifetime = wireReply(model.key, row, input, send, {
+      ...this.#commands.reply,
+      onChange: replyChanged,
     });
     return { node: row, dispose: lifetime.dispose };
   }
@@ -825,6 +886,7 @@ export class ThreadView {
   }
 
   dispose() {
+    if (this.#marginControlsRow) marginControlsSizes.unobserve(this.#marginControlsRow);
     this.#heldNews?.dispose();
     this.#continuity?.release();
     this.retire();

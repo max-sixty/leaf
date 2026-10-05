@@ -400,8 +400,7 @@ export function merge(sections, { title, when, at, liveInCommandReference, rows 
  *
  * `where` is the element focus must be inside, `title` names the scope in the command reference dialog
  * (null for one the reference has no room to name), `rows` are its bindings, and the
- * optional configuration carries `when` (whether the page has this scope at all),
- * `answer` (the concise current answer when this scope belongs to an Ask), and
+ * optional configuration carries `when` (whether the page has this scope at all) and
  * `escape: "inner"` when this scope owns a cancellation step ahead of every step the
  * ladder offers. A function in the fourth position is shorthand for `{when: function}`.
  *
@@ -460,9 +459,7 @@ function declaredScope(title, rows, options) {
     typeof options === "function" ? { when: options } : (options ?? {});
   if (typeof configuration !== "object")
     throw new TypeError("A command scope's options must be an object");
-  const { when, answer, escape } = configuration;
-  if (answer !== undefined && typeof answer !== "function")
-    throw new TypeError("A command scope's answer must be a function");
+  const { when, escape } = configuration;
   if (escape !== undefined && escape !== "inner")
     throw new TypeError(
       `A command scope's Escape ownership must be \"inner\", got ${String(escape)}`,
@@ -471,7 +468,6 @@ function declaredScope(title, rows, options) {
     title,
     rows: checked(rows, title ?? "a scope"),
     when,
-    answer,
     escape,
   };
 }
@@ -566,15 +562,6 @@ export function commandsWithin(root) {
     scope.rows.filter(live).map((row) => ({ source, scope, row })),
   );
 }
-// Command-scope metadata under one widget, in declaration order. The action rows and
-// the current-answer reading are different projections of the same package
-// declaration: row liveness controls what can be pressed now, while an answer remains
-// readable after those controls have settled or become unavailable.
-export const commandScopesWithin = (root) =>
-  scopesWithin(root, false).map(({ source, scope }) => ({
-    source,
-    answer: scope.answer,
-  }));
 // Every declaration on one element is painted as one native shortcut attribute. A local
 // declaration and any number of projected ones can coexist, so none may erase another's
 // bindings. Each scope's live rows are read and refused on their own; the attribute is

@@ -12,15 +12,19 @@ import {
   commentSide,
 } from "/runtime/annotation-overlay/comment-placement.js";
 
+// The card's widths as theme.css declares them, which the placement reads off the root.
+document.documentElement.style.setProperty("--thread-card-min", "320px");
+document.documentElement.style.setProperty("--thread-card", "592px");
+
 const boundary = new DOMRect(8, 50, 1284, 797);
 // A paragraph `width` wide from x = `left`, from y = `top` to `bottom`.
 const block = (left, width, top, bottom) => new DOMRect(left, top, width, bottom - top);
 // A page scrolled `scrollTop` into a document `height` tall, in an 850px scrollport.
-const scroller = (scrollTop, height = 3000) => ({
-  scrollTop,
-  scrollHeight: height,
-  clientHeight: 850,
-});
+const scroller = (scrollTop, height = 3000) => {
+  const box = { scrollTop, scrollHeight: height, clientHeight: 850 };
+  box.ownerDocument = { scrollingElement: box };
+  return box;
+};
 const side = (clear, { scrolled = 1000, document = 3000, coarse = false } = {}) =>
   commentSide({
     clear,
@@ -83,7 +87,6 @@ test("a submitted frame survives supersession until it lands, then follows scrol
       clear,
       boundary,
       row: clear.top,
-      minimumWidth: 320,
       scroller: scroller(1000),
       coarse: false,
     };
@@ -109,7 +112,7 @@ test("a submitted frame survives supersession until it lands, then follows scrol
       middlewareData: {
         scaled: {
           scale: { x: 1, y: 1 },
-          column: scrolled.right - input.minimumWidth,
+          column: scrolled.right - 320,
           line: card.line(scrolled, scrolled.top),
         },
         held: { height: box.height },
@@ -125,4 +128,100 @@ test("a submitted frame survives supersession until it lands, then follows scrol
     assert.equal(afterResize.fresh, true);
     assert.equal(afterResize.hold, undefined);
   }
+});
+
+test("a growing card holds its top while read and its foot for the turn that joins a draft", () => {
+  const clear = block(300, 660, 300, 500);
+  const input = {
+    clear,
+    boundary,
+    row: clear.top,
+    scroller: scroller(1000),
+    coarse: false,
+  };
+  const card = commentPlacement();
+  const land = () =>
+    card.landed({
+      x: 980,
+      y: 292,
+      middlewareData: {
+        scaled: { scale: { x: 1, y: 1 }, column: 0, line: card.line(clear, clear.top) },
+        held: { height: 200 },
+      },
+    });
+  const place = (reading) => {
+    const { fresh, hold } = card.choose(input);
+    const edge = card.holding({ fresh, hold, ...reading });
+    land();
+    return edge;
+  };
+  const turn = (key, author) => ({ key, author });
+  assert.equal(
+    place({ transcript: 100, drafting: false, latest: turn("a", "agent") }),
+    "top",
+  );
+  // The user starts a reply: its first line holds the top.
+  assert.equal(
+    place({
+      transcript: 100,
+      drafting: true,
+      latest: turn("a", "agent"),
+      draftText: "Hi",
+    }),
+    "top",
+  );
+  // An agent turn joins while they draft: the reply row holds, keyed to that turn.
+  assert.equal(
+    place({
+      transcript: 160,
+      drafting: true,
+      latest: turn("b", "agent"),
+      draftText: "Hi",
+    }),
+    "foot",
+  );
+  assert.equal(
+    place({
+      transcript: 160,
+      drafting: true,
+      latest: turn("b", "agent"),
+      draftText: "Hi",
+    }),
+    "foot",
+  );
+  // A new edit releases it.
+  assert.equal(
+    place({
+      transcript: 160,
+      drafting: true,
+      latest: turn("b", "agent"),
+      draftText: "Hi!",
+    }),
+    "top",
+  );
+  assert.deepEqual(card.heldAt("top"), { top: -8 });
+  assert.equal(card.heldHeight(), 200);
+});
+
+test("beside, a margin row is kept clear only where that leaves the card its whole measure", async () => {
+  const ui = await import("/vendor/floating-ui.esm.js");
+  // A paragraph ending at 600, and a margin row 40px wide out past it.
+  const clear = block(300, 300, 300, 500);
+  const reference = (rowRight) => {
+    const placement = commentPlacement();
+    placement.choose({ clear, boundary, scroller: scroller(1000), coarse: false });
+    return placement.options(ui, {
+      clear,
+      row: clear.top,
+      margin: { left: rowRight - 40, right: rowRight },
+      boundary,
+      fit() {},
+    }).reference;
+  };
+  // Past a row ending at 692, 592 remains to the boundary at 1292 after the gap: the
+  // card keeps the row in view at no cost to its width.
+  assert.equal(reference(692).right, 692);
+  // A row ending 1px further would take that pixel from the card, so the card stands
+  // over the row, beside the words.
+  assert.equal(reference(693).right, clear.right);
 });

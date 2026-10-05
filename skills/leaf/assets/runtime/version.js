@@ -71,6 +71,7 @@ import {
   restoreDraftEditing,
 } from "./drafts.js";
 import { heldThreadId, replyDestination } from "./thread/focus.js";
+import { restoreReplyEditing } from "./thread/replies.js";
 import { focusDestination } from "./focus.js";
 import { restrictUserIntent, retainUserIntent } from "./user-intent.js";
 import { patchTree } from "./dom-children.js";
@@ -91,6 +92,7 @@ import {
 import { registry, stateSpecs, tagsDeclaring } from "./registry.js";
 import { prepareDeclaredInlineMarkdown } from "./markdown.js";
 import { pageScroller } from "./scrolling.js";
+import { TEXT_BOX } from "./control-selectors.js";
 import {
   containingReadingRegionFor,
   effectiveScroller,
@@ -195,15 +197,18 @@ const versionedHeadNode = (node) =>
 // user's open disclosure, a tab stop the runtime lent, and whatever a page module
 // built. The module graph can define chrome-only elements before this clone, but authored
 // markup cannot contain those tags, so the authored main is untouched but for the marks
-// the prepaint painted for the first paint, which the copy takes off. Runtime-owned
-// head nodes carry `data-lf-runtime` and are excluded from the separate head baseline above.
-// The source and live main are therefore the same tree, which makes the pairing below a
-// plain walk of the two together.
+// the prepaint painted for the first paint and the structure delivery wrote in for it
+// (`data-lf-prepaint`), which the copy takes off. Runtime-owned head nodes carry
+// `data-lf-runtime` and are excluded from the separate head baseline above. The source
+// and live main are therefore the same tree but for what delivery wrote in, which the
+// pairing below walks past, so it is a plain walk of the two together.
 const pairSources = (source, live, pairs) => {
   pairs.set(source, live);
   const held = source.localName === "template" ? source.content : source;
   const shown = live.localName === "template" ? live.content : live;
-  const children = [...shown.childNodes];
+  const children = [...shown.childNodes].filter(
+    (child) => !child.matches?.("[data-lf-prepaint]"),
+  );
   for (const [at, child] of [...held.childNodes].entries())
     if (children[at]) pairSources(child, children[at], pairs);
   return pairs;
@@ -228,6 +233,7 @@ const initialPairs = servedMain
 export function createVersionController({
   compositionInput,
   openThread,
+  refreshThread,
   midComposition,
   hasPending,
   readAndApply,
@@ -1086,6 +1092,9 @@ export function createVersionController({
     const doc = new DOMParser().parseFromString(await response.text(), "text/html");
     if (doc.querySelectorAll("body > main").length !== 1)
       throw new Error(`${url} has no single authored main`);
+    // Delivery wrote it in for a first paint, and no revision's author did.
+    for (const written of doc.querySelectorAll("body > main [data-lf-prepaint]"))
+      written.remove();
     return doc;
   }
   // Repeated comparisons of the same immutable revision share its document fetch.
@@ -1282,7 +1291,14 @@ export function createVersionController({
     if (!mayRestore()) return;
     if (restoreDraftEditing(draftEditing, focused())) return;
     const input = replyThread
-      ? await replyDestination(replyThread, openThread, mayRestore)
+      ? await restoreReplyEditing(draftEditing, async () => {
+          // Mechanical recovery changes which settled discussion currently stands.
+          // Present that session before its route reads the annotation directory.
+          await refreshThread();
+          return mayRestore()
+            ? replyDestination(replyThread, openThread, mayRestore)
+            : null;
+        })
       : draftEditingDestination(draftEditing);
     if (!replyThread && input) mayRestore.handoff(() => focusDestination(input));
     if (mayRestore()) restoreDraftEditing(draftEditing, input);
@@ -1736,7 +1752,8 @@ export function createVersionController({
 
   // A region handed to another scroller keeps the reading recorded before the handover.
   // Focus can remain on a control the user has since scrolled past, so a posture change
-  // restores that reading without making the focused control a navigation destination.
+  // restores that reading. A visible editor is itself a live reading landmark;
+  // focus retained on a field the reader scrolled past is not.
   // A composition change in progress owns any shift inside it.
   function restoreShifted(shifted, currentIntent) {
     if (compositionChanges.size) return;
@@ -1808,6 +1825,15 @@ export function createVersionController({
     readingContinuityInstalled = true;
     watchReadingRegionTransitions(readingRegionTransition);
     document.addEventListener("scroll", queueRecord, { capture: true, passive: true });
+    // Opening or editing a native field changes the reading place even when no
+    // scroller moves. Record after its seat commits, through the same frame door.
+    const recordEditing = () => {
+      const at = focused();
+      if (at?.matches(TEXT_BOX) && under(at, document.querySelector("body > main")))
+        queueRecord();
+    };
+    document.addEventListener("focusin", recordEditing);
+    document.addEventListener("input", recordEditing);
     queueRecord();
   }
 

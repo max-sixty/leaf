@@ -1,4 +1,4 @@
-"""The catalog expands into Promptfoo tests run on one column per host and arm."""
+"""The catalog expands into Promptfoo tests run on one column per harness and arm."""
 
 import json
 from pathlib import Path
@@ -30,8 +30,8 @@ def test_library_cases_supply_a_task_and_native_promptfoo_assertions(address):
     assert all(assertion["type"] and assertion["value"] for assertion in case["assert"])
 
 
-def test_native_columns_isolate_each_host_and_arm(tmp_path, monkeypatch):
-    login = tmp_path / "host-login"
+def test_native_columns_isolate_each_harness_and_arm(tmp_path, monkeypatch):
+    login = tmp_path / "harness-login"
     login.mkdir()
     (login / "auth.json").write_text('{"fixture": "local-login"}')
     monkeypatch.setenv("CODEX_HOME", str(login))
@@ -55,13 +55,13 @@ def test_native_columns_isolate_each_host_and_arm(tmp_path, monkeypatch):
     assert [test["providers"] for test in config["tests"]] == [labels, labels]
     homes = []
     for provider in config["providers"]:
-        host, arm = provider["label"].split("/")
+        harness, arm = provider["label"].split("/")
         settings = provider["config"]
         # Cases that show images find them under the column's own workspace.
         assert (
             Path(settings["working_dir"]) / "evals/shot-pair-outlined/captures"
         ).is_dir()
-        if host == "cc":
+        if harness == "cc":
             homes.append(settings["env"]["HOME"])
             assert settings["plugins"][0]["path"] == str(payloads[arm])
             assert settings["setting_sources"] == []
@@ -139,7 +139,7 @@ def test_catalog_contexts_keep_complete_original_check_coverage():
     assert select_cases(("reading",)) == ["reading"]
     assert select_cases(("reading/plain",)) == ["reading/plain"]
     assert len(select_cases(("reading/*",))) == 7
-    for owner in ("usability", "arrangement", "delivery"):
+    for owner in ("usability", "arrangement", "delivery", "reader"):
         module = import_module(f"leaf_dev.{owner}_eval")
         covered = {
             definition["metadata"]["scenario"]
@@ -151,12 +151,26 @@ def test_catalog_contexts_keep_complete_original_check_coverage():
         select_cases(("no-such-task",))
 
 
-def test_workflows_run_declared_conditions_hosts_and_fixed_checks(tmp_path):
-    from leaf_dev.arrangement_eval import expected_checks
+def test_workflows_run_declared_conditions_harnesses_and_fixed_checks(
+    tmp_path, monkeypatch
+):
+    from leaf_dev.arrangement_eval import expected_checks, rubrics
 
+    login = tmp_path / "harness-login"
+    login.mkdir()
+    (login / "auth.json").write_text('{"fixture": "local-login"}')
+    monkeypatch.setenv("CODEX_HOME", str(login))
+    codex = tmp_path / "package" / "codex"
+    codex.parent.mkdir()
+    codex.write_text("#!/bin/sh\n")
+    codex.chmod(0o755)
+    # Installed as a symlink beside the user's files, as Homebrew does.
+    (tmp_path / "bin").mkdir()
+    (tmp_path / "bin" / "codex").symlink_to(codex)
+    monkeypatch.setenv("PATH", f"{tmp_path / 'bin'}:/usr/bin:/bin")
     payloads = {arm: tmp_path / arm for arm in ("base", "candidate")}
     config = prepare(
-        ["dashboard/reader", "document"],
+        ["dashboard/reader-seeded", "document"],
         payloads,
         tmp_path / "scratch",
         ("cc", "codex"),
@@ -164,9 +178,9 @@ def test_workflows_run_declared_conditions_hosts_and_fixed_checks(tmp_path):
         tmp_path / "samples",
     )
     tests = {test["description"]: test for test in config["tests"]}
-    # The fixed reader is a Claude calibration; the HTML control has no base.
+    # The judge calibration runs on Claude Code; the HTML control has no base.
     assert {name: test["providers"] for name, test in tests.items()} == {
-        "dashboard/reader": ["cc/base/workflow", "cc/candidate/workflow"],
+        "dashboard/reader-seeded": ["cc/base/workflow", "cc/candidate/workflow"],
         "document": [
             "cc/base/workflow",
             "cc/candidate/workflow",
@@ -181,23 +195,37 @@ def test_workflows_run_declared_conditions_hosts_and_fixed_checks(tmp_path):
     ):
         assert test["metadata"]["executor"] == "leaf_dev.arrangement_eval"
         assert test["vars"] == {"prompt": "document"}
-        assert [check["metric"] for check in test["assert"]] == expected_checks(
-            "document", condition=condition
-        )
+        assert [check["metric"] for check in test["assert"]] == [
+            *expected_checks("document", condition=condition),
+            *(rubric["metric"] for rubric in rubrics("document")),
+        ]
+        # The screenshot judge may read the run's screenshots and nothing else
+        # outside the runtime and its own executable.
+        judge = test["assert"][-1]["provider"]["config"]
+        assert "sandbox_mode" not in judge
+        profile = (Path(judge["cli_env"]["CODEX_HOME"]) / "config.toml").read_text()
+        assert [line for line in profile.splitlines() if line.endswith('"read"')] == [
+            '":minimal" = "read"',
+            f'"{tmp_path / "screenshots"}/**" = "read"',
+            f'"{codex.resolve()}" = "read"',
+        ]
+        assert judge["codex_path_override"] == str(codex.resolve())
+    assert "tools" not in config["defaultTest"]["options"]["provider"]["config"]
     html = next(
         provider["config"]
         for provider in config["providers"]
         if provider["label"] == "codex/html/workflow"
     )
-    assert (html["host"], html["condition"], html["payload"], html["samples"]) == (
+    assert (html["harness"], html["condition"], html["payload"], html["samples"]) == (
         "codex",
         "html",
         str(payloads["candidate"]),
-        str(tmp_path / "samples/codex/html/workflow"),
+        str(tmp_path / "samples"),
     )
-    with pytest.raises(click.BadParameter, match="no requested host/condition"):
+    assert html["screenshots"] == str(tmp_path / "screenshots")
+    with pytest.raises(click.BadParameter, match="no requested harness/condition"):
         prepare(
-            ["dashboard/reader"],
+            ["dashboard/reader-seeded"],
             payloads,
             tmp_path / "other",
             ("codex",),
@@ -213,18 +241,28 @@ def test_python_provider_gives_each_call_its_own_evidence(tmp_path, monkeypatch)
 
     class Executor:
         @staticmethod
-        def execute_scenario(case, payload, work, *, host, condition):
-            observed.append((case, payload, work, host, condition))
+        def execute_scenario(case, payload, work, *, harness, condition):
+            observed.append((case, payload, work, harness, condition))
             return {"output": "{}"}
 
-    monkeypatch.setattr(scenario_provider, "import_module", lambda executor: Executor)
+    class Judged:
+        rubrics = staticmethod(lambda scenario: [])
+
+        @staticmethod
+        def execute_scenario(case, payload, work, *, shots, harness, condition):
+            observed.append(shots)
+            return {"output": "{}"}
+
+    executors = {"leaf_dev.usability_eval": Executor, "leaf_dev.reader_eval": Judged}
+    monkeypatch.setattr(scenario_provider, "import_module", executors.__getitem__)
     monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path / "login"))
     options = {
         "config": {
             "payload": str(tmp_path / "payload"),
             "samples": str(tmp_path / "samples"),
+            "screenshots": str(tmp_path / "screenshots"),
             "claude_config_dir": str(tmp_path / "login"),
-            "host": "codex",
+            "harness": "codex",
             "condition": "html",
         }
     }
@@ -244,8 +282,8 @@ def test_python_provider_gives_each_call_its_own_evidence(tmp_path, monkeypatch)
     ]
     first, second = observed
     assert first[2] != second[2]
-    for case, payload, work, host, condition in observed:
-        assert (case, payload, host, condition) == (
+    for case, payload, work, harness, condition in observed:
+        assert (case, payload, harness, condition) == (
             "resume",
             tmp_path / "payload",
             "codex",
@@ -253,6 +291,13 @@ def test_python_provider_gives_each_call_its_own_evidence(tmp_path, monkeypatch)
         )
         assert work.parent == tmp_path / "samples"
         assert work.name.startswith("document-resume-")
+    # A judged executor's screenshots go to the judge's tree, beside nothing else.
+    context["test"]["metadata"]["executor"] = "leaf_dev.reader_eval"
+    response = scenario_provider.call_api("", options, context)
+    assert (
+        observed[-1]
+        == tmp_path / "screenshots" / Path(response["metadata"]["work"]).name
+    )
 
 
 def test_command_passes_promptfoo_options_and_status_without_api_keys(
@@ -282,7 +327,7 @@ def test_command_passes_promptfoo_options_and_status_without_api_keys(
     monkeypatch.setenv("OPENAI_API_KEY", "must-not-reach-promptfoo")
 
     def run(*args):
-        return CliRunner().invoke(module.eval, ["--host", "cc", *args])
+        return CliRunner().invoke(module.eval, ["--harness", "cc", *args])
 
     result = run("task-outlasts-the-turn", "--repeat", "3")
     assert result.exit_code == 100, result.output

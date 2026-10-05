@@ -3,9 +3,16 @@
  * `banner.js` derives one immutable reading. This synchronous light-DOM Lit view
  * retains the native disclosure controls while placing them in the ordinary and
  * publication layouts; no outside code writes or reparents anything inside it.
+ *
+ * The queue counts (`queues`) are the view's second box, which the banner places
+ * beside the status rather than inside it, so the banner can give them whichever row
+ * leaves the sentence its room (chrome.css). The box is reserved for the counts they
+ * usually reach (`queuesWidest`), so the sentence changing never carries them and their
+ * changing moves nothing. Counts past that widen the box once, and it keeps the width
+ * while the page is open.
  */
 import { html, nothing, render } from "../vendor/browser-runtime.js";
-import { el } from "./widget-elements.js";
+import { el, reserve } from "./widget-elements.js";
 import { keeps } from "./keeps.js";
 
 // `lf-*` is reserved for authored widgets. This is generated runtime chrome.
@@ -13,6 +20,8 @@ const TAG = "leaf-banner-status";
 const INITIAL = Object.freeze({
   tone: "",
   summary: "Connecting…",
+  queues: "",
+  queuesWidest: "",
   explanation: "Connecting…",
   publication: null,
 });
@@ -22,6 +31,9 @@ class BannerStatusView extends HTMLElement {
   #detail = el("div", "lf-ui lf-status-detail");
   #dot = el("span", "lf-dot");
   #onToggle = null;
+  #queues = el("span", "lf-status-queues");
+  #queuesWidest = "";
+  #queuesReserved = "";
   #text = el("span", "lf-status-text");
 
   constructor() {
@@ -55,6 +67,10 @@ class BannerStatusView extends HTMLElement {
     return this.#dot;
   }
 
+  get queues() {
+    return this.#queues;
+  }
+
   present(model) {
     if (
       !Object.isFrozen(model) ||
@@ -64,6 +80,7 @@ class BannerStatusView extends HTMLElement {
     if (model.publication && this.#detail.matches(":popover-open"))
       this.#detail.hidePopover();
 
+    this.#queues.toggleAttribute("hidden", !model.queues);
     keeps(this.#dot, "class", "lf-dot" + (model.tone ? " " + model.tone : ""));
     keeps(this.#button, "title", model.explanation);
     keeps(this.#text, "title", model.explanation);
@@ -95,6 +112,24 @@ class BannerStatusView extends HTMLElement {
     render(html`${this.#button}${this.#detail}`, this);
     render(html`${this.#dot}${this.#text}`, this.#button);
     render(model.summary, this.#text);
+    render(model.queues, this.#queues);
+    // The reservation only grows: its digits are tabular, so the longest counts yet
+    // shown are the widest, and a box that shrank back would move them on the next.
+    if (model.queues) {
+      const kept =
+        model.queuesWidest === this.#queuesWidest
+          ? this.#queuesReserved
+          : model.queuesWidest;
+      const reserved = model.queues.length > kept.length ? model.queues : kept;
+      if (
+        model.queuesWidest !== this.#queuesWidest ||
+        reserved !== this.#queuesReserved
+      ) {
+        this.#queuesWidest = model.queuesWidest;
+        this.#queuesReserved = reserved;
+        reserve(this.#queues, [reserved]);
+      }
+    }
   }
 }
 

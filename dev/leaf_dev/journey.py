@@ -136,13 +136,14 @@ class TurnReading(NamedTuple):
 
 class AgentProfile:
     """What the browser observed of one request: each ask's admitted comment and
-    acknowledgement, the page's activity, and when the reply showed, all from the
-    first send."""
+    acknowledgement, the page's activity, when its thread first showed the agent on
+    it, and when the reply showed, all from the first send."""
 
     def __init__(self) -> None:
         self.started = time.monotonic()
         self.visible_reply_started_ms: float | None = None
         self.acknowledged: list[float] = []
+        self.work_visible_s: float | None = None
         self.visible_reply_s: float | None = None
         self.activities: list[tuple[float, str, str]] = []
         self.ask_count = 0
@@ -274,6 +275,7 @@ def agent_profile(profile: AgentProfile, steps: dict) -> dict:
         "sinceAdmissionMs": {step: ms(seconds) for step, seconds in steps.items()},
         "sinceSendMs": {
             "acknowledged": [ms(at) for at in profile.acknowledged],
+            "workVisible": ms(profile.work_visible_s),
             "responseVisible": ms(profile.visible_reply_s),
         },
         "activity": [
@@ -552,6 +554,14 @@ def run_journey(session: Session, version: str) -> dict:
     if visible_reply_at is not None:
         profile.visible_reply_s = (
             visible_reply_at - profile.visible_reply_started_ms
+        ) / 1000
+    # Read before the reload below, which starts a document of its own.
+    work_visible_at = page.evaluate(
+        "thread => window.__leafVerifier.workVisibleAt(thread)", answer["parent"]
+    )
+    if work_visible_at is not None:
+        profile.work_visible_s = (
+            work_visible_at - profile.visible_reply_started_ms
         ) / 1000
     comment = agent_profile(profile, steps)
     if session.stream is not None:

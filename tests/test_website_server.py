@@ -4745,6 +4745,8 @@ class _DeployedPage:
             return 100.0
         if script == "id => window.__leafVerifier.visibleReplyAt(id)":
             return 12_600.0
+        if script == "thread => window.__leafVerifier.workVisibleAt(thread)":
+            return 4_100.0
         if script == "window.__leafStartup.reading":
             presented_at = (
                 self.presented_at
@@ -5138,7 +5140,11 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
                 "published": 12000.0,
                 "replied": 12500.0,
             },
-            "sinceSendMs": {"acknowledged": [250.0], "responseVisible": 12500.0},
+            "sinceSendMs": {
+                "acknowledged": [250.0],
+                "workVisible": 4000.0,
+                "responseVisible": 12500.0,
+            },
             "activity": [
                 {"atMs": 250.0, "kind": "queued", "detail": ""},
                 {

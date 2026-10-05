@@ -112,14 +112,14 @@
       `^(?:${anchor}|calc\\((?:${anchor}\\s*[+-]\\s*-?[\\d.]+px|-?[\\d.]+px\\s*\\+\\s*${anchor}|${anchor})\\))$`,
     ).test(value);
   };
-  // What decides a positioned box's inset on an axis. An inline inset is a placer's,
-  // and stands as it always has. Otherwise the candidates are the rules of the box's
-  // own tree that match it now and state the inset: the important ones where any are,
-  // else all of them. Within a tier the cascade weighs specificity, layers and order,
-  // which no API reports, so the inset counts as anchored only where every candidate
-  // is a direct anchor inset: rules that disagree are ambiguous, like a name that is.
-  // Read only for a box naming an anchor, since every frame samples it, from each
-  // sheet's rules that state an inset at all, gathered once per sheet.
+  // What decides a positioned box's inset on an axis, as the declarations that can win
+  // it: an important inline one alone, else the important rules of the box's own tree
+  // that match it now, else its inline style, else every matching rule. Within a tier
+  // the cascade weighs specificity, layers and order, which no API reports, so the
+  // inset counts as anchored only where every candidate there is a direct anchor
+  // inset: rules that disagree are ambiguous, like a name that is. Rules are read only
+  // for a box naming an anchor, since every frame samples it, and only those that
+  // state an inset at all, gathered once per sheet.
   const INSETS = ["top", "right", "bottom", "left"];
   const insetRules = new WeakMap();
   const rulesStatingInsets = (sheet) => {
@@ -149,7 +149,9 @@
     condition instanceof CSSMediaRule
       ? matchMedia(condition.conditionText).matches
       : CSS.supports(condition.conditionText);
-  const declaredRules = (node, property) => {
+  // An inline inset loses only to an important rule, so a box with one reads those
+  // alone: the comment box's placer writes its insets on every frame it moves.
+  const declaredRules = (node, property, importantOnly) => {
     const root = node.getRootNode();
     const found = { important: [], normal: [] };
     for (const sheet of [
@@ -158,7 +160,9 @@
     ])
       for (const { rule, conditions } of rulesStatingInsets(sheet)) {
         const value = rule.style.getPropertyValue(property);
-        if (!value || !conditions.every(holds)) continue;
+        if (!value || (importantOnly && !rule.style.getPropertyPriority(property)))
+          continue;
+        if (!conditions.every(holds)) continue;
         let matches = false;
         try {
           matches = node.matches(rule.selectorText);
@@ -174,10 +178,16 @@
   };
   const anchoredInset = (node, style, property, axis) => {
     const inline = node.style.getPropertyValue(property);
-    if (inline) return anchorInset(inline, axis);
-    if (!style.positionAnchor.startsWith("--")) return false;
-    const rules = declaredRules(node, property);
-    const candidates = rules.important.length ? rules.important : rules.normal;
+    if (inline && node.style.getPropertyPriority(property))
+      return anchorInset(inline, axis);
+    if (!style.positionAnchor.startsWith("--"))
+      return inline ? anchorInset(inline, axis) : false;
+    const rules = declaredRules(node, property, Boolean(inline));
+    const candidates = rules.important.length
+      ? rules.important
+      : inline
+        ? [inline]
+        : rules.normal;
     return (
       candidates.length > 0 && candidates.every((value) => anchorInset(value, axis))
     );

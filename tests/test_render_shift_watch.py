@@ -1515,6 +1515,7 @@ def test_typing_root_scroll_keeps_a_fixed_field_but_not_its_local_carry(browser,
         "anchor_y",
         "declared_unused",
         "rule_unused",
+        "important_rule",
     ],
 )
 @pytest.mark.parametrize("transform", ["none", "scale(.8)", "scale(.8) rotate(10deg)"])
@@ -1526,9 +1527,12 @@ def test_native_anchor_scroll_retains_local_motion_proof(
     written inline or stated in its tree's stylesheet, and whether its anchor's name is
     unique or repeated under `anchor-scope`; moving either independently still fails.
     A direct anchor inset that a more specific rule overrides credits nothing, even
-    where a later rule in sheet order states it."""
+    where a later rule in sheet order states it, and neither does an inline one an
+    important rule overrides."""
     if fault == "rule_unused" and declared == "inline":
         pytest.skip("rules disagreeing needs the insets in rules")
+    if fault == "important_rule" and declared == "scoped_rule":
+        pytest.skip("an important rule over an inline inset needs the inset inline")
     field_style = "position:fixed;position-anchor:--target;left:calc(anchor(left) + 100px);top:calc(anchor(top) + 10px)"
     if fault == "declared_unused":
         field_style = "position:fixed;position-anchor:--target;left:100px;top:50px"
@@ -1538,6 +1542,9 @@ def test_native_anchor_scroll_retains_local_motion_proof(
         field_style = ""
         scope = "anchor-scope:--target"
         decoy = '<div style="anchor-scope:--target"><div style="anchor-name:--target">Another</div></div>'
+    if fault == "important_rule":
+        # The inline inset stays anchored; the important rule holds the field still.
+        sheet = "<style>#field { top:50px !important }</style>"
     if fault == "rule_unused":
         # The id's static inset wins on specificity; the anchored rule comes last.
         sheet = """<style>#field { position:fixed;position-anchor:--target;left:100px;top:50px }
@@ -1551,6 +1558,7 @@ def test_native_anchor_scroll_retains_local_motion_proof(
         "anchor_y": 'target.style.marginTop="70px"',
         "declared_unused": 'field.style.top="40px"',
         "rule_unused": 'document.body.classList.add("down")',
+        "important_rule": 'field.style.marginTop="-20px"',
     }[fault]
     name = "textarea#field.f" if fault == "rule_unused" else "textarea#field"
     page = browser.new_page()

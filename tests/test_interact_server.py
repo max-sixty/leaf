@@ -4306,6 +4306,11 @@ def test_frozen_history_and_comparisons_do_not_reopen_the_page(page_dir):
 
     assert service.page_state() == before
     assert service.page_browser_view(2, picked["seq"]) == comparison
+    # The page as it stood at the gesture, as `leaf page picture` serves one: the log
+    # and the versions stamped by then.
+    then = snapshot.through(picked["seq"]).context
+    assert then.events[-1]["id"] == picked["id"]
+    assert [version["version"] for version in then.versions] == [1]
 
 
 def test_comparison_revision_reads_stay_inside_the_page_transaction(

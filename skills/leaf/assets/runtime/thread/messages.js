@@ -305,10 +305,12 @@ export class MessageView {
     if (!prior && (model.pending || arrived)) {
       // A background cue can finish while the message remains unconfirmed. The
       // shared motion gate answers for restoration and reduced motion; opacity
-      // continues to describe delivery independently (marks.css).
+      // continues to describe delivery independently (marks.css). It settles on the
+      // message's own ground, which a surface may paint (the margin card's sticky
+      // heads take it).
       this.#arrivalMotion = motion(
         this.node,
-        [{ backgroundColor: "var(--hi-tint)" }, { backgroundColor: "transparent" }],
+        [{ backgroundColor: "var(--hi-tint)", offset: 0 }],
         1200,
       );
     }

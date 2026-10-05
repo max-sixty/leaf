@@ -8671,9 +8671,7 @@ def test_reference_accepts_native_popover_dismissal_across_modal_entry(browser, 
     reference = page.locator(".lf-command-reference")
     expect(reference).to_be_visible()
     expect(versions).to_be_hidden()
-    contextual_versions = reference.locator(
-        '[data-lf-command^="version.open-v"]'
-    )
+    contextual_versions = reference.locator('[data-lf-command^="version.open-v"]')
     assert contextual_versions.count() > 0
     # Number keys delegate to native version rows. Once the modal dismisses the
     # menu, the reference still names those routes but offers no action for them.

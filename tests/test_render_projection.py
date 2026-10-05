@@ -4707,14 +4707,6 @@ def test_the_reading_position_restores_onto_a_section_that_draws_no_box(browser,
     )
 
 
-@pytest.mark.xfail(
-    reason=(
-        "Native package scope prevents joined-control suppression of the Ask ring"
-        " on main 2bd9; CI run 37057440971."
-    ),
-    raises=AssertionError,
-    strict=False,
-)
 def test_the_ring_says_where_the_user_is_standing(browser, serve):
     """One ring, meaning one thing: this is where the user is standing. It is painted
     from the focus, so every way into a decision paints it and leaving takes it off.
@@ -8496,7 +8488,9 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve):
     )
     stamp_page(d, honoring, "input absorbed")
     wait_for_revision(page, 2)
-    expect(page.locator(".lf-asks")).to_have_text("Asks 0/4")
+    # The saved answer remains in the reviewable Ask inventory after the source
+    # drops `needed`; it is completed, not newly owed to the user.
+    expect(page.locator(".lf-asks")).to_have_text("Asks 1/5")
     expect_banner_control_offered(page.locator(".lf-asks"))
     expect(page.locator("#ledger-cargo")).not_to_have_attribute("needed")
     expect(page.locator("#ledger-cargo")).not_to_have_attribute("data-lf-user-override")
@@ -8912,6 +8906,46 @@ def test_a_worker_row_on_a_wide_page_reaches_the_frame_its_goals_reach(browser, 
         "worker rows stop short of the tree they stand in (`short`) and of the goal "
         f"row beside them (`goal`): {short}"
     )
+
+
+def test_a_worktree_in_a_goal_grows_out_of_it_as_a_wide_block_does(browser, serve):
+    """A goal contains its chips' float, so its edges trim, but it draws nothing: it
+    says `--lf-block-frame: trim`, and a wide worktree in it grows past its worker's row
+    as a wide block grows out of the column. Declared as a drawn frame, the goal held it
+    to the row, 604px where it now takes 672px. A nested goal draws its rail, so a
+    worktree in it still stays inside it."""
+    source = leaf_page(
+        "worktree room",
+        """
+<lf-command id="plan" label="The plan">
+  <lf-task id="goal" status="active"><strong>Rebuild the feeders</strong> Two mounted.
+    <lf-agent id="goal-agent" state="working"><strong>wren</strong> Holds the rebuild.
+      <lf-worktree id="in-goal" source="trees"></lf-worktree></lf-agent>
+    <lf-task id="nested" status="active"><strong>Fit the baffles</strong> One left.
+      <lf-agent id="nested-agent" state="working"><strong>finch</strong> Fits them.
+        <lf-worktree id="in-nested" source="trees"></lf-worktree></lf-agent>
+    </lf-task>
+  </lf-task>
+</lf-command>
+""",
+    )
+    context = browser.new_context(viewport={"width": 1440, "height": 900})
+    page = open_page(browser, serve(source), context=context)
+    for goal in ("goal", "nested"):
+        page.locator(f"#{goal} > .lf-task-meta .lf-task-crew").click()
+    expect(page.locator("#in-nested")).to_be_visible()
+    boxes = page.evaluate(
+        """() => Object.fromEntries(['in-goal', 'goal-agent', 'in-nested', 'nested']
+          .map((id) => {
+            const r = document.getElementById(id).getBoundingClientRect();
+            return [id, {left: r.left, right: r.right, width: r.width}];
+          }))"""
+    )
+    assert boxes["in-goal"]["right"] > boxes["goal-agent"]["right"] + 1, (
+        f"the goal held its worktree to the worker's row: {boxes}"
+    )
+    assert boxes["in-nested"]["left"] >= boxes["nested"]["left"] - 1, boxes
+    assert boxes["in-nested"]["right"] <= boxes["nested"]["right"] + 1, boxes
 
 
 def test_command_hub_input_is_trimmed_before_it_enters_the_record(browser, serve):
@@ -9689,7 +9723,7 @@ def test_a_spent_press_and_a_static_badge_say_so_before_the_press(browser, serve
         return {cursor: cs.cursor, opacity: cs.opacity,
                 background: cs.backgroundColor, radius: cs.borderTopLeftRadius,
                 size: cs.fontSize, offer: el.dataset.lfOffer ?? null}; }"""
-    chip = page.locator('.lf-command-facts > [role="button"]').first
+    chip = page.locator(".lf-command-tile").first
     badge = page.locator(".lf-task-progress").first
     worn, still = chip.evaluate(face), badge.evaluate(face)
     assert worn["offer"] == "button" and still["offer"] is None

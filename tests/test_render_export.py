@@ -29,8 +29,8 @@ from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import exporting as exporting_model
 from leaf import files as files_model
+from leaf import harness as harness_model
 from leaf import hooks as hooks_model
-from leaf import host as host_model
 from leaf import leases as leases_model
 from leaf import media as media_model
 from leaf import server as server_model
@@ -80,7 +80,7 @@ def preview_slot(tmp_path, monkeypatch):
 
 
 def start_preview(spawn, command: list[str], log: Path, **kwargs):
-    """Run a preview the way a host's background runner does, and read its URL.
+    """Run a preview the way a harness's background runner does, and read its URL.
 
     Its output goes to a file the test reads, and it leads a process group of its
     own, so `spawn` ends the `uv run` child doing the work along with the launcher
@@ -92,7 +92,6 @@ def start_preview(spawn, command: list[str], log: Path, **kwargs):
             cwd=ROOT,
             stdout=output,
             stderr=subprocess.STDOUT,
-            start_new_session=True,
             text=True,
             **kwargs,
         )
@@ -110,7 +109,7 @@ def start_preview(spawn, command: list[str], log: Path, **kwargs):
 
 
 def end_preview(process) -> None:
-    """Stop a preview the way a host's runner stops a task.
+    """Stop a preview the way a harness's runner stops a task.
 
     The exit status is not the evidence: a signal that lands while `watchfiles`
     waits comes back out of it as `KeyboardInterrupt`, so the same stop exits 130
@@ -134,7 +133,6 @@ def test_interrupting_a_live_preview_exits_without_a_traceback(preview_slot, spa
         cwd=ROOT,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
-        start_new_session=True,
         text=True,
     )
 
@@ -261,7 +259,6 @@ def test_terminating_a_preview_while_its_service_starts_leaves_none(
             cwd=ROOT,
             stdout=output,
             stderr=subprocess.STDOUT,
-            start_new_session=True,
         )
 
     def serving_child():
@@ -662,7 +659,6 @@ def test_a_user_preview_restarts_under_its_original_codex_claim(
             "PYTHONHOME": sys.base_prefix,
             "LEAF_PREVIEWS_ROOT": str(directory.parent),
         },
-        start_new_session=True,
     )
     wait_for(
         lambda: log.read_text() if log.exists() else "",
@@ -1092,7 +1088,6 @@ def test_a_user_preview_update_keeps_the_sessions_wait_watching(
             [*LEAF_COMMAND, "wait"],
             stdout=output,
             stderr=subprocess.STDOUT,
-            start_new_session=True,
             text=True,
         )
     session = os.environ["CLAUDE_CODE_SESSION_ID"]
@@ -1197,12 +1192,12 @@ def test_a_preview_relinquishes_a_service_another_session_claims(
     """The old author's watcher ends without disabling the successor's service."""
     _, _, directory, process, url, log = served_preview
     if unclaimed:
-        # A plain-terminal --user preview has no host session. Exercise its same
+        # A plain-terminal --user preview has no harness session. Exercise its same
         # cleanup boundary directly; the subprocess owns the serving resource.
         monkeypatch.delenv("CLAUDE_CODE_SESSION_ID", raising=False)
         cleanup = preview_model.PreviewService(directory, user=True)
     with service_model.PageTransaction(directory) as transaction:
-        transaction.take_claim(host_model.ClaudeCodeHarness("successor", "Claude"))
+        transaction.take_claim(harness_model.ClaudeCodeHarness("successor", "Claude"))
     if unclaimed:
         assert cleanup.ended
         cleanup.stop()

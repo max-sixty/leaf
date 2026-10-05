@@ -4,7 +4,7 @@ show which ones changed.
     uv run leaf-dev stills [BASE_REF]
 
 BASE_REF defaults to the merge base of HEAD and `main`; each arm is the payload at its
-commit (`leaf_dev.harness.build_pair`), so commit what you want compared. Each page is
+commit (`leaf_dev.arms.build_pair`), so commit what you want compared. Each page is
 built from this checkout's example source and served by the arm's own launcher, so
 only the runtime, theme and server differ between the two stills of a state. Each
 capture starts with a fresh authored fixture and event log, so a prior gesture cannot
@@ -40,8 +40,8 @@ from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import Page
 
 from leaf_dev import ROOT
+from leaf_dev.arms import build_pair, run_directory, serving_source
 from leaf_dev.browser import BESIDE, DESKTOP, chrome, load, settle, tab
-from leaf_dev.harness import build_pair, run_directory, serving_source
 
 OUT = ROOT / ".tmp" / "stills"
 CROP_MARGIN = 32
@@ -342,6 +342,12 @@ def widget_inline_hints(page: Page) -> None:
     page.locator("#bg-local-shortcuts").focus()
 
 
+def hub_workers(page: Page) -> None:
+    """The plan with the parser goal's workers shown, its worktree in view."""
+    page.locator("#goal-parser > .lf-task-meta .lf-task-crew").click()
+    page.locator("#tree-w-1").scroll_into_view_if_needed()
+
+
 def draft_edit(page: Page) -> None:
     """A passage opened in its shared editor, with Markdown source and a focused caret."""
     page.locator("#rn-cli .lf-draft-body").click()
@@ -382,6 +388,7 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
         go_to,
         widget_inline_hints,
         draft_edit,
+        hub_workers,
     )
 }
 
@@ -551,6 +558,8 @@ STATES = (
         viewport=(390, 500),
         touch=True,
     ),
+    State("hub", "command-hub", at_rest),
+    State("hub-workers", "command-hub", hub_workers),
     State("sort", "rust-sort", at_rest),
     State("sort-pane", "rust-sort", pane_focused),
     State("sort-pane-dark", "rust-sort", pane_focused, scheme="dark"),

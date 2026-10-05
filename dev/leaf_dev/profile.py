@@ -26,9 +26,9 @@ from pathlib import Path
 import click
 
 from leaf_dev import ROOT
+from leaf_dev.arms import run_directory
 from leaf_dev.bench_latency import SOURCES, TRANSITIONS, served
 from leaf_dev.browser import chrome
-from leaf_dev.harness import run_directory
 
 OUT = ROOT / ".tmp" / "profile"
 RUNS = 3

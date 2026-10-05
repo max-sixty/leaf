@@ -39,7 +39,7 @@ from leaf import data as data_model
 from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
 from leaf import files as files_model
-from leaf import host as host_model
+from leaf import harness as harness_model
 from leaf import hosting as hosting_model
 from leaf import layer as layer_model
 from leaf import packages as packages_model
@@ -66,8 +66,8 @@ from pytest_regtest.snapshot_handler import (
 )
 
 ROOT = Path(__file__).parent.parent
-# The checkout and the payload a host installs are one tree now; PLUGIN_ROOT still
-# names the role a path plays — "what a host runs" — for the tests built on that.
+# The checkout and the payload a harness installs are one tree now; PLUGIN_ROOT still
+# names the role a path plays — "what a harness runs" — for the tests built on that.
 PLUGIN_ROOT = ROOT
 # The payload's manifests, hooks and launcher hang off PLUGIN_ROOT; the six product parts
 # sit one skill directory below it. Both are wanted often enough to be worth naming, and
@@ -255,7 +255,7 @@ def spawn_probe(spawn, page_dir, body, **environment):
     )
 
 
-STATED_TIMEOUT = 10
+STATED_TIMEOUT = 60
 """How long a pure-Python wait gives another thread or process to state its fact.
 
 The deadline separates a product that never states the fact from a machine that
@@ -263,8 +263,9 @@ has not reached it yet, so it is generous rather than tight. Two workers share
 one runner's cores with a browser, and a stretch of ordinary work there runs
 many times slower than it does on an unloaded host: a wait sized as a small
 multiple of the unloaded duration reddens `main` on the runs where the other
-worker happens to be driving Chrome. `SERVED_TIMEOUT_MS` is the browser side's
-counterpart, more generous again for the work a page does."""
+worker happens to be driving Chrome. On a local host at load 230 over 18 cores,
+two concurrent `page init`s took up to 25s and three `leaf codex start`
+commands 20s. `SERVED_TIMEOUT_MS` is the browser side's counterpart."""
 
 
 def wait_for(
@@ -295,7 +296,7 @@ def wait_for(
 def take_stream_activity(monkeypatch, updates: list, clears: list) -> None:
     """Collect every activity reading a turn writes, instead of a page taking it.
 
-    Every carrier and host calls the writers through `leaf.codex`, so that one binding
+    Every carrier and harness calls the writers through `leaf.codex`, so that one binding
     takes them all. Pass empty lists for a test that wants them to touch nothing.
     """
     monkeypatch.setattr(
@@ -369,7 +370,7 @@ def shipped_payload():
 
 
 def install_payload(destination):
-    """Copy the candidate payload the way a host installs the committed tree."""
+    """Copy the candidate payload the way a harness installs the committed tree."""
     for path in shipped_payload():
         target = destination / path.relative_to(PLUGIN_ROOT)
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -602,7 +603,7 @@ def record_claim(page, /, harness="claude-code", **fields):
     record = {
         "page": str(page.resolve()),
         "id": "s1",
-        "harness": host_model.HARNESSES[harness].name,
+        "harness": harness_model.HARNESSES[harness].name,
         "pid": os.getpid(),
         "agent": "Claude",
         "cwd": str(Path.cwd()),
@@ -633,9 +634,9 @@ def record_claim(page, /, harness="claude-code", **fields):
 
 
 def bind_task_lifetime_to_worker(page):
-    """Keep a synthetic task standing after its one-command host exits.
+    """Keep a synthetic task standing after its one-command harness exits.
 
-    The worker stands for the real host process that survives tool calls. This
+    The worker stands for the real harness process that survives tool calls. This
     changes only that existing task's lifetime provenance, under its session
     lock: its generation, turn, provider observation, and page acquisition stay
     intact. Recording another claim would create a replacement generation and
@@ -649,21 +650,27 @@ def bind_task_lifetime_to_worker(page):
         cleanup_model.write_session({**record, "lifetime": {"pid": os.getpid()}})
 
 
-def release_codex_command(page, release):
-    """Complete a held command before its synthetic Codex host can exit.
+def release_codex_command(page, host, finished):
+    """Complete a held command before its synthetic Codex harness can exit.
 
     The command must finish its claim transaction while its ancestor is alive.
     The canonical lifetime handoff then keeps that same task standing for later
-    delivery, before the fixture releases the one-command host.
+    delivery, before the fixture releases the one-command harness.
     """
     wait_for(
-        Path(f"{release}.ready").exists,
+        finished.exists,
         bool,
         failure="the held Codex command did not finish",
         timeout=60,
     )
     bind_task_lifetime_to_worker(page)
-    release.touch()
+    release_held(host)
+
+
+def release_held(host):
+    """Let an `under_codex` harness held with `finished` exit, by giving its
+    shell the line it waits for. The pipe stays open for `communicate`."""
+    os.write(host.stdin.fileno(), b"\n")
 
 
 def live_versions(d):
@@ -1421,24 +1428,28 @@ def under_codex(spawn, codex_program):
     )
 
     def start(
-        command, env, *, app_server=False, hold_until=None, **kwargs
+        command, env, *, app_server=False, finished=None, **kwargs
     ) -> subprocess.Popen:
-        # `app-server` is the whole difference between the app's shared host and
+        # `app-server` is the whole difference between the app's shared harness and
         # one session's own process — same program, same ancestry, one word in
         # the argv — so it is the one factor this varies. The runner reads the
         # last word either way, which is what keeps that the only difference.
         hosting = ["app-server"] if app_server else []
         shell_command = f"{command}; exit"
-        if hold_until is not None:
-            # Mark command completion while keeping the fake host alive. A
-            # test can then hand its lifetime to the worker before release;
-            # unlike a real task, this host would otherwise die with its command.
+        if finished is not None:
+            # Create `finished` once the command has, and keep the fake harness
+            # alive until a line or the end of its stdin. A test can then hand
+            # its lifetime to the worker before release (`release_held`); unlike
+            # a real task, this harness would otherwise die with its command. The
+            # worker holds the pipe's other end, so the harness also ends when the
+            # worker does, however it ends.
             shell_command = (
                 f"{command}; result=$?; "
-                f"touch {shlex.quote(f'{hold_until}.ready')}; "
-                f"while [ ! -e {shlex.quote(str(hold_until))} ]; do sleep 0.01; done; "
+                f"touch {shlex.quote(str(finished))}; "
+                "read -r released; "
                 "exit $result"
             )
+            kwargs["stdin"] = subprocess.PIPE
         return spawn(
             [str(codex_program), "-c", runner, *hosting, shell_command],
             env={**env, "PYTHONHOME": sys.base_prefix},
@@ -1478,16 +1489,16 @@ claim_page(page)
 started = start_server(page)
 print(json.dumps({"url": started.url}))
 """
-    release_start = tmp_path / "release-page-host"
+    finished = tmp_path / "page-host-finished"
     started = under_codex(
         shlex.join([sys.executable, "-c", program, str(page)]),
         env,
-        hold_until=release_start,
+        finished=finished,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
     )
-    release_codex_command(page, release_start)
+    release_codex_command(page, started, finished)
     out, err = started.communicate(timeout=60)
     assert started.returncode == 0, f"{out}{err}"
     assert json.loads(out)["url"].startswith("http://127.0.0.1:")
@@ -1510,8 +1521,8 @@ def session_process(spawn):
 @pytest.fixture
 def managed_server(spawn):
     """A server whose lifetime is a session the test can end on purpose. Claude
-    Code's door, because that host states its session's pid outright and the
-    test wants a process of its own in that role; which host claimed the page is
+    Code's door, because that harness states its session's pid outright and the
+    test wants a process of its own in that role; which harness claimed the page is
     nothing to the watcher that reads the claim."""
 
     def start(page_dir, session_id, session_pid):
@@ -1544,7 +1555,7 @@ def managed_server(spawn):
 
 
 def start_server_command(page_dir, *flags, session_id="starter"):
-    """Run `server start` from a host session and wait for the command to return."""
+    """Run `server start` from a harness session and wait for the command to return."""
     return subprocess.run(
         [
             *LEAF_COMMAND,

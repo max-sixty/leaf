@@ -1,7 +1,7 @@
 /**
  * Leaf's carrier in Pi: the extension does for a Pi session what `hooks.json`
  * and `scripts/loop-guard.py` do for a Claude Code one (`PiHarness` in
- * `skills/leaf/scripts/leaf/host.py`).
+ * `skills/leaf/scripts/leaf/harness.py`).
  *
  * Highly experimental: a trial of Leaf on Pi. The site and most references
  * still name only Claude Code and Codex.

@@ -33,13 +33,13 @@ Apply the same reader-based rewrite to `skills/leaf/SKILL.md`, the routed refere
 and package instructions. Score with `leaf-dev eval` before and after, following
 “Score an instruction change” in `/developing-leaf`. This phase needs no product decision.
 
-- Give host selection, initial work status and the URL-in-every-message rule one
-  canonical home each. Host contracts should point to those homes.
+- Give harness selection, initial work status and the URL-in-every-message rule one
+  canonical home each. Harness contracts should point to those homes.
 - Put event-handling instructions before transport details.
 - Reduce revision-state and margin instructions to what the author acts on. Keep package
   record semantics in their existing owner.
 - Separate agent operation from user setup and maintainer mechanisms in serving
-  and host references. Check uncertain setup passages against an actual fresh host.
+  and harness references. Check uncertain setup passages against an actual fresh harness.
 - In command-hub instructions, distinguish a leaf goal from a Leaf page.
 
 ## Phases 3 and 4: Site readers and structure
@@ -61,9 +61,9 @@ The proposed site gives each page one reader:
 
 The proposal removes the public registry page. Explain experimental status,
 requirements, page trust and access keys, and offline export where their readers
-need them. Describe delivery by host and status by visible surface. Version comparison
+need them. Describe delivery by harness and status by visible surface. Version comparison
 belongs with revisions; source, widgets, page code and packages belong with pages.
-Serving should explain the stable address and recovery through the canonical host
+Serving should explain the stable address and recovery through the canonical harness
 contract rather than prescribe one command for every harness.
 
 **Decision A — status depth.** Recommend the banner readings and a short explanation,

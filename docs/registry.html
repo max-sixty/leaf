@@ -147,6 +147,7 @@
           <a href="#x-owners"><code>x-owners</code></a>
           <a href="#x-paints"><code>x-paints</code></a>
           <a href="#x-patch"><code>x-patch</code></a>
+          <a href="#x-prepaint"><code>x-prepaint</code></a>
           <a href="#x-reading-role"><code>x-reading-role</code></a>
           <a href="#x-refers"><code>x-refers</code></a>
           <a href="#x-required-members"><code>x-required-members</code></a>
@@ -528,6 +529,39 @@
                   member's tag and attributes, in order, it edits inside the members in
                   place and the widget stays. Requires
                   <code>x-content: members</code> and x-upgrade.
+                </p>
+              </details>
+            </div>
+          </section>
+          <section class="reference-entry" id="x-prepaint">
+            <h3><code>x-prepaint</code></h3>
+            <div class="reference-copy">
+              <p>
+                Markup an upgraded element shows at its first paint, before its module
+                draws: one element holding the structure the module will draw, with
+                words that size it as the drawing's will.
+              </p>
+              <details class="reference-more">
+                <summary aria-label="Full x-prepaint contract">Full contract</summary>
+                <p>
+                  Delivery writes it into every occurrence in the served document, as
+                  the element's first child marked data-lf-prepaint, so the browser lays
+                  the widget out from its real structure, wrapping as its drawing will,
+                  rather than in a room summed from line heights; the theme holds that
+                  room and paints none of it, and a reading without the runtime hides
+                  it. The module takes it out in the same step that draws its
+                  replacement, so nothing moves, and draws by filling in a copy of the
+                  same markup, so the declaration is the one statement of that
+                  structure. <code>{"as": tag}</code> declares the markup of the named
+                  widget, for one that first paints as that widget will stand in it, as
+                  a command with no seat draws a readings seat at its head. It is
+                  written exactly as the parser reads it back, every element closed,
+                  since delivery inserts it as written and markup left open would take
+                  in the occurrence's own children; and it carries no id, no custom
+                  element and no script, since every occurrence gets a copy. Declare it
+                  on a widget whose drawn structure is fixed while its values come from
+                  the log, as a command's outcome and count tiles are; a drawing whose
+                  rows the log decides has no structure to write in.
                 </p>
               </details>
             </div>

@@ -3457,7 +3457,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     # is a page's reading arrangement rather than something for the user to chase.
     expect(dot).to_have_class(re.compile(r"^lf-dot\s*$"))
 
-    # Nothing ever claimed the page — a server started outside an agent host. There is
+    # Nothing ever claimed the page — a server started outside an agent harness. There is
     # no pid to ask after, so a claim made moments ago is evidence and still stands.
     declare("working", "running the migration", claimed=False)
     expect(text).to_have_text(re.compile(r"^Agent is working — running the migration"))

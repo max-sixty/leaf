@@ -21,7 +21,7 @@ from collections.abc import Callable
 from contextlib import contextmanager
 from pathlib import Path
 
-from .host import detached_environment
+from .harness import detached_environment
 
 
 class StartRefused(RuntimeError):

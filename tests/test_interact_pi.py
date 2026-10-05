@@ -1,4 +1,4 @@
-"""Pi as a host: the harness its environment implies, and Leaf's extension
+"""Pi as a harness: the one its environment implies, and Leaf's extension
 (`hooks/pi.ts`) carrying a page's input into its runs.
 
 `pi_driver.mjs` stands in for Pi around the extension, which calls the real
@@ -18,7 +18,7 @@ from interact_support import (
     page_state,
     serving,
 )
-from leaf import host as host_model
+from leaf import harness as harness_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import state as cleanup_model
@@ -219,14 +219,14 @@ def test_pi_and_claude_code_nested_either_way_rank_by_process(monkeypatch):
     monkeypatch.setenv("PI_SESSION_ID", "inner-pi")
     monkeypatch.setenv("LEAF_PI_PID", str(os.getpid()))
     monkeypatch.setenv("CLAUDE_PID", str(os.getppid()))
-    harness = host_model.session_harness()
-    assert (type(harness), harness.session) == (host_model.PiHarness, "inner-pi")
+    harness = harness_model.session_harness()
+    assert (type(harness), harness.session) == (harness_model.PiHarness, "inner-pi")
 
     monkeypatch.setenv("LEAF_PI_PID", str(os.getppid()))
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
-    harness = host_model.session_harness()
+    harness = harness_model.session_harness()
     assert (type(harness), harness.session) == (
-        host_model.ClaudeCodeHarness,
+        harness_model.ClaudeCodeHarness,
         "outer-claude",
     )
 

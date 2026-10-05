@@ -563,8 +563,16 @@ def test_a_reply_lands_above_an_open_cards_reply_box_and_moves_neither_it_nor_it
             now,
         )
         if answers > 1:
-            tail = message.evaluate("el => el.getBoundingClientRect().bottom")
-            assert list_box[0] < tail <= standing["box"][0] + 1
+            # At the scroll limit, line leading can lie under the pinned editor.
+            # The words must clear it, so measure text rather than the message box.
+            tail = message.locator(".lf-msg-text > p").last.evaluate(
+                """el => {
+                  const range = document.createRange();
+                  range.selectNodeContents(el);
+                  return range.getBoundingClientRect().bottom;
+                }"""
+            )
+            assert list_box[0] < tail <= now["box"][0], (standing, now, tail)
 
 
 @pytest.mark.parametrize("contents", ["short", "long"])

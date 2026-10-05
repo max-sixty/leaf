@@ -1096,18 +1096,23 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      HeldNews holds arrivals where growing the transcript would move the reply. */
   .lf-thread-compact > .lf-thread-reply { margin: 0; padding: 12px var(--lf-thread-inset);
     position: sticky; bottom: var(--focus-ring-room); z-index: var(--lf-thread-title-z); }
-  /* The pinned row covers the turns that scroll under it, so a landing on any of them,
-     a Tab or a jump, stops above it with its ring clear, as `scroll-margin-top` stops
-     one below the title: the row's height (`--lf-thread-reply-h`, thread-card.js), the
-     ring's room the row stands above the list's content box, and the ring's room above
-     the row; the list's scroll padding is the room below the content box. The row
-     itself takes none. The caret lives in it, and a
-     cover the caret stands in makes the browser scroll on every key. */
+  /* The pinned row is a sticky footer (theme.css, at `--lf-bottom`) over the turns
+     that scroll under it: its height (`--lf-thread-reply-h`, thread-card.js) and the
+     ring's room it stands above the list's content box. The runtime's reading of what
+     is on screen leaves that band out (geometry.js, `footerInset`), so a turn under it
+     has not been seen, and a landing on any of them, a Tab or a jump, stops above it
+     with its ring clear, as `scroll-margin-top` stops one below the title; the list's
+     scroll padding is the room below the content box. The row itself takes none. The
+     caret lives in it, and a cover the caret stands in makes the browser scroll on
+     every key. */
+  .lf-threads > .lf-thread-compact:has(> .lf-thread-reply)
+      > :not(.lf-thread-summary, .lf-thread-reply) {
+    --lf-bottom: calc(var(--lf-thread-reply-h, 0px) + var(--focus-ring-room)); }
   :is(.lf-threads > .lf-thread-compact:has(> .lf-thread-reply)
         > :not(.lf-thread-summary, .lf-thread-reply),
       .lf-threads > .lf-thread-compact:has(> .lf-thread-reply)
         > :not(.lf-thread-summary, .lf-thread-reply) *) {
-    scroll-margin-bottom: calc(var(--lf-thread-reply-h, 0px) + 2 * var(--focus-ring-room)); }
+    scroll-margin-bottom: calc(var(--lf-bottom) + var(--focus-ring-room)); }
   .lf-thread-compact > .lf-thread-reply::after { content: ""; position: absolute;
     inset-inline: 0; inset-block-start: 100%;
     block-size: calc(2 * var(--focus-ring-room));

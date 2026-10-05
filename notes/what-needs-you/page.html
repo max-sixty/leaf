@@ -1036,6 +1036,42 @@ stateDiagram-v2
           </section>
 
           <section id="next">
+            <lf-ask id="after-four">
+              <h3 id="after-four-heading">What after step 4?</h3>
+              <p>
+                With step 4 on main, three steps of the plan remain. Each can start now.
+                None waits on another, though step 6 rests on
+                <a href="#task-done">who ends a task</a>, which you've marked to think
+                about first.
+              </p>
+              <lf-options id="after-four-pick" choose>
+                <lf-option id="after-four-orphans"
+                  ><strong>Tasks whose session ended</strong> The first half of step 7.
+                  A task left open when its session ended, without an outcome, lands on
+                  your queue to end or hand on. Today it stays on the agent's queue
+                  until some later session happens to end it, so nobody is told it
+                  stopped. Recommended: this is the last way a task can quietly stall,
+                  and step 4's starts already record which session holds what. A few
+                  days.</lf-option
+                >
+                <lf-option id="after-four-review"
+                  ><strong>Either side adds to the other's queue</strong> Step 6. A
+                  result only you can judge lands on you to review, and you can put a
+                  task on the agent from a thread. It's the most visible change, but it
+                  needs the who-ends-a-task question settled first.</lf-option
+                >
+                <lf-option id="after-four-shape"
+                  ><strong>One item shape</strong> Step 5. Asks and tasks get the same
+                  fields, and the <code>question</code> and <code>answer</code> kinds
+                  go. It's plumbing you wouldn't see, and it's easier done as part of 6
+                  or 7, when one of them needs it.</lf-option
+                >
+                <lf-option id="after-four-use"
+                  ><strong>Use it first</strong> Run with steps 3 and 4 and the panel
+                  for a few days, then choose from what you hit.</lf-option
+                >
+              </lf-options>
+            </lf-ask>
             <details id="decided">
               <summary>Decided earlier</summary>
               <lf-ask id="next-step">

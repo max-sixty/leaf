@@ -286,8 +286,9 @@ def record(
     shot(1600)
 
     select_text(page, "#p2", "Backfill history")
-    # The selection raises the response bar with its field open and focused, so the
-    # demo types into it and sends with Mod+Enter.
+    # The selected words offer the response action. Open it before typing, then
+    # send from the focused field with Mod+Enter.
+    page.get_by_role("button", name="Comment on selection").click()
     field = page.locator(".lf-fab-input")
     field.focus()
     page.keyboard.insert_text("Can the backfill stay online?")

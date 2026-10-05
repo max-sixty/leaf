@@ -656,7 +656,7 @@ def test_monitoring_regions_share_one_collaboration_layer(browser, serve):
     expect(page.locator("#lp-check-finance")).to_be_in_viewport()
     # The panel stood over the region the comment is about, so the trip cleared it.
     panel_settled(page, open=False)
-    expect(page.locator(".lf-asks-row")).to_have_count(0)
+    expect(page.locator(".lf-queue-row")).to_have_count(0)
 
     assert _traffic(page).sends == sent
     assert events_model.read_events(serve.page_dir) == before
@@ -5873,6 +5873,8 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     page.locator(".lf-threads-toggle").click()
     panel_settled(page, False)
 
+    expect(thread.locator(f'.lf-msg[data-event="{reply["id"]}"]')).to_be_visible()
+
     question = append_carried_log_record(
         serve.page_dir,
         {
@@ -5911,7 +5913,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     # The inline seat holds arrivals that would move the on-screen diff. Opening its
     # notice makes the replies visible before comparing their workflow lines with
     # the panel's copy.
-    news = thread.get_by_role("button", name="3 new replies")
+    news = thread.get_by_role("button", name="2 new replies")
     expect(news).to_be_visible()
     news.click()
     for view, message_attr in ((thread, "data-event"), (panel_thread, "data-mid")):

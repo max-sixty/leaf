@@ -83,7 +83,10 @@ def flocked(path: Path):
     an initialized page, so it is opened, never created, and it outlives the lock.
 
     A purpose lock's file is created on first use and remains after release.
-    Closing its descriptor releases the lock. Every acquired descriptor is checked
+    The block's end unlocks it before closing, since a subprocess another thread
+    starts meanwhile holds a copy of the descriptor until its exec, and closing
+    alone would keep the next taker waiting on that child (`release_lease`).
+    Every acquired descriptor is checked
     against its path, since a shared-path replacement while a taker waits must
     never let it enter a transaction on an inode other takers can no longer find.
     This also covers a page replaced with a new event log."""
@@ -93,7 +96,10 @@ def flocked(path: Path):
         with open(path, mode) as f:
             fcntl.flock(f, fcntl.LOCK_EX)
             if still_named(f.fileno(), path):
-                yield f
+                try:
+                    yield f
+                finally:
+                    fcntl.flock(f, fcntl.LOCK_UN)
                 return
 
 

@@ -1,6 +1,8 @@
 """A lock names one shared path even when its inode changes before acquisition."""
 
 import fcntl
+import subprocess
+import sys
 from concurrent.futures import ThreadPoolExecutor
 from threading import Event
 
@@ -68,3 +70,23 @@ def test_a_lease_follows_a_path_replaced_before_acquisition(tmp_path, monkeypatc
         leases.release_lease(lease)
     assert replaced
     assert path.exists()
+
+
+def test_a_released_lease_is_free_while_a_child_still_holds_its_descriptor(
+    tmp_path, spawn
+):
+    """A holder that starts subprocesses lends each one its descriptors until the
+    child's exec closes them, and a busy machine can keep a child there after the
+    holder lets go. A released lease reads free all the same. This child keeps the
+    descriptor until the test ends."""
+    path = tmp_path / "lease"
+    lease = leases.take_lease(path)
+    assert lease is not None
+    child = spawn(
+        [sys.executable, "-c", "import sys; sys.stdin.read()"],
+        stdin=subprocess.PIPE,
+        pass_fds=[lease.fileno()],
+    )
+    leases.release_lease(lease)
+    assert not leases.lock_is_held(path)
+    assert child.poll() is None

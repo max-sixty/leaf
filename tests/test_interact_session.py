@@ -2452,7 +2452,7 @@ def test_direct_delivery_progress_does_not_become_page_activity(claimed, capsys)
     settled = page_state(claimed)["activity"]
     assert settled["kind"] == "listening"
     assert settled["obligations"] == []
-    lease.close()
+    leases_model.release_lease(lease)
 
 
 def test_quiet_exact_workflow_has_a_stale_work_condition(claimed):
@@ -2809,7 +2809,7 @@ def test_queued_input_does_not_hide_live_codex_activity(claimed):
     )
     assert activity["observed_kind"] == "tool"
     assert activity["counts"]["queued"] == 1
-    lease.close()
+    leases_model.release_lease(lease)
 
 
 def test_live_codex_activity_overlays_the_declared_page_status(claimed):
@@ -2853,7 +2853,7 @@ def test_live_codex_activity_overlays_the_declared_page_status(claimed):
         "listening",
         "review the result",
     )
-    lease.close()
+    leases_model.release_lease(lease)
 
 
 def test_stream_activity_writes_only_new_readings(claimed, monkeypatch):
@@ -2960,7 +2960,7 @@ def test_a_current_declaration_keeps_the_sentence_a_live_stream_stands_beside(cl
         "Running the tests",
     )
     assert quiet["counts"]["pending"] == 1
-    lease.close()
+    leases_model.release_lease(lease)
 
 
 def test_a_malformed_old_stream_record_is_ignored(claimed):
@@ -3002,7 +3002,7 @@ def test_a_malformed_old_stream_record_is_ignored(claimed):
         "listening",
         None,
     )
-    lease.close()
+    leases_model.release_lease(lease)
 
 
 def test_stream_work_is_scoped_to_the_live_session_and_freshness(claimed):
@@ -3043,7 +3043,7 @@ def test_stream_work_is_scoped_to_the_live_session_and_freshness(claimed):
     )
     stale = page_state(claimed)["activity"]
     assert (stale["kind"], stale["observed_kind"]) == ("listening", None)
-    lease.close()
+    leases_model.release_lease(lease)
 
 
 def test_app_server_delivery_id_reads_only_canonical_delivery_inputs():
@@ -8966,7 +8966,7 @@ def test_wait_ends_when_the_leaf_does(page_dir, capsys, snapshot):
     # And where SessionEnd idled the page and stopped its server both, a watcher
     # still winding down must not put it straight back up. Dropping the lease is
     # what makes the server read as dead.
-    HELD_LEASES.pop().close()
+    leases_model.release_lease(HELD_LEASES.pop())
     assert session_model.cmd_wait(page_dir) == 2
     assert server_model.running_server(page_dir) is None
     stopped = capsys.readouterr()
@@ -9049,7 +9049,7 @@ def test_the_stop_hook_watch_wakes_the_session_only_for_input(
     # nothing to watch, and nothing wakes.
     lease = leases_model.take_lease(leases_model.waiter_lease_path(None, "s1"))
     assert hooks_model.cmd_watch(stop) is None
-    lease.close()
+    leases_model.release_lease(lease)
     assert hooks_model.cmd_watch({**stop, "session_id": "s2"}) is None
     # Under plain `--print` Claude Code would wait on the hook, holding the turn.
     launched = harness_model.process_argv
@@ -10328,8 +10328,8 @@ def test_an_unread_codex_hook_pointer_falls_back_to_the_idle_queue(
         )
         assert not path.exists()
     finally:
-        lease.close()
-        waiter.close()
+        leases_model.release_lease(lease)
+        leases_model.release_lease(waiter)
 
 
 def test_codex_serializes_later_input_behind_the_offered_delivery(
@@ -11815,7 +11815,7 @@ def test_stop_hook_keeps_codex_inside_the_exact_wait_session(
     assert capsys.readouterr().out == ""
 
     # With no carrier, the ordinary remedy starts detached same-task delivery.
-    lease.close()
+    leases_model.release_lease(lease)
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "codex-thread"})
     reason = json.loads(capsys.readouterr().out)["reason"]
     assert "leaf codex start" in reason and str(page) in reason
@@ -11836,7 +11836,7 @@ def test_stop_hook_keeps_codex_inside_the_exact_wait_session(
     )("0a1b2c3d")
     assert "run `leaf wait --ack 0a1b2c3d` in unified exec" in acknowledge
     assert "background" not in acknowledge
-    lease.close()
+    leases_model.release_lease(lease)
 
     receive_through(page, 1)
     # Answered before the page closes: an acknowledged comment with nothing
@@ -12077,7 +12077,7 @@ def test_a_question_about_a_lease_does_not_turn_its_taker_away(tmp_path, prepare
         )
     assert lease is not None
     assert leases_model.take_lease(path) is None
-    lease.close()
+    leases_model.release_lease(lease)
 
 
 def test_a_stable_lock_serializes_waiting_takers_and_retains_its_file(
@@ -12258,7 +12258,7 @@ def test_a_new_claim_cannot_borrow_the_previous_sessions_wait_lease(
     assert service_model.claim_page(page_dir)
     assert service_model.page_claim(page_dir)["turn"] != first_turn
     assert not page_state(page_dir)["listening"]
-    lease.close()
+    leases_model.release_lease(lease)
 
 
 def test_a_restarted_session_cannot_reopen_a_dead_claims_turn(
@@ -12346,7 +12346,7 @@ def test_the_stop_hook_records_the_ending_of_the_turn_behind_a_claim(claimed, ca
     # own — the stamp names when this claim's turn ended or it means nothing.
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s2"})
     assert service_model.page_claim(claimed)["turn_closed"] == reentered_closed
-    lease.close()
+    leases_model.release_lease(lease)
 
 
 def test_receiving_a_batch_observes_the_session_turn_on_every_owned_page(
@@ -12547,7 +12547,7 @@ def test_a_stop_that_hands_over_input_keeps_the_turn_open(claimed, capsys):
     )
     assert capsys.readouterr().out == ""
     assert service_model.page_claim(claimed)["turn_closed"]
-    lease.close()
+    leases_model.release_lease(lease)
 
 
 def test_a_repeated_stop_is_held_open_only_by_the_users_input(claimed, capsys):
@@ -13110,7 +13110,7 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
     )
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     assert capsys.readouterr().out == ""
-    lease.close()
+    leases_model.release_lease(lease)
 
 
 def test_the_guard_survives_a_page_vendored_before_the_layer_moved(claimed, capsys):
@@ -13144,7 +13144,7 @@ def test_the_guard_survives_a_page_vendored_before_the_layer_moved(claimed, caps
     answer = json.loads(capsys.readouterr().out)
     assert "decision" not in answer
     assert asked["id"] in continued(answer)
-    lease.close()
+    leases_model.release_lease(lease)
 
 
 def test_claude_codes_hook_input_is_confirmed_only_by_its_reader(claimed, capsys):
@@ -13167,7 +13167,7 @@ def test_claude_codes_hook_input_is_confirmed_only_by_its_reader(claimed, capsys
     context = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
         "additionalContext"
     ]
-    lease.close()
+    leases_model.release_lease(lease)
     instruction, envelope = context.split("\n")[:2]
     assert "acknowledge" in instruction
     payload = json.loads(envelope)
@@ -13344,7 +13344,7 @@ def test_a_user_move_no_carrier_will_pick_up_messages_its_claude_code_session(
         )
         assert lease
         react("while a wait holds the lease")
-        lease.close()
+        leases_model.release_lease(lease)
         assert messages("s1") is None
 
         # Codex's detached adapter queues its own turns; the socket is Claude Code's.
@@ -15001,7 +15001,7 @@ def test_agent_sees_the_complete_interaction_recovery(claimed, capsys, snapshot)
         )
         observations["answered at stop"] = hook("Stop")
     finally:
-        lease.close()
+        leases_model.release_lease(lease)
     snapshot.check(
         yaml_document(
             "Complete agent-facing outputs through real hooks, wait and response commands.\n"
@@ -15047,7 +15047,7 @@ def test_agent_sees_codex_watcher_recovery(codex_claimed_page, capsys, snapshot)
         finally:
             adapter.close()
     finally:
-        lease.close()
+        leases_model.release_lease(lease)
     snapshot.check(
         yaml_document(
             "Codex Stop output: no adapter, a direct shell wait, and a live adapter.",
@@ -15280,7 +15280,7 @@ def test_a_move_the_turn_claimed_lets_that_turn_end(claimed, capsys):
         claimed, follow["id"], "All three are up.", None, for_event=follow["id"]
     )
     assert _idle(claimed).exit_code == 0
-    lease.close()
+    leases_model.release_lease(lease)
 
 
 def test_a_thread_claim_covers_every_move_its_thread_holds(claimed, capsys):
@@ -15340,7 +15340,7 @@ def test_a_thread_claim_covers_every_move_its_thread_holds(claimed, capsys):
     receive_through(claimed, last_deliverable_seq(claimed))
     reason = _stop(capsys)
     assert f"--for {again['id']}" in reason and "work claim" not in reason
-    lease.close()
+    leases_model.release_lease(lease)
 
 
 def test_a_stop_keeps_the_turn_going_only_for_owed_input(claimed, capsys):
@@ -15372,7 +15372,7 @@ def test_a_stop_keeps_the_turn_going_only_for_owed_input(claimed, capsys):
     hooks_model.cmd_hook({"hook_event_name": "UserPromptSubmit", "session_id": "s1"})
     context = json.loads(capsys.readouterr().out)["hookSpecificOutput"]
     assert resolve["id"] in context["additionalContext"]
-    lease.close()
+    leases_model.release_lease(lease)
 
 
 def test_the_stop_remedy_names_the_id_its_writer_takes(claimed, capsys):
@@ -15399,7 +15399,7 @@ def test_the_stop_remedy_names_the_id_its_writer_takes(claimed, capsys):
     )
     assert result.exit_code == 0, result.output
     assert _stop(capsys) is None
-    lease.close()
+    leases_model.release_lease(lease)
 
 
 def test_a_page_pick_holds_the_turn_until_the_markup_records_it(claimed, capsys):
@@ -15479,7 +15479,7 @@ def test_a_page_pick_holds_the_turn_until_the_markup_records_it(claimed, capsys)
     assert state_json(claimed)["workflows"] == []
     assert _stop(capsys) is None
     assert _idle(claimed).exit_code == 0
-    lease.close()
+    leases_model.release_lease(lease)
 
 
 @pytest.mark.parametrize("declared", ["shipped", "done-only"])
@@ -15538,7 +15538,7 @@ def test_a_tick_before_done_hands_nothing_to_the_agent(claimed, capsys, declared
     delivery = delivery_through(claimed, done["seq"])
     [batch] = delivery_model.read_delivery(delivery)["batches"]
     assert [event["id"] for event in batch["events"]] == [done["id"]]
-    lease.close()
+    leases_model.release_lease(lease)
 
 
 DECK_PAGE = PAGE.replace(

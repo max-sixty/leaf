@@ -17,7 +17,7 @@ from leaf import event_log
 from leaf.served_state import context as served_context
 from leaf_dev import ROOT
 from leaf_dev.thread_journey import NEXT_WORDS, WORDS, delivery_journey
-from leaf_dev.thread_snapshots import CASES, SnapshotRun
+from leaf_dev.thread_snapshots import CASES, COMPARED, SnapshotRun
 from PIL import Image
 from pytest_image_snapshot import ImageMismatchError, ImageNotFoundError
 from render_harness import consume_browser_errors, leaf_page, open_page
@@ -26,8 +26,8 @@ from render_harness import consume_browser_errors, leaf_page, open_page
 @pytest.mark.skipif(
     sys.platform != "linux", reason="Linux's fixed native font contract"
 )
-def test_linux_browser_resolves_the_profile_fonts(browser, serve):
-    """Native UI, serif and mono styles all use the faces bound into the profile."""
+def test_linux_browser_resolves_the_fixed_fonts(browser, serve):
+    """Native UI, serif and mono styles all use the faces the fixed fontconfig names."""
     faces = {
         "system-ui": ("DejaVu Sans", "DejaVuSans", "Oblique"),
         "serif": ("DejaVu Serif", "DejaVuSerif", "Italic"),
@@ -199,6 +199,7 @@ def test_message_delivery_appearance_and_first_frame(
         )
 
 
+@pytest.mark.skipif(not COMPARED, reason="thread appearance is reviewed on macOS")
 def test_accept_publishes_only_a_successful_unchanged_capture(
     browser, thread_expected_store, tmp_path, monkeypatch
 ):

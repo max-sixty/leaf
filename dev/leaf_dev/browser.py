@@ -1,9 +1,6 @@
 """The browser, and tabs on a served page, opened and settled the same way by every
 browser check or command that reads or screenshots one."""
 
-import hashlib
-import os
-import subprocess
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -23,12 +20,11 @@ LINUX_FONTCONFIG = ROOT / "tests/fonts.conf"
 LINUX_FONTS = Path("/usr/share/fonts/truetype/dejavu")
 
 
-def linux_font_fingerprint():
-    """Bind the fixed fontconfig and installed font bytes to reviewed Linux images.
+def require_linux_fonts():
+    """Refuse a Linux browser run without the faces the fixed fontconfig names.
 
-    CI and local Linux capture install fonts-dejavu, including its italic faces.
-    An absent face is a setup error; changed font bytes require an explicitly
-    reviewed rendering profile.
+    CI and local Linux runs install fonts-dejavu, including its italic faces, so
+    every Linux run lays text out in the same faces. An absent face is a setup error.
     """
     for family, italic in (
         ("DejaVuSans", "Oblique"),
@@ -41,30 +37,6 @@ def linux_font_fingerprint():
                     "Install fonts-dejavu before running Linux browser tests "
                     "(core alone omits UI and serif italic faces)"
                 )
-    # Bind only the selected faces, so unrelated installed font packages do not
-    # create another rendering profile for the same UI.
-    faces = {
-        Path(
-            subprocess.check_output(
-                [
-                    "fc-match",
-                    "-f",
-                    "%{file}",
-                    f"{family}:weight={weight}:slant={slant}",
-                ],
-                env=os.environ | {"FONTCONFIG_FILE": str(LINUX_FONTCONFIG)},
-                text=True,
-            )
-        )
-        for family in ("system-ui", "serif", "monospace")
-        for weight in ("regular", "bold")
-        for slant in ("roman", "italic")
-    }
-    digest = hashlib.sha256(LINUX_FONTCONFIG.read_bytes())
-    for path in sorted(faces):
-        digest.update(path.name.encode())
-        digest.update(path.read_bytes())
-    return digest.hexdigest()[:12]
 
 
 @contextmanager

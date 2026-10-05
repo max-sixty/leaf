@@ -27,15 +27,27 @@ const CONDITION_LABELS = Object.freeze({
   failed: "Failed",
 });
 
+const WAITING_FOR_PICKUP = "Waiting for pickup";
+const NOT_ANSWERED = "Not answered";
+
+// A root message's changing receipt reserves these words so it cannot carry the
+// news control beside its metadata, including when the receipt disappears.
+export const WORKFLOW_LABELS = Object.freeze([
+  ...Object.values(STAGE_LABELS),
+  ...Object.values(CONDITION_LABELS),
+  WAITING_FOR_PICKUP,
+  NOT_ANSWERED,
+]);
+
 export const workflowLabel = (workflow, { answered = false } = {}) => {
   if (!workflow) return "";
   if (workflow.condition)
     return workflow.condition.kind === "stale" &&
       workflow.condition.operation === "delivery"
-      ? "Waiting for pickup"
+      ? WAITING_FOR_PICKUP
       : workflow.condition.kind === "failed" &&
           workflow.condition.operation === "response"
-        ? "Not answered"
+        ? NOT_ANSWERED
         : (CONDITION_LABELS[workflow.condition.kind] ?? "Failed");
   if (workflow.stage === "answered" && !answered) return "";
   return STAGE_LABELS[workflow.stage] ?? "";
@@ -108,14 +120,17 @@ export function threadAttention(thread) {
     });
   }
   // A task the agent opened on the thread holds it after the move it answered has
-  // settled; its title says what the agent still owes.
-  if (thread.attention?.kind === "waiting" && thread.attention.reason === "task")
+  // settled; its title says what the agent still owes, and while a start runs on it,
+  // that start's line says what the agent is doing about it.
+  if (thread.attention?.kind === "waiting" && thread.attention.reason === "task") {
+    const { title, line } = thread.attention.task;
     return Object.freeze({
       kind: "waiting",
-      label: "Task open",
+      label: line ? "Working" : "Task open",
       workflow: null,
-      secondary: thread.attention.task.title,
+      secondary: line ?? title,
     });
+  }
   if (thread.attention?.kind === "waiting")
     return Object.freeze({
       kind: "waiting",

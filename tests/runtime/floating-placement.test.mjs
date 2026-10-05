@@ -36,14 +36,19 @@ test("a superseded answer leaves the newer placement's plane and spot", async ()
     height: 30,
     block: { width: 400, height: 300 },
   };
-  const answer = { x: 10, y: 20, plane: "window", middlewareData: { held } };
+  const answer = {
+    x: 10,
+    y: 20,
+    plane: "window",
+    middlewareData: { held, anchorAt: { offset: null } },
+  };
   answerNewer(answer);
   assert.ok(await newer);
   answerOlder({
     x: 0,
     y: 0,
     plane: "page",
-    middlewareData: { held, anchorAt: { x: 0, y: 0 } },
+    middlewareData: { held, anchorAt: { offset: { x: 0, y: 0 } } },
   });
   assert.equal(await older, null);
 

@@ -26,6 +26,7 @@ test("locked source reproduces the complete committed output", async () => {
     "createSemanticApplication",
     "describeFailure",
     "html",
+    "noChange",
     "nothing",
     "render",
     "repeat",

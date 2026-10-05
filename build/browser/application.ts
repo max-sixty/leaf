@@ -22,7 +22,7 @@ import {
   isMessageEvent,
 } from "../../skills/leaf/assets/runtime/pending/model.js";
 import { PENDING } from "../../skills/leaf/assets/runtime/thread/identity.js";
-import { selectQueues } from "../../skills/leaf/assets/runtime/queues.js";
+import { selectDone, selectQueues } from "../../skills/leaf/assets/runtime/queues.js";
 
 // The pure model's input types are inferred from its existing implementation. They
 // remain one contract while those folds move to compiled source independently.
@@ -196,20 +196,41 @@ interface WireWorkflow {
     operation: "delivery" | "work" | "response";
   } | null;
   next_actor: "user" | "agent";
-  /** The standing work claims over the move, which the Stop hook reads. */
-  claimed_by: readonly { session: string; turn: string | null; log_floor: number }[];
+  /** The starts that take the move in hand, which the Stop hook reads. */
+  started_by: readonly {
+    item: string;
+    session: string | null;
+    turn: string | null;
+    seq: number;
+  }[];
   quiet: boolean;
   dropped: boolean;
 }
 
-/** One open task, as `served_state.browser` serves it. */
+/** One task, as `served_state.browser` serves it: `tasks` holds the open ones and
+ * `ended_tasks` the ones a `task_end` ended, with its outcome. */
 interface WireTask {
   id: string;
-  subject: { kind: "thread" | "widget"; id: string };
+  subject: { kind: "thread" | "widget"; id: string } | { kind: "page" };
   thread: string | null;
   title: string;
+  state: "open" | "done" | "failed" | "dropped";
+  ts: string;
+  revision: number | null;
+  /** The start running on the task, while one does. */
+  running: {
+    id: string;
+    text: string;
+    seq: number;
+    ts: string;
+    agent: string | null;
+    session: string | null;
+    turn: string | null;
+    condition: { kind: "stale"; operation: "work" } | null;
+  } | null;
   agent: string | null;
   session: string | null;
+  outcome: { ts: string; detail?: string | null } | null;
 }
 
 /** The public Ask record packages read. */
@@ -283,6 +304,7 @@ export interface AuthoritativeState {
     };
     receipts: Event[];
     tasks?: WireTask[];
+    ended_tasks?: WireTask[];
   };
   activity: unknown;
   reading?: string;
@@ -656,7 +678,7 @@ export function createSemanticApplication({
         activity: [],
         condition: rejected ? { kind: "failed", operation: "delivery" } : null,
         next_actor: rejected ? "user" : "agent",
-        claimed_by: [],
+        started_by: [],
       };
     };
     const workflows = [
@@ -690,6 +712,12 @@ export function createSemanticApplication({
         threads,
         workflows,
         tasks: ready ? (state?.browser.tasks ?? []) : [],
+      }),
+      // What is finished, selected beside them from the same readings: the answered
+      // Asks and the ended tasks.
+      done: selectDone({
+        asks,
+        tasks: ready ? (state?.browser.ended_tasks ?? []) : [],
       }),
       // Inside the publication signature, so a read that changes only the view's
       // updates, publication time, or undo list still reaches its watchers.

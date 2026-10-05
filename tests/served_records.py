@@ -82,8 +82,8 @@ def build() -> dict:
             ),
             # Something of every kind on each side: an open Ask, a question left in
             # prose, a reply that failed and a page move whose pickup failed are on the
-            # user; a comment owed a reply, a task, and work claimed on an answered
-            # thread are on the agent.
+            # user; a comment owed a reply and a task the agent has in hand are on
+            # the agent.
             "queues on both sides": _queued(
                 (
                     {"kind": "comment", "text": "Weekly?"},
@@ -140,19 +140,54 @@ def build() -> dict:
                         "session": "served-records",
                         "turn": "turn-1",
                     },
-                ),
-                work=(
                     {
-                        "id": "claim-1",
-                        "subject": {"kind": "thread", "id": "e4"},
-                        "after": 6,
-                        "detail": "Redrawing the chart",
-                        "ts": "2026-09-19T12:00:00+00:00",
+                        "kind": "start",
+                        "author": "agent",
                         "agent": "Agent",
                         "session": "served-records",
                         "turn": "turn-1",
+                        "item": "e6",
+                        "text": "Redrawing the chart",
                     },
                 ),
+            ),
+            # One Ask answered and one open, and a task the agent ended beside one it
+            # still holds: only the answered Ask and the ended task are done.
+            "done": _done(
+                (
+                    {
+                        "kind": "action",
+                        "widget": "ship",
+                        "action": "choose",
+                        "detail": {"options": ["ship-now"]},
+                    },
+                    {"kind": "comment", "text": "Rebuild the chart."},
+                    {
+                        "kind": "task",
+                        "author": "agent",
+                        "agent": "Agent",
+                        "session": "served-records",
+                        "subject": {"kind": "thread", "id": "e2"},
+                        "title": "Rebuild the chart",
+                    },
+                    {
+                        "kind": "task",
+                        "author": "agent",
+                        "agent": "Agent",
+                        "session": "served-records",
+                        "subject": {"kind": "thread", "id": "e2"},
+                        "title": "Check the colours",
+                    },
+                    {
+                        "kind": "task_end",
+                        "author": "agent",
+                        "agent": "Agent",
+                        "session": "served-records",
+                        "task": "e4",
+                        "outcome": "done",
+                        "detail": "Matched the theme",
+                    },
+                )
             ),
         },
     }
@@ -169,10 +204,21 @@ ASK_PAGE = leaf_page(
 )
 
 
-def _queued(events: tuple[dict, ...], work: tuple[dict, ...] = ()) -> dict:
+def _done(events: tuple[dict, ...]) -> dict:
+    """The two readings the browser selects what is done from, as it is handed them:
+    the whole Ask reading, and the ended tasks served beside the open ones."""
+    state = reading(ASK_PAGE, events)
+    asks = state["views"]["1"]["document"]["asks"]
+    return {
+        "asks": {key: asks[key] for key in ("all", "unanswered")},
+        "tasks": state["ended_tasks"],
+    }
+
+
+def _queued(events: tuple[dict, ...]) -> dict:
     """The four readings `agent_state.queues` selects from, as the browser is handed
     them, and the two queues Python selects from them."""
-    state = reading(ASK_PAGE, events, work=work)
+    state = reading(ASK_PAGE, events)
     asks = state["views"]["1"]["document"]["asks"]["user"]
     asks += state["thread"]["asks"]["user"]
     served = {

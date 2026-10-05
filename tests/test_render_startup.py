@@ -26,7 +26,7 @@ from leaf import service as service_model
 from leaf import session as session_model
 from leaf import state as cleanup_model
 from leaf import user_views as user_views_model
-from leaf.leases import take_lease, waiter_lease_path
+from leaf.leases import release_lease, take_lease, waiter_lease_path
 from leaf.render_checks import rendered, wait_until_ready
 from leaf.schema import ELEMENT_ID
 from leaf.served_state.reading import page_reading, source_readings
@@ -2749,7 +2749,7 @@ def test_a_presence_read_crossing_freshness_returns_to_the_current_lease(
             route.fulfill(response=response)
 
         page.route("**/api/state*", crossing)
-        lease.close()
+        release_lease(lease)
         page.wait_for_function(
             "root => root.state.listening === false", arg=runtime, timeout=6000
         )

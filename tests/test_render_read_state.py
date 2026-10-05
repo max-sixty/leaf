@@ -991,7 +991,9 @@ def test_a_reopening_in_a_page_seat_waits_where_reopen_stood(browser, serve, poi
     page after it down. It stands as drawn, resolved, and its resolved row says what is
     waiting in Reopen's place and face, at the row's height under either pointer (a
     chip's face stood 6px shorter than Reopen at a fine pointer). On a phone a tap opens
-    it; on the desktop `r` on the thread, which reopens a resolved thread, does. The
+    it; on the desktop `r` on the thread, which reopens a resolved thread, does, with the
+    user standing in the thread by a press on its words. Arriving at the thread by key
+    would show the reopening as it arrived. The
     thread shows open, with the new turn after the earlier ones and a reply box. Nothing
     before the opening is input, so the shift watch checks that the hold moved nothing."""
     context = (
@@ -1024,9 +1026,10 @@ def test_a_reopening_in_a_page_seat_waits_where_reopen_stood(browser, serve, poi
     if pointer == "coarse":
         news.tap()
     else:
-        # The key before the focus makes the shortcut bar's redraw an answer to input.
-        page.keyboard.press("Shift")
-        thread.focus()
+        # A press on the thread's words stands the user in it without arriving, so the
+        # reopening still waits, and `r` there presses the notice in Reopen's place.
+        thread.locator(".lf-msg").first.click()
+        expect(news).to_be_visible()
         page.keyboard.press("r")
     expect(row).to_have_count(0)
     shown = thread.locator(".lf-msg")

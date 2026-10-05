@@ -712,6 +712,13 @@ body {
     --lf-auxiliary-width: var(--lf-thread-panel-width, 420px);
   }
 }
+/* What delivery writes into an upgraded widget for its first paint (`x-prepaint`,
+ * revision_delivery.py): the structure its module will draw, so the browser sizes the
+ * widget as it will size the drawing. It holds that room and shows none of its
+ * placeholder words, which the drawing replaces with the log's. A reading with no
+ * runtime gets no drawing, so the room goes with it. */
+[data-lf-prepaint] { visibility: hidden; }
+html:not([data-lf-interactive]) [data-lf-prepaint] { display: none; }
 /* Authored HTML is the page's useful initial condition, so it paints from stylesheet
  * parse while JavaScript upgrades widgets and reads the standing log. Generated page
  * interface joins it as soon as widget and page-interface upgrade gives that apparatus

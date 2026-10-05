@@ -12,7 +12,7 @@ CI profile. Existing fetch-assets warms the same cache as every other asset read
     uv run leaf-dev thread-snapshots capture
     uv run leaf-dev thread-snapshots accept .tmp/thread-snapshots/captures/<run>
 
-Capture runs the same journey and hard delivery assertions, writing all 42 PNG images and
+Capture runs the same journey and hard delivery assertions, writing all 48 PNG images and
 geometry readings to a new evidence folder. Review its actual images and observations,
 then accept publishes that profile through leaf_assets.stage / publish and updates
 the ordinary asset pin. Acceptance never occurs in normal tests. CI retains failed
@@ -25,7 +25,7 @@ First insertion has an immediate words/busy/opacity observer before stabilized
 screenshots. Refusal's exact feedback and native visibility are observed at mutation;
 its real expiry precedes the restored-draft capture. Transient notice styling is
 outside the pixel oracle and retains its ordinary rendered lifecycle tests. Capture
-hides only editor carets, preserving draft words, focus and selection. Seven bounded
+hides only editor carets, preserving draft words, focus and selection. Eight bounded
 cases cover general, panel, margin, inline diff, dark and narrow appearances;
 they do not claim all thread states. Existing news/storage tests remain separate.
 """
@@ -71,6 +71,13 @@ CASES = (
         "inline",
         "inline",
         source="tests/fixtures/pages/thread-journey-inline.html",
+        motion="reduce",
+    ),
+    Case(
+        "inline-dark",
+        "inline",
+        source="tests/fixtures/pages/thread-journey-inline.html",
+        scheme="dark",
         motion="reduce",
     ),
     Case("margin-dark", "margin", scheme="dark", motion="reduce"),

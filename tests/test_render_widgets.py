@@ -11492,7 +11492,7 @@ def test_a_chart_in_a_closed_thread_draws_at_its_visible_width_when_opened(
 def _bound_diff(browser, serve, patch=MULTI_HUNK_PATCH):
     """The review the four diff tests below read, with its feed in place before the page
     loads. Bound rather than written inline because that is the form a review arrives in,
-    and the only one whose rows are commentable data — `projectData` keys each by file,
+    and the only one whose rows are commentable data — `projectData` labels each retained row by file,
     side and source line, which is the coordinate a remark on a line is recorded at."""
     url = serve(LONG_LINE_DIFF_PAGE)
     data_model.cmd_data_set(serve.page_dir, "review-patch", patch)

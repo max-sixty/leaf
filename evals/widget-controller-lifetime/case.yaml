@@ -1,5 +1,7 @@
 # Guards semantic and data subscriptions across removal independently of native resources.
 # One base/candidate run distinguished teardown/recreation from retained subscriptions.
+# One run per arm retained the three lifecycle passes; only the candidate passed
+# renderer-owned placement with shared datum provenance (20261006-135659-8dka43l3).
 description: widget-controller-lifetime
 metadata:
   purpose: A widget retains semantic and data subscriptions across removal and reinsertion.
@@ -19,8 +21,10 @@ vars:
     Read the public references and use Leaf's supported semantic widget API. The
     widget also registers a native window resize listener to measure its local
     inspector; keep that listener active only while the element is connected.
-    Return the JavaScript lifecycle methods, assuming the rendering and measurement
-    methods already exist.
+    The external source contains a list of {id, label} build records. Show each label
+    in a retained paragraph that users can comment on, following the same build across
+    source replacements. Include the data-rendering method as well as the lifecycle
+    methods; other rendering and measurement methods already exist.
 assert:
 - type: javascript
   metric: reads-module-authoring
@@ -44,3 +48,13 @@ assert:
     subscriptions to pause while detached and deliver the latest readings on return;
     it must not stop and recreate either subscription in the native connection
     callbacks. Rendering methods may be assumed to exist as the prompt allows.
+- type: llm-rubric
+  metric: renderer-owned-projection
+  value: |
+    Pass only if the data-rendering method places retained nodes itself and then calls
+    projectData(root, datums, {snapshot}) with node/key descriptors, not a key function
+    and render callback. Each build datum supplies identity: its id, and carries the
+    delivered snapshot so comments follow that build with the correct source revision.
+    Either setChildren or Leaf's public render with keyed repeat can own placement.
+    Fail if projectData is asked to create or reconcile the paragraphs, or if the
+    method replaces every paragraph on every update rather than retaining their nodes.

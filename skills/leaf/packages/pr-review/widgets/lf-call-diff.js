@@ -4,9 +4,10 @@
  * grammar and projects each row as commentable evidence. */
 import {
   announce,
+  html,
+  render,
   el,
   keeps,
-  keepsHidden,
   keepsText,
   navigateToDatum,
   offer,
@@ -70,13 +71,7 @@ function parse(text) {
 }
 
 function buildLine(tag = "div") {
-  const line = el(tag, "lf-call-line");
-  const marker = el("span", "lf-call-marker");
-  const body = el("span", "lf-call-body");
-  const location = el("a", "lf-call-location");
-  marker.setAttribute("aria-hidden", "true");
-  line.append(marker, body, location);
-  return line;
+  return el(tag, "lf-call-line");
 }
 
 function updateDisclosureControl(owner) {
@@ -156,43 +151,29 @@ async function travelToLine(owner, record) {
   });
 }
 
-function renderLine(record, prior, owner) {
-  const line = prior ?? buildLine();
-  const marker = line.querySelector(".lf-call-marker");
-  const body = line.querySelector(".lf-call-body");
-  const location = line.querySelector(".lf-call-location");
+function renderLine(record, line, owner, count = null) {
   keeps(line, "data-status", record.status);
   line.toggleAttribute("data-root", record.root);
   line.toggleAttribute("data-meta", record.meta);
-  keepsText(
-    marker,
-    record.status === "added" ? "+" : record.status === "removed" ? "−" : " ",
+  render(
+    html`<span class="lf-call-marker" aria-hidden="true"
+        >${record.status === "added" ? "+" : record.status === "removed" ? "−" : " "}</span
+      ><span class="lf-call-body">${record.body}</span>${
+        record.location
+          ? html`<a
+              class="lf-call-location"
+              href=${`#${owner.getAttribute("diff")}`}
+              @click=${async (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                await travelToLine(owner, record);
+              }}
+              >${record.location}</a
+            >`
+          : html`<a class="lf-call-location" hidden></a>`
+      }${count === null ? "" : html`<span class="lf-call-group-count" data-lf-gen="1">${count}</span>`}`,
+    line,
   );
-  keepsText(body, record.body);
-  keepsText(location, record.location);
-  keepsHidden(location, !record.location);
-  // The header row names no location, so its anchor is hidden — and an `href` on a
-  // hidden anchor is a way in that leads nowhere. Worse, `reachScrollers` reads a
-  // candidate for a focusable descendant before granting the stop, and a hidden
-  // `a[href]` is one: the header's own words run off the side, and the live page
-  // answered "there is already a way in here" with a link nobody can reach.
-  if (record.location) {
-    keeps(location, "href", `#${owner.getAttribute("diff")}`);
-    location.onclick = async (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      await travelToLine(owner, record);
-    };
-  } else {
-    location.removeAttribute("href");
-    location.onclick = null;
-  }
-  return line;
-}
-
-function renderMessage(prior, message, className = "lf-call-missing") {
-  const line = prior ?? el("div", `lf-call-line ${className}`);
-  keepsText(line, message);
   return line;
 }
 
@@ -212,23 +193,40 @@ customElements.define(
       watchData(this, "document", (snapshot) => this.show(snapshot));
     }
 
+    message(key, message, snapshot) {
+      this.groups = new Map();
+      this.rows = new Map();
+      const node = (this.messageNode ??= el("div", "lf-call-line"));
+      keeps(
+        node,
+        "class",
+        `lf-call-line lf-call-${key === "invalid" ? "invalid" : "missing"}`,
+      );
+      keepsText(node, message);
+      setChildren(this, [node]);
+      projectData(
+        this,
+        [
+          {
+            node,
+            key,
+            label: labelOf(key === "invalid" ? { invalid: true } : { missing: true }),
+          },
+        ],
+        { snapshot },
+      );
+    }
+
     show(snapshot) {
       let records;
       try {
         records = snapshot?.value ? parse(snapshot.value) : [];
       } catch (error) {
         this.classList.toggle("lf-rendered", true);
-        projectData(
-          this,
-          [{ key: "invalid", invalid: error.message }],
-          ({ key }) => key,
-          (record, prior) =>
-            renderMessage(
-              prior,
-              `Call-diff data is invalid: ${record.invalid}.`,
-              "lf-call-invalid",
-            ),
-          { labelOf, snapshot },
+        this.message(
+          "invalid",
+          `Call-diff data is invalid: ${error.message}.`,
+          snapshot,
         );
         return;
       }
@@ -236,13 +234,7 @@ customElements.define(
       // held at that height again while the data is absent.
       this.classList.toggle("lf-rendered", records.length > 0);
       if (!records.length) {
-        projectData(
-          this,
-          [{ key: "unavailable", missing: true }],
-          ({ key }) => key,
-          (record, prior) => renderMessage(prior, "Waiting for call-diff data."),
-          { labelOf, snapshot },
-        );
+        this.message("unavailable", "Waiting for call-diff data.", snapshot);
         return;
       }
 
@@ -258,76 +250,47 @@ customElements.define(
         `${roots.length} changed ${roots.length === 1 ? "root" : "roots"} · ${added} added · ${removed} removed · ${dataRows.length} items`,
       );
 
-      const oldGroups = new Map(
-        [...this.querySelectorAll(":scope > .lf-call-group")].map((group) => [
-          group.dataset.callGroup,
-          {
-            body: group.querySelector(":scope > .lf-call-group-body"),
-            group,
-            summary: group.querySelector(":scope > .lf-call-group-summary"),
-          },
-        ]),
-      );
-      const groups = new Map();
-      for (const [index, root] of roots.entries())
-        groups.set(
+      const oldGroups = this.groups ?? new Map();
+      const oldRows = this.rows ?? new Map();
+      const groups = new Map(
+        roots.map((root, index) => [
           root.groupKey,
           oldGroups.get(root.groupKey) ?? buildGroup(this, root.groupKey, index === 0),
-        );
-
-      const headerTarget =
-        this.querySelector(":scope > .lf-call-line[data-meta]") ?? buildLine();
-      setChildren(this, [
-        toolbar,
-        headerTarget,
-        ...[...groups.values()].map(({ group }) => group),
-      ]);
-
-      const nodes = projectData(
-        this,
-        records,
-        ({ key }) => key,
-        (record, prior) => {
-          if (record.meta) return renderLine(record, prior ?? headerTarget, this);
-          const group = groups.get(record.groupKey);
-          const rendered = renderLine(
-            record,
-            prior ?? (record.root ? group.summary : null),
-            this,
-          );
-          if (!record.root && !rendered.isConnected) group.body.append(rendered);
-          return rendered;
-        },
-        { nested: true, labelOf, snapshot },
+        ]),
       );
-      const nodesByKey = new Map(
-        records.map((record, index) => [record.key, nodes[index]]),
-      );
-      const header = nodesByKey.get(records[0].key);
-      for (const [key, parts] of groups) {
-        const groupRecords = records.filter((record) => record.groupKey === key);
-        const root = groupRecords.find((record) => record.root);
-        const rootNode = nodesByKey.get(root.key);
-        let count = rootNode.querySelector(".lf-call-group-count");
-        if (!count) {
-          count = el("span", "lf-call-group-count");
-          count.dataset.lfGen = "1";
-          rootNode.append(count);
-        }
-        keepsText(count, groupLabel(groupRecords));
+      const rows = new Map();
+      const datums = records.map((record) => {
+        const group = groups.get(record.groupKey);
+        const node =
+          oldRows.get(record.key) ?? (record.root ? group.summary : buildLine());
+        const count = record.root
+          ? groupLabel(records.filter((row) => row.groupKey === record.groupKey))
+          : null;
+        renderLine(record, node, this, count);
+        rows.set(record.key, node);
+        return { node, key: record.key, label: labelOf(record) };
+      });
+      for (const [key, { group, body }] of groups) {
+        const groupRows = records.filter((record) => record.groupKey === key);
         setChildren(
-          parts.body,
-          groupRecords
+          body,
+          groupRows
             .filter((record) => !record.root)
-            .map((record) => nodesByKey.get(record.key)),
+            .map((record) => rows.get(record.key)),
         );
-        setChildren(parts.group, [rootNode, parts.body]);
+        setChildren(group, [
+          rows.get(groupRows.find((record) => record.root).key),
+          body,
+        ]);
       }
       setChildren(this, [
         toolbar,
-        header,
+        rows.get(records[0].key),
         ...[...groups.values()].map(({ group }) => group),
       ]);
+      this.groups = groups;
+      this.rows = rows;
+      projectData(this, datums, { snapshot });
       updateDisclosureControl(this);
     }
   },

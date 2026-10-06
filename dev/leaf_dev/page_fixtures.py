@@ -98,7 +98,7 @@ def publish_media(files: tuple[str, ...]) -> None:
     named = {media_name(path.read_bytes(), path.suffix): path for path in paths}
     with tempfile.TemporaryDirectory(prefix="leaf-assets-") as raw:
         checkout = clone(Path(raw))
-        target = checkout / directory
+        target = checkout.path / directory
         target.mkdir(parents=True, exist_ok=True)
         for name, path in named.items():
             shutil.copyfile(path, target / name)

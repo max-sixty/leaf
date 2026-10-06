@@ -38,6 +38,7 @@ import subprocess
 import tarfile
 import tempfile
 import urllib.request
+from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Literal
 
@@ -132,25 +133,33 @@ def run(*args: str, cwd: Path) -> str:
     return completed.stdout.strip()
 
 
-def clone(staging: Path, *, revision_key: RevisionKey = "revision") -> Path:
+@dataclass(frozen=True)
+class Checkout:
+    """A clone of the asset repository at the revision Leaf pins under `revision_key`,
+    the pin `publish` advances. `tree` names a directory the writer owns whole."""
+
+    path: Path
+    revision_key: RevisionKey
+    tree: str | None = None
+
+
+def clone(staging: Path, *, revision_key: RevisionKey = "revision") -> Checkout:
     """Clone the asset repository into `staging`, checked out at the revision Leaf pins
-    under `revision_key`, so a writer changes the set this checkout reads. The checkout
-    remembers that pin for `publish`."""
+    under `revision_key`, so a writer changes the set this checkout reads."""
     repository, revision = specification(ROOT, revision_key=revision_key)
-    checkout = staging / "leaf-assets"
+    path = staging / "leaf-assets"
     run(
         "git",
         "clone",
         "--depth",
         "1",
         f"https://github.com/{repository}.git",
-        str(checkout),
+        str(path),
         cwd=staging,
     )
-    run("git", "fetch", "--depth", "1", "origin", revision, cwd=checkout)
-    run("git", "checkout", "--detach", revision, cwd=checkout)
-    run("git", "config", "leaf-assets.pin", revision_key, cwd=checkout)
-    return checkout
+    run("git", "fetch", "--depth", "1", "origin", revision, cwd=path)
+    run("git", "checkout", "--detach", revision, cwd=path)
+    return Checkout(path, revision_key)
 
 
 def catalog_updates(checkout: Path) -> dict[Path, str]:
@@ -190,7 +199,7 @@ def stage(
     *,
     replace_tree: bool = False,
     revision_key: RevisionKey = "revision",
-) -> Path:
+) -> Checkout:
     """Clone the assets pinned under `revision_key` into `staging` with `directory`'s
     files exactly `files`, for a generator to verify before it publishes. A file the
     pin holds and `files` lacks is removed; one another branch published since the pin
@@ -200,8 +209,8 @@ def stage(
     published bytes."""
     checkout = clone(staging, revision_key=revision_key)
     if replace_tree:
-        run("git", "config", "leaf-assets.tree", directory, cwd=checkout)
-    target = checkout / directory
+        checkout = Checkout(checkout.path, revision_key, tree=directory)
+    target = checkout.path / directory
     target.mkdir(parents=True, exist_ok=True)
     for stale in target.rglob("*") if replace_tree else target.iterdir():
         if stale.is_file() and stale.relative_to(target).as_posix() not in files:
@@ -213,29 +222,25 @@ def stage(
     return checkout
 
 
-# Where a checkout keeps the change it publishes, so a retry replays the same change.
+# Where a clone keeps the change it publishes, so a retry replays the same change.
 CHANGE = "refs/leaf-assets/change"
 # Pushes a publication tries before reporting the last rejection: another publisher
 # may move the head between one attempt's fetch and its push.
 PUSH_ATTEMPTS = 3
 
 
-def setting(checkout: Path, name: str) -> str:
-    """What `clone` or `stage` recorded in the checkout, or "" where nothing was."""
-    return run("git", "config", "--default", "", "--get", name, cwd=checkout)
-
-
-def replay(checkout: Path, branch: str) -> None:
+def replay(checkout: Checkout, branch: str) -> None:
     """Check out the remote head with the change applied: each file the change added or
     altered takes the change's copy, and each it removed is removed, whatever another
     writer did to that file since the pin. A tree the stage owns takes the change's
     tree whole."""
-    run("git", "fetch", "--depth", "1", "origin", branch, cwd=checkout)
-    run("git", "checkout", "--detach", "FETCH_HEAD", cwd=checkout)
-    if tree := setting(checkout, "leaf-assets.tree"):
-        run("git", "rm", "-r", "-q", "--ignore-unmatch", "--", tree, cwd=checkout)
-        if run("git", "ls-tree", "--name-only", CHANGE, tree, cwd=checkout):
-            run("git", "checkout", CHANGE, "--", tree, cwd=checkout)
+    path = checkout.path
+    run("git", "fetch", "--depth", "1", "origin", branch, cwd=path)
+    run("git", "checkout", "--detach", "FETCH_HEAD", cwd=path)
+    if tree := checkout.tree:
+        run("git", "rm", "-r", "-q", "--ignore-unmatch", "--", tree, cwd=path)
+        if run("git", "ls-tree", "--name-only", CHANGE, tree, cwd=path):
+            run("git", "checkout", CHANGE, "--", tree, cwd=path)
     fields = run(
         "git",
         "diff",
@@ -244,42 +249,42 @@ def replay(checkout: Path, branch: str) -> None:
         "-z",
         f"{CHANGE}^",
         CHANGE,
-        cwd=checkout,
+        cwd=path,
     ).split("\0")
     changed = dict(zip(fields[1::2], fields[0::2]))
-    if kept := [path for path, status in changed.items() if status != "D"]:
-        run("git", "checkout", CHANGE, "--", *kept, cwd=checkout)
-    if removed := [path for path, status in changed.items() if status == "D"]:
-        run("git", "rm", "-q", "--ignore-unmatch", "--", *removed, cwd=checkout)
-    if run("git", "status", "--porcelain", cwd=checkout):
-        run("git", "commit", "-C", CHANGE, cwd=checkout)
+    if kept := [name for name, status in changed.items() if status != "D"]:
+        run("git", "checkout", CHANGE, "--", *kept, cwd=path)
+    if removed := [name for name, status in changed.items() if status == "D"]:
+        run("git", "rm", "-q", "--ignore-unmatch", "--", *removed, cwd=path)
+    if run("git", "status", "--porcelain", cwd=path):
+        run("git", "commit", "-C", CHANGE, cwd=path)
 
 
-def publish(checkout: Path, message: str) -> str:
+def publish(checkout: Checkout, message: str) -> str:
     """Commit the checkout's change to its pin, replay it onto the repository's head and
     push it, then advance the pin the checkout was cloned from. Media also updates the
     README and catalog links. Where another writer changed or removed the same file
     since the pin, this change's copy stands, as it would have on the pin. A rejected
     push replays the change onto the head again; an unchanged checkout keeps its pin."""
-    revision_key = setting(checkout, "leaf-assets.pin")
+    path, revision_key = checkout.path, checkout.revision_key
     repository, pinned = specification(ROOT, revision_key=revision_key)
     branch = run(
-        "git", "symbolic-ref", "--short", "refs/remotes/origin/HEAD", cwd=checkout
+        "git", "symbolic-ref", "--short", "refs/remotes/origin/HEAD", cwd=path
     ).removeprefix("origin/")
-    run("git", "add", "-A", cwd=checkout)
-    if run("git", "status", "--porcelain", cwd=checkout):
-        run("git", "commit", "-m", message, cwd=checkout)
-        run("git", "update-ref", CHANGE, "HEAD", cwd=checkout)
-    has_change = bool(run("git", "for-each-ref", CHANGE, cwd=checkout))
+    run("git", "add", "-A", cwd=path)
+    if run("git", "status", "--porcelain", cwd=path):
+        run("git", "commit", "-m", message, cwd=path)
+        run("git", "update-ref", CHANGE, "HEAD", cwd=path)
+    has_change = bool(run("git", "for-each-ref", CHANGE, cwd=path))
     for attempt in range(PUSH_ATTEMPTS):
         if has_change:
             replay(checkout, branch)
-        revision = run("git", "rev-parse", "HEAD", cwd=checkout)
-        updates = catalog_updates(checkout) if revision_key == "revision" else {}
+        revision = run("git", "rev-parse", "HEAD", cwd=path)
+        updates = catalog_updates(path) if revision_key == "revision" else {}
         if revision == pinned:
             break
         try:
-            run("git", "push", "origin", f"HEAD:refs/heads/{branch}", cwd=checkout)
+            run("git", "push", "origin", f"HEAD:refs/heads/{branch}", cwd=path)
             break
         except RuntimeError:
             if attempt + 1 == PUSH_ATTEMPTS:

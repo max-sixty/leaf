@@ -120,8 +120,8 @@ def test_demo_publication_reconciles_the_catalog_with_other_published_previews(
     staging = tmp_path / "staging"
     staging.mkdir()
     checkout = leaf_assets.clone(staging)
-    publisher(checkout)
-    (checkout / "demo" / "session-card.png").write_bytes(b"reviewed new demo card")
+    publisher(checkout.path)
+    (checkout.path / "demo" / "session-card.png").write_bytes(b"reviewed new demo card")
 
     revision = leaf_assets.publish(checkout, "Publish the reviewed demo")
 
@@ -156,9 +156,9 @@ def test_demo_publication_reconciles_the_catalog_with_other_published_previews(
         },
         draft_dir,
     )
-    next_preview = draft / "examples" / "example-decision.jpg"
+    next_preview = draft.path / "examples" / "example-decision.jpg"
     assert (
-        draft / "examples/media/retained.png"
+        draft.path / "examples/media/retained.png"
     ).read_bytes() == b"authored example media"
     next_address = (
         f"/media/{media_name(next_preview.read_bytes(), next_preview.suffix)}"
@@ -170,7 +170,7 @@ def test_demo_publication_reconciles_the_catalog_with_other_published_previews(
     if failure == "validation":
         # The real site gate first accepts the draft catalog and its selected bytes,
         # then refuses an unrelated dead image without installing the draft.
-        draft_markup = leaf_assets.catalog_updates(draft)
+        draft_markup = leaf_assets.catalog_updates(draft.path)
         home = docs / "index.html"
         # Refuse the draft at the real site gate after it has completed its stamps.
         draft_markup[home] = draft_markup[home].replace(
@@ -193,7 +193,7 @@ def test_demo_publication_reconciles_the_catalog_with_other_published_previews(
                 ordinary[home] = home.read_bytes()
                 # Another output builds the published bytes while draft validation
                 # is live; neither its sources nor its final stamp may see the draft.
-                site.build(ordinary_build, assets=checkout)
+                site.build(ordinary_build, assets=checkout.path)
                 ordinary_home = site.product_page(ordinary_build, "index.html")
                 ordinary_html = (ordinary_home / "index.html").read_text()
                 assert replacement in ordinary_html
@@ -204,7 +204,7 @@ def test_demo_publication_reconciles_the_catalog_with_other_published_previews(
         monkeypatch.setattr(site, "leaf", validate_with_an_ordinary_build)
         draft_build = tmp_path / "draft-site"
         with pytest.raises(SystemExit, match="missing-by-validation.png"):
-            site.build(draft_build, assets=draft, source_markup=draft_markup)
+            site.build(draft_build, assets=draft.path, source_markup=draft_markup)
         assert interleaved
         draft_home = site.product_page(draft_build, "index.html")
         draft_html = (draft_home / "index.html").read_text()
@@ -232,11 +232,11 @@ def test_demo_publication_reconciles_the_catalog_with_other_published_previews(
         rejection = remote / "hooks" / "pre-receive"
         rejection.write_text("#!/bin/sh\nexit 1\n")
         rejection.chmod(0o755)
-        publisher(draft)
+        publisher(draft.path)
         with pytest.raises(RuntimeError, match="pre-receive hook declined"):
             leaf_assets.publish(draft, "A rejected draft")
-        assert leaf_assets.run("git", "status", "--porcelain", cwd=draft) == ""
-        assert leaf_assets.run("git", "rev-parse", "HEAD", cwd=draft) != revision
+        assert leaf_assets.run("git", "status", "--porcelain", cwd=draft.path) == ""
+        assert leaf_assets.run("git", "rev-parse", "HEAD", cwd=draft.path) != revision
         with pytest.raises(RuntimeError, match="pre-receive hook declined"):
             leaf_assets.publish(draft, "Retry the rejected draft")
 
@@ -259,7 +259,7 @@ def test_demo_publication_reconciles_the_catalog_with_other_published_previews(
         replace_tree=True,
         revision_key="thread_snapshots_revision",
     )
-    publisher(accepted_checkout)
+    publisher(accepted_checkout.path)
     accepted = leaf_assets.publish(accepted_checkout, "Accept thread expectations")
     assert accepted != revision
     assert leaf_assets.specification(source) == (repository, revision)
@@ -282,10 +282,10 @@ def test_demo_publication_reconciles_the_catalog_with_other_published_previews(
     assert committed == [f"tests/thread-snapshots/{name}" for name in sorted(reviewed)]
     for name, content in reviewed.items():
         assert (
-            accepted_checkout / "tests/thread-snapshots" / name
+            accepted_checkout.path / "tests/thread-snapshots" / name
         ).read_bytes() == content
     assert (
-        accepted_checkout / "examples/media/retained.png"
+        accepted_checkout.path / "examples/media/retained.png"
     ).read_bytes() == b"authored example media"
 
 
@@ -336,7 +336,7 @@ def test_a_publication_keeps_what_others_published_since_its_pin(tmp_path, monke
         staging = tmp_path / f"staging-{name}"
         staging.mkdir()
         checkout = leaf_assets.stage(directory, files, staging)
-        publisher(checkout)
+        publisher(checkout.path)
         return checkout
 
     def published(revision):
@@ -409,10 +409,10 @@ def test_a_publication_keeps_what_others_published_since_its_pin(tmp_path, monke
     }
 
 
-def publisher(checkout):
-    """Give a fixture checkout the identity its commits need."""
+def publisher(clone):
+    """Give a fixture clone the identity its commits need."""
     for name, value in (
         ("user.name", "Leaf test"),
         ("user.email", "leaf@example.test"),
     ):
-        leaf_assets.run("git", "config", name, value, cwd=checkout)
+        leaf_assets.run("git", "config", name, value, cwd=clone)

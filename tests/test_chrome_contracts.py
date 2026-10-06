@@ -2223,7 +2223,8 @@ def test_a_refused_approval_says_why_to_the_keyboard_and_the_finger(browser, ser
 
 
 def test_the_banner_reads_in_one_order_at_every_width(browser, serve, other_leaf):
-    """The fixed menu and primary row keep one reading order at every width."""
+    """The fixed menu and primary row keep one reading order at every desk width, and
+    a phone reads the same order with Approval moved to the head of More."""
     html = SUGGESTION_PAGE.replace(
         "<title>suggestions</title>",
         '<title>suggestions</title>\n<meta name="lf-review" content="sign-off">',
@@ -2242,6 +2243,11 @@ def test_the_banner_reads_in_one_order_at_every_width(browser, serve, other_leaf
     for width in (1440, 860, 800, 390):
         resized(page, width, 900)
         orders[width] = page.evaluate(BANNER_ORDER)
+    phone = orders.pop(390)
+    assert phone[0] == "Approve version", phone
+    approval_last = [name for name in phone[1:] if name != "Approve version"]
+    approval_last.insert(-1, "Approve version")
+    assert approval_last == orders[800], (phone, orders[800])
 
     first = {}
     for width, order in orders.items():
@@ -2345,11 +2351,14 @@ def test_approval_capability_changes_keep_banner_targets(
         told(page)
         expect(page).to_have_title(title)
         rendered(page)
+        # A phone seats Approval at the head of More rather than on the row.
+        seat = ".lf-banner-actions" if width > 480 else ".lf-banner-menu"
         if present:
-            expect(page.locator(".lf-signoff")).to_be_visible()
-            expect(
-                page.get_by_role("button", name="Approve version", exact=True)
-            ).to_be_visible()
+            expect(page.locator(f"{seat} > .lf-signoff")).to_have_count(1)
+            if width > 480:
+                expect(
+                    page.get_by_role("button", name="Approve version", exact=True)
+                ).to_be_visible()
         else:
             expect(page.locator(".lf-signoff")).to_be_hidden()
         after = boxes()
@@ -2409,6 +2418,12 @@ def test_notices_stay_at_the_visible_pages_right_edge(browser, serve):
           const {notice} = await window.__lfRuntimeImport('/runtime/notifications.js');
           notice('Update recorded');
         }""")
+        if width <= 480 and not panel_open:
+            # A phone's banner says it in its status words, where the page is live; a
+            # covering panel leaves the banner under its scrim, so it stays at the foot.
+            expect(page.locator(".lf-banner .lf-status-notice")).to_be_visible()
+            expect(page.locator(".lf-bottom-status")).to_be_hidden()
+            continue
         expect(notice).to_be_visible()
         geometry = page.locator(".lf-bottom-status").evaluate("""status => {
           const box = status.getBoundingClientRect();

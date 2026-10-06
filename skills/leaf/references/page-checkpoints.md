@@ -2,10 +2,10 @@
 
 ## Stamp checkpoints
 
-When the page reaches a checkpoint the user would name, such as sign-off or the
-end of the conversation, rather than each answered message, stamp the exact
-current source with a brief changelog, after the review the main skill's
-"Operate", step 3, asks of a record:
+At a checkpoint the user would name, such as sign-off or the end of the
+conversation, stamp the exact current source with a brief changelog, after the
+review the main skill's "Operate", step 3, asks of a record. An answered message
+is not a checkpoint.
 
 ```bash
 leaf page stamp <page> --text "<what changed>"

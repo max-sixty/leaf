@@ -68,11 +68,13 @@ directory explicitly; export or copy anything that must outlive the page directo
    page renders; the reading establishes that it shows the intended content.
    Review a record before its first handoff and at every later stamp, covering
    the views and Asks that stamp adds. Review a quick page when a stamp makes it
-   a record. A revision answering a user's message needs only `leaf page check`
-   before the reply, on a record too: every valid save is already live on the
-   user's page, so more checking only delays the answer they wait on. A record's
-   later stamps, with their render check and reading, belong to checkpoints the
-   user would name (step 6). A page declaring
+   a record. A revision that answers a user's message needs only
+   `leaf page check` before the reply, even on a record, because each valid save
+   is already live on the user's page and further checking only delays the answer
+   they are waiting for. Stamp a record again, with its render check and reading,
+   at a checkpoint the user would name, such as sign-off (step 6), or when an
+   answer to a page Ask needs a stamped version
+   (`references/authoring-revisions.md`). A page declaring
    `<meta name="lf-review" content="sign-off">` is always a record, since
    approval requires a stamped version.
 4. Read `references/conversation-loop.md` and exactly one harness contract:

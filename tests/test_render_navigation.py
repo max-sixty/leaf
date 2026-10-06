@@ -4567,7 +4567,14 @@ def test_threads_answers_c_in_the_thread_it_expanded_for_a_target(browser, serve
 EXPANDED = ".lf-threads > .lf-thread:not([hidden])[open]"
 LIST_ROUTES = {
     "go to Threads": ["g", "Shift+t"],
-    "back out of the page box": ["c", "Escape"],
+    # `c` opens the banner's page comment card while Threads is shut, so the panel's own
+    # box is entered directly once Threads is open.
+    "back out of the page box": [
+        "g",
+        "Shift+t",
+        "focus:.lf-general leaf-text",
+        "Escape",
+    ],
     "walk to a title": ["g", "Shift+t", "t"],
 }
 
@@ -4594,7 +4601,10 @@ def test_the_threads_list_hands_focus_to_the_thread_it_shows_open(
     )
     page.set_viewport_size({"width": width, "height": 900})
     for step in route:
-        page.keyboard.press(step)
+        if step.startswith("focus:"):
+            page.locator(step.removeprefix("focus:")).focus()
+        else:
+            page.keyboard.press(step)
         rendered(page)
 
     card = page.locator(EXPANDED)
@@ -9233,23 +9243,22 @@ def test_the_key_line_says_what_a_press_will_do(browser, serve):
         page.locator('.lf-shortcut-bar kbd[data-lf-sequence-step-state="pressed"]')
     ).to_have_count(0)
 
-    # c is comment everywhere. From the page it opens the panel and stands the user in
-    # the page-comment box, which is two levels down, so two presses come back out: the
-    # box hands them to the thread its list shows open, and the panel hands them to the
-    # page.
+    # c is comment everywhere. From the page it opens the banner's page comment card and
+    # stands the user in its box, so one press comes back out: the card goes, and the
+    # user stands on the control it hangs from, as after a press on it, and one more
+    # lets go of the banner.
     page.keyboard.press("c")
-    expect(page.locator(".lf-general leaf-text")).to_be_focused()
+    expect(page.locator(".lf-page-comment-card leaf-text")).to_be_focused()
     expect(line).to_contain_text("send")
-    expect(line).to_contain_text("back to list")
     # A send key on an empty box is answered, not swallowed — silence reads as a
     # send that happened.
     page.keyboard.press("ControlOrMeta+Enter")
     expect(page.locator(".lf-notice")).to_contain_text("Nothing to send")
     page.keyboard.press("Escape")
-    expect(page.locator(f"{EXPANDED} > .lf-thread-summary")).to_be_focused()
-    expect(line).to_contain_text("close threads")
-    page.keyboard.press("Escape")
+    expect(page.locator(".lf-page-comment-card")).to_be_hidden()
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
+    expect(page.locator(".lf-banner-actions > .lf-page-comment")).to_be_focused()
+    page.keyboard.press("Escape")
     assert page.evaluate("() => document.activeElement === document.body")
 
     # g T is navigation to Threads. Its one completed sequence enters one surface, and one
@@ -13354,7 +13363,8 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
 
     # A resolved thread stays focusable after the last open one is gone, and the
     # scene branch that restates the t/T row over it asks the same liveness.
-    page.keyboard.press("c")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
     for n in [1, 2]:
         card = page.locator(".lf-threads > .lf-thread:not([hidden])").first
         card.locator(":scope > .lf-thread-summary").click()
@@ -13542,7 +13552,8 @@ def test_escape_on_a_declaring_control_does_exactly_what_it_says(browser, serve)
     page = open_page(browser, url)
     resized(page, 1920, 900)
     page.wait_for_function("() => document.querySelectorAll('.lf-thread').length === 1")
-    page.keyboard.press("c")  # panel open, so the old second action would show
+    page.keyboard.press("g")  # panel open, so the old second action would show
+    page.keyboard.press("Shift+t")
     expect(page.locator(".lf-thread-panel")).to_be_visible()
 
     draft_control(page, "edit", "plan").click()
@@ -13615,7 +13626,7 @@ def test_c_comments_on_what_the_user_is_standing_in(browser, serve):
     def drop():
         if (
             page.locator(".lf-composer[data-lf-open]").count()
-            or page.locator(".lf-general leaf-text:focus").count()
+            or page.locator(".lf-page-comment-card leaf-text:focus").count()
         ):
             page.keyboard.press("Escape")
         page.evaluate("() => document.activeElement?.blur()")
@@ -13623,7 +13634,7 @@ def test_c_comments_on_what_the_user_is_standing_in(browser, serve):
     # Standing nowhere in the page: the page itself is the contextual target.
     expect(line).to_contain_text("comment on the page")
     page.keyboard.press("c")
-    expect(page.locator(".lf-general leaf-text")).to_be_focused()
+    expect(page.locator(".lf-page-comment-card leaf-text")).to_be_focused()
     drop()
 
     # A decision: the composer opens on the question rather than on the option the
@@ -14287,18 +14298,17 @@ def test_c_enters_a_seated_reply_without_revealing_the_thread_heading(
 def test_c_comments_and_g_t_navigates_to_threads(browser, serve):
     """c is contextual comment; g T is the one route into the Threads list."""
     page = open_page(browser, serve(NOTED_PAGE))
-    page.keyboard.press("c")  # page: straight into its comment box
-    expect(page.locator(".lf-general leaf-text")).to_be_focused()
-    # Two levels down, two presses out: the box, then the panel holding it.
+    page.keyboard.press("c")  # page: straight into the banner's page comment card
+    expect(page.locator(".lf-page-comment-card leaf-text")).to_be_focused()
+    # One level down, one press out, and Threads never opened.
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-threads")).to_be_focused()
-    page.keyboard.press("Escape")
+    expect(page.locator(".lf-page-comment-card")).to_be_hidden()
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
 
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     expect(page.locator(".lf-threads")).to_be_focused()
-    page.keyboard.press("c")  # panel context: the same page comment box
+    page.keyboard.press("c")  # panel context: Threads' own page comment box
     expect(page.locator(".lf-general leaf-text")).to_be_focused()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-threads")).to_be_focused()
@@ -14319,8 +14329,8 @@ def test_the_panels_own_c_answers_a_page_whose_log_has_not_arrived(browser, serv
     list, so narrowing by what awaits the user is dead. Find remains available as the
     panel's empty search, and the scope used to take `c` down with the missing list.
 
-    The page's c enters the box directly. g T independently reaches the empty Threads
-    list, where the panel's own search remains available.
+    The page's c enters the page comment card's box directly. g T independently
+    reaches the empty Threads list, where the panel's own search remains available.
 
     Offline rather than mid-load, because it is the state that stays: a loading page
     answers a moment later, and a page whose server has stopped is where a user sits."""
@@ -14333,10 +14343,9 @@ def test_the_panels_own_c_answers_a_page_whose_log_has_not_arrived(browser, serv
     )
 
     page.keyboard.press("c")
-    expect(page.locator(".lf-general leaf-text")).to_be_focused()
-    page.keyboard.press("Escape")  # out of the box, onto the list
-    page.keyboard.press("Escape")  # and out of the panel the box stood in
-    expect(page.locator(".lf-thread-panel")).to_be_hidden()
+    expect(page.locator(".lf-page-comment-card leaf-text")).to_be_focused()
+    page.keyboard.press("Escape")  # out of the box and the card it stood in
+    expect(page.locator(".lf-page-comment-card")).to_be_hidden()
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     expect(page.locator(".lf-threads")).to_be_focused()

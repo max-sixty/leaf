@@ -3141,10 +3141,11 @@ def test_the_help_overlay_answers_to_one_owner(browser, serve):
     expect(
         page.locator(".lf-command-reference", has_text="Edit the text in place")
     ).to_be_visible()
-    # Help is a scope: the table stands down behind it, so c must not work the
-    # panel under the sheet.
+    # Help is a scope: the table stands down behind it, so c must open nothing under
+    # the sheet, neither Threads nor the page comment card.
     page.keyboard.press("c")
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
+    expect(page.locator(".lf-page-comment-card")).to_be_hidden()
     expect(page.locator(".lf-command-reference")).to_be_visible()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-command-reference")).to_be_hidden()
@@ -3544,7 +3545,8 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     d = serve.page_dir
     comments = [e for e in events_model.read_events(d) if e["kind"] == "comment"]
     held, other = comments[0]["id"], comments[1]["id"]
-    page.keyboard.press("c")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+T")
     expect(page.locator(".lf-thread-panel")).to_be_visible()
     workflows = page.locator(".lf-msg-sending")
     held_thread = page.locator(f'.lf-thread[data-id="{held}"]')
@@ -3897,7 +3899,8 @@ def test_a_message_workflow_changes_phase_in_place_and_then_stands_still(
     )
     record_claim(d)
     page = open_page(browser, url)
-    page.keyboard.press("c")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+T")
     thread = page.locator(f'.lf-thread[data-id="{comment["id"]}"]')
     workflow = thread.locator(
         f'.lf-msg[data-mid="{comment["id"]}"] > .lf-msg-head .lf-msg-sending'
@@ -3983,7 +3986,8 @@ def test_an_exact_workflow_reports_stale_work_beside_a_live_page_claim(
     page = open_page(browser, serve(LONG_PAGE, anchored=[("p1", "Paragraph 1.")]))
     d = serve.page_dir
     held = next(e for e in events_model.read_events(d) if e["kind"] == "comment")["id"]
-    page.keyboard.press("c")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+T")
     expect(page.locator(".lf-thread-panel")).to_be_visible()
     work_line = page.locator(
         f'.lf-thread[data-id="{held}"] .lf-msg[data-mid="{held}"] > .lf-msg-head .lf-msg-sending'
@@ -4667,15 +4671,15 @@ customElements.define('lf-test-surface', class extends HTMLElement {
     # completion edge before checking that the digit produced no stale send.
     page.keyboard.press("1")
     page.keyboard.press("c")
-    expect(page.locator(".lf-general leaf-text")).to_be_focused()
+    expect(page.locator(".lf-page-comment-card leaf-text")).to_be_focused()
     round_trip(page)
     assert not [
         event
         for event in events_model.read_events(serve.page_dir)
         if event.get("token")
     ]
-    page.keyboard.press("Escape")  # out of the box, onto the list
-    page.keyboard.press("Escape")  # and out of the panel that holds it
+    page.keyboard.press("Escape")  # out of the page comment card
+    expect(page.locator(".lf-page-comment-card")).to_be_hidden()
     expect(page.locator(".lf-thread-panel")).not_to_have_class(re.compile(r"\bopen\b"))
     # A retired thread lands on the surface the user's own gesture reaches. With the
     # widget still on the page its passages keep a page-local destination, so each datum
@@ -6408,11 +6412,12 @@ def test_user_view_context_waits_for_a_samples_viewport_allocation(browser, serv
             frame.style.setProperty(property, '0px', 'important');
         }"""
     )
+    # Zero width is the state that stays: the sample sizes its frame to its content, so
+    # one frame later a zero-wide document stands as tall as its words wrapped one per
+    # line. Either axis at zero is unallocated (user-view.js).
     frame.wait_for_function(
         """() => window.frameElement.isConnected &&
-          document.documentElement.clientWidth === 0 &&
-          document.documentElement.clientHeight === 0 &&
-          visualViewport.width === 0 && visualViewport.height === 0"""
+          document.documentElement.clientWidth === 0 && visualViewport.width === 0"""
     )
     # Cover the observer's 10-second heartbeat and 300ms resize quiet interval.
     page.wait_for_timeout(11_000)

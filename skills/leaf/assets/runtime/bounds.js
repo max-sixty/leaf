@@ -47,13 +47,11 @@
    A block in content the browser skips, a hidden tab's panel or a shut disclosure, is
    left as it stands until it is drawn (geometry.js, `skipped`). Finding its scroller
    reads the style of every box it holds, and finding its end reads layout, and either
-   question makes the browser style and lay out the hidden subtree first. Asked on each
-   change a hidden log took, that forced pass left Chromium with style written
-   elsewhere on the page unapplied, so a decided suggestion kept showing its retired
-   words (#1868). A block first seen hidden stands as its own scroller meanwhile. Each
-   skipped sync renews the block's size observation, whose first delivery comes once
-   the block is drawn and asks again, so a log that grew while hidden opens on its
-   newest entry.
+   question makes the browser style and lay out the hidden subtree first; Chromium has
+   left style elsewhere on the page stale after that forced pass. A block first seen
+   hidden stands as its own scroller meanwhile. Each skipped sync renews the block's
+   size observation, whose first delivery comes once the block is drawn and asks again,
+   so a log that grew while hidden opens on its newest entry.
 
    The watch starts before presentation because the first read it takes is the one the
    user sees: an `end` log opens at its end, and a pin taken after the page presents

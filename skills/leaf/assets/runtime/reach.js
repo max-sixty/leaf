@@ -153,7 +153,7 @@ export function reachReadingScroller(el) {
 }
 
 function paintReadingReach(el) {
-  if (!downwards.has(el)) return;
+  if (!downwards.has(el) || unpainted(el)) return;
   const style = getComputedStyle(el);
   const scrolls = /^(auto|scroll)$/.test(style.overflowY);
   el.toggleAttribute(
@@ -310,7 +310,7 @@ const reachSizes = sizeObserver(() => paintReach());
 // is a promise of more with nothing behind it. scrollLeft follows the inline direction:
 // it starts at zero and becomes negative in a right-to-left scroller.
 function paintSidewaysReach(el) {
-  if (!sideways.has(el)) return;
+  if (!sideways.has(el) || unpainted(el)) return;
   const style = getComputedStyle(el);
   const scrolls =
     /^(auto|scroll)$/.test(style.overflowX) && el.scrollWidth > el.clientWidth + 1;
@@ -330,9 +330,10 @@ function gone(el) {
   unwatchReach(el);
   return true;
 }
-// A box that comes to stand in skipped content keeps what it last wore until it is drawn
-// again: measuring it would force that content's style, and a box on no screen is no
-// stop and shows no edge.
+// A box that stands in skipped content keeps what it last wore until it is drawn: measuring
+// it would force that content's style, and a box on no screen is no stop and shows no
+// edge. The two edge paints ask it themselves, since a reading region is painted as it
+// registers, and a block can register in a hidden panel (bounds.js).
 const unpainted = (el) => gone(el) || skipped(el);
 function paintReach() {
   for (const el of waiting) if (!unpainted(el)) sweep(el);
@@ -348,8 +349,8 @@ function paintReach() {
     else if (el.getAttribute("tabindex") === "0")
       keeps(el, "tabindex", wearsLentStop(el) ? -1 : authored);
   }
-  for (const el of sideways) if (!unpainted(el)) paintSidewaysReach(el);
-  for (const el of downwards) if (!unpainted(el)) paintReadingReach(el);
+  for (const el of sideways) paintSidewaysReach(el);
+  for (const el of downwards) paintReadingReach(el);
 }
 // A widget can rearrange descendants without changing its outer box. ResizeObserver
 // cannot hear that case; the layer's shared geometry signal can, and one repaint updates

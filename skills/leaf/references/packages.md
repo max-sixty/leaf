@@ -181,8 +181,8 @@ element or widget. A shape the project reuses across pages is an idiom — decla
 under `$idioms` in the package's
 `registry.json` (a selector, a description, an example) and style it in the layer's
 `theme.css`; the page's merged `registry.json` then carries it beside the shipped ones.
-An idiom declares the width it takes with `x-space` as an element does, as `.callout`
-keeps the column; delivery paints it on every element the selector matches.
+An idiom may declare one `x-` key, `x-space`, the width it takes, as `.callout` keeps
+the column; delivery paints it on every element the selector matches.
 
 A package's rules read the box a widget is given and the theme's tokens, never the Layout
 or style class around it, so a widget behaves the same in a shipped Layout as on a page

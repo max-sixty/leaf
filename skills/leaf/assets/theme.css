@@ -883,6 +883,16 @@ main {
     box-sizing: border-box;
     --lf-reach: min(var(--col), var(--lf-room, 0px));
   }
+  /* A box allocated the column widens to the widest allocation it holds, so an Ask or a
+   * callout around a block that declares `wide` or `available` frames that block rather
+   * than clipping it to the measure. On a column page the box stays in the column and
+   * the block breaks out of it (layouts.css); in a wider flow the box takes the room. */
+  :where([data-lf-space="column"]:has([data-lf-space="wide"])) {
+    max-inline-size: var(--wide);
+  }
+  :where([data-lf-space="column"]:has([data-lf-space="available"])) {
+    max-inline-size: none;
+  }
   /* A bounded block scrolls within its stated height. A widget can assign that bound to
    * an inner reader instead, keeping its own caption outside the scroller. */
   [data-lf-bound] {

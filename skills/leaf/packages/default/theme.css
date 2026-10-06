@@ -2170,9 +2170,10 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
  * wide or more, the list stands in a 16rem track beside the premise and evidence and
  * sticks while they scroll, so the question, its figure and every option share one
  * window. 50rem leaves the evidence 32rem at the least, which a chart and a short
- * table still read at; a narrower Ask stacks like any other. A reading column is narrower, so in
- * a column the track takes the room the page grants the Ask with `data-width`
- * (authoring-asks.md); room the page did not grant stays the render check's to refuse.
+ * table still read at; a narrower Ask stacks like any other. An Ask keeps the reading
+ * column on every page (`x-space`), so the track takes the room the page grants the Ask
+ * or its figure with `data-width` (authoring-asks.md); room the page did not grant stays
+ * the render check's to refuse.
  * The content decides the form, so there is no attribute for it. An Ask of words alone
  * stays stacked: its context is shorter than a list set at 16rem, so a track would
  * leave a column of air beside the list. A control other than a list has no room in

@@ -2547,26 +2547,31 @@ def test_init_merges_registry_layers_by_complete_entry(tmp_path, monkeypatch):
 
 def test_an_idiom_declares_only_a_mark_the_document_paints(tmp_path, monkeypatch):
     """An idiom declares the room it takes as an element does (x-space), which delivery
-    paints by the idiom's selector. A mark that holds in a message is painted there
-    from element tags alone, and a value its key does not admit paints nothing the
-    theme reads, so a layer declaring either is refused rather than ignored."""
+    paints on every element the idiom's selector matches. A mark other code reads by
+    tag would be half kept, a value its key does not admit paints nothing the theme
+    reads, and a selector delivery cannot match stops every route that serves the
+    page, so a layer declaring any of them is refused at init."""
     monkeypatch.chdir(tmp_path)
     layer = tmp_path / ".leaf"
     layer.mkdir()
 
-    def init(declaration, page):
+    def init(selector, declaration, page):
         (layer / "registry.json").write_text(
-            json.dumps({"$idioms": {".hazard": {"description": "d", **declaration}}})
+            json.dumps({"$idioms": {selector: {"description": "d", **declaration}}})
         )
         return CliRunner().invoke(
             cli_model.cli, ["page", "init", "--package", "./.leaf", str(tmp_path / page)]
         )
 
-    assert init({"x-space": "column"}, "room").exit_code == 0
-    for declaration, page in (({"x-inline": True}, "inline"), ({"x-space": "huge"}, "huge")):
-        result = init(declaration, page)
+    assert init(".hazard", {"x-space": "column"}, "room").exit_code == 0
+    for selector, declaration, page in (
+        (".hazard", {"x-inline": True}, "inline"),
+        (".hazard", {"x-space": "huge"}, "huge"),
+        (".hazard::before", {"x-space": "column"}, "pseudo"),
+    ):
+        result = init(selector, declaration, page)
         assert result.exit_code != 0
-        assert "$idioms '.hazard' declares" in result.output
+        assert f"$idioms {selector!r} declares" in result.output
 
 
 def test_init_merges_dollar_entries_by_member(tmp_path, monkeypatch):

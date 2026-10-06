@@ -2199,32 +2199,49 @@ def test_named_wide_is_the_evidence_width_in_every_layout(browser, serve):
         assert root_overflow(page) == 0
 
 
-def test_an_ask_and_a_callout_keep_the_column_where_the_flow_is_wider(browser, serve):
+def test_an_ask_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
+    browser, serve
+):
     """On a wide page an Ask and a callout keep the prose's width and left edge, so the
-    Ask's ring and pin stand beside what it asks, as on a column page; one granted
-    `data-width` takes that room for the evidence it holds."""
+    Ask's ring and pin stand beside what it asks, as on a column page. One granted
+    `data-width`, or holding a block that declares one, takes that room for the
+    evidence. On a column page the Ask stays in the column and its wide block breaks
+    out of it, as the block would from a section."""
+    table = '<table id="{id}-t" data-width="wide"><tr><td>p95</td></tr></table>'
     ask = (
-        '<lf-ask id="{id}"{width}><h3>Ship it?</h3><lf-options id="{id}-o" choose>'
-        '<lf-option id="{id}-yes">Yes</lf-option></lf-options></lf-ask>'
+        '<lf-ask id="{id}"{width}><h3>Ship it?</h3>{table}<lf-options id="{id}-o" '
+        'choose><lf-option id="{id}-yes">Yes</lf-option></lf-options></lf-ask>'
     )
-    wide_page = leaf_page(
-        "Wide flow",
+    body = (
         '<p id="prose">Prose.</p>'
-        + ask.format(id="ask", width="")
-        + ask.format(id="granted", width=' data-width="wide"')
-        + '<aside class="callout" id="callout"><p>Paused.</p></aside>',
-        layout="wide",
+        + ask.format(id="ask", width="", table="")
+        + ask.format(id="granted", width=' data-width="wide"', table="")
+        + ask.format(id="holds", width="", table=table.format(id="holds"))
+        + '<aside class="callout" id="callout"><p>Paused.</p></aside>'
     )
-    page = open_page(browser, serve(wide_page))
-    resized(page, 1726, 900)
-    at = page.evaluate("""() => Object.fromEntries(
-      ['prose', 'ask', 'granted', 'callout'].map(id => {
+    measure = """() => Object.fromEntries(
+      ['prose', 'ask', 'granted', 'holds', 'holds-t', 'callout'].map(id => {
         const box = document.getElementById(id).getBoundingClientRect();
         return [id, {width: Math.round(box.width), left: Math.round(box.left)}];
-      }))""")
+      }))"""
+    page = open_page(browser, serve(leaf_page("Wide flow", body, layout="wide")))
+    resized(page, 1726, 900)
+    at = page.evaluate(measure)
+    edge = at["prose"]["left"]
     for boxed in ("ask", "callout"):
-        assert at[boxed] == {"width": 720, "left": at["prose"]["left"]}, (boxed, at)
-    assert at["granted"] == {"width": 1080, "left": at["prose"]["left"]}, at
+        assert at[boxed] == {"width": 720, "left": edge}, (boxed, at)
+    for wide in ("granted", "holds"):
+        assert at[wide] == {"width": 1080, "left": edge}, (wide, at)
+    # The widened Ask has the room for its options track, so the table stands beside
+    # the list rather than at the measure.
+    assert at["holds-t"]["width"] > 720, at
+
+    column = open_page(browser, serve(leaf_page("Column", body)))
+    resized(column, 1726, 900)
+    at = column.evaluate(measure)
+    assert at["holds"]["width"] == at["prose"]["width"] == 720, at
+    assert at["holds-t"]["width"] == 1080, at
+    assert at["holds-t"]["left"] < at["prose"]["left"], at
 
 
 def test_a_sample_fills_the_room_its_authored_width_takes(browser, serve):

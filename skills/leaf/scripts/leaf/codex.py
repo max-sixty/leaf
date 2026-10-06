@@ -28,6 +28,7 @@ is imported inside the functions that write a reply or a failure onto a thread
 rather than here.
 """
 
+import atexit
 import json
 import os
 import subprocess
@@ -217,32 +218,53 @@ def _wait_for_app_server(path: Path, process: subprocess.Popen, log) -> None:
 
 @contextmanager
 def private_app_server(
-    executable: str, *, env: dict[str, str] | None = None
+    executable: str,
+    *,
+    env: dict[str, str] | None = None,
+    arguments: tuple[str, ...] = (),
 ) -> Iterator[str]:
     """Run one App Server on a Unix socket only this user can reach, and yield its
-    endpoint until the block ends and the server stops.
+    endpoint until the block ends or this process exits, and the server stops.
 
     The server's environment names that endpoint as `LEAF_CODEX_APP_SERVER`, so a
     task it runs hands its pages to this server when it serves them.
-    An eval may supply an isolated child environment without mutating this process.
+    An eval may supply an isolated child environment without mutating this process,
+    and a caller `arguments` that follow `app-server` on its command line.
+
+    The server runs in a session of its own and never exits by itself, and a block
+    on a daemon thread, as a page server's title request is, never reaches its
+    `finally` when the process exits. So each running server is also stopped at
+    exit (`_stop_private_app_servers`), on a SIGTERM too
+    (`leases.release_on_termination`); only SIGKILL leaves one running.
     """
     with tempfile.TemporaryDirectory(prefix="leaf-codex-", dir="/tmp") as directory:
         path = Path(directory) / "app-server.sock"
         endpoint = f"unix://{path}"
         with tempfile.TemporaryFile() as log:
             server = subprocess.Popen(
-                [executable, "app-server", "--listen", endpoint],
+                [executable, "app-server", "--listen", endpoint, *arguments],
                 env=(os.environ if env is None else env) | {APP_SERVER_ENV: endpoint},
                 stdin=subprocess.DEVNULL,
                 stdout=log,
                 stderr=subprocess.STDOUT,
                 start_new_session=True,
             )
+            _private_app_servers.add(server)
             try:
                 _wait_for_app_server(path, server, log)
                 yield endpoint
             finally:
                 stop_app_server(server)
+                _private_app_servers.discard(server)
+
+
+_private_app_servers: set[subprocess.Popen] = set()
+
+
+@atexit.register
+def _stop_private_app_servers() -> None:
+    for server in list(_private_app_servers):
+        stop_app_server(server)
 
 
 def retry_delay(failures: int) -> int:

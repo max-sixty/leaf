@@ -380,10 +380,10 @@ class CodexHarness(EnvironmentHarness):
         return next((pid for pid, program in ancestry() if program == "codex"), None)
 
     def title_generator(self) -> Callable[[str, Path], dict]:
-        """An App Server the page server starts for the request, whether `codex
-        queue` or the task's own App Server carries its turns: the queue reaches no
-        model, and the task's server would name the thread only once a running turn
-        let the next one start."""
+        """An App Server the page server starts for the request, whichever
+        transport carries the task's turns, so Codex is asked in one way: `codex
+        queue` reaches no model, and starting a server takes a few hundred
+        milliseconds of a title's few seconds."""
         from leaf.thread_titles import codex_title
 
         return codex_title

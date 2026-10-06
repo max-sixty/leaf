@@ -24,6 +24,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from xml.etree import ElementTree
 
+import psutil
 import pytest
 from click.testing import CliRunner
 from conftest import CLAUDE_IDENTITY, HOOKED_SESSIONS, LEAF_COMMAND
@@ -1708,8 +1709,8 @@ def test_a_comment_on_a_codex_page_is_named_as_it_arrives(
     servers = []
 
     @contextlib.contextmanager
-    def title_server(executable, *, env):
-        servers.append((executable, env))
+    def title_server(executable, *, env, arguments):
+        servers.append((executable, env, arguments))
         yield endpoint
 
     monkeypatch.setattr(thread_titles, "private_app_server", title_server)
@@ -1737,13 +1738,42 @@ def test_a_comment_on_a_codex_page_is_named_as_it_arrives(
         "Codex",
         "codex-thread",
     )
-    [(executable, env)] = servers
+    [(executable, env, arguments)] = servers
     assert executable == shutil.which("codex")
     assert "CODEX_THREAD_ID" not in env
+    # A server with plugins on syncs every marketplace the user configured.
+    assert arguments == ("--disable", "plugins")
     [start] = [m for m in received if m.get("method") == "thread/start"]
     assert start["params"]["config"]["features"]["hooks"] is False
     assert start["params"]["config"]["mcp_servers"] == {"docs": {"enabled": False}}
     assert "model" not in start["params"]
+
+    # A reaction opens a thread with no words; the reply that gives it some names it.
+    reaction = append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "token": "mark"}
+    )
+    status, body = endpoint_model.accept_event(
+        page_dir,
+        {
+            "kind": "reply",
+            "revision": 1,
+            "parent": reaction["id"],
+            "text": "Can the import run in parallel?",
+        },
+        dict,
+    )
+    assert status == 200, body
+    wait_for(
+        lambda: [
+            e
+            for e in events_model.read_events(page_dir)
+            if e["kind"] == "thread_title" and e["thread"] == reaction["id"]
+        ],
+        bool,
+        failure="the reaction's thread was never named",
+    )
+    turns = [m for m in received if m.get("method") == "turn/start"]
+    assert "Can the import run in parallel?" in turns[-1]["params"]["input"][0]["text"]
 
 
 def test_a_title_request_that_outlives_its_session_leaves_no_log(claimed):
@@ -1759,7 +1789,7 @@ def test_a_title_request_that_outlives_its_session_leaves_no_log(claimed):
         answered.wait(timeout=STATED_TIMEOUT)
         return {"title": "Intro"}
 
-    thread_titles.name_opened_thread(generate, claimed, comment["id"], "s1")
+    thread_titles.name_admitted_thread(generate, claimed, comment["id"], "s1")
     hooks_model.cmd_hook(
         "claude-code", {"hook_event_name": "SessionEnd", "session_id": "s1"}
     )
@@ -1787,7 +1817,7 @@ def test_both_harnesses_are_asked_for_a_title_in_the_same_words(
             "anchor": {"section": None, "quote": "Export runs nightly"},
         },
     )
-    request = thread_titles.title_request(page_dir, comment["id"])
+    _, request = thread_titles.title_request(page_dir, comment["id"])
 
     programs = tmp_path / "programs"
     programs.mkdir()
@@ -5510,6 +5540,46 @@ if arguments[:2] == ["app-server", "--listen"]:
         "endpoint": endpoint,
     }
     assert not Path(endpoint.removeprefix("unix://")).exists()
+
+
+def test_a_private_app_server_stops_when_its_process_exits(tmp_path):
+    """A page server's title request holds its App Server on a daemon thread, which
+    never unwinds when the page server exits; the server, in a session of its own,
+    would run on with no socket anyone can find."""
+    program = tmp_path / "fake-codex"
+    pid_file = tmp_path / "server.pid"
+    program.write_text(
+        f"""#!{sys.executable}
+import os, signal, socket, sys
+open({str(pid_file)!r}, "w").write(str(os.getpid()))
+server = socket.socket(socket.AF_UNIX)
+server.bind(sys.argv[3].removeprefix("unix://"))
+server.listen()
+signal.pause()
+"""
+    )
+    program.chmod(0o755)
+    holder = f"""
+import sys, threading, time
+from leaf.codex import private_app_server
+ready = threading.Event()
+def hold():
+    with private_app_server({str(program)!r}):
+        ready.set()
+        time.sleep(600)
+threading.Thread(target=hold, daemon=True).start()
+assert ready.wait(20)
+sys.exit(0)
+"""
+    try:
+        subprocess.run(
+            [sys.executable, "-c", holder], check=True, timeout=STATED_TIMEOUT
+        )
+        pid = int(pid_file.read_text())
+        assert not psutil.pid_exists(pid)
+    finally:
+        if pid_file.exists() and psutil.pid_exists(pid := int(pid_file.read_text())):
+            os.kill(pid, signal.SIGKILL)
 
 
 @pytest.mark.parametrize(
@@ -11728,7 +11798,6 @@ def test_a_fresh_init_does_not_delete_a_concurrently_created_pages_claim(
             spawn,
             page,
             """\
-import contextlib
 import fcntl
 native_flock = fcntl.flock
 identity = Path(os.environ["PAGE"]).stat()
@@ -14680,7 +14749,6 @@ def test_reconnect_publication_and_task_activity_writer_cannot_lock_each_other_o
             },
         )
     common = """\
-import contextlib
 import fcntl
 import os
 from pathlib import Path

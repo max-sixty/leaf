@@ -50,6 +50,7 @@ from render_harness import (
     scroll_settled,
     select,
     sending,
+    write,
 )
 
 # One source line, so a phrase's offset in the source is its offset in the text node.
@@ -768,7 +769,10 @@ def test_a_wheel_return_attaches_the_comment_box_in_the_first_visible_frame(
             )
         select(page, (box["x"] + 2, box["y"] + 10), (box["x"] + 150, box["y"] + 10))
         page.locator(".lf-fab-input").click()
-    page.locator(".lf-fab-input").type("Keep these words while the page leaves. " * 6)
+    field = page.locator(".lf-fab-input")
+    words = "Keep these words while the page leaves. " * 6
+    write(field, words)
+    expect(field).to_have_js_property("value", words)
     rendered(page)
     before_target = target.bounding_box()
     content_box = before_target
@@ -972,8 +976,8 @@ def test_a_wheel_return_attaches_the_comment_box_in_the_first_visible_frame(
         error.add_note(f"Original compositor frames and raw history: {evidence}")
         raise
 
+    expect(field).to_have_js_property("value", words)
     if region == "combined":
-        field = page.locator(".lf-fab-input")
         field.click()
         page.keyboard.press("ArrowLeft")
         page.keyboard.press("ArrowLeft")

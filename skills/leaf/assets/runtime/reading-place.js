@@ -16,8 +16,9 @@
  * Whoever remembers a place owns when to take it and where to keep it: version
  * continuity (version.js) across revisions and reading-region shifts, a root tab set
  * (lf-tabs) for each of its views. The browser keeps a history entry's own offset
- * (history.js). `readingBlock` is the block the user is on, for the questions that ask
- * where a walk starts.
+ * (history.js). `readingBlock` is the first block on screen in one region or the page;
+ * `pageReadingBlock` is the block the user is reading, where a walk starts, and
+ * `landingPlace` is where a let-go puts them.
  */
 import {
   clippedContents,

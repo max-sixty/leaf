@@ -158,6 +158,88 @@
         width: 16rem;
         border-left: 1px solid var(--rule);
       }
+      .tb {
+        width: min(38rem, 100%);
+      }
+      .tb-bar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.45rem 0.7rem;
+        border-bottom: 1px solid var(--rule);
+        white-space: nowrap;
+      }
+      .tb-push {
+        flex: 1;
+      }
+      .tb-plain,
+      .tb-more {
+        color: var(--muted);
+      }
+      .tb-door {
+        padding: 0.1rem 0.4rem;
+        border-bottom: 2px solid transparent;
+      }
+      .tb-on {
+        background: var(--accent-tint);
+        border-bottom-color: var(--accent);
+      }
+      .tb-dot {
+        display: inline-block;
+        width: 0.4rem;
+        height: 0.4rem;
+        margin-left: 0.15rem;
+        border-radius: 50%;
+        background: var(--accent);
+        vertical-align: super;
+      }
+      .tb .sk-rows li {
+        grid-template-columns: auto 1fr;
+      }
+      .tb-body {
+        display: flex;
+        min-height: 8rem;
+      }
+      .tb-page {
+        flex: 1;
+        padding: 0.6rem 0.8rem;
+        color: var(--muted);
+        font-size: 0.75rem;
+      }
+      .tb-panel {
+        width: min(15rem, 60%);
+      }
+      .tb-left {
+        border-right: 1px solid var(--rule);
+      }
+      .tb-right {
+        border-left: 1px solid var(--rule);
+      }
+      .tb-head {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.5rem 0.7rem;
+        font-weight: 600;
+        border-bottom: 1px solid var(--rule);
+      }
+      .tb-head > :first-child {
+        flex: 1;
+      }
+      .tb-btn {
+        padding: 0 0.3rem;
+        border: 1px solid var(--rule);
+        border-radius: 4px;
+        font-size: 0.7rem;
+        font-weight: normal;
+      }
+      .tb-count {
+        margin: 0;
+        padding: 0.35rem 0.7rem 0;
+        font-size: 0.72rem;
+        color: var(--muted);
+      }
     </style>
   </head>
   <body>
@@ -181,8 +263,9 @@
             <h2>Steps 1 to 5 and the Queue panel are on main</h2>
             <p id="direction">
               The code for queues and tasks is marked experimental, so later agents
-              change it freely. Step 7 is next and hasn't started, and step 6 isn't
-              needed for now.
+              change it freely. Next is making the top bar and the keys treat Tasks and
+              Threads alike (<a href="#bar-today">Top bar and keys</a>), then step 7.
+              Step 6 isn't needed for now.
             </p>
             <table id="plan-step-list" data-width="wide">
               <thead>
@@ -343,6 +426,234 @@
               <li>
                 <a href="#open-kinds">Which kinds of item exist</a>. Left open on
                 purpose until we've used the queues.
+              </li>
+            </ul>
+          </section>
+        </lf-tab>
+
+        <lf-tab id="tab-bar" label="Top bar and keys">
+          <section id="bar-today">
+            <h2>The top bar and the keys present Threads and the Queue differently</h2>
+            <p>
+              Only one panel is open at a time: opening the Threads panel closes the
+              Queue panel, and the other way round (<code>auxiliary-surfaces.js</code>).
+              So the two are one choice of what stands beside the page, but the top bar
+              and the keys present them as different kinds of thing. I checked each row
+              below on a served page with three threads, an Ask and two tasks.
+            </p>
+            <table id="bar-differences" data-width="wide">
+              <thead>
+                <tr>
+                  <th scope="col"></th>
+                  <th scope="col">Threads</th>
+                  <th scope="col">Queue</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">Its door in the top bar</th>
+                  <td>“Threads: 3”, a labelled button at the right</td>
+                  <td>
+                    “3 on you · 2 on Claude”, bare counts in the middle. The labelled
+                    Queue button is folded into More.
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row">The door while its panel is open</th>
+                  <td>Tinted and underlined</td>
+                  <td>Looks the same as when closed</td>
+                </tr>
+                <tr>
+                  <th scope="row">Where the panel opens</th>
+                  <td>The right edge, under its door</td>
+                  <td>The left edge, away from its door</td>
+                </tr>
+                <tr>
+                  <th scope="row">When you press <kbd>g</kbd></th>
+                  <td>A <kbd>g</kbd> <kbd>T</kbd> chip appears on the door</td>
+                  <td>
+                    No chip on the counts; <kbd>g</kbd> <kbd>Q</kbd> appears only in the
+                    key bar at the foot
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row">The panel's head</th>
+                  <td>Threads, a Next unread button (<kbd>u</kbd>), and ×</td>
+                  <td>Queue and ×</td>
+                </tr>
+                <tr>
+                  <th scope="row">Under the head</th>
+                  <td>Find, View, and “3 open threads”</td>
+                  <td>The groups straight away: “On you · 3”</td>
+                </tr>
+                <tr>
+                  <th scope="row">The walk on the page</th>
+                  <td><kbd>t</kbd> and <kbd>T</kbd>, through every open thread</td>
+                  <td><kbd>a</kbd> and <kbd>A</kbd>, through what's on you</td>
+                </tr>
+                <tr>
+                  <th scope="row">The key that opens it</th>
+                  <td><kbd>g</kbd> <kbd>T</kbd>, the walk's own letter</td>
+                  <td><kbd>g</kbd> <kbd>Q</kbd>, a letter of its own</td>
+                </tr>
+                <tr>
+                  <th scope="row">Stepping through its rows</th>
+                  <td><kbd>t</kbd> and <kbd>T</kbd></td>
+                  <td><kbd>↑</kbd> and <kbd>↓</kbd></td>
+                </tr>
+              </tbody>
+            </table>
+            <p>
+              Ending something differs on purpose, and I'd keep it:
+              <kbd>r</kbd> resolves a thread, and <kbd>x</kbd> is Done on a task on you.
+              Resolving closes a conversation; Done ends a piece of work.
+            </p>
+          </section>
+
+          <section id="bar-options">
+            <lf-ask id="bar-pick">
+              <h3 id="bar-pick-heading">Which top bar?</h3>
+              <p>
+                Each sketch shows the top bar with the queue panel open, renamed Tasks,
+                the word you use for it. The Threads door and panel stay as they are
+                today in every option.
+              </p>
+              <lf-options id="bar-pick-options" choose>
+                <lf-option id="bar-baseline"
+                  ><strong>Today</strong> The counts in the middle open the Queue on the
+                  left, and nothing on them changes while it is open.
+                  <div class="sketch tb" aria-hidden="true">
+                    <div class="tb-bar">
+                      <span>🍃 Claude away</span><span class="tb-push"></span
+                      ><span class="tb-plain">3 on you · 2 on Claude</span
+                      ><span class="tb-push"></span
+                      ><span class="tb-door">Threads: 3<i class="tb-dot"></i></span
+                      ><span class="tb-more">⋯</span>
+                    </div>
+                    <div class="tb-body">
+                      <div class="tb-panel tb-left">
+                        <div class="tb-head">
+                          <span>Queue</span><span class="sk-x">×</span>
+                        </div>
+                        <p class="sk-group">On you · 3</p>
+                        <ul class="sk-rows">
+                          <li>
+                            <span class="sk-kind">Ask</span
+                            ><span class="sk-title">Which first?</span>
+                          </li>
+                          <li>
+                            <span class="sk-kind">Question</span
+                            ><span class="sk-title">Make the banner quieter.</span>
+                          </li>
+                        </ul>
+                      </div>
+                      <div class="tb-page">The page</div>
+                    </div>
+                  </div>
+                </lf-option>
+                <lf-option id="bar-sides"
+                  ><strong>Matching doors, each over its panel</strong> The counts
+                  become a Tasks door with the Threads door's face: a label and a count,
+                  tinted and underlined while open, and a <kbd>g</kbd> <kbd>A</kbd> chip
+                  when you press <kbd>g</kbd>. It moves to the left, beside the status,
+                  over the panel it opens. Its count is what's on you, as the Threads
+                  count is the open threads. What's on Claude joins the status, which is
+                  already about Claude.
+                  <div class="sketch tb" aria-hidden="true">
+                    <div class="tb-bar">
+                      <span>🍃 Claude away · 2 to do</span
+                      ><span class="tb-door tb-on">Tasks: 3</span
+                      ><span class="tb-push"></span
+                      ><span class="tb-door">Threads: 3<i class="tb-dot"></i></span
+                      ><span class="tb-more">⋯</span>
+                    </div>
+                    <div class="tb-body">
+                      <div class="tb-panel tb-left">
+                        <div class="tb-head">
+                          <span>Tasks</span><span class="tb-btn">Next on you</span
+                          ><span class="sk-x">×</span>
+                        </div>
+                        <p class="tb-count">3 on you · 2 on Claude</p>
+                        <ul class="sk-rows">
+                          <li>
+                            <span class="sk-kind">Ask</span
+                            ><span class="sk-title">Which first?</span>
+                          </li>
+                          <li>
+                            <span class="sk-kind">Question</span
+                            ><span class="sk-title">Make the banner quieter.</span>
+                          </li>
+                        </ul>
+                      </div>
+                      <div class="tb-page">The page</div>
+                    </div>
+                  </div>
+                </lf-option>
+                <lf-option id="bar-right"
+                  ><strong>Matching doors, both panels on the right</strong> The same
+                  Tasks door, beside the Threads door at the right, and the Tasks panel
+                  opens on the right edge where the Threads panel does. Pressing the
+                  other door swaps one panel for the other in place, so the two read as
+                  two views of one side panel. The left edge keeps only the Leaves
+                  drawer. Recommended: since only one panel is ever open, a shared edge
+                  costs nothing, and it makes the doors and panels match in place as
+                  well as in face. It is also the larger change, because the Queue panel
+                  is built as a left drawer today.
+                  <div class="sketch tb" aria-hidden="true">
+                    <div class="tb-bar">
+                      <span>🍃 Claude away · 2 to do</span><span class="tb-push"></span
+                      ><span class="tb-door tb-on">Tasks: 3</span
+                      ><span class="tb-door">Threads: 3<i class="tb-dot"></i></span
+                      ><span class="tb-more">⋯</span>
+                    </div>
+                    <div class="tb-body">
+                      <div class="tb-page">The page</div>
+                      <div class="tb-panel tb-right">
+                        <div class="tb-head">
+                          <span>Tasks</span><span class="tb-btn">Next on you</span
+                          ><span class="sk-x">×</span>
+                        </div>
+                        <p class="tb-count">3 on you · 2 on Claude</p>
+                        <ul class="sk-rows">
+                          <li>
+                            <span class="sk-kind">Ask</span
+                            ><span class="sk-title">Which first?</span>
+                          </li>
+                          <li>
+                            <span class="sk-kind">Question</span
+                            ><span class="sk-title">Make the banner quieter.</span>
+                          </li>
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                </lf-option>
+              </lf-options>
+            </lf-ask>
+          </section>
+
+          <section id="bar-keys">
+            <h2>The keys pair each panel with its walk</h2>
+            <p>
+              Whichever top bar you pick, the keys change in the same way, so
+              <kbd>t</kbd> is to Threads what <kbd>a</kbd> is to Tasks:
+            </p>
+            <ul>
+              <li>
+                <kbd>g</kbd> <kbd>A</kbd> opens Tasks, as <kbd>g</kbd>
+                <kbd>T</kbd> opens Threads; <kbd>g</kbd> <kbd>Q</kbd> goes.
+              </li>
+              <li>
+                The Tasks head gets a Next on you button (<kbd>a</kbd>), as the Threads
+                head has Next unread (<kbd>u</kbd>).
+              </li>
+              <li>
+                <kbd>↑</kbd> and <kbd>↓</kbd> step through rows in the Threads panel
+                too. <kbd>t</kbd> and <kbd>T</kbd> keep working there.
+              </li>
+              <li>
+                The panel is called Tasks everywhere you read its name: its head, the
+                control in More, and the key bar.
               </li>
             </ul>
           </section>

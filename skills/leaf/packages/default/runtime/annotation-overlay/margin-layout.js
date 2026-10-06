@@ -13,13 +13,14 @@
    to the next frame would show a row at its stale seat after its target changed.
 
    Zero-size lanes start at the document origin. Root scrolling carries their rows
-   natively; additive ScrollTimeline translations carry nested scrolling. A lane's clip
+   natively; nested native motion layers carry inner scrolling. A lane's clip
    follows its region's outer scrollers, while its rows add the remaining inner motion.
    Coordinates and scroll origins are one measurement, replaced together before paint.
    Layout owners announce same-size view rearrangements with `lf-layout`; resize
    observation covers the target's layout siblings and ancestors, including a bounded
-   region whose outer height stayed fixed. Without ScrollTimeline support, nested
-   scrolling requests a placement pass instead of native translations.
+   region whose outer height stayed fixed. Without a native linear scroll trajectory,
+   scrolling places the attachment before paint while retaining its chosen seat.
+   Geometric reflow, rather than scroll, is what chooses that seat again.
    No row depends on a CSS anchor: such dependencies made unrelated editor and chrome
    reads lay out every margin row again, even with unchanged page content.
    Rows whose targets scroll with
@@ -49,11 +50,7 @@ import { pageScroller } from "/runtime/scrolling.js";
 import { arrivals, packRows, rowPosture, seatRows } from "./margin-placement.js";
 import { overlaps } from "/runtime/rect.js";
 import { pointBand } from "/runtime/pointed-place.js";
-import {
-  nativeScrollTranslations,
-  readScrollTranslations,
-  scrollTranslation,
-} from "/runtime/scroll-translations.js";
+import { followScroll, scrollFollows, scrollMotions } from "/runtime/scroll-motion.js";
 import { residencyStarted } from "/runtime/content-layout.js";
 import { keeps, layoutPx } from "/runtime/keeps.js";
 import { declarationFor } from "/runtime/registry.js";
@@ -105,33 +102,81 @@ let layer = null;
 const translations = new Map();
 
 function clearTranslations(node) {
-  for (const effect of translations.get(node)?.effects ?? []) effect.cancel();
+  const record = translations.get(node);
+  for (const effect of record?.effects ?? []) effect.cancel();
+  if (record?.root !== node) record?.root.remove();
   translations.delete(node);
 }
 
+const motionRoot = (node) => translations.get(node)?.root ?? node;
+
 function carryScroll(node, motions) {
-  const before = translations.get(node)?.motions ?? [];
+  motions = motions.every((motion) => motion.timeline) ? motions : [];
+  const record = translations.get(node);
+  const before = record?.motions ?? [];
   if (
     before.length === motions.length &&
     before.every((motion, i) => {
       const next = motions[i];
       return (
         motion.source === next.source &&
+        motion.subject === next.subject &&
         motion.axis === next.axis &&
         motion.scroll === next.scroll &&
-        motion.extent === next.extent &&
+        motion.from === next.from &&
+        motion.to === next.to &&
         motion.vector.x === next.vector.x &&
         motion.vector.y === next.vector.y
       );
     })
   )
     return;
-  clearTranslations(node);
-  if (motions.length && nativeScrollTranslations())
+  for (const effect of record?.effects ?? []) effect.cancel();
+  const sameGraph =
+    before.length === motions.length &&
+    before.every(
+      (motion, i) =>
+        motion.source === motions[i].source && motion.axis === motions[i].axis,
+    );
+  let root = record?.root ?? node;
+  let layers = record?.layers ?? [];
+  if (!sameGraph) {
+    const previous = root;
+    root = node;
+    layers = [];
+    let parent;
+    for (let i = 0; i < motions.length; i++) {
+      const part = document.createElement("div");
+      part.className = "lf-ui lf-margin-motion";
+      if (parent) parent.append(part);
+      else root = part;
+      parent = part;
+      layers.push(part);
+    }
+    const move = () => {
+      previous.before(root);
+      if (parent) parent.append(node);
+      if (previous !== node) previous.remove();
+    };
+    // The native subtree moves only when its source/axis graph changes. Its row
+    // owner retains focus and expanded controls through that placement transition.
+    const held = node.contains(document.activeElement)
+      ? document.activeElement.closest(".lf-margin-cluster")
+      : null;
+    const owner = rows.get(node) ?? rows.get(held);
+    if (owner?.move) owner.move(move);
+    else move();
+  }
+  if (motions.length)
     translations.set(node, {
+      root,
+      layers,
       motions,
-      effects: motions.map((motion) => scrollTranslation(node, motion)),
+      effects: motions.map((motion, i) =>
+        followScroll(layers[i], motion, motion.scroll),
+      ),
     });
+  else translations.delete(node);
 }
 
 // Every actual scrollport, including an inner table and a shadow root's scroller.
@@ -337,8 +382,9 @@ function hearTargetChanges(root) {
   root.addEventListener(
     "scroll",
     (event) => {
-      if (event.target === document || !(event.target instanceof Element)) return;
-      scrolled.add(event.target);
+      const source = event.target === document ? pageScroller : event.target;
+      if (!(source instanceof Element)) return;
+      scrolled.add(source);
       scheduleScrollReading();
     },
     { capture: true, passive: true },
@@ -605,7 +651,7 @@ function standFolded(row, fold, on) {
 // which are worked out rather than read, since only the one it stands at is drawn:
 // unfolded its face is two controls, folded one, and opened `fold.controls()`, each a
 // square the row's height, beside the gaps and the focus ring's room the row keeps.
-function seatPins(standing, { bands, shell, pinInset }) {
+function seatPins(standing, { bands, shell, pinInset, retainSeats }) {
   const main = marginColumn();
   const pins = [];
   for (const entry of standing) {
@@ -629,7 +675,7 @@ function seatPins(standing, { bands, shell, pinInset }) {
     const wide = fold ? across(2) : width;
     const seat = seats.get(row);
     const holding =
-      seat && entry.held
+      seat && (entry.held || retainSeats)
         ? {
             left: box.right - seat.right - width,
             right: box.right - seat.right,
@@ -817,8 +863,8 @@ function scheduleScrollReading() {
     scrollReading = 0;
     const boxes = [...scrolled];
     scrolled.clear();
-    if (!nativeScrollTranslations()) {
-      scheduleMarginLayout();
+    if (!scrollFollows()) {
+      layoutMarginRows({ retainSeats: true });
       return;
     }
     const bands = new Map();
@@ -830,6 +876,14 @@ function scheduleScrollReading() {
         return false;
       });
       if (!moving) continue;
+      const follows = scrollFollows(targetBox(target));
+      // The document carries ordinary rows and clips together; only attachments
+      // outside that linear plane need a document-scroll placement reading.
+      if (follows && boxes.every((box) => box === pageScroller)) continue;
+      if (!follows) {
+        layoutMarginRows({ retainSeats: true });
+        return;
+      }
       const extent = shownExtent(target);
       const painted = row.getBoundingClientRect();
       const stands = row.classList.contains("lf-withheld")
@@ -848,7 +902,7 @@ function scheduleScrollReading() {
   });
 }
 
-export function layoutMarginRows() {
+export function layoutMarginRows({ retainSeats = false } = {}) {
   cancelRender(pending);
   pending = 0;
   if (!layer) return;
@@ -896,11 +950,13 @@ export function layoutMarginRows() {
     }
   }
   const sourceMotions = new Map();
-  const motionsFor = (sources) =>
-    sources.flatMap((source) => {
-      if (!sourceMotions.has(source))
-        sourceMotions.set(source, readScrollTranslations([source]));
-      return sourceMotions.get(source);
+  const motionsFor = (sources, subject) =>
+    sources.flatMap((source, i) => {
+      const carried = sources[i - 1] ?? subject;
+      let subjects = sourceMotions.get(source);
+      if (!subjects) sourceMotions.set(source, (subjects = new Map()));
+      if (!subjects.has(carried)) subjects.set(carried, scrollMotions(source, carried));
+      return subjects.get(carried);
     });
   for (const [row, options] of rows) {
     const target = options.anchor();
@@ -917,7 +973,12 @@ export function layoutMarginRows() {
     // lanes.
     if (skipped(target)) {
       present.push({ row, at: null });
-      reads.push({ row, options, lane: row.parentElement ?? layer.root, shown: false });
+      reads.push({
+        row,
+        options,
+        lane: motionRoot(row).parentElement ?? layer.root,
+        shown: false,
+      });
       continue;
     }
     const anchor = targetBox(target);
@@ -949,7 +1010,7 @@ export function layoutMarginRows() {
       target,
       point,
       anchor,
-      motions: motionsFor(scrollSources(point ?? target)),
+      motions: motionsFor(scrollSources(point ?? target), targetBox(point ?? target)),
       scroller,
       lane: rootLane ? layer.root : null,
       shown,
@@ -978,7 +1039,10 @@ export function layoutMarginRows() {
           bands,
         ),
       );
-      laneMotions.set(read.scroller, motionsFor(scrollSources(read.scroller)));
+      laneMotions.set(
+        read.scroller,
+        motionsFor(scrollSources(read.scroller), read.scroller),
+      );
     }
   watchGeometry(geometry);
 
@@ -993,23 +1057,25 @@ export function layoutMarginRows() {
   let lastLane = layer.root;
   for (const [lane, members] of byLane) {
     if (lane !== layer.root) {
-      if (lastLane.nextElementSibling !== lane) lastLane.after(lane);
-      lastLane = lane;
+      const root = motionRoot(lane);
+      if (lastLane.nextElementSibling !== root) lastLane.after(root);
+      lastLane = root;
     }
     let before = lane.firstElementChild;
     for (const { row, options } of members) {
-      if (before === row) {
-        before = row.nextElementSibling;
+      const root = motionRoot(row);
+      if (before === root) {
+        before = root.nextElementSibling;
         continue;
       }
-      const into = () => lane.insertBefore(row, before);
+      const into = () => lane.insertBefore(root, before);
       if (options.move) options.move(into);
       else into();
     }
   }
   for (const [scroller, lane] of layer.lanes)
     if (!byLane.has(lane)) {
-      lane.remove();
+      motionRoot(lane).remove();
       clearTranslations(lane);
       layer.lanes.delete(scroller);
       layer.sizes.unobserve(scroller);
@@ -1052,7 +1118,7 @@ export function layoutMarginRows() {
       };
     });
   const standing = placed;
-  seatPins(standing, { bands, shell, pinInset });
+  seatPins(standing, { bands, shell, pinInset, retainSeats });
   const packed = packRows(standing, GAP);
   // A push says where a standing row stands, so a row that no longer stands has none.
   for (const row of pushes.keys()) if (!packed.has(row)) pushes.delete(row);
@@ -1104,7 +1170,11 @@ export function layoutMarginRows() {
   for (const [scroller, lane] of layer.lanes) {
     carryScroll(lane, laneMotions.get(scroller) ?? []);
     const region = regions.get(scroller);
-    const at = lane.getBoundingClientRect();
+    // Every native motion is rebased to the scroll offset measured by this pass.
+    // Its painted displacement is zero. A newly created effect may still be
+    // pending while script runs; reading its underlying transform here would
+    // mistake that transient value for the lane's document origin.
+    const at = { left: -scrollX, top: -scrollY };
     const ring = 6;
     const right = (stands && railBeside(scroller) ? shell : region?.right) + ring;
     const clip = region

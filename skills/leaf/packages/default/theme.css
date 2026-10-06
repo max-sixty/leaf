@@ -792,7 +792,7 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
                      position: static; }
   .lf-another > .lf-compose-field > leaf-text { flex: 1; min-width: 0; min-height: 0; padding: 0;
                      margin-inline-start: var(--lf-compose-text-margin-inline-start, 0px);
-                     padding-inline-end: var(--lf-option-action-room);
+                     --lf-field-end-room: var(--lf-option-action-room);
                      border: 0; outline: none; background: transparent; color: inherit;
                      font: var(--lf-option-font); resize: none; }
   .lf-another .lf-compose-placeholder { font: var(--lf-option-font); }

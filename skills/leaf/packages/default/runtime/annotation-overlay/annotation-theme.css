@@ -14,9 +14,9 @@
  * A target clipped out of its region withholds its row from paint and tab order. */
 .lf-margin-projection { display: flex; height: 0; pointer-events: none; }
 .lf-margin-projection[hidden] { display: none; }
-.lf-margin-toolbar, .lf-margin-lane {
+.lf-margin-toolbar, .lf-margin-lane, .lf-margin-motion {
     position: absolute; left: 0; top: 0; width: 0; height: 0; }
-.lf-margin-lane { z-index: 2; }
+.lf-margin-lane, .lf-margin-motion { z-index: 2; }
 .lf-margin-cluster { position: absolute; z-index: 2;
     display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;
     padding-right: var(--focus-ring-room); pointer-events: auto; }
@@ -124,9 +124,4 @@
 }
 @media print {
   .lf-margin-projection, .lf-margin-marker.lf-margin-entry { display: none !important; }
-}
-/* A browser without anchor positioning cannot stand a row by its target, so it shows none
- * and the banner offers the Page Map in their place (chrome.css). */
-@supports not (anchor-name: --lf-page) {
-  .lf-margin-projection { display: none !important; }
 }

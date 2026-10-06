@@ -1252,7 +1252,7 @@ def test_send_grows_thread_around_the_words(
             <= 1
         ), "Typing a short comment may grow its field, but must not carry it"
     if options:
-        page.locator(".lf-response-more").click()
+        page.keyboard.press("Tab")
         rendered(page)
         page.locator(".lf-fab-input").focus()
         rendered(page)
@@ -1304,6 +1304,10 @@ def test_send_grows_thread_around_the_words(
       };
       window.sampling = requestAnimationFrame(sample);
     }""")
+    # Send's room stands beside every line under a finger and in a scrolled draft,
+    # and after the last words otherwise; the sent message holds it where the draft did.
+    held = field.evaluate("el => el.endRoom")
+    assert held == ("every-line" if touch or long is True else "last-line")
     with sending(page, "comment"):
         if touch:
             page.locator(".lf-fab-bar").get_by_role(
@@ -1312,7 +1316,7 @@ def test_send_grows_thread_around_the_words(
         else:
             page.keyboard.press("Enter")
     card = page.locator(".lf-margin-preview")
-    expect(card).to_have_attribute("data-lf-comment-frame", "")
+    expect(card).to_have_attribute("data-lf-comment-frame", held)
     rendered(page)
     wait_for(
         lambda: page.evaluate(
@@ -1351,7 +1355,7 @@ def test_send_grows_thread_around_the_words(
         resized(page, size[0] + 1, size[1])
         rendered(page)
         assert body.evaluate("el => el.scrollTop") == pytest.approx(retained, abs=1)
-        expect(card).to_have_attribute("data-lf-comment-frame", "")
+        expect(card).to_have_attribute("data-lf-comment-frame", held)
     if not long and not touch and not again and motion == "no-preference":
         card.locator('leaf-text[name="reply"]').click()
         page.keyboard.insert_text("The same placement works for a reply.")
@@ -1580,3 +1584,43 @@ def test_native_attachment_measures_solver_and_scroll_origin_together(
     assert state["box"]["x"] == pytest.approx(state["quote"]["right"], abs=1), state
     assert state["box"]["y"] == pytest.approx(state["quote"]["top"], abs=1), state
     assert page.evaluate("detachPlacement()"), "the detached placement had no frame"
+
+
+def test_a_comment_box_on_words_in_a_scroller_stands_without_scroll_timelines(
+    browser, serve
+):
+    """Where the browser has no scroll timelines, as Firefox has none, the comment box
+    for words in a scroller stands in the window's plane, below the scroller, and stays
+    there as the scroller moves, rather than failing to stand at all."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Words in a scroller",
+                '<h1>Comments follow the words</h1><p id="quote">'
+                "The export keeps each tenant in an archive.<br>"
+                + "<span>More lines in this reading region.<br></span>" * 50
+                + '</p><div style="height:1200px"></div>',
+                head="<style>#quote { height:120px; overflow:auto; }</style>",
+            )
+        ),
+        init_script="delete window.ViewTimeline; delete window.ScrollTimeline;",
+    )
+    resized(page, 1200, 700)
+    words = """() => { const r = document.createRange();
+      r.selectNodeContents(document.getElementById('quote').firstChild);
+      return r.getBoundingClientRect().toJSON(); }"""
+    box = page.evaluate(words)
+    select(page, (box["x"] + 2, box["y"] + 8), (box["x"] + 150, box["y"] + 8))
+    page.locator(".lf-fab-input").click()
+    bar = page.locator(".lf-fab-bar")
+    expect(bar).to_have_attribute("data-lf-plane", "window")
+    quote = page.locator("#quote")
+    below = quote.bounding_box()
+    assert bar.bounding_box()["y"] >= below["y"] + below["height"]
+    gap = bar.bounding_box()["y"] - below["y"]
+    quote.evaluate("node => node.scrollBy(0, 30)")
+    rendered(page)
+    assert bar.bounding_box()["y"] - quote.bounding_box()["y"] == pytest.approx(
+        gap, abs=1
+    )

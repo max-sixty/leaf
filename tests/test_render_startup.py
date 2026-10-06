@@ -4377,7 +4377,7 @@ customElements.define('lf-feed', class extends HTMLElement {
     seen = comment["anchor"]["source_revision"]
 
     page.locator('[data-lf-datum="a-1"]').click(modifiers=["Alt"])
-    page.locator(".lf-fab-bar .lf-response-more").click()
+    page.keyboard.press("Tab")
     reaction = page.locator('.lf-fab-bar .lf-react[data-token="keep"]')
     expect(reaction).to_be_visible()
     with sending(page, "the record reaction"):
@@ -4428,7 +4428,7 @@ customElements.define('lf-feed', class extends HTMLElement {
     assert drafted["anchor"]["identity"] == "a"
 
     row.click(modifiers=["Alt"])
-    page.locator(".lf-fab-bar .lf-response-more").click()
+    page.keyboard.press("Tab")
     expect(reaction).to_have_attribute("aria-pressed", "true")
     with sending(page, "the record reaction withdrawal"):
         reaction.click()

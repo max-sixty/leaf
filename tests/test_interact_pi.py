@@ -21,6 +21,7 @@ from interact_support import (
     serving,
     wait_for,
 )
+from leaf import event_log as events_model
 from leaf import harness as harness_model
 from leaf import leases as leases_model
 from leaf import server as server_model
@@ -134,7 +135,8 @@ def test_the_pi_extension_carries_a_comment_into_a_new_run(page_dir, pi):
     calls them at a turn, and keeps the watch running from the session's start. A
     comment arriving while Pi is idle wakes the watch, and the extension starts a
     run carrying the whole delivery, which is the same envelope the prompt hook
-    hands a Claude Code turn. Ending the session ends the claim's lifetime."""
+    hands a Claude Code turn, confirmed as the hook hands it over. Ending the
+    session ends the claim's lifetime."""
     claim = service_model.page_claim(page_dir)
     assert (claim["harness"], claim["id"], claim["agent"]) == ("pi", "pi-s1", "Pi")
     assert cleanup_model.session_record("pi-s1")["lifetime"] == {"pid": pi.pid}
@@ -152,11 +154,13 @@ def test_the_pi_extension_carries_a_comment_into_a_new_run(page_dir, pi):
     sent = pi.message()
     # Pi starts a run when none is going, and steers the running one.
     assert sent["options"] == {"triggerTurn": True, "deliverAs": "steer"}
-    instruction, envelope = sent["sent"]["content"].split("\n")[:2]
-    assert "acknowledge" in instruction
-    [batch] = json.loads(envelope)["batches"]
+    delivery = json.loads(sent["sent"]["content"].split("\n")[1])
+    assert delivery["acknowledge"] is None
+    [batch] = delivery["batches"]
     assert [event["id"] for event in batch["events"]] == [comment["id"]]
-    assert page_state(page_dir)["pending"] == 1
+    assert page_state(page_dir)["pending"] == 0
+    [workflow] = page_state(page_dir)["workflows"]
+    assert workflow["stage"] == "picked_up"
 
     pi.quit()
     assert cleanup_model.session_record("pi-s1")["ended"] is not None
@@ -188,8 +192,9 @@ def test_the_pi_extension_keeps_a_run_going_for_input_that_arrives_in_it(
 
 def test_an_escape_leaves_input_handed_to_the_run_for_the_next_prompt(page_dir, pi):
     """Input steered into a run the user then stops with Escape is not handed to
-    a new run of its own (`session.watch_between_turns`); the user's next prompt
-    carries it."""
+    a new run of its own (`session.watch_between_turns`). The hook confirmed it as
+    it handed it over, so the user's next prompt carries it as a move still owed
+    its answer, picked up again in that run."""
     pi.emit("before_agent_start")
     pi.emit("agent_start")
     comment = append_carried_log_record(
@@ -201,8 +206,13 @@ def test_an_escape_leaves_input_handed_to_the_run_for_the_next_prompt(page_dir, 
     assert cleanup_model.session_record("pi-s1")["turn_closed"] is not None
 
     prompt = pi.emit("before_agent_start", idle=True)
-    [batch] = json.loads(prompt["message"]["content"].split("\n")[1])["batches"]
-    assert [event["id"] for event in batch["events"]] == [comment["id"]]
+    assert f"--for {comment['id']}" in prompt["message"]["content"]
+    pickup = events_model.read_events(page_dir)[-1]
+    assert (pickup["kind"], pickup["events"], pickup["turn"]) == (
+        "pickup",
+        [comment["id"]],
+        cleanup_model.session_record("pi-s1")["turn"],
+    )
 
 
 def test_a_reload_keeps_the_pi_session_and_its_watch(page_dir, pi):

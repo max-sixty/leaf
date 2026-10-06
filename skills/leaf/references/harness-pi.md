@@ -27,10 +27,10 @@ once the page is handed over, end the run: start no `leaf wait`. Input that
 arrives as a run is about to end comes into that run the same way, and keeps it
 going.
 
-Once the complete envelope is in context, take its `acknowledge` route
-(`leaf delivery ack <id>`) before working or replying, so the user's moves read
-**Picked up**. Large input arrives as a `leaf delivery read <id>` pointer; read
-the whole envelope before acknowledging it.
+The extension confirms an envelope it puts in your context, so the user's moves
+read **Picked up** and its `acknowledge` is null: run no acknowledgement command.
+Large input arrives as a `leaf delivery read <id>` pointer instead; run it before
+working or replying, since reading it is what confirms it.
 
 To pick up a page this session did not serve, run `leaf page claim <page>`; the
 extension watches it from the end of the run.

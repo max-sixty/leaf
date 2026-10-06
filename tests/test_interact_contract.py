@@ -1931,6 +1931,26 @@ def test_candidate_vocabulary_preserves_commands_in_frozen_thread_markup(page_di
             },
             "records must name distinct",
         ),
+        (
+            {
+                "builds": {
+                    "description": "Build facts.",
+                    "schema": {},
+                    "resources": "images[].url",
+                }
+            },
+            "resources must be a list",
+        ),
+        (
+            {
+                "builds": {
+                    "description": "Build facts.",
+                    "schema": {},
+                    "resources": ["images["],
+                }
+            },
+            "resource expression 'images[' is invalid",
+        ),
     ],
 )
 def test_the_registry_door_validates_data_contracts(page_dir, contracts, message):
@@ -2298,7 +2318,7 @@ def _page_owned_deferred_source(page_dir):
     return authored
 
 
-@pytest.mark.parametrize("change", ["schema", "records"])
+@pytest.mark.parametrize("change", ["schema", "records", "resources"])
 def test_page_owned_data_contract_meaning_is_fixed_for_the_source_lifetime(
     page_dir, change
 ):
@@ -2308,13 +2328,15 @@ def test_page_owned_data_contract_meaning_is_fixed_for_the_source_lifetime(
     contract = declarations["$data"]["contracts"]["local-files"]
     if change == "records":
         contract["records"]["deferred"] = "body"
+    elif change == "resources":
+        contract["resources"] = ["optional"]
     else:
         contract["schema"]["properties"]["files"]["minItems"] = 1
     authored.write_text(json.dumps(declarations))
 
     activation = revisioning_model.activate_source(page_dir)
-    assert "schema or record declaration changes" in activation.error
-    with pytest.raises(data_model.DataError, match="schema or record declaration"):
+    assert "schema, record declaration, or resources change" in activation.error
+    with pytest.raises(data_model.DataError, match="record declaration, or resources"):
         data_model.cmd_data_set(
             page_dir,
             "files",
@@ -2322,7 +2344,7 @@ def test_page_owned_data_contract_meaning_is_fixed_for_the_source_lifetime(
         )
     revendored = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
     assert revendored.exit_code != 0
-    assert "schema or record declaration" in revendored.output
+    assert "record declaration, or resources" in revendored.output
 
 
 def test_data_history_is_held_across_the_incoming_layer_interpretation(
@@ -2403,12 +2425,17 @@ def test_data_history_is_held_across_the_incoming_layer_interpretation(
     )
 
 
-def test_page_owned_data_contract_description_can_improve(page_dir):
+@pytest.mark.parametrize("change", ["description", "empty-resources"])
+def test_page_owned_data_contract_can_change_without_changing_source_meaning(
+    page_dir, change
+):
     authored = _page_owned_deferred_source(page_dir)
     declarations = json.loads(authored.read_text())
-    declarations["$data"]["contracts"]["local-files"]["description"] = (
-        "A clearer description of the same file payloads."
-    )
+    contract = declarations["$data"]["contracts"]["local-files"]
+    if change == "description":
+        contract["description"] = "A clearer description of the same file payloads."
+    else:
+        contract["resources"] = []
     authored.write_text(json.dumps(declarations))
 
     activation = revisioning_model.activate_source(page_dir)
@@ -3744,15 +3771,15 @@ How this text reaches the agent, by example
    @ADDED@.
    The batch's `handling` maps clause ids to their text, each distinct text
    appearing once. The event's `handling` names its applicable clauses in order.
-   The envelope's `acknowledge` tells the reader to confirm the complete delivery
-   with `leaf delivery ack`. Hook output alone confirms nothing. The whole delivery,
-   indented here (the hook writes it on one line):
+   Once it has published that context, the hook confirms the delivery itself,
+   so the envelope's `acknowledge` is null and the comment reads Picked up. The
+   whole delivery, indented here (the hook writes it on one line):
 
 @DELIVERY@
 
-5. The agent confirms the complete delivery, then follows `handling`: it names
-   any work the comment asks for with `leaf task start`, does it,
-   and replies in the thread with `leaf thread reply`.
+5. The agent follows `handling`: it names any work the comment asks for with
+   `leaf task start`, does it, and replies in the thread with
+   `leaf thread reply`.
 
 What this file records
 ----------------------

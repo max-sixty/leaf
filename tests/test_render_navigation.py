@@ -315,6 +315,14 @@ def test_a_let_go_keeps_the_user_in_the_pane_they_read(browser, serve):
     assert (
         split.evaluate("box => box.scrollHeight - box.clientHeight - box.scrollTop") < 2
     )
+    # The pane it remembers has scrolled out of view, so a landing reads the body
+    # carrying it, which shows the other pane, rather than going back for the first.
+    bottom = split.evaluate("box => box.scrollTop")
+    page.keyboard.press("g")
+    page.keyboard.press("p")
+    page.keyboard.press("Tab")
+    expect(page.locator("#right-subject")).to_be_focused()
+    assert split.evaluate("box => box.scrollTop") == bottom
 
 
 def test_a_pane_bodys_ring_is_drawn_whole_against_the_workspace_edges(browser, serve):

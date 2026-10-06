@@ -39,6 +39,7 @@ from interact_support import (
     _status,
     append_carried_log_record,
     append_command,
+    asks_on_you,
     available_loopback_port,
     check,
     consume_pending_input,
@@ -955,7 +956,16 @@ def test_thread_attention_names_the_workflow_the_thread_waits_on():
             threads,
             {"user": []},
             browser_served_model.served_workflows(workflows, frozen),
-            [{"id": "t1", "title": "Rebuild", "thread": "root", "running": None}],
+            [
+                {
+                    "id": "t1",
+                    "owner": "agent",
+                    "subject": {"kind": "thread", "id": "root"},
+                    "title": "Rebuild",
+                    "thread": "root",
+                    "running": None,
+                }
+            ],
         )
         assert threads[0]["attention"] == {
             "kind": "waiting",
@@ -968,7 +978,16 @@ def test_thread_attention_names_the_workflow_the_thread_waits_on():
         threads,
         {"user": []},
         [],
-        [{"id": "t1", "title": "Rebuild", "thread": "root", "running": None}],
+        [
+            {
+                "id": "t1",
+                "owner": "agent",
+                "subject": {"kind": "thread", "id": "root"},
+                "title": "Rebuild",
+                "thread": "root",
+                "running": None,
+            }
+        ],
     )
     assert threads[0]["attention"] == {
         "kind": "waiting",
@@ -1929,7 +1948,7 @@ def test_a_start_is_one_log_record_read_at_the_banner_and_the_move(
     append_carried_log_record(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "why?"}
     )
-    assert "neither an open task nor a move you owe" in (
+    assert "neither an open task of yours nor a move you owe" in (
         _start(page_dir, "nope", "reading the traces").output
     )
     assert _start(page_dir, "c1", "").exit_code != 0
@@ -2536,6 +2555,7 @@ def test_a_harness_step_waiting_on_the_user_outlasts_the_working_grace():
         {
             "kind": "task",
             "id": "t1",
+            "owner": "agent",
             "seq": 1,
             "ts": old,
             "subject": {"kind": "page"},
@@ -6846,7 +6866,7 @@ def test_settling_a_frozen_widget_move_does_not_revive_its_superseded_move(
         },
     )
     selecting = state_json(page_dir)
-    assert [ask["source"] for ask in selecting["asks"]] == ["regions"]
+    assert [ask["widget"] for ask in asks_on_you(selecting)] == ["regions"]
     assert selecting["activity"]["obligations"] == []
     assert selecting["workflows"] == []
     assert service_model.unacknowledged(events_model.read_events(page_dir), 0) == []
@@ -6865,7 +6885,7 @@ def test_settling_a_frozen_widget_move_does_not_revive_its_superseded_move(
         },
     )
     completed = state_json(page_dir)
-    assert completed["asks"] == []
+    assert asks_on_you(completed) == []
     assert completed["activity"]["obligations"] == [answered["id"]]
     cleanup_model.prompt_turn("s1")
     receive_through(page_dir, last_deliverable_seq(page_dir))
@@ -6880,7 +6900,7 @@ def test_settling_a_frozen_widget_move_does_not_revive_its_superseded_move(
         {"kind": "undo", "author": "user", "undoes": answered["id"]},
     )
     resumed = state_json(page_dir)
-    assert [ask["source"] for ask in resumed["asks"]] == ["regions"]
+    assert [ask["widget"] for ask in asks_on_you(resumed)] == ["regions"]
     assert resumed["activity"]["obligations"] == []
     answered = append_command(
         page_dir,
@@ -14247,7 +14267,7 @@ def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
     )
     refused = CliRunner().invoke(cli_model.cli, ["status", str(claimed), "idle"])
     assert refused.exit_code == 1
-    assert "1 update nobody has picked up" in refused.output
+    assert "1 event nobody has picked up" in refused.output
     # The claimant's harness names the remedy: Claude Code's hook carries them.
     assert "Leaf's hook puts them in your context" in refused.output
     assert service_model.read_status(claimed)["state"] != "idle"
@@ -14308,7 +14328,7 @@ def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
     )
     refused = CliRunner().invoke(cli_model.cli, ["status", str(claimed), "idle"])
     assert refused.exit_code == 1
-    assert "1 update nobody has picked up" in refused.output
+    assert "1 event nobody has picked up" in refused.output
     cleanup_model.prompt_turn("s1")
     report = str(events_model.read_events(claimed)[-1]["seq"])
     assert (
@@ -14433,7 +14453,7 @@ cli_model.cli()
 
     out, err = process.communicate(timeout=STATED_TIMEOUT)
     assert process.returncode == 1, f"{out}{err}"
-    assert "1 update nobody has picked up" in err
+    assert "1 event nobody has picked up" in err
     assert files_model.read_json(page_dir / "status.json")["state"] == "waiting"
 
 
@@ -16136,7 +16156,7 @@ def test_a_tick_before_done_hands_nothing_to_the_agent(claimed, capsys, declared
         },
     )
     ticked = state_json(claimed)
-    assert [ask["source"] for ask in ticked["asks"]] == ["choice"]
+    assert [ask["widget"] for ask in asks_on_you(ticked)] == ["choice"]
     assert ticked["workflows"] == []
     assert ticked["activity"]["counts"]["total"] == 0
     assert ticked["activity"]["counts"]["pending"] == 0
@@ -16156,7 +16176,7 @@ def test_a_tick_before_done_hands_nothing_to_the_agent(claimed, capsys, declared
         },
     )
     finished = state_json(claimed)
-    assert finished["asks"] == []
+    assert asks_on_you(finished) == []
     [workflow] = owed(finished)
     assert workflow["answer"] == {"kind": "markup", "action": done["id"]}
     delivery = delivery_through(claimed, done["seq"])
@@ -16251,11 +16271,11 @@ def test_a_deck_in_a_thread_owes_nothing_until_it_is_finished(page_dir):
     sort("card-a", "i")
     sorting = state_json(page_dir)
     assert sorting["workflows"] == []
-    assert [ask["source"] for ask in sorting["asks"]] == ["triage"]
+    assert [ask["widget"] for ask in asks_on_you(sorting)] == ["triage"]
 
     sort("card-b", "r")
     finished = state_json(page_dir)
-    assert finished["asks"] == []
+    assert asks_on_you(finished) == []
     assert sorted(item["coordinate"][1] for item in owed(finished)) == [
         "card-a",
         "card-b",

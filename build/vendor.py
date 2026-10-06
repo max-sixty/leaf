@@ -180,8 +180,8 @@ def build_codemirror(work: Path) -> list[Path]:
             f"/*! CodeMirror {version('@codemirror/view')} — MIT"
             " — https://codemirror.net */\n"
             'export { EditorView, keymap, Decoration, ViewPlugin } from "@codemirror/view";\n'
-            'export { EditorState, Compartment } from "@codemirror/state";\n'
-            "export { history, standardKeymap, historyKeymap, isolateHistory, undoDepth }"
+            'export { EditorState, StateEffect, Compartment } from "@codemirror/state";\n'
+            "export { history, standardKeymap, historyKeymap, isolateHistory, invertedEffects }"
             ' from "@codemirror/commands";\n'
             'export { LanguageSupport } from "@codemirror/language";\n'
             "export { markdownLanguage, insertNewlineContinueMarkup }"

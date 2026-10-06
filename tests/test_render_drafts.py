@@ -577,6 +577,24 @@ def test_observed_selection_offers_comment_without_replacing_the_editor(
     expect(field).to_have_js_property("value", words)
 
 
+def test_a_passages_comment_box_undoes_only_its_own_draft(browser, serve):
+    """The comment box moves from passage to passage, and its undo history belongs to
+    the draft it stands on: words typed and deleted on one passage are not what ⌘Z
+    brings into the next one's draft, even when both drafts read the same."""
+    page = open_page(browser, serve(LONG_PAGE))
+    field = page.locator(".lf-fab-input")
+    compose(page, "#p0")
+    page.keyboard.type("x")
+    page.keyboard.press("ArrowLeft")  # a caret move ends the typing's undo step
+    page.keyboard.press("End")
+    page.keyboard.press("Backspace")
+    expect(field).to_have_js_property("value", "")
+    compose(page, "#p1")
+    page.keyboard.press("ControlOrMeta+z")
+    page.keyboard.type("y")
+    expect(field).to_have_js_property("value", "y")
+
+
 def test_page_round_trip(browser, serve):
     """The loop the product is, driven through the real UI: select a passage and
     comment on it, drag a card to another column, rewrite a draft in place, then

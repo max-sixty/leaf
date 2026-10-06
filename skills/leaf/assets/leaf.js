@@ -249,11 +249,17 @@ let panelComposer;
 let selectionComposer;
 let responseSurface;
 let drawing;
+// A draft's drawing put in place, null taking it off, and the page's ink repainted.
+const replaceDrawing = (anchor, drawn) => {
+  selectionComposer.setDraftDrawing(anchor, drawn);
+  drawingPaint.paint();
+};
 // A composer's own controls for the drawing its draft holds, which the drawing
-// controller answers.
+// controller answers, and its history's way of putting one back.
 const drawingEdits = {
   undoStroke: (anchor) => drawing.undoStroke(anchor),
   remove: (anchor) => drawing.removeDrawing(anchor),
+  replace: replaceDrawing,
 };
 let aim;
 let targets;
@@ -705,10 +711,7 @@ drawing = createDrawingController({
   draftKey: selectionComposer.draftKey,
   openAnchoredDrawing: (anchor, drawing) =>
     selectionComposer.openComposer(anchor, "", { carry: true, drawing }),
-  replaceDrawing: (anchor, drawing) => {
-    selectionComposer.setDraftDrawing(anchor, drawing);
-    drawingPaint.paint();
-  },
+  replaceDrawing,
   setDesignMode: designMode.setActive,
   closeTargetPicker: targets.closeTargetPicker,
   closeReactionMode: () => reactions.setReact(false),

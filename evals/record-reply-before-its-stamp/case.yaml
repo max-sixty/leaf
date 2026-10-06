@@ -44,11 +44,12 @@ assert:
   value: |
     Read the first turn's commands. Pass only if they edit the heading in
     `index.html`, run `leaf page check` on the page, and then run
-    `leaf thread reply` answering 7c41d0e2, with no `leaf page check --render`, no
-    screenshot or browser review, and no `leaf page stamp` before that reply.
-    Starting the comment with `leaf task start`, or setting the page waiting after
-    the reply, is fine. Fail if a render check, a browser review or a stamp comes
-    before the reply in the first turn.
+    `leaf thread reply` answering 7c41d0e2, and if the first turn runs no
+    `leaf page check --render`, no screenshot or browser review, and no
+    `leaf page stamp` at any point, before or after that reply. Starting the
+    comment with `leaf task start`, or setting the page waiting after the reply, is
+    fine. Fail if a render check, a browser review or a stamp appears anywhere in
+    the first turn.
 - type: llm-rubric
   metric: stamps-at-sign-off
   value: |

@@ -9179,7 +9179,8 @@ def test_the_key_line_says_what_a_press_will_do(browser, serve):
 
     # c is comment everywhere. From the page it opens the banner's page comment card and
     # stands the user in its box, so one press comes back out: the card goes, and the
-    # user stands where they pressed c.
+    # user stands on the control it hangs from, as after a press on it, and one more
+    # lets go of the banner.
     page.keyboard.press("c")
     expect(page.locator(".lf-page-comment-card leaf-text")).to_be_focused()
     expect(line).to_contain_text("send")
@@ -9190,6 +9191,8 @@ def test_the_key_line_says_what_a_press_will_do(browser, serve):
     page.keyboard.press("Escape")
     expect(page.locator(".lf-page-comment-card")).to_be_hidden()
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
+    expect(page.locator(".lf-banner-actions > .lf-page-comment")).to_be_focused()
+    page.keyboard.press("Escape")
     assert page.evaluate("() => document.activeElement === document.body")
 
     # g T is navigation to Threads. Its one completed sequence enters one surface, and one

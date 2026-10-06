@@ -153,9 +153,9 @@
 /* Pasted media stays in the draft's Markdown, but the writing surface shows the thing
    rather than its transport. The strip takes its own row beside every text-box shape;
    the compact response bar overrides that row below. */
-:is(.lf-thread-reply, .lf-general, .lf-page-composer, .lf-say):has(> .lf-composer-media:not([hidden])) {
+:is(.lf-thread-reply, .lf-general, .lf-say):has(> .lf-composer-media:not([hidden])) {
   flex-wrap: wrap; }
-:is(.lf-thread-reply, .lf-general, .lf-page-composer, .lf-say) > .lf-composer-media {
+:is(.lf-thread-reply, .lf-general, .lf-say) > .lf-composer-media {
   display: flex; flex: 1 0 100%; gap: 6px; min-width: 0; overflow-x: auto;
   padding: 2px; box-sizing: border-box; }
 .lf-composer-media[hidden] { display: none !important; }
@@ -644,9 +644,19 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     stroke-linecap: round; stroke-linejoin: round; }
   .lf-banner-actions .lf-page-comment-label,
   .lf-banner-menu .lf-page-comment-icon { display: none; }
+  /* Open, the control takes the open surface's accent and ground, without the underline
+     an auxiliary toggle wears: the card's top edge meets it there. */
+  .lf-page-comment[aria-expanded="true"] { color: var(--accent); background: var(--chip); }
+  /* The card's box lays out as every composer does, its pasted media in a row of its
+     own (the unscoped rule above, for the boxes a shadow tree also holds). */
+  .lf-page-composer { --quote-inset: 10px; --pre-inset: 10px; }
+  .lf-page-composer:has(> .lf-composer-media:not([hidden])) { flex-wrap: wrap; }
+  .lf-page-composer > .lf-composer-media { display: flex; flex: 1 0 100%; gap: 6px;
+    min-width: 0; overflow-x: auto; padding: 2px; box-sizing: border-box; }
   /* The card hangs from the control: its top edge on the banner's foot and its right
      edge on the control's, with no border along the edge it hangs from, so control and
-     card read as one piece while it is open. Behind More it hangs from More's door. */
+     card read as one piece while it is open. On a phone, where the control is behind
+     More, it spans the window under the banner. */
   .lf-page-comment-card { position: fixed; position-anchor: --lf-page-comment;
     top: var(--lf-banner-h); right: anchor(right); bottom: auto; left: auto;
     margin: 0; z-index: var(--lf-z-menu);
@@ -655,8 +665,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     border: 1px solid var(--border-2); border-top: 0;
     border-radius: 0 0 var(--r) var(--r); box-shadow: 0 12px 36px var(--shade); }
   @media screen and (width <= 480px) {
-    .lf-page-comment-card { position-anchor: --lf-banner-more; right: 8px;
-      width: calc(100vw - 16px); }
+    .lf-page-comment-card { right: 8px; width: calc(100vw - 16px); }
   }
   /* The controls stay packed against the row's end. Approval and Threads each hold the
      widest words they can show, measured by the reserve calls where the banner is

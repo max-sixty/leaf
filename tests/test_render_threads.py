@@ -1793,9 +1793,31 @@ def test_comment_on_the_page_starts_a_thread_from_a_card_under_the_banner(
     assert card.evaluate(is_open)
     expect(box).to_be_focused()
     expect(box).to_have_js_property("value", "")
-    write(box, "Kept for later")
+    page.keyboard.press("Escape")
+    # Words typed straight after `c` land in the box rather than on the page's keys.
+    page.keyboard.press("c")
+    page.keyboard.type("Kept for later")
+    expect(box).to_have_js_property("value", "Kept for later")
     page.keyboard.press("Escape")
     assert not card.evaluate(is_open)
+
+    # A refused send opens the card again on the words it handed back.
+    page.route(
+        "**/api/event",
+        lambda route: route.fulfill(
+            status=400,
+            json={"ok": False, "final": True, "error": "refused before append"},
+        ),
+    )
+    # Pressed straight after the press that opens the card, Enter sends from its box.
+    control.click()
+    page.keyboard.press("Enter")
+    expect(box).to_be_focused()
+    expect(box).to_have_js_property("value", "Kept for later")
+    assert card.evaluate(is_open)
+    page.unroute("**/api/event")
+    assert all("400" in error for error in take_browser_errors(page))
+    page.keyboard.press("Escape")
 
     # The card and Threads' box are two views of the one page draft.
     toggle.click()
@@ -1805,6 +1827,26 @@ def test_comment_on_the_page_starts_a_thread_from_a_card_under_the_banner(
     expect(general).to_be_focused()
     expect(general).to_have_js_property("value", "Kept for later")
     assert not card.evaluate(is_open)
+
+
+def test_comment_on_the_page_stands_in_more_on_a_phone(browser, serve):
+    """A phone's banner keeps one row, so Comment on the page is a row of More in its
+    words; its press takes More down and opens the card across the window."""
+    context = browser.new_context(
+        is_mobile=True, has_touch=True, viewport={"width": 390, "height": 844}
+    )
+    page = open_page(browser, serve(LONG_PAGE), context=context)
+    expect(page.locator(".lf-banner-actions > .lf-page-comment")).to_have_count(0)
+    page.get_by_role("button", name="More page controls", exact=True).click()
+    page.locator(".lf-banner-menu .lf-page-comment").click()
+    card = page.locator(".lf-page-comment-card")
+    assert card.evaluate("node => node.matches(':popover-open')")
+    assert not page.locator(".lf-banner-menu").evaluate(
+        "node => node.matches(':popover-open')"
+    )
+    expect(card.locator("leaf-text")).to_be_focused()
+    box = card.bounding_box()
+    assert round(box["x"]) == 8 and round(box["width"]) == 390 - 16, box
 
 
 def test_a_pasted_image_survives_the_reply_draft_and_renders_from_the_message(

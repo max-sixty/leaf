@@ -86,8 +86,8 @@ import {
   standingThread,
   wireThreadLanding,
 } from "./runtime/thread/landing.js";
-import { createPanelComposer } from "./runtime/thread/panel.js";
-import { createPageCommentCard } from "./runtime/thread/page-comment-card.js";
+import { createThreadPanelKeys } from "./runtime/thread/panel.js";
+import { createPageComment } from "./runtime/thread/page-comment.js";
 import { standingThreadId } from "./runtime/thread/focus.js";
 import { createThreadListController } from "./runtime/thread/thread-list.js";
 import { createThreadNarrowing } from "./runtime/thread/narrowing.js";
@@ -246,7 +246,8 @@ let layout;
 let landing;
 let pageMapDialog;
 let asks;
-let panelComposer;
+let panelKeys;
+let pageComment;
 let selectionComposer;
 let responseSurface;
 let drawing;
@@ -323,7 +324,7 @@ const designMode = createDesignMode({
     refreshAim: () => pageGeometry.refreshAim(),
     pageShifted: () => pageGeometry.pageShifted(),
   },
-  syncGeneral: () => panelComposer.syncGeneral(),
+  syncGeneral: () => pageComment.sync(),
   composer: {
     showFab: (...args) => responseSurface.showFab(...args),
     openComposer: (...args) => selectionComposer.openComposer(...args),
@@ -582,27 +583,25 @@ const standingTarget = createStandingTarget({
   standingIn: asks.standingIn,
 });
 
-panelComposer = createPanelComposer({
+panelKeys = createThreadPanelKeys({
   elements: panelElements,
   openThreads: threadListController.openThreads,
   narrowing,
-  designModeActive: designMode.active,
-  wireInput: inputs.wireInput,
-  createPageComment: app.createPageComment,
-  showThread: landing.showThread,
   setPanel: (...args) => threadPanelController.setPanel(...args),
   panelIsOpen,
   stepThread: (...args) => navigation.stepThread(...args),
   firstUnread: () => app.read.firstUnread(),
   unreadCount: () => app.read.unreadCount(),
 });
-const pageCommentCard = createPageCommentCard({
+pageComment = createPageComment({
   wireInput: inputs.wireInput,
   createPageComment: app.createPageComment,
   designModeActive: designMode.active,
   panelIsOpen,
   setPanel: (...args) => threadPanelController.setPanel(...args),
   panelBox: panelElements.generalInput,
+  panelSend: panelElements.generalSend,
+  showThread: landing.showThread,
   threadsToggle: toggleBtn,
 });
 selectionComposer = createSelectionComposer({
@@ -670,7 +669,7 @@ responseSurface = createResponseSurface({
   drawModeActive: () => drawing.drawModeActive(),
   refreshThread: app.refreshThread,
   dismissThreadView: () => app.overlay?.inlineThreadView.dismiss(),
-  pageComment: pageCommentCard,
+  pageComment,
   responseHome: overlaySelected ? chromeRoot : panelFoot,
   revealResponseHome: overlaySelected
     ? null
@@ -757,8 +756,12 @@ threadPanelController = createThreadPanelController({
   showThread: landing.showThread,
   refreshThread: app.refreshThread,
   closeReactionMode: () => reactions.setReact(false),
-  closePreview: app.overlay?.closePreview,
-  syncGeneral: panelComposer.syncGeneral,
+  // A surface opening puts away the floating cards it would stand beside.
+  closePreview: (...args) => {
+    pageComment.close();
+    app.overlay?.closePreview(...args);
+  },
+  syncGeneral: pageComment.sync,
 });
 // The sample host binds to this child's owners, rather than importing another
 // window's runtime. This capability is ready before the child presents.
@@ -900,8 +903,8 @@ if (!offlineInteractive) {
   // Connect the search field before mount awaits its rendered input: Lit does not
   // resolve updateComplete until connection, and keyboard registration needs that input.
   narrowing.mount();
-  await panelComposer.mount();
-  pageCommentCard.mount(chromeRoot);
+  await panelKeys.mount();
+  pageComment.mount(chromeRoot);
   selectionComposer.mount();
   responseSurface.mount();
   holdToRead();

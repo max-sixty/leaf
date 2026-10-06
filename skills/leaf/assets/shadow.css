@@ -430,7 +430,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
              font-style: var(--quote-style); --lf-block-frame: 1; }
 /* Messages share their reading hierarchy and compact Markdown on every surface,
    including a thread seated inside a widget's shadow tree. */
-  :is(.lf-thread-transcript, .lf-thread-reply, .lf-general, .lf-page-composer) { --quote-inset: 10px; --pre-inset: 10px; }
+  :is(.lf-thread-transcript, .lf-thread-reply, .lf-general) { --quote-inset: 10px; --pre-inset: 10px; }
   .lf-msg-body { min-width: 0; font-size: var(--t-5); margin: 4px 0 0; line-height: 1.5; overflow-wrap: anywhere; }
   .lf-msg-text { display: contents; }
   .lf-msg-text > :first-child { margin-top: 0; }

@@ -1,4 +1,5 @@
-/* The thread panel's general composer, and the keys the Threads list itself answers.
+/* The keys the Threads list itself answers. Its general box is wired by the owner of
+   Comment on the page (thread/page-comment.js), which also owns the banner's card.
 
    Standing in the panel is where its focus is, not merely that it is open: the Threads
    button is the banner's, so opening by pointer leaves the user outside, and `g T`, `t`,
@@ -7,32 +8,14 @@
    takes words from the first paint — the offline banner says a comment will not send, not
    that there is nowhere to write it. A drawing belongs to an element's comment, never to
    this box (composing/drawing.js). */
-import {
-  loadDraft,
-  mirrorDraft,
-  saveDraft,
-  sendMessage,
-  tellDraft,
-} from "../drafts.js";
 import { focused, keys } from "../keyboard/scopes.js";
 import { pageScope } from "../keyboard/register.js";
 import { runtime } from "../context.js";
 import { pagePresented } from "../presentation.js";
 
-export function createPanelComposer({
-  elements: {
-    closeBtn,
-    findInput,
-    generalInput,
-    generalSend,
-    narrowingView,
-    inPanel: panelFocusIsInside,
-  },
+export function createThreadPanelKeys({
+  elements: { closeBtn, findInput, narrowingView, inPanel: panelFocusIsInside },
   openThreads,
-  designModeActive,
-  wireInput,
-  createPageComment,
-  showThread,
   setPanel,
   panelIsOpen,
   narrowing,
@@ -40,43 +23,8 @@ export function createPanelComposer({
   firstUnread,
   unreadCount,
 }) {
-  let sync = () => {};
-  let stopMirroringDraft = () => {};
-  const generalHint = () =>
-    designModeActive() ? "Comment on the design" : "Comment on the page";
-  const syncGeneral = () => sync();
-
   async function mount() {
     closeBtn.onclick = () => setPanel(false);
-    generalInput.value = loadDraft("general") ?? "";
-    sync = wireInput(generalInput, {
-      hint: generalHint,
-      accessibleName: generalHint,
-      sends: "send",
-      sendBtn: generalSend,
-      // localStorage tells other tabs and skips this document, and the page's draft
-      // has two views here, this box and the other place Comment on the page writes,
-      // so they take the same bus directly, as reply boxes do (replies.js).
-      save: (text) => {
-        saveDraft("general", text);
-        tellDraft("general", text);
-      },
-      send: async (_text, raw, owns) => {
-        const sent = await sendMessage("general", owns, (attempt) => {
-          const event = { attempt, text: raw };
-          if (designModeActive()) event.about = "design";
-          return createPageComment(event);
-        });
-        if (!sent) return;
-        // The message renderer cues the send; revealing its thread only lands it.
-        showThread(sent.id, { focus: false, flash: false });
-      },
-    });
-    sync();
-    // Resume writing reaches this draft through the banner's page comment card, which
-    // goes to this box while Threads is open and to its own otherwise
-    // (thread/page-comment-card.js).
-    stopMirroringDraft = mirrorDraft(generalInput, sync, "general");
     await findInput.updateComplete;
     declareFindBoxKeys();
   }
@@ -176,11 +124,7 @@ export function createPanelComposer({
   }
 
   return {
-    syncGeneral,
     mount,
-    dispose: () => {
-      stopPanelScope();
-      stopMirroringDraft();
-    },
+    dispose: () => stopPanelScope(),
   };
 }

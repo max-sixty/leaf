@@ -3141,10 +3141,11 @@ def test_the_help_overlay_answers_to_one_owner(browser, serve):
     expect(
         page.locator(".lf-command-reference", has_text="Edit the text in place")
     ).to_be_visible()
-    # Help is a scope: the table stands down behind it, so c must not work the
-    # panel under the sheet.
+    # Help is a scope: the table stands down behind it, so c must open nothing under
+    # the sheet, neither Threads nor the page comment card.
     page.keyboard.press("c")
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
+    expect(page.locator(".lf-page-comment-card")).to_be_hidden()
     expect(page.locator(".lf-command-reference")).to_be_visible()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-command-reference")).to_be_hidden()
@@ -4666,15 +4667,15 @@ customElements.define('lf-test-surface', class extends HTMLElement {
     # completion edge before checking that the digit produced no stale send.
     page.keyboard.press("1")
     page.keyboard.press("c")
-    expect(page.locator(".lf-general leaf-text")).to_be_focused()
+    expect(page.locator(".lf-page-comment-card leaf-text")).to_be_focused()
     round_trip(page)
     assert not [
         event
         for event in events_model.read_events(serve.page_dir)
         if event.get("token")
     ]
-    page.keyboard.press("Escape")  # out of the box, onto the list
-    page.keyboard.press("Escape")  # and out of the panel that holds it
+    page.keyboard.press("Escape")  # out of the page comment card
+    expect(page.locator(".lf-page-comment-card")).to_be_hidden()
     expect(page.locator(".lf-thread-panel")).not_to_have_class(re.compile(r"\bopen\b"))
     # A retired thread lands on the surface the user's own gesture reaches. With the
     # widget still on the page its passages keep a page-local destination, so each datum

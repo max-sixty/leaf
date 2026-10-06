@@ -1905,6 +1905,12 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
         "(code, source) => code.textContent = source", fitting
     )
     assert touch_pre.evaluate("pre => pre.scrollWidth === pre.clientWidth")
+    # The old scroll-state container query's 8px bottom float can survive the
+    # text write for a rendering pass after the line itself stops overflowing.
+    # Take geometry only after that old scrollbar clearance has gone.
+    touch.wait_for_function(
+        "getComputedStyle(document.querySelector('#plain'), '::after').content === 'none'"
+    )
     frame = touch_pre.bounding_box()
     touch_pre.tap(position={"x": 20, "y": 20})
     expect(touch_pre).to_be_focused()

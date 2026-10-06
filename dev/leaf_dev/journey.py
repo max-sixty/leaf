@@ -828,5 +828,7 @@ def journey(target: str, release: str | None) -> None:
     samples = samples_path()
     samples.parent.mkdir(parents=True, exist_ok=True)
     with samples.open("a") as kept:
-        kept.write(json.dumps({"at": datetime.now().astimezone().isoformat(), **sample}) + "\n")
+        kept.write(
+            json.dumps({"at": datetime.now().astimezone().isoformat(), **sample}) + "\n"
+        )
     print(f"kept in {samples}", file=sys.stderr)

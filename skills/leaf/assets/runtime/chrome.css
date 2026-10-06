@@ -1234,7 +1234,8 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     --lf-comment-inset: 12px;
     --lf-comment-text-size: var(--t-5);
     --lf-comment-text-pad-block: calc((var(--lf-response-height) - 1lh) / 2);
-    --lf-comment-text-pad-end: calc(max(28px, var(--aim-floor)) + var(--lf-thread-text-inset));
+    --lf-comment-text-pad-end: var(--lf-thread-text-inset);
+    --lf-comment-send-room: max(28px, var(--aim-floor));
     --lf-comment-head: max(28px, var(--aim-floor));
     --lf-comment-body-gap: 4px;
     --lf-comment-foot-gap: var(--sp-3);
@@ -1274,6 +1275,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      the editor's scrollport; its content-sized editor keeps native caret reveals. */
   leaf-text.lf-fab-input { width: 100%; min-width: 0;
     padding-inline: var(--lf-compose-pad-inline-start) calc(var(--lf-comment-text-pad-end) - 1px);
+    --lf-field-end-room: var(--lf-comment-send-room);
     overflow-y: auto; }
   .lf-fab-bar .lf-compose-field {
     --lf-compose-pad-block: calc(var(--lf-comment-text-pad-block) - 1px);

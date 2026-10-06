@@ -49,6 +49,14 @@
  * `aria-placeholder`, and the host's description through `ariaDescribedByElements`,
  * the one reference that reaches from inside a shadow root to the page around it.
  *
+ * A box whose Send action stands in the field's trailing corner sets
+ * `--lf-field-end-room` to the room the action takes beyond the field's end padding.
+ * The field keeps that room after its last words only, on the line the action stands
+ * beside, so the lines above wrap at the box's full measure. Under a finger, whose hit
+ * box is taller than a line, and while the field scrolls, other lines pass beside the
+ * action too, so there the room is held on every line. A sent message that keeps the
+ * draft's wrapping keeps the same room.
+ *
  * Enter, Mod+Enter and Escape are not bound here. Leaf's key dispatcher owns them on the
  * document, and cancels the press it acts on; Shift+Enter inserts a line and continues
  * a list or quote.
@@ -94,6 +102,22 @@ sheet.replaceSync(`
     contain: inline-size; overflow-x: clip; text-overflow: ellipsis;
     color: var(--muted); }
   :host(:not(:state(placeholder-shown))) .lf-field-placeholder { visibility: hidden; }
+  /* The trailing action's room, after the last word. A box too narrow for it on the
+     word's line takes it on a line of its own, so the field grows rather than run a
+     word under the action. */
+  .cm-line.lf-field-last::after { content: ""; display: inline-block;
+    inline-size: var(--lf-field-end-room); }
+  /* The placeholder is a single line, so it stands where a last line would. */
+  .lf-field-placeholder { padding-inline-end: var(--lf-field-end-room); }
+  /* The action stands beside more than the last line under a finger, whose hit box is
+     taller than a line, and in a scrolled field, which carries other lines past it. */
+  @media (pointer: coarse) {
+    .lf-field { padding-inline-end: var(--lf-field-end-room); }
+    .lf-field-placeholder { padding-inline-end: 0; }
+    .cm-line.lf-field-last::after { content: none; }
+  }
+  :host(:state(scrolls)) .lf-field { padding-inline-end: var(--lf-field-end-room); }
+  :host(:state(scrolls)) .cm-line.lf-field-last::after { content: none; }
   /* A draft wears the sent message's faces. Strong, emphasis and strikethrough are the
      elements themselves, which the platform dresses here as it does in the message;
      the rest read the theme's tokens, since its element rules stop at this root. A
@@ -335,6 +359,21 @@ const livePreview = ViewPlugin.fromClass(
   { decorations: (plugin) => plugin.decorations },
 );
 
+// The last line, while it holds words. A blank last line has none to run under the
+// action, and an inline box after its break would stand on a line of its own. The room
+// stays on the last line rather than on the last with words, so the line above gives it
+// up as Shift+Enter opens a line, not when the first character lands on the new one: the
+// keystroke that changes the lines is the one that rewraps them.
+const lastLine = Decoration.line({ class: "lf-field-last" });
+const lastWithWords = (state) => {
+  const last = state.doc.line(state.doc.lines);
+  return last.text.trim() ? last : null;
+};
+const lastLineRoom = EditorView.decorations.compute(["doc"], (state) => {
+  const last = lastWithWords(state);
+  return last ? Decoration.set([lastLine.range(last.from)]) : Decoration.none;
+});
+
 class LeafText extends HTMLElement {
   // The field's one model. Until the element first connects it is a bare EditorState,
   // which holds the value, selection and configuration without a DOM; connecting hands
@@ -396,6 +435,16 @@ class LeafText extends HTMLElement {
       });
   });
 
+  // Whether the host scrolls, for the action's room. CSS has a scroll-state query for
+  // this, which only Chromium supports; elsewhere every field read as scrolled. The
+  // host's height stops at the page's limit while the words grow inside it, so the
+  // reading watches the editor's scroller too. A resize observer reports before paint,
+  // so the room never shows a frame on the wrong lines.
+  #overflow = sizeObserver(() => {
+    if (this.scrollHeight > this.clientHeight) this.#internals.states.add("scrolls");
+    else this.#internals.states.delete("scrolls");
+  });
+
   static observedAttributes = ["aria-label", "aria-describedby", "placeholder"];
 
   constructor() {
@@ -439,6 +488,7 @@ class LeafText extends HTMLElement {
         ]),
         new LanguageSupport(markdownLanguage),
         livePreview,
+        lastLineRoom,
         fieldTheme,
         EditorView.lineWrapping,
         this.#editable.of(EditorState.readOnly.of(this.#readOnly)),
@@ -481,6 +531,8 @@ class LeafText extends HTMLElement {
     });
     this.#model = null;
     this.#sizes.observe(this);
+    this.#overflow.observe(this);
+    this.#overflow.observe(this.#view.scrollDOM);
     // The scroller is focusable only so a press on it keeps focus in the editor, and
     // the field's scroller never scrolls; left focusable it is the node the root
     // delegates focus to, which holds no caret.
@@ -496,6 +548,7 @@ class LeafText extends HTMLElement {
       if (this.isConnected || !this.#view) return;
       this.#model = this.#view.state;
       this.#sizes.disconnect();
+      this.#overflow.disconnect();
       this.#view.destroy();
       this.#view = null;
       this.#internals.states.delete("ready");
@@ -578,6 +631,15 @@ class LeafText extends HTMLElement {
   #paintEmpty() {
     if (this.#state.doc.length) this.#internals.states.delete("placeholder-shown");
     else this.#internals.states.add("placeholder-shown");
+  }
+
+  // Where the field holds its action's room now: `every-line`, `last-line` after its
+  // last words, or `none` while its last line is blank. A sent message keeping the
+  // draft's wrapping holds the same.
+  get endRoom() {
+    if (parseFloat(getComputedStyle(this.#frame).paddingInlineEnd) > 0)
+      return "every-line";
+    return lastWithWords(this.#state) ? "last-line" : "none";
   }
 
   get value() {

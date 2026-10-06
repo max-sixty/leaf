@@ -752,7 +752,9 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-compose-placeholder .lf-key-badge { background: transparent; color: var(--muted); }
 .lf-compose-field > leaf-text:not(.lf-fab-input) { display: block; box-sizing: border-box;
           width: 100%; min-width: 0; min-height: var(--lf-compose-h);
-          padding-inline-end: calc(var(--lf-icon-action-hit) + 12px); }
+          padding-inline-end: var(--lf-compose-pad-inline-start);
+          --lf-field-end-room: calc(var(--lf-icon-action-hit) + 12px
+            - var(--lf-compose-pad-inline-start)); }
 .lf-icon-action { box-sizing: border-box; width: var(--lf-icon-action-hit);
           height: var(--lf-icon-action-hit); min-width: var(--lf-icon-action-hit);
           min-height: var(--lf-icon-action-hit); padding: 0; display: grid;
@@ -808,8 +810,9 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
           font: inherit; line-height: 1.3; box-shadow: 0 2px 8px var(--shade); }
 .lf-fab-bar[data-lf-presentation="inline"] leaf-text.lf-fab-input {
           display: block; width: 100%; min-width: 0; max-width: none; max-height: 50vh;
-          padding: var(--lf-compose-pad-block) max(40px, calc(var(--aim-floor) + 12px))
-            var(--lf-compose-pad-block) var(--lf-compose-pad-inline-start);
+          padding: var(--lf-compose-pad-block) var(--lf-compose-pad-inline-start);
+          --lf-field-end-room: calc(max(40px, calc(var(--aim-floor) + 12px))
+            - var(--lf-compose-pad-inline-start));
           overflow-y: auto; }
 .lf-fab-bar[data-lf-presentation="inline"] .lf-compose-placeholder { line-height: 1.3; }
 .lf-fab-bar[data-lf-presentation="inline"] leaf-text.lf-fab-input:is(:focus, .lf-focus) {
@@ -914,7 +917,6 @@ pre:hover + .lf-code-copy,
           outline-offset: 0; border-color: transparent; }
 .lf-thread-reply .lf-compose-field > leaf-text { display: block; min-width: 0;
           padding: 8px var(--lf-compose-pad-inline-start);
-          padding-inline-end: calc(var(--lf-icon-action-hit) + 12px);
           border: 0; border-radius: 0; background: transparent;
           color: var(--ink); font: var(--t-5)/1.5 var(--sans);
           max-height: 50vh; overflow-y: auto; }

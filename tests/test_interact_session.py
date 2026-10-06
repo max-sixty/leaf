@@ -1297,6 +1297,7 @@ def test_embedded_codex_delivery_keeps_steered_input_in_one_claim_turn(page_dir)
     }
     assert claim["turn"] == first_turn
     assert activity["counts"]["handling"] == 2
+    assert activity["counts"]["handling_comments"] == 2
     assert activity["counts"]["picked_up"] == 0
     assert all(item["condition"] is None for item in interactions.values())
 

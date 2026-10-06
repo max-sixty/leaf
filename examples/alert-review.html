@@ -12,9 +12,9 @@
       <header>
         <h1>Which alerts should still page?</h1>
         <p id="ar-legend">
-          <span class="tag danger">5 caught incidents</span>
           <span class="tag warn">7 mostly noise</span>
           <span class="tag">2 wrong owner</span>
+          <span class="tag danger">5 caught incidents</span>
         </p>
       </header>
 
@@ -22,7 +22,8 @@
         <lf-tab
           id="ar-canary"
           label="Canary health check"
-          summary="noise · 0 of 47 pages real"
+          group="Mostly noise"
+          summary="0 of 47 pages real"
         >
           <lf-ask id="ar-canary-decision" data-width="wide">
             <h4>How should the canary probe page?</h4>
@@ -92,7 +93,8 @@
         <lf-tab
           id="ar-latency"
           label="Checkout p99 latency"
-          summary="noise · 1 of 31 pages real"
+          group="Mostly noise"
+          summary="1 of 31 pages real"
         >
           <lf-ask id="ar-latency-decision">
             <h4>What should the latency alert page on?</h4>
@@ -132,7 +134,8 @@
         <lf-tab
           id="ar-webhooks"
           label="Webhook queue depth"
-          summary="noise · 2 of 22 pages real"
+          group="Mostly noise"
+          summary="2 of 22 pages real"
         >
           <lf-ask id="ar-webhooks-decision">
             <h4>What should the webhook alert measure?</h4>
@@ -172,7 +175,8 @@
         <lf-tab
           id="ar-export"
           label="Ledger export lag"
-          summary="noise · 0 of 18 pages real"
+          group="Mostly noise"
+          summary="0 of 18 pages real"
         >
           <lf-ask id="ar-export-decision" data-width="wide">
             <h4>What should happen during the nightly batch?</h4>
@@ -240,7 +244,8 @@
         <lf-tab
           id="ar-disk"
           label="Replica disk usage"
-          summary="noise · 0 of 9 pages real"
+          group="Mostly noise"
+          summary="0 of 9 pages real"
         >
           <lf-ask id="ar-disk-decision">
             <h4>Should the 80% disk alert page at all?</h4>
@@ -275,43 +280,10 @@
           </lf-ask>
         </lf-tab>
         <lf-tab
-          id="ar-cert"
-          label="Sandbox TLS expiry"
-          summary="wrong owner · 0 of 7 pages real"
-        >
-          <lf-ask id="ar-cert-decision">
-            <h4>Who should hear about the sandbox certificate?</h4>
-            <p>It expires in six days.</p>
-            <dl class="facts">
-              <dt>Rule</dt>
-              <dd><code>tls_cert_expiring_14d</code></dd>
-              <dt>Fires on</dt>
-              <dd>A certificate within 14 days of expiry</dd>
-              <dt>Pages</dt>
-              <dd>7, one a day for the same certificate</dd>
-            </dl>
-            <p>
-              The certificate belongs to the partner sandbox host, which Platform owns
-              and renews automatically. Their renewal job is failing, and PLAT-2291
-              already tracks the fix.
-            </p>
-            <lf-options id="ar-cert-choice" choose>
-              <lf-option id="ar-cert-platform">
-                <lf-chip tone="ok">recommended</lf-chip>
-                <strong>Route it to Platform's queue</strong> The team that can renew it
-                sees it; payments stops paging.
-              </lf-option>
-              <lf-option id="ar-cert-both">
-                <strong>Page both teams until it renews</strong> Payments keeps waking
-                up for a fix it cannot make.
-              </lf-option>
-            </lf-options>
-          </lf-ask>
-        </lf-tab>
-        <lf-tab
           id="ar-settlement"
           label="Settlement job failed"
-          summary="noise · 3 of 6 pages real"
+          group="Mostly noise"
+          summary="3 of 6 pages real"
         >
           <lf-ask id="ar-settlement-decision">
             <h4>Should a settlement failure wait for its retry?</h4>
@@ -342,59 +314,10 @@
           </lf-ask>
         </lf-tab>
         <lf-tab
-          id="ar-kafka"
-          label="Ledger consumer lag"
-          summary="wrong owner · 0 of 5 pages real"
-        >
-          <lf-ask id="ar-kafka-decision">
-            <h4>Who should hear about ledger consumer lag?</h4>
-            <p>Lag that outlasts a rebalance does delay the ledger export.</p>
-            <dl class="facts">
-              <dt>Rule</dt>
-              <dd><code>ledger_events_consumer_lag</code></dd>
-              <dt>Fires on</dt>
-              <dd>More than 50,000 unread events on the ledger topic</dd>
-              <dt>Pages</dt>
-              <dd>5, none of which needed a person</dd>
-            </dl>
-            <p>
-              Each page was a broker rebalance on the shared event cluster, which Data
-              Platform runs. The consumer caught up once partitions were reassigned;
-              nothing on the payments side changed.
-            </p>
-            <lf-options id="ar-kafka-choice" choose>
-              <lf-option id="ar-kafka-route">
-                <lf-chip tone="ok">recommended</lf-chip>
-                <strong>Page Data Platform during rebalances</strong> Payments hears
-                only when lag outlasts 15 minutes.
-              </lf-option>
-              <lf-option id="ar-kafka-keep">
-                <strong>Keep paging payments</strong> No change to the rule.
-              </lf-option>
-            </lf-options>
-          </lf-ask>
-        </lf-tab>
-        <lf-tab
-          id="ar-errors"
-          label="Payments API 5xx rate"
-          summary="incident · 4 of 4 pages real"
-        >
-          <dl class="facts">
-            <dt>Rule</dt>
-            <dd><code>payments_api_5xx_rate</code></dd>
-            <dt>Pages</dt>
-            <dd>4, all of which needed a person</dd>
-          </dl>
-          <p>
-            Caught Tuesday's card-network outage six minutes before the first customer
-            ticket, and paged for Thursday's failover a minute ahead of the latency
-            alert. It keeps paging unchanged.
-          </p>
-        </lf-tab>
-        <lf-tab
           id="ar-3ds"
           label="3-D Secure failure rate"
-          summary="noise · 1 of 3 pages real"
+          group="Mostly noise"
+          summary="1 of 3 pages real"
         >
           <lf-ask id="ar-3ds-decision" data-width="wide">
             <h4>Should one issuer's outage page us?</h4>
@@ -451,9 +374,97 @@
           </lf-ask>
         </lf-tab>
         <lf-tab
+          id="ar-cert"
+          label="Sandbox TLS expiry"
+          group="Wrong owner"
+          summary="0 of 7 pages real"
+        >
+          <lf-ask id="ar-cert-decision">
+            <h4>Who should hear about the sandbox certificate?</h4>
+            <p>It expires in six days.</p>
+            <dl class="facts">
+              <dt>Rule</dt>
+              <dd><code>tls_cert_expiring_14d</code></dd>
+              <dt>Fires on</dt>
+              <dd>A certificate within 14 days of expiry</dd>
+              <dt>Pages</dt>
+              <dd>7, one a day for the same certificate</dd>
+            </dl>
+            <p>
+              The certificate belongs to the partner sandbox host, which Platform owns
+              and renews automatically. Their renewal job is failing, and PLAT-2291
+              already tracks the fix.
+            </p>
+            <lf-options id="ar-cert-choice" choose>
+              <lf-option id="ar-cert-platform">
+                <lf-chip tone="ok">recommended</lf-chip>
+                <strong>Route it to Platform's queue</strong> The team that can renew it
+                sees it; payments stops paging.
+              </lf-option>
+              <lf-option id="ar-cert-both">
+                <strong>Page both teams until it renews</strong> Payments keeps waking
+                up for a fix it cannot make.
+              </lf-option>
+            </lf-options>
+          </lf-ask>
+        </lf-tab>
+        <lf-tab
+          id="ar-kafka"
+          label="Ledger consumer lag"
+          group="Wrong owner"
+          summary="0 of 5 pages real"
+        >
+          <lf-ask id="ar-kafka-decision">
+            <h4>Who should hear about ledger consumer lag?</h4>
+            <p>Lag that outlasts a rebalance does delay the ledger export.</p>
+            <dl class="facts">
+              <dt>Rule</dt>
+              <dd><code>ledger_events_consumer_lag</code></dd>
+              <dt>Fires on</dt>
+              <dd>More than 50,000 unread events on the ledger topic</dd>
+              <dt>Pages</dt>
+              <dd>5, none of which needed a person</dd>
+            </dl>
+            <p>
+              Each page was a broker rebalance on the shared event cluster, which Data
+              Platform runs. The consumer caught up once partitions were reassigned;
+              nothing on the payments side changed.
+            </p>
+            <lf-options id="ar-kafka-choice" choose>
+              <lf-option id="ar-kafka-route">
+                <lf-chip tone="ok">recommended</lf-chip>
+                <strong>Page Data Platform during rebalances</strong> Payments hears
+                only when lag outlasts 15 minutes.
+              </lf-option>
+              <lf-option id="ar-kafka-keep">
+                <strong>Keep paging payments</strong> No change to the rule.
+              </lf-option>
+            </lf-options>
+          </lf-ask>
+        </lf-tab>
+        <lf-tab
+          id="ar-errors"
+          label="Payments API 5xx rate"
+          group="Caught incidents"
+          summary="4 of 4 pages real"
+        >
+          <dl class="facts">
+            <dt>Rule</dt>
+            <dd><code>payments_api_5xx_rate</code></dd>
+            <dt>Pages</dt>
+            <dd>4, all of which needed a person</dd>
+          </dl>
+          <p>
+            Caught Tuesday's card-network outage six minutes before the first customer
+            ticket, and paged for Thursday's failover a minute ahead of the latency
+            alert. It keeps paging unchanged.
+          </p>
+        </lf-tab>
+        <lf-tab
           id="ar-fraud"
           label="Fraud score drift"
-          summary="incident · 2 of 2 pages real"
+          group="Caught incidents"
+          summary="2 of 2 pages real"
         >
           <dl class="facts">
             <dt>Rule</dt>
@@ -469,7 +480,8 @@
         <lf-tab
           id="ar-payouts"
           label="Payout file rejected"
-          summary="incident · 2 of 2 pages real"
+          group="Caught incidents"
+          summary="2 of 2 pages real"
         >
           <dl class="facts">
             <dt>Rule</dt>
@@ -486,7 +498,8 @@
         <lf-tab
           id="ar-refunds"
           label="Refund processor timeouts"
-          summary="incident · 1 of 1 pages real"
+          group="Caught incidents"
+          summary="1 of 1 pages real"
         >
           <dl class="facts">
             <dt>Rule</dt>
@@ -502,7 +515,8 @@
         <lf-tab
           id="ar-disputes"
           label="Dispute deadline near"
-          summary="incident · 1 of 1 pages real"
+          group="Caught incidents"
+          summary="1 of 1 pages real"
         >
           <dl class="facts">
             <dt>Rule</dt>

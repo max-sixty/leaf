@@ -573,6 +573,7 @@ STATES = (
         viewport=(390, 844),
         touch=True,
     ),
+    State("alert-queue", "alert-review", at_rest),
     State(
         "alert-queue-touch", "alert-review", at_rest, viewport=(390, 844), touch=True
     ),
@@ -738,19 +739,24 @@ def stills(base_ref: str | None) -> None:
                 for arm, arm_dir in arms.items():
                     # Every state starts from its authored fixture. A prior Send or
                     # Resolve must not become the next state's initial event log.
-                    with serving_source(
-                        arm_dir,
-                        ROOT / "examples" / f"{state.source}.html",
-                        scratch / f"{arm}-{state.name}",
-                    ) as address:
-                        folder = out / state.name
-                        folder.mkdir(exist_ok=True)
-                        try:
+                    # The base refuses a source written in vocabulary only the head
+                    # declares; that state has no base still, and the head's still
+                    # stands alone in its folder.
+                    folder = out / state.name
+                    folder.mkdir(exist_ok=True)
+                    try:
+                        with serving_source(
+                            arm_dir,
+                            ROOT / "examples" / f"{state.source}.html",
+                            scratch / f"{arm}-{state.name}",
+                        ) as address:
                             capture(browser, address, state, folder / f"{arm}.png")
-                        except (PlaywrightError, PageNotReady) as error:
-                            failed[state.name] = (
-                                f"on {arm}: {str(error).splitlines()[0]}"
-                            )
+                    except click.ClickException as error:
+                        failed[state.name] = (
+                            f"on {arm}: {error.message.strip().splitlines()[-1].split('; ')[0]}"
+                        )
+                    except (PlaywrightError, PageNotReady) as error:
+                        failed[state.name] = f"on {arm}: {str(error).splitlines()[0]}"
             read = differences(
                 browser,
                 [state.name for state in STATES if state.name not in failed],

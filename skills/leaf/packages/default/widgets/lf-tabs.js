@@ -66,7 +66,6 @@ import {
   pageScroller,
   preserveReadingRegions,
   pushEntry,
-  reachScrollers,
   relabel,
   removeRuntimeRootStyle,
   replaceEntry,
@@ -526,27 +525,17 @@ customElements.define(
 
     // The open tab stays in the row as the strip's width changes, and not only when a
     // tab opens: a narrowed window, a panel opening beside the page, or a side list's
-    // column turning into a row would otherwise leave the open tab past the edge. A
-    // column that turns into a row also turns into a scroller after the runtime's sweep
-    // read it, so the strip hands itself to the sweep again whenever its declared
-    // overflow changes, which gives it its edge presses and marks. Both run after the
-    // observer's delivery: the sweep observes the strip itself, and an observation taken
-    // inside a delivery at the same depth is one the browser reports as undelivered.
+    // column turning into a row would otherwise leave the open tab past the edge. It
+    // scrolls after the observer's delivery, since the scroll shows or hides an edge
+    // press, which the browser would otherwise report as a size change it could not
+    // deliver.
     #watchStrip() {
       if (!this.#strip || this.#stripSize) return;
-      let overflow = getComputedStyle(this.#strip).overflowX;
       let pending = 0;
       this.#stripSize = sizeObserver(() => {
-        if (pending) return;
-        pending = nextRender(() => {
+        pending ||= nextRender(() => {
           pending = 0;
-          if (!this.#strip.isConnected) return;
-          const now = getComputedStyle(this.#strip).overflowX;
-          if (now !== overflow) {
-            overflow = now;
-            reachScrollers(this.#strip);
-          }
-          this.#showTab(this.#buttons.get(this.#active));
+          if (this.#strip.isConnected) this.#showTab(this.#buttons.get(this.#active));
         });
       });
       this.#stripSize.observe(this.#strip);

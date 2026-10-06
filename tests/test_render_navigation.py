@@ -7612,6 +7612,34 @@ def test_only_controls_and_boxes_with_something_out_of_sight_take_a_tab_stop(
     page.keyboard.press("Escape")
 
 
+@pytest.mark.xfail(
+    strict=True,
+    reason="reach.js reads which boxes declare a scroll only when it sweeps them, so a "
+    "box a narrower window turns into a scroller gets no stop or continuation mark",
+)
+def test_a_box_that_starts_scrolling_at_a_narrower_window_takes_a_stop(browser, serve):
+    """A box that scrolls only below some width is reachable once the window narrows to
+    it, as it is when the page loads at that width."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Narrow scroller",
+                '<section id="s"><h2 id="h">Box</h2><div id="wide-box">'
+                '<p id="wide-p">A paragraph held to nine hundred pixels wide.</p>'
+                "</div></section>",
+                head="<style>@media (width < 600px) { #wide-box { overflow-x: auto; } }"
+                " #wide-box p { width: 900px; }</style>",
+            )
+        ),
+    )
+    resized(page, 1200, 900)
+    resized(page, 390, 844)
+    box = page.locator("#wide-box")
+    expect(box).to_have_attribute("data-lf-more-after", "")
+    expect(box).to_have_attribute("tabindex", "0")
+
+
 def test_the_reference_keeps_its_complete_keyboard_layer(browser, serve):
     """The reference has a visible close control and keeps Tab inside the surface.
 

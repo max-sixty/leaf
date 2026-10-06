@@ -1056,8 +1056,9 @@ def test_a_queue_row_names_an_answer_whose_widget_module_arrives_last(browser, s
 def test_a_tab_strip_keeps_its_open_tab_in_its_one_row(browser, serve):
     """A strip whose names outrun its one row scrolls them sideways, and keeps the open
     tab in the row and clear of the press at either edge: when the window narrows under
-    it, which turns a side list's column into a row, and when a walk opens another tab.
-    The press stands at the strip's edge, so no name shows unfaded beside it."""
+    it, which turns a side list's column into a row, and when a walk opens another tab,
+    the tab already open included. The press stands at the strip's edge, so no name
+    shows unfaded beside it."""
 
     def views(key, summary):
         return "".join(
@@ -1075,14 +1076,16 @@ def test_a_tab_strip_keeps_its_open_tab_in_its_one_row(browser, serve):
     )
     page = open_page(browser, serve(source))
     resized(page, 1200, 900)
-    shown = """(id) => {
+    # The open tab inside the strip and clear of every press showing, with at least
+    # `presses` of them showing.
+    shown = """([id, presses]) => {
       const strip = document.querySelector(`#${id} > .lf-tabstrip`);
       const room = strip.getBoundingClientRect();
       const tab = strip.querySelector('[aria-selected="true"]').getBoundingClientRect();
       const faces = [...strip.querySelectorAll('.lf-tabstrip-scroll > span')]
         .filter((face) => face.checkVisibility())
         .map((face) => face.getBoundingClientRect());
-      return strip.scrollWidth > strip.clientWidth && faces.length > 0
+      return strip.scrollWidth > strip.clientWidth && faces.length >= presses
         && room.left <= tab.left && tab.right <= room.right
         && faces.every((face) => face.right <= tab.left || tab.right <= face.left);
     }"""
@@ -1094,27 +1097,27 @@ def test_a_tab_strip_keeps_its_open_tab_in_its_one_row(browser, serve):
         tab.blur()
     resized(page, 390, 844)
     for strip in ("framed", "queue"):
-        page.wait_for_function(shown, arg=strip)
+        page.wait_for_function(shown, arg=[strip, 0])
 
-    queue = page.locator("#queue").get_by_role("tab")
-    queue.last.focus()
+    framed = page.locator("#framed").get_by_role("tab")
+    framed.last.focus()
     page.keyboard.press("Home")
-    expect(queue.first).to_have_attribute("aria-selected", "true")
-    page.wait_for_function(shown, arg="queue")
+    expect(framed.first).to_have_attribute("aria-selected", "true")
+    page.wait_for_function(shown, arg=["framed", 1])
     # Walking to the tab already open brings it back after a scroll took it away.
     page.evaluate("""() => {
-      const strip = document.querySelector('#queue > .lf-tabstrip');
+      const strip = document.querySelector('#framed > .lf-tabstrip');
       strip.scrollLeft = strip.scrollWidth;
     }""")
     page.keyboard.press("Home")
-    page.wait_for_function(shown, arg="queue")
+    page.wait_for_function(shown, arg=["framed", 1])
     page.keyboard.press("ArrowLeft")
-    expect(queue.last).to_have_attribute("aria-selected", "true")
-    page.wait_for_function(shown, arg="queue")
+    expect(framed.last).to_have_attribute("aria-selected", "true")
+    page.wait_for_function(shown, arg=["framed", 1])
     for _ in range(4):
         page.keyboard.press("ArrowLeft")
-    expect(queue.nth(7)).to_have_attribute("aria-selected", "true")
-    page.wait_for_function(shown, arg="queue")
+    expect(framed.nth(7)).to_have_attribute("aria-selected", "true")
+    page.wait_for_function(shown, arg=["framed", 2])
 
 
 def test_root_tab_targets_remain_global(browser, serve):

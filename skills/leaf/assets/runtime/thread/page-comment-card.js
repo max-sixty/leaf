@@ -12,15 +12,23 @@
    general box stands right there, so the control and `c` go to that box instead of
    hanging a card over the panel; otherwise both open this card. The two boxes keep one
    draft, `general`: the panel's box is that draft's root editor and this one its mirror,
-   so Resume writing lands in the panel. In Design mode both comment on the design.
+   and Resume writing goes where the control would. In Design mode both comment on the
+   design.
 
    On a desk the control stands on the banner's row as a symbol. On a phone it stands
    behind More in its words, and the card hangs from More's door across the window. */
 import { el } from "../widget-elements.js";
 import { iconElement } from "../icons.js";
 import { textField } from "../composing/text-field.js";
-import { loadDraft, mirrorDraft, saveDraft, sendMessage } from "../drafts.js";
+import {
+  loadDraft,
+  mirrorDraft,
+  saveDraft,
+  sendMessage,
+  tellDraft,
+} from "../drafts.js";
 import { motion } from "../motion.js";
+import { keys } from "../keyboard/scopes.js";
 import {
   BANNER_CONTROL_RANK,
   dismissBannerControls,
@@ -62,6 +70,20 @@ export function createPageCommentCard({
   const composer = el("div", "lf-page-composer");
   composer.append(input, send);
   card.append(composer);
+
+  // The card's own way out, rather than the popover's native close watcher: the
+  // register shows it on the shortcut line and says whether the words stay.
+  const holds = () => Boolean(loadDraft("general")?.trim());
+  keys(card, "In the page comment card", [
+    {
+      id: "comment.card-close",
+      keys: ["Escape"],
+      description: () =>
+        holds() ? "Close the card, keeping the draft" : "Close the card",
+      title: () => (holds() ? "close — draft kept" : "close"),
+      run: () => card.hidePopover(),
+    },
+  ]);
 
   const hint = () => (designModeActive() ? "Comment on the design" : NAME);
   let sync = () => {};
@@ -108,7 +130,13 @@ export function createPageCommentCard({
       accessibleName: hint,
       sends: "send",
       sendBtn: send,
-      save: (text) => saveDraft("general", text),
+      // localStorage tells other tabs and skips this document, and the page's draft
+      // has two views here, this box and the other place Comment on the page writes,
+      // so they take the same bus directly, as reply boxes do (replies.js).
+      save: (text) => {
+        saveDraft("general", text);
+        tellDraft("general", text);
+      },
       send: async (_text, raw, owns) => {
         const sent = await sendMessage("general", owns, (attempt) => {
           const event = { attempt, text: raw };
@@ -124,7 +152,20 @@ export function createPageCommentCard({
         );
       },
     });
-    stopMirroring = mirrorDraft(input, sync, "general", { mirrored: true });
+    stopMirroring = mirrorDraft(input, sync, "general", {
+      mirrored: true,
+      resume: () =>
+        panelIsOpen()
+          ? { where: panelBox, input: () => panelBox, open: () => setPanel(true) }
+          : {
+              where: input,
+              input: () => input,
+              open: () => {
+                if (!card.matches(":popover-open"))
+                  card.showPopover({ source: control });
+              },
+            },
+    });
   }
 
   return {

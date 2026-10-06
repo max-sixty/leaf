@@ -7,7 +7,13 @@
    takes words from the first paint — the offline banner says a comment will not send, not
    that there is nowhere to write it. A drawing belongs to an element's comment, never to
    this box (composing/drawing.js). */
-import { loadDraft, mirrorDraft, saveDraft, sendMessage } from "../drafts.js";
+import {
+  loadDraft,
+  mirrorDraft,
+  saveDraft,
+  sendMessage,
+  tellDraft,
+} from "../drafts.js";
 import { focused, keys } from "../keyboard/scopes.js";
 import { pageScope } from "../keyboard/register.js";
 import { runtime } from "../context.js";
@@ -48,7 +54,13 @@ export function createPanelComposer({
       accessibleName: generalHint,
       sends: "send",
       sendBtn: generalSend,
-      save: (text) => saveDraft("general", text),
+      // localStorage tells other tabs and skips this document, and the page's draft
+      // has two views here, this box and the other place Comment on the page writes,
+      // so they take the same bus directly, as reply boxes do (replies.js).
+      save: (text) => {
+        saveDraft("general", text);
+        tellDraft("general", text);
+      },
       send: async (_text, raw, owns) => {
         const sent = await sendMessage("general", owns, (attempt) => {
           const event = { attempt, text: raw };
@@ -61,13 +73,10 @@ export function createPanelComposer({
       },
     });
     sync();
-    stopMirroringDraft = mirrorDraft(generalInput, sync, "general", {
-      resume: () => ({
-        where: generalInput,
-        input: () => generalInput,
-        open: () => setPanel(true),
-      }),
-    });
+    // Resume writing reaches this draft through the banner's page comment card, which
+    // goes to this box while Threads is open and to its own otherwise
+    // (thread/page-comment-card.js).
+    stopMirroringDraft = mirrorDraft(generalInput, sync, "general");
     await findInput.updateComplete;
     declareFindBoxKeys();
   }

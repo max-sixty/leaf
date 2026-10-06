@@ -1793,13 +1793,17 @@ def test_comment_on_the_page_starts_a_thread_from_a_card_under_the_banner(
     assert card.evaluate(is_open)
     expect(box).to_be_focused()
     expect(box).to_have_js_property("value", "")
+    write(box, "Kept for later")
     page.keyboard.press("Escape")
     assert not card.evaluate(is_open)
 
+    # The card and Threads' box are two views of the one page draft.
     toggle.click()
     panel_settled(page)
     control.click()
-    expect(page.locator(".lf-general leaf-text")).to_be_focused()
+    general = page.locator(".lf-general leaf-text")
+    expect(general).to_be_focused()
+    expect(general).to_have_js_property("value", "Kept for later")
     assert not card.evaluate(is_open)
 
 

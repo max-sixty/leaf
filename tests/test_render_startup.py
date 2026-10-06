@@ -3544,7 +3544,8 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     d = serve.page_dir
     comments = [e for e in events_model.read_events(d) if e["kind"] == "comment"]
     held, other = comments[0]["id"], comments[1]["id"]
-    page.keyboard.press("c")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+T")
     expect(page.locator(".lf-thread-panel")).to_be_visible()
     workflows = page.locator(".lf-msg-sending")
     held_thread = page.locator(f'.lf-thread[data-id="{held}"]')
@@ -3897,7 +3898,8 @@ def test_a_message_workflow_changes_phase_in_place_and_then_stands_still(
     )
     record_claim(d)
     page = open_page(browser, url)
-    page.keyboard.press("c")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+T")
     thread = page.locator(f'.lf-thread[data-id="{comment["id"]}"]')
     workflow = thread.locator(
         f'.lf-msg[data-mid="{comment["id"]}"] > .lf-msg-head .lf-msg-sending'
@@ -3983,7 +3985,8 @@ def test_an_exact_workflow_reports_stale_work_beside_a_live_page_claim(
     page = open_page(browser, serve(LONG_PAGE, anchored=[("p1", "Paragraph 1.")]))
     d = serve.page_dir
     held = next(e for e in events_model.read_events(d) if e["kind"] == "comment")["id"]
-    page.keyboard.press("c")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+T")
     expect(page.locator(".lf-thread-panel")).to_be_visible()
     work_line = page.locator(
         f'.lf-thread[data-id="{held}"] .lf-msg[data-mid="{held}"] > .lf-msg-head .lf-msg-sending'

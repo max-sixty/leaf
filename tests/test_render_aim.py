@@ -253,8 +253,17 @@ def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve
             animation.effect.getKeyframes().some(frame => 'clipPath' in frame));
           if (!played) return null;
           const [start, end] = played.effect.getKeyframes();
-          const inset = [...start.clipPath.matchAll(/-?\\d+(?:\\.\\d+)?px/g)]
-            .slice(0, 4).map(match => Number.parseFloat(match[0]));
+          // Chrome serializes equal right and left inset values as a three-value
+          // shorthand. Read only the inset sides, before the separate round radius.
+          const sides = start.clipPath.match(/^inset\\(([^)]*?)(?: round|\\))/)[1]
+            .trim().split(/\\s+/).map(value => Number.parseFloat(value));
+          const inset = sides.length === 1
+            ? [sides[0], sides[0], sides[0], sides[0]]
+            : sides.length === 2
+              ? [sides[0], sides[1], sides[0], sides[1]]
+              : sides.length === 3
+                ? [sides[0], sides[1], sides[2], sides[1]]
+                : sides;
           const box = card.getBoundingClientRect();
           const style = getComputedStyle(card);
           const scaleX = box.width / Number.parseFloat(style.width);

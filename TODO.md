@@ -252,10 +252,12 @@ height and where a switch lands wait on the workspace decision under Layout.
   measures from focus (`askPosition` in `asks/view.js`), and the row precedes every
   panel; `t` and `T` measure the same way. A tab could stand at the view it opens for
   the walks (`standing-target.js`), while `c` on a row still names the row.
-- **Let a queue group its items.** The author sorted the items into merge, close,
-  design and FYI, but `lf-tabs` takes only `lf-tab` members, so the page showed 21
-  undifferentiated rows. A side list could take group headings between its items,
-  skipped by the arrow walk.
+- **Keep the open item's group named on a phone.** In the one-row strip a group's
+  label stands before its run's first tab, so opening a later item in a long run
+  (`alert-review`'s "Ledger consumer lag" at 390px) scrolls the label out of view. A
+  label sticky at the row's start, stepping clear of the start press while stuck
+  (`scroll-state(stuck)`, Chrome 133+), keeps it named, but `#showTab` then has to
+  bring a tab in clear of a label whose width changes once it sticks.
 
 ### Recorded interaction review
 

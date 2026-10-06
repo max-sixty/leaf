@@ -7,6 +7,7 @@ second server stack in the client process.
 
 import contextlib
 import errno
+import functools
 import json
 import logging
 import secrets
@@ -91,9 +92,10 @@ class LeafHTTPServer:
     `server_id` names the serving process on every answer. Startup recovery uses it
     to detect a replacement after failure. An ordinary page's durable record survives
     that replacement; only an active private website session loses its record and
-    needs an already-presented document to reload. Uvicorn owns shutdown and its
-    signal handling; every page response completes, so no
-    held-open response needs a second stop flag or an application signal wrapper.
+    needs an already-presented document to reload. Uvicorn owns signal handling and
+    the order of a stop; every page response completes, so no held-open response
+    needs a second stop flag or an application signal wrapper. The stop's timing is
+    this server's own (`_page_uvicorn`).
     """
 
     def __init__(self, address, endpoint) -> None:
@@ -115,7 +117,7 @@ class LeafHTTPServer:
             logger = logging.getLogger(name)
             logger.handlers = [logging.NullHandler()]
             logger.propagate = False
-        self._uvicorn = uvicorn.Server(
+        self._uvicorn = _page_uvicorn()(
             uvicorn.Config(
                 page_app(endpoint, self),
                 log_config=None,
@@ -137,13 +139,68 @@ class LeafHTTPServer:
         self._uvicorn.run(sockets=[self.socket.dup()])
 
     def shutdown(self) -> None:
-        """Ask the serving loop to stop."""
+        """Ask the serving loop to stop, from any thread."""
         self._uvicorn.should_exit = True
+        self._uvicorn.wake()
 
     def server_close(self) -> None:
         """Release the listening socket this server has kept."""
         self.socket.close()
         self.samples.close()
+
+
+@functools.cache
+def _page_uvicorn():
+    """Uvicorn's server, stopping when asked rather than on its next poll.
+
+    Uvicorn notices `should_exit` on a 0.1 s tick, then sleeps a fixed 0.1 s after
+    asking each connection to finish and polls every 0.1 s until they have. A page
+    server that has nothing in flight therefore took ~0.18 s to stop, and the browser
+    suite stops one per test. Here the tick also wakes on `wake()`, and the stop waits
+    exactly as long as its connections and tasks take, polling at 5 ms. The order is
+    uvicorn's: close the listeners, ask each connection to finish, wait for them
+    unless a second signal forces the exit, then for the servers. Its graceful-shutdown timeout and lifespan shutdown are absent
+    because a page server sets neither. Built on first use, since uvicorn loads only
+    when a server is constructed.
+    """
+    import asyncio
+
+    import uvicorn
+
+    class PageUvicorn(uvicorn.Server):
+        _loop = None
+        _woken = None
+
+        async def main_loop(self) -> None:
+            self._woken = asyncio.Event()
+            self._loop = asyncio.get_running_loop()
+            counter = 0
+            while not await self.on_tick(counter):
+                counter = (counter + 1) % 864000
+                with contextlib.suppress(asyncio.TimeoutError):
+                    await asyncio.wait_for(self._woken.wait(), 0.1)
+
+        def wake(self) -> None:
+            if self._loop is None:
+                return  # not serving yet; the first tick reads `should_exit`
+            # A loop that already closed has already stopped: nothing to wake.
+            with contextlib.suppress(RuntimeError):
+                self._loop.call_soon_threadsafe(self._woken.set)
+
+        async def shutdown(self, sockets=None) -> None:
+            for server in self.servers:
+                server.close()
+            for sock in sockets or []:
+                sock.close()
+            for connection in list(self.server_state.connections):
+                connection.shutdown()
+            state = self.server_state
+            while (state.connections or state.tasks) and not self.force_exit:
+                await asyncio.sleep(0.005)
+            for server in self.servers:
+                await server.wait_closed()
+
+    return PageUvicorn
 
 
 class TemporaryPageServer:

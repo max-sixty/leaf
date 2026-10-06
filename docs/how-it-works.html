@@ -463,9 +463,11 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
               thread, is owed a reply there. An answer to an Ask is owed a version whose
               markup records it. Resolving a thread, editing a draft, or moving a card
               owes nothing, though the agent still reads it with the rest of the
-              delivery, and its label stands until a version takes the move in. A move
-              you have not finished, such as a pick before the Done its Ask waits for,
-              has not been handed over yet and has no label.
+              delivery. A draft edit or a card move keeps its label until a version
+              records it or supersedes it; in a widget frozen into a thread, until the
+              agent next speaks in that thread or the thread is resolved. A move you
+              have not finished, such as a pick before the Done its Ask waits for, has
+              not been handed over yet and has no label.
             </p>
             <p id="stages-conditions">
               When the evidence behind a stage lapses, the label says so rather than

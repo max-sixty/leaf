@@ -228,6 +228,17 @@ canonical user preview in each task, checks the keyed URL across those turns,
 and interrupts its isolated server between turns to prove that the preview
 restores both the address and working feedback without a source edit.
 
+## Test a Pi session
+
+`uv run --project <root> leaf-dev verify-pi-task` runs a real Pi session, the
+version `dev/pi/` pins, with this working tree installed as its Pi package and the
+host's Codex login as its only login. It checks each comment is answered once, a
+comment during a run is answered in that run, Escape closes the turn without waking
+Pi again, and quitting ends the session's claim. Run it after a change to
+`hooks/pi.ts`, `PiHarness`, `hooks.py`, or the watch between turns in `session.py`;
+the suite drives the extension with a stand-in for Pi, and only this run shows what
+Pi itself does.
+
 ## Compare checkout versions
 
 Build the baseline in a detached worktree at the merge base:

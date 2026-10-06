@@ -105,6 +105,25 @@ from render_harness import (
 
 pytestmark = pytest.mark.nightly
 
+
+def test_merge_film_steps_have_a_keyboard_route(browser, serve):
+    source = next(path for path in EXAMPLES if path.name == "wt-merge.html")
+    page = open_page(browser, serve(source))
+    page.locator("#merge-film").evaluate("film => film.seek(1e9)")
+
+    for _ in range(100):
+        page.keyboard.press("Tab")
+        if page.evaluate("document.activeElement?.closest('li')?.id") == "step-setup":
+            break
+    assert page.evaluate("document.activeElement?.closest('li')?.id") == "step-setup"
+    expect(page.locator("#step-setup button")).to_be_focused()
+
+    for key in ("Space", "Enter"):
+        page.locator("#merge-film").evaluate("film => film.seek(1e9)")
+        page.keyboard.press(key)
+        expect(page.locator("#step-setup")).to_have_attribute("data-now", "")
+
+
 KEYBOARD_HINT_REGISTRY = {
     "lf-keyboard-probe": {
         "description": "Exercises declared keyboard commands and their controls.",

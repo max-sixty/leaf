@@ -266,15 +266,17 @@ export function shownBand(el) {
 // The two bands of a scrollport, one reading each, beside the clip they start from.
 //
 // `visibleBand` is what the user can see through a scroller now: its shown band less the
-// sticky headers stuck over its top. A sticky header, such as a page `lf-tabs` strip or
-// an `lf-diff` file header, has a stated height and paints over the scroller's contents
-// without clipping them, so a band that ignored it would call what is under it shown.
-// Which headers stand over a box is a fact of where the box stands, so the band is read
-// for one box (`item`), and `headerInset` says how far the headers reach over it. The clip
-// walk below applies the same reading at every ancestor, so `shownRect` and the readings
-// built on it (read acknowledgement, the summaries a thread card keeps open, arrival
-// checks, chrome placement) all answer "on screen" the same way; the place a re-render
-// holds asks it of its one scroller directly.
+// sticky headers stuck over its top and the sticky footers over its foot. A sticky
+// header, such as a page `lf-tabs` strip or an `lf-diff` file header, has a stated
+// height and paints over the scroller's contents without clipping them, so a band that
+// ignored it would call what is under it shown. Which headers stand over a box is a fact
+// of where the box stands, so the band is read for one box (`item`), and `headerInset`
+// says how far the headers reach over it, as `footerInset` says for footers, such as a
+// long thread's pinned reply row. The clip walk below applies the same reading at every
+// ancestor, so `shownRect` and the readings built on it (read acknowledgement, the
+// summaries a thread card keeps open, arrival checks, chrome placement) all answer "on
+// screen" the same way; the place a re-render holds asks it of its one scroller
+// directly.
 //
 // `landingBand` is where a landing may put something: the shown band less the
 // `scroll-padding` the scroller declares, which is also what `scrollIntoView` honours.
@@ -298,21 +300,28 @@ const scrolls = (el) => {
 // containment) has none over it. A box that scrolls starts `--lf-top` again for what it
 // holds, so it is read where it stands, at its parent; a header's holder puts the
 // stacked value on a box that does not scroll (theme.css, at `--lf-top`).
-const lfTop = (el) =>
-  Number.parseFloat(getComputedStyle(el).getPropertyValue("--lf-top")) || 0;
 const holdsHeaders = (el) => el === el.ownerDocument?.scrollingElement || scrolls(el);
-export function headerInset(el, scroller) {
+const edgeInset = (el, scroller, slot, padding) => {
   if (!holdsHeaders(scroller) || el === scroller) return 0;
   const at = el.nodeType === 1 && scrolls(el) ? upFrom(el) : el;
-  const top = at?.nodeType === 1 ? lfTop(at) : 0;
-  if (top <= lfTop(scroller)) return 0;
-  return (Number.parseFloat(getComputedStyle(scroller).paddingTop) || 0) + top;
-}
+  const read = (box) =>
+    Number.parseFloat(getComputedStyle(box).getPropertyValue(slot)) || 0;
+  const inset = at?.nodeType === 1 ? read(at) : 0;
+  if (inset <= read(scroller)) return 0;
+  return (Number.parseFloat(getComputedStyle(scroller)[padding]) || 0) + inset;
+};
+export const headerInset = (el, scroller) =>
+  edgeInset(el, scroller, "--lf-top", "paddingTop");
+// The same reading at the foot, for a box sticking there (`--lf-bottom`, theme.css):
+// how far above the bottom of `scroller`'s band the view of `el` ends.
+export const footerInset = (el, scroller) =>
+  edgeInset(el, scroller, "--lf-bottom", "paddingBottom");
 export function visibleBand(scroller, item = null) {
   const band = shownBand(scroller);
   if (!band || !item) return band;
   const top = band.top + headerInset(item, scroller);
-  return band.bottom > top ? { ...band, top } : null;
+  const bottom = band.bottom - footerInset(item, scroller);
+  return bottom > top ? { ...band, top, bottom } : null;
 }
 export function landingBand(scroller) {
   const band = shownBand(scroller);
@@ -595,8 +604,9 @@ function cutBy(box, cuts, root, inWindow) {
   return right > left && bottom > top ? { left, top, right, bottom } : null;
 }
 // The clips standing over an item, innermost first: each ancestor whose band cuts it,
-// with that band less the headers stuck over it, and whether a fixed box among the item's
-// ancestors escapes every clip further out, the root's included.
+// with that band less the headers stuck over its top and the footers over its foot, and
+// whether a fixed box among the item's ancestors escapes every clip further out, the
+// root's included.
 function clipWalk(item, clips, held) {
   // From the box itself, not from its parent: an element is not clipped by its own
   // overflow — that clips what it holds — so its band is skipped and only its position is
@@ -609,9 +619,9 @@ function clipWalk(item, clips, held) {
   // declared shadow stage is still clipped by that host and by the page containers
   // outside it; stopping at the ShadowRoot would let chrome paint where the package
   // itself cannot.
-  // The box just inside each scroller, where the sticky headers over its top are read
-  // (`headerInset`): the item at its own scroller, and the scroller below at each one
-  // further out.
+  // The box just inside each scroller, where the sticky headers over its top and footers
+  // over its foot are read (`headerInset`, `footerInset`): the item at its own scroller,
+  // and the scroller below at each one further out.
   let inner = item;
   let escaped = false,
     containing = null;
@@ -641,15 +651,16 @@ function clipWalk(item, clips, held) {
     if (escaped && a === containing) escaped = false;
     if (!escaped && (held || a !== item) && c.band) {
       const covered = c.band.top + headerInset(inner, a);
+      const footed = c.band.bottom - footerInset(inner, a);
       cuts.push({
         box: a,
         axes: c.axes,
         covered: c.axes.y && covered > c.band.top,
         band:
-          c.axes.y && covered >= c.band.bottom
+          c.axes.y && covered >= footed
             ? null
-            : c.axes.y && covered > c.band.top
-              ? { ...c.band, top: covered }
+            : c.axes.y
+              ? { ...c.band, top: covered, bottom: footed }
               : c.band,
       });
       if (c.scrolls) inner = a;

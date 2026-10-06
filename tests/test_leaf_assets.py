@@ -24,11 +24,7 @@ def test_demo_publication_reconciles_the_catalog_with_other_published_previews(
     )
     seed = tmp_path / "seed"
     leaf_assets.run("git", "clone", str(remote), str(seed), cwd=tmp_path)
-    for name, value in (
-        ("user.name", "Leaf test"),
-        ("user.email", "leaf@example.test"),
-    ):
-        leaf_assets.run("git", "config", name, value, cwd=seed)
+    publisher(seed)
     (seed / "examples").mkdir()
     preview = seed / "examples" / "example-decision.jpg"
     preview.write_bytes(b"old decision preview")
@@ -124,12 +120,8 @@ def test_demo_publication_reconciles_the_catalog_with_other_published_previews(
     staging = tmp_path / "staging"
     staging.mkdir()
     checkout = leaf_assets.clone(staging)
-    for name, value in (
-        ("user.name", "Leaf test"),
-        ("user.email", "leaf@example.test"),
-    ):
-        leaf_assets.run("git", "config", name, value, cwd=checkout)
-    (checkout / "demo" / "session-card.png").write_bytes(b"reviewed new demo card")
+    publisher(checkout.path)
+    (checkout.path / "demo" / "session-card.png").write_bytes(b"reviewed new demo card")
 
     revision = leaf_assets.publish(checkout, "Publish the reviewed demo")
 
@@ -164,9 +156,9 @@ def test_demo_publication_reconciles_the_catalog_with_other_published_previews(
         },
         draft_dir,
     )
-    next_preview = draft / "examples" / "example-decision.jpg"
+    next_preview = draft.path / "examples" / "example-decision.jpg"
     assert (
-        draft / "examples/media/retained.png"
+        draft.path / "examples/media/retained.png"
     ).read_bytes() == b"authored example media"
     next_address = (
         f"/media/{media_name(next_preview.read_bytes(), next_preview.suffix)}"
@@ -178,7 +170,7 @@ def test_demo_publication_reconciles_the_catalog_with_other_published_previews(
     if failure == "validation":
         # The real site gate first accepts the draft catalog and its selected bytes,
         # then refuses an unrelated dead image without installing the draft.
-        draft_markup = leaf_assets.catalog_updates(draft)
+        draft_markup = leaf_assets.catalog_updates(draft.path)
         home = docs / "index.html"
         # Refuse the draft at the real site gate after it has completed its stamps.
         draft_markup[home] = draft_markup[home].replace(
@@ -201,7 +193,7 @@ def test_demo_publication_reconciles_the_catalog_with_other_published_previews(
                 ordinary[home] = home.read_bytes()
                 # Another output builds the published bytes while draft validation
                 # is live; neither its sources nor its final stamp may see the draft.
-                site.build(ordinary_build, assets=checkout)
+                site.build(ordinary_build, assets=checkout.path)
                 ordinary_home = site.product_page(ordinary_build, "index.html")
                 ordinary_html = (ordinary_home / "index.html").read_text()
                 assert replacement in ordinary_html
@@ -212,7 +204,7 @@ def test_demo_publication_reconciles_the_catalog_with_other_published_previews(
         monkeypatch.setattr(site, "leaf", validate_with_an_ordinary_build)
         draft_build = tmp_path / "draft-site"
         with pytest.raises(SystemExit, match="missing-by-validation.png"):
-            site.build(draft_build, assets=draft, source_markup=draft_markup)
+            site.build(draft_build, assets=draft.path, source_markup=draft_markup)
         assert interleaved
         draft_home = site.product_page(draft_build, "index.html")
         draft_html = (draft_home / "index.html").read_text()
@@ -240,15 +232,11 @@ def test_demo_publication_reconciles_the_catalog_with_other_published_previews(
         rejection = remote / "hooks" / "pre-receive"
         rejection.write_text("#!/bin/sh\nexit 1\n")
         rejection.chmod(0o755)
-        for name, value in (
-            ("user.name", "Leaf test"),
-            ("user.email", "leaf@example.test"),
-        ):
-            leaf_assets.run("git", "config", name, value, cwd=draft)
+        publisher(draft.path)
         with pytest.raises(RuntimeError, match="pre-receive hook declined"):
             leaf_assets.publish(draft, "A rejected draft")
-        assert leaf_assets.run("git", "status", "--porcelain", cwd=draft) == ""
-        assert leaf_assets.run("git", "rev-parse", "HEAD", cwd=draft) != revision
+        assert leaf_assets.run("git", "status", "--porcelain", cwd=draft.path) == ""
+        assert leaf_assets.run("git", "rev-parse", "HEAD", cwd=draft.path) != revision
         with pytest.raises(RuntimeError, match="pre-receive hook declined"):
             leaf_assets.publish(draft, "Retry the rejected draft")
 
@@ -265,18 +253,14 @@ def test_demo_publication_reconciles_the_catalog_with_other_published_previews(
         "linux/checkpoint.png": b"this runtime's Linux pixels",
     }
     accepted_checkout = leaf_assets.stage(
-        "tests/thread-snapshots", reviewed, acceptance_dir, replace_tree=True
-    )
-    for name, value in (
-        ("user.name", "Leaf test"),
-        ("user.email", "leaf@example.test"),
-    ):
-        leaf_assets.run("git", "config", name, value, cwd=accepted_checkout)
-    accepted = leaf_assets.publish(
-        accepted_checkout,
-        "Accept thread expectations",
+        "tests/thread-snapshots",
+        reviewed,
+        acceptance_dir,
+        replace_tree=True,
         revision_key="thread_snapshots_revision",
     )
+    publisher(accepted_checkout.path)
+    accepted = leaf_assets.publish(accepted_checkout, "Accept thread expectations")
     assert accepted != revision
     assert leaf_assets.specification(source) == (repository, revision)
     assert leaf_assets.specification(
@@ -298,8 +282,137 @@ def test_demo_publication_reconciles_the_catalog_with_other_published_previews(
     assert committed == [f"tests/thread-snapshots/{name}" for name in sorted(reviewed)]
     for name, content in reviewed.items():
         assert (
-            accepted_checkout / "tests/thread-snapshots" / name
+            accepted_checkout.path / "tests/thread-snapshots" / name
         ).read_bytes() == content
     assert (
-        accepted_checkout / "examples/media/retained.png"
+        accepted_checkout.path / "examples/media/retained.png"
     ).read_bytes() == b"authored example media"
+
+
+def test_a_publication_keeps_what_others_published_since_its_pin(tmp_path, monkeypatch):
+    """Two branches pinned to one revision each publish a directory's files. The second
+    keeps what the first added, which its own run never saw, since a stage is measured
+    against the branch's pin and not the head. Where both touched one file, the second's
+    choice stands, whether that is a copy or a removal. A publication whose push was
+    refused lands on the head as it stands when it is tried again."""
+    remote = tmp_path / "remote.git"
+    leaf_assets.run(
+        "git", "init", "--bare", "--initial-branch=main", str(remote), cwd=tmp_path
+    )
+    seed = tmp_path / "seed"
+    leaf_assets.run("git", "clone", str(remote), str(seed), cwd=tmp_path)
+    (seed / "examples").mkdir()
+    (seed / "examples" / "example-decision.jpg").write_bytes(b"decision preview")
+    (seed / "threads").mkdir()
+    for name in ("kept", "shared", "edited", "dropped"):
+        (seed / "threads" / f"{name}.png").write_bytes(b"the pin's")
+    publisher(seed)
+    leaf_assets.run("git", "add", "-A", cwd=seed)
+    leaf_assets.run("git", "commit", "-m", "Initial assets", cwd=seed)
+    leaf_assets.run("git", "push", cwd=seed)
+    pin = leaf_assets.run("git", "rev-parse", "HEAD", cwd=seed)
+
+    repository = "max-sixty/leaf-assets"
+    monkeypatch.setenv("GIT_CONFIG_COUNT", "1")
+    monkeypatch.setenv("GIT_CONFIG_KEY_0", f"url.{remote.as_uri()}.insteadOf")
+    monkeypatch.setenv("GIT_CONFIG_VALUE_0", f"https://github.com/{repository}.git")
+
+    def staged(name, directory, files):
+        source = tmp_path / name
+        (source / "examples").mkdir(parents=True)
+        (source / "examples" / "decision.html").write_text("<h1>A decision</h1>")
+        (source / "docs").mkdir()
+        (source / "docs" / "examples.html").write_text(
+            '<a class="example-link" href="/examples/decision/">'
+            '<img src="/media/0000000000000000.jpg"></a>\n'
+        )
+        (source / "README.md").write_text("No images.\n")
+        (source / "leaf-assets.json").write_text(
+            json.dumps({"repository": repository, "revision": pin})
+        )
+        monkeypatch.setattr(leaf_assets, "ROOT", source)
+        monkeypatch.setattr(leaf_assets, "README", source / "README.md")
+        monkeypatch.setattr(example_data, "ROOT", source)
+        staging = tmp_path / f"staging-{name}"
+        staging.mkdir()
+        checkout = leaf_assets.stage(directory, files, staging)
+        publisher(checkout.path)
+        return checkout
+
+    def published(revision):
+        return {
+            path: leaf_assets.run("git", "show", f"{revision}:{path}", cwd=remote)
+            for path in leaf_assets.run(
+                "git", "ls-tree", "-r", "--name-only", revision, cwd=remote
+            ).split()
+        }
+
+    # The first adds a file, rewrites two, and removes `edited`.
+    first = staged(
+        "first",
+        "threads",
+        {
+            "kept.png": b"the pin's",
+            "added.png": b"first's",
+            "shared.png": b"first's",
+            "dropped.png": b"first's",
+        },
+    )
+    leaf_assets.publish(first, "Publish the first branch's threads")
+    # The second, from the same pin, rewrites `shared` and `edited` and removes
+    # `dropped`, each a file the first touched.
+    second = staged(
+        "second",
+        "threads",
+        {
+            "kept.png": b"the pin's",
+            "own.png": b"second's",
+            "shared.png": b"second's",
+            "edited.png": b"second's",
+        },
+    )
+    revision = leaf_assets.publish(second, "Publish the second branch's threads")
+    assert leaf_assets.run("git", "rev-parse", "HEAD", cwd=remote) == revision
+    assert published(revision) == {
+        "examples/example-decision.jpg": "decision preview",
+        "threads/kept.png": "the pin's",
+        "threads/added.png": "first's",
+        "threads/own.png": "second's",
+        "threads/shared.png": "second's",
+        "threads/edited.png": "second's",
+    }
+
+    third = staged("third", "media", {"third.png": b"third's"})
+    rejection = remote / "hooks" / "pre-receive"
+    rejection.write_text("#!/bin/sh\nexit 1\n")
+    rejection.chmod(0o755)
+    with pytest.raises(RuntimeError, match="pre-receive hook declined"):
+        leaf_assets.publish(third, "Publish the third branch's media")
+    rejection.unlink()
+    # Another publisher lands while the third waits to try again.
+    leaf_assets.run("git", "pull", "-q", cwd=seed)
+    (seed / "late.png").write_bytes(b"late")
+    leaf_assets.run("git", "add", "-A", cwd=seed)
+    leaf_assets.run("git", "commit", "-m", "Publish meanwhile", cwd=seed)
+    leaf_assets.run("git", "push", cwd=seed)
+
+    retried = leaf_assets.publish(third, "Publish the third branch's media")
+    assert leaf_assets.run("git", "rev-parse", "HEAD", cwd=remote) == retried
+    assert published(retried) == {
+        **published(revision),
+        "late.png": "late",
+        "media/third.png": "third's",
+    }
+    assert json.loads((tmp_path / "third" / "leaf-assets.json").read_text()) == {
+        "repository": repository,
+        "revision": retried,
+    }
+
+
+def publisher(clone):
+    """Give a fixture clone the identity its commits need."""
+    for name, value in (
+        ("user.name", "Leaf test"),
+        ("user.email", "leaf@example.test"),
+    ):
+        leaf_assets.run("git", "config", name, value, cwd=clone)

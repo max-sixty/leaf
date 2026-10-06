@@ -876,6 +876,22 @@ def state_json(d):
     return json.loads(result.output)
 
 
+def asks_on_you(state):
+    """The Asks on the user's queue in one agent-facing state: each open Ask's task,
+    as the widget it is and the widget that answers it."""
+    return [
+        {
+            "id": item["id"],
+            "tag": item["ask"]["tag"],
+            "widget": item["ask"]["widget"],
+            "widget_tag": item["ask"]["widget_tag"],
+            "thread": item["thread"],
+        }
+        for item in state["queues"]["on_you"]
+        if item.get("ask")
+    ]
+
+
 def owed(state):
     """The workflows one agent-facing state still owes an answer.
 
@@ -1382,14 +1398,14 @@ def declare_work(page_dir, line, *, item=None, ts=None, **voice):
     the page has none, dated `ts` (now by default) and spoken in `voice` (`agent`,
     `session`, `turn`). Raw, so a test can date it in the past; `working` is the
     command an agent runs."""
-    from leaf.tasks import open_tasks
+    from leaf.tasks import owed_tasks
 
     if item is None:
         item = (
             next(
                 (
                     task["id"]
-                    for task in open_tasks(events_model.read_events(page_dir))
+                    for task in owed_tasks(events_model.read_events(page_dir))
                     if task["subject"] == {"kind": "page"}
                 ),
                 None,
@@ -1399,6 +1415,7 @@ def declare_work(page_dir, line, *, item=None, ts=None, **voice):
                 {
                     "kind": "task",
                     "author": "agent",
+                    "owner": "agent",
                     "subject": {"kind": "page"},
                     "title": "Work on the page",
                     **({"ts": ts} if ts else {}),
@@ -1421,9 +1438,9 @@ def declare_work(page_dir, line, *, item=None, ts=None, **voice):
 def end_work(page_dir):
     """End every open task on the page as a whole, `declare_work`'s and `working`'s,
     so nothing the agent opened for itself is in hand any more."""
-    from leaf.tasks import open_tasks
+    from leaf.tasks import owed_tasks
 
-    for task in open_tasks(events_model.read_events(page_dir)):
+    for task in owed_tasks(events_model.read_events(page_dir)):
         if task["subject"] == {"kind": "page"}:
             append_carried_log_record(
                 page_dir,
@@ -1438,11 +1455,11 @@ def end_work(page_dir):
 
 def end_work_on(page_dir, subject):
     """End the open tasks on the thread or widget `subject` names, done."""
-    from leaf.tasks import open_tasks
+    from leaf.tasks import owed_tasks
     from leaf.work import page_subject
 
     named = page_subject(page_dir, events_model.read_events(page_dir), subject)
-    for task in open_tasks(events_model.read_events(page_dir)):
+    for task in owed_tasks(events_model.read_events(page_dir)):
         if task["subject"] == named:
             ended = CliRunner().invoke(
                 cli_model.cli, ["task", "end", str(page_dir), task["id"], "done"]
@@ -1474,7 +1491,7 @@ def working(page_dir, line, subject="page"):
     page's open task on that subject, so a test can say what it does next. Returns the
     start's record."""
     from leaf import event_log as log_model
-    from leaf.tasks import open_tasks
+    from leaf.tasks import owed_tasks
     from leaf.work import page_subject
 
     named = (
@@ -1485,7 +1502,7 @@ def working(page_dir, line, subject="page"):
     task = next(
         (
             task
-            for task in open_tasks(log_model.read_events(page_dir))
+            for task in owed_tasks(log_model.read_events(page_dir))
             if task["subject"] == named
         ),
         None,
@@ -1581,6 +1598,10 @@ import sys
 from pathlib import Path
 from leaf.state import write_json
 
+# The queue command is all this models; the App Server a page server starts to
+# name a thread is not here.
+if sys.argv[1] == "app-server":
+    sys.exit(1)
 if os.environ.get("PREVIEW_QUEUE_AVAILABLE", "True") == "False":
     print("queue unsupported", file=sys.stderr)
     sys.exit(1)
@@ -2024,6 +2045,6 @@ def consume_pending_input(session_id):
     batches = delivery.pending_batches(session_id)
     if not batches:
         return None
-    payload = delivery.freeze_delivery(batches, carrier="hook")
+    payload = delivery.freeze_delivery(batches)
     delivery.receive_held(payload, session_id)
     return payload

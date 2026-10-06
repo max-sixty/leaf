@@ -18,7 +18,7 @@ ACTIVITY_GRACE_SECS = 4 * 60 * 60
 UNNAMED_AGENT = "Agent"
 # Non-message gesture kinds eligible for withdrawal; events.undo_error handles
 # reactions. The complete eligibility contract is events.md, "Undo".
-UNDOABLE_KINDS = {"resolve", "unresolve", "action", "done"}
+UNDOABLE_KINDS = {"resolve", "unresolve", "action", "done", "task_end"}
 MESSAGE_KINDS = {"comment", "reply"}
 # The kinds a widget owns, admitted against the page's registry before they append.
 WIDGET_KINDS = {"action", "report"}
@@ -376,7 +376,7 @@ EXTENSION_SCHEMA = {
                 },
             ]
         },
-        "x-space": {"enum": ["wide", "available"]},
+        "x-space": {"enum": ["column", "wide", "available"]},
         "x-bound": {"enum": ["start", "end"]},
         # A default height in CSS pixels, or `true` for a widget that has none and
         # reserves only what an occurrence's data-height states.

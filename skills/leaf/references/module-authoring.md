@@ -242,6 +242,10 @@ The stacked value goes on a box that does not itself scroll, since the runtime r
 box that scrolls where it stands. A box a package makes scroll starts `--lf-top` again
 at `0px`, on the box that scrolls and only there.
 
+A box a package makes scroll text sideways carries the class `lf-text-scroller`. An
+overlay scrollbar paints over the box's lower edge and widens under the pointer, so while
+the box scrolls, the layer adds room for that bar below its last line.
+
 A composition allocates a Leaf element's outer box. The package owns how the element's
 contents use that allocation, based on its available inline size rather than the page
 shell or a reading posture. Prefer intrinsic grid or flex layout. When the contents need

@@ -27,6 +27,7 @@ import {
   sendMessage,
   transferDraft,
   watchDraft,
+  watchDrafts,
   rememberWriting,
   registerWritingDestination,
 } from "../drafts.js";
@@ -44,7 +45,7 @@ import { bindQueuedWork } from "../queued-work.js";
 import { closestAcross, elementById, inChrome } from "../passages.js";
 
 import { notice } from "../notifications.js";
-import { validDrawing } from "./drawing-record.js";
+import { sentDrawing, validDrawing } from "./drawing-record.js";
 import { commitPoint } from "../pointed-place.js";
 import { beginWalk, listWalkPosition } from "../walk-position.js";
 import { textField } from "./text-field.js";
@@ -153,6 +154,7 @@ export function createSelectionComposer({
   landSent,
   refreshThread,
   wireInput,
+  drawingEdits,
 }) {
   const closeReactions = () => setReact(false);
 
@@ -188,13 +190,22 @@ export function createSelectionComposer({
     saveDraft(composerCtx(pendingAnchor), composerDraftValue(text));
   // One passage's draft record, or null when it holds none. Parsed under its own guard: a
   // record that no longer parses costs the user that one draft, where throwing would
-  // cost them the page, at module top level.
+  // cost them the page, at module top level. The page's ink reads every draft on each
+  // paint, scroll frames included, so a record is parsed again only when its stored
+  // words change; readers take it as read-only.
+  const parsedRecords = new Map();
   const composerRecord = (ctx) => {
+    const stored = loadDraft(ctx);
+    const known = parsedRecords.get(ctx);
+    if (known?.stored === stored) return known.record;
+    let record = null;
     try {
-      return JSON.parse(loadDraft(ctx));
+      record = JSON.parse(stored);
     } catch {
-      return null;
+      record = null;
     }
+    parsedRecords.set(ctx, { stored, record });
+    return record;
   };
   // The drawing a passage's draft holds, whether or not its box is up: putting the box
   // away keeps the draft, strokes included.
@@ -202,6 +213,40 @@ export function createSelectionComposer({
     const drawing = composerRecord(composerCtx(anchor))?.drawing;
     return validDrawing(drawing) ? drawing : null;
   };
+  // Every passage's draft that holds a drawing, box up or not: each is ink the user drew
+  // and has neither sent nor taken back, so the page shows all of it. `open` says the
+  // composer stands on it now.
+  function heldDrawings() {
+    const at = composerCtx(pendingAnchor);
+    const held = [];
+    for (const ctx of draftContexts()) {
+      if (!ctx.startsWith(COMPOSER_KEY)) continue;
+      const record = composerRecord(ctx);
+      const drawing = ctx === at ? pendingDrawing : record?.drawing;
+      if (!record || !validDrawing(drawing)) continue;
+      held.push({ anchor: record.anchor, drawing, open: composerOpen && ctx === at });
+    }
+    return held;
+  }
+  // Replace the drawing a passage's draft holds, or take it off with null, leaving the
+  // words. The composer standing on that passage, up or put away, holds the draft's
+  // current reading, so it takes the change and saves it; any other draft is rewritten
+  // where it is stored, and one left holding nothing is settled.
+  function setDraftDrawing(anchor, drawing) {
+    const ctx = composerCtx(anchor);
+    if (ctx === composerCtx(pendingAnchor)) {
+      pendingDrawing = drawing;
+      saveComposerDraft();
+      syncSuggestMode();
+      return;
+    }
+    const record = composerRecord(ctx);
+    if (!record) return;
+    if (!record.text && !drawing) clearDraft(ctx);
+    else saveDraft(ctx, JSON.stringify({ ...record, drawing }));
+  }
+  // News of any passage's draft, whose ink the page shows whether or not its box is up.
+  const watchHeldDrawings = (callback) => watchDrafts(COMPOSER_KEY, callback);
   // An open box the user emptied keeps its record, which is what tells another tab's
   // composer on that passage that this one is merely empty rather than settled — and leaves
   // nothing to reopen on. So the draft to come back to is the most recently touched one
@@ -437,13 +482,15 @@ export function createSelectionComposer({
       // the old Alt-click promise without replacing independent work already held at
       // the destination or making a user's next selection silently re-anchor a draft.
       const record = text ? null : composerRecord(ctx);
+      // A drawing marks its own passage, so a draft holding one stays where it is, as
+      // its words do with it (`carryComposerToReply` says the same of a reply).
       const carrying =
         carry &&
-        (previousText || previousDrawing) &&
+        previousText &&
+        !previousDrawing &&
         !(record?.text || validDrawing(record?.drawing));
       if (carrying) {
         text ||= previousText;
-        if (!drawingSupplied) drawing = previousDrawing;
         carriedDraft = true;
       } else if (record) {
         ({ text, suggest, about } = record);
@@ -630,12 +677,18 @@ export function createSelectionComposer({
           : true,
       hasContent: holdsContent,
       save: saveComposerDraft,
+      drawing: {
+        read: () => pendingDrawing,
+        draft: () => composerCtx(pendingAnchor),
+        undoStroke: () => drawingEdits.undoStroke(pendingAnchor),
+        remove: () => drawingEdits.remove(pendingAnchor),
+      },
       send: async (_text, raw, owns, visible) => {
         const anchor = structuredClone(pendingAnchor);
         const ctx = composerCtx(anchor);
         const suggestion = suggestCheck.checked;
         const about = pendingAbout;
-        const drawing = structuredClone(pendingDrawing);
+        const drawing = pendingDrawing && sentDrawing(structuredClone(pendingDrawing));
         // The accepted comment becomes a thread, drawn as a card beside the passage unless
         // Threads is open. Carry the submitted field's geometry into the new card, which
         // stands where the field did: by the row a pointing gesture named.
@@ -785,6 +838,10 @@ export function createSelectionComposer({
     pendingComposer,
     keptDraft,
     draftDrawing,
+    heldDrawings,
+    watchHeldDrawings,
+    setDraftDrawing,
+    draftKey: composerCtx,
     composerHolds,
     setSuggestionMode,
     responseOptionsAreOpen,

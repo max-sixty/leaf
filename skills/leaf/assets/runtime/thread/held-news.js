@@ -17,11 +17,12 @@
    drew before and says what is waiting in a row it already draws at a fixed size. A
    thread resolved or reopened elsewhere changes shape the same way:
 
-   - a thread's own news (its new turns, a reaction put on a reply or taken off it, and
-     its resolving or reopening, which draws or folds its reply box and reaction strips)
-     in the thread's control row: the head row beside Resolve while it is drawn open,
-     Reopen's place while it is drawn resolved (a page thread's foot row, a panel
-     card's title), and a folded outlet's summary;
+   - a thread's own news (its new turns, a reaction put on a reply or taken off it, a
+     summary the agent folds turns into or one that goes, and its resolving or reopening,
+     which draws or folds its reply box and reaction strips) in the thread's control
+     row: the head row beside Resolve while it is drawn open, Reopen's place while it is
+     drawn resolved (a page thread's foot row, a panel card's title), and a folded
+     outlet's summary;
    - a new thread in the control row of the thread it would follow, or, where the seat
      draws no thread, in place of its first-message row, at that row's height, unless the
      user stands in that box, which `holdBox` (reply-landing.js) keeps still instead;
@@ -33,9 +34,11 @@
 
    A panel card uses the same hold for its own news, and a closed card holds nothing,
    since its title row draws at one size whatever it says. A reply pinned to its
-   scrollport can instead absorb news above it by scrolling. A held change leaves the
-   controls it touches drawn as they were, and a press on one means what it drew
-   (actions.js, `toggleReaction` and `settle`) and shows what the thread holds.
+   scrollport lets a turn joining the thread's end grow up into the room scrolled past
+   (thread-list.js, `followThreadEnd`), though nothing that changes above that end. A
+   held change leaves the controls it touches drawn as they were, and a press on one
+   means what it drew (actions.js, `toggleReaction` and `settle`) and shows what the
+   thread holds.
 
    `HeldNews` is that one owner for a seat, and `HeldArrivals` for the seats a widget has
    not opened. Each reads every reading against the one it drew last, the only baseline:
@@ -85,7 +88,6 @@ import { allThreads } from "./state.js";
 import { THREAD } from "./selectors.js";
 import { closestAcross } from "../passages.js";
 import { readApplication } from "../semantic-state.js";
-import { replyPinned } from "./reply-landing.js";
 
 // Whether this page's ledger holds a gesture of the user's on `thread`: one of its
 // messages, a reply or a settlement naming one, a move on a widget one of them holds, an
@@ -133,12 +135,26 @@ const tokens = (reactions) =>
 // The tokens standing in one of two strips and not the other.
 const symmetric = (a, b) => [...a, ...b].filter((name) => !a.has(name) || !b.has(name));
 
+// A summary as a card draws it: the messages of `drawn`, the ids of the turns the card
+// draws, that it folds, and whether one of them holds it open (`protected`, which the
+// server derives from whose turn it is). A reaction reply it covers draws as a strip.
+const fold = (summary, drawn) =>
+  JSON.stringify([
+    summary.id,
+    summary.covers.filter((id) => drawn.has(id)),
+    Boolean(summary.protected?.length),
+  ]);
+
 // What of `now` the seat would draw differently from `was`, the thread as it drew it:
 // each message that is new or whose words changed, each reaction put on a reply or taken
-// off it, and the thread's settlement; `changed` the keys of the messages the news
-// changes, every one where the settlement changes, which moves the thread's controls
-// into or out of its head row and draws or folds its reaction strips. A message the log
-// took back is no news: it goes. Null where nothing differs.
+// off it, each summary that comes or goes, and the thread's settlement; `changed` the
+// keys of the messages the news changes, every one where the settlement changes, which
+// moves the thread's controls into or out of its head row and draws or folds its
+// reaction strips; `folds` the keys of the messages a summary that comes or goes covers,
+// and the ids of those that go, whose checkpoints a summary's change redraws from their
+// tops. A summary a new reply completes, as progress is folded when the agent's answer
+// arrives, moves what it covers but is that reply's news, so the notice does not count
+// it. A message the log took back is no news: it goes. Null where nothing differs.
 function difference(was, now) {
   const drawn = new Map(was.messages.map((message) => [message.key, message]));
   const settled =
@@ -149,11 +165,13 @@ function difference(was, now) {
         : "Reopened";
   const news = { settled, replies: 0, reactions: 0, appended: false };
   const changed = new Set();
+  const arrived = new Set();
   for (const message of now.messages) {
     const prior = drawn.get(message.key);
     if (!prior) {
       news.replies += 1;
       news.appended = true;
+      arrived.add(message.id);
     } else if (JSON.stringify(prior.body) !== JSON.stringify(message.body)) {
       news.replies += 1;
       changed.add(message.key);
@@ -164,16 +182,35 @@ function difference(was, now) {
       if (turned.length) changed.add(message.key);
     }
   }
-  if (!settled && !news.replies && !news.reactions) return null;
-  return { news, changed };
+  const summaries = (reading) => {
+    const ids = new Set(reading.messages.map(({ id }) => id));
+    return new Map(reading.summaries.map((summary) => [fold(summary, ids), summary]));
+  };
+  const before = summaries(was);
+  const after = summaries(now);
+  const added = [...after].filter(([at]) => !before.has(at)).map(([, each]) => each);
+  const gone = [...before].filter(([at]) => !after.has(at)).map(([, each]) => each);
+  const told = (list) => list.filter(({ trigger }) => !arrived.has(trigger)).length;
+  news.summaries = told(added) || told(gone);
+  const keys = new Map(
+    [...was.messages, ...now.messages].map(({ id, key }) => [id, key]),
+  );
+  const folds = {
+    messages: [...added, ...gone].flatMap(({ covers }) =>
+      covers.map((id) => keys.get(id)).filter(Boolean),
+    ),
+    summaries: gone.map(({ id }) => id),
+  };
+  if (!settled && !news.replies && !news.reactions && !news.summaries) return null;
+  return { news, changed, folds };
 }
 
 // The thread `now` with what `was`, the thread as the seat drew it, did not show held
 // back: what the log's news changed, as drawn. That is its settlement; its messages, the
 // new ones left out, a reaction taken off still standing, and each one's words as drawn,
-// which only an edit changes; and the progress folds a held reply completes. A held
-// thread is read from this as from any other, so what the reading derives from those,
-// such as its title, its reaction strips or its controls, agrees with what it draws.
+// which only an edit changes; and its summaries as drawn. A held thread is read from
+// this as from any other, so what the reading derives from those, such as its title, its
+// reaction strips or its controls, agrees with what it draws.
 // Whose turn it is and each message's delivery read as they stand, as the server
 // derives them: they change the title's status and a message's head row in place, as
 // in a thread that holds nothing, so a resolution held from the card already takes its
@@ -187,21 +224,18 @@ function withheld(was, now) {
     const { text, body, edited } = prior;
     return [{ ...message, text, body, edited }];
   });
-  const shown = new Set(msgs.map(({ id }) => id));
   return {
     ...now,
     root: msgs.find((message) => key(message) === key(now.root)) ?? now.root,
     resolved: was.resolved,
     msgs,
-    summaries: now.summaries.filter(
-      (summary) => !summary.trigger || shown.has(summary.trigger),
-    ),
+    summaries: was.summaries,
   };
 }
 
 // Whether growth after `node` would move what the user sees: the node's foot stands
 // inside every box that scrolls it. A node not drawn has no foot to grow from.
-function growthAfterIsSeen(node) {
+export function growthAfterIsSeen(node) {
   const { bottom, height } = node?.getBoundingClientRect() ?? {};
   if (!height) return false;
   for (const box of scrollersOf(node)) {
@@ -214,7 +248,7 @@ function growthAfterIsSeen(node) {
 // Whether growth inside `nodes`, wherever in them it starts, would move what the user
 // sees: some of them stands inside every box that scrolls it. Growth wholly above the
 // screen goes into what scroll anchoring holds, and wholly below it moves nothing seen.
-function growthInsideIsSeen(nodes) {
+export function growthInsideIsSeen(nodes) {
   return nodes.some((node) => {
     const { top, bottom, height } = node.getBoundingClientRect();
     if (!height) return false;
@@ -226,11 +260,12 @@ function growthInsideIsSeen(nodes) {
 }
 
 const counted = (count, one, many) => count && `${count} ${count === 1 ? one : many}`;
-const newsLabel = ({ settled, replies, reactions, threads }) =>
+const newsLabel = ({ settled, replies, reactions, summaries, threads }) =>
   [
     settled,
     counted(replies, "new reply", "new replies"),
     counted(reactions, "reaction changed", "reactions changed"),
+    counted(summaries, "summary changed", "summaries changed"),
     counted(threads, "new thread", "new threads"),
   ]
     .filter(Boolean)
@@ -392,7 +427,7 @@ export class HeldNews {
           was && shown && !this.#released.has(thread.key)
             ? difference(was, thread)
             : null;
-        if (!held || gestured(thread.key) || !this.#moves(thread.key, held))
+        if (!held || gestured(thread.key) || !this.#view(thread.key)?.newsMoves(held))
           return { ...thread, news: null };
         this.#holds.add(thread.key);
         // What the news changes stands as drawn. A held reopening's notice stands
@@ -426,32 +461,6 @@ export class HeldNews {
           }
         : null;
     return Object.freeze({ ...reading, threads: Object.freeze(threads), news });
-  }
-
-  // Whether drawing `held` would move what the reader reads: growth after a message it
-  // changes, or after the thread's foot, where a message joins it or its settlement
-  // changes what follows its messages, would be seen, or the row a settlement swaps
-  // shows. A reply actually pinned to its
-  // scrollport can absorb news above it, though not a settlement, which takes the reply
-  // away or brings it. A short thread's sticky row still stands in flow and has no such
-  // space to give.
-  #moves(key, { news, changed }) {
-    const view = this.#view(key);
-    if (
-      !view ||
-      (!news.settled &&
-        replyPinned(view.node.querySelector(":scope > .lf-thread-reply")))
-    )
-      return false;
-    return (
-      [
-        ...[...changed].map((message) => view.messageNode(message)),
-        (news.appended || news.settled) && view.foot,
-      ].some((node) => node && growthAfterIsSeen(node)) ||
-      Boolean(
-        news.settled && view.settlementRow && growthInsideIsSeen([view.settlementRow]),
-      )
-    );
   }
 
   // Shows what the seat holds of the thread `id`: its news, or, where the seat holds the

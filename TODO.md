@@ -32,14 +32,11 @@ has tried; settle that before building it.
   behavior.
 - **Keep the Thread hierarchy clear.** Check context, search, filters, agent
   activity, selection, and reply editing in the implemented accordion.
-- **Name a new Thread promptly everywhere.** A Claude Code page and an App Server
-  carrier (leaf.page and `leaf codex start`) title a thread from its opening
-  message in about 3 s (`thread_titles`). A Codex task Leaf reaches through `codex
-  queue` still titles on the agent's reply; give it the same request, through
-  `codex exec`. Worktrunk's `codex exec` command took 3.7–5 s and about 13k input
-  tokens per title here, and it leaves the user's MCP servers on, which the App
-  Server request turns off by name. A request at admission, as Claude Code's is,
-  would serve every harness once the page server can reach each one's model.
+- **Name a Pi Thread promptly.** Claude Code and Codex pages and leaf.page name a
+  thread from the user's words a few seconds after they arrive (`thread_titles`).
+  `PiHarness` has no `title_generator`, so a Pi page's thread is named only by the
+  agent's reply. Give the page server a request on Pi's configured model, such as
+  a print-mode run with tools, extensions and hooks off, and measure it.
 - **Keep a long Thread's standing visible.** Summary checkpoints already condense
   older messages. Test a current one-line reading of what is decided and what remains
   open, distinct from a historical summary, and decide how a revision invalidates it.
@@ -56,8 +53,14 @@ has tried; settle that before building it.
   result is hidden. Decide whether a page needs one progress reading across Asks,
   board work, and version approval. Test a concrete first task before changing the
   public home page's prompt.
-- **#14 — [Verify the complete workspace keyboard and accessibility route](notes/workspace-followups.md#item-14).**
-  Follow one task through reading, panes, comments, and Threads.
+- **Keep focus off page content a panel beside the page covers.** Threads and the
+  Queue panel leave the page live beside them while standing over part of it, and focus
+  still reaches what they cover. At 1440×900 Tab walks onto `annotation-workspace`'s
+  rail under Threads, and `c` on a selection opens the rail's comment box there; at
+  1200px Tab reaches an Ask's option marks under the Queue panel. Max's rule
+  (2026-10-06): the panels dominate focus, so moving focus never closes or changes a
+  standing panel; instead focus never lands on page content a panel covers, and
+  Threads still stands beside a full-width workspace rather than covering it.
 
 ### Agent and author experience
 
@@ -108,7 +111,7 @@ has tried; settle that before building it.
   marker's label and its status (Sent, Stalled); the diff's line "+"; and the
   latest-edit error, a dead passage's reason, a disabled More entry's reason, and the
   compare state. A finger also lacks exits a key has: a mode's or search's steps take
-  Threads and Approve off the row until it ends, Android's back gesture closes nothing
+  Threads off the row until it ends, Android's back gesture closes nothing
   (the Escape ladder could answer it), Draw mode blocks scrolling and zoom, and an
   `lf-draft` has no close that keeps the edit.
 - **Decide whether the response bar's reactions and Suggest need a pointer route.**
@@ -133,11 +136,6 @@ and its chrome coordinate.
   newcomer out of view rather than pushing down the card being read. The user sees
   it only in the count; give that arrival a visible route while preserving the
   current reading.
-- **Give the phone banner one row.** Decided, not built
-  ([plan](notes/chrome-and-covers.md)): one 53px row holding the status in words, cut
-  short with an ellipsis, with a passing notice taking that slot for a few seconds;
-  then Threads as an icon with its count; then More. Approve moves into More, which
-  wears a dot while approval is open.
 - **Recompose `alert-review` as a screen.** It is the worked workspace example, and at
   1200×900 `page check --render` advises that its detail pane runs 6890px past its
   region (nine Asks stacked in one scroller) and its queue 104px. A page a reader moves
@@ -148,15 +146,6 @@ and its chrome coordinate.
 - **Decide whether the desktop bottom bar goes.** Its key hints would move behind `?`
   and its status into the banner; the bar is how a desktop user learns the keys
   without asking, which is the trade to weigh ([plan](notes/chrome-and-covers.md)).
-- **Align a widget's column with the text's measure.** `lf-options` cards run 1294px
-  beside 720px paragraphs in a wide panel, because text keeps the measure (`theme.css`,
-  `:where(p, li, …) { max-inline-size: var(--col) }`) and a widget without `x-space`
-  takes the whole flow. Declaring the existing column allocation on `lf-options` is not
-  enough on its own: `schema.py` allows `x-space` only `wide` and `available`, and
-  `[data-lf-space="column"]` centres its box (`margin-inline: auto`) while text in a
-  wide flow starts at the left edge. The column allocation and the text measure have to
-  align the same way first; start-aligned in any flow wider than the column is the
-  reading that matches the prose.
 - **Let a page restyle Leaf's chrome on purpose.** A page's rules reach a widget's
   controls when they name the widget (`runtime/page-sheets.js`), but `chrome.css` is
   unlayered and adopted after the page's sheets, so a page rule naming a chrome class
@@ -273,8 +262,6 @@ height and where a switch lands wait on the workspace decision under Layout.
   design and FYI, but `lf-tabs` takes only `lf-tab` members, so the page showed 21
   undifferentiated rows. A side list could take group headings between its items,
   skipped by the arrow walk.
-- **Put the open item first on a phone.** At 390px the stacked list comes before any
-  item, so 20 rows fill two screens before the first one.
 
 ### Recorded interaction review
 
@@ -366,6 +353,24 @@ in the integration.
   same container CI runs, the approach Playwright recommends (an arm64 image on a
   Mac matches CI only on an arm64 runner); or a hosted visual-review service that
   renders both sides itself.
+- **Keep the agent journey's samples.** `leaf-dev journey` prints one timed sample
+  per run, and `publish-site` runs it on every release, but only the machine that
+  ran it keeps the sample (`$XDG_STATE_HOME/leaf-dev/journey.jsonl`), so CI's
+  samples are lost and a slower title or reply shows only to whoever is watching.
+  Find a durable store that CI and local runs can both write to, with the Worker's
+  credential proxy in mind, and chart each step across releases against the targets
+  in `notes/user-feedback-responsiveness.md`. Uploading a CI artifact needs no extra
+  token but keeps 90 days; a file in `max-sixty/leaf-assets` keeps history but needs
+  a token that can push there.
+- **Consider bundling the browser runtime.** A navigation loads about 220 JS modules
+  over HTTP/1.1's six connections. A prototype bundling `leaf.js` with esbuild cut a
+  widgetless page from 217 requests to 38 and its open from 332–483 ms to 238–258 ms,
+  roughly 10% of browser-test time. The bundle would hold `assets/runtime/` and Leaf's
+  own packages; custom packages stay unbuilt and import only `/runtime/widget-api.js`,
+  a bundle entry, which `page check` would then enforce, since any other runtime import
+  loads a second runtime. **Unconfirmed:** it needs automatic rebuilds on preview, test
+  and merge, since a committed bundle would conflict across concurrent runtime PRs.
+  Untested alternative: `modulepreload` hints.
 
 ## Etc
 
@@ -385,6 +390,27 @@ Revisit these when their stated trigger becomes real; they are not an active que
 - **Explore independent jobs.** Work out their identity, observer, continuation
   owner, and outcomes across background commands, delegates, and external waits.
   See the [Thread plan](notes/threads.md#independent-jobs-delegation-and-continuation).
+- **Model how work breaks into pieces.** A task links only to its thread, widget or
+  page. Most real work forms a fuzzy hierarchy: much of planning is breaking a goal into
+  pieces, and the breakdown changes as the work teaches what the goal needs, with
+  pieces split, merged, dropped or moved under another parent. Fixed trees, like Pi's
+  owned subtasks or a tracker's parent and child tickets, are too brittle for that.
+  Find a shape that holds a changing breakdown, and say what it means for the queues:
+  whether a parent ends when its children do, and whose queue shows a child. Two links
+  are already planned: none for a task answering the user's comment, and one back to
+  the dispatcher for work handed to another session (step 7 of
+  [What needs you](notes/what-needs-you/page.html#task-hierarchy)). Trigger: a page
+  whose work the user wants to see broken down.
+- **Tell the agent when to ask before ending its own task.** The agent ends its tasks
+  itself, and asks first, with an Ask or a thread question, when the result needs the
+  user's sign-off
+  ([What needs you](notes/what-needs-you/page.html#task-done)). The shipped
+  instructions don't yet say when that is. Trigger: an agent ends a task as done that
+  the user wanted to see first.
+- **Let the user edit items in the Queue panel.** The user's only edit today is Done
+  on a task the agent put on them, so dropping a task, renaming it or ending one of the
+  agent's means asking in a thread. Editing the row directly in the panel would record the user's change as
+  their own move. Trigger: a user writes a comment only to close or adjust an item.
 - **Multiplayer:** let several users share a page, each recorded as themselves.
   Every browser event is `author: "user"` today, so the log cannot say who moved,
   commented or voted, and nothing records who has the page open. Claude Code
@@ -399,6 +425,12 @@ Revisit these when their stated trigger becomes real; they are not an active que
   works the same wherever panes stand. Draw it as a playground before building it.
   Trigger: a user loses track of the active pane, or tabs through a pane to reach the
   next one.
+- **Expand everything waiting with a keypress.** A held notice, a collapsed summary,
+  and a folded card or section each open one at a time, with Enter or Space on it,
+  `g f` for a page's sections, or a `t` walk for a thread's held news. Nothing opens
+  them all at once, yet a page-level key spent on that alone seems wasteful. Think
+  about which surface should own it, such as one command on the panel. Trigger: a
+  user steps through notices one by one to catch up.
 - **#23 — Workspace persistence:** use repeated real tasks to decide whether
   users return and how much customization Leaf should own.
 - **Visual review beside Leaf:** coordinate a real browser target through the harness

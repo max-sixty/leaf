@@ -10,6 +10,7 @@ computed opacity, busy state and body words at insertion. A screenshot taken aft
 the browser driver returns cannot prove that instant, even while the request is held.
 """
 
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
 
@@ -29,6 +30,20 @@ STAGES = (
     "accepted",
 )
 Checkpoint = Callable[[str, Page, dict], None]
+
+
+def retire_notice(page: Page) -> None:
+    """Run the page's timer clock until its notice has retired.
+
+    The caller fixes the context's wall clock (`clock.set_fixed_time`), which leaves
+    timers on a clock `run_for` advances, so the notice's own timer retires it
+    without the journey waiting out its interval in real time.
+    """
+    notice = page.locator(".lf-notice")
+    deadline = time.monotonic() + 6
+    while notice.is_visible():
+        assert time.monotonic() < deadline, "the notice never retired"
+        page.clock.run_for(250)
 
 
 def watch_message_arrival(root: Locator, selector: str) -> None:
@@ -165,7 +180,7 @@ def delivery_journey(page: Page, surface: str, checkpoint: Checkpoint) -> dict:
     wait_for_probe(page, "pageSettled")
     # Seeded agent news is initial feedback, not part of this send journey. Let
     # its actual notice expire before drafting rather than racing its timer.
-    expect(page.locator(".lf-notice")).to_be_hidden(timeout=6_000)
+    retire_notice(page)
     focus_field(page, field)
     page.keyboard.insert_text(WORDS)
     observations = {}
@@ -283,9 +298,9 @@ def delivery_journey(page: Page, surface: str, checkpoint: Checkpoint) -> dict:
             "words": "Couldn't send — refused before append",
             "visible": True,
         }, f"refusal feedback at its mutation was {feedback!r}"
-        # The refused screenshot owns restored draft/layout after real feedback
-        # expiry; a capture must not race a finite user-notice interval.
-        expect(page.locator(".lf-notice")).to_be_hidden(timeout=6_000)
+        # The refused screenshot owns restored draft/layout after the feedback's
+        # timer retires it; a capture must not race a finite user-notice interval.
+        retire_notice(page)
         observe("refused")
         send()
         observe("retry-pending")

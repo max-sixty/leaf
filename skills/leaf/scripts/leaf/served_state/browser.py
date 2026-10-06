@@ -10,7 +10,7 @@ from ..gesture_words import GestureWords, RevisionReader
 from ..history import history, wants_history
 from ..passages import SourceReading
 from ..projection import FrozenThreadReading, canonical_updates, page_reading
-from ..tasks import canonical_tasks
+from ..tasks import canonical_tasks, page_tasks, task_ends
 from ..workflows import canonical_workflows
 from .context import PageRead
 from .document import browser_document, browser_undo_candidates
@@ -105,9 +105,10 @@ def _apply_thread_attention(
     an open Ask or a question the agent's latest turn leaves (`user_prompt`), or a
     response the user must recover; `waiting` while a workflow holds the thread with
     the agent, which covers every input `events.unanswered_turns` holds, or while a
-    task the agent opened on it stands (`tasks`); else None. `workflows` are `served_workflows`, so the first
-    that qualifies is the one the thread waits on, and a workflow speaks before a
-    task. `tasks` are the open tasks, each stamped with its `thread`."""
+    task the agent opened on it stands; else None. `workflows` are
+    `served_workflows`, so the first that qualifies is the one the thread waits on,
+    and a workflow speaks before a task. `tasks` are the agent's open tasks, each
+    stamped with its `thread`."""
     user_threads = {ask["thread"] for ask in asks["user"]}
     by_thread: dict[str, list[dict]] = {}
     for workflow in workflows:
@@ -264,19 +265,33 @@ def browser_state(
         (live_stream or {}).get("reply_bindings"),
     )
     workflows = served_workflows(activity.pop("workflows"), thread_reading)
-    # Every task, stamped with its thread: the open ones, as the activity fold aged
-    # them, hold their threads and stand on the agent's queue; the ended ones are what
-    # the browser's Queue panel lists as done (`runtime/queues.js`, `selectDone`).
-    tasks = [
-        {**task, "thread": thread_reading.subject_thread(task["subject"])}
-        for task in activity.pop("tasks")
-    ]
-    ended_tasks = [
-        {**task, "thread": thread_reading.subject_thread(task["subject"])}
+    # Every task beside a version's own Asks, on either side, stamped with its thread
+    # (`tasks.page_tasks`): the agent's open ones as the activity fold aged them, the
+    # rest of the log's, and the user's that the threads' Asks and questions hold. With
+    # the shown view's Ask tasks (`served_state.document`), the open ones are what the
+    # two queues select from, and the ended ones are what the browser's Queue panel
+    # lists as done (`runtime/queues.js`, `selectDone`).
+    aged = {task["id"]: task for task in activity.pop("tasks")}
+    log = [
+        {
+            **aged.get(task["id"], task),
+            "thread": thread_reading.subject_thread(task["subject"]),
+        }
         for task in canonical_tasks(events)
-        if task["state"] != "open"
     ]
-    _apply_thread_attention(thread["threads"], thread["asks"], workflows, tasks)
+    tasks, ended_tasks = page_tasks(
+        log,
+        thread["asks"],
+        thread["threads"],
+        task_ends(events),
+        active_registry.get("$reactions", {}).get("tokens", {}),
+    )
+    _apply_thread_attention(
+        thread["threads"],
+        thread["asks"],
+        workflows,
+        [task for task in tasks if task["owner"] == "agent"],
+    )
     if wants_history(readings[revision] for revision in view_revisions):
         words = GestureWords(events, active_registry, revisions or readings.__getitem__)
         page_history = {

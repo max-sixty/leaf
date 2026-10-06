@@ -961,8 +961,9 @@ img { aspect-ratio: attr(width type(<number>)) / attr(height type(<number>)); }
  * one. */
 /* A table scrolls its own columns, so, like `pre`, its rows never size what holds it.
  * Scrolling sideways makes it the scroller for anything sticking inside it, which
- * sticks at the table's own top (`--lf-top`). */
-table { display: block; overflow-x: auto; container-type: inline-size; --lf-top: 0px;
+ * sticks at the table's own top (`--lf-top`), and, like `pre`, leaves room under its
+ * last row for an overlay scrollbar (shadow.css, beside `pre`). */
+table { display: block; overflow-x: auto; container-type: inline-size scroll-state; --lf-top: 0px;
         border-collapse: collapse;
         font: var(--t-5)/1.5 var(--sans); margin: 18px 0; font-variant-numeric: tabular-nums; }
 /* A table standing in a drawn frame (a panel, a callout, a pane, a cell) fills it. The

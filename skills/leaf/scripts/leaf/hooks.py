@@ -25,6 +25,8 @@ page or reopen a turn at SessionStart, and it persists across session generation
 Each harness's registrations name it (`--harness`) and its payload names the
 session; `harness.hook_harness` says why neither comes from the environment."""
 
+import time
+
 from .leases import mark_hooks, mark_step_hook
 from .service import claim_records, owned_pages
 from .state import (
@@ -40,6 +42,7 @@ from .state import (
 
 def cmd_hook(harness: str, payload: dict) -> None:
     """Answer one hook of `harness`, the name its registration passes."""
+    started = time.monotonic()
     event, sid = payload.get("hook_event_name"), payload.get("session_id") or ""
     if sid:
         # Evidence that this harness runs Leaf's hooks for the session, which is what
@@ -137,6 +140,7 @@ def cmd_hook(harness: str, payload: dict) -> None:
         sid,
         payload,
         expected,
+        started=started,
         reconnect_harness=harness if event == "UserPromptSubmit" else None,
     )
     if ended:

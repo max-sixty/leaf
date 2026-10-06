@@ -256,12 +256,12 @@ def resolve_dependency(specifier: str, importer: str, *, module=False) -> str | 
     return resolved
 
 
-def _javascript_imports(data: bytes, path: str):
-    """Yield exact string-literal spans of static exports/imports and import().
+def javascript_tree(data: bytes, path: str):
+    """Parse UTF-8 JavaScript once at its source boundary, with located errors.
 
-    A computed import() binds when it runs, so capture neither follows nor refuses it:
-    a CDN module named that way loads, and a page file it names is in the revision
-    only if something imports it literally."""
+    Artifact capture and developer source analysis consume this same syntax
+    reading. Import admission remains with the artifact's reference reader.
+    """
     try:
         data.decode("utf-8")
     except UnicodeDecodeError as error:
@@ -273,23 +273,33 @@ def _javascript_imports(data: bytes, path: str):
             node = pending.pop()
             if node.is_error or node.is_missing:
                 raise ArtifactError(
-                    f"{path}:{node.start_point.row + 1}: invalid JavaScript"
+                    f"{path}:{node.start_point[0] + 1}: invalid JavaScript"
                 )
             pending.extend(reversed(node.children))
         raise ArtifactError(f"{path}: invalid JavaScript")
+    return tree
+
+
+def _javascript_imports(data: bytes, path: str):
+    """Yield exact string-literal spans of static exports/imports and import().
+
+    A computed import() binds when it runs, so capture neither follows nor refuses it:
+    a CDN module named that way loads, and a page file it names is in the revision
+    only if something imports it literally."""
+    tree = javascript_tree(data, path)
     pending = [tree.root_node]
     while pending:
         node = pending.pop()
         if node.type.startswith("jsx_"):
             raise ArtifactError(
-                f"{path}:{node.start_point.row + 1}: JSX is not executable JavaScript"
+                f"{path}:{node.start_point[0] + 1}: JSX is not executable JavaScript"
             )
         literal = None
         if node.type in {"import_statement", "export_statement"}:
             literal = node.child_by_field_name("source")
             if any(child.type == "import_attribute" for child in node.named_children):
                 raise ArtifactError(
-                    f"{path}:{node.start_point.row + 1}: import attributes are not supported for JavaScript modules"
+                    f"{path}:{node.start_point[0] + 1}: import attributes are not supported for JavaScript modules"
                 )
         elif node.type == "call_expression":
             function = node.child_by_field_name("function")
@@ -300,7 +310,7 @@ def _javascript_imports(data: bytes, path: str):
         if literal is not None:
             if any(child.type != "string_fragment" for child in literal.named_children):
                 raise ArtifactError(
-                    f"{path}:{literal.start_point.row + 1}: module URLs must be unescaped string literals"
+                    f"{path}:{literal.start_point[0] + 1}: module URLs must be unescaped string literals"
                 )
             yield (
                 literal.start_byte,

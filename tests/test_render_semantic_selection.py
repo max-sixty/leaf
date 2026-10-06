@@ -517,7 +517,6 @@ def test_a_selected_target_keeps_escape_when_the_layer_has_no_reactions(browser,
     shown = page.locator(".lf-shortcut-bar .lf-shortcut:not([hidden])")
     expect(shown).to_have_count(2)
     expect(shown.nth(1).locator("kbd")).to_have_text("esc")
-    expect(bar.get_by_role("button", name="Show other responses")).to_be_hidden()
     expect(page.locator(".lf-fab-input")).to_have_attribute(
         "aria-keyshortcuts", "Enter Meta+Enter Control+Enter"
     )

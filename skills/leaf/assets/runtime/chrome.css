@@ -373,6 +373,11 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      response bar, and inspect in their ordinary order within it. */
   :is(.lf-page-paint, .lf-target-paint) { z-index: var(--lf-z-page-paint); }
   .lf-target-paint[data-lf-paint-plane="chrome"] { z-index: var(--lf-z-chrome-paint); }
+  /* A paint box stands in the frames that cut what it is drawn over, each moved by the
+     scroll of the box that holds it (target-paint-geometry.js, `paintStand`). */
+  .lf-paint-stand { left: 0; top: 0; pointer-events: none; }
+  .lf-paint-frame { position: absolute; }
+  .lf-paint-motion { position: absolute; left: 0; top: 0; }
   /* Every margin-projection control traces the content it concerns through one quiet
      overlay. Painting above the target keeps a package-owned frame from covering the
      contour; the keyboard's stronger accent ring remains a separate focus fact. */
@@ -1295,9 +1300,8 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     display: none !important;
   }
   .lf-fab-bar.lf-response-open { flex-wrap: wrap; }
-  .lf-fab-bar.lf-response-open > .lf-response-more { display: none !important; }
   /* The choices are one row, the width the bar's side can hold. A side is chosen for
-     the field and its More press, which is narrower than Suggest and six reactions at
+     the field, which is narrower than Suggest and six reactions at
      their resting 38px: beside the open Threads panel at 1024px the bar had 256px for
      a 288px row, and the reactions dropped whole beneath Suggest. So the reactions give
      up their spare inline padding before the row breaks, down to the floor every

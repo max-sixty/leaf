@@ -317,6 +317,24 @@ def pane_focused(page: Page) -> None:
     page.locator("#sort-source").focus()
 
 
+def aim_cut_by_pane(page: Page) -> None:
+    """The aim over a paragraph whose top a workspace pane has scrolled out of view:
+    paint over a target cut where the pane cuts the target."""
+    page.locator("#sort-source").evaluate(
+        """source => {
+          const note = document.getElementById('sort-source-note');
+          source.scrollTop += note.getBoundingClientRect().top
+            - source.getBoundingClientRect().top + 24;
+        }"""
+    )
+    box = page.locator("#sort-source").bounding_box()
+    page.mouse.move(box["x"] + 120, box["y"] + 20)
+    page.keyboard.down("Alt")
+    page.wait_for_function(
+        "() => document.querySelector('.lf-aim')?.dataset.for === 'sort-source-note'"
+    )
+
+
 def element_thread(page: Page) -> None:
     """An element holding a thread, in view, with nothing indicating it."""
     page.locator("#off-t-vendor").evaluate("el => el.scrollIntoView({block: 'center'})")
@@ -383,6 +401,7 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
         code_copy_by_keyboard,
         code_source_by_touch,
         pane_focused,
+        aim_cut_by_pane,
         element_thread,
         versions_menu,
         go_to,
@@ -563,12 +582,15 @@ STATES = (
     State("sort", "rust-sort", at_rest),
     State("sort-pane", "rust-sort", pane_focused),
     State("sort-pane-dark", "rust-sort", pane_focused, scheme="dark"),
+    State("sort-aim-cut", "rust-sort", aim_cut_by_pane),
 )
 
 
 def capture(browser, address: str, state: State, path: Path) -> None:
-    """Bring a fresh tab to `state` and screenshot its viewport to `path`."""
-    with tab(browser, state.viewport, state.scheme, state.touch) as page:
+    """Bring a fresh tab to `state` and screenshot its viewport to `path`, at the
+    density of the displays its pairs are read on, so a crop shows text and hairlines
+    as the reader's screen draws them."""
+    with tab(browser, state.viewport, state.scheme, state.touch, scale=2) as page:
         load(page, address)
         state.drive(page)
         settle(page)

@@ -1133,7 +1133,6 @@ export class ThreadView {
         this.#commands.listRoot.revealNavigation(this.#model.id);
     const replyChanged = () => {
       if (!this.#reply) return;
-      this.#continuity?.changed();
       this.#draftFrame ||= nextRender(() => {
         this.#draftFrame = 0;
         if (!this.#reply) return;

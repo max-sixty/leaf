@@ -28,6 +28,17 @@ export class ReplyContinuity {
     owner.addEventListener("toggle", () => {
       if (!this.#visible()) this.release();
     });
+    // Read the live row at the edit boundary, after any prior rewrap or draft mirror.
+    // CodeMirror's keyboard commands (including Shift+Enter) bypass beforeinput;
+    // beforeinput also covers text insertion, paste and touch/IME edits without keys.
+    for (const type of ["keydown", "beforeinput"])
+      owner.addEventListener(
+        type,
+        (event) => {
+          if (this.#row?.contains(event.target)) this.#readReply();
+        },
+        { capture: true },
+      );
     // Input names a native edit; writing a restored or mirrored draft fires none.
     // Rebase before the draft's listeners can repaint and retain its former height.
     owner.addEventListener(
@@ -66,7 +77,7 @@ export class ReplyContinuity {
     // Keep the prior extent before asking layout to read the changed body: scroll
     // anchoring need not pay a temporary collapse the live response never paints.
     this.#keep(extent);
-    this.changed();
+    this.#readReply();
     this.#departure?.();
     this.#departure = whenOffScreen([this.#row], () => this.release());
   }
@@ -81,9 +92,7 @@ export class ReplyContinuity {
     this.#keep(Math.max(0, this.#extent + height - this.#replyHeight));
     this.#replyHeight = height;
   }
-  // Draft hydration changes the row without a native input or a semantic repaint.
-  // Its size is the starting point for the next edit, while its retained foot stays.
-  changed() {
+  #readReply() {
     if (this.#extent != null && this.#row?.isConnected)
       this.#replyHeight = this.#row.getBoundingClientRect().height;
   }

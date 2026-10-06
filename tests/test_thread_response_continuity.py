@@ -10,9 +10,15 @@ from render_harness import leaf_page, open_page, round_trip, write
 
 
 @pytest.mark.parametrize(
-    ("place", "edit"), [("seat", "delete"), ("margin", "delete"), ("seat", "mirrored")]
+    ("place", "edit"),
+    [
+        ("seat", "delete"),
+        ("margin", "delete"),
+        ("seat", "mirrored"),
+        ("seat", "resize"),
+    ],
 )
-def test_native_reply_deletion_after_semantic_paint_keeps_the_first_line(
+def test_native_reply_edits_after_semantic_paint_keep_the_first_line(
     browser, serve, place, edit
 ):
     """A semantic paint of a tall draft must not retain its height after native edits.
@@ -45,16 +51,24 @@ def test_native_reply_deletion_after_semantic_paint_keeps_the_first_line(
             "anchor": anchor,
         },
     )["id"]
-    context = browser.new_context(
-        viewport={"width": 1920, "height": 900}, reduced_motion="reduce"
+    viewport = (
+        {"width": 560, "height": 1100}
+        if edit == "resize"
+        else {"width": 1920, "height": 900}
     )
+    context = browser.new_context(viewport=viewport, reduced_motion="reduce")
     page = open_page(browser, url, context=context)
     if place == "margin":
         page.locator('[data-lf-margin-for="plan"] .lf-margin-marker').click()
     owner = page.locator(selector)
     editor = owner.locator("leaf-text")
     rendered(page)
-    write(editor, "First line\n\n\n\n")
+    draft = (
+        "A stable native draft that wraps at the narrow width. " * 8
+        if edit == "resize"
+        else "First line\n\n\n\n"
+    )
+    write(editor, draft)
     rendered(page)
     news = (
         {
@@ -63,7 +77,7 @@ def test_native_reply_deletion_after_semantic_paint_keeps_the_first_line(
             "thread": parent,
             "title": "Release review",
         }
-        if place == "margin"
+        if place == "margin" or edit == "resize"
         else {
             "kind": "reply",
             "author": "agent",
@@ -75,6 +89,20 @@ def test_native_reply_deletion_after_semantic_paint_keeps_the_first_line(
     events_model.append_event(serve.page_dir, news)
     told(page)
     rendered(page)
+    if edit == "resize":
+        narrow = editor.bounding_box()
+        page.set_viewport_size({"width": 1600, "height": 1100})
+        rendered(page)
+        before = editor.bounding_box()
+        assert before["height"] < narrow["height"] - 20, (narrow, before)
+        page.keyboard.type("!")
+        rendered(page)
+        now = editor.bounding_box()
+        assert now["height"] == pytest.approx(before["height"], abs=0.5), (before, now)
+        assert now["y"] == pytest.approx(before["y"], abs=0.5), (before, now)
+        expect(editor).to_have_js_property("value", draft + "!")
+        expect(editor).to_be_focused()
+        return
     if edit == "mirrored":
         other = open_page(browser, url, context=context)
         other.bring_to_front()

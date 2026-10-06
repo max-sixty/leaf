@@ -10066,3 +10066,59 @@ def test_the_user_rewrites_their_own_message_where_it_stands(browser, serve):
     expect(message.locator(".lf-msg-kept")).to_have_count(0)
     round_trip(page)
     assert len([e for e in events_model.read_events(d) if e["kind"] == "edit"]) == 1
+
+
+def test_the_keyboard_walks_up_through_the_users_messages_to_rewrite_one(
+    browser, serve
+):
+    """↑ from the thread's empty reply box opens the user's latest message, and ↑ from
+    the start of an open rewrite opens their message before it. The Edit control is
+    for a pointer or a finger, so it takes no Tab stop in the thread."""
+    url = serve(THREAD_DIFF_PAGE)
+    d = serve.page_dir
+    first = append_carried_log_record(
+        d,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Fit the north bracket.",
+            "anchor": {"section": "cd-q"},
+        },
+    )
+    answer = append_carried_log_record(
+        d,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Indexer",
+            "session": "worker-1",
+            "parent": first["id"],
+            "responds": first["id"],
+            "text": "Fitted.",
+        },
+    )
+    second = append_carried_log_record(
+        d,
+        {"kind": "reply", "author": "user", "parent": answer["id"], "text": "Thanks."},
+    )
+    page = open_page(browser, url)
+    resized(page, 1200, 900)
+    page.locator(".lf-threads-toggle").click()
+    thread = page.locator(f'.lf-thread:has(.lf-msg[data-mid="{first["id"]}"])')
+    expect(thread.locator(".lf-msg-edit").first).to_have_attribute("tabindex", "-1")
+
+    thread.locator(".lf-thread-reply leaf-text").focus()
+    page.keyboard.press("ArrowUp")
+    latest = thread.locator(
+        f'.lf-msg[data-mid="{second["id"]}"] .lf-msg-editor leaf-text'
+    )
+    expect(latest).to_be_focused()
+    page.keyboard.press("Home")
+    page.keyboard.press("ArrowUp")
+    earlier = thread.locator(
+        f'.lf-msg[data-mid="{first["id"]}"] .lf-msg-editor leaf-text'
+    )
+    expect(earlier).to_be_focused()
+    expect(thread.locator(".lf-msg-editor")).to_have_count(1)
+    expect(earlier).to_have_js_property("value", "Fit the north bracket.")

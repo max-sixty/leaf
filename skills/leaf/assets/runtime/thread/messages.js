@@ -246,6 +246,7 @@ export class MessageView {
           this.#commands.edit.send(this.#model.id, text, options),
         land: () => this.#commands.edit.land(),
         paint: () => this.#commands.edit.paint(),
+        previous: () => this.#commands.edit.previous(this.#model.id),
       });
     if (!editing && this.#editor) {
       this.#editor.dispose();
@@ -318,6 +319,7 @@ export class MessageView {
             ? html`<button
                 type="button"
                 class="lf-msg-edit lf-ui"
+                tabindex="-1"
                 data-lf-gen="1"
                 data-lf-offer="button"
                 aria-label="Edit message"

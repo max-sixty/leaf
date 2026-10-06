@@ -329,6 +329,7 @@ export class ThreadView {
         send: (id, text, options) =>
           commands.reply.actions.edit(this.#model.key, id, text, options),
         land: () => commands.reply.landSent(this.node),
+        previous: (id) => this.#lastEditable(id),
       },
     };
     this.node = document.createElement(
@@ -410,13 +411,17 @@ export class ThreadView {
     this.present(this.#received);
   }
 
-  // The view of the user's latest words in this thread, which ↑ in the empty reply box
-  // opens for rewriting (`wireReply`): none while those words cannot be rewritten, such
-  // as a message still sending, rather than an older message of theirs.
-  #lastEditable() {
-    const message = this.#model?.messages.findLast(
-      (item) => item.author === "user" && item.body.kind !== "reaction",
-    );
+  // The view of the user's latest words in this thread, or the latest before message
+  // `before`, which ↑ opens for rewriting: from the empty reply box (`wireReply`), or from
+  // the start of a rewrite already open (`message-edit.js`). None while those words
+  // cannot be rewritten, such as a message still sending, rather than older words.
+  #lastEditable(before = null) {
+    const messages = this.#model?.messages ?? [];
+    const end =
+      before === null ? messages.length : messages.findIndex(({ id }) => id === before);
+    const message = messages
+      .slice(0, Math.max(end, 0))
+      .findLast((item) => item.author === "user" && item.body.kind !== "reaction");
     return message?.editable ? (this.#messages.get(message.key) ?? null) : null;
   }
 

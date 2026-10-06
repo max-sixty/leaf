@@ -16,8 +16,10 @@
      takes words and caret. A view on the other surface, or in another tab, draws the
      message as it was, since nothing the user did there asked it to change.
 
-   A double click on the message, its Edit control, or ↑ in the thread's empty reply box
-   opens it, and Resume writing (`g i`) opens a rewrite whose words were kept where its
+   A double click on the message or a press on its Edit control opens it. The keyboard
+   opens it with ↑: from the thread's empty reply box, the user's latest message, and
+   from the start of an open rewrite, their message before it, so Edit takes no Tab stop
+   in every thread the user opened. Resume writing (`g i`) opens a rewrite whose words were kept where its
    thread lands (`openMessageEditIn`). Enter saves; Escape closes it and keeps its
    words; Cancel discards them. All three leave the user standing on the thread, as a
    sent reply does. Save sends through
@@ -101,11 +103,12 @@ function closeMessageEdit(id, { discard }) {
  * `said` reads the message's words now; `send` posts the rewrite through the thread's
  * typed action and returns its answer; `land` puts the user back on the thread before
  * the editor leaves the page; `paint` draws the view again once the editor opens or
- * closes. */
+ * closes; `previous` answers the view of the user's message before this one that ↑
+ * opens, or null. */
 export class MessageEditor {
   #stop;
 
-  constructor(id, view, panel, { wireInput, said, send, land, paint }) {
+  constructor(id, view, panel, { wireInput, said, send, land, paint, previous }) {
     const ctx = editContext(id);
     this.node = offer("div", "lf-msg-editor");
     this.input = offer(TEXT_FIELD);
@@ -150,6 +153,21 @@ export class MessageEditor {
           title: "stop editing",
           // Words the message already says are nothing to keep.
           run: () => leave(this.input.value.trim() === said().trim()),
+        },
+        {
+          id: "message.edit.previous",
+          keys: ["ArrowUp"],
+          description: "From the start of the box, edit your message before this one",
+          title: "edit previous message",
+          when: () =>
+            this.input.selectionStart === 0 &&
+            this.input.selectionEnd === 0 &&
+            Boolean(previous()),
+          run: () => {
+            const before = previous();
+            leave(this.input.value.trim() === said().trim());
+            before.openEdit();
+          },
         },
       ],
     });

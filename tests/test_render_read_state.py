@@ -850,10 +850,6 @@ def test_a_reply_held_in_a_diff_thread_is_read_once_the_keyboard_opens_it(
         expect(news).to_be_visible()
         opens = "t"
     else:
-        # The header's controls in the order they stand: the comment's Edit, then the
-        # notice beside it.
-        page.keyboard.press("Tab")
-        expect(thread.get_by_role("button", name="Edit message")).to_be_focused()
         page.keyboard.press("Tab")
         expect(news).to_be_focused()
         opens = "Enter"

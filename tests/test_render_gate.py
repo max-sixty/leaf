@@ -3945,6 +3945,24 @@ def test_a_table_too_wide_to_wrap_scrolls_inside_the_column(browser, serve):
     assert render_gate_model.render_version(browser, url).failures == []
 
 
+# From a box's last line of text to the inside of its lower border, and whether the box
+# scrolls sideways at all, since one that fits has no bar to clear.
+TEXT_CLEAR_OF_BAR = """(box) => {
+    const walk = document.createTreeWalker(box, NodeFilter.SHOW_TEXT);
+    let last = -Infinity;
+    for (let node; (node = walk.nextNode());) {
+        if (!node.data.trim()) continue;
+        const range = document.createRange();
+        range.selectNodeContents(node);
+        for (const r of range.getClientRects()) last = Math.max(last, r.bottom);
+    }
+    const s = getComputedStyle(box);
+    return { scrolls: box.scrollWidth > box.clientWidth,
+             clear: Math.round(box.getBoundingClientRect().bottom
+                               - parseFloat(s.borderBottomWidth) - last) };
+}"""
+
+
 def test_a_box_of_text_that_scrolls_leaves_its_last_line_clear_of_the_bar(
     browser, serve
 ):
@@ -3969,22 +3987,9 @@ def test_a_box_of_text_that_scrolls_leaves_its_last_line_clear_of_the_bar(
     panel_settled(page)
     measured = page.evaluate(
         """() => {
-        // From the last line of words to the inside of the box's lower border.
-        const clear = (box) => {
-            const walk = document.createTreeWalker(box, NodeFilter.SHOW_TEXT);
-            let last = -Infinity;
-            for (let node; (node = walk.nextNode());) {
-                if (!node.data.trim()) continue;
-                const range = document.createRange();
-                range.selectNodeContents(node);
-                for (const r of range.getClientRects()) last = Math.max(last, r.bottom);
-            }
-            const s = getComputedStyle(box);
-            return Math.round(box.getBoundingClientRect().bottom
-                - parseFloat(s.borderBottomWidth) - last);
-        };
-        const read = (box) => ({ scrolls: box.scrollWidth > box.clientWidth,
-                                 clear: clear(box) });
+        const read = """
+        + TEXT_CLEAR_OF_BAR
+        + """;
         const [wide, fits] = document.querySelectorAll('.lf-threads .lf-msg-body pre');
         const reading = { table: read(document.querySelector('#sessions')),
                           wide: read(wide), fits: read(fits),
@@ -4004,6 +4009,51 @@ def test_a_box_of_text_that_scrolls_leaves_its_last_line_clear_of_the_bar(
     assert not measured["fits"]["scrolls"], measured
     assert measured["width"] == measured["bareWidth"], measured
     assert measured["fits"]["clear"] <= measured["fitsPad"] + 3, measured
+
+
+def test_a_widget_box_of_text_that_scrolls_leaves_its_last_line_clear_of_the_bar(
+    browser, serve
+):
+    """A box a widget makes scroll text sideways, a diff's file or a call group, sat its
+    last line 4px and 2px above its edge, under the 15px track the pointer widens. Each
+    keeps that line 15px clear once it scrolls."""
+    url = serve(
+        leaf_page(
+            "Wide calls",
+            '<h1 id="t">Call change</h1>'
+            '<lf-call-diff id="calls" source="calls-data" diff="patch"></lf-call-diff>'
+            '<lf-diff id="patch" source="patch-data"><pre></pre></lf-diff>',
+        ),
+        packages=("pr-review", "diff"),
+    )
+    wide = "_".join(["argument"] * 40)
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "calls-data",
+        f"calldiff diff main → feature\n  changed()  app.py:1\n+ └─ {wide}()  app.py:2",
+    )
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "patch-data",
+        "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"
+        f"@@ -1 +1,2 @@\n changed()\n+{wide}()\n",
+    )
+    page = open_page(browser, url)
+    expect(page.locator("#calls .lf-call-group")).to_have_attribute("open", "")
+    page.wait_for_function("() => document.querySelector('lf-diff.lf-rendered')")
+    measured = page.evaluate(
+        """() => {
+        const read = """
+        + TEXT_CLEAR_OF_BAR
+        + """;
+        const diff = document.querySelector('#patch').shadowRoot;
+        return { calls: read(document.querySelector('#calls .lf-call-group-body')),
+                 file: read(diff.querySelector('code[data-code]')) };
+    }"""
+    )
+    for name, reading in measured.items():
+        assert reading["scrolls"], f"the {name} fits, so it proves nothing"
+        assert reading["clear"] >= 15, measured
 
 
 FRAMED_TABLES_PAGE = leaf_page(

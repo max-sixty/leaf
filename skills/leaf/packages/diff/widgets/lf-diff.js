@@ -584,6 +584,8 @@ async function renderFile(file, sharedStyles, open) {
   const pre = rendered.querySelector("pre");
   if (!pre) throw new Error(`Pierre returned no diff for ${file.name || "a file"}`);
   const viewport = pre.querySelector("code[data-code]") ?? pre;
+  // Its last row clears the overlay scrollbar the pointer widens (shadow.css).
+  viewport.classList.add("lf-text-scroller");
   viewport.setAttribute("role", "region");
   viewport.setAttribute("aria-label", file.name || "diff");
 

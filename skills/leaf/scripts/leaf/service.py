@@ -1,8 +1,10 @@
 """Page claims, serialized transactions, and status.
 
 The transaction holds the page's append lease; what may be appended under it is
-`event_contracts`' to say. Claim discovery runs in a cold harness hook, so
-process inspection and page-event semantics are imported only by their callers."""
+`event_contracts`' to say. Cold harness hooks read claims, and Codex's tool hook
+opens a transaction after every tool call, so process inspection and page-event
+semantics are imported only by their callers. A transaction imports the page model
+only to finish an interrupted publication."""
 
 import hashlib
 import os
@@ -20,7 +22,7 @@ from leaf.event_log import (
     _parse_events,
     read_cursor,
 )
-from leaf.files import read_json
+from leaf.files import read_json, unfinished_publications
 from leaf.machine import pid_alive, state_home
 from leaf.schema import (
     ACTIVITY_GRACE_SECS,
@@ -246,9 +248,10 @@ class PageTransaction:
         self._lock = flocked(self.page_dir / EVENTS_FILE, deadline=self.deadline)
         self._log = self._lock.__enter__()
         try:
-            from leaf.revisioning import finish_publications
+            if publications := unfinished_publications(self.page_dir, self.events):
+                from leaf.revisioning import finish_publications
 
-            finish_publications(self)
+                finish_publications(self, publications)
         except BaseException:
             self._lock.__exit__(*sys.exc_info())
             raise

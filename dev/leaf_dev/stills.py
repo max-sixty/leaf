@@ -744,7 +744,7 @@ def stills(base_ref: str | None) -> None:
                             capture(browser, address, state, folder / f"{arm}.png")
                     except click.ClickException as error:
                         failed[state.name] = (
-                            f"on {arm}: {error.message.strip().splitlines()[-1]}"
+                            f"on {arm}: {error.message.strip().splitlines()[-1].split('; ')[0]}"
                         )
                     except (PlaywrightError, PageNotReady) as error:
                         failed[state.name] = f"on {arm}: {str(error).splitlines()[0]}"

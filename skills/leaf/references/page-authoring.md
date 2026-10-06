@@ -190,8 +190,8 @@ the widths and wrapping every page needs.
 ### A wide page
 
 When the regions are the page rather than exhibits in an argument — a board with its
-status, a release dashboard, a queue sorted into buckets, a long review whose contents
-and verdict stay beside the code — widen the page itself. `<main class="layout-wide">`
+status, a release dashboard, a long review whose contents and verdict stay beside the
+code — widen the page itself. `<main class="layout-wide">`
 holds one flow at the page's width. `<main class="layout-sidebar">` sets what the reader
 works through beside what they keep an eye on — status, counts, the verdict's
 follow-ups, the contents — which is the Layout's `aside`, with the page's `header` above

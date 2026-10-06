@@ -36,7 +36,9 @@ export function createThreadActions({ post, withdraw, sendReaction, currentRevis
   // already says send nothing.
   const edit = (key, messageId, text, { attempt } = {}) => {
     if (typeof text !== "string") throw new TypeError("A message edit needs text");
-    const message = find(key)?.msgs.find((item) => item.id === messageId);
+    const thread = find(key);
+    if (!thread || thread.settling) return null;
+    const message = thread.msgs.find((item) => item.id === messageId);
     if (!message || !editable(message) || !text || text === message.text) return null;
     return post({
       kind: "edit",

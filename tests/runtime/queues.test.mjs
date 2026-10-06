@@ -38,23 +38,17 @@ test("a reply the user is sending moves its thread to the agent's queue at once"
   // The publisher folds the pending reply into its thread, which then waits on the
   // agent, and lists the reply's own workflow after the served ones.
   const [thread] = served.threads.filter((candidate) => candidate.id === "e1");
-  const threads = foldThreads(
-    served.threads,
-    [
-      {
-        id: "pending:a1",
-        attempt: "a1",
-        kind: "reply",
-        parent: thread.msgs.at(-1).id,
-        author: "user",
-        text: "Weekly.",
-        pending: true,
-      },
-    ],
-    [],
-    [],
-    new Set(),
-  );
+  const threads = foldThreads(served.threads, [
+    {
+      id: "pending:a1",
+      attempt: "a1",
+      kind: "reply",
+      parent: thread.msgs.at(-1).id,
+      author: "user",
+      text: "Weekly.",
+      pending: true,
+    },
+  ]);
   const workflows = [
     ...served.workflows,
     sending("a1", { kind: "thread", id: "e1" }, "e1"),

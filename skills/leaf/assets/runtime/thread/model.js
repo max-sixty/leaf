@@ -67,40 +67,34 @@ const pendingSeat = (message) =>
     ? null
     : (message.anchor.section ?? null);
 
-// The user's own pending gestures, folded into the server's threads. A reply joins the
-// thread it answers; a comment opens one where it was written; settlement changes its
-// state; taking back a reaction, the one message the user can withdraw, drops it from
-// its thread, and a thread it opened goes with it, as the log's reading will. They leave
-// again when the server accepts or refuses them, so this is a reading of the same
-// outbox and log the server projects rather than a second store beside it.
+// The user's own pending gestures, folded into the server's threads in the order this
+// tab made them, as `events.build_threads` folds the log. A comment opens a thread where
+// it was written; a reply joins the thread it answers; a rewrite shows as its message's
+// new words; settlement changes the thread's state; taking back a reaction, the one
+// message the user can withdraw, drops it from its thread, and a thread it opened goes
+// with it. They leave again when the server accepts or refuses them, so this is a
+// reading of the same outbox and log the server projects rather than a second store
+// beside it.
 //
 // The derived facts a pending thread carries are the ones the user just made true: a
 // thread the user opened with words is a thread rather than a mark, and its attention
-// waits on the newest send, whose local workflow shares the pending message's id, so
-// the agent owes the next word and the user none. Every other thread keeps the
-// attention the server derived.
-const sending = (message) => ({
+// waits on the newest turn sent, words or a rewrite of them, whose local workflow
+// shares its pending id, so the agent owes the next word and the user none. Every other
+// thread keeps the attention the server derived.
+const sending = (turn) => ({
   kind: "waiting",
   reason: "workflow",
-  workflow: message.id,
+  workflow: turn.id,
 });
 
-export function foldThreads(
-  threads,
-  messages,
-  reactions,
-  settlements,
-  withdrawn,
-  edits = [],
-) {
-  if (
-    !messages.length &&
-    !reactions.length &&
-    !settlements.length &&
-    !withdrawn.size &&
-    !edits.length
-  )
-    return threads;
+// `gestures` are the ledger's thread gestures, oldest first: each comment, reply or
+// rewrite as the thread draws it, each settlement with the `localParent` its pending
+// parent went by, and each undo.
+export function foldThreads(threads, gestures) {
+  if (!gestures.length) return threads;
+  const withdrawn = new Set(
+    gestures.filter(({ kind }) => kind === "undo").map(({ undoes }) => undoes),
+  );
   // A thread the user opened answers to two names for as long as this tab holds a
   // reply written against the first: the one this page gave it, and the one the log
   // gave back. Both reach the one thread, so a reply written into the card a
@@ -113,74 +107,65 @@ export function foldThreads(
     }));
   const byName = threadNames(copies);
   const opened = [];
-  // Open both kinds before attaching either kind of reply. The delivery queue lets a
-  // user answer a locally named root before the server has named it; that root may be
-  // words or a reaction, independently of whether the answer itself carries a token.
-  for (const root of [...messages, ...reactions]) {
-    if (root.kind === "reply") continue;
-    const reaction = isReaction(root);
-    const thread = {
-      id: root.id,
-      root,
-      title: null,
-      anchor: root.anchor ?? null,
-      detached_from: null,
-      rewritten_from: null,
-      msgs: [root],
-      revisions: [],
-      resolved: null,
-      user_prompt: null,
-      bare_reaction: reaction,
-      seat: pendingSeat(root),
-      summaries: [],
-      unread: [],
-    };
-    opened.push(thread);
-    byName.set(root.id, thread);
-  }
-  for (const reply of [...messages, ...reactions]) {
-    if (reply.kind !== "reply") continue;
-    const thread = byName.get(reply.parent);
-    if (!thread) continue;
-    thread.msgs.push(reply);
-    if (!isReaction(reply)) {
+  for (const gesture of gestures) {
+    if (gesture.kind === "comment") {
+      const reaction = isReaction(gesture);
+      const thread = {
+        id: gesture.id,
+        root: gesture,
+        title: null,
+        anchor: gesture.anchor ?? null,
+        detached_from: null,
+        rewritten_from: null,
+        msgs: [gesture],
+        revisions: [],
+        resolved: null,
+        user_prompt: null,
+        bare_reaction: reaction,
+        seat: pendingSeat(gesture),
+        summaries: [],
+        unread: [],
+        attention: reaction ? null : sending(gesture),
+      };
+      opened.push(thread);
+      byName.set(gesture.id, thread);
+    } else if (gesture.kind === "reply") {
+      const thread = byName.get(gesture.parent);
+      if (!thread) continue;
+      thread.msgs.push(gesture);
+      if (isReaction(gesture)) continue;
       thread.resolved = null;
-      thread.attention = sending(reply);
+      thread.attention = sending(gesture);
+    } else if (gesture.kind === "edit") {
+      // An edit shows as its message's new words, and hands the thread to the agent as
+      // a reply would, under the edit's own pending id (`events.exchange`).
+      const thread = byName.get(gesture.message);
+      const at = thread?.msgs.findIndex(({ id }) => id === gesture.message) ?? -1;
+      if (at < 0) continue;
+      thread.msgs = thread.msgs.with(at, {
+        ...thread.msgs[at],
+        text: gesture.text,
+        edited: { id: gesture.id, ts: gesture.ts, pending: true },
+      });
+      if (thread.root.id === gesture.message) thread.root = thread.msgs[at];
+      thread.resolved = null;
+      thread.attention = sending(gesture);
+    } else if (gesture.kind === "resolve" || gesture.kind === "unresolve") {
+      const thread = byName.get(gesture.parent) ?? byName.get(gesture.localParent);
+      if (!thread) continue;
+      thread.resolved =
+        gesture.kind === "resolve" ? { author: "user", pending: true } : null;
+      // Which way the thread is being settled, as well as where it lands. `resolved`
+      // alone cannot say: a reopen leaves it null, exactly as an open thread the user
+      // has not touched does. Views read this to draw the gesture as unfinished, so it
+      // has to be a fact of the published fold — the ledger empties after the answer
+      // lands without changing anything else, and a view reading the ledger would keep
+      // the state it drew before that.
+      thread.settling = gesture.kind;
     }
   }
-  // An edit shows as its message's new words, and hands the thread to the agent as a
-  // reply would, under the edit's own pending id (`events.exchange`).
-  for (const edit of edits) {
-    const thread = byName.get(edit.message);
-    const at = thread?.msgs.findIndex((message) => message.id === edit.message) ?? -1;
-    if (at < 0) continue;
-    thread.msgs = thread.msgs.with(at, {
-      ...thread.msgs[at],
-      text: edit.text,
-      edited: { id: edit.id, ts: edit.ts, pending: true },
-    });
-    if (thread.root.id === edit.message) thread.root = thread.msgs[at];
-    thread.resolved = null;
-    thread.attention = sending(edit);
-  }
-  for (const thread of opened) {
-    const said = spoken(thread);
-    thread.bare_reaction = isReaction(thread.root) && !said.length;
-    thread.attention = said.length ? sending(said.at(-1)) : null;
-  }
-  for (const settlement of settlements) {
-    const thread = byName.get(settlement.parent) ?? byName.get(settlement.localParent);
-    if (!thread) continue;
-    thread.resolved =
-      settlement.kind === "resolve" ? { author: "user", pending: true } : null;
-    // Which way the thread is being settled, as well as where it lands. `resolved` alone
-    // cannot say: a reopen leaves it null, exactly as an open thread the user has not
-    // touched does. Views read this to draw the gesture as unfinished, so it has to be a
-    // fact of the published fold — the ledger empties after the answer lands without
-    // changing anything else, and a view reading the ledger would keep the state it drew
-    // before that.
-    thread.settling = settlement.kind;
-  }
+  for (const thread of opened)
+    thread.bare_reaction = isReaction(thread.root) && !spoken(thread).length;
   return [...copies, ...opened];
 }
 

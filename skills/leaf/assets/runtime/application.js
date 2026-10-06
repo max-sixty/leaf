@@ -46,7 +46,7 @@ import { createReadTracking } from "./thread/read.js";
 import { renderMarginThread } from "./thread/inline.js";
 import { threadBox as buildThreadBox } from "./thread/box.js";
 import { messageText } from "./thread/messages.js";
-import { isThreadEvent } from "./pending/model.js";
+import { isMessageEvent, isThreadEvent } from "./pending/model.js";
 import {
   placeThreads as registerConsumer,
   placePageThreads as registerPageConsumer,
@@ -201,8 +201,8 @@ export function mountApplication(dependencies) {
       presentationError = error;
     } finally {
       try {
-        if (entry.message) announce("Message sent");
-        if (entry.edit) announce("Message edited");
+        if (isMessageEvent(entry.event)) announce("Message sent");
+        if (entry.event.kind === "edit") announce("Message edited");
         paintKeys();
       } catch (error) {
         presentationError ??= error;

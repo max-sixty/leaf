@@ -19,7 +19,8 @@ import {
 import {
   threadForAttempt,
   isThreadEvent,
-  isMessageEvent,
+  isTurnEvent,
+  turnMessage,
 } from "../../skills/leaf/assets/runtime/pending/model.js";
 import { PENDING } from "../../skills/leaf/assets/runtime/thread/identity.js";
 import { selectDone, selectQueues } from "../../skills/leaf/assets/runtime/queues.js";
@@ -99,10 +100,9 @@ interface LedgerEntry {
   localId: string;
   order: number;
   projection: any;
+  /** What the gesture draws in a thread, as `foldThreads` reads it: its message, or
+   * the user's rewrite of one of theirs. */
   thread: any;
-  message: any;
-  /** The user's rewrite of a message of theirs, as `foldThreads` draws it. */
-  edit: any;
   undoTarget: string | null;
   namedParent?: string;
   state: GestureState;
@@ -647,24 +647,18 @@ export function createSemanticApplication({
     // Ask the page could hold, but only the log says which of them it still holds and
     // whether they are answered, so before that reading there is no inventory to publish.
     const ready = phase === "ready";
-    const messages = local.filter((entry) => entry.message);
+    // The ledger's thread gestures, in the order the user made them.
+    const gestures = local.flatMap(({ event, thread, namedParent }) =>
+      thread
+        ? [thread]
+        : event.kind === "resolve" || event.kind === "unresolve"
+          ? [{ ...event, localParent: namedParent }]
+          : event.kind === "undo"
+            ? [event]
+            : [],
+    );
     const folded = ready
-      ? foldThreads(
-          state?.browser.thread.threads ?? [],
-          messages.map((entry) => entry.message),
-          local.filter((entry) => entry.thread?.token).map((entry) => entry.thread),
-          local
-            .filter(
-              ({ event }) => event.kind === "resolve" || event.kind === "unresolve",
-            )
-            .map((entry) => ({ ...entry.event, localParent: entry.namedParent })),
-          new Set(
-            local
-              .filter(({ event }) => event.kind === "undo")
-              .map(({ event }) => event.undoes),
-          ),
-          local.filter((entry) => entry.edit).map((entry) => entry.edit),
-        )
+      ? foldThreads(state?.browser.thread.threads ?? [], gestures)
       : [];
     const widgets = foldWidgetStates(document.authored, projection);
     const asks = ready ? normalizedAsks(view, state?.browser.thread) : NO_ASKS;
@@ -676,22 +670,23 @@ export function createSemanticApplication({
     // hands a thread the server left with the agent back to the user, whose
     // Retry it is.
     const owed = new Set(asks.user.map((ask) => ask.thread));
-    // The thread a local message is in. A comment opens the thread its own id names. A
+    // The thread a local turn is in. A comment opens the thread its own id names. A
     // reply is in the thread holding its parent, which need not be that thread's id: a
     // thread that lost its opening message is answered at the reply that survived, and
     // a reply written against this tab's own comment names it by its pending id until
     // the log names it. A parent no thread holds is a comment of this tab's that the
-    // log refused, and its pending id named its thread.
+    // log refused, and its pending id named its thread. A rewrite is in its message's.
     const named = threadNames(folded);
-    const threadOf = (message: any): string =>
-      message.kind === "reply"
-        ? (named.get(message.parent)?.id ?? message.parent)
-        : message.id;
-    // The thread a local gesture stands in: its message's, or the thread whose
+    const threadOf = (turn: any): string | null =>
+      turn.kind === "edit"
+        ? (named.get(turn.message)?.id ?? null)
+        : turn.kind === "reply"
+          ? (named.get(turn.parent)?.id ?? turn.parent)
+          : turn.id;
+    // The thread a local gesture stands in: its turn's, or the thread whose
     // markup froze the widget it moved; a page widget's stands in none.
     const threadOfEntry = (entry: any): string | null => {
-      if (entry.message) return threadOf(entry.message);
-      if (entry.edit) return named.get(entry.edit.message)?.id ?? null;
+      if (isTurnEvent(entry.event)) return threadOf(entry.thread);
       const held = document.descriptors.get(entry.event.widget)?.document;
       return held?.kind === "thread" ? (held.thread ?? null) : null;
     };
@@ -716,32 +711,32 @@ export function createSemanticApplication({
           }
         : thread;
     });
-    // A send this tab has not delivered, in the served workflow's shape. A message, or
-    // an edit of one, holds its thread as every thread input does; a widget move owes no
-    // answer until the server has read it, so it holds none.
+    // A send this tab has not delivered, in the served workflow's shape. A turn holds
+    // its thread as every thread input does; a widget move owes no answer until the
+    // server has read it, so it holds none.
     const localWorkflow = (entry: any, rejected: boolean) => {
-      const message = entry.message ?? entry.edit;
+      const turn = isTurnEvent(entry.event) ? entry.thread : null;
       const thread = threadOfEntry(entry);
       return {
         id: `${rejected ? "rejected" : "pending"}:${entry.event.attempt}`,
         revision: entry.event.revision ?? document.revision,
         seq: entry.order,
-        input: message?.id ?? entry.localId,
-        message: entry.edit ? entry.edit.message : (message?.id ?? null),
-        subject: message
+        input: turn?.id ?? entry.localId,
+        message: turn ? turnMessage(turn) : null,
+        subject: turn
           ? { kind: "thread", id: thread }
           : { kind: "widget", id: entry.event.widget },
         thread,
-        holds_thread: Boolean(message),
+        holds_thread: Boolean(turn),
         // The server's list, where the local fold keys a coordinate by its JSON.
-        coordinate: message
+        coordinate: turn
           ? ["thread", thread]
           : entry.projection
             ? JSON.parse(entry.projection.coordinate)
             : null,
         answer: null,
         stage: "sending",
-        ts: message?.ts ?? null,
+        ts: turn?.ts ?? null,
         detail: null,
         agent: null,
         session: null,
@@ -758,7 +753,7 @@ export function createSemanticApplication({
     const workflows = [
       ...(state ? state.workflows : []),
       ...local
-        .filter((entry) => entry.message || entry.edit)
+        .filter((entry) => isTurnEvent(entry.event))
         .map((entry) => localWorkflow(entry, false)),
       ...refused.map((entry) => localWorkflow(entry, true)),
     ];
@@ -1069,7 +1064,9 @@ export function createSemanticApplication({
       const localId = PENDING + event.attempt;
       const thread = isThreadEvent(event)
         ? { ...threadForAttempt(event, timestamp), plainText }
-        : null;
+        : event.kind === "edit"
+          ? threadForAttempt(event, timestamp)
+          : null;
       const undoTarget =
         event.kind === "undo"
           ? before.unresolved.find((item) => item.localId === event.undoes)
@@ -1110,19 +1107,6 @@ export function createSemanticApplication({
             order: localOrder,
             projection,
             thread,
-            message: isMessageEvent(event) ? thread : null,
-            edit:
-              event.kind === "edit"
-                ? {
-                    id: localId,
-                    kind: "edit",
-                    author: "user",
-                    attempt: event.attempt,
-                    message: event.message,
-                    text: event.text,
-                    ts: timestamp,
-                  }
-                : null,
             undoTarget: undoTarget?.event.attempt ?? null,
             state: "sending",
             admitted: null,
@@ -1147,7 +1131,7 @@ export function createSemanticApplication({
         .unresolved.filter(
           (item) =>
             item.undoTarget === attempt ||
-            (refused.message?.id && item.event.parent === refused.message.id),
+            (refused.thread && item.event.parent === refused.thread.id),
         )
         .map((item) => item.event.attempt);
       const { unresolved } = transition("refuse", new Map([[attempt, null]]));

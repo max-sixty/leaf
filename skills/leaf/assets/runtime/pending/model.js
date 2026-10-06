@@ -9,6 +9,13 @@ export const isThreadEvent = (event) =>
 
 export const isMessageEvent = (event) => isThreadEvent(event) && !event.token;
 
+// A gesture that speaks in a thread, so hands it to the agent: words, or the user
+// rewriting words of theirs (`events.exchange`).
+export const isTurnEvent = (event) => isMessageEvent(event) || event.kind === "edit";
+
+// The message a turn shows on: a rewrite's message, else its own (`events.turn_message`).
+export const turnMessage = (turn) => (turn.kind === "edit" ? turn.message : turn.id);
+
 export const threadForAttempt = (event, timestamp) => ({
   ...event,
   id: `${PENDING}${event.attempt}`,

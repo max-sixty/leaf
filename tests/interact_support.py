@@ -259,11 +259,11 @@ STATED_TIMEOUT = 60
 """How long a pure-Python wait gives another thread or process to state its fact.
 
 The deadline separates a product that never states the fact from a machine that
-has not reached it yet, so it is generous rather than tight. Two workers share
-one runner's cores with a browser, and a stretch of ordinary work there runs
-many times slower than it does on an unloaded host: a wait sized as a small
-multiple of the unloaded duration reddens `main` on the runs where the other
-worker happens to be driving Chrome. On a local host at load 230 over 18 cores,
+has not reached it yet, so it is generous rather than tight. Several workers
+share one runner's cores with their browsers, and a stretch of ordinary work there
+runs many times slower than it does on an unloaded host: a wait sized as a small
+multiple of the unloaded duration reddens `main` on the runs where another worker
+happens to be driving Chrome. On a local host at load 230 over 18 cores,
 two concurrent `page init`s took up to 25s and three `leaf codex start`
 commands 20s. `SERVED_TIMEOUT_MS` is the browser side's counterpart.
 

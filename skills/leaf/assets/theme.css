@@ -147,10 +147,10 @@
   /* The complete toolbar owns 37em of UI type, Questions' 7em beside the rest, the
      agent's Tasks count beside the status 5em, about what "Tasks: 9" takes, and 220px is
      left for the status, insets, and the gaps. Below that the banner takes two rows, and
-     the sentence has the first to itself (chrome.css). The rooms are independent of page
-     capabilities and of whether anything waits, since the counts come and go with the
-     log after first paint. A larger UI font raises the same capacity boundary before
-     first paint. */
+     the sentence has the first to itself (chrome.css), until a phone's face makes it one
+     row again (below). The rooms are independent of page capabilities and of whether
+     anything waits, since the counts come and go with the log after first paint. A
+     larger UI font raises the same capacity boundary before first paint. */
   --lf-banner-actions-w: calc(37 * var(--t-5));
   --lf-banner-rows: clamp(1, round(up,
     calc((var(--lf-banner-actions-w) + 5 * var(--t-5) + 220px + var(--lf-safe-left)
@@ -468,10 +468,13 @@
   --series-5: light-dark(#8c2d2a, #b13d54);
 }
 /* The narrow face a phone held upright wears (chrome.css) holds forty-pixel controls,
-   and a finger's row 44px aims wherever it stands. */
+   and a finger's row 44px aims wherever it stands. It is one row, whatever the toolbar's
+   desk capacity: the status in words, then Threads as an icon with its count, then
+   More, which holds Approval and everything else. */
 @media screen and (width <= 480px) {
   :root { --lf-banner-row: max(52px, calc(var(--t-5) * var(--lf-ui-lh) + 19px),
-    calc(var(--aim-floor) + 9px)); }
+    calc(var(--aim-floor) + 9px));
+    --lf-banner-rows: 1; }
 }
 /* Only a live page draws the banner. Without one, what sticks below the banner sticks
    to the top of the window. */

@@ -53,8 +53,14 @@ has tried; settle that before building it.
   result is hidden. Decide whether a page needs one progress reading across Asks,
   board work, and version approval. Test a concrete first task before changing the
   public home page's prompt.
-- **#14 — [Verify the complete workspace keyboard and accessibility route](notes/workspace-followups.md#item-14).**
-  Follow one task through reading, panes, comments, and Threads.
+- **Keep focus off page content a panel beside the page covers.** Threads and the
+  Queue panel leave the page live beside them while standing over part of it, and focus
+  still reaches what they cover. At 1440×900 Tab walks onto `annotation-workspace`'s
+  rail under Threads, and `c` on a selection opens the rail's comment box there; at
+  1200px Tab reaches an Ask's option marks under the Queue panel. Max's rule
+  (2026-10-06): the panels dominate focus, so moving focus never closes or changes a
+  standing panel; instead focus never lands on page content a panel covers, and
+  Threads still stands beside a full-width workspace rather than covering it.
 
 ### Agent and author experience
 
@@ -105,7 +111,7 @@ has tried; settle that before building it.
   marker's label and its status (Sent, Stalled); the diff's line "+"; and the
   latest-edit error, a dead passage's reason, a disabled More entry's reason, and the
   compare state. A finger also lacks exits a key has: a mode's or search's steps take
-  Threads and Approve off the row until it ends, Android's back gesture closes nothing
+  Threads off the row until it ends, Android's back gesture closes nothing
   (the Escape ladder could answer it), Draw mode blocks scrolling and zoom, and an
   `lf-draft` has no close that keeps the edit.
 - **Decide whether the response bar's reactions and Suggest need a pointer route.**
@@ -130,11 +136,6 @@ and its chrome coordinate.
   newcomer out of view rather than pushing down the card being read. The user sees
   it only in the count; give that arrival a visible route while preserving the
   current reading.
-- **Give the phone banner one row.** Decided, not built
-  ([plan](notes/chrome-and-covers.md)): one 53px row holding the status in words, cut
-  short with an ellipsis, with a passing notice taking that slot for a few seconds;
-  then Threads as an icon with its count; then More. Approve moves into More, which
-  wears a dot while approval is open.
 - **Recompose `alert-review` as a screen.** It is the worked workspace example, and at
   1200×900 `page check --render` advises that its detail pane runs 6890px past its
   region (nine Asks stacked in one scroller) and its queue 104px. A page a reader moves

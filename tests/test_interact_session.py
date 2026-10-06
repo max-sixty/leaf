@@ -1,5 +1,6 @@
 """Watch, ownership, hook, and server-lifetime tests."""
 
+import contextlib
 import fcntl
 import http.client
 import http.cookiejar
@@ -23,6 +24,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from xml.etree import ElementTree
 
+import psutil
 import pytest
 from click.testing import CliRunner
 from conftest import CLAUDE_IDENTITY, HOOKED_SESSIONS, LEAF_COMMAND
@@ -106,6 +108,7 @@ from leaf.registry import storage as registry_storage
 from leaf.served_state import browser as browser_served_model
 from leaf.served_state import context as read_context
 from leaf.served_state import page as served_page
+from leaf_dev.arms import PageClient
 from leaf_dev.page_fixtures import package_selection_args
 from websockets.exceptions import WebSocketException
 from websockets.sync.server import serve as serve_websocket
@@ -1498,9 +1501,8 @@ def titling_app_server(app_server, answer: str) -> tuple[str, list[dict]]:
 
 def test_an_app_server_turn_names_the_untitled_thread_it_answers(page_dir, app_server):
     """A turn over App Server writes its reply with its own messages, so it has no
-    `--title` to name the thread with; the carrier names it beside the turn, from
-    the opening message and the passage it is on, and the delivery does not ask the
-    turn to."""
+    `--title` to name the thread with; the carrier names it from the opening message
+    and the passage it is on, and the delivery does not ask the turn to."""
     comment = append_carried_log_record(
         page_dir,
         {
@@ -1521,9 +1523,10 @@ def test_an_app_server_turn_names_the_untitled_thread_it_answers(page_dir, app_s
 
     endpoint, received = titling_app_server(app_server, '{"title": "Export speed"}')
     records = []
-    thread_titles.name_untitled_threads(
+    thread_titles.name_thread(
         thread_titles.app_server_title(endpoint, "light-model"),
-        prepared.payload,
+        page_dir,
+        comment["id"],
         "hosted-thread",
         lambda event, **fields: records.append((event, fields)),
     )
@@ -1567,15 +1570,16 @@ def test_a_title_is_drawn_from_the_opening_message_not_the_latest(page_dir, app_
             "text": "also, thanks",
         },
     )
-    prepared = codex_model.prepare_codex_delivery(
+    codex_model.prepare_codex_delivery(
         page_dir,
         harness_model.EmbeddedHarness("hosted-thread", "Leaf guide", os.getpid()),
     )
     endpoint, received = titling_app_server(app_server, '{"title": "Export speed"}')
     records = []
-    thread_titles.name_untitled_threads(
+    thread_titles.name_thread(
         thread_titles.app_server_title(endpoint, None),
-        prepared.payload,
+        page_dir,
+        comment["id"],
         "hosted-thread",
         lambda event, **fields: records.append((event, fields)),
     )
@@ -1587,36 +1591,46 @@ def test_a_title_is_drawn_from_the_opening_message_not_the_latest(page_dir, app_
     assert "thanks" not in text["text"]
 
 
-def test_a_generated_title_yields_to_one_the_agent_wrote_first(page_dir, app_server):
+def test_a_generated_title_yields_to_one_the_agent_wrote_first(page_dir):
+    """A title that comes back after the agent named the thread is dropped, and a
+    thread the agent named is not asked about."""
     comment = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "Tighten the intro"}
     )
-    prepared = codex_model.prepare_codex_delivery(
+    codex_model.prepare_codex_delivery(
         page_dir,
         harness_model.EmbeddedHarness("hosted-thread", "Leaf guide", os.getpid()),
     )
-    append_command(
-        page_dir,
-        {
-            "kind": "thread_title",
-            "author": "agent",
-            "agent": "Leaf guide",
-            "session": "hosted-thread",
-            "thread": comment["id"],
-            "title": "Intro",
-        },
-    )
-    endpoint, _ = titling_app_server(app_server, '{"title": "Shorter intro"}')
-    records = []
-    thread_titles.name_untitled_threads(
-        thread_titles.app_server_title(endpoint, None),
-        prepared.payload,
-        "hosted-thread",
-        lambda event, **fields: records.append((event, fields)),
-    )
-    wait_for(lambda: records, bool, failure="the title was never generated")
 
-    assert records[0][1]["written"] is False
+    def generate(request: str, target: Path) -> dict:
+        append_command(
+            page_dir,
+            {
+                "kind": "thread_title",
+                "author": "agent",
+                "agent": "Leaf guide",
+                "session": "hosted-thread",
+                "thread": comment["id"],
+                "title": "Intro",
+            },
+        )
+        return {"title": "Shorter intro"}
+
+    records = []
+    for _ in range(2):
+        thread_titles.name_thread(
+            generate,
+            page_dir,
+            comment["id"],
+            "hosted-thread",
+            lambda event, **fields: records.append((event, fields)),
+        )
+        for worker in threading.enumerate():
+            if worker.name == "leaf-thread-title":
+                worker.join(timeout=STATED_TIMEOUT)
+
+    [(event, fields)] = records
+    assert (event, fields["written"]) == ("thread_title_generated", False)
     titles = [
         e["title"]
         for e in events_model.read_events(page_dir)
@@ -1701,6 +1715,87 @@ def test_a_comment_on_a_claude_code_page_is_named_as_it_arrives(
     assert not log.exists()
 
 
+def test_a_comment_on_a_codex_page_is_named_as_it_arrives(
+    page_dir, app_server, monkeypatch
+):
+    """A Codex task's turns may run through `codex queue`, which reaches no model, or
+    through an App Server that starts the next turn only once the running one ends;
+    either way its page server names the thread as the comment arrives, through an
+    App Server of its own that runs none of the user's hooks or MCP servers and
+    carries none of the session's identity."""
+    record_claim(page_dir, id="codex-thread", harness="codex", agent="Codex")
+    assert stamp(page_dir, "first").exit_code == 0
+    endpoint, received = titling_app_server(app_server, '{"title": "Export speed"}')
+    servers = []
+
+    @contextlib.contextmanager
+    def title_server(executable, *, env, arguments):
+        servers.append((executable, env, arguments))
+        yield endpoint
+
+    monkeypatch.setattr(thread_titles, "private_app_server", title_server)
+    monkeypatch.setenv("CODEX_THREAD_ID", "codex-thread")
+
+    status, body = endpoint_model.accept_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "revision": 1,
+            "text": "Why does the export take a minute?",
+        },
+        dict,
+    )
+    assert status == 200, body
+    [title] = wait_for(
+        lambda: [
+            e for e in events_model.read_events(page_dir) if e["kind"] == "thread_title"
+        ],
+        bool,
+        failure="the thread was never named",
+    )
+    assert (title["title"], title["agent"], title["session"]) == (
+        "Export speed",
+        "Codex",
+        "codex-thread",
+    )
+    [(executable, env, arguments)] = servers
+    assert executable == shutil.which("codex")
+    assert "CODEX_THREAD_ID" not in env
+    # A server with plugins on syncs every marketplace the user configured.
+    assert arguments == ("--disable", "plugins")
+    [start] = [m for m in received if m.get("method") == "thread/start"]
+    assert start["params"]["config"]["features"]["hooks"] is False
+    assert start["params"]["config"]["mcp_servers"] == {"docs": {"enabled": False}}
+    assert "model" not in start["params"]
+
+    # A reaction opens a thread with no words; the reply that gives it some names it.
+    reaction = append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "token": "mark"}
+    )
+    status, body = endpoint_model.accept_event(
+        page_dir,
+        {
+            "kind": "reply",
+            "revision": 1,
+            "parent": reaction["id"],
+            "text": "Can the import run in parallel?",
+        },
+        dict,
+    )
+    assert status == 200, body
+    wait_for(
+        lambda: [
+            e
+            for e in events_model.read_events(page_dir)
+            if e["kind"] == "thread_title" and e["thread"] == reaction["id"]
+        ],
+        bool,
+        failure="the reaction's thread was never named",
+    )
+    turns = [m for m in received if m.get("method") == "turn/start"]
+    assert "Can the import run in parallel?" in turns[-1]["params"]["input"][0]["text"]
+
+
 def test_a_title_request_that_outlives_its_session_leaves_no_log(claimed):
     """SessionEnd removes the session's titles log, and a request still waiting on
     the model when it runs finishes after that; it writes neither the title nor a
@@ -1714,7 +1809,7 @@ def test_a_title_request_that_outlives_its_session_leaves_no_log(claimed):
         answered.wait(timeout=STATED_TIMEOUT)
         return {"title": "Intro"}
 
-    thread_titles.name_opened_thread(generate, claimed, comment["id"], "s1")
+    thread_titles.name_admitted_thread(generate, claimed, comment["id"], "s1")
     hooks_model.cmd_hook(
         "claude-code", {"hook_event_name": "SessionEnd", "session_id": "s1"}
     )
@@ -1731,7 +1826,7 @@ def test_a_title_request_that_outlives_its_session_leaves_no_log(claimed):
 def test_both_harnesses_are_asked_for_a_title_in_the_same_words(
     page_dir, app_server, tmp_path, monkeypatch, snapshot
 ):
-    """Claude Code's `claude -p` and an App Server carrier are sent the same system
+    """Claude Code's `claude -p` and a Codex App Server are sent the same system
     prompt, request and answer schema; the snapshot is that request, verbatim."""
     comment = append_carried_log_record(
         page_dir,
@@ -1742,7 +1837,7 @@ def test_both_harnesses_are_asked_for_a_title_in_the_same_words(
             "anchor": {"section": None, "quote": "Export runs nightly"},
         },
     )
-    request = thread_titles.title_request(page_dir, comment["id"])
+    _, request = thread_titles.title_request(page_dir, comment["id"])
 
     programs = tmp_path / "programs"
     programs.mkdir()
@@ -1769,7 +1864,7 @@ def test_both_harnesses_are_asked_for_a_title_in_the_same_words(
     placeholders = {system_prompt: "<system_prompt>", json.dumps(schema): "<schema>"}
     snapshot.check(
         yaml_document(
-            "What Claude Code's page server runs, what it and an App Server carrier "
+            "What Claude Code's page server runs, what it and a Codex App Server "
             "both send, and\nthe App Server's titling thread, for a thread opened "
             "on a passage.",
             {
@@ -5466,6 +5561,115 @@ if arguments[:2] == ["app-server", "--listen"]:
         "endpoint": endpoint,
     }
     assert not Path(endpoint.removeprefix("unix://")).exists()
+
+
+def test_a_private_app_server_stops_when_its_process_exits(tmp_path):
+    """A page server's title request holds its App Server on a daemon thread, which
+    never unwinds when the page server exits; the server, in a session of its own,
+    would run on with no socket anyone can find."""
+    program = tmp_path / "fake-codex"
+    pid_file = tmp_path / "server.pid"
+    program.write_text(
+        f"""#!{sys.executable}
+import os, signal, socket, sys
+open({str(pid_file)!r}, "w").write(str(os.getpid()))
+server = socket.socket(socket.AF_UNIX)
+server.bind(sys.argv[3].removeprefix("unix://"))
+server.listen()
+signal.pause()
+"""
+    )
+    program.chmod(0o755)
+    holder = f"""
+import sys, threading, time
+from leaf.codex import private_app_server
+ready = threading.Event()
+def hold():
+    with private_app_server({str(program)!r}):
+        ready.set()
+        time.sleep(600)
+threading.Thread(target=hold, daemon=True).start()
+assert ready.wait(20)
+sys.exit(0)
+"""
+    try:
+        subprocess.run(
+            [sys.executable, "-c", holder], check=True, timeout=STATED_TIMEOUT
+        )
+        pid = int(pid_file.read_text())
+        assert not psutil.pid_exists(pid)
+    finally:
+        if pid_file.exists() and psutil.pid_exists(pid := int(pid_file.read_text())):
+            os.kill(pid, signal.SIGTERM)
+
+
+@pytest.fixture
+def title_codex(tmp_path, monkeypatch):
+    """A `codex` first on PATH whose App Server binds its socket, writes its pid,
+    and never answers, so a title request holds it open."""
+    programs = tmp_path / "title-codex"
+    programs.mkdir()
+    pid_file = tmp_path / "title-server.pid"
+    program = programs / "codex"
+    program.write_text(
+        f"""#!{sys.executable}
+import os, signal, socket, sys
+if sys.argv[1] != "app-server":
+    sys.exit(1)
+server = socket.socket(socket.AF_UNIX)
+server.bind(sys.argv[3].removeprefix("unix://"))
+server.listen()
+open({str(pid_file)!r}, "w").write(str(os.getpid()))
+signal.pause()
+"""
+    )
+    program.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{programs}{os.pathsep}{os.environ['PATH']}")
+    yield pid_file
+    if pid_file.exists() and psutil.pid_exists(pid := int(pid_file.read_text())):
+        os.kill(pid, signal.SIGTERM)
+
+
+def test_a_terminated_page_server_stops_its_title_server(
+    title_codex, codex_claimed_page
+):
+    """SIGTERM, as a logout or a user's kill sends, ends a page server through its
+    exit handlers, so the App Server a title request holds stops with it."""
+    page = codex_claimed_page
+    (page / "index.html").write_text(
+        '<!doctype html>\n<html lang="en">\n<head><title>t</title></head>\n'
+        '<body><main><section id="plan"><h2>Plan</h2>\n'
+        "<p>Export runs nightly.</p></section></main></body>\n</html>\n"
+    )
+    publish(page)
+    client = PageClient(server_model.running_server(page)["url"])
+    client.post(
+        {
+            "kind": "comment",
+            "revision": client.state()["active"]["revision"],
+            "text": "Why is the export slow?",
+        }
+    )
+    title_server = int(
+        wait_for(
+            lambda: title_codex.read_text() if title_codex.exists() else "",
+            bool,
+            failure="the page server started no title server",
+        )
+    )
+    [page_server] = [
+        process
+        for process in psutil.process_iter(["cmdline"])
+        if "_serve" in (process.info["cmdline"] or [])
+        and str(page) in process.info["cmdline"]
+    ]
+    page_server.terminate()
+    page_server.wait(timeout=STATED_TIMEOUT)
+    wait_for(
+        lambda: not psutil.pid_exists(title_server),
+        bool,
+        failure="the title server outlived its page server",
+    )
 
 
 @pytest.mark.parametrize(

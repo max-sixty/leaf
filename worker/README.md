@@ -176,7 +176,7 @@ text written into the addressed thread, which is the user-visible response miles
 from Leaf's durable validation and append; `turn_stream_completed` also carries the
 turn's `modelRequests` and the `inputTokens`, `cachedInputTokens` and `outputTokens`
 they summed to. `thread_title_generated` records the title request for an untitled
-thread the turn answers, with its duration, tokens, and whether the title was
+thread a dispatched move is in, with its duration, tokens, and whether the title was
 `written`; `thread_title_skipped` and `thread_title_failed` record a thread left
 untitled. A refused title's failure carries no `detail`, because its words are drawn
 from the user's. `turn_interrupted` and

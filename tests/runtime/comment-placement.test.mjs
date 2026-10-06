@@ -119,6 +119,7 @@ test("a submitted frame survives supersession until it lands, then follows scrol
         scaled: {
           scale: { x: 1, y: 1 },
           column: scrolled.right - 320,
+          attachmentInline: scrolled.left,
           line: card.line(scrolled, scrolled.top),
         },
         held: { height: box.height },
@@ -172,7 +173,12 @@ test("a growing card holds its top while read and its foot for the turn that joi
       x: 980,
       y: 292,
       middlewareData: {
-        scaled: { scale: { x: 1, y: 1 }, column: 0, line: card.line(clear, clear.top) },
+        scaled: {
+          scale: { x: 1, y: 1 },
+          column: 0,
+          attachmentInline: clear.left,
+          line: card.line(clear, clear.top),
+        },
         held: { height: 200 },
       },
     });

@@ -142,13 +142,13 @@ and its chrome coordinate.
   newcomer out of view rather than pushing down the card being read. The user sees
   it only in the count; give that arrival a visible route while preserving the
   current reading.
-- **Recompose `alert-review` as a screen.** It is the worked workspace example, and at
-  1200×900 `page check --render` advises that its detail pane runs 6890px past its
-  region (nine Asks stacked in one scroller) and its queue 104px. A page a reader moves
-  through rather than scrolls shows one alert's decision at a time; the shipped
-  workspace examples are then held to the advice in `test_page_fixture_renders`, with
-  `rust-sort`'s source pane the one reader allowed to scroll
-  ([plan](notes/chrome-and-covers.md)).
+- **Hold the shipped workspaces to the overflow advice.** `alert-review` shows one
+  alert's decision at a time, but `page check --render` still advises that its queue
+  (`ar-queue`) runs 106px past its region at every width from 720 to 1920px, and
+  `rust-sort`'s stage pane 100px at 720px. Fit both, then make
+  `test_page_fixture_renders` fail on that advice for workspace examples, with
+  `rust-sort`'s source pane the one reader allowed to scroll; today it asserts only
+  the gate's failures ([plan](notes/chrome-and-covers.md)).
 - **Decide whether the desktop bottom bar goes.** Its key hints would move behind `?`
   and its status into the banner; the bar is how a desktop user learns the keys
   without asking, which is the trade to weigh ([plan](notes/chrome-and-covers.md)).

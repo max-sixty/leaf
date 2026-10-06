@@ -65,6 +65,12 @@ reaches a module by importing it from this package, never through `sys.path`,
   `revision`, so new demo assets cannot replace a runtime's reviewed expectations.
 - `suite.py` runs a selection of the suite in a checkout and reads each test's
   outcome from pytest's junit report, refusing a selection pytest would not run.
+- `leaf-dev test-select collect`, `prepare`, and `select` are a local research
+  selector for immutable changes. Collection binds the complete inventory and
+  actual interpreter to a clean candidate checkout. Preparation writes a complete
+  planned question offline; selection asks Jev and writes exact runnable node IDs,
+  decisions and usage. Source evidence forces known relationships and unresolved
+  inputs retain coverage. This experiment does not replace CI's full gates.
 - `leaf-dev flake NODEID...` runs tests from the working tree as 18 copies, six at a
   time, and prints every failure's message, since a load flake never shows serially.
   The copies share every fixed path a test writes in the checkout, such as an export

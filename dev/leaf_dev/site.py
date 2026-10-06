@@ -62,6 +62,7 @@ from leaf_dev.page_fixtures import (
     package_selection_args,
     prepare_page,
     read_fixture,
+    source_packages,
 )
 
 DOCS = ROOT / "docs"
@@ -79,8 +80,8 @@ PRODUCT_ROUTES = {
     "registry.html": "/registry/",
     "event-log.html": "/event-log/",
     "threads.html": "/threads/",
+    "website.html": "/website/",
 }
-SITE_PACKAGE = "./docs/package"
 # The card a link to a product page unfurls into, shot at the 1.91:1 an unfurler draws
 # by `leaf_dev.record_demo`, relative to the asset tree. An example names its own
 # catalog preview instead.
@@ -346,8 +347,7 @@ def publish_pages(
     """
     with tempfile.TemporaryDirectory() as tmp:
         template = Path(tmp) / "product-page"
-        packages = json.loads((EXAMPLES / "layer.json").read_text(encoding="utf-8"))
-        selection = package_selection_args([*packages, SITE_PACKAGE])
+        selection = package_selection_args(source_packages(DOCS / "index.html"))
         leaf(env, "page", "init", *selection, str(template))
         # Put the authored images behind the content-addressed paths the product
         # sources name before validating and rendering them.

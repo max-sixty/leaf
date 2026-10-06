@@ -110,16 +110,15 @@ has tried; settle that before building it.
   handoff and reproduce the interactive-reply crash on a real iPhone. Browser emulation
   covers element targeting, commenting, passage geometry, and viewport sizing, but cannot
   show the native selection menu or software keyboard.
-- **Finish what a phone user still cannot reach.** Give touch users visible passage
-  threads, and remove keyboard-only hints, hover-only reasons, clipped diagram content,
-  and remaining undersized touch targets. Hover-only today: why Approve version is
-  disabled, and "Press z" once approved; a reaction's word before it is sent; a margin
-  marker's label and its status (Sent, Stalled); the diff's line "+"; and the
-  latest-edit error, a dead passage's reason, a disabled More entry's reason, and the
-  compare state. A finger also lacks exits a key has: a mode's or search's steps take
-  Threads off the row until it ends, Android's back gesture closes nothing
-  (the Escape ladder could answer it), Draw mode blocks scrolling and zoom, and an
-  `lf-draft` has no close that keeps the edit.
+- **Finish what a phone user still cannot reach.** Remove keyboard-only hints,
+  hover-only reasons, clipped diagram content, and remaining undersized touch targets.
+  Hover-only today: why Approve version is disabled, and "Press z" once approved; a
+  reaction's word before it is sent; a margin marker's label and its status (Sent,
+  Stalled); the diff's line "+"; and the latest-edit error, a dead passage's reason, a
+  disabled More entry's reason, and the compare state. A finger also lacks exits a key
+  has: a mode's or search's steps take Threads off the row until it ends, Android's back
+  gesture closes nothing (the Escape ladder could answer it), Draw mode blocks scrolling
+  and zoom, and an `lf-draft` has no close that keeps the edit.
 - **Decide whether the response bar's reactions and Suggest need a pointer route.**
   The floating comment bar shows no ellipsis (⋯), so its field spans the bar and a sent
   message keeps the card's measure. Its other responses, Suggest and the emoji

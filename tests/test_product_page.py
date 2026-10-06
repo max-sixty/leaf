@@ -56,6 +56,7 @@ def test_docs_pages_leave_delivery_markup_to_leaf():
         "registry.html",
         "event-log.html",
         "threads.html",
+        "website.html",
     }
     for page in pages:
         text = page.read_text()

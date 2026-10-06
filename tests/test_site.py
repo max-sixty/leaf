@@ -247,8 +247,8 @@ def opened(page, url):
 
 def test_product_pages_vendor_the_composed_theme(site):
     """Every authored product source becomes an independent complete page."""
-    packages = tuple(json.loads((EXAMPLES / "layer.json").read_text()))
-    inputs = [*layer_model.layer_inputs(packages), DOCS / "package"]
+    packages = tuple(json.loads((DOCS / "layer.json").read_text()))
+    inputs = layer_model.layer_inputs(packages)
     expected_theme = layer_model.composed_sheets(inputs)["theme.css"]
     for page in pages_under(DOCS):
         target = site_build.product_page(site, page.name)

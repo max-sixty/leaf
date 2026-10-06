@@ -43,8 +43,9 @@ Every ordinary visit and reload continues to use the edge document. The containe
 composes the private document against `/<page>/revisions/rN-<hash>/`, which is
 content-addressed over the document and its resources.
 
-The deployment admits up to 5,990 concurrent `basic` containers. A prewarmed container
-with no interaction sleeps after ten idle minutes. After any page in a session is
+The deployment admits as many concurrent `basic` containers as `max_instances` in
+`wrangler.toml` allows. A prewarmed container with no interaction sleeps after ten
+idle minutes. After any page in a session is
 active, a visible active page holds its container through Leaf's finite freshness requests; a passive
 page makes none. Hidden tabs stop these requests, so the idle timer can begin after
 the browser session has no visible active Leaf page. This is resource lifetime, not a

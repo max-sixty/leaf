@@ -296,6 +296,28 @@ def pi_home(path: Path) -> Path:
     return path
 
 
+def claude_home(path: Path) -> Path:
+    """Make `path` a home (`HOME`) holding the host's Claude Code login, so a Claude
+    Code child run under it reads none of the host's settings, plugins, hooks,
+    instructions or sessions. A macOS login is in the keychain, which the home
+    links to; elsewhere it is a copy of the host's credentials."""
+    # The home may hold a copy of the user's login, so no one else may enter it.
+    path.mkdir(mode=0o700, exist_ok=True)
+    path.chmod(0o700)
+    keychains = Path.home() / "Library/Keychains"
+    if keychains.is_dir() and not (path / "Library/Keychains").is_symlink():
+        (path / "Library").mkdir(parents=True, exist_ok=True)
+        (path / "Library/Keychains").symlink_to(keychains)
+    credentials = (
+        Path(os.environ.get("CLAUDE_CONFIG_DIR", Path.home() / ".claude"))
+        / ".credentials.json"
+    )
+    if credentials.is_file():
+        (path / ".claude").mkdir(parents=True, exist_ok=True)
+        shutil.copy(credentials, path / ".claude/.credentials.json")
+    return path
+
+
 def scratch() -> Path:
     """A fresh directory for a child's cwd, outside any repository."""
     return Path(tempfile.mkdtemp(prefix="leaf-eval-"))
@@ -309,21 +331,7 @@ def claude_child(
     `args` follow `-p`, so a prompt goes first. `dirs` are what the child may read
     beyond `cwd`, and `env` adds to `environment()`. Output is verbose stream-json."""
     (cwd / "tmp").mkdir(exist_ok=True)
-    # The home may hold a copy of the user's login, so no one else may enter it.
-    home = cwd.with_name(f"{cwd.name}-home")
-    home.mkdir(mode=0o700, exist_ok=True)
-    home.chmod(0o700)
-    keychains = Path.home() / "Library/Keychains"
-    if keychains.is_dir() and not (home / "Library/Keychains").is_symlink():
-        (home / "Library").mkdir(parents=True, exist_ok=True)
-        (home / "Library/Keychains").symlink_to(keychains)
-    credentials = (
-        Path(os.environ.get("CLAUDE_CONFIG_DIR", Path.home() / ".claude"))
-        / ".credentials.json"
-    )
-    if credentials.is_file():
-        (home / ".claude").mkdir(parents=True, exist_ok=True)
-        shutil.copy(credentials, home / ".claude/.credentials.json")
+    home = claude_home(cwd.with_name(f"{cwd.name}-home"))
     command = [
         "claude", "-p", *args, "--model", MODELS["cc"], "--strict-mcp-config",
         "--permission-mode", "bypassPermissions", "--output-format", "stream-json",

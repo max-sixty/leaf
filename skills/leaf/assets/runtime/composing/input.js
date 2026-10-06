@@ -249,18 +249,17 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       ta.focus({ preventScroll: true });
     };
     // ⌘Z takes back what the user did last, and the field's own undo holds only the words.
-    // So the box keeps the words as they stood when each stroke was drawn: while they
-    // stand so now, the latest stroke is the latest change and the press takes it back;
+    // So the box marks the words' history as each stroke is drawn: while it stands at the
+    // latest stroke's mark, that stroke is the latest change and the press takes it back;
     // once the user has typed, the press walks the words' history, and when that history
-    // has brought them back to how the latest stroke found them, the next press takes
-    // that stroke. Words that change and change back are no change.
-    let wordsAtStroke = [];
+    // has come back to the mark, the next press takes that stroke.
+    let historyAtStroke = [];
     let draftSeen;
     const strokeIsLatest = () =>
-      wordsAtStroke.length > 0 && wordsAtStroke.at(-1) === ta.value;
+      historyAtStroke.length > 0 && historyAtStroke.at(-1) === ta.historyDepth;
     // A press is decided once, as it arrives: the field's history answers it before the
-    // page's keys do, and an undo of the words that brings them back to how the latest
-    // stroke found them must not let the same press take that stroke too.
+    // page's keys do, and an undo of the words that brings the history back to the latest
+    // stroke's mark must not let the same press take that stroke too.
     let pressDecided = null;
     if (drawing) {
       ta.addEventListener(
@@ -279,10 +278,10 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       const strokes = drawn?.strokes.length ?? 0;
       // Another draft's words say nothing about this one's strokes.
       const draft = drawing?.draft();
-      if (draft !== draftSeen) wordsAtStroke = [];
+      if (draft !== draftSeen) historyAtStroke = [];
       draftSeen = draft;
-      wordsAtStroke = wordsAtStroke.slice(0, strokes);
-      while (wordsAtStroke.length < strokes) wordsAtStroke.push(ta.value);
+      historyAtStroke = historyAtStroke.slice(0, strokes);
+      while (historyAtStroke.length < strokes) historyAtStroke.push(ta.historyMark());
       mediaShelf.present(
         Object.freeze({
           drawing: drawn,
@@ -312,7 +311,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       // Writing the value starts the words' history afresh, so none of them is later
       // than any stroke.
       ta.value = restored.text;
-      wordsAtStroke = [];
+      historyAtStroke = [];
       renderMedia();
     };
     hydrate(ta.value);

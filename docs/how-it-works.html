@@ -639,102 +639,103 @@ leaf task end ./review &lt;task-id&gt; done "The load check is recorded on the p
               Select a passage and comment on it, pick an option, or drag a card, and
               the page shows your move at once. A label beside the move then shows how
               far the agent has got with it, and clears when a reply or a revision
-              answers it. Leaf changes the label only on evidence it records, and each
-              harness reports different steps, so each column lists the evidence that
-              harness gives. A dash marks a stage the harness never reports, and the
-              label skips it.
+              answers it. Leaf changes the label only on evidence it records. Each
+              harness reports different steps; the explanations name those differences.
+              A harness skips any stage it never reports.
             </p>
             <table id="stages-table">
               <thead>
                 <tr>
                   <th>Label</th>
-                  <th>Claude Code, Pi</th>
-                  <th><code>leaf wait</code> loop</th>
-                  <th>Codex</th>
-                  <th>Codex App Server</th>
+                  <th>Evidence</th>
                 </tr>
               </thead>
               <tbody>
                 <tr id="stages-sending">
                   <td>Sending</td>
-                  <td colspan="4">
-                    Your browser is still sending the move to the server.
-                  </td>
+                  <td>Your browser is still sending the move to the server.</td>
                 </tr>
                 <tr id="stages-sent">
                   <td>Sent</td>
-                  <td colspan="4">
+                  <td>
                     The server checked the move and added it to the page's event log.
                   </td>
                 </tr>
                 <tr id="stages-queued">
                   <td>Queued</td>
-                  <td>—</td>
-                  <td>—</td>
                   <td>
                     Codex accepted the move's delivery as the task's next message.
                   </td>
-                  <td>—</td>
                 </tr>
                 <tr id="stages-picked">
                   <td>Picked up</td>
                   <td>
-                    The prompt or Stop hook put the delivery in the agent's turn, or the
-                    agent read the pointer the hook put there with
-                    <code>leaf delivery read</code>.
-                  </td>
-                  <td>
-                    The agent's next <code>leaf wait --ack</code> confirmed the delivery
-                    the last wait printed.
-                  </td>
-                  <td>
-                    The turn that the queued message opens began, or the agent read the
-                    delivery mid-turn with <code>leaf delivery read</code>.
-                  </td>
-                  <td>
-                    App Server opened the turn that Leaf started with the delivery.
+                    <p>
+                      <strong>Claude Code and Pi.</strong> The prompt or Stop hook put
+                      the delivery in the agent's turn, or the agent read the pointer
+                      the hook put there with <code>leaf delivery read</code>.
+                    </p>
+                    <p>
+                      <strong>A <code>leaf wait</code> loop.</strong> The agent's next
+                      <code>leaf wait --ack</code> confirmed the delivery the last wait
+                      printed.
+                    </p>
+                    <p>
+                      <strong>Codex.</strong> The turn that the queued message opens
+                      began, or the agent read the delivery mid-turn with
+                      <code>leaf delivery read</code>.
+                    </p>
+                    <p>
+                      <strong>Codex App Server.</strong> App Server opened the turn that
+                      Leaf started with the delivery.
+                    </p>
                   </td>
                 </tr>
                 <tr id="stages-working">
                   <td>Working</td>
-                  <td colspan="4">
+                  <td>
                     The agent started the move with <code>leaf task start</code>, which
                     names the work in one line, or started a task on the move's widget.
                   </td>
                 </tr>
                 <tr id="stages-replying">
                   <td>Replying</td>
-                  <td colspan="3">—</td>
-                  <td>The turn's answer is streaming into the thread.</td>
+                  <td>
+                    On Codex App Server, the turn's answer is streaming into the thread.
+                  </td>
                 </tr>
                 <tr id="stages-answered">
                   <td>Answered (label clears)</td>
-                  <td colspan="3">
-                    The agent replied with <code>leaf thread reply --for</code>, or
-                    published a version whose markup records the move.
-                  </td>
                   <td>
-                    The turn ended with a final message, which Leaf posts as the
-                    thread's reply, or the agent published a version whose markup
-                    records the move.
+                    <p>
+                      <strong
+                        >Claude Code, Pi, Codex, or a
+                        <code>leaf wait</code> loop.</strong
+                      >
+                      The agent replied with <code>leaf thread reply --for</code>, or
+                      published a version whose markup records the move.
+                    </p>
+                    <p>
+                      <strong>Codex App Server.</strong> The turn ended with a final
+                      message, which Leaf posts as the thread's reply, or the agent
+                      published a version whose markup records the move.
+                    </p>
                   </td>
                 </tr>
                 <tr id="stages-pickup-late">
                   <td>Waiting for pickup</td>
-                  <td colspan="4">
-                    The move is still Sent two minutes after you sent it.
-                  </td>
+                  <td>The move is still Sent two minutes after you sent it.</td>
                 </tr>
                 <tr id="stages-ended">
                   <td>Turn ended</td>
-                  <td colspan="4">
+                  <td>
                     The turn that picked up the move ended, or was interrupted, before
                     the agent answered it.
                   </td>
                 </tr>
                 <tr id="stages-stale">
                   <td>Update stale</td>
-                  <td colspan="4">
+                  <td>
                     The agent's start on the move is 15 minutes old, or the turn that
                     wrote it ended more than two minutes ago, and the agent has not
                     started the move again since. A Picked up move reads the same once
@@ -745,12 +746,11 @@ leaf task end ./review &lt;task-id&gt; done "The load check is recorded on the p
                 </tr>
                 <tr id="stages-interrupted">
                   <td>Interrupted</td>
-                  <td colspan="3">—</td>
-                  <td>App Server stopped the turn before it answered.</td>
+                  <td>Codex App Server stopped the turn before it answered.</td>
                 </tr>
                 <tr id="stages-failed">
                   <td>Not answered</td>
-                  <td colspan="4">
+                  <td>
                     The harness gave up on the move: its turn failed, or Leaf could not
                     confirm that the delivery reached a turn. The leaf.page website and
                     the Codex adapter record this.

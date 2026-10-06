@@ -2180,8 +2180,10 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
 }
 @container lf-ask (width >= 50rem) {
   @container style(--lf-ask-track: 1) {
-    /* `:nth-child(n)` outranks what sets a block's own width and margins, such as a
-     * declared width (`[data-lf-space]`) or `.facts`. The heading's end margin stands
+    /* `:nth-child(n)` outranks what sets a block's own width and margins in this layer,
+     * such as `.facts`. A breakout (`[data-lf-space]`, layouts.css) stands in a higher
+     * layer and sets only the margins it grows by, so the block gives it no room to grow
+     * into (`--lf-room`, `--lf-free-l`, `--lf-free-r`). The heading's end margin stands
      * above the first block and the list alike. */
     :scope:is(lf-ask) > :not(:first-child, lf-options):nth-child(n) {
       float: inline-start;

@@ -434,13 +434,13 @@
   --danger-tint: light-dark(#f7e0da, #35211b); --danger-ink: light-dark(#9c3526, #e0a091);
   --add-tint: light-dark(#e4efe0, #1b2a1c); --del-tint: light-dark(#f7e2dc, #33201b);
   --hi-tint: light-dark(#fff8c5, #342d14);
-  /* Six syntax roles are enough to find structure without turning evidence into a
-     paint box. Unmapped scopes keep the inherited code ink. Each role clears 4.5:1
-     on the code canvas and semantic line tints; the render gate checks the result. */
-  --syn-comment: light-dark(#696458, #a59d8e); --syn-keyword: light-dark(#a3372c, #e59a8c);
+  /* Shiki's theme reads these CSS variables directly. The palette follows the
+     page's color scheme and can be overridden wherever code is drawn. The render
+     gate checks the colors the browser actually paints on each code canvas. */
+  --syn-comment: light-dark(#5a5549, #cac2b3); --syn-keyword: light-dark(#8d251d, #efafa0);
   --syn-string: light-dark(#1d4f6b, #9dc4dd);
-  --syn-number: light-dark(#2f5480, #a8c4e2); --syn-name: light-dark(#6b4a9e, #c3a8de);
-  --syn-type: light-dark(#8a5a12, #dcb27e);
+  --syn-number: light-dark(#2f5480, #a8c4e2); --syn-name: light-dark(#573387, #cdb2e8);
+  --syn-type: light-dark(#6b4305, #e6bc88);
 
   /* Series colors, for a chart's marks. Five, and the sixth is refused rather than
      drawn: these are the most a user can hold apart, and a palette that runs out and
@@ -912,24 +912,6 @@ hr { border: none; border-top: 1px solid var(--rule); margin: 40px 0; }
 .density-working h3 { margin: 12px 0 4px; }
 .density-working h4 { margin: 10px 0 4px; }
 .density-working :is(th, td) { padding: 4px 10px; }
-/* Syntax roles. The runtime writes these into any code block that names a language —
-   a <pre><code class="language-*"> or a lf-code with `language` — having collapsed the
-   tokenizer's scopes into six of leaf's own first. Styled at document level like
-   the marks, because they land on the page's own elements; one attribute rather than
-   six classes, so the shared class vocabulary doesn't widen at all. A tokenizer swap
-   costs one table in leaf.js and no page that has already shipped. */
-[data-lf-syn="cm"] { color: var(--syn-comment); font-style: italic; }
-[data-lf-syn="kw"] { color: var(--syn-keyword); }
-[data-lf-syn="st"] { color: var(--syn-string); }
-[data-lf-syn="nu"] { color: var(--syn-number); }
-[data-lf-syn="fn"] { color: var(--syn-name); }
-[data-lf-syn="ty"] { color: var(--syn-type); }
-/* A diff's own lines take the tints lf-diff and lf-suggestion already carry, so an
-   added line reads the same whichever of the three drew it. Ink only: these spans
-   cover a line's text and not its box, and a background would print as a ragged
-   half-width band. */
-[data-lf-syn="ins"] { color: var(--ok-ink); }
-[data-lf-syn="del"] { color: var(--danger-ink); }
 figure { margin: 22px 0; }
 figcaption { font-size: var(--t-6); color: var(--muted); margin-top: 8px; }
 img, svg, video { max-width: 100%; height: auto; }
@@ -976,8 +958,9 @@ img { aspect-ratio: attr(width type(<number>)) / attr(height type(<number>)); }
  * one. */
 /* A table scrolls its own columns, so, like `pre`, its rows never size what holds it.
  * Scrolling sideways makes it the scroller for anything sticking inside it, which
- * sticks at the table's own top (`--lf-top`). */
-table { display: block; overflow-x: auto; container-type: inline-size; --lf-top: 0px;
+ * sticks at the table's own top (`--lf-top`), and, like `pre`, leaves room under its
+ * last row for an overlay scrollbar (shadow.css, beside `pre`). */
+table { display: block; overflow-x: auto; container-type: inline-size scroll-state; --lf-top: 0px;
         border-collapse: collapse;
         font: var(--t-5)/1.5 var(--sans); margin: 18px 0; font-variant-numeric: tabular-nums; }
 /* A table standing in a drawn frame (a panel, a callout, a pane, a cell) fills it. The

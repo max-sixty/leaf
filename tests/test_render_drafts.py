@@ -1055,12 +1055,35 @@ def test_a_foreign_edit_waits_for_a_live_draft_and_replays_in_order(browser, ser
     later absolute value lands first and the deferred earlier value overwrites it
     when the box closes. An unrelated board move proves the poll saw the same
     batch while the editor was open, without making the test depend on time.
+    Reconnecting the same editor restores its local deferral before semantic catchup.
     """
     page = open_page(browser, serve(JOURNEY_V1))
     draft = page.locator("#draft-ops")
     draft.locator(".lf-draft-body").dblclick()
     editor = draft.locator("leaf-text")
     write(editor, "Local unsent words.")
+
+    draft.evaluate(
+        """node => {
+          window.__lfEditingDraft = {
+            node, parent: node.parentNode, next: node.nextSibling,
+            editor: node.querySelector('leaf-text'),
+          };
+          node.remove();
+        }"""
+    )
+    # The fixture deliberately removes the editor's subject. Consume that allowed
+    # disappearance at the frame where the words watcher observes the removal.
+    one_frame(page)
+    consume_browser_errors(page, "typed words left the screen without a key or press")
+    page.evaluate(
+        """() => {
+          const {node, parent, next} = window.__lfEditingDraft;
+          parent.insertBefore(node, next);
+        }"""
+    )
+    assert editor.evaluate("node => node === window.__lfEditingDraft.editor")
+    editor.focus()
 
     d = serve.page_dir
     for text in ("Foreign first edit.", "Foreign committed words."):
@@ -3582,6 +3605,9 @@ def test_reply_admission_finishes_or_restores_its_native_session(
     )
     told(page)
     rendered(page)
+    if surface == "panel":
+        # The open card holds the resolution behind its notice until the user asks.
+        card.get_by_role("button", name="Resolved", exact=True).click()
     expect(field).to_be_hidden()
     assert stored_draft_text(page, "reply:" + root) == next_words
 
@@ -3642,10 +3668,17 @@ def test_reply_editing_and_saved_words_have_separate_resolution_lifetimes(
         assert field.evaluate("box => [box.selectionStart, box.selectionEnd]") == [5, 5]
         page.keyboard.press("Escape")
         expect(field).not_to_be_visible()
+    elif resolution == "inactive-agent" and surface == "panel":
+        # The open card holds the resolution behind its notice, words and all, until
+        # the user presses it.
+        expect(field).to_be_visible()
+        expect(field).to_have_js_property("value", words)
+        thread.get_by_role("button", name="Resolved", exact=True).click()
+        expect(field).not_to_be_visible()
     else:
         expect(thread.locator("leaf-text")).not_to_be_visible()
     assert stored_draft_text(page, f"reply:{root['id']}") == words
-    if resolution == "inactive-agent":
+    if resolution == "inactive-agent" and surface == "margin":
         # An unresolved thread still draws its inactive reply box after Escape.
         # Agent settlement then closes it, as this lifecycle deliberately requires.
         # The generic words sensor cannot infer that ending the editing session made
@@ -3738,6 +3771,11 @@ def test_a_resolved_reply_composition_stays_open_until_deliberately_dismissed(
         rendered(page)
         expect(thread.locator("leaf-text")).to_be_visible()
         page.locator("#p3").click(position={"x": 10, "y": 10})
+        if surface == "panel":
+            # The open card holds the resolution behind its notice, so it still draws
+            # an open thread's reply box until the user asks to see the resolution.
+            expect(thread.locator("leaf-text")).to_be_visible()
+            thread.get_by_role("button", name="Resolved", exact=True).click()
         expect(thread.locator("leaf-text")).not_to_be_visible()
         if surface == "margin":
             expect(page.locator('[data-lf-margin-for="p3"]')).to_have_count(0)

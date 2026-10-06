@@ -1906,6 +1906,124 @@ def test_a_sent_comment_is_revealed_in_the_panel(browser, serve):
     expect(box).to_be_focused()
 
 
+def test_comment_on_the_page_starts_a_thread_from_a_card_under_the_banner(
+    browser, serve
+):
+    """The banner's Comment on the page starts a page thread with Threads shut: a card
+    hangs flush from the control, and its send puts the card away and flashes Threads,
+    whose count takes the new thread, without opening the panel. `c` on the floor goes
+    to the same card, and with Threads open both go to Threads' own box instead."""
+    page = open_page(browser, serve(LONG_PAGE))
+    control = page.locator(".lf-banner-actions > .lf-page-comment")
+    card = page.locator(".lf-page-comment-card")
+    box = card.locator("leaf-text")
+    toggle = page.locator(".lf-threads-toggle")
+    is_open = "node => node.matches(':popover-open')"
+    expect(control).to_have_attribute("title", "Comment on the page (c)")
+
+    control.click()
+    assert card.evaluate(is_open)
+    expect(box).to_be_focused()
+    hung = page.evaluate(
+        """() => {
+          const card = document.querySelector('.lf-page-comment-card')
+            .getBoundingClientRect();
+          const control = document.querySelector('.lf-banner-actions > .lf-page-comment')
+            .getBoundingClientRect();
+          const banner = document.querySelector('.lf-banner').getBoundingClientRect();
+          return [card.top - banner.bottom, card.right - control.right];
+        }"""
+    )
+    assert [round(edge) for edge in hung] == [0, 0], hung
+
+    count = toggle.get_attribute("data-lf-count")
+    write(box, "Does the plan cover the self-hosted runners?")
+    with sending(page, "the page comment"):
+        page.keyboard.press("Enter")
+    sent = events_model.read_events(serve.page_dir)[-1]
+    assert (sent["kind"], sent["text"], sent.get("anchor")) == (
+        "comment",
+        "Does the plan cover the self-hosted runners?",
+        None,
+    )
+    assert not card.evaluate(is_open)
+    assert toggle.evaluate("t => t.getAnimations().length") == 1, (
+        "Threads did not flash"
+    )
+    expect(toggle).to_have_attribute("data-lf-count", str(int(count) + 1))
+    assert not page.locator(".lf-thread-panel").evaluate("p => p.open")
+    expect(control).to_be_focused()
+
+    page.locator("main").click(position={"x": 4, "y": 4})
+    page.keyboard.press("c")
+    assert card.evaluate(is_open)
+    expect(box).to_be_focused()
+    expect(box).to_have_js_property("value", "")
+    page.keyboard.press("Escape")
+    # Words typed straight after `c` land in the box rather than on the page's keys.
+    page.keyboard.press("c")
+    page.keyboard.type("Kept for later")
+    expect(box).to_have_js_property("value", "Kept for later")
+    page.keyboard.press("Escape")
+    assert not card.evaluate(is_open)
+
+    # A refused send opens the card again on the words it handed back.
+    page.route(
+        "**/api/event",
+        lambda route: route.fulfill(
+            status=400,
+            json={"ok": False, "final": True, "error": "refused before append"},
+        ),
+    )
+    # Pressed straight after the press that opens the card, Enter sends from its box.
+    control.click()
+    page.keyboard.press("Enter")
+    expect(box).to_be_focused()
+    expect(box).to_have_js_property("value", "Kept for later")
+    assert card.evaluate(is_open)
+    page.unroute("**/api/event")
+    assert all("400" in error for error in take_browser_errors(page))
+    page.keyboard.press("Escape")
+
+    # The card and Threads' box are two views of the one page draft.
+    toggle.click()
+    panel_settled(page)
+    control.click()
+    general = page.locator(".lf-general leaf-text")
+    expect(general).to_be_focused()
+    expect(general).to_have_js_property("value", "Kept for later")
+    assert not card.evaluate(is_open)
+
+
+def test_comment_on_the_page_stands_in_more_on_a_phone(browser, serve):
+    """A phone's banner keeps one row, so Comment on the page is a row of More in its
+    words; its press takes More down and opens the card across the window."""
+    context = browser.new_context(
+        is_mobile=True, has_touch=True, viewport={"width": 390, "height": 844}
+    )
+    page = open_page(browser, serve(LONG_PAGE), context=context)
+    expect(page.locator(".lf-banner-actions > .lf-page-comment")).to_have_count(0)
+    page.get_by_role("button", name="More page controls", exact=True).click()
+    page.locator(".lf-banner-menu .lf-page-comment").click()
+    card = page.locator(".lf-page-comment-card")
+    assert card.evaluate("node => node.matches(':popover-open')")
+    assert not page.locator(".lf-banner-menu").evaluate(
+        "node => node.matches(':popover-open')"
+    )
+    expect(card.locator("leaf-text")).to_be_focused()
+    box = card.bounding_box()
+    assert round(box["x"]) == 8 and round(box["width"]) == 390 - 16, box
+
+    # `c` with More open takes More down too, rather than opening the card inside it.
+    page.keyboard.press("Escape")
+    page.get_by_role("button", name="More page controls", exact=True).click()
+    page.keyboard.press("c")
+    assert card.evaluate("node => node.matches(':popover-open')")
+    assert not page.locator(".lf-banner-menu").evaluate(
+        "node => node.matches(':popover-open')"
+    )
+
+
 def test_a_pasted_image_survives_the_reply_draft_and_renders_from_the_message(
     browser, serve
 ):

@@ -19,6 +19,9 @@ The journey, in order:
   holds the session's pages once its turn ends;
 - `idle`: a comment posted while the session is idle opens a turn that answers it;
 - `mid-turn`: a comment posted during a shell command is picked up in that turn;
+- `ending`: a comment posted during a shell command wakes the watch, and one
+  posted once that turn has picked the first up is pending as the turn ends, with
+  nothing watching; the Stop hook hands it to that turn, which it keeps going;
 - `escape`: Escape during a shell command ends the turn; a comment posted
   afterwards opens a turn that answers it;
 - `woken`: a comment posted during a shell command wakes the watch, and Escape
@@ -30,8 +33,8 @@ The journey, in order:
 
 Between steps every comment posted so far has exactly one reply and a pickup, and
 the page's claim names the session with its turn closed. With the hooks module,
-Escape closes the turn and a watch runs after each turn, an interrupted one
-included. Without it, what follows an Escape is reported rather than required: the
+Escape closes the turn, a watch runs after each turn, an interrupted one
+included, and no delivery shows in the terminal. Without it, what follows an Escape is reported rather than required: the
 watch from before goes on only if it has not woken, and otherwise admission's nudge
 carries the next comment.
 
@@ -61,6 +64,7 @@ from pathlib import Path
 import click
 from leaf.event_log import read_events
 from leaf.harness import ClaudeCodeHarness
+from leaf.hook_carrier import INLINE_DELIVERY
 from leaf.leases import wait_is_live
 from leaf.server import running_server
 from leaf.service import claim_is_active, page_claim
@@ -139,10 +143,14 @@ class ClaudeCode:
     def screen(self) -> str:
         return self.tmux("capture-pane", "-p", "-t", self.pane)
 
+    def shown(self) -> str:
+        """All the pane still holds, its history included."""
+        return self.tmux("capture-pane", "-p", "-S", "-", "-t", self.pane)
+
     def keep(self, label: str) -> None:
         """Add the pane's screen to the evidence. Claude Code clears what scrolls
         off, so each step keeps its own."""
-        if shown := self.tmux("capture-pane", "-p", "-S", "-", "-t", self.pane):
+        if shown := self.shown():
             with self.kept.open("a") as kept:
                 kept.write(f"──── {label} ────\n{shown}\n")
 
@@ -243,6 +251,12 @@ def journey(cc: ClaudeCode, page: Path, state: Path, module: bool) -> None:
     ) -> None:
         posted.extend(steps)
         settled(page, cc.session, posted)
+        # The hooks module keeps a delivery out of the user's sight; without it,
+        # Claude Code prints the one the Stop hook hands over.
+        require(
+            not module or INLINE_DELIVERY not in cc.shown(),
+            f"{name}: a delivery was printed in the terminal",
+        )
         # The turn that answers ends with a watch running, under either carrier.
         cc.until(watched, f"{name}: no watch holds the session's pages", 60)
         details = [escaped] if escaped else []
@@ -304,6 +318,34 @@ def journey(cc: ClaudeCode, page: Path, state: Path, module: bool) -> None:
         f"mid-turn: the comment was not picked up in the user's turn {turn}",
     )
     step("mid-turn", started, "mid-turn", before=before)
+
+    started = time.monotonic()
+    cc.say(USER_TURN)
+    cc.until(cc.sleeping, "ending: the user's turn did not start its command")
+    turn = page_claim(page)["turn"]
+    before = nudged()
+    post(page, "first")
+    cc.until(
+        lambda: any(
+            event["kind"] == "pickup" and comment_id(page, "first") in event["events"]
+            for event in read_events(page)
+        ),
+        "ending: `first` was not picked up",
+    )
+    # The watch woke for `first` and its handover is done, so nothing watches
+    # until this turn ends, and this one is pending as it does.
+    post(page, "ending")
+    cc.until(answered("first", "ending"), "ending: the comments were not answered")
+    picked = [
+        event["turn"]
+        for event in read_events(page)
+        if event["kind"] == "pickup" and comment_id(page, "ending") in event["events"]
+    ]
+    require(
+        turn in picked,
+        "ending: the Stop hook did not keep the turn going for `ending`",
+    )
+    step("ending", started, "first", "ending", before=before)
 
     started = time.monotonic()
     cc.say(USER_TURN)

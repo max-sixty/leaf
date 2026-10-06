@@ -18,6 +18,8 @@ from interact_support import (
     serving,
     wait_for,
 )
+from leaf import hook_carrier as hook_carrier_model
+from leaf import hooks as hooks_model
 from leaf import leases as leases_model
 from leaf import service as service_model
 from leaf import session as session_model
@@ -65,10 +67,14 @@ class ClaudeCode:
         """The next prompt the module submits or row it appends."""
         return self.sent.get(timeout=3 * STATED_TIMEOUT)
 
-    def emit(self, event: str, e: dict | None = None) -> dict:
+    def emit(
+        self, event: str, e: dict | None = None, answer: dict | None = None
+    ) -> dict:
         """Run one event through the module, and return what its hooks returned
-        and the input they passed on to the hooks beneath."""
-        self.process.stdin.write(json.dumps({"emit": event, "e": e or {}}) + "\n")
+        and the input they passed on to the hooks beneath, which answer with
+        `answer` where it is given."""
+        line = {"emit": event, "e": e or {}, "answer": answer}
+        self.process.stdin.write(json.dumps(line) + "\n")
         self.process.stdin.flush()
         answer = self.read()
         assert answer["event"] == event, answer
@@ -228,3 +234,37 @@ def test_the_module_hands_input_to_a_running_turn_and_closes_an_interrupted_one(
     assert claude_code.message()["submitted"].startswith(
         f"Leaf: {page_dir} has new input"
     )
+
+
+def test_the_module_keeps_a_stop_hooks_delivery_out_of_the_terminal(
+    page_dir, claude_code, capsys
+):
+    """Claude Code prints what a Stop hook continues a turn with in the user's
+    terminal, and none of a row a module appends. Input pending as a turn ends,
+    with no watch running, is handed over by Leaf's Stop hook inline; the module
+    appends that delivery to the session and the turn goes on with one line, so
+    the delivery is in the turn's context, as its Picked up says, but not on the
+    user's screen."""
+    claude_code.start_turn()
+    append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "wakes the watch"}
+    )
+    claude_code.message()
+    pending = append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "as it ends"}
+    )
+    payload = {"hook_event_name": "Stop", "session_id": claude_code.session}
+    hooks_model.cmd_hook("claude-code", payload)
+    context = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
+        "additionalContext"
+    ]
+    assert context.startswith(hook_carrier_model.INLINE_DELIVERY)
+
+    answer = {"additionalContext": [context]}
+    result = claude_code.emit("classic.Stop", payload, answer)["result"]
+    appended = claude_code.message()["appended"]
+    assert appended == context
+    [batch] = json.loads(appended.split("\n")[1])["batches"]
+    assert [event["id"] for event in batch["events"]] == [pending["id"]]
+    [shown] = result["additionalContext"]
+    assert hook_carrier_model.INLINE_DELIVERY not in shown

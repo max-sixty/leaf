@@ -16,7 +16,13 @@
  * - a watch that wakes an idle session submits its line as a prompt, whose
  *   prompt hook hands the input over; one that wakes during a turn calls the
  *   prompt hook itself and appends what it returns to that turn, which reads it
- *   at its next step.
+ *   at its next step. The appended row joins the session's transcript at once,
+ *   and stays there through an Escape (measured at 2.1.291), so the hook's
+ *   confirmation holds: the input is in the session's context. Claude Code
+ *   shows neither that row nor the prompt hook's context in the terminal;
+ * - a delivery Leaf's Stop hook hands over as a turn ends, which Claude Code
+ *   would print in full, goes into the session the same way, and the turn goes
+ *   on with one line in its place.
  *
  * Once it can start the watch, each Stop payload it passes on carries `leaf_watch:
  * "module"`, which stands the background registration beneath it down
@@ -39,6 +45,10 @@ import type { EngineInterface, Register } from 'claude-code'
 // `hooks.json`'s timeout for the prompt hook, inside which it confirms what it
 // hands over (`CONFIRM_WITHIN` in `hook_carrier.py`).
 const HOOK_TIMEOUT_MS = 20_000
+// The line an inline delivery opens with (`INLINE_DELIVERY` in `hook_carrier.py`),
+// and the line the turn goes on with once the module has appended one.
+const INLINE_DELIVERY = 'Leaf has new input for your turn.'
+const DELIVERED = "Leaf added the page's new input to your context above; answer it before you end the turn."
 
 type Payload = { hook_event_name: string; session_id: string; ended_at?: number }
 type Watch = {
@@ -165,11 +175,32 @@ export const register: Register = (on, options) => {
     return next(e)
   })
 
-  on('classic.Stop', ($, e, next) => {
+  on('classic.Stop', async ($, e, next) => {
     running = false
     // Without Claude Code's process the watch cannot run, so the registration
     // beneath keeps it.
-    return next(claudePid ? Object.assign({}, e, { leaf_watch: 'module' }) : e)
+    const result = await next(claudePid ? Object.assign({}, e, { leaf_watch: 'module' }) : e)
+    const contexts = result.additionalContext ?? []
+    // Claude Code prints a Stop hook's context in the terminal, so a delivery
+    // Leaf's Stop hook hands over goes into the session as an appended row,
+    // which it does not show, and the turn goes on with one line.
+    const shown: string[] = []
+    for (const context of contexts) {
+      if (!context.startsWith(INLINE_DELIVERY)) {
+        shown.push(context)
+        continue
+      }
+      try {
+        await $.session.append({ message: { type: 'user', content: [{ type: 'text', text: context }] } })
+        shown.push(DELIVERED)
+      } catch (error) {
+        $.ui.log(`Leaf: the Stop hook's delivery was not appended: ${error}`, { to: 'debug' })
+        shown.push(context)
+      }
+    }
+    // A Stop hook's context keeps the turn going.
+    running = shown.length > 0 || result.block !== undefined
+    return contexts.length ? Object.assign({}, result, { additionalContext: shown }) : result
   })
 
   on('turn.complete', async ($, e, next) => {

@@ -324,11 +324,17 @@ say when it is not, rather than comparing the name itself. The carriers are:
   wakes during a turn calls the prompt hook itself and appends its context to that
   turn, which reads it at its next step. An interrupted turn runs no Stop hook, but
   the module still sees it end, so it starts the watch with the Interrupt payload,
-  as Pi's extension does.
+  as Pi's extension does. Claude Code prints a Stop hook's context in the user's
+  terminal, so the module moves a delivery the Stop hook hands over into the
+  session as an appended row, which it does not show, and the turn goes on with
+  one line.
 - Under Pi, the same watch, which Leaf's extension (`hooks/pi.ts`) starts as the
-  session starts and as each run settles. When the watch exits with input, the
-  extension calls the prompt hook and sends its context, which starts a run or
-  steers the running one. After an interrupted run it starts the watch with the
+  session starts and as each run settles. When the watch exits with input and no
+  run is going, the extension calls the prompt hook and sends its context, which
+  starts a run; during a run it calls the prompt hook at the run's next turn end
+  and adds the context to the session there, since a steer waits in a queue
+  Escape clears, and the hook confirms only what is in the session's context.
+  After an interrupted run it starts the watch with the
   Interrupt payload, which first answers the Interrupt hook, closing the turn,
   and then wakes only for input admitted after its first look.
 - A sequence of direct watchers the model itself runs, where the wait prints the

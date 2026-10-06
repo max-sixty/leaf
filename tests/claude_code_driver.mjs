@@ -3,8 +3,9 @@
 // stdin.
 //
 // Arguments: the session id, then the plugin's options as JSON. Each stdin line is
-// `{"emit": <event>, "e": <input>}`: the driver runs that event's hooks over `e`,
-// the bottom of the chain answering with the input it reached, and prints
+// `{"emit": <event>, "e": <input>, "answer": <result>}`: the driver runs that
+// event's hooks over `e`, the bottom of the chain, which stands for the settings
+// hooks, answering with `answer`, or else with the input it reached, and prints
 // `{"event", "result", "reached"}` once they resolve, `reached` being that input.
 // Every prompt the module submits prints as `{"submitted": <text>}` and every row
 // it appends as `{"appended": <text>}`, and every watch it starts as `{"watching":
@@ -109,11 +110,14 @@ await register(
 print({ pid: process.pid, events: [...hooks.keys()] });
 
 for await (const line of readline.createInterface({ input: process.stdin })) {
-  const { emit, e } = JSON.parse(line);
+  const { emit, e, answer } = JSON.parse(line);
   let reached;
   const chain = (hooks.get(emit) ?? []).reduceRight(
     (next, hook) => (input) => hook($, input, next),
-    async (input) => (reached = input),
+    async (input) => {
+      reached = input;
+      return answer ?? input;
+    },
   );
   const result = await chain(e);
   print({ event: emit, result: result ?? null, reached: reached ?? null });

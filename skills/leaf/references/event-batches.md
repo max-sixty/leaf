@@ -111,8 +111,9 @@ the events. `leaf page events` reads the
 full log without acking it.
 
 Receipt and work have separate evidence. Confirming a direct delivery records its
-moves as **Picked up** in the current turn. Other harnesses record that opening when
-they observe the delivery entering a turn: as a hook hands it over, as the agent
+moves as **Picked up** in the current turn. **Picked up** means the delivery is in
+your context, whether or not you have read it yet. Other harnesses record that
+opening when the delivery enters the turn's context: as a hook hands it over, as the agent
 reads a pointer with `leaf delivery read`, or as a turn Leaf started begins. Leaf
 derives overall page activity from that evidence. Starting the move with `leaf task start <page> <event-id>`
 ([conversation handoff](conversation-loop.md#when-to-write)) strengthens its

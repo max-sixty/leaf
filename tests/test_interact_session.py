@@ -8974,6 +8974,9 @@ def test_the_stop_hook_watch_wakes_the_session_only_for_input(
     argv = ["claude", "-p", "hello"]
     monkeypatch.setattr(harness_model, "process_argv", lambda pid: argv)
     assert hooks_model.cmd_watch("claude-code", stop) is None
+    # Its stream-json output alone changes nothing; streamed input does.
+    argv = ["claude", "-p", "hello", "--output-format", "stream-json"]
+    assert not harness_model.session_harness().watches_between_turns()
     argv = ["claude", "-p", "--input-format", "stream-json"]
     assert harness_model.session_harness().watches_between_turns()
     monkeypatch.setattr(harness_model, "process_argv", launched)

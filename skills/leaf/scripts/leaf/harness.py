@@ -13,6 +13,7 @@ The machine facts a harness rests on live elsewhere: `machine` reads the
 processes running above this one, and `leases` holds the lease a detached
 carrier proves itself with."""
 
+import itertools
 import json
 import os
 import socket
@@ -286,13 +287,16 @@ class ClaudeCodeHarness(EnvironmentHarness):
         session when it exits 2, except under plain `--print`, where it waits on
         the hook as on any other and the turn would hold until input came
         (measured at 2.1.286). A print session fed `--input-format stream-json`
-        backgrounds it like an interactive one. Only the process's own argv
-        tells the two apart: the hook's input and environment are the same.
+        backgrounds it like an interactive one; `--output-format stream-json`
+        alone does not. Only the process's own argv tells the two apart: the
+        hook's input and environment are the same.
         Leaf's hooks module states CLAUDE_PID to the watch it keeps, so the same
         reading holds there."""
         argv = process_argv(int(os.environ["CLAUDE_PID"])) or []
         printing = "-p" in argv or "--print" in argv
-        streaming = "stream-json" in argv or "--input-format=stream-json" in argv
+        streaming = "--input-format=stream-json" in argv or (
+            ("--input-format", "stream-json") in itertools.pairwise(argv)
+        )
         return not printing or streaming
 
     def process_runs(self) -> bool:
@@ -506,10 +510,11 @@ class PiHarness(EnvironmentHarness):
     `continue` keeps it going). As the session starts and as each run settles
     it starts the watch (`leaf hook --harness pi --watch`), with the Interrupt
     payload, which closes the turn, after a run that settles without going on
-    from there, which is what an Escape does. When the watch wakes
-    it, it calls the prompt hook itself and sends what that returns: a message
-    an extension sends to an idle Pi starts a run without its prompt events
-    (measured at 1.0.2)."""
+    from there, which is what an Escape does. When the watch wakes an idle
+    session, it calls the prompt hook itself and sends what that returns: a
+    message an extension sends to an idle Pi starts a run without its prompt
+    events (measured at 1.0.2). When it wakes during a run, the run's next turn
+    end calls the prompt hook and adds its context to the session."""
 
     name = "pi"
     default_agent = "Pi"

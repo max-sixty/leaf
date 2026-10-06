@@ -386,7 +386,11 @@ def record_pickup(
     """Durably record one delivery transition for exact attention-bearing inputs.
 
     ``queued`` means Codex's durable same-task queue accepted the batch;
-    ``opened`` means the batch entered an agent turn; ``failed`` means the harness
+    ``opened``, which the page shows as Picked up, means the batch is in the
+    harness's context for the session: written into the conversation its model
+    reads at its next step, whether or not that step has come. A batch the harness
+    holds to add later, as a queue or a steer waiting behind a running tool, is not
+    opened until it is added. ``failed`` means the harness
     gave up on the moves with the named ``failure`` and no answer is coming.
     Queued and opened are transport evidence, not authored work claims. A queued
     transition may therefore be followed by an opened transition for the same

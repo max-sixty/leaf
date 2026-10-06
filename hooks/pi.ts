@@ -18,9 +18,13 @@
  *
  * As a session starts and as each run settles, it starts the watch (the same
  * call with `--watch`), which prints a line and exits once one of the session's
- * pages has input. It then calls the prompt hook and sends what it returns,
- * which starts a run when none is going (and runs no prompt events of its
- * own), or steers the running one. A run that settles without going on from
+ * pages has input. When no run is going, it then calls the prompt hook and
+ * sends what it returns, which starts a run (and runs no prompt events of its
+ * own). A running run gets the input at its next turn's end (`turn_end`), where
+ * the extension calls the prompt hook and adds what it returns to the session:
+ * the hook confirms what it hands over, so it hands it over only once Pi takes
+ * it into the session, not to a steer Pi queues behind a running tool, which
+ * Escape clears. A run that settles without going on from
  * there, as an Escape leaves it, starts the watch with the Interrupt payload:
  * it closes the turn, and wakes only for input that arrives after it, so an
  * Escape is not undone by the input the run was already handed.
@@ -92,6 +96,8 @@ export default function leaf(pi: ExtensionAPI) {
 	// Whether the run settling now went on from `agent_before_settle`, which
 	// asked Pi to continue it; an abort can settle it there instead.
 	let settledByStop = false;
+	// Whether the watch woke during the run, so its next turn's end takes the input.
+	let handOff = false;
 
 	const message = (content: string) => ({ customType: CUSTOM_TYPE, content, display: true });
 
@@ -130,10 +136,14 @@ export default function leaf(pi: ExtensionAPI) {
 		if (watch !== ended || disposed) return;
 		watch = undefined;
 		if (!woke.trim()) return;
+		if (running) {
+			handOff = true;
+			return;
+		}
 		const context = await hook({ hook_event_name: "UserPromptSubmit", session_id: session });
 		if (disposed) return;
 		if (!running) stopActive = false;
-		// Pi starts a run when none is going and steers the running one.
+		// A run that started meanwhile takes the message as a steer.
 		pi.sendMessage(message(context ?? `Leaf: ${woke.trim()}`), { triggerTurn: true, deliverAs: "steer" });
 	}
 
@@ -169,7 +179,18 @@ export default function leaf(pi: ExtensionAPI) {
 		settledByStop = false;
 	});
 
+	pi.on("turn_end", async () => {
+		if (!handOff) return undefined;
+		handOff = false;
+		const context = await hook({ hook_event_name: "UserPromptSubmit", session_id: session });
+		return context
+			? { entries: [{ type: "custom_message" as const, ...message(context) }], continue: true }
+			: undefined;
+	});
+
 	pi.on("agent_before_settle", async () => {
+		// The Stop hook hands over whatever is pending.
+		handOff = false;
 		const context = await hook({ hook_event_name: "Stop", session_id: session, stop_hook_active: stopActive });
 		if (!context) {
 			settledByStop = true;
@@ -185,6 +206,9 @@ export default function leaf(pi: ExtensionAPI) {
 	pi.on("agent_settled", async () => {
 		const interrupted = running && !settledByStop;
 		running = false;
+		// Input an interrupted run never took waits for the user's next prompt;
+		// otherwise the watch this ending starts finds it.
+		handOff = false;
 		await ensureWatch(interrupted);
 	});
 }

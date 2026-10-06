@@ -21,8 +21,6 @@
 
    Travel asks this owner to clear whatever surface hides a destination (`clearFor`),
    so every trip that promises to show one closes the same surfaces by the same rule.
-   Focus arriving on the page is such a trip, however it arrived: a beside-standing
-   surface clears for page content it stands over rather than hold focus out of sight.
 
    A surface that stands under the bottom bar, as a drawer does (its list ends above the
    band's stated height), keeps that band over it in the covering posture too: the band
@@ -306,24 +304,8 @@ export function createAuxiliarySurfaces({ chromeRoot, band, syncLayout, afterCha
       true,
     );
     document.addEventListener("focusin", (event) => {
-      // Beside the page, focus arriving on page content the surface stands over is a
-      // destination the user cannot see, whether Tab or a composer opening put it there,
-      // so the surface clears for it as it does for travel. Focus coming back out of the
-      // surface is not an arrival: a non-modal dialog takes focus as it shows, and its
-      // owner hands it straight back to whoever held it (thread-panel.js).
-      if (!active) {
-        const selected = controllers.get(selectedKey);
-        if (
-          selected &&
-          selected !== arriving &&
-          !selected.covers() &&
-          !chromeRoot.contains(event.target) &&
-          !(event.relatedTarget && selected.surface.contains(event.relatedTarget))
-        )
-          clearFor(event.target);
-        return;
-      }
       if (
+        !active ||
         placingFocus ||
         active.surface.contains(event.target) ||
         nativeLayerContains(event.target)

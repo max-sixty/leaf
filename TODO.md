@@ -56,8 +56,14 @@ has tried; settle that before building it.
   result is hidden. Decide whether a page needs one progress reading across Asks,
   board work, and version approval. Test a concrete first task before changing the
   public home page's prompt.
-- **#14 — [Verify the complete workspace keyboard and accessibility route](notes/workspace-followups.md#item-14).**
-  Follow one task through reading, panes, comments, and Threads.
+- **Decide where focus may stand under a surface beside the page.** Threads and the
+  Queue panel leave the page live beside them while standing over part of it, and focus
+  still reaches what they cover. At 1440×900 Tab walks onto `annotation-workspace`'s
+  rail under Threads, and `c` on a selection opens the rail's comment box there; at
+  1200px Tab reaches an Ask's option marks under the Queue panel. Clearing the surface
+  whenever focus arrives on page content it hides, as travel already does (`clearFor`,
+  auxiliary-surfaces.js), shows both, but closes the Queue panel partway through
+  answering its queue (`test_a_completed_ask_keeps_its_answer_in_the_queue`).
 
 ### Agent and author experience
 

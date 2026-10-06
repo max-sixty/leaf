@@ -9,9 +9,10 @@
  * saw, which `leaf page picture` draws again for the agent.
  * `strokesIn` scales the strokes to the target's current size.
  *
- * A draft's drawing also carries `at`, where the target's box stood in the document when
- * it was last drawn on, so the draft's ink can stand there once a revision takes the
- * target away. It is the draft's alone: `sentDrawing` leaves it out of the comment.
+ * A draft's drawing also carries `at`, where the target's box stood in its anchor's
+ * section when it was last drawn on, so the draft's ink can stand there once a revision
+ * takes the target away. It is the draft's alone: `sentDrawing` leaves it out of the
+ * comment.
  */
 export const DRAWING_FORMAT = "leaf-drawing/2";
 export const MAX_DRAWING_STROKES = 32;

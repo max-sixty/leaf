@@ -954,7 +954,7 @@ def test_a_click_draws_nothing_and_escape_leaves_the_mode(browser, serve):
 
 def test_draw_mode_leaves_chrome_controls_usable(browser, serve):
     """The document plane is drawable, but a press on Leaf's chrome remains the
-    control's gesture rather than becoming a page drawing."""
+    control's gesture rather than becoming a drawing."""
     page = open_page(browser, serve(TARGETS_PAGE))
     page.keyboard.press("w")
 

@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>Leaf Playwright trace review</title>
+    <meta
+      name="description"
+      content="Review a browser journey recorded by Playwright, with comments on actions, images and saved elements."
+    />
+  </head>
+  <body>
+    <main class="layout-wide density-working" id="trace-workspace">
+      <header id="trace-introduction">
+        <h1>Review a recorded release journey</h1>
+        <p>
+          This ordinary website has two buttons named Review. Playwright recorded each
+          click; Leaf's comments identify the captured action, image or saved element.
+        </p>
+      </header>
+      <section id="trace-review">
+        <lf-trace
+          id="release-trace"
+          source="release-journey"
+          data-height="720"
+        ></lf-trace>
+      </section>
+      <details id="trace-scenarios">
+        <summary>Review scenarios</summary>
+        <ul>
+          <li>
+            Step through a click’s Before, Action and After checkpoints on one timeline.
+            Each image and saved tree shows its own capture time.
+          </li>
+          <li>
+            Enable Show intermediate frames to include the browser’s filmstrip on that
+            same timeline. Left and Right step through the displayed stops.
+          </li>
+          <li>
+            Comment on one saved Review button, move to another action, and follow the
+            thread back. It returns to that action and tree path.
+          </li>
+          <li>
+            Comment on an image or draw on it. Following the thread restores that exact
+            captured image.
+          </li>
+        </ul>
+      </details>
+    </main>
+  </body>
+</html>

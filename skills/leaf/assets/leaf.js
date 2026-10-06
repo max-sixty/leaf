@@ -87,6 +87,7 @@ import {
   wireThreadLanding,
 } from "./runtime/thread/landing.js";
 import { createPanelComposer } from "./runtime/thread/panel.js";
+import { createPageCommentCard } from "./runtime/thread/page-comment-card.js";
 import { standingThreadId } from "./runtime/thread/focus.js";
 import { createThreadListController } from "./runtime/thread/thread-list.js";
 import { createThreadNarrowing } from "./runtime/thread/narrowing.js";
@@ -595,6 +596,15 @@ panelComposer = createPanelComposer({
   firstUnread: () => app.read.firstUnread(),
   unreadCount: () => app.read.unreadCount(),
 });
+const pageCommentCard = createPageCommentCard({
+  wireInput: inputs.wireInput,
+  createPageComment: app.createPageComment,
+  designModeActive: designMode.active,
+  panelIsOpen,
+  setPanel: (...args) => threadPanelController.setPanel(...args),
+  panelBox: panelElements.generalInput,
+  threadsToggle: toggleBtn,
+});
 selectionComposer = createSelectionComposer({
   panelIsOpen,
   setReact: (...args) => reactions.setReact(...args),
@@ -628,7 +638,6 @@ responseSurface = createResponseSurface({
   panelElements,
   panelIsOpen,
   landIn: landing.landIn,
-  setPanel: (...args) => threadPanelController.setPanel(...args),
   threadHere: () => app.threadDestinations.threadHere(),
   threadAtStanding: () => app.threadDestinations.threadAtStanding(),
   replyThreadAtStanding: () => app.threadDestinations.replyThreadAtStanding(),
@@ -661,6 +670,7 @@ responseSurface = createResponseSurface({
   drawModeActive: () => drawing.drawModeActive(),
   refreshThread: app.refreshThread,
   dismissThreadView: () => app.overlay?.inlineThreadView.dismiss(),
+  pageComment: pageCommentCard,
   responseHome: overlaySelected ? chromeRoot : panelFoot,
   revealResponseHome: overlaySelected
     ? null
@@ -891,6 +901,7 @@ if (!offlineInteractive) {
   // resolve updateComplete until connection, and keyboard registration needs that input.
   narrowing.mount();
   await panelComposer.mount();
+  pageCommentCard.mount(chromeRoot);
   selectionComposer.mount();
   responseSurface.mount();
   holdToRead();

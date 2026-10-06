@@ -23,10 +23,10 @@ merge: yolo
 setup:
   - uses: astral-sh/setup-uv@v7
   - run: uv sync --frozen
-  - name: Install Chromium headless shell and WebKit
-    run: uv run playwright install --with-deps chromium webkit --only-shell
-  - name: Launch both browsers
-    run: 'uv run python -c "from playwright.sync_api import sync_playwright; p = sync_playwright().start(); p.chromium.launch().close(); p.webkit.launch().close(); p.stop()"'
+  - name: Install Chromium headless shell, WebKit and Firefox
+    run: uv run playwright install --with-deps chromium webkit firefox --only-shell
+  - name: Launch all browsers
+    run: 'uv run python -c "from playwright.sync_api import sync_playwright; p = sync_playwright().start(); p.chromium.launch().close(); p.webkit.launch().close(); p.firefox.launch().close(); p.stop()"'
   # The `tend` environment's Cloudflare token reads every Worker's logs and
   # Analytics Engine events on the account and cannot change a Worker or a
   # zone (`worker/README.md`). Tend's proxy injects GitHub and harness

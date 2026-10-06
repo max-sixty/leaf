@@ -226,9 +226,19 @@ export function createAuxiliarySurfaces({
     };
   }
 
+  // What the page can seat the user in changes with what stands over it: a surface
+  // opening, closing, arriving, or its edge or the window moving. One reading a frame,
+  // since a drag or a resize syncs on every event.
+  let reachQueued = false;
   function sync() {
     const selected = controllers.get(selectedKey);
     cover(selected && selected !== arriving && selected.covers() ? selected : null);
+    if (reachQueued) return;
+    reachQueued = true;
+    nextRender(() => {
+      reachQueued = false;
+      reachChanged();
+    });
   }
 
   function select(
@@ -260,8 +270,6 @@ export function createAuxiliarySurfaces({
     sync();
     syncLayout();
     afterChange();
-    // What the page can seat the user in changed with what stands over it.
-    reachChanged();
     if (remember) userStore.set(AUXILIARY_SURFACE_KEY, key ?? "");
   }
 

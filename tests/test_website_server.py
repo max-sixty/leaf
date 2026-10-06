@@ -5243,6 +5243,7 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
             "asks": 1,
             "sinceAdmissionMs": {
                 "titled": 2250.0,
+                "progress": None,
                 "published": 12000.0,
                 "replied": 12500.0,
             },

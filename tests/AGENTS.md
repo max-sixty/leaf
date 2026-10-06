@@ -19,7 +19,8 @@ Each helper's docstring owns its contract, and code cites sections here by headi
 Message delivery has one shared journey in `leaf_dev.thread_journey`, whose held
 checkpoints supply the appearance gate in `test_render_thread_snapshots.py`.
 `leaf_dev.thread_snapshots` owns capture, review and acceptance; reviewed PNG images and
-geometry live in `max-sixty/leaf-assets`, governed by `leaf-assets.json`. Run evidence
+geometry live in `max-sixty/leaf-assets`, governed by `leaf-assets.json`'s independent
+`thread_snapshots_revision`, advanced only by acceptance. Run evidence
 stays in `.tmp/`.
 
 Linux browser tests use `tests/fonts.conf` and `fonts-dejavu` for their native

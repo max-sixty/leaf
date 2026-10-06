@@ -118,9 +118,12 @@ jobs:
         run: npm ci --prefix evals && npm test --prefix evals
 
       # Cheap gates fail before the complete Python suite spends its runner time.
+      # The runner's four vCPUs sat ~41% idle under two workers; four left 7% idle
+      # but slowed each test 1.3–1.46×, so three take the idle share without
+      # saturating the deadlines browser tests wait under.
       - name: 🧪 Python tests
         run: >-
-          uv run pytest tests -v --junitxml=.tmp/test-results/results.xml
+          uv run pytest tests -n 3 -v --junitxml=.tmp/test-results/results.xml
           ${{ github.event_name == 'pull_request' && '--nightly-changed-since HEAD^1' || '--run-nightly' }}
 
       - name: Build website

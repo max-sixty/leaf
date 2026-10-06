@@ -95,9 +95,9 @@ the covered originals, write the summary, and keep outcomes in the document.
 
 ## Delivery and acknowledgement
 
-Printing and hook completion are not receipt. Once every batch is in context,
-follow the envelope's `acknowledge` instruction. A reader-confirmed hook names
-`leaf delivery ack <id>`; a direct wait names the harness's next wait:
+Printing is not receipt. Once every batch of a printed delivery is in context,
+follow the envelope's `acknowledge` instruction, which names the harness's next
+wait:
 
 ```bash
 leaf wait --ack <delivery-id>
@@ -114,8 +114,9 @@ full log without acking it.
 
 Receipt and work have separate evidence. Confirming a direct delivery records its
 moves as **Picked up** in the current turn. Other harnesses record that opening when
-they observe the delivery entering a turn. Leaf derives overall page activity from
-that evidence. Starting the move with `leaf task start <page> <event-id>`
+they observe the delivery entering a turn: as a hook hands it over, as the agent
+reads a pointer with `leaf delivery read`, or as a turn Leaf started begins. Leaf
+derives overall page activity from that evidence. Starting the move with `leaf task start <page> <event-id>`
 ([conversation handoff](conversation-loop.md#when-to-write)) strengthens its
 receipt to **Working** while it remains outstanding. That neither acknowledges the
 delivery nor answers the move.

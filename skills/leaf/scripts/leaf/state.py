@@ -94,7 +94,7 @@ def flocked(path: Path, *, deadline: float | None = None):
     never let it enter a transaction on an inode other takers can no longer find.
     This also covers a page replaced with a new event log.
 
-    A `deadline`, a `time.monotonic()` reading, bounds the wait: a lock still held
+    A `deadline`, a `time.monotonic()` reading, bounds the wait: a lock not taken
     by then raises TimeoutError, for a taker that must finish by a harness's
     deadline more than it must take the lock."""
     require_cross_process_locking()
@@ -111,18 +111,18 @@ def flocked(path: Path, *, deadline: float | None = None):
 
 
 def acquire(f, path: Path, deadline: float | None) -> None:
-    """Take `f`'s exclusive lock, waiting no later than `deadline` where one is
-    given (`flocked`)."""
+    """Take `f`'s exclusive lock before `deadline` where one is given
+    (`flocked`); a deadline already past takes no lock at all."""
     if deadline is None:
         fcntl.flock(f, fcntl.LOCK_EX)
         return
     while True:
+        if time.monotonic() >= deadline:
+            raise TimeoutError(f"{path} could not be acquired before the deadline")
         try:
             fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
             return
         except BlockingIOError:
-            if time.monotonic() >= deadline:
-                raise TimeoutError(f"{path} was still locked at the deadline") from None
             time.sleep(0.01)
 
 

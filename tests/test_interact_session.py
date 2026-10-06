@@ -17447,6 +17447,12 @@ def test_a_hook_waits_on_no_receipt_lock_past_its_deadline(
     assert events_model.read_cursor(claimed) > 0
     assert events_model.read_cursor(sibling) == 0
     assert not any(e["kind"] == "pickup" for e in events_model.read_events(sibling))
+    # Past the deadline even a free lock is not taken, so nothing is confirmed late.
+    with (
+        pytest.raises(TimeoutError),
+        service_model.PageTransaction(sibling, deadline=time.monotonic()),
+    ):
+        pass
 
 
 def test_a_hook_too_slow_to_confirm_hands_over_a_pointer(claimed, monkeypatch, capsys):

@@ -15,8 +15,9 @@ The envelope names the carrier that brings it into an agent's context, and the
 two facts that differ by carrier are stated once for the whole delivery rather
 than per event. `acknowledge` says who confirms receipt: the reader of a `leaf
 wait`, in the way its harness runs that command, or nobody, where the carrier
-confirmed it itself. A hook names the reader's confirmation route where its
-harness cannot establish receipt; Codex's pointer read establishes it directly.
+confirmed it itself. A hook confirms what it hands over inline, and the agent's
+`leaf delivery read` confirms a pointer a hook offered, Claude Code's, Pi's or
+Codex's.
 A carrier whose turn speaks for the delivery, App Server,
 turns the one thread reply the delivery owes into a `turn` answer, which that
 turn's own messages write; every other carrier leaves it a `reply` for `leaf thread
@@ -357,10 +358,16 @@ def read_delivery(delivery_id: str) -> dict:
 
 
 def cmd_delivery_read(delivery_id: str) -> None:
+    """Print one envelope, confirming it where reading is its receipt: a hook's
+    pointer for the session reading it, or a Codex task's offered pointer."""
     from .codex_state import accept_codex_delivery_read
 
     payload = read_delivery(delivery_id)
-    accept_codex_delivery_read(delivery_id)
+    if payload["carrier"] == "hook":
+        if (harness := session_harness()) is not None:
+            receive_held(payload, harness.session)
+    else:
+        accept_codex_delivery_read(delivery_id)
     print(json.dumps(payload, indent=2, ensure_ascii=False))
 
 
@@ -439,7 +446,11 @@ def receive_batch(
     """
     # The page is already locked; keep lifecycle admission valid through pickup
     # and cursor commit. SessionEnd cannot cross between those writes.
-    with flocked(session_lock_path(session_id)) if session_id else nullcontext():
+    with (
+        flocked(session_lock_path(session_id), deadline=page.deadline)
+        if session_id
+        else nullcontext()
+    ):
         claim = page.active_claim
         if (claim["id"] if claim else None) != session_id:
             raise ReceiptRefused(f"delivery no longer owns its page: {page.page_dir}")
@@ -476,11 +487,33 @@ def receive(payload: dict, session_id: str | None) -> list[Path]:
     return pages
 
 
-def receive_one(batch: dict, session_id: str | None) -> Path:
+def receive_held(
+    payload: dict, session_id: str, *, deadline: float | None = None
+) -> list[Path]:
+    """Confirm each batch of a delivery its carrier handed to `session_id`'s open
+    turn, where the session still holds the batch's page.
+
+    The carrier has already handed the delivery over, so a page that changed hands
+    or went, or a turn that ended, refuses only its own batch: that input stays
+    pending, and a later delivery carries it. So does a batch whose locks are still
+    held at `deadline`, for a carrier that must exit by then for its handover to
+    stand."""
+    pages = []
+    for batch in payload["batches"]:
+        try:
+            pages.append(receive_one(batch, session_id, deadline=deadline))
+        except (FileNotFoundError, ReceiptRefused, TimeoutError):
+            continue
+    return pages
+
+
+def receive_one(
+    batch: dict, session_id: str | None, *, deadline: float | None = None
+) -> Path:
     """Confirm one consumer-read batch under its current page ownership."""
     page_dir = Path(batch["page"])
     with (
-        PageTransaction(page_dir) as page,
+        PageTransaction(page_dir, deadline=deadline) as page,
         receive_batch(page, batch, session_id=session_id) as events,
     ):
         turn = None
@@ -499,7 +532,7 @@ def pending_batches(session_id: str) -> list[dict]:
     """Every page's pending input for a session whose hooks carry it, one batch
     per page, captured under that page's transaction and not yet confirmed.
 
-    Receipt is a separate step, taken when the reader confirms those batches:
+    Receipt is a separate step, taken once those batches are handed over:
     it rechecks ownership and the captured events, and anything appended between
     the two readings stays pending, above the cursor it advances."""
     batches = []

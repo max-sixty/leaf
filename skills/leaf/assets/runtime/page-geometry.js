@@ -5,9 +5,10 @@
  * imports the thread presenter to request a refresh.
  *
  * `pageShifted` runs on every scroll event, so each capability it calls writes only
- * what changed (keeps.js). Target paint stands in the document plane
- * (`pagePlaneRect`), where the compositor carries it through a root scroll, so its
- * shifted callback moves only what a nested scroller moved.
+ * what changed (keeps.js). Target paint stands in the planes of what carries its target
+ * (target-paint-geometry.js, `paintStand`), where the browser moves it with every
+ * scroll, so its shifted callback finds nothing to write unless the scroll changed what
+ * the paint stands over.
  */
 
 import { cancelRender, nextRender } from "./rendering.js";

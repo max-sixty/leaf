@@ -22,9 +22,8 @@ from contextlib import redirect_stdout
 from pathlib import Path
 
 import click
-from leaf.delivery import freeze_delivery, pending_batches, receive_delivery
+from leaf.delivery import freeze_delivery, pending_batches, receive_held
 from leaf.harness import session_harness
-from leaf.hook_carrier import hook_acknowledgement
 from leaf.hosting import claim_and_start, cmd_stop
 from leaf.projection import folded_positions
 from leaf.publishing import cmd_stamp
@@ -237,12 +236,8 @@ class DemoWaiter:
         if not stdout.strip():
             payload = {}
         elif hooked:
-            payload = freeze_delivery(
-                pending_batches(harness.session),
-                carrier="hook",
-                acknowledge=hook_acknowledgement,
-            )
-            receive_delivery(payload["id"])
+            payload = freeze_delivery(pending_batches(harness.session), carrier="hook")
+            receive_held(payload, harness.session)
         else:
             payload = json.loads(stdout)
         batches = payload.get("batches", [])

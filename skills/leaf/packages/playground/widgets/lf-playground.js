@@ -122,13 +122,10 @@ customElements.define(
     #interactive = false;
     #regions = [];
     #unregister = [];
-    #stop = null;
 
     connectedCallback() {
       if (!once(this)) {
         this.#registerRegions();
-        if (this.#interactive)
-          this.#stop ??= this.#controller.subscribe(() => this.#paintAvailability());
         this.#paintAvailability();
         return;
       }
@@ -138,7 +135,7 @@ customElements.define(
         // Built, so the height the page reserved for it lifts (x-height).
         this.classList.add("lf-rendered");
         if (this.#interactive)
-          this.#stop ??= this.#controller.subscribe(() => this.#paintAvailability());
+          this.#controller.subscribe(() => this.#paintAvailability());
       } catch (error) {
         this.#unregisterRegions();
         failSoft(this, error);
@@ -146,8 +143,6 @@ customElements.define(
     }
 
     disconnectedCallback() {
-      this.#stop?.();
-      this.#stop = null;
       this.#unregisterRegions();
     }
 

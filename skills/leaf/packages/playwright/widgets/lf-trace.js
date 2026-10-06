@@ -91,7 +91,6 @@ customElements.define(
     #page = null;
     #selected = null;
     #intermediates = false;
-    #stop = null;
     #stopReading = null;
     #keys = null;
     #parts = null;
@@ -101,7 +100,8 @@ customElements.define(
     #nodes = new Map();
 
     connectedCallback() {
-      if (once(this)) this.#build();
+      const firstConnection = once(this);
+      if (firstConnection) this.#build();
       if (!quoted(this))
         this.#keys ??= commands(this, "In a Playwright recording", [
           {
@@ -133,12 +133,10 @@ customElements.define(
         host: this,
         body: this.body,
       });
-      this.#stop ??= watchData(this, "trace", (snapshot) => this.#show(snapshot));
+      if (firstConnection) watchData(this, "trace", (snapshot) => this.#show(snapshot));
     }
 
     disconnectedCallback() {
-      this.#stop?.();
-      this.#stop = null;
       this.#stopReading?.();
       this.#stopReading = null;
       // Element command scopes leave with their element; reconnect keeps the declaration.

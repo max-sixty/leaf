@@ -12,6 +12,7 @@
  * clears this widget's file filter; addressed datum reveal also hydrates its file. */
 import {
   DISCLOSE,
+  HOLDS_WORD,
   announce,
   beginWalk,
   dataBody,
@@ -22,6 +23,7 @@ import {
   holdFocus,
   inChrome,
   inBaseLayer,
+  isPagePaint,
   commands,
   keeps,
   keepsText,
@@ -43,6 +45,7 @@ import {
   notice,
   widgetController,
   watchData,
+  watchOwner,
 } from "/runtime/widget-api.js";
 import "../vendor/webawesome.esm.js";
 // Only a diff that is actually rendering has any use for Pierre's renderer —
@@ -214,8 +217,12 @@ function summaryNode(file, open) {
   const details = document.createElement("details");
   details.className = "lf-diff-fold";
   details.open = open;
+  // The row's path gives way from its folders, and its title reaches only a pointer
+  // resting on it, so the row says the whole path while the keyboard stands on it or a
+  // press is held on it (held-word.js, shadow.css). It says `data-path`: the path with a
+  // zero-width space after each slash, since generated content takes no <wbr>.
   const summary = document.createElement("summary");
-  summary.className = "lf-diff-head";
+  summary.className = `lf-diff-head ${HOLDS_WORD}`;
   const path = file.name || "(unnamed file)";
   const { adds, dels } = changeCounts(file);
   const stat = Object.assign(document.createElement("span"), {
@@ -223,7 +230,9 @@ function summaryNode(file, open) {
     textContent: `+${adds} −${dels}`,
   });
   stat.dataset.lfGen = "1";
-  summary.append(pathNode("lf-diff-path", path), stat);
+  const named = pathNode("lf-diff-path", path);
+  named.dataset.path = path.replaceAll("/", "/\u200b");
+  summary.append(named, stat);
   commands(summary, "On a diff", [
     {
       id: "diff.toggle",
@@ -337,8 +346,10 @@ function replaceFileContent(entry, rendered, pairs, outlets) {
     next.comment = previous.comment;
   }
   if (pre && nextPre) {
+    // The fresh render's attributes, and whatever the runtime painted on the kept box,
+    // which a fresh render never carries (a scroller's marks, reach.js).
     for (const { name } of [...pre.attributes])
-      if (!nextPre.hasAttribute(name)) pre.removeAttribute(name);
+      if (!nextPre.hasAttribute(name) && !isPagePaint(name)) pre.removeAttribute(name);
     for (const { name, value } of nextPre.attributes) keeps(pre, name, value);
     setChildren(
       pre,
@@ -651,7 +662,17 @@ customElements.define(
 
     connectedCallback() {
       this.addEventListener("lf-reveal", this.revealPassage);
-      if (once(this)) this.controller.subscribe(this.paintReviewAvailability);
+      const firstConnection = once(this);
+      if (firstConnection) {
+        this.controller.subscribe(this.paintReviewAvailability);
+        watchOwner(this, {
+          disconnect: () => {
+            this.rendering = (this.rendering ?? 0) + 1;
+            this.manifestEntries = null;
+            this.manifestSnapshot = null;
+          },
+        });
+      }
       if (!this.threadSurface)
         this.threadSurface = placeThreads(this, (targets) => {
           this.beginThreadSurface();
@@ -659,7 +680,6 @@ customElements.define(
           this.endThreadSurface();
           return outlets;
         });
-      if (this.stopWatching) return;
       // A page diff's file header pins at `--lf-top`, the top of the page's box that
       // scrolls it; one an agent sent in a reply scrolls inside the panel's own list,
       // which declares no such edge. The theme cannot ask that question from inside a shadow tree, so
@@ -785,20 +805,16 @@ customElements.define(
         this.present(this.render(this.inlineSource));
         return;
       }
-      this.stopWatching = watchData(this, "document", (snapshot) => {
-        const rendering = this.render(snapshot?.value ?? null, snapshot);
-        this.sourceRendering = rendering;
-        return rendering;
-      });
+      if (firstConnection)
+        watchData(this, "document", (snapshot) => {
+          const rendering = this.render(snapshot?.value ?? null, snapshot);
+          this.sourceRendering = rendering;
+          return rendering;
+        });
     }
 
     disconnectedCallback() {
       this.removeEventListener("lf-reveal", this.revealPassage);
-      this.rendering = (this.rendering ?? 0) + 1;
-      this.stopWatching?.();
-      this.stopWatching = null;
-      this.manifestEntries = null;
-      this.manifestSnapshot = null;
       this.threadSurface?.unregister();
       this.threadSurface = null;
       this.threadOutlets = null;

@@ -742,6 +742,33 @@ def test_reading_inside_a_long_thread_keeps_its_title_and_reply_row_on_the_lists
     assert edges["bottom"] - 20 < edges["reply"] <= edges["bottom"], edges
     assert edges["atTop"] and edges["atBottom"], edges
     assert edges["through"] == [], edges
+    # What the user is reading stops at both pinned rows: the runtime's reading of what
+    # is on screen, which read acknowledgement takes, leaves out the band under each
+    # (geometry.js), so a turn half under Reply has not been seen there.
+    seen = card.evaluate(
+        """async card => {
+          const {seenRect} = await window.__lfRuntimeImport('/runtime/geometry.js');
+          const title = card.querySelector(':scope > .lf-thread-summary')
+            .getBoundingClientRect();
+          const reply = card.querySelector(':scope > .lf-thread-reply')
+            .getBoundingClientRect();
+          const turns = [...card.querySelectorAll('.lf-msg')];
+          const across = (edge) => turns.find((turn) => {
+            const box = turn.getBoundingClientRect();
+            return box.top < edge && box.bottom > edge;
+          });
+          const under = across(reply.top), over = across(title.bottom);
+          return {
+            reply: reply.top, title: title.bottom,
+            under: under && seenRect(under, new Map())?.bottom,
+            over: over && seenRect(over, new Map())?.top,
+          };
+        }"""
+    )
+    assert seen["under"] is not None, seen
+    assert seen["under"] <= seen["reply"] + 0.5, seen
+    if seen["over"] is not None:
+        assert seen["over"] >= seen["title"] - 0.5, seen
     # An open reaction list hangs below its trigger in the top layer, and goes once the
     # trigger leaves the list, so scrolling its message up under the title still leaves
     # the title whole.
@@ -1512,8 +1539,9 @@ def test_a_news_resolved_card_keeps_its_place_after_an_offscreen_draft_is_cleare
 
     The reader returns to the retained card and explicitly reopens its conversation
     to recover the saved draft. Another agent settlement keeps that actual editing
-    session. Clearing its words keeps that empty editor active; Escape ends editing
-    while the news-retained card stays put.
+    session. Clearing its words keeps that empty editor active; Escape ends editing,
+    a move within the thread, so the card holds the settlement behind its notice until
+    the user presses it, and stays put.
     """
     url = serve(LONG_PAGE, comments=16)
     first, second = [
@@ -1583,6 +1611,9 @@ def test_a_news_resolved_card_keeps_its_place_after_an_offscreen_draft_is_cleare
     expect(reply).to_have_js_property("value", "")
     assert after.bounding_box() == stood
     page.keyboard.press("Escape")
+    rendered(page)
+    expect(reply).to_be_visible()
+    card.get_by_role("button", name="Resolved", exact=True).click()
     rendered(page)
     expect(reply).to_have_count(0)
     expect(card).to_be_visible()
@@ -1733,15 +1764,15 @@ def test_resolved_thread_has_one_surface_and_reopens_from_its_title(
 
 @pytest.mark.parametrize("width", [320, 800])
 @pytest.mark.parametrize("scheme", ["light", "dark"])
-def test_a_thread_keeps_submit_in_its_field_and_resolve_above_its_messages(
+def test_a_thread_keeps_submit_in_its_field_and_resolve_beside_its_header(
     browser, serve, width, scheme
 ):
-    """Submit belongs to the field while Resolve has its own thread control row.
+    """Submit belongs to the field while Resolve shares the first message's line.
 
     Growing the field leaves Submit at its foot and Resolve fixed. The field
     puts its words on the messages' reading edge, and keeps their inset as the
     field grows and scrolls, leaving room for Submit in the same row.
-    Resolve stays above the transcript while each message keeps its author and time.
+    Resolve stays beside the first header while each message keeps its author and time.
     The same layout holds at narrow and wide panel widths in both palettes."""
     context = browser.new_context(
         viewport={"width": width, "height": 720}, color_scheme=scheme
@@ -1792,7 +1823,6 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_above_its_messages(
                                    height: own.height, right: own.right, bottom: own.bottom},
                           compose: rect('.lf-thread-reply'), field: rect('.lf-compose-field'),
                           field_box: rect('.lf-thread-reply leaf-text'),
-                          controls: rect('.lf-thread-controls'),
                           metadataActions: rect('.lf-thread-meta-actions'),
                           send: rect('.lf-thread-send'), resolve: rect('.lf-resolve'),
                           closeBorder: getComputedStyle(document.querySelector(
@@ -1837,7 +1867,7 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_above_its_messages(
     assert short["send"]["bottom"] < short["field_box"]["bottom"]
     assert short["textEnd"] <= short["send"]["x"]
     assert short["field"]["height"] < 50
-    assert short["resolve"]["y"] == pytest.approx(short["controls"]["y"], abs=1)
+    assert short["resolve"]["y"] == pytest.approx(short["header"]["y"], abs=1)
     assert short["metadataActions"]["right"] == pytest.approx(
         short["message"]["right"], abs=1
     )
@@ -1845,8 +1875,7 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_above_its_messages(
         short["metadataActions"]["right"], abs=1
     )
     assert short["author"]["x"] == pytest.approx(short["message"]["x"], abs=1)
-    assert short["resolve"]["bottom"] <= short["controls"]["bottom"] + 1
-    assert short["controls"]["bottom"] <= short["header"]["y"]
+    assert short["header"]["right"] <= short["resolve"]["x"]
     assert float(short["closeBorder"][:-2]) == 0
     assert float(short["resolveBorder"][:-2]) == 0
     assert float(short["sendBorder"][:-2]) == 0
@@ -2185,7 +2214,8 @@ def test_a_refused_approval_says_why_to_the_keyboard_and_the_finger(browser, ser
     expect(approval).to_have_attribute("aria-disabled", "true")
     expect(approval).to_have_attribute("aria-description", reason)
     expect(approval).to_be_disabled()
-    page.locator(".lf-threads-toggle").focus()
+    # On the desk row Approval stands just before Comment on the page.
+    page.locator(".lf-page-comment").focus()
     page.keyboard.press("Shift+Tab")
     expect(approval).to_be_focused()
     before = events_model.read_events(serve.page_dir)
@@ -2196,7 +2226,9 @@ def test_a_refused_approval_says_why_to_the_keyboard_and_the_finger(browser, ser
 
 
 def test_the_banner_reads_in_one_order_at_every_width(browser, serve, other_leaf):
-    """The fixed menu and primary row keep one reading order at every width."""
+    """The fixed menu and primary row keep one reading order at every desk width, and
+    a phone reads the same order with Approval and Comment on the page, which stand
+    before Threads on a desk, moved to the head of More."""
     html = SUGGESTION_PAGE.replace(
         "<title>suggestions</title>",
         '<title>suggestions</title>\n<meta name="lf-review" content="sign-off">',
@@ -2215,6 +2247,11 @@ def test_the_banner_reads_in_one_order_at_every_width(browser, serve, other_leaf
     for width in (1440, 860, 800, 390):
         resized(page, width, 900)
         orders[width] = page.evaluate(BANNER_ORDER)
+    phone = orders.pop(390)
+    moved = ["Approve version", "Comment on the page"]
+    assert phone[: len(moved)] == moved, phone
+    rest = phone[len(moved) :]
+    assert rest[:-1] + moved + rest[-1:] == orders[800], (phone, orders[800])
 
     first = {}
     for width, order in orders.items():
@@ -2318,11 +2355,14 @@ def test_approval_capability_changes_keep_banner_targets(
         told(page)
         expect(page).to_have_title(title)
         rendered(page)
+        # A phone seats Approval at the head of More rather than on the row.
+        seat = ".lf-banner-actions" if width > 480 else ".lf-banner-menu"
         if present:
-            expect(page.locator(".lf-signoff")).to_be_visible()
-            expect(
-                page.get_by_role("button", name="Approve version", exact=True)
-            ).to_be_visible()
+            expect(page.locator(f"{seat} > .lf-signoff")).to_have_count(1)
+            if width > 480:
+                expect(
+                    page.get_by_role("button", name="Approve version", exact=True)
+                ).to_be_visible()
         else:
             expect(page.locator(".lf-signoff")).to_be_hidden()
         after = boxes()
@@ -2382,6 +2422,12 @@ def test_notices_stay_at_the_visible_pages_right_edge(browser, serve):
           const {notice} = await window.__lfRuntimeImport('/runtime/notifications.js');
           notice('Update recorded');
         }""")
+        if width <= 480 and not panel_open:
+            # A phone's banner says it in its status words, where the page is live; a
+            # covering panel leaves the banner under its scrim, so it stays at the foot.
+            expect(page.locator(".lf-banner .lf-status-notice")).to_be_visible()
+            expect(page.locator(".lf-bottom-status")).to_be_hidden()
+            continue
         expect(notice).to_be_visible()
         geometry = page.locator(".lf-bottom-status").evaluate("""status => {
           const box = status.getBoundingClientRect();

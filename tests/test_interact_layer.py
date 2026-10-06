@@ -1272,6 +1272,26 @@ def test_the_chrome_restates_no_rule_a_page_side_sheet_already_makes():
     )
 
 
+def _complex_arms(selector):
+    """The complex selectors a selector matches by: itself, or, where the whole of it is
+    one :is()/:where(), each of that list's arms, since Chrome matches each arm on its
+    own and a `:has()` inside one stands before that arm's last combinator."""
+    selector = selector.strip()
+    opening = re.match(r":(?:is|where)\(", selector)
+    close, depth = None, 0
+    if opening:
+        for at in range(opening.end() - 1, len(selector)):
+            depth += {"(": 1, ")": -1}.get(selector[at], 0)
+            if not depth:
+                close = at
+                break
+    if close != len(selector) - 1:
+        yield selector
+        return
+    for arm in _split_top(selector[opening.end() : close], ","):
+        yield from _complex_arms(arm)
+
+
 def _names_a_feature(compound):
     """Whether a compound names a class, id, attribute, or type, directly or in every
     arm of an :is()/:where(). `:not()` and pseudo-classes name nothing Chrome can key on."""
@@ -1313,17 +1333,24 @@ def test_no_has_rule_restyles_the_whole_document():
     read = 0
     unkeyed = []
     for sheet in sheets:
-        for _conditions, _enclosing, selector, _declarations in _style_rules(sheet):
-            compounds = _split_top(selector, " >+~")
-            if not any(":has(" in compound for compound in compounds[:-1]):
-                continue
-            read += 1
-            if not _names_a_feature(compounds[-1]):
-                unkeyed.append(
-                    f"{sheet.relative_to(schema_model.ASSETS.parent)}: {selector}"
-                )
+        for _conditions, _enclosing, rule_selector, _declarations in _style_rules(
+            sheet
+        ):
+            for selector in _complex_arms(rule_selector):
+                compounds = _split_top(selector, " >+~")
+                if not any(":has(" in compound for compound in compounds[:-1]):
+                    continue
+                read += 1
+                if not _names_a_feature(compounds[-1]):
+                    unkeyed.append(
+                        f"{sheet.relative_to(schema_model.ASSETS.parent)}: {selector}"
+                    )
     assert read, "no non-subject :has() read from the layer — the reading is broken"
     assert _names_a_feature(":is(.a, lf-b)") and not _names_a_feature(":not(.a)")
+    assert list(_complex_arms(":is(.a:has(.b) > :not(.c), .d *)")) == [
+        ".a:has(.b) > :not(.c)",
+        ".d *",
+    ]
     assert not unkeyed, (
         "a :has() rule whose target names nothing restyles the whole document:\n"
         + "\n".join(unkeyed)
@@ -2517,6 +2544,36 @@ def test_init_merges_registry_layers_by_complete_entry(tmp_path, monkeypatch):
     assert registry["lf-local"] == project_entry
     assert registry["lf-project-only"] == project_only
     assert "lf-options" in registry and "$events" in registry
+
+
+def test_an_idiom_declares_only_a_mark_the_document_paints(tmp_path, monkeypatch):
+    """An idiom declares the room it takes as an element does (x-space), which delivery
+    paints on every element the idiom's selector matches. A mark other code reads by
+    tag would be half kept, a value its key does not admit paints nothing the theme
+    reads, and a selector delivery cannot match stops every route that serves the
+    page, so a layer declaring any of them is refused at init."""
+    monkeypatch.chdir(tmp_path)
+    layer = tmp_path / ".leaf"
+    layer.mkdir()
+
+    def init(selector, declaration, page):
+        (layer / "registry.json").write_text(
+            json.dumps({"$idioms": {selector: {"description": "d", **declaration}}})
+        )
+        return CliRunner().invoke(
+            cli_model.cli,
+            ["page", "init", "--package", "./.leaf", str(tmp_path / page)],
+        )
+
+    assert init(".hazard", {"x-space": "column"}, "room").exit_code == 0
+    for selector, declaration, page in (
+        (".hazard", {"x-inline": True}, "inline"),
+        (".hazard", {"x-space": "huge"}, "huge"),
+        (".hazard::before", {"x-space": "column"}, "pseudo"),
+    ):
+        result = init(selector, declaration, page)
+        assert result.exit_code != 0
+        assert f"$idioms {selector!r} declares" in result.output
 
 
 def test_init_merges_dollar_entries_by_member(tmp_path, monkeypatch):

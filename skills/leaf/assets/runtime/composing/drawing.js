@@ -19,10 +19,11 @@
  * as parked. Where a draft's element stands is read once (`targetOf`) for its ink, its
  * strokes and its undo; a draft whose element a revision took away is drawn parked in
  * the section that held it, where the element stood in it (the record's `at`), still
- * undoable and removable from its box, rather than vanishing again. `z` or ⌘Z in Draw mode takes back the last stroke drawn; a composer's ⌘Z,
- * while strokes are its draft's latest change, and its own control take back its own
- * drawing's. Taking back the last stroke removes the drawing, as the composer's removal
- * does at once.
+ * undoable and removable from its box, rather than vanishing again. `z` or ⌘Z in Draw
+ * mode takes back the last stroke drawn, and a composer's own control its own drawing's;
+ * in the composer, ⌘Z and ⌘⇧Z walk the draft's strokes and words as one history
+ * (`input.js`). Taking back the last stroke removes the drawing, as the composer's
+ * removal does at once.
  *
  * The controller owns pointer capture, stroke sampling, mode state and stroke undo. SVG
  * replay, anchor placement, composers, reactions, and page geometry enter through

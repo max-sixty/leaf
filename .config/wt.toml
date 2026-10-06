@@ -84,6 +84,9 @@ chromium = "uv run --frozen playwright install chromium --only-shell"
 webkit = "uv run --frozen playwright install webkit"
 
 [[aliases.setup]]
+firefox = "uv run --frozen playwright install firefox"
+
+[[aliases.setup]]
 chrome = "uv run --frozen playwright install chrome"
 
 # The root install carries the browser framework's build and the esbuild the Python suite

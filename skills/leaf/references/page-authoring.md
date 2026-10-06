@@ -174,11 +174,14 @@ Two arrange a box's children, on `main` or on any block:
 | `layout-tiles` | equal cells, as many to a row as fit |
 
 On `main`, every class but `layout-column` makes a wide page: every block, the title
-included, starts at one left edge and takes the page's width, and text keeps the
-reading measure. A wide, sidebar or tiles page is capped at the widest page and
-sets its title larger; a workspace takes the whole window and leaves its title to the
-theme. `layout-column` on a block keeps the measure but gives it no
-room to break out into, since that room is the page's.
+included, starts at one left edge and takes the page's width, while text keeps the
+reading measure, as do an Ask, a callout and a widget read as text, such as an option
+list or a draft. Give an Ask or a callout `data-width` where it holds a chart, a table,
+a playground or another surface that needs more room ("Bounds and widths"). A wide,
+sidebar or tiles page is capped at the widest page and sets its title larger; a
+workspace takes the whole window and leaves its title to the theme. `layout-column` on
+a block keeps the measure but gives it no room to break out into, since that room is
+the page's.
 
 A Layout is a starting point. The page's own `<style>` comes after it in the cascade, so
 an ordinary rule adjusts it — a different track share, a gap, an order — and a page
@@ -189,8 +192,8 @@ the widths and wrapping every page needs.
 ### A wide page
 
 When the regions are the page rather than exhibits in an argument — a board with its
-status, a release dashboard, a queue sorted into buckets, a long review whose contents
-and verdict stay beside the code — widen the page itself. `<main class="layout-wide">`
+status, a release dashboard, a long review whose contents and verdict stay beside the
+code — widen the page itself. `<main class="layout-wide">`
 holds one flow at the page's width. `<main class="layout-sidebar">` sets what the reader
 works through beside what they keep an eye on — status, counts, the verdict's
 follow-ups, the contents — which is the Layout's `aside`, with the page's `header` above
@@ -272,7 +275,9 @@ decide, is one `lf-tabs list="side"` as the body: its list is the queue and each
 `lf-tab`, so one opens beside the list and a link or an Ask opens its own, and a row
 whose item's Asks are all answered shows a check, with the picked answer beside it
 where the item holds one Ask. Write no script to select, hide or mark an item; the tab
-set does all three.
+set does all three. Where the items fall into kinds the user works through in turn,
+such as merge, close and FYI, give each `lf-tab` its kind as `group` and keep each
+kind's items together: the list sets each run under a heading of its group.
 
 The page itself does not scroll; a region does, where what it holds runs past it. Each
 pane's body scrolls on its own, and a widget that fills the body, such as a playground's
@@ -300,15 +305,17 @@ check` advises against one.
 
 An individual block or section may request a responsive allocation with
 `data-width="column"`, `data-width="wide"`, or `data-width="available"`. `column`
-uses the standard prose measure, including inside a wider section. `wide` uses the
-shared evidence width, `--wide`, in every Layout: past a column it grows to that
-width, and in a wider track or pane it holds to it at the track's start. A narrower
-frame still bounds it. `available` uses all room left by the page shell, frames,
-chrome, and a margin resident that takes its side, such as a sidebar standing in the
-margin or the contents map's spine; the markers beside it then stand as pins on it, and
-it moves below a note hanging level with it. The occurrence overrides a
-widget's package default, so `data-width="column"` can deliberately keep a normally wide
-widget with the prose.
+keeps the prose measure and starts where the prose does, including inside a wider
+section or on a wide page. `wide` uses the shared evidence width, `--wide`, in every
+Layout: past a column it grows to that width, and in a wider track or pane it holds
+to it at the track's start. A narrower frame still bounds it. `available` uses all
+room left by the page shell, frames, chrome, and a margin resident that takes its side,
+such as a sidebar standing in the margin or the contents map's spine; the markers beside
+it then stand as pins on it, and it moves below a note hanging level with it. The
+occurrence overrides a widget's or idiom's default, so `data-width="column"` can
+deliberately keep a normally wide widget with the prose. An Ask or a callout keeps the
+column; give it the width its chart, table or playground needs, and in a wider flow it
+also widens to a block of its own that declares one.
 Use these names on the semantic block itself, including a native `table`, `lf-code`, or
 `lf-diff`; do not reproduce their responsive widths in page CSS.
 
@@ -743,7 +750,7 @@ on the user (an open Ask, a thread whose question is theirs, or a move to send a
 while the complete page remains visible.
 
 Without a way to inspect the rendered page, read `leaf page state <page>`'s
-`state` and `asks` alongside the active HTML to review the words, evidence, and
+`state` and `tasks` alongside the active HTML to review the words, evidence, and
 available choices. Report the render command's result separately from the visual
 and keyboard review you could not perform. If the command cannot launch a browser,
 it says so and goes on: report the render check as unfinished, and, where it also

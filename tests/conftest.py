@@ -13,7 +13,7 @@ from typing import NamedTuple
 
 import psutil
 import pytest
-from leaf import codex_adapter as codex_adapter_model
+from leaf import codex as codex_model
 from leaf import harness as harness_model
 from leaf import leases as leases_model
 from leaf import machine as machine_model
@@ -320,17 +320,18 @@ HOOKED_SESSIONS = (f"pytest-{os.getpid()}", "s1")
 
 
 @pytest.fixture(scope="session", autouse=True)
-def failing_claude(tmp_path_factory):
-    """Put a `claude` that fails at once ahead of the developer's own on PATH, for
-    the rest of the run, before any fixture starts a server. A Claude Code page
-    server asks `claude` to name each thread a user opens (`thread_titles`), from a
-    thread that can outlive the test that posted the comment, so no teardown may
-    restore the real one under it; a test about titling puts its own `claude`
+def failing_harness_programs(tmp_path_factory):
+    """Put a `claude` and a `codex` that fail at once ahead of the developer's own on
+    PATH, for the rest of the run, before any fixture starts a server. A page server
+    asks the claimant's harness to name each thread a user opens (`thread_titles`),
+    from a thread that can outlive the test that posted the comment, so no teardown
+    may restore the real ones under it; a test about titling puts its own program
     first."""
     programs = tmp_path_factory.mktemp("harness-programs")
-    claude = programs / "claude"
-    claude.write_text("#!/bin/sh\nexit 1\n")
-    claude.chmod(0o755)
+    for name in ("claude", "codex"):
+        program = programs / name
+        program.write_text("#!/bin/sh\nexit 1\n")
+        program.chmod(0o755)
     os.environ["PATH"] = f"{programs}{os.pathsep}{os.environ['PATH']}"
 
 
@@ -362,7 +363,7 @@ def isolated_session(tmp_path_factory, monkeypatch):
     (tests/AGENTS.md, "A process the suite starts ends with the run")."""
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path_factory.mktemp("state")))
     monkeypatch.setenv("CODEX_HOME", str(tmp_path_factory.mktemp("codex")))
-    monkeypatch.delenv(codex_adapter_model.APP_SERVER_ENV, raising=False)
+    monkeypatch.delenv(codex_model.APP_SERVER_ENV, raising=False)
     for name in harness_model.IDENTITY_VARIABLES:
         monkeypatch.delenv(name, raising=False)
     # Claude Code's session registry, where a live turn is read
@@ -501,6 +502,19 @@ def browser(_browser, request):
     finally:
         for context in reversed(_browser.contexts):
             context.close()
+
+
+@pytest.fixture
+def firefox_browser(_playwright, request):
+    """Desktop Firefox, including its compositor's inherited-colour painting."""
+    from render_harness import WatchedBrowser, clean_browser
+
+    firefox = _playwright.firefox.launch()
+    try:
+        with clean_browser(request.node):
+            yield WatchedBrowser(firefox)
+    finally:
+        firefox.close()
 
 
 @pytest.fixture

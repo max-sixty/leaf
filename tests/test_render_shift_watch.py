@@ -15,6 +15,7 @@ from render_harness import (
     open_page,
     panel_settled,
     resized,
+    scroll_settled,
     take_browser_errors,
 )
 
@@ -62,6 +63,49 @@ def test_typing_may_grow_its_field(browser):
     page = field_page(browser, "grow")
     page.locator("#field").fill("a")
     judge_watches()
+
+
+@pytest.mark.parametrize(
+    "compensate,holder",
+    [(True, "inert"), (False, "inert"), (True, "region"), (True, "painted")],
+)
+def test_typing_protects_subjects_through_a_coordinate_carrier_rebase(
+    browser, compensate, holder
+):
+    """Carrier coordinates are disposable; controls and declared regions are not."""
+    page = browser.new_page()
+    declared = 'data-lf-reflow="controls"' if holder == "region" else ""
+    background = (
+        "background:white;border:1px solid black;box-shadow:0 1px 3px #888"
+        if holder == "painted"
+        else ""
+    )
+    page.goto(
+        "data:text/html,"
+        + quote(f"""<!doctype html><body style="margin:0">
+<div id="carrier" {declared} style="position:relative;width:300px;height:100px;{background}">
+  <div id="inside" style="position:relative"><textarea id="field" rows="1"></textarea></div>
+</div><script>
+  field.addEventListener('beforeinput', () => {{
+    carrier.style.left = '20px';
+    inside.style.left = '{-20 if compensate else 0}px';
+  }});
+</script></body>""")
+    )
+    paint(page)
+    read = """() => Object.fromEntries(['carrier','field'].map(id =>
+      [id, document.getElementById(id).getBoundingClientRect().x]))"""
+    before = page.evaluate(read)
+    page.locator("#field").fill("a")
+    paint(page)
+    after = page.evaluate(read)
+    assert after["carrier"] - before["carrier"] == 20
+    assert after["field"] - before["field"] == (0 if compensate else 20)
+    judge_watches()
+    if not compensate:
+        consume_browser_errors(page, "typing in textarea#field moved textarea#field")
+    elif holder != "inert":
+        consume_browser_errors(page, "typing in textarea#field moved div#carrier")
 
 
 @pytest.mark.parametrize("distance", [6, 40])
@@ -2471,3 +2515,112 @@ def test_owned_native_finish_records_the_applied_endpoint(browser, fault, fill):
         assert all("moved without input" in error for error in errors), errors
     else:
         assert not errors, errors
+
+
+@pytest.mark.parametrize(
+    "case",
+    ["root", "scaled", "fixed-both", "sticky", "fixed-fault", "clamp", "clamp-fault"],
+)
+def test_observed_attachment_credits_only_the_measured_scroll_placement(
+    browser, serve, case
+):
+    """Fixed/sticky constraints and solver clamps retain only their solved movement.
+
+    A physical reference does not always travel by its ancestry's entire scroll.
+    Matching that scroll with an extra holder move must still fail.
+    """
+    style = {
+        "scaled": "transform:scale(2);transform-origin:top left;",
+        "fixed-both": "position:fixed;top:180px;left:100px;",
+        "fixed-fault": "position:fixed;top:180px;left:100px;",
+        "sticky": "position:sticky;top:170px;",
+    }.get(case, "")
+    source = leaf_page(
+        "Observed reference scroll",
+        '<div style="height:180px"></div><p id="subject" style="margin:0;height:130px;overflow:auto;width:350px;'
+        + style
+        + '">First line<br>'
+        + "More words<br>" * 50
+        + "</p>"
+        '<div id="holder" style="visibility:hidden;position:fixed;width:200px;height:60px">'
+        '<textarea id="field" style="width:160px;height:30px"></textarea></div>'
+        '<div style="height:1800px"></div>',
+        layout=None,
+    )
+    page = open_page(
+        browser,
+        serve(source),
+        init_script="""const supports = CSS.supports.bind(CSS);
+          CSS.supports = (property, value) => property === 'anchor-name' ? false : supports(property, value);
+          delete window.ViewTimeline; delete window.ScrollTimeline;""",
+    )
+    resized(page, 1200, 700)
+    if case.startswith("clamp"):
+        offset = page.evaluate(
+            """() => {
+              const offset = subject.getBoundingClientRect().top + scrollY - 12;
+              scrollTo(0, offset);
+              return offset;
+            }"""
+        )
+        page.wait_for_function("offset => scrollY === offset", arg=offset)
+        scroll_settled(page)
+    if case == "sticky":
+        page.locator("#subject").evaluate(
+            "node => node.style.top = `${node.getBoundingClientRect().top - 10}px`"
+        )
+    page.evaluate(
+        """async clamp => {
+      const module = await window.__lfRuntimeImport('/runtime/annotation-overlay/floating.js');
+      const ui = await module.floatingUi();
+      const subject = document.querySelector('#subject'), holder = document.querySelector('#holder');
+      const range = document.createRange(); range.selectNodeContents(subject.firstChild);
+      const reference = {contextElement:subject, contextNode:subject.firstChild,
+        getBoundingClientRect:()=>range.getBoundingClientRect()};
+      const owner = module.floatingPlacement({floating:holder, update:()=>void place()});
+      async function place() {
+        owner.begin();
+        const answer = await owner.position(ui.computePosition, reference,
+          {placement:'right-start',middleware:clamp ? [ui.shift({crossAxis:true,padding:0})] : []},
+          ()=>'page', subject);
+        if (answer) owner.stand(answer);
+      }
+      owner.watch(subject,reference,ui.autoUpdate);
+      await place();
+      holder.style.removeProperty('visibility');
+    }""",
+        case.startswith("clamp"),
+    )
+    expect(page.locator("#holder")).to_have_attribute("data-lf-plane", "window")
+    paint(page)
+    judge_watches()
+    before = page.locator("#field").bounding_box()
+    holder_before = page.locator("#holder").bounding_box()
+    if case.startswith("clamp"):
+        assert 0 < holder_before["y"] < 30
+    scroll = page.evaluate(
+        """([scenario, extra]) => {
+      const before = {root:scrollY, inner:subject.scrollTop};
+      if (scenario !== 'scaled') scrollBy(0,30);
+      if (scenario === 'scaled' || scenario === 'fixed-both') subject.scrollBy(0,30);
+      if (scenario.endsWith('fault')) holder.style.marginTop = `${-extra}px`;
+      return before;
+    }""",
+        [case, 30 - holder_before["y"] if case == "clamp-fault" else 30],
+    )
+    if case != "scaled":
+        page.wait_for_function("offset => scrollY === offset", arg=scroll["root"] + 30)
+    if case in {"scaled", "fixed-both"}:
+        expect(page.locator("#subject")).to_have_js_property(
+            "scrollTop", scroll["inner"] + 30
+        )
+    scroll_settled(page, "#subject" if case in {"scaled", "fixed-both"} else None)
+    rendered(page)
+    paint(page)
+    judge_watches()
+    delta = {"scaled": -60, "sticky": -10, "clamp": -holder_before["y"]}.get(case, -30)
+    assert page.locator("#field").bounding_box()["y"] == pytest.approx(
+        before["y"] + delta, abs=1
+    )
+    if case.endswith("fault"):
+        consume_browser_errors(page, "textarea#field moved without input")

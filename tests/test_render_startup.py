@@ -504,7 +504,7 @@ def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
 
 @pytest.mark.parametrize(
     ("width", "has_touch", "banner_height"),
-    [(390, True, 89), (740, True, 89), (800, False, 42), (1724, False, 42)],
+    [(390, True, 53), (740, True, 89), (800, False, 42), (1724, False, 42)],
 )
 def test_authored_html_paints_while_runtime_startup_is_held(
     browser, serve, width, has_touch, banner_height
@@ -3141,10 +3141,11 @@ def test_the_help_overlay_answers_to_one_owner(browser, serve):
     expect(
         page.locator(".lf-command-reference", has_text="Edit the text in place")
     ).to_be_visible()
-    # Help is a scope: the table stands down behind it, so c must not work the
-    # panel under the sheet.
+    # Help is a scope: the table stands down behind it, so c must open nothing under
+    # the sheet, neither Threads nor the page comment card.
     page.keyboard.press("c")
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
+    expect(page.locator(".lf-page-comment-card")).to_be_hidden()
     expect(page.locator(".lf-command-reference")).to_be_visible()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-command-reference")).to_be_hidden()
@@ -3169,7 +3170,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     text, dot = page.locator(".lf-status-detail"), page.locator(".lf-banner .lf-dot")
     summary = page.locator(".lf-status-text")
     UNHELD = (
-        "No session holds this page. 2 updates are saved."
+        "No session holds this page. 2 moves are saved."
         " It picks up again when a session does."
     )
 
@@ -3243,7 +3244,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     expect(page.locator(".lf-status-queues")).to_have_text("2 on Claude")
     expect(text).to_have_text(
         re.compile(
-            r"^Claude is working — revising the plan \(.+\)\. 1 update waiting\."
+            r"^Claude is working — revising the plan \(.+\)\. 1 move waiting\."
             r" Waiting on Claude: 1 reply, 1 task \(Work on the page\)\.$"
         )
     )
@@ -3265,23 +3266,23 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     expect(text).to_have_text(
         re.compile(
             r"^Claude is working — revising the plan \(.+\)\. "
-            r"1 update queued\. Waiting on Claude: 1 reply, 1 task \(Work on the page\)\.$"
+            r"1 move queued\. Waiting on Claude: 1 reply, 1 task \(Work on the page\)\.$"
         )
     )
     expect(dot).to_have_class(re.compile(r"\bworking\b"))
 
     # Picked up into the claimant's open turn before the agent has said anything: the
-    # page is working, and the row names what the turn holds rather than a bare
+    # page is working, and the row names what the turn picked up rather than a bare
     # "working", while the disclosure says the agent's own words are still to come.
     with service_model.PageTransaction(d) as transaction:
         delivery_model.record_pickup(
             transaction, [first_comment], phase="opened", session="s", turn="turn-1"
         )
     declare("waiting", "your read on the plan")
-    expect(summary).to_have_text("Claude working — on your update")
+    expect(summary).to_have_text("Claude working — picked up your comment")
     expect(text).to_have_text(
         re.compile(
-            r"^Claude is working on your update, and hasn't said what it is doing yet"
+            r"^Claude picked up your comment and hasn't said what it's doing yet"
         )
     )
     expect(dot).to_have_class(re.compile(r"\bworking\b"))
@@ -3307,7 +3308,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         expect(text).to_have_text(
             re.compile(
                 r"^Claude is working — revising the plan \(.+\)\. "
-                r"1 update waiting\. Waiting on Claude: 1 reply, 1 task \(Work on the page\)\.$"
+                r"1 move waiting\. Waiting on Claude: 1 reply, 1 task \(Work on the page\)\.$"
             )
         )
         expect(dot).to_have_class(re.compile(r"\bworking\b"))
@@ -3326,7 +3327,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         expect(text).to_have_text(
             re.compile(
                 r"^Claude is using a tool — revising the plan \(.+\) · "
-                r"Running the tests\. 1 update waiting\. Waiting on Claude: 1 reply, 1 task \(Work on the page\)\.$"
+                r"Running the tests\. 1 move waiting\. Waiting on Claude: 1 reply, 1 task \(Work on the page\)\.$"
             )
         )
         expect(dot).to_have_class(re.compile(r"\bworking\b"))
@@ -3349,7 +3350,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         # remedy — nobody needs to touch a terminal for a comment to reach a live wait.
         declare("working", "revising the plan", quiet_for=20 * 60)
         expect(text).to_have_text(
-            "Claude last checked in 20m ago: revising the plan. 1 update is saved."
+            "Claude last checked in 20m ago: revising the plan. 1 move is saved."
             " Waiting on Claude: 1 reply, 1 task (Work on the page)."
         )
         expect(dot).to_have_class(re.compile(r"\baway\b"))
@@ -3366,7 +3367,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         declare("working", "revising the plan", quiet_for=6 * 60, turn_ended=5 * 60)
         expect(text).to_have_text(
             "Claude left this when its turn ended 5m ago: revising the plan."
-            " 1 update is saved. Waiting on Claude: 1 reply, 1 task (Work on the page)."
+            " 1 move is saved. Waiting on Claude: 1 reply, 1 task (Work on the page)."
         )
         expect(dot).to_have_class(re.compile(r"\baway\b"))
 
@@ -3379,7 +3380,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         declare("working", "revising the plan", quiet_for=5 * 60, turn_ended=5 * 60)
         expect(text).to_have_text(
             "Claude left this when its turn ended 5m ago: revising the plan."
-            " 1 update is saved. Waiting on Claude: 1 reply, 1 task (Work on the page)."
+            " 1 move is saved. Waiting on Claude: 1 reply, 1 task (Work on the page)."
         )
 
         # A turn that has only just ended still holds it. An agent that ends its turn
@@ -3402,19 +3403,19 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         # clipped, and a narrow window must not be why the decision goes unread.
         declare("waiting", "pick a storage engine")
         expect(text).to_have_text(
-            "Claude is listening — pick a storage engine. 1 update waiting."
+            "Claude is listening — pick a storage engine. 1 move waiting."
             " Waiting on Claude: 1 reply."
         )
         expect(page.locator(".lf-status-button")).to_have_attribute(
             "title",
-            "Claude is listening — pick a storage engine. 1 update waiting."
+            "Claude is listening — pick a storage engine. 1 move waiting."
             " Waiting on Claude: 1 reply.",
         )
 
     # No watcher, but Claude checked in moments ago, so it is between turns.
     declare("waiting")
     expect(text).to_have_text(
-        "Claude isn't watching right now. 1 update is saved."
+        "Claude isn't watching right now. 1 move is saved."
         " It picks them up next turn. Waiting on Claude: 1 reply."
     )
 
@@ -3425,7 +3426,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     # message was sent it as it arrived.
     declare("working", "running the migration", quiet_for=6 * 60, turn_ended=5 * 60)
     expect(text).to_have_text(
-        "Claude isn't watching right now. 1 update is saved."
+        "Claude isn't watching right now. 1 move is saved."
         " It picks them up next turn. Waiting on Claude: 1 reply, 1 task (Work on the page)."
     )
     expect(dot).to_have_class(re.compile(r"\baway\b"))
@@ -3445,7 +3446,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     )
     declare("working", "running the migration", quiet_for=6 * 60, turn_ended=5 * 60)
     expect(text).to_have_text(
-        "Claude left this when its turn ended 5m ago. 2 updates are saved."
+        "Claude left this when its turn ended 5m ago. 2 moves are saved."
         " Nothing is answering them, so nudge it in the terminal."
         " Waiting on Claude: 2 replies, 1 task (Work on the page)."
     )
@@ -3544,7 +3545,8 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     d = serve.page_dir
     comments = [e for e in events_model.read_events(d) if e["kind"] == "comment"]
     held, other = comments[0]["id"], comments[1]["id"]
-    page.keyboard.press("c")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+T")
     expect(page.locator(".lf-thread-panel")).to_be_visible()
     workflows = page.locator(".lf-msg-sending")
     held_thread = page.locator(f'.lf-thread[data-id="{held}"]')
@@ -3585,12 +3587,12 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     expect(held_workflow).to_have_attribute("data-identity-probe", "kept")
     expect(other_workflow).to_have_text("Sent")
     expect(page.locator(".lf-status-detail")).to_have_text(
-        "Claude is working on your update, and hasn't said what it is doing yet"
-        " (just now). 1 update waiting. Waiting on Claude: 2 replies, 1 task"
+        "Claude picked up your comment and hasn't said what it's doing yet"
+        " (just now). 1 move waiting. Waiting on Claude: 2 replies, 1 task"
         " (Work on the page)."
     )
     expect(page.locator(".lf-others-self .lf-others-line")).to_have_text(
-        "Working · 1 update waiting"
+        "Working · 1 move waiting"
     )
 
     # The agent finishes the earlier task and waits on the user.
@@ -3602,8 +3604,8 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     told(page)
     expect(held_workflow).to_have_text("Picked up")
     expect(page.locator(".lf-status-detail")).to_have_text(
-        "Claude is working on your update, and hasn't said what it is doing yet"
-        " (just now). 1 update waiting. Waiting on Claude: 2 replies."
+        "Claude picked up your comment and hasn't said what it's doing yet"
+        " (just now). 1 move waiting. Waiting on Claude: 2 replies."
     )
 
     with service_model.PageTransaction(d) as transaction:
@@ -3617,7 +3619,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     # The turn ended with both updates still the agent's to answer, so they are overdue
     # and the remedy is the user's.
     expect(page.locator(".lf-status-detail")).to_have_text(
-        "Claude last checked in just now. 2 updates are saved. "
+        "Claude last checked in just now. 2 moves are saved. "
         "Nothing is answering them, so nudge it in the terminal."
         " Waiting on Claude: 2 replies."
     )
@@ -3808,7 +3810,7 @@ def test_feature_gallery_workflow_and_banner_share_agent_activity(browser, serve
     expect(workflow).to_have_text("Picked up")
     expect(page.locator(".lf-status-detail")).to_have_text(
         re.compile(
-            r"^Claude is working on your update, and hasn't said what it is doing yet"
+            r"^Claude picked up your comment and hasn't said what it's doing yet"
             r" \(just now\)\. Waiting on you"
         )
     )
@@ -3897,7 +3899,8 @@ def test_a_message_workflow_changes_phase_in_place_and_then_stands_still(
     )
     record_claim(d)
     page = open_page(browser, url)
-    page.keyboard.press("c")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+T")
     thread = page.locator(f'.lf-thread[data-id="{comment["id"]}"]')
     workflow = thread.locator(
         f'.lf-msg[data-mid="{comment["id"]}"] > .lf-msg-head .lf-msg-sending'
@@ -3983,7 +3986,8 @@ def test_an_exact_workflow_reports_stale_work_beside_a_live_page_claim(
     page = open_page(browser, serve(LONG_PAGE, anchored=[("p1", "Paragraph 1.")]))
     d = serve.page_dir
     held = next(e for e in events_model.read_events(d) if e["kind"] == "comment")["id"]
-    page.keyboard.press("c")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+T")
     expect(page.locator(".lf-thread-panel")).to_be_visible()
     work_line = page.locator(
         f'.lf-thread[data-id="{held}"] .lf-msg[data-mid="{held}"] > .lf-msg-head .lf-msg-sending'
@@ -4663,15 +4667,15 @@ customElements.define('lf-test-surface', class extends HTMLElement {
     # completion edge before checking that the digit produced no stale send.
     page.keyboard.press("1")
     page.keyboard.press("c")
-    expect(page.locator(".lf-general leaf-text")).to_be_focused()
+    expect(page.locator(".lf-page-comment-card leaf-text")).to_be_focused()
     round_trip(page)
     assert not [
         event
         for event in events_model.read_events(serve.page_dir)
         if event.get("token")
     ]
-    page.keyboard.press("Escape")  # out of the box, onto the list
-    page.keyboard.press("Escape")  # and out of the panel that holds it
+    page.keyboard.press("Escape")  # out of the page comment card
+    expect(page.locator(".lf-page-comment-card")).to_be_hidden()
     expect(page.locator(".lf-thread-panel")).not_to_have_class(re.compile(r"\bopen\b"))
     # A retired thread lands on the surface the user's own gesture reaches. With the
     # widget still on the page its passages keep a page-local destination, so each datum
@@ -5255,6 +5259,150 @@ def test_data_subscriptions_use_own_keys_and_failed_mounts_leave_no_listener(
     }
 
 
+def test_projection_subscriptions_follow_their_owner_and_cancel_queued_reads(
+    browser, serve
+):
+    """Retiring a queued read cannot revive it or its clock subscription."""
+    page = open_page(browser, serve(SUGGESTION_PAGE))
+    result = page.evaluate(
+        """async () => {
+          const {watchProjection} = await window.__lfRuntimeImport('/runtime/projection-watch.js');
+          const {clockValue, tickClock} = await window.__lfRuntimeImport('/runtime/presence.js');
+          const owner = document.createElement('div');
+          document.body.append(owner);
+          const changed = action => new Promise(resolve => {
+            const observer = new MutationObserver(() => {
+              observer.disconnect();
+              resolve();
+            });
+            observer.observe(document.body, {childList: true, subtree: true});
+            action();
+          });
+          let clock = 0;
+          let cancelled = 0;
+          const cancel = watchProjection(owner, () => {
+            cancelled += 1;
+            clockValue(() => clock);
+          });
+          cancel();
+          await Promise.resolve();
+          clock += 1;
+          await tickClock(message => { throw new Error(message); });
+          let calls = 0;
+          const stop = watchProjection(owner, () => {
+            calls += 1;
+            clockValue(() => clock);
+          });
+          await Promise.resolve();
+          const initial = calls;
+          await changed(() => { owner.remove(); document.body.append(owner); });
+          const moved = calls;
+          await changed(() => owner.remove());
+          clock += 1;
+          await tickClock(message => { throw new Error(message); });
+          const detached = calls;
+          await changed(() => document.body.append(owner));
+          await Promise.resolve();
+          const resumed = calls;
+          stop();
+          await changed(() => owner.remove());
+          await changed(() => document.body.append(owner));
+          clock += 1;
+          await tickClock(message => { throw new Error(message); });
+          owner.remove();
+          return {cancelled, initial, moved, detached, resumed, stopped: calls};
+        }"""
+    )
+    assert result == {
+        "cancelled": 0,
+        "initial": 1,
+        "moved": 1,
+        "detached": 1,
+        "resumed": 2,
+        "stopped": 2,
+    }
+
+
+def test_data_subscriptions_follow_their_owner_and_stop_permanently(browser, serve):
+    """Detachment releases data/clock work; reattachment restores the newest reading.
+
+    A move in one mutation batch retains the original subscription. Removing an owner
+    with an in-flight render also releases its presentation, so readiness can settle
+    without waiting for a renderer whose owner is absent.
+    """
+    page = open_page(browser, data_projection_page(serve))
+    result = page.evaluate(
+        """async () => {
+          const {watchData, clockValue} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const {acceptData, notifyDataSubscribers} = await window.__lfRuntimeImport('/runtime/data.js');
+          const {tickClock} = await window.__lfRuntimeImport('/runtime/presence.js');
+          const {runtime} = await window.__lfRuntimeImport('/runtime/context.js');
+          const widget = document.querySelector('lf-feed');
+          const home = widget.parentElement;
+          const changed = action => new Promise(resolve => {
+            const observer = new MutationObserver(() => {
+              observer.disconnect();
+              resolve();
+            });
+            observer.observe(document.body, {childList: true, subtree: true});
+            action();
+          });
+          const deliveries = [];
+          let clock = 0;
+          let release;
+          const stop = watchData(widget, 'rows', snapshot => {
+            clockValue(() => clock);
+            deliveries.push(snapshot?.revision ?? null);
+            if (snapshot?.revision === 'held-owner')
+              return new Promise(resolve => { release = resolve; });
+          });
+          const initial = deliveries.length;
+          await changed(() => document.body.append(widget));
+          const moved = deliveries.length;
+          await changed(() => widget.remove());
+          clock += 1;
+          await tickClock(message => { throw new Error(message); });
+          const detached = deliveries.length;
+          await changed(() => home.append(widget));
+          const resumed = deliveries.length;
+          const next = structuredClone(runtime.data);
+          next.version = 'held-owner-version';
+          next.sources.deployments.revision = 'held-owner';
+          acceptData(next, runtime.state.taken);
+          const pending = notifyDataSubscribers();
+          const held = deliveries.at(-1);
+          await changed(() => widget.remove());
+          await pending;
+          release();
+          const newest = structuredClone(runtime.data);
+          newest.version = 'newest-owner-version';
+          newest.sources.deployments.revision = 'newest-owner';
+          acceptData(newest, runtime.state.taken);
+          await notifyDataSubscribers();
+          const absent = deliveries.length;
+          await changed(() => home.append(widget));
+          const restored = deliveries.at(-1);
+          stop();
+          await changed(() => widget.remove());
+          await changed(() => home.append(widget));
+          clock += 1;
+          await tickClock(message => { throw new Error(message); });
+          return {initial, moved, detached, resumed, held, absent, restored,
+            stopped: deliveries.length};
+        }"""
+    )
+    assert result == {
+        "initial": 1,
+        "moved": 1,
+        "detached": 1,
+        "resumed": 2,
+        "held": "held-owner",
+        "absent": 3,
+        "restored": "newest-owner",
+        "stopped": 4,
+    }
+
+
 def test_an_async_projection_keeps_the_provenance_of_its_rendered_snapshot(
     browser, serve
 ):
@@ -5776,7 +5924,6 @@ def _hold_required_thread_panel(page):
       handle=app.registerThreadPanel({controller,threadsBox:elements.threadsBox,required:true,view:{
         narrowing,panelIsOpen:()=>true,scrollToElement:()=>{},setThreadCounts:()=>{},onListChanged:()=>{},
         refreshAnchorHover:()=>{},travel:{showThread:()=>{},retainPanelLanding:()=>{},retainNarrowing:()=>{}}}});
-      controller.mountThreadList(()=>true);
       await app.refreshThread();
     }""")
 
@@ -6256,11 +6403,12 @@ def test_user_view_context_waits_for_a_samples_viewport_allocation(browser, serv
             frame.style.setProperty(property, '0px', 'important');
         }"""
     )
+    # Zero width is the state that stays: the sample sizes its frame to its content, so
+    # one frame later a zero-wide document stands as tall as its words wrapped one per
+    # line. Either axis at zero is unallocated (user-view.js).
     frame.wait_for_function(
         """() => window.frameElement.isConnected &&
-          document.documentElement.clientWidth === 0 &&
-          document.documentElement.clientHeight === 0 &&
-          visualViewport.width === 0 && visualViewport.height === 0"""
+          document.documentElement.clientWidth === 0 && visualViewport.width === 0"""
     )
     # Cover the observer's 10-second heartbeat and 300ms resize quiet interval.
     page.wait_for_timeout(11_000)

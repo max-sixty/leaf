@@ -6,21 +6,30 @@
    at each scroller's edge cannot be anchored, since an anchor outside a box's
    containing block cannot position it. A motion layer is a box translated by a scroll
    driven animation instead, one layer per axis a scroller scrolls along, so the
-   browser moves it in the frame that scrolls and no script answers the scroll. Nested
-   layers compose in that same frame; two effects added on one node compose a frame
-   late.
+   browser moves it with the scroll and no script answers the scroll. Nested layers
+   compose in the same frame as one another; two effects added on one node compose a
+   frame late. Chrome can still paint a layer a frame before or after the scrolled
+   content it carries, which it never does to an anchor that scroll carries, so a
+   surface uses a layer only where no anchor reaches the scroll.
+
+   Sticky and fixed ancestry cannot be represented by a linear scroll trajectory,
+   and a scroller used as its own subject supplies no visibility interval. Such
+   attachments use their existing observed placement path before paint.
 
    Each animation runs on a ViewTimeline of a `subject` the scroller holds: the box the
    layer's contents stand over, or the next scroller in. Its progress runs over the
-   scrolls that carry the subject across the scroller's view, `reach` beyond its edges,
+   scrolls that carry the subject across the scroller's view, `reach` viewport pixels beyond its edges,
    a range that depends on where the subject stands and how large it and the view are.
    A ScrollTimeline's runs over the scroller's whole reach, which content growing
    anywhere in the scroller changes with no scroll and no layout event the placement
    hears, leaving the layer off by as much. Outside the range the layer stops, with
-   the subject out of view. Two cases keep the ScrollTimeline and that dependence: words
-   standing in the scroller itself, with no box between, and an axis the scroller
-   starts at its far end (right to left, a vertical writing mode, a reversed flex box),
-   where Chrome measures a ViewTimeline's range from the wrong end.
+   the subject out of view. An axis that starts at its far end uses a ScrollTimeline
+   instead (right to left, a vertical writing mode, a reversed flex box),
+   where Chrome measures a ViewTimeline's range from the wrong end. Those animations
+   declare pixel ranges from the subject's visible interval, so their displacement
+   remains independent of unrelated overflow growth. A virtual reference supplies
+   its measured rectangle and contextElement when words scroll inside their own
+   physical context; it uses the same pixel-range trajectory.
 
    `scrollMotions` reads the axes a scroller carries a subject along, and
    `followScroll` animates a layer along one of them. `origin` is the scroll offset at
@@ -29,11 +38,36 @@
    scroller's start, which a later scroll does not change, so placing them again
    writes nothing. */
 import { scrollAxes } from "./geometry.js";
-import { upFrom } from "./shadow.js";
+import { renderedParent } from "./shadow.js";
 
-export const scrollFollows = () => typeof window.ViewTimeline === "function";
+// Timelines express displacement linear in scroll, while sticky and fixed boxes
+// have browser-owned positional constraints. Those attachments keep their observed
+// placement path; the capability belongs here, rather than in each consumer.
+export function scrollFollows(subject = null, source = null) {
+  if (subject && subject === source) return false;
+  if (
+    typeof window.ViewTimeline !== "function" ||
+    typeof window.ScrollTimeline !== "function"
+  )
+    return false;
+  const box = subject?.contextElement ?? subject;
+  for (let at = box; at instanceof Element; at = renderedParent(at))
+    if (/^(sticky|fixed)$/.test(getComputedStyle(at).position)) return false;
+  return true;
+}
 
-const scrollContainer = (box) =>
+// Geometry and its scroll origins are one reading, retained across module loads and
+// asynchronous solving. The overflow owner selects the sources it needs from this
+// reading; capturing ancestors here does not choose which boxes are scrollports.
+export function scrollOrigins(contexts) {
+  const origins = new Map();
+  for (const context of contexts)
+    for (let at = context; at; at = renderedParent(at))
+      if (at instanceof Element) origins.set(at, { x: at.scrollLeft, y: at.scrollTop });
+  return origins;
+}
+
+export const scrollContainer = (box) =>
   box === box.ownerDocument.scrollingElement ||
   /auto|scroll|hidden/.test(
     `${getComputedStyle(box).overflowX} ${getComputedStyle(box).overflowY}`,
@@ -66,8 +100,10 @@ function startsAtFar(source, axis) {
 // The box `subject` stands in that generates one: a timeline of a box that draws none
 // (`display: contents`) has no scroller. The scroller itself where none lies between.
 function carried(subject, source) {
+  if (!(subject instanceof Element)) return subject;
   let box = subject;
-  while (box && box !== source && !box.getClientRects().length) box = upFrom(box);
+  while (box && box !== source && !box.getClientRects().length)
+    box = renderedParent(box);
   return box ?? source;
 }
 
@@ -78,32 +114,41 @@ function carried(subject, source) {
 // measures distance from its start. A subject the scroller does not carry, one
 // positioned outside it, has none. Without scroll timelines each axis is listed with
 // none to follow, so a caller sees what it must place again on each scroll instead.
-export function scrollMotions(source, subject, reach = 0) {
+// An `origin` from the subject's geometry reading also fixes a virtual subject's
+// visible interval to that reading rather than a later dependency continuation.
+export function scrollMotions(source, subject, reach = 0, origin = null) {
   if (!scrollContainer(source)) return [];
   const axes = scrollAxes(source);
   const holder = carried(subject, source);
   const motions = [];
   for (const [axis, scroll, extent] of [
-    ["x", source.scrollLeft, source.scrollWidth - source.clientWidth],
-    ["y", source.scrollTop, source.scrollHeight - source.clientHeight],
+    ["x", origin?.x ?? source.scrollLeft, source.scrollWidth - source.clientWidth],
+    ["y", origin?.y ?? source.scrollTop, source.scrollHeight - source.clientHeight],
   ]) {
     if (!(extent > 0)) continue;
-    if (!scrollFollows()) {
+    if (!scrollFollows(holder, source)) {
       motions.push({ source, subject: holder, axis, scroll, vector: axes[axis] });
       continue;
     }
     const sign = startsAtFar(source, axis) ? -1 : 1;
-    const whole = holder === source || sign < 0;
+    const whole = sign < 0 || !(holder instanceof Element);
     const timeline = whole
       ? new window.ScrollTimeline({ source, axis })
       : new window.ViewTimeline({
           subject: holder,
           axis,
-          inset: [CSS.px(-reach), CSS.px(-reach)],
+          inset: [
+            CSS.px(-reach / Math.hypot(axes[axis].x, axes[axis].y)),
+            CSS.px(-reach / Math.hypot(axes[axis].x, axes[axis].y)),
+          ],
         });
     if (timeline.source !== source) continue;
+    // A reversed source's ScrollTimeline still measures its growing whole extent.
+    // Fix the animation's range in physical scroll pixels, over precisely the
+    // interval where this subject can intersect the viewport. Growing unrelated
+    // overflow then changes neither displacement nor the attachment's interval.
     const [start, end] = whole
-      ? [0, extent]
+      ? visibleRange(source, holder, axes, axis, scroll, reach, sign)
       : [timeline.startOffset.value, timeline.endOffset.value];
     motions.push({
       source,
@@ -114,9 +159,42 @@ export function scrollMotions(source, subject, reach = 0) {
       to: sign * end,
       vector: axes[axis],
       timeline,
+      whole,
     });
   }
   return motions;
+}
+
+function visibleRange(source, subject, axes, axis, scroll, reach, sign) {
+  const project = ({ left, top, right, bottom }) => {
+    // Invert both transformed scroll axes, so sideways scrolling cannot change
+    // this axis's interval even when a skew makes those directions nonorthogonal.
+    const determinant = axes.x.x * axes.y.y - axes.x.y * axes.y.x;
+    const points = [
+      [left, top],
+      [right, top],
+      [left, bottom],
+      [right, bottom],
+    ].map(([x, y]) =>
+      axis === "x"
+        ? (x * axes.y.y - y * axes.y.x) / determinant
+        : (y * axes.x.x - x * axes.x.y) / determinant,
+    );
+    return [Math.min(...points), Math.max(...points)];
+  };
+  const view = source.getBoundingClientRect();
+  const [near, far] = project({
+    left: view.left - reach,
+    top: view.top - reach,
+    right: view.right + reach,
+    bottom: view.bottom + reach,
+  });
+  const [first, last] = project(subject.getBoundingClientRect());
+  const from = scroll + first - far;
+  const to = scroll + last - near;
+  return sign < 0
+    ? [Math.max(0, -to), Math.max(0, -from)]
+    : [Math.max(0, from), Math.max(0, to)];
 }
 
 // Where the scrolls of `motions` have carried a point from where it stood at their
@@ -130,13 +208,49 @@ export const scrolledBy = (motions) =>
     { x: 0, y: 0 },
   );
 
-export function followScroll(layer, { from, to, vector, timeline }, origin) {
+export function followScroll(
+  layer,
+  { from, to, vector, timeline, whole },
+  origin,
+  previous = null,
+) {
   const value = (offset) =>
     `translate(${(origin - offset) * vector.x}px, ${(origin - offset) * vector.y}px)`;
-  return layer.animate([{ transform: value(from) }, { transform: value(to) }], {
+  // A source with no overflow has an inactive timeline. Its zero-scroll position
+  // remains the underlying placement, including an attachment measured mid-scroll.
+  layer.style.transform = value(0);
+  const frames = [{ transform: value(from) }, { transform: value(to) }];
+  const timing = {
     timeline,
     duration: "auto",
     fill: "both",
     composite: "replace",
-  });
+    ...(whole
+      ? { rangeStart: `${Math.abs(from)}px`, rangeEnd: `${Math.abs(to)}px` }
+      : {}),
+  };
+  const before = previous?.timeline;
+  if (
+    previous?.effect.target === layer &&
+    before.constructor === timeline.constructor &&
+    before.source === timeline.source &&
+    before.axis === timeline.axis &&
+    (whole ||
+      (before.subject === timeline.subject &&
+        before.startOffset.value === timeline.startOffset.value &&
+        before.endOffset.value === timeline.endOffset.value))
+  ) {
+    // An already sampled timeline owns the first frame too. Updating its effect
+    // retains that sample; replacing it would expose the zero-scroll underlying
+    // placement for one frame while the new animation awaits its first sample.
+    previous.effect.setKeyframes(frames);
+    previous.effect.updateTiming({ duration: "auto", fill: "both" });
+    if (whole) {
+      previous.rangeStart = timing.rangeStart;
+      previous.rangeEnd = timing.rangeEnd;
+    }
+    return previous;
+  }
+  previous?.cancel();
+  return layer.animate(frames, timing);
 }

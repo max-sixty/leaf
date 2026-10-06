@@ -1,6 +1,9 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 const path = require("node:path");
+const fs = require("node:fs");
+const os = require("node:os");
+const { spawnSync } = require("node:child_process");
 const { assertions } = require("promptfoo");
 
 // Fixtures use Promptfoo 0.123.1 native provider metadata: these are tool
@@ -82,6 +85,8 @@ test("shell evidence requires a completed successful read of the requested refer
     "cat /staged/leaf/references/page-authoring.md",
     "/bin/zsh -lc 'sed -n \"1,120p\" /staged/leaf/references/page-authoring.md'",
     "cd /staged/leaf && head -100 references/page-authoring.md",
+    "/bin/sh -lc 'cat references/page-authoring.md'",
+    "/bin/fish -c 'cat references/page-authoring.md'",
   ];
   for (const command of accepted) {
     assert.equal(
@@ -108,6 +113,10 @@ test("shell evidence requires a completed successful read of the requested refer
     "cat different.md && echo references/page-authoring.md",
     "cat different.md | echo references/page-authoring.md",
     "cat different.md",
+    // These wrappers retain literal matching; their brace semantics are not
+    // inferred from the operating system running this test.
+    "/bin/sh -lc 'cat references/{page-authoring,other}.md'",
+    "/bin/fish -c 'cat references/{page-authoring,other}.md'",
   ]) {
     assert.equal(
       await check({ codexAppServer: { items: [{ ...item, command }] } }),
@@ -137,4 +146,87 @@ test("shell evidence requires a completed successful read of the requested refer
     );
   }
   assert.equal(await check({}), false);
+});
+
+test("shell-expanded reference lists count, while quoted and escaped braces remain literal", async (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "leaf-reference-read-"));
+  t.after(() => fs.rmSync(directory, { recursive: true }));
+  const references = path.join(directory, "references");
+  fs.mkdirSync(references);
+  const names = [
+    "event-batches",
+    "harness-codex",
+    "threads",
+    "conversation-loop",
+    "page-checkpoints",
+    "serving-pages",
+  ];
+  for (const name of names) {
+    fs.writeFileSync(path.join(references, `${name}.md`), `${name} instructions\n`);
+  }
+  fs.writeFileSync(
+    path.join(references, "{page-authoring,other}.md"),
+    "Literal brace filename; page-authoring.md does not exist here\n",
+  );
+
+  // Execute only our fixed fixture reads. Their wrapper/body shape matches the
+  // recorded zsh -lc commands, while bash is supplied on both macOS and Linux.
+  async function checkRead(body, reference) {
+    const read = spawnSync("/bin/bash", ["-lc", body], { encoding: "utf8" });
+    assert.equal(read.status, 0, read.stderr);
+    assert.ok(read.stdout.length > 0);
+    return check(
+      {
+        codexAppServer: {
+          items: [
+            {
+              type: "commandExecution",
+              status: "completed",
+              exitCode: read.status,
+              aggregatedOutput: read.stdout,
+              command: body.includes("'")
+                ? `/bin/bash -lc "${body}"`
+                : `/bin/bash -lc '${body}'`,
+            },
+          ],
+        },
+      },
+      reference,
+    );
+  }
+  assert.equal(
+    await checkRead(
+      `cat ${references}/{${names.join(",")}}.md`,
+      "references/harness-codex\\.md",
+    ),
+    true,
+  );
+  const literal = `${references}/{page-authoring,other}.md`;
+  for (const body of [
+    `cat "${literal}"`,
+    `cat '${literal}'`,
+    `cat ${references}/\\{page-authoring,other\\}.md`,
+  ]) {
+    assert.equal(await checkRead(body, "references/page-authoring\\.md"), false);
+  }
+  // The actual App Server wrapper uses zsh; no captured command is executed.
+  assert.equal(
+    await check(
+      {
+        codexAppServer: {
+          items: [
+            {
+              type: "commandExecution",
+              status: "completed",
+              exitCode: 0,
+              aggregatedOutput: "Reference instructions",
+              command: `/bin/zsh -lc 'cat /staged/skills/leaf/references/{${names.join(",")}}.md'`,
+            },
+          ],
+        },
+      },
+      "references/harness-codex\\.md",
+    ),
+    true,
+  );
 });

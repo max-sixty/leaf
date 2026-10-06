@@ -32,10 +32,8 @@ import queue
 import shutil
 import subprocess
 import sys
-import tempfile
 import threading
 import time
-from collections.abc import Iterator
 from concurrent.futures import Future
 from contextlib import contextmanager
 from pathlib import Path
@@ -44,6 +42,7 @@ from pathlib import Path
 # one binding: whatever takes a turn's readings there takes every carrier's too.
 from . import codex
 from .codex import (
+    APP_SERVER_ENV,
     START_TIMEOUT,
     AppServerDeliveryUncertain,
     TurnFold,
@@ -60,10 +59,10 @@ from .codex import (
     delivery_stream_reply_target,
     finish_codex_batch,
     offer_delivery,
+    private_app_server,
     retire_gone_task_records,
     retry_delay,
     start_app_server_delivery,
-    stop_app_server,
     stream_reply_target,
     write_record,
 )
@@ -96,10 +95,8 @@ from .thread import (
     answered_by_reply,
     delivery_reply_reserved,
 )
-from .thread_titles import app_server_title, name_untitled_threads
 
 QUEUE_TIMEOUT = 20
-APP_SERVER_ENV = "LEAF_CODEX_APP_SERVER"
 
 
 def _run_codex(codex_path: str, *arguments: str) -> None:
@@ -684,11 +681,6 @@ def _turn_delivery_id(turn: dict) -> str | None:
     return app_server_delivery_id({"method": "turn/started", "params": {"turn": turn}})
 
 
-def _log_record(event: str, **fields) -> None:
-    """One structured line in the adapter's log."""
-    print(json.dumps({"event": event, **fields}), file=sys.stderr, flush=True)
-
-
 def adapter_log_path(session_id: str) -> Path:
     return session_state_path(session_id, "codex.log")
 
@@ -823,15 +815,7 @@ def _offer_queued_delivery(
             "the observed App Server delivery is awaiting reconciliation"
         )
     if connection is not None:
-        started = connection.start_delivery(prepared.payload)
-        if started:
-            name_untitled_threads(
-                app_server_title(connection.endpoint, None),
-                prepared.payload,
-                session_id,
-                _log_record,
-            )
-        return started
+        return connection.start_delivery(prepared.payload)
     if target is not None and delivery_reply_reserved(
         session_id, prepared.payload["id"], target
     ):
@@ -901,15 +885,12 @@ def run_adapter(
         failures = 0
         while True:
             try:
-                # Receipt recovery judges page ownership as retirement does, so
-                # both wait out a starter's claim handoff under the start lock
-                # (`session-lifetime.md`, "Carriers").
-                with flocked(start_lock):
-                    recovered = _recover_receipt(harness.session)
-                    if not recovered and not owned_pages(harness.session):
-                        retire()
-                        return 0
+                recovered = _recover_receipt(harness.session)
                 if not recovered:
+                    with flocked(start_lock):
+                        if not owned_pages(harness.session):
+                            retire()
+                            return 0
                     recovered = _offer_queued_delivery(
                         codex_path,
                         harness.session,
@@ -1050,49 +1031,6 @@ def _running_adapter(session_id: str) -> dict | None:
         return json.loads(adapter_lease_path(session_id).read_text())
     except FileNotFoundError:
         return None
-
-
-def _wait_for_app_server(path: Path, process: subprocess.Popen, log) -> None:
-    deadline = time.monotonic() + START_TIMEOUT
-    while time.monotonic() < deadline:
-        if path.exists():
-            return
-        if process.poll() is not None:
-            log.seek(0)
-            detail = log.read().decode(errors="replace").strip()
-            raise RuntimeError(detail or "Codex App Server exited before it was ready")
-        time.sleep(0.05)
-    raise RuntimeError("Codex App Server did not become ready")
-
-
-@contextmanager
-def private_app_server(
-    executable: str, *, env: dict[str, str] | None = None
-) -> Iterator[str]:
-    """Run one App Server on a Unix socket only this user can reach, and yield its
-    endpoint until the block ends and the server stops.
-
-    The server's environment names that endpoint as `LEAF_CODEX_APP_SERVER`, so a
-    task it runs hands its pages to this server when it serves them.
-    An eval may supply an isolated child environment without mutating this process.
-    """
-    with tempfile.TemporaryDirectory(prefix="leaf-codex-", dir="/tmp") as directory:
-        path = Path(directory) / "app-server.sock"
-        endpoint = f"unix://{path}"
-        with tempfile.TemporaryFile() as log:
-            server = subprocess.Popen(
-                [executable, "app-server", "--listen", endpoint],
-                env=(os.environ if env is None else env) | {APP_SERVER_ENV: endpoint},
-                stdin=subprocess.DEVNULL,
-                stdout=log,
-                stderr=subprocess.STDOUT,
-                start_new_session=True,
-            )
-            try:
-                _wait_for_app_server(path, server, log)
-                yield endpoint
-            finally:
-                stop_app_server(server)
 
 
 def cmd_codex_launch(codex_path: str | None = None) -> int:

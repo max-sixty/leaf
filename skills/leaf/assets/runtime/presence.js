@@ -24,12 +24,14 @@ export function clocked(owner, paint) {
   let args;
   let painted = false;
   let reads = [];
+  let generation = 0;
   const entry = {
     owner,
     changed: () => reads.some(({ read, value }) => read(serverNow()) !== value),
     refresh: () => (painted ? render(...args) : undefined),
   };
   function render(...next) {
+    const painting = ++generation;
     args = next;
     painted = true;
     const outer = clockReads;
@@ -37,13 +39,19 @@ export function clocked(owner, paint) {
     try {
       return paint(...args);
     } finally {
-      reads = clockReads;
+      const nextReads = clockReads;
       clockReads = outer;
-      if (reads.length) clockPaints.add(entry);
-      else clockPaints.delete(entry);
+      if (painting === generation) {
+        reads = nextReads;
+        if (reads.length) clockPaints.add(entry);
+        else clockPaints.delete(entry);
+      }
     }
   }
-  render.stop = () => clockPaints.delete(entry);
+  render.stop = () => {
+    generation += 1;
+    clockPaints.delete(entry);
+  };
   render.refresh = entry.refresh;
   return render;
 }

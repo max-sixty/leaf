@@ -464,7 +464,7 @@ def canonical_activity(
     `turn` under the binding's attempt: every consumer that holds the agent to an
     answer, or refuses a second writer, reads that answer rather than the
     binding."""
-    from .tasks import open_tasks
+    from .tasks import owed_tasks
 
     now = datetime.fromisoformat(now_iso)
     status = present["status"]
@@ -489,7 +489,7 @@ def canonical_activity(
         interaction_evidence, present, now, held=held, turn=turn
     )
     tasks, task_aging = _canonical_tasks(
-        open_tasks(events), present, now, held=held, turn=turn
+        owed_tasks(events), present, now, held=held, turn=turn
     )
     _bind_reply(workflows, reply)
     for item in workflows:
@@ -659,6 +659,11 @@ def canonical_activity(
         "counts": {
             "active": len(active_moves),
             "handling": len(handling),
+            # Of those, the moves in a thread: comments. The rest are widget moves in
+            # an answered Ask, the only widget moves that owe an answer.
+            "handling_comments": sum(
+                item["subject"]["kind"] == "thread" for item in handling
+            ),
             "queued": len(queued),
             "picked_up": len(opened) - len(handling),
             "pending": len(pending),

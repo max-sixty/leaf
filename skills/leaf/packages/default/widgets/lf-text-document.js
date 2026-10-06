@@ -8,6 +8,8 @@ import {
   synNodes,
   syntax,
   watchData,
+  once,
+  watchOwner,
   keepsText,
   setRenderedChildren,
 } from "/runtime/widget-api.js";
@@ -16,16 +18,13 @@ customElements.define(
   "lf-text-document",
   class extends HTMLElement {
     connectedCallback() {
-      if (this.stopWatching) return;
-      this.stopWatching = watchData(this, "document", (snapshot) =>
-        this.render(snapshot),
-      );
-    }
-
-    disconnectedCallback() {
-      this.rendering = (this.rendering ?? 0) + 1;
-      this.stopWatching?.();
-      this.stopWatching = null;
+      if (!once(this)) return;
+      watchOwner(this, {
+        disconnect: () => {
+          this.rendering = (this.rendering ?? 0) + 1;
+        },
+      });
+      watchData(this, "document", (snapshot) => this.render(snapshot));
     }
 
     async render(snapshot) {

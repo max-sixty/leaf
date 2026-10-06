@@ -377,8 +377,9 @@ def test_pr_review_observed_age_refreshes_without_a_data_change(browser, serve):
     expect(observed).to_have_text(re.compile(r"^Observed 3h ago$"))
 
 
-def test_pr_review_disconnect_during_markdown_load_is_safe(browser, serve):
-    """A delayed lazy import cannot paint a widget after its host has disconnected."""
+@pytest.mark.parametrize("reconnect", [False, True])
+def test_pr_review_disconnect_during_markdown_load_is_safe(browser, serve, reconnect):
+    """A delayed paint leaves with its owner, while a same-batch move retains it."""
     authored = leaf_page(
         "pull request disconnect",
         '<lf-pull-request id="reviewed-pr" source="pr-1842"></lf-pull-request>',
@@ -412,9 +413,32 @@ def test_pr_review_disconnect_during_markdown_load_is_safe(browser, serve):
             page.goto(url, wait_until="load")
         page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
         assert held, "the positive control did not hold the lazy Markdown import"
-        page.locator("#reviewed-pr").evaluate("element => element.remove()")
+        page.locator("#reviewed-pr").evaluate(
+            """(element, reconnect) => {
+              window.detachedPr = element;
+              window.detachedPrMarkup = element.innerHTML;
+              const parent = element.parentElement;
+              element.remove();
+              if (reconnect) parent.append(element);
+            }""",
+            reconnect,
+        )
         held.pop(0).continue_()
-        page.wait_for_timeout(100)
+        page.evaluate(
+            """async () => {
+              const {loadMarkdown} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+              await loadMarkdown();
+            }"""
+        )
+        wait_until_ready(page)
+        if reconnect:
+            expect(page.locator(".lf-pr-title")).to_have_text(
+                "Keep delayed rendering safe"
+            )
+        else:
+            assert page.evaluate(
+                "() => window.detachedPr.innerHTML === window.detachedPrMarkup"
+            )
     finally:
         while held:
             held.pop(0).continue_()
@@ -9483,6 +9507,41 @@ def test_command_hub_readings_follow_their_seat_across_revisions(browser, serve)
         "lf-fleet-view",
     ]
     expect(page.locator(f"#side-readings > {READING_PANELS}")).to_have_count(3)
+
+
+@pytest.mark.parametrize("opened", [False, True])
+def test_command_hub_keeps_its_seated_readings_when_the_command_moves(
+    browser, serve, opened
+):
+    """A move retains the panels and the reader's open state in their existing seat."""
+    page = open_page(browser, serve(COMMAND_HUB_EXAMPLE))
+    panels = page.locator(f"#hub-readings > {READING_PANELS}")
+    expect(panels).to_have_count(3)
+    if opened:
+        page.locator("#hub-readings").get_by_role("button", name="5 stopped").click()
+        expect(page.locator("#hub-readings")).to_have_attribute("data-lf-open", "")
+    result = page.evaluate(
+        """async () => {
+          const command = document.getElementById('hub-plan');
+          const seat = document.getElementById('hub-readings');
+          const panels = [...seat.children];
+          const before = seat.innerHTML;
+          const parent = command.parentElement;
+          const next = command.nextSibling;
+          await new Promise(resolve => {
+            const observer = new MutationObserver(() => {
+              observer.disconnect(); resolve();
+            });
+            observer.observe(document.body, {childList: true, subtree: true});
+            command.remove();
+            parent.insertBefore(command, next);
+          });
+          return {sameNodes: panels.every(panel => panel.parentElement === seat),
+            sameMarkup: seat.innerHTML === before};
+        }"""
+    )
+    assert result == {"sameNodes": True, "sameMarkup": True}
+    expect(panels).to_have_count(3)
 
 
 def test_command_hub_readings_seat_is_filled_when_it_connects(browser, serve):

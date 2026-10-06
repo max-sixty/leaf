@@ -133,8 +133,9 @@ def composer(page: Page) -> None:
     page.mouse.down()
     page.mouse.move(box["x"] + 200, y, steps=8)
     page.mouse.up()
-    # Under a finger a selection offers Comment in the banner rather than a field.
-    if page.get_by_role("button", name="Comment on selection").is_visible():
+    # Under a finger a selection offers Comment in the banner rather than a field. It
+    # arrives on a later frame, so the pointer decides, not whether it is there yet.
+    if page.evaluate("matchMedia('(pointer: coarse)').matches"):
         page.get_by_role("button", name="Comment on selection").click()
     page.locator(".lf-fab-input").click()
     page.locator(".lf-composer leaf-text").focus()
@@ -212,6 +213,12 @@ def option_long(page: Page) -> None:
         "team channel instead, so the deploy trains stop paging anyone at all while "
         "a real outage still reaches a person within a couple of minutes"
     )
+
+
+def options_in_pane(page: Page) -> None:
+    """An Ask's option list in a workspace pane, under the paragraphs it answers."""
+    page.get_by_text("Checkout p99 latency", exact=True).click()
+    page.locator("#ar-latency-decision > lf-options").scroll_into_view_if_needed()
 
 
 def card_grabbed(page: Page) -> None:
@@ -304,6 +311,21 @@ def code_copy_by_keyboard(page: Page) -> None:
     page.locator("lf-code .lf-code-copy").first.get_by_role("button").focus()
 
 
+def diff_path_by_keyboard(page: Page) -> None:
+    """A folded diff file's row under the keyboard, saying the whole path its row cuts
+    short at the folders."""
+    heads = page.locator("#pr-exact-patch .lf-diff-head")
+    cut = heads.evaluate_all(
+        "heads => heads.findIndex((head) => {"
+        " const dir = head.querySelector('.lf-diff-dir');"
+        " return dir && dir.scrollWidth > dir.clientWidth; })"
+    )
+    head = heads.nth(cut)
+    head.scroll_into_view_if_needed()
+    page.keyboard.press("Shift")
+    head.focus()
+
+
 def code_source_by_touch(page: Page) -> None:
     """Reading code by touch, with the corner control disclosed away."""
     code_note(page)
@@ -340,11 +362,23 @@ def element_thread(page: Page) -> None:
     page.locator("#off-t-vendor").evaluate("el => el.scrollIntoView({block: 'center'})")
 
 
+def more_menu(page: Page) -> None:
+    """The banner's More, opened: on a phone it leads with Approval."""
+    page.locator(".lf-banner-more").click()
+    page.locator(".lf-banner-menu").wait_for()
+
+
 def versions_menu(page: Page) -> None:
     """The Versions menu, opened from More: a row for each version, with its note."""
     page.locator(".lf-banner-more").click()
     page.locator(".lf-version").click()
     page.locator(".lf-version-menu .lf-version-row").first.wait_for()
+
+
+def ask_by_keyboard(page: Page) -> None:
+    """The next open Ask, reached with `a`: its ring and its marker in view."""
+    page.keyboard.press("a")
+    page.locator("lf-ask").first.wait_for()
 
 
 def go_to(page: Page) -> None:
@@ -392,6 +426,8 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
         panel_reply_long,
         page_comment_long,
         option_long,
+        options_in_pane,
+        ask_by_keyboard,
         card_grabbed,
         code_note,
         theme_hierarchy,
@@ -399,10 +435,12 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
         multiline_passage,
         code_copy_by_pointer,
         code_copy_by_keyboard,
+        diff_path_by_keyboard,
         code_source_by_touch,
         pane_focused,
         aim_cut_by_pane,
         element_thread,
+        more_menu,
         versions_menu,
         go_to,
         widget_inline_hints,
@@ -477,6 +515,10 @@ STATES = (
     State("plan-panel-beside", "review-a-plan", threads_panel, viewport=BESIDE),
     State("plan-go-to", "review-a-plan", go_to, viewport=(1024, 768)),
     State("plan-narrow", "review-a-plan", at_rest, viewport=(360, 740)),
+    State("plan-touch", "review-a-plan", at_rest, viewport=(390, 844), touch=True),
+    State(
+        "plan-more-touch", "review-a-plan", more_menu, viewport=(390, 844), touch=True
+    ),
     State(
         "plan-versions-touch",
         "review-a-plan",
@@ -531,7 +573,21 @@ STATES = (
         viewport=(390, 844),
         touch=True,
     ),
+    State("alert-queue", "alert-review", at_rest),
+    State(
+        "alert-queue-touch", "alert-review", at_rest, viewport=(390, 844), touch=True
+    ),
     State("alert-option-long", "alert-review", option_long),
+    State("alert-options-in-pane", "alert-review", options_in_pane),
+    State("ideas-ask", "ideas-to-implement", ask_by_keyboard),
+    State("progress-callout", "live-progress", at_rest),
+    State(
+        "alert-options-in-pane-touch",
+        "alert-review",
+        options_in_pane,
+        viewport=(390, 844),
+        touch=True,
+    ),
     State(
         "alert-option-long-touch",
         "alert-review",
@@ -550,6 +606,12 @@ STATES = (
         code_note,
         viewport=(390, 844),
         touch=True,
+    ),
+    State(
+        "walkthrough-path-keyboard",
+        "pr-walkthrough",
+        diff_path_by_keyboard,
+        viewport=(390, 844),
     ),
     State(
         "walkthrough-source-touch",
@@ -677,19 +739,24 @@ def stills(base_ref: str | None) -> None:
                 for arm, arm_dir in arms.items():
                     # Every state starts from its authored fixture. A prior Send or
                     # Resolve must not become the next state's initial event log.
-                    with serving_source(
-                        arm_dir,
-                        ROOT / "examples" / f"{state.source}.html",
-                        scratch / f"{arm}-{state.name}",
-                    ) as address:
-                        folder = out / state.name
-                        folder.mkdir(exist_ok=True)
-                        try:
+                    # The base refuses a source written in vocabulary only the head
+                    # declares; that state has no base still, and the head's still
+                    # stands alone in its folder.
+                    folder = out / state.name
+                    folder.mkdir(exist_ok=True)
+                    try:
+                        with serving_source(
+                            arm_dir,
+                            ROOT / "examples" / f"{state.source}.html",
+                            scratch / f"{arm}-{state.name}",
+                        ) as address:
                             capture(browser, address, state, folder / f"{arm}.png")
-                        except (PlaywrightError, PageNotReady) as error:
-                            failed[state.name] = (
-                                f"on {arm}: {str(error).splitlines()[0]}"
-                            )
+                    except click.ClickException as error:
+                        failed[state.name] = (
+                            f"on {arm}: {error.message.strip().splitlines()[-1].split('; ')[0]}"
+                        )
+                    except (PlaywrightError, PageNotReady) as error:
+                        failed[state.name] = f"on {arm}: {str(error).splitlines()[0]}"
             read = differences(
                 browser,
                 [state.name for state in STATES if state.name not in failed],

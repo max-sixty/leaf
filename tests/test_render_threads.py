@@ -82,6 +82,132 @@ pytestmark = pytest.mark.nightly
 OPEN_TITLE = ".lf-threads > .lf-thread:not([hidden])[open] > .lf-thread-summary"
 
 
+def test_panel_thread_actions_share_the_first_message_header(browser, serve):
+    """Independent thread actions take the first header's spare inline room.
+
+    Keeping a message's header inside it must not give Resolve an otherwise empty
+    row above it. The message body keeps the conversation's full reading width.
+    """
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "testing")
+    append_agent_reply(serve.page_dir, root, "Testing received successfully.")
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    card = page.locator(f'.lf-thread[data-id="{root}"]')
+    focus_panel_thread(card)
+    for width in (1440, 390):
+        resized(page, width, 900)
+        rendered(page)
+        geometry = card.evaluate(
+            """card => {
+              const box = selector => card.querySelector(selector).getBoundingClientRect();
+              const title = box('.lf-thread-summary');
+              const head = box('.lf-msg-head');
+              const action = box('.lf-resolve');
+              const body = box('.lf-msg-body');
+              const center = box => box.top + box.height / 2;
+              return {
+                headerGap: head.top - title.bottom,
+                centers: [center(head), center(action)],
+                headRight: head.right, actionLeft: action.left,
+                bodyLeft: body.left, headLeft: head.left,
+                bodyRight: body.right, actionRight: action.right,
+              };
+            }"""
+        )
+        assert abs(geometry["centers"][0] - geometry["centers"][1]) < 1, geometry
+        assert 0 <= geometry["headerGap"] <= 12, geometry
+        assert geometry["headRight"] <= geometry["actionLeft"], geometry
+        assert geometry["bodyLeft"] == geometry["headLeft"], geometry
+        assert geometry["bodyRight"] >= geometry["actionRight"], geometry
+
+
+@pytest.mark.watch_shifts
+def test_held_news_keeps_an_agent_header_and_resizes_its_notice(browser, serve):
+    """Held news keeps metadata, body and both independent actions still.
+
+    A long agent name fills the desktop header. Narrowing the viewport while its
+    replies wait must remeasure the retained metadata allocation, leaving the notice
+    reachable beside the root message's reaction and the thread's Resolve action.
+    """
+    url = serve(PANEL_PAGE)
+    root = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "agent",
+            "agent": "Codex reviewing the presentation and interaction of the shared thread controls",
+            "revision": 1,
+            "text": "Which jobs should start first?",
+        },
+    )["id"]
+    page = open_page(browser, url)
+    resized(page, 1440, 900)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    thread = page.locator(f'.lf-thread[data-id="{root}"]')
+    focus_panel_thread(thread)
+    message = thread.locator(".lf-msg").first
+    message.hover()
+    reaction = message.locator(".lf-react-trigger")
+    expect(reaction).to_be_visible()
+    rendered(page)
+    page.wait_for_function(
+        "at => performance.now() - at > 500", arg=page.evaluate("performance.now()")
+    )
+
+    def geometry():
+        return thread.evaluate("""thread => {
+          const first = thread.querySelector('.lf-msg');
+          const rect = selector => {
+            const r = first.querySelector(selector).getBoundingClientRect();
+            return {x: r.x, y: r.y, width: r.width, height: r.height};
+          };
+          const r = thread.querySelector('.lf-resolve').getBoundingClientRect();
+          return {author: rect('.lf-msg-head b'), time: rect('.lf-msg-head time'),
+            body: rect('.lf-msg-body'), reaction: rect('.lf-react-trigger'),
+            resolve: {x: r.x, y: r.y, width: r.width, height: r.height}};
+        }""")
+
+    before = geometry()
+    notice_box = None
+    for number in (1, 2):
+        append_agent_reply(serve.page_dir, root, f"Held answer {number}.")
+        told(page)
+        rendered(page)
+        news = thread.locator(".lf-thread-news")
+        expect(news).to_be_visible()
+        expect(thread.locator(".lf-msg")).to_have_count(1)
+        assert geometry() == before
+        if notice_box is None:
+            notice_box = news.bounding_box()
+        else:
+            assert news.bounding_box() == notice_box
+
+    resized(page, 360, 900)
+    rendered(page)
+    expect(news).to_have_attribute("title", "2 new replies")
+    allocation = news.evaluate("""news => {
+      const thread = news.closest('.lf-thread');
+      const notice = news.getBoundingClientRect();
+      const reaction = thread.querySelector('.lf-msg .lf-react-trigger').getBoundingClientRect();
+      const resolve = thread.querySelector('.lf-resolve').getBoundingClientRect();
+      const hit = news.getRootNode().elementFromPoint(
+        notice.left + notice.width / 2, notice.top + notice.height / 2);
+      return {width: notice.width, hit: news.contains(hit),
+        noticeRight: notice.right, reactionLeft: reaction.left,
+        reactionRight: reaction.right, resolveLeft: resolve.left};
+    }""")
+    assert allocation["width"] >= 28, allocation
+    assert allocation["hit"], allocation
+    assert allocation["noticeRight"] <= allocation["reactionLeft"], allocation
+    assert allocation["reactionRight"] <= allocation["resolveLeft"], allocation
+    news.click()
+    expect(thread.locator(".lf-msg")).to_have_count(3)
+    expect(thread.locator(".lf-thread-news")).to_have_count(0)
+
+
 def test_gallery_thread_rows_name_action_in_existing_status(browser, serve):
     page = open_page(browser, serve(FEATURE_GALLERY))
     resized(page, 1440, 900)
@@ -782,9 +908,16 @@ def test_a_summary_gathering_the_message_the_user_is_on_keeps_them_on_it(
     expect(message).to_be_focused()
 
 
-def test_a_root_summary_keeps_thread_actions_outside_its_fold(browser, serve):
+@pytest.mark.parametrize(
+    ("width", "touch", "count"), [(1440, False, 2), (320, True, 10)]
+)
+def test_a_root_summary_keeps_thread_actions_outside_its_fold(
+    browser, serve, width, touch, count
+):
     """A checkpoint may cover the root turn without hiding thread actions.
 
+    A narrow touch header wraps its disclosure while keeping its context label
+    readable and Resolve centred beside the complete header.
     An edit that retracts the checkpoint waits behind the card's notice while the user
     reads it, and drawn once they have scrolled away, leaves them on Resolve."""
     url = serve(PANEL_PAGE)
@@ -792,14 +925,26 @@ def test_a_root_summary_keeps_thread_actions_outside_its_fold(browser, serve):
     reply = thread_model.cmd_reply(
         serve.page_dir, root, "The constraint still applies.", None, for_event=root
     )
+    end = reply["id"]
+    for number in range(count - 2):
+        end = append_agent_reply(serve.page_dir, root, f"Earlier detail {number}.")[
+            "id"
+        ]
     append_agent_reply(serve.page_dir, root, "The later result remains visible.")
     for number in range(12):
         panel_comment(serve.page_dir, f"A later thread, number {number}.")
     summary = summarize_thread(
-        serve.page_dir, root, reply["id"], "The constraint was confirmed."
+        serve.page_dir, root, end, "The constraint was confirmed."
     )
-    page = open_page(browser, url)
-    resized(page, 1440, 600)
+    context = browser.new_context(
+        viewport={"width": width, "height": 600}, has_touch=touch, is_mobile=touch
+    )
+    page = open_page(browser, url, context=context)
+    resized(page, width, 600)
+
+    def activate(control):
+        control.tap() if touch else control.click()
+
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     card = page.locator(f'.lf-thread[data-id="{root}"]')
@@ -807,6 +952,22 @@ def test_a_root_summary_keeps_thread_actions_outside_its_fold(browser, serve):
         card.locator(":scope > .lf-thread-summary").click()
     checkpoint = card.locator(f'[data-summary-id="{summary["id"]}"]')
     expect(card.get_by_role("button", name="Resolve thread")).to_be_visible()
+    alignment = card.evaluate("""card => {
+      const headerNode = card.querySelector('.lf-summary-header');
+      const header = headerNode.getBoundingClientRect();
+      const labelNode = headerNode.querySelector('.lf-summary-label');
+      const label = labelNode.getBoundingClientRect();
+      const disclosure = headerNode.querySelector('.lf-summary-expand').getBoundingClientRect();
+      const resolve = card.querySelector('.lf-resolve').getBoundingClientRect();
+      return {headerCenter: header.top + header.height / 2,
+        resolveCenter: resolve.top + resolve.height / 2,
+        labelLines: label.height / parseFloat(getComputedStyle(labelNode).lineHeight),
+        disclosureRight: disclosure.right,
+        contentRight: header.right - parseFloat(getComputedStyle(headerNode).paddingInlineEnd)};
+    }""")
+    assert abs(alignment["headerCenter"] - alignment["resolveCenter"]) < 1, alignment
+    assert alignment["labelLines"] <= 1.1, alignment
+    assert alignment["disclosureRight"] <= alignment["contentRight"] + 0.5, alignment
     expect(card.get_by_role("button", name="Close thread")).to_have_count(0)
     controls = card.locator(":scope > .lf-thread-content > .lf-thread-controls")
     assert controls.evaluate("node => !node.closest('.lf-summary-originals')"), (
@@ -815,11 +976,11 @@ def test_a_root_summary_keeps_thread_actions_outside_its_fold(browser, serve):
     root_message = checkpoint.locator(f'.lf-msg[data-mid="{root}"]')
     expect(root_message.locator(":scope > .lf-msg-head")).to_be_hidden()
     expect(root_message.locator(":scope > .lf-msg-body")).to_be_hidden()
-    checkpoint.locator(".lf-summary-expand").click()
+    activate(checkpoint.locator(".lf-summary-expand"))
     expect(root_message.locator(":scope > .lf-msg-head")).to_be_visible()
     expect(root_message.locator(":scope > .lf-msg-body")).to_be_visible()
     expect(card.get_by_role("button", name="Resolve thread")).to_be_visible()
-    checkpoint.locator(".lf-summary-expand").click()
+    activate(checkpoint.locator(".lf-summary-expand"))
     resolve = card.get_by_role("button", name="Resolve thread")
     resolve.focus()
 
@@ -841,6 +1002,10 @@ def test_a_root_summary_keeps_thread_actions_outside_its_fold(browser, serve):
     expect(card.locator(".lf-thread-news")).to_have_count(0)
     expect(checkpoint).to_have_count(0)
     expect(resolve).to_be_focused()
+
+    with sending(page, "resolve after the root summary is retracted"):
+        activate(resolve)
+    expect(card).to_be_hidden()
 
 
 def test_a_later_summary_replaces_its_overlap_and_an_edit_restores_originals(
@@ -1741,6 +1906,124 @@ def test_a_sent_comment_is_revealed_in_the_panel(browser, serve):
     expect(box).to_be_focused()
 
 
+def test_comment_on_the_page_starts_a_thread_from_a_card_under_the_banner(
+    browser, serve
+):
+    """The banner's Comment on the page starts a page thread with Threads shut: a card
+    hangs flush from the control, and its send puts the card away and flashes Threads,
+    whose count takes the new thread, without opening the panel. `c` on the floor goes
+    to the same card, and with Threads open both go to Threads' own box instead."""
+    page = open_page(browser, serve(LONG_PAGE))
+    control = page.locator(".lf-banner-actions > .lf-page-comment")
+    card = page.locator(".lf-page-comment-card")
+    box = card.locator("leaf-text")
+    toggle = page.locator(".lf-threads-toggle")
+    is_open = "node => node.matches(':popover-open')"
+    expect(control).to_have_attribute("title", "Comment on the page (c)")
+
+    control.click()
+    assert card.evaluate(is_open)
+    expect(box).to_be_focused()
+    hung = page.evaluate(
+        """() => {
+          const card = document.querySelector('.lf-page-comment-card')
+            .getBoundingClientRect();
+          const control = document.querySelector('.lf-banner-actions > .lf-page-comment')
+            .getBoundingClientRect();
+          const banner = document.querySelector('.lf-banner').getBoundingClientRect();
+          return [card.top - banner.bottom, card.right - control.right];
+        }"""
+    )
+    assert [round(edge) for edge in hung] == [0, 0], hung
+
+    count = toggle.get_attribute("data-lf-count")
+    write(box, "Does the plan cover the self-hosted runners?")
+    with sending(page, "the page comment"):
+        page.keyboard.press("Enter")
+    sent = events_model.read_events(serve.page_dir)[-1]
+    assert (sent["kind"], sent["text"], sent.get("anchor")) == (
+        "comment",
+        "Does the plan cover the self-hosted runners?",
+        None,
+    )
+    assert not card.evaluate(is_open)
+    assert toggle.evaluate("t => t.getAnimations().length") == 1, (
+        "Threads did not flash"
+    )
+    expect(toggle).to_have_attribute("data-lf-count", str(int(count) + 1))
+    assert not page.locator(".lf-thread-panel").evaluate("p => p.open")
+    expect(control).to_be_focused()
+
+    page.locator("main").click(position={"x": 4, "y": 4})
+    page.keyboard.press("c")
+    assert card.evaluate(is_open)
+    expect(box).to_be_focused()
+    expect(box).to_have_js_property("value", "")
+    page.keyboard.press("Escape")
+    # Words typed straight after `c` land in the box rather than on the page's keys.
+    page.keyboard.press("c")
+    page.keyboard.type("Kept for later")
+    expect(box).to_have_js_property("value", "Kept for later")
+    page.keyboard.press("Escape")
+    assert not card.evaluate(is_open)
+
+    # A refused send opens the card again on the words it handed back.
+    page.route(
+        "**/api/event",
+        lambda route: route.fulfill(
+            status=400,
+            json={"ok": False, "final": True, "error": "refused before append"},
+        ),
+    )
+    # Pressed straight after the press that opens the card, Enter sends from its box.
+    control.click()
+    page.keyboard.press("Enter")
+    expect(box).to_be_focused()
+    expect(box).to_have_js_property("value", "Kept for later")
+    assert card.evaluate(is_open)
+    page.unroute("**/api/event")
+    assert all("400" in error for error in take_browser_errors(page))
+    page.keyboard.press("Escape")
+
+    # The card and Threads' box are two views of the one page draft.
+    toggle.click()
+    panel_settled(page)
+    control.click()
+    general = page.locator(".lf-general leaf-text")
+    expect(general).to_be_focused()
+    expect(general).to_have_js_property("value", "Kept for later")
+    assert not card.evaluate(is_open)
+
+
+def test_comment_on_the_page_stands_in_more_on_a_phone(browser, serve):
+    """A phone's banner keeps one row, so Comment on the page is a row of More in its
+    words; its press takes More down and opens the card across the window."""
+    context = browser.new_context(
+        is_mobile=True, has_touch=True, viewport={"width": 390, "height": 844}
+    )
+    page = open_page(browser, serve(LONG_PAGE), context=context)
+    expect(page.locator(".lf-banner-actions > .lf-page-comment")).to_have_count(0)
+    page.get_by_role("button", name="More page controls", exact=True).click()
+    page.locator(".lf-banner-menu .lf-page-comment").click()
+    card = page.locator(".lf-page-comment-card")
+    assert card.evaluate("node => node.matches(':popover-open')")
+    assert not page.locator(".lf-banner-menu").evaluate(
+        "node => node.matches(':popover-open')"
+    )
+    expect(card.locator("leaf-text")).to_be_focused()
+    box = card.bounding_box()
+    assert round(box["x"]) == 8 and round(box["width"]) == 390 - 16, box
+
+    # `c` with More open takes More down too, rather than opening the card inside it.
+    page.keyboard.press("Escape")
+    page.get_by_role("button", name="More page controls", exact=True).click()
+    page.keyboard.press("c")
+    assert card.evaluate("node => node.matches(':popover-open')")
+    assert not page.locator(".lf-banner-menu").evaluate(
+        "node => node.matches(':popover-open')"
+    )
+
+
 def test_a_pasted_image_survives_the_reply_draft_and_renders_from_the_message(
     browser, serve
 ):
@@ -1848,6 +2131,29 @@ def test_a_pasted_image_survives_the_reply_draft_and_renders_from_the_message(
         "src", "/media/051bee487bfb5d13.png"
     )
     expect(viewer.locator("img")).to_have_attribute("alt", "Pasted image")
+    # Native close notification arrives after its gesture. An image opened before that
+    # notification belongs to the new opening and keeps both its pixels and focus.
+    reopened = media_open.evaluate(
+        """trigger => new Promise(resolve => {
+          const viewer = document.querySelector('#lf-media-viewer');
+          viewer.addEventListener('close', () => resolve({
+            open: viewer.open,
+            image: viewer.querySelector('img')?.getAttribute('src') ?? null,
+            focused: viewer.contains(document.activeElement),
+          }), {once: true});
+          // The sensor sees one task ending where it began as an unchanged `open`
+          // write; here the two native transitions deliberately exercise that race.
+          window.lfUnwatched(() => {
+            viewer.close();
+            trigger.click();
+          });
+        })"""
+    )
+    assert reopened == {
+        "open": True,
+        "image": "/media/051bee487bfb5d13.png",
+        "focused": True,
+    }
     page.keyboard.press("Escape")
     expect(viewer).to_be_hidden()
     expect(media_open).to_be_focused()
@@ -2829,9 +3135,9 @@ ASK_MARKUP = (
 
 @pytest.mark.parametrize("destination", ["message", "ask", "standing-ask"])
 def test_explicit_navigation_reveals_held_panel_news(browser, serve, destination):
-    """A direct message visit and the Ask drawer can reach a held reply's contents.
-    Going to an Ask the thread already shows ("standing-ask") is an arrival at the
-    thread too, so the reply held after it shows."""
+    """A direct message visit and the Ask walk can reach a held reply's contents.
+    Walking from outside the thread to an Ask it already shows ("standing-ask") is an
+    arrival at the thread too, so the reply held after it shows."""
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Keep the discussion here.")
     if destination == "standing-ask":
@@ -2883,8 +3189,14 @@ def test_explicit_navigation_reveals_held_panel_news(browser, serve, destination
         expect(message).to_be_focused()
     else:
         # The Ask walk, not the drawer: opening the drawer covers the card, and a held
-        # reply nobody can see shows anyway.
-        page.keyboard.press("Escape")
+        # reply nobody can see shows anyway. The walk starts with the user standing
+        # nowhere, so it arrives at the thread; from its reply box it would be a move
+        # within the thread.
+        field.evaluate("field => field.blur()")
+        page.wait_for_function("document.activeElement === document.body")
+        expect(
+            thread.get_by_role("button", name="1 new reply", exact=True)
+        ).to_be_visible()
         page.keyboard.press("a")
         expect(thread.locator("#held-question")).to_be_focused()
     expect(message).to_be_visible()
@@ -2904,6 +3216,8 @@ def test_explicit_navigation_reveals_held_panel_news(browser, serve, destination
         (3, "widget", "back"),
         (1, None, "onto"),
         (3, None, "onto"),
+        (1, None, "return"),
+        (1, None, "pressed"),
     ],
 )
 def test_walking_to_a_thread_shows_the_replies_it_held(
@@ -2911,15 +3225,17 @@ def test_walking_to_a_thread_shows_the_replies_it_held(
 ):
     """Replies held while their thread stood open in front of the user show once the
     user walks away and back to that thread with t/T. The walk away closes the card and
-    the walk back opens it, and an opening moves every card after it anyway, so the
-    card opens with what it held, landed where the newest reply shows. Walking onto
-    the same thread at the end of the list releases news without closing its card.
-    One reply fits
-    with the root; several require measuring the released transcript to land its end.
-    Disclosure itself draws that body before a delayed public proof, so a newer Tab
-    reaches its current controls and supersedes the older title's pending landing.
-    A released reply's widget reads its frozen baseline and takes a new choice while
-    that global proof is held; the later publication keeps the choice it sent."""
+    the walk back opens it, and an opening moves every card after it anyway, so the card
+    opens with what it held, landed where the newest reply shows. Pressing onto the
+    thread the user already stands in, at the end of the list, moves them nowhere, so
+    its news stays held; leaving the thread with Shift+Tab and walking back onto its
+    card, which stood open throughout ("return"), arrives there, and shows it, as a
+    press on its title from there does ("pressed"). One reply fits with the root;
+    several require measuring the released transcript to land its end. Disclosure itself
+    draws that body before a delayed public proof, so a newer Tab reaches its current
+    controls and supersedes the older title's pending landing. A released reply's widget
+    reads its frozen baseline and takes a new choice while that global proof is held;
+    the later publication keeps the choice it sent."""
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Keep the discussion here.")
     other = panel_comment(serve.page_dir, "A thread to walk to. " * 30)
@@ -2980,11 +3296,30 @@ def test_walking_to_a_thread_shows_the_replies_it_held(
         # A closed card draws one title row, so it holds nothing back; its reply waits
         # unseen in the folded body.
         expect(message).to_be_hidden()
+    if walk in ("return", "pressed"):
+        page.keyboard.press("Shift+Tab")
+        page.wait_for_function(
+            "id => !document.activeElement?.closest?.(`[data-id='${id}']`)", arg=root
+        )
+        expect(thread).to_have_attribute("open", "")
+        if walk == "pressed":
+            summary.click()
+        else:
+            page.keyboard.press("t")
+        expect(summary).to_be_focused()
+        expect(message).to_be_visible()
+        expect(thread.locator(".lf-thread-news")).to_have_count(0)
+        return
     if new_input:
         rendered(page)
         hold_visible_thread_presentation(page, root)
     page.keyboard.press("Shift+t")
     expect(summary).to_be_focused()
+    if walk == "onto":
+        rendered(page)
+        expect(thread.get_by_role("button", name=notice, exact=True)).to_be_visible()
+        expect(message).to_have_count(0)
+        return
     expect(message).to_be_visible()
     expect(thread.locator(".lf-thread-news")).to_have_count(0)
     if new_input:
@@ -3041,6 +3376,48 @@ def test_walking_to_a_thread_shows_the_replies_it_held(
     one_frame(page)
     landing = message.evaluate(IN_LANDING_BAND)
     assert landing["inside"], landing
+
+
+def test_a_dialog_handing_the_user_back_to_a_thread_is_no_arrival(browser, serve):
+    """A layer that closes hands the user back to where they stood. The command
+    reference opened from a thread holding a reply, and closed with Escape, returns
+    them to the thread's title, which they never left, so the reply stays held behind
+    its notice."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "Keep the discussion here.")
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    thread = page.locator(f'.lf-threads > .lf-thread[data-id="{root}"]')
+    summary = thread.locator(".lf-thread-summary")
+    if thread.get_attribute("open") is None:
+        summary.click()
+    summary.focus()
+    reply = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "revision": 1,
+            "parent": root,
+            "text": "This answer arrived while the thread stood open.",
+        },
+    )
+    told(page)
+    notice = thread.get_by_role("button", name="1 new reply", exact=True)
+    expect(notice).to_be_visible()
+    # The first press opens the shortcut bar, the second the command reference.
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+    reference = page.locator("dialog:modal")
+    expect(reference).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(reference).to_have_count(0)
+    expect(summary).to_be_focused()
+    rendered(page)
+    expect(notice).to_be_visible()
+    expect(thread.locator(f'.lf-msg[data-mid="{reply["id"]}"]')).to_have_count(0)
 
 
 def test_opening_message_reactions_does_not_reflow_the_thread_list(browser, serve):
@@ -3772,7 +4149,6 @@ def test_two_standard_thread_lists_share_updates_but_not_local_state(browser, se
                 },
               },
             });
-            controller.mountThreadList(() => true);
             return { ...elements, handle };
           };
           window.__testThreadPanels = [mount(), mount()];
@@ -7741,6 +8117,48 @@ def test_a_growing_panel_reply_keeps_the_previous_turn_visible(browser, serve):
     in_threads_scrollport(page, f'.lf-thread[data-id="{root}"] .lf-thread-send')
 
 
+@pytest.mark.parametrize("edit", ["backspace", "replace"])
+def test_a_panel_reply_keeps_its_first_line_when_the_draft_shrinks(
+    browser, serve, edit
+):
+    """A short reply grows and shrinks below its first line, including after paint.
+
+    Message continuity must not turn a draft's former height into space above it.
+    Backspace removes the lines the user just added; replacing the draft exercises
+    the same layout through a single native input instead of repeated key presses.
+    """
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "A short thread with room below its reply.")
+    page = open_page(browser, url)
+    open_threads_list(page, 1400, 900)
+    card = reply_by_keyboard(page, root)
+    editor = card.locator("leaf-text")
+    page.keyboard.type("First line")
+    rendered(page)
+    first = editor.bounding_box()
+    for _ in range(4):
+        page.keyboard.press("Shift+Enter")
+        rendered(page)
+    grown = editor.bounding_box()
+    assert grown["height"] > first["height"] + 50, (first, grown)
+    assert grown["y"] == pytest.approx(first["y"], abs=0.5), (first, grown)
+
+    if edit == "backspace":
+        for _ in range(4):
+            page.keyboard.press("Backspace")
+            rendered(page)
+            now = editor.bounding_box()
+            assert now["y"] == pytest.approx(first["y"], abs=0.5), (first, now)
+    else:
+        write(editor, "First line")
+        rendered(page)
+    shrunk = editor.bounding_box()
+    assert shrunk["height"] == pytest.approx(first["height"], abs=0.5), (first, shrunk)
+    assert shrunk["y"] == pytest.approx(first["y"], abs=0.5), (first, shrunk)
+    expect(editor).to_have_js_property("value", "First line")
+    expect(editor).to_be_focused()
+
+
 LANDING_WORDS = (
     "This message has enough words in it to wrap over several lines in the panel, "
     "so that a thread of a dozen of them is taller than the list's scrollport. "
@@ -8434,27 +8852,31 @@ def pressed_send_surface(browser, serve, surface):
 )
 def test_sending_flashes_only_the_new_message(browser, serve, surface):
     """Sending cues the words in every surface, including a shadow-root thread.
-    Admission and subsequent repaint do not restart the cue or wash the card."""
+    Sticky authors share the words' fade. Admission and subsequent repaint do not
+    restart the cue or wash the card."""
     page, _box, send, _after, _reply = pressed_send_surface(browser, serve, surface)
     # Capture the first painted cue, before driver latency can consume its duration.
     page.evaluate(
-        """() => {
+        """surface => {
           window.__sendPaint = null;
-          const root = document.querySelector('#patch')?.shadowRoot ?? document;
+          const root = ["card", "composer"].includes(surface)
+            ? document.querySelector(".lf-margin-preview")
+            : document.querySelector("#patch")?.shadowRoot ?? document;
           const observer = new MutationObserver(() => {
             const message = [...root.querySelectorAll('.lf-msg')].find(node =>
               node.textContent.includes('Sent from the box.')
             );
             if (!message) return;
+            observer.disconnect();
             const cue = message.getAnimations().find(animation =>
-              animation.effect.getKeyframes().some(frame => frame.backgroundColor)
+              animation.effect.getKeyframes().some(frame => frame['--lf-msg-arrival'])
             );
             window.__sendPaint = {cue: Boolean(cue), message};
             if (cue) { cue.pause(); cue.currentTime = 0; }
-            observer.disconnect();
           });
           observer.observe(root, {subtree: true, childList: true, attributes: true});
-        }"""
+        }""",
+        surface,
     )
     held = []
     page.route("**/api/event", lambda route: held.append(route))
@@ -8468,6 +8890,19 @@ def test_sending_flashes_only_the_new_message(browser, serve, surface):
           return getComputedStyle(message).backgroundColor !== 'rgba(0, 0, 0, 0)';
         }"""
     )
+    if surface in {"card", "composer"}:
+        message = page.locator(
+            ".lf-margin-preview .lf-msg", has_text="Sent from the box."
+        )
+        # Compare painted ground, rather than just the inherited computed colour:
+        # a second translucent layer can have the same colour and paint darker.
+        for time in [0, 600, 1199]:
+            message.evaluate(
+                "(node, time) => node.getAnimations()[0].currentTime = time", time
+            )
+            one_frame(page)
+            pixels = Image.open(io.BytesIO(message.screenshot())).convert("RGB")
+            assert pixels.getpixel((1, 1)) == pixels.getpixel((1, pixels.height - 4))
     held.pop().continue_()
     page.unroute("**/api/event")
     round_trip(page)
@@ -8477,7 +8912,8 @@ def test_sending_flashes_only_the_new_message(browser, serve, surface):
           const thread = message.closest('.lf-thread, .lf-page-thread');
           return !thread.getAnimations({subtree: true}).some(animation =>
             animation.effect.target !== message &&
-            animation.effect.getKeyframes().some(frame => frame.background || frame.backgroundColor)
+            animation.effect.getKeyframes().some(frame =>
+              frame.background || frame.backgroundColor || frame['--lf-msg-arrival'])
           );
         }"""
     ), "the surrounding card flashed on admission"
@@ -8486,6 +8922,78 @@ def test_sending_flashes_only_the_new_message(browser, serve, surface):
     )
     one_frame(page)
     assert page.evaluate("() => window.__sendPaint.message.getAnimations().length") == 0
+
+
+def test_firefox_paints_the_author_and_words_in_the_same_send_flash(
+    firefox_browser, serve
+):
+    """A natural send fades its sticky author and words together in actual frames.
+
+    Pausing the animation or repeatedly reading styles invalidates Firefox's paint
+    and conceals a stale inherited background. Native screencast frames observe its
+    ordinary compositor path, including the receipt repaint, without those reads.
+    """
+    page, _box, send, _after, _reply = pressed_send_surface(
+        firefox_browser, serve, "card"
+    )
+    page.emulate_media(reduced_motion="no-preference")
+    page.evaluate(
+        """() => {
+          window.__sendFlash = new Promise((resolve, reject) => {
+            const root = document.querySelector('.lf-margin-preview');
+            const observer = new MutationObserver(() => {
+              const message = [...root.querySelectorAll('.lf-msg')].find(node =>
+                node.textContent.includes('Sent from the box.'));
+              if (!message) return;
+              observer.disconnect();
+              const cue = message.getAnimations()[0];
+              if (!cue) {
+                reject(new Error('the sent message has no arrival cue'));
+                return;
+              }
+              cue.finished.then(() => {
+                const head = message.querySelector('.lf-msg-head').getBoundingClientRect();
+                const body = message.querySelector('.lf-msg-body').getBoundingClientRect();
+                const x = head.left + head.width * 0.7;
+                resolve({head: [x, head.top + 3], body: [x, body.bottom - 3]});
+              }, reject);
+            });
+            observer.observe(root, {subtree: true, childList: true});
+          });
+        }"""
+    )
+    frames = []
+    with page.screencast.start(
+        on_frame=lambda frame: frames.append(frame),
+        quality=100,
+        size=page.viewport_size,
+    ):
+        send.click()
+        points = page.evaluate("() => window.__sendFlash")
+    readings = []
+    for frame in frames:
+        pixels = Image.open(io.BytesIO(frame["data"])).convert("RGB")
+        colours = {
+            name: pixels.getpixel(tuple(round(coordinate) for coordinate in point))
+            for name, point in points.items()
+        }
+        readings.append(colours)
+    # The light card fades from yellow (#fff8c5) to paper. Require an actual
+    # sequence of intermediate colours: a discrete jump, or the constant .5
+    # pending opacity blending yellow with paper, must not pass as a fade.
+    fading = [
+        reading
+        for reading in readings
+        if reading["body"][0] > 245 and 205 < reading["body"][2] < 240
+    ]
+    assert fading, readings
+    blues = {reading["body"][2] for reading in fading}
+    assert len(blues) >= 3 and max(blues) - min(blues) >= 12, fading
+    assert all(
+        max(abs(a - b) for a, b in zip(reading["head"], reading["body"], strict=True))
+        <= 3  # Native JPEG rounding of otherwise uniform ground.
+        for reading in fading
+    ), fading
 
 
 @pytest.mark.parametrize(
@@ -9691,6 +10199,14 @@ def test_pending_message_headers_match_their_bodies(browser, serve, surface):
     assert region.locator(".lf-msg-head").evaluate_all(
         "heads => heads.every(head => head.parentElement.matches('.lf-msg'))"
     ), "a message header was moved outside its message"
+    assert region.evaluate(
+        """root => {
+          const head = root.querySelector('.lf-msg-head').getBoundingClientRect();
+          const action = root.querySelector('.lf-resolve').getBoundingClientRect();
+          const center = action.top + action.height / 2;
+          return head.top <= center && center <= head.bottom && head.right <= action.left;
+        }"""
+    ), "keeping the header inside its message gave thread actions a separate row"
 
     def reading():
         return region.evaluate(

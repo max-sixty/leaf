@@ -12,7 +12,7 @@ import {
 } from "./runtime/context.js";
 import { initializeServedDocument } from "./runtime/document-identity.js";
 import { chromeRoot } from "./runtime/chrome.js";
-import { readingBlock } from "./runtime/reading-place.js";
+import { landingPlace } from "./runtime/reading-place.js";
 import { mountHistory } from "./runtime/history.js";
 import { holdArrivingBounds } from "./runtime/bounds.js";
 import { chromeSheet, marksSheet, annotationSheets } from "./runtime/stylesheets.js";
@@ -86,7 +86,8 @@ import {
   standingThread,
   wireThreadLanding,
 } from "./runtime/thread/landing.js";
-import { createPanelComposer } from "./runtime/thread/panel.js";
+import { createThreadPanelKeys } from "./runtime/thread/panel.js";
+import { createPageComment } from "./runtime/thread/page-comment.js";
 import { standingThreadId } from "./runtime/thread/focus.js";
 import { createThreadListController } from "./runtime/thread/thread-list.js";
 import { createThreadNarrowing } from "./runtime/thread/narrowing.js";
@@ -128,6 +129,7 @@ import {
 } from "./runtime/banner.js";
 
 import { nativeLayers } from "./runtime/keyboard/layer-stack.js";
+import { holdToRead } from "./runtime/held-word.js";
 
 initializeServedDocument();
 keepPageRulesOffLayer();
@@ -244,15 +246,22 @@ let layout;
 let landing;
 let pageMapDialog;
 let asks;
-let panelComposer;
+let panelKeys;
+let pageComment;
 let selectionComposer;
 let responseSurface;
 let drawing;
+// A draft's drawing put in place, null taking it off, and the page's ink repainted.
+const replaceDrawing = (anchor, drawn) => {
+  selectionComposer.setDraftDrawing(anchor, drawn);
+  drawingPaint.paint();
+};
 // A composer's own controls for the drawing its draft holds, which the drawing
-// controller answers.
+// controller answers, and its history's way of putting one back.
 const drawingEdits = {
   undoStroke: (anchor) => drawing.undoStroke(anchor),
   remove: (anchor) => drawing.removeDrawing(anchor),
+  replace: replaceDrawing,
 };
 let aim;
 let targets;
@@ -269,6 +278,11 @@ const auxiliarySurfaces = createAuxiliarySurfaces({
     paintKeys();
     repaint();
     anchorPaint?.refreshHover();
+  },
+  // A comment box seated where a surface now stands, or in its home in a surface now
+  // gone, moves to the seat the user can reach: presenting the page again seats it.
+  reachChanged: () => {
+    if (responseSurface.fabAnchorAt()) void app.invalidateDom();
   },
 });
 const navigation = createNavigation({
@@ -321,7 +335,7 @@ const designMode = createDesignMode({
     refreshAim: () => pageGeometry.refreshAim(),
     pageShifted: () => pageGeometry.pageShifted(),
   },
-  syncGeneral: () => panelComposer.syncGeneral(),
+  syncGeneral: () => pageComment.sync(),
   composer: {
     showFab: (...args) => responseSurface.showFab(...args),
     openComposer: (...args) => selectionComposer.openComposer(...args),
@@ -510,7 +524,7 @@ if (offlineInteractive) applicationState.setHostAvailable(false);
 // Where a landing in the document goes, which is version continuity's reading of what is
 // on screen. Declared beside the let-go that uses it, for the same reason: the owner
 // stands by now and nothing has read the register yet.
-declareReading(readingBlock);
+declareReading(landingPlace);
 
 // And where it goes instead while a surface covers the page: the page is inert under one,
 // so the reading above cannot take the user and a step that let go would leave them
@@ -563,9 +577,11 @@ const queueWalk = createQueueWalk({
   arrive: anchorTravel.arrive,
   readableDestination: anchorTravel.readableDestination,
   announce,
+  post: (event) => app.post(event),
 });
 const queue = createQueuePanel({
   arriveAtItem: queueWalk.arriveAtItem,
+  endTask: queueWalk.endTask,
   announce,
 });
 
@@ -578,19 +594,26 @@ const standingTarget = createStandingTarget({
   standingIn: asks.standingIn,
 });
 
-panelComposer = createPanelComposer({
+panelKeys = createThreadPanelKeys({
   elements: panelElements,
   openThreads: threadListController.openThreads,
   narrowing,
-  designModeActive: designMode.active,
-  wireInput: inputs.wireInput,
-  createPageComment: app.createPageComment,
-  showThread: landing.showThread,
   setPanel: (...args) => threadPanelController.setPanel(...args),
   panelIsOpen,
   stepThread: (...args) => navigation.stepThread(...args),
   firstUnread: () => app.read.firstUnread(),
   unreadCount: () => app.read.unreadCount(),
+});
+pageComment = createPageComment({
+  wireInput: inputs.wireInput,
+  createPageComment: app.createPageComment,
+  designModeActive: designMode.active,
+  panelIsOpen,
+  setPanel: (...args) => threadPanelController.setPanel(...args),
+  panelBox: panelElements.generalInput,
+  panelSend: panelElements.generalSend,
+  showThread: landing.showThread,
+  threadsToggle: toggleBtn,
 });
 selectionComposer = createSelectionComposer({
   panelIsOpen,
@@ -625,7 +648,6 @@ responseSurface = createResponseSurface({
   panelElements,
   panelIsOpen,
   landIn: landing.landIn,
-  setPanel: (...args) => threadPanelController.setPanel(...args),
   threadHere: () => app.threadDestinations.threadHere(),
   threadAtStanding: () => app.threadDestinations.threadAtStanding(),
   replyThreadAtStanding: () => app.threadDestinations.replyThreadAtStanding(),
@@ -658,6 +680,7 @@ responseSurface = createResponseSurface({
   drawModeActive: () => drawing.drawModeActive(),
   refreshThread: app.refreshThread,
   dismissThreadView: () => app.overlay?.inlineThreadView.dismiss(),
+  pageComment,
   responseHome: overlaySelected ? chromeRoot : panelFoot,
   revealResponseHome: overlaySelected
     ? null
@@ -702,10 +725,7 @@ drawing = createDrawingController({
   draftKey: selectionComposer.draftKey,
   openAnchoredDrawing: (anchor, drawing) =>
     selectionComposer.openComposer(anchor, "", { carry: true, drawing }),
-  replaceDrawing: (anchor, drawing) => {
-    selectionComposer.setDraftDrawing(anchor, drawing);
-    drawingPaint.paint();
-  },
+  replaceDrawing,
   setDesignMode: designMode.setActive,
   closeTargetPicker: targets.closeTargetPicker,
   closeReactionMode: () => reactions.setReact(false),
@@ -744,8 +764,12 @@ threadPanelController = createThreadPanelController({
   showThread: landing.showThread,
   refreshThread: app.refreshThread,
   closeReactionMode: () => reactions.setReact(false),
-  closePreview: app.overlay?.closePreview,
-  syncGeneral: panelComposer.syncGeneral,
+  // A surface opening puts away the floating cards it would stand beside.
+  closePreview: (...args) => {
+    pageComment.close();
+    app.overlay?.closePreview(...args);
+  },
+  syncGeneral: pageComment.sync,
 });
 // The sample host binds to this child's owners, rather than importing another
 // window's runtime. This capability is ready before the child presents.
@@ -887,9 +911,11 @@ if (!offlineInteractive) {
   // Connect the search field before mount awaits its rendered input: Lit does not
   // resolve updateComplete until connection, and keyboard registration needs that input.
   narrowing.mount();
-  await panelComposer.mount();
+  await panelKeys.mount();
+  pageComment.mount(chromeRoot);
   selectionComposer.mount();
   responseSurface.mount();
+  holdToRead();
   reactions.mount();
   targets.mount();
   drawing.mount();
@@ -907,7 +933,6 @@ if (!offlineInteractive) {
   app.overlay?.mount();
   app.mountThread();
   app.mountRead();
-  threadListController.mountThreadList(panelIsOpen);
   wireThreadLanding(threadsBox);
   drawers.mountDrawers();
   threadPanelController.mountThreadPanel();

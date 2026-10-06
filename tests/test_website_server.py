@@ -30,6 +30,7 @@ from interact_support import (
     publish,
     running_http_server,
     take_stream_activity,
+    wait_for,
     yaml_document,
 )
 from interact_support import (
@@ -43,6 +44,7 @@ from leaf.event_log import read_events
 from leaf.files import revision_path
 from leaf.hosting import LeafHTTPServer
 from leaf.http import page_delivery
+from leaf.leases import take_lease, waiter_lease_path
 from leaf.machine import pid_alive
 from leaf.render_checks import rendered
 from leaf.revision_artifact import capture_artifact
@@ -641,6 +643,60 @@ def test_attach_leaves_an_uncertain_delivery_to_its_reconciliation_follower(
     assert len(dispatches) == 1
 
 
+def test_a_thread_opened_during_a_hosted_turn_is_named_as_it_is_dispatched(
+    page_dir, monkeypatch
+):
+    """A move dispatched while a turn runs waits for that turn to end before a turn
+    answers it, but its thread is named as it arrives, and asked about once: the
+    turn that later answers it finds it named."""
+    with website_server.PageTransaction(page_dir) as page:
+        page.take_claim(website_server.website_harness("hosted-thread", os.getpid()))
+    comment = append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "Why is the export slow?"},
+    )
+    harness = website_server.WebsiteCodexHarness("codex")
+    harness.following_threads.add("hosted-thread")
+    monkeypatch.setattr(
+        harness, "_ensure_server", lambda: SimpleNamespace(pid=os.getpid())
+    )
+    requests = []
+
+    def app_server_title(endpoint, model):
+        def generate(request, target):
+            requests.append((endpoint, model, request))
+            return {"title": "Export speed"}
+
+        return generate
+
+    monkeypatch.setattr(website_server, "app_server_title", app_server_title)
+    try:
+        assert harness.attach(page_dir, comment["id"]) == "hosted-thread"
+        [title] = wait_for(
+            lambda: [e for e in read_events(page_dir) if e["kind"] == "thread_title"],
+            bool,
+            failure="the thread was never named",
+        )
+        assert (title["thread"], title["title"]) == (comment["id"], "Export speed")
+        [(endpoint, model, request)] = requests
+        assert (endpoint, model) == (harness.endpoint, website_server.HOSTED_MODEL)
+        assert "Why is the export slow?" in request
+
+        def resume_and_start(target, thread_id, process, event_id):
+            harness.following_threads.add(thread_id)
+            return True
+
+        harness.following_threads.clear()
+        monkeypatch.setattr(harness, "_resume_and_start", resume_and_start)
+        assert harness.attach(page_dir, comment["id"]) == "hosted-thread"
+        for worker in threading.enumerate():
+            if worker.name == "leaf-thread-title":
+                worker.join(timeout=STATED_TIMEOUT)
+        assert len(requests) == 1
+    finally:
+        harness.close()
+
+
 def test_a_turn_follower_releases_its_seat_before_continuing(page_dir, monkeypatch):
     harness = website_server.WebsiteCodexHarness("codex")
     harness.following_threads.add("hosted-thread")
@@ -1162,6 +1218,13 @@ def test_the_journey_emits_one_json_sample_for_each_website_target(monkeypatch):
         ("http://127.0.0.1:8080", "a" * 40, True),
         ("https://leaf-dev.example", None, False),
         ("http://127.0.0.1:8787", "b" * 40, False),
+    ]
+    # Each sample is also kept on this machine, outside the checkout.
+    kept = journey.samples_path().read_text().splitlines()
+    assert [json.loads(line)["origin"] for line in kept] == [
+        "http://127.0.0.1:8080",
+        "https://leaf-dev.example",
+        "http://127.0.0.1:8787",
     ]
 
 
@@ -2863,7 +2926,7 @@ def test_a_rejected_streamed_reply_still_releases_its_website_turn(page_dir):
     ids=["click", "arrive", "elsewhere"],
 )
 def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
-    browser, serve, read_elsewhere, reveal
+    browser, serve, read_elsewhere, reveal, request
 ):
     """A resolve during a turn cannot hide its completed answer from Open Threads.
 
@@ -2890,6 +2953,9 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     )
     harness = website_server.WebsiteCodexHarness("codex")
     turn = hosted_follower(harness, page_dir, prepared)
+    watcher = take_lease(waiter_lease_path(page_dir, "hosted-thread"))
+    assert watcher is not None
+    request.addfinalizer(watcher.close)
     turn.begin()
     # Present the accepted turn before resolving it: coalescing these server writes
     # would never exercise a workflow receipt disappearing beside the news control.
@@ -2899,10 +2965,50 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     metadata = thread.locator(
         ".lf-thread-transcript > .lf-msg:first-child > .lf-msg-head"
     )
-    expect(metadata.locator(".lf-msg-sending")).to_have_count(1)
+
+    def held_header():
+        return metadata.evaluate("""head => {
+          const rect = selector => head.querySelector(selector).getBoundingClientRect();
+          const author = rect('b');
+          const time = rect('time');
+          const meta = rect('.lf-msg-meta');
+          const news = head.closest('.lf-thread').querySelector('.lf-thread-news')
+            .getBoundingClientRect();
+          return {authorX: author.x, timeX: time.x, metadataRight: meta.right,
+            newsLeft: news.left};
+        }""")
+
+    receipt = metadata.locator(".lf-msg-sending")
+    expect(receipt).to_have_text("Replying")
     news = thread.locator(".lf-thread-news")
     expect(news).to_be_visible()
     news_left = news.bounding_box()["x"]
+    held = held_header()
+    assert held["metadataRight"] <= held["newsLeft"], held
+
+    def receipt_words():
+        return receipt.evaluate("""node => {
+          const range = document.createRange();
+          range.selectNodeContents(node);
+          return range.getBoundingClientRect().width;
+        }""")
+
+    receipt_width = receipt_words()
+    initial_receipt = receipt.inner_text()
+    assert receipt.evaluate("node => node.scrollWidth <= node.clientWidth")
+    # Losing the provider watcher changes Replying to the longer stale receipt
+    # while its answer still waits. The words spend their own retained box.
+    watcher.close()
+    told(page)
+    rendered(page)
+    expect(receipt).to_have_text("Update stale")
+    expect(receipt).to_have_attribute("title", "Update stale")
+    assert receipt_words() > receipt_width, (
+        initial_receipt,
+        receipt_width,
+        receipt_words(),
+    )
+    assert held_header() == held
     cmd_resolve(page_dir, comment["id"])
     told(page)
     rendered(page)
@@ -2914,6 +3020,7 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     expect(thread).to_be_visible()
     expect(metadata.locator(".lf-msg-sending")).to_have_count(0)
     assert news.bounding_box()["x"] == news_left
+    assert held_header() == held
     if read_elsewhere:
         write(box, "A separate thread")
         box.press("ControlOrMeta+Enter")
@@ -2956,6 +3063,7 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
         # card stands as drawn, open, so the reopening is no news.
         expect(news).to_have_text("1 new reply")
         assert news.bounding_box()["x"] == news_left
+        assert held_header() == held
         expect(
             thread.locator(".lf-msg.agent").filter(has_text="deployment verified")
         ).to_have_count(0)
@@ -5339,7 +5447,7 @@ def test_hosted_completion_cannot_borrow_a_reused_session_generation(page_dir):
 
 
 @pytest.mark.parametrize("replacement", ["generation", "prompt"])
-def test_hosted_start_retains_its_admitted_epoch_across_title_work(
+def test_hosted_start_retains_its_admitted_epoch_until_it_begins(
     page_dir, monkeypatch, replacement
 ):
     from leaf.state import end_session, prompt_turn
@@ -5353,7 +5461,9 @@ def test_hosted_start_retains_its_admitted_epoch_across_title_work(
     )
     winner = {}
 
-    def competing_title_work(*args):
+    def competing_work(event, **fields):
+        if event != "turn_start_acknowledged":
+            return
         if replacement == "generation":
             end_session("hosted-thread")
             prompt_turn("hosted-thread", "started-turn")
@@ -5374,7 +5484,7 @@ def test_hosted_start_retains_its_admitted_epoch_across_title_work(
         winner["epoch"] = current
         winner["status"] = website_server.PageTransaction(page_dir).status
 
-    monkeypatch.setattr(website_server, "name_untitled_threads", competing_title_work)
+    monkeypatch.setattr(website_server, "log_agent", competing_work)
     try:
         old = harness._start_turn(
             "socket", page_dir, "hosted-thread", SimpleNamespace(pid=os.getpid())

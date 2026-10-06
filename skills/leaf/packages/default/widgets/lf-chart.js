@@ -78,7 +78,10 @@ customElements.define(
   "lf-chart",
   class extends HTMLElement {
     connectedCallback() {
-      if (!once(this)) return;
+      if (!once(this)) {
+        this.watching?.observe(this);
+        return;
+      }
       // A chart is drawn to the room it has, so the first draw waits for a box. On the
       // page that box is there already and this settles inside the upgrade, holding the
       // view restore and the first anchor pass until the drawing is in and the page's
@@ -90,6 +93,7 @@ customElements.define(
     disconnectedCallback() {
       this.watching?.disconnect();
       cancelRender(this.paintFrame);
+      this.paintFrame = 0;
     }
 
     async draw() {
@@ -113,19 +117,22 @@ customElements.define(
         // height is stated and stays. The redraw is scheduled after ResizeObserver
         // delivery, so the layout a paint reads never lands inside the delivery cycle
         // that asked for it, which the browser reports as undelivered notifications.
-        let pending = this.drawn;
         this.watching = sizeObserver(() => {
           const width = Math.round(this.clientWidth);
-          if (!width || width === pending) return;
-          pending = width;
-          if (this.paintFrame) return;
+          if (!width || width === this.drawn || this.paintFrame) return;
           this.paintFrame = nextRender(() => {
             this.paintFrame = 0;
-            if (!this.isConnected || pending === this.drawn) return;
+            if (
+              !this.isConnected ||
+              !this.clientWidth ||
+              Math.round(this.clientWidth) === this.drawn
+            )
+              return;
             try {
               this.paint(Plot, body);
             } catch (err) {
               this.watching.disconnect();
+              this.watching = null;
               failSoft(this, err, source);
             }
           });

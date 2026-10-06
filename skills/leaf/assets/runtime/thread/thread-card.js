@@ -10,7 +10,9 @@
    margin controls and frozen message widgets keep their mechanical lifetime outside
    those values.
    The owner alone renders its native card root and all generated descendants; a
-   failed candidate is restored by presenting its committed descriptor again. */
+   failed candidate is restored by presenting its committed descriptor again. It owns
+   title gesture policy, outgoing fold paint and local draft repaint. Surfaces receive
+   whole-thread geometry readings rather than descendant nodes. */
 import { nextRender, sizeObserver } from "../rendering.js";
 import { holdFocus } from "../focus.js";
 import { TEXT_FIELD } from "../control-selectors.js";
@@ -23,7 +25,7 @@ import { keeps, keepsHidden } from "../keeps.js";
 import { keys, focused } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
 import { wireReply, replyIsEditing, replyAvailable, dismissReply } from "./replies.js";
-import { settleThread } from "./folding.js";
+import { settleThread, foldOut, finishFold, isFolding } from "./folding.js";
 import { iconTemplate } from "../icons.js";
 import { loadDraft } from "../drafts.js";
 import { SAY_BOX } from "./selectors.js";
@@ -34,8 +36,13 @@ import { threadAttention } from "./workflow.js";
 import { seenRect } from "../geometry.js";
 import { ago, shortAgo } from "../presence.js";
 import { retainUserIntent } from "../user-intent.js";
-import { scrollThreadIntoView } from "./reply-landing.js";
-import { HeldNews, newsNotice } from "./held-news.js";
+import { scrollThreadIntoView, replyPinned } from "./reply-landing.js";
+import {
+  HeldNews,
+  newsNotice,
+  growthAfterIsSeen,
+  growthInsideIsSeen,
+} from "./held-news.js";
 import { ReplyContinuity } from "./reply-continuity.js";
 
 function quoteReading(thread, anchors) {
@@ -156,8 +163,8 @@ export function threadReading(thread, surface, commands, options) {
   });
 }
 
-function navigationSummary(navigation, model, control) {
-  if (!navigation) return nothing;
+function navigationSummary(model, control) {
+  if (model.surface !== "panel") return nothing;
   const pendingTitle = model.titlePending;
   const title = model.summary.topic;
   const latest = model.summary.latest;
@@ -275,7 +282,6 @@ export class ThreadView {
   #settlements = new Map();
   #actions = document.createElement("span");
   #expandedSummaries = new Set();
-  #navigation = null;
   #marginControls = null;
   #marginControlsRow = null;
   #viewId = ++nextViewId;
@@ -342,10 +348,19 @@ export class ThreadView {
       this.#expandedSummaries.add(id);
       this.repaint();
     });
-  }
-
-  setNavigation(navigation) {
-    this.#navigation = navigation;
+    if (surface === "panel") {
+      // Pointer focus waits for the click's landing; other title focus chooses now.
+      this.node.addEventListener("focusin", (event) => {
+        if (event.target.matches?.(".lf-thread-summary:not(:active)"))
+          this.#commands.choose();
+      });
+      this.node.addEventListener("click", (event) => {
+        if (event.target.closest(".lf-thread-summary")?.parentElement !== this.node)
+          return;
+        event.preventDefault();
+        this.#commands.choose();
+      });
+    }
   }
 
   setMarginControls(controls) {
@@ -370,7 +385,7 @@ export class ThreadView {
   // The last of the thread a reader can see, after which its news grows: a folded
   // outlet's summary, which a reopening unfolds, and otherwise its last message. A
   // closed panel card has none, since news draws nothing its title row shows.
-  get foot() {
+  get #foot() {
     if (this.node.localName === "details" && !this.node.open)
       return this.node.querySelector(":scope > .lf-page-thread-summary:not([hidden])");
     return this.#lastMessage;
@@ -380,7 +395,7 @@ export class ThreadView {
   // while it stands open, a page thread's row holding Reopen once resolved; none while
   // the thread is folded, where neither shows. A resolved panel card's Reopen stands in
   // its title, which keeps its size.
-  get settlementRow() {
+  get #settlementRow() {
     if (this.node.localName === "details" && !this.node.open) return null;
     return this.node.querySelector(
       ":scope > .lf-thread-reply, :scope > .lf-page-thread-resolved",
@@ -389,28 +404,123 @@ export class ThreadView {
 
   // The node a message the thread draws stands in, after which a change to it grows;
   // none while the thread is folded, where no message shows.
-  messageNode(key) {
+  #messageNode(key) {
     if (this.node.localName === "details" && !this.node.open) return null;
     return this.#messages.get(key)?.node ?? null;
   }
 
   // The checkpoint a summary the thread draws stands in; none while the thread is
   // folded.
-  summaryNode(id) {
+  #summaryNode(id) {
     if (this.node.localName === "details" && !this.node.open) return null;
     return this.node.querySelector(
       `.lf-thread-checkpoint[data-summary-id="${CSS.escape(id)}"]`,
     );
   }
 
-  present(model) {
+  ownsMessage(id) {
+    return (
+      this.#model?.id === id ||
+      this.#model?.messages.some((message) => message.id === id)
+    );
+  }
+
+  // The surface follows the whole thread; only this owner locates its message and
+  // reply regions. Geometry readings carry no descendant nodes across that boundary.
+  incomingTail(prior, next) {
+    const known = new Set(prior.messages.map((message) => message.key));
+    const incoming = next.messages.filter(
+      (message) => message.author === "agent" && !known.has(message.key),
+    );
+    const latest = prior.messages.at(-1);
+    const nextLatest = next.messages.at(-1);
+    const grown =
+      latest?.key === nextLatest?.key &&
+      nextLatest?.author === "agent" &&
+      latest.body.text !== nextLatest.body.text;
+    if (!incoming.length && !grown) return null;
+    const node = latest && this.#messageNode(latest.key);
+    if (!node) return null;
+    return {
+      id: incoming.at(-1)?.id ?? nextLatest.id,
+      tailStart: node.getBoundingClientRect().bottom,
+      end: this.node.getBoundingClientRect().bottom,
+      box: this.#reply?.node.getBoundingClientRect().top,
+    };
+  }
+
+  messageTail(id) {
+    const message = this.#model.messages.find((message) => message.id === id);
+    const node = message && this.#messageNode(message.key);
+    return node
+      ? {
+          bottom: node.getBoundingClientRect().bottom,
+          end: this.node.getBoundingClientRect().bottom,
+        }
+      : null;
+  }
+
+  // HeldNews compares readings; this owner decides whether their changed regions
+  // would move visible words. A pinned reply can absorb growth at the thread's end,
+  // but cannot absorb changes above it or settlement replacing the reply itself.
+  newsMoves({ news, changed, folds }) {
+    const pinned = replyPinned(this.#reply?.node);
+    const followed = pinned && !news.settled ? this.#foot : null;
+    return (
+      [
+        ...[...changed].map((message) => this.#messageNode(message)),
+        (news.appended || news.settled) && this.#foot,
+      ].some((node) => node && node !== followed && growthAfterIsSeen(node)) ||
+      growthInsideIsSeen(
+        [
+          ...folds.messages.map((message) => this.#messageNode(message)),
+          ...folds.summaries.map((summary) => this.#summaryNode(summary)),
+        ].filter(Boolean),
+      ) ||
+      Boolean(
+        news.settled &&
+        this.#settlementRow &&
+        growthInsideIsSeen([this.#settlementRow]),
+      )
+    );
+  }
+
+  present(model, { retaining = false, viewChanged = false } = {}) {
     this.#received = model;
+    const prior = this.#model;
+    // The list chooses membership. The complete thread owns its outgoing paint and
+    // retirement, keeping the last shown reading until its root gives back its room.
+    if (model.surface === "panel") {
+      if (retaining || !model.resolved || model.visible) finishFold(this.node);
+      const folding =
+        !retaining &&
+        model.resolved &&
+        (isFolding(this.node) ||
+          (prior &&
+            !viewChanged &&
+            !prior.resolved &&
+            !prior.folding &&
+            prior.visible &&
+            !model.visible &&
+            foldOut(this.node, this.#commands.repaintThread)));
+      if (folding) {
+        this.retire();
+        model = Object.freeze({
+          ...prior,
+          id: model.id,
+          folding: true,
+          grow: false,
+          settlement: Object.freeze({ ...prior.settlement, pending: false }),
+        });
+        if (this.node.contains(focused()))
+          this.#commands.listRoot.focus({ preventScroll: true });
+      }
+    }
     if (this.#heldNews)
       model = Object.freeze(
         this.#heldNews.hold({ threads: [model] }, { row: false }).threads[0],
       );
     const bodyPlace = this.#continuity?.before();
-    const prior = this.#model;
     const restoreFocus = holdFocus(this.node);
     const standing = focused();
     const priorSummaries = new Set(prior?.summaries.map(({ id }) => id) ?? []);
@@ -458,8 +568,7 @@ export class ThreadView {
     const notice = headerSettlement ? this.#titleNews : this.#news;
     if (model.news) notice.set(model.news);
     const news = model.news ? notice.node : nothing;
-    const navigation = panel ? this.#navigation : null;
-    this.node.classList.toggle("lf-thread-compact", Boolean(navigation));
+    this.node.classList.toggle("lf-thread-compact", panel);
     const hiding = !model.visible && !model.folding && !this.node.hidden;
     if (hiding) this.retire();
     keepsHidden(this.node, !model.visible && !model.folding);
@@ -610,7 +719,6 @@ export class ThreadView {
     render(
       html`
         ${navigationSummary(
-          navigation,
           model,
           !headerSettlement
             ? null
@@ -889,8 +997,7 @@ export class ThreadView {
       this.#draftFrame ||= nextRender(() => {
         this.#draftFrame = 0;
         if (!this.#reply) return;
-        if (panel) this.#navigation.draftChanged();
-        else if (this.#model.resolved) this.repaint();
+        if (panel || this.#model.resolved) this.repaint();
         if (this.#model.resolved) this.#commands.reply.changed();
       });
     };

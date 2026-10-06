@@ -1470,7 +1470,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   .lf-command-reference-command[data-lf-selected="true"] { background: var(--chip); }
   .lf-command-reference-command:focus-visible { outline: var(--focus-ring);
     --lf-focus-ring: help-command; outline-offset: 1px; }
-  .lf-command-reference-command[data-lf-available="false"] { color: var(--muted); }
   .lf-page-map-toggle { display: none; }
   .lf-page-map-head { display: flex; align-items: center; gap: 8px; }
   .lf-page-map-head > strong { flex: 1; }

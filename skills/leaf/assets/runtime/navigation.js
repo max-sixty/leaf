@@ -320,7 +320,6 @@ export function createNavigation({
       { id: "thread.next", binding: "t", title: "Next open thread" },
       { id: "thread.previous", binding: "Shift+t", title: "Previous open thread" },
     ],
-    description: "Next / previous open thread",
     title: "threads",
     covering: true,
     // Once textual search owns the panel, n/N are the canonical walk there. Keep t/T as
@@ -356,7 +355,6 @@ export function createNavigation({
         title: "page up",
       },
     ],
-    description: "Move 60% of a page down or up",
     title: "page down / up",
     covering: true,
     repeat: true,
@@ -380,7 +378,6 @@ export function createNavigation({
         title: "scroll up",
       },
     ],
-    description: "Scroll down or up a little",
     title: "scroll down / up",
     covering: true,
     repeat: true,

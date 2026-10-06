@@ -97,7 +97,6 @@ export function createPanelComposer({
             title: "Go to the previous thread found",
           },
         ],
-        description: "Next / previous thread found",
         title: "search matches",
         repeat: true,
         when: () => narrowing.threadSearchActive() && hasThreads(),

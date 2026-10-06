@@ -4789,7 +4789,7 @@ def test_forced_colors_keep_inline_thread_focus_visible(browser, serve):
 
 
 def test_inline_thread_surface_has_room_without_focus_reflow(browser, serve):
-    """Resolve shares the first message line without changing the current surface."""
+    """Thread controls and complete messages keep their room when the reply is focused."""
     url = serve(SEATED_QUESTION_PAGE)
     panel_comment(serve.page_dir, "First job note", {"section": "jobs"})
     root = panel_comment(
@@ -4847,8 +4847,11 @@ def test_inline_thread_surface_has_room_without_focus_reflow(browser, serve):
           const control = el.querySelector(
             ':scope .lf-thread-meta-actions > .lf-resolve'
           ).getBoundingClientRect();
+          const controls = el.querySelector(
+            ':scope > .lf-thread-controls'
+          ).getBoundingClientRect();
           const headNode = el.querySelector(
-            ':scope .lf-thread-root-meta'
+            ':scope .lf-msg > .lf-msg-head'
           );
           const head = headNode.getBoundingClientRect();
           const author = headNode.querySelector('b').getBoundingClientRect();
@@ -4858,20 +4861,22 @@ def test_inline_thread_surface_has_room_without_focus_reflow(browser, serve):
           const body = bodyNode.getBoundingClientRect();
           return {actionsTop: actions.top, actionsBottom: actions.bottom,
                   controlTop: control.top, expectedTop: own.top + inset,
-                  controlBottom: control.bottom, headTop: head.top,
+                  controlBottom: control.bottom, controlsTop: controls.top,
+                  controlsBottom: controls.bottom, headTop: head.top,
                   headBottom: head.bottom,
                   authorBottom: author.bottom,
                   bodyTop: body.top,
                   bodyMargin: parseFloat(getComputedStyle(bodyNode).marginTop)};
         }"""
     )
-    assert placement["controlTop"] == pytest.approx(placement["headTop"], abs=1)
+    assert placement["controlTop"] == pytest.approx(placement["controlsTop"], abs=1)
     assert placement["actionsTop"] == pytest.approx(placement["controlTop"], abs=1)
     assert placement["actionsBottom"] == pytest.approx(
         placement["controlBottom"], abs=1
     )
-    assert placement["controlBottom"] <= placement["headBottom"], (
-        f"Resolve did not share the first inline message's heading: {placement}"
+    assert placement["controlBottom"] <= placement["controlsBottom"]
+    assert placement["controlsBottom"] <= placement["headTop"], (
+        f"thread controls overlap the first message: {placement}"
     )
     assert placement["bodyTop"] - placement["headBottom"] == pytest.approx(
         placement["bodyMargin"], abs=1

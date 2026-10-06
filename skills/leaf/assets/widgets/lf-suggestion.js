@@ -131,7 +131,6 @@ customElements.define(
     #undoing = false;
     #margin = null;
     #commandScope = null;
-    #stopReading = null;
     #controller = null;
     #presentedOutcome = null;
 
@@ -140,7 +139,6 @@ customElements.define(
       // restore this target's contribution to the shared margin entry cluster.
       if (!once(this)) {
         this.#offer();
-        this.#watchReading();
         return;
       }
       this.#controller = widgetController(this);
@@ -153,7 +151,7 @@ customElements.define(
       // exhibit shows what a pending change looks like, so it keeps the marks
       // the theme draws and never grows controls to decide it with.
       if (quoted(this)) {
-        this.#watchReading();
+        this.#subscribeReading();
         return;
       }
       // The runtime says it just opened this element's containers (reveal): the entry
@@ -164,12 +162,11 @@ customElements.define(
         this.#margin?.update({ immediate: true }),
       );
       this.#offer();
-      this.#watchReading();
+      this.#subscribeReading();
     }
 
-    #watchReading() {
-      this.#controller ??= widgetController(this);
-      this.#stopReading ??= this.#controller.subscribe((reading) => {
+    #subscribeReading() {
+      this.#controller.subscribe((reading) => {
         if (quoted(this) || !this.#margin) return;
         if (
           this.#margin.contains(document.activeElement) &&
@@ -186,8 +183,6 @@ customElements.define(
     }
 
     disconnectedCallback() {
-      this.#stopReading?.();
-      this.#stopReading = null;
       this.#margin?.unregister();
       this.#margin = null;
       emphasized.delete(this);

@@ -101,7 +101,7 @@ export function createFloatingResponsePlacement({
   // The editing observer reports size and horizontal target movement: CSS anchors
   // own scroll following, while a target moved without resizing must let the shared
   // placement rule choose its side again. Movement observation also hears scroll,
-  // so only a change in horizontal position asks for another solve.
+  // which must leave the native attachment alone.
   // A compact strip still observes scroll and layout shifts. Explicit publication may
   // replace a target or editor seat; composition stops this owner for that handoff.
   // Native-seat readiness belongs to composition; stopping this presenter retires
@@ -130,7 +130,7 @@ export function createFloatingResponsePlacement({
   }
 
   let observationModes = null;
-  function watchFabPosition(target, autoUpdate) {
+  function watchFabPosition(target, autoUpdate, getOverflowAncestors) {
     const reference = {
       contextElement: response.pointIn(target) ?? target,
       getBoundingClientRect: () =>
@@ -148,11 +148,27 @@ export function createFloatingResponsePlacement({
             layoutShift: false,
           });
           let x = reference.getBoundingClientRect().left;
+          const scrollers = getOverflowAncestors(reference.contextElement);
+          const scrollPose = () =>
+            scrollers.map((node) => [
+              node.scrollX ?? node.scrollLeft,
+              node.scrollY ?? node.scrollTop,
+            ]);
+          let pose = scrollPose();
           const stopMotion = autoUpdate(
             reference,
             floating,
             () => {
               const next = reference.getBoundingClientRect().left;
+              const now = scrollPose();
+              const scrolled = now.some((axes, i) =>
+                axes.some((value, axis) => value !== pose[i][axis]),
+              );
+              pose = now;
+              if (scrolled) {
+                x = next;
+                return;
+              }
               if (next === x) return;
               x = next;
               invalidate();
@@ -290,7 +306,11 @@ export function createFloatingResponsePlacement({
     void floatingUi()
       .then((ui) => {
         if (!stillCurrent()) return null;
-        watchFabPosition(owner ?? document.documentElement, ui.autoUpdate);
+        watchFabPosition(
+          owner ?? document.documentElement,
+          ui.autoUpdate,
+          ui.getOverflowAncestors,
+        );
         const { reference, placement, middleware, plane } = fabPlacement.options(ui, {
           clear: keepClear,
           row: place.row,

@@ -3,10 +3,12 @@ page's own record.
 
     uv run leaf-dev journey TARGET [--release RELEASE]
 
-The user opens the triage board in Chrome, asks through the Threads composer for a
-new main heading, a published revision and a reply, then waits for the answer to
-show in Threads and for a reload to present the published revision. Every target
-gets the same ask and the same checks. TARGET names what answers:
+The user opens the triage board in Chrome and tells the agent, through the Threads
+composer, that a release passed its deployment checks, asking it to record that on
+the board. How the page records it is the agent's call, as with a real user's
+request; the journey requires only a reply in Threads and a reload presenting a
+published revision that names the release. Every target gets the same ask and the
+same checks. TARGET names what answers:
 
 - `cc` or `codex`: an isolated Claude Code or Codex session running this working
   tree's plugin, asked to serve the page and handle its comments (`REQUEST`);
@@ -20,7 +22,10 @@ admitted the comment, titled its thread, activated the published revision and
 admitted the reply; `sinceAdmissionMs` reads those from the comment's admission, so
 every target is timed on one clock, the page server's. The browser alone sees the
 POST's answer and the reply showing in Threads; `sinceSendMs` reads those from the
-first send. The JSON on stdout carries both, with the code version the journey ran.
+first send. Where the journey runs the agent itself, `cc` or `codex`, its stream
+also splits the turn between those two moments into delivery, model and tool phases
+(`turn`), so a slow reply shows where it went. The JSON on stdout carries all of it,
+with the code version the journey ran.
 
 A `startup_failed` receipt gets one more ask; any other failure receipt fails on
 the first (`worker/README.md` owns that contract).
@@ -94,7 +99,8 @@ HARNESSES = ("cc", "codex")
 
 class Session(NamedTuple):
     """One user's open page, with what reaching its state takes: `headers` go with
-    each state read, and `after_post` runs once a comment is admitted."""
+    each state read, and `after_post` runs once a comment is admitted. `stream` is
+    the answering agent's stream where the journey runs that agent itself."""
 
     context: BrowserContext
     page: Page
@@ -104,6 +110,7 @@ class Session(NamedTuple):
     state: dict
     headers: dict[str, str]
     after_post: Callable[[dict], None] | None
+    stream: Path | None = None
 
 
 def still_answering(state: dict, event_id: str) -> bool:
@@ -129,13 +136,14 @@ class TurnReading(NamedTuple):
 
 class AgentProfile:
     """What the browser observed of one request: each ask's admitted comment and
-    acknowledgement, the page's activity, and when the reply showed, all from the
-    first send."""
+    acknowledgement, the page's activity, when its thread first showed the agent on
+    it, and when the reply showed, all from the first send."""
 
     def __init__(self) -> None:
         self.started = time.monotonic()
         self.visible_reply_started_ms: float | None = None
         self.acknowledged: list[float] = []
+        self.work_visible_s: float | None = None
         self.visible_reply_s: float | None = None
         self.activities: list[tuple[float, str, str]] = []
         self.ask_count = 0
@@ -198,6 +206,60 @@ def recorded_steps(events: list[dict], comment: dict, published: dict) -> dict:
     }
 
 
+def turn_phases(records: list[dict], admitted: str, replied: str) -> list[dict]:
+    """The agent's turn from the comment's admission to its reply, as consecutive
+    phases in milliseconds from the admission: `delivery` until the turn starts (its
+    `init`, or the user record carrying the delivery), then alternating `model`
+    (from the last tool result to the next tool call) and `tool` (from that call
+    until every call it started has returned), each tool phase naming its calls.
+    Times are when the journey received each stream record."""
+    start, end = instant(admitted), instant(replied)
+    timed = [
+        (instant(record["received_at"]), record)
+        for record in records
+        if start <= instant(record["received_at"]) <= end
+    ]
+    phases: list[dict] = []
+
+    def close(phase: str, since: float, until: float, **detail) -> None:
+        phases.append(
+            {
+                "phase": phase,
+                "startMs": round((since - start) * 1000),
+                "ms": round((until - since) * 1000),
+                **detail,
+            }
+        )
+
+    began = next(
+        at
+        for at, record in timed
+        if record["type"] == "user" or record.get("subtype") == "init"
+    )
+    close("delivery", start, began)
+    phase, since, pending, calls = "model", began, set(), []
+    for at, record in timed:
+        if at <= began or record["type"] not in ("assistant", "user"):
+            continue
+        for part in record["message"]["content"]:
+            if part["type"] == "tool_use":
+                if phase == "model":
+                    close("model", since, at)
+                    phase, since, calls = "tool", at, []
+                pending.add(part["id"])
+                calls.append(part["input"].get("command", part["name"])[:200])
+            elif part["type"] == "tool_result" and part["tool_use_id"] in pending:
+                pending.remove(part["tool_use_id"])
+                if not pending:
+                    close("tool", since, at, calls=calls)
+                    phase, since = "model", at
+    if phase == "tool":
+        close("tool", since, end, calls=calls)
+    else:
+        close("model", since, end)
+    return phases
+
+
 def agent_profile(profile: AgentProfile, steps: dict) -> dict:
     """One comment-to-answer profile in milliseconds: the page server's `steps` from
     the answered comment's admission, and the browser's observations from the first
@@ -213,6 +275,7 @@ def agent_profile(profile: AgentProfile, steps: dict) -> dict:
         "sinceAdmissionMs": {step: ms(seconds) for step, seconds in steps.items()},
         "sinceSendMs": {
             "acknowledged": [ms(at) for at in profile.acknowledged],
+            "workVisible": ms(profile.work_visible_s),
             "responseVisible": ms(profile.visible_reply_s),
         },
         "activity": [
@@ -238,18 +301,20 @@ def deployment_answer(replies: list[dict]) -> dict | None:
 
 
 def check_turn_answered(
-    url: str, heading: str, turn: TurnReading, asks: int, revision: int
+    url: str, marker: str, turn: TurnReading, asks: int, revision: int
 ) -> None:
-    """Require the turn to have published the heading and answered, reading only what
-    the server admitted. A missing publication includes the source-validation
-    reading, distinguishing a rejected source from a valid source missing the heading."""
+    """Require the turn to have published a revision naming `marker` and answered,
+    reading only what the server admitted. A missing publication includes the
+    source-validation reading, distinguishing a rejected source from a valid source
+    that never names the marker."""
     state, published, replies, answer = turn
     tried = f" to {asks} asks" if asks > 1 else ""
     reading = (state.get("activity") or {}).get("kind") or "no activity"
     said = "; it replied: " + " / ".join(event["text"] for event in replies)
     check(
         published is not None,
-        f"{url} agent did not publish ‘{heading}’{tried}; it reached revision "
+        f"{url} agent did not publish a revision naming ‘{marker}’{tried}; it "
+        f"reached revision "
         f"{state['active']['revision']} from {revision} with the page "
         f"reading {reading}"
         + (said if replies else " and did not reply")
@@ -276,14 +341,18 @@ def read_state(session: Session) -> dict:
     return response.json()
 
 
-def ask_for_the_heading(
-    session: Session, heading: str, profile: AgentProfile, ask: int
+def ask_to_record(
+    session: Session, marker: str, profile: AgentProfile, ask: int
 ) -> dict:
-    """Send one ask through the user's real composer; return its admitted comment."""
+    """Send one ask through the user's real composer; return its admitted comment.
+
+    The ask says what happened and leaves how the page shows it to the agent, as a
+    user would, so the journey times the agent's own way of working rather than a
+    scripted edit."""
     page, url = session.page, session.url
     text = (
-        f"Change the main heading to ‘{heading}’. Leave everything else unchanged, "
-        "publish the revision, and reply with ‘deployment verified’."
+        f"Release {marker} passed its deployment checks. Record that on the board, "
+        "and tell me when it's done."
     )
     box = page.locator(".lf-general leaf-text")
     box.focus()
@@ -328,7 +397,7 @@ def await_turn(
     session: Session,
     comment: dict,
     revision: int,
-    heading: str,
+    marker: str,
     published: dict | None,
     deadline: float,
     profile: AgentProfile,
@@ -350,11 +419,11 @@ def await_turn(
         active = current["active"]
         if published is None and active["revision"] > revision:
             # The turn may publish a checkpoint first, so read the document for the
-            # heading rather than taking the first new revision.
+            # marker rather than taking the first new revision.
             document = session.context.request.get(
                 urljoin(session.url, active["url"]), timeout=120_000
             )
-            if document.ok and heading in document.text():
+            if document.ok and marker in document.text():
                 published = active
         if published is not None and answer is not None:
             break
@@ -386,8 +455,8 @@ def await_title(session: Session, thread: str, state: dict) -> dict:
     return state
 
 
-def ask_until_answered(session: Session, heading: str) -> AgentAsks:
-    """Ask for `heading` until the agent answers or stops answering.
+def ask_until_answered(session: Session, marker: str) -> AgentAsks:
+    """Ask the agent to record `marker` until it answers or stops answering.
 
     A `startup_failed` receipt is retried once while a healthy turn's budget remains;
     any other receipt, or a turn that stops without answering, ends the pass.
@@ -403,9 +472,9 @@ def ask_until_answered(session: Session, heading: str) -> AgentAsks:
         # A second ask continues the revision the first left, and keeps what it
         # published.
         revision = state["active"]["revision"]
-        comment = ask_for_the_heading(session, heading, profile, asks)
+        comment = ask_to_record(session, marker, profile, asks)
         state, published, replies, answer = await_turn(
-            session, comment, revision, heading, published, deadline, profile
+            session, comment, revision, marker, published, deadline, profile
         )
         if answer is not None or not (
             asks < TURN_ASKS
@@ -459,19 +528,19 @@ def wait_for_visible_reply(page, parent: str, answer_id: str) -> bool:
 
 
 def run_journey(session: Session, version: str) -> dict:
-    """Ask the agent behind `session` to publish a heading naming `version` and to
-    reply, then require Threads to show the reply and a reload to present the
-    published revision. Return the journey's profile.
+    """Tell the agent behind `session` that release `version` passed its checks and
+    ask it to record that, then require a reply in Threads and a reload presenting a
+    published revision that names the release. Return the journey's profile.
 
-    The heading checks are containments: the agent may quote the heading, and the
-    runtime may add its own words to pointable text.
+    The page check is a containment of the release's short hash anywhere in the
+    page: where and how the agent records it is the agent's call.
     """
     page, url = session.page, session.url
     initial_startup = startup_reading(page)
-    heading = f"Deployment {version[:8]} verified"
+    marker = version[:8]
     page.locator(".lf-threads-toggle").click()
-    turn, asks, revision, profile = ask_until_answered(session, heading)
-    check_turn_answered(url, heading, turn, asks, revision)
+    turn, asks, revision, profile = ask_until_answered(session, marker)
+    check_turn_answered(url, marker, turn, asks, revision)
     published, answer = turn.published, turn.answer
     answered_comment = next(
         event for event in turn.state["events"] if event["id"] == answer["parent"]
@@ -486,7 +555,22 @@ def run_journey(session: Session, version: str) -> dict:
         profile.visible_reply_s = (
             visible_reply_at - profile.visible_reply_started_ms
         ) / 1000
-    print(json.dumps(agent_profile(profile, steps), indent=2), file=sys.stderr)
+    # Read before the reload below, which starts a document of its own.
+    work_visible_at = page.evaluate(
+        "thread => window.__leafVerifier.workVisibleAt(thread)", answer["parent"]
+    )
+    if work_visible_at is not None:
+        profile.work_visible_s = (
+            work_visible_at - profile.visible_reply_started_ms
+        ) / 1000
+    comment = agent_profile(profile, steps)
+    if session.stream is not None:
+        comment["turn"] = turn_phases(
+            [json.loads(line) for line in session.stream.read_text().splitlines()],
+            answered_comment["ts"],
+            answer["ts"],
+        )
+    print(json.dumps(comment, indent=2), file=sys.stderr)
     if not reply_visible or visible_reply_at is None:
         debug = page.evaluate("window.__leafVerifier.visibleReplyDebug")
         raise RuntimeError(
@@ -525,10 +609,11 @@ def run_journey(session: Session, version: str) -> dict:
         f"{url} stands on revision {shown} rather than following the published "
         f"{published['revision']}, with the banner reading ‘{banner}’",
     )
-    rendered = page.locator("h1").inner_text()
+    rendered = page.locator("main").inner_text()
     check(
-        heading in rendered,
-        f"{url} rendered ‘{rendered}’ rather than the agent's published ‘{heading}’",
+        marker in rendered,
+        f"{url} rendered a page that never names ‘{marker}’, which the agent's "
+        "published revision did",
     )
     print(
         f"✓ the agent published revision {published['revision']} and replied: "
@@ -539,9 +624,9 @@ def run_journey(session: Session, version: str) -> dict:
     return {
         "version": version,
         "page": startup_profile(initial_startup),
-        "comment": agent_profile(profile, steps),
+        "comment": comment,
         "change": {
-            "heading": heading,
+            "marker": marker,
             "revision": published["revision"],
             "reply": answer["text"],
         },
@@ -634,7 +719,8 @@ def harness_session(browser, harness: str) -> Iterator[tuple[Session, str]]:
                     f"{run / 'stream.jsonl'}",
                 )
                 time.sleep(1)
-            yield local_session(browser, found["url"]), version
+            session = local_session(browser, found["url"])
+            yield session._replace(stream=run / "stream.jsonl"), version
         finally:
             child.close()
             # A turn in progress ends on its own once stdin closes; the context's

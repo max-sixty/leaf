@@ -35,7 +35,7 @@
    read when they were measured, or zero for contents placed where they stand at the
    scroller's start, which a later scroll does not change, so placing them again
    writes nothing. */
-import { scrollAxes } from "./geometry.js";
+import { scrollAxes, scrollsBy } from "./geometry.js";
 import { renderedParent } from "./shadow.js";
 
 // Timelines express displacement linear in scroll, while sticky and fixed boxes
@@ -66,10 +66,7 @@ export function scrollOrigins(contexts) {
 }
 
 const scrollContainer = (box) =>
-  box === box.ownerDocument.scrollingElement ||
-  /auto|scroll|hidden/.test(
-    `${getComputedStyle(box).overflowX} ${getComputedStyle(box).overflowY}`,
-  );
+  box === box.ownerDocument.scrollingElement || scrollsBy(getComputedStyle(box));
 
 // Whether `source` starts scrolled to the far end of `axis`, its right or bottom, where
 // `scrollLeft` or `scrollTop` runs negative: the platform's rule, from the writing mode

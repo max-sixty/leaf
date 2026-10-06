@@ -2015,15 +2015,13 @@ SnapshotHandlerRegistry.add_handler(
 
 
 def consume_pending_input(session_id):
-    """A test reader takes a complete envelope and explicitly confirms it."""
+    """Hand the session its pending input as a hook does inline: one complete
+    envelope, confirmed as it is handed over."""
     from leaf import delivery
-    from leaf.hook_carrier import hook_acknowledgement
 
     batches = delivery.pending_batches(session_id)
     if not batches:
         return None
-    payload = delivery.freeze_delivery(
-        batches, carrier="hook", acknowledge=hook_acknowledgement
-    )
-    delivery.receive(payload, session_id)
+    payload = delivery.freeze_delivery(batches, carrier="hook")
+    delivery.receive_held(payload, session_id)
     return payload

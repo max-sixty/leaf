@@ -203,7 +203,7 @@ Leaf: /home/you/review has new input; Leaf's prompt hook puts it in your context
   "id": "2d5bdcc4",
   "created_at": 1790100943.144468,
   "carrier": "hook",
-  "acknowledge": "Once this complete delivery is in your context, confirm it with `leaf delivery ack 2d5bdcc4`. Until then, the user's moves read Sent.",
+  "acknowledge": null,
   "batches": [
     {
       "page": "/home/you/review",
@@ -314,8 +314,7 @@ Leaf: /home/you/review has new input; Leaf's prompt hook puts it in your context
   ]
 }
 
-# acknowledge the complete delivery, then name the work before starting it
-$ leaf delivery ack 2d5bdcc4
+# the hook confirmed the delivery as it handed it over; name the work before starting it
 $ leaf task start ./review ebe8f367 "splitting the shed policy between the API and the importer"
 
 # revise ./review/index.html; a valid save goes live at once
@@ -351,10 +350,13 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
             <ul id="receipt-work-response">
               <li id="wait-ack">
                 <strong>Receipt</strong>: which input reached the agent. Claude Code's
-                hooks put the envelope into the turn, inline or as a pointer. The agent
-                confirms it with <code>leaf delivery ack &lt;delivery-id&gt;</code> once
-                the complete envelope is in context; a hook timeout can discard its
-                output, so the hook itself confirms nothing. A Codex task running its
+                hooks put the envelope into the turn, inline or as a pointer. A hook
+                confirms an inline envelope itself, once it has published it well inside
+                its timeout, since a timeout would discard its output; the agent's
+                <code>leaf delivery read &lt;delivery-id&gt;</code> confirms a pointer,
+                which the hook hands over instead when the input is too large for the
+                turn's context or the hook ran too slowly to confirm it. A Codex task
+                running its
                 own wait gets the envelope printed and confirms it with
                 <code>leaf wait --ack &lt;delivery-id&gt;</code>; printed output can be
                 lost or cut off, so unconfirmed events stay available to the next wait.
@@ -419,8 +421,9 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
                 <tr id="stages-picked">
                   <td>Picked up</td>
                   <td>
-                    The agent confirms the envelope a hook put in its turn with
-                    <code>leaf delivery ack</code>.
+                    The prompt or Stop hook puts the envelope in the agent's turn, or
+                    the agent reads the pointer it put there with
+                    <code>leaf delivery read</code>.
                   </td>
                   <td>
                     The agent's next <code>leaf wait --ack</code> confirms the envelope
@@ -578,8 +581,8 @@ flowchart TD
                 comment at once, marked Sent.
               </lf-chronology-entry>
               <lf-chronology-entry id="updates-picked" at="1s" kind="observation">
-                <strong>Picked up</strong> The agent reads your comment in its turn and
-                confirms receipt. Your comment reads Picked up, and until the agent
+                <strong>Picked up</strong> Leaf's hook puts your comment in the agent's
+                turn and confirms receipt. Your comment reads Picked up, and until the agent
                 writes its own words the banner reads
                 <em>Claude working — on your update</em>.
               </lf-chronology-entry>

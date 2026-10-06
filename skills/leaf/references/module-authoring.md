@@ -63,6 +63,11 @@ A behavior module follows these rules:
   `measure`. After a view swap, call `layoutChanged` and await its promise before
   restoring scroll. A registry-declared widget registers asynchronous visible
   preparation through `controller.present(promise)`.
+  In Lit templates, use `<button ${offered("lf-btn")}>` for the same generated
+  control anatomy. `offered` owns the element's class and chrome markers; native
+  button type defaults to `button`. A native input's `type` binding precedes
+  `offered` so its press marker reads that type. Bind values and handlers normally, and use
+  `repeat(items, identity, template)` to retain editable controls under their identities.
 - Read UI based on element geometry synchronously from `PRESENTATION` for its
   first paint, then through normal layout signals. Reconcile UI derived from
   authored structure at `PAGE_INTERFACE`, at startup and each in-place revision
@@ -147,7 +152,7 @@ immediately while connected and returns cleanup for retiring the callback itself
 The controller retains callbacks across removal: it stops semantic updates and releases
 presentation regions while detached, then paints the latest reading and restores
 preparation proof when the same owner reconnects. No unsubscribe or resubscribe belongs
-in the widget's connection callbacks. Native listeners, timers, data feeds, reading
+in the widget's connection callbacks. Native listeners, timers, reading
 regions, margin contributions, and thread surfaces still follow their own lifetimes.
 For each reading the controller calls the module's `renderState(state)` first and these
 subscribers after. Report-only and quoted
@@ -572,8 +577,8 @@ controls or availability change, keep the row fields computed and call `paintKey
 every command projection then updates together. A package that needs the page-wide open
 Ask set calls `watchAsks(owner, callback)`. It invokes `callback(openAsks)` on the
 microtask after subscribing and again after each state change, at most once per
-microtask and possibly with an unchanged set; it skips calls while `owner` is
-disconnected, and returns a cleanup function the owner calls on disconnect. Each
+microtask and possibly with an unchanged set. Register it once under
+"Projection subscriptions". Each
 Ask is an immutable `{id, tag, sourceId, sourceTag, thread}` record; resolve a node only
 to present or focus it, never to decide membership or answered state. The set is empty
 until the page's first server reading is admitted, and it changes with each later
@@ -635,6 +640,14 @@ parts while leaving their peers unaddressable would confuse a reader. The render
 check then requires a nonempty authored list to name the full registered inventory;
 omitting the attribute keeps the visual as one target.
 
+## Projection subscriptions
+
+Register `watchAsks`, `watchUpdates`, `watchHistory`, and `watchThreads` once for each
+owner. They coalesce reads at the script's microtask checkpoint, pause while the owner
+is absent, and read the latest projection when it returns, even when unchanged.
+Moving the owner within one mutation batch retains its subscription. Their returned
+cleanup permanently retires the subscription, including queued reads and clock paints.
+
 ## Page history
 
 A widget that renders the page's history declares `x-history` and reads it through
@@ -651,7 +664,7 @@ data"](packages.md#external-or-derived-data).
 A module subscribes through its own input declaration:
 
 ```js
-this.stopWatching = watchData(this, "builds", (snapshot) => render(snapshot));
+if (once(this)) watchData(this, "builds", (snapshot) => render(snapshot));
 ```
 
 The callback receives `null` while the source has no readable value, otherwise a clone
@@ -660,8 +673,18 @@ value itself, so a renderer can distinguish two writes even when their wall cloc
 timestamps coincide. It runs immediately and again when that source revision changes.
 A value that fails its contract is delivered as `null`; `page state` and `page check`
 report why.
-Return the cleanup function from the element's disconnect path. The callback must
-state the whole rendering and remain idempotent.
+Register once for the element. Leaf pauses the subscription when its owner leaves and
+delivers the newest snapshot when it returns, even if its revision is unchanged.
+Moving the owner within one DOM mutation batch retains the subscription. The returned
+cleanup function ends it permanently when the module explicitly stops watching.
+The callback must state the whole rendering and remain idempotent.
+
+Use `watchOwner(element, {connect, disconnect})` for other resources that follow the
+same lifetime, such as a clocked paint after asynchronous preparation. It calls
+`connect` synchronously when registered on a connected element, then calls each hook
+once per actual departure or return. Its returned function permanently unregisters
+the hooks and disconnects any active resources. Register dependent resources before
+`watchData` so they stand when its initial or resumed callback runs.
 
 Time readings made synchronously in controller, `watchData`, `watchUpdates`, and
 `watchHistory` callbacks subscribe that paint to Leaf's shared clock. Calls to `ago`,
@@ -714,8 +737,7 @@ it returns that promise so Leaf publishes the source revision as ready only afte
 projection settles. A rejection is reported as that subscriber's page
 error; it does not make later state
 reads repeat the same page-wide failure. A rejection from the callback's first run is
-stronger: Leaf drops that subscription, so the callback is not asked to restate again
-until the element is reconnected.
+stronger: Leaf permanently ends that registration.
 
 Leaf records the default origin or `originOf(record, index)` result as JSON in
 `data-lf-origin` on each datum; a null origin removes any previous provenance. Derived records outside the data
@@ -728,8 +750,8 @@ text or datum keys.
 `readThreads()` returns the same immutable `{phase, threads}` collection the
 Threads panel reads. `threads` contains conversations; a bare reaction record without
 a spoken turn is not a listed Thread. `watchThreads(owner, callback)` calls a connected
-widget with that collection initially and after relevant application updates; it returns a stop
-function for `disconnectedCallback`. Each widget keeps its own search, filter, and
+widget with that collection initially and after relevant application updates, under
+"Projection subscriptions". Each widget keeps its own search, filter, and
 order state and derives its displayed rows from the collection. `threadTurns(thread)`
 selects a Thread's displayed turns, and `threadSummary(thread)` gives its topic and
 latest activity. An agent-authored message or closing event carries `agent`, the

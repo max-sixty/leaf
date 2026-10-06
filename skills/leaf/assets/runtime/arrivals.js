@@ -30,6 +30,61 @@ import { under } from "./shadow.js";
 const watches = new Set();
 const stages = new WeakSet();
 const stageRefs = new Set();
+const owners = new WeakMap();
+let watchingOwners = false;
+
+// Independent subscriptions share their element's connection lifetime. The arrival
+// batch decides whether it actually left, so an in-document move retains them.
+export function watchOwner(owner, lifecycle) {
+  let connected = false;
+  const subscription = {
+    connect() {
+      if (connected || !owner.isConnected) return;
+      connected = true;
+      try {
+        lifecycle.connect?.();
+      } catch (error) {
+        subscriptions.delete(subscription);
+        subscription.disconnect();
+        throw error;
+      }
+    },
+    disconnect() {
+      if (!connected) return;
+      connected = false;
+      lifecycle.disconnect?.();
+    },
+  };
+  let subscriptions = owners.get(owner);
+  if (!subscriptions) owners.set(owner, (subscriptions = new Set()));
+  if (!watchingOwners) {
+    watchingOwners = true;
+    const notify = (element, method) => {
+      for (const subscription of owners.get(element) ?? []) {
+        try {
+          subscription[method]();
+        } catch (error) {
+          // A failed owner reports through the window's error channel while the
+          // remaining owners in this arrival batch still receive their transition.
+          queueMicrotask(() => {
+            throw error;
+          });
+        }
+      }
+    };
+    watchArrivals("*", [], {
+      arrive: (element) => notify(element, "connect"),
+      leave: (element) => notify(element, "disconnect"),
+    });
+  }
+  subscriptions.add(subscription);
+  const stop = () => {
+    subscriptions.delete(subscription);
+    subscription.disconnect();
+  };
+  subscription.connect();
+  return stop;
+}
 
 export function liveStages() {
   const live = [];

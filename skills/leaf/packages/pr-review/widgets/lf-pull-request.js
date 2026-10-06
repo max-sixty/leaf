@@ -11,7 +11,10 @@ import {
   loadMarkdown,
   projectData,
   renderMarkdown,
+  setChildren,
   watchData,
+  once,
+  watchOwner,
 } from "/runtime/widget-api.js";
 
 function buildCard() {
@@ -89,20 +92,17 @@ function renderChecks(card, checks) {
     keepsText(status, checkStatus);
     wanted.push(item);
   }
-  let cursor = body.firstElementChild;
-  for (const item of wanted) {
-    if (item !== cursor) body.insertBefore(item, cursor);
-    cursor = item.nextElementSibling;
-  }
-  for (const item of [...body.children]) if (!wanted.includes(item)) item.remove();
   if (!wanted.length) {
-    const empty = el("tr", "lf-pr-check lf-pr-check-empty");
-    const cell = document.createElement("td");
-    cell.colSpan = 2;
-    empty.append(cell);
-    keepsText(cell, "No checks reported");
-    body.append(empty);
+    const empty = prior.get(undefined) ?? el("tr", "lf-pr-check lf-pr-check-empty");
+    if (!empty.firstElementChild) {
+      const cell = document.createElement("td");
+      cell.colSpan = 2;
+      keepsText(cell, "No checks reported");
+      empty.append(cell);
+    }
+    wanted.push(empty);
   }
+  setChildren(body, wanted);
 }
 
 // Keep the undecorated rendering separately from the live DOM. Leaf adds syntax
@@ -167,7 +167,18 @@ customElements.define(
   "lf-pull-request",
   class extends HTMLElement {
     connectedCallback() {
-      if (this.stopWatching) return;
+      if (!once(this)) return;
+      watchOwner(this, {
+        connect: () => this.connectPaint(),
+        disconnect: () => {
+          this.paintSnapshot?.stop();
+          this.paintSnapshot = null;
+        },
+      });
+      watchData(this, "request", (snapshot) => this.show(snapshot));
+    }
+
+    connectPaint() {
       // Markdown loading is asynchronous, but the card paint itself is synchronous. Keep
       // the clock dependency on that second half so an unchanged source still refreshes
       // the observed age when the shared clock crosses a display boundary.
@@ -192,14 +203,6 @@ customElements.define(
         );
         return descriptionChanged.value;
       });
-      this.stopWatching = watchData(this, "request", (snapshot) => this.show(snapshot));
-    }
-
-    disconnectedCallback() {
-      this.stopWatching?.();
-      this.stopWatching = null;
-      this.paintSnapshot?.stop();
-      this.paintSnapshot = null;
     }
 
     async show(snapshot) {

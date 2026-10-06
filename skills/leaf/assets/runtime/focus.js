@@ -280,19 +280,12 @@ document.addEventListener(
   },
   true,
 );
-addEventListener(
-  "pointerdown",
-  (event) => (pressedPath = new Set(event.composedPath())),
-  { capture: true, passive: true },
-);
-addEventListener("keydown", () => (pressedPath = null), {
-  capture: true,
-  passive: true,
-});
 for (const type of ["keydown", "pointerdown", "wheel", "touchstart"])
   addEventListener(
     type,
-    () => {
+    (event) => {
+      if (type === "pointerdown") pressedPath = new Set(event.composedPath());
+      else if (type === "keydown") pressedPath = null;
       const at = deepFocus();
       if (at && at !== document.body) return;
       stood = null;

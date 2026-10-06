@@ -441,7 +441,10 @@ export function floatingPlacement({ floating, update }) {
     hold(edge) {
       if (!answered) return;
       const { middlewareData } = answered;
-      const edges = heldEdges(answered.placement, { ...middlewareData, hold: { edge } });
+      const edges = heldEdges(answered.placement, {
+        ...middlewareData,
+        hold: { edge },
+      });
       if (edges.y === middlewareData.held.edges.y) return;
       surface.stand({
         ...answered,

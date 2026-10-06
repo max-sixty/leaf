@@ -16,7 +16,7 @@ import { readingBlock } from "./runtime/reading-place.js";
 import { mountHistory } from "./runtime/history.js";
 import { holdArrivingBounds } from "./runtime/bounds.js";
 import { chromeSheet, marksSheet, annotationSheets } from "./runtime/stylesheets.js";
-import { keepPageRulesOffLayer } from "./runtime/page-sheets.js";
+import { fitPageRules } from "./runtime/page-sheets.js";
 import { reportPageError, uploadMedia } from "./runtime/layer-client.js";
 import { upgradeWidgets } from "./runtime/widget-loader.js";
 import {
@@ -130,7 +130,7 @@ import {
 import { nativeLayers } from "./runtime/keyboard/layer-stack.js";
 
 initializeServedDocument();
-keepPageRulesOffLayer();
+fitPageRules();
 holdArrivingBounds();
 
 // A published shell may bundle the entry without publishing its source modules beside

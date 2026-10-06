@@ -823,8 +823,9 @@ main {
 /* Where a box sticking here stops: the sticky headers standing over the top of its
  * scroller, stacked. On the root it starts at the banner's height (above); a box the
  * theme makes scroll that can hold a header starts it again from its own top (a bounded
- * block, a table, a board; a workspace pane's body from minus its top padding,
- * layouts.css). A sticky header (a page tab strip, a diff's file header) has a stated
+ * block, a table, a board, a column's sticky sidebar; a workspace pane's body from minus
+ * its top padding, layouts.css), and the runtime writes the same restart into each rule
+ * of the page's own CSS that makes a box scroll (page-sheets.js). A sticky header (a page tab strip, a diff's file header) has a stated
  * height and sticks at the `--lf-top` it inherits; what it stands over takes that value
  * plus its height, which the header's holder passes on under a second name, since a
  * custom property cannot read itself. The stacked value goes on a box that does not

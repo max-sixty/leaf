@@ -627,6 +627,65 @@ def test_sticky_headers_stack_so_a_diff_in_a_page_tab_pins_under_the_strip(
     assert read["shown"] == pytest.approx(read["head"]["bottom"], abs=0.5), read
 
 
+def test_any_box_that_scrolls_starts_the_sticky_header_slot_again(browser, serve):
+    """A diff's file header pins at the top of the box that scrolls it, whoever made the
+    box scroll: a box the page's own CSS makes scroll, and a column's sticky sidebar,
+    each start `--lf-top` again, where both pinned the header the banner's height below
+    the box's top. A page's sticky box that scrolls keeps the slot it met, so it still
+    stops at the banner's foot."""
+    path = "src/deeply/nested/module/file.rs"
+    rows = "".join(f"+    let value_{i} = {i};\n" for i in range(80))
+    patch = (
+        f"diff --git a/{path} b/{path}\n--- a/{path}\n+++ b/{path}\n"
+        f"@@ -1 +1,81 @@\n fn main() {{\n{rows}"
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Scrolling boxes",
+                '<aside class="sidebar" id="side"><lf-diff id="in-side"><pre>'
+                + patch
+                + '</pre></lf-diff></aside><h1>Scrolling boxes</h1><div id="box">'
+                '<lf-diff id="in-box"><pre>'
+                + patch
+                + '</pre></lf-diff></div><div id="panel"><p>Panel.</p></div>'
+                + "<p>Filler.</p>" * 60,
+                head="<style>#box { max-height: 320px; overflow: auto; }"
+                "#panel { position: sticky; top: var(--lf-top); max-height: 200px;"
+                " overflow-y: auto; }</style>",
+            )
+        ),
+    )
+    resized(page, 1600, 1000)
+    expect(page.locator("main")).to_have_attribute("data-lf-margin", re.compile("sidebar"))
+    page.wait_for_function("() => document.querySelectorAll('lf-diff.lf-rendered').length === 2")
+    read = page.evaluate(
+        """async () => {
+        const pinned = async (box, diff) => {
+            box.scrollTop = 400;
+            await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+            const head = diff.shadowRoot.querySelector('.lf-diff-file > details > summary');
+            return {
+                scrolled: box.scrollTop,
+                gap: head.getBoundingClientRect().top
+                    - (box.getBoundingClientRect().top + box.clientTop),
+            };
+        };
+        return {
+            box: await pinned(document.querySelector('#box'), document.querySelector('#in-box')),
+            side: await pinned(document.querySelector('#side'), document.querySelector('#in-side')),
+            panel: getComputedStyle(document.querySelector('#panel')).top,
+            root: getComputedStyle(document.documentElement).getPropertyValue('--lf-top'),
+        };
+    }"""
+    )
+    for box in ("box", "side"):
+        assert read[box]["scrolled"] == 400, read
+        assert read[box]["gap"] == pytest.approx(0, abs=1.5), read
+    assert read["panel"] == read["root"] != "0px", read
+
+
 def test_a_table_at_a_pane_top_is_under_no_sticky_header(browser, serve):
     """A workspace pane's body starts `--lf-top` at minus its top padding and a table
     starts it at 0, since each scrolls; neither stacks a header, so a cell scrolled to

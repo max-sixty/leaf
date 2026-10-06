@@ -1,4 +1,5 @@
-/* The page's own rules keep off the layer's apparatus unless they name it.
+/* The page's own rules, fitted to the layer: they keep off its apparatus unless they
+   name it, and a box they make scroll starts its sticky-header slot again.
 
    A page's stylesheet is unlayered, above every layer the kernel and the packages state
    their faces in (layer.py, CASCADE_LAYERS), so the page has the last word on its own
@@ -26,6 +27,16 @@
    lf-board .grip` restyles the board's grip on purpose and every other button by
    accident, and only the second half is narrowed.
 
+   A box that scrolls holds whatever sticks inside it, so it starts the sticky-header
+   slot `--lf-top` again at its own top (theme.css, at `--lf-top`). The theme states the
+   restart beside each box it makes scroll. For a box the page makes scroll, on either
+   axis, this module adds `--lf-top: 0px` to the rule that makes it scroll, so the
+   restart applies under the same selector and media conditions as the scrolling. Without
+   it a diff in the box pinned its file header the banner's height below the box's top.
+   A rule that states `--lf-top` itself is left as written. So is a rule that also makes
+   its box sticky: that box's own `top` reads `--lf-top`, and the restart would stick it
+   at 0 behind the banner.
+
    The sheets read are the ones the delivered document states, the next revision's when
    it activates, and any a page's script puts in the head later, including sheets they
    import. A CSS framework that builds its sheet from the classes it finds, such as
@@ -44,7 +55,20 @@ const NOT_SELECTORS =
   /"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|:{1,2}(?:lang|dir|state|part|highlight|nth-[a-z-]+)\([^)]*\)/gi;
 const namesWidget = (text) => NAMES_WIDGET.test(text.replace(NOT_SELECTORS, ""));
 
-const narrowed = new WeakSet();
+const fitted = new WeakSet();
+
+const SCROLLS = /^(?:auto|scroll)$/;
+function restartStickySlot(style) {
+  const scrolls = ["overflow-x", "overflow-y"].some((axis) =>
+    SCROLLS.test(style.getPropertyValue(axis)),
+  );
+  if (
+    scrolls &&
+    !style.getPropertyValue("--lf-top") &&
+    style.getPropertyValue("position") !== "sticky"
+  )
+    style.setProperty("--lf-top", "0px");
+}
 
 // The top-level members of a selector list, and where in each the pseudo-element starts:
 // outside every parenthesis, bracket and string.
@@ -82,13 +106,14 @@ function narrow(member, pseudo) {
 
 // `named` says an enclosing rule or scope names a widget. A nested rule extends every
 // member of its parent's list, so the parent names one for it only if all of them do.
-function narrowRules(rules, named) {
+function fitRules(rules, named) {
   for (const rule of rules) {
     if (rule instanceof CSSKeyframesRule || rule instanceof CSSImportRule) continue;
     let within = named;
     if (rule instanceof CSSScopeRule)
       within ||= namesWidget(rule.start ?? "") || namesWidget(rule.end ?? "");
     if (rule instanceof CSSStyleRule) {
+      restartStickySlot(rule.style);
       const list = members(rule.selectorText);
       if (!named) {
         const next = list
@@ -100,13 +125,13 @@ function narrowRules(rules, named) {
       }
       within ||= list.every(([member]) => namesWidget(member));
     }
-    if (rule.cssRules) narrowRules(rule.cssRules, within);
+    if (rule.cssRules) fitRules(rule.cssRules, within);
   }
 }
 
-// A sheet's own rules are narrowed once; the sheets it imports are asked after every
+// A sheet's own rules are fitted once; the sheets it imports are asked after every
 // pass, since an import can still be loading when its parent is first read.
-function narrowSheet(sheet) {
+function fitSheet(sheet) {
   const owner = sheet.ownerNode;
   if (
     sheet.href &&
@@ -114,24 +139,24 @@ function narrowSheet(sheet) {
     !owner?.hasAttribute?.("crossorigin")
   )
     return;
-  if (!narrowed.has(sheet)) {
-    narrowed.add(sheet);
-    narrowRules(sheet.cssRules, false);
+  if (!fitted.has(sheet)) {
+    fitted.add(sheet);
+    fitRules(sheet.cssRules, false);
   }
   for (const rule of sheet.cssRules)
-    if (rule instanceof CSSImportRule && rule.styleSheet) narrowSheet(rule.styleSheet);
+    if (rule instanceof CSSImportRule && rule.styleSheet) fitSheet(rule.styleSheet);
 }
 
-// Every sheet the page states that has not been narrowed yet. Boot calls this before the
+// Every sheet the page states that has not been fitted yet. Boot calls this before the
 // first widget builds a control, and a revision activation after it brings the next
 // revision's head and body in; a linked or importing sheet is complete only once its
 // element has loaded. From boot on, a change in the head calls it too, and a link added
 // there calls it again once it loads.
 let watching = false;
-export function keepPageRulesOffLayer() {
+export function fitPageRules() {
   for (const sheet of document.styleSheets) {
     if (sheet.ownerNode?.hasAttribute("data-lf-runtime")) continue;
-    narrowSheet(sheet);
+    fitSheet(sheet);
   }
   if (watching) return;
   watching = true;
@@ -139,8 +164,8 @@ export function keepPageRulesOffLayer() {
     for (const record of records)
       for (const node of record.addedNodes)
         if (node instanceof HTMLLinkElement)
-          node.addEventListener("load", keepPageRulesOffLayer, { once: true });
-    keepPageRulesOffLayer();
+          node.addEventListener("load", fitPageRules, { once: true });
+    fitPageRules();
   }).observe(document.head, {
     childList: true,
     subtree: true,

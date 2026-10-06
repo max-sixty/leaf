@@ -84,10 +84,13 @@
     /* Sticky, it can stand level with any band of the page, so it takes its whole side: a
      * breakout grows only rightward past it. */
     main.layout-column[data-lf-margin~="sidebar"] {
-      --lf-sidebar-posture: margin; --lf-taken-l: calc(var(--lf-beside) + var(--lf-shift)); }
+      --lf-sidebar-posture: margin; --lf-taken-l: calc(var(--lf-beside) + var(--lf-shift));
+      --lf-top-outer: var(--lf-top); }
+    /* It scrolls what it holds, so it starts `--lf-top` again for that (theme.css) and
+     * sticks at the value its column met. */
     main.layout-column[data-lf-margin~="sidebar"] > aside.sidebar:nth-child(1 of aside.sidebar) {
       float: left; clear: left; position: sticky;
-      top: calc(var(--lf-top) + var(--sp-4));
+      top: calc(var(--lf-top-outer) + var(--sp-4)); --lf-top: 0px;
       width: calc(var(--sidebar) - var(--sp-4));
       max-height: calc(var(--lf-view-height) - 2 * var(--sp-4));
       overflow-y: auto;

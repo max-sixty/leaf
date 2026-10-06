@@ -205,6 +205,10 @@
        * with nothing reported. Size containment zeroes the box's say in any ancestor's
        * intrinsic width; what it holds already scrolls. */
       contain: inline-size;
+      /* The allocation is the box's outer width, as the column's is (theme.css), so a
+       * padded callout granted `wide` stands at `--wide` beside a wide table rather than
+       * its padding and border past it. */
+      box-sizing: border-box;
     }
     /* `wide` is one width wherever the block stands. The breakout above only grows a
      * block past its holder, so in a holder already wider than `--wide`, such as a wide

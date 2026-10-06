@@ -2233,12 +2233,14 @@ def test_an_ask_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
         + table.format(id="member")
         + "</aside></lf-option></lf-options></lf-ask>"
         + '<aside class="callout" id="callout"><p>Paused.</p></aside>'
+        + '<aside class="callout" id="granted-c" data-width="wide"><p>Wide.</p></aside>'
         + '<lf-options id="list" choose><lf-option id="list-a">Leave it</lf-option>'
         + f'<lf-option id="list-b">Raise it {table.format(id="list")}</lf-option>'
         + "</lf-options>"
     )
     measure = """() => Object.fromEntries(
-      ['prose', 'ask', 'granted', 'holds', 'holds-t', 'callout', 'list'].map(id => {
+      ['prose', 'ask', 'granted', 'granted-c', 'holds', 'holds-t', 'callout', 'list']
+        .map(id => {
         const box = document.getElementById(id).getBoundingClientRect();
         return [id, {width: Math.round(box.width), left: Math.round(box.left)}];
       }))"""
@@ -2250,7 +2252,8 @@ def test_an_ask_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
     # blocks widen it.
     for boxed in ("ask", "callout", "list"):
         assert at[boxed] == {"width": 720, "left": edge}, (boxed, at)
-    for wide in ("granted", "holds"):
+    # A granted callout's padding and border fall inside the wide measure.
+    for wide in ("granted", "granted-c", "holds"):
         assert at[wide] == {"width": 1080, "left": edge}, (wide, at)
     # The widened Ask has the room for its options track, so the table stands beside
     # the list rather than at the measure.

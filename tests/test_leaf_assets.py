@@ -24,11 +24,7 @@ def test_demo_publication_reconciles_the_catalog_with_other_published_previews(
     )
     seed = tmp_path / "seed"
     leaf_assets.run("git", "clone", str(remote), str(seed), cwd=tmp_path)
-    for name, value in (
-        ("user.name", "Leaf test"),
-        ("user.email", "leaf@example.test"),
-    ):
-        leaf_assets.run("git", "config", name, value, cwd=seed)
+    publisher(seed)
     (seed / "examples").mkdir()
     preview = seed / "examples" / "example-decision.jpg"
     preview.write_bytes(b"old decision preview")
@@ -110,11 +106,7 @@ def test_demo_publication_reconciles_the_catalog_with_other_published_previews(
     staging = tmp_path / "staging"
     staging.mkdir()
     checkout = leaf_assets.clone(staging)
-    for name, value in (
-        ("user.name", "Leaf test"),
-        ("user.email", "leaf@example.test"),
-    ):
-        leaf_assets.run("git", "config", name, value, cwd=checkout)
+    publisher(checkout)
     (checkout / "demo" / "session-card.png").write_bytes(b"reviewed new demo card")
 
     revision = leaf_assets.publish(checkout, "Publish the reviewed demo")
@@ -222,11 +214,7 @@ def test_demo_publication_reconciles_the_catalog_with_other_published_previews(
         rejection = remote / "hooks" / "pre-receive"
         rejection.write_text("#!/bin/sh\nexit 1\n")
         rejection.chmod(0o755)
-        for name, value in (
-            ("user.name", "Leaf test"),
-            ("user.email", "leaf@example.test"),
-        ):
-            leaf_assets.run("git", "config", name, value, cwd=draft)
+        publisher(draft)
         with pytest.raises(RuntimeError, match="pre-receive hook declined"):
             leaf_assets.publish(draft, "A rejected draft")
         assert leaf_assets.run("git", "status", "--porcelain", cwd=draft) == ""
@@ -236,3 +224,90 @@ def test_demo_publication_reconciles_the_catalog_with_other_published_previews(
 
     assert {page: page.read_bytes() for page in ordinary} == ordinary
     assert leaf_assets.run("git", "rev-parse", "HEAD", cwd=remote) == revision
+
+
+def test_a_publication_keeps_what_others_published_since_its_pin(tmp_path, monkeypatch):
+    """Two branches pinned to one revision each publish a directory's files. The second
+    removes the file its pin held and it dropped, and keeps the file the first added,
+    which its own run never saw: a stage is measured against the branch's pin, not the
+    head. The later pin holds both changes, and where both changed one file, the
+    second's copy."""
+    remote = tmp_path / "remote.git"
+    leaf_assets.run(
+        "git", "init", "--bare", "--initial-branch=main", str(remote), cwd=tmp_path
+    )
+    seed = tmp_path / "seed"
+    leaf_assets.run("git", "clone", str(remote), str(seed), cwd=tmp_path)
+    (seed / "examples").mkdir()
+    (seed / "examples" / "example-decision.jpg").write_bytes(b"decision preview")
+    (seed / "threads").mkdir()
+    (seed / "threads" / "retired.png").write_bytes(b"a case both branches had")
+    (seed / "threads" / "shared.png").write_bytes(b"the pin's")
+    publisher(seed)
+    leaf_assets.run("git", "add", "-A", cwd=seed)
+    leaf_assets.run("git", "commit", "-m", "Initial assets", cwd=seed)
+    leaf_assets.run("git", "push", cwd=seed)
+    pin = leaf_assets.run("git", "rev-parse", "HEAD", cwd=seed)
+
+    repository = "max-sixty/leaf-assets"
+    monkeypatch.setenv("GIT_CONFIG_COUNT", "1")
+    monkeypatch.setenv("GIT_CONFIG_KEY_0", f"url.{remote.as_uri()}.insteadOf")
+    monkeypatch.setenv("GIT_CONFIG_VALUE_0", f"https://github.com/{repository}.git")
+
+    def publish_from(name, files):
+        source = tmp_path / name
+        (source / "examples").mkdir(parents=True)
+        (source / "examples" / "decision.html").write_text("<h1>A decision</h1>")
+        (source / "docs").mkdir()
+        (source / "docs" / "examples.html").write_text(
+            '<a class="example-link" href="/examples/decision/">'
+            '<img src="/media/0000000000000000.jpg"></a>\n'
+        )
+        (source / "README.md").write_text("No images.\n")
+        (source / "leaf-assets.json").write_text(
+            json.dumps({"repository": repository, "revision": pin})
+        )
+        monkeypatch.setattr(leaf_assets, "ROOT", source)
+        monkeypatch.setattr(leaf_assets, "README", source / "README.md")
+        monkeypatch.setattr(example_data, "ROOT", source)
+        staging = tmp_path / f"staging-{name}"
+        staging.mkdir()
+        checkout = leaf_assets.stage("threads", files, staging)
+        publisher(checkout)
+        return leaf_assets.publish(checkout, f"Publish {name}'s threads")
+
+    publish_from(
+        "first",
+        {
+            "retired.png": b"a case both branches had",
+            "added.png": b"first's",
+            "shared.png": b"first's",
+        },
+    )
+    revision = publish_from(
+        "second", {"own.png": b"second's", "shared.png": b"second's"}
+    )
+
+    assert leaf_assets.run("git", "rev-parse", "HEAD", cwd=remote) == revision
+    published = leaf_assets.run(
+        "git", "ls-tree", "-r", "--name-only", revision, cwd=remote
+    ).split()
+    assert sorted(published) == [
+        "examples/example-decision.jpg",
+        "threads/added.png",
+        "threads/own.png",
+        "threads/shared.png",
+    ]
+    assert (
+        leaf_assets.run("git", "show", f"{revision}:threads/shared.png", cwd=remote)
+        == "second's"
+    )
+
+
+def publisher(checkout):
+    """Give a fixture checkout the identity its commits need."""
+    for name, value in (
+        ("user.name", "Leaf test"),
+        ("user.email", "leaf@example.test"),
+    ):
+        leaf_assets.run("git", "config", name, value, cwd=checkout)

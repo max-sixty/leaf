@@ -18,9 +18,13 @@ builds and CI may discard and reconstruct.
     uv run leaf-dev fetch-assets
 
 Every reader calls `pinned_assets()`, which fetches on a miss; the command only warms
-the cache, as `wt setup` does. A writer stages its files in a clone and pushes them with
-`publish`, which moves the pin and reconciles the catalog's linked images with the
-complete published asset set, including previews another writer has published.
+the cache, as `wt setup` does. A writer stages its files in a clone of the revision its
+checkout pins, so what it adds, replaces or removes is measured against the set its own
+branch reads. `publish` carries that change onto the repository's head, which keeps
+files other branches published since, then moves the pin and reconciles the catalog's
+linked images with the complete published asset set, including previews another
+writer has published. The head's history is a line and every pin is a commit on it, so
+of two pins that meet in a merge the later holds both branches' files.
 Draft site validation consumes derived markup in its own build; staging and refused
 publication leave Leaf's consumers unchanged.
 """
@@ -122,8 +126,9 @@ def run(*args: str, cwd: Path) -> str:
 
 
 def clone(staging: Path) -> Path:
-    """Clone the asset repository's current head into `staging`."""
-    repository, _ = specification(ROOT)
+    """Clone the asset repository into `staging`, checked out at the revision Leaf
+    pins, so a writer changes the set this checkout reads."""
+    repository, revision = specification(ROOT)
     checkout = staging / "leaf-assets"
     run(
         "git",
@@ -134,6 +139,8 @@ def clone(staging: Path) -> Path:
         str(checkout),
         cwd=staging,
     )
+    run("git", "fetch", "--depth", "1", "origin", revision, cwd=checkout)
+    run("git", "checkout", "--detach", revision, cwd=checkout)
     return checkout
 
 
@@ -168,10 +175,12 @@ def catalog_updates(checkout: Path) -> dict[Path, str]:
 
 
 def stage(directory: str, files: dict[str, bytes], staging: Path) -> Path:
-    """Clone the asset repository into `staging` with `directory`'s files exactly
-    `files`, for a generator to verify before it publishes. Subdirectories are left
-    alone: `examples/media/` sits inside the previews' `examples/`. Leaf's catalog,
-    pin and README continue naming published bytes."""
+    """Clone the pinned assets into `staging` with `directory`'s files exactly
+    `files`, for a generator to verify before it publishes. A file the pin holds and
+    `files` lacks is removed; one another branch published since the pin is not there
+    to remove. Subdirectories are left alone: `examples/media/` sits inside the
+    previews' `examples/`. Leaf's catalog, pin and README continue naming published
+    bytes."""
     checkout = clone(staging)
     target = checkout / directory
     target.mkdir(parents=True, exist_ok=True)
@@ -184,14 +193,25 @@ def stage(directory: str, files: dict[str, bytes], staging: Path) -> Path:
 
 
 def publish(checkout: Path, message: str) -> str:
-    """Publish the checkout, then install its pin, README and derived catalog links."""
-    repository, _ = specification(ROOT)
-    updates = catalog_updates(checkout)
+    """Commit the checkout's change to its pin, carry it onto the repository's head and
+    push it, then install the new pin, README and derived catalog links. Where another
+    writer changed the same file since the pin, this change's copy stands, as it would
+    have on the pin. An unchanged checkout keeps its pin."""
+    repository, pinned = specification(ROOT)
+    branch = run(
+        "git", "symbolic-ref", "--short", "refs/remotes/origin/HEAD", cwd=checkout
+    ).removeprefix("origin/")
     run("git", "add", "-A", cwd=checkout)
     if run("git", "status", "--porcelain", cwd=checkout):
         run("git", "commit", "-m", message, cwd=checkout)
-    run("git", "push", cwd=checkout)
+        change = run("git", "rev-parse", "HEAD", cwd=checkout)
+        run("git", "fetch", "--depth", "1", "origin", branch, cwd=checkout)
+        run("git", "checkout", "--detach", "FETCH_HEAD", cwd=checkout)
+        run("git", "cherry-pick", "--empty=drop", "-X", "theirs", change, cwd=checkout)
     revision = run("git", "rev-parse", "HEAD", cwd=checkout)
+    updates = catalog_updates(checkout)
+    if revision != pinned:
+        run("git", "push", "origin", f"HEAD:refs/heads/{branch}", cwd=checkout)
     (ROOT / LOCK).write_text(
         json.dumps({"repository": repository, "revision": revision}, indent=2) + "\n",
         encoding="utf-8",

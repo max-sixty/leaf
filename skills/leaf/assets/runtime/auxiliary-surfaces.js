@@ -173,6 +173,8 @@ export function createAuxiliarySurfaces({
     return covered;
   };
   let footprintQueued = false;
+  // Whether a surface stands beside the page, so page changes read its footprint again.
+  let watching = false;
   // A surface moving changes which seats the user can reach, so the page is presented
   // again (`reachChanged`) to move whatever stands in a seat it now covers or uncovers.
   // Content arriving under a standing surface is presented already, so its own pass only
@@ -181,18 +183,36 @@ export function createAuxiliarySurfaces({
     footprintQueued = false;
     const selected = controllers.get(selectedKey);
     const beside = selected && selected !== arriving && !active ? selected : null;
+    watching = Boolean(beside);
     if (beside)
       pageMutations.observe(document.body, { childList: true, subtree: true });
     else pageMutations.disconnect();
     const changed = hold(footprint, new Set(beside ? coveredBy(beside.surface) : []));
     if (changed && surfaceMoved) reachChanged();
   };
-  const pageMutations = new MutationObserver((records) => {
-    if (footprintQueued || records.every(({ target }) => chromeRoot.contains(target)))
-      return;
+  const queueFootprint = () => {
+    if (footprintQueued) return;
     footprintQueued = true;
     nextRender(() => syncFootprint());
+  };
+  const pageMutations = new MutationObserver((records) => {
+    if (!records.every(({ target }) => chromeRoot.contains(target))) queueFootprint();
   });
+  // A box scrolled sideways carries what it holds under the surface or out from under it
+  // with no change to the document; a vertical scroll moves nothing across the surface's
+  // edge, so only a change of `scrollLeft` reads the footprint again.
+  const scrolledLeft = new WeakMap();
+  addEventListener(
+    "scroll",
+    ({ target }) => {
+      if (!watching || !(target instanceof Element)) return;
+      const left = target.scrollLeft;
+      if (scrolledLeft.get(target) === left) return;
+      scrolledLeft.set(target, left);
+      queueFootprint();
+    },
+    { capture: true, passive: true },
+  );
 
   // Focus is moved in only from elsewhere in this document. Where the document holds no
   // focus at all, the user is in another one — the page around a sample, a sibling

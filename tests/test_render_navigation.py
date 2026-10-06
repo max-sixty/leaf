@@ -431,7 +431,8 @@ def test_focus_never_lands_under_a_panel_beside_the_page(browser, serve):
     focus (Max, 2026-10-06): moving focus never closes or changes a standing panel, and
     focus never lands on page content one covers. Tab walked onto the annotation rail
     under Threads, `c` opened the rail's comment box there, and Tab reached an Ask's
-    option marks under the Queue panel."""
+    option marks under the Queue panel. What the panel covers follows the page as well
+    as the panel, including a box scrolled sideways."""
     workspace = next(p for p in EXAMPLES if p.stem == "annotation-workspace")
     page = open_page(browser, serve(workspace))
     resized(page, 1440, 900)
@@ -484,6 +485,29 @@ def test_focus_never_lands_under_a_panel_beside_the_page(browser, serve):
         page.keyboard.press("Tab")
         assert not page.evaluate(FOCUS_UNDER_SURFACE)
     expect(page.locator(".lf-queue-panel")).to_have_class(re.compile(r"\bopen\b"))
+
+    # A box scrolled sideways carries a link under Threads with no change to the
+    # document, and back out again.
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "A wide table",
+                '<h1>A wide table</h1><div id="wide" style="overflow-x: auto">'
+                '<table style="width: 2400px"><tr><td style="width: 2200px">A first'
+                ' cell that runs well past the window.</td><td><a id="far"'
+                ' href="#wide">far link</a></td></tr></table></div>',
+            )
+        ),
+    )
+    resized(page, 1100, 800)
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    expect(page.locator(".lf-thread-panel")).to_be_visible()
+    page.locator("#wide").evaluate("box => box.scrollLeft = box.scrollWidth")
+    page.wait_for_function("() => document.querySelector('#far').closest('[inert]')")
+    page.locator("#wide").evaluate("box => box.scrollLeft = 0")
+    page.wait_for_function("() => !document.querySelector('#far').closest('[inert]')")
 
 
 def test_workspace_posture_changes_keep_each_panes_reading(browser, serve):

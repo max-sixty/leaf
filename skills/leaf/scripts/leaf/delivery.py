@@ -441,8 +441,11 @@ def receive_batch(
     All carriers use this boundary after their durable consumer accepts input.
     The body records pickup and turn entry before this advances the cursor, so
     interruption leaves input available for retry. Work remains separate.
-    Current ownership authorizes the write, not capture-time ownership;
-    an old envelope can be confirmed after ownership returns to its receiver.
+    Current ownership authorizes the write, not capture-time ownership: the
+    page is still the receiver's (`service.claim_names_session`), even between a
+    restart's new generation and its claim, and an old envelope can be confirmed
+    after ownership returns to its receiver. A receiver with no session takes
+    receipt only while no session holds the page.
     """
     # The page is already locked; keep lifecycle admission valid through pickup
     # and cursor commit. SessionEnd cannot cross between those writes.
@@ -451,8 +454,11 @@ def receive_batch(
         if session_id
         else nullcontext()
     ):
-        claim = page.active_claim
-        if (claim["id"] if claim else None) != session_id:
+        if (
+            page.active_claim is not None
+            if session_id is None
+            else page.claim_of(session_id) is None
+        ):
             raise ReceiptRefused(f"delivery no longer owns its page: {page.page_dir}")
         expected = {event["seq"]: event["id"] for event in batch["events"]}
         delivered = {event["seq"]: event for event in page.events}

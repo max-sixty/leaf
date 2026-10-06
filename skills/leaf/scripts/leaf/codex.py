@@ -1872,8 +1872,7 @@ def open_app_server_delivery(
             )
         return
     with PageTransaction(page_dir) as page:
-        claim = page.active_claim
-        if claim is None or claim["id"] != session_id:
+        if page.claim_of(session_id) is None:
             raise RuntimeError("the App Server delivery no longer owns its page")
         by_id = {event["id"]: event for event in page.events}
         if any(event_id not in by_id for event_id in event_ids):

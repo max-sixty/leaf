@@ -37,7 +37,7 @@ import threading
 import time
 from collections.abc import Iterator
 from concurrent.futures import Future
-from contextlib import ExitStack, contextmanager
+from contextlib import contextmanager
 from pathlib import Path
 
 # The stream-activity writers are called as `codex.<name>`, so `leaf.codex` holds their
@@ -177,8 +177,6 @@ class TaskConnection:
         )
 
     def start(self) -> None:
-        """Return once App Server resumes the task. Applying what it read back
-        follows a starter's claim handoff (`_handoff`) and then sets `connected`."""
         self.thread.start()
         try:
             outcome = self.ready.get(timeout=START_TIMEOUT)
@@ -216,23 +214,18 @@ class TaskConnection:
         """
         return not self.connected.is_set() or self.running is not None
 
-    def _send(
-        self, socket, method: str, request_id: int, params: dict, read=None
-    ) -> dict:
-        """Request on the owner's socket, folding notifications while waiting, or
-        handing them to `read`."""
+    def _send(self, socket, method: str, request_id: int, params: dict) -> dict:
+        """Request on the owner's socket, folding notifications while waiting."""
         return app_server_request(
             socket,
             method,
             request_id,
             params,
-            read or self._read,
+            self._read,
             stopped=self.stop_event.is_set,
         )
 
-    def _resume_task(
-        self, socket, *, exclude_turns: bool, read=None
-    ) -> tuple[dict, dict | None]:
+    def _resume_task(self, socket, *, exclude_turns: bool) -> tuple[dict, dict | None]:
         """Capture the causal lifecycle token before authoritative provider metadata."""
         expected = session_record(self.thread_id)
         self.lifecycle = expected
@@ -244,7 +237,6 @@ class TaskConnection:
                 "threadId": self.thread_id,
                 "excludeTurns": exclude_turns,
             },
-            read,
         )
         return result.get("thread") or {}, expected
 
@@ -254,27 +246,13 @@ class TaskConnection:
             if self.stop_event.is_set():
                 return
             app_server_handshake(socket, 0, "leaf", "Leaf", self._read)
-            # Resuming proves the task answers here, which readiness reports. What
-            # it reads back accepts deliveries, takes their receipts and commits
-            # their answers, each judged against page ownership, so it is applied,
-            # in arrival order, only after a starter's claim handoff, as receipt
-            # recovery is (`session-lifetime.md`, "Carriers").
-            arrived: list[dict] = []
-            thread, expected = self._resume_task(
-                socket, exclude_turns=False, read=arrived.append
-            )
+            thread, expected = self._resume_task(socket, exclude_turns=False)
+            hydrated = self._resume(thread, expected)
+            self._reconcile_history(socket, hydrated)
+            self.connected.set()
             if not self.started:
                 self.started = True
                 self.ready.put(None)
-            handoff = self._handoff()
-            if handoff is None:
-                return
-            with handoff:
-                for message in arrived:
-                    self._read(message)
-                hydrated = self._resume(thread, expected)
-                self._reconcile_history(socket, hydrated)
-            self.connected.set()
             while not self.stop_event.is_set():
                 try:
                     payload, result = self.commands.get_nowait()
@@ -297,25 +275,6 @@ class TaskConnection:
                 except TimeoutError:
                     continue
                 self._read(json.loads(raw))
-
-    def _handoff(self) -> ExitStack | None:
-        """Take the task's start lock, or return None once this connection stops.
-
-        A starter holds that lock from the session generation it begins until it
-        publishes the page claim of that generation (`preparing_adapter`), and
-        announcing this connection is part of that start, so the connection takes
-        the lock only after it is ready. Retirement stops the connection while
-        holding the lock, so the wait gives way to a stop rather than blocking it.
-        """
-        lock = adapter_start_lock_path(self.thread_id)
-        while not self.stop_event.is_set():
-            held = ExitStack()
-            try:
-                held.enter_context(flocked(lock, deadline=time.monotonic() + 0.1))
-            except TimeoutError:
-                continue
-            return held
-        return None
 
     def _start_delivery(self, socket, payload: dict) -> bool:
         """Check provider status, then start once with a durable uncertain boundary."""
@@ -944,15 +903,12 @@ def run_adapter(
         failures = 0
         while True:
             try:
-                # Receipt recovery judges page ownership as retirement does, so
-                # both wait out a starter's claim handoff under the start lock
-                # (`session-lifetime.md`, "Carriers").
-                with flocked(start_lock):
-                    recovered = _recover_receipt(harness.session)
-                    if not recovered and not owned_pages(harness.session):
-                        retire()
-                        return 0
+                recovered = _recover_receipt(harness.session)
                 if not recovered:
+                    with flocked(start_lock):
+                        if not owned_pages(harness.session):
+                            retire()
+                            return 0
                     recovered = _offer_queued_delivery(
                         codex_path,
                         harness.session,

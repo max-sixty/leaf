@@ -3655,7 +3655,6 @@ def test_app_server_client_stays_subscribed_between_ordinary_codex_turns(
     request.addfinalizer(observer.stop)
 
     observer.start()
-    assert observer.connected.wait(STATED_TIMEOUT), "the observer never resumed"
     first_turn.set()
     wait_for(
         lambda: len(clears),
@@ -3738,9 +3737,8 @@ def test_app_server_observer_connects_over_a_private_unix_socket(
     request.addfinalizer(observer.stop)
 
     # `start` returns only once the observer has resumed the task, and raises
-    # otherwise; `connected` says it has applied what it read back.
+    # otherwise, so reaching here is the readiness signal.
     observer.start()
-    assert observer.connected.wait(STATED_TIMEOUT), "the observer never resumed"
     assert updates == []
     assert clears == [("codex-thread", None)]
     observer.stop()
@@ -3797,7 +3795,6 @@ def test_app_server_observer_restores_the_resumed_turns_waiting_kind(
     request.addfinalizer(observer.stop)
 
     observer.start()
-    assert observer.connected.wait(STATED_TIMEOUT), "the observer never resumed"
     assert updates == [("codex-thread", "turn-live", {"kind": "awaiting_approval"})]
     assert clears == []
     observer.stop()
@@ -4918,16 +4915,12 @@ def test_reconnect_closes_a_completed_stream_binding(page_dir):
 
 @pytest.fixture
 def task_connection(request):
-    """Start a real subscribed task connection, retiring it even on failure, once it
-    has read the task back."""
+    """Start a real subscribed task connection, retiring it even on failure."""
 
     def start(endpoint):
         connection = codex_adapter_model.TaskConnection(endpoint, "codex-thread")
         request.addfinalizer(connection.stop)
         connection.start()
-        assert connection.connected.wait(STATED_TIMEOUT), (
-            "the task connection never read the task back"
-        )
         return connection
 
     return start
@@ -5317,7 +5310,7 @@ def test_an_active_task_whose_turn_is_not_named_records_no_turn(monkeypatch):
     take_stream_activity(monkeypatch, updates, [])
     sent = []
 
-    def send(_socket, _method, _request_id, params, _read=None):
+    def send(_socket, _method, _request_id, params):
         sent.append(params)
         return {"thread": {"id": "codex-thread", "status": {"type": "active"}}}
 
@@ -9453,6 +9446,63 @@ def test_codex_recovers_page_receipts_in_sequence_order(codex_claimed_page):
     assert [pickup["events"] for pickup in pickups] == [["first"], ["second"]]
 
 
+@pytest.mark.parametrize(
+    ("leaving", "confirmed"),
+    [("restart", True), ("release", False), ("transfer", False), ("end", False)],
+)
+def test_a_codex_receipt_holds_while_the_claim_still_names_its_session(
+    page_dir, codex_loop, leaving, confirmed
+):
+    """A restart's new generation leaves the claim naming an older one of the same
+    session, and the receipt still lands. A release, another session's claim, or
+    the session's end lets the page go, and the batch retires without advancing
+    the cursor."""
+    codex_loop(page_dir)
+    event = append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "Taken"}
+    )
+    directory = codex_state_model.delivery_dir("codex-thread")
+    directory.mkdir(parents=True)
+    cleanup_model.write_json(
+        directory / "aaaaaaaa.json",
+        {
+            "format": codex_model.RECORD_FORMAT,
+            "state": "accepted",
+            "created_at": 1,
+            "transport": {"phase": "queued", "turn": None},
+            "batches": [
+                {
+                    "page": str(page_dir),
+                    "session": "codex-thread",
+                    "threads": [],
+                    "events": [event],
+                    "receipted": False,
+                }
+            ],
+        },
+    )
+    if leaving == "restart":
+        cleanup_model.ensure_session("codex-thread", {"pid": os.getppid()})
+    elif leaving == "release":
+        with service_model.PageTransaction(page_dir) as page:
+            page.release_claim()
+    elif leaving == "transfer":
+        record_claim(page_dir, id="successor", harness="codex", agent="Codex")
+    else:
+        cleanup_model.end_session("codex-thread")
+    with service_model.PageTransaction(page_dir) as page:
+        assert page.active_claim is None or leaving == "transfer"
+
+    assert codex_adapter_model._recover_receipt("codex-thread")
+    assert not codex_records("codex-thread")
+    assert service_model.read_cursor(page_dir) == (event["seq"] if confirmed else 0)
+    assert [
+        pickup["events"]
+        for pickup in events_model.read_events(page_dir)
+        if pickup["kind"] == "pickup"
+    ] == ([[event["id"]]] if confirmed else [])
+
+
 def test_a_reinitialized_page_does_not_starve_later_codex_receipts(tmp_path):
     replaced = tmp_path / "a-replaced-page"
     standing = tmp_path / "z-standing-page"
@@ -10544,14 +10594,22 @@ def test_codex_restart_finishes_an_accepted_batch_without_queueing_again(
     )
 
 
+@pytest.mark.parametrize("reclaimed", ["delivered", "another"])
 def test_codex_app_server_restart_finishes_an_accepted_batch_without_starting_it_again(
-    codex_claimed_page, app_server, under_codex, codex_env, tmp_path
+    codex_claimed_page, app_server, under_codex, codex_env, tmp_path, reclaimed
 ):
     """The App Server twin of the queue case above. The restarted adapter reads back
-    the turn that took the delivery only once the new claim exists, so the batch's
-    receipt and the turn's final answer both land on the page, and the comment is
-    not started a second time."""
+    the turn that took the delivery while the page's claim still names the task's
+    previous generation, before the restart claims it again, or when the restart
+    claims another page first. The batch's receipt and the turn's final answer both
+    land on the page all the same, so the comment is not started a second time."""
     page = codex_claimed_page
+    claimed = page
+    if reclaimed == "another":
+        claimed = tmp_path / "another-page"
+        subprocess.run(
+            [*LEAF_COMMAND, "page", "init", claimed], env=codex_env, check=True
+        )
     # The turn's answer is a reply, which needs a valid page to land on.
     source = re.sub(r"\s*<lf-diagram.*?</lf-diagram>", "", PAGE, flags=re.DOTALL)
     (page / "index.html").write_text(source, encoding="utf-8")
@@ -10643,7 +10701,7 @@ def test_codex_app_server_restart_finishes_an_accepted_batch_without_starting_it
                 *LEAF_COMMAND,
                 "codex",
                 "start",
-                str(page),
+                str(claimed),
                 "--codex-path",
                 str(program),
                 "--app-server",
@@ -10656,7 +10714,7 @@ def test_codex_app_server_restart_finishes_an_accepted_batch_without_starting_it
         stderr=subprocess.PIPE,
         text=True,
     )
-    release_codex_command(page, started, finished)
+    release_codex_command(claimed, started, finished)
     out, err = started.communicate(timeout=STATED_TIMEOUT)
     assert started.returncode == 0, f"{out}{err}"
 
@@ -10677,9 +10735,10 @@ def test_codex_app_server_restart_finishes_an_accepted_batch_without_starting_it
         )
         assert starts == []
     finally:
-        declare_idle(page)
-        with service_model.PageTransaction(page) as transaction:
-            transaction.release_claim()
+        for held in {page, claimed}:
+            declare_idle(held)
+            with service_model.PageTransaction(held) as transaction:
+                transaction.release_claim()
     wait_for(
         lambda: codex_adapter_model.adapter_is_live("codex-thread"),
         lambda live: not live,

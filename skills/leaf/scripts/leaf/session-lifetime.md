@@ -461,17 +461,19 @@ thread store or response policy.
 `server start` prepares the service in a detached process. A claimed handoff
 prepares delivery before any page acquisition: Codex holds its adapter-start lock
 until the serving producer commits the claim, so a newly ready carrier cannot
-retire for lack of pages during that handoff. Whatever the carrier judges against
-page ownership waits on the same lock: its receipt recovery, and on each connect an
-App Server connection's reading of the task's turns back, which accepts deliveries,
-takes their receipts and commits their answers. A start that begins a new session
-generation leaves the page's claim inactive until it publishes the new one. A
-receipt refused in that gap would retire an accepted batch without advancing the
-page's cursor, so its input would be delivered again, and an answer refused there
-would never reach the page. The connection's readiness is part of the start
-holding the lock, so it reports itself ready once App Server resumes the task, and
-applies what the resume read back, in arrival order, only after taking the lock.
-An existing direct wait is honored.
+retire for lack of pages during that handoff. An existing direct wait is honored.
+
+Taking new input from a page needs the session's claim active, but recording what
+the session's task already took or answered there — a receipt, a turn's final
+answer, a failure answer — needs only that the claim still names the session,
+unreleased, while the session has not ended (`service.claim_names_session`). A
+restart begins the session's new generation before it publishes that generation's
+claim, and a task holding several pages claims them back one at a time, so a
+carrier reading the task back after a restart meets claims that name an older
+generation of its own session. Refusing there would retire an accepted batch
+without advancing the page's cursor, so its input would be delivered again once
+the page is claimed, and would lose the turn's answer. Another session's claim
+or a release still refuses.
 `server run` prepares the same delivery before binding in the foreground. Standing
 and temporary serves prepare no delivery. `leaf codex start` prepares the adapter
 under its start lock and then publishes the page claim, without serving.

@@ -140,6 +140,23 @@ def claim_is_active(claim: dict | None) -> bool:
     return pid_alive(claim["pid"])
 
 
+def claim_names_session(claim: dict | None, session_id: str) -> bool:
+    """Whether the page is still `session_id`'s to record what its task took from
+    the page and answered there: the claim names that session, and neither a
+    release nor the session's end has let the page go.
+
+    Unlike `claim_is_active`, this survives the session's own restart. A new
+    lifetime begins its generation before it publishes that generation's claim,
+    and a task that holds several pages claims them back one at a time, so the
+    claim may name an older generation, or a lifetime that has gone, of a session
+    still running. What that session's task received and answered stays its own
+    to record; only another session's claim takes the page from it."""
+    if not claim or claim["id"] != session_id or claim["released"] is not None:
+        return False
+    record = session_record(session_id)
+    return record is not None and record["ended"] is None
+
+
 def claimant_matches(claim: dict | None, harness: "Harness | None") -> bool:
     """Whether the record names this harness, or neither names a claimant.
 
@@ -265,6 +282,11 @@ class PageTransaction:
     def active_claim(self) -> dict | None:
         claim = self.claim
         return claim if claim_is_active(claim) else None
+
+    def claim_of(self, session_id: str) -> dict | None:
+        """The claim, while the page is still `session_id`'s (`claim_names_session`)."""
+        claim = self.claim
+        return claim if claim_names_session(claim, session_id) else None
 
     def take_claim(self, harness: "Harness") -> tuple[dict | None, dict]:
         """Record this session as the page's watcher.

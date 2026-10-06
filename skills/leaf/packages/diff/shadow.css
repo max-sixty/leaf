@@ -24,9 +24,8 @@
    height (`--lf-diff-head-h`, at .lf-diff-file), which is what the rows under it add
    to `--lf-top` and to the room a landing leaves above them. A path too long for the
    line gives way from its folders first, which end in an ellipsis, and the file's own
-   name is cut only where it alone is too long; the row's title then holds the whole
-   path. A flex row draws no disclosure marker, so the triangle is the row's own first
-   mark. */
+   name is cut only where it alone is too long; the path's title then holds it whole.
+   A flex row draws no disclosure marker, so the triangle is the row's own first mark. */
 :scope:host(.lf-rendered) :where(.lf-diff-file) > details > summary {
                                      display: flex; align-items: center; gap: 6px;
                                      box-sizing: border-box;

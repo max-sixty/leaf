@@ -997,6 +997,28 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     expect(tabs.nth(1)).to_have_accessible_description("sev b · suggested fix")
     assert page.evaluate(rows) == heights
 
+    moved = page.locator("#queue").evaluate(
+        """async queue => {
+          const parent = queue.parentElement;
+          const next = queue.nextSibling;
+          const firstTab = queue.querySelector('.lf-tab-btn');
+          await new Promise(resolve => {
+            const observer = new MutationObserver(() => {
+              observer.disconnect(); resolve();
+            });
+            observer.observe(parent, {childList: true});
+            queue.remove();
+            parent.insertBefore(queue, next);
+          });
+          return firstTab === queue.querySelector('.lf-tab-btn');
+        }"""
+    )
+    assert moved, "moving the tab set replaced its retained answer row"
+    expect(answer).to_have_text("Fix")
+    expect(tabs.first).to_have_accessible_description(
+        "sev a · suggested fix. Answered: Fix"
+    )
+
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("undo")
     held = []
     page.route("**/api/event", lambda route: held.append(route))
@@ -6456,6 +6478,82 @@ def test_targeting_selects_names_previews_reverts_and_submits_structured_changes
     expect(workbench.locator(".lf-targeting-change")).to_have_count(0)
 
 
+def test_targeting_keeps_native_name_drafts_while_targets_refresh(browser, serve):
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Target name draft",
+                """<h1>Target name draft</h1>
+<lf-targeting id="name-draft"><lf-target-preview id="name-preview">
+  <section id="named-target"><h2>Release</h2></section>
+  <p id="other-target">Other target</p>
+</lf-target-preview></lf-targeting>""",
+            ),
+            packages=("targeting",),
+        ),
+    )
+    widget = page.locator("#name-draft")
+    widget.get_by_role("button", name="Select element", exact=True).click()
+    page.locator("#named-target h2").click()
+    widget.locator(".lf-targeting-candidate-choice").first.click()
+    name = widget.locator(".lf-targeting-name input")
+    expect(name).to_be_focused()
+    widget.get_by_role("button", name="Select element", exact=True).click()
+    heading = page.locator("#named-target h2")
+    heading.focus()
+    heading.press("Enter")
+    widget.locator(".lf-targeting-candidate-choice").first.press("Enter")
+    expect(widget.locator(".lf-targeting-target")).to_have_count(1)
+    expect(name).to_be_focused()
+    widget.get_by_role("button", name="Add style", exact=True).click()
+    submit = widget.get_by_role("button", name="Submit changes", exact=True)
+    for revision, text in enumerate((" Release  name ", "")):
+        name.fill(text)
+        expect(name).to_be_focused()
+        if text:
+            expect(submit).to_be_enabled()
+        else:
+            expect(submit).to_be_disabled()
+            expect(widget.locator(".lf-targeting-name")).to_have_attribute(
+                "hint", "Enter a target name before submitting."
+            )
+        actual = name.evaluate(
+            """async (input, revision) => {
+              input.setSelectionRange(3, 3);
+              const caret = input.selectionStart;
+              document.querySelector('#name-preview > p').id = `other-${revision}`;
+              await new Promise(resolve => queueMicrotask(resolve));
+              const control = document.querySelector('.lf-targeting-name');
+              await control.updateComplete;
+              return {
+                retained: control.input === input,
+                focused: document.activeElement === control,
+                caret: control.input.selectionStart === caret,
+                value: control.value,
+              };
+            }""",
+            revision,
+        )
+        assert actual == {
+            "retained": True,
+            "focused": True,
+            "caret": True,
+            "value": text,
+        }
+
+    name.fill(" Release  name ")
+    with sending(page, "the normalized target name"):
+        submit.click()
+    actions = [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "action" and event["widget"] == "name-draft"
+    ]
+    assert len(actions) == 1
+    assert actions[0]["detail"]["targets"][0]["name"] == "Release name"
+
+
 def test_targeting_controller_keeps_unresolved_targets_visible_and_blocks_submit(
     browser, serve
 ):
@@ -11175,6 +11273,16 @@ def test_a_chart_is_drawn_for_the_room_it_has_rather_than_scaled_into_it(
     page = open_page(browser, serve(CHART_PAGE))
     before = page.evaluate(CHART_MARKS, "c-bars")
     assert before["width"] == before["room"], before
+
+    # A retained chart may leave and re-enter during document reconciliation. Its
+    # drawing survives the move, and must keep responding to the room it has.
+    page.evaluate("""() => {
+        const chart = document.getElementById('c-bars');
+        const parent = chart.parentNode;
+        const next = chart.nextSibling;
+        chart.remove();
+        parent.insertBefore(chart, next);
+    }""")
 
     # Narrower than the column, which is where the room actually changes: the column is
     # capped, so a wider window leaves a chart exactly where it was.

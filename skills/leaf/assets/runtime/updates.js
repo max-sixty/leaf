@@ -41,8 +41,8 @@
    callback. The shared tick reruns only callbacks whose reading changed and drops
    disconnected owners. Subscription callbacks use this same mechanism, so a new widget
    owes no entry in a kernel list of clock consumers. A held state does not reset the
-   measured server clock offset. Callbacks render from the sequence they receive, and
-   their element calls the cleanup `watchUpdates` returned when it disconnects.
+   measured server clock offset. Callbacks render from the sequence they receive;
+   register once, as `watchProjection` owns their connection lifetime.
 
    `active.revision` identifies the immutable document currently shown; `active.version`
    is its public stamp when it has one, otherwise null, and `active.label` is `vN`,

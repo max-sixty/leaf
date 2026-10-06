@@ -306,8 +306,6 @@ customElements.define(
       this.#stripSize = null;
       this.#diffEvents?.abort();
       this.#diffEvents = null;
-      this.#stopAsks?.();
-      this.#stopAsks = null;
       this.#historyEvents?.abort();
       this.#historyEvents = null;
       this.#contextObserver?.disconnect();

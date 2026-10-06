@@ -9,7 +9,9 @@ import {
   projectData,
   relabel,
   selectableOffer,
+  setChildren,
   watchData,
+  once,
   keepsText,
 } from "/runtime/widget-api.js";
 
@@ -141,14 +143,7 @@ function renderDatum(tree, record, prior) {
       );
     }
   }
-  let cursor = source.nextElementSibling;
-  for (const node of wanted) {
-    if (node !== cursor) datum.insertBefore(node, cursor);
-    cursor = node.nextElementSibling;
-  }
-  for (const node of priorEvidence.values()) {
-    if (!wanted.includes(node)) node.remove();
-  }
+  setChildren(datum, [head, source, ...wanted]);
   return datum;
 }
 
@@ -156,7 +151,7 @@ customElements.define(
   "lf-worktree",
   class extends HTMLElement {
     connectedCallback() {
-      if (this.stopWatching) return;
+      if (!once(this)) return;
       if (!this.revealWorktree) {
         this.revealWorktree = () => {
           this.toggleAttribute("data-lf-open", true);
@@ -164,14 +159,7 @@ customElements.define(
         };
         this.addEventListener("lf-reveal", this.revealWorktree);
       }
-      this.stopWatching = watchData(this, "worktrees", (snapshot) =>
-        this.show(snapshot),
-      );
-    }
-
-    disconnectedCallback() {
-      this.stopWatching?.();
-      this.stopWatching = null;
+      watchData(this, "worktrees", (snapshot) => this.show(snapshot));
     }
 
     show(snapshot) {

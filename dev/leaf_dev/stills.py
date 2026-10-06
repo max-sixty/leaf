@@ -310,6 +310,21 @@ def code_copy_by_keyboard(page: Page) -> None:
     page.locator("lf-code .lf-code-copy").first.get_by_role("button").focus()
 
 
+def diff_path_by_keyboard(page: Page) -> None:
+    """A folded diff file's row under the keyboard, saying the whole path its row cuts
+    short at the folders."""
+    heads = page.locator("#pr-exact-patch .lf-diff-head")
+    cut = heads.evaluate_all(
+        "heads => heads.findIndex((head) => {"
+        " const dir = head.querySelector('.lf-diff-dir');"
+        " return dir && dir.scrollWidth > dir.clientWidth; })"
+    )
+    head = heads.nth(cut)
+    head.scroll_into_view_if_needed()
+    page.keyboard.press("Shift")
+    head.focus()
+
+
 def code_source_by_touch(page: Page) -> None:
     """Reading code by touch, with the corner control disclosed away."""
     code_note(page)
@@ -406,6 +421,7 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
         multiline_passage,
         code_copy_by_pointer,
         code_copy_by_keyboard,
+        diff_path_by_keyboard,
         code_source_by_touch,
         pane_focused,
         aim_cut_by_pane,
@@ -565,6 +581,12 @@ STATES = (
         code_note,
         viewport=(390, 844),
         touch=True,
+    ),
+    State(
+        "walkthrough-path-keyboard",
+        "pr-walkthrough",
+        diff_path_by_keyboard,
+        viewport=(390, 844),
     ),
     State(
         "walkthrough-source-touch",

@@ -1598,6 +1598,10 @@ import sys
 from pathlib import Path
 from leaf.state import write_json
 
+# The queue command is all this models; the App Server a page server starts to
+# name a thread is not here.
+if sys.argv[1] == "app-server":
+    sys.exit(1)
 if os.environ.get("PREVIEW_QUEUE_AVAILABLE", "True") == "False":
     print("queue unsupported", file=sys.stderr)
     sys.exit(1)

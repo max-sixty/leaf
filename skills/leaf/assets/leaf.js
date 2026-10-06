@@ -128,6 +128,7 @@ import {
 } from "./runtime/banner.js";
 
 import { nativeLayers } from "./runtime/keyboard/layer-stack.js";
+import { holdToRead } from "./runtime/held-word.js";
 
 initializeServedDocument();
 keepPageRulesOffLayer();
@@ -892,6 +893,7 @@ if (!offlineInteractive) {
   await panelComposer.mount();
   selectionComposer.mount();
   responseSurface.mount();
+  holdToRead();
   reactions.mount();
   targets.mount();
   drawing.mount();

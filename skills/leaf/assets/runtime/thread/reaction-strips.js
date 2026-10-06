@@ -2,6 +2,7 @@
    registers template-owned controls and owns only disclosure, keyboard and focus. */
 import { html, render, repeat } from "../../vendor/browser-runtime.js";
 import { iconTemplate } from "../icons.js";
+import { HOLDS_WORD } from "../held-word.js";
 
 let ordinal = 0;
 export class ReactionStripView {
@@ -51,7 +52,7 @@ export class ReactionStripView {
             (choice) =>
               html` <button
                 type="button"
-                class="lf-outline-chip lf-react lf-ui"
+                class="lf-outline-chip lf-react ${HOLDS_WORD} lf-ui"
                 data-lf-gen="1"
                 data-lf-offer="button"
                 data-token=${choice.name}

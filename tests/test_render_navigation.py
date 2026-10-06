@@ -3206,9 +3206,13 @@ def test_the_queue_panel_lists_both_queues_and_what_is_done(browser, serve):
     round_trip(page)
     expect(you).to_have_count(1)
 
-    # What is done stays folded until opened, and its row arrives at its thread too.
+    # The answered question joins what is done, which stays folded until opened, and a
+    # done row arrives at its thread too.
+    expect(page.locator(".lf-queue-done > summary")).to_have_text("Done · 2")
     page.locator(".lf-queue-done > summary").click()
-    page.locator(".lf-queue-done .lf-queue-row").click()
+    done = page.locator(".lf-queue-done .lf-queue-row")
+    expect(done.filter(has_text="Weekly?")).to_have_count(1)
+    done.filter(has_text="Retitle the release").click()
     expect(
         page.locator(f'.lf-page-thread[data-thread="{retitle["id"]}"]')
     ).to_be_focused()

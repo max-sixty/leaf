@@ -252,6 +252,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     // loaded whole (`hydrate`), or one the box takes up afresh (`sync.arrive`), so no step
     // reaches across drafts or takes back another tab's change.
     let shelfSeen = null;
+    let arrivals = 0;
     // Another tab's copy of the same drawing is a different object holding the same one.
     const sameDrawing = (a, b) => a === b || JSON.stringify(a) === JSON.stringify(b);
     const putDrawing = (drawn) => {
@@ -394,6 +395,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     // another draft, or this one as another tab left it. The caller's next paint shows
     // it, and shows any change made to it since as a step of that history.
     sync.arrive = () => {
+      arrivals += 1;
       ta.restartHistory();
       shelfSeen = { drawing: drawing?.read() ?? null, media: [...pastedMedia] };
     };
@@ -471,9 +473,16 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         notice(
           images.length === 1 ? "Adding image…" : `Adding ${images.length} images…`,
         );
+        const pastedAt = arrivals;
         try {
           const paths = await Promise.all(images.map((image) => uploadMedia(image)));
           if (paths.some((path) => path === null)) return;
+          // A box that took up another draft while the picture uploaded is no longer the
+          // draft it was pasted into, and the picture is not this one's.
+          if (arrivals !== pastedAt) {
+            notice("Image not added — the comment moved before it finished uploading");
+            return;
+          }
           pastedMedia.push(...paths);
           renderMedia();
           draftChanged();

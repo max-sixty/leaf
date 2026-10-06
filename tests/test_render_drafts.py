@@ -3252,6 +3252,39 @@ def test_image_upload_completion_preserves_the_readers_focus_and_scroll(
     assert page.evaluate("document.activeElement === window.uploadFocus")
 
 
+def test_a_picture_still_uploading_stays_out_of_the_next_passages_draft(browser, serve):
+    """The comment box moves to another passage while a pasted picture uploads. The
+    picture was the first passage's, so it does not land in the second one's draft, and
+    the user is told it was not added rather than finding it somewhere they did not put
+    it."""
+    held = []
+    controlled = primed(
+        browser,
+        lambda page: page.route("**/api/media", lambda route: held.append(route)),
+    )
+    page = open_page(controlled, serve(LONG_PAGE))
+    compose(page, "#p3")
+    box = page.locator(".lf-fab-input")
+    pixels = (example_media() / "051bee487bfb5d13.png").read_bytes()
+    box.evaluate(
+        """(box, encoded) => {
+          const bytes = Uint8Array.from(atob(encoded), char => char.charCodeAt(0));
+          const transfer = new DataTransfer();
+          transfer.items.add(new File([bytes], 'pasted.png', {type: 'image/png'}));
+          box.dispatchEvent(new ClipboardEvent('paste', {
+            bubbles: true, cancelable: true, clipboardData: transfer,
+          }));
+        }""",
+        base64.b64encode(pixels).decode(),
+    )
+    holding(page, held, 1, "the pasted image")
+    compose(page, "#p1")
+    held.pop().continue_()
+    expect(page.locator(".lf-notice")).to_contain_text("Image not added")
+    expect(box).not_to_have_attribute("aria-busy", "true")
+    expect(page.locator(".lf-composer-media img")).to_have_count(0)
+
+
 def test_a_pasted_image_is_a_whole_draft_and_leaves_with_the_send_that_took_it(
     browser, serve
 ):

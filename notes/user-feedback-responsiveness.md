@@ -54,6 +54,9 @@ phase traces before revising them.
 The last two are the journey's `titled` and `replied` steps. On 2026-10-05,
 Claude Code titled in 1.4–2.2 s and replied in 7.8–17.5 s, Codex titled in
 3.8–6.1 s and replied in 65–125 s, and the website's adapter in 2.7–2.9 s and 14.2–19.4 s.
+Each run keeps its sample in `$XDG_STATE_HOME/leaf-dev/journey.jsonl` on its machine.
+Update these approximate readings when the samples there show a step has changed
+materially and stayed changed, not after one run.
 
 Other work has no universal budget. Status should change when the operation
 changes, without timer-driven chatter. Measure the hosted agent's status updates

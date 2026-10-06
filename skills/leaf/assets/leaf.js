@@ -564,9 +564,11 @@ const queueWalk = createQueueWalk({
   arrive: anchorTravel.arrive,
   readableDestination: anchorTravel.readableDestination,
   announce,
+  post: (event) => app.post(event),
 });
 const queue = createQueuePanel({
   arriveAtItem: queueWalk.arriveAtItem,
+  endTask: queueWalk.endTask,
   announce,
 });
 
@@ -909,7 +911,6 @@ if (!offlineInteractive) {
   app.overlay?.mount();
   app.mountThread();
   app.mountRead();
-  threadListController.mountThreadList(panelIsOpen);
   wireThreadLanding(threadsBox);
   drawers.mountDrawers();
   threadPanelController.mountThreadPanel();

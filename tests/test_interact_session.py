@@ -5580,7 +5580,7 @@ sys.exit(0)
         assert not psutil.pid_exists(pid)
     finally:
         if pid_file.exists() and psutil.pid_exists(pid := int(pid_file.read_text())):
-            os.kill(pid, signal.SIGKILL)
+            os.kill(pid, signal.SIGTERM)
 
 
 @pytest.fixture
@@ -5607,7 +5607,7 @@ signal.pause()
     monkeypatch.setenv("PATH", f"{programs}{os.pathsep}{os.environ['PATH']}")
     yield pid_file
     if pid_file.exists() and psutil.pid_exists(pid := int(pid_file.read_text())):
-        os.kill(pid, signal.SIGKILL)
+        os.kill(pid, signal.SIGTERM)
 
 
 def test_a_terminated_page_server_stops_its_title_server(

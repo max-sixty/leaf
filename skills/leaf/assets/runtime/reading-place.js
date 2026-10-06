@@ -44,7 +44,7 @@ import {
   readingRegionFor,
   readingRegions,
   shownRegionBounds,
-  userReadingRegion,
+  pageReadingRegion,
 } from "./reading-regions.js";
 import { followingItsEnd } from "./bounds.js";
 import { moveScrollerBy, pageScroller, scrollToEnd } from "./scrolling.js";
@@ -116,12 +116,20 @@ export function* blocksOnScreen(region = null, blocks = textBlocks()) {
 }
 // The first visible block in the user's reading region, for a walk's origin,
 // alignment when nothing is selected, and the keyboard reference's hand-back. Asked
-// with no region, it is the region the user is reading in (`userReadingRegion`), which
-// is what d/u scroll: in a workspace whose panes bound themselves the page outside them
-// holds only its header, and a let-go that landed there would leave the pane the user
-// was reading for the top of the page.
-export const readingBlock = (region = userReadingRegion()) =>
+// with no region, it is the page region the user is reading in (`pageReadingRegion`):
+// in a workspace whose panes bound themselves the page outside them holds only its
+// header, and a let-go that landed there left the pane the user was reading for the
+// top of the page.
+export const readingBlock = (region = pageReadingRegion()) =>
   blocksOnScreen(region, textBlocks(region?.body)).next().value?.[0] ?? null;
+
+// Where a let-go lands: the block the user is reading, or, in a region whose visible part
+// holds no text block (a figure, a widget), the region's own body, so the landing keeps
+// the user in that region rather than on the body, which names the page.
+export const landingPlace = () => {
+  const region = pageReadingRegion();
+  return readingBlock(region) ?? region?.body ?? null;
+};
 
 // The quote and the section it's searched in come from the same block, or the search is
 // filtered to a section the text isn't in and can only ever fail — restore then falls back

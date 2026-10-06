@@ -225,26 +225,96 @@ def test_a_click_on_a_panes_words_makes_it_the_subject_of_every_scroll_key(
     page.wait_for_function(f"() => ({tops})()[0] < {left}")
 
 
-def test_closing_threads_by_pointer_hands_the_scroll_keys_back_to_the_page(
+def test_a_closed_threads_panel_hands_the_page_back_where_the_user_was_reading(
     browser, serve
 ):
-    """Standing in the Threads list made it the region `d` scrolls, and a pointer
-    closing the panel left it so: `d` scrolled a list no one could see and the page
-    stayed where it was."""
+    """The Threads list is a reading region of its own, and it used to stand in for the
+    page's after the panel closed or while the user left it: `d` after a pointer closed
+    the panel scrolled a list no one could see, and `g p` from the open panel landed at
+    the top of the document rather than on the paragraph in view."""
     paragraphs = "".join(
-        f'<p style="min-height: 12rem">Paragraph {n} of the long page.</p>'
+        f'<p id="p{n}" style="min-height: 12rem">Paragraph {n} has '
+        f'<a href="#p{n}">a link</a>.</p>'
         for n in range(12)
     )
     page = open_page(
         browser, serve(leaf_page("A long page", f"<h1>A long page</h1>{paragraphs}"))
     )
+    resized(page, 1440, 900)
+    page.locator("#p8").evaluate("p => p.scrollIntoView({block: 'start'})")
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     expect(page.locator(".lf-threads")).to_be_focused()
+    page.keyboard.press("g")
+    page.keyboard.press("p")
+    page.keyboard.press("Tab")
+    assert page.evaluate(
+        """() => {
+          const at = document.activeElement.getBoundingClientRect();
+          return document.activeElement.matches('main a') &&
+            at.top > 0 && at.bottom < innerHeight;
+        }"""
+    )
+
+    page.locator(".lf-threads").focus()
     page.locator(".lf-threads-toggle").click()
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
+    top = page.evaluate("document.scrollingElement.scrollTop")
     page.keyboard.press("d")
-    page.wait_for_function("() => document.scrollingElement.scrollTop > 0")
+    page.wait_for_function(f"() => document.scrollingElement.scrollTop > {top}")
+
+
+def test_a_let_go_keeps_the_user_in_the_pane_they_read(browser, serve):
+    """A let-go lands on what the user is reading in the page region they last acted
+    in. Opening Threads over a pane once replaced that region with the panel's list, so
+    closing it landed on the workspace header; and a pane showing no words where it
+    stood (a figure, a spacer) had no block to land on, so the user was dropped on the
+    body and the pane forgotten. Either way `d` and `u` stopped moving the pane.
+
+    A pane that flows inside a scrolling workspace body keeps answering after it scrolls
+    out of the window, which a test of the pane's own visibility must not mistake for a
+    closed surface."""
+    tops = """() => ['left-reading', 'right-reading'].map((id) =>
+      document.querySelector(`#${id} > :not(header, footer)`).scrollTop)"""
+    reading = """async () => (await window.__lfRuntimeImport(
+      '/runtime/reading-regions.js')).userReadingRegion()?.host.id ?? null"""
+    page = open_page(browser, serve(READING_REGIONS_PAGE))
+    resized(page, 1440, 900)
+    pane_posture(page, page.locator("#left-reading"), "bounded")
+
+    page.locator("#right-head").focus()
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    expect(page.locator(".lf-threads")).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-thread-panel")).to_be_hidden()
+    assert page.evaluate(reading) == "right-reading"
+    page.keyboard.press("d")
+    page.wait_for_function(f"() => ({tops})()[1] > 0")
+
+    page.locator("#left-reading > :not(header, footer)").evaluate(
+        "body => body.scrollTop = 400"
+    )
+    page.locator("#left-head").focus()
+    page.keyboard.press("Escape")
+    assert page.evaluate(reading) == "left-reading"
+    page.keyboard.press("u")
+    page.wait_for_function(f"() => ({tops})()[0] < 400")
+
+    flowing = READING_REGIONS_PAGE.replace(
+        '<lf-pane id="left-reading"', '<section><lf-pane id="left-reading"'
+    ).replace("    </lf-pane>\n  </div>", "    </lf-pane></section>\n  </div>")
+    assert flowing.count("</section>") == 1
+    page = open_page(browser, serve(flowing))
+    resized(page, 1440, 900)
+    split = page.locator("#reading-split")
+    page.locator("#left-start").click()
+    for _ in range(12):
+        page.keyboard.press("d")
+        page.wait_for_timeout(200)
+    assert (
+        split.evaluate("box => box.scrollHeight - box.clientHeight - box.scrollTop") < 2
+    )
 
 
 def test_a_pane_bodys_ring_is_drawn_whole_against_the_workspace_edges(browser, serve):

@@ -129,7 +129,14 @@ export const readingRegionFor = (node) => {
 // nothing new, so opening a menu leaves the pane the user was reading as the answer.
 // A key press is not among them: its target is where focus already stands, which
 // arrived by `focusin`, or the body, which is where a click on words leaves it.
+//
+// The page's own answer is kept apart from a surface's. A region in the chrome, such as
+// the Threads list, answers while it shows; once it has closed, the user is back in the
+// page region they acted in last (`pageReadingRegion`), which a surface opened on top of
+// it never replaced. A landing in the document asks the page's answer alone, since a
+// surface is no part of the document it lands in.
 let recentRegionId = null;
+let pageRegionId = null;
 // Chrome can focus body between pointerdown on unfocusable words and pointerup.
 // That focus belongs to the same press; pointerdown has already named its place.
 let pressing = false;
@@ -138,26 +145,33 @@ const actedIn = (event) => {
   const at = event.composedPath()[0];
   const region = readingRegionFor(at);
   if (event.type === "pointerdown") pressing = true;
-  if (region) recentRegionId = region.id;
-  else if (
+  if (region) {
+    recentRegionId = region.id;
+    if (under(region.host, pageRoot())) pageRegionId = region.id;
+  } else if (
     (at === document.body || under(at, pageRoot())) &&
     !(event.type === "focusin" && at === document.body && pressing)
   )
-    recentRegionId = null;
+    recentRegionId = pageRegionId = null;
 };
 for (const type of ["pointerdown", "wheel", "touchstart", "focusin"])
   addEventListener(type, actedIn, { capture: true, passive: true });
 for (const type of ["pointerup", "pointercancel"])
   addEventListener(type, () => (pressing = false), { capture: true });
 export const recentReadingRegion = () => readingRegion(recentRegionId);
-// A region the user can no longer see, such as the list of a panel they closed, is not
-// where they are reading, however recently they acted in it.
+// A region hidden from layout — a closed panel's list, a pane in a tab not shown — is not
+// where the user reads. One scrolled out of the window still is.
+const shown = (region) => (region?.host.checkVisibility() ? region : undefined);
+export const pageReadingRegion = () => {
+  const at = deepFocus();
+  if (under(at, pageRoot())) return readingRegionFor(at);
+  return shown(readingRegion(pageRegionId));
+};
 export const userReadingRegion = () => {
   const at = deepFocus();
   const region = readingRegionFor(at);
   if (region || under(at, pageRoot())) return region;
-  const recent = recentReadingRegion();
-  return recent && !hidden(recent) ? recent : undefined;
+  return shown(recentReadingRegion()) ?? pageReadingRegion();
 };
 
 // The deepest region whose body actually contains this node. A region's host includes

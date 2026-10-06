@@ -111,6 +111,14 @@ has tried; settle that before building it.
   Threads and Approve off the row until it ends, Android's back gesture closes nothing
   (the Escape ladder could answer it), Draw mode blocks scrolling and zoom, and an
   `lf-draft` has no close that keeps the edit.
+- **Decide whether the response bar's reactions and Suggest need a pointer route.**
+  The floating comment bar shows no ellipsis (⋯), so its field spans the bar and a sent
+  message keeps the card's measure. Its other responses, Suggest and the emoji
+  reactions, open only by key: Tab from the field, or `e`. A mouse alone has no
+  route to them, and a finger has none at all. Decide whether to make them more
+  available, such as a banner control under a coarse pointer, a reaction row on the
+  sent card, or a control that keeps the field's measure
+  (`skills/leaf/assets/runtime/composing/selection.js`).
 - **Give the thread panel's touch grip its own space.** Reserve room for the grip
   and collapse inactive reply controls if more thread cards should fit.
 
@@ -270,12 +278,18 @@ height and where a switch lands wait on the workspace decision under Layout.
 
 ### Recorded interaction review
 
-- **Bring richer trace inspection into Leaf's commentable timeline.** Review a
-  recording through its actual actions, timestamps and captured frames, with
-  playback, scrubbing, Before/Action/After snapshots, source, console and network
-  context. Keep comments attached to the immutable recording and action or frame;
-  opening a thread restores that moment. Reuse Playwright's capture and inspection
-  capabilities, and keep a direct link to its full viewer beside the Leaf timeline.
+Max's assessment (2026-10-05): "I'm not sure this is great." Ship the optional
+Leaf timeline as a trial alongside Playwright's viewer. Keeping it is undecided;
+we may use Playwright directly. Try the comment workflow before investing further
+in the integration.
+
+- **Explore DOM selection if we keep the imported timeline.** The optional `playwright`
+  package imports native actions, checkpoint images, captured frames and saved
+  accessibility elements; following their comments restores the moment. Reuse
+  Playwright's DOM renderer to add arbitrary element and passage selection, with
+  comments scoped to the archive, action, phase and captured DOM identity. Preserve
+  the distinction between a DOM snapshot and a separately captured image. Keep
+  source, console and network inspection available through the full viewer.
 
 ### The agent's text interface
 

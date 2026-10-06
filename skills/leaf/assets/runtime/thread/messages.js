@@ -324,7 +324,7 @@ export class MessageView {
       model.editable && !editing
         ? html`<button
             type="button"
-            class="lf-msg-edit lf-ui"
+            class="lf-msg-control lf-msg-edit lf-ui"
             tabindex="-1"
             data-lf-gen="1"
             data-lf-offer="button"
@@ -332,7 +332,7 @@ export class MessageView {
             title="Edit message"
             @click=${() => this.openEdit()}
           >
-            ${iconTemplate("edit", "lf-msg-edit-icon")}
+            ${iconTemplate("edit", "lf-msg-control-icon")}
           </button>`
         : nothing;
     render(

@@ -21,6 +21,11 @@ reserves the reply seat, sends `turn/start`, and says whether a failed start may
 left a turn running. Which delivery is offered, when, and what an uncertain start
 means for the turn it may have made are each carrier's own policy: the adapter's offer
 loop and the website's turn follower each keep theirs.
+
+Codex's tool hook imports this module after every tool call of a task holding a page
+(`offer_hook_delivery`), so `thread`, which brings the page model and its validators,
+is imported inside the functions that write a reply or a failure onto a thread
+rather than here.
 """
 
 import json
@@ -70,13 +75,6 @@ from .state import (
     session_record,
     start_session_turn,
     write_json,
-)
-from .thread import (
-    DeliveryReply,
-    answered_by_reply,
-    fail_answer,
-    release_delivery_reply,
-    reserve_delivery_reply,
 )
 
 START_TIMEOUT = 20
@@ -297,6 +295,8 @@ def start_app_server_delivery(send, thread_id: str, payload: dict) -> dict:
     answer for the delivery. Each carrier decides what an uncertain start means for
     the turn it may have made.
     """
+    from .thread import release_delivery_reply, reserve_delivery_reply
+
     reply_target = stream_reply_target(payload)
     if reply_target is not None:
         reserve_delivery_reply(thread_id, payload["id"], reply_target)
@@ -831,6 +831,8 @@ class AppServerReplyStream:
         delivery_id: str,
         target: dict,
     ):
+        from .thread import DeliveryReply
+
         self.reply = DeliveryReply(session_id, turn_id, delivery_id, target)
         self.last_update = 0.0
 
@@ -1083,6 +1085,8 @@ class TurnFold:
                 self.events.final_text(terminal),
             )
         if self.reply_target is not None:
+            from .thread import release_delivery_reply
+
             release_delivery_reply(self.session_id, self.delivery_id, self.reply_target)
         return None
 
@@ -1401,8 +1405,10 @@ def _readdress_record(path: Path) -> Path:
         return replacement
 
 
-def offer_delivery(path: Path, record: dict, carrier: str) -> PreparedDelivery:
-    """Freeze one payload for `carrier` before offering its permanent pointer.
+def offer_delivery(path: Path, record: dict, *, turn_replies: bool) -> PreparedDelivery:
+    """Freeze one payload before offering its permanent pointer, with its thread
+    reply addressed to the turn it opens where that turn writes it
+    (`turn_replies`, `delivery.freeze_delivery`).
 
     A record already offering keeps the payload it froze: its pointer may have
     reached the task, and a delivery never changes under its id."""
@@ -1419,7 +1425,7 @@ def offer_delivery(path: Path, record: dict, carrier: str) -> PreparedDelivery:
         try:
             payload = freeze_delivery(
                 record["batches"],
-                carrier=carrier,
+                turn_replies=turn_replies,
                 delivery_id=path.stem,
                 created_at=record["created_at"],
             )
@@ -1555,7 +1561,7 @@ def offer_hook_delivery(session_id: str, turn_id: str) -> str | None:
         if pending is None:
             return None
         path, record = pending
-        prepared = offer_delivery(path, record, "queue")
+        prepared = offer_delivery(path, record, turn_replies=False)
         record["transport"] = {"phase": "hook", "turn": turn_id}
         write_record(prepared.record_path, record)
         return prepared.prompt
@@ -1608,6 +1614,8 @@ UNCONFIRMED_TEXT = (
 
 def settle_answered_deliveries(session_id: str) -> bool:
     """Retire unknown harness attempts already answered manually, even while offline."""
+    from .thread import answered_by_reply
+
     with flocked(delivery_lock_path(session_id)):
         pending = [
             path.stem
@@ -1654,6 +1662,8 @@ def abandon_uncertain_delivery(session_id: str, payload: dict) -> None:
 
 def finish_abandoned_batch(path: Path, batch_index: int, batch: dict) -> None:
     """Write honest failure receipts and retire this batch under current ownership."""
+    from .thread import fail_answer, release_delivery_reply
+
     page_dir = Path(batch["page"])
     session_id = batch["session"]
     # Seat release is part of this resumable receipt, not just its initiator.
@@ -1780,7 +1790,7 @@ def prepare_codex_delivery(page_dir: Path, harness: Harness) -> PreparedDelivery
                     None,
                 )
                 if pending is not None:
-                    offered = offer_delivery(*pending, "app-server")
+                    offered = offer_delivery(*pending, turn_replies=True)
                     return PreparedDelivery(offered.prompt, offered.payload, transition)
                 captured = append_batch(
                     session_id,
@@ -1791,7 +1801,7 @@ def prepare_codex_delivery(page_dir: Path, harness: Harness) -> PreparedDelivery
                 if captured is None:
                     raise RuntimeError("the page input is already in a Codex delivery")
                 path, _, _ = captured
-                offered = offer_delivery(path, read_record(path), "app-server")
+                offered = offer_delivery(path, read_record(path), turn_replies=True)
                 return PreparedDelivery(offered.prompt, offered.payload, transition)
     except BaseException:
         restore_page_claim(page_dir, transition)

@@ -42,6 +42,7 @@ export const chromeSheet = constructSheet(sheets.chrome, "chrome");
 export const chromeSharedClasses = Object.freeze([
   "lf-aiming",
   "lf-btn",
+  "lf-composer-drawing",
   "lf-composer-media",
   "lf-composer-media-item",
   "lf-composer-media-open",

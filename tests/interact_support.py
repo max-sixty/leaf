@@ -29,6 +29,7 @@ from contextlib import contextmanager
 from functools import cache
 from pathlib import Path
 
+import psutil
 import pytest
 import yaml
 from click.testing import CliRunner
@@ -259,11 +260,11 @@ STATED_TIMEOUT = 60
 """How long a pure-Python wait gives another thread or process to state its fact.
 
 The deadline separates a product that never states the fact from a machine that
-has not reached it yet, so it is generous rather than tight. Two workers share
-one runner's cores with a browser, and a stretch of ordinary work there runs
-many times slower than it does on an unloaded host: a wait sized as a small
-multiple of the unloaded duration reddens `main` on the runs where the other
-worker happens to be driving Chrome. On a local host at load 230 over 18 cores,
+has not reached it yet, so it is generous rather than tight. Several workers
+share one runner's cores with their browsers, and a stretch of ordinary work there
+runs many times slower than it does on an unloaded host: a wait sized as a small
+multiple of the unloaded duration reddens `main` on the runs where another worker
+happens to be driving Chrome. On a local host at load 230 over 18 cores,
 two concurrent `page init`s took up to 25s and three `leaf codex start`
 commands 20s. `SERVED_TIMEOUT_MS` is the browser side's counterpart.
 
@@ -875,6 +876,22 @@ def state_json(d):
     return json.loads(result.output)
 
 
+def asks_on_you(state):
+    """The Asks on the user's queue in one agent-facing state: each open Ask's task,
+    as the widget it is and the widget that answers it."""
+    return [
+        {
+            "id": item["id"],
+            "tag": item["ask"]["tag"],
+            "widget": item["ask"]["widget"],
+            "widget_tag": item["ask"]["widget_tag"],
+            "thread": item["thread"],
+        }
+        for item in state["queues"]["on_you"]
+        if item.get("ask")
+    ]
+
+
 def owed(state):
     """The workflows one agent-facing state still owes an answer.
 
@@ -1381,14 +1398,14 @@ def declare_work(page_dir, line, *, item=None, ts=None, **voice):
     the page has none, dated `ts` (now by default) and spoken in `voice` (`agent`,
     `session`, `turn`). Raw, so a test can date it in the past; `working` is the
     command an agent runs."""
-    from leaf.tasks import open_tasks
+    from leaf.tasks import owed_tasks
 
     if item is None:
         item = (
             next(
                 (
                     task["id"]
-                    for task in open_tasks(events_model.read_events(page_dir))
+                    for task in owed_tasks(events_model.read_events(page_dir))
                     if task["subject"] == {"kind": "page"}
                 ),
                 None,
@@ -1398,6 +1415,7 @@ def declare_work(page_dir, line, *, item=None, ts=None, **voice):
                 {
                     "kind": "task",
                     "author": "agent",
+                    "owner": "agent",
                     "subject": {"kind": "page"},
                     "title": "Work on the page",
                     **({"ts": ts} if ts else {}),
@@ -1420,9 +1438,9 @@ def declare_work(page_dir, line, *, item=None, ts=None, **voice):
 def end_work(page_dir):
     """End every open task on the page as a whole, `declare_work`'s and `working`'s,
     so nothing the agent opened for itself is in hand any more."""
-    from leaf.tasks import open_tasks
+    from leaf.tasks import owed_tasks
 
-    for task in open_tasks(events_model.read_events(page_dir)):
+    for task in owed_tasks(events_model.read_events(page_dir)):
         if task["subject"] == {"kind": "page"}:
             append_carried_log_record(
                 page_dir,
@@ -1437,11 +1455,11 @@ def end_work(page_dir):
 
 def end_work_on(page_dir, subject):
     """End the open tasks on the thread or widget `subject` names, done."""
-    from leaf.tasks import open_tasks
+    from leaf.tasks import owed_tasks
     from leaf.work import page_subject
 
     named = page_subject(page_dir, events_model.read_events(page_dir), subject)
-    for task in open_tasks(events_model.read_events(page_dir)):
+    for task in owed_tasks(events_model.read_events(page_dir)):
         if task["subject"] == named:
             ended = CliRunner().invoke(
                 cli_model.cli, ["task", "end", str(page_dir), task["id"], "done"]
@@ -1473,7 +1491,7 @@ def working(page_dir, line, subject="page"):
     page's open task on that subject, so a test can say what it does next. Returns the
     start's record."""
     from leaf import event_log as log_model
-    from leaf.tasks import open_tasks
+    from leaf.tasks import owed_tasks
     from leaf.work import page_subject
 
     named = (
@@ -1484,7 +1502,7 @@ def working(page_dir, line, subject="page"):
     task = next(
         (
             task
-            for task in open_tasks(log_model.read_events(page_dir))
+            for task in owed_tasks(log_model.read_events(page_dir))
             if task["subject"] == named
         ),
         None,
@@ -1554,9 +1572,10 @@ def codex_program(tmp_path_factory):
     name. The name has to be the executable's own, because what a process reports
     is what the kernel loaded — a `#!` script and a symlink both wear the
     interpreter's, and a copy of /bin/sh is killed on sight on macOS, where that
-    binary's signature is the system's."""
+    binary's signature is the system's. A framework Python's sys.executable is
+    a launcher that re-execs Python.app, so copy the running binary itself."""
     program = tmp_path_factory.mktemp("codex-program") / "codex"
-    shutil.copy(sys.executable, program)
+    shutil.copy(psutil.Process().exe(), program)
     return program
 
 
@@ -2015,15 +2034,13 @@ SnapshotHandlerRegistry.add_handler(
 
 
 def consume_pending_input(session_id):
-    """A test reader takes a complete envelope and explicitly confirms it."""
+    """Hand the session its pending input as a hook does inline: one complete
+    envelope, confirmed as it is handed over."""
     from leaf import delivery
-    from leaf.hook_carrier import hook_acknowledgement
 
     batches = delivery.pending_batches(session_id)
     if not batches:
         return None
-    payload = delivery.freeze_delivery(
-        batches, carrier="hook", acknowledge=hook_acknowledgement
-    )
-    delivery.receive(payload, session_id)
+    payload = delivery.freeze_delivery(batches)
+    delivery.receive_held(payload, session_id)
     return payload

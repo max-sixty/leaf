@@ -69,8 +69,10 @@ pageSearchSurface.append(pageSearchInput, pageSearchStatus);
 // the same stable addressables and visual parts Alt-click reaches, then opens Comment on the
 // chosen target; `/` opens the page's text search directly or from that map. The banner's
 // Select element opens this same picker, and its Cancel selection closes it. While it
-// stands on a touch device, presses use aim's capture boundary to choose the innermost target
-// without activating authored controls.
+// stands, the page is armed as it is under a held Alt (aim.js): a mouse shows the target
+// under it, and a press, by finger or mouse, chooses that target without activating
+// authored controls. The key and the modifier are two ways into one gesture, so a press
+// means the same under either.
 //
 // `keyboard/hints.js` owns the map itself: arming, codes, the typed prefix, the audible
 // walk, the scroll freeze, and the paint. What this module declares is which members the
@@ -98,6 +100,7 @@ export function createTargetPicker({
   updateFab,
   fabAnchorAt,
   pointerModeActive,
+  armChanged,
 }) {
   const HINT_INDENT = 10;
   const canChoose = () =>
@@ -217,13 +220,14 @@ export function createTargetPicker({
       const found = hints.arm();
       announce(
         found.length
-          ? `Choose a target — tap an element, type one of ${found.length} hints, press Tab to hear them, or slash to search the page.`
+          ? `Choose a target — press an element, type one of ${found.length} hints, press Tab to hear them, or slash to search the page.`
           : "There is no visible target to choose. Press slash to search the page.",
       );
     } else {
       hints.disarm();
       if (!on) opener = null;
     }
+    armChanged();
     repaint();
     if (returnTo) handBack(returnTo);
   }
@@ -245,6 +249,7 @@ export function createTargetPicker({
       hints.invalidate();
       announce("Choose a target — type a hint, or slash to search the page.");
     }
+    armChanged();
     repaint();
   }
 
@@ -585,7 +590,6 @@ export function createTargetPicker({
         title: "Go to the previous match for the last page search",
       },
     ],
-    description: "Next / previous match for the last page search",
     title: "search matches",
     repeat: true,
     when: () => Boolean(repeatedSearch),
@@ -661,7 +665,6 @@ export function createTargetPicker({
             title: "Hear the previous visible target",
           },
         ],
-        description: "Hear the next / previous visible target",
         title: "browse hints",
         repeat: true,
         when: () => hints.candidates().length > 0,
@@ -711,7 +714,6 @@ export function createTargetPicker({
             touch: "Next",
           },
         ],
-        description: "Next / previous search match",
         title: "matches",
         repeat: true,
         when: () => matches.length > 0,
@@ -747,7 +749,7 @@ export function createTargetPicker({
   pageCommand({
     id: "target.picker.open",
     keys: ["s"],
-    description: "Choose an element by tapping it or typing its hint, then comment",
+    description: "Choose an element by pressing it or typing its hint, then comment",
     title: "select element",
     touch: "Select element",
     // Once the field is open, its typing scope owns character keys. This gate also keeps
@@ -764,7 +766,8 @@ export function createTargetPicker({
   return {
     visibleTargets,
     chooseTarget,
-    pointerChoosing: () => coarsePointer.matches && pickerOpen && !pageSearchOpen,
+    // The map, not the mode: a direct slash opens the mode for search alone.
+    choosing: () => hints.armed() && !pageSearchOpen,
     paintTargetPickerHints,
     targetPickerOpen,
     openTargetPicker,

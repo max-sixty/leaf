@@ -921,6 +921,8 @@ class PageEndpoint:
             registry = self._registry(revision)
             self.response_layer = registry["$layer"]["generation"]
             return self._json(registry)
+        if self.page_snapshot is not None and path in self.page_snapshot.data_resources:
+            return self._resource_content(self.page_snapshot.data_resources[path])
         file = self.page_dir / path.lstrip("/")
         # The allowlist rejects traversal spellings; containment is the second
         # boundary for a page directory edited or symlinked after vendoring.

@@ -45,8 +45,8 @@ export { answersWithin } from "./asks/answer.js";
 export { registerVisualParts } from "./visual-parts.js";
 export {
   threadBox,
-  consumeThreads,
-  consumePageThreads,
+  placeThreads,
+  placePageThreads,
   consumeAnnotations,
   mountThreadViews,
   threadActions,
@@ -172,6 +172,7 @@ export { copyCodeBlock } from "./code-copy.js";
 export { retainUserIntent } from "./user-intent.js";
 export { keepView, openingView, tabStore } from "./storage.js";
 export {
+  ensureSyntaxLanguage,
   highlightBlocks,
   langForPath,
   synNodes,

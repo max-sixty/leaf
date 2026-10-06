@@ -36,11 +36,12 @@
 
    In either plane the box stands by the edges that hold it, one per axis (`held`). On
    the axis its placement stands it beside something, that is the edge facing it; on the
-   other, the edge its alignment names, the start for a centred box; and on an axis where
-   the boundary shifted the box in, the edge against that boundary. Content that grows
-   the box then moves only its free edges, in the layout that grows it. Stood by its
-   top-left corner, a box that grows at its left or top would paint grown the wrong way
-   for a frame, until the placement that follows the resize carried it back.
+   other, the edge its alignment names, the start for a centred box, or the edge the
+   surface keeps still of its own accord (a `hold` middleware's `edge`); and on an axis
+   where the boundary shifted the box in, the edge against that boundary. Content that
+   grows the box then moves only its free edges, in the layout that grows it. Stood by
+   its top-left corner, a box that grows at its left or top would paint grown the wrong
+   way for a frame, until the placement that follows the resize carried it back.
 
    Neither surface stands before the user acts, so the bundle stays off the presentation
    path and loads as soon as the page has presented, as an arrival the page answers for.
@@ -51,7 +52,8 @@ import { afterPresentation } from "/runtime/presentation.js";
 import { keeps, layoutPx as px, atLayoutPrecision } from "/runtime/keeps.js";
 import { anchorElement, anchorName } from "/runtime/anchor-names.js";
 import { holdFocus } from "/runtime/focus.js";
-import { shownBand, scrollAxes } from "/runtime/geometry.js";
+import { shownBand } from "/runtime/geometry.js";
+import { followScroll, scrollFollows, scrollMotions } from "/runtime/scroll-motion.js";
 import { containingReadingRegionFor } from "/runtime/reading-regions.js";
 import { upFrom } from "/runtime/shadow.js";
 
@@ -108,6 +110,8 @@ function holderOf({ edge, at }, context, overflowAncestors) {
 // The edges that hold the box where the answer stands it, one per axis, with the box's
 // size and its containing block's, which an inset on a right or bottom edge is measured
 // from. It runs after the surface's middleware, so it reads the box as sized and shifted.
+// A surface middleware named `hold` that keeps a block edge still reports it as `edge`;
+// an edge the boundary shifted the box against outranks it.
 const held = {
   name: "held",
   async fn({ placement, rects, middlewareData, elements, platform }) {
@@ -117,6 +121,7 @@ const held = {
       side === "top" || side === "bottom"
         ? { x: aligned("left", "right"), y: side === "top" ? "bottom" : "top" }
         : { x: side === "left" ? "right" : "left", y: aligned("top", "bottom") };
+    edges.y = middlewareData.hold?.edge ?? edges.y;
     const shifted = middlewareData.shift ?? {};
     if (Math.abs(shifted.x ?? 0) >= 0.5) edges.x = shifted.x < 0 ? "right" : "left";
     if (Math.abs(shifted.y ?? 0) >= 0.5) edges.y = shifted.y < 0 ? "bottom" : "top";
@@ -257,8 +262,7 @@ export function floatingPlacement({ floating, update }) {
     holdsHome: (home) =>
       frame !== floating && frame.parentElement === home && frame.contains(floating),
     nativeAvailable: () =>
-      CSS.supports("anchor-name", "--lf-anchor") &&
-      typeof window.ScrollTimeline === "function",
+      CSS.supports("anchor-name", "--lf-anchor") && scrollFollows(),
     follows: () => placementProof?.plane === "page",
     begin: () => ++epoch,
     current: (placement) => placement === epoch,
@@ -289,26 +293,17 @@ export function floatingPlacement({ floating, update }) {
           }
         : reference;
       const carried = new Set(anchor ? getOverflowAncestors(anchor) : []);
-      const motions = [];
-      if (context)
-        for (const source of getOverflowAncestors(context)) {
-          if (!(source instanceof Element) || carried.has(source)) continue;
-          const axes = scrollAxes(source);
-          for (const [axis, scroll, extent] of [
-            ["x", source.scrollLeft, source.scrollWidth - source.clientWidth],
-            ["y", source.scrollTop, source.scrollHeight - source.clientHeight],
-          ])
-            if (extent)
-              motions.push({
-                source,
-                axis,
-                scroll,
-                extent,
-                vector: axes[axis],
-              });
-        }
-      const canFollow =
-        anchor && (!motions.length || typeof window.ScrollTimeline === "function");
+      // Each scroller carries the box it holds next on the way in: the next scroller, or
+      // the element the reference stands in.
+      const sources = context
+        ? getOverflowAncestors(context).filter(
+            (source) => source instanceof Element && !carried.has(source),
+          )
+        : [];
+      const motions = sources.flatMap((source, i) =>
+        scrollMotions(source, sources[i - 1] ?? physical),
+      );
+      const canFollow = anchor && (!motions.length || scrollFollows());
       motionFrame(canFollow ? motions : []);
       const answer = await computePosition(measured, frame, {
         ...options,
@@ -354,21 +349,9 @@ export function floatingPlacement({ floating, update }) {
         };
       }
       if (plane === "page")
-        motions.forEach(({ source, axis, scroll, extent, vector }, i) => {
-          const value = (amount) =>
-            `translate(${amount * vector.x}px, ${amount * vector.y}px)`;
-          scrollAnimations.push(
-            layers[i].animate(
-              [{ transform: value(scroll) }, { transform: value(scroll - extent) }],
-              {
-                timeline: new window.ScrollTimeline({ source, axis }),
-                duration: "auto",
-                fill: "both",
-                composite: "replace",
-              },
-            ),
-          );
-        });
+        scrollAnimations = motions.map((motion, i) =>
+          followScroll(layers[i], motion, motion.scroll),
+        );
       stand = frameAnchor ? anchoredAt(frameAnchor, at) : placedAt;
       // anchorAt proves the solver's containing block is the window. Other
       // containing blocks have no declared prediction in this selection.

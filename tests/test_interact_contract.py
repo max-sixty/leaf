@@ -60,6 +60,7 @@ from interact_support import (
     lock_contention,
     publish,
     published,
+    read_page_data,
     stamp,
     stamp_activation,
     styled,
@@ -1930,6 +1931,26 @@ def test_candidate_vocabulary_preserves_commands_in_frozen_thread_markup(page_di
             },
             "records must name distinct",
         ),
+        (
+            {
+                "builds": {
+                    "description": "Build facts.",
+                    "schema": {},
+                    "resources": "images[].url",
+                }
+            },
+            "resources must be a list",
+        ),
+        (
+            {
+                "builds": {
+                    "description": "Build facts.",
+                    "schema": {},
+                    "resources": ["images["],
+                }
+            },
+            "resource expression 'images[' is invalid",
+        ),
     ],
 )
 def test_the_registry_door_validates_data_contracts(page_dir, contracts, message):
@@ -2154,7 +2175,6 @@ def test_revendoring_cannot_forget_a_historical_data_binding(page_dir):
     refused = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
 
     assert refused.exit_code != 0
-    assert "immutable documents" in refused.output
     assert "source 'builds' loses its contract 'builds'" in refused.output
     assert "preserve those bindings" in refused.output
     cleared = CliRunner().invoke(
@@ -2164,6 +2184,76 @@ def test_revendoring_cannot_forget_a_historical_data_binding(page_dir):
     still_refused = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
     assert still_refused.exit_code != 0
     assert "source 'builds' loses its contract 'builds'" in still_refused.output
+
+
+def test_revendoring_keeps_a_new_binding_before_its_first_revision(page_dir):
+    """An edit can bind data before it activates. Re-vendoring compares that same
+    working document under both layers, so an unchanged contract is not a loss.
+    """
+    source = page_dir / "index.html"
+    source.write_text(
+        source.read_text().replace(
+            "</main>",
+            '<lf-text-document id="report" source="report"></lf-text-document></main>',
+        )
+    )
+    revisions = files_model.list_revisions(page_dir)
+    data_model.cmd_data_set(page_dir, "report", "New report.")
+    assert files_model.list_revisions(page_dir) == revisions
+
+    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
+
+    assert result.exit_code == 0, result.output
+    assert data_model.read_contracts(page_dir)["report"] == "text-document"
+    assert (
+        data_model.read_data(
+            page_dir, files_model.read_json(page_dir / "registry.json")
+        )["sources"]["report"]["value"]
+        == "New report."
+    )
+
+
+@pytest.mark.parametrize("contract_retained", [True, False])
+def test_revendoring_an_unreadable_edit_still_checks_historical_bindings(
+    page_dir, contract_retained
+):
+    """An unreadable draft cannot activate or introduce a binding. A runtime
+    refresh still preserves the active history and refuses a lost historical contract.
+    Source validation keeps reporting the draft's encoding error.
+    """
+    source = page_dir / "index.html"
+    if contract_retained:
+        source.write_text(
+            source.read_text().replace(
+                "</main>",
+                '<lf-text-document id="report" source="report"></lf-text-document></main>',
+            )
+        )
+        activated = revisioning_model.activate_source(page_dir)
+        assert activated.error is None and activated.created
+        data_model.cmd_data_set(page_dir, "report", "Retained report.")
+    else:
+        declare_data_input(page_dir, "builds", {"type": "array"}, contract="builds")
+        data_model.cmd_data_set(page_dir, "builds", [])
+    revisions = files_model.list_revisions(page_dir)
+    source.write_bytes(b"\xff")
+
+    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
+
+    if contract_retained:
+        assert result.exit_code == 0, result.output
+        assert data_model.read_contracts(page_dir)["report"] == "text-document"
+        assert (
+            read_page_data(page_dir)["sources"]["report"]["value"] == "Retained report."
+        )
+    else:
+        assert result.exit_code != 0
+        assert "source 'builds' loses its contract 'builds'" in result.output
+    assert files_model.list_revisions(page_dir) == revisions
+    assert source.read_bytes() == b"\xff"
+    checked = check(page_dir)
+    assert checked.exit_code != 0
+    assert "not UTF-8" in checked.output
 
 
 def _page_owned_deferred_source(page_dir):
@@ -2228,7 +2318,7 @@ def _page_owned_deferred_source(page_dir):
     return authored
 
 
-@pytest.mark.parametrize("change", ["schema", "records"])
+@pytest.mark.parametrize("change", ["schema", "records", "resources"])
 def test_page_owned_data_contract_meaning_is_fixed_for_the_source_lifetime(
     page_dir, change
 ):
@@ -2238,13 +2328,15 @@ def test_page_owned_data_contract_meaning_is_fixed_for_the_source_lifetime(
     contract = declarations["$data"]["contracts"]["local-files"]
     if change == "records":
         contract["records"]["deferred"] = "body"
+    elif change == "resources":
+        contract["resources"] = ["optional"]
     else:
         contract["schema"]["properties"]["files"]["minItems"] = 1
     authored.write_text(json.dumps(declarations))
 
     activation = revisioning_model.activate_source(page_dir)
-    assert "schema or record declaration changes" in activation.error
-    with pytest.raises(data_model.DataError, match="schema or record declaration"):
+    assert "schema, record declaration, or resources change" in activation.error
+    with pytest.raises(data_model.DataError, match="record declaration, or resources"):
         data_model.cmd_data_set(
             page_dir,
             "files",
@@ -2252,7 +2344,7 @@ def test_page_owned_data_contract_meaning_is_fixed_for_the_source_lifetime(
         )
     revendored = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
     assert revendored.exit_code != 0
-    assert "schema or record declaration" in revendored.output
+    assert "record declaration, or resources" in revendored.output
 
 
 def test_data_history_is_held_across_the_incoming_layer_interpretation(
@@ -2326,19 +2418,24 @@ def test_data_history_is_held_across_the_incoming_layer_interpretation(
         vendoring_model._refuse_data_contract_drift(page_dir, events, incoming)
     assert reads == files_model.list_revisions(page_dir)
     assert str(refused.value) == (
-        "this page's immutable documents do not keep one meaning for each data source:\n"
+        "this page's documents do not keep one meaning for each data source:\n"
         "  - source 'files' loses its contract 'local-files'\n"
         "  - source 'reply-feed' loses its contract 'local-files'\n"
         "preserve those bindings in the incoming registry before re-vendoring."
     )
 
 
-def test_page_owned_data_contract_description_can_improve(page_dir):
+@pytest.mark.parametrize("change", ["description", "empty-resources"])
+def test_page_owned_data_contract_can_change_without_changing_source_meaning(
+    page_dir, change
+):
     authored = _page_owned_deferred_source(page_dir)
     declarations = json.loads(authored.read_text())
-    declarations["$data"]["contracts"]["local-files"]["description"] = (
-        "A clearer description of the same file payloads."
-    )
+    contract = declarations["$data"]["contracts"]["local-files"]
+    if change == "description":
+        contract["description"] = "A clearer description of the same file payloads."
+    else:
+        contract["resources"] = []
     authored.write_text(json.dumps(declarations))
 
     activation = revisioning_model.activate_source(page_dir)
@@ -3674,15 +3771,15 @@ How this text reaches the agent, by example
    @ADDED@.
    The batch's `handling` maps clause ids to their text, each distinct text
    appearing once. The event's `handling` names its applicable clauses in order.
-   The envelope's `acknowledge` tells the reader to confirm the complete delivery
-   with `leaf delivery ack`. Hook output alone confirms nothing. The whole delivery,
-   indented here (the hook writes it on one line):
+   Once it has published that context, the hook confirms the delivery itself,
+   so the envelope's `acknowledge` is null and the comment reads Picked up. The
+   whole delivery, indented here (the hook writes it on one line):
 
 @DELIVERY@
 
-5. The agent confirms the complete delivery, then follows `handling`: it names
-   any work the comment asks for with `leaf task start`, does it,
-   and replies in the thread with `leaf thread reply`.
+5. The agent follows `handling`: it names any work the comment asks for with
+   `leaf task start`, does it, and replies in the thread with
+   `leaf thread reply`.
 
 What this file records
 ----------------------
@@ -3822,6 +3919,7 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
         "resolve": {"kind": "resolve"},
         "unresolve": {"kind": "unresolve"},
         "done": {"kind": "done"},
+        "Done on a task on the user": {"kind": "task_end"},
         "undo": {"kind": "undo"},
         "report": {"kind": "report"},
         "error": {"kind": "error"},
@@ -3964,18 +4062,18 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
     snapshot.check(yaml_document(header, recorded))
 
 
-CARRIER_WALKTHROUGH = """\
-What each carrier hands the agent for one comment
-===================================================
+ROUTE_WALKTHROUGH = """\
+What each route hands the agent for one comment
+=================================================
 
 A test records this file; nobody writes it by hand. The lines starting with `#`
 explain it, and everything else is the recorded data. The run below serves the
 page from test_each_case_of_an_event_is_told_what_the_snapshot_shows, posts the
 same comment ("why here?" on "moves to Tuesdays") through POST /api/event, and
-then lets each of Leaf's four carriers deliver it. Only ids, times and the
+then lets each of Leaf's four routes deliver it. Only ids, times and the
 page's path are pinned, so the file stays the same from run to run.
 
-A carrier is the route that takes new user input to the agent's task:
+A route is how new user input reaches the agent's task:
 
   leaf wait          The agent runs `leaf wait` in the background. It prints
                      the delivery as JSON and exits, and the harness hands that
@@ -3983,7 +4081,7 @@ A carrier is the route that takes new user input to the agent's task:
                      it. The agent acknowledges the delivery itself, with
                      `leaf wait --ack <delivery-id>`, and answers with
                      `leaf thread reply`. A Codex task running without Leaf's
-                     adapter uses this carrier, and so does a bare shell.
+                     adapter uses this route, and so does a bare shell.
   Claude Code hook   The agent keeps `leaf wait` running in the background, and
                      under Claude Code it prints one line naming the page and
                      exits, which opens a turn. Leaf's prompt hook runs as that
@@ -4002,14 +4100,14 @@ A carrier is the route that takes new user input to the agent's task:
                      turn's opening and final messages as the reply. Leaf
                      acknowledges the delivery once it enters that turn.
                      leaf.page's hosted agent and a `leaf codex launch`
-                     terminal use this carrier.
+                     terminal use this route.
 
-Each carrier freezes a delivery of its own. The envelope's shape is the same on
-all four, and it names its `carrier`. Two things differ, each stated once:
-`acknowledge` says how the agent confirms the delivery, or is null where the
-carrier confirmed it; and the comment's `answer` is a `reply`, for `leaf thread reply`,
-except on App Server, where it is a `turn` the turn's own messages write. The
-`handling` follows from the answer, so each agent is told only its own route.
+Each route freezes a delivery of its own. The envelope's shape is the same on
+all four. Two things differ, each stated once: `acknowledge` says how the agent
+confirms the delivery, or is null where the route confirmed it; and the
+comment's `answer` is a `reply`, for `leaf thread reply`, except on App Server,
+where it is a `turn` the turn's own messages write. The `handling` follows from
+the answer, so each agent is told only its own route.
 The agent's standing instructions (its harness contract, and on leaf.page the
 developer instructions) are not part of a delivery; test_website_server records
 leaf.page's.
@@ -4017,7 +4115,7 @@ leaf.page's.
 What this file records
 ----------------------
 
-One top-level key per carrier, holding exactly what reaches the agent's task:
+One top-level key per route, holding exactly what reaches the agent's task:
 
   leaf wait:         its output, from a bare shell.
   Claude Code hook:  the line the wait prints, and the prompt hook's
@@ -4033,21 +4131,21 @@ One top-level key per carrier, holding exactly what reaches the agent's task:
 JSON is shown as YAML, and each clause in a batch's `handling` as wrapped prose,
 so the four read side by side. Every text is exactly what the agent receives.
 
-After changing what a carrier sends, re-record this file and review the diff:
+After changing what a route sends, re-record this file and review the diff:
 
-  uv run pytest --regtest-reset -n0 tests/test_interact_contract.py::test_each_carrier_hands_the_agent_what_the_snapshot_shows"""
+  uv run pytest --regtest-reset -n0 tests/test_interact_contract.py::test_each_route_hands_the_agent_what_the_snapshot_shows"""
 
 
-def test_each_carrier_hands_the_agent_what_the_snapshot_shows(
+def test_each_route_hands_the_agent_what_the_snapshot_shows(
     snapshot, page_dir, server, capsys, monkeypatch
 ):
     """The snapshot is the page a developer reads to compare what one comment puts
-    in front of the agent on each carrier: `leaf wait`, Claude Code's hooks, the
+    in front of the agent on each route: `leaf wait`, Claude Code's hooks, the
     Codex queue's pointer and the delivery it names, and the Codex App Server
     turn. These captures confirm nothing, so each sees the same pending input. Each
-    is taken from the code that carrier runs, after one real POST, so a change to
-    any carrier's framing or to a delivery's contents shows up as a diff under the
-    carrier it reaches."""
+    is taken from the code that route runs, after one real POST, so a change to
+    any route's framing or to a delivery's contents shows up as a diff under the
+    route it reaches."""
     (page_dir / "index.html").write_text(WALKTHROUGH_PAGE)
     publish(page_dir)
     posted = {
@@ -4079,7 +4177,9 @@ def test_each_carrier_hands_the_agent_what_the_snapshot_shows(
             transaction,
             service_model.unacknowledged(transaction.events, transaction.cursor),
         )
-    queued = codex_model.offer_delivery(path, files_model.read_json(path), "queue")
+    queued = codex_model.offer_delivery(
+        path, files_model.read_json(path), turn_replies=False
+    )
     delivery_model.cmd_delivery_read(queued.payload["id"])
     read = capsys.readouterr().out
 
@@ -4139,7 +4239,7 @@ def test_each_carrier_hands_the_agent_what_the_snapshot_shows(
     started["toolOutput"]["output"] = readable(started["toolOutput"]["output"])
     snapshot.check(
         yaml_document(
-            CARRIER_WALKTHROUGH,
+            ROUTE_WALKTHROUGH,
             {
                 "leaf wait": {"output": readable(waited)},
                 "Claude Code hook": {

@@ -36,8 +36,9 @@ baseline rather than restating a feature table for each project.
 
 **Host integration.** Plannotator's [session bridge](https://github.com/backnotprop/plannotator/blob/main/packages/ai/session-bridge.ts)
 separates host readiness, submission, and streaming behind an adapter. Its
-[opt-in Claude Code host modification](https://github.com/backnotprop/plannotator/pull/1672)
-is newer than the latest binary. If supported host APIs can own idle/wake/turn
+[Claude Code session module](https://github.com/backnotprop/plannotator/blob/v0.28.4/apps/hook/hooks/mod/register.ts)
+is released in v0.28.4 and enabled by default on supported interactive hosts
+(rechecked 2026-10-05). If supported host APIs can own idle/wake/turn
 execution, Leaf can simplify that orchestration. Durable input, pickup, and
 response identity still belong to Leaf. The decisive case is a running turn
 ending without reading its offered hook pointer: the existing
@@ -83,6 +84,85 @@ mode when space runs out, and first-frame journeys covering nested scroll,
 reply expansion, and keyboard arrival. A component library or final screenshot
 does not prove the absence of layout churn.
 
+### Phone annotation placement, 2026-10-05
+
+The comparison report's 390px render showed an anchored pin covering prose.
+Leaf's [overlay contract](../skills/leaf/assets/AGENTS.md) explicitly permits
+pins to cover content without reflowing it; `o` and More → Hide annotations
+provide reading routes. The placement owner searches for a clear seat, but
+[its fallback](../skills/leaf/packages/default/runtime/annotation-overlay/margin-placement.js)
+can retain a pin without text clearance. The capture establishes the reading
+problem, not which fallback branch produced it. The existing annotation-placement
+TODO now includes this case. Compare a no-clear-seat disposition that preserves
+access through Page Map or Threads; enlarging the search alone still leaves the
+dense-prose fallback. No replacement policy was implemented or demonstrated.
+
+## Concrete follow-up proposals, 2026-10-04; revised 2026-10-05
+
+Proposals first checked against Leaf `486180b51888d8dd46584f6c84e3d2a96f2035cb`,
+then rechecked against `532be8f718f6a2f3bdf1391f936a4778fcf5735f` on October 5.
+IDs match the live report. Existing task starts, the Queue panel's Done list,
+persistence, free HTML, general composing, constrained panels and CSS-anchor
+following are the baseline, not proposed additions.
+
+- **#1 — Quiet Codex feedback.** Keep the desktop queue's compact XML pointer
+  while that route needs it. The useful improvement is delivery without an
+  automatic user message. The existing [App Server request](../skills/leaf/scripts/leaf/codex.py)
+  sends empty user input and a structured `leaf_delivery` tool result. Desktop
+  access and rendering remain unverified. Prove agent wake-up and exact
+  input/reply identity while keeping automatic user-message text out of chat.
+- **#2 — Native Claude Code carrier, Leaf experiment.** Plannotator's
+  [released module](https://github.com/backnotprop/plannotator/blob/v0.28.4/apps/hook/hooks/mod/register.ts)
+  runs in the interactive session and calls `$.prompt.submit({text})`; Claude
+  waits for idle and adds a plugin-origin message. Session/turn callbacks supply
+  lifecycle evidence. This could replace Leaf's background Stop wake and socket
+  choreography after interruption, uncertain-submit and lifetime tests pass.
+  Preserve durable input, reader receipts and unanswered-work debt. v0.28.4 ships
+  the module, default-on for interactive Claude 2.1.287+ on Unix-like hosts with
+  `/bin/sh`; `PLANNOTATOR_CLAUDE_MOD=0` opts out.
+  Local 2.1.289 meets the version gate, but the module was not operated here.
+- **#3 — Prevent superseded executions from closing continued work.** Leaf
+  already preserves the task when a session ends, and `task start` records a
+  later execution's session on the same task, plus its turn when it holds the
+  page claim. Reuse those starts rather
+  than adding a Pause state or a second attempt record. The missing guard is at
+  completion: [tasks.py](../skills/leaf/scripts/leaf/tasks.py) admits an end from
+  an older session after a newer start. A direct fold/admission probe confirmed
+  this case. Test competing continuations and prevent an obsolete execution's
+  delayed result from silently closing the continued work.
+- **#4 — Make finished task results easy to read.** The Queue panel already
+  lists ended tasks under Done with their outcome. Their detail is in the row's
+  native tooltip; show it as visible text or a disclosure usable by a finger.
+  Test whether readers find the result after the active count drops. Retain
+  navigation to an existing thread where one belongs to the task, including
+  resolved threads. Page and widget tasks may have no thread, so Queue remains
+  their result route. This displays the logged outcome rather than creating
+  independent evidence of completion.
+- **#5 — Stable neighbor retention.** Reuse `state.page_key` for neighbor rows
+  and focus instead of URL; retain fresh-server checks and URL destinations.
+  A present row changing endpoint must retain identity and activate the new URL.
+- **#6 — Canonical task selectors and list/board experiment.** Workbench's
+  heading-driven board and [Sfora's map](https://www.sfora.ai/features/boards)
+  were operated, without persistence proof. Leaf's Queue already consumes
+  canonical task readings; expose those through the existing package publication
+  API. Prove list and board consume one task outcome without agent-maintained
+  duplicate status markup. Preserve arbitrary authored HTML.
+- **#7 — Page threads visibility, usability hypothesis.** Leaf already has
+  Location → Page beneath View. Promote that predicate to a visible count/toggle
+  and distinguish Start a page thread from Reply. Compare context-blind recovery
+  of a global conversation among anchored threads before adopting the change.
+- **#8 — Shared visual-viewport fixed-panel bounds.**
+  [Lavish's sheet](https://github.com/kunchenguid/lavish-axi/blob/main/src/chrome.css)
+  consumes visible bounds. Leaf measures them but fixed auxiliary panels still
+  reach the layout bottom. Route bounds through geometry/chrome-layout to all
+  affected surfaces. This condition is source-identified, not a reproduced bug;
+  keyboard-only shrink needs first-frame caret/Send and draft/focus proof.
+
+Report captures show Agentation’s targeted composer/desktop-only notice and
+Leaf’s seeded gallery Page filter, reply draft and separate creation footer.
+No live peer bridge or signed-in workspace was exercised. These recommendations
+extend the committed feature research.
+
 ## Claude Code Artifacts
 
 Read on 2026-08-22 and 2026-09-22 from the
@@ -116,7 +196,8 @@ state; Leaf's distinction is the explicit revision-and-event contract.
 
 ## Plannotator
 
-Read on 2026-08-21, 2026-09-22, and 2026-10-04 from its
+Read on 2026-08-21, 2026-09-22, and 2026-10-04; Claude module and release
+rechecked 2026-10-05 from its
 [repository](https://github.com/backnotprop/plannotator) and releases.
 Plannotator reviews plans, Markdown, rendered HTML, local diffs, and repository
 changes. It retains feedback history and PR comments across pushes, marking
@@ -132,13 +213,18 @@ previous answers. Review additions include
 [saved viewed-file progress](https://github.com/backnotprop/plannotator/pull/1632),
 and [Bitbucket Cloud PRs](https://github.com/backnotprop/plannotator/pull/1641).
 
-October 3–4 main-branch work is newer than the latest binary,
-[v0.27.25](https://github.com/backnotprop/plannotator/releases/tag/v0.27.25):
+October 3–4 work added
 [Ask AI through the originating session](https://github.com/backnotprop/plannotator/pull/1685),
 [nonblocking Pi reviews](https://github.com/backnotprop/plannotator/pull/1670),
-[OpenCode2 delivery](https://github.com/backnotprop/plannotator/pull/1671), and an
-[opt-in Claude Code modification](https://github.com/backnotprop/plannotator/pull/1672).
-Plan revisions update the same tab. This moves review toward an ongoing
+[OpenCode2 delivery](https://github.com/backnotprop/plannotator/pull/1671), and a
+[Claude Code session module](https://github.com/backnotprop/plannotator/pull/1672).
+Rechecked October 5: [v0.28.4](https://github.com/backnotprop/plannotator/releases/tag/v0.28.4)
+contains that module, now enabled by default on supported interactive Claude
+2.1.287+ hosts with `/bin/sh`; Windows, SDK and `-p` sessions retain classic hooks
+([default-on release](https://github.com/backnotprop/plannotator/releases/tag/v0.28.0)).
+The module queues `$.prompt.submit({text})` until the host is idle and observes
+session/turn callbacks; `PLANNOTATOR_CLAUDE_MOD=0` disables it. Plan revisions
+update the same tab. This moves review toward an ongoing
 conversation with the agent that produced the work.
 
 The separate hosted [Workspaces](https://plannotator.ai/workspaces) product
@@ -288,7 +374,11 @@ September 7–8 updates made the library a folder-based knowledge base with
 search filters, keyboard navigation, file previews, and reversible trash.
 The live changelog supplied those dates; the search cache still showed July.
 Sfora is relevant to shared project ownership and durable results rather than
-Leaf's authored page for one principal. No signed-in workflow was tested.
+Leaf's authored page for one principal. In the public
+[Boards demo](https://www.sfora.ai/features/boards), Board → Map showed the same
+project's cards in another view. Server persistence and a signed-in workflow
+were not tested. The lesson is alternate views over the same workspace objects,
+with serving/session lifetime kept separate from durable work.
 
 ## Agentation
 

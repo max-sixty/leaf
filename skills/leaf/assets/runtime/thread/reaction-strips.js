@@ -38,7 +38,11 @@ export class ReactionStripView {
         <span
           class="lf-react-palette"
           id=${this.#paletteId}
+          popover="auto"
           role="group"
+          @toggle=${(event) => {
+            if (event.newState === "closed") this.#registration.close();
+          }}
           aria-label="Reactions for this reply"
         >
           ${repeat(

@@ -15,7 +15,7 @@ import hashlib
 import json
 import sys
 import uuid
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
@@ -186,6 +186,7 @@ def export_document(
     data: dict,
     revision: int,
     version: int,
+    data_resources: Mapping[str, Resource],
 ) -> str:
     """Package one captured revision for Leaf's normal runtime without a host.
 
@@ -209,7 +210,8 @@ def export_document(
             ),
         ],
     )
-    inliner = AssetInliner(artifact.resources.__getitem__)
+    resources = artifact.resources | data_resources
+    inliner = AssetInliner(resources.__getitem__)
     # Replacement markers belong to delivery, never to authored prose, state, data or
     # CSS strings. Reserve a fresh namespace absent from every text it will rewrite.
     authored_text = [
@@ -225,7 +227,7 @@ def export_document(
         inliner.prefix = f"urn:leaf-resource:{uuid.uuid4().hex}:"
     embedded_resources = {
         path: inliner.address(path)
-        for path, resource in artifact.resources.items()
+        for path, resource in resources.items()
         if resource.mime not in {"application/javascript", "text/css"}
     }
     embedded_resources["/shadow.css"] = inliner.address("/shadow.css")
@@ -241,7 +243,7 @@ def export_document(
         version,
         executable=artifact.executable,
         widgets=artifact.widgets,
-        resources=artifact.resources,
+        resources=resources,
         registry=artifact.registry,
         delivery=Delivery(
             address=lambda path: (
@@ -284,7 +286,7 @@ def export_document(
         version,
         executable=artifact.executable,
         widgets=artifact.widgets,
-        resources=artifact.resources,
+        resources=resources,
         registry=artifact.registry,
         delivery=Delivery(
             address=readable.address,
@@ -342,7 +344,13 @@ def cmd_export(page_dir: Path, out: Path, version) -> int:
         layer_identity=snapshot.context.layer,
     ).page_state(revision)
     html = export_document(
-        artifact, document, state, snapshot.context.data, revision, version
+        artifact,
+        document,
+        state,
+        snapshot.context.data,
+        revision,
+        version,
+        snapshot.data_resources,
     )
 
     out.parent.mkdir(parents=True, exist_ok=True)

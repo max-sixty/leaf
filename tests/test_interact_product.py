@@ -446,44 +446,58 @@ def test_every_path_a_diff_resolves_names_a_language_the_bundles_carry(page_dir)
     )
 
 
-def test_page_fixtures_pass_check(tmp_path, monkeypatch, initialized_page):
+PAGE_FIXTURES = (
+    *CORPUS_SOURCES,
+    ROOT / "examples" / "corpus.html",
+    *sorted((ROOT / "notes").glob("**/*.html")),
+)
+
+
+# One case per fixture, named by its path since notes each keep a `playground.html`, so
+# every fixture that fails is reported rather than only the first, and the cases spread
+# across workers rather than holding one for the whole tree.
+@pytest.mark.parametrize(
+    "example",
+    PAGE_FIXTURES,
+    ids=[
+        example.relative_to(ROOT).with_suffix("").as_posix()
+        for example in PAGE_FIXTURES
+    ],
+)
+def test_page_fixtures_pass_check(example, tmp_path, monkeypatch, initialized_page):
     """Every page fixture in the tree passes the real check: each public example and
     developer feature fixture, and each playground a note previews. A note's page
     is built by nothing else before a user asks for it, so without this a
     playground that names media it never committed stays green until preview
     refuses it."""
     monkeypatch.chdir(tmp_path)  # keep the project layer out of the overlay
-    examples = [
-        *CORPUS_SOURCES,
-        ROOT / "examples" / "corpus.html",
-        *sorted((ROOT / "notes").glob("**/*.html")),
-    ]
-    assert FEATURE_GALLERY in DEVELOPER_PAGES
+    fixture = read_fixture(example)
+    d = tmp_path / "page"
 
-    for example in examples:
-        fixture = read_fixture(example)
+    def initialize(target):
+        run_leaf("page", "init", *package_selection_args(fixture.packages), str(target))
 
-        # Named by its path, since notes each keep a `playground.html`.
-        d = tmp_path / "-".join(example.relative_to(ROOT).with_suffix("").parts)
+    def checked(version):
+        result = check(d)
+        assert result.exit_code == 0, f"{version.name}: {result.output}"
 
-        def initialize(target, packages=fixture.packages):
-            run_leaf("page", "init", *package_selection_args(packages), str(target))
+    initialized_page("-".join(["fixture", *fixture.packages]), d, initialize)
+    # Every authored version, not only the current one: a fault in a prior
+    # version stops preview and the site build, a slow way to hear it.
+    prepare_page(
+        d,
+        fixture,
+        run_leaf,
+        initialize=False,
+        final_status=None,
+        each_version=checked,
+    )
 
-        def checked(version, page=d):
-            result = check(page)
-            assert result.exit_code == 0, f"{version.name}: {result.output}"
 
-        initialized_page("-".join(["fixture", *fixture.packages]), d, initialize)
-        # Every authored version, not only the current one: a fault in a prior
-        # version stops preview and the site build, a slow way to hear it.
-        prepare_page(
-            d,
-            fixture,
-            run_leaf,
-            initialize=False,
-            final_status=None,
-            each_version=checked,
-        )
+def test_the_fixture_check_reaches_the_developer_pages():
+    """A moved `examples/developer/` would leave the check above with nothing to say
+    about it rather than failing."""
+    assert FEATURE_GALLERY in PAGE_FIXTURES
 
 
 def test_every_widget_in_the_vocabulary_stands_in_a_corpus_source():

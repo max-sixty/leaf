@@ -437,13 +437,13 @@
               <code>lf-options</code>, which records a choice Leaf can replay as page
               state. Press <kbd>a</kbd> for the next thing waiting on you, in page
               order: an open Ask, a thread whose question is yours to answer, such as
-              the gallery thread that asks about a pasted image, or a move whose reply
-              failed and needs sending again. After its status, the banner counts what
-              waits on you and what waits on the agent. Press those counts, open
-              <strong>Queue</strong> in More, or press <kbd>g</kbd> then
-              <kbd>Shift+Q</kbd>, to see both lists in one panel, with answered Asks and
-              finished tasks folded under Done; Enter on a row goes where
-              <kbd>a</kbd> would. The Queue panel is experimental. Within a view,
+              the gallery thread that asks about a pasted image, a task the agent put on
+              you, or a move whose reply failed and needs sending again. After its
+              status, the banner counts what waits on you and what waits on the agent.
+              Press those counts, open <strong>Queue</strong> in More, or press
+              <kbd>g</kbd> then <kbd>Shift+Q</kbd>, to see both lists in one panel, with
+              answered Asks and finished tasks folded under Done; Enter on a row goes
+              where <kbd>a</kbd> would. The Queue panel is experimental. Within a view,
               <kbd>a</kbd> scrolls to the question. When it opens another view, the
               question appears immediately and its tab name briefly highlights.
               <kbd>Shift+A</kbd> walks back. Reduced motion removes the glide and
@@ -460,6 +460,19 @@
                 <lf-option id="bg-choice-trail">Trail map</lf-option>
               </lf-options>
             </lf-ask>
+            <section id="bg-task-on-you">
+              <h3>A task on you</h3>
+              <p>
+                The agent put a task on you about this section with
+                <code>leaf task open … --on user</code>: check that the trail map marks
+                the shelter. Nothing here answers it, so it ends at your Done. It waits
+                under On you in the Queue panel, where its row has a Done button, and
+                <kbd>a</kbd> reaches it after the Ask above. Where <kbd>a</kbd> lands on
+                it, press <kbd>x</kbd>, or under a finger the banner's
+                <strong>Done</strong>. Done moves it under the panel's Done fold and
+                tells the agent.
+              </p>
+            </section>
             <section id="bg-widget-shortcut-hints">
               <h3>Inline hints outside an Ask</h3>
               <p>
@@ -666,15 +679,19 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               </h3>
               <p id="bg-drawing-comments-guide">
                 Press <kbd>w</kbd> and draw anywhere across the page. Start over this
-                guide or in its margin to anchor the comment here; empty space with no
-                addressable element alongside comments on the page whole. Every further
+                guide or in the space around it to anchor the comment here: a stroke in
+                empty space belongs to the nearest element on screen. Every further
                 stroke joins the same drawing, wherever it starts. Send the drawing
-                alone or add words first. <kbd>Escape</kbd> puts the comment box away
-                with its strokes kept, and the next stroke brings it back; a second
-                <kbd>Escape</kbd> leaves Draw mode. Press <kbd>w</kbd> again and start
-                over this guide: the stroke joins the kept drawing rather than replacing
-                it. On a touch screen, “Draw mode” is in “More page controls”, and “Exit
-                Draw mode” stands on the banner while the mode holds.
+                alone or add words first. The comment box shows the drawing beside Undo
+                last stroke and Remove drawing; <kbd>⌘Z</kbd> in the box takes back a
+                stroke until you type. <kbd>Escape</kbd> puts the box away and leaves
+                the drawing on the page, dashed, and the next stroke brings the box
+                back; <kbd>z</kbd> takes back a stroke while it is away. A second
+                <kbd>Escape</kbd> leaves Draw mode with the drawing still showing. Press
+                <kbd>w</kbd> again and start over this guide: the stroke joins the kept
+                drawing rather than replacing it. On a touch screen, “Draw mode” is in
+                “More page controls”, and “Undo stroke” and “Exit Draw mode” stand on
+                the banner while the mode holds.
               </p>
             </section>
 
@@ -1563,9 +1580,12 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 file's own numbers with an elided row where it skips; Tree shows file
                 structure. Use “Copy code” on the right of either block below, or
                 <kbd>Tab</kbd> to it and press <kbd>Enter</kbd>. The clipboard keeps the
-                code's whitespace and leaves out line numbers and Notes.
+                code's whitespace and leaves out line numbers and Notes. Bash separates
+                commands, arguments, and flags with the same syntax colors as a diff.
               </p>
-              <pre id="bg-plain-code"><code>leaf page check ./proposal
+              <pre
+                id="bg-plain-code"
+              ><code class="language-bash">leaf page check ./proposal --render
 leaf page stamp ./proposal --text "Ready for review"</code></pre>
               <lf-code id="bg-code" language="python" lines="40-43,58-59" hi="41-42">
                 <pre>

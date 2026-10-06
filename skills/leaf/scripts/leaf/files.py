@@ -239,6 +239,18 @@ def require_revision(page_dir: Path) -> int:
     return revision
 
 
+def unfinished_publications(page_dir: Path, events: list) -> list[dict]:
+    """The first admitted event naming each publication whose revision marker is
+    not yet written: a publication interrupted between its prerequisite and its
+    marker (`revision_artifact`), in log order."""
+    published = set(list_revisions(page_dir))
+    unfinished = {}
+    for event in events:
+        if event.get("publication") and event["revision"] not in published:
+            unfinished.setdefault(event["revision"], event)
+    return list(unfinished.values())
+
+
 def version_revisions(events: list) -> dict[int, int]:
     """Public version number to the exact revision each note stamped."""
     return {

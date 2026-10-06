@@ -259,6 +259,9 @@
                 font-size: var(--t-6); font-variant-numeric: tabular-nums;
                 white-space: nowrap; }
 :scope:host(.lf-rendered) {
+  /* The token theme uses the page's light-dark() palette. Pierre's single-theme
+     default pins the host to its nominal scheme; inherit the page's choice. */
+  color-scheme: inherit;
   --diffs-font-family: var(--mono);
   --diffs-font-size: var(--code-size);
   --diffs-line-height: var(--code-line);
@@ -341,23 +344,6 @@
    see them, which is why it is the user's own switch rather than the default.
    The switch changes Pierre's rendered overflow mode. The code box gives up its
    permanent scrollbar with the wrapped rows, since they leave it nothing to scroll. */
-/* Pierre owns the line and inline-diff paint. Leaf supplies brighter semantic fills
-   through its variables above, and keeps its syntax roles readable on the denser one. */
-[data-diff-span] [data-lf-syn="cm"] { color: color-mix(in srgb, var(--syn-comment) 50%, var(--ink)); }
-[data-diff-span] [data-lf-syn="kw"] { color: color-mix(in srgb, var(--syn-keyword) 50%, var(--ink)); }
-[data-diff-span] [data-lf-syn="st"] { color: color-mix(in srgb, var(--syn-string) 50%, var(--ink)); }
-[data-diff-span] [data-lf-syn="nu"] { color: color-mix(in srgb, var(--syn-number) 50%, var(--ink)); }
-[data-diff-span] [data-lf-syn="fn"] { color: color-mix(in srgb, var(--syn-name) 50%, var(--ink)); }
-[data-diff-span] [data-lf-syn="ty"] { color: color-mix(in srgb, var(--syn-type) 50%, var(--ink)); }
-/* Syntax colour is the same statement the document makes, and the tokens are in here
-   rather than out there, so the rules come too. The custom properties they read inherit
-   through the boundary, which is why only the selectors need repeating. */
-[data-lf-syn="cm"] { color: var(--syn-comment); font-style: italic; }
-[data-lf-syn="kw"] { color: var(--syn-keyword); }
-[data-lf-syn="st"] { color: var(--syn-string); }
-[data-lf-syn="nu"] { color: var(--syn-number); }
-[data-lf-syn="fn"] { color: var(--syn-name); }
-[data-lf-syn="ty"] { color: var(--syn-type); }
 @media print {
   .lf-diff-tools, .lf-diff-comment,
   .lf-diff-review:not([data-lf-said]) { display: none !important; }

@@ -1207,11 +1207,13 @@ def test_ask_binding_badges_follow_the_feature_gallery_s_visible_margin_entries(
         ),
         context=context,
     )
-    # Twice: the gallery's core surfaces open on a decision, which is the page's first
-    # ask and carries no binding of its own, and the suggestions this case is about
-    # begin after it.
+    # Three times: the gallery's core surfaces open on a decision, which is the page's
+    # first ask and carries no binding of its own, then a task on the user beside it,
+    # and the suggestions this case is about begin after them.
     page.keyboard.press("a")
     expect(page.locator("#bg-choice-ask")).to_be_focused()
+    page.keyboard.press("a")
+    expect(page.locator("#bg-task-on-you")).to_be_focused()
     page.keyboard.press("a")
     expect(page.locator("#bg-replace")).to_be_focused()
     expect(
@@ -3513,7 +3515,7 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
     back = reference.locator(
         '.lf-command-reference-command[data-lf-command="navigation.back"]'
     )
-    expect(back).to_have_text("close options")
+    expect(back).to_have_text("Close options")
     expect(
         back.locator("xpath=ancestor::tr").locator(".lf-command-reference-description")
     ).to_have_text("Fold the secondary page actions")
@@ -5283,20 +5285,10 @@ def test_a_thread_uses_a_free_margin_and_tracks_its_source(browser, serve):
 
 
 def test_a_thread_beside_its_words_takes_the_room_to_the_visible_edge(browser, serve):
-    """Room right of a thread's words short of the card's measure narrows the card, not
-    its height, and the card spends none of that room keeping its pin clear.
-
-    The width is the arrangement: this thread is on the gallery's right-hand title
-    comparison, so the room right of it grows with half the viewport, and the case only says
-    anything where that room falls between `--thread-card-min` and `--thread-card`.
-    Wider and the card takes its preferred measure with room to spare, narrower and it
-    is the short-rail case below. The room is asserted before the outcome is, so moving
-    either token, or the gallery's arrangement, reddens the arrangement and names the
-    width to re-pick rather than reading as a layout regression."""
+    """The gallery's middle-width rail clears its pin and holds the whole card."""
     page = open_page(browser, serve(FEATURE_GALLERY))
     page.emulate_media(reduced_motion="reduce")
-    # Remove the gallery's sidenote so the column stays centred rather than shifting
-    # left to reserve its room. The width is picked for that centred arrangement.
+    # Keep the title comparison centred so this width exercises the middle rail.
     page.evaluate("document.getElementById('bg-compare-note').remove()")
     resized(page, 1600, 900)
     page.evaluate("location.hash = 'bg-margin-controls'")
@@ -5313,28 +5305,19 @@ def test_a_thread_beside_its_words_takes_the_room_to_the_visible_edge(browser, s
           const style = getComputedStyle(cardNode);
           return {placement: cardNode.dataset.lfThreadPlacement,
                   cardLeft: card.left, cardRight: card.right, cardWidth: card.width,
-                  wordsRight: words.right, pinLeft: pin.left, pinRight: pin.right,
-                  viewport: innerWidth,
-                  preferred: parseFloat(style.getPropertyValue('--thread-card')),
+                  wordsRight: words.right, pinRight: pin.right, viewport: innerWidth,
                   minimum: parseFloat(style.getPropertyValue('--thread-card-min')),
+                  preferred: parseFloat(style.getPropertyValue('--thread-card')),
                   clipped: list.scrollHeight - list.clientHeight};
         }"""
     )
-    # The room between the words and the visible edge is what the card has to fit
-    # into, and this case is the one where that room falls short of the preferred
-    # measure without falling short of the minimum. The pin on the words reaches past
-    # them, and the room past it falls short of the measure too.
-    room = geometry["viewport"] - 8 - (geometry["wordsRight"] + 8)
-    assert geometry["minimum"] <= room < geometry["preferred"], geometry
-    assert geometry["pinRight"] > geometry["wordsRight"], geometry
-    # Clearing the pin would cost the card width, so the card keeps no gap past it: it
-    # stands beside the words, over whatever of the pin reaches that far, and takes
-    # the whole room to the visible edge (comment-placement.js).
+    room_past_pin = geometry["viewport"] - 8 - (geometry["pinRight"] + 8)
+    assert geometry["wordsRight"] < geometry["pinRight"], geometry
+    assert geometry["minimum"] <= room_past_pin < geometry["preferred"], geometry
     assert geometry["placement"] == "right", geometry
-    assert geometry["cardLeft"] == pytest.approx(geometry["wordsRight"] + 8, abs=0.5), (
+    assert geometry["cardLeft"] == pytest.approx(geometry["pinRight"] + 8, abs=0.5), (
         geometry
     )
-    assert geometry["cardLeft"] < geometry["pinRight"] + 8, geometry
     assert geometry["cardRight"] == pytest.approx(geometry["viewport"] - 8, abs=0.5), (
         geometry
     )
@@ -5510,7 +5493,7 @@ def test_a_reaction_receipt_keeps_an_unided_selected_blocks_visual_coordinate(
     )
     bar = page.locator(".lf-fab-bar")
     expect(bar).to_be_visible()
-    bar.locator(".lf-response-more").click()
+    page.keyboard.press("e")
     # The choices stay with the captured selection. The standing reaction that replaces
     # them must keep that same visual coordinate even though the durable section
     # coordinate belongs to the surrounding id-bearing section.
@@ -9075,8 +9058,6 @@ def test_a_card_a_panes_edge_holds_stays_put_as_the_pane_scrolls(browser, serve)
     writes = scroll_writes(
         page, (5, 5, -5, 5), scroller="document.getElementById('pane-body')"
     )
-    # The target's trace, drawn from its box as the pane clips it, still follows the
-    # pane's scroll; this test is about the card.
     assert [w for w in writes if "lf-margin-preview" in w["target"]] == [], writes
     assert page.evaluate(reading)["card"] == pytest.approx(before["card"], abs=0.5)
     before = page.evaluate(reading)
@@ -9146,6 +9127,64 @@ def test_a_card_an_outer_panes_edge_holds_stands_in_that_panes_plane(browser, se
     )
     assert [w for w in writes if "lf-margin-preview" in w["target"]] == [], writes
     assert page.evaluate(reading)["card"] == pytest.approx(before["card"], abs=0.5)
+
+
+def test_the_paint_over_a_target_in_panes_rides_each_panes_scroll(browser, serve):
+    """The trace and the mark drawn over an element inside nested scrolling panes stand
+    in frames cut to each pane's band, each moved by the scroll of the pane holding it
+    (target-paint-geometry.js, `paintStand`). A scroll of either pane writes nothing to
+    them and leaves them over the element. Drawn in the document's plane from the
+    element's box as the panes cut it, they were rewritten on every scroll step, a frame
+    behind the words."""
+    comment = {**COMMENT_ON_ASK, "anchor": {"section": "pane-sec"}}
+    page = open_page(browser, serve(NESTED_PANE_PAGE, events=[comment]))
+    resized(page, 1440, 900)
+    page.evaluate(
+        """() => {
+          const pane = document.getElementById('pane-body');
+          const inner = document.getElementById('inner');
+          const box = (node) => node.getBoundingClientRect();
+          pane.scrollTop += box(inner).top - box(pane).top - 10;
+          const sec = document.getElementById('pane-sec');
+          inner.scrollTop += box(sec).top - box(inner).top - 20;
+        }"""
+    )
+    rendered(page)
+    page.locator('[data-lf-margin-for="pane-sec"] .lf-margin-marker').click()
+    for paint in (".lf-target-trace", ".lf-visual-mark-here"):
+        expect(page.locator(paint)).to_be_visible()
+    offsets = """() => {
+      const target = document.getElementById('pane-sec').getBoundingClientRect();
+      return ['.lf-target-trace', '.lf-visual-mark-here'].map((paint) => {
+        const box = document.querySelector(paint).getBoundingClientRect();
+        return [box.left - target.left, box.top - target.top, box.width, box.height];
+      }).flat();
+    }"""
+    at = page.evaluate(offsets)
+    for scroller in ("inner", "pane-body"):
+        writes = scroll_writes(
+            page,
+            (5, 5, -5, 5),
+            scroller=f"document.getElementById('{scroller}')",
+        )
+        painted = [
+            w
+            for w in writes
+            if re.search(r"lf-(target-trace|visual-mark|paint)", w["target"])
+        ]
+        assert painted == [], (scroller, painted)
+        assert page.evaluate(offsets) == pytest.approx(at, abs=0.5), scroller
+    # Words arriving below the element lengthen what the inner block can scroll through,
+    # and tell the paint nothing, which stays on the element, as does the scroll that
+    # follows.
+    page.evaluate(
+        """() => document.getElementById('inner')
+          .insertAdjacentHTML('beforeend', '<p>Arrived.</p>'.repeat(30))"""
+    )
+    rendered(page)
+    assert page.evaluate(offsets) == pytest.approx(at, abs=0.5)
+    scroll_writes(page, (5, 5), scroller="document.getElementById('inner')")
+    assert page.evaluate(offsets) == pytest.approx(at, abs=0.5)
 
 
 def test_a_scroll_that_carries_the_response_bar_writes_nothing(browser, serve):

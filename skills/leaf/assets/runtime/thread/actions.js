@@ -31,6 +31,8 @@ export function createThreadActions({ post, withdraw, sendReaction, currentRevis
     });
   };
 
+  // A thread that already stands as asked, such as one resolved elsewhere while its
+  // card still draws it open (held-news.js), sends nothing.
   const settle = (key, resolved, { attempt } = {}) => {
     const thread = find(key);
     if (!thread || Boolean(thread.resolved) === resolved || thread.settling)

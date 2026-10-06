@@ -169,7 +169,6 @@ import { paintCoreControls } from "./runtime/keyboard/control-keys.js";
 import { paintTouchControls } from "./runtime/keyboard/touch-controls.js";
 import { commandReferenceDialog } from "./runtime/keyboard/command-reference.js";
 import {
-  bottomChromeBoxes,
   collapseShortcutBar,
   mountShortcutBar,
   renderShortcutBar,
@@ -200,7 +199,7 @@ import {
   releaseFocus,
   tabStops,
 } from "./runtime/focus.js";
-import { announce, liveEl, notice, noticeVisible } from "./runtime/notifications.js";
+import { announce, liveEl, notice } from "./runtime/notifications.js";
 import { mediaViewer } from "./runtime/media.js";
 import { offer } from "./runtime/widget-elements.js";
 import { retainUserIntent } from "./runtime/user-intent.js";
@@ -249,6 +248,12 @@ let panelComposer;
 let selectionComposer;
 let responseSurface;
 let drawing;
+// A composer's own controls for the drawing its draft holds, which the drawing
+// controller answers.
+const drawingEdits = {
+  undoStroke: (anchor) => drawing.undoStroke(anchor),
+  remove: (anchor) => drawing.removeDrawing(anchor),
+};
 let aim;
 let targets;
 let reactions;
@@ -338,7 +343,7 @@ aim = createAim({
   drawModeActive: () => drawing.drawModeActive(),
   designMode,
   targetPicker: {
-    active: () => targets.pointerChoosing(),
+    active: () => targets.choosing(),
     choose: (...args) => targets.chooseTarget(...args),
   },
 });
@@ -417,7 +422,6 @@ app = mountApplication({
   reportPageError,
   createEngagement,
   targetPickerOpen: () => targets.targetPickerOpen(),
-  pageComposerDrawing: () => panelComposer.pageComposerDrawing(),
   wireInput: inputs.wireInput,
   anchorPlacement,
   anchorPaint,
@@ -559,9 +563,11 @@ const queueWalk = createQueueWalk({
   arrive: anchorTravel.arrive,
   readableDestination: anchorTravel.readableDestination,
   announce,
+  post: (event) => app.post(event),
 });
 const queue = createQueuePanel({
   arriveAtItem: queueWalk.arriveAtItem,
+  endTask: queueWalk.endTask,
   announce,
 });
 
@@ -587,7 +593,6 @@ panelComposer = createPanelComposer({
   stepThread: (...args) => navigation.stepThread(...args),
   firstUnread: () => app.read.firstUnread(),
   unreadCount: () => app.read.unreadCount(),
-  paintDrawings: drawingPaint.paint,
 });
 selectionComposer = createSelectionComposer({
   panelIsOpen,
@@ -611,6 +616,7 @@ selectionComposer = createSelectionComposer({
   landSent: landing.landSent,
   refreshThread: app.refreshThread,
   wireInput: inputs.wireInput,
+  drawingEdits,
 });
 const passageSelection = createPassageSelection({
   restore: anchorTravel.restoreSelection,
@@ -685,22 +691,23 @@ targets = createTargetPicker({
   updateFab: responseSurface.updateFab,
   fabAnchorAt: responseSurface.fabAnchorAt,
   pointerModeActive: () => designMode.active() || drawing.drawModeActive(),
+  armChanged: () => aim.armChanged(),
 });
 drawing = createDrawingController({
-  anchors: { aimTargetAt, resolveAnchor, pendingAt: anchorPlacement.pendingAt },
+  anchors: { aimTargetAt, resolveAnchor },
   pageGeometry: { refreshAim: pageGeometry.refreshAim },
   pointer: pointerAt,
   visibleTargets: targets.visibleTargets,
-  pageDrawing: panelComposer.pageComposerDrawing,
   anchoredDrawing: selectionComposer.draftDrawing,
-  composerDraft: () => ({
-    open: composerOpen,
-    anchor: pendingAnchor,
-    drawing: pendingDrawing,
-  }),
+  heldDrawings: selectionComposer.heldDrawings,
+  watchHeldDrawings: selectionComposer.watchHeldDrawings,
+  draftKey: selectionComposer.draftKey,
   openAnchoredDrawing: (anchor, drawing) =>
     selectionComposer.openComposer(anchor, "", { carry: true, drawing }),
-  openPageDrawing: panelComposer.openPageDrawing,
+  replaceDrawing: (anchor, drawing) => {
+    selectionComposer.setDraftDrawing(anchor, drawing);
+    drawingPaint.paint();
+  },
   setDesignMode: designMode.setActive,
   closeTargetPicker: targets.closeTargetPicker,
   closeReactionMode: () => reactions.setReact(false),
@@ -713,7 +720,6 @@ drawing = createDrawingController({
 
 layout = createChromeLayout({
   panelIsOpen,
-  noticeIsVisible: noticeVisible,
   elements: {
     panel,
     closeBtn,
@@ -723,7 +729,6 @@ layout = createChromeLayout({
     bottomStatusEl,
   },
   scheduleThreadPreviewPosition: app.overlay?.scheduleThreadPreviewPosition,
-  bottomChromeBoxes,
   restateDrawerEdge: () => drawers.drawersEdge.state(),
   syncAuxiliarySurfaces: auxiliarySurfaces.sync,
   syncReactLayout: reactions.syncReactLayout,
@@ -860,8 +865,8 @@ if (!offlineInteractive) {
     pageSearchSurface,
     ...(visualMarkPaint ? [visualMarkPaint.layer] : []),
     drawingPaint.layer,
-    targetPaint.targetTraceBox,
-    targetPaint.aimBox,
+    targetPaint.targetTraceLayer,
+    targetPaint.aimLayer,
     fabBar,
     liveEl,
     mediaViewer,
@@ -904,7 +909,6 @@ if (!offlineInteractive) {
   app.overlay?.mount();
   app.mountThread();
   app.mountRead();
-  threadListController.mountThreadList(panelIsOpen);
   wireThreadLanding(threadsBox);
   drawers.mountDrawers();
   threadPanelController.mountThreadPanel();

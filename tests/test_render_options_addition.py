@@ -233,7 +233,8 @@ def test_the_draft_binding_badge_and_send_press_share_the_row_end(browser, serve
                  const field = el.querySelector('leaf-text');
                  return {
                    end: inner - press.getBoundingClientRect().right,
-                   paddingEnd: parseFloat(getComputedStyle(field).paddingInlineEnd),
+                   room: parseFloat(getComputedStyle(field)
+                     .getPropertyValue('--lf-field-end-room')),
                    right: press.getBoundingClientRect().right,
                  };
                }"""
@@ -243,7 +244,7 @@ def test_the_draft_binding_badge_and_send_press_share_the_row_end(browser, serve
     spacing = page.locator("html").evaluate(
         "el => parseFloat(getComputedStyle(el).getPropertyValue('--sp-2'))"
     )
-    assert gaps["#bracket"]["paddingEnd"] - gaps["#jobs"]["paddingEnd"] == (
+    assert gaps["#bracket"]["room"] - gaps["#jobs"]["room"] == (
         pytest.approx(shown["badgeWidth"] + spacing, abs=0.5)
     )
     # Writing in the row and putting the bindings away reveals the press in the exact
@@ -564,7 +565,8 @@ def test_the_add_field_says_its_whole_hint_on_a_phone(browser, serve):
     fit = field.evaluate("""field => {
       const style = getComputedStyle(field);
       const room = field.clientWidth - parseFloat(style.paddingInlineStart)
-        - parseFloat(style.paddingInlineEnd);
+        - parseFloat(style.paddingInlineEnd)
+        - parseFloat(style.getPropertyValue('--lf-field-end-room'));
       const pen = document.createElement('canvas').getContext('2d');
       pen.font = style.font;
       return {room, words: pen.measureText(field.getAttribute('placeholder')).width};

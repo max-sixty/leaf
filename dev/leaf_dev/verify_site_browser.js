@@ -7,6 +7,10 @@
 (() => {
   const visibleReplyStartedKey = "leaf-visible-reply-started";
   const visibleReplyAtKey = "leaf-visible-reply-at";
+  const workVisibleAtKey = "leaf-work-visible-at";
+  // The receipts a user's message wears once the agent is on it, which its status
+  // claim or a streamed reply sets (`runtime/thread/workflow.js`).
+  const atWork = new Set(["Working", "Replying"]);
   let activationCount = 0;
   let visibleReplyObservers = null;
   function serverScript() {
@@ -23,6 +27,37 @@
 
   function visibleReplies() {
     return JSON.parse(sessionStorage.getItem(visibleReplyAtKey) ?? "{}");
+  }
+
+  function workVisible() {
+    return JSON.parse(sessionStorage.getItem(workVisibleAtKey) ?? "{}");
+  }
+
+  // When each thread first shows the agent on it: a message of the thread reading
+  // Working or Replying, or the agent's words in it, streamed or final.
+  function recordWorkVisible() {
+    const found = workVisible();
+    let changed = false;
+    for (const thread of document.querySelectorAll(
+      ".lf-threads > .lf-thread[data-id]",
+    )) {
+      const id = thread.dataset.id;
+      if (found[id]) continue;
+      const working = [...thread.querySelectorAll(".lf-msg-sending")].some(
+        (receipt) =>
+          atWork.has(receipt.textContent.trim()) && receipt.checkVisibility(),
+      );
+      const answering = [...thread.querySelectorAll(".lf-msg.agent")].some(
+        (message) =>
+          message.querySelector(".lf-msg-text")?.textContent.trim() &&
+          message.checkVisibility(),
+      );
+      if (working || answering) {
+        found[id] = Date.now();
+        changed = true;
+      }
+    }
+    if (changed) sessionStorage.setItem(workVisibleAtKey, JSON.stringify(found));
   }
 
   function watchVisibleAgentReply() {
@@ -50,6 +85,7 @@
       sessionStorage.setItem(visibleReplyAtKey, JSON.stringify(replies));
     });
     const observe = () => {
+      recordWorkVisible();
       for (const message of document.querySelectorAll(
         ".lf-threads .lf-msg.agent[data-mid]",
       )) {
@@ -115,6 +151,7 @@
       const started = Date.now();
       sessionStorage.setItem(visibleReplyStartedKey, String(started));
       sessionStorage.removeItem(visibleReplyAtKey);
+      sessionStorage.removeItem(workVisibleAtKey);
       stopVisibleReplyWatch();
       watchVisibleAgentReply();
       return started;
@@ -124,6 +161,9 @@
     },
     visibleReplyAt(id) {
       return visibleReplies()[id] ?? null;
+    },
+    workVisibleAt(thread) {
+      return workVisible()[thread] ?? null;
     },
     // What the page shows about a reply the container holds and the panel never drew:
     // the reading it last applied, its traffic, and each message's identity.

@@ -1898,7 +1898,7 @@ def test_an_export_embeds_only_the_widgets_its_markup_names(browser, serve, tmp_
     """A widget the page and its messages never name brings none of its modules.
 
     The page draws code and a reply carries a diagram; nothing names a diff, so
-    Pierre's renderer, the largest bundle the layer vendors, stays out of the file.
+    Pierre's renderer stays out of the file.
     """
     serve(
         leaf_page(

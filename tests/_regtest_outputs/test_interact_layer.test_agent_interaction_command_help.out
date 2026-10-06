@@ -16,7 +16,9 @@ Options:
 ## leaf delivery read --help
 Usage: leaf delivery read [OPTIONS] DELIVERY_ID
 
-  Print DELIVERY_ID with its complete batches and response requirements.
+  Print DELIVERY_ID with its complete batches and response requirements. Where a
+  harness's hook offered it to this session as a pointer, reading it confirms
+  it, so the user's moves read Picked up.
 
 Options:
   --help  Show this message and exit.

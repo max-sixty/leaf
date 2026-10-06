@@ -214,14 +214,13 @@ customElements.define(
   "lf-agent",
   class extends HTMLElement {
     #controller = widgetController(this);
-    #stopState = null;
     #stop = null;
 
     connectedCallback() {
-      if (once(this)) render(this);
-      this.#stopState ??= this.#controller.subscribe(() =>
-        heard(this, updateSequence(this)),
-      );
+      if (once(this)) {
+        render(this);
+        this.#controller.subscribe(() => heard(this, updateSequence(this)));
+      }
       // The shared clock refreshes this when its displayed age changes and touches
       // one text node when it does, rather than rebuilding a row the user may have
       // their pointer in.
@@ -229,8 +228,6 @@ customElements.define(
     }
 
     disconnectedCallback() {
-      this.#stopState?.();
-      this.#stopState = null;
       this.#stop?.();
       this.#stop = null;
     }

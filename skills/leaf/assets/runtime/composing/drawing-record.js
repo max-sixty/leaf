@@ -8,6 +8,11 @@
  * the drawing was made in: with the comment's revision they are the window the user
  * saw, which `leaf page picture` draws again for the agent.
  * `strokesIn` scales the strokes to the target's current size.
+ *
+ * A draft's drawing also carries `at`, where the target's box stood in its anchor's
+ * section when it was last drawn on, so the draft's ink can stand there once a revision
+ * takes the target away. It is the draft's alone: `sentDrawing` leaves it out of the
+ * comment.
  */
 export const DRAWING_FORMAT = "leaf-drawing/2";
 export const MAX_DRAWING_STROKES = 32;
@@ -40,13 +45,21 @@ const validWords = (says) =>
   says !== "" &&
   [...says].length <= MAX_DRAWING_SAYS_LENGTH;
 
+// A drawing is read whole and never changed in place, and the page's ink asks of each
+// one on every paint, so each object is checked once.
+const checked = new WeakMap();
+
 export function validDrawing(drawing) {
+  if (!drawing || typeof drawing !== "object") return false;
+  if (!checked.has(drawing)) checked.set(drawing, wellFormed(drawing));
+  return checked.get(drawing);
+}
+
+function wellFormed(drawing) {
   return Boolean(
-    drawing &&
-    typeof drawing === "object" &&
     !Array.isArray(drawing) &&
     Object.keys(drawing).every((key) =>
-      ["format", "strokes", "box", "says", "viewport", "scheme"].includes(key),
+      ["format", "strokes", "box", "at", "says", "viewport", "scheme"].includes(key),
     ) &&
     drawing.format === DRAWING_FORMAT &&
     Array.isArray(drawing.strokes) &&
@@ -54,10 +67,20 @@ export function validDrawing(drawing) {
     drawing.strokes.length <= MAX_DRAWING_STROKES &&
     drawing.strokes.every(validStroke) &&
     (drawing.box === undefined || validSize(drawing.box)) &&
+    (drawing.at === undefined ||
+      (Array.isArray(drawing.at) &&
+        drawing.at.length === 2 &&
+        drawing.at.every(bounded))) &&
     (drawing.says === undefined || validWords(drawing.says)) &&
     validSize(drawing.viewport) &&
     DRAWING_SCHEMES.includes(drawing.scheme),
   );
+}
+
+// The drawing as a comment carries it.
+export function sentDrawing(drawing) {
+  const { at, ...sent } = drawing;
+  return sent;
 }
 
 // The strokes at the target's current `size`: each axis scales by the target's side over

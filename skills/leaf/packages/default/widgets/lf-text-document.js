@@ -34,7 +34,9 @@ customElements.define(
       const source = snapshot?.value ?? "";
       try {
         const language = this.getAttribute("language");
-        const tokens = language ? await syntax(source, language) : [{ text: source }];
+        const tokens = language
+          ? await syntax(source, language)
+          : [{ text: source, style: {} }];
         if (rendering !== this.rendering || !this.isConnected) return;
         projectData(
           this,

@@ -594,7 +594,6 @@ export function createGoToSequence({
               title: "Put the focused thread at the bottom of its list",
             },
           ],
-          description: "Put the focused thread at the top / bottom of its list",
           title: "thread top / bottom",
           when: () => atGoToTargets() && Boolean(focusedThreadTarget()),
           run: (binding) => {
@@ -670,7 +669,6 @@ export function createGoToSequence({
               title: "Hear the previous visible target",
             },
           ],
-          description: "Hear the next / previous visible target",
           title: "browse hints",
           repeat: true,
           when: () => (goToActive ? hints.candidates().length > 0 : targetCapability()),
@@ -732,7 +730,6 @@ export function createGoToSequence({
               title: "Go to the bottom of the page",
             },
           ],
-          description: "Go to the top / bottom of the page",
           title: "top / bottom",
           when: atGoToTargets,
           run: (binding) => {

@@ -65,24 +65,23 @@ from leaf_dev.arms import (
 )
 from leaf_dev.codex_task import STEP_LIMIT, Task, install_plugin
 from leaf_dev.preview import preview_lease
-from leaf_dev.review_scenario import REQUEST, prepare
+from leaf_dev.review_scenario import (
+    COMMENTS,
+    REQUEST,
+    answers,
+    attempt,
+    comment_id,
+    post,
+    prepare,
+    require,
+    settled,
+)
 
 USER_TURN = (
     "Run `sleep 20` in the shell. Then, in a separate tool call, run "
     "`printf 'verified\\n'`. Then reply with the single word done."
 )
 RESTART_TURN = "Reply with the single word OK."
-COMMENTS = {
-    "idle": ("triage-lede", "Which of these items actually blocks the release?"),
-    "mid-turn": ("triage-why", "Is the migration the only blocker, or the first?"),
-    "restart": ("triage-lede", "Anything else I should check before we ship?"),
-    "reconnect": ("triage-lede", "Is the same review still connected?"),
-}
-
-
-def require(condition: bool, message: str) -> None:
-    if not condition:
-        raise click.ClickException(message)
 
 
 def adapter_processes(codex: str) -> list[psutil.Process]:
@@ -95,78 +94,14 @@ def adapter_processes(codex: str) -> list[psutil.Process]:
     ]
 
 
-def attempt(step: str) -> str:
-    """The retry key a step's comment is posted under, as long as the log requires."""
-    return f"verify-codex-task-{step}"
-
-
-def comment_id(page: Path, step: str) -> str:
-    return next(
-        event["id"]
-        for event in read_events(page)
-        if event["kind"] == "comment" and event.get("attempt") == attempt(step)
-    )
-
-
-def answers(page: Path, step: str) -> list[dict]:
-    """The replies that answer one posted comment; a failure receipt is not one."""
-    posted = comment_id(page, step)
-    return [
-        event
-        for event in read_events(page)
-        if event["kind"] == "reply"
-        and event.get("responds") == posted
-        and "failure" not in event
-    ]
-
-
 def check(page: Path, task: Task, posted: list[str]) -> None:
-    """What holds between steps: each comment answered once and picked up, and the
-    claim naming the task's last turn, closed."""
-    events = read_events(page)
-    for step in posted:
-        replies = answers(page, step)
-        require(
-            len(replies) == 1,
-            f"comment `{step}` has {len(replies)} replies, not one",
-        )
-        posted_id = comment_id(page, step)
-        require(
-            any(
-                event["kind"] == "pickup" and posted_id in event["events"]
-                for event in events
-            ),
-            f"comment `{step}` has a reply but no pickup",
-        )
-    claim = page_claim(page)
-    require(claim is not None, "the page has no claim")
-    require(
-        claim["id"] == task.thread,
-        f"the page is claimed by {claim['id']}, not the task {task.thread}",
-    )
+    """What holds between steps (`settled`), and the claim's turn being the task's
+    last."""
+    claim = settled(page, task.thread, posted)
     require(
         claim["turn"] == task.started[-1],
         f"the claim names turn {claim['turn']}, not the task's last turn "
         f"{task.started[-1]}",
-    )
-    require(
-        claim["turn_closed"] is not None,
-        f"turn {claim['turn']} has ended, but the claim holds it open",
-    )
-
-
-def post(page: Path, step: str) -> None:
-    """Post a step's comment as the page's tab does."""
-    section, text = COMMENTS[step]
-    client = PageClient(running_server(page)["url"])
-    client.post(
-        {
-            "kind": "comment",
-            "revision": client.state()["active"]["revision"],
-            "attempt": attempt(step),
-            "text": text,
-            "anchor": {"section": section},
-        }
     )
 
 

@@ -39,7 +39,9 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const LEAF = path.join(ROOT, "bin", "leaf");
-// `hooks.json`'s timeouts for the prompt and Stop hooks, and for SessionEnd.
+// `hooks.json`'s timeouts for the prompt and Stop hooks, and for SessionEnd. The
+// prompt and Stop hooks confirm what they hand over only well inside the first
+// (`CONFIRM_WITHIN` in `hook_carrier.py`).
 const HOOK_TIMEOUT_MS = 20_000;
 const SESSION_END_TIMEOUT_MS = 3_000;
 const CUSTOM_TYPE = "leaf";

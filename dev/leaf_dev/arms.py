@@ -1,4 +1,4 @@
-"""Arms, served pages, and isolated CC and Codex sessions for the commands and eval
+"""Arms, served pages, and isolated CC, Codex and Pi sessions for the commands and eval
 harnesses that run a version of Leaf.
 
 An arm is the plugin payload (`PAYLOAD`) at one ref, or as the working tree has it, and
@@ -16,6 +16,7 @@ A `LiveChild` keeps its session open across turns, so a driver can post
 user moves to a served page (`PageClient`) as a tab would.
 """
 
+import base64
 import http.cookiejar
 import json
 import os
@@ -24,6 +25,7 @@ import shutil
 import subprocess
 import tempfile
 import threading
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -43,7 +45,8 @@ from leaf_dev.page_fixtures import prepare_page, read_fixture
 
 # The uv project names this package's `pyproject.toml` as a workspace member, so uv
 # needs that file to read the lock. The package itself stays out: the launcher never
-# installs the dev group. A ref from before the package has no such file.
+# installs the dev group. A ref from before the package has no such file. The root
+# `package.json` makes the payload a Pi package.
 PAYLOAD = (
     ".claude/skills/developing-leaf",
     ".agents/plugins",
@@ -52,6 +55,7 @@ PAYLOAD = (
     "bin",
     "hooks",
     "skills",
+    "package.json",
     "pyproject.toml",
     "uv.lock",
     "dev/pyproject.toml",
@@ -252,6 +256,43 @@ def codex_home(path: Path, config: str = "") -> Path:
     shutil.copyfile(host / "auth.json", auth)
     auth.chmod(0o600)
     (path / "config.toml").write_text(config)
+    return path
+
+
+def pi_home(path: Path) -> Path:
+    """Make `path` a Pi home (`PI_CODING_AGENT_DIR`) whose only login is the host's
+    Codex login, as Pi's `openai-codex` provider, which uses the Codex CLI's OAuth
+    client and so takes its access token as is.
+
+    The copy leaves out the refresh token: refreshing it rotates it, which would log
+    the host's Codex out. A login that expires within the hour is refused, since the
+    copy cannot outlive it."""
+    host = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
+    tokens = json.loads((host / "auth.json").read_text())["tokens"]
+    claims = tokens["access_token"].split(".")[1]
+    expires = json.loads(base64.urlsafe_b64decode(claims + "=" * (-len(claims) % 4)))[
+        "exp"
+    ]
+    if expires - time.time() < 3600:
+        raise click.ClickException(
+            "The Codex login expires within the hour; run `codex` once to refresh it."
+        )
+    path.mkdir(mode=0o700)
+    auth = path / "auth.json"
+    auth.write_text(
+        json.dumps(
+            {
+                "openai-codex": {
+                    "type": "oauth",
+                    "access": tokens["access_token"],
+                    "refresh": "",
+                    "expires": expires * 1000,
+                    "accountId": tokens["account_id"],
+                }
+            }
+        )
+    )
+    auth.chmod(0o600)
     return path
 
 

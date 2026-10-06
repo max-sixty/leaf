@@ -1,8 +1,8 @@
 /* Canonical Thread placement into exact widget seats and one page presentation.
 
    A placement claims one Thread's page position, so reconciliation joins the core
-   Thread presentation. Both callbacks nominate exact candidates; widget seats
-   that survive final validation claim first, then the selected page presentation.
+   Thread presentation. Both callbacks return outlets for an admitted batch;
+   widget seats that survive final validation claim first, then the selected page presentation.
    Source coverage and outlet containment are separate: an authored page rail can
    show a target elsewhere in the document.
    Ordinary mirrors live
@@ -10,8 +10,8 @@
 
    A thread the widget would draw in a seat it has not opened yet, while that would move
    what the reader reads, is held out of what the widget is handed (`HeldArrivals`,
-   held-news.js): `target` answers null for it, so the selected annotation presentation notices it, and `revealHeld`
-   is how the margin's marker shows it. */
+   held-news.js): its target stays out of the batch, so the selected annotation
+   presentation notices it, and `revealHeld` is how the margin's marker shows it. */
 import { reportPageError } from "../layer-client.js";
 import { aimTargetAt, datumAimTarget } from "../anchor-resolution.js";
 import { sameAnchor } from "../anchor-coordinate.js";
@@ -39,14 +39,14 @@ function update(registration) {
   });
 }
 
-export function consumeThreads(owner, render, options) {
+export function placeThreads(owner, render, options) {
   return register(owner, render, options, "widget");
 }
 
 // The selected page presentation joins the same outlet and generation lifetime.
 // This owner nominates fallback candidates. Only the final cohort move knows which
 // widget nominations survived, and gives those seats priority over page nominations.
-export function consumePageThreads(owner, render, options) {
+export function placePageThreads(owner, render, options) {
   if ([...registrations.values()].some((item) => item.kind === "page"))
     throw new Error("The document already has a page Thread presentation");
   return register(owner, render, options, "page");
@@ -54,12 +54,12 @@ export function consumePageThreads(owner, render, options) {
 
 function register(owner, render, { invalidate, composition, reveal }, kind) {
   if (!(owner instanceof Element))
-    throw new TypeError("consumeThreads needs an Element owner");
+    throw new TypeError("placeThreads needs an Element owner");
   if (kind === "widget") requireSurface(owner);
   if (typeof render !== "function")
-    throw new TypeError("consumeThreads needs a render callback");
+    throw new TypeError("placeThreads needs a render callback");
   if (typeof invalidate !== "function")
-    throw new TypeError("consumeThreads needs an invalidation function");
+    throw new TypeError("placeThreads needs an invalidation function");
   if (
     !composition ||
     typeof composition.open !== "function" ||
@@ -69,9 +69,9 @@ function register(owner, render, { invalidate, composition, reveal }, kind) {
     typeof composition.restore !== "function" ||
     typeof composition.outlet !== "function"
   )
-    throw new TypeError("consumeThreads needs composition presentation");
+    throw new TypeError("placeThreads needs composition presentation");
   if (registrations.has(owner))
-    throw new Error(`consumeThreads(${owner.localName}) registered twice`);
+    throw new Error(`placeThreads(${owner.localName}) registered twice`);
   const registration = {
     render,
     owner,
@@ -121,7 +121,7 @@ function register(owner, render, { invalidate, composition, reveal }, kind) {
       )
         throw new TypeError(
           kind === "widget"
-            ? `consumeThreads(${owner.localName}) can open only its own projected datum`
+            ? `placeThreads(${owner.localName}) can open only its own projected datum`
             : "The page Thread presentation needs an addressable source target",
         );
       composition.open(target, { origin });
@@ -141,7 +141,7 @@ function register(owner, render, { invalidate, composition, reveal }, kind) {
 function requireSurface(owner) {
   if (registry[owner.localName]?.["x-thread-surface"] !== true)
     throw new Error(
-      `consumeThreads(${owner.localName}) requires x-thread-surface: true to place Threads`,
+      `placeThreads(${owner.localName}) requires x-thread-surface: true to place Threads`,
     );
 }
 
@@ -176,7 +176,7 @@ function validateOutlets({ owner }, byOutlet) {
     if (!outlet.isConnected) byOutlet.delete(outlet);
     else if (!under(outlet, owner))
       throw new Error(
-        `consumeThreads(${owner.localName}) returned an outlet outside its presentation owner`,
+        `placeThreads(${owner.localName}) returned an outlet outside its presentation owner`,
       );
   }
 }
@@ -262,7 +262,6 @@ export function renderSurfaces(collection, placements, commands) {
           })),
           { drawn: registration.drawn, all: collection.threads },
         );
-        const target = (key) => (held?.has(key) ? null : (targets.get(key) ?? null));
         const anchor = activeComposition?.anchor;
         const placement =
           anchor &&
@@ -270,56 +269,40 @@ export function renderSurfaces(collection, placements, commands) {
             (anchor.datum && anchor.section === owner.id))
             ? placements.pendingAt()
             : null;
-        const compositionTarget = exactTarget(registration, anchor, placement)
-          ? { anchor, placement }
-          : null;
-        let placing = true;
-        const acceptOutlet = (outlet) => {
-          if (!placing || abort.signal.aborted)
-            throw new Error("Thread outlets belong to their current render callback");
-          if (!(outlet instanceof Element))
-            throw new TypeError("A Thread outlet must be an Element");
-        };
-        const placeThread = (key, outlet) => {
-          acceptOutlet(outlet);
-          const thread = byKey.get(key);
-          if (!thread) throw new Error(`No Thread has key ${key}`);
-          const held = byOutlet.get(outlet) ?? [];
-          if ([...byOutlet.values()].some((threads) => threads.includes(thread)))
-            throw new Error("A consumer may place a Thread only once");
-          held.push(thread);
-          byOutlet.set(outlet, held);
-        };
-        try {
-          const rendering = render(collection, {
-            signal: abort.signal,
-            target,
-            composition: compositionTarget,
-            place(key, outlet) {
-              if (!target(key))
-                throw new Error(
-                  "A Thread outlet requires an exact target admitted to this presentation",
-                );
-              placeThread(key, outlet);
-            },
-            placeComposition(outlet) {
-              acceptOutlet(outlet);
-              if (!compositionTarget)
-                throw new Error(
-                  "The composer has no exact target in this presentation",
-                );
-              compositionOutlet = outlet;
-              if (!byOutlet.has(outlet)) byOutlet.set(outlet, []);
-            },
-          });
-          if (rendering?.then) await Promise.race([rendering, cancelled]);
-        } finally {
-          placing = false;
-        }
+        // The core supplies the complete admitted batch. Each position keeps its
+        // canonical Thread or composer identity here; consumers only return seats.
+        const batch = [...targets]
+          .filter(([key]) => !held?.has(key))
+          .map(([key, target]) => Object.freeze({ ...target, thread: byKey.get(key) }));
+        if (exactTarget(registration, anchor, placement))
+          batch.push(Object.freeze({ anchor, placement, thread: null }));
+        const rendering = render(Object.freeze(batch), {
+          signal: abort.signal,
+          collection,
+        });
+        const outlets = rendering?.then
+          ? await Promise.race([rendering, cancelled])
+          : rendering;
         if (!current()) return null;
         if (registrations.get(owner) !== registration || !owner.isConnected) {
           clearRegistration(registration);
           continue;
+        }
+        if (abort.signal.aborted) continue;
+        if (!Array.isArray(outlets) || outlets.length !== batch.length)
+          throw new TypeError(
+            "A Thread placement callback must return one outlet or null per target",
+          );
+        for (let index = 0; index < batch.length; index++) {
+          const outlet = outlets[index];
+          if (outlet === null) continue;
+          if (!(outlet instanceof Element))
+            throw new TypeError("A Thread outlet must be an Element or null");
+          const threads = byOutlet.get(outlet) ?? [];
+          const { thread } = batch[index];
+          if (thread) threads.push(thread);
+          else compositionOutlet = outlet;
+          byOutlet.set(outlet, threads);
         }
         validateOutlets(registration, byOutlet);
         if (

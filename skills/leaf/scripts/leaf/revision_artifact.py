@@ -256,12 +256,12 @@ def resolve_dependency(specifier: str, importer: str, *, module=False) -> str | 
     return resolved
 
 
-def _javascript_imports(data: bytes, path: str):
-    """Yield exact string-literal spans of static exports/imports and import().
+def javascript_tree(data: bytes, path: str):
+    """Parse UTF-8 JavaScript once at its source boundary, with located errors.
 
-    A computed import() binds when it runs, so capture neither follows nor refuses it:
-    a CDN module named that way loads, and a page file it names is in the revision
-    only if something imports it literally."""
+    Artifact capture and developer source analysis consume this same syntax
+    reading. Import admission remains with the artifact's reference reader.
+    """
     try:
         data.decode("utf-8")
     except UnicodeDecodeError as error:
@@ -273,23 +273,33 @@ def _javascript_imports(data: bytes, path: str):
             node = pending.pop()
             if node.is_error or node.is_missing:
                 raise ArtifactError(
-                    f"{path}:{node.start_point.row + 1}: invalid JavaScript"
+                    f"{path}:{node.start_point[0] + 1}: invalid JavaScript"
                 )
             pending.extend(reversed(node.children))
         raise ArtifactError(f"{path}: invalid JavaScript")
+    return tree
+
+
+def _javascript_imports(data: bytes, path: str):
+    """Yield exact string-literal spans of static exports/imports and import().
+
+    A computed import() binds when it runs, so capture neither follows nor refuses it:
+    a CDN module named that way loads, and a page file it names is in the revision
+    only if something imports it literally."""
+    tree = javascript_tree(data, path)
     pending = [tree.root_node]
     while pending:
         node = pending.pop()
         if node.type.startswith("jsx_"):
             raise ArtifactError(
-                f"{path}:{node.start_point.row + 1}: JSX is not executable JavaScript"
+                f"{path}:{node.start_point[0] + 1}: JSX is not executable JavaScript"
             )
         literal = None
         if node.type in {"import_statement", "export_statement"}:
             literal = node.child_by_field_name("source")
             if any(child.type == "import_attribute" for child in node.named_children):
                 raise ArtifactError(
-                    f"{path}:{node.start_point.row + 1}: import attributes are not supported for JavaScript modules"
+                    f"{path}:{node.start_point[0] + 1}: import attributes are not supported for JavaScript modules"
                 )
         elif node.type == "call_expression":
             function = node.child_by_field_name("function")
@@ -300,7 +310,7 @@ def _javascript_imports(data: bytes, path: str):
         if literal is not None:
             if any(child.type != "string_fragment" for child in literal.named_children):
                 raise ArtifactError(
-                    f"{path}:{literal.start_point.row + 1}: module URLs must be unescaped string literals"
+                    f"{path}:{literal.start_point[0] + 1}: module URLs must be unescaped string literals"
                 )
             yield (
                 literal.start_byte,
@@ -558,6 +568,38 @@ class _Capture(Slot):
     """A page's last capture, by every input it was built from."""
 
 
+def capture_local_resource(page_dir: Path, path: str) -> Resource:
+    """Freeze one resolved page-local resource with the shared containment/MIME gate.
+
+    Authored dependency capture and declared external-data media capture both
+    read exact bytes here. Callers own URL admission before supplying a path.
+    """
+    source = page_dir / path.removeprefix("/")
+    root = page_dir / ("page" if path.startswith("/page/") else "media")
+    if path.startswith(("/page/", "/media/")) and (
+        not root.resolve().is_relative_to(page_dir.resolve())
+        or not source.resolve().is_relative_to(root.resolve())
+    ):
+        raise ArtifactError(
+            f"{path}: dependency escapes its source directory through a symlink"
+        )
+    try:
+        data = source.read_bytes()
+    except OSError as error:
+        raise ArtifactError(
+            f"{path}: cannot capture dependency: {error.strerror}"
+        ) from error
+    mime = RESOURCE_TYPES.get(
+        source.suffix,
+        "application/octet-stream"
+        if not path.startswith(("/page/", "/media/"))
+        else None,
+    )
+    if mime is None or mime == "text/html":
+        raise ArtifactError(f"{path}: unsupported dependency MIME type")
+    return Resource(data, mime)
+
+
 def _capture_artifact(
     page_dir: Path,
     document: SourceDocument,
@@ -572,30 +614,8 @@ def _capture_artifact(
     def capture(path: str):
         if path in resources:
             return
-        source = page_dir / path.removeprefix("/")
-        root = page_dir / ("page" if path.startswith("/page/") else "media")
-        if path.startswith(("/page/", "/media/")) and (
-            not root.resolve().is_relative_to(page_dir.resolve())
-            or not source.resolve().is_relative_to(root.resolve())
-        ):
-            raise ArtifactError(
-                f"{path}: dependency escapes its source directory through a symlink"
-            )
-        try:
-            data = source.read_bytes()
-        except OSError as error:
-            raise ArtifactError(
-                f"{path}: cannot capture dependency: {error.strerror}"
-            ) from error
-        mime = RESOURCE_TYPES.get(
-            source.suffix,
-            "application/octet-stream"
-            if not path.startswith(("/page/", "/media/"))
-            else None,
-        )
-        if mime is None or mime == "text/html":
-            raise ArtifactError(f"{path}: unsupported dependency MIME type")
-        resources[path] = Resource(data, mime)
+        resource = capture_local_resource(page_dir, path)
+        data, mime = resource.data, resource.mime
         edges = []
         if mime == "application/javascript" and path.startswith("/page/"):
             for _, _, specifier in _javascript_imports(data, path):

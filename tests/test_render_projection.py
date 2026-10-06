@@ -7228,7 +7228,7 @@ def test_a_reply_renders_the_markdown_it_was_written_in(browser, serve):
     expect(body.locator("li")).to_have_count(2)
     expect(body.locator("strong")).to_have_text("behind")
     expect(body.locator("blockquote")).to_have_text("which one wins?")
-    expect(body.locator('pre code [data-lf-syn="kw"]').first).to_have_text("def")
+    expect(body.locator("pre code [data-lf-syn]").first).to_have_text("def")
     # Tags are text in this dialect, a block of them as much as one in a sentence, so
     # markup shown without a fence keeps the lines it was written in.
     markup = body.locator("p", has_text="<lf-callout>")

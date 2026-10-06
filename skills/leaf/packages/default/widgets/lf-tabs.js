@@ -230,7 +230,6 @@ customElements.define(
             { id: "tab.next", binding: "ArrowRight", title: "Next tab" },
           ],
           title: "walk the tabs",
-          description: "Previous / next tab, wrapping at the ends",
           repeat: true,
           run: (binding) =>
             walk((at, n) =>

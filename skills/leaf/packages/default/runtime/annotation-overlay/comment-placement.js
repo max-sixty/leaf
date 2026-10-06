@@ -75,7 +75,9 @@
    that turn so the next one releases it, and its foot where it stands over what it is
    about and is read. The caller reports the transcript's extent, whether the user is
    drafting, the latest turn and the draft's words; a surface with no turns, the
-   comment box, never asks, and its free edges grow as floating.js holds them.
+   comment box, never asks, and its free edges grow as floating.js holds them. The held
+   edge is also the one floating.js stands the surface by, so the browser grows it from
+   there.
 
    Every box here is a client rectangle. Floating UI works in the surface's positioning
    space, which a transformed ancestor scales, so each length crosses by the reference's
@@ -486,11 +488,13 @@ export function commentPlacement() {
       };
       const measure = (state) => state.middlewareData.scaled;
       const heldEdge = hold?.();
-      const holding = ((!across && hold) || carriedInline !== null) && {
+      // It also names the block edge it keeps still, which floating.js stands the
+      // surface by, so growth moves the other edge in the layout that grows it.
+      const holding = (heldEdge || carriedInline !== null) && {
         name: "hold",
         fn(state) {
           const edge = !across && heldEdge;
-          if (!edge && carriedInline === null) return {};
+          const data = { edge: heldEdge && ("foot" in heldEdge ? "bottom" : "top") };
           const { line, scale } = measure(state);
           const position = {};
           if (carriedInline !== null)
@@ -500,7 +504,7 @@ export function commentPlacement() {
               "foot" in edge
                 ? line + edge.foot / scale.y - state.rects.floating.height
                 : line + edge.top / scale.y;
-          return position;
+          return { ...position, data };
         },
       };
       const size = ui.size({

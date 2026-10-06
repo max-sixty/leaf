@@ -37,6 +37,7 @@ import shutil
 import subprocess
 import time
 from contextlib import contextmanager
+from datetime import datetime, timezone
 from functools import cache
 from pathlib import Path
 from types import SimpleNamespace
@@ -583,6 +584,22 @@ def serve(tmp_path, monkeypatch, initialized_page):
                 )
             else:
                 initialized_page(template_name, d, initialize)
+        if fixture:
+            # The page pool can lend a copy hours after it stamped the template.
+            # Its current publication is new to this test, so keep the timestamp
+            # used by worker freshness readings new too. Earlier notes and seeded
+            # history retain their fixture times.
+            log = d / "events.jsonl"
+            lines = log.read_text(encoding="utf-8").splitlines()
+            for index in range(len(lines) - 1, -1, -1):
+                event = json.loads(lines[index])
+                if event["kind"] == "note":
+                    event["ts"] = datetime.now(timezone.utc).isoformat(
+                        timespec="seconds"
+                    )
+                    lines[index] = json.dumps(event, separators=(",", ":"))
+                    log.write_text("\n".join(lines) + "\n", encoding="utf-8")
+                    break
         if not fixture:
             html = source
             (d / "index.html").write_text(html)

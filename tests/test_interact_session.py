@@ -15435,6 +15435,11 @@ def test_server_stop_waits_for_the_live_server_to_release_its_lease(
     page_dir, standing_server
 ):
     server = standing_server(page_dir)
+    # The ready lines are printed inside the server's startup page lock. Let that
+    # transaction finish before pausing the process, so this checks the live lease
+    # barrier rather than freezing startup while it still owns the page lock.
+    with leases_model.page_locked(page_dir):
+        pass
     os.kill(server.pid, signal.SIGSTOP)
     outcomes, errors = [], []
 

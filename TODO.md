@@ -389,6 +389,27 @@ Revisit these when their stated trigger becomes real; they are not an active que
 - **Explore independent jobs.** Work out their identity, observer, continuation
   owner, and outcomes across background commands, delegates, and external waits.
   See the [Thread plan](notes/threads.md#independent-jobs-delegation-and-continuation).
+- **Model how work breaks into pieces.** A task links only to its thread, widget or
+  page. Most real work forms a fuzzy hierarchy: much of planning is breaking a goal into
+  pieces, and the breakdown changes as the work teaches what the goal needs, with
+  pieces split, merged, dropped or moved under another parent. Fixed trees, like Pi's
+  owned subtasks or a tracker's parent and child tickets, are too brittle for that.
+  Find a shape that holds a changing breakdown, and say what it means for the queues:
+  whether a parent ends when its children do, and whose queue shows a child. Two links
+  are already planned: none for a task answering the user's comment, and one back to
+  the dispatcher for work handed to another session (step 7 of
+  [What needs you](notes/what-needs-you/page.html#task-hierarchy)). Trigger: a page
+  whose work the user wants to see broken down.
+- **Tell the agent when to ask before ending its own task.** The agent ends its tasks
+  itself, and asks first, with an Ask or a thread question, when the result needs the
+  user's sign-off
+  ([What needs you](notes/what-needs-you/page.html#task-done)). The shipped
+  instructions don't yet say when that is. Trigger: an agent ends a task as done that
+  the user wanted to see first.
+- **Let the user edit items in the Queue panel.** The user's only edit today is Done
+  on a task the agent put on them, so dropping a task, renaming it or ending one of the
+  agent's means asking in a thread. Editing the row directly in the panel would record the user's change as
+  their own move. Trigger: a user writes a comment only to close or adjust an item.
 - **Multiplayer:** let several users share a page, each recorded as themselves.
   Every browser event is `author: "user"` today, so the log cannot say who moved,
   commented or voted, and nothing records who has the page open. Claude Code

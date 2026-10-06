@@ -841,8 +841,8 @@ def test_wide_evidence_in_a_page_tab_takes_the_room_it_would_outside_one(
 def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     """`list="side"` stands a tab set's list beside its panels: a queue whose items open
     one at a time. Where the set holds both the list is a column left of the open panel,
-    walked down as well as across; on a phone it is a row above the panel, so the open
-    item never lands below the whole queue. A row carries its panel's summary under its
+    walked down as well as across; on a phone it is one row above the panel, scrolled
+    sideways, so the open item never lands below the whole queue. A row carries its panel's summary under its
     name, and once its item's Ask is answered, a check and the picked option's title
     beside the name, said in the tab's description too. Answered is the log's reading,
     so an undo takes them off once its answer is adopted, and the agent settling the
@@ -874,7 +874,7 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     source = leaf_page(
         "a queue",
         "<header><h1>Queue</h1></header>"
-        '<lf-tabs id="queue" list="side">' + "".join(map(ticket, "abc")) + "</lf-tabs>",
+        '<lf-tabs id="queue" list="side">' + "".join(map(ticket, "abcdefgh")) + "</lf-tabs>",
         layout="workspace",
     )
     page = open_page(browser, live_url(serve(source)))
@@ -950,9 +950,28 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
         "sev a · suggested fix. Answered: Fix"
     )
 
+    # On a phone the list is one row over the open item however long the queue, and
+    # the row scrolls sideways to bring in the tab a walk opens.
     resized(page, 390, 844)
     narrow = page.evaluate(boxes)
     assert narrow["stripBottom"] <= narrow["panelTop"] + 1, narrow
+    row = page.evaluate("""() => {
+      const strip = document.querySelector('#queue > .lf-tabstrip');
+      const tops = [...strip.querySelectorAll('.lf-tab-btn')]
+        .map((b) => Math.round(b.getBoundingClientRect().top));
+      return {rows: new Set(tops).size, runsPast: strip.scrollWidth > strip.clientWidth};
+    }""")
+    assert row == {"rows": 1, "runsPast": True}, row
+    tabs.first.focus()
+    page.keyboard.press("End")
+    expect(tabs.last).to_have_attribute("aria-selected", "true")
+    shown = page.evaluate("""() => {
+      const strip = document.querySelector('#queue > .lf-tabstrip').getBoundingClientRect();
+      const tab = document.querySelector('#queue .lf-tab-btn[aria-selected="true"]')
+        .getBoundingClientRect();
+      return {strip: [strip.left, strip.right], tab: [tab.left, tab.right]};
+    }""")
+    assert shown["strip"][0] <= shown["tab"][0] <= shown["tab"][1] <= shown["strip"][1], shown
 
     # As a scrolling page's root set, a side list keeps the page's history but is a
     # box: nothing sticks, so a switch leaves the page where the user stands.

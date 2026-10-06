@@ -494,13 +494,14 @@ customElements.define(
       return edge;
     }
 
-    // A tab the row runs past is scrolled into the strip, and only the strip: the
+    // A tab the row runs past is scrolled into the strip, and only the strip: a page
     // strip sticks, and scrolling the page to it would move the view being read. It
     // stops clear of the edge's press, which the strip states as its inline
-    // `scroll-padding` (the package theme).
+    // `scroll-padding` (the package theme). A strip runs past only where its one row
+    // holds more names than it shows, which a side list's column never does.
     #showTab(btn) {
-      if (!this.#pageFlow || !btn) return;
       const strip = this.#strip;
+      if (!btn || strip.scrollWidth <= strip.clientWidth) return;
       const room = strip.getBoundingClientRect();
       const box = btn.getBoundingClientRect();
       const { scrollPaddingLeft, scrollPaddingRight } = getComputedStyle(strip);

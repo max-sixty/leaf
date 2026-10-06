@@ -273,8 +273,6 @@ height and where a switch lands wait on the workspace decision under Layout.
   design and FYI, but `lf-tabs` takes only `lf-tab` members, so the page showed 21
   undifferentiated rows. A side list could take group headings between its items,
   skipped by the arrow walk.
-- **Put the open item first on a phone.** At 390px the stacked list comes before any
-  item, so 20 rows fill two screens before the first one.
 
 ### Recorded interaction review
 

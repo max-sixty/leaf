@@ -17,11 +17,14 @@ that item, and an Ask that turns on a claim holds the claim and its evidence
 rather than following them. Only an Ask that turns on the whole record comes
 last.
 
-An `lf-ask` that frames a figure, such as a chart, image or table, around one
-option list sets the list beside its premise and evidence wherever the Ask has
-the room, so the question, the figure and every option share the window. A
-reading column is too narrow for that, so in a column give such an Ask the wide
-measure with `data-width="wide"` (`page-authoring.md`, "Bounds and widths").
+An `lf-ask` keeps the prose's width on every page, a wide one included, so its
+question, options and the marker beside it stand with the paragraphs around it.
+Give an Ask more room with `data-width` when what it holds needs it: `wide` for
+a chart, image or table, `available` for a playground or another surface that
+uses every column it gets (`page-authoring.md`, "Bounds and widths"). An Ask that
+frames such a figure around one option list sets the list beside its premise and
+evidence wherever it has the room, so the question, the figure and every option
+share the window; `data-width="wide"` gives it that room.
 
 Write related, independently answerable Asks in page order. A widget can carry its
 own question and context, or an `lf-ask` can frame them around it. They remain visible

@@ -174,9 +174,11 @@ Two arrange a box's children, on `main` or on any block:
 | `layout-tiles` | equal cells, as many to a row as fit |
 
 On `main`, every class but `layout-column` makes a wide page: every block, the title
-included, starts at one left edge and takes the page's width, while text, and a
-widget read as text such as an option list or a draft, keeps the reading measure. A
-wide, sidebar or tiles page is capped at the widest page and sets its title larger; a
+included, starts at one left edge and takes the page's width, while text keeps the
+reading measure, as do an Ask, a callout and a widget read as text, such as an option
+list or a draft. Give one of those `data-width` where it holds a chart, a table, a
+playground or another surface that needs more room ("Bounds and widths"). A wide,
+sidebar or tiles page is capped at the widest page and sets its title larger; a
 workspace takes the whole window and leaves its title to the theme. `layout-column`
 on a block keeps the measure but gives it no room to break out into, since that room
 is the page's.
@@ -304,12 +306,13 @@ An individual block or section may request a responsive allocation with
 keeps the prose measure and starts where the prose does, including inside a wider
 section or on a wide page. `wide` uses the shared evidence width, `--wide`, in every
 Layout: past a column it grows to that width, and in a wider track or pane it holds
-to it at the track's start. A narrower frame still bounds it. `available` uses all room left by the page shell, frames,
-chrome, and a margin resident that takes its side, such as a sidebar standing in the
-margin or the contents map's spine; the markers beside it then stand as pins on it, and
-it moves below a note hanging level with it. The occurrence overrides a
-widget's package default, so `data-width="column"` can deliberately keep a normally wide
-widget with the prose.
+to it at the track's start. A narrower frame still bounds it. `available` uses all
+room left by the page shell, frames, chrome, and a margin resident that takes its side,
+such as a sidebar standing in the margin or the contents map's spine; the markers beside
+it then stand as pins on it, and it moves below a note hanging level with it. The
+occurrence overrides a widget's or idiom's default, so `data-width="column"` can
+deliberately keep a normally wide widget with the prose, and `data-width="wide"` gives
+an Ask or a callout holding a chart the room the chart needs.
 Use these names on the semantic block itself, including a native `table`, `lf-code`, or
 `lf-diff`; do not reproduce their responsive widths in page CSS.
 

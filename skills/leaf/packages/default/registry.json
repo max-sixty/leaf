@@ -17,6 +17,7 @@
   },
   "lf-ask": {
     "description": "A complete question for the user, with its context and one answer widget.",
+    "x-space": "column",
     "x-instructions": "Begin with a direct heading that states the question without relying on surrounding prose. Include the evidence needed to answer and exactly one non-quoted widget declaring a local Ask through x-awaits. Keep an ordinary semantic section around the Ask when the document needs a section landmark.",
     "type": "object",
     "properties": {

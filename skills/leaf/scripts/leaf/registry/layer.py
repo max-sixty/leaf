@@ -161,6 +161,27 @@ def validate_layer_declarations(
             f"lint admits — missing {sorted(admitted - documented)}, "
             f"unadmitted {sorted(documented - admitted)}"
         )
+    # An idiom declares the marks that hold in the page's document, such as the room a
+    # `.callout` takes (x-space), which delivery paints by the idiom's selector
+    # (`revision_delivery.mark_declared`). A message paints only from element tags, so
+    # a mark that holds there is an element's to declare.
+    for selector, entry in (registry.get("$idioms") or {}).items():
+        if not isinstance(entry, dict):
+            continue
+        for key, value in entry.items():
+            mark = DECLARED_MARKS.get(key)
+            if key.startswith("x-") and (
+                mark is None
+                or mark["message"]
+                or not Draft202012Validator(
+                    EXTENSION_SCHEMA["properties"][key]
+                ).is_valid(value)
+            ):
+                raise RegistryError(
+                    f"{path}: $idioms {selector!r} declares {key}={value!r}; an idiom "
+                    "declares only a mark that holds in the document, with a value "
+                    "its $keys entry admits"
+                )
     if (
         not isinstance(names, list)
         or not all(isinstance(name, str) for name in names)

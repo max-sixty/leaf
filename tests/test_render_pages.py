@@ -2199,6 +2199,34 @@ def test_named_wide_is_the_evidence_width_in_every_layout(browser, serve):
         assert root_overflow(page) == 0
 
 
+def test_an_ask_and_a_callout_keep_the_column_where_the_flow_is_wider(browser, serve):
+    """On a wide page an Ask and a callout keep the prose's width and left edge, so the
+    Ask's ring and pin stand beside what it asks, as on a column page; one granted
+    `data-width` takes that room for the evidence it holds."""
+    ask = (
+        '<lf-ask id="{id}"{width}><h3>Ship it?</h3><lf-options id="{id}-o" choose>'
+        '<lf-option id="{id}-yes">Yes</lf-option></lf-options></lf-ask>'
+    )
+    wide_page = leaf_page(
+        "Wide flow",
+        '<p id="prose">Prose.</p>'
+        + ask.format(id="ask", width="")
+        + ask.format(id="granted", width=' data-width="wide"')
+        + '<aside class="callout" id="callout"><p>Paused.</p></aside>',
+        layout="wide",
+    )
+    page = open_page(browser, serve(wide_page))
+    resized(page, 1726, 900)
+    at = page.evaluate("""() => Object.fromEntries(
+      ['prose', 'ask', 'granted', 'callout'].map(id => {
+        const box = document.getElementById(id).getBoundingClientRect();
+        return [id, {width: Math.round(box.width), left: Math.round(box.left)}];
+      }))""")
+    for boxed in ("ask", "callout"):
+        assert at[boxed] == {"width": 720, "left": at["prose"]["left"]}, (boxed, at)
+    assert at["granted"] == {"width": 1080, "left": at["prose"]["left"]}, at
+
+
 def test_a_sample_fills_the_room_its_authored_width_takes(browser, serve):
     """The breakout rule widens a block by negative margins, which an auto-width box
     fills and a box with a width of its own does not. A sample is a table box with a

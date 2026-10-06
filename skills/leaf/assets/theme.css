@@ -861,8 +861,9 @@ main {
 /* The column: the reading measure, and the one rule that sets it. Text keeps it wherever
  * it stands: a paragraph, a list item or a heading is never set wider than the column,
  * however wide the box around it. So does a block allocated the column
- * (`data-lf-space="column"`): a widget whose content is read as lines of text declares
- * it (`x-space: column`), and an occurrence asks for it with `data-width`. Both start at
+ * (`data-lf-space="column"`): a widget whose content is read as lines of text, or a box
+ * that frames prose (an Ask, a callout, which declares it as an idiom), declares it
+ * (`x-space: column`), and an occurrence asks for it with `data-width`. Both start at
  * their holder's start edge, so in a flow wider than the column (a wide page, a pane, a
  * sidebar Layout's body) the widget's box and the prose around it share one left edge
  * and one width. It caps the width and sets no margin, so a widget's own arrangement,

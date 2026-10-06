@@ -1,0 +1,28 @@
+# Added when an Ask came to keep the prose's width on a wide page as in a column: the
+# Ask framing a playground has to be granted the page's room for its stage.
+description: playground-ask-takes-the-room
+metadata:
+  purpose: 'Playground: the Ask framing a playground on a wide page takes data-width="available".'
+  tags:
+  - playground
+  - layout
+vars:
+  prompt: |
+    The user wants to choose between two empty-state designs for the project list:
+    an illustration with one "Create project" button, or a checklist of three setup
+    steps. Build a Leaf playground page where they can see both candidates side by
+    side at full size, toggle whether the list has a search bar above it, and submit
+    which design to build. Use `<main class="layout-wide">`.
+
+    Read packages/playground/instructions/author.md inside the leaf skill's base
+    directory. The page directory is not reachable here, so reply with the page's
+    HTML and any page module it needs.
+assert:
+- type: javascript
+  metric: reads-playground-instructions
+  value: file://reference-read.cjs
+  config:
+    path: packages/playground/instructions/author\.md
+- type: regex
+  metric: ask-takes-the-room
+  value: <lf-ask\b[^>]*\bdata-width=["']available["']

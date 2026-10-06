@@ -7660,9 +7660,23 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
             url = url.replace(f"/v{current_version}.html", f"/v{next_version}.html")
         page = open_page(browser, url)
         if name == "wt-merge":
-            # Its pane body earns a keyboard stop only while it has content to scroll,
-            # which at the workspace's working density it has under 600px of window.
+            # The shipped steps now contain buttons, so the scrollable body needs no
+            # stop of its own. Make this ring specimen prose-only; it still overflows
+            # and must then lend the body a keyboard stop and its pane ring.
             resized(page, 1200, 600)
+            page.locator("#merge-steps-pane button").evaluate_all(
+                "buttons => buttons.forEach(button => "
+                "button.replaceWith(document.createTextNode(button.textContent)))"
+            )
+            page.evaluate(
+                """async () => {
+                  const { reachScrollers } = await window.__lfRuntimeImport(
+                    '/runtime/reach.js'
+                  );
+                  reachScrollers(document.body);
+                }"""
+            )
+            expect(page.locator('#merge-steps-pane > [tabindex="0"]')).to_have_count(1)
         if name == "release-notes":
             # Ordinary element marks need a focusable sample for their conditional ring.
             page.locator("main p").first.evaluate(
@@ -7755,6 +7769,12 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
             for key in keys:
                 page.keyboard.press(key)
                 rendered(page)
+            if scope == "a landed diff line":
+                # Opening a collapsed file and loading its hunk finish after the key
+                # handler returns. Read the ring once the walk has actually landed.
+                expect(
+                    page.locator("#pr-exact-patch [data-content] > [data-line]:focus")
+                ).to_have_count(1)
             page_at_rest(page)
             surface, offers = RING_SCOPE_SURFACE.get(scope, (None, None))
             if surface and (offers is None or offered(page, offers)):

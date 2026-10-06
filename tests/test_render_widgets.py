@@ -627,6 +627,77 @@ def test_sticky_headers_stack_so_a_diff_in_a_page_tab_pins_under_the_strip(
     assert read["shown"] == pytest.approx(read["head"]["bottom"], abs=0.5), read
 
 
+def test_any_box_that_scrolls_starts_the_sticky_header_slot_again(browser, serve):
+    """A diff's file header pins at the top of the box that scrolls it, whoever made the
+    box scroll: a page rule, an inline style, and a column's sticky sidebar each start
+    `--lf-top` again, where each pinned the header the banner's height below the box's
+    top. The root keeps the banner's height though a page rule makes it scroll, and a
+    page's sticky box keeps the slot it met though another rule makes it scroll, so both
+    still stop at the banner's foot."""
+    path = "src/deeply/nested/module/file.rs"
+    rows = "".join(f"+    let value_{i} = {i};\n" for i in range(80))
+    patch = (
+        f"diff --git a/{path} b/{path}\n--- a/{path}\n+++ b/{path}\n"
+        f"@@ -1 +1,81 @@\n fn main() {{\n{rows}"
+    )
+
+    def diff(id):
+        return f'<lf-diff id="{id}"><pre>{patch}</pre></lf-diff>'
+
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Scrolling boxes",
+                f'<aside class="sidebar" id="side">{diff("in-side")}</aside>'
+                f'<h1>Scrolling boxes</h1><div id="box">{diff("in-box")}</div>'
+                '<div id="inline" style="max-height: 320px; overflow: auto">'
+                f"{diff('in-inline')}</div>"
+                '<div id="panel" class="tall"><p>Panel.</p></div>'
+                + "<p>Filler.</p>"
+                * 60,
+                head="<style>html { overflow-y: scroll; }"
+                "#box, .tall { max-height: 320px; overflow: auto; }"
+                "#panel { position: sticky; top: var(--lf-top); }</style>",
+            )
+        ),
+    )
+    resized(page, 1600, 1000)
+    expect(page.locator("main")).to_have_attribute(
+        "data-lf-margin", re.compile("sidebar")
+    )
+    page.wait_for_function(
+        "() => document.querySelectorAll('lf-diff.lf-rendered').length === 3"
+    )
+    read = page.evaluate(
+        """async () => {
+        const pinned = async (id) => {
+            const box = document.getElementById(id);
+            box.scrollTop = 400;
+            await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+            const head = box.querySelector('lf-diff').shadowRoot
+                .querySelector('.lf-diff-file > details > summary');
+            return {
+                scrolled: box.scrollTop,
+                gap: head.getBoundingClientRect().top
+                    - (box.getBoundingClientRect().top + box.clientTop),
+            };
+        };
+        return {
+            box: await pinned('box'),
+            inline: await pinned('inline'),
+            side: await pinned('side'),
+            panel: getComputedStyle(document.querySelector('#panel')).top,
+            root: getComputedStyle(document.documentElement).getPropertyValue('--lf-top'),
+        };
+    }"""
+    )
+    for box in ("box", "inline", "side"):
+        assert read[box]["scrolled"] == 400, read
+        assert read[box]["gap"] == pytest.approx(0, abs=1.5), read
+    assert read["root"] != "0px" and read["panel"] == read["root"], read
+
+
 def test_a_table_at_a_pane_top_is_under_no_sticky_header(browser, serve):
     """A workspace pane's body starts `--lf-top` at minus its top padding and a table
     starts it at 0, since each scrolls; neither stacks a header, so a cell scrolled to
@@ -841,13 +912,14 @@ def test_wide_evidence_in_a_page_tab_takes_the_room_it_would_outside_one(
 def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     """`list="side"` stands a tab set's list beside its panels: a queue whose items open
     one at a time. Where the set holds both the list is a column left of the open panel,
-    walked down as well as across; on a phone it is a row above the panel, so the open
-    item never lands below the whole queue. A row carries its panel's summary under its
-    name, and once its item's Ask is answered, a check and the picked option's title
-    beside the name, said in the tab's description too. Answered is the log's reading,
-    so an undo takes them off once its answer is adopted, and the agent settling the
-    question keeps them on. Answering moves no row. A tab's name is its label whatever
-    the row shows, and a panel bounds what it holds."""
+    walked down as well as across; on a phone it is one row above the panel, scrolled
+    sideways, so the open item never lands below the whole queue. A row carries its
+    panel's summary under its name, and once its item's Ask is answered, a check and
+    the picked option's title beside the name, said in the tab's description too.
+    Answered is the log's reading, so an undo takes them off once its answer is
+    adopted, and the agent settling the question keeps them on. Answering moves no
+    row. A tab's name is its label whatever the row shows, and a panel bounds what it
+    holds."""
 
     BOARD = (
         '<lf-board id="board">'
@@ -874,7 +946,9 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     source = leaf_page(
         "a queue",
         "<header><h1>Queue</h1></header>"
-        '<lf-tabs id="queue" list="side">' + "".join(map(ticket, "abc")) + "</lf-tabs>",
+        '<lf-tabs id="queue" list="side">'
+        + "".join(map(ticket, "abcdefgh"))
+        + "</lf-tabs>",
         layout="workspace",
     )
     page = open_page(browser, live_url(serve(source)))
@@ -950,9 +1024,17 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
         "sev a · suggested fix. Answered: Fix"
     )
 
+    # On a phone the list is one row over the open item, however long the queue.
     resized(page, 390, 844)
     narrow = page.evaluate(boxes)
     assert narrow["stripBottom"] <= narrow["panelTop"] + 1, narrow
+    row = page.evaluate("""() => {
+      const strip = document.querySelector('#queue > .lf-tabstrip');
+      const tops = [...strip.querySelectorAll('.lf-tab-btn')]
+        .map((b) => Math.round(b.getBoundingClientRect().top));
+      return {rows: new Set(tops).size, runsPast: strip.scrollWidth > strip.clientWidth};
+    }""")
+    assert row == {"rows": 1, "runsPast": True}, row
 
     # As a scrolling page's root set, a side list keeps the page's history but is a
     # box: nothing sticks, so a switch leaves the page where the user stands.
@@ -1040,6 +1122,84 @@ def test_a_queue_row_names_an_answer_whose_widget_module_arrives_last(browser, s
     wait_until_ready(page)
     expect(answer).to_be_visible()
     expect(answer).to_have_text("Fix")
+
+
+def test_a_tab_strip_keeps_its_open_tab_in_its_one_row(browser, serve):
+    """A strip whose names outrun its one row scrolls them sideways, and keeps the open
+    tab in the row and clear of the press at either edge: when the window narrows under
+    it, which turns a side list's column into a row, and when a walk opens another tab,
+    the tab already open included. The press stands at the strip's edge, so no name
+    shows unfaded beside it."""
+
+    def views(key, summary):
+        return "".join(
+            f'<lf-tab id="{key}-{i}" label="View {key} {i}"'
+            + (f' summary="sev {i} · suggested fix"' if summary else "")
+            + f'><p id="{key}-words-{i}">View {key} {i}.</p></lf-tab>'
+            for i in range(12)
+        )
+
+    source = leaf_page(
+        "Long strips",
+        '<h1 id="title">Strips</h1><section id="framed-section">'
+        f'<lf-tabs id="framed">{views("framed", False)}</lf-tabs></section>'
+        f'<lf-tabs id="queue" list="side">{views("queue", True)}</lf-tabs>'
+        f'<section id="rtl-section" dir="rtl"><lf-tabs id="rtl">{views("rtl", False)}'
+        "</lf-tabs></section>",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1200, 900)
+    # The open tab inside the strip and clear of every press showing, with at least
+    # `presses` of them showing.
+    shown = """([id, presses]) => {
+      const strip = document.querySelector(`#${id} > .lf-tabstrip`);
+      const room = strip.getBoundingClientRect();
+      const tab = strip.querySelector('[aria-selected="true"]').getBoundingClientRect();
+      const faces = [...strip.querySelectorAll('.lf-tabstrip-scroll > span')]
+        .filter((face) => face.checkVisibility())
+        .map((face) => face.getBoundingClientRect());
+      return strip.scrollWidth > strip.clientWidth && faces.length >= presses
+        && room.left <= tab.left && tab.right <= room.right
+        && faces.every((face) => face.right <= tab.left || tab.right <= face.left);
+    }"""
+    # Focus brings itself into view, so the tabs opened before the window narrows are
+    # left unfocused.
+    for name in ("View framed 11", "View queue 11"):
+        tab = page.get_by_role("tab", name=name, exact=True)
+        tab.click()
+        tab.blur()
+    resized(page, 390, 844)
+    for strip in ("framed", "queue"):
+        page.wait_for_function(shown, arg=[strip, 0])
+
+    framed = page.locator("#framed").get_by_role("tab")
+    framed.last.focus()
+    page.keyboard.press("Home")
+    expect(framed.first).to_have_attribute("aria-selected", "true")
+    page.wait_for_function(shown, arg=["framed", 1])
+    # Walking to the tab already open brings it back after a scroll took it away.
+    page.evaluate("""() => {
+      const strip = document.querySelector('#framed > .lf-tabstrip');
+      strip.scrollLeft = strip.scrollWidth;
+    }""")
+    page.keyboard.press("Home")
+    page.wait_for_function(shown, arg=["framed", 1])
+    page.keyboard.press("ArrowLeft")
+    expect(framed.last).to_have_attribute("aria-selected", "true")
+    page.wait_for_function(shown, arg=["framed", 1])
+    for _ in range(4):
+        page.keyboard.press("ArrowLeft")
+    expect(framed.nth(7)).to_have_attribute("aria-selected", "true")
+    page.wait_for_function(shown, arg=["framed", 2])
+
+    # In a right-to-left strip the names run from the right, so ArrowLeft is ahead.
+    rtl = page.locator("#rtl").get_by_role("tab")
+    rtl.first.focus()
+    page.keyboard.press("ArrowLeft")
+    expect(rtl.nth(1)).to_have_attribute("aria-selected", "true")
+    page.wait_for_function(shown, arg=["rtl", 1])
+    page.keyboard.press("ArrowRight")
+    expect(rtl.first).to_have_attribute("aria-selected", "true")
 
 
 def test_root_tab_targets_remain_global(browser, serve):
@@ -1597,6 +1757,76 @@ def test_a_bound_at_its_end_follows_a_rebuilt_feed_until_the_user_scrolls_back(
     page.evaluate(rebuild, 120)
     page.evaluate("() => new Promise(requestAnimationFrame)")
     assert page.locator("#feed").evaluate("feed => feed.scrollTop") == 200
+
+
+def test_logs_in_a_hidden_tab_open_on_their_newest_entries(browser, serve):
+    """A bounded log in a tab the user is not viewing grows, and another arrives,
+    without Leaf styling or measuring either while the tab is hidden. Opening the tab
+    shows each log's newest entry, every time the logs grew while hidden. Such a read
+    makes the browser style the hidden panel first, and in Chromium that forced pass left
+    a decided suggestion's retired words showing (#1868)."""
+    entry = "<p>Entry: the deploy copied a shard to the new key format.</p>"
+    url = serve(
+        leaf_page(
+            "Logs in a hidden tab",
+            '<h1>Deploy</h1><section><lf-tabs id="views">'
+            '<lf-tab id="summary" label="Summary"><p>Running.</p></lf-tab>'
+            f'<lf-tab id="history" label="History"><div id="log" data-bound="end">'
+            f"{entry * 30}</div></lf-tab></lf-tabs></section>",
+        )
+    )
+    page = open_page(browser, live_url(url))
+    resized(page, 1280, 900)
+    tabs = page.locator("#views")
+    summary = tabs.get_by_role("tab", name="Summary", exact=True)
+    history = tabs.get_by_role("tab", name="History", exact=True)
+    page.evaluate(
+        """() => {
+          window.lfAsked = [];
+          const inLog = (el) =>
+            el instanceof Element && document.getElementById('history')
+              .contains(el.closest('[data-lf-bound]'));
+          const style = window.getComputedStyle;
+          window.getComputedStyle = function (el, ...rest) {
+            if (inLog(el)) window.lfAsked.push(`style ${el.localName}`);
+            return style.call(this, el, ...rest);
+          };
+          for (const name of ['scrollTop', 'scrollHeight', 'clientHeight']) {
+            const read = Object.getOwnPropertyDescriptor(Element.prototype, name);
+            Object.defineProperty(Element.prototype, name, {
+              ...read,
+              get() {
+                if (inLog(this)) window.lfAsked.push(`${name} ${this.localName}`);
+                return read.get.call(this);
+              },
+            });
+          }
+        }"""
+    )
+    grow = """([id, count]) => document.getElementById(id).append(
+      ...Array.from({length: count}, (_, i) => Object.assign(
+        document.createElement('p'), {textContent: `Arrived ${i}`})))"""
+    arrive = """() => document.getElementById('history').append(Object.assign(
+      document.createElement('div'), {id: 'later'}))"""
+    at_end = """() => ['log', 'later'].every((id) => {
+      const log = document.getElementById(id);
+      return log.scrollHeight > log.clientHeight
+        && log.scrollHeight - log.scrollTop - log.clientHeight <= 2; })"""
+
+    expect(summary).to_have_attribute("aria-selected", "true")
+    page.evaluate(arrive)
+    page.evaluate("() => document.getElementById('later').dataset.lfBound = 'end'")
+    page.evaluate(grow, ["later", 30])
+    for _ in range(2):
+        expect(summary).to_have_attribute("aria-selected", "true")
+        page.evaluate(grow, ["log", 20])
+        page.evaluate(grow, ["later", 20])
+        rendered(page)
+        assert page.evaluate("() => window.lfAsked.splice(0)") == []
+        history.click()
+        page.wait_for_function(at_end)
+        summary.click()
+        page.evaluate("() => window.lfAsked.splice(0)")
 
 
 def revised_log(first, last):
@@ -12208,7 +12438,8 @@ def test_a_phone_can_wrap_diff_lines_by_tapping_the_label(iphone, serve):
 
 def test_a_phone_keeps_the_diff_file_name_and_the_sticky_header_height(iphone, serve):
     """The space reserved above a landed row clears its sticky file header. The
-    basename remains readable on a phone; the title retains the complete path."""
+    basename remains readable on a phone; the title retains the complete path, and
+    WebKit draws the whole path a row says while the keyboard stands on it."""
     path = "plugins/worktrunk/skills/worktrunk/reference/config.md"
     patch = (
         f"diff --git a/{path} b/{path}\n--- a/{path}\n+++ b/{path}\n"
@@ -12233,7 +12464,7 @@ def test_a_phone_keeps_the_diff_file_name_and_the_sticky_header_height(iphone, s
             .querySelector('summary');
         const path = head.querySelector('.lf-diff-path');
         const base = path.querySelector('.lf-diff-base');
-        return {
+        const reading = {
             height: head.getBoundingClientRect().height,
             reserved: parseFloat(getComputedStyle(
                 head.parentElement.querySelector('[data-line]')
@@ -12242,11 +12473,124 @@ def test_a_phone_keeps_the_diff_file_name_and_the_sticky_header_height(iphone, s
             base: base.textContent,
             baseCut: base.scrollWidth > base.clientWidth,
         };
+        return reading;
+    }"""
+    )
+    page.keyboard.press("Shift")  # keyboard modality, so the focus below is visible
+    page.locator("lf-diff .lf-diff-head").focus()
+    said = page.locator("lf-diff .lf-diff-path").evaluate(
+        """path => {
+        const word = getComputedStyle(path, '::after');
+        return [word.content.replace(/\\u200b/g, ''), parseFloat(word.width)];
     }"""
     )
     assert head["height"] == pytest.approx(head["reserved"], abs=0.5), head
     assert head["base"] == "config.md" and not head["baseCut"], head
     assert head["title"] == path, head
+    assert path in said[0] and said[1] > 0, said
+
+
+def test_a_file_row_says_its_whole_path_to_the_keyboard_and_a_held_finger(
+    browser, serve
+):
+    """A file's row gives way from its folders, and its title reaches only a pointer
+    resting on it. The keyboard standing on the row, and a finger held on it, read the
+    whole path in a box under the row, a folded file's too, over the next file's row.
+    Releasing the hold folds the file, as a tap does, and a tap shows nothing."""
+    path = "plugins/worktrunk/skills/worktrunk/reference/config/deeply/nested/file.md"
+    patch = "".join(
+        f"diff --git a/{name} b/{name}\n--- a/{name}\n+++ b/{name}\n"
+        "@@ -1 +1 @@\n-old\n+new\n"
+        for name in (path, "src/next.rs")
+    )
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Phone header",
+                '<h1>Review</h1><lf-diff id="patch"><pre>' + patch + "</pre></lf-diff>",
+            )
+        ),
+        context=context,
+    )
+    page.wait_for_function("() => document.querySelector('lf-diff.lf-rendered')")
+    head = page.locator("lf-diff .lf-diff-head").first
+    # The box is generated content, which takes no hit unless a rule lets it: this
+    # test's own rule does, so a hit-test at the box's corner says what stands on top.
+    head.evaluate("""head => {
+        const sheet = new CSSStyleSheet();
+        sheet.replaceSync('.lf-diff-path::after { pointer-events: auto !important; }');
+        const root = head.getRootNode();
+        root.adoptedStyleSheets = [...root.adoptedStyleSheets, sheet];
+    }""")
+    read = """head => {
+        const path = head.querySelector('.lf-diff-path');
+        const word = getComputedStyle(path, '::after');
+        const at = head.getBoundingClientRect();
+        const hit = word.content === 'none' ? null : head.getRootNode().elementFromPoint(
+            at.left + head.clientLeft + parseFloat(word.left) + 6,
+            at.top + head.clientTop + parseFloat(word.top) + 6,
+        );
+        return {
+            open: head.parentElement.open,
+            word: word.content === 'none' ? null
+                : word.content.replace(/\\u200b/g, ''),
+            shown: word.visibility === 'visible',
+            below: parseFloat(word.top) >= at.height,
+            fits: parseFloat(word.left) + parseFloat(word.width) <= at.width + 0.5,
+            onTop: hit === path,
+        };
+    }"""
+    whole = f'"{path}" / ""'
+    assert head.evaluate(read)["word"] is None
+
+    page.keyboard.press("Shift")  # keyboard modality, so the focus below is visible
+    head.focus()
+    standing = head.evaluate(read)
+    assert standing == {
+        "open": True,
+        "word": whole,
+        "shown": True,
+        "below": True,
+        "fits": True,
+        "onTop": True,
+    }, standing
+    page.keyboard.press("Enter")
+    assert head.evaluate(read) == {**standing, "open": False}
+    page.keyboard.press("Enter")
+    head.evaluate("head => head.blur()")
+
+    cdp = context.new_cdp_session(page)
+    box = head.bounding_box()
+    point = {"x": round(box["x"] + box["width"] / 2), "y": round(box["y"] + 10)}
+
+    def touch(kind):
+        cdp.send(
+            "Input.dispatchTouchEvent",
+            {"type": kind, "touchPoints": [point] if kind != "touchEnd" else []},
+        )
+
+    touch("touchStart")
+    rendered(page)
+    expect(head).to_have_attribute("data-lf-held-word", "")
+    page.wait_for_function(
+        """() => getComputedStyle(document.querySelector('lf-diff').shadowRoot
+            .querySelector('.lf-diff-path'), '::after').visibility === 'visible'"""
+    )
+    held = head.evaluate(read)
+    assert held["word"] == whole and held["open"], held
+    touch("touchEnd")
+    rendered(page)
+    assert head.evaluate(read)["open"] is False, "the release folds the file"
+    assert head.evaluate(read)["word"] is None
+
+    page.touchscreen.tap(point["x"], point["y"])
+    rendered(page)
+    assert head.evaluate(read)["open"] is True, "a tap unfolds it"
+    assert head.evaluate(read)["word"] is None
 
 
 # A page-authored driver that points at a code block's lines through its declared `for`,

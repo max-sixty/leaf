@@ -9535,9 +9535,6 @@ def test_an_agent_message_edit_updates_the_panel_and_its_inline_thread(browser, 
     page = open_page(browser, url)
     resized(page, 1200, 900)
     inline = page.locator(f'#cd-q .lf-msg[data-event="{message["id"]}"]')
-    inline_thread = page.locator(
-        f'#cd-q .lf-page-thread:has(.lf-msg[data-event="{message["id"]}"])'
-    )
     expect(inline.locator(".lf-msg-body")).to_have_text("The north bracket fit.")
     page.locator(".lf-threads-toggle").click()
     panel = page.locator(f'.lf-msg[data-mid="{message["id"]}"]')
@@ -9577,15 +9574,9 @@ def test_an_agent_message_edit_updates_the_panel_and_its_inline_thread(browser, 
     expect(inline.locator(".lf-msg-body")).to_contain_text("The north bracket fits.")
     expect(panel.locator(".lf-msg-text")).to_contain_text("The north bracket fits.")
     expect(panel.locator("pre code [data-lf-syn]").first).to_have_text("def")
-    # The disclosure is on the head, and a thread's first message lends its head to the
-    # card, where the thread's own actions sit beside the author. So the mark belongs to
-    # the card holding the message rather than to the message node, on both surfaces.
-    expect(inline_thread.locator(".lf-thread-root-meta .lf-edited")).to_have_text(
-        "edited"
-    )
-    expect(panel_thread.locator(".lf-thread-root-meta .lf-edited")).to_have_text(
-        "edited"
-    )
+    # Editing updates the original message's disclosure in both views.
+    expect(inline.locator(":scope > .lf-msg-head .lf-edited")).to_have_text("edited")
+    expect(panel.locator(":scope > .lf-msg-head .lf-edited")).to_have_text("edited")
     expect(page.locator(f'.lf-msg[data-mid="{revision["id"]}"]')).to_have_count(0)
     assert page.evaluate(
         f"""() => window.__editedInline === document.querySelector(

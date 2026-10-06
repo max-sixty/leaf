@@ -1,9 +1,9 @@
 /* Synchronous Lit message presentation and frozen authored message islands.
 
    Every surface uses the same message, header and body vocabulary. Generated
-   metadata, prose, workflow and reaction placement have one owner. Message headers
-   declare their stationary text-reflow boundary; a hoisted root header leaves that
-   declaration to the thread's complete metadata row. An
+   metadata, prose, workflow and reaction placement have one owner. Each message
+   retains its header and body together, sharing delivery, unread and fold state.
+   Its header declares its stationary text-reflow boundary. An
    immutable descriptor changes prose without reconnecting the validated authored
    fragment. A new message cues its own words once on first presentation, in every
    surface: one the user just sent, and any turn, whoever wrote it, joining a thread
@@ -26,12 +26,7 @@ import {
   stageAuthoredStates,
 } from "../projection/authored.js";
 import { stageWidgetDescriptors } from "../widget-descriptors.js";
-import {
-  strongestWorkflow,
-  workflowLabel,
-  workflowTitle,
-  WORKFLOW_LABELS,
-} from "./workflow.js";
+import { strongestWorkflow, workflowLabel, workflowTitle } from "./workflow.js";
 import {
   markDeclared,
   renderQuiet,
@@ -51,7 +46,6 @@ import { rememberPassageParts } from "../widget-loader.js";
 import { ReactionStripView } from "./reaction-strips.js";
 import { keeps } from "../keeps.js";
 import { motion } from "../motion.js";
-import { reserve } from "../widget-elements.js";
 
 export const loadMarked = () =>
   loadMarkdown((error) =>
@@ -199,14 +193,13 @@ export class MessageView {
   #dressed = false;
   #arrivalMotion = null;
   #header = document.createElement("div");
-  #workflowSlot = null;
 
   constructor(commands) {
     this.#commands = commands;
     this.node = document.createElement("div");
   }
 
-  present(model, { externalHeader = false, arrived = false } = {}) {
+  present(model, { arrived = false } = {}) {
     const prior = this.#model;
     this.#model = model;
     const panel = model.panel;
@@ -222,7 +215,7 @@ export class MessageView {
         this.node.dataset.lfOffer = "";
       }
     }
-    keeps(this.#header, "data-lf-reflow", externalHeader ? null : "text");
+    keeps(this.#header, "data-lf-reflow", "text");
     if (prior && prior.author !== model.author)
       this.node.classList.toggle(prior.author, false);
     this.node.classList.toggle(model.author, true);
@@ -251,11 +244,7 @@ export class MessageView {
       html`
         <b>${model.by}</b
         ><span class="lf-msg-meta"
-          ><time datetime=${model.timestamp}>${model.age}</time> ${
-            externalHeader
-              ? html`<span class="lf-msg-workflow">${receipt}</span>`
-              : receipt
-          }
+          ><time datetime=${model.timestamp}>${model.age}</time> ${receipt}
           ${
             model.failure
               ? html`<span class="lf-msg-failure">${FAILURE_LABEL}</span>`
@@ -275,13 +264,9 @@ export class MessageView {
       `,
       this.#header,
     );
-    const workflowSlot = this.#header.querySelector(".lf-msg-workflow");
-    if (workflowSlot && workflowSlot !== this.#workflowSlot)
-      reserve(workflowSlot, WORKFLOW_LABELS);
-    this.#workflowSlot = workflowSlot;
     render(
       html`
-        ${externalHeader ? nothing : this.#header}
+        ${this.#header}
         <div
           class=${`lf-msg-body${model.body.kind === "suggestion" ? " lf-suggest-body" : ""}`}
         >
@@ -336,10 +321,6 @@ export class MessageView {
       );
     }
     return this.node;
-  }
-
-  get header() {
-    return this.#header;
   }
 
   #body(body) {

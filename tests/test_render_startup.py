@@ -3550,10 +3550,10 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     held_thread = page.locator(f'.lf-thread[data-id="{held}"]')
     other_thread = page.locator(f'.lf-thread[data-id="{other}"]')
     held_workflow = held_thread.locator(
-        ":scope > .lf-thread-content > .lf-thread-root-meta .lf-msg-sending"
+        f'.lf-msg[data-mid="{held}"] > .lf-msg-head .lf-msg-sending'
     )
     other_workflow = other_thread.locator(
-        ":scope > .lf-thread-content > .lf-thread-root-meta .lf-msg-sending"
+        f'.lf-msg[data-mid="{other}"] > .lf-msg-head .lf-msg-sending'
     )
     expect(workflows).to_have_count(2)
     expect(held_workflow).to_have_text("Sent")
@@ -3670,9 +3670,8 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     # the message, so it stands in the thread's corner and the row ends here.
     expect(held_thread.locator(":scope > .lf-msg-sending")).to_have_count(0)
     assert held_workflow.evaluate(
-        "node => { const slot = node.closest('.lf-msg-workflow') ?? node; "
-        "return slot.parentElement.matches('.lf-msg-meta') "
-        "&& slot.previousElementSibling.matches('time'); }"
+        "node => node.parentElement.matches('.lf-msg-meta') "
+        "&& node.previousElementSibling.matches('time')"
     )
 
     # New words do not detach the claim from the comment that started the work.
@@ -3793,7 +3792,7 @@ def test_feature_gallery_workflow_and_banner_share_agent_activity(browser, serve
 
     page.keyboard.press("c")
     workflow = page.locator(
-        f'.lf-thread[data-id="{comment["id"]}"] > .lf-thread-content > .lf-thread-root-meta .lf-msg-sending'
+        f'.lf-thread[data-id="{comment["id"]}"] .lf-msg[data-mid="{comment["id"]}"] > .lf-msg-head .lf-msg-sending'
     )
     expect(workflow).to_have_text("Picked up")
     # The gallery's own queues end the disclosure, after the activity it shares.
@@ -3871,7 +3870,7 @@ def test_an_unpicked_move_says_it_is_waiting_after_the_short_grace(browser, serv
     page = open_page(browser, url)
     page.keyboard.press("c")
     workflow = page.locator(
-        f'.lf-thread[data-id="{comment["id"]}"] > .lf-thread-content > .lf-thread-root-meta .lf-msg-sending'
+        f'.lf-thread[data-id="{comment["id"]}"] .lf-msg[data-mid="{comment["id"]}"] > .lf-msg-head .lf-msg-sending'
     )
     expect(workflow).to_have_text("Waiting for pickup")
     expect(workflow).to_have_attribute("title", "Waiting for pickup")
@@ -3901,15 +3900,14 @@ def test_a_message_workflow_changes_phase_in_place_and_then_stands_still(
     page.keyboard.press("c")
     thread = page.locator(f'.lf-thread[data-id="{comment["id"]}"]')
     workflow = thread.locator(
-        ":scope > .lf-thread-content > .lf-thread-root-meta .lf-msg-sending"
+        f'.lf-msg[data-mid="{comment["id"]}"] > .lf-msg-head .lf-msg-sending'
     )
     thread.locator(".lf-thread-summary").click()
     expect(workflow).to_be_visible()
     expect(workflow).to_have_text("Sent")
     assert workflow.evaluate(
-        "node => { const slot = node.closest('.lf-msg-workflow') ?? node; "
-        "return slot.parentElement.matches('.lf-msg-meta') "
-        "&& slot.previousElementSibling.matches('time'); }"
+        "node => node.parentElement.matches('.lf-msg-meta') "
+        "&& node.previousElementSibling.matches('time')"
     )
     expect(workflow.locator("time")).to_have_count(0)
     expect(thread.locator(":scope > .lf-msg-sending")).to_have_count(0)
@@ -3946,13 +3944,26 @@ def test_a_message_workflow_changes_phase_in_place_and_then_stands_still(
         "title",
         "Working · comparing the replacement against every narrow thread surface",
     )
-    assert workflow.evaluate(
+    header_reading = workflow.evaluate(
         """node => {
-          const head = node.parentElement;
-          return [...head.querySelectorAll(':scope > :is(b, time)')]
-            .every(part => getComputedStyle(part).flexShrink === '0');
+          const head = node.closest('.lf-msg-head');
+          const author = head.querySelector(':scope > b');
+          const metadata = head.querySelector(':scope > .lf-msg-meta');
+          const time = metadata.querySelector(':scope > time');
+          const contains = (outer, inner) => {
+            const bounds = outer.getBoundingClientRect();
+            const part = inner.getBoundingClientRect();
+            return part.width > 0 && part.height > 0
+              && part.left >= bounds.left - 0.5 && part.right <= bounds.right + 0.5;
+          };
+          return {
+            authorVisible: contains(head, author),
+            timeVisible: contains(head, time) && contains(metadata, time),
+            timeFixed: getComputedStyle(time).flexShrink === '0',
+          };
         }"""
-    ), "long status metadata can shrink the message author or timestamp"
+    )
+    assert all(header_reading.values()), header_reading
     ticked(page)
     ticked(page)
     expect(workflow).to_have_attribute("data-identity-probe", "kept")
@@ -3975,7 +3986,7 @@ def test_an_exact_workflow_reports_stale_work_beside_a_live_page_claim(
     page.keyboard.press("c")
     expect(page.locator(".lf-thread-panel")).to_be_visible()
     work_line = page.locator(
-        f'.lf-thread[data-id="{held}"] > .lf-thread-content > .lf-thread-root-meta .lf-msg-sending'
+        f'.lf-thread[data-id="{held}"] .lf-msg[data-mid="{held}"] > .lf-msg-head .lf-msg-sending'
     )
     work_button = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
     held_thread = page.locator(f'.lf-thread[data-id="{held}"]')

@@ -340,12 +340,14 @@ def accept(directory: Path):
     collection.update({f"{profile}/{name}": data for name, data in files.items()})
     with tempfile.TemporaryDirectory(prefix="leaf-thread-images-") as staging:
         checkout = leaf_assets.stage(
-            ASSET_DIRECTORY, collection, Path(staging), replace_tree=True
+            ASSET_DIRECTORY,
+            collection,
+            Path(staging),
+            replace_tree=True,
+            revision_key="thread_snapshots_revision",
         )
         revision = leaf_assets.publish(
-            checkout,
-            f"Accept reviewed thread appearance for {profile}",
-            revision_key="thread_snapshots_revision",
+            checkout, f"Accept reviewed thread appearance for {profile}"
         )
     click.echo(f"Accepted {len(files) // 2} thread images: {revision}")
     click.echo("Validate with uv run pytest -n0 tests/test_render_thread_snapshots.py")

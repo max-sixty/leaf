@@ -503,10 +503,10 @@ class PiHarness(EnvironmentHarness):
 
     The extension calls the prompt hook as a user's prompt starts a run, the
     Stop hook as a run is about to settle (`agent_before_settle`, whose
-    `continue` keeps it going), and the Interrupt hook when a run settles
-    without going on from there, which is what an Escape does. As the session
-    starts and as each run settles it starts the watch (`leaf hook --harness pi
-    --watch`), with the Interrupt payload after an interrupted run. When the watch wakes
+    `continue` keeps it going). As the session starts and as each run settles
+    it starts the watch (`leaf hook --harness pi --watch`), with the Interrupt
+    payload, which closes the turn, after a run that settles without going on
+    from there, which is what an Escape does. When the watch wakes
     it, it calls the prompt hook itself and sends what that returns: a message
     an extension sends to an idle Pi starts a run without its prompt events
     (measured at 1.0.2)."""

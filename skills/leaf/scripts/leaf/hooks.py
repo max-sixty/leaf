@@ -153,9 +153,15 @@ def cmd_watch(harness: str, payload: dict) -> str | None:
     where it ends without waking it (`session.watch_between_turns`).
 
     It watches only while the session holds a page, and only where its harness
-    watches between turns. A watch started with an Interrupt payload, as Pi's
-    extension and Leaf's Claude Code hooks module start one when the user stops
-    a run, is a watch at an interrupted ending."""
+    watches between turns. Pi's extension and Leaf's Claude Code hooks module start
+    one with an Interrupt payload when the user stops a run: it answers the
+    Interrupt hook first, closing the turn, and then watches from an interrupted
+    ending. So the carrier's ending is one call, and the turn closes only once
+    the watch from before has exited, which would read the closed turn as the
+    Stop hook's ending."""
+    interrupted = payload.get("hook_event_name") == "Interrupt"
+    if interrupted:
+        cmd_hook(harness, payload)
     sid = payload.get("session_id") or ""
     if not owned_pages(sid):
         return None
@@ -166,9 +172,7 @@ def cmd_watch(harness: str, payload: dict) -> str | None:
         return None
     from .session import watch_between_turns
 
-    return watch_between_turns(
-        watching, interrupted=payload.get("hook_event_name") == "Interrupt"
-    )
+    return watch_between_turns(watching, interrupted=interrupted)
 
 
 def main(harness: str, *, watch: bool = False) -> None:

@@ -171,8 +171,7 @@ def test_the_pi_extension_keeps_a_run_going_for_input_that_arrives_in_it(
 ):
     """Input that arrives during a run with nothing watching, as under
     `pi --print`, is handed over as the run is about to settle, and keeps it
-    going. An Escape settles a run without going on from there, and closes the
-    turn."""
+    going."""
     pi = start_pi("print")
     pi.emit("before_agent_start")
     pi.emit("agent_start")
@@ -185,16 +184,14 @@ def test_the_pi_extension_keeps_a_run_going_for_input_that_arrives_in_it(
     [batch] = json.loads(entry["content"].split("\n")[1])["batches"]
     assert [event["id"] for event in batch["events"]] == [comment["id"]]
 
-    pi.emit("agent_start")
-    pi.emit("agent_settled", idle=True)
-    assert cleanup_model.session_record("pi-s1")["turn_closed"] is not None
-
 
 def test_an_escape_leaves_input_handed_to_the_run_for_the_next_prompt(page_dir, pi):
     """Input steered into a run the user then stops with Escape is not handed to
-    a new run of its own (`session.watch_between_turns`). The hook confirmed it as
-    it handed it over, so the user's next prompt carries it as a move still owed
-    its answer, picked up again in that run."""
+    a new run of its own (`session.watch_between_turns`). The Escape settles the
+    run without going on from there, and the watch the extension starts then
+    closes the turn. The hook confirmed the input as it handed it over, so the
+    user's next prompt carries it as a move still owed its answer, picked up
+    again in that run."""
     pi.emit("before_agent_start")
     pi.emit("agent_start")
     comment = append_carried_log_record(
@@ -203,7 +200,11 @@ def test_an_escape_leaves_input_handed_to_the_run_for_the_next_prompt(page_dir, 
     # The watch steers it into the run.
     assert pi.delivered(until=comment["id"]) == [comment["id"]]
     pi.emit("agent_settled", idle=True)
-    assert cleanup_model.session_record("pi-s1")["turn_closed"] is not None
+    wait_for(
+        lambda: cleanup_model.session_record("pi-s1")["turn_closed"],
+        bool,
+        failure="the Escape left the turn open",
+    )
 
     prompt = pi.emit("before_agent_start", idle=True)
     assert f"--for {comment['id']}" in prompt["message"]["content"]

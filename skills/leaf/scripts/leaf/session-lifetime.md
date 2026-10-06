@@ -323,13 +323,14 @@ say when it is not, rather than comparing the name itself. The carriers are:
   submits its line as a prompt, whose prompt hook hands the batch over; one that
   wakes during a turn calls the prompt hook itself and appends its context to that
   turn, which reads it at its next step. An interrupted turn runs no Stop hook, but
-  the module still sees it end, so it calls the Interrupt hook and starts the watch
-  with the Interrupt payload, as Pi's extension does.
+  the module still sees it end, so it starts the watch with the Interrupt payload,
+  as Pi's extension does.
 - Under Pi, the same watch, which Leaf's extension (`hooks/pi.ts`) starts as the
   session starts and as each run settles. When the watch exits with input, the
   extension calls the prompt hook and sends its context, which starts a run or
   steers the running one. After an interrupted run it starts the watch with the
-  Interrupt payload, which wakes only for input admitted after its first look.
+  Interrupt payload, which first answers the Interrupt hook, closing the turn,
+  and then wakes only for input admitted after its first look.
 - A sequence of direct watchers the model itself runs, where the wait prints the
   batch (a Codex task's own loop, a bare shell, a Claude Code session under plain
   `--print`): `leaf wait --ack <delivery-id>` advances the captured cursors and

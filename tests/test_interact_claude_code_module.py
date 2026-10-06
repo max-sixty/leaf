@@ -190,10 +190,10 @@ def test_the_module_hands_input_to_a_running_turn_and_closes_an_interrupted_one(
 ):
     """Input arriving during a turn is handed to that turn: the module calls the
     prompt hook and appends its delivery, which the turn reads at its next step.
-    An Escape then ends the turn with no Stop hook; the module calls the
-    Interrupt hook, which closes the turn the delivery opened, and goes on
-    watching from an interrupted ending, which wakes the session only for input
-    arriving after it (`session.watch_between_turns`)."""
+    An Escape then ends the turn with no Stop hook; the module starts the watch
+    with the Interrupt payload, which closes the turn the delivery opened and
+    wakes the session only for input arriving after it
+    (`session.watch_between_turns`)."""
     assert claude_code.watches.get(timeout=STATED_TIMEOUT) == "Stop"
     claude_code.start_turn()
     handed = append_carried_log_record(
@@ -204,8 +204,12 @@ def test_the_module_hands_input_to_a_running_turn_and_closes_an_interrupted_one(
     assert [event["id"] for event in batch["events"]] == [handed["id"]]
 
     claude_code.end_turn(interrupted=True)
-    assert cleanup_model.session_record(claude_code.session)["turn_closed"] is not None
     assert claude_code.watches.get(timeout=STATED_TIMEOUT) == "Interrupt"
+    wait_for(
+        lambda: cleanup_model.session_record(claude_code.session)["turn_closed"],
+        bool,
+        failure="the Escape left the turn open",
+    )
     # Input admitted before the new watch's first look waits for the next prompt
     # (`session.watch_between_turns`).
     wait_for(

@@ -10,9 +10,9 @@
  * - the session's start and each main-loop turn's end start the watch (`bin/leaf
  *   hook --harness claude-code --watch`), which prints a line and exits once one
  *   of the session's pages has input;
- * - a turn the user interrupts ends with no Stop hook, so the module calls the
- *   Interrupt hook, which closes the turn, and starts the watch with the
- *   Interrupt payload, which wakes only for input that arrives after it;
+ * - a turn the user interrupts ends with no Stop hook, so the module starts the
+ *   watch with the Interrupt payload, which closes the turn and wakes only for
+ *   input that arrives after it;
  * - a watch that wakes an idle session submits its line as a prompt, whose
  *   prompt hook hands the input over; one that wakes during a turn calls the
  *   prompt hook itself and appends what it returns to that turn, which reads it
@@ -83,11 +83,14 @@ async function stopWatch() {
   await stopping?.done
 }
 
-/** Keep one watch running, in the mode this ending asks for. A watch is replaced
- * only once the one before it has exited, since the session's wait lease admits
- * one. */
+/** Keep one watch running for this ending. A watch at a Stop ending goes on past
+ * another Stop ending; any other ending replaces it, and an interrupted one
+ * always starts afresh, since its watch closes the turn and looks at the logs
+ * anew. A watch is replaced only once the one before it has exited, since the
+ * session's wait lease admits one, and one from before would read the closed
+ * turn as the Stop hook's ending. */
 async function ensureWatch($: EngineInterface, session: string, interrupted: boolean) {
-  if (watch && watch.interrupted === interrupted) return
+  if (watch && !watch.interrupted && !interrupted) return
   await stopWatch()
   // Another ending may have started one while the old one exited.
   if (watch) return
@@ -168,14 +171,7 @@ export const register: Register = (on, options) => {
     const completed = await next(e)
     if (e.agentId !== undefined) return completed
     running = false
-    const session = await $.session.id()
-    if (e.isAborted) {
-      // A watch from before would read the closed turn as the Stop hook's
-      // ending, and hand the stopped turn's input to a new one.
-      await stopWatch()
-      await hook($, { hook_event_name: 'Interrupt', session_id: session })
-    }
-    void ensureWatch($, session, e.isAborted)
+    void ensureWatch($, await $.session.id(), e.isAborted)
     return completed
   })
 

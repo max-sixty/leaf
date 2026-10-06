@@ -12,8 +12,6 @@
  * - a user's prompt (`before_agent_start`) is the prompt hook;
  * - a run about to settle (`agent_before_settle`) is the Stop hook, whose
  *   context keeps the run going (`continue`);
- * - a run that settles without going on from there, as an Escape leaves it, is
- *   the Interrupt hook, which closes the turn;
  * - a session that ends, or that `/new`, `/resume` or `/fork` replaces, is
  *   SessionEnd. `/reload` keeps the session, so it only stops the watch, which
  *   the reloaded extension starts again.
@@ -22,9 +20,10 @@
  * call with `--watch`), which prints a line and exits once one of the session's
  * pages has input. It then calls the prompt hook and sends what it returns,
  * which starts a run when none is going (and runs no prompt events of its
- * own), or steers the running one. A watch started as an interrupted run
- * settles wakes only for input that arrives after it, so an Escape is not
- * undone by the input the run was already handed.
+ * own), or steers the running one. A run that settles without going on from
+ * there, as an Escape leaves it, starts the watch with the Interrupt payload:
+ * it closes the turn, and wakes only for input that arrives after it, so an
+ * Escape is not undone by the input the run was already handed.
  *
  * The session's shell-tool commands find the launcher as `$LEAF` and on PATH,
  * and Pi's process as LEAF_PI_PID, which is the session's lifetime. Hook
@@ -103,11 +102,14 @@ export default function leaf(pi: ExtensionAPI) {
 		await stopping?.done;
 	}
 
-	/** Keep one watch running, in the mode this ending asks for. A watch is
-	 * replaced only once the one before it has exited, since the session's wait
-	 * lease admits one. */
+	/** Keep one watch running for this ending. A watch at a Stop ending goes on
+	 * past another Stop ending; any other ending replaces it, and an interrupted
+	 * one always starts afresh, since its watch closes the turn and looks at the
+	 * logs anew. A watch is replaced only once the one before it has exited,
+	 * since the session's wait lease admits one, and one from before would read
+	 * the closed turn as the Stop hook's ending. */
 	async function ensureWatch(interrupted: boolean) {
-		if (!hasUI || disposed || (watch && watch.interrupted === interrupted)) return;
+		if (!hasUI || disposed || (watch && !watch.interrupted && !interrupted)) return;
 		await stopWatch();
 		// A shutdown, or another start, may have come while the old one exited.
 		if (disposed || watch) return;
@@ -179,12 +181,6 @@ export default function leaf(pi: ExtensionAPI) {
 	pi.on("agent_settled", async () => {
 		const interrupted = running && !settledByStop;
 		running = false;
-		if (interrupted) {
-			// A watch from before would read the closed turn as the Stop hook's
-			// ending, and hand the stopped run's input to a new one.
-			await stopWatch();
-			await hook({ hook_event_name: "Interrupt", session_id: session });
-		}
 		await ensureWatch(interrupted);
 	});
 }

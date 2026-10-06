@@ -36,11 +36,15 @@
 
    In either plane the box stands by the edges that hold it, one per axis (`held`). On
    the axis its placement stands it beside something, that is the edge facing it; on the
-   other, the edge its alignment names, the start for a centred box; and on an axis where
-   the boundary shifted the box in, the edge against that boundary. Content that grows
-   the box then moves only its free edges, in the layout that grows it. Stood by its
-   top-left corner, a box that grows at its left or top would paint grown the wrong way
-   for a frame, until the placement that follows the resize carried it back.
+   other, the edge its alignment names, the start for a centred box, or the edge the
+   surface keeps still of its own accord (a `hold` middleware's `edge`); and on an axis
+   where the boundary shifted the box in, the edge against that boundary. Content that
+   grows the box then moves only its free edges, in the layout that grows it. Stood by
+   its top-left corner, a box that grows at its left or top would paint grown the wrong
+   way for a frame, until the placement that follows the resize carried it back. A
+   surface whose next placement will hold the other edge for content it is about to
+   add says so first (`hold`), so the layout that adds the content already grows the
+   box the way that placement will stand it.
 
    Neither surface stands before the user acts, so the bundle stays off the presentation
    path and loads as soon as the page has presented, as an arrival the page answers for.
@@ -105,21 +109,30 @@ function holderOf({ edge, at }, context, overflowAncestors) {
   );
 }
 
-// The edges that hold the box where the answer stands it, one per axis, with the box's
-// size and its containing block's, which an inset on a right or bottom edge is measured
-// from. It runs after the surface's middleware, so it reads the box as sized and shifted.
+// The edges that hold the box, one per axis, for a placement and the middleware data
+// that produced it. A surface middleware named `hold` that keeps a block edge still
+// reports it as `edge`; an edge the boundary shifted the box against outranks it.
+function heldEdges(placement, middlewareData) {
+  const [side, alignment] = placement.split("-");
+  const aligned = (start, end) => (alignment === "end" ? end : start);
+  const edges =
+    side === "top" || side === "bottom"
+      ? { x: aligned("left", "right"), y: side === "top" ? "bottom" : "top" }
+      : { x: side === "left" ? "right" : "left", y: aligned("top", "bottom") };
+  edges.y = middlewareData.hold?.edge ?? edges.y;
+  const shifted = middlewareData.shift ?? {};
+  if (Math.abs(shifted.x ?? 0) >= 0.5) edges.x = shifted.x < 0 ? "right" : "left";
+  if (Math.abs(shifted.y ?? 0) >= 0.5) edges.y = shifted.y < 0 ? "bottom" : "top";
+  return edges;
+}
+
+// The edges that hold the box where the answer stands it, with the box's size and its
+// containing block's, which an inset on a right or bottom edge is measured from. It
+// runs after the surface's middleware, so it reads the box as sized and shifted.
 const held = {
   name: "held",
   async fn({ placement, rects, middlewareData, elements, platform }) {
-    const [side, alignment] = placement.split("-");
-    const aligned = (start, end) => (alignment === "end" ? end : start);
-    const edges =
-      side === "top" || side === "bottom"
-        ? { x: aligned("left", "right"), y: side === "top" ? "bottom" : "top" }
-        : { x: side === "left" ? "right" : "left", y: aligned("top", "bottom") };
-    const shifted = middlewareData.shift ?? {};
-    if (Math.abs(shifted.x ?? 0) >= 0.5) edges.x = shifted.x < 0 ? "right" : "left";
-    if (Math.abs(shifted.y ?? 0) >= 0.5) edges.y = shifted.y < 0 ? "bottom" : "top";
+    const edges = heldEdges(placement, middlewareData);
     const parent = await platform.getOffsetParent(elements.floating);
     const block = parent === window ? document.documentElement : parent;
     return {
@@ -240,10 +253,11 @@ export function floatingPlacement({ floating, update }) {
       });
     };
   let stand = placedAt;
+  let answered = null;
   let scrollAnimations = [];
   let placementProof = null;
   let stopScrollInvalidation = null;
-  return {
+  const surface = {
     // `reference` is what `computePosition` receives; `element` is the node it stands
     // for; `autoUpdate` declares which mechanical changes invalidate its placement.
     watch(element, reference, autoUpdate) {
@@ -378,6 +392,7 @@ export function floatingPlacement({ floating, update }) {
       return answer;
     },
     stand(answer) {
+      answered = answer;
       stand(answer);
       restoreNativeFocus?.();
       restoreNativeFocus = null;
@@ -418,6 +433,21 @@ export function floatingPlacement({ floating, update }) {
         }),
       );
     },
+    // Restands the box as though the last answer had held `edge` on the block axis
+    // (`top` or `bottom`), at the spot that answer gave that edge, before content the
+    // surface is about to add grows it. The growth then moves the other edge in the
+    // layout that adds it, as the placement that follows would. An edge the boundary
+    // shifted the box against still holds it.
+    hold(edge) {
+      if (!answered) return;
+      const { middlewareData } = answered;
+      const edges = heldEdges(answered.placement, { ...middlewareData, hold: { edge } });
+      if (edges.y === middlewareData.held.edges.y) return;
+      surface.stand({
+        ...answered,
+        middlewareData: { ...middlewareData, held: { ...middlewareData.held, edges } },
+      });
+    },
     // Where an answer stands the box, in client coordinates, from the measurement it was
     // solved against rather than read off the box, which may not yet be laid out
     // where a scroll the browser carried it through has put it.
@@ -444,6 +474,7 @@ export function floatingPlacement({ floating, update }) {
       observer = null;
       tenure = Object.freeze({});
       placementProof = null;
+      answered = null;
       stood.delete(floating);
       if (frame !== floating) {
         const restore = frame.contains(floating) ? holdFocus(floating) : null;
@@ -461,4 +492,5 @@ export function floatingPlacement({ floating, update }) {
         floating.style.removeProperty(property);
     },
   };
+  return surface;
 }

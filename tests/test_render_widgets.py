@@ -1128,7 +1128,8 @@ def test_a_queue_stands_its_items_under_their_groups(browser, serve):
     """Each run of neighbouring queue items that share a `group` stands under a label
     of it: a heading over the run in the column, and a word before the run's first tab
     in a phone's row. A label is not a tab, so the walk passes it by and assistive
-    technology hears the group in each tab's description instead."""
+    technology hears the group in each tab's description instead. A revision that moves
+    an item to another group moves it under that group's label."""
 
     def item(key, group):
         return (
@@ -1136,21 +1137,16 @@ def test_a_queue_stands_its_items_under_their_groups(browser, serve):
             f'summary="{key} summary"><p id="p-{key}">Item {key}.</p></lf-tab>'
         )
 
+    def queue(groups):
+        return leaf_page(
+            "Grouped queue",
+            '<h1 id="title">Triage</h1><lf-tabs id="queue" list="side">'
+            + "".join(item(key, group) for key, group in zip("abcde", groups))
+            + "</lf-tabs>",
+        )
+
     page = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "Grouped queue",
-                '<h1 id="title">Triage</h1><lf-tabs id="queue" list="side">'
-                + "".join(
-                    item(key, group)
-                    for key, group in zip(
-                        "abcde", ["Merge", "Merge", "Close", "FYI", "FYI"]
-                    )
-                )
-                + "</lf-tabs>",
-            )
-        ),
+        browser, live_url(serve(queue(["Merge", "Merge", "Close", "FYI", "FYI"])))
     )
     resized(page, 1200, 900)
     layout = """() => {
@@ -1188,6 +1184,13 @@ def test_a_queue_stands_its_items_under_their_groups(browser, serve):
     resized(page, 390, 844)
     row = page.evaluate(layout)
     assert all(g["before"] and g["inRow"] for g in row), row
+
+    revised = queue(["Merge", "Merge", "Merge", "FYI", "FYI"])
+    wait_for_revision(page, stamp_page(serve.page_dir, revised, "Regroup")["revision"])
+    expect(page.locator("#queue > .lf-tabstrip > .lf-tab-group")).to_have_text(
+        ["Merge", "FYI"]
+    )
+    expect(tabs.nth(2)).to_have_accessible_description("Merge group. c summary")
 
 
 def test_a_tab_strip_keeps_its_open_tab_in_its_one_row(browser, serve):

@@ -435,8 +435,9 @@ export function dress(root) {
 // and a page carrying one had to be either a cramped board or a page whose every
 // paragraph was widened to suit it. Neither is a choice a page should have to make, so
 // the widget declares its capacity (x-space) and the theme spends the room the layout
-// resolved by the CSS shell (--lf-room). `wide` uses the shared evidence cap;
-// `available` uses all remaining room. Internal arrangement remains package-owned.
+// resolved by the CSS shell (--lf-room). `column` keeps the prose measure in a wider
+// flow; `wide` uses the shared evidence cap; `available` uses all remaining room.
+// Internal arrangement remains package-owned.
 //
 // Whether the widget is set among the words around it is the second (x-inline). What
 // reads it is the pair of selectors asking whether a suggestion slot or a variant holds

@@ -214,6 +214,12 @@ def option_long(page: Page) -> None:
     )
 
 
+def options_in_pane(page: Page) -> None:
+    """An Ask's option list in a workspace pane, under the paragraphs it answers."""
+    page.get_by_text("Checkout p99 latency", exact=True).click()
+    page.locator("#ar-latency-decision > lf-options").scroll_into_view_if_needed()
+
+
 def card_grabbed(page: Page) -> None:
     """A board card grabbed by keyboard and carried one column left."""
     page.keyboard.press("Tab")
@@ -407,6 +413,7 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
         panel_reply_long,
         page_comment_long,
         option_long,
+        options_in_pane,
         card_grabbed,
         code_note,
         theme_hierarchy,
@@ -548,6 +555,14 @@ STATES = (
         touch=True,
     ),
     State("alert-option-long", "alert-review", option_long),
+    State("alert-options-in-pane", "alert-review", options_in_pane),
+    State(
+        "alert-options-in-pane-touch",
+        "alert-review",
+        options_in_pane,
+        viewport=(390, 844),
+        touch=True,
+    ),
     State(
         "alert-option-long-touch",
         "alert-review",

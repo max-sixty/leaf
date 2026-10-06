@@ -75,6 +75,7 @@
 
    A spatial element reads the room declared by `x-space`:
 
+   - `column` keeps the reading measure and starts where text does;
    - `wide` takes the shared capped evidence width;
    - `available` takes all room the page can give it.
 
@@ -857,12 +858,29 @@ main {
 @property --map { syntax: "<length>"; inherits: true; initial-value: 0px; }
 @property --sidebar { syntax: "<length>"; inherits: true; initial-value: 0px; }
 @property --note { syntax: "<length>"; inherits: true; initial-value: 0px; }
-/* Text keeps the reading measure wherever it stands: a paragraph, a list item or a
- * heading is never set wider than the column, however wide the box around it. Package
- * captions may span their own frame, so this typography rule shares their base layer. */
+/* The column: the reading measure, and the one rule that sets it. Text keeps it wherever
+ * it stands: a paragraph, a list item or a heading is never set wider than the column,
+ * however wide the box around it. So does a block allocated the column
+ * (`data-lf-space="column"`): a widget whose content is read as lines of text declares
+ * it (`x-space: column`), and an occurrence asks for it with `data-width`. Both start at
+ * their holder's start edge, so in a flow wider than the column (a wide page, a pane, a
+ * sidebar Layout's body) the widget's box and the prose around it share one left edge
+ * and one width. It caps the width and sets no margin, so a widget's own arrangement,
+ * such as an Ask's options track, still places the box. Package captions may span their
+ * own frame, so this rule shares their base layer at zero specificity. */
 @media screen {
-  :where(p, li, dt, dd, blockquote, figcaption, h1, h2, h3, h4, h5, h6) {
+  :where(p, li, dt, dd, blockquote, figcaption, h1, h2, h3, h4, h5, h6,
+    [data-lf-space="column"]) {
     max-inline-size: var(--col);
+  }
+  /* The measure is a text's line length, and an allocated box's outer width: the box
+   * the column would give it, its border and padding inside. The box states the column
+   * as the width it may reach (`--lf-reach`, as a breakout states its own in
+   * layouts.css), so a widget whose minimum reads it, such as a board's columns, keeps
+   * to the column and scrolls inside it. */
+  :where([data-lf-space="column"]) {
+    box-sizing: border-box;
+    --lf-reach: min(var(--col), var(--lf-room, 0px));
   }
   /* A bounded block scrolls within its stated height. A widget can assign that bound to
    * an inner reader instead, keeping its own caption outside the scroller. */

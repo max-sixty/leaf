@@ -53,7 +53,12 @@ import { keeps, layoutPx as px, atLayoutPrecision } from "/runtime/keeps.js";
 import { anchorElement, anchorName } from "/runtime/anchor-names.js";
 import { holdFocus } from "/runtime/focus.js";
 import { shownBand } from "/runtime/geometry.js";
-import { followScroll, scrollFollows, scrollMotions } from "/runtime/scroll-motion.js";
+import {
+  followScroll,
+  scrollFollows,
+  scrollMotions,
+  scrollOrigins,
+} from "/runtime/scroll-motion.js";
 import { containingReadingRegionFor } from "/runtime/reading-regions.js";
 import { upFrom } from "/runtime/shadow.js";
 
@@ -145,6 +150,23 @@ const INSETS = ["left", "right", "top", "bottom"];
 // child/holder displacement without granting that displacement to the owner.
 const stood = new Map();
 export const floatingSelections = () => [...stood.values()];
+
+const physicalContext = (context) =>
+  context?.nodeType === Node.TEXT_NODE ? context.parentElement : context;
+
+// A presenter can retain this reading beside its reference rectangle before a
+// module load. The anchor box and scroll origins must describe that same geometry.
+export function floatingGeometry(contexts) {
+  const anchors = new Map();
+  if (CSS.supports("anchor-name", "--lf-anchor"))
+    for (const context of contexts) {
+      const physical = physicalContext(context);
+      if (!physical) continue;
+      const anchor = anchorElement(physical);
+      anchors.set(anchor, anchor.getBoundingClientRect());
+    }
+  return { anchors, origins: scrollOrigins(contexts) };
+}
 
 export function floatingPlacement({ floating, update }) {
   // Native anchors carry all ancestors of their CSS box. Text inside a self-scroller
@@ -275,17 +297,18 @@ export function floatingPlacement({ floating, update }) {
     async position(computePosition, reference, options, planeOf, beside) {
       const placement = epoch;
       const context = reference.contextNode ?? beside;
-      const physical =
-        context?.nodeType === Node.TEXT_NODE ? context.parentElement : context;
+      const physical = physicalContext(context);
       const anchoring = CSS.supports("anchor-name", "--lf-anchor");
       const anchor = physical && anchoring ? anchorElement(physical) : null;
+      const client = anchor && reference.getBoundingClientRect();
+      const geometry = reference.geometry ?? floatingGeometry([context]);
+      const anchorBox = geometry.anchors.get(anchor);
+      const { origins } = geometry;
       const { getOverflowAncestors } = await floatingUi();
       if (placement !== epoch) return null;
       // Solver coordinates and native scroll origins are one measurement. A solve
       // can finish after scrolling; freezing both makes its native attachment carry
       // that intervening motion exactly once, regardless of when the solver reads.
-      const client = anchor && reference.getBoundingClientRect();
-      const anchorBox = anchor?.getBoundingClientRect();
       const measured = anchor
         ? {
             contextElement: reference.contextElement ?? beside,
@@ -300,10 +323,28 @@ export function floatingPlacement({ floating, update }) {
             (source) => source instanceof Element && !carried.has(source),
           )
         : [];
+      // Floating surfaces draw beyond their source's clip. Keep their native
+      // attachment alive until the whole surface can leave the window, rather
+      // than stopping when only the words have left the inner scrollport.
+      const surfaceBox = floating.getBoundingClientRect();
+      const reach =
+        Math.hypot(innerWidth, innerHeight) +
+        Math.hypot(surfaceBox.width, surfaceBox.height);
       const motions = sources.flatMap((source, i) =>
-        scrollMotions(source, sources[i - 1] ?? physical),
+        scrollMotions(
+          source,
+          sources[i - 1] ??
+            (source === physical
+              ? {
+                  contextElement: physical,
+                  getBoundingClientRect: measured.getBoundingClientRect,
+                }
+              : physical),
+          reach,
+          origins.get(source),
+        ),
       );
-      const canFollow = anchor && (!motions.length || scrollFollows());
+      const canFollow = anchor && motions.every((motion) => motion.timeline);
       motionFrame(canFollow ? motions : []);
       const answer = await computePosition(measured, frame, {
         ...options,
@@ -313,7 +354,7 @@ export function floatingPlacement({ floating, update }) {
       if (placement !== epoch) return null;
       // An unchanged native graph keeps following while a solve is in flight. Retire
       // its previous effects only when this answer can replace their measurement.
-      for (const animation of scrollAnimations) animation.cancel();
+      const previousAnimations = scrollAnimations;
       scrollAnimations = [];
       const { offset } = answer.middlewareData.anchorAt;
       const wanted = planeOf(answer);
@@ -350,8 +391,10 @@ export function floatingPlacement({ floating, update }) {
       }
       if (plane === "page")
         scrollAnimations = motions.map((motion, i) =>
-          followScroll(layers[i], motion, motion.scroll),
+          followScroll(layers[i], motion, motion.scroll, previousAnimations[i]),
         );
+      for (const animation of previousAnimations)
+        if (!scrollAnimations.includes(animation)) animation.cancel();
       stand = frameAnchor ? anchoredAt(frameAnchor, at) : placedAt;
       // anchorAt proves the solver's containing block is the window. Other
       // containing blocks have no declared prediction in this selection.

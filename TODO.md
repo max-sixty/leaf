@@ -32,14 +32,11 @@ has tried; settle that before building it.
   behavior.
 - **Keep the Thread hierarchy clear.** Check context, search, filters, agent
   activity, selection, and reply editing in the implemented accordion.
-- **Name a new Thread promptly everywhere.** A Claude Code page and an App Server
-  carrier (leaf.page and `leaf codex start`) title a thread from its opening
-  message in about 3 s (`thread_titles`). A Codex task Leaf reaches through `codex
-  queue` still titles on the agent's reply; give it the same request, through
-  `codex exec`. Worktrunk's `codex exec` command took 3.7–5 s and about 13k input
-  tokens per title here, and it leaves the user's MCP servers on, which the App
-  Server request turns off by name. A request at admission, as Claude Code's is,
-  would serve every harness once the page server can reach each one's model.
+- **Name a Pi Thread promptly.** Claude Code and Codex pages and leaf.page name a
+  thread from the user's words a few seconds after they arrive (`thread_titles`).
+  `PiHarness` has no `title_generator`, so a Pi page's thread is named only by the
+  agent's reply. Give the page server a request on Pi's configured model, such as
+  a print-mode run with tools, extensions and hooks off, and measure it.
 - **Keep a long Thread's standing visible.** Summary checkpoints already condense
   older messages. Test a current one-line reading of what is decided and what remains
   open, distinct from a historical summary, and decide how a revision invalidates it.
@@ -148,15 +145,6 @@ and its chrome coordinate.
 - **Decide whether the desktop bottom bar goes.** Its key hints would move behind `?`
   and its status into the banner; the bar is how a desktop user learns the keys
   without asking, which is the trade to weigh ([plan](notes/chrome-and-covers.md)).
-- **Align a widget's column with the text's measure.** `lf-options` cards run 1294px
-  beside 720px paragraphs in a wide panel, because text keeps the measure (`theme.css`,
-  `:where(p, li, …) { max-inline-size: var(--col) }`) and a widget without `x-space`
-  takes the whole flow. Declaring the existing column allocation on `lf-options` is not
-  enough on its own: `schema.py` allows `x-space` only `wide` and `available`, and
-  `[data-lf-space="column"]` centres its box (`margin-inline: auto`) while text in a
-  wide flow starts at the left edge. The column allocation and the text measure have to
-  align the same way first; start-aligned in any flow wider than the column is the
-  reading that matches the prose.
 - **Let a page restyle Leaf's chrome on purpose.** A page's rules reach a widget's
   controls when they name the widget (`runtime/page-sheets.js`), but `chrome.css` is
   unlayered and adopted after the page's sheets, so a page rule naming a chrome class

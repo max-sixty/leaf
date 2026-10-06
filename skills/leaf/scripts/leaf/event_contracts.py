@@ -41,7 +41,7 @@ from leaf.served_state.thread import browser_thread
 from leaf.structure import review_mode
 from leaf.tasks import task_error
 from leaf.work import widget_seat_error
-from leaf.workflows import admission_workflows, obligation_reading
+from leaf.workflows import admission_tasks, admission_workflows, obligation_reading
 
 # The envelope the append lease itself assigns. Admission validates the complete
 # record, so pre-admission shape checks supply representative envelope fields.
@@ -616,9 +616,10 @@ def admission_error(
 
 
 def _task_error(view, event: dict, events: list, readings) -> str | None:
-    """A task stands on an open thread, a widget that seats work, or the page; an
-    outcome ends a task still open; a start names an open task or a move the agent
-    owes (`tasks.task_error`)."""
+    """A task stands on an open thread, a widget that seats work or an element, or the
+    page, and a task on the user on no Ask, which already is one; an outcome ends a
+    task still open as its `ends` allows; a start names an open task or a move the
+    agent owes (`tasks.task_error`)."""
     if event["kind"] not in {"task", "task_end", "start"}:
         return None
     workflows = admission_workflows(readings)[0] if event["kind"] != "task_end" else []
@@ -633,8 +634,38 @@ def _task_error(view, event: dict, events: list, readings) -> str | None:
             return f"{widget!r} is not a widget on this page"
         return widget_seat_error(readings.page(view.revisions[-1]), widget, workflows)
 
+    def element_error(element: str) -> str | None:
+        if (
+            not view.revisions
+            or element not in readings.page(view.revisions[-1]).document.ids
+        ):
+            return f"{element!r} is not an element on this page"
+        return None
+
+    def user_widget_error(widget: str) -> str | None:
+        if error := element_error(widget):
+            return error
+        asks = read_document(readings.page(view.revisions[-1]), threads).asks["all"]
+        if ask := next(
+            (ask for ask in asks if widget in (ask["id"], ask["source"])), None
+        ):
+            return (
+                f"{widget!r} is an Ask, which already is a task on the user, under "
+                f"{ask['id']!r}, and ends when its widget answers it"
+            )
+        return None
+
     owed = {item["input"] for item in workflows if item["next_actor"] == "agent"}
-    return task_error(event, events, threads, seat_error, owed)
+    return task_error(
+        event,
+        events,
+        threads,
+        seat_error=seat_error,
+        element_error=element_error,
+        user_widget_error=user_widget_error,
+        owed=owed,
+        tasks=lambda: admission_tasks(readings),
+    )
 
 
 def _publication_error(view, event: dict) -> str | None:

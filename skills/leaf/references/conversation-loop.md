@@ -181,6 +181,20 @@ in the banner, through the user resolving it and the end of your session. When t
 result lands, write its outcome with `leaf task end <page> <task> done "<where the
 result is>"`, or `failed` or `dropped` with the reason, beside the reply that links
 it. While you work on it, start it, so the banner and the thread show your line.
-Work on a move that finishes inside the turn needs no task. `leaf page state` lists your
-open `tasks`, and its `queues` say what is on the user (`on_you`) and on you
-(`on_agent`).
+Work on a move that finishes inside the turn needs no task. `leaf page state` lists the
+open `tasks` with their `owner`: yours, and the user's, which include each open Ask
+and each question a thread leaves them. Its `queues` say what is on the user
+(`on_you`) and on you (`on_agent`).
+
+## Tasks on the user
+
+A task can also be on the user. An Ask is one, under the Ask's id, until its widget
+answers it, and a reply with `--awaits` is one, under the reply's id, until they
+answer in the thread or settle it with a reaction. When you need the user to do
+something neither answers, such as trying a build or following new steps on their
+phone, put a task on them: `leaf task open <page> <id> "<what you need>" --on user`,
+where `<id>` names the widget or section it concerns, or `page`. A thread takes no
+such task: ask there with `--awaits`. It waits on their queue until they press its
+Done, which reaches you like any move. When one no longer needs them, end it yourself
+with `leaf task end`, as you can a question by its reply's id. An Ask's task ends
+only at its answer; retire an Ask in a version (`authoring-asks.md`).

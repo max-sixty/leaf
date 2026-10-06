@@ -23,6 +23,7 @@ import { createBannerApprovalFace } from "./banner-approval.js";
 import { createBannerStatusView } from "./banner-status-view.js";
 import { declareBanner } from "./geometry.js";
 import { agentName, readApplication, watchSemantic } from "./semantic-state.js";
+import { taskNoun } from "./queues.js";
 
 export const banner = el("header", "lf-ui lf-banner");
 banner.id = "lf-banner";
@@ -262,7 +263,7 @@ const QUEUE_WORDS = Object.freeze({
 function queueKinds(items) {
   const byKind = new Map();
   for (const item of items)
-    byKind.set(item.kind, [...(byKind.get(item.kind) ?? []), item]);
+    byKind.set(taskNoun(item), [...(byKind.get(taskNoun(item)) ?? []), item]);
   return [...byKind].map(([kind, all]) => {
     const words = `${all.length} ${QUEUE_WORDS[kind][all.length === 1 ? 0 : 1]}`;
     // A task outlasts the turns and the thread that opened it (`tasks.py`), so each

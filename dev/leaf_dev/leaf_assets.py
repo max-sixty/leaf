@@ -11,9 +11,10 @@ the tree (`pinned_copy`):
 - `evals/<case>/` holds what an instruction case hands its child
   (`leaf_dev.eval`).
 
-`leaf-assets.json` pins one commit, so every Leaf checkout reads one immutable set; the
-README's image URLs name the same commit. Downloads land under .tmp, which both local
-builds and CI may discard and reconstruct.
+`leaf-assets.json` pins media and reviewed thread expectations independently. Media
+publication follows the asset head; only snapshot acceptance advances the expectations
+that belong to this runtime. README image URLs name the media commit. Downloads land
+under .tmp, which both local builds and CI may discard and reconstruct.
 
     uv run leaf-dev fetch-assets
 
@@ -32,6 +33,7 @@ import tarfile
 import tempfile
 import urllib.request
 from pathlib import Path, PurePosixPath
+from typing import Literal
 
 import click
 from leaf.media import media_name
@@ -42,12 +44,15 @@ from leaf_dev.example_data import catalog_sources
 LOCK = "leaf-assets.json"
 CACHE = ROOT / ".tmp" / "leaf-assets"
 README = ROOT / "README.md"
+RevisionKey = Literal["revision", "thread_snapshots_revision"]
 
 
-def specification(root: Path = ROOT) -> tuple[str, str]:
+def specification(
+    root: Path = ROOT, *, revision_key: RevisionKey = "revision"
+) -> tuple[str, str]:
     """The repository and revision the checkout at `root` pins."""
     locked = json.loads((root / LOCK).read_text(encoding="utf-8"))
-    return locked["repository"], locked["revision"]
+    return locked["repository"], locked[revision_key]
 
 
 def raw_prefix(repository: str) -> str:
@@ -86,9 +91,9 @@ def _download(repository: str, revision: str, target: Path) -> None:
         raise RuntimeError(f"could not fetch {url}: {error}") from error
 
 
-def pinned_assets(root: Path = ROOT) -> Path:
+def pinned_assets(root: Path = ROOT, *, revision_key: RevisionKey = "revision") -> Path:
     """Return the cached tree of the revision the checkout at `root` pins."""
-    repository, revision = specification(root)
+    repository, revision = specification(root, revision_key=revision_key)
     target = CACHE / revision
     if not (target / ".complete").is_file():
         _download(repository, revision, target)
@@ -167,43 +172,58 @@ def catalog_updates(checkout: Path) -> dict[Path, str]:
     return {page: markup for page, markup in pages.items() if markup != originals[page]}
 
 
-def stage(directory: str, files: dict[str, bytes], staging: Path) -> Path:
+def stage(
+    directory: str,
+    files: dict[str, bytes],
+    staging: Path,
+    *,
+    replace_tree: bool = False,
+) -> Path:
     """Clone the asset repository into `staging` with `directory`'s files exactly
     `files`, for a generator to verify before it publishes. Subdirectories are left
-    alone: `examples/media/` sits inside the previews' `examples/`. Leaf's catalog,
+    alone unless the caller owns the complete tree: `examples/media/` sits inside
+    the previews' `examples/`. Leaf's catalog,
     pin and README continue naming published bytes."""
     checkout = clone(staging)
     target = checkout / directory
     target.mkdir(parents=True, exist_ok=True)
-    for stale in target.iterdir():
-        if stale.is_file() and stale.name not in files:
+    for stale in target.rglob("*") if replace_tree else target.iterdir():
+        if stale.is_file() and stale.relative_to(target).as_posix() not in files:
             stale.unlink()
     for name, content in files.items():
-        (target / name).write_bytes(content)
+        path = target / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(content)
     return checkout
 
 
-def publish(checkout: Path, message: str) -> str:
-    """Publish the checkout, then install its pin, README and derived catalog links."""
+def publish(
+    checkout: Path, message: str, *, revision_key: RevisionKey = "revision"
+) -> str:
+    """Publish and advance only the consuming pin; media also updates catalog links."""
     repository, _ = specification(ROOT)
-    updates = catalog_updates(checkout)
+    updates = catalog_updates(checkout) if revision_key == "revision" else {}
     run("git", "add", "-A", cwd=checkout)
     if run("git", "status", "--porcelain", cwd=checkout):
         run("git", "commit", "-m", message, cwd=checkout)
     run("git", "push", cwd=checkout)
     revision = run("git", "rev-parse", "HEAD", cwd=checkout)
-    (ROOT / LOCK).write_text(
-        json.dumps({"repository": repository, "revision": revision}, indent=2) + "\n",
+    lock = ROOT / LOCK
+    locked = json.loads(lock.read_text(encoding="utf-8"))
+    locked[revision_key] = revision
+    lock.write_text(
+        json.dumps(locked, indent=2) + "\n",
         encoding="utf-8",
     )
-    README.write_text(
-        re.sub(
-            rf"({re.escape(raw_prefix(repository))})[0-9a-f]{{40}}/",
-            rf"\g<1>{revision}/",
-            README.read_text(encoding="utf-8"),
-        ),
-        encoding="utf-8",
-    )
+    if revision_key == "revision":
+        README.write_text(
+            re.sub(
+                rf"({re.escape(raw_prefix(repository))})[0-9a-f]{{40}}/",
+                rf"\g<1>{revision}/",
+                README.read_text(encoding="utf-8"),
+            ),
+            encoding="utf-8",
+        )
     for page, markup in updates.items():
         page.write_text(markup, encoding="utf-8")
     return revision
@@ -212,4 +232,5 @@ def publish(checkout: Path, message: str) -> str:
 @click.command("fetch-assets")
 def fetch_assets() -> None:
     """Fetch the generated images leaf-assets.json pins."""
-    click.echo(f"✓ {pinned_assets()}")
+    for revision_key in ("revision", "thread_snapshots_revision"):
+        click.echo(f"✓ {pinned_assets(revision_key=revision_key)}")

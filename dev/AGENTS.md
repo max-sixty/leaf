@@ -46,6 +46,8 @@ reaches a module by importing it from this package, never through `sys.path`,
   API and return a JSON reading. `--record .tmp/recordings/NAME` saves `trace.zip`
   and `video.webm` per arm, even on a failed assertion. `--gif` adds a looping GIF
   for short journeys; `--actions` opts into visible click/key decorations.
+  `--checkpoint-images` adds native PNG images at action phases for checkpoint review;
+  taking them adds capture work and briefly hides the live caret.
   Recordings default to normal motion; `--motion reduce` reproduces that preference.
   Plain recording inserts no pauses. `--actions` is for demonstrations: Playwright
   waits 500 ms before each annotated input. Native video holds its final frame for
@@ -58,7 +60,9 @@ reaches a module by importing it from this package, never through `sys.path`,
   into a before/after pair in its own run directory under `.tmp/stills/`.
 - `leaf-dev thread-snapshots` owns reviewed message-delivery images in leaf-assets;
   `thread_snapshots.py` owns capture and acceptance. Its shared journey replaces
-  the former panel/card sent stills.
+  the former panel/card sent stills. Acceptance alone advances
+  `leaf-assets.json`'s `thread_snapshots_revision`; media publication advances
+  `revision`, so new demo assets cannot replace a runtime's reviewed expectations.
 - `suite.py` runs a selection of the suite in a checkout and reads each test's
   outcome from pytest's junit report, refusing a selection pytest would not run.
 - `leaf-dev flake NODEID...` runs tests from the working tree as 18 copies, six at a

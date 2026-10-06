@@ -270,12 +270,18 @@ height and where a switch lands wait on the workspace decision under Layout.
 
 ### Recorded interaction review
 
-- **Bring richer trace inspection into Leaf's commentable timeline.** Review a
-  recording through its actual actions, timestamps and captured frames, with
-  playback, scrubbing, Before/Action/After snapshots, source, console and network
-  context. Keep comments attached to the immutable recording and action or frame;
-  opening a thread restores that moment. Reuse Playwright's capture and inspection
-  capabilities, and keep a direct link to its full viewer beside the Leaf timeline.
+Max's assessment (2026-10-05): "I'm not sure this is great." Ship the optional
+Leaf timeline as a trial alongside Playwright's viewer. Keeping it is undecided;
+we may use Playwright directly. Try the comment workflow before investing further
+in the integration.
+
+- **Explore DOM selection if we keep the imported timeline.** The optional `playwright`
+  package imports native actions, checkpoint images, captured frames and saved
+  accessibility elements; following their comments restores the moment. Reuse
+  Playwright's DOM renderer to add arbitrary element and passage selection, with
+  comments scoped to the archive, action, phase and captured DOM identity. Preserve
+  the distinction between a DOM snapshot and a separately captured image. Keep
+  source, console and network inspection available through the full viewer.
 
 ### The agent's text interface
 

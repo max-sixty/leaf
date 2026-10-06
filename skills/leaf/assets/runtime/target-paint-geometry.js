@@ -4,10 +4,12 @@
  * These operations hold no targets, nodes, caches or scheduled work; each painter
  * decides when geometry must be rebuilt and when only its placement has changed. */
 
+import { anchorElement, anchorName, scrollsWith } from "./anchor-names.js";
 import { paintClips, shownBox } from "./geometry.js";
 import { atLayoutPrecision, keeps, layoutPx } from "./keeps.js";
 import {
   followScroll,
+  scrollContainer,
   scrollFollows,
   scrollMotions,
   scrolledBy,
@@ -137,35 +139,93 @@ export function paintShape(host, geometry, { left, top, right, bottom }, options
 }
 
 // A stand holds one paint box over its target in the planes of what carries the target.
-// Each box that clips the target (`paintClips`) gets a frame cut to its band, standing in
-// the plane of the box that holds it, with one motion layer per axis it scrolls along
-// (scroll-motion.js); the paint box stands in the innermost. A scroll anywhere around
-// the target then moves the box and every cut over it in the frame that scrolls, and
-// placing it again after the scroll writes nothing, since every length is written where
-// it stands at its scrollers' start. The window's cuts, a header stuck over the page's
-// top and, for paint stacked above them, the auxiliary surfaces, stand in the window's
-// plane, as a fixed frame round the page's motion; with neither, the stand is absolute in the document, which the root
-// scroll carries. Without ScrollTimeline the frames stand where the scrollers stand now,
-// and the scroll that moves them places them again. The stand, not the box, carries the
-// paint's stacking (`data-lf-paint-plane`), since the frames and layers it holds stack
-// what they hold.
+// Each box that clips the target (`paintClips`) gets a frame cut to its band, inside the
+// frame of the box holding it; the paint box stands in the innermost. The window's cuts,
+// a header stuck over the page's top and, for paint stacked above them, the auxiliary
+// surfaces, stand in the window's plane, as a frame fixed where the window holds it. A
+// scroll anywhere around the target moves the box and every cut over it in the frame that
+// scrolls, and placing it again after the scroll writes nothing.
+//
+// Where anchors reach (`anchoredBy`), each frame and the box are fixed and anchored to
+// what holds them: a frame to the scroller whose band it cuts, which the scrolls around
+// that scroller carry and its own does not, and the box to its surface, each written as
+// insets from its anchor, which no scroll changes. A frame cuts with `clip-path`, which
+// clips the fixed boxes inside it without becoming their containing block, as a
+// transform would. Chrome paints an anchored box in the frame of the scroll that carries
+// it.
+//
+// Where an anchor does not reach what a stand holds, as a scroller inside a shadow tree,
+// the stand stands whole in motion layers (scroll-motion.js): each frame absolute in the
+// frame of the box holding it, with one motion layer per axis that box scrolls along,
+// every length written where it stands at its scrollers' start, and with no window frame
+// the stand is absolute in the document, which the root scroll carries. Chrome can paint
+// a layer a frame before or after the scroll it carries, so a stand uses them only there.
+// Without ScrollTimeline the frames stand where the scrollers stand now, and the scroll
+// that moves them places them again. The stand, not the box, carries the paint's
+// stacking (`data-lf-paint-plane`), since the frames and layers it holds stack what they
+// hold.
 export function paintStand(box) {
   const root = document.createElement("div");
   root.className = "lf-ui lf-target-paint lf-paint-stand";
   root.setAttribute("aria-hidden", "true");
   root.append(box);
-  return { root, box, levels: [] };
+  return { root, box, anchored: false, levels: [] };
 }
 
-// Whether two placements move a stand's layers along the same axes of the same scrollers.
-const sameGraph = (levels, stood) =>
-  levels.length === stood.length &&
+// The box an anchor carries `el` by for a stand at `root`: its anchor box
+// (anchor-names.js), where every scroll that moves `el` moves that box with it
+// (`scrollsWith`), or that box's own parts where `el` draws none. An anchor positions a
+// box only where it is laid out before that box, earlier in the document and outside
+// the top layer; null otherwise, and where the browser has no anchors.
+function anchoredBy(el, root) {
+  if (!CSS.supports("anchor-name", "--lf-anchor")) return null;
+  const anchor = anchorElement(el);
+  const order = anchor.compareDocumentPosition(root);
+  if (
+    !(order & Node.DOCUMENT_POSITION_FOLLOWING) ||
+    order & Node.DOCUMENT_POSITION_CONTAINED_BY ||
+    anchor.closest(":popover-open, :modal")
+  )
+    return null;
+  return anchor === el ||
+    (scrollsWith(el, anchor) && !scrollContainer(anchor)) ||
+    scrollsWith(anchor, el)
+    ? anchor
+    : null;
+}
+
+// Each level's motions in a stand that stands in motion layers: the scroll of the box
+// holding the level, along the axes it scrolls, carrying the box it holds next, the next
+// frame's or the surface's, whose paint reaches past it by the room a shape's stroke
+// takes. The window's frame carries the root's scroll where the paint stands in the page.
+function levelMotions({ surface, levels, plane, pad }) {
+  if (!scrollFollows(surface)) return levels.map(() => []);
+  const held = [...levels.filter(({ holder }) => holder).map(({ holder }) => holder)];
+  held.push(surface);
+  const reach = (i) => (i === held.length - 1 ? pad : 0);
+  let band = 0;
+  return levels.map(({ holder }) => {
+    if (!holder)
+      return plane === "page"
+        ? scrollMotions(surface.ownerDocument.scrollingElement, held[0], reach(0))
+        : [];
+    band += 1;
+    return scrollMotions(holder, held[band], reach(band));
+  });
+}
+
+// Whether two placements build a stand alike: anchored, or moving its layers along the
+// same axes of the same scrollers.
+const sameGraph = (stand, anchored, levels) =>
+  stand.anchored === anchored &&
+  levels.length === stand.levels.length &&
   levels.every(
     ({ motions }, i) =>
-      motions.length === stood[i].motions.length &&
+      motions.length === stand.levels[i].motions.length &&
       motions.every(
         ({ source, axis }, j) =>
-          source === stood[i].motions[j].source && axis === stood[i].motions[j].axis,
+          source === stand.levels[i].motions[j].source &&
+          axis === stand.levels[i].motions[j].axis,
       ),
   );
 const sameMotion = (a, b) =>
@@ -175,17 +235,18 @@ const sameMotion = (a, b) =>
   a.vector.x === b.vector.x &&
   a.vector.y === b.vector.y;
 
-function rebuild(stand, levels) {
+function rebuild(stand, anchored, levels) {
   for (const level of stand.levels)
     for (const animation of level.animations) animation.cancel();
   stand.root.replaceChildren();
+  stand.anchored = anchored;
   let parent = stand.root;
   stand.levels = levels.map(({ motions }) => {
     const frame = document.createElement("div");
     frame.className = "lf-paint-frame";
     parent.append(frame);
     parent = frame;
-    const layers = motions.map((motion) => {
+    const layers = motions.map(() => {
       const layer = document.createElement("div");
       layer.className = "lf-paint-motion";
       parent.append(layer);
@@ -202,19 +263,60 @@ function rebuild(stand, levels) {
   parent.append(stand.box);
 }
 
-const placeBox = (node, { left, top, right, bottom }, from) =>
+const sized = ({ left, top, right, bottom }) => ({
+  width: layoutPx(right - left),
+  height: layoutPx(bottom - top),
+});
+const placeBox = (node, box, from) =>
   Object.assign(node.style, {
-    left: layoutPx(left - from.x),
-    top: layoutPx(top - from.y),
-    width: layoutPx(right - left),
-    height: layoutPx(bottom - top),
+    left: layoutPx(box.left - from.x),
+    top: layoutPx(box.top - from.y),
+    ...sized(box),
   });
+// `box` written as insets from where `anchor` stands now, or where the window does.
+const anchorBox = (node, box, anchor) => {
+  const at = anchor?.getBoundingClientRect();
+  const from = (side, length) =>
+    anchor ? `calc(anchor(${side}, -9999px) + ${layoutPx(length)})` : layoutPx(length);
+  Object.assign(node.style, {
+    position: "fixed",
+    positionAnchor: anchor ? anchorName(anchor) : "",
+    positionVisibility: anchor ? "always" : "",
+    left: from("left", box.left - (at?.left ?? 0)),
+    top: from("top", box.top - (at?.top ?? 0)),
+    ...sized(box),
+  });
+};
+// A frame's cut on the axes its box clips, and none on the others.
+const cut = ({ x, y }) => {
+  const open = (clips) => (clips ? "0" : "-100000px");
+  return `inset(${open(y)} ${open(x)})`;
+};
 
 export function standOver(stand, placed, borderRadius) {
-  const { levels, fixed } = placed;
-  if (!sameGraph(levels, stand.levels)) rebuild(stand, levels);
+  const { levels, surface, fixed } = placed;
+  const anchors = [
+    ...levels.map(({ holder }) => holder && anchoredBy(holder, stand.root)),
+    anchoredBy(surface, stand.root),
+  ];
+  const anchored =
+    levels.every(({ holder }, i) => !holder || anchors[i]) && Boolean(anchors.at(-1));
+  const motions = anchored ? levels.map(() => []) : levelMotions(placed);
+  const graph = levels.map((level, i) => ({ ...level, motions: motions[i] }));
+  if (!sameGraph(stand, anchored, graph)) rebuild(stand, anchored, graph);
+  if (anchored) {
+    stand.root.style.position = "fixed";
+    graph.forEach(({ band, axes }, i) => {
+      const { frame } = stand.levels[i];
+      anchorBox(frame, band, anchors[i]);
+      frame.style.clipPath = cut(axes);
+    });
+    anchorBox(stand.box, placed.rect, anchors.at(-1));
+    Object.assign(stand.box.style, { display: "block", borderRadius });
+    return;
+  }
   // A subject that moved in its scroller, or grew, crosses the view over other scrolls.
-  levels.forEach(({ motions }, i) => {
+  graph.forEach(({ motions }, i) => {
     const stood = stand.levels[i];
     motions.forEach((motion, j) => {
       if (sameMotion(motion, stood.motions[j])) return;
@@ -228,11 +330,16 @@ export function standOver(stand, placed, borderRadius) {
     });
   });
   stand.root.style.position = fixed ? "fixed" : "absolute";
+  Object.assign(stand.box.style, {
+    position: "",
+    positionAnchor: "",
+    positionVisibility: "",
+  });
   // Where each level's contents stand from, in client coordinates: the document's origin
   // for an absolute stand, the window's for a fixed one, then each frame's corner,
   // carried back to where its scrollers start.
   let from = fixed ? { x: 0, y: 0 } : { x: -scrollX, y: -scrollY };
-  levels.forEach(({ band, axes, motions }, i) => {
+  graph.forEach(({ band, axes, motions }, i) => {
     const { frame } = stand.levels[i];
     placeBox(frame, band, from);
     Object.assign(frame.style, {
@@ -249,7 +356,8 @@ export function standOver(stand, placed, borderRadius) {
 // A stand whose box is put away keeps no frames, layers or timelines, which would hold
 // the scrollers they follow after a revision removed them.
 export function vacate(stand) {
-  if (stand.levels.length || stand.box.parentElement !== stand.root) rebuild(stand, []);
+  if (stand.levels.length || stand.box.parentElement !== stand.root)
+    rebuild(stand, false, []);
 }
 
 export function dropStand(stand) {
@@ -260,7 +368,8 @@ export function dropStand(stand) {
 // Where a paint box stands over `surface`, and what cuts it, or null where the cuts hide
 // all of it, for paint stacked `aboveSurfaces` (`data-lf-paint-plane`) or under them: `rect` is the box, the surface's own with room for a shape's stroke, and
 // `shown` the part of it no cut hides. `shapeKey` changes where a shape drawn in the box
-// must be drawn again.
+// must be drawn again. `levels` are the frames that cut it, outermost first, each with
+// the box `holder` whose band it is, none for the window's.
 export function placement(surface, shaped, aboveSurfaces) {
   const box = shownBox(surface);
   const pad = shaped ? SHAPE_STROKE_ROOM : 0;
@@ -271,28 +380,11 @@ export function placement(surface, shaped, aboveSurfaces) {
     bottom: box.bottom + pad,
   };
   const clips = paintClips(surface, rect, new Map(), aboveSurfaces);
-  const follows = scrollFollows(surface);
-  // Each level's motion follows the box it holds next: the next frame's, or the surface,
-  // whose paint reaches past it by the room a shape's stroke takes.
-  const held = [...clips.bands.map(({ box: holder }) => holder), surface];
-  const reach = (i) => (i === clips.bands.length ? pad : 0);
   const levels = [];
   if (clips.window)
-    levels.push({
-      band: clips.window,
-      axes: { x: true, y: true },
-      motions:
-        clips.plane === "page" && follows
-          ? scrollMotions(surface.ownerDocument.scrollingElement, held[0], reach(0))
-          : [],
-    });
-  clips.bands.forEach(({ box: holder, band, axes }, i) =>
-    levels.push({
-      band,
-      axes,
-      motions: follows ? scrollMotions(holder, held[i + 1], reach(i + 1)) : [],
-    }),
-  );
+    levels.push({ band: clips.window, axes: { x: true, y: true }, holder: null });
+  for (const { box: holder, band, axes } of clips.bands)
+    levels.push({ band, axes, holder });
   let shown = rect;
   for (const { band, axes } of levels)
     shown = {
@@ -307,6 +399,9 @@ export function placement(surface, shaped, aboveSurfaces) {
     shown,
     shapeKey: `${rect.right - rect.left}:${rect.bottom - rect.top}`,
     levels,
+    surface,
+    pad,
+    plane: clips.plane,
     fixed: clips.plane === "window" || Boolean(clips.window),
   };
 }

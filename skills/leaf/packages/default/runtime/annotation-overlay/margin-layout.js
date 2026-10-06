@@ -60,7 +60,12 @@ import { keeps, layoutPx } from "/runtime/keeps.js";
 import { declarationFor } from "/runtime/registry.js";
 import { LAYOUT } from "/runtime/widget-elements.js";
 import { inChrome } from "/runtime/passages.js";
-import { anchorReading, carriedAnchor, nameAnchor } from "/runtime/anchor-names.js";
+import {
+  anchorReading,
+  carriedAnchor,
+  nameAnchor,
+  scrollsWith,
+} from "/runtime/anchor-names.js";
 
 const rows = new Map();
 // A contents target's first shown part can leave while its declaration remains.
@@ -149,18 +154,6 @@ function moveHolding(node, move) {
   else move();
 }
 const isCarrier = (node) => node?.classList.contains("lf-margin-carrier");
-// Whether every scroll around `node` up to `scroller` moves it as it moves that
-// scroller's content: no box between them is sticky, fixed or absolute, whose spot
-// is not the scroll's alone.
-function rigidIn(node, scroller) {
-  for (let at = node; at && at !== scroller; at = renderedParent(at))
-    if (
-      at instanceof Element &&
-      !/^(static|relative)$/.test(getComputedStyle(at).position)
-    )
-      return false;
-  return true;
-}
 // The page's sideways scroll as the last pass placed rows: a rail row's carrier
 // follows its anchor down the page but stands across it in the window.
 let laidOutScrollX = 0;
@@ -1090,7 +1083,7 @@ export function layoutMarginRows({ retainSeats = false } = {}) {
     const shown = targetShown(target, extent, place === "pin" ? null : { top }, bands);
     const sources = scrollSources(point ?? target);
     const carrier =
-      sources.length && rigidIn(point ?? target, sources[0])
+      sources.length && scrollsWith(point ?? target, sources[0])
         ? carriedAnchor(sources[0])
         : null;
     // An anchor's name is read every pass, since a revision that rewrites its style

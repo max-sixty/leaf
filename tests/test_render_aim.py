@@ -69,18 +69,23 @@ from render_cases_widgets import (
 )
 from render_harness import (
     EXAMPLES,
+    FOLLOWER_MARK,
     LONG_PAGE,
     RELEASE_FOCUS,
     REPLAYED_PAGE,
     SAMPLE_PAGE,
+    SUBJECT_MARK,
     admit_before_presenting_comment,
+    assert_follows_in_every_frame,
     draft_key,
     expect_comment_notes,
     hold_pending_thread_presentation,
     judge_watches,
     leaf_page,
     open_page,
+    pane_posture,
     panel_settled,
+    regions_side_by_side,
     resized,
     round_trip,
     scroll_settled,
@@ -3533,6 +3538,45 @@ def test_a_scroll_under_a_held_aim_moves_the_promise_with_the_page(browser, serv
     }""",
         arg=first,
     )
+    page.keyboard.up("Alt")
+
+
+def test_a_held_aim_in_a_pane_paints_in_the_frame_its_target_scrolls(browser, serve):
+    """Every frame Chrome draws while a pane scrolls under a held aim shows the outline
+    level with what it outlines, since the browser carries both through the same scroll
+    (target-paint-geometry.js, `paintStand`). The target stands taller than a wheel step,
+    so the pointer stays on it and the aim stays its."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "an aim in a pane",
+                """
+  <div id="aim-split">
+    <lf-pane id="aim-pane" label="Findings">
+      <div>
+        <div style="height: 200px"></div>
+        <p id="pane-target" style="height: 260px">The first finding, aimed at.</p>
+        <div style="height: 1600px"></div>
+      </div>
+    </lf-pane>
+    <lf-pane id="other-pane" label="Notes"><div><p>Notes.</p></div></lf-pane>
+  </div>""",
+                head=regions_side_by_side("aim-split")
+                + f"<style>#pane-target {{ background:{SUBJECT_MARK}; }}"
+                f" .lf-aim {{ outline:6px solid {FOLLOWER_MARK} !important; }}</style>",
+                layout="workspace",
+            )
+        ),
+    )
+    resized(page, 1280, 720)
+    pane_posture(page, page.locator("#aim-pane"), "bounded")
+    target = page.locator("#pane-target").bounding_box()
+    page.mouse.move(target["x"] + 40, target["y"] + 130)
+    page.keyboard.down("Alt")
+    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "pane-target")
+    rendered(page)
+    assert_follows_in_every_frame(page, "#aim-pane > div")
     page.keyboard.up("Alt")
 
 

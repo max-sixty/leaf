@@ -6,7 +6,8 @@
  * its observation through the same arrivals door as the other chrome owners; its
  * weakly retained binding restores that observation when the control returns. */
 import { pagePlaneRect, shownParts } from "./geometry.js";
-import { hostIn } from "./shadow.js";
+import { hostIn, renderedParent } from "./shadow.js";
+import { scrollContainer } from "./scroll-motion.js";
 import { watchArrivals } from "./arrivals.js";
 
 // Anchor names are global to their tree, so one per target element, merged with whatever
@@ -48,6 +49,23 @@ export function anchorElement(target) {
   if (el !== target) return el;
   const [part] = shownParts(target);
   return part && part !== target ? part : target;
+}
+
+// Whether every scroll that moves `node` moves what `box` holds with it, so an anchor
+// on `box`, or on a box `box` holds still (`carriedAnchor`), carries `node` through each:
+// `box` holds `node`, and nothing from `node` up to `box` is sticky, fixed or absolute,
+// whose spot is not the scrolls' alone, or scrolls what it holds past `node`.
+export function scrollsWith(node, box) {
+  for (let at = node; at !== box; at = renderedParent(at)) {
+    if (!at) return false;
+    if (
+      at instanceof Element &&
+      (!/^(static|relative)$/.test(getComputedStyle(at).position) ||
+        (at !== node && scrollContainer(at)))
+    )
+      return false;
+  }
+  return true;
 }
 
 // An element `scroller`'s own scroll carries as it carries what the scroller holds: a

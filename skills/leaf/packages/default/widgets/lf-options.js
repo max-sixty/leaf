@@ -47,8 +47,9 @@
  * continues into that box. Every `multiple` group grows a Done press: each toggle
  * reaches the agent as it lands, so the press is the one statement that the set
  * is whole, posted as an `answer` action and held as the Ask's closing
- * condition (x-awaits.answered). Answered is paint on the press, never a wider word, and the
- * set can still change after — each later toggle still reaches the agent, who reads the log.
+ * condition (x-awaits.answered). Answered is paint on the press, never a wider word. A
+ * second press withdraws that answer through the widget's exact undo, reopening the Ask;
+ * the set can still change after either press, and each toggle reaches the agent.
  *
  * That paint goes on the press and nowhere else, which is a rule rather than a
  * preference. A module writes an attribute in the author's namespace only where the
@@ -236,7 +237,9 @@ class DoneControl extends LitElement {
       class="lf-btn lf-done lf-ui"
       data-lf-gen="1"
       data-lf-offer="button"
-      aria-label="Done: my picks here are complete"
+      aria-label=${this.answered
+        ? "Take back Done: reopen this question"
+        : "Done: my picks here are complete"}
       aria-pressed=${String(this.answered)}
     >
       <span
@@ -439,31 +442,42 @@ customElements.define(
       return this.#addition.input ? null : threadInput(this);
     }
 
-    // The one statement a live channel can't derive: the set is whole. One press,
-    // one `answer` action, and the decision this group stands as is discharged
-    // (x-awaits.answered). One-way — a later toggle still reaches the agent, so there
-    // is nothing to take back — and the answer is paint rather than a fold, so
-    // the pressed control's own line holds still.
+    // The one statement a live channel can't derive: the set is whole. Done is a
+    // reversible gesture; its pressed state is the standing answer action.
     #doneRow() {
       this.#done = offer(DONE_TAG, "lf-options-done");
       this.append(this.#done);
     }
 
-    // The press paints the completed answer before the log replies. The outbox carries
-    // that recordless verb beside recorded actions and refusal restores the prior state.
-    // The promise still makes one press one action however many times the button is hit
-    // while the first is in the wire.
+    #doneUndo() {
+      const answer = this.reading?.actions.answer;
+      const standing = answer?.standing[0]?.event;
+      return answer?.undo.find((event) => event.id === standing?.id) ?? null;
+    }
+
+    #doneAvailable() {
+      return this.reading?.state.answer?.action
+        ? Boolean(this.#doneUndo())
+        : this.#available("answer");
+    }
+
+    // The press paints its result before the log replies. The in-flight guard keeps
+    // repeated presses from sending duplicate answers or withdrawals.
     #answer() {
       if (this.#answering) return this.#answering;
-      if (!this.#available("answer")) return Promise.resolve(false);
-      const dispatched = this.#dispatch("answer", {});
+      if (!this.#doneAvailable()) return Promise.resolve(false);
+      const undo = this.#doneUndo();
+      const dispatched = undo
+        ? this.#controller.dispatch({ kind: "undo", target: undo.attempt ?? undo.id })
+        : this.#dispatch("answer", {});
       if (!dispatched) return Promise.resolve(false);
+      if (undo) this.#present(dispatched.reading);
       const sent = dispatched.delivery.then((accepted) => {
         if (!accepted) return false; // reconciliation restored the prior state
         // Usually replay has painted the accepted answer already. Repeat the absolute
         // paint for a partial render, but never over a same-read undo of this action.
         this.#present(this.#controller.read());
-        notice("Marked answered — sent");
+        if (!undo) notice("Marked answered — sent");
         return true;
       });
       this.#answering = sent;
@@ -590,8 +604,11 @@ customElements.define(
           decision: true,
           bindingBadge: () => this.#done.bindingBadge,
           title: "Done",
-          description: "Finish choosing options",
-          when: () => this.#available("answer"),
+          description: () =>
+            this.reading?.state.answer?.action
+              ? "Take back Done and keep choosing"
+              : "Finish choosing options",
+          when: () => this.#doneAvailable(),
           run: () => void this.#answer(),
         });
       commands(this, SECTION, answerRows);

@@ -2630,7 +2630,7 @@ Run the online schema migration before deploying.
 </lf-tab>
 
 <lf-tab id="corpus-notification-playground" label="Notification">
-<lf-ask id="notification-ask">
+<lf-ask id="notification-ask" data-width="available">
         <h1>Stress-test the deployment notification</h1>
         <lf-playground id="notification-playground" submit-label="Create notification">
           <lf-playground-control
@@ -2756,7 +2756,7 @@ Run the online schema migration before deploying.
         Compose ordered filters against a captured release set. The table and final
         instruction derive from the same structured configuration.
       </p>
-      <lf-ask id="release-query-ask">
+      <lf-ask id="release-query-ask" data-width="available">
         <h2>Which release query should the agent build?</h2>
         <lf-playground id="release-query-playground" submit-label="Build query">
           <lf-playground-control
@@ -2793,7 +2793,7 @@ Run the online schema migration before deploying.
         Both candidates are the shipped <code>lf-code</code> widget. One width gesture
         reaches both; candidate settings stay explicit and copyable.
       </p>
-      <lf-ask id="code-comparison-ask">
+      <lf-ask id="code-comparison-ask" data-width="available">
         <h2>Which built code-reader treatment should the agent keep?</h2>
         <lf-playground id="code-comparison-playground" submit-label="Apply treatment">
           <lf-playground-control
@@ -2879,7 +2879,7 @@ export function releaseLabels(releases) {
           </lf-playground-output>
         </lf-playground>
       </lf-ask>
-      <lf-ask id="code-targeting-ask">
+      <lf-ask id="code-targeting-ask" data-width="available">
         <h2>Which exact reader element should change?</h2>
         <p>
           Targeting keeps element identity separate from the comparison's visual labels
@@ -3153,7 +3153,7 @@ export const summarize = checks =>
           group="Mostly noise"
           summary="0 of 47 pages real"
         >
-          <lf-ask id="ar-canary-decision">
+          <lf-ask id="ar-canary-decision" data-width="wide">
             <h4>How should the canary probe page?</h4>
             <dl class="facts">
               <dt>Rule</dt>
@@ -3306,7 +3306,7 @@ export const summarize = checks =>
           group="Mostly noise"
           summary="0 of 18 pages real"
         >
-          <lf-ask id="ar-export-decision">
+          <lf-ask id="ar-export-decision" data-width="wide">
             <h4>What should happen during the nightly batch?</h4>
             <p>Finance reads the export at 07:00 UTC.</p>
             <dl class="facts">
@@ -3447,7 +3447,7 @@ export const summarize = checks =>
           group="Mostly noise"
           summary="1 of 3 pages real"
         >
-          <lf-ask id="ar-3ds-decision">
+          <lf-ask id="ar-3ds-decision" data-width="wide">
             <h4>Should one issuer's outage page us?</h4>
             <p>Per-issuer failure rates are already on the payments dashboard.</p>
             <dl class="facts">

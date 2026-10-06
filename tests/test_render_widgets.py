@@ -1790,16 +1790,17 @@ def test_regions_inside_a_bounded_pane_body_flow_within_the_body_that_scrolls(
 
 def test_a_release_page_is_wide_and_keeps_the_log_on_its_newest_line(browser, serve):
     """A sidebar page of body and track: the lede starts at the page's edge and keeps
-    the reading measure, every region of the body shares the body's two edges and every
-    region of the track the track's, and the checks table fills its panel. On a narrow
+    the reading measure, as does the status callout, every other region of the body
+    shares the body's two edges and every region of the track the track's, and the
+    checks table fills its panel. On a narrow
     window the track stacks under the body, and the bounded log opens on its newest
     line. Paper shows the log whole."""
     example = Path(__file__).parent.parent / "examples" / "live-progress.html"
     context = browser.new_context(viewport={"width": 1600, "height": 1000})
     page = open_page(browser, live_url(serve(example)), context=context)
-    body = ["lp-status", "lp-current-state", "lp-traffic", "lp-log"]
+    body = ["lp-status", "lp-traffic", "lp-log"]
     rail = ["lp-steps", "lp-checks", "lp-release"]
-    ids = [*body, *rail, "lp-checks-table", "lp-lede"]
+    ids = [*body, *rail, "lp-checks-table", "lp-lede", "lp-current-state"]
     boxes = f"""() => {{
       const read = Object.fromEntries({ids!r}.map(id =>
         [id, document.getElementById(id).getBoundingClientRect().toJSON()]));
@@ -1817,6 +1818,8 @@ def test_a_release_page_is_wide_and_keeps_the_log_on_its_newest_line(browser, se
     assert page_box["width"] > 1080, "the page should take the room past the wide width"
     assert wide["lp-lede"]["left"] == pytest.approx(page_box["left"], abs=1)
     assert wide["lp-lede"]["width"] <= 720 + 1
+    assert wide["lp-current-state"]["left"] == pytest.approx(page_box["left"], abs=1)
+    assert wide["lp-current-state"]["width"] == pytest.approx(720, abs=1)
     for track in (body, rail):
         for edge in ("left", "right"):
             assert {round(wide[i][edge]) for i in track} == {

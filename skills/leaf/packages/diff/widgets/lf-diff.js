@@ -12,6 +12,7 @@
  * clears this widget's file filter; addressed datum reveal also hydrates its file. */
 import {
   DISCLOSE,
+  HOLDS_WORD,
   announce,
   beginWalk,
   dataBody,
@@ -22,6 +23,7 @@ import {
   holdFocus,
   inChrome,
   inBaseLayer,
+  isPagePaint,
   commands,
   keeps,
   keepsText,
@@ -214,8 +216,12 @@ function summaryNode(file, open) {
   const details = document.createElement("details");
   details.className = "lf-diff-fold";
   details.open = open;
+  // The row's path gives way from its folders, and its title reaches only a pointer
+  // resting on it, so the row says the whole path while the keyboard stands on it or a
+  // press is held on it (held-word.js, shadow.css). It says `data-path`: the path with a
+  // zero-width space after each slash, since generated content takes no <wbr>.
   const summary = document.createElement("summary");
-  summary.className = "lf-diff-head";
+  summary.className = `lf-diff-head ${HOLDS_WORD}`;
   const path = file.name || "(unnamed file)";
   const { adds, dels } = changeCounts(file);
   const stat = Object.assign(document.createElement("span"), {
@@ -223,7 +229,9 @@ function summaryNode(file, open) {
     textContent: `+${adds} −${dels}`,
   });
   stat.dataset.lfGen = "1";
-  summary.append(pathNode("lf-diff-path", path), stat);
+  const named = pathNode("lf-diff-path", path);
+  named.dataset.path = path.replaceAll("/", "/\u200b");
+  summary.append(named, stat);
   commands(summary, "On a diff", [
     {
       id: "diff.toggle",
@@ -337,8 +345,10 @@ function replaceFileContent(entry, rendered, pairs, outlets) {
     next.comment = previous.comment;
   }
   if (pre && nextPre) {
+    // The fresh render's attributes, and whatever the runtime painted on the kept box,
+    // which a fresh render never carries (a scroller's marks, reach.js).
     for (const { name } of [...pre.attributes])
-      if (!nextPre.hasAttribute(name)) pre.removeAttribute(name);
+      if (!nextPre.hasAttribute(name) && !isPagePaint(name)) pre.removeAttribute(name);
     for (const { name, value } of nextPre.attributes) keeps(pre, name, value);
     setChildren(
       pre,
@@ -584,6 +594,8 @@ async function renderFile(file, sharedStyles, open) {
   const pre = rendered.querySelector("pre");
   if (!pre) throw new Error(`Pierre returned no diff for ${file.name || "a file"}`);
   const viewport = pre.querySelector("code[data-code]") ?? pre;
+  // Its last row clears the overlay scrollbar the pointer widens (shadow.css).
+  viewport.classList.add("lf-text-scroller");
   viewport.setAttribute("role", "region");
   viewport.setAttribute("aria-label", file.name || "diff");
 

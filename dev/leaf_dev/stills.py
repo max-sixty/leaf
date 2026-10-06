@@ -133,8 +133,9 @@ def composer(page: Page) -> None:
     page.mouse.down()
     page.mouse.move(box["x"] + 200, y, steps=8)
     page.mouse.up()
-    # Under a finger a selection offers Comment in the banner rather than a field.
-    if page.get_by_role("button", name="Comment on selection").is_visible():
+    # Under a finger a selection offers Comment in the banner rather than a field. It
+    # arrives on a later frame, so the pointer decides, not whether it is there yet.
+    if page.evaluate("matchMedia('(pointer: coarse)').matches"):
         page.get_by_role("button", name="Comment on selection").click()
     page.locator(".lf-fab-input").click()
     page.locator(".lf-composer leaf-text").focus()
@@ -212,6 +213,12 @@ def option_long(page: Page) -> None:
         "team channel instead, so the deploy trains stop paging anyone at all while "
         "a real outage still reaches a person within a couple of minutes"
     )
+
+
+def options_in_pane(page: Page) -> None:
+    """An Ask's option list in a workspace pane, under the paragraphs it answers."""
+    page.get_by_text("Checkout p99 latency", exact=True).click()
+    page.locator("#ar-latency-decision > lf-options").scroll_into_view_if_needed()
 
 
 def card_grabbed(page: Page) -> None:
@@ -304,6 +311,21 @@ def code_copy_by_keyboard(page: Page) -> None:
     page.locator("lf-code .lf-code-copy").first.get_by_role("button").focus()
 
 
+def diff_path_by_keyboard(page: Page) -> None:
+    """A folded diff file's row under the keyboard, saying the whole path its row cuts
+    short at the folders."""
+    heads = page.locator("#pr-exact-patch .lf-diff-head")
+    cut = heads.evaluate_all(
+        "heads => heads.findIndex((head) => {"
+        " const dir = head.querySelector('.lf-diff-dir');"
+        " return dir && dir.scrollWidth > dir.clientWidth; })"
+    )
+    head = heads.nth(cut)
+    head.scroll_into_view_if_needed()
+    page.keyboard.press("Shift")
+    head.focus()
+
+
 def code_source_by_touch(page: Page) -> None:
     """Reading code by touch, with the corner control disclosed away."""
     code_note(page)
@@ -338,6 +360,12 @@ def aim_cut_by_pane(page: Page) -> None:
 def element_thread(page: Page) -> None:
     """An element holding a thread, in view, with nothing indicating it."""
     page.locator("#off-t-vendor").evaluate("el => el.scrollIntoView({block: 'center'})")
+
+
+def more_menu(page: Page) -> None:
+    """The banner's More, opened: on a phone it leads with Approval."""
+    page.locator(".lf-banner-more").click()
+    page.locator(".lf-banner-menu").wait_for()
 
 
 def versions_menu(page: Page) -> None:
@@ -392,6 +420,7 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
         panel_reply_long,
         page_comment_long,
         option_long,
+        options_in_pane,
         card_grabbed,
         code_note,
         theme_hierarchy,
@@ -399,10 +428,12 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
         multiline_passage,
         code_copy_by_pointer,
         code_copy_by_keyboard,
+        diff_path_by_keyboard,
         code_source_by_touch,
         pane_focused,
         aim_cut_by_pane,
         element_thread,
+        more_menu,
         versions_menu,
         go_to,
         widget_inline_hints,
@@ -477,6 +508,10 @@ STATES = (
     State("plan-panel-beside", "review-a-plan", threads_panel, viewport=BESIDE),
     State("plan-go-to", "review-a-plan", go_to, viewport=(1024, 768)),
     State("plan-narrow", "review-a-plan", at_rest, viewport=(360, 740)),
+    State("plan-touch", "review-a-plan", at_rest, viewport=(390, 844), touch=True),
+    State(
+        "plan-more-touch", "review-a-plan", more_menu, viewport=(390, 844), touch=True
+    ),
     State(
         "plan-versions-touch",
         "review-a-plan",
@@ -531,7 +566,18 @@ STATES = (
         viewport=(390, 844),
         touch=True,
     ),
+    State(
+        "alert-queue-touch", "alert-review", at_rest, viewport=(390, 844), touch=True
+    ),
     State("alert-option-long", "alert-review", option_long),
+    State("alert-options-in-pane", "alert-review", options_in_pane),
+    State(
+        "alert-options-in-pane-touch",
+        "alert-review",
+        options_in_pane,
+        viewport=(390, 844),
+        touch=True,
+    ),
     State(
         "alert-option-long-touch",
         "alert-review",
@@ -550,6 +596,12 @@ STATES = (
         code_note,
         viewport=(390, 844),
         touch=True,
+    ),
+    State(
+        "walkthrough-path-keyboard",
+        "pr-walkthrough",
+        diff_path_by_keyboard,
+        viewport=(390, 844),
     ),
     State(
         "walkthrough-source-touch",

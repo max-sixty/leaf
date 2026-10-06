@@ -439,11 +439,16 @@ export function createAnnotationInventory({
       });
     });
 
-    // A task the agent opened on a page widget stands beside that widget, as Working
+    // A task the agent opened on a page widget or element stands beside it, as Working
     // with the line of the start running on it, or as an open task under its title.
-    // A thread's task is its thread's attention (above); the page's is the banner's.
+    // A thread's task is its thread's attention (above); the page's is the banner's. A
+    // task on the user is on their queue instead.
     for (const task of runtime.browser?.tasks ?? []) {
-      if (task.subject.kind !== "widget" || task.revision > runtime.currentRevision)
+      if (
+        task.owner !== "agent" ||
+        (task.subject.kind !== "widget" && task.subject.kind !== "element") ||
+        task.revision > runtime.currentRevision
+      )
         continue;
       if (activityAlreadyShown.has(`widget:${task.subject.id}`)) continue;
       const target = elementById(task.subject.id);

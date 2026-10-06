@@ -172,6 +172,7 @@ import {
   cardMeasure,
   cardMinimum,
   commentAttachment,
+  commentReference,
   commentBoundary,
   commentPlacement,
   makeRoom,
@@ -693,23 +694,6 @@ export function createMarginProjection({
   // foot (`holding`, comment-placement.js). The boundary caps the card at the room from
   // its held edge. Drafting grows the editor into that room, then scrolls its words
   // rather than carrying the card.
-  // Drafting is standing anywhere in the reply's row, Send included, holding words in
-  // it, or a send of the user's still on its way, whose turn is `latest`. The send takes
-  // the user out of the box it empties (`landSent`), and the turn it adds must not move
-  // the reply row or Send from under the press.
-  function cardDrafting(latest) {
-    const replyEditor = previewList.querySelector(REPLY_BOX);
-    const sending =
-      latest?.author === "user" &&
-      strongestWorkflow(latest.workflows)?.stage === "sending";
-    const drafting = Boolean(
-      replyEditor?.checkVisibility() &&
-      (replyEditor.closest(".lf-thread-reply").contains(document.activeElement) ||
-        replyEditor.value !== "" ||
-        sending),
-    );
-    return { drafting, draftText: replyEditor?.value ?? "" };
-  }
   function placeThreadPreview() {
     if (!previewOpen() || !previewMarginEntry?.isConnected) return false;
     const placement = previewPlacement.begin();
@@ -732,7 +716,20 @@ export function createMarginProjection({
       );
     const thread = threadCardThread();
     const latest = thread && turns(thread).at(-1);
-    const { drafting, draftText } = cardDrafting(latest);
+    const replyEditor = previewList.querySelector(REPLY_BOX);
+    // Drafting is standing anywhere in the reply's row, Send included, holding words in
+    // it, or a send of the user's still on its way. The send takes the user out of the
+    // box it empties (`landSent`), and the turn it adds must not move the reply row or
+    // Send from under the press.
+    const sending =
+      latest?.author === "user" &&
+      strongestWorkflow(latest.workflows)?.stage === "sending";
+    const drafting = Boolean(
+      replyEditor?.checkVisibility() &&
+      (replyEditor.closest(".lf-thread-reply").contains(document.activeElement) ||
+        replyEditor.value !== "" ||
+        sending),
+    );
     const boundary = commentBoundary({ region: place.region });
     if (!boundary.width || !boundary.height) {
       void floatingUi().then((ui) => stillCurrent() && watch(ui));
@@ -742,6 +739,7 @@ export function createMarginProjection({
     const { side, fresh, hold } = previewSide.choose({
       clear: place.clear,
       row: place.row,
+      column: place.column,
       extent: place.extent,
       boundary,
       scroller,
@@ -753,7 +751,7 @@ export function createMarginProjection({
       transcript: measureTranscript(),
       drafting,
       latest,
-      draftText,
+      draftText: replyEditor?.value ?? "",
     });
     void floatingUi()
       .then((ui) => {
@@ -802,12 +800,7 @@ export function createMarginProjection({
         watch(ui);
         return previewPlacement.position(
           ui.computePosition,
-          {
-            contextElement: place.element,
-            contextNode:
-              side === "left" || side === "right" ? place.contextNode : place.element,
-            getBoundingClientRect: () => reference,
-          },
+          commentReference(place, reference),
           { placement, middleware },
           plane,
           place.element,
@@ -1787,29 +1780,13 @@ export function createMarginProjection({
         previewClose,
       );
     };
-    // A turn joining while the user drafts or sends keeps the reply row where it
-    // stands (`holding`). The card stands by its foot before the turn is drawn, so the
-    // layout that adds the turn grows the card upward and lays the sent message, with
-    // its arrival cue, where the placement that follows keeps it.
-    if (
-      !arriving &&
-      latest &&
-      latest.key !== previewLatest?.key &&
-      previewSide.joinsAtFoot({ latest, ...cardDrafting(latest) })
-    )
-      previewPlacement.hold("bottom");
     if (!arriving && previewPlace) previewPlace.around(present);
     else {
       present();
       previewArriving = Boolean(previewTranscript);
       if (previewArriving) showLatestTurn(previewTranscript);
     }
-    previewLatest = latest && {
-      thread: selected.id,
-      id: latest.id,
-      key: latest.key,
-      text: latest.text,
-    };
+    previewLatest = latest && { thread: selected.id, id: latest.id, text: latest.text };
     if (follow) scrollToEnd(previewTranscript);
     // Fit the new content after restoring the reader but before paint; a deferred
     // pass exposes the previous height limit and makes a sent reply grow twice.

@@ -84,10 +84,13 @@
     /* Sticky, it can stand level with any band of the page, so it takes its whole side: a
      * breakout grows only rightward past it. */
     main.layout-column[data-lf-margin~="sidebar"] {
-      --lf-sidebar-posture: margin; --lf-taken-l: calc(var(--lf-beside) + var(--lf-shift)); }
+      --lf-sidebar-posture: margin; --lf-taken-l: calc(var(--lf-beside) + var(--lf-shift));
+      --lf-top-outer: var(--lf-top); }
+    /* It scrolls what it holds, so it starts `--lf-top` again for that (theme.css) and
+     * sticks at the value its column met. */
     main.layout-column[data-lf-margin~="sidebar"] > aside.sidebar:nth-child(1 of aside.sidebar) {
       float: left; clear: left; position: sticky;
-      top: calc(var(--lf-top) + var(--sp-4));
+      top: calc(var(--lf-top-outer) + var(--sp-4)); --lf-top: 0px;
       width: calc(var(--sidebar) - var(--sp-4));
       max-height: calc(var(--lf-view-height) - 2 * var(--sp-4));
       overflow-y: auto;
@@ -176,8 +179,11 @@
      * the page's own occurrence saying so (`data-width`). Delivery paints it into the
      * served document (revision_delivery.py, `mark_declared`), so a width is in the first
      * paint rather than a reflow once leaf.js resolves. In a message the runtime withholds
-     * the room deliberately, the document's rather than the panel's, by not painting it. */
-    [data-lf-space] {
+     * the room deliberately, the document's rather than the panel's, by not painting it.
+     * `column` is the measure text keeps rather than a breakout, so theme.css sets it in
+     * the rule that sets the text's; this rule grows `wide` and `available`, at the weight
+     * of one attribute so each value's rule below refines it. */
+    [data-lf-space]:where(:not([data-lf-space="column"])) {
       /* Held to what is free beside the page (main's --lf-free-l and --lf-free-r), and
        * spent evenly each way where both sides are free; otherwise the freer side takes
        * what the other lacks. */
@@ -198,12 +204,6 @@
        * with nothing reported. Size containment zeroes the box's say in any ancestor's
        * intrinsic width; what it holds already scrolls. */
       contain: inline-size;
-    }
-    [data-lf-space="column"] {
-      --lf-reach: min(var(--col), var(--lf-room, 0px));
-      --lf-surplus: 0px;
-      width: min(100%, var(--col));
-      margin-inline: auto;
     }
     /* `wide` is one width wherever the block stands. The breakout above only grows a
      * block past its holder, so in a holder already wider than `--wide`, such as a wide

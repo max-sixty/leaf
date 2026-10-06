@@ -28,10 +28,14 @@ is imported inside the functions that write a reply or a failure onto a thread
 rather than here.
 """
 
+import atexit
 import json
+import os
 import subprocess
 import sys
+import tempfile
 import time
+from collections.abc import Iterator
 from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -78,6 +82,9 @@ from .state import (
 )
 
 START_TIMEOUT = 20
+# Names the App Server a task runs on to the `leaf` commands it runs, so they hand
+# its pages to that server (`private_app_server`, `leaf codex start`).
+APP_SERVER_ENV = "LEAF_CODEX_APP_SERVER"
 # The `config` of a thread Leaf starts, less what Codex loads by default and no such
 # thread uses: the skills list, plugin and app suggestions, other agents, memories,
 # browser and computer use, image generation and web search. Each is context the
@@ -194,6 +201,71 @@ def stop_app_server(process: subprocess.Popen) -> None:
     except subprocess.TimeoutExpired:
         process.kill()
         process.wait(timeout=5)
+
+
+def _wait_for_app_server(path: Path, process: subprocess.Popen, log) -> None:
+    deadline = time.monotonic() + START_TIMEOUT
+    while time.monotonic() < deadline:
+        if path.exists():
+            return
+        if process.poll() is not None:
+            log.seek(0)
+            detail = log.read().decode(errors="replace").strip()
+            raise RuntimeError(detail or "Codex App Server exited before it was ready")
+        time.sleep(0.05)
+    raise RuntimeError("Codex App Server did not become ready")
+
+
+@contextmanager
+def private_app_server(
+    executable: str,
+    *,
+    env: dict[str, str] | None = None,
+    arguments: tuple[str, ...] = (),
+) -> Iterator[str]:
+    """Run one App Server on a Unix socket only this user can reach, and yield its
+    endpoint until the block ends or this process exits, and the server stops.
+
+    The server's environment names that endpoint as `LEAF_CODEX_APP_SERVER`, so a
+    task it runs hands its pages to this server when it serves them.
+    An eval may supply an isolated child environment without mutating this process,
+    and a caller `arguments` that follow `app-server` on its command line.
+
+    The server runs in a session of its own and never exits by itself, and a block
+    on a daemon thread, as a page server's title request is, never reaches its
+    `finally` when the process exits. So each running server is also stopped at
+    exit (`_stop_private_app_servers`), and on a SIGTERM or SIGHUP in a process that
+    turns them into an exit (`leases.release_on_termination`), as a page server
+    does. A SIGKILL leaves one running.
+    """
+    with tempfile.TemporaryDirectory(prefix="leaf-codex-", dir="/tmp") as directory:
+        path = Path(directory) / "app-server.sock"
+        endpoint = f"unix://{path}"
+        with tempfile.TemporaryFile() as log:
+            server = subprocess.Popen(
+                [executable, "app-server", "--listen", endpoint, *arguments],
+                env=(os.environ if env is None else env) | {APP_SERVER_ENV: endpoint},
+                stdin=subprocess.DEVNULL,
+                stdout=log,
+                stderr=subprocess.STDOUT,
+                start_new_session=True,
+            )
+            _private_app_servers.add(server)
+            try:
+                _wait_for_app_server(path, server, log)
+                yield endpoint
+            finally:
+                stop_app_server(server)
+                _private_app_servers.discard(server)
+
+
+_private_app_servers: set[subprocess.Popen] = set()
+
+
+@atexit.register
+def _stop_private_app_servers() -> None:
+    for server in list(_private_app_servers):
+        stop_app_server(server)
 
 
 def retry_delay(failures: int) -> int:
@@ -1405,8 +1477,10 @@ def _readdress_record(path: Path) -> Path:
         return replacement
 
 
-def offer_delivery(path: Path, record: dict, carrier: str) -> PreparedDelivery:
-    """Freeze one payload for `carrier` before offering its permanent pointer.
+def offer_delivery(path: Path, record: dict, *, turn_replies: bool) -> PreparedDelivery:
+    """Freeze one payload before offering its permanent pointer, with its thread
+    reply addressed to the turn it opens where that turn writes it
+    (`turn_replies`, `delivery.freeze_delivery`).
 
     A record already offering keeps the payload it froze: its pointer may have
     reached the task, and a delivery never changes under its id."""
@@ -1423,7 +1497,7 @@ def offer_delivery(path: Path, record: dict, carrier: str) -> PreparedDelivery:
         try:
             payload = freeze_delivery(
                 record["batches"],
-                carrier=carrier,
+                turn_replies=turn_replies,
                 delivery_id=path.stem,
                 created_at=record["created_at"],
             )
@@ -1559,7 +1633,7 @@ def offer_hook_delivery(session_id: str, turn_id: str) -> str | None:
         if pending is None:
             return None
         path, record = pending
-        prepared = offer_delivery(path, record, "queue")
+        prepared = offer_delivery(path, record, turn_replies=False)
         record["transport"] = {"phase": "hook", "turn": turn_id}
         write_record(prepared.record_path, record)
         return prepared.prompt
@@ -1788,7 +1862,7 @@ def prepare_codex_delivery(page_dir: Path, harness: Harness) -> PreparedDelivery
                     None,
                 )
                 if pending is not None:
-                    offered = offer_delivery(*pending, "app-server")
+                    offered = offer_delivery(*pending, turn_replies=True)
                     return PreparedDelivery(offered.prompt, offered.payload, transition)
                 captured = append_batch(
                     session_id,
@@ -1799,7 +1873,7 @@ def prepare_codex_delivery(page_dir: Path, harness: Harness) -> PreparedDelivery
                 if captured is None:
                     raise RuntimeError("the page input is already in a Codex delivery")
                 path, _, _ = captured
-                offered = offer_delivery(path, read_record(path), "app-server")
+                offered = offer_delivery(path, read_record(path), turn_replies=True)
                 return PreparedDelivery(offered.prompt, offered.payload, transition)
     except BaseException:
         restore_page_claim(page_dir, transition)

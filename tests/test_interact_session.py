@@ -1,5 +1,6 @@
 """Watch, ownership, hook, and server-lifetime tests."""
 
+import contextlib
 import fcntl
 import http.client
 import http.cookiejar
@@ -23,6 +24,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from xml.etree import ElementTree
 
+import psutil
 import pytest
 from click.testing import CliRunner
 from conftest import CLAUDE_IDENTITY, HOOKED_SESSIONS, LEAF_COMMAND
@@ -39,6 +41,7 @@ from interact_support import (
     _status,
     append_carried_log_record,
     append_command,
+    asks_on_you,
     available_loopback_port,
     check,
     consume_pending_input,
@@ -105,6 +108,7 @@ from leaf.registry import storage as registry_storage
 from leaf.served_state import browser as browser_served_model
 from leaf.served_state import context as read_context
 from leaf.served_state import page as served_page
+from leaf_dev.arms import PageClient
 from leaf_dev.page_fixtures import package_selection_args
 from websockets.exceptions import WebSocketException
 from websockets.sync.server import serve as serve_websocket
@@ -130,7 +134,6 @@ def woken(output: str, session: str | None = None) -> tuple[dict, dict, list[dic
     assert "has new input" in output, output
     payload = consume_pending_input(session or session_model.session_harness().session)
     assert payload["format"] == delivery_model.DELIVERY_FORMAT
-    assert payload["carrier"] == "hook"
     assert payload["acknowledge"] is None
     [batch] = payload["batches"]
     return payload, batch, batch["events"]
@@ -151,7 +154,7 @@ def printed(output: str) -> tuple[dict, dict, list[dict]]:
     (a bare shell, a Codex watcher): its reader confirms it with `wait --ack`."""
     payload = json.loads(output)
     assert payload["format"] == delivery_model.DELIVERY_FORMAT
-    assert payload["carrier"] == "wait"
+    assert payload["acknowledge"] is not None
     [batch] = payload["batches"]
     return payload, batch, batch["events"]
 
@@ -276,7 +279,7 @@ def freeze_events(page_dir: Path, events: list[dict]) -> dict:
             [stored[event["id"]] for event in events],
         )
     return delivery_model.freeze_delivery(
-        [batch], carrier="wait", acknowledge=session_model.wait_acknowledgement(None)
+        [batch], acknowledge=session_model.wait_acknowledgement(None)
     )
 
 
@@ -305,8 +308,8 @@ def test_delivery_ids_are_short_and_rerolled_under_the_store_lock(monkeypatch):
         return next(minted)
 
     monkeypatch.setattr(delivery_model.secrets, "token_hex", token_hex)
-    first = delivery_model.freeze_delivery([], carrier="wait", created_at=1)
-    second = delivery_model.freeze_delivery([], carrier="wait", created_at=2)
+    first = delivery_model.freeze_delivery([], created_at=1)
+    second = delivery_model.freeze_delivery([], created_at=2)
 
     assert widths == [4, 4, 4]
     assert (first["id"], second["id"]) == ("aaaaaaaa", "bbbbbbbb")
@@ -325,11 +328,11 @@ def test_codex_readdresses_a_collecting_record_if_its_delivery_id_collides(
             "collision-test", page_dir, transaction, transaction.events
         )
     assert path.stem == "aaaaaaaa"
-    delivery_model.freeze_delivery(
-        [], carrier="wait", delivery_id=path.stem, created_at=0
-    )
+    delivery_model.freeze_delivery([], delivery_id=path.stem, created_at=0)
 
-    prepared = codex_model.offer_delivery(path, files_model.read_json(path), "queue")
+    prepared = codex_model.offer_delivery(
+        path, files_model.read_json(path), turn_replies=False
+    )
 
     assert prepared.payload["id"] == "bbbbbbbb"
     assert prepared.record_path == path.with_name("bbbbbbbb.json")
@@ -956,7 +959,16 @@ def test_thread_attention_names_the_workflow_the_thread_waits_on():
             threads,
             {"user": []},
             browser_served_model.served_workflows(workflows, frozen),
-            [{"id": "t1", "title": "Rebuild", "thread": "root", "running": None}],
+            [
+                {
+                    "id": "t1",
+                    "owner": "agent",
+                    "subject": {"kind": "thread", "id": "root"},
+                    "title": "Rebuild",
+                    "thread": "root",
+                    "running": None,
+                }
+            ],
         )
         assert threads[0]["attention"] == {
             "kind": "waiting",
@@ -969,7 +981,16 @@ def test_thread_attention_names_the_workflow_the_thread_waits_on():
         threads,
         {"user": []},
         [],
-        [{"id": "t1", "title": "Rebuild", "thread": "root", "running": None}],
+        [
+            {
+                "id": "t1",
+                "owner": "agent",
+                "subject": {"kind": "thread", "id": "root"},
+                "title": "Rebuild",
+                "thread": "root",
+                "running": None,
+            }
+        ],
     )
     assert threads[0]["attention"] == {
         "kind": "waiting",
@@ -1480,9 +1501,8 @@ def titling_app_server(app_server, answer: str) -> tuple[str, list[dict]]:
 
 def test_an_app_server_turn_names_the_untitled_thread_it_answers(page_dir, app_server):
     """A turn over App Server writes its reply with its own messages, so it has no
-    `--title` to name the thread with; the carrier names it beside the turn, from
-    the opening message and the passage it is on, and the delivery does not ask the
-    turn to."""
+    `--title` to name the thread with; the carrier names it from the opening message
+    and the passage it is on, and the delivery does not ask the turn to."""
     comment = append_carried_log_record(
         page_dir,
         {
@@ -1503,9 +1523,10 @@ def test_an_app_server_turn_names_the_untitled_thread_it_answers(page_dir, app_s
 
     endpoint, received = titling_app_server(app_server, '{"title": "Export speed"}')
     records = []
-    thread_titles.name_untitled_threads(
+    thread_titles.name_thread(
         thread_titles.app_server_title(endpoint, "light-model"),
-        prepared.payload,
+        page_dir,
+        comment["id"],
         "hosted-thread",
         lambda event, **fields: records.append((event, fields)),
     )
@@ -1549,15 +1570,16 @@ def test_a_title_is_drawn_from_the_opening_message_not_the_latest(page_dir, app_
             "text": "also, thanks",
         },
     )
-    prepared = codex_model.prepare_codex_delivery(
+    codex_model.prepare_codex_delivery(
         page_dir,
         harness_model.EmbeddedHarness("hosted-thread", "Leaf guide", os.getpid()),
     )
     endpoint, received = titling_app_server(app_server, '{"title": "Export speed"}')
     records = []
-    thread_titles.name_untitled_threads(
+    thread_titles.name_thread(
         thread_titles.app_server_title(endpoint, None),
-        prepared.payload,
+        page_dir,
+        comment["id"],
         "hosted-thread",
         lambda event, **fields: records.append((event, fields)),
     )
@@ -1569,36 +1591,46 @@ def test_a_title_is_drawn_from_the_opening_message_not_the_latest(page_dir, app_
     assert "thanks" not in text["text"]
 
 
-def test_a_generated_title_yields_to_one_the_agent_wrote_first(page_dir, app_server):
+def test_a_generated_title_yields_to_one_the_agent_wrote_first(page_dir):
+    """A title that comes back after the agent named the thread is dropped, and a
+    thread the agent named is not asked about."""
     comment = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "Tighten the intro"}
     )
-    prepared = codex_model.prepare_codex_delivery(
+    codex_model.prepare_codex_delivery(
         page_dir,
         harness_model.EmbeddedHarness("hosted-thread", "Leaf guide", os.getpid()),
     )
-    append_command(
-        page_dir,
-        {
-            "kind": "thread_title",
-            "author": "agent",
-            "agent": "Leaf guide",
-            "session": "hosted-thread",
-            "thread": comment["id"],
-            "title": "Intro",
-        },
-    )
-    endpoint, _ = titling_app_server(app_server, '{"title": "Shorter intro"}')
-    records = []
-    thread_titles.name_untitled_threads(
-        thread_titles.app_server_title(endpoint, None),
-        prepared.payload,
-        "hosted-thread",
-        lambda event, **fields: records.append((event, fields)),
-    )
-    wait_for(lambda: records, bool, failure="the title was never generated")
 
-    assert records[0][1]["written"] is False
+    def generate(request: str, target: Path) -> dict:
+        append_command(
+            page_dir,
+            {
+                "kind": "thread_title",
+                "author": "agent",
+                "agent": "Leaf guide",
+                "session": "hosted-thread",
+                "thread": comment["id"],
+                "title": "Intro",
+            },
+        )
+        return {"title": "Shorter intro"}
+
+    records = []
+    for _ in range(2):
+        thread_titles.name_thread(
+            generate,
+            page_dir,
+            comment["id"],
+            "hosted-thread",
+            lambda event, **fields: records.append((event, fields)),
+        )
+        for worker in threading.enumerate():
+            if worker.name == "leaf-thread-title":
+                worker.join(timeout=STATED_TIMEOUT)
+
+    [(event, fields)] = records
+    assert (event, fields["written"]) == ("thread_title_generated", False)
     titles = [
         e["title"]
         for e in events_model.read_events(page_dir)
@@ -1683,6 +1715,87 @@ def test_a_comment_on_a_claude_code_page_is_named_as_it_arrives(
     assert not log.exists()
 
 
+def test_a_comment_on_a_codex_page_is_named_as_it_arrives(
+    page_dir, app_server, monkeypatch
+):
+    """A Codex task's turns may run through `codex queue`, which reaches no model, or
+    through an App Server that starts the next turn only once the running one ends;
+    either way its page server names the thread as the comment arrives, through an
+    App Server of its own that runs none of the user's hooks or MCP servers and
+    carries none of the session's identity."""
+    record_claim(page_dir, id="codex-thread", harness="codex", agent="Codex")
+    assert stamp(page_dir, "first").exit_code == 0
+    endpoint, received = titling_app_server(app_server, '{"title": "Export speed"}')
+    servers = []
+
+    @contextlib.contextmanager
+    def title_server(executable, *, env, arguments):
+        servers.append((executable, env, arguments))
+        yield endpoint
+
+    monkeypatch.setattr(thread_titles, "private_app_server", title_server)
+    monkeypatch.setenv("CODEX_THREAD_ID", "codex-thread")
+
+    status, body = endpoint_model.accept_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "revision": 1,
+            "text": "Why does the export take a minute?",
+        },
+        dict,
+    )
+    assert status == 200, body
+    [title] = wait_for(
+        lambda: [
+            e for e in events_model.read_events(page_dir) if e["kind"] == "thread_title"
+        ],
+        bool,
+        failure="the thread was never named",
+    )
+    assert (title["title"], title["agent"], title["session"]) == (
+        "Export speed",
+        "Codex",
+        "codex-thread",
+    )
+    [(executable, env, arguments)] = servers
+    assert executable == shutil.which("codex")
+    assert "CODEX_THREAD_ID" not in env
+    # A server with plugins on syncs every marketplace the user configured.
+    assert arguments == ("--disable", "plugins")
+    [start] = [m for m in received if m.get("method") == "thread/start"]
+    assert start["params"]["config"]["features"]["hooks"] is False
+    assert start["params"]["config"]["mcp_servers"] == {"docs": {"enabled": False}}
+    assert "model" not in start["params"]
+
+    # A reaction opens a thread with no words; the reply that gives it some names it.
+    reaction = append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "token": "mark"}
+    )
+    status, body = endpoint_model.accept_event(
+        page_dir,
+        {
+            "kind": "reply",
+            "revision": 1,
+            "parent": reaction["id"],
+            "text": "Can the import run in parallel?",
+        },
+        dict,
+    )
+    assert status == 200, body
+    wait_for(
+        lambda: [
+            e
+            for e in events_model.read_events(page_dir)
+            if e["kind"] == "thread_title" and e["thread"] == reaction["id"]
+        ],
+        bool,
+        failure="the reaction's thread was never named",
+    )
+    turns = [m for m in received if m.get("method") == "turn/start"]
+    assert "Can the import run in parallel?" in turns[-1]["params"]["input"][0]["text"]
+
+
 def test_a_title_request_that_outlives_its_session_leaves_no_log(claimed):
     """SessionEnd removes the session's titles log, and a request still waiting on
     the model when it runs finishes after that; it writes neither the title nor a
@@ -1696,7 +1809,7 @@ def test_a_title_request_that_outlives_its_session_leaves_no_log(claimed):
         answered.wait(timeout=STATED_TIMEOUT)
         return {"title": "Intro"}
 
-    thread_titles.name_opened_thread(generate, claimed, comment["id"], "s1")
+    thread_titles.name_admitted_thread(generate, claimed, comment["id"], "s1")
     hooks_model.cmd_hook(
         "claude-code", {"hook_event_name": "SessionEnd", "session_id": "s1"}
     )
@@ -1713,7 +1826,7 @@ def test_a_title_request_that_outlives_its_session_leaves_no_log(claimed):
 def test_both_harnesses_are_asked_for_a_title_in_the_same_words(
     page_dir, app_server, tmp_path, monkeypatch, snapshot
 ):
-    """Claude Code's `claude -p` and an App Server carrier are sent the same system
+    """Claude Code's `claude -p` and a Codex App Server are sent the same system
     prompt, request and answer schema; the snapshot is that request, verbatim."""
     comment = append_carried_log_record(
         page_dir,
@@ -1724,7 +1837,7 @@ def test_both_harnesses_are_asked_for_a_title_in_the_same_words(
             "anchor": {"section": None, "quote": "Export runs nightly"},
         },
     )
-    request = thread_titles.title_request(page_dir, comment["id"])
+    _, request = thread_titles.title_request(page_dir, comment["id"])
 
     programs = tmp_path / "programs"
     programs.mkdir()
@@ -1751,7 +1864,7 @@ def test_both_harnesses_are_asked_for_a_title_in_the_same_words(
     placeholders = {system_prompt: "<system_prompt>", json.dumps(schema): "<schema>"}
     snapshot.check(
         yaml_document(
-            "What Claude Code's page server runs, what it and an App Server carrier "
+            "What Claude Code's page server runs, what it and a Codex App Server "
             "both send, and\nthe App Server's titling thread, for a thread opened "
             "on a passage.",
             {
@@ -1930,7 +2043,7 @@ def test_a_start_is_one_log_record_read_at_the_banner_and_the_move(
     append_carried_log_record(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "why?"}
     )
-    assert "neither an open task nor a move you owe" in (
+    assert "neither an open task of yours nor a move you owe" in (
         _start(page_dir, "nope", "reading the traces").output
     )
     assert _start(page_dir, "c1", "").exit_code != 0
@@ -2537,6 +2650,7 @@ def test_a_harness_step_waiting_on_the_user_outlasts_the_working_grace():
         {
             "kind": "task",
             "id": "t1",
+            "owner": "agent",
             "seq": 1,
             "ts": old,
             "subject": {"kind": "page"},
@@ -4123,7 +4237,9 @@ def test_an_observed_queue_pointer_leaves_its_reply_to_leaf_reply(page_dir):
             transaction,
             service_model.unacknowledged(transaction.events, transaction.cursor),
         )
-    queued = codex_model.offer_delivery(path, files_model.read_json(path), "queue")
+    queued = codex_model.offer_delivery(
+        path, files_model.read_json(path), turn_replies=False
+    )
     [event] = queued.payload["batches"][0]["events"]
     assert event["answer"]["kind"] == "reply"
 
@@ -5447,6 +5563,115 @@ if arguments[:2] == ["app-server", "--listen"]:
     assert not Path(endpoint.removeprefix("unix://")).exists()
 
 
+def test_a_private_app_server_stops_when_its_process_exits(tmp_path):
+    """A page server's title request holds its App Server on a daemon thread, which
+    never unwinds when the page server exits; the server, in a session of its own,
+    would run on with no socket anyone can find."""
+    program = tmp_path / "fake-codex"
+    pid_file = tmp_path / "server.pid"
+    program.write_text(
+        f"""#!{sys.executable}
+import os, signal, socket, sys
+open({str(pid_file)!r}, "w").write(str(os.getpid()))
+server = socket.socket(socket.AF_UNIX)
+server.bind(sys.argv[3].removeprefix("unix://"))
+server.listen()
+signal.pause()
+"""
+    )
+    program.chmod(0o755)
+    holder = f"""
+import sys, threading, time
+from leaf.codex import private_app_server
+ready = threading.Event()
+def hold():
+    with private_app_server({str(program)!r}):
+        ready.set()
+        time.sleep(600)
+threading.Thread(target=hold, daemon=True).start()
+assert ready.wait(20)
+sys.exit(0)
+"""
+    try:
+        subprocess.run(
+            [sys.executable, "-c", holder], check=True, timeout=STATED_TIMEOUT
+        )
+        pid = int(pid_file.read_text())
+        assert not psutil.pid_exists(pid)
+    finally:
+        if pid_file.exists() and psutil.pid_exists(pid := int(pid_file.read_text())):
+            os.kill(pid, signal.SIGTERM)
+
+
+@pytest.fixture
+def title_codex(tmp_path, monkeypatch):
+    """A `codex` first on PATH whose App Server binds its socket, writes its pid,
+    and never answers, so a title request holds it open."""
+    programs = tmp_path / "title-codex"
+    programs.mkdir()
+    pid_file = tmp_path / "title-server.pid"
+    program = programs / "codex"
+    program.write_text(
+        f"""#!{sys.executable}
+import os, signal, socket, sys
+if sys.argv[1] != "app-server":
+    sys.exit(1)
+server = socket.socket(socket.AF_UNIX)
+server.bind(sys.argv[3].removeprefix("unix://"))
+server.listen()
+open({str(pid_file)!r}, "w").write(str(os.getpid()))
+signal.pause()
+"""
+    )
+    program.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{programs}{os.pathsep}{os.environ['PATH']}")
+    yield pid_file
+    if pid_file.exists() and psutil.pid_exists(pid := int(pid_file.read_text())):
+        os.kill(pid, signal.SIGTERM)
+
+
+def test_a_terminated_page_server_stops_its_title_server(
+    title_codex, codex_claimed_page
+):
+    """SIGTERM, as a logout or a user's kill sends, ends a page server through its
+    exit handlers, so the App Server a title request holds stops with it."""
+    page = codex_claimed_page
+    (page / "index.html").write_text(
+        '<!doctype html>\n<html lang="en">\n<head><title>t</title></head>\n'
+        '<body><main><section id="plan"><h2>Plan</h2>\n'
+        "<p>Export runs nightly.</p></section></main></body>\n</html>\n"
+    )
+    publish(page)
+    client = PageClient(server_model.running_server(page)["url"])
+    client.post(
+        {
+            "kind": "comment",
+            "revision": client.state()["active"]["revision"],
+            "text": "Why is the export slow?",
+        }
+    )
+    title_server = int(
+        wait_for(
+            lambda: title_codex.read_text() if title_codex.exists() else "",
+            bool,
+            failure="the page server started no title server",
+        )
+    )
+    [page_server] = [
+        process
+        for process in psutil.process_iter(["cmdline"])
+        if "_serve" in (process.info["cmdline"] or [])
+        and str(page) in process.info["cmdline"]
+    ]
+    page_server.terminate()
+    page_server.wait(timeout=STATED_TIMEOUT)
+    wait_for(
+        lambda: not psutil.pid_exists(title_server),
+        bool,
+        failure="the title server outlived its page server",
+    )
+
+
 @pytest.mark.parametrize(
     "endpoint",
     [
@@ -5853,7 +6078,7 @@ def test_codex_delivery_carries_only_the_selected_events_handling(page_dir):
             "handling-test", page_dir, transaction, transaction.events
         )
     payload = codex_model.offer_delivery(
-        queued, files_model.read_json(queued), "queue"
+        queued, files_model.read_json(queued), turn_replies=False
     ).payload
     [batch] = payload["batches"]
     assert [event["id"] for event in batch["events"]] == [
@@ -5902,7 +6127,7 @@ def test_codex_drops_a_record_whose_delivery_it_cannot_read(page_dir):
             "handling-test", page_dir, transaction, transaction.events
         )
     queue = files_model.read_json(path)
-    payload = codex_model.offer_delivery(path, queue, "queue").payload
+    payload = codex_model.offer_delivery(path, queue, turn_replies=False).payload
     payload["format"] = "leaf-delivery-v1"
     cleanup_model.write_json(delivery_model.delivery_path(payload["id"]), payload)
     with pytest.raises(RuntimeError, match="invalid envelope"):
@@ -6845,7 +7070,7 @@ def test_settling_a_frozen_widget_move_does_not_revive_its_superseded_move(
         },
     )
     selecting = state_json(page_dir)
-    assert [ask["source"] for ask in selecting["asks"]] == ["regions"]
+    assert [ask["widget"] for ask in asks_on_you(selecting)] == ["regions"]
     assert selecting["activity"]["obligations"] == []
     assert selecting["workflows"] == []
     assert service_model.unacknowledged(events_model.read_events(page_dir), 0) == []
@@ -6864,7 +7089,7 @@ def test_settling_a_frozen_widget_move_does_not_revive_its_superseded_move(
         },
     )
     completed = state_json(page_dir)
-    assert completed["asks"] == []
+    assert asks_on_you(completed) == []
     assert completed["activity"]["obligations"] == [answered["id"]]
     cleanup_model.prompt_turn("s1")
     receive_through(page_dir, last_deliverable_seq(page_dir))
@@ -6879,7 +7104,7 @@ def test_settling_a_frozen_widget_move_does_not_revive_its_superseded_move(
         {"kind": "undo", "author": "user", "undoes": answered["id"]},
     )
     resumed = state_json(page_dir)
-    assert [ask["source"] for ask in resumed["asks"]] == ["regions"]
+    assert [ask["widget"] for ask in asks_on_you(resumed)] == ["regions"]
     assert resumed["activity"]["obligations"] == []
     answered = append_command(
         page_dir,
@@ -7750,7 +7975,7 @@ def test_receiving_a_delivery_keeps_each_pages_response_obligation(page_dir, tmp
             batches.append(
                 delivery_model.batch_data(page, transaction, transaction.events)
             )
-    payload = delivery_model.freeze_delivery(batches, carrier="wait")
+    payload = delivery_model.freeze_delivery(batches)
     later = append_carried_log_record(
         other, {"kind": "comment", "author": "user", "text": "Later"}
     )
@@ -9223,7 +9448,7 @@ def test_a_bare_shell_receipt_rearms_every_page_in_its_delivery(
             batches.append(
                 delivery_model.batch_data(page, transaction, transaction.events)
             )
-    payload = delivery_model.freeze_delivery(batches, carrier="wait")
+    payload = delivery_model.freeze_delivery(batches)
     watching = spawn(
         [*LEAF_COMMAND, "wait", "--ack", payload["id"]],
         env=os.environ,
@@ -9344,7 +9569,7 @@ def test_codex_receipt_leaves_input_for_the_new_page_owner(page_dir):
         )
         assert codex_adapter_model.capture_batch("original", reading)
     epoch_path, epoch = current_codex_record("original")
-    codex_model.offer_delivery(epoch_path, epoch, "queue")
+    codex_model.offer_delivery(epoch_path, epoch, turn_replies=False)
     epoch.update(state="accepted", transport={"phase": "queued", "turn": None})
     codex_model.write_record(epoch_path, epoch)
     batch = epoch["batches"][0]
@@ -9475,7 +9700,7 @@ def test_a_reinitialized_page_does_not_starve_later_codex_receipts(tmp_path):
             )
             assert codex_adapter_model.capture_batch("codex-thread", reading)
     epoch_path, epoch = current_codex_record("codex-thread")
-    codex_model.offer_delivery(epoch_path, epoch, "queue")
+    codex_model.offer_delivery(epoch_path, epoch, turn_replies=False)
     epoch = files_model.read_json(epoch_path)
     epoch.update(state="accepted", transport={"phase": "queued", "turn": None})
     codex_model.write_record(epoch_path, epoch)
@@ -9542,7 +9767,7 @@ def test_a_receipted_codex_batch_ignores_a_reinitialized_page_cursor(
             )
             assert codex_adapter_model.capture_batch("codex-thread", reading)
     epoch_path, epoch = current_codex_record("codex-thread")
-    codex_model.offer_delivery(epoch_path, epoch, "queue")
+    codex_model.offer_delivery(epoch_path, epoch, turn_replies=False)
     epoch = files_model.read_json(epoch_path)
     epoch.update(state="accepted", transport={"phase": "queued", "turn": None})
     codex_model.write_record(epoch_path, epoch)
@@ -9891,7 +10116,7 @@ def test_app_server_deliveries_preserve_order_with_one_plain_reply_each(
         assert codex_adapter_model.capture_batch("codex-thread", reading)
     second_path, second = current_codex_record("codex-thread")
     second_payload = codex_model.offer_delivery(
-        second_path, second, "app-server"
+        second_path, second, turn_replies=True
     ).payload
     assert [
         event["id"] for batch in second_payload["batches"] for event in batch["events"]
@@ -10394,9 +10619,9 @@ def test_codex_serializes_later_input_behind_the_offered_delivery(
     ] == ["second"]
 
 
-@pytest.mark.parametrize("carrier", ["hook", "app-server", "queue"])
+@pytest.mark.parametrize("transport", ["hook", "app-server", "queue"])
 def test_codex_acceptance_survives_interruption_before_page_receipt(
-    page_dir, codex_loop, monkeypatch, carrier
+    page_dir, codex_loop, monkeypatch, transport
 ):
     """Every transport commits acceptance before page IO, and recovery receipts it once."""
     codex_loop(page_dir)
@@ -10405,7 +10630,7 @@ def test_codex_acceptance_survives_interruption_before_page_receipt(
     comment = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "Do not lose this"}
     )
-    if carrier == "hook":
+    if transport == "hook":
         leases_model.mark_step_hook("codex-thread")
     codex_model.offer_hook_delivery("codex-thread", "user-turn")
     [(path, _)] = codex_records("codex-thread")
@@ -10420,9 +10645,9 @@ def test_codex_acceptance_survives_interruption_before_page_receipt(
     with monkeypatch.context() as interrupted:
         interrupted.setattr(codex_model, "record_pickup", failed_pickup)
         with pytest.raises(OSError, match="receipt storage unavailable"):
-            if carrier == "hook":
+            if transport == "hook":
                 delivery_model.cmd_delivery_read(path.stem)
-            elif carrier == "app-server":
+            elif transport == "app-server":
                 observer = _observer()
                 assert observer._observe_lifecycle("user-turn")
                 observer._fold("user-turn", path.stem, follow=True)
@@ -10434,7 +10659,7 @@ def test_codex_acceptance_survives_interruption_before_page_receipt(
     assert accepted["state"] == "accepted"
     assert not accepted["batches"][0]["receipted"]
     assert service_model.read_cursor(page_dir) == 0
-    assert bool(queued) == (carrier == "queue")
+    assert bool(queued) == (transport == "queue")
     assert codex_adapter_model._recover_receipt("codex-thread")
     assert not codex_adapter_model._recover_receipt("codex-thread")
     assert not codex_records("codex-thread")
@@ -10445,7 +10670,7 @@ def test_codex_acceptance_survives_interruption_before_page_receipt(
     ]
     assert pickup["events"] == [comment["id"]]
     assert (pickup["phase"], pickup["turn"]) == (
-        ("queued", None) if carrier == "queue" else ("opened", "user-turn")
+        ("queued", None) if transport == "queue" else ("opened", "user-turn")
     )
 
 
@@ -10529,7 +10754,7 @@ def test_codex_restart_finishes_an_accepted_batch_without_queueing_again(
         )
         assert codex_adapter_model.capture_batch("codex-thread", reading)
     record_path, queue = current_codex_record("codex-thread")
-    codex_model.offer_delivery(record_path, queue, "queue")
+    codex_model.offer_delivery(record_path, queue, turn_replies=False)
     queue = files_model.read_json(record_path)
     queue.update(state="accepted", transport={"phase": "queued", "turn": None})
     codex_model.write_record(record_path, queue)
@@ -12672,7 +12897,7 @@ def test_input_too_large_for_the_turn_goes_as_a_pointer_its_read_confirms(
     read = CliRunner().invoke(cli_model.cli, ["delivery", "read", delivery_id])
     assert read.exit_code == 0, read.output
     pointer = json.loads(read.output)
-    assert (pointer["carrier"], pointer["acknowledge"]) == ("hook", None)
+    assert pointer["acknowledge"] is None
     [batch] = pointer["batches"]
     assert [event["id"] for event in batch["events"]] == [comment["id"]]
     assert files_model.read_json(claimed / "cursor.json") == {
@@ -12698,7 +12923,6 @@ def test_a_wait_only_wakes_a_session_its_hooks_have_run_for(
 
     assert session_model.cmd_wait(page_dir) == 0
     payload = json.loads(capsys.readouterr().out)
-    assert payload["carrier"] == "wait"
     assert f"leaf wait --ack {payload['id']}" in payload["acknowledge"]
     assert [event["id"] for event in payload["batches"][0]["events"]] == [first["id"]]
     delivery_model.receive_delivery(payload["id"])
@@ -13174,7 +13398,6 @@ def test_claude_codes_hook_confirms_the_input_it_hands_over(claimed, capsys):
     leases_model.release_lease(lease)
     envelope = context.split("\n")[1]
     payload = json.loads(envelope)
-    assert payload["carrier"] == "hook"
     assert payload["acknowledge"] is None
     [batch] = payload["batches"]
     assert [event["id"] for event in batch["events"]] == [comment["id"]]
@@ -14248,7 +14471,7 @@ def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
     )
     refused = CliRunner().invoke(cli_model.cli, ["status", str(claimed), "idle"])
     assert refused.exit_code == 1
-    assert "1 update nobody has picked up" in refused.output
+    assert "1 event nobody has picked up" in refused.output
     # The claimant's harness names the remedy: Claude Code's hook carries them.
     assert "Leaf's hook puts them in your context" in refused.output
     assert service_model.read_status(claimed)["state"] != "idle"
@@ -14309,7 +14532,7 @@ def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
     )
     refused = CliRunner().invoke(cli_model.cli, ["status", str(claimed), "idle"])
     assert refused.exit_code == 1
-    assert "1 update nobody has picked up" in refused.output
+    assert "1 event nobody has picked up" in refused.output
     cleanup_model.prompt_turn("s1")
     report = str(events_model.read_events(claimed)[-1]["seq"])
     assert (
@@ -14434,7 +14657,7 @@ cli_model.cli()
 
     out, err = process.communicate(timeout=STATED_TIMEOUT)
     assert process.returncode == 1, f"{out}{err}"
-    assert "1 update nobody has picked up" in err
+    assert "1 event nobody has picked up" in err
     assert files_model.read_json(page_dir / "status.json")["state"] == "waiting"
 
 
@@ -14789,7 +15012,7 @@ def test_prompt_combines_reconnect_notice_and_pending_user_delivery(claimed, cap
     payload = json.loads(context["additionalContext"].split("\n")[1])
     [batch] = payload["batches"]
     assert [event["id"] for event in batch["events"]] == [asked["id"]]
-    assert (payload["carrier"], payload["acknowledge"]) == ("hook", None)
+    assert payload["acknowledge"] is None
 
 
 def test_resume_needs_ownership_even_while_the_old_server_still_serves(claimed, capsys):
@@ -15212,6 +15435,11 @@ def test_server_stop_waits_for_the_live_server_to_release_its_lease(
     page_dir, standing_server
 ):
     server = standing_server(page_dir)
+    # The ready lines are printed inside the server's startup page lock. Let that
+    # transaction finish before pausing the process, so this checks the live lease
+    # barrier rather than freezing startup while it still owns the page lock.
+    with leases_model.page_locked(page_dir):
+        pass
     os.kill(server.pid, signal.SIGSTOP)
     outcomes, errors = [], []
 
@@ -16137,7 +16365,7 @@ def test_a_tick_before_done_hands_nothing_to_the_agent(claimed, capsys, declared
         },
     )
     ticked = state_json(claimed)
-    assert [ask["source"] for ask in ticked["asks"]] == ["choice"]
+    assert [ask["widget"] for ask in asks_on_you(ticked)] == ["choice"]
     assert ticked["workflows"] == []
     assert ticked["activity"]["counts"]["total"] == 0
     assert ticked["activity"]["counts"]["pending"] == 0
@@ -16157,7 +16385,7 @@ def test_a_tick_before_done_hands_nothing_to_the_agent(claimed, capsys, declared
         },
     )
     finished = state_json(claimed)
-    assert finished["asks"] == []
+    assert asks_on_you(finished) == []
     [workflow] = owed(finished)
     assert workflow["answer"] == {"kind": "markup", "action": done["id"]}
     delivery = delivery_through(claimed, done["seq"])
@@ -16252,11 +16480,11 @@ def test_a_deck_in_a_thread_owes_nothing_until_it_is_finished(page_dir):
     sort("card-a", "i")
     sorting = state_json(page_dir)
     assert sorting["workflows"] == []
-    assert [ask["source"] for ask in sorting["asks"]] == ["triage"]
+    assert [ask["widget"] for ask in asks_on_you(sorting)] == ["triage"]
 
     sort("card-b", "r")
     finished = state_json(page_dir)
-    assert finished["asks"] == []
+    assert asks_on_you(finished) == []
     assert sorted(item["coordinate"][1] for item in owed(finished)) == [
         "card-a",
         "card-b",
@@ -18010,7 +18238,7 @@ def test_a_rejected_started_fold_cannot_publish_initial_working_activity(
     _codex_delivery(page_dir)
     connection = _observer()
     path, record = codex_model.delivery_records("codex-thread")[0]
-    offered = codex_model.offer_delivery(path, record, "app-server")
+    offered = codex_model.offer_delivery(path, record, turn_replies=True)
     codex_model.write_record(offered.record_path, record)
     construct = connection._fold
     winner = {}

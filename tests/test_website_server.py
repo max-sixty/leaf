@@ -30,6 +30,7 @@ from interact_support import (
     publish,
     running_http_server,
     take_stream_activity,
+    wait_for,
     yaml_document,
 )
 from interact_support import (
@@ -641,6 +642,60 @@ def test_attach_leaves_an_uncertain_delivery_to_its_reconciliation_follower(
     assert len(dispatches) == 1
 
 
+def test_a_thread_opened_during_a_hosted_turn_is_named_as_it_is_dispatched(
+    page_dir, monkeypatch
+):
+    """A move dispatched while a turn runs waits for that turn to end before a turn
+    answers it, but its thread is named as it arrives, and asked about once: the
+    turn that later answers it finds it named."""
+    with website_server.PageTransaction(page_dir) as page:
+        page.take_claim(website_server.website_harness("hosted-thread", os.getpid()))
+    comment = append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "Why is the export slow?"},
+    )
+    harness = website_server.WebsiteCodexHarness("codex")
+    harness.following_threads.add("hosted-thread")
+    monkeypatch.setattr(
+        harness, "_ensure_server", lambda: SimpleNamespace(pid=os.getpid())
+    )
+    requests = []
+
+    def app_server_title(endpoint, model):
+        def generate(request, target):
+            requests.append((endpoint, model, request))
+            return {"title": "Export speed"}
+
+        return generate
+
+    monkeypatch.setattr(website_server, "app_server_title", app_server_title)
+    try:
+        assert harness.attach(page_dir, comment["id"]) == "hosted-thread"
+        [title] = wait_for(
+            lambda: [e for e in read_events(page_dir) if e["kind"] == "thread_title"],
+            bool,
+            failure="the thread was never named",
+        )
+        assert (title["thread"], title["title"]) == (comment["id"], "Export speed")
+        [(endpoint, model, request)] = requests
+        assert (endpoint, model) == (harness.endpoint, website_server.HOSTED_MODEL)
+        assert "Why is the export slow?" in request
+
+        def resume_and_start(target, thread_id, process, event_id):
+            harness.following_threads.add(thread_id)
+            return True
+
+        harness.following_threads.clear()
+        monkeypatch.setattr(harness, "_resume_and_start", resume_and_start)
+        assert harness.attach(page_dir, comment["id"]) == "hosted-thread"
+        for worker in threading.enumerate():
+            if worker.name == "leaf-thread-title":
+                worker.join(timeout=STATED_TIMEOUT)
+        assert len(requests) == 1
+    finally:
+        harness.close()
+
+
 def test_a_turn_follower_releases_its_seat_before_continuing(page_dir, monkeypatch):
     harness = website_server.WebsiteCodexHarness("codex")
     harness.following_threads.add("hosted-thread")
@@ -1162,6 +1217,13 @@ def test_the_journey_emits_one_json_sample_for_each_website_target(monkeypatch):
         ("http://127.0.0.1:8080", "a" * 40, True),
         ("https://leaf-dev.example", None, False),
         ("http://127.0.0.1:8787", "b" * 40, False),
+    ]
+    # Each sample is also kept on this machine, outside the checkout.
+    kept = journey.samples_path().read_text().splitlines()
+    assert [json.loads(line)["origin"] for line in kept] == [
+        "http://127.0.0.1:8080",
+        "https://leaf-dev.example",
+        "http://127.0.0.1:8787",
     ]
 
 
@@ -5339,7 +5401,7 @@ def test_hosted_completion_cannot_borrow_a_reused_session_generation(page_dir):
 
 
 @pytest.mark.parametrize("replacement", ["generation", "prompt"])
-def test_hosted_start_retains_its_admitted_epoch_across_title_work(
+def test_hosted_start_retains_its_admitted_epoch_until_it_begins(
     page_dir, monkeypatch, replacement
 ):
     from leaf.state import end_session, prompt_turn
@@ -5353,7 +5415,9 @@ def test_hosted_start_retains_its_admitted_epoch_across_title_work(
     )
     winner = {}
 
-    def competing_title_work(*args):
+    def competing_work(event, **fields):
+        if event != "turn_start_acknowledged":
+            return
         if replacement == "generation":
             end_session("hosted-thread")
             prompt_turn("hosted-thread", "started-turn")
@@ -5374,7 +5438,7 @@ def test_hosted_start_retains_its_admitted_epoch_across_title_work(
         winner["epoch"] = current
         winner["status"] = website_server.PageTransaction(page_dir).status
 
-    monkeypatch.setattr(website_server, "name_untitled_threads", competing_title_work)
+    monkeypatch.setattr(website_server, "log_agent", competing_work)
     try:
         old = harness._start_turn(
             "socket", page_dir, "hosted-thread", SimpleNamespace(pid=os.getpid())

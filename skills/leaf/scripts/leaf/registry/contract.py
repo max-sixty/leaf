@@ -24,7 +24,7 @@ def event_clauses(entry: dict, registry: dict | None) -> list[dict]:
     clauses of the answer it owes, each kept when its `when` schema matches.
 
     `entry` is the event record, plus the `answer` a delivery captured when the
-    event owes one, routed for the carrier delivering it (`workflows` and
+    event owes one, addressed for the route delivering it (`workflows` and
     `delivery` own those derivations), and the `thread` digest of the thread
     it belongs to (`thread_context` owns that one). A `when` can therefore read any
     of them as well as the record, so a clause states the case a delivery is in

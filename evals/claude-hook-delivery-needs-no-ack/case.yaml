@@ -14,7 +14,7 @@ metadata:
 vars:
   prompt: |
     You are a Claude Code session using Leaf. You just received this complete inline envelope from Leaf's prompt hook:
-    {"format":"leaf-delivery-v3","id":"dc81eabb","carrier":"hook","acknowledge":null,"batches":[{"page":"/tmp/review","through_seq":1,"threads":[],"handling":{},"events":[{"kind":"comment","id":"comment-a","seq":1,"author":"user","text":"Please revise the opening to name the owner.","answer":{"kind":"reply","to":"comment-a","for":"comment-a"},"threads":["comment-a"],"subject":{"kind":"thread","id":"comment-a"},"handling":[]}]}]}
+    {"format":"leaf-delivery-v3","id":"dc81eabb","acknowledge":null,"batches":[{"page":"/tmp/review","through_seq":1,"threads":[],"handling":{},"events":[{"kind":"comment","id":"comment-a","seq":1,"author":"user","text":"Please revise the opening to name the owner.","answer":{"kind":"reply","to":"comment-a","for":"comment-a"},"threads":["comment-a"],"subject":{"kind":"thread","id":"comment-a"},"handling":[]}]}]}
 
     The page is already served. Read the Leaf instructions needed for your harness.
     Only Skill and Read run here, so write out, in order, each command you would run

@@ -2,14 +2,13 @@
 
 ## One envelope on every transport
 
-Every carrier presents an immutable object of the same shape:
+Every route into your context presents an immutable object of the same shape:
 
 ```json
 {
   "format": "leaf-delivery-v3",
   "id": "a1b2c3d4",
   "created_at": 0,
-  "carrier": "wait",
   "acknowledge": "Whoever ran the `leaf wait` that printed this delivery acknowledges it; …",
   "batches": [
     {
@@ -27,17 +26,16 @@ The id is eight lowercase hexadecimal characters and addresses this envelope in 
 machine's immutable delivery store.
 
 Some harnesses deliver it inline; others deliver a pointer that `leaf delivery read <id>`
-resolves to the same object. Your harness contract names which. The shape is the same on
-every carrier, and `carrier` names the one that delivered it: `wait` for `leaf
-wait`'s output, `hook` for the context a harness hook adds to the turn it opens,
-`queue` for a pointer Codex queued, `app-server` for a turn Leaf started. The envelope states receipt and response routes once:
+resolves to the same object. Your harness contract names which. The envelope states
+receipt and response routes once:
 
 - `acknowledge` says how to confirm receipt after the complete envelope is in
-  context. Follow that instruction, not a rule inferred from `carrier`. When it
-  is `null`, your harness confirms receipt; run no separate acknowledgement command.
-  Your harness contract explains its mechanism.
-- A thread reply's `answer` is `turn` on `app-server`, whose turn writes it with
-  its own messages, and `reply`, for `leaf thread reply`, everywhere else.
+  context. Follow that instruction. When it is `null`, your harness confirms
+  receipt; run no separate acknowledgement command. Your harness contract explains
+  its mechanism.
+- A thread reply's `answer` is `turn` where the delivery arrives in a turn Leaf
+  started over Codex App Server, which writes it with its own messages, and
+  `reply`, for `leaf thread reply`, everywhere else.
 
 Process every batch and every event.
 

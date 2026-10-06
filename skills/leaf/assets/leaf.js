@@ -12,7 +12,7 @@ import {
 } from "./runtime/context.js";
 import { initializeServedDocument } from "./runtime/document-identity.js";
 import { chromeRoot } from "./runtime/chrome.js";
-import { readingBlock } from "./runtime/reading-place.js";
+import { landingPlace } from "./runtime/reading-place.js";
 import { mountHistory } from "./runtime/history.js";
 import { holdArrivingBounds } from "./runtime/bounds.js";
 import { chromeSheet, marksSheet, annotationSheets } from "./runtime/stylesheets.js";
@@ -128,6 +128,7 @@ import {
 } from "./runtime/banner.js";
 
 import { nativeLayers } from "./runtime/keyboard/layer-stack.js";
+import { holdToRead } from "./runtime/held-word.js";
 
 initializeServedDocument();
 keepPageRulesOffLayer();
@@ -510,7 +511,7 @@ if (offlineInteractive) applicationState.setHostAvailable(false);
 // Where a landing in the document goes, which is version continuity's reading of what is
 // on screen. Declared beside the let-go that uses it, for the same reason: the owner
 // stands by now and nothing has read the register yet.
-declareReading(readingBlock);
+declareReading(landingPlace);
 
 // And where it goes instead while a surface covers the page: the page is inert under one,
 // so the reading above cannot take the user and a step that let go would leave them
@@ -563,9 +564,11 @@ const queueWalk = createQueueWalk({
   arrive: anchorTravel.arrive,
   readableDestination: anchorTravel.readableDestination,
   announce,
+  post: (event) => app.post(event),
 });
 const queue = createQueuePanel({
   arriveAtItem: queueWalk.arriveAtItem,
+  endTask: queueWalk.endTask,
   announce,
 });
 
@@ -890,6 +893,7 @@ if (!offlineInteractive) {
   await panelComposer.mount();
   selectionComposer.mount();
   responseSurface.mount();
+  holdToRead();
   reactions.mount();
   targets.mount();
   drawing.mount();
@@ -907,7 +911,6 @@ if (!offlineInteractive) {
   app.overlay?.mount();
   app.mountThread();
   app.mountRead();
-  threadListController.mountThreadList(panelIsOpen);
   wireThreadLanding(threadsBox);
   drawers.mountDrawers();
   threadPanelController.mountThreadPanel();

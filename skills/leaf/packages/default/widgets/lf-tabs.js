@@ -59,6 +59,7 @@ import {
   layoutChanged,
   listWalkPosition,
   motion,
+  nextRender,
   offer,
   once,
   openingView,
@@ -71,6 +72,7 @@ import {
   restorePlace,
   selectableOffer,
   setRuntimeRootStyle,
+  sizeObserver,
   tabStore,
   watchAsks,
 } from "/runtime/widget-api.js";
@@ -107,6 +109,7 @@ customElements.define(
     #side = false;
     #pageFlow = false;
     #revealMotion = null;
+    #stripSize = null;
 
     connectedCallback() {
       if (!once(this)) {
@@ -114,6 +117,7 @@ customElements.define(
         this.#syncRootContext();
         this.#listenForHistory();
         this.#listenForAsks();
+        this.#watchStrip();
         return this.#listenForDiff();
       }
       // Own panels only (a nested lf-tabs wires its own).
@@ -202,6 +206,12 @@ customElements.define(
           listWalkPosition([...this.#buttons.values()], document.activeElement),
         );
       };
+      // Across the row, back is the way the names run from: left in a left-to-right
+      // page and right in a right-to-left one, where the first tab stands at the right.
+      const [back, ahead] =
+        getComputedStyle(this).direction === "rtl"
+          ? ["ArrowRight", "ArrowLeft"]
+          : ["ArrowLeft", "ArrowRight"];
       commands(strip, "On a tab", [
         {
           id: "tab.activate",
@@ -226,17 +236,14 @@ customElements.define(
                   { id: "tab.down", binding: "ArrowDown", title: "Next tab" },
                 ]
               : []),
-            { id: "tab.previous", binding: "ArrowLeft", title: "Previous tab" },
-            { id: "tab.next", binding: "ArrowRight", title: "Next tab" },
+            { id: "tab.previous", binding: back, title: "Previous tab" },
+            { id: "tab.next", binding: ahead, title: "Next tab" },
           ],
           title: "walk the tabs",
-          description: "Previous / next tab, wrapping at the ends",
           repeat: true,
           run: (binding) =>
             walk((at, n) =>
-              ["ArrowRight", "ArrowDown"].includes(binding)
-                ? (at + 1) % n
-                : (at - 1 + n) % n,
+              [ahead, "ArrowDown"].includes(binding) ? (at + 1) % n : (at - 1 + n) % n,
             ),
         },
         {
@@ -266,11 +273,14 @@ customElements.define(
       // The Δ count follows the version diff; the runtime announces each toggle.
       this.#listenForDiff();
       this.#listenForAsks();
+      this.#watchStrip();
     }
 
     disconnectedCallback() {
       this.#revealMotion?.cancel();
       this.#revealMotion = null;
+      this.#stripSize?.disconnect();
+      this.#stripSize = null;
       this.#diffEvents?.abort();
       this.#diffEvents = null;
       this.#stopAsks?.();
@@ -344,7 +354,12 @@ customElements.define(
 
     #activate(active, reason) {
       if (!this.#buttons.has(active)) return;
-      if (active === this.#active) return Promise.resolve();
+      // The open tab pressed again, or walked to, is the user's way back to it after
+      // scrolling the row away.
+      if (active === this.#active) {
+        this.#showTab(this.#buttons.get(active));
+        return Promise.resolve();
+      }
       const previous = this.#active;
       // A press or a traversal between views switches them; a reveal is travel to
       // something inside the view, which the traveller lands.
@@ -495,13 +510,14 @@ customElements.define(
       return edge;
     }
 
-    // A tab the row runs past is scrolled into the strip, and only the strip: the
+    // A tab the row runs past is scrolled into the strip, and only the strip: a page
     // strip sticks, and scrolling the page to it would move the view being read. It
     // stops clear of the edge's press, which the strip states as its inline
-    // `scroll-padding` (the package theme).
+    // `scroll-padding` (the package theme). A strip runs past only where its one row
+    // holds more names than it shows, which a side list's column never does.
     #showTab(btn) {
-      if (!this.#pageFlow || !btn) return;
       const strip = this.#strip;
+      if (!btn || strip.scrollWidth <= strip.clientWidth) return;
       const room = strip.getBoundingClientRect();
       const box = btn.getBoundingClientRect();
       const { scrollPaddingLeft, scrollPaddingRight } = getComputedStyle(strip);
@@ -509,6 +525,24 @@ customElements.define(
       const right = room.right - (Number.parseFloat(scrollPaddingRight) || 0);
       if (box.left < left) strip.scrollLeft -= left - box.left;
       else if (box.right > right) strip.scrollLeft += box.right - right;
+    }
+
+    // The open tab stays in the row as the strip's width changes, and not only when a
+    // tab opens: a narrowed window, a panel opening beside the page, or a side list's
+    // column turning into a row would otherwise leave the open tab past the edge. It
+    // scrolls after the observer's delivery, since the scroll shows or hides an edge
+    // press, which the browser would otherwise report as a size change it could not
+    // deliver.
+    #watchStrip() {
+      if (!this.#strip || this.#stripSize) return;
+      let pending = 0;
+      this.#stripSize = sizeObserver(() => {
+        pending ||= nextRender(() => {
+          pending = 0;
+          if (this.#strip.isConnected) this.#showTab(this.#buttons.get(this.#active));
+        });
+      });
+      this.#stripSize.observe(this.#strip);
     }
 
     #listenForHistory() {

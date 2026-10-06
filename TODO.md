@@ -47,7 +47,10 @@ has tried; settle that before building it.
 - **Test annotation placement in context.** Compare a pinned marker card with a
   sparse left-comment layout on a document and a workspace. Keep full history and
   search in Threads and use Page Map on narrow pages; show only one margin treatment
-  at a time.
+  at a time. Include dense phone prose with anchored pins: the comparison report
+  showed pins covering text at 390px. Test what happens when no text-clear seat
+  exists, preserving annotation access without moving the reading column. See
+  [the comparison finding](notes/comparisons.md#phone-annotation-placement-2026-10-05).
 - **Make the next move and its result apparent.** Play through `review-a-plan`,
   `triage-board`, `pr-walkthrough`, and `ship-review`; fix dead ends and moves whose
   result is hidden. Decide whether a page needs one progress reading across Asks,

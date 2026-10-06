@@ -1048,7 +1048,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   .lf-thread-compact:not([open]) > .lf-thread-header-action { display: none; }
   /* The container supplies navigation and an inset; shadow.css owns the conversation. */
   .lf-thread-compact > .lf-thread-content > .lf-thread-head { margin: 12px var(--lf-thread-inset); }
-  .lf-thread-compact > .lf-thread-content > .lf-thread-root-meta { margin: 12px var(--lf-thread-inset) 0; }
+  .lf-thread-compact > .lf-thread-content > .lf-thread-controls { margin: 12px var(--lf-thread-inset) 0; }
   .lf-thread-compact > .lf-thread-content > .lf-thread-transcript { flex: none; margin-inline: var(--lf-thread-inset); }
   /* A checkpoint is agent-written reading context, followed by the retained originals
      it covers. One disclosure beside that context controls the entire range. */
@@ -1184,7 +1184,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      paintAnchors for the one thing that wears this and why. */
   .lf-unseen { position: absolute; width: 1px; height: 1px; padding: 0; border: 0; overflow: hidden; clip-path: inset(50%); }
   /* A border image outset into the inline margin draws the rail and takes no room. */
-  :is(.lf-msg.lf-unread, .lf-thread-root-meta:has(+ .lf-thread-transcript > .lf-msg.lf-unread:first-child)) {
+  .lf-msg.lf-unread {
     border-image: linear-gradient(var(--accent), var(--accent)) 0 0 0 1 / 0 0 0 2px
       / 0 0 0 6px; }
   .lf-thread-panel { --lf-thread-inset: 12px; --lf-list-inset: 8px;

@@ -643,6 +643,13 @@ export function watchDraft(
     if (editor) draftEditors.delete(editor);
   };
 }
+// News of every draft whose context starts with `prefix`, for a reader of a whole kind
+// of draft rather than one box's.
+export function watchDrafts(prefix, callback) {
+  const update = (ev) => ev.detail.ctx.startsWith(prefix) && callback(ev.detail.ctx);
+  document.addEventListener(DRAFT_NEWS, update);
+  return () => document.removeEventListener(DRAFT_NEWS, update);
+}
 addEventListener("storage", (ev) => {
   const prefix = whereDraft("").key;
   // Null where the whole store was cleared, and every key of another page on this origin

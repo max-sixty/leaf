@@ -40,10 +40,18 @@ const validWords = (says) =>
   says !== "" &&
   [...says].length <= MAX_DRAWING_SAYS_LENGTH;
 
+// A drawing is read whole and never changed in place, and the page's ink asks of each
+// one on every paint, so each object is checked once.
+const checked = new WeakMap();
+
 export function validDrawing(drawing) {
+  if (!drawing || typeof drawing !== "object") return false;
+  if (!checked.has(drawing)) checked.set(drawing, wellFormed(drawing));
+  return checked.get(drawing);
+}
+
+function wellFormed(drawing) {
   return Boolean(
-    drawing &&
-    typeof drawing === "object" &&
     !Array.isArray(drawing) &&
     Object.keys(drawing).every((key) =>
       ["format", "strokes", "box", "says", "viewport", "scheme"].includes(key),

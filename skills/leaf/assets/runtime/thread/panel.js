@@ -46,6 +46,7 @@ export function createPanelComposer({
   firstUnread,
   unreadCount,
   paintDrawings,
+  drawingEdits,
 }) {
   let sync = () => {};
   let stopMirroringDraft = () => {};
@@ -55,7 +56,10 @@ export function createPanelComposer({
     designModeActive() && !generalDrawing
       ? "Comment on the design"
       : "Comment on the page";
-  const syncGeneral = () => sync();
+  const syncGeneral = () => {
+    sync();
+    paintDrawings();
+  };
   const pageComposerDrawing = () => generalDrawing;
 
   function saveGeneralDraft(text = sync.value()) {
@@ -76,6 +80,14 @@ export function createPanelComposer({
     paintDrawings();
   }
 
+  // Replace the page drawing, or take it off with null, where the box stands.
+  function setPageDrawing(drawing) {
+    generalDrawing = drawing;
+    saveGeneralDraft();
+    sync();
+    paintDrawings();
+  }
+
   async function mount() {
     closeBtn.onclick = () => setPanel(false);
     generalInput.value = loadDraft("general") ?? "";
@@ -86,6 +98,11 @@ export function createPanelComposer({
       sendBtn: generalSend,
       hasContent: (raw) => Boolean(raw || generalDrawing),
       save: saveGeneralDraft,
+      drawing: {
+        read: () => generalDrawing,
+        undoStroke: () => drawingEdits.undoStroke(null),
+        remove: () => drawingEdits.remove(null),
+      },
       send: async (_text, raw, owns) => {
         const sent = await sendMessage("general", owns, (attempt, payload) => {
           const event = { attempt };
@@ -216,6 +233,7 @@ export function createPanelComposer({
     syncGeneral,
     pageComposerDrawing,
     openPageDrawing,
+    setPageDrawing,
     mount,
     dispose: () => {
       stopPanelScope();

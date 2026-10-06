@@ -19,6 +19,7 @@ from render_cases_interaction import (
 )
 from render_cases_navigation import (
     TARGETS_PAGE,
+    UNDO_PAGE,
 )
 from render_harness import (
     FEATURE_GALLERY,
@@ -661,6 +662,18 @@ def test_a_drawing_can_begin_on_page_whitespace(browser, serve):
     expect(page.locator(".lf-drawing-pending path")).to_have_attribute(
         "d", re.compile(r"^M[^M]*M[^M]*$")
     )
+    # The general box's own control takes back the page drawing's latest stroke.
+    page.mouse.move(again["x"], again["y"] + 40)
+    page.mouse.down()
+    page.mouse.move(again["x"] + 60, again["y"] + 120, steps=8)
+    page.mouse.up()
+    expect(page.locator(".lf-drawing-pending path")).to_have_attribute(
+        "d", re.compile(r"^M[^M]*M[^M]*M[^M]*$")
+    )
+    page.locator(".lf-general").get_by_role("button", name="Undo last stroke").click()
+    expect(page.locator(".lf-drawing-pending path")).to_have_attribute(
+        "d", re.compile(r"^M[^M]*M[^M]*$")
+    )
     field = page.locator(".lf-general leaf-text")
     expect(field).to_have_js_property("value", "")
     field.focus()
@@ -767,9 +780,10 @@ def test_a_page_drawing_draft_repaints_in_another_tab(browser, serve, one_user):
     local.mouse.move(point["x"] - 100, point["y"] - 40, steps=8)
     local.mouse.up()
 
-    expect(remote.locator(".lf-drawing-pending")).to_have_count(1)
+    expect(remote.locator(".lf-drawing-parked")).to_have_count(1)
     remote.locator(".lf-threads-toggle").click()
     panel_settled(remote)
+    expect(remote.locator(".lf-drawing-pending")).to_have_count(1)
     expect(remote.locator(".lf-general .lf-compose-submit")).to_have_attribute(
         "aria-disabled", "false"
     )
@@ -801,6 +815,16 @@ def test_an_anchored_drawing_draft_repaints_in_another_tab(browser, serve, one_u
         ".lf-drawing-pending path"
     ).get_attribute("d")
 
+    # With its box moved to another drawing, the prose drawing is parked and its own
+    # watch gone; the other tab taking a stroke back still repaints it here.
+    remote.keyboard.press("Escape")
+    remote.keyboard.press("Escape")
+    draw_over(remote, remote.locator("#fig"))
+    parked = remote.locator(".lf-drawing-parked path")
+    expect(parked).to_have_attribute("d", re.compile(r"^M[^M]*M[^M]*$"))
+    local.get_by_role("button", name="Undo last stroke").click()
+    expect(parked).to_have_attribute("d", re.compile(r"^M[^M]*$"))
+
 
 def test_page_and_anchored_drawing_drafts_keep_their_own_ink(browser, serve):
     """The general and anchored composers are independent durable draft contexts, so
@@ -818,6 +842,7 @@ def test_page_and_anchored_drawing_drafts_keep_their_own_ink(browser, serve):
     page.mouse.up()
     expect(page.locator(".lf-drawing-pending")).to_have_count(1)
     page.get_by_role("button", name="Close threads").click()
+    expect(page.locator(".lf-drawing-parked")).to_have_count(1)
     # A stroke in the same Draw mode session would join the page drawing, so the
     # anchored one is drawn in a session of its own.
     page.keyboard.press("w")
@@ -825,25 +850,29 @@ def test_page_and_anchored_drawing_drafts_keep_their_own_ink(browser, serve):
 
     draw_over(page, page.locator("#prose"))
 
-    expect(page.locator(".lf-drawing-pending")).to_have_count(2)
+    expect(page.locator(".lf-drawing-pending")).to_have_count(1)
+    expect(page.locator(".lf-drawing-parked")).to_have_count(1)
     write(page.locator(".lf-fab-input"), "The anchored draft.")
     with sending(page, "the anchored drawing beside the page draft"):
         page.keyboard.press("ControlOrMeta+Enter")
     event = events_model.read_events(serve.page_dir)[-1]
     assert event["anchor"] == {"section": "prose"}
     expect(page.locator(".lf-drawing-posted")).to_have_count(1)
-    expect(page.locator(".lf-drawing-pending")).to_have_count(1)
+    expect(page.locator(".lf-drawing-parked")).to_have_count(1)
 
 
 def test_strokes_join_one_drawing_until_it_is_sent_and_escape_leaves(browser, serve):
     """Draw mode outlasts a stroke. A later stroke joins the drawing its session opened,
     in that drawing's frame wherever it starts, and keeps joining it after Escape puts its
     box away or the user leaves and re-enters the mode; once the draft is sent the next
-    stroke starts another, and only Escape leaves the mode."""
+    stroke starts another, and only Escape leaves the mode. Unsent ink never leaves the
+    page: with its box put away it stands parked, in and out of the mode, so the drawing
+    a stroke joins is the one the user can see."""
     page = open_page(browser, serve(TARGETS_PAGE))
     prose = page.locator("#prose")
     draw_over(page, prose)
     pending = page.locator(".lf-drawing-pending path")
+    parked = page.locator(".lf-drawing-parked path")
     expect(pending).to_have_count(1)
     field = page.locator(".lf-fab-input")
     expect(field).to_be_focused()
@@ -856,9 +885,11 @@ def test_strokes_join_one_drawing_until_it_is_sent_and_escape_leaves(browser, se
     expect(field).to_be_focused()
     write(field, "All of these.")
 
-    # Escape puts the box away and keeps its draft; the next stroke joins that draft.
+    # Escape puts the box away and keeps its draft, ink and all; the next stroke joins
+    # that draft.
     page.keyboard.press("Escape")
     expect(pending).to_have_count(0)
+    expect(parked).to_have_attribute("d", re.compile(r"^M[^M]*M[^M]*$"))
     expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
     stroke_over(page, page.locator("#fig"), points=((0.3, 0.3), (0.5, 0.7), (0.7, 0.3)))
     expect(pending).to_have_attribute("d", re.compile(r"^M[^M]*M[^M]*M[^M]*$"))
@@ -889,14 +920,92 @@ def test_strokes_join_one_drawing_until_it_is_sent_and_escape_leaves(browser, se
     # The composer the stroke opened stands inside the mode, so it comes off first.
     page.keyboard.press("Escape")
     expect(pending).to_have_count(0)
+    expect(parked).to_have_count(1)
     expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
     page.keyboard.press("Escape")
     expect(page.locator("html")).not_to_have_attribute("data-lf-draw-mode", "")
     expect(page.locator(".lf-live")).to_contain_text("Draw mode off")
+    expect(parked).to_have_attribute("d", re.compile(r"^M[^M]*$"))
 
-    # A new Draw mode session draws into the draft it finds rather than over it.
+    # A new Draw mode session shows the draft before its first stroke, and draws into
+    # it rather than over it.
+    page.keyboard.press("w")
+    expect(parked).to_have_attribute("d", re.compile(r"^M[^M]*$"))
+    page.keyboard.press("w")
     draw_over(page, page.locator("#fig"), points=((0.3, 0.3), (0.5, 0.7), (0.7, 0.3)))
     expect(pending).to_have_attribute("d", re.compile(r"^M[^M]*M[^M]*$"))
+    expect(parked).to_have_count(0)
+
+
+def test_a_drawing_takes_back_its_strokes_and_comes_off_its_comment(browser, serve):
+    """Every route takes back the last stroke: ⌘Z in its composer while strokes are the
+    draft's latest change, `z` or ⌘Z in Draw mode with the box put away, and the
+    composer's own control. ⌘Z walks strokes and words in the order they were made.
+    Taking back the last stroke removes the drawing, as the composer's own removal does
+    at once, and either leaves the words to send alone. In Draw mode `z` is the stroke's
+    undo and never the page's, drawing or not."""
+    page = open_page(browser, serve(UNDO_PAGE))
+    with sending(page, "the pick"):
+        page.locator("#opt-a").click()
+    picked = len(events_model.read_events(serve.page_dir))
+    heading = page.locator("#h")
+    tile = page.locator(".lf-composer-drawing [role=img]")
+    pending = page.locator(".lf-drawing-pending path")
+    parked = page.locator(".lf-drawing-parked path")
+    field = page.locator(".lf-fab-input")
+    other = ((0.3, 0.3), (0.5, 0.7), (0.7, 0.3))
+
+    draw_over(page, heading)
+    stroke_over(page, heading, points=other)
+    expect(tile).to_have_attribute("aria-label", "Drawing, 2 strokes")
+    page.keyboard.press("ControlOrMeta+z")
+    expect(tile).to_have_attribute("aria-label", "Drawing, 1 stroke")
+    expect(pending).to_have_attribute("d", re.compile(r"^M[^M]*$"))
+
+    # Words typed after a stroke are the latest change, and a stroke drawn after the
+    # words is: ⌘Z takes back each in turn, the words through the field's own history.
+    stroke_over(page, heading, points=other)
+    write(field, "Here.")
+    page.keyboard.press("ControlOrMeta+z")
+    expect(field).to_have_js_property("value", "")
+    expect(tile).to_have_attribute("aria-label", "Drawing, 2 strokes")
+    write(field, "Here.")
+    stroke_over(page, heading)
+    expect(tile).to_have_attribute("aria-label", "Drawing, 3 strokes")
+    page.keyboard.press("ControlOrMeta+z")
+    expect(tile).to_have_attribute("aria-label", "Drawing, 2 strokes")
+    expect(field).to_have_js_property("value", "Here.")
+    page.keyboard.press("ControlOrMeta+z")
+    expect(field).to_have_js_property("value", "")
+    expect(tile).to_have_attribute("aria-label", "Drawing, 2 strokes")
+    write(field, "Here.")
+
+    # With the box put away, ⌘Z or `z` takes back the strokes of the parked drawing,
+    # and the last one takes the drawing; the pick `z` undoes outside the mode stands.
+    page.keyboard.press("Escape")
+    page.keyboard.press("ControlOrMeta+z")
+    expect(parked).to_have_attribute("d", re.compile(r"^M[^M]*$"))
+    page.keyboard.press("z")
+    expect(parked).to_have_count(0)
+    page.keyboard.press("z")
+    expect(page.locator("lf-option[chosen]")).to_have_attribute("id", "opt-a")
+    assert len(events_model.read_events(serve.page_dir)) == picked
+
+    # The composer's controls: one stroke back, then the drawing off, the words kept.
+    stroke_over(page, heading)
+    stroke_over(page, heading, points=other)
+    expect(field).to_have_js_property("value", "Here.")
+    page.get_by_role("button", name="Undo last stroke").click()
+    expect(tile).to_have_attribute("aria-label", "Drawing, 1 stroke")
+    page.get_by_role("button", name="Remove drawing").click()
+    expect(tile).to_have_count(0)
+    expect(page.locator(".lf-drawing-mark")).to_have_count(0)
+    expect(field).to_be_focused()
+    with sending(page, "the words without their drawing"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    event = events_model.read_events(serve.page_dir)[-1]
+    assert event["text"] == "Here."
+    assert "drawing" not in event
 
 
 def test_a_margin_start_uses_the_addressable_element_alongside_it_as_context(

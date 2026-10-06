@@ -108,6 +108,25 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     .lf-compose-field { grid-column: 2; }
   .lf-fab-bar:not([data-lf-presentation="inline"]):has(.lf-composer-media:not([hidden]))
     > .lf-response-more { grid-column: 3; }
+  /* A drawing's tile carries its undo and removal, more than the field's side of a
+     card-wide bar can spare under a finger, so a shelf holding one takes a row of its
+     own above the field. */
+  .lf-fab-bar:not([data-lf-presentation="inline"]):has(
+      .lf-composer-media:not([hidden]) > .lf-composer-drawing) {
+    grid-template-columns: minmax(var(--lf-response-min-width), 1fr) max-content;
+    grid-template-rows: auto minmax(var(--lf-response-height), 1fr); }
+  .lf-fab-bar:not([data-lf-presentation="inline"]):has(
+      .lf-composer-media:not([hidden]) > .lf-composer-drawing) .lf-composer-media {
+    grid-column: 1 / -1; grid-row: 1; justify-self: start; max-width: 100%; }
+  .lf-fab-bar:not([data-lf-presentation="inline"]):has(
+      .lf-composer-media:not([hidden]) > .lf-composer-drawing) .lf-compose-field {
+    grid-column: 1; grid-row: 2; }
+  .lf-fab-bar:not([data-lf-presentation="inline"]):has(
+      .lf-composer-media:not([hidden]) > .lf-composer-drawing) > .lf-response-more {
+    grid-column: 2; grid-row: 2; }
+  .lf-fab-bar:not([data-lf-presentation="inline"]):has(
+      .lf-composer-media:not([hidden]) > .lf-composer-drawing) > .lf-response-options {
+    grid-row: 3; }
   .lf-visual-marks { display: contents; }
   /* Every projected state is a moment (anchor-paint.js), drawn as one accent contour;
      an action's target alone keeps the hairline. */

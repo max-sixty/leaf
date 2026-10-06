@@ -182,9 +182,21 @@ export function createAuxiliarySurfaces({ chromeRoot, band, syncLayout, afterCha
     hide,
     arrival = "mount",
   }) {
-    if (!key || !surface?.id || !scroller || !focus || !show || !hide)
+    // Named for assistive technology as well as by id: in the covering posture this
+    // owner makes the surface a modal dialog, and a dialog needs a name.
+    if (
+      !key ||
+      !surface?.id ||
+      !(
+        surface.hasAttribute("aria-label") || surface.hasAttribute("aria-labelledby")
+      ) ||
+      !scroller ||
+      !focus ||
+      !show ||
+      !hide
+    )
       throw new Error(
-        "leaf: an auxiliary surface needs a key, named surface, scroller, focus destination, and visibility callbacks",
+        "leaf: an auxiliary surface needs a key, an id and an accessible name, a scroller, a focus destination, and visibility callbacks",
       );
     if (controllers.has(key))
       throw new Error(`leaf: duplicate auxiliary surface ${key}`);

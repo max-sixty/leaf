@@ -10902,7 +10902,7 @@ def test_codex_app_server_restart_finishes_an_accepted_batch_without_starting_it
         )
         assert codex_adapter_model.capture_batch("codex-thread", reading)
     record_path, record = current_codex_record("codex-thread")
-    prepared = codex_model.offer_delivery(record_path, record, "app-server")
+    prepared = codex_model.offer_delivery(record_path, record, turn_replies=True)
     record = files_model.read_json(record_path)
     record.update(state="accepted", transport={"phase": "opened", "turn": "taken"})
     codex_model.write_record(record_path, record)

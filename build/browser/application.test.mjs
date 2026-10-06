@@ -557,6 +557,40 @@ test("local delivery supplies and can override non-Ask thread attention", () => 
   });
 });
 
+test("every thread gesture the ledger holds names the thread it stands in", () => {
+  const gestured = (...events) => {
+    const app = setup();
+    const reading = state(2);
+    reading.browser.thread.threads = [
+      servedThread([
+        {
+          id: "root",
+          kind: "comment",
+          author: "user",
+          ts: "2026-09-22T10:00:00-07:00",
+          text: "First",
+        },
+      ]),
+    ];
+    app.adopt(reading);
+    for (const event of events) app.enqueue(event, "2026-09-22T10:01:00-07:00");
+    return app.read().effective.thread.gestured;
+  };
+  const reaction = { kind: "reply", parent: "root", attempt: "mark", token: "keep" };
+  for (const gesture of [
+    { kind: "reply", parent: "root", attempt: "say", text: "Second", revision: 1 },
+    reaction,
+    { kind: "edit", message: "root", attempt: "rewrite", text: "First, again" },
+    { kind: "resolve", parent: "root", attempt: "close" },
+  ])
+    assert.deepEqual(gestured(gesture), ["root"], gesture.kind);
+  assert.deepEqual(
+    gestured(reaction, { kind: "undo", undoes: "pending:mark", attempt: "unmark" }),
+    ["root"],
+  );
+  assert.deepEqual(gestured(action("move")), []);
+});
+
 test("a refused local message publishes one failed workflow before retirement", () => {
   const app = setup();
   const event = {

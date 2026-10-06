@@ -670,28 +670,55 @@ export function createSemanticApplication({
     // hands a thread the server left with the agent back to the user, whose
     // Retry it is.
     const owed = new Set(asks.user.map((ask) => ask.thread));
-    // The thread a local turn is in. A comment opens the thread its own id names. A
-    // reply is in the thread holding its parent, which need not be that thread's id: a
-    // thread that lost its opening message is answered at the reply that survived, and
-    // a reply written against this tab's own comment names it by its pending id until
-    // the log names it. A parent no thread holds is a comment of this tab's that the
-    // log refused, and its pending id named its thread. A rewrite is in its message's.
+    // The thread a gesture stands in, of every kind the ledger holds. A message stands
+    // in the thread that draws it, under its pending id or, once the log has it, its
+    // attempt. Until one does, a comment opens the thread its own id names, and a reply
+    // joins the thread holding its parent, which need not be that thread's id: a thread
+    // that lost its opening message is answered at the reply that survived, and a parent
+    // no thread holds is a comment of this tab's that the log refused, whose pending id
+    // named its thread. A rewrite stands in its message's thread, a settlement in the
+    // thread it settles, a move in the thread whose markup froze its widget, and an undo
+    // where the gesture it takes back stood; a page widget's move stands in none.
     const named = threadNames(folded);
-    const threadOf = (turn: any): string | null =>
-      turn.kind === "edit"
-        ? (named.get(turn.message)?.id ?? null)
-        : turn.kind === "reply"
-          ? (named.get(turn.parent)?.id ?? turn.parent)
-          : turn.id;
-    // The thread a local gesture stands in: its turn's, or the thread whose
-    // markup froze the widget it moved; a page widget's stands in none.
-    const threadOfEntry = (entry: any): string | null => {
-      if (isTurnEvent(entry.event)) return threadOf(entry.thread);
-      const held = document.descriptors.get(entry.event.widget)?.document;
-      return held?.kind === "thread" ? (held.thread ?? null) : null;
+    const threadOfEvent = (
+      event: any,
+      message: any,
+      namedParent?: string,
+    ): string | null => {
+      const drawn = message && named.get(message.id)?.id;
+      if (drawn) return drawn;
+      switch (event.kind) {
+        case "comment":
+          return message?.id ?? null;
+        case "reply":
+          return named.get(event.parent)?.id ?? event.parent;
+        case "edit":
+          return named.get(event.message)?.id ?? null;
+        case "resolve":
+        case "unresolve":
+          return (
+            named.get(event.parent)?.id ??
+            (namedParent ? named.get(namedParent)?.id : null) ??
+            null
+          );
+        case "undo": {
+          const target = unresolved.find((entry) => entry.localId === event.undoes);
+          if (target) return threadOfEntry(target);
+          const logged = state?.events.find((each) => each.id === event.undoes);
+          return logged ? threadOfEvent(logged, logged) : null;
+        }
+        default: {
+          const held = document.descriptors.get(event.widget)?.document;
+          return held?.kind === "thread" ? (held.thread ?? null) : null;
+        }
+      }
     };
+    const threadOfEntry = (entry: LedgerEntry): string | null =>
+      threadOfEvent(entry.event, entry.thread, entry.namedParent);
+    // A refused send or move is the user's to retry from the thread it stood in.
     const recovery = new Map<string, string>();
     for (const entry of refused) {
+      if (!isTurnEvent(entry.event) && !entry.event.widget) continue;
       const thread = threadOfEntry(entry);
       if (thread) recovery.set(thread, `rejected:${entry.event.attempt}`);
     }
@@ -774,6 +801,11 @@ export function createSemanticApplication({
           phase,
           threads: threads.filter(discussed),
         },
+        // The threads a gesture this tab's ledger still holds stands in, refused ones
+        // included until the reading they restore is drawn (held-news.js, `gesturedOn`).
+        gestured: [
+          ...new Set(unresolved.map(threadOfEntry).filter((id) => id !== null)),
+        ],
       },
       asks,
       // What is on the user and what is on the agent, selected from the readings

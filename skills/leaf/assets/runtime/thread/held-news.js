@@ -90,44 +90,18 @@ import { keys, focused } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
 import { focusThread, threadFocusStop } from "./focus.js";
 import { isReaction, threadKey, threadNames } from "./model.js";
-import { allThreads } from "./state.js";
+import { allThreads, threadState } from "./state.js";
 import { THREAD } from "./selectors.js";
 import { closestAcross } from "../passages.js";
 import { readApplication } from "../semantic-state.js";
 import { onStanding } from "../focus.js";
 
-// Whether this page's ledger holds a gesture of the user's on `thread`: one of its
-// messages, a reply, a settlement or a rewrite naming one, a move on a widget one of them holds, an
-// undo of any of those, which stands where the gesture it takes back stood, or the
-// refusal that takes one back, which stays in the ledger until the reading it restores
-// is drawn. Their words from another tab, or a turn a seat first draws after the log
-// answered it, as a package mirror whose render waited on work of its own does, arrive
-// like the agent's.
-export function gesturedOn(thread) {
-  const { unresolved, document, authoritative } = readApplication();
-  const messages = new Set(thread.msgs.map(({ id }) => id));
-  const attempts = new Set(thread.msgs.map(({ attempt }) => attempt).filter(Boolean));
-  const undone = (id) =>
-    unresolved.find(({ localId }) => localId === id)?.event ??
-    authoritative?.events.find((event) => event.id === id);
-  const standsIn = (event) => {
-    if (event.kind === "undo") {
-      const target = undone(event.undoes);
-      return Boolean(target) && standsIn(target);
-    }
-    return (
-      attempts.has(event.attempt) ||
-      messages.has(event.id) ||
-      messages.has(event.parent) ||
-      messages.has(event.message) ||
-      Boolean(
-        event.widget &&
-        messages.has(document.descriptors.get(event.widget)?.document.message),
-      )
-    );
-  };
-  return unresolved.some(({ event }) => standsIn(event));
-}
+// Whether this page's ledger holds a gesture of the user's on `thread`, of any kind, the
+// refusal that takes one back included until the reading it restores is drawn: the
+// application publisher says which thread each stands in (`thread.gestured`). Their
+// words from another tab, or a turn a seat first draws after the log answered it, as a
+// package mirror whose render waited on work of its own does, arrive like the agent's.
+export const gesturedOn = (thread) => threadState().gestured.includes(thread.id);
 
 // Whether the user acts in the thread a seat draws under `key` (`gesturedOn`).
 const gestured = (key) => {
